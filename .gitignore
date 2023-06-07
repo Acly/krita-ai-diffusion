@@ -1,0 +1,6 @@
+.debug
+.env
+.pytest_cache
+.vscode
+__pycache__
+tests/.results
