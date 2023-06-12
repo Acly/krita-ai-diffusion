@@ -70,8 +70,10 @@ class ImageDiffusionWidget(DockWidget):
         if not mask:
             raise Exception('A selection is required for inpaint')
         
-        result = workflow.inpaint(image, mask, prompt)
-        self.insert_layer(f'diffusion {prompt}', result, mask.bounds)
+        def cb(result):
+            self.insert_layer(f'diffusion {prompt}', result, mask.bounds)
+
+        result = workflow.inpaint(image, mask, prompt, cb)        
 
     def canvasChanged(self, canvas):
         pass

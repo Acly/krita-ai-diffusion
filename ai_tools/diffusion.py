@@ -5,24 +5,32 @@ from typing import Tuple
 from . import image
 from .image import Extent, Image
 
+from PyQt5.QtCore import QByteArray, QUrl
+from PyQt5.QtNetwork import QNetworkAccessManager, QNetworkRequest
+
 automatic1111_url = 'http://127.0.0.1:7860/sdapi/v1'
 default_upscale_prompt = 'highres 8k uhd'
 
-def post(url, data):
-    data_bytes = json.dumps(data).encode("utf-8")
-    headers = {
-        "Content-Type": "application/json",
-        "Content-Length": str(len(data_bytes))}
-    req = Request(url, data=data_bytes, headers=headers, method='POST')
-    try:
-        with urlopen(req) as response:
-            data = response.read()
-            return json.loads(data)
-    except Exception as e:
-        print(e)
-        raise e
+class RequestManager:
+    def __init__(self):
+        self._net = QNetworkAccessManager()
 
-def inpaint(img: Image, mask: Image, prompt: str):
+    def post(self, url, data, cb):
+        data_bytes = QByteArray(json.dumps(data).encode("utf-8"))
+        request = QNetworkRequest(QUrl(url))
+        request.setHeader(QNetworkRequest.ContentTypeHeader, 'application/json')
+        request.setHeader(QNetworkRequest.ContentLengthHeader, data_bytes.size())
+
+        
+        reply = self._net.post(request, data_bytes)
+        def ret_cb():
+            cb(json.loads(reply.readAll().data()))
+        reply.finished.connect(ret_cb)
+
+requests = RequestManager()
+
+
+def inpaint(img: Image, mask: Image, prompt: str, cb):
     assert img.extent == mask.extent
     cn_payload = {
         'controlnet': {
@@ -43,10 +51,12 @@ def inpaint(img: Image, mask: Image, prompt: str):
         'alwayson_scripts': cn_payload,
         'sampler_index': 'DDIM'
     }
-    result = post(url=f'{automatic1111_url}/txt2img', data=payload)
-    return Image.from_base64(result['images'][0])
+    def ret_cb(result):
+        cb(Image.from_base64(result['images'][0]))
+    requests.post(f'{automatic1111_url}/txt2img', payload, ret_cb)
+    
 
-def upscale(img: Image, target: Extent):
+def upscale(img: Image, target: Extent, cb):
     payload = {
         'init_images': [img.to_base64()],
         'resize_mode': 0,
@@ -58,5 +68,6 @@ def upscale(img: Image, target: Extent):
         'width': target.width,
         'height': target.height
     }
-    result = post(url=f'{automatic1111_url}/img2img', data=payload)
-    return Image.from_base64(result['images'][0])
+    def ret_cb(result):
+        cb(Image.from_base64(result['images'][0]))
+    requests.post(f'{automatic1111_url}/img2img', payload, ret_cb)
