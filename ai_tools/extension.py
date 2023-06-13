@@ -1,4 +1,5 @@
 from krita import Extension, Krita
+from . import eventloop
 
 class AIToolsExtension(Extension):
 
@@ -6,7 +7,7 @@ class AIToolsExtension(Extension):
         super().__init__(parent)
 
     def setup(self):
-        pass
+        eventloop.setup()
 
     def createActions(self, window):
         pass

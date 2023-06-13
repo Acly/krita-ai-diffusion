@@ -1,6 +1,7 @@
 from . import image
 from . import diffusion
 from . import workflow
+from .diffusion import Progress
 from .image import Bounds, Extent, Mask, Image
 
 import importlib.util
