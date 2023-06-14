@@ -55,7 +55,12 @@ class RequestManager:
         if code == QNetworkReply.NoError:
             future.set_result(json.loads(reply.readAll().data()))
         else:
-            future.set_exception(NetworkError(code, f'Server request failed: {reply.errorString()} [url={url}]'))
+            try: # extract detailed information from the payload
+                data = json.loads(reply.readAll().data())
+                err = f'{reply.errorString()} ({data["detail"]})'
+            except:
+                err = f'{reply.errorString()} ({url})'
+            future.set_exception(NetworkError(code, f'Server request failed: {err}'))
 
     def _cleanup(self):
         self._requests = {reply: request for reply, request in self._requests.items() if not reply.isFinished()}
@@ -122,16 +127,39 @@ async def inpaint(img: Image, mask: Image, prompt: str, progress: Progress):
     
 
 async def upscale(img: Image, target: Extent, progress: Progress):
+    cn_payload = {
+        'controlnet': {
+            'args': [{
+                'input_image': img.to_base64(),
+                'module': 'tile_resample',
+                'model': 'control_v11f1e_sd15_tile [a371b31b]',
+                'control_mode': 'Balanced'
+    }]}}
+    upscale_args = [
+        None,       # _
+        768, 768,   # tile_width, tile_height
+        8, 32,      # mask_blur, padding
+        0, 0, 0,    # seams_fix_width, seams_fix_denoise, seams_fix_padding
+        5,          # upscaler_index TODO 
+        False,      # save_upscaled_image
+        0,          # redraw mode = LINEAR
+        False,      # save_seams_fix_image
+        0, 0,       # seams_fix_mask_blur, seams_fix_type = NONE
+        0, 0, 0, 0  # size type, width, height, scale = FROM_IMG2IMG
+    ]
     payload = {
         'init_images': [img.to_base64()],
         'resize_mode': 0,
-        'denoising_strength': 0.3,
+        'denoising_strength': 0.4,
         'prompt': default_upscale_prompt,
         'sampler_index': 'DPM++ 2M Karras',
         'steps': 30,
         'cfg_scale': 5,
         'width': target.width,
-        'height': target.height
+        'height': target.height,
+        'script_name': 'ultimate sd upscale',
+        'script_args': upscale_args,
+        'alwayson_scripts': cn_payload
     }
     result = await auto1111('img2img', payload, progress)
     return Image.from_base64(result['images'][0])

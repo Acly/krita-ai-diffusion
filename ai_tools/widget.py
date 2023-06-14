@@ -37,10 +37,10 @@ class ImageDiffusionWidget(DockWidget):
         extent = Extent(doc.width(), doc.height())
         size_factor = min(doc.width(), doc.height())
         selection = user_selection.duplicate()
-        selection.feather(min(5, size_factor // 50))
+        selection.feather(min(5, size_factor // 32))
 
         bounds = Bounds(selection.x(), selection.y(), selection.width(), selection.height())
-        bounds = Bounds.pad(bounds, size_factor // 50, 8, extent)
+        bounds = Bounds.pad(bounds, size_factor // 32, 8, extent)
         data = selection.pixelData(*bounds)
         return Mask(bounds, data)
 
