@@ -8,6 +8,7 @@ from PyQt5.QtNetwork import QNetworkAccessManager, QNetworkRequest, QNetworkRepl
 
 automatic1111_url = 'http://127.0.0.1:7860/sdapi/v1'
 default_upscale_prompt = 'highres 8k uhd'
+default_negative_prompt = 'EasyNegative verybadimagenegative_v1.3'
 
 class NetworkError(Exception):
     def __init__(self, code, msg):
@@ -101,7 +102,15 @@ async def auto1111(op: str, data: dict, progress: Progress=...):
     return await request
 
 
-async def inpaint(img: Image, mask: Image, prompt: str, progress: Progress):
+def collect_images(result):
+    if 'images' in result:
+        assert isinstance(result['images'], list)
+        return Image.from_base64(result['images'][0])
+    print('no images, respone is', result)
+    return None # cancelled
+
+
+async def txt2img_inpaint(img: Image, mask: Image, prompt: str, progress: Progress):
     assert img.extent == mask.extent
     cn_payload = {
         'controlnet': {
@@ -115,6 +124,7 @@ async def inpaint(img: Image, mask: Image, prompt: str, progress: Progress):
     }]}}
     payload = {
         'prompt': prompt,
+        'negative_prompt': default_negative_prompt,
         'steps': 20,
         'cfg_scale': 5,
         'width': img.width,
@@ -123,10 +133,40 @@ async def inpaint(img: Image, mask: Image, prompt: str, progress: Progress):
         'sampler_index': 'DDIM'
     }
     result = await auto1111('txt2img', payload, progress)
-    return Image.from_base64(result['images'][0])
-    
+    return collect_images(result)
 
-async def upscale(img: Image, target: Extent, progress: Progress):
+
+async def img2img_inpaint(img: Image, mask: Image, prompt: str, strength: float, progress: Progress):
+    assert img.extent == mask.extent
+    cn_payload = {
+        'controlnet': {
+            'args': [{
+                'module': 'inpaint_only',
+                'model': 'control_v11p_sd15_inpaint [ebff9138]',
+                'control_mode': 'Balanced',
+                'pixel_perfect': True
+    }]}}
+    payload = {
+        'init_images': [img.to_base64()],
+        'denoising_strength': strength,
+        'mask': mask.to_base64(),
+        'mask_blur': 0,
+        'inpainting_fill': 1,
+        'inpainting_full_res': True,
+        'prompt': prompt,
+        'negative_prompt': default_negative_prompt,
+        'steps': 30,
+        'cfg_scale': 7,
+        'width': img.width,
+        'height': img.height,
+        'alwayson_scripts': cn_payload,
+        'sampler_index': 'DPM++ 2M Karras'
+    }
+    result = await auto1111('img2img', payload, progress)
+    return collect_images(result)
+
+
+async def upscale(img: Image, target: Extent, prompt: str, progress: Progress):
     cn_payload = {
         'controlnet': {
             'args': [{
@@ -151,7 +191,8 @@ async def upscale(img: Image, target: Extent, progress: Progress):
         'init_images': [img.to_base64()],
         'resize_mode': 0,
         'denoising_strength': 0.4,
-        'prompt': default_upscale_prompt,
+        'prompt': f'{default_upscale_prompt} {prompt}',
+        'negative_prompt': default_negative_prompt,
         'sampler_index': 'DPM++ 2M Karras',
         'steps': 30,
         'cfg_scale': 5,
@@ -162,4 +203,7 @@ async def upscale(img: Image, target: Extent, progress: Progress):
         'alwayson_scripts': cn_payload
     }
     result = await auto1111('img2img', payload, progress)
-    return Image.from_base64(result['images'][0])
+    return collect_images(result)
+
+async def interrupt():
+    return await auto1111('interrupt', {})

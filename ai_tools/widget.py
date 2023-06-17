@@ -1,12 +1,15 @@
 import asyncio
 
-from PyQt5.QtWidgets import QHBoxLayout, QPushButton, QWidget, QLineEdit
+from PyQt5.QtWidgets import QHBoxLayout, QVBoxLayout, QSlider, QPushButton, QWidget, QLineEdit, QPlainTextEdit, QLabel, QProgressBar
 from PyQt5.QtGui import QImage
+from PyQt5.QtCore import Qt
 from krita import Krita, DockWidget, DockWidgetFactory, DockWidgetFactoryBase
 
 from . import eventloop
+from . import diffusion
 from . import workflow
 from .image import Extent, Bounds, Mask, Image
+from .document import Document
 from .diffusion import Progress
 
 
@@ -18,72 +21,77 @@ class ImageDiffusionWidget(DockWidget):
         self.setWindowTitle("Image Diffusion")
 
         frame = QWidget(self)
-        frame.setLayout(QHBoxLayout())
+        frame.setLayout(QVBoxLayout())
         self.setWidget(frame)
 
+        # self.prompt_textbox = QPlainTextEdit(frame)
+        # self.prompt_textbox.setHorizontalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAlwaysOff)
+        # self.prompt_textbox.setVerticalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAlwaysOff)
+        # self.prompt_textbox.setTabChangesFocus(True)
         self.prompt_textbox = QLineEdit(frame)
         frame.layout().addWidget(self.prompt_textbox)
 
-        self.generate_button = QPushButton("Generate", frame)
-        self.generate_button.clicked.connect(self.inpaint)
-        frame.layout().addWidget(self.generate_button)
+        actions = QWidget(frame)
+        actions.setLayout(QHBoxLayout())
+        frame.layout().addWidget(actions)
 
-    def create_mask_from_selection(self):
-        doc = Krita.instance().activeDocument()
-        user_selection = doc.selection()
-        if not user_selection:
-            return None
+        self.strength_slider = QSlider(Qt.Horizontal, actions)
+        self.strength_slider.setMinimum(0)
+        self.strength_slider.setMaximum(100)
+        self.strength_slider.setSingleStep(5)
+        self.strength_slider.setValue(100)
+        actions.layout().addWidget(self.strength_slider)
 
-        extent = Extent(doc.width(), doc.height())
-        size_factor = min(doc.width(), doc.height())
-        selection = user_selection.duplicate()
-        selection.feather(min(5, size_factor // 32))
+        strength_text = QLabel(actions)
+        strength_text.setText('Strength: 100%')
+        actions.layout().addWidget(strength_text)
+        self.strength_slider.valueChanged.connect(lambda v: strength_text.setText(f'Strength: {v}%'))
 
-        bounds = Bounds(selection.x(), selection.y(), selection.width(), selection.height())
-        bounds = Bounds.pad(bounds, size_factor // 32, 8, extent)
-        data = selection.pixelData(*bounds)
-        return Mask(bounds, data)
+        self.generate_button = QPushButton("Generate", actions)
+        self.generate_button.clicked.connect(self.execute)
+        actions.layout().addWidget(self.generate_button)
 
-    def get_image(self):
-        doc = Krita.instance().activeDocument()
-        img = QImage(
-            doc.pixelData(0, 0, doc.width(), doc.height()),
-            doc.width(),
-            doc.height(),
-            QImage.Format_ARGB32)
-        return Image(img)
+        self.progress_bar = QProgressBar(frame)
+        self.progress_bar.setMinimum(0)
+        self.progress_bar.setMaximum(100)
+        frame.layout().addWidget(self.progress_bar)
 
     def report_progress(self, value):
+        if self._task and self._task.done():
+            self.progress_bar.setValue(100)
+        elif self._task:
+            self.progress_bar.setValue(int(value * 100))
+
+    def execute(self):
         if self._task and not self._task.done():
-            self.generate_button.setText(f'{value * 100:.0f}%')
+            return self.cancel()
 
-    def insert_layer(self, name: str, img: Image, bounds: Bounds):
-        assert img.extent == bounds.extent
-        doc = Krita.instance().activeDocument()
-        layer = doc.createNode(name, "paintLayer")
-        doc.rootNode().addChildNode(layer, None)
-        # TODO make sure image extent and format match
-        layer.setPixelData(img.data, *bounds)
-        doc.refreshProjection()
-
-    def inpaint(self):
-        assert not self._task or self._task.done()
-
-        self.generate_button.setText('working...')
-        self.generate_button.setEnabled(False)
+        assert self.generate_button.text() == 'Generate'
+        self.progress_bar.reset()
+        self.generate_button.setText('Cancel')
         prompt = self.prompt_textbox.text()
-        image = self.get_image()
+        strength = self.strength_slider.value() / 100
+
+        doc = Document.active()
+        image = doc.get_image()
         image.debug_save('krita_document')
-        mask = self.create_mask_from_selection()
+        mask = doc.create_mask_from_selection()
         if not mask:
             raise Exception('A selection is required for inpaint')
         
-        async def inpaint_task():
-            result = await workflow.inpaint(image, mask, prompt, Progress(self.report_progress))
-            self.insert_layer(f'diffusion {prompt}', result, mask.bounds)
+        async def run_task():
+            if strength >= 0.99:
+                result = await workflow.generate(image, mask, prompt, Progress(self.report_progress))
+            else:
+                result = await workflow.refine(image, mask, prompt, strength, Progress(self.report_progress))
+            if result:
+                doc.insert_layer(f'diffusion {prompt}', result, mask.bounds)            
             self.generate_button.setText('Generate')
-            self.generate_button.setEnabled(True)
-        self._task = eventloop.run(inpaint_task())
+        self._task = eventloop.run(run_task())
+
+    def cancel(self):
+        assert self.generate_button.text() == 'Cancel'
+        eventloop.run(diffusion.interrupt())
 
     def canvasChanged(self, canvas):
         pass

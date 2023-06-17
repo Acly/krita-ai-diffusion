@@ -130,13 +130,14 @@ class Mask:
     def rectangle(bounds: Bounds, feather = 0):
         # Note: for testing only, where Krita selection is not available
         m = [255 for i in range(bounds.width * bounds.height)]
-        for x, y in product(range(bounds.width), range(bounds.height)):
-            l = min(0, x - feather) * -1
-            t = min(0, y - feather) * -1
-            r = max(0, x + feather + 1 - bounds.width)
-            b = max(0, y + feather + 1 - bounds.height)
-            alpha = 64 * l // feather + 64 * t // feather + 64 * r // feather + 64 * b // feather
-            m[y * bounds.width + x] = 255 - alpha
+        if feather > 0:
+            for x, y in product(range(bounds.width), range(bounds.height)):
+                l = min(0, x - feather) * -1
+                t = min(0, y - feather) * -1
+                r = max(0, x + feather + 1 - bounds.width)
+                b = max(0, y + feather + 1 - bounds.height)
+                alpha = 64 * l // feather + 64 * t // feather + 64 * r // feather + 64 * b // feather
+                m[y * bounds.width + x] = 255 - alpha
         return Mask(bounds, QByteArray(bytes(m)))
 
     @staticmethod
@@ -164,12 +165,16 @@ class Mask:
     def to_array(self):
         return [x[0] for x in self.data]
 
-    def to_image(self, extent: Extent):
+    def to_image(self, extent: Extent=...):
+        offset = (self.bounds.x, self.bounds.y)
+        if extent is ...:
+            extent = self.bounds.extent
+            offset = (0, 0)
         img = QImage(extent.width, extent.height, QImage.Format_ARGB32)
         img.fill(0)
         for y in range(self.bounds.height):
             for x in range(self.bounds.width):
                 a = self.data[y * self.bounds.width + x][0]
                 col = qRgba(a, a, a, 255)
-                img.setPixel(self.bounds.x + x, self.bounds.y + y, col)
+                img.setPixel(offset[0] + x, offset[1] + y, col)
         return Image(img)

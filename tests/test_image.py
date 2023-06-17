@@ -39,6 +39,16 @@ def test_mask_to_image_offset():
        and img.pixel(2, 2) == (1, 1, 1, 255)\
        and img.pixel(1, 3) == (2, 2, 2, 255)\
        and img.pixel(2, 3) == (255, 255, 255, 255)
+
+def test_mask_to_image_no_extent():
+    data = QByteArray(b'\x00\x01\x02\xff')
+    mask = Mask(Bounds(1, 2, 2, 2), data)
+    img = mask.to_image()
+    assert img.width == 2 and img.height == 2
+    assert img.pixel(0, 0) == (0, 0, 0, 255)\
+       and img.pixel(1, 0) == (1, 1, 1, 255)\
+       and img.pixel(0, 1) == (2, 2, 2, 255)\
+       and img.pixel(1, 1) == (255, 255, 255, 255)
     
 def test_apply_mask():
     data = QByteArray(b'\x00\x01\x02\xff')
