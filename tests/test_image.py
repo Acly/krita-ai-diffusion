@@ -1,6 +1,6 @@
 from PyQt5.QtGui import QImage, qRgba
 from PyQt5.QtCore import QByteArray
-from ai_tools import image, Mask, Bounds, Extent, Image
+from ai_tools import image, Mask, Bounds, Extent, Image, ImageCollection
 
 def create_test_image(w, h):
     img = QImage(w, h, QImage.Format_ARGB32)
@@ -14,6 +14,20 @@ def test_base64():
     encoded = img.to_base64()
     decoded = Image.from_base64(encoded)
     assert img == decoded
+
+def test_image_collection_each():
+    col = ImageCollection([
+        create_test_image(2, 2), create_test_image(2, 2)])
+    col.each(lambda img: img.set_pixel(0, 0, (42, 42, 42, 42)))
+    assert col[0].pixel(0, 0) == (42, 42, 42, 42)\
+       and col[1].pixel(0, 0) == (42, 42, 42, 42)
+
+def test_image_collection_map():
+    col = ImageCollection([
+        create_test_image(2, 2), create_test_image(2, 2)])
+    sub = col.map(lambda img: Image.sub_region(img, Bounds(0, 0, 2, 1)))
+    assert sub[0].extent == (2, 1)\
+       and sub[1].extent == (2, 1)
 
 def test_pad_bounds():
     bounds = Bounds(3, 2, 5, 9)

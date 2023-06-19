@@ -1,4 +1,4 @@
-from .image import Bounds, Extent, Image, Mask
+from .image import Bounds, Extent, Image, ImageCollection, Mask
 from .diffusion import Progress
 from . import diffusion
 from . import settings
@@ -12,7 +12,7 @@ async def generate(image: Image, mask: Mask, prompt: str, progress: Progress):
         image = Image.downscale(image, max_res)
         mask_image = Image.downscale(mask_image, max_res)
         scale = image.width / original_width
-        progress = Progress.forward(progress, 0.5)
+        progress = Progress.forward(progress, 1 / (1 + settings.batch_size))
         assert scale < 1
     else:
         scale = 1
@@ -22,18 +22,18 @@ async def generate(image: Image, mask: Mask, prompt: str, progress: Progress):
         return None
     result.debug_save('diffusion_generate_result')
     # Result is the whole image, but we really only need the inpainted region
-    result = Image.sub_region(result, Bounds.scale(mask.bounds, scale))
+    result = result.map(lambda img: Image.sub_region(img, Bounds.scale(mask.bounds, scale)))
 
     # If we downscaled the original image before, upscale now, but only
     # the inpainted region (rest of the image hasn't changed)
     if scale < 1:
-        result = await diffusion.upscale(result, mask.bounds.extent, prompt, progress)
-        if not result: # cancelled
-            return None
+        result = ImageCollection([
+            await diffusion.upscale(img, mask.bounds.extent, prompt, progress)
+            for img in result])
 
     result.debug_save('diffusion_generate_upscale_result')
     # Set alpha in the result image according to the inpaint mask
-    Mask.apply(result, mask)
+    result.each(lambda img: Mask.apply(img, mask))
     result.debug_save('diffusion_generate_masked_result')
     return result
 
@@ -49,7 +49,7 @@ async def refine(image: Image, mask: Mask, prompt: str, strength: float, progres
         image = Image.downscale(image, max_res)
         mask_image = Image.downscale(mask_image, max_res)
         scale = image.width / original_width
-        progress = Progress.forward(progress, 0.5)
+        progress = Progress.forward(progress, 0.5) # TODO depends on batch size, merge with above
         assert scale < 1
     else:
         scale = 1
@@ -63,10 +63,12 @@ async def refine(image: Image, mask: Mask, prompt: str, strength: float, progres
     result.debug_save('diffusion_refine_result')
 
     if scale < 1:
-        result = await diffusion.upscale(result, mask.bounds.extent, prompt, progress)
-        if not result: # cancelled
+        result = ImageCollection([
+            await diffusion.upscale(img, mask.bounds.extent, prompt, progress)
+            for img in result])
+        if not all(result): # cancelled TODO use exception for cancel
             return None
     result.debug_save('diffusion_generate_upscale_result')
 
-    Mask.apply(result, mask)
+    result.each(lambda img: Mask.apply(img, mask))
     return result

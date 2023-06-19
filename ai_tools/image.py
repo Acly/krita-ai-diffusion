@@ -1,6 +1,6 @@
-from PyQt5.QtGui import QImage, qRgba, qRed, qGreen, qBlue, qAlpha
+from PyQt5.QtGui import QImage, QPixmap, QIcon, qRgba, qRed, qGreen, qBlue, qAlpha
 from PyQt5.QtCore import Qt, QByteArray, QBuffer
-from typing import Tuple, NamedTuple, Union
+from typing import Callable, Iterable, Tuple, NamedTuple, Union
 from itertools import product
 from pathlib import Path
 from . import settings
@@ -69,14 +69,6 @@ class Image:
     @property
     def extent(self): return Extent(self.width, self.height)
 
-    def to_base64(self):
-        byte_array = QByteArray()
-        buffer = QBuffer(byte_array)
-        buffer.open(QBuffer.WriteOnly)
-        self._qimage.save(buffer, 'PNG')
-        buffer.close()
-        return byte_array.toBase64().data().decode('utf-8')
-        
     @staticmethod
     def from_base64(data: str):
         bytes = QByteArray.fromBase64(data.encode('utf-8'))
@@ -106,6 +98,17 @@ class Image:
         ptr.setsize(self._qimage.byteCount())
         return QByteArray(ptr.asstring())
     
+    def to_base64(self):
+        byte_array = QByteArray()
+        buffer = QBuffer(byte_array)
+        buffer.open(QBuffer.WriteOnly)
+        self._qimage.save(buffer, 'PNG')
+        buffer.close()
+        return byte_array.toBase64().data().decode('utf-8')
+
+    def to_icon(self):
+        return QIcon(QPixmap.fromImage(self._qimage))
+    
     def save(self, filepath: Union[str, Path]):
         success = self._qimage.save(str(filepath))
         assert success, 'Failed to save image to f{filepath}'
@@ -116,6 +119,49 @@ class Image:
     
     def __eq__(self, other):
         return self._qimage == other._qimage
+
+
+class ImageCollection:
+
+    def __init__(self, items: Iterable[Image]):
+        self._items = []
+        for item in items:
+            if isinstance(item, ImageCollection):
+                self._items.extend(item)
+            else:
+                assert isinstance(item, Image)
+                self._items.append(item)
+
+    def map(self, func: Callable[[Image], Image]):
+        result = []
+        for img in self._items:
+            r = func(img)
+            if r is None:
+                return None # Early out for cancel/interrupt
+            assert isinstance(r, Image)
+            result.append(r)
+        return ImageCollection(result)
+    
+    def each(self, func: Callable[[Image], None]):
+        for img in self._items:
+            func(img)
+
+    def save(self, filepath: Union[Path, str]):
+        filepath = Path(filepath)
+        suffix = filepath.suffix
+        filepath = filepath.with_suffix('')
+        for i, img in enumerate(self._items):
+            img.save(filepath.with_name(f'{filepath.name}_{i}').with_suffix(suffix))
+
+    def debug_save(self, name):
+        for i, img in enumerate(self._items):
+            img.debug_save(f'{name}_{i}')
+
+    def __len__(self):
+        return len(self._items)
+    
+    def __getitem__(self, i):
+        return self._items[i]
 
 
 class Mask:

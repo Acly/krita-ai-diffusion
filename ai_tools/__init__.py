@@ -2,7 +2,7 @@ from . import image
 from . import diffusion
 from . import workflow
 from .diffusion import Progress
-from .image import Bounds, Extent, Mask, Image
+from .image import Bounds, Extent, Mask, Image, ImageCollection
 
 import importlib.util
 if importlib.util.find_spec('krita'):

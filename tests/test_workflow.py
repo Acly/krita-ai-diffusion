@@ -1,4 +1,4 @@
-from ai_tools import workflow, Mask, Bounds, Extent, Image, Progress
+from ai_tools import settings, workflow, Mask, Bounds, Extent, Image, Progress
 from pathlib import Path
 
 test_dir = Path(__file__).parent
@@ -9,6 +9,7 @@ def print_progress(value):
     print(f'Progress: {value * 100:.1f}%')
 
 def test_generate(qtapp):
+    settings.batch_size = 2
     image = Image.load(image_dir / 'beach_768x512.png')
     mask = Mask.rectangle(Bounds(50, 100, 320, 200), feather=10)
     async def main():
@@ -17,6 +18,7 @@ def test_generate(qtapp):
     qtapp.run(main())
     
 def test_generate_upscale(qtapp):
+    settings.batch_size = 2
     image = Image.load(image_dir / 'beach_1536x1024.png')
     mask = Mask.rectangle(Bounds(600, 200, 768, 512), feather=10)
     async def main():
@@ -25,6 +27,7 @@ def test_generate_upscale(qtapp):
     qtapp.run(main())
     
 def test_refine(qtapp):
+    settings.batch_size = 2
     image = Image.load(image_dir / 'lake_1536x1024.png')
     mask = Mask.rectangle(Bounds(760, 240, 525, 375), feather=16)
     async def main():

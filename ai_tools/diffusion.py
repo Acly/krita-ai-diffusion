@@ -1,7 +1,8 @@
 import asyncio
 import json
 from typing import Callable, NamedTuple
-from .image import Extent, Image
+from .image import Extent, Image, ImageCollection
+from . import settings
 
 from PyQt5.QtCore import QByteArray, QUrl
 from PyQt5.QtNetwork import QNetworkAccessManager, QNetworkRequest, QNetworkReply
@@ -102,10 +103,13 @@ async def auto1111(op: str, data: dict, progress: Progress=...):
     return await request
 
 
-def collect_images(result):
+def collect_images(result, count: int=...):
     if 'images' in result:
-        assert isinstance(result['images'], list)
-        return Image.from_base64(result['images'][0])
+        images = result['images']
+        assert isinstance(images, list)
+        if count is not ...:
+            images = images[:count]
+        return ImageCollection(map(Image.from_base64, images))
     print('no images, respone is', result)
     return None # cancelled
 
@@ -125,6 +129,7 @@ async def txt2img_inpaint(img: Image, mask: Image, prompt: str, progress: Progre
     payload = {
         'prompt': prompt,
         'negative_prompt': default_negative_prompt,
+        'batch_size': settings.batch_size,
         'steps': 20,
         'cfg_scale': 5,
         'width': img.width,
@@ -133,7 +138,7 @@ async def txt2img_inpaint(img: Image, mask: Image, prompt: str, progress: Progre
         'sampler_index': 'DDIM'
     }
     result = await auto1111('txt2img', payload, progress)
-    return collect_images(result)
+    return collect_images(result, count=-1)
 
 
 async def img2img_inpaint(img: Image, mask: Image, prompt: str, strength: float, progress: Progress):
@@ -155,6 +160,7 @@ async def img2img_inpaint(img: Image, mask: Image, prompt: str, strength: float,
         'inpainting_full_res': True,
         'prompt': prompt,
         'negative_prompt': default_negative_prompt,
+        'batch_size': settings.batch_size,
         'steps': 30,
         'cfg_scale': 7,
         'width': img.width,
@@ -163,7 +169,7 @@ async def img2img_inpaint(img: Image, mask: Image, prompt: str, strength: float,
         'sampler_index': 'DPM++ 2M Karras'
     }
     result = await auto1111('img2img', payload, progress)
-    return collect_images(result)
+    return collect_images(result, count=-1)
 
 
 async def upscale(img: Image, target: Extent, prompt: str, progress: Progress):

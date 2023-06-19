@@ -1,3 +1,4 @@
+import krita
 from krita import Krita
 from .image import Extent, Bounds, Mask, Image
 from PyQt5.QtGui import QImage
@@ -9,7 +10,8 @@ class Document:
 
     @staticmethod
     def active():
-        return Document(Krita.instance().activeDocument())
+        doc = Krita.instance().activeDocument()
+        return Document(doc) if doc else None
 
     @property
     def extent(self):
@@ -40,6 +42,10 @@ class Document:
         assert img.extent == bounds.extent
         layer = self._doc.createNode(name, "paintLayer")
         self._doc.rootNode().addChildNode(layer, None)
+        self.set_layer_pixels(layer, img, bounds)
+        return layer
+    
+    def set_layer_pixels(self, layer: krita.Node, img: Image, bounds: Bounds):
         # TODO make sure image extent and format match
         layer.setPixelData(img.data, *bounds)
         self._doc.refreshProjection()
