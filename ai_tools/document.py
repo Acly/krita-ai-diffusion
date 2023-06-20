@@ -43,6 +43,7 @@ class Document:
         layer = self._doc.createNode(name, "paintLayer")
         self._doc.rootNode().addChildNode(layer, None)
         self.set_layer_pixels(layer, img, bounds)
+        layer.setLocked(True)
         return layer
     
     def set_layer_pixels(self, layer: krita.Node, img: Image, bounds: Bounds):

@@ -77,8 +77,18 @@ class ImageDiffusionWidget(DockWidget):
         self.preview_list.setViewMode(QListWidget.IconMode)
         self.preview_list.setIconSize(QSize(128, 128))
         self.preview_list.currentItemChanged.connect(self.apply_preview)
-        layout.setRowStretch(4, 1)
+        layout.setRowStretch(5, 1)
         layout.addWidget(self.preview_list, 5, 0, 1, 2)
+
+        self.discard_button = QPushButton('Discard', frame)
+        self.discard_button.setEnabled(False)
+        self.discard_button.clicked.connect(self.discard_result)
+        layout.addWidget(self.discard_button, 6, 0)
+
+        self.apply_button = QPushButton('Apply', frame)
+        self.apply_button.setEnabled(False)
+        self.apply_button.clicked.connect(self.apply_result)
+        layout.addWidget(self.apply_button, 6, 1)
 
     def report_progress(self, value: float):
         if self._task and self._task.done():
@@ -96,13 +106,17 @@ class ImageDiffusionWidget(DockWidget):
 
     def apply_preview(self, current, previous):
         index = self.preview_list.row(current)
-        print(index)
-        self._doc.set_layer_pixels(self._result_layer, self._result_images[index], self._result_bounds)
+        if index >= 0: 
+            self._doc.set_layer_pixels(self._result_layer, self._result_images[index], self._result_bounds)
 
     def reset(self):
+        if self._result_layer:
+            self._result_layer.remove()
         self.progress_bar.reset()
         self.error_text.setVisible(False)
         self.preview_list.clear()
+        self.apply_button.setEnabled(False)
+        self.discard_button.setEnabled(False)
         self._result_images = None
         self._result_layer = None
         self._result_bounds = None
@@ -136,9 +150,11 @@ class ImageDiffusionWidget(DockWidget):
                         image, mask, prompt, strength, Progress(self.report_progress))
                 if result:
                     self._result_images = result
-                    self._result_layer = doc.insert_layer(f'diffusion {prompt}', result[0], mask.bounds)
+                    self._result_layer = doc.insert_layer(f'[Preview] {prompt}', result[0], mask.bounds)
                     self._result_bounds = mask.bounds
                     self.add_preview(result)
+                    self.apply_button.setEnabled(True)
+                    self.discard_button.setEnabled(True)
             except Exception as e:
                 self.report_error(str(e))
                 raise e
@@ -149,6 +165,19 @@ class ImageDiffusionWidget(DockWidget):
     def cancel(self):
         assert self.generate_button.text() == 'Cancel'
         eventloop.run(diffusion.interrupt())
+
+    def apply_result(self):
+        assert self._result_layer is not None
+        new_layer = self._result_layer
+        self._result_layer = self._result_layer.duplicate()
+        parent = new_layer.parentNode()
+        parent.addChildNode(self._result_layer, new_layer)
+        new_layer.setLocked(False)
+        new_layer.setName(new_layer.name().replace('[Preview]', '[Diffusion]'))
+
+    def discard_result(self):
+        assert self._result_layer is not None
+        self.reset()
 
     def canvasChanged(self, canvas):
         self.generate_button.setEnabled(Document.active() is not None)
