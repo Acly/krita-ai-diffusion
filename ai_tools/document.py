@@ -16,6 +16,14 @@ class Document:
     @property
     def extent(self):
         return Extent(self._doc.width(), self._doc.height())
+    
+    @property
+    def is_active(self):
+        return self._doc == Krita.instance().activeDocument()
+    
+    @property
+    def is_valid(self):
+        return self._doc in Krita.instance().documents()
 
     def create_mask_from_selection(self):
         user_selection = self._doc.selection()
