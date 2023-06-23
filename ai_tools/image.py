@@ -5,36 +5,40 @@ from itertools import product
 from pathlib import Path
 from . import settings
 
+
 def round_to_multiple(number, multiple):
     return multiple * (number // multiple + 1)
+
 
 class Extent(NamedTuple):
     width: int
     height: int
+
 
 class Bounds(NamedTuple):
     x: int
     y: int
     width: int
     height: int
-    
+
     @property
     def extent(self):
         return Extent(self.width, self.height)
-    
+
     def is_within(self, x: int, y: int):
-        return x >= 0 and x < self.width\
-            and y >= 0 and y < self.height
-    
+        return x >= 0 and x < self.width and y >= 0 and y < self.height
+
     @staticmethod
     def scale(b, scale: float):
-        def apply(x): return int(round(x * scale))
+        def apply(x):
+            return int(round(x * scale))
+
         return Bounds(apply(b.x), apply(b.y), apply(b.width), apply(b.height))
 
     @staticmethod
     def pad(bounds, padding: int, multiple: int, extent: Extent):
         def clamp(offset, size, max_size):
-            diff = max_size - size - offset        
+            diff = max_size - size - offset
             return offset + diff if diff < 0 else offset
 
         new_width = round_to_multiple(bounds.width + 2 * padding, multiple)
@@ -43,12 +47,12 @@ class Bounds(NamedTuple):
         new_y = clamp(bounds.y - padding, new_height, extent.height)
         return Bounds(new_x, new_y, new_width, new_height)
 
+
 def extent_equal(a: QImage, b: QImage):
     return a.width() == b.width() and a.height() == b.height()
 
 
 class Image:
-
     def __init__(self, qimage: QImage):
         assert qimage.format() == QImage.Format_ARGB32
         self._qimage = qimage
@@ -57,29 +61,42 @@ class Image:
     def load(filepath: Union[str, Path]):
         image = QImage()
         success = image.load(str(filepath))
-        assert success, f'Failed to load image {filepath}'
+        assert success, f"Failed to load image {filepath}"
         return Image(image.convertToFormat(QImage.Format_ARGB32))
-    
-    @property
-    def width(self): return self._qimage.width()
+
+    @staticmethod
+    def create(extent: Extent):
+        return Image(QImage(extent.width, extent.height, QImage.Format_ARGB32))
 
     @property
-    def height(self): return self._qimage.height()
+    def width(self):
+        return self._qimage.width()
 
     @property
-    def extent(self): return Extent(self.width, self.height)
+    def height(self):
+        return self._qimage.height()
+
+    @property
+    def extent(self):
+        return Extent(self.width, self.height)
 
     @staticmethod
     def from_base64(data: str):
-        bytes = QByteArray.fromBase64(data.encode('utf-8'))
-        img = QImage.fromData(bytes, 'PNG').convertToFormat(QImage.Format_ARGB32)
+        bytes = QByteArray.fromBase64(data.encode("utf-8"))
+        img = QImage.fromData(bytes, "PNG").convertToFormat(QImage.Format_ARGB32)
         return Image(img)
 
     @staticmethod
-    def downscale(img, target=768):
-        scaled = img._qimage.scaled(target, target, Qt.KeepAspectRatio, Qt.SmoothTransformation)
+    def scale(img, target: Union[Extent, int]):
+        mode = Qt.AspectRatioMode.IgnoreAspectRatio
+        if isinstance(target, int):
+            mode = Qt.AspectRatioMode.KeepAspectRatio
+            target = Extent(target, target)
+        scaled = img._qimage.scaled(
+            target.width, target.height, mode, Qt.TransformationMode.SmoothTransformation
+        )
         return Image(scaled.convertToFormat(QImage.Format_ARGB32))
-    
+
     @staticmethod
     def sub_region(img, bounds: Bounds):
         return Image(img._qimage.copy(*bounds))
@@ -87,7 +104,7 @@ class Image:
     def pixel(self, x: int, y: int):
         c = self._qimage.pixel(x, y)
         return (qRed(c), qGreen(c), qBlue(c), qAlpha(c))
-    
+
     def set_pixel(self, x: int, y: int, color: Tuple[int, int, int, int]):
         r, g, b, a = color
         self._qimage.setPixel(x, y, qRgba(r, g, b, a))
@@ -97,32 +114,31 @@ class Image:
         ptr = self._qimage.bits()
         ptr.setsize(self._qimage.byteCount())
         return QByteArray(ptr.asstring())
-    
+
     def to_base64(self):
         byte_array = QByteArray()
         buffer = QBuffer(byte_array)
         buffer.open(QBuffer.WriteOnly)
-        self._qimage.save(buffer, 'PNG')
+        self._qimage.save(buffer, "PNG")
         buffer.close()
-        return byte_array.toBase64().data().decode('utf-8')
+        return byte_array.toBase64().data().decode("utf-8")
 
     def to_icon(self):
         return QIcon(QPixmap.fromImage(self._qimage))
-    
+
     def save(self, filepath: Union[str, Path]):
         success = self._qimage.save(str(filepath))
-        assert success, 'Failed to save image to f{filepath}'
+        assert success, "Failed to save image to f{filepath}"
 
     def debug_save(self, name):
         if settings.debug_image_folder:
-            self.save(Path(settings.debug_image_folder, f'{name}.png'))
-    
+            self.save(Path(settings.debug_image_folder, f"{name}.png"))
+
     def __eq__(self, other):
         return self._qimage == other._qimage
 
 
 class ImageCollection:
-
     def __init__(self, items: Iterable[Image]):
         self._items = []
         for item in items:
@@ -136,12 +152,10 @@ class ImageCollection:
         result = []
         for img in self._items:
             r = func(img)
-            if r is None:
-                return None # Early out for cancel/interrupt
             assert isinstance(r, Image)
             result.append(r)
         return ImageCollection(result)
-    
+
     def each(self, func: Callable[[Image], None]):
         for img in self._items:
             func(img)
@@ -149,17 +163,17 @@ class ImageCollection:
     def save(self, filepath: Union[Path, str]):
         filepath = Path(filepath)
         suffix = filepath.suffix
-        filepath = filepath.with_suffix('')
+        filepath = filepath.with_suffix("")
         for i, img in enumerate(self._items):
-            img.save(filepath.with_name(f'{filepath.name}_{i}').with_suffix(suffix))
+            img.save(filepath.with_name(f"{filepath.name}_{i}").with_suffix(suffix))
 
     def debug_save(self, name):
         for i, img in enumerate(self._items):
-            img.debug_save(f'{name}_{i}')
+            img.debug_save(f"{name}_{i}")
 
     def __len__(self):
         return len(self._items)
-    
+
     def __getitem__(self, i):
         return self._items[i]
 
@@ -173,7 +187,7 @@ class Mask:
         self.data = data
 
     @staticmethod
-    def rectangle(bounds: Bounds, feather = 0):
+    def rectangle(bounds: Bounds, feather=0):
         # Note: for testing only, where Krita selection is not available
         m = [255 for i in range(bounds.width * bounds.height)]
         if feather > 0:
@@ -182,7 +196,9 @@ class Mask:
                 t = min(0, y - feather) * -1
                 r = max(0, x + feather + 1 - bounds.width)
                 b = max(0, y + feather + 1 - bounds.height)
-                alpha = 64 * l // feather + 64 * t // feather + 64 * r // feather + 64 * b // feather
+                alpha = (
+                    64 * l // feather + 64 * t // feather + 64 * r // feather + 64 * b // feather
+                )
                 m[y * bounds.width + x] = 255 - alpha
         return Mask(bounds, QByteArray(bytes(m)))
 
@@ -191,12 +207,17 @@ class Mask:
         if img.width == mask.bounds.width and img.height == mask.bounds.height:
             x_offset = 0
             y_offset = 0
-        elif img.width >= mask.bounds.x + mask.bounds.width and img.height >= mask.bounds.y + mask.bounds.height:
+        elif (
+            img.width >= mask.bounds.x + mask.bounds.width
+            and img.height >= mask.bounds.y + mask.bounds.height
+        ):
             x_offset = mask.bounds.x
             y_offset = mask.bounds.y
         else:
-            assert False, f'Cannot apply mask with {mask.bounds} to image of size ({img.width, img.height}).'
-        
+            assert (
+                False
+            ), f"Cannot apply mask with {mask.bounds} to image of size ({img.width, img.height})."
+
         for y in range(img.height):
             for x in range(img.width):
                 r, g, b, _ = img.pixel(x, y)
@@ -205,13 +226,13 @@ class Mask:
 
     def value(self, x: int, y: int):
         if self.bounds.is_within(x, y):
-            return int.from_bytes(self.data[y * self.bounds.width + x], 'big')
+            return int.from_bytes(self.data[y * self.bounds.width + x], "big")
         return 0
-    
+
     def to_array(self):
         return [x[0] for x in self.data]
 
-    def to_image(self, extent: Extent=...):
+    def to_image(self, extent: Extent = ...):
         offset = (self.bounds.x, self.bounds.y)
         if extent is ...:
             extent = self.bounds.extent

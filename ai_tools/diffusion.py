@@ -38,6 +38,7 @@ class RequestManager:
         self._cleanup()
 
         request = QNetworkRequest(QUrl(url))
+        # request.setTransferTimeout({"GET": 30000, "POST": 0}[method]) # requires Qt 5.15 (Krita 5.2)
         if data is not None:
             data_bytes = QByteArray(json.dumps(data).encode("utf-8"))
             request.setHeader(QNetworkRequest.ContentTypeHeader, "application/json")
@@ -127,7 +128,7 @@ def collect_images(result, count: int = ...):
     raise Interrupted()
 
 
-async def txt2img_inpaint(img: Image, mask: Image, prompt: str, progress: Progress):
+async def txt2img_inpaint(img: Image, mask: Image, prompt: str, extent: Extent, progress: Progress):
     assert img.extent == mask.extent
     cn_payload = {
         "controlnet": {
@@ -149,8 +150,8 @@ async def txt2img_inpaint(img: Image, mask: Image, prompt: str, progress: Progre
         "batch_size": settings.batch_size,
         "steps": 20,
         "cfg_scale": 5,
-        "width": img.width,
-        "height": img.height,
+        "width": extent.width,
+        "height": extent.height,
         "alwayson_scripts": cn_payload,
         "sampler_index": "DDIM",
     }
@@ -159,7 +160,7 @@ async def txt2img_inpaint(img: Image, mask: Image, prompt: str, progress: Progre
 
 
 async def img2img_inpaint(
-    img: Image, mask: Image, prompt: str, strength: float, progress: Progress
+    img: Image, mask: Image, prompt: str, strength: float, extent: Extent, progress: Progress
 ):
     assert img.extent == mask.extent
     cn_payload = {
@@ -186,8 +187,8 @@ async def img2img_inpaint(
         "batch_size": settings.batch_size,
         "steps": 30,
         "cfg_scale": 7,
-        "width": img.width,
-        "height": img.height,
+        "width": extent.width,
+        "height": extent.height,
         "alwayson_scripts": cn_payload,
         "sampler_index": "DPM++ 2M Karras",
     }
@@ -217,7 +218,7 @@ async def upscale(img: Image, target: Extent, prompt: str, progress: Progress):
         0,  # seams_fix_width
         0,  # seams_fix_denoise
         0,  # seams_fix_padding
-        5,  # upscaler_index TODO
+        1,  # upscaler_index TODO
         False,  # save_upscaled_image
         0,  # redraw mode = LINEAR
         False,  # save_seams_fix_image
