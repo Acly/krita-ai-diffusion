@@ -1,5 +1,15 @@
 import pytest
-from ai_tools import settings, workflow, Mask, Bounds, Extent, Image, Progress, ImageCollection
+from ai_tools import (
+    settings,
+    workflow,
+    Mask,
+    Bounds,
+    Extent,
+    Image,
+    Progress,
+    ImageCollection,
+    Auto1111,
+)
 from pathlib import Path
 
 test_dir = Path(__file__).parent
@@ -7,8 +17,13 @@ image_dir = test_dir / "images"
 result_dir = test_dir / ".results"
 
 
-def print_progress(value):
-    print(f"Progress: {value * 100:.1f}%")
+def check_progress(value):
+    assert value >= 0 and value <= 1
+
+
+@pytest.fixture()
+def auto1111(qtapp):
+    return qtapp.run(Auto1111.connect())
 
 
 @pytest.mark.parametrize(
@@ -18,7 +33,7 @@ def print_progress(value):
 def test_prepare_upscale(input, expected, scale):
     image = Image.create(input)
     mask = Image.create(input)
-    progress = Progress(print_progress)
+    progress = Progress(check_progress)
     result = workflow.prepare(image, mask, progress)
     assert (
         result.image.extent == expected
@@ -36,7 +51,7 @@ def test_prepare_upscale(input, expected, scale):
 def test_prepare_downscale(input, expected, scale):
     image = Image.create(input)
     mask = Image.create(input)
-    progress = Progress(print_progress)
+    progress = Progress(check_progress)
     result = workflow.prepare(image, mask, progress)
     assert (
         result.image.extent == input
@@ -54,7 +69,7 @@ def test_prepare_downscale(input, expected, scale):
 def test_prepare_passthrough(input):
     image = Image.create(input)
     mask = Image.create(input)
-    progress = Progress(print_progress)
+    progress = Progress(check_progress)
     result = workflow.prepare(image, mask, progress)
     assert (
         result.image == image
@@ -68,48 +83,50 @@ def test_prepare_passthrough(input):
 @pytest.mark.parametrize(
     "target", [Extent(256, 256), Extent(256, 192), Extent(1024, 512), Extent(512, 256)]
 )
-def test_post(qtapp, target):
+def test_post(qtapp, auto1111, target):
     images = ImageCollection([Image.create(Extent(512, 256))])
-    progress = Progress(print_progress)
+    progress = Progress(check_progress)
 
     async def main():
-        return await workflow.postprocess(images, target, "", progress)
+        return await workflow.postprocess(auto1111, images, target, "", progress)
 
     result = qtapp.run(main())
     assert result[0].extent == target
 
 
-def test_generate(qtapp):
+def test_generate(qtapp, auto1111):
     settings.batch_size = 2
     image = Image.load(image_dir / "beach_768x512.png")
     mask = Mask.rectangle(Bounds(50, 100, 320, 200), feather=10)
 
     async def main():
-        result = await workflow.generate(image, mask, "ship", Progress(print_progress))
+        result = await workflow.generate(auto1111, image, mask, "ship", Progress(check_progress))
         result.save(result_dir / "test_generate.png")
 
     qtapp.run(main())
 
 
-def test_generate_upscale(qtapp):
+def test_generate_upscale(qtapp, auto1111):
     settings.batch_size = 2
     image = Image.load(image_dir / "beach_1536x1024.png")
     mask = Mask.rectangle(Bounds(600, 200, 768, 512), feather=10)
 
     async def main():
-        result = await workflow.generate(image, mask, "ship", Progress(print_progress))
+        result = await workflow.generate(auto1111, image, mask, "ship", Progress(check_progress))
         result.save(result_dir / "test_generate_upscale.png")
 
     qtapp.run(main())
 
 
-def test_refine(qtapp):
+def test_refine(qtapp, auto1111):
     settings.batch_size = 2
     image = Image.load(image_dir / "lake_1536x1024.png")
     mask = Mask.rectangle(Bounds(760, 240, 525, 375), feather=16)
 
     async def main():
-        result = await workflow.refine(image, mask, "waterfall", 0.6, Progress(print_progress))
+        result = await workflow.refine(
+            auto1111, image, mask, "waterfall", 0.6, Progress(check_progress)
+        )
         result.save(result_dir / "test_refine.png")
 
     qtapp.run(main())

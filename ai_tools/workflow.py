@@ -1,7 +1,6 @@
 from typing import NamedTuple
 from .image import Bounds, Extent, Image, ImageCollection, Mask
-from .diffusion import Progress
-from . import diffusion
+from .diffusion import Progress, Auto1111
 from . import settings
 
 
@@ -49,7 +48,11 @@ def prepare(image: Image, mask: Image, progress: Progress):
 
 
 async def postprocess(
-    result: ImageCollection, output_extent: Extent, prompt: str, progress: Progress
+    diffusion: Auto1111,
+    result: ImageCollection,
+    output_extent: Extent,
+    prompt: str,
+    progress: Progress,
 ):
     input_extent = result[0].extent
     if input_extent.width < output_extent.width or input_extent.height < output_extent.height:
@@ -66,40 +69,40 @@ async def postprocess(
     return result
 
 
-async def generate(image: Image, mask: Mask, prompt: str, progress: Progress):
+async def generate(diffusion: Auto1111, image: Image, mask: Mask, prompt: str, progress: Progress):
     mask_image = mask.to_image(image.extent)
-    input = prepare(image, mask_image, progress)
+    image, mask_image, scale, target_extent, progress = prepare(image, mask_image, progress)
 
-    result = await diffusion.txt2img_inpaint(
-        input.image, input.mask, prompt, input.target_extent, progress
-    )
+    result = await diffusion.txt2img_inpaint(image, mask_image, prompt, target_extent, progress)
     result.debug_save("diffusion_generate_result")
 
     # Result is the whole image, continue to work only with the inpainted region
-    scaled_bounds = Bounds.scale(mask.bounds, input.scale)
+    scaled_bounds = Bounds.scale(mask.bounds, scale)
     result = result.map(lambda img: Image.sub_region(img, scaled_bounds))
 
-    result = await postprocess(result, mask.bounds.extent, prompt, progress)
+    result = await postprocess(diffusion, result, mask.bounds.extent, prompt, progress)
     result.debug_save("diffusion_generate_post_result")
 
     result.each(lambda img: Mask.apply(img, mask))
     return result
 
 
-async def refine(image: Image, mask: Mask, prompt: str, strength: float, progress: Progress):
+async def refine(
+    diffusion: Auto1111, image: Image, mask: Mask, prompt: str, strength: float, progress: Progress
+):
     assert strength > 0 and strength < 1
 
     image = Image.sub_region(image, mask.bounds)
-    input = prepare(image, mask.to_image(), progress)
-    input.image.debug_save("diffusion_refine_input")
-    input.mask.debug_save("diffusion_refine_input_mask")
+    image, mask_image, _, target_extent, progress = prepare(image, mask.to_image(), progress)
+    image.debug_save("diffusion_refine_input")
+    mask_image.debug_save("diffusion_refine_input_mask")
 
     result = await diffusion.img2img_inpaint(
-        input.image, input.mask, prompt, strength, input.target_extent, progress
+        image, mask_image, prompt, strength, target_extent, progress
     )
     result.debug_save("diffusion_refine_result")
 
-    result = await postprocess(result, mask.bounds.extent, prompt, progress)
+    result = await postprocess(diffusion, result, mask.bounds.extent, prompt, progress)
     result.debug_save("diffusion_refine_post_result")
 
     result.each(lambda img: Mask.apply(img, mask))

@@ -29,7 +29,7 @@ from . import diffusion
 from . import workflow
 from .image import Bounds, ImageCollection
 from .document import Document
-from .diffusion import Progress
+from .diffusion import Progress, Auto1111, Interrupted
 
 
 class State(Enum):
@@ -55,7 +55,7 @@ class Model:
     def __init__(self, document):
         self._doc = document
 
-    async def run_diffusion(self, report_progress: Callable[[], None]):
+    async def run_diffusion(self, diffusion: Auto1111, report_progress: Callable[[], None]):
         assert self.state is State.setup
         self._report_progress = report_progress
         self.progress = 0.0
@@ -68,18 +68,23 @@ class Model:
             self.state = State.generating
             if self.strength >= 0.99:
                 self.results = await workflow.generate(
-                    image, mask, self.prompt, Progress(self.report_progress)
+                    diffusion, image, mask, self.prompt, Progress(self.report_progress)
                 )
             else:
                 self.results = await workflow.refine(
-                    image, mask, self.prompt, self.strength, Progress(self.report_progress)
+                    diffusion,
+                    image,
+                    mask,
+                    self.prompt,
+                    self.strength,
+                    Progress(self.report_progress),
                 )
             self._layer = self._doc.insert_layer(
                 f"[Preview] {self.prompt}", self.results[0], mask.bounds
             )
             self._bounds = mask.bounds
             self.state = State.preview
-        except diffusion.Interrupted:
+        except Interrupted:
             self.reset()
         except Exception as e:
             self.report_error(str(e))
@@ -134,6 +139,7 @@ class SetupWidget(QWidget):
     _model: Model = ...
 
     started = pyqtSignal()
+    cancelled = pyqtSignal()
 
     def __init__(self):
         super().__init__()
@@ -228,9 +234,9 @@ class SetupWidget(QWidget):
 
     def cancel(self):
         assert self.generate_button.text() == "Cancel"
-        eventloop.run(diffusion.interrupt())
         self.model.cancel()
         self.update()
+        self.cancelled.emit()
 
     def change_prompt(self):
         self.model.prompt = self.prompt_textbox.toPlainText()
@@ -311,16 +317,57 @@ class PreviewWidget(QWidget):
 
 
 class WelcomeWidget(QWidget):
+    connectRequested = pyqtSignal()
+
     def __init__(self):
         super().__init__()
-        self.setLayout(QVBoxLayout())
-        self.layout().addWidget(QLabel("AI Image Diffusion", self))
-        self.layout().addWidget(
-            QLabel("Create a new document or open an existing image to start.", self)
-        )
+        layout = QVBoxLayout()
+        self.setLayout(layout)
+        layout.addWidget(QLabel("AI Image Diffusion", self))
+
+        self._connect_status = QLabel("Not connected to Automatic1111 server.", self)
+        layout.addWidget(self._connect_status)
+
+        self._connect_error = QLabel(self)
+        self._connect_error.setVisible(False)
+        self._connect_error.setWordWrap(True)
+        self._connect_error.setStyleSheet("font-weight: bold; color: red;")
+        layout.addWidget(self._connect_error)
+
+        self._connect_button = QPushButton("Connect", self)
+        self._connect_button.clicked.connect(self.request_connection)
+        layout.addWidget(self._connect_button)
+
+        self._settings_button = QPushButton("Settings", self)
+        layout.addWidget(self._settings_button)
+
+        layout.addStretch()
+
+    async def connect(self):
+        self._connect_error.setVisible(False)
+        self._connect_button.setVisible(False)
+        try:
+            self._connect_status.setText(
+                f"Connecting to Automatic1111 server at {Auto1111.default_url}..."
+            )
+            diffusion = await Auto1111.connect()
+            self._connect_status.setText(
+                f"Connected to Automatic1111 server at {diffusion.url}.\n\nCreate a new document or open an existing image to start."
+            )
+            return diffusion
+        except Exception as e:
+            self._connect_status.setText("Not connected to Automatic1111 server.")
+            self._connect_error.setText(str(e))
+            self._connect_error.setVisible(True)
+            self._connect_button.setVisible(True)
+            return None
+
+    def request_connection(self):
+        self.connectRequested.emit()
 
 
 class ImageDiffusionWidget(DockWidget):
+    _diffusion: Auto1111 = None
     _models: list[Model] = []
 
     def __init__(self):
@@ -335,8 +382,21 @@ class ImageDiffusionWidget(DockWidget):
         self._frame.addWidget(self._preview)
         self.setWidget(self._frame)
 
+        self._welcome.connectRequested.connect(self.connect)
         self._setup.started.connect(self.generate)
+        self._setup.cancelled.connect(self.cancel)
         self._preview.finished.connect(self.update)
+
+        self.connect()
+
+    def connect(self):
+        assert not self._diffusion, "Already connected"
+
+        async def init():
+            self._diffusion = await self._welcome.connect()
+            self.update()
+
+        eventloop.run(init())
 
     def canvasChanged(self, canvas):
         # Remove models for documents that have been closed
@@ -357,7 +417,7 @@ class ImageDiffusionWidget(DockWidget):
         return next((m for m in self._models if m.is_active), None)
 
     def update(self):
-        if self.model is None:
+        if self.model is None or self._diffusion is None:
             self._frame.setCurrentWidget(self._welcome)
         elif self.model.state in [State.setup, State.generating]:
             self._setup.update()
@@ -381,11 +441,14 @@ class ImageDiffusionWidget(DockWidget):
         model = self.model
 
         async def run_task():
-            await model.run_diffusion(self.report_progress)
+            await model.run_diffusion(self._diffusion, self.report_progress)
             if model == self.model:  # still viewing the same canvas
                 self.update()
 
         model.task = eventloop.run(run_task())
+
+    def cancel(self):
+        eventloop.run(self._diffusion.interrupt())
 
 
 Krita.instance().addDockWidgetFactory(
