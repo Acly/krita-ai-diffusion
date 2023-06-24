@@ -7,6 +7,8 @@ from . import settings
 
 
 def round_to_multiple(number, multiple):
+    if multiple == 1:
+        return number
     return multiple * (number // multiple + 1)
 
 
@@ -36,16 +38,20 @@ class Bounds(NamedTuple):
         return Bounds(apply(b.x), apply(b.y), apply(b.width), apply(b.height))
 
     @staticmethod
-    def pad(bounds, padding: int, multiple: int, extent: Extent):
-        def clamp(offset, size, max_size):
-            diff = max_size - size - offset
-            return offset + diff if diff < 0 else offset
-
+    def pad(bounds, padding: int, multiple: int):
         new_width = round_to_multiple(bounds.width + 2 * padding, multiple)
         new_height = round_to_multiple(bounds.height + 2 * padding, multiple)
-        new_x = clamp(bounds.x - padding, new_width, extent.width)
-        new_y = clamp(bounds.y - padding, new_height, extent.height)
+        new_x = bounds.x - padding
+        new_y = bounds.y - padding
         return Bounds(new_x, new_y, new_width, new_height)
+
+    @staticmethod
+    def clamp(bounds, extent: Extent):
+        x = max(bounds.x, 0)
+        y = max(bounds.y, 0)
+        width = min(x + bounds.width, extent.width) - x
+        height = min(y + bounds.height, extent.height) - y
+        return Bounds(x, y, width, height)
 
 
 def extent_equal(a: QImage, b: QImage):

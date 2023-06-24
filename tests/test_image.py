@@ -31,10 +31,21 @@ def test_image_collection_map():
 
 
 def test_pad_bounds():
+    bounds = Bounds(3, 1, 5, 9)
+    result = Bounds.pad(bounds, 2, 1)
+    assert result == Bounds(1, -1, 9, 13)
+
+
+def test_pad_bounds_multiple():
     bounds = Bounds(3, 2, 5, 9)
-    extent = Extent(9, 14)
-    result = Bounds.pad(bounds, 0, 4, extent)
-    assert result.x == 1 and result.width == 8 and result.y == 2 and result.height == 12
+    result = Bounds.pad(bounds, 0, 4)
+    assert result == Bounds(3, 2, 8, 12)
+
+
+def test_clamp_bounds():
+    bounds = Bounds(-1, 3, 5, 9)
+    result = Bounds.clamp(bounds, Extent(4, 10))
+    assert result == Bounds(0, 3, 4, 7)
 
 
 def test_mask_to_image():
