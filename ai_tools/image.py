@@ -147,6 +147,9 @@ class Image:
 class ImageCollection:
     def __init__(self, items: Iterable[Image]):
         self._items = []
+        self.append(items)
+
+    def append(self, items: Iterable[Image]):
         for item in items:
             if isinstance(item, ImageCollection):
                 self._items.extend(item)

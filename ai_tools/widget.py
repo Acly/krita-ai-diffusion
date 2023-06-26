@@ -1,5 +1,5 @@
 from __future__ import annotations
-from enum import Enum
+from enum import Flag
 from typing import Callable
 import asyncio
 
@@ -27,12 +27,12 @@ import krita
 from . import eventloop
 from . import diffusion
 from . import workflow
-from .image import Bounds, ImageCollection
+from .image import Bounds, ImageCollection, Image, Mask
 from .document import Document
 from .diffusion import Progress, Auto1111, Interrupted
 
 
-class State(Enum):
+class State(Flag):
     setup = 0
     generating = 1
     preview = 2
@@ -41,6 +41,8 @@ class State(Enum):
 class Model:
     _doc: Document
     _layer: krita.Node = None
+    _image: Image = None
+    _mask: Mask = None
     _bounds: Bounds = None
     _report_progress: Callable[[], None]
 
@@ -48,40 +50,49 @@ class Model:
     prompt = ""
     strength = 1.0
     progress = 0.0
-    results: ImageCollection = None
+    results = ImageCollection([])
     error = ""
+    diffusion: Auto1111 = None
     task: asyncio.Task = None
 
-    def __init__(self, document):
+    def __init__(self, document: Document, diffusion: Auto1111):
         self._doc = document
+        self.diffusion = diffusion
 
-    async def run_diffusion(self, diffusion: Auto1111, report_progress: Callable[[], None]):
-        assert self.state is State.setup
+    async def generate(self, report_progress: Callable[[], None]):
+        self._image = self._doc.get_image()
+        self._mask = self._doc.create_mask_from_selection()
+        return await self._run_diffusion(report_progress)
+
+    async def generate_more(self, report_progress: Callable[[], None]):
+        return await self._run_diffusion(report_progress)
+
+    async def _run_diffusion(self, report_progress: Callable[[], None]):
+        assert State.generating not in self.state
+        assert self._image, "No input image"
+        assert self._mask, "A selection is required for inpaint"
+
+        image, mask = self._image, self._mask
         self._report_progress = report_progress
         self.progress = 0.0
 
-        image = self._doc.get_image()
-        mask = self._doc.create_mask_from_selection()
-        assert mask, "A selection is required for inpaint"
-
         try:
-            self.state = State.generating
+            self.state = self.state | State.generating
+            progress = Progress(self.report_progress)
             if self.strength >= 0.99:
-                self.results = await workflow.generate(
-                    diffusion, image, mask, self.prompt, Progress(self.report_progress)
+                self.results.append(
+                    await workflow.generate(self.diffusion, image, mask, self.prompt, progress)
                 )
             else:
-                self.results = await workflow.refine(
-                    diffusion,
-                    image,
-                    mask,
-                    self.prompt,
-                    self.strength,
-                    Progress(self.report_progress),
+                self.results.append(
+                    await workflow.refine(
+                        self.diffusion, image, mask, self.prompt, self.strength, progress
+                    )
                 )
-            self._layer = self._doc.insert_layer(
-                f"[Preview] {self.prompt}", self.results[0], mask.bounds
-            )
+            if self._layer is None:
+                self._layer = self._doc.insert_layer(
+                    f"[Preview] {self.prompt}", self.results[0], mask.bounds
+                )
             self._bounds = mask.bounds
             self.state = State.preview
         except Interrupted:
@@ -90,8 +101,10 @@ class Model:
             self.report_error(str(e))
 
     def cancel(self):
-        assert self.state is State.generating and self.task is not None
+        assert State.generating in self.state and self.task is not None
+        eventloop.run(self.diffusion.interrupt())
         self.task.cancel()
+        self.state = self.state & (~State.generating)
         self.reset()
 
     def report_progress(self, value):
@@ -118,10 +131,18 @@ class Model:
         new_layer.setName(new_layer.name().replace("[Preview]", "[Diffusion]"))
 
     def reset(self):
+        """Discard all results, cancel any running generation, and go back to the setup stage.
+        Setup configuration like prompt and strength is not reset.
+        """
+        if self.state is (State.preview | State.generating) and not self.task.cancelled():
+            self.cancel()
         if self._layer:
+            self._layer.setLocked(False)
             self._layer.remove()
             self._layer = None
-        self.results = None
+        self._image = None
+        self._mask = None
+        self.results = ImageCollection([])
         self.state = State.setup
         self.progress = 0
         self.error = ""
@@ -228,10 +249,6 @@ class SetupWidget(QWidget):
         self.generate_button.setText("Cancel")
         self.started.emit()
 
-    def report_progress(self):
-        if self.model.state is State.generating:
-            self.progress_bar.setValue(self.model.progress)
-
     def cancel(self):
         assert self.generate_button.text() == "Cancel"
         self.model.cancel()
@@ -267,15 +284,26 @@ class PreviewWidget(QWidget):
         self.preview_list.setIconSize(QSize(128, 128))
         self.preview_list.currentItemChanged.connect(self.show_preview)
         layout.setRowStretch(0, 1)
-        layout.addWidget(self.preview_list, 0, 0, 1, 2)
+        layout.addWidget(self.preview_list, 0, 0, 1, 3)
 
-        self.discard_button = QPushButton("Discard", self)
-        self.discard_button.clicked.connect(self.discard_result)
-        layout.addWidget(self.discard_button, 1, 0)
+        self.generate_progress = QProgressBar(self)
+        self.generate_progress.setMinimum(0)
+        self.generate_progress.setMaximum(100)
+        self.generate_progress.setTextVisible(False)
+        self.generate_progress.setFixedHeight(6)
+        layout.addWidget(self.generate_progress, 1, 0, 1, 3)
 
         self.apply_button = QPushButton("Apply", self)
         self.apply_button.clicked.connect(self.apply_result)
-        layout.addWidget(self.apply_button, 1, 1)
+        layout.addWidget(self.apply_button, 2, 0)
+
+        self.discard_button = QPushButton("Discard", self)
+        self.discard_button.clicked.connect(self.discard_result)
+        layout.addWidget(self.discard_button, 2, 1)
+
+        self.generate_button = QPushButton("Generate more", self)
+        self.generate_button.clicked.connect(self.generate_more)
+        layout.addWidget(self.generate_button, 2, 2)
 
     @property
     def model(self):
@@ -289,13 +317,15 @@ class PreviewWidget(QWidget):
             self._model = model
 
     def update(self):
-        if self.model.state is not State.preview:
+        if State.preview not in self.model.state:
             return
         if len(self.model.results) != self.preview_list.count():
             self.preview_list.clear()
             self.model.results.each(
                 lambda img: self.preview_list.addItem(QListWidgetItem(img.to_icon(), None))
             )
+        self.generate_button.setEnabled(self.model.state is State.preview)
+        self.generate_progress.setValue(int(self.model.progress * 100))
 
     def show_preview(self, current, previous):
         index = self.preview_list.row(current)
@@ -309,6 +339,18 @@ class PreviewWidget(QWidget):
 
     def discard_result(self):
         self.finish()
+
+    def generate_more(self):
+        self.generate_button.setEnabled(False)
+        self.generate_progress.setValue(0)
+        model = self.model
+
+        async def run_task():
+            await model.generate_more(report_progress=self.update)
+            if model == self.model:  # still viewing the same canvas
+                self.update()
+
+        model.task = eventloop.run(run_task())
 
     def finish(self):
         self.preview_list.clear()
@@ -394,6 +436,8 @@ class ImageDiffusionWidget(DockWidget):
 
         async def init():
             self._diffusion = await self._welcome.connect()
+            for m in self._models:
+                m.diffusion = self._diffusion
             self.update()
 
         eventloop.run(init())
@@ -406,7 +450,7 @@ class ImageDiffusionWidget(DockWidget):
         if not (canvas is None or Document.active() is None):
             model = self.model
             if model is None:
-                model = Model(Document.active())
+                model = Model(Document.active(), self._diffusion)
                 self._models.append(model)
             self._setup.model = model
             self._preview.model = model
@@ -428,9 +472,6 @@ class ImageDiffusionWidget(DockWidget):
         else:
             assert False, "Unhandled model state"
 
-    def report_progress(self):
-        self._setup.update()
-
     def reset(self):
         self.model.reset()
         self._setup.reset()
@@ -441,7 +482,7 @@ class ImageDiffusionWidget(DockWidget):
         model = self.model
 
         async def run_task():
-            await model.run_diffusion(self._diffusion, self.report_progress)
+            await model.generate(report_progress=self._setup.update)
             if model == self.model:  # still viewing the same canvas
                 self.update()
 
