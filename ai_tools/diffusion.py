@@ -2,7 +2,7 @@ import asyncio
 import json
 from typing import Callable, NamedTuple
 from .image import Extent, Image, ImageCollection
-from . import settings
+from .settings import settings
 
 from PyQt5.QtCore import QByteArray, QUrl
 from PyQt5.QtNetwork import QNetworkAccessManager, QNetworkRequest, QNetworkReply
@@ -117,15 +117,12 @@ class Auto1111:
     url: str
     negative_prompt = "EasyNegative verybadimagenegative_v1.3"
     upscale_prompt = "highres 8k uhd"
-    upscalers = []
-    upscaler_index = 0
 
     @staticmethod
     async def connect(url=default_url):
         result = Auto1111(url)
         upscalers = await result._get("sdapi/v1/upscalers")
-        result.upscalers = [u["name"] for u in upscalers]
-        result.upscaler_index = result.upscalers.index(Auto1111.default_upscaler)
+        settings.upscalers = [u["name"] for u in upscalers if not u["name"] == "None"]
         return result
 
     def __init__(self, url):
@@ -242,7 +239,7 @@ class Auto1111:
             0,  # seams_fix_width
             0,  # seams_fix_denoise
             0,  # seams_fix_padding
-            self.upscaler_index,
+            settings.upscaler_index,
             False,  # save_upscaled_image
             0,  # redraw mode = LINEAR
             False,  # save_seams_fix_image

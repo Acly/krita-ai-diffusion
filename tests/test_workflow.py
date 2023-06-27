@@ -1,6 +1,6 @@
 import pytest
 from ai_tools import (
-    settings,
+    Settings,
     workflow,
     Mask,
     Bounds,
@@ -15,6 +15,7 @@ from pathlib import Path
 test_dir = Path(__file__).parent
 image_dir = test_dir / "images"
 result_dir = test_dir / ".results"
+settings = Settings()
 
 
 def check_progress(value):

@@ -1,7 +1,7 @@
 from typing import NamedTuple
 from .image import Bounds, Extent, Image, ImageCollection, Mask
 from .diffusion import Progress, Auto1111
-from . import settings
+from .settings import settings
 
 
 class ScaledInputs(NamedTuple):

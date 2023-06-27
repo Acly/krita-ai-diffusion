@@ -4,3 +4,4 @@
 .vscode
 __pycache__
 tests/.results
+settings.json

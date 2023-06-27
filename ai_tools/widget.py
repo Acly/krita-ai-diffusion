@@ -466,7 +466,7 @@ class ImageDiffusionWidget(DockWidget):
         elif self.model.state in [State.setup, State.generating]:
             self._setup.update()
             self._frame.setCurrentWidget(self._setup)
-        elif self.model.state is State.preview:
+        elif State.preview in self.model.state:
             self._preview.update()
             self._frame.setCurrentWidget(self._preview)
         else:

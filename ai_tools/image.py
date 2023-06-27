@@ -3,7 +3,7 @@ from PyQt5.QtCore import Qt, QByteArray, QBuffer
 from typing import Callable, Iterable, Tuple, NamedTuple, Union
 from itertools import product
 from pathlib import Path
-from . import settings
+from .settings import settings
 
 
 def round_to_multiple(number, multiple):
