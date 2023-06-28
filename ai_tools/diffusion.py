@@ -9,9 +9,36 @@ from PyQt5.QtNetwork import QNetworkAccessManager, QNetworkRequest, QNetworkRepl
 
 
 class NetworkError(Exception):
-    def __init__(self, code, msg):
+    def __init__(self, code, msg, url):
         self.code = code
+        self.message = msg
+        self.url = url
         super().__init__(self, msg)
+
+    def __str__(self):
+        return self.message
+
+    @staticmethod
+    def from_reply(reply: QNetworkReply):
+        code = reply.error()
+        url = reply.url().toString()
+        try:  # extract detailed information from the payload
+            data = json.loads(reply.readAll().data())
+            if data.get("error", "") == "OutOfMemoryError":
+                msg = data.get("errors", reply.errorString())
+                return OutOfMemoryError(code, msg, url)
+            detail = data.get("detail", "")
+            errors = data.get("errors", "")
+            if detail != "" or errors != "":
+                return NetworkError(code, f"{detail} {errors} ({reply.errorString()})")
+        except:
+            pass
+        return NetworkError(code, reply.errorString(), url)
+
+
+class OutOfMemoryError(NetworkError):
+    def __init__(self, code, msg, url):
+        super().__init__(code, msg, url)
 
 
 class Interrupted(Exception):
@@ -56,20 +83,15 @@ class RequestManager:
     def post(self, url: str, data: dict):
         return self.request("POST", url, data)
 
-    def _finished(self, reply):
+    def _finished(self, reply: QNetworkReply):
         code = reply.error()
-        url, future = self._requests[reply]
+        future = self._requests[reply].future
         if future.cancelled():
             return  # operation was cancelled, discard result
         if code == QNetworkReply.NoError:
             future.set_result(json.loads(reply.readAll().data()))
         else:
-            try:  # extract detailed information from the payload
-                data = json.loads(reply.readAll().data())
-                err = f'{reply.errorString()} ({data["detail"]})'
-            except:
-                err = f"{reply.errorString()} ({url})"
-            future.set_exception(NetworkError(code, f"Server request failed: {err}"))
+            future.set_exception(NetworkError.from_reply(reply))
 
     def _cleanup(self):
         self._requests = {
@@ -218,6 +240,33 @@ class Auto1111:
         return _collect_images(result, count=-1)
 
     async def upscale(self, img: Image, target: Extent, prompt: str, progress: Progress):
+        upscale_payload = {
+            "resize_mode": 1,  # width & height
+            "upscaling_resize_w": target.width,
+            "upscaling_resize_h": target.height,
+            "upscaler_1": settings.upscaler,
+            "image": img.to_base64(),
+        }
+        result = await self._post("sdapi/v1/extra-single-image", upscale_payload)
+        upscaled_b64 = result["image"]
+
+        tiled_vae_payload = {"tiled vae": {"args": [True, 1536]}}  # TODO hardcoded tile size
+        img2img_payload = {
+            "init_images": [upscaled_b64],
+            "denoising_strength": 0.4,
+            "prompt": f"{self.upscale_prompt}, {prompt}",
+            "negative_prompt": self.negative_prompt,
+            "steps": 30,
+            "cfg_scale": 5,
+            "width": target.width,
+            "height": target.height,
+            "alwayson_scripts": tiled_vae_payload,
+            "sampler_index": "DPM++ 2M Karras",
+        }
+        result = await self._post("sdapi/v1/img2img", img2img_payload, progress)
+        return _collect_images(result)
+
+    async def upscale_tiled(self, img: Image, target: Extent, prompt: str, progress: Progress):
         cn_payload = {
             "controlnet": {
                 "args": [
@@ -254,7 +303,7 @@ class Auto1111:
             "init_images": [img.to_base64()],
             "resize_mode": 0,
             "denoising_strength": 0.4,
-            "prompt": f"{self.upscale_prompt} {prompt}",
+            "prompt": f"{self.upscale_prompt}, {prompt}",
             "negative_prompt": self.negative_prompt,
             "sampler_index": "DPM++ 2M Karras",
             "steps": 30,

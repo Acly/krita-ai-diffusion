@@ -24,6 +24,10 @@ class Bounds(NamedTuple):
     height: int
 
     @property
+    def offset(self):
+        return (self.x, self.y)
+
+    @property
     def extent(self):
         return Extent(self.width, self.height)
 
@@ -47,10 +51,19 @@ class Bounds(NamedTuple):
 
     @staticmethod
     def clamp(bounds, extent: Extent):
-        x = max(bounds.x, 0)
-        y = max(bounds.y, 0)
-        width = min(x + bounds.width, extent.width) - x
-        height = min(y + bounds.height, extent.height) - y
+        """Clamp mask bounds to be inside an image region. Bounds extent should remain unchanged,
+        unless it is larger than the image extent.
+        """
+
+        def impl(off, size, max_size):
+            if size >= max_size:
+                return 0, max_size
+            off = max(off, 0)
+            excess = max((off + size) - max_size, 0)
+            return off - excess, size
+
+        x, width = impl(bounds.x, bounds.width, extent.width)
+        y, height = impl(bounds.y, bounds.height, extent.height)
         return Bounds(x, y, width, height)
 
 
@@ -145,9 +158,10 @@ class Image:
 
 
 class ImageCollection:
-    def __init__(self, items: Iterable[Image]):
+    def __init__(self, items: Iterable[Image] = ...):
         self._items = []
-        self.append(items)
+        if items is not ...:
+            self.append(items)
 
     def append(self, items: Iterable[Image]):
         for item in items:
@@ -214,18 +228,9 @@ class Mask:
     @staticmethod
     def apply(img: Image, mask):
         if img.width == mask.bounds.width and img.height == mask.bounds.height:
-            x_offset = 0
-            y_offset = 0
-        elif (
-            img.width >= mask.bounds.x + mask.bounds.width
-            and img.height >= mask.bounds.y + mask.bounds.height
-        ):
-            x_offset = mask.bounds.x
-            y_offset = mask.bounds.y
+            x_offset, y_offset = 0, 0
         else:
-            assert (
-                False
-            ), f"Cannot apply mask with {mask.bounds} to image of size ({img.width, img.height})."
+            x_offset, y_offset = mask.bounds.offset
 
         for y in range(img.height):
             for x in range(img.width):

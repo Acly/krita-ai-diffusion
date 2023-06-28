@@ -1,7 +1,9 @@
 from __future__ import annotations
 from enum import Flag
-from typing import Callable
+from typing import Callable, Optional
 import asyncio
+import sys
+import traceback
 
 from PyQt5.QtWidgets import (
     QSlider,
@@ -29,7 +31,7 @@ from . import diffusion
 from . import workflow
 from .image import Bounds, ImageCollection, Image, Mask
 from .document import Document
-from .diffusion import Progress, Auto1111, Interrupted
+from .diffusion import Progress, Auto1111, Interrupted, NetworkError
 
 
 class State(Flag):
@@ -50,7 +52,7 @@ class Model:
     prompt = ""
     strength = 1.0
     progress = 0.0
-    results = ImageCollection([])
+    results: ImageCollection
     error = ""
     diffusion: Auto1111 = None
     task: asyncio.Task = None
@@ -58,6 +60,7 @@ class Model:
     def __init__(self, document: Document, diffusion: Auto1111):
         self._doc = document
         self.diffusion = diffusion
+        self.results = ImageCollection()
 
     async def generate(self, report_progress: Callable[[], None]):
         self._image = self._doc.get_image()
@@ -68,15 +71,15 @@ class Model:
         return await self._run_diffusion(report_progress)
 
     async def _run_diffusion(self, report_progress: Callable[[], None]):
-        assert State.generating not in self.state
-        assert self._image, "No input image"
-        assert self._mask, "A selection is required for inpaint"
-
-        image, mask = self._image, self._mask
-        self._report_progress = report_progress
-        self.progress = 0.0
-
         try:
+            assert State.generating not in self.state
+            assert self._image, "No input image"
+            assert self._mask, "A selection is required for inpaint"
+
+            image, mask = self._image, self._mask
+            self._report_progress = report_progress
+            self.progress = 0.0
+
             self.state = self.state | State.generating
             progress = Progress(self.report_progress)
             if self.strength >= 0.99:
@@ -89,14 +92,20 @@ class Model:
                         self.diffusion, image, mask, self.prompt, self.strength, progress
                     )
                 )
+            self.state = State.preview
+            self._bounds = mask.bounds
             if self._layer is None:
                 self._layer = self._doc.insert_layer(
                     f"[Preview] {self.prompt}", self.results[0], mask.bounds
                 )
-            self._bounds = mask.bounds
-            self.state = State.preview
         except Interrupted:
             self.reset()
+        except NetworkError as e:
+            self.report_error(e.message, f"[url={e.url}, code={e.code}]")
+        except AssertionError as e:
+            _, _, tb = sys.exc_info()
+            traceback.print_tb(tb)
+            self.report_error("Error: Internal assertion failed.")
         except Exception as e:
             self.report_error(str(e))
 
@@ -111,8 +120,8 @@ class Model:
         self.progress = value
         self._report_progress()
 
-    def report_error(self, message: str):
-        print("[krita-ai-tools]", message)
+    def report_error(self, message: str, details: Optional[str] = None):
+        print("[krita-ai-tools]", message, details)
         self.state = State.setup
         self.error = message
 
@@ -142,7 +151,7 @@ class Model:
             self._layer = None
         self._image = None
         self._mask = None
-        self.results = ImageCollection([])
+        self.results = ImageCollection()
         self.state = State.setup
         self.progress = 0
         self.error = ""
@@ -281,7 +290,7 @@ class PreviewWidget(QWidget):
         self.preview_list.setResizeMode(QListView.Adjust)
         self.preview_list.setFlow(QListView.LeftToRight)
         self.preview_list.setViewMode(QListWidget.IconMode)
-        self.preview_list.setIconSize(QSize(128, 128))
+        self.preview_list.setIconSize(QSize(96, 96))
         self.preview_list.currentItemChanged.connect(self.show_preview)
         layout.setRowStretch(0, 1)
         layout.addWidget(self.preview_list, 0, 0, 1, 3)

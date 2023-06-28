@@ -1,3 +1,4 @@
+import pytest
 from PyQt5.QtGui import QImage, qRgba
 from PyQt5.QtCore import QByteArray
 from ai_tools import image, Mask, Bounds, Extent, Image, ImageCollection
@@ -42,10 +43,17 @@ def test_pad_bounds_multiple():
     assert result == Bounds(3, 2, 8, 12)
 
 
-def test_clamp_bounds():
-    bounds = Bounds(-1, 3, 5, 9)
-    result = Bounds.clamp(bounds, Extent(4, 10))
-    assert result == Bounds(0, 3, 4, 7)
+@pytest.mark.parametrize(
+    "input,expected",
+    [
+        (Bounds(-1, 3, 5, 9), Bounds(0, 1, 4, 9)),
+        (Bounds(-1, 3, 5, 9), Bounds(0, 1, 4, 9)),
+        (Bounds(2, 3, 2, 5), Bounds(2, 3, 2, 5)),
+    ],
+)
+def test_clamp_bounds(input, expected):
+    result = Bounds.clamp(input, Extent(4, 10))
+    assert result == expected
 
 
 def test_mask_to_image():
