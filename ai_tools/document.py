@@ -32,8 +32,10 @@ class Document:
 
         extent = self.extent
         size_factor = min(extent.width, extent.height)
+        feather_radius = min(5, size_factor // 32)
         selection = user_selection.duplicate()
-        selection.feather(min(5, size_factor // 32))
+        selection.grow(feather_radius, feather_radius)
+        selection.feather(feather_radius)
 
         bounds = Bounds(selection.x(), selection.y(), selection.width(), selection.height())
         bounds = Bounds.pad(bounds, size_factor // 32, 8)
