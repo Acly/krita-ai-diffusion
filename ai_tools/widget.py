@@ -62,15 +62,12 @@ class Model:
         self.diffusion = diffusion
         self.results = ImageCollection()
 
-    async def generate(self, report_progress: Callable[[], None]):
+    def setup(self):
+        """Retrieve the current image and selection mask as inputs for the next generation(s)."""
         self._image = self._doc.get_image()
         self._mask = self._doc.create_mask_from_selection()
-        return await self._run_diffusion(report_progress)
 
-    async def generate_more(self, report_progress: Callable[[], None]):
-        return await self._run_diffusion(report_progress)
-
-    async def _run_diffusion(self, report_progress: Callable[[], None]):
+    async def generate(self, report_progress: Callable[[], None]):
         try:
             assert State.generating not in self.state
             assert self._image, "No input image"
@@ -355,7 +352,7 @@ class PreviewWidget(QWidget):
         model = self.model
 
         async def run_task():
-            await model.generate_more(report_progress=self.update)
+            await model.generate(report_progress=self.update)
             if model == self.model:  # still viewing the same canvas
                 self.update()
 
@@ -489,6 +486,7 @@ class ImageDiffusionWidget(DockWidget):
 
     def generate(self):
         model = self.model
+        model.setup()
 
         async def run_task():
             await model.generate(report_progress=self._setup.update)
