@@ -1,50 +1,65 @@
-from typing import NamedTuple
+from typing import NamedTuple, Tuple, Union, Optional
 from .image import Bounds, Extent, Image, ImageCollection, Mask
 from .diffusion import Progress, Auto1111
 from .settings import settings
 
+Inputs = Union[Extent, Image, Tuple[Image, Mask]]
+
+
+class ScaledExtent(NamedTuple):
+    initial: Extent
+    target: Extent
+    scale: float
+
 
 class ScaledInputs(NamedTuple):
-    image: Image
-    mask: Mask
-    scale: float
-    target_extent: Extent
+    image: Optional[Image]
+    mask_image: Optional[Image]
+    extent: ScaledExtent
     progress: Progress
 
 
-def prepare(image: Image, mask: Image, progress: Progress):
-    assert image.extent == mask.extent
+def prepare(inputs: Inputs, progress: Progress, downscale=True) -> ScaledInputs:
+    input_is_masked_image = isinstance(inputs, tuple) and isinstance(inputs[0], Image)
+    image = inputs[0] if input_is_masked_image else None
+    image = inputs if isinstance(inputs, Image) else image
+    extent = inputs if isinstance(inputs, Extent) else image.extent
+    mask = inputs[1] if input_is_masked_image else None
+    mask_image = mask.to_image(extent) if mask else None
+
     min_size = settings.min_image_size
     max_size = settings.max_image_size
 
-    if image.width > max_size or image.height > max_size:
+    if downscale and (extent.width > max_size or extent.height > max_size):
         # Image is larger than max size that diffusion can comfortably handle:
-        # Scale it so the largest side is equal to max size.
+        # Scale it down so the largest side is equal to max size.
+        scale = max_size / max(extent.width, extent.height)
+        initial = extent * scale
         # Images are scaled here directly to avoid encoding and processing
         # very large images in subsequent steps.
-        original_width = image.width
-        image = Image.scale(image, max_size)
-        mask = Image.scale(mask, max_size)
-        scale = image.width / original_width
+        if image:
+            image = Image.scale(image, initial)
+        if mask_image:
+            mask_image = Image.scale(mask_image, initial)
         # Adjust progress for upscaling steps required to bring the image back
-        # to the requested resolution
+        # to the requested resolution (in postprocess)
         progress = Progress.forward(progress, 1 / (1 + settings.batch_size))
         assert scale < 1
-        return ScaledInputs(image, mask, scale, image.extent, progress)
+        return ScaledInputs(image, mask_image, ScaledExtent(initial, extent, scale), progress)
 
-    if image.width < min_size and image.height < min_size:
+    if extent.width < min_size and extent.height < min_size:
         # Image is smaller than min size for which diffusion generates reasonable
-        # results. Compute a  resolution where the largest side is equal to min size.
+        # results. Compute a resolution where the largest side is equal to min size.
+        scale = min_size / min(extent.width, extent.height)
+        initial = extent * scale
         # Images are not scaled here, but instead the requested target resolution
         # is passed along to defer scaling as long as possible in the pipeline.
-        scale = min_size / min(image.width, image.height)
-        target = Extent(round(image.width * scale), round(image.height * scale))
-        assert target.width >= min_size and target.height >= min_size
+        assert initial.width >= min_size and initial.height >= min_size
         assert scale > 1
-        return ScaledInputs(image, mask, scale, target, progress)
+        return ScaledInputs(image, mask_image, ScaledExtent(initial, extent, scale), progress)
 
     # Image is in acceptable range, don't do anything
-    return ScaledInputs(image, mask, 1.0, image.extent, progress)
+    return ScaledInputs(image, mask_image, ScaledExtent(extent, extent, 1.0), progress)
 
 
 async def postprocess(
@@ -69,41 +84,49 @@ async def postprocess(
     return result
 
 
-async def generate(diffusion: Auto1111, image: Image, mask: Mask, prompt: str, progress: Progress):
-    mask_image = mask.to_image(image.extent)
-    image, mask_image, scale, target_extent, progress = prepare(image, mask_image, progress)
+async def generate(diffusion: Auto1111, extent: Extent, prompt: str, progress: Progress):
+    _, _, extent, progress = prepare(extent, progress)
+    result = await diffusion.txt2img(prompt, extent.initial, progress)
+    result = await postprocess(diffusion, result, extent.target, prompt, progress)
+    return result
 
-    result = await diffusion.txt2img_inpaint(image, mask_image, prompt, target_extent, progress)
-    result.debug_save("diffusion_generate_result")
+
+async def inpaint(diffusion: Auto1111, image: Image, mask: Mask, prompt: str, progress: Progress):
+    image, mask_image, extent, progress = prepare((image, mask), progress)
+    result = await diffusion.txt2img_inpaint(image, mask_image, prompt, extent.initial, progress)
 
     # Result is the whole image, continue to work only with the inpainted region
-    scaled_bounds = Bounds.scale(mask.bounds, scale)
+    scaled_bounds = Bounds.scale(mask.bounds, extent.scale)
     result = result.map(lambda img: Image.sub_region(img, scaled_bounds))
 
     result = await postprocess(diffusion, result, mask.bounds.extent, prompt, progress)
-    result.debug_save("diffusion_generate_post_result")
-
     result.each(lambda img: Mask.apply(img, mask))
     return result
 
 
 async def refine(
+    diffusion: Auto1111, image: Image, prompt: str, strength: float, progress: Progress
+):
+    assert strength > 0 and strength < 1
+    downscale_if_needed = strength >= 0.7
+    image, _, extent, progress = prepare(image, progress, downscale_if_needed)
+
+    result = await diffusion.img2img(image, prompt, strength, extent.initial, progress)
+    result = await postprocess(diffusion, result, extent.target, prompt, progress)
+    return result
+
+
+async def refine_region(
     diffusion: Auto1111, image: Image, mask: Mask, prompt: str, strength: float, progress: Progress
 ):
     assert strength > 0 and strength < 1
-
+    downscale_if_needed = strength >= 0.7
     image = Image.sub_region(image, mask.bounds)
-    image, mask_image, _, target_extent, progress = prepare(image, mask.to_image(), progress)
-    image.debug_save("diffusion_refine_input")
-    mask_image.debug_save("diffusion_refine_input_mask")
+    image, mask_image, extent, progress = prepare((image, mask), progress, downscale_if_needed)
 
     result = await diffusion.img2img_inpaint(
-        image, mask_image, prompt, strength, target_extent, progress
+        image, mask_image, prompt, strength, extent.initial, progress
     )
-    result.debug_save("diffusion_refine_result")
-
-    result = await postprocess(diffusion, result, mask.bounds.extent, prompt, progress)
-    result.debug_save("diffusion_refine_post_result")
-
+    result = await postprocess(diffusion, result, extent.target, prompt, progress)
     result.each(lambda img: Mask.apply(img, mask))
     return result

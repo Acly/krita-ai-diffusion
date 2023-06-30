@@ -1,6 +1,6 @@
 import asyncio
 import json
-from typing import Callable, NamedTuple
+from typing import Callable, NamedTuple, Union
 from .image import Extent, Image, ImageCollection
 from .settings import settings
 
@@ -130,9 +130,14 @@ def _collect_images(result, count: int = ...):
     raise Interrupted()
 
 
+def _make_tiled_vae_payload():
+    return {"tiled vae": {"args": [True, 1536]}}  # TODO hardcoded tile size
+
+
 class Auto1111:
     default_url = "http://127.0.0.1:7860"
     default_upscaler = "Lanczos"
+    default_sampler = "DPM++ 2M Karras"
 
     _requests = RequestManager()
 
@@ -165,6 +170,20 @@ class Auto1111:
             progress.finish()
         return await request
 
+    async def txt2img(self, prompt: str, extent: Extent, progress: Progress):
+        payload = {
+            "prompt": prompt,
+            "negative_prompt": self.negative_prompt,
+            "batch_size": settings.batch_size,
+            "steps": 30,
+            "cfg_scale": 7,
+            "width": extent.width,
+            "height": extent.height,
+            "sampler_index": self.default_sampler,
+        }
+        result = await self._post("sdapi/v1/txt2img", payload, progress)
+        return _collect_images(result)
+
     async def txt2img_inpaint(
         self, img: Image, mask: Image, prompt: str, extent: Extent, progress: Progress
     ):
@@ -175,7 +194,7 @@ class Auto1111:
                     {
                         "input_image": img.to_base64(),
                         "mask": mask.to_base64(),
-                        "module": "inpaint_only",
+                        "module": "inpaint_only+lama",
                         "model": "control_v11p_sd15_inpaint [ebff9138]",
                         "control_mode": "ControlNet is more important",
                         "pixel_perfect": True,
@@ -197,6 +216,38 @@ class Auto1111:
         result = await self._post("sdapi/v1/txt2img", payload, progress)
         return _collect_images(result, count=-1)
 
+    async def _img2img(
+        self,
+        image: Union[Image, str],
+        prompt: str,
+        strength: float,
+        extent: Extent,
+        cfg_scale: int,
+        batch_size: int,
+        progress: Progress,
+    ):
+        image = image.to_base64() if isinstance(image, Image) else image
+        payload = {
+            "init_images": [image],
+            "denoising_strength": strength,
+            "prompt": prompt,
+            "negative_prompt": self.negative_prompt,
+            "batch_size": batch_size,
+            "steps": 30,
+            "cfg_scale": cfg_scale,
+            "width": extent.width,
+            "height": extent.height,
+            "alwayson_scripts": _make_tiled_vae_payload(),
+            "sampler_index": self.default_sampler,
+        }
+        result = await self._post("sdapi/v1/img2img", payload, progress)
+        return _collect_images(result)
+
+    async def img2img(
+        self, img: Image, prompt: str, strength: float, extent: Extent, progress: Progress
+    ):
+        return await self._img2img(img, prompt, strength, extent, 7, settings.batch_size, progress)
+
     async def img2img_inpaint(
         self,
         img: Image,
@@ -212,7 +263,7 @@ class Auto1111:
                 "args": [
                     {
                         "module": "inpaint_only",
-                        "model": "control_v11p_sd15_inpaint [ebff9138]",
+                        "model": "control_v11p_sd15_inpaint [ebff9138]",  # TODO hardcoded ctrlnet
                         "control_mode": "Balanced",
                         "pixel_perfect": True,
                     }
@@ -234,7 +285,7 @@ class Auto1111:
             "width": extent.width,
             "height": extent.height,
             "alwayson_scripts": cn_payload,
-            "sampler_index": "DPM++ 2M Karras",
+            "sampler_index": self.default_sampler,
         }
         result = await self._post("sdapi/v1/img2img", payload, progress)
         return _collect_images(result, count=-1)
@@ -248,25 +299,19 @@ class Auto1111:
             "image": img.to_base64(),
         }
         result = await self._post("sdapi/v1/extra-single-image", upscale_payload)
-        upscaled_b64 = result["image"]
-
-        tiled_vae_payload = {"tiled vae": {"args": [True, 1536]}}  # TODO hardcoded tile size
-        img2img_payload = {
-            "init_images": [upscaled_b64],
-            "denoising_strength": 0.4,
-            "prompt": f"{self.upscale_prompt}, {prompt}",
-            "negative_prompt": self.negative_prompt,
-            "steps": 30,
-            "cfg_scale": 5,
-            "width": target.width,
-            "height": target.height,
-            "alwayson_scripts": tiled_vae_payload,
-            "sampler_index": "DPM++ 2M Karras",
-        }
-        result = await self._post("sdapi/v1/img2img", img2img_payload, progress)
-        return _collect_images(result)
+        result = await self._img2img(
+            image=result["image"],
+            prompt=f"{self.upscale_prompt}, {prompt}",
+            strength=0.4,
+            extent=target,
+            cfg_scale=5,
+            batch_size=1,
+            progress=progress,
+        )
+        return result
 
     async def upscale_tiled(self, img: Image, target: Extent, prompt: str, progress: Progress):
+        # TODO dead code, consider multi diffusion
         cn_payload = {
             "controlnet": {
                 "args": [

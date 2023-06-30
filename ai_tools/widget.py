@@ -29,7 +29,7 @@ import krita
 from . import eventloop
 from . import diffusion
 from . import workflow
-from .image import Bounds, ImageCollection, Image, Mask
+from .image import Bounds, ImageCollection, Image, Mask, Extent
 from .document import Document
 from .diffusion import Progress, Auto1111, Interrupted, NetworkError
 
@@ -42,10 +42,11 @@ class State(Flag):
 
 class Model:
     _doc: Document
-    _layer: krita.Node = None
-    _image: Image = None
-    _mask: Mask = None
-    _bounds: Bounds = None
+    _layer: Optional[krita.Node] = None
+    _image: Optional[Image] = None
+    _mask: Optional[Mask] = None
+    _extent: Optional[Extent] = None
+    _bounds: Optional[Bounds] = None
     _report_progress: Callable[[], None]
 
     state = State.setup
@@ -54,8 +55,8 @@ class Model:
     progress = 0.0
     results: ImageCollection
     error = ""
-    diffusion: Auto1111 = None
-    task: asyncio.Task = None
+    diffusion: Optional[Auto1111] = None
+    task: Optional[asyncio.Task] = None
 
     def __init__(self, document: Document, diffusion: Auto1111):
         self._doc = document
@@ -64,36 +65,47 @@ class Model:
 
     def setup(self):
         """Retrieve the current image and selection mask as inputs for the next generation(s)."""
-        self._image = self._doc.get_image()
         self._mask = self._doc.create_mask_from_selection()
+        if self._mask is not None or self.strength < 1.0:
+            self._image = self._doc.get_image()
+            self._bounds = self._mask.bounds if self._mask else Bounds(0, 0, *self._image.extent)
+        else:
+            self._extent = self._doc.extent
+            self._bounds = Bounds(0, 0, *self._extent)
 
     async def generate(self, report_progress: Callable[[], None]):
         try:
             assert State.generating not in self.state
-            assert self._image, "No input image"
-            assert self._mask, "A selection is required for inpaint"
 
             image, mask = self._image, self._mask
+            self.state = self.state | State.generating
             self._report_progress = report_progress
             self.progress = 0.0
-
-            self.state = self.state | State.generating
             progress = Progress(self.report_progress)
-            if self.strength >= 0.99:
-                self.results.append(
-                    await workflow.generate(self.diffusion, image, mask, self.prompt, progress)
+
+            if image is None and mask is None:
+                assert self._extent is not None and self.strength == 1
+                results = await workflow.generate(
+                    self.diffusion, self._extent, self.prompt, progress
                 )
+            elif mask is None and self.strength < 1:
+                assert image is not None
+                results = await workflow.refine(
+                    self.diffusion, image, self.prompt, self.strength, progress
+                )
+            elif self.strength == 1:
+                assert image is not None and mask is not None
+                results = await workflow.inpaint(self.diffusion, image, mask, self.prompt, progress)
             else:
-                self.results.append(
-                    await workflow.refine(
-                        self.diffusion, image, mask, self.prompt, self.strength, progress
-                    )
+                assert image is not None and mask is not None and self.strength < 1
+                results = await workflow.refine_region(
+                    self.diffusion, image, mask, self.prompt, self.strength, progress
                 )
+            self.results.append(results)
             self.state = State.preview
-            self._bounds = mask.bounds
             if self._layer is None:
                 self._layer = self._doc.insert_layer(
-                    f"[Preview] {self.prompt}", self.results[0], mask.bounds
+                    f"[Preview] {self.prompt}", self.results[0], self._bounds
                 )
         except Interrupted:
             self.reset()
@@ -148,6 +160,7 @@ class Model:
             self._layer = None
         self._image = None
         self._mask = None
+        self._extent = None
         self.results = ImageCollection()
         self.state = State.setup
         self.progress = 0
@@ -242,18 +255,16 @@ class SetupWidget(QWidget):
         self.error_text.setText(model.error)
         self.error_text.setVisible(model.error != "")
 
-    def reset(self):
-        self.progress_bar.reset()
-        self.error_text.setVisible(False)
-
     def generate(self):
         if self.model.state is State.generating:
             return self.cancel()
 
         assert self.generate_button.text() == "Generate"
-        self.reset()
+        self.model.error = ""
+        self.model.progress = 0
         self.generate_button.setText("Cancel")
         self.started.emit()
+        self.update()
 
     def cancel(self):
         assert self.generate_button.text() == "Cancel"

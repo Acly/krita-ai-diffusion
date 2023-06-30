@@ -122,5 +122,5 @@ def test_mask_rectangle():
 
 def test_downscale():
     img = create_test_image(12, 8)
-    result = Image.scale(img, 6)
+    result = Image.scale(img, Extent(6, 4))
     assert result.width == 6 and result.height == 4

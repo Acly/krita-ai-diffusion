@@ -1,6 +1,6 @@
 from PyQt5.QtGui import QImage, QPixmap, QIcon, qRgba, qRed, qGreen, qBlue, qAlpha
 from PyQt5.QtCore import Qt, QByteArray, QBuffer
-from typing import Callable, Iterable, Tuple, NamedTuple, Union
+from typing import Callable, Iterable, Tuple, NamedTuple, Union, Optional
 from itertools import product
 from pathlib import Path
 from .settings import settings
@@ -15,6 +15,9 @@ def round_to_multiple(number, multiple):
 class Extent(NamedTuple):
     width: int
     height: int
+
+    def __mul__(self, scale: float):
+        return Extent(round(self.width * scale), round(self.height * scale))
 
 
 class Bounds(NamedTuple):
@@ -106,14 +109,10 @@ class Image:
         return Image(img)
 
     @staticmethod
-    def scale(img, target: Union[Extent, int]):
+    def scale(img, target: Extent):
         mode = Qt.AspectRatioMode.IgnoreAspectRatio
-        if isinstance(target, int):
-            mode = Qt.AspectRatioMode.KeepAspectRatio
-            target = Extent(target, target)
-        scaled = img._qimage.scaled(
-            target.width, target.height, mode, Qt.TransformationMode.SmoothTransformation
-        )
+        quality = Qt.TransformationMode.SmoothTransformation
+        scaled = img._qimage.scaled(target.width, target.height, mode, quality)
         return Image(scaled.convertToFormat(QImage.Format_ARGB32))
 
     @staticmethod
@@ -246,11 +245,9 @@ class Mask:
     def to_array(self):
         return [x[0] for x in self.data]
 
-    def to_image(self, extent: Extent = ...):
-        offset = (self.bounds.x, self.bounds.y)
-        if extent is ...:
-            extent = self.bounds.extent
-            offset = (0, 0)
+    def to_image(self, extent: Optional[Extent] = None):
+        extent = extent or self.bounds.extent
+        offset = (0, 0) if extent == self.bounds.extent else self.bounds.offset
         img = QImage(extent.width, extent.height, QImage.Format_ARGB32)
         img.fill(0)
         for y in range(self.bounds.height):
