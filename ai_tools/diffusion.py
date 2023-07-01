@@ -1,6 +1,6 @@
 import asyncio
 import json
-from typing import Callable, NamedTuple, Union
+from typing import Callable, NamedTuple, Union, Sequence
 from .image import Extent, Image, ImageCollection
 from .settings import settings
 
@@ -134,12 +134,32 @@ def _make_tiled_vae_payload():
     return {"tiled vae": {"args": [True, 1536]}}  # TODO hardcoded tile size
 
 
+def _find_controlnet_model(model_list: Sequence[str], model_name: str):
+    model = next((model for model in model_list if model.startswith(model_name)), None)
+    if model is None:
+        raise Exception(
+            f"Could not find ControlNet model {model_name}. Make sure to download the model and"
+            " place it in the ControlNet models folder."
+        )
+    return model
+
+
+def _find_controlnet_processor(processor_list: Sequence[str], processor_name: str):
+    if not processor_name in processor_list:
+        raise Exception(
+            f"Could not find ControlNet processor {processor_name}. Maybe the ControlNet extension"
+            " version is too old?"
+        )
+
+
 class Auto1111:
     default_url = "http://127.0.0.1:7860"
     default_upscaler = "Lanczos"
     default_sampler = "DPM++ 2M Karras"
 
     _requests = RequestManager()
+    _controlnet_inpaint_model: str
+    _controlnet_tile_model: str
 
     url: str
     negative_prompt = "EasyNegative verybadimagenegative_v1.3"
@@ -150,6 +170,16 @@ class Auto1111:
         result = Auto1111(url)
         upscalers = await result._get("sdapi/v1/upscalers")
         settings.upscalers = [u["name"] for u in upscalers if not u["name"] == "None"]
+        controlnet_models = (await result._get("controlnet/model_list"))["model_list"]
+        result._controlnet_inpaint_model = _find_controlnet_model(
+            controlnet_models, "control_v11p_sd15_inpaint"
+        )
+        result._controlnet_tile_model = _find_controlnet_model(
+            controlnet_models, "control_v11f1e_sd15_tile"
+        )
+        controlnet_modules = (await result._get("controlnet/module_list"))["module_list"]
+        _find_controlnet_processor(controlnet_modules, "inpaint_only+lama")
+        _find_controlnet_processor(controlnet_modules, "tile_resample")
         return result
 
     def __init__(self, url):
@@ -195,7 +225,7 @@ class Auto1111:
                         "input_image": img.to_base64(),
                         "mask": mask.to_base64(),
                         "module": "inpaint_only+lama",
-                        "model": "control_v11p_sd15_inpaint [ebff9138]",
+                        "model": self._controlnet_inpaint_model,
                         "control_mode": "ControlNet is more important",
                         "pixel_perfect": True,
                     }
@@ -263,7 +293,7 @@ class Auto1111:
                 "args": [
                     {
                         "module": "inpaint_only",
-                        "model": "control_v11p_sd15_inpaint [ebff9138]",  # TODO hardcoded ctrlnet
+                        "model": self._controlnet_inpaint_model,
                         "control_mode": "Balanced",
                         "pixel_perfect": True,
                     }
@@ -318,7 +348,7 @@ class Auto1111:
                     {
                         "input_image": img.to_base64(),
                         "module": "tile_resample",
-                        "model": "control_v11f1e_sd15_tile [a371b31b]",
+                        "model": self._controlnet_tile_model,
                         "control_mode": "Balanced",
                     }
                 ]

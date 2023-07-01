@@ -1,2 +1,3 @@
 [tool.black]
 line-length=100
+preview=1
