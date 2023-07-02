@@ -1,6 +1,7 @@
+from typing import Optional
 from krita import Extension, Krita
-from . import eventloop
-from .settings import SettingsDialog
+from . import eventloop, settings
+from .ui import SettingsDialog, diffusion_server
 
 
 class AIToolsExtension(Extension):
@@ -9,11 +10,13 @@ class AIToolsExtension(Extension):
 
     def setup(self):
         eventloop.setup()
+        settings.load()
+        diffusion_server.connect()
 
     def createActions(self, window):
         self._settings_dialog = SettingsDialog()
         self._settings_action = window.createAction(
-            "ai_tools_configure", "Configure AI Tools", "tools/scripts"
+            "ai_tools_settings", "Configure AI Tools", "tools/scripts"
         )
         self._settings_action.triggered.connect(self._settings_dialog.show)
 

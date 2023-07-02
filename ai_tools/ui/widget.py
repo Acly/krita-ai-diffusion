@@ -1,6 +1,7 @@
 from __future__ import annotations
 from enum import Flag
 from typing import Callable, Optional
+from pathlib import Path
 import asyncio
 import sys
 import traceback
@@ -21,17 +22,29 @@ from PyQt5.QtWidgets import (
     QStackedWidget,
     QVBoxLayout,
 )
-from PyQt5.QtGui import QFontMetrics, QGuiApplication
+from PyQt5.QtGui import QFontMetrics, QGuiApplication, QIcon
 from PyQt5.QtCore import Qt, QSize, pyqtSignal
 from krita import Krita, DockWidget, DockWidgetFactory, DockWidgetFactoryBase
 import krita
 
-from . import eventloop
-from . import diffusion
-from . import workflow
-from .image import Bounds, ImageCollection, Image, Mask, Extent
-from .document import Document
-from .diffusion import Progress, Auto1111, Interrupted, NetworkError
+from .. import (
+    eventloop,
+    workflow,
+    Bounds,
+    ImageCollection,
+    Image,
+    Mask,
+    Extent,
+    Document,
+    Progress,
+    Auto1111,
+    Interrupted,
+    NetworkError,
+    settings,
+)
+from .server import diffusion_server, ServerState
+
+_icon_path = Path(__file__).parent.parent / "icons"
 
 
 class State(Flag):
@@ -55,12 +68,10 @@ class Model:
     progress = 0.0
     results: ImageCollection
     error = ""
-    diffusion: Optional[Auto1111] = None
     task: Optional[asyncio.Task] = None
 
-    def __init__(self, document: Document, diffusion: Auto1111):
+    def __init__(self, document: Document):
         self._doc = document
-        self.diffusion = diffusion
         self.results = ImageCollection()
 
     def setup(self):
@@ -76,7 +87,9 @@ class Model:
     async def generate(self, report_progress: Callable[[], None]):
         try:
             assert State.generating not in self.state
+            assert diffusion_server.state is ServerState.connected
 
+            diffusion = diffusion_server.diffusion
             image, mask = self._image, self._mask
             self.state = self.state | State.generating
             self._report_progress = report_progress
@@ -85,21 +98,19 @@ class Model:
 
             if image is None and mask is None:
                 assert self._extent is not None and self.strength == 1
-                results = await workflow.generate(
-                    self.diffusion, self._extent, self.prompt, progress
-                )
+                results = await workflow.generate(diffusion, self._extent, self.prompt, progress)
             elif mask is None and self.strength < 1:
                 assert image is not None
                 results = await workflow.refine(
-                    self.diffusion, image, self.prompt, self.strength, progress
+                    diffusion, image, self.prompt, self.strength, progress
                 )
             elif self.strength == 1:
                 assert image is not None and mask is not None
-                results = await workflow.inpaint(self.diffusion, image, mask, self.prompt, progress)
+                results = await workflow.inpaint(diffusion, image, mask, self.prompt, progress)
             else:
                 assert image is not None and mask is not None and self.strength < 1
                 results = await workflow.refine_region(
-                    self.diffusion, image, mask, self.prompt, self.strength, progress
+                    diffusion, image, mask, self.prompt, self.strength, progress
                 )
             self.results.append(results)
             self.state = State.preview
@@ -120,7 +131,7 @@ class Model:
 
     def cancel(self):
         assert State.generating in self.state and self.task is not None
-        eventloop.run(self.diffusion.interrupt())
+        diffusion_server.interrupt()
         self.task.cancel()
         self.state = self.state & (~State.generating)
         self.reset()
@@ -219,7 +230,11 @@ class SetupWidget(QWidget):
 
         self.generate_button = QPushButton("Generate", self)
         self.generate_button.clicked.connect(self.generate)
-        layout.addWidget(self.generate_button, 2, 0, 1, 3)
+        layout.addWidget(self.generate_button, 2, 0, 1, 2)
+
+        self.settings_button = QPushButton(QIcon(str(_icon_path / "settings.svg")), "", self)
+        self.settings_button.clicked.connect(self.show_settings)
+        layout.addWidget(self.settings_button, 2, 2)
 
         self.progress_bar = QProgressBar(self)
         self.progress_bar.setMinimum(0)
@@ -282,6 +297,9 @@ class SetupWidget(QWidget):
         if self.strength_slider.value() != value:
             self.strength_slider.setValue(value)
 
+    def show_settings(self):
+        Krita.instance().action("ai_tools_settings").trigger()
+
 
 class PreviewWidget(QWidget):
     _model: Model = ...
@@ -310,11 +328,11 @@ class PreviewWidget(QWidget):
         self.generate_progress.setFixedHeight(6)
         layout.addWidget(self.generate_progress, 1, 0, 1, 3)
 
-        self.apply_button = QPushButton("Apply", self)
+        self.apply_button = QPushButton(QIcon(str(_icon_path / "apply.svg")), "Apply", self)
         self.apply_button.clicked.connect(self.apply_result)
         layout.addWidget(self.apply_button, 2, 0)
 
-        self.discard_button = QPushButton("Discard", self)
+        self.discard_button = QPushButton(QIcon(str(_icon_path / "discard.svg")), "Discard", self)
         self.discard_button.clicked.connect(self.discard_result)
         layout.addWidget(self.discard_button, 2, 1)
 
@@ -376,8 +394,6 @@ class PreviewWidget(QWidget):
 
 
 class WelcomeWidget(QWidget):
-    connectRequested = pyqtSignal()
-
     def __init__(self):
         super().__init__()
         layout = QVBoxLayout()
@@ -394,39 +410,42 @@ class WelcomeWidget(QWidget):
         layout.addWidget(self._connect_error)
 
         self._connect_button = QPushButton("Connect", self)
-        self._connect_button.clicked.connect(self.request_connection)
+        self._connect_button.clicked.connect(diffusion_server.connect)
         layout.addWidget(self._connect_button)
 
         self._settings_button = QPushButton("Settings", self)
+        self._settings_button.clicked.connect(self.show_settings)
         layout.addWidget(self._settings_button)
 
         layout.addStretch()
 
-    async def connect(self):
-        self._connect_error.setVisible(False)
-        self._connect_button.setVisible(False)
-        try:
+        diffusion_server.changed.connect(self.update)
+
+    def update(self):
+        if diffusion_server.state in [ServerState.disconnected, ServerState.error]:
+            self._connect_status.setText("Not connected to Automatic1111 server.")
+            self._connect_button.setVisible(True)
+        if diffusion_server.state is ServerState.error:
+            self._connect_error.setText(diffusion_server.error)
+            self._connect_error.setVisible(True)
+        if diffusion_server.state is ServerState.connecting:
             self._connect_status.setText(
                 f"Connecting to Automatic1111 server at {Auto1111.default_url}..."
             )
-            diffusion = await Auto1111.connect()
+            self._connect_button.setVisible(False)
+        if diffusion_server.state is ServerState.connected:
             self._connect_status.setText(
-                f"Connected to Automatic1111 server at {diffusion.url}.\n\nCreate a new document or open an existing image to start."
+                f"Connected to Automatic1111 server at {diffusion_server.diffusion.url}.\n\nCreate"
+                " a new document or open an existing image to start."
             )
-            return diffusion
-        except Exception as e:
-            self._connect_status.setText("Not connected to Automatic1111 server.")
-            self._connect_error.setText(str(e))
-            self._connect_error.setVisible(True)
-            self._connect_button.setVisible(True)
-            return None
+            self._connect_button.setVisible(False)
+            self._connect_error.setVisible(False)
 
-    def request_connection(self):
-        self.connectRequested.emit()
+    def show_settings(self):
+        Krita.instance().action("ai_tools_settings").trigger()
 
 
 class ImageDiffusionWidget(DockWidget):
-    _diffusion: Auto1111 = None
     _models: list[Model] = []
 
     def __init__(self):
@@ -441,23 +460,10 @@ class ImageDiffusionWidget(DockWidget):
         self._frame.addWidget(self._preview)
         self.setWidget(self._frame)
 
-        self._welcome.connectRequested.connect(self.connect)
         self._setup.started.connect(self.generate)
         self._setup.cancelled.connect(self.cancel)
         self._preview.finished.connect(self.update)
-
-        self.connect()
-
-    def connect(self):
-        assert not self._diffusion, "Already connected"
-
-        async def init():
-            self._diffusion = await self._welcome.connect()
-            for m in self._models:
-                m.diffusion = self._diffusion
-            self.update()
-
-        eventloop.run(init())
+        diffusion_server.changed.connect(self.update)
 
     def canvasChanged(self, canvas):
         # Remove models for documents that have been closed
@@ -467,7 +473,7 @@ class ImageDiffusionWidget(DockWidget):
         if not (canvas is None or Document.active() is None):
             model = self.model
             if model is None:
-                model = Model(Document.active(), self._diffusion)
+                model = Model(Document.active())
                 self._models.append(model)
             self._setup.model = model
             self._preview.model = model
@@ -478,7 +484,7 @@ class ImageDiffusionWidget(DockWidget):
         return next((m for m in self._models if m.is_active), None)
 
     def update(self):
-        if self.model is None or self._diffusion is None:
+        if self.model is None or diffusion_server is None:
             self._frame.setCurrentWidget(self._welcome)
         elif self.model.state in [State.setup, State.generating]:
             self._setup.update()
@@ -507,7 +513,7 @@ class ImageDiffusionWidget(DockWidget):
         model.task = eventloop.run(run_task())
 
     def cancel(self):
-        eventloop.run(self._diffusion.interrupt())
+        eventloop.run(diffusion_server.interrupt())
 
 
 Krita.instance().addDockWidgetFactory(
