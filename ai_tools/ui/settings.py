@@ -15,7 +15,7 @@ from PyQt5.QtCore import Qt, QSize, pyqtSignal
 from PyQt5.QtGui import QPixmap
 
 from .. import Auto1111, Setting, Settings, settings
-from .server import diffusion_server, ServerState
+from .server import DiffusionServer, ServerState
 
 _icon_path = Path(__file__).parent.parent / "icons"
 
@@ -71,11 +71,11 @@ class SettingsDialog(QDialog):
         self._server_url.textChanged.connect(self.write)
         server_layout.addWidget(self._server_url)
         self._connect_button = QPushButton("Connect", self)
-        self._connect_button.clicked.connect(diffusion_server.connect)
+        self._connect_button.clicked.connect(DiffusionServer.instance().connect)
         server_layout.addWidget(self._connect_button)
         self._layout.addLayout(server_layout)
 
-        diffusion_server.changed.connect(self.update_server_status)
+        DiffusionServer.instance().changed.connect(self.update_server_status)
         self.update_server_status()
 
         self._add_header(Settings._batch_size)
@@ -155,18 +155,19 @@ class SettingsDialog(QDialog):
         self.read()
 
     def update_server_status(self):
-        self._connect_button.setEnabled(diffusion_server.state != ServerState.connecting)
-        if diffusion_server.state == ServerState.connected:
+        server = DiffusionServer.instance()
+        self._connect_button.setEnabled(server.state != ServerState.connecting)
+        if server.state == ServerState.connected:
             self._connection_status.setText("Connected")
             self._connection_status.setStyleSheet("color: #3b3; font-weight:bold")
-        elif diffusion_server.state == ServerState.connecting:
+        elif server.state == ServerState.connecting:
             self._connection_status.setText("Connecting")
             self._connection_status.setStyleSheet("color: #cc3; font-weight:bold")
-        elif diffusion_server.state == ServerState.disconnected:
+        elif server.state == ServerState.disconnected:
             self._connection_status.setText("Disconnected")
             self._connection_status.setStyleSheet("color: #888; font-style:italic")
-        elif diffusion_server.state == ServerState.error:
-            self._connection_status.setText(f"<b>Error</b>: {diffusion_server.error}")
+        elif server.state == ServerState.error:
+            self._connection_status.setText(f"<b>Error</b>: {server.error}")
             self._connection_status.setStyleSheet("color: red;")
 
     def show(self):

@@ -1,0 +1,79 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<ActionCollection version="2" name="Scripts">
+    <Actions category="Scripts">
+        <text>AI Tools: Image Generation</text>
+
+        <Action name="ai_tools_generate">
+            <icon/>
+            <text>Generate image</text>
+            <whatsThis/>
+            <toolTip/>
+            <iconText/>
+            <activationFlags>10000</activationFlags>
+            <activationConditions>0</activationConditions>
+            <shortcut></shortcut>
+            <isCheckable>false</isCheckable>
+            <statusTip/>
+        </Action>
+        <Action name="ai_tools_cancel">
+            <icon/>
+            <text>Cancel generation</text>
+            <whatsThis/>
+            <toolTip/>
+            <iconText/>
+            <activationFlags>10000</activationFlags>
+            <activationConditions>0</activationConditions>
+            <shortcut></shortcut>
+            <isCheckable>false</isCheckable>
+            <statusTip/>
+        </Action>
+        <Action name="ai_tools_apply">
+            <icon/>
+            <text>Apply result</text>
+            <whatsThis/>
+            <toolTip/>
+            <iconText/>
+            <activationFlags>10000</activationFlags>
+            <activationConditions>0</activationConditions>
+            <shortcut></shortcut>
+            <isCheckable>false</isCheckable>
+            <statusTip/>
+        </Action>
+        <Action name="ai_tools_apply_multiple">
+            <icon/>
+            <text>Apply result (multiple)</text>
+            <whatsThis/>
+            <toolTip/>
+            <iconText/>
+            <activationFlags>10000</activationFlags>
+            <activationConditions>0</activationConditions>
+            <shortcut></shortcut>
+            <isCheckable>false</isCheckable>
+            <statusTip/>
+        </Action>
+        <Action name="ai_tools_discard">
+            <icon/>
+            <text>Discard results</text>
+            <whatsThis/>
+            <toolTip/>
+            <iconText/>
+            <activationFlags>10000</activationFlags>
+            <activationConditions>0</activationConditions>
+            <shortcut></shortcut>
+            <isCheckable>false</isCheckable>
+            <statusTip/>
+        </Action>
+        <Action name="ai_tools_settings">
+            <icon/>
+            <text>Show Settings</text>
+            <whatsThis/>
+            <toolTip/>
+            <iconText/>
+            <activationFlags>0</activationFlags>
+            <activationConditions>0</activationConditions>
+            <shortcut></shortcut>
+            <isCheckable>false</isCheckable>
+            <statusTip/>
+        </Action>
+    </Actions>
+</ActionCollection>

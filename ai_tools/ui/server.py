@@ -14,11 +14,19 @@ class ServerState(Enum):
 class DiffusionServer(QObject):
     """ViewModel for the diffusion server connection."""
 
+    _instance = None
+
     changed = pyqtSignal()
 
     state = ServerState.disconnected
     diffusion: Optional[Auto1111] = None
     error: Optional[str] = None
+
+    @classmethod
+    def instance(cls):
+        if cls._instance is None:
+            cls._instance = cls()
+        return cls._instance
 
     def __init__(self):
         super().__init__()
@@ -40,7 +48,3 @@ class DiffusionServer(QObject):
 
     def interrupt(self):
         eventloop.run(self.diffusion.interrupt())
-
-
-# Global view model so diffusion widgets created by Krita can access it
-diffusion_server = DiffusionServer()

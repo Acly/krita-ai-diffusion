@@ -1,10 +1,6 @@
 from __future__ import annotations
-from enum import Flag
 from typing import Callable, Optional
 from pathlib import Path
-import asyncio
-import sys
-import traceback
 
 from PyQt5.QtWidgets import (
     QSlider,
@@ -27,170 +23,15 @@ from PyQt5.QtCore import Qt, QSize, pyqtSignal
 from krita import Krita, DockWidget, DockWidgetFactory, DockWidgetFactoryBase
 import krita
 
-from .. import (
-    eventloop,
-    workflow,
-    Bounds,
-    ImageCollection,
-    Image,
-    Mask,
-    Extent,
-    Document,
-    Progress,
-    Auto1111,
-    Interrupted,
-    NetworkError,
-    settings,
-)
-from .server import diffusion_server, ServerState
+from .. import Auto1111
+from .model import Model, ModelRegistry, State
+from .server import DiffusionServer, ServerState
 
 _icon_path = Path(__file__).parent.parent / "icons"
 
 
-class State(Flag):
-    setup = 0
-    generating = 1
-    preview = 2
-
-
-class Model:
-    _doc: Document
-    _layer: Optional[krita.Node] = None
-    _image: Optional[Image] = None
-    _mask: Optional[Mask] = None
-    _extent: Optional[Extent] = None
-    _bounds: Optional[Bounds] = None
-    _report_progress: Callable[[], None]
-
-    state = State.setup
-    prompt = ""
-    strength = 1.0
-    progress = 0.0
-    results: ImageCollection
-    error = ""
-    task: Optional[asyncio.Task] = None
-
-    def __init__(self, document: Document):
-        self._doc = document
-        self.results = ImageCollection()
-
-    def setup(self):
-        """Retrieve the current image and selection mask as inputs for the next generation(s)."""
-        self._mask = self._doc.create_mask_from_selection()
-        if self._mask is not None or self.strength < 1.0:
-            self._image = self._doc.get_image()
-            self._bounds = self._mask.bounds if self._mask else Bounds(0, 0, *self._image.extent)
-        else:
-            self._extent = self._doc.extent
-            self._bounds = Bounds(0, 0, *self._extent)
-
-    async def generate(self, report_progress: Callable[[], None]):
-        try:
-            assert State.generating not in self.state
-            assert diffusion_server.state is ServerState.connected
-
-            diffusion = diffusion_server.diffusion
-            image, mask = self._image, self._mask
-            self.state = self.state | State.generating
-            self._report_progress = report_progress
-            self.progress = 0.0
-            progress = Progress(self.report_progress)
-
-            if image is None and mask is None:
-                assert self._extent is not None and self.strength == 1
-                results = await workflow.generate(diffusion, self._extent, self.prompt, progress)
-            elif mask is None and self.strength < 1:
-                assert image is not None
-                results = await workflow.refine(
-                    diffusion, image, self.prompt, self.strength, progress
-                )
-            elif self.strength == 1:
-                assert image is not None and mask is not None
-                results = await workflow.inpaint(diffusion, image, mask, self.prompt, progress)
-            else:
-                assert image is not None and mask is not None and self.strength < 1
-                results = await workflow.refine_region(
-                    diffusion, image, mask, self.prompt, self.strength, progress
-                )
-            self.results.append(results)
-            self.state = State.preview
-            if self._layer is None:
-                self._layer = self._doc.insert_layer(
-                    f"[Preview] {self.prompt}", self.results[0], self._bounds
-                )
-        except Interrupted:
-            self.reset()
-        except NetworkError as e:
-            self.report_error(e.message, f"[url={e.url}, code={e.code}]")
-        except AssertionError as e:
-            _, _, tb = sys.exc_info()
-            traceback.print_tb(tb)
-            self.report_error("Error: Internal assertion failed.")
-        except Exception as e:
-            self.report_error(str(e))
-
-    def cancel(self):
-        assert State.generating in self.state and self.task is not None
-        diffusion_server.interrupt()
-        self.task.cancel()
-        self.state = self.state & (~State.generating)
-        self.reset()
-
-    def report_progress(self, value):
-        self.progress = value
-        self._report_progress()
-
-    def report_error(self, message: str, details: Optional[str] = None):
-        print("[krita-ai-tools]", message, details)
-        self.state = State.setup
-        self.error = message
-
-    def show_preview(self, index: int):
-        self._doc.set_layer_pixels(self._layer, self.results[index], self._bounds)
-
-    def apply_current_result(self):
-        """Apply selected result by duplicating the preview layer and inserting it below.
-        This allows to apply multiple results (eg. to combine them afterwards by erasing parts).
-        """
-        new_layer = self._layer
-        self._layer = self._layer.duplicate()
-        parent = new_layer.parentNode()
-        parent.addChildNode(self._layer, new_layer)
-        new_layer.setLocked(False)
-        new_layer.setName(new_layer.name().replace("[Preview]", "[Diffusion]"))
-
-    def reset(self):
-        """Discard all results, cancel any running generation, and go back to the setup stage.
-        Setup configuration like prompt and strength is not reset.
-        """
-        if self.state is (State.preview | State.generating) and not self.task.cancelled():
-            self.cancel()
-        if self._layer:
-            self._layer.setLocked(False)
-            self._layer.remove()
-            self._layer = None
-        self._image = None
-        self._mask = None
-        self._extent = None
-        self.results = ImageCollection()
-        self.state = State.setup
-        self.progress = 0
-        self.error = ""
-
-    @property
-    def is_active(self):
-        return self._doc.is_active
-
-    @property
-    def is_valid(self):
-        return self._doc.is_valid
-
-
 class SetupWidget(QWidget):
-    _model: Model = ...
-
-    started = pyqtSignal()
-    cancelled = pyqtSignal()
+    _model: Optional[Model] = None
 
     def __init__(self):
         super().__init__()
@@ -254,7 +95,7 @@ class SetupWidget(QWidget):
 
     @property
     def model(self):
-        assert self._model is not ...
+        assert self._model is not None
         return self._model
 
     @model.setter
@@ -265,27 +106,28 @@ class SetupWidget(QWidget):
         model = self.model
         self.prompt_textbox.setPlainText(model.prompt)
         self.strength_input.setValue(int(model.strength * 100))
-        self.progress_bar.setValue(int(model.progress * 100))
         self.generate_button.setText("Cancel" if model.state is State.generating else "Generate")
         self.error_text.setText(model.error)
         self.error_text.setVisible(model.error != "")
+        self.update_progress()
+
+    def update_progress(self):
+        self.progress_bar.setValue(int(self.model.progress * 100))
 
     def generate(self):
         if self.model.state is State.generating:
             return self.cancel()
 
         assert self.generate_button.text() == "Generate"
-        self.model.error = ""
-        self.model.progress = 0
         self.generate_button.setText("Cancel")
-        self.started.emit()
+        self.model.setup()
+        self.model.generate()
         self.update()
 
     def cancel(self):
         assert self.generate_button.text() == "Cancel"
         self.model.cancel()
         self.update()
-        self.cancelled.emit()
 
     def change_prompt(self):
         self.model.prompt = self.prompt_textbox.toPlainText()
@@ -302,9 +144,7 @@ class SetupWidget(QWidget):
 
 
 class PreviewWidget(QWidget):
-    _model: Model = ...
-
-    finished = pyqtSignal()
+    _model: Optional[Model] = None
 
     def __init__(self):
         super().__init__()
@@ -342,7 +182,7 @@ class PreviewWidget(QWidget):
 
     @property
     def model(self):
-        assert self._model is not ...
+        assert self._model is not None
         return self._model
 
     @model.setter
@@ -360,6 +200,9 @@ class PreviewWidget(QWidget):
                 lambda img: self.preview_list.addItem(QListWidgetItem(img.to_icon(), None))
             )
         self.generate_button.setEnabled(self.model.state is State.preview)
+        self.update_progress()
+
+    def update_progress(self):
         self.generate_progress.setValue(int(self.model.progress * 100))
 
     def show_preview(self, current, previous):
@@ -378,19 +221,11 @@ class PreviewWidget(QWidget):
     def generate_more(self):
         self.generate_button.setEnabled(False)
         self.generate_progress.setValue(0)
-        model = self.model
-
-        async def run_task():
-            await model.generate(report_progress=self.update)
-            if model == self.model:  # still viewing the same canvas
-                self.update()
-
-        model.task = eventloop.run(run_task())
+        self.model.generate()
 
     def finish(self):
         self.preview_list.clear()
         self.model.reset()
-        self.finished.emit()
 
 
 class WelcomeWidget(QWidget):
@@ -398,7 +233,7 @@ class WelcomeWidget(QWidget):
         super().__init__()
         layout = QVBoxLayout()
         self.setLayout(layout)
-        layout.addWidget(QLabel("AI Image Diffusion", self))
+        layout.addWidget(QLabel("AI Image Generation", self))
 
         self._connect_status = QLabel("Not connected to Automatic1111 server.", self)
         layout.addWidget(self._connect_status)
@@ -410,7 +245,7 @@ class WelcomeWidget(QWidget):
         layout.addWidget(self._connect_error)
 
         self._connect_button = QPushButton("Connect", self)
-        self._connect_button.clicked.connect(diffusion_server.connect)
+        self._connect_button.clicked.connect(DiffusionServer.instance().connect)
         layout.addWidget(self._connect_button)
 
         self._settings_button = QPushButton("Settings", self)
@@ -419,23 +254,24 @@ class WelcomeWidget(QWidget):
 
         layout.addStretch()
 
-        diffusion_server.changed.connect(self.update)
+        DiffusionServer.instance().changed.connect(self.update)
 
     def update(self):
-        if diffusion_server.state in [ServerState.disconnected, ServerState.error]:
+        server = DiffusionServer.instance()
+        if server.state in [ServerState.disconnected, ServerState.error]:
             self._connect_status.setText("Not connected to Automatic1111 server.")
             self._connect_button.setVisible(True)
-        if diffusion_server.state is ServerState.error:
-            self._connect_error.setText(diffusion_server.error)
+        if server.state is ServerState.error:
+            self._connect_error.setText(server.error)
             self._connect_error.setVisible(True)
-        if diffusion_server.state is ServerState.connecting:
+        if server.state is ServerState.connecting:
             self._connect_status.setText(
                 f"Connecting to Automatic1111 server at {Auto1111.default_url}..."
             )
             self._connect_button.setVisible(False)
-        if diffusion_server.state is ServerState.connected:
+        if server.state is ServerState.connected:
             self._connect_status.setText(
-                f"Connected to Automatic1111 server at {diffusion_server.diffusion.url}.\n\nCreate"
+                f"Connected to Automatic1111 server at {server.diffusion.url}.\n\nCreate"
                 " a new document or open an existing image to start."
             )
             self._connect_button.setVisible(False)
@@ -446,8 +282,6 @@ class WelcomeWidget(QWidget):
 
 
 class ImageDiffusionWidget(DockWidget):
-    _models: list[Model] = []
-
     def __init__(self):
         super().__init__()
         self.setWindowTitle("Image Diffusion")
@@ -460,60 +294,38 @@ class ImageDiffusionWidget(DockWidget):
         self._frame.addWidget(self._preview)
         self.setWidget(self._frame)
 
-        self._setup.started.connect(self.generate)
-        self._setup.cancelled.connect(self.cancel)
-        self._preview.finished.connect(self.update)
-        diffusion_server.changed.connect(self.update)
+        DiffusionServer.instance().changed.connect(self.update)
+        ModelRegistry.instance().created.connect(self.register_model)
 
     def canvasChanged(self, canvas):
-        # Remove models for documents that have been closed
-        self._models = [m for m in self._models if m.is_valid]
+        self.update()
 
-        # Switch to or create model for active document
-        if not (canvas is None or Document.active() is None):
-            model = self.model
-            if model is None:
-                model = Model(Document.active())
-                self._models.append(model)
-            self._setup.model = model
-            self._preview.model = model
-            self.update()
-
-    @property
-    def model(self):
-        return next((m for m in self._models if m.is_active), None)
+    def register_model(self, model):
+        model.changed.connect(self.update)
+        model.progress_changed.connect(self.update_progress)
 
     def update(self):
-        if self.model is None or diffusion_server is None:
+        model = Model.active()
+        server = DiffusionServer.instance()
+        if model is None or server.state in [ServerState.disconnected, ServerState.error]:
             self._frame.setCurrentWidget(self._welcome)
-        elif self.model.state in [State.setup, State.generating]:
+        elif model.state in [State.setup, State.generating]:
+            self._setup.model = model
             self._setup.update()
             self._frame.setCurrentWidget(self._setup)
-        elif State.preview in self.model.state:
+        elif State.preview in model.state:
+            self._preview.model = model
             self._preview.update()
             self._frame.setCurrentWidget(self._preview)
         else:
             assert False, "Unhandled model state"
 
-    def reset(self):
-        self.model.reset()
-        self._setup.reset()
-        self._preview.reset()
-        self._frame.setCurrentWidget(self._setup)
-
-    def generate(self):
-        model = self.model
-        model.setup()
-
-        async def run_task():
-            await model.generate(report_progress=self._setup.update)
-            if model == self.model:  # still viewing the same canvas
-                self.update()
-
-        model.task = eventloop.run(run_task())
-
-    def cancel(self):
-        eventloop.run(diffusion_server.interrupt())
+    def update_progress(self):
+        model = Model.active()
+        if model.state is State.generating:
+            self._setup.update_progress()
+        elif State.preview in model.state:
+            self._preview.update_progress()
 
 
 Krita.instance().addDockWidgetFactory(
