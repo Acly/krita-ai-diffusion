@@ -284,7 +284,7 @@ class WelcomeWidget(QWidget):
 class ImageDiffusionWidget(DockWidget):
     def __init__(self):
         super().__init__()
-        self.setWindowTitle("Image Diffusion")
+        self.setWindowTitle("AI Image Generation")
         self._welcome = WelcomeWidget()
         self._setup = SetupWidget()
         self._preview = PreviewWidget()

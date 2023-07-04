@@ -17,8 +17,6 @@ from PyQt5.QtGui import QPixmap
 from .. import Auto1111, Setting, Settings, settings
 from .server import DiffusionServer, ServerState
 
-_icon_path = Path(__file__).parent.parent / "icons"
-
 
 class SliderWithValue(QWidget):
     value_changed = pyqtSignal(int)
@@ -78,6 +76,14 @@ class SettingsDialog(QDialog):
         DiffusionServer.instance().changed.connect(self.update_server_status)
         self.update_server_status()
 
+        self._add_header(Settings._negative_prompt)
+        self._negative_prompt = QLineEdit(self)
+        self._layout.addWidget(self._negative_prompt)
+
+        self._add_header(Settings._upscale_prompt)
+        self._upscale_prompt = QLineEdit(self)
+        self._layout.addWidget(self._upscale_prompt)
+
         self._add_header(Settings._batch_size)
         self._batch_size_slider = SliderWithValue(1, 16, self)
         self._batch_size_slider.value_changed.connect(self.write)
@@ -127,6 +133,8 @@ class SettingsDialog(QDialog):
         self._write_on_update = False
         try:
             self._server_url.setText(settings.server_url)
+            self._negative_prompt.setText(settings.negative_prompt)
+            self._upscale_prompt.setText(settings.upscale_prompt)
             self._batch_size_slider.value = settings.batch_size
             self._min_image_size.setValue(settings.min_image_size)
             self._max_image_size.setValue(settings.max_image_size)
@@ -144,6 +152,8 @@ class SettingsDialog(QDialog):
     def write(self, *ignored):
         if self._write_on_update:
             settings.server_url = self._server_url.text()
+            settings.negative_Prompt = self._negative_prompt.text()
+            settings.upscale_prompt = self._upscale_prompt.text()
             settings.batch_size = self._batch_size_slider.value
             settings.min_image_size = self._min_image_size.value()
             settings.max_image_size = self._max_image_size.value()

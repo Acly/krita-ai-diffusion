@@ -1,9 +1,8 @@
-from . import image
-from . import diffusion
-from . import workflow
-from .diffusion import Auto1111, Progress, Interrupted, NetworkError
+from .network import Progress, NetworkError, Interrupted, OutOfMemoryError, RequestManager
+from .diffusion import Auto1111
 from .image import Bounds, Extent, Mask, Image, ImageCollection
 from .settings import Settings, Setting, settings
+from . import workflow
 
 import importlib.util
 

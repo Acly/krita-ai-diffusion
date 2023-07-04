@@ -19,6 +19,18 @@ class Settings:
         "URL used to connect to a running Automatic1111 server.",
     )
 
+    _negative_prompt = Setting(
+        "Negative prompt",
+        "EasyNegative verybadimagenegative_v1.3",
+        "Textual description of things to avoid in generated images.",
+    )
+
+    _upscale_prompt = Setting(
+        "Upscale prompt",
+        "highres, 8k, uhd",
+        "Additional text which is used to extend the prompt when upscaling images.",
+    )
+
     _min_image_size = Setting(
         "Minimum image size",
         512,
