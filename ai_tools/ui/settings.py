@@ -1,12 +1,16 @@
 from pathlib import Path
+from typing import Callable
 from PyQt5.QtWidgets import (
     QVBoxLayout,
     QHBoxLayout,
     QDialog,
     QPushButton,
     QLabel,
+    QListWidget,
+    QListWidgetItem,
     QLineEdit,
     QSpinBox,
+    QStackedWidget,
     QComboBox,
     QSlider,
     QWidget,
@@ -14,7 +18,7 @@ from PyQt5.QtWidgets import (
 from PyQt5.QtCore import Qt, QSize, pyqtSignal
 from PyQt5.QtGui import QPixmap
 
-from .. import Auto1111, Setting, Settings, settings
+from .. import Auto1111, Setting, Settings, settings, GPUMemoryPreset
 from .server import DiffusionServer, ServerState
 
 
@@ -47,22 +51,52 @@ class SliderWithValue(QWidget):
         self._slider.setValue(v)
 
 
-class SettingsDialog(QDialog):
-    _write_on_update = True
+def _add_title(layout: QVBoxLayout, title: str):
+    title_label = QLabel(title)
+    title_label.setStyleSheet("font-size: 16px")
+    layout.addWidget(title_label)
+    layout.addSpacing(6)
 
+
+def _add_header(layout: QVBoxLayout, setting: Setting):
+    title_label = QLabel(setting.name)
+    title_label.setStyleSheet("font-weight:bold")
+    desc_label = QLabel(setting.desc)
+    desc_label.setWordWrap(True)
+    layout.addSpacing(6)
+    layout.addWidget(title_label)
+    layout.addWidget(desc_label)
+
+
+class SettingsWriteGuard:
+    """Avoid feedback loop when reading settings and updating the UI."""
+
+    _locked = False
+
+    def __enter__(self):
+        self._locked = True
+
+    def __exit__(self, *ignored):
+        self._locked = False
+        settings.save()
+
+    def __bool__(self):
+        return self._locked
+
+
+class ServerSettings(QWidget):
     def __init__(self):
         super().__init__()
-        self.setMinimumSize(QSize(640, 480))
-        self.setMaximumSize(QSize(800, 2048))
-        self.setWindowTitle("Configure AI Tools")
+        self._write_guard = SettingsWriteGuard()
 
-        self._layout = QVBoxLayout()
-        self.setLayout(self._layout)
+        layout = QVBoxLayout()
+        self.setLayout(layout)
+        _add_title(layout, "Server configuration")
 
-        self._add_header(Settings._server_url)
+        _add_header(layout, Settings._server_url)
         self._connection_status = QLabel(self)
         self._connection_status.setWordWrap(True)
-        self._layout.addWidget(self._connection_status)
+        layout.addWidget(self._connection_status)
 
         server_layout = QHBoxLayout()
         self._server_url = QLineEdit(self)
@@ -71,100 +105,22 @@ class SettingsDialog(QDialog):
         self._connect_button = QPushButton("Connect", self)
         self._connect_button.clicked.connect(DiffusionServer.instance().connect)
         server_layout.addWidget(self._connect_button)
-        self._layout.addLayout(server_layout)
+        layout.addLayout(server_layout)
 
-        DiffusionServer.instance().changed.connect(self.update_server_status)
-        self.update_server_status()
+        layout.addStretch()
 
-        self._add_header(Settings._negative_prompt)
-        self._negative_prompt = QLineEdit(self)
-        self._layout.addWidget(self._negative_prompt)
-
-        self._add_header(Settings._upscale_prompt)
-        self._upscale_prompt = QLineEdit(self)
-        self._layout.addWidget(self._upscale_prompt)
-
-        self._add_header(Settings._batch_size)
-        self._batch_size_slider = SliderWithValue(1, 16, self)
-        self._batch_size_slider.value_changed.connect(self.write)
-        self._layout.addWidget(self._batch_size_slider)
-
-        self._add_header(Settings._upscaler)
-        self._upscaler = QComboBox(self)
-        self._upscaler.currentIndexChanged.connect(self.write)
-        self._layout.addWidget(self._upscaler)
-
-        self._add_header(Settings._min_image_size)
-        self._min_image_size = QSpinBox(self)
-        self._min_image_size.setMaximum(1024)
-        self._min_image_size.valueChanged.connect(self.write)
-        self._layout.addWidget(self._min_image_size)
-
-        self._add_header(Settings._max_image_size)
-        self._max_image_size = QSpinBox(self)
-        self._max_image_size.setMaximum(2048)
-        self._max_image_size.valueChanged.connect(self.write)
-        self._layout.addWidget(self._max_image_size)
-
-        self._layout.addStretch()
-        self._layout.addSpacing(6)
-
-        self._restore_button = QPushButton("Restore Defaults", self)
-        self._restore_button.clicked.connect(self.restore_defaults)
-
-        self._close_button = QPushButton("Ok", self)
-        self._close_button.clicked.connect(self.close)
-
-        button_layout = QHBoxLayout()
-        button_layout.addWidget(self._restore_button)
-        button_layout.addStretch()
-        button_layout.addWidget(self._close_button)
-        self._layout.addLayout(button_layout)
-
-    def _add_header(self, setting: Setting):
-        title_label = QLabel(setting.name, self)
-        title_label.setStyleSheet("font-weight:bold")
-        desc_label = QLabel(setting.desc, self)
-        desc_label.setWordWrap(True)
-        self._layout.addWidget(title_label)
-        self._layout.addWidget(desc_label)
+        DiffusionServer.instance().changed.connect(self._update_server_status)
+        self._update_server_status()
 
     def read(self):
-        self._write_on_update = False
-        try:
+        with self._write_guard:
             self._server_url.setText(settings.server_url)
-            self._negative_prompt.setText(settings.negative_prompt)
-            self._upscale_prompt.setText(settings.upscale_prompt)
-            self._batch_size_slider.value = settings.batch_size
-            self._min_image_size.setValue(settings.min_image_size)
-            self._max_image_size.setValue(settings.max_image_size)
-            self._upscaler.clear()
-            for index, upscaler in enumerate(settings.upscalers):
-                self._upscaler.insertItem(index, upscaler)
-            try:
-                self._upscaler.setCurrentIndex(settings.upscaler_index)
-            except Exception as e:
-                print("[krita-ai-tools] Can't find upscaler", settings.upscaler)
-                self._upscaler.setCurrentIndex(0)
-        finally:
-            self._write_on_update = True
 
     def write(self, *ignored):
-        if self._write_on_update:
+        if not self._write_guard:
             settings.server_url = self._server_url.text()
-            settings.negative_Prompt = self._negative_prompt.text()
-            settings.upscale_prompt = self._upscale_prompt.text()
-            settings.batch_size = self._batch_size_slider.value
-            settings.min_image_size = self._min_image_size.value()
-            settings.max_image_size = self._max_image_size.value()
-            settings.upscaler = self._upscaler.currentText()
-            settings.save()
 
-    def restore_defaults(self):
-        settings.restore()
-        self.read()
-
-    def update_server_status(self):
+    def _update_server_status(self):
         server = DiffusionServer.instance()
         self._connect_button.setEnabled(server.state != ServerState.connecting)
         if server.state == ServerState.connected:
@@ -180,7 +136,196 @@ class SettingsDialog(QDialog):
             self._connection_status.setText(f"<b>Error</b>: {server.error}")
             self._connection_status.setStyleSheet("color: red;")
 
+
+class DiffusionSettings(QWidget):
+    def __init__(self):
+        super().__init__()
+        self._write_guard = SettingsWriteGuard()
+
+        layout = QVBoxLayout()
+        self.setLayout(layout)
+        _add_title(layout, "Diffusion model settings")
+
+        _add_header(layout, Settings._negative_prompt)
+        self._negative_prompt = QLineEdit(self)
+        self._negative_prompt.textChanged.connect(self.write)
+        layout.addWidget(self._negative_prompt)
+
+        _add_header(layout, Settings._upscale_prompt)
+        self._upscale_prompt = QLineEdit(self)
+        self._upscale_prompt.textChanged.connect(self.write)
+        layout.addWidget(self._upscale_prompt)
+
+        _add_header(layout, Settings._upscaler)
+        self._upscaler = QComboBox(self)
+        self._upscaler.currentIndexChanged.connect(self.write)
+        layout.addWidget(self._upscaler)
+
+        _add_header(layout, Settings._min_image_size)
+        self._min_image_size = QSpinBox(self)
+        self._min_image_size.setMaximum(1024)
+        self._min_image_size.valueChanged.connect(self.write)
+        layout.addWidget(self._min_image_size)
+
+        _add_header(layout, Settings._max_image_size)
+        self._max_image_size = QSpinBox(self)
+        self._max_image_size.setMaximum(2048)
+        self._max_image_size.valueChanged.connect(self.write)
+        layout.addWidget(self._max_image_size)
+
+        layout.addStretch()
+
+    def read(self):
+        with self._write_guard:
+            self._negative_prompt.setText(settings.negative_prompt)
+            self._upscale_prompt.setText(settings.upscale_prompt)
+            self._min_image_size.setValue(settings.min_image_size)
+            self._max_image_size.setValue(settings.max_image_size)
+            self._upscaler.clear()
+            for index, upscaler in enumerate(settings.upscalers):
+                self._upscaler.insertItem(index, upscaler)
+            try:
+                self._upscaler.setCurrentIndex(settings.upscaler_index)
+            except Exception as e:
+                print("[krita-ai-tools] Can't find upscaler", settings.upscaler)
+                self._upscaler.setCurrentIndex(0)
+
+    def write(self, *ignored):
+        if not self._write_guard:
+            settings.negative_Prompt = self._negative_prompt.text()
+            settings.upscale_prompt = self._upscale_prompt.text()
+            settings.min_image_size = self._min_image_size.value()
+            settings.max_image_size = self._max_image_size.value()
+            settings.upscaler = self._upscaler.currentText()
+
+
+class PerformanceSettings(QWidget):
+    def __init__(self):
+        super().__init__()
+        self._write_guard = SettingsWriteGuard()
+
+        layout = QVBoxLayout()
+        self.setLayout(layout)
+        _add_title(layout, "Performance settings")
+
+        _add_header(layout, Settings._gpu_memory_preset)
+        self._gpu_memory_preset = QComboBox(self)
+        for preset in GPUMemoryPreset:
+            self._gpu_memory_preset.addItem(preset.text)
+        self._gpu_memory_preset.currentIndexChanged.connect(self._change_gpu_memory_preset)
+        layout.addWidget(self._gpu_memory_preset)
+
+        _add_header(layout, Settings._batch_size)
+        self._batch_size_slider = SliderWithValue(1, 16, self)
+        self._batch_size_slider.value_changed.connect(self.write)
+        layout.addWidget(self._batch_size_slider)
+
+        _add_header(layout, Settings._vae_endoding_tile_size)
+        self._vae_endoding_tile_size = QSpinBox(self)
+        self._vae_endoding_tile_size.setMinimum(768)
+        self._vae_endoding_tile_size.setMaximum(4096)
+        self._vae_endoding_tile_size.valueChanged.connect(self.write)
+        layout.addWidget(self._vae_endoding_tile_size)
+
+        _add_header(layout, Settings._diffusion_tile_size)
+        self._diffusion_tile_size = QSpinBox(self)
+        self._diffusion_tile_size.setMinimum(768)
+        self._diffusion_tile_size.setMaximum(4096 * 2)
+        self._diffusion_tile_size.valueChanged.connect(self.write)
+        layout.addWidget(self._diffusion_tile_size)
+
+        layout.addStretch()
+
+    def _change_gpu_memory_preset(self, index):
+        self.write()
+        is_custom = settings.gpu_memory_preset is GPUMemoryPreset.custom
+        self._batch_size_slider.setEnabled(is_custom)
+        self._vae_endoding_tile_size.setEnabled(is_custom)
+        self._diffusion_tile_size.setEnabled(is_custom)
+        if not is_custom:
+            self.read()
+
+    def read(self):
+        with self._write_guard:
+            self._batch_size_slider.value = settings.batch_size
+            self._gpu_memory_preset.setCurrentIndex(settings.gpu_memory_preset.value)
+            self._vae_endoding_tile_size.setValue(settings.vae_endoding_tile_size)
+            self._diffusion_tile_size.setValue(settings.diffusion_tile_size)
+
+    def write(self, *ignored):
+        if not self._write_guard:
+            settings.batch_size = self._batch_size_slider.value
+            settings.vae_endoding_tile_size = self._vae_endoding_tile_size.value()
+            settings.diffusion_tile_size = self._diffusion_tile_size.value()
+            settings.gpu_memory_preset = GPUMemoryPreset(self._gpu_memory_preset.currentIndex())
+
+
+class SettingsDialog(QDialog):
+    _server: ServerSettings
+    _diffusion: DiffusionSettings
+    _performance: PerformanceSettings
+
+    def __init__(self):
+        super().__init__()
+        self.setMinimumSize(QSize(640, 480))
+        self.setMaximumSize(QSize(800, 2048))
+        self.setWindowTitle("Configure AI Tools")
+
+        layout = QHBoxLayout()
+        self.setLayout(layout)
+
+        self._list = QListWidget(self)
+        self._list.setFixedWidth(120)
+
+        def create_list_item(text: str):
+            item = QListWidgetItem(text, self._list)
+            item.setSizeHint(QSize(112, 20))
+
+        create_list_item("Server")
+        create_list_item("Diffusion")
+        create_list_item("Performance")
+        self._list.setCurrentRow(0)
+        self._list.currentRowChanged.connect(self._change_page)
+        layout.addWidget(self._list)
+
+        inner = QVBoxLayout()
+        layout.addLayout(inner)
+
+        self._stack = QStackedWidget(self)
+        self._server = ServerSettings()
+        self._diffusion = DiffusionSettings()
+        self._performance = PerformanceSettings()
+        self._stack.addWidget(self._server)
+        self._stack.addWidget(self._diffusion)
+        self._stack.addWidget(self._performance)
+        inner.addWidget(self._stack)
+        inner.addSpacing(6)
+
+        self._restore_button = QPushButton("Restore Defaults", self)
+        self._restore_button.clicked.connect(self.restore_defaults)
+
+        self._close_button = QPushButton("Ok", self)
+        self._close_button.clicked.connect(self.close)
+
+        button_layout = QHBoxLayout()
+        button_layout.addWidget(self._restore_button)
+        button_layout.addStretch()
+        button_layout.addWidget(self._close_button)
+        inner.addLayout(button_layout)
+
+    def read(self):
+        self._server.read()
+        self._diffusion.read()
+        self._performance.read()
+
+    def restore_defaults(self):
+        settings.restore()
+        self.read()
+
     def show(self):
         self.read()
         super().show()
         self._close_button.setFocus()
+
+    def _change_page(self, index):
+        self._stack.setCurrentIndex(index)

@@ -1,7 +1,7 @@
 from .network import Progress, NetworkError, Interrupted, OutOfMemoryError, RequestManager
 from .diffusion import Auto1111
 from .image import Bounds, Extent, Mask, Image, ImageCollection
-from .settings import Settings, Setting, settings
+from .settings import Settings, Setting, settings, GPUMemoryPreset
 from . import workflow
 
 import importlib.util

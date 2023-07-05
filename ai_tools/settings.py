@@ -1,6 +1,20 @@
 import os
 import json
+from enum import Enum
 from pathlib import Path
+
+
+class GPUMemoryPreset(Enum):
+    custom = 0
+    low = 1
+    medium = 2
+    high = 3
+
+    @property
+    def text(self):
+        return ["Custom", "Low (less than 6GB)", "Medium (6GB to 12GB)", "High (more than 12GB)"][
+            self.value
+        ]
 
 
 class Setting:
@@ -8,6 +22,20 @@ class Setting:
         self.name = name
         self.desc = desc
         self.default = default
+
+    def str_to_enum(self, s: str):
+        assert isinstance(self.default, Enum)
+        EnumType = type(self.default)
+        try:
+            return EnumType[s]
+        except KeyError:
+            return self.default
+
+
+def encode_json(obj):
+    if isinstance(obj, Enum):
+        return obj.name
+    raise TypeError(f"Object of type {obj.__class__.__name__} is not JSON serializable")
 
 
 class Settings:
@@ -37,7 +65,7 @@ class Settings:
         (
             "Generation will run at a resolution of at least the configured value, "
             "even if the selected input image content is smaller. "
-            "Results are automatically downscaled to fit the target area if needed."
+            "Results are automatically downscaled to fit the target area."
         ),
     )
 
@@ -51,14 +79,55 @@ class Settings:
         ),
     )
 
+    _gpu_memory_preset = Setting(
+        "GPU Memory preset",
+        GPUMemoryPreset.medium,
+        (
+            "Controls how much GPU memory (VRAM) is used for image generation. If you encounter out"
+            " of memory errors, switch to a lower setting. All functionality and resolutions should"
+            " work even on the lowest setting. More memory will allow more efficient generation"
+            " by using larger batches and tiles."
+        ),
+    )
+
     _batch_size = Setting(
         "Batch size",
-        2,
+        4,
         (
             "Number of low resolution images which are generated at once. Improves generation "
             "speed but requires more GPU memory (VRAM)."
         ),
     )
+
+    _vae_endoding_tile_size = Setting(
+        "VAE encoder tile size",
+        1024,
+        "Larger images are split up into tiles when passed to the VAE to allow large resolutions. ",
+    )
+
+    _diffusion_tile_size = Setting(
+        "Diffusion tile size",
+        2048,
+        "Resolution threshold at which diffusion is split up into multiple tiles. ",
+    )
+
+    _gpu_memory_presets = {
+        GPUMemoryPreset.low: {
+            "batch_size": 2,
+            "vae_endoding_tile_size": 512,
+            "diffusion_tile_size": 1024,
+        },
+        GPUMemoryPreset.medium: {
+            "batch_size": 4,
+            "vae_endoding_tile_size": 1024,
+            "diffusion_tile_size": 2048,
+        },
+        GPUMemoryPreset.high: {
+            "batch_size": 8,
+            "vae_endoding_tile_size": 2048,
+            "diffusion_tile_size": 4096,
+        },
+    }
 
     _upscaler = Setting(
         "Upscaler",
@@ -85,6 +154,8 @@ class Settings:
     def __setattr__(self, name: str, value):
         if name in self._values:
             self._values[name] = value
+            if name == "gpu_memory_preset":
+                self._apply_gpu_memory_preset(value)
         else:
             object.__setattr__(self, name, value)
 
@@ -96,7 +167,7 @@ class Settings:
     def save(self, path: Path = ...):
         path = self.default_path if path is ... else path
         with open(path, "w") as file:
-            file.write(json.dumps(self._values))
+            file.write(json.dumps(self._values, default=encode_json, indent=4))
 
     def load(self, path: Path = ...):
         path = self.default_path if path is ... else path
@@ -108,10 +179,17 @@ class Settings:
             for k, v in contents.items():
                 setting = getattr(Settings, f"_{k}", None)
                 if setting is not None:
-                    if isinstance(setting.default, type(v)):
+                    if isinstance(setting.default, Enum):
+                        self._values[k] = setting.str_to_enum(v)
+                    elif isinstance(setting.default, type(v)):
                         self._values[k] = v
                     else:
                         raise Exception(f"{v} is not a valid value for '{k}'")
+
+    def _apply_gpu_memory_preset(self, preset: GPUMemoryPreset):
+        if preset is not GPUMemoryPreset.custom:
+            for k, v in self._gpu_memory_presets[preset].items():
+                self._values[k] = v
 
 
 settings = Settings()
