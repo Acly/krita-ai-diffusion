@@ -88,28 +88,32 @@ class Model(QObject):
 
             if image is None and mask is None:
                 assert self._extent is not None and self.strength == 1
-                results = await workflow.generate(diffusion, self._extent, self.prompt, progress)
+                generator = workflow.generate(diffusion, self._extent, self.prompt, progress)
             elif mask is None and self.strength < 1:
                 assert image is not None
-                results = await workflow.refine(
-                    diffusion, image, self.prompt, self.strength, progress
-                )
+                generator = workflow.refine(diffusion, image, self.prompt, self.strength, progress)
             elif self.strength == 1:
                 assert image is not None and mask is not None
-                results = await workflow.inpaint(diffusion, image, mask, self.prompt, progress)
+                generator = workflow.inpaint(diffusion, image, mask, self.prompt, progress)
             else:
                 assert image is not None and mask is not None and self.strength < 1
-                results = await workflow.refine_region(
+                generator = workflow.refine_region(
                     diffusion, image, mask, self.prompt, self.strength, progress
                 )
-            self.results.append(results)
+            async for result in generator:
+                self.state = State.preview | State.generating
+                self.results.append(result)
+                if self._layer is None:
+                    self._layer = self._doc.insert_layer(
+                        f"[Preview] {self.prompt}", result, self._bounds
+                    )
+                self.changed.emit()
             self.state = State.preview
-            if self._layer is None:
-                self._layer = self._doc.insert_layer(
-                    f"[Preview] {self.prompt}", self.results[0], self._bounds
-                )
+            self.changed.emit()
         except Interrupted:
             self.reset()
+        except asyncio.CancelledError:
+            pass  # reset called by cancel()
         except NetworkError as e:
             self.report_error(e.message, f"[url={e.url}, code={e.code}]")
         except AssertionError as e:

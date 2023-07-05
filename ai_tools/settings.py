@@ -48,19 +48,19 @@ class Settings:
     )
 
     _negative_prompt = Setting(
-        "Negative prompt",
+        "Negative Prompt",
         "EasyNegative verybadimagenegative_v1.3",
         "Textual description of things to avoid in generated images.",
     )
 
     _upscale_prompt = Setting(
-        "Upscale prompt",
+        "Upscale Prompt",
         "highres, 8k, uhd",
         "Additional text which is used to extend the prompt when upscaling images.",
     )
 
     _min_image_size = Setting(
-        "Minimum image size",
+        "Minimum Image Size",
         512,
         (
             "Generation will run at a resolution of at least the configured value, "
@@ -70,7 +70,7 @@ class Settings:
     )
 
     _max_image_size = Setting(
-        "Maximum image size",
+        "Maximum Image Size",
         768,
         (
             "Initial image generation will run with a resolution no higher than the value "
@@ -80,7 +80,7 @@ class Settings:
     )
 
     _gpu_memory_preset = Setting(
-        "GPU Memory preset",
+        "GPU Memory Preset",
         GPUMemoryPreset.medium,
         (
             "Controls how much GPU memory (VRAM) is used for image generation. If you encounter out"
@@ -91,22 +91,23 @@ class Settings:
     )
 
     _batch_size = Setting(
-        "Batch size",
+        "Maximum Batch Size",
         4,
         (
-            "Number of low resolution images which are generated at once. Improves generation "
-            "speed but requires more GPU memory (VRAM)."
+            "Number of low resolution images which are generated at once. Improves"
+            " generation efficiency but requires more GPU memory. Batch size is automatically"
+            " adjusted for larger resolutions."
         ),
     )
 
     _vae_endoding_tile_size = Setting(
-        "VAE encoder tile size",
+        "VAE Encoder Tile Size",
         1024,
         "Larger images are split up into tiles when passed to the VAE to allow large resolutions. ",
     )
 
     _diffusion_tile_size = Setting(
-        "Diffusion tile size",
+        "Diffusion Tile Size",
         2048,
         "Resolution threshold at which diffusion is split up into multiple tiles. ",
     )

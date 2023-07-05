@@ -2,6 +2,7 @@ from typing import Union, Sequence
 from .image import Extent, Image, ImageCollection
 from .network import RequestManager, Interrupted, Progress
 from .settings import settings
+from .util import compute_batch_size
 
 
 def _collect_images(result, count: int = ...):
@@ -86,9 +87,9 @@ class Auto1111:
         payload = {
             "prompt": prompt,
             "negative_prompt": settings.negative_prompt,
-            "batch_size": settings.batch_size,
+            "batch_size": compute_batch_size(extent),
             "steps": 30,
-            "cfg_scale": 7,
+            "cfg_scale": 6,
             "width": extent.width,
             "height": extent.height,
             "sampler_index": self.default_sampler,
@@ -117,7 +118,7 @@ class Auto1111:
         payload = {
             "prompt": prompt,
             "negative_prompt": settings.negative_prompt,
-            "batch_size": settings.batch_size,
+            "batch_size": compute_batch_size(extent),
             "steps": 20,
             "cfg_scale": 5,
             "width": extent.width,
@@ -158,7 +159,9 @@ class Auto1111:
     async def img2img(
         self, img: Image, prompt: str, strength: float, extent: Extent, progress: Progress
     ):
-        return await self._img2img(img, prompt, strength, extent, 7, settings.batch_size, progress)
+        return await self._img2img(
+            img, prompt, strength, extent, 6, compute_batch_size(extent), progress
+        )
 
     async def img2img_inpaint(
         self,
@@ -191,9 +194,9 @@ class Auto1111:
             "inpainting_full_res": True,
             "prompt": prompt,
             "negative_prompt": settings.negative_prompt,
-            "batch_size": settings.batch_size,
+            "batch_size": compute_batch_size(extent),
             "steps": 30,
-            "cfg_scale": 7,
+            "cfg_scale": 6,
             "width": extent.width,
             "height": extent.height,
             "alwayson_scripts": cn_payload,
@@ -220,7 +223,7 @@ class Auto1111:
             batch_size=1,
             progress=progress,
         )
-        return result
+        return result[0]
 
     async def upscale_tiled(self, img: Image, target: Extent, prompt: str, progress: Progress):
         # TODO dead code, consider multi diffusion

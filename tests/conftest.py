@@ -29,6 +29,5 @@ def qtapp():
 
 @pytest.fixture()
 def temp_settings():
-    global settings
     yield settings
-    settings = Settings()
+    settings.restore()

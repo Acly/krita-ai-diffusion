@@ -43,7 +43,7 @@ def prepare(inputs: Inputs, progress: Progress, downscale=True) -> ScaledInputs:
             mask_image = Image.scale(mask_image, initial)
         # Adjust progress for upscaling steps required to bring the image back
         # to the requested resolution (in postprocess)
-        progress = Progress.forward(progress, 1 / (1 + settings.batch_size))
+        progress = Progress.forward(progress, 0.5)
         assert scale < 1
         return ScaledInputs(image, mask_image, ScaledExtent(initial, extent, scale), progress)
 
@@ -64,31 +64,28 @@ def prepare(inputs: Inputs, progress: Progress, downscale=True) -> ScaledInputs:
 
 async def postprocess(
     diffusion: Auto1111,
-    result: ImageCollection,
+    image: Image,
     output_extent: Extent,
     prompt: str,
     progress: Progress,
 ):
-    input_extent = result[0].extent
-    if input_extent.width < output_extent.width or input_extent.height < output_extent.height:
+    if image.extent.width < output_extent.width or image.extent.height < output_extent.height:
         # Result image resolution is lower than requested -> upscale the results.
-        return ImageCollection(
-            [await diffusion.upscale(img, output_extent, prompt, progress) for img in result]
-        )
+        return await diffusion.upscale(image, output_extent, prompt, progress)
 
-    if input_extent.width > output_extent.width or input_extent.height > output_extent.height:
+    if image.extent.width > output_extent.width or image.extent.height > output_extent.height:
         # Result image resolution is too high to fit into the inpaint section -> downscale.
-        return ImageCollection([Image.scale(img, output_extent) for img in result])
+        return Image.scale(image, output_extent)
 
-    assert input_extent == output_extent
-    return result
+    assert image.extent == output_extent
+    return image
 
 
 async def generate(diffusion: Auto1111, extent: Extent, prompt: str, progress: Progress):
     _, _, extent, progress = prepare(extent, progress)
     result = await diffusion.txt2img(prompt, extent.initial, progress)
-    result = await postprocess(diffusion, result, extent.target, prompt, progress)
-    return result
+    for img in result:
+        yield await postprocess(diffusion, img, extent.target, prompt, progress)
 
 
 async def inpaint(diffusion: Auto1111, image: Image, mask: Mask, prompt: str, progress: Progress):
@@ -99,9 +96,10 @@ async def inpaint(diffusion: Auto1111, image: Image, mask: Mask, prompt: str, pr
     scaled_bounds = Bounds.scale(mask.bounds, extent.scale)
     result = result.map(lambda img: Image.sub_region(img, scaled_bounds))
 
-    result = await postprocess(diffusion, result, mask.bounds.extent, prompt, progress)
-    result.each(lambda img: Mask.apply(img, mask))
-    return result
+    for img in result:
+        img = await postprocess(diffusion, img, mask.bounds.extent, prompt, progress)
+        Mask.apply(img, mask)
+        yield img
 
 
 async def refine(
@@ -112,8 +110,8 @@ async def refine(
     image, _, extent, progress = prepare(image, progress, downscale_if_needed)
 
     result = await diffusion.img2img(image, prompt, strength, extent.initial, progress)
-    result = await postprocess(diffusion, result, extent.target, prompt, progress)
-    return result
+    for img in result:
+        yield await postprocess(diffusion, img, extent.target, prompt, progress)
 
 
 async def refine_region(
@@ -127,6 +125,7 @@ async def refine_region(
     result = await diffusion.img2img_inpaint(
         image, mask_image, prompt, strength, extent.initial, progress
     )
-    result = await postprocess(diffusion, result, extent.target, prompt, progress)
-    result.each(lambda img: Mask.apply(img, mask))
-    return result
+    for img in result:
+        img = await postprocess(diffusion, img, extent.target, prompt, progress)
+        Mask.apply(img, mask)
+        yield img

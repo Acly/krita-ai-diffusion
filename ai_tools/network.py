@@ -115,3 +115,8 @@ class Progress:
     def finish(self):
         self.offset = self.offset + self.scale
         self.callback(self.offset)
+        # Reset progress once it reaches 100% for additional images after inital result
+        # (maybe this should be explicit somewhere outside)
+        if self.offset >= 1:
+            self.offset = 0
+            self.scale = 1

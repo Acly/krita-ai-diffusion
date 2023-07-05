@@ -162,13 +162,14 @@ class ImageCollection:
         if items is not ...:
             self.append(items)
 
-    def append(self, items: Iterable[Image]):
-        for item in items:
-            if isinstance(item, ImageCollection):
-                self._items.extend(item)
-            else:
-                assert isinstance(item, Image)
-                self._items.append(item)
+    def append(self, items: Union[Image, Iterable[Image]]):
+        if isinstance(items, ImageCollection):
+            self._items.extend(items)
+        elif isinstance(items, Image):
+            self._items.append(items)
+        else:  # some iterable
+            for item in items:
+                self.append(item)
 
     def map(self, func: Callable[[Image], Image]):
         result = []

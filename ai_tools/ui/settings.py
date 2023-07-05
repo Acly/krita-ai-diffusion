@@ -215,33 +215,38 @@ class PerformanceSettings(QWidget):
         self._gpu_memory_preset.currentIndexChanged.connect(self._change_gpu_memory_preset)
         layout.addWidget(self._gpu_memory_preset)
 
-        _add_header(layout, Settings._batch_size)
-        self._batch_size_slider = SliderWithValue(1, 16, self)
-        self._batch_size_slider.value_changed.connect(self.write)
-        layout.addWidget(self._batch_size_slider)
+        self._advanced = QWidget(self)
+        self._advanced.setEnabled(settings.gpu_memory_preset is GPUMemoryPreset.custom)
+        self._advanced.setContentsMargins(0, 0, 0, 0)
+        layout.addWidget(self._advanced)
+        advanced_layout = QVBoxLayout()
+        self._advanced.setLayout(advanced_layout)
 
-        _add_header(layout, Settings._vae_endoding_tile_size)
-        self._vae_endoding_tile_size = QSpinBox(self)
+        _add_header(advanced_layout, Settings._batch_size)
+        self._batch_size_slider = SliderWithValue(1, 16, self._advanced)
+        self._batch_size_slider.value_changed.connect(self.write)
+        advanced_layout.addWidget(self._batch_size_slider)
+
+        _add_header(advanced_layout, Settings._vae_endoding_tile_size)
+        self._vae_endoding_tile_size = QSpinBox(self._advanced)
         self._vae_endoding_tile_size.setMinimum(768)
         self._vae_endoding_tile_size.setMaximum(4096)
         self._vae_endoding_tile_size.valueChanged.connect(self.write)
-        layout.addWidget(self._vae_endoding_tile_size)
+        advanced_layout.addWidget(self._vae_endoding_tile_size)
 
-        _add_header(layout, Settings._diffusion_tile_size)
-        self._diffusion_tile_size = QSpinBox(self)
+        _add_header(advanced_layout, Settings._diffusion_tile_size)
+        self._diffusion_tile_size = QSpinBox(self._advanced)
         self._diffusion_tile_size.setMinimum(768)
         self._diffusion_tile_size.setMaximum(4096 * 2)
         self._diffusion_tile_size.valueChanged.connect(self.write)
-        layout.addWidget(self._diffusion_tile_size)
+        advanced_layout.addWidget(self._diffusion_tile_size)
 
         layout.addStretch()
 
     def _change_gpu_memory_preset(self, index):
         self.write()
         is_custom = settings.gpu_memory_preset is GPUMemoryPreset.custom
-        self._batch_size_slider.setEnabled(is_custom)
-        self._vae_endoding_tile_size.setEnabled(is_custom)
-        self._diffusion_tile_size.setEnabled(is_custom)
+        self._advanced.setEnabled(is_custom)
         if not is_custom:
             self.read()
 
