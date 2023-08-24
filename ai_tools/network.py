@@ -21,13 +21,9 @@ class NetworkError(Exception):
         url = reply.url().toString()
         try:  # extract detailed information from the payload
             data = json.loads(reply.readAll().data())
-            if data.get("error", "") == "OutOfMemoryError":
-                msg = data.get("errors", reply.errorString())
-                return OutOfMemoryError(code, msg, url)
-            detail = data.get("detail", "")
-            errors = data.get("errors", "")
-            if detail != "" or errors != "":
-                return NetworkError(code, f"{detail} {errors} ({reply.errorString()})")
+            error = data.get("error", "")
+            if error != "":
+                return NetworkError(code, f"{error} ({reply.errorString()})", url)
         except:
             pass
         return NetworkError(code, reply.errorString(), url)
@@ -43,6 +39,11 @@ class Interrupted(Exception):
         super().__init__(self, "Operation cancelled")
 
 
+class Disconnected(Exception):
+    def __init__(self):
+        super().__init__(self, "Disconnected")
+
+
 class Request(NamedTuple):
     url: str
     future: asyncio.Future
@@ -54,10 +55,10 @@ class RequestManager:
         self._net.finished.connect(self._finished)
         self._requests = {}
 
-    def request(self, method, url: str, data: dict = None):
+    def http(self, method, url: str, data: dict = None):
         self._cleanup()
 
-        request = QNetworkRequest(QUrl(url))
+        request = QNetworkRequest(QUrl(f"http://{url}"))
         # request.setTransferTimeout({"GET": 30000, "POST": 0}[method]) # requires Qt 5.15 (Krita 5.2)
         if data is not None:
             data_bytes = QByteArray(json.dumps(data).encode("utf-8"))
@@ -75,20 +76,28 @@ class RequestManager:
         return future
 
     def get(self, url: str):
-        return self.request("GET", url)
+        return self.http("GET", url)
 
     def post(self, url: str, data: dict):
-        return self.request("POST", url, data)
+        return self.http("POST", url, data)
 
     def _finished(self, reply: QNetworkReply):
-        code = reply.error()
-        future = self._requests[reply].future
-        if future.cancelled():
-            return  # operation was cancelled, discard result
-        if code == QNetworkReply.NoError:
-            future.set_result(json.loads(reply.readAll().data()))
-        else:
-            future.set_exception(NetworkError.from_reply(reply))
+        try:
+            code = reply.error()
+            future = self._requests[reply].future
+            if future.cancelled():
+                return  # operation was cancelled, discard result
+            if code == QNetworkReply.NoError:
+                content_type = reply.header(QNetworkRequest.ContentTypeHeader)
+                data = reply.readAll().data()
+                if "application/json" in content_type:
+                    future.set_result(json.loads(data))
+                else:
+                    future.set_result(data)
+            else:
+                future.set_exception(NetworkError.from_reply(reply))
+        except Exception as e:
+            future.set_exception(e)
 
     def _cleanup(self):
         self._requests = {

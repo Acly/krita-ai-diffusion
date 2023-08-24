@@ -43,8 +43,8 @@ class Settings:
 
     _server_url = Setting(
         "Server URL",
-        "http://127.0.0.1:7860",
-        "URL used to connect to a running Automatic1111 server.",
+        "127.0.0.1:8188",
+        "URL used to connect to a running ComfyUI server. Default is 127.0.0.1:8188",
     )
 
     _negative_prompt = Setting(

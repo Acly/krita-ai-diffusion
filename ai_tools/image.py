@@ -1,3 +1,4 @@
+from math import ceil
 from PyQt5.QtGui import QImage, QPixmap, QIcon, qRgba, qRed, qGreen, qBlue, qAlpha
 from PyQt5.QtCore import Qt, QByteArray, QBuffer
 from typing import Callable, Iterable, Tuple, NamedTuple, Union, Optional
@@ -6,10 +7,9 @@ from pathlib import Path
 from .settings import settings
 
 
-def round_to_multiple(number, multiple):
-    if multiple == 1:
-        return number
-    return multiple * (number // multiple + 1)
+def multiple_of(number, multiple):
+    """Round up to the nearest multiple of a number."""
+    return ((number + multiple - 1) // multiple) * multiple
 
 
 class Extent(NamedTuple):
@@ -18,6 +18,9 @@ class Extent(NamedTuple):
 
     def __mul__(self, scale: float):
         return Extent(round(self.width * scale), round(self.height * scale))
+
+    def multiple_of(self, multiple: int):
+        return Extent(multiple_of(self.width, multiple), multiple_of(self.height, multiple))
 
 
 class Bounds(NamedTuple):
@@ -46,8 +49,8 @@ class Bounds(NamedTuple):
 
     @staticmethod
     def pad(bounds, padding: int, multiple: int):
-        new_width = round_to_multiple(bounds.width + 2 * padding, multiple)
-        new_height = round_to_multiple(bounds.height + 2 * padding, multiple)
+        new_width = multiple_of(bounds.width + 2 * padding, multiple)
+        new_height = multiple_of(bounds.height + 2 * padding, multiple)
         new_x = bounds.x - padding
         new_y = bounds.y - padding
         return Bounds(new_x, new_y, new_width, new_height)
@@ -105,7 +108,11 @@ class Image:
     @staticmethod
     def from_base64(data: str):
         bytes = QByteArray.fromBase64(data.encode("utf-8"))
-        img = QImage.fromData(bytes, "PNG").convertToFormat(QImage.Format_ARGB32)
+        return Image.png_from_bytes(bytes)
+
+    @staticmethod
+    def png_from_bytes(data: QByteArray):
+        img = QImage.fromData(data, "PNG").convertToFormat(QImage.Format_ARGB32)
         return Image(img)
 
     @staticmethod

@@ -1,25 +1,25 @@
 from enum import Enum
 from typing import Optional
 from PyQt5.QtCore import QObject, pyqtSignal
-from .. import Auto1111, eventloop, settings
+from .. import Client, eventloop, settings
 
 
-class ServerState(Enum):
+class ConnectionState(Enum):
     disconnected = 0
     connecting = 1
     connected = 2
     error = 3
 
 
-class DiffusionServer(QObject):
-    """ViewModel for the diffusion server connection."""
+class Connection(QObject):
+    """ViewModel for the connection to the diffusion server."""
 
     _instance = None
 
     changed = pyqtSignal()
 
-    state = ServerState.disconnected
-    diffusion: Optional[Auto1111] = None
+    state = ConnectionState.disconnected
+    client: Optional[Client] = None
     error: Optional[str] = None
 
     @classmethod
@@ -32,19 +32,19 @@ class DiffusionServer(QObject):
         super().__init__()
 
     async def _connect(self):
-        self.state = ServerState.connecting
+        self.state = ConnectionState.connecting
         self.error = None
         self.changed.emit()
         try:
-            self.diffusion = await Auto1111.connect(settings.server_url)
-            self.state = ServerState.connected
+            self.client = await Client.connect(settings.server_url)
+            self.state = ConnectionState.connected
         except Exception as e:
             self.error = str(e)
-            self.state = ServerState.error
+            self.state = ConnectionState.error
         self.changed.emit()
 
     def connect(self):
         eventloop.run(self._connect())
 
     def interrupt(self):
-        eventloop.run(self.diffusion.interrupt())
+        eventloop.run(self.client.interrupt())

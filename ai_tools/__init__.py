@@ -1,5 +1,5 @@
 from .network import Progress, NetworkError, Interrupted, OutOfMemoryError, RequestManager
-from .diffusion import Auto1111
+from .client import Client, ClientEvent, ClientMessage
 from .image import Bounds, Extent, Mask, Image, ImageCollection
 from .settings import Settings, Setting, settings, GPUMemoryPreset
 from . import workflow

@@ -1,8 +1,8 @@
 [Desktop Entry]
 Type=Service
 ServiceTypes=Krita/PythonPlugin
-X-KDE-Library=ai_tools
+X-KDE-Library=ai_diffusion
 X-Python-2-Compatible=false
 X-Krita-Manual=manual.html
-Name=AI Tools
-Comment=Image tools supported by generative AI (Stable Diffusion)
+Name=AI Image Diffusion
+Comment=Workflows supported by generative AI (Stable Diffusion)

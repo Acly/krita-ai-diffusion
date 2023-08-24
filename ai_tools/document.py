@@ -52,11 +52,9 @@ class Document:
         )
         return Image(img)
 
-    def insert_layer(self, name: str, img: Image, bounds: Bounds):
-        assert img.extent == bounds.extent
-        layer = self._doc.createNode(name, "paintLayer")
+    def insert_layer(self):
+        layer = self._doc.createNode("New Layer", "paintLayer")
         self._doc.rootNode().addChildNode(layer, None)
-        self.set_layer_pixels(layer, img, bounds)
         layer.setLocked(True)
         return layer
 

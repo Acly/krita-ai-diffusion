@@ -18,8 +18,8 @@ from PyQt5.QtWidgets import (
 from PyQt5.QtCore import Qt, QSize, pyqtSignal
 from PyQt5.QtGui import QPixmap
 
-from .. import Auto1111, Setting, Settings, settings, GPUMemoryPreset
-from .server import DiffusionServer, ServerState
+from .. import Client, Setting, Settings, settings, GPUMemoryPreset
+from .connection import Connection, ConnectionState
 
 
 class SliderWithValue(QWidget):
@@ -84,7 +84,7 @@ class SettingsWriteGuard:
         return self._locked
 
 
-class ServerSettings(QWidget):
+class ConnectionSettings(QWidget):
     def __init__(self):
         super().__init__()
         self._write_guard = SettingsWriteGuard()
@@ -103,13 +103,13 @@ class ServerSettings(QWidget):
         self._server_url.textChanged.connect(self.write)
         server_layout.addWidget(self._server_url)
         self._connect_button = QPushButton("Connect", self)
-        self._connect_button.clicked.connect(DiffusionServer.instance().connect)
+        self._connect_button.clicked.connect(Connection.instance().connect)
         server_layout.addWidget(self._connect_button)
         layout.addLayout(server_layout)
 
         layout.addStretch()
 
-        DiffusionServer.instance().changed.connect(self._update_server_status)
+        Connection.instance().changed.connect(self._update_server_status)
         self._update_server_status()
 
     def read(self):
@@ -121,18 +121,18 @@ class ServerSettings(QWidget):
             settings.server_url = self._server_url.text()
 
     def _update_server_status(self):
-        server = DiffusionServer.instance()
-        self._connect_button.setEnabled(server.state != ServerState.connecting)
-        if server.state == ServerState.connected:
+        server = Connection.instance()
+        self._connect_button.setEnabled(server.state != ConnectionState.connecting)
+        if server.state == ConnectionState.connected:
             self._connection_status.setText("Connected")
             self._connection_status.setStyleSheet("color: #3b3; font-weight:bold")
-        elif server.state == ServerState.connecting:
+        elif server.state == ConnectionState.connecting:
             self._connection_status.setText("Connecting")
             self._connection_status.setStyleSheet("color: #cc3; font-weight:bold")
-        elif server.state == ServerState.disconnected:
+        elif server.state == ConnectionState.disconnected:
             self._connection_status.setText("Disconnected")
             self._connection_status.setStyleSheet("color: #888; font-style:italic")
-        elif server.state == ServerState.error:
+        elif server.state == ConnectionState.error:
             self._connection_status.setText(f"<b>Error</b>: {server.error}")
             self._connection_status.setStyleSheet("color: red;")
 
@@ -266,7 +266,7 @@ class PerformanceSettings(QWidget):
 
 
 class SettingsDialog(QDialog):
-    _server: ServerSettings
+    _server: ConnectionSettings
     _diffusion: DiffusionSettings
     _performance: PerformanceSettings
 
@@ -274,7 +274,7 @@ class SettingsDialog(QDialog):
         super().__init__()
         self.setMinimumSize(QSize(640, 480))
         self.setMaximumSize(QSize(800, 2048))
-        self.setWindowTitle("Configure AI Tools")
+        self.setWindowTitle("Configure Image Diffusion")
 
         layout = QHBoxLayout()
         self.setLayout(layout)
@@ -286,7 +286,7 @@ class SettingsDialog(QDialog):
             item = QListWidgetItem(text, self._list)
             item.setSizeHint(QSize(112, 20))
 
-        create_list_item("Server")
+        create_list_item("Connection")
         create_list_item("Diffusion")
         create_list_item("Performance")
         self._list.setCurrentRow(0)
@@ -297,10 +297,10 @@ class SettingsDialog(QDialog):
         layout.addLayout(inner)
 
         self._stack = QStackedWidget(self)
-        self._server = ServerSettings()
+        self._connection = ConnectionSettings()
         self._diffusion = DiffusionSettings()
         self._performance = PerformanceSettings()
-        self._stack.addWidget(self._server)
+        self._stack.addWidget(self._connection)
         self._stack.addWidget(self._diffusion)
         self._stack.addWidget(self._performance)
         inner.addWidget(self._stack)
@@ -319,7 +319,7 @@ class SettingsDialog(QDialog):
         inner.addLayout(button_layout)
 
     def read(self):
-        self._server.read()
+        self._connection.read()
         self._diffusion.read()
         self._performance.read()
 
