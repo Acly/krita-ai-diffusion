@@ -103,29 +103,3 @@ class RequestManager:
         self._requests = {
             reply: request for reply, request in self._requests.items() if not reply.isFinished()
         }
-
-
-class Progress:
-    callback: Callable[[float], None]
-    scale: float = 1
-    offset: float = 0
-
-    def __init__(self, callback: Callable[[float], None], scale: float = 1):
-        self.callback = callback
-        self.scale = scale
-
-    @staticmethod
-    def forward(other, scale: float = 1):
-        return Progress(other.callback, scale)
-
-    def __call__(self, progress: float):
-        self.callback(self.offset + self.scale * progress)
-
-    def finish(self):
-        self.offset = self.offset + self.scale
-        self.callback(self.offset)
-        # Reset progress once it reaches 100% for additional images after inital result
-        # (maybe this should be explicit somewhere outside)
-        if self.offset >= 1:
-            self.offset = 0
-            self.scale = 1

@@ -1,31 +1,13 @@
 from enum import Enum
 import json
+import struct
 import uuid
-import urllib
 from typing import NamedTuple, Union, Sequence
 from .image import Extent, Image, ImageCollection
 from .network import RequestManager, Interrupted, NetworkError
 from .settings import settings
 from .util import compute_batch_size
 from . import websockets
-
-
-def _find_controlnet_model(model_list: Sequence[str], model_name: str):
-    model = next((model for model in model_list if model.startswith(model_name)), None)
-    if model is None:
-        raise Exception(
-            f"Could not find ControlNet model {model_name}. Make sure to download the model and"
-            " place it in the ControlNet models folder."
-        )
-    return model
-
-
-def _find_controlnet_processor(processor_list: Sequence[str], processor_name: str):
-    if not processor_name in processor_list:
-        raise Exception(
-            f"Could not find ControlNet processor {processor_name}. Maybe the ControlNet extension"
-            " version is too old?"
-        )
 
 
 class ClientEvent(Enum):
@@ -86,11 +68,6 @@ class Client:
     async def _post(self, op: str, data: dict):
         return await self._requests.post(f"{self.url}/{op}", data)
 
-    async def _get_image(self, image_id: dict):
-        # image_id = {"filename": filename, "subfolder": subfolder, "type": folder_type}
-        image_data = await self._get(f"view?{urllib.parse.urlencode(image_id)}")
-        return Image.png_from_bytes(image_data)
-
     async def enqueue(self, prompt: dict):
         data = {"prompt": prompt, "client_id": self._id}
         result = await self._post("prompt", data)
@@ -98,10 +75,15 @@ class Client:
 
     async def listen(self):
         prompt_id = ""
+        images = ImageCollection()
+
         async for msg in self._websocket:
-            if isinstance(msg, str):
+            if isinstance(msg, bytes):
+                image = _extract_message_png_image(msg)
+                if image is not None:
+                    images.append(image)
+            elif isinstance(msg, str):
                 msg = json.loads(msg)
-                print(msg)
                 if msg["type"] == "execution_start":
                     prompt_id = msg["data"]["prompt_id"]
                 elif msg["type"] == "progress":
@@ -109,10 +91,54 @@ class Client:
                     progress = data["value"] / data["max"]
                     yield ClientMessage(ClientEvent.progress, prompt_id, progress, None)
                 elif msg["type"] == "executed":
-                    data = msg["data"]
-                    output = data["output"]["images"]
-                    images = ImageCollection([await self._get_image(img) for img in output])
-                    yield ClientMessage(ClientEvent.finished, data["prompt_id"], 1, images)
+                    prompt_id = _validate_executed_node(msg, len(images))
+                    if prompt_id is not None:
+                        yield ClientMessage(ClientEvent.finished, prompt_id, 1, images)
+                        images = ImageCollection()
 
     async def interrupt(self):
         return await self._post("interrupt", {})
+
+
+def _find_controlnet_model(model_list: Sequence[str], model_name: str):
+    model = next((model for model in model_list if model.startswith(model_name)), None)
+    if model is None:
+        raise Exception(
+            f"Could not find ControlNet model {model_name}. Make sure to download the model and"
+            " place it in the ControlNet models folder."
+        )
+    return model
+
+
+def _find_controlnet_processor(processor_list: Sequence[str], processor_name: str):
+    if not processor_name in processor_list:
+        raise Exception(
+            f"Could not find ControlNet processor {processor_name}. Maybe the ControlNet extension"
+            " version is too old?"
+        )
+
+
+def _extract_message_png_image(data: memoryview):
+    s = struct.calcsize(">II")
+    if len(data) > s:
+        event, format = struct.unpack_from(">II", data)
+        # ComfyUI server.py: BinaryEventTypes.PREVIEW_IMAGE=1, PNG=2
+        if event == 1 and format == 2:
+            return Image.png_from_bytes(data[s:])
+    return None
+
+
+def _validate_executed_node(msg: dict, image_count: int):
+    try:
+        data = msg["data"]
+        output = data["output"]["images"]
+        if len(output) != image_count:
+            print(
+                "[krita-ai-diffusion] received number of images does not match:"
+                f" {len(output)} != {image_count}"
+            )
+        if len(output) > 0 and "source" in output[0] and output[0]["type"] == "output":
+            return data["prompt_id"]
+    except:
+        print("[krita-ai-diffusion] received unknown message format", msg)
+        return None

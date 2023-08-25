@@ -112,8 +112,9 @@ class Image:
 
     @staticmethod
     def png_from_bytes(data: QByteArray):
-        img = QImage.fromData(data, "PNG").convertToFormat(QImage.Format_ARGB32)
-        return Image(img)
+        img = QImage.fromData(data, "PNG")
+        assert img and not img.isNull(), "Failed to load PNG image from memory"
+        return Image(img.convertToFormat(QImage.Format_ARGB32))
 
     @staticmethod
     def scale(img, target: Extent):

@@ -49,7 +49,7 @@ class Settings:
 
     _negative_prompt = Setting(
         "Negative Prompt",
-        "EasyNegative verybadimagenegative_v1.3",
+        "bad quality, low resolution, blurry",
         "Textual description of things to avoid in generated images.",
     )
 

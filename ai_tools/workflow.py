@@ -16,31 +16,34 @@ def load_template(template: str):
     return json.loads((_workflows_path / template).read_text())
 
 
-class Node(NamedTuple):
-    id: int
-
-    def __getitem__(self, output_slot):
-        return [str(self.id), output_slot]
+class Output(NamedTuple):
+    node: int
+    output: int
 
 
-class WorkflowBuilder:
+class ComfyWorkflow:
     _i = 0
 
     def __init__(self) -> None:
         self.root = {}
 
-    def add(self, class_type: str, **inputs):
-        normalize = lambda x: x[0] if isinstance(x, Node) else x
+    def add(self, class_type: str, output_count: int, **inputs):
+        normalize = lambda x: [str(x.node), x.output] if isinstance(x, Output) else x
         self._i += 1
         self.root[str(self._i)] = {
             "class_type": class_type,
             "inputs": {k: normalize(v) for k, v in inputs.items()},
         }
-        return Node(self._i)
+        return (
+            Output(self._i, 0)
+            if output_count == 1
+            else tuple(Output(self._i, i) for i in range(output_count))
+        )
 
     def ksampler(self, model, positive, negative, latent_image, steps=20, cfg=7, denoise=1):
         return self.add(
             "KSampler",
+            1,
             seed=random.getrandbits(64),
             sampler_name="dpmpp_2m_sde_gpu",
             scheduler="karras",
@@ -54,23 +57,27 @@ class WorkflowBuilder:
         )
 
     def checkpoint_loader(self, checkpoint):
-        return self.add("CheckpointLoaderSimple", ckpt_name=checkpoint)
+        return self.add("CheckpointLoaderSimple", 3, ckpt_name=checkpoint)
 
     def empty_latent_image(self, width, height):
         batch = compute_batch_size(
             Extent(width, height), settings.min_image_size, settings.batch_size
         )
-        return self.add("EmptyLatentImage", width=width, height=height, batch_size=batch)
+        return self.add("EmptyLatentImage", 1, width=width, height=height, batch_size=batch)
 
     def clip_text_encode(self, clip, text):
-        return self.add("CLIPTextEncode", clip=clip, text=text)
+        return self.add("CLIPTextEncode", 1, clip=clip, text=text)
+
+    def vae_encode(self, vae, image):
+        return self.add("VAEEncode", 1, vae=vae, pixels=image)
 
     def vae_decode(self, vae, latent_image):
-        return self.add("VAEDecode", vae=vae, samples=latent_image)
+        return self.add("VAEDecode", 1, vae=vae, samples=latent_image)
 
     def latent_upscale(self, latent, extent):
         return self.add(
             "LatentUpscale",
+            1,
             samples=latent,
             width=extent.width,
             height=extent.height,
@@ -81,6 +88,7 @@ class WorkflowBuilder:
     def scale_image(self, image, extent):
         return self.add(
             "ImageScale",
+            1,
             image=image,
             width=extent.width,
             height=extent.height,
@@ -88,8 +96,28 @@ class WorkflowBuilder:
             crop="disabled",
         )
 
-    def save_image(self, image):
-        return self.add("SaveImage", images=image, filename_prefix="krita-diffusion")
+    def crop_image(self, image, bounds: Bounds):
+        return self.add(
+            "ETN_CropImage",
+            1,
+            image=image,
+            x=bounds.x,
+            y=bounds.y,
+            width=bounds.width,
+            height=bounds.height,
+        )
+
+    def apply_mask(self, image, mask):
+        return self.add("ETN_ApplyMaskToImage", 1, image=image, mask=mask)
+
+    def load_image(self, image: Image):
+        return self.add("ETN_LoadImageBase64", 1, image=image.to_base64())
+
+    def load_mask(self, mask: Image):
+        return self.add("ETN_LoadMaskBase64", 1, mask=mask.to_base64())
+
+    def send_image(self, image):
+        return self.add("ETN_SendImageWebSocket", 1, images=image)
 
 
 Inputs = Union[Extent, Image, Tuple[Image, Mask]]
@@ -167,27 +195,25 @@ def prepare(inputs: Inputs, downscale=True) -> ScaledInputs:
 
 async def generate(comfy: Client, input_extent: Extent, prompt: str):
     _, _, extent = prepare(input_extent)
-    flow = WorkflowBuilder()
-    model = flow.checkpoint_loader("photon_v1.safetensors")
-    latent = flow.empty_latent_image(extent.initial.width, extent.initial.height)
-    positive = flow.clip_text_encode(model[1], prompt)
-    negative = flow.clip_text_encode(model[1], settings.negative_prompt)
-    sampler = flow.ksampler(model, positive, negative, latent)
+
+    w = ComfyWorkflow()
+    model, clip, vae = w.checkpoint_loader("photon_v1.safetensors")
+    latent = w.empty_latent_image(extent.initial.width, extent.initial.height)
+    positive = w.clip_text_encode(clip, prompt)
+    negative = w.clip_text_encode(clip, settings.negative_prompt)
+    sampler = w.ksampler(model, positive, negative, latent)
     extent_sampled = extent.initial
     if extent.scale < 1:  # generated image is smaller than requested -> upscale
         extent_sampled = extent.target.multiple_of(8)
-        upscale = flow.latent_upscale(sampler, extent_sampled)
-        positive_up = flow.clip_text_encode(model[1], f"{prompt}, {settings.upscale_prompt}")
-        sampler = flow.ksampler(model, positive_up, negative, upscale, denoise=0.5, steps=10)
-    out_image = flow.vae_decode(model[2], sampler)
+        upscale = w.latent_upscale(sampler, extent_sampled)
+        positive_up = w.clip_text_encode(clip, f"{prompt}, {settings.upscale_prompt}")
+        sampler = w.ksampler(model, positive_up, negative, upscale, denoise=0.5, steps=10)
+    out_image = w.vae_decode(vae, sampler)
     if extent_sampled != extent.target:
-        out_image = flow.scale_image(out_image, extent.target)
-    flow.save_image(out_image)
-    return await comfy.enqueue(flow.root)
+        out_image = w.scale_image(out_image, extent.target)
+    w.send_image(out_image)
 
-    # result = await diffusion.txt2img(prompt, extent.initial, progress)
-    # for img in result:
-    #     yield await postprocess(diffusion, img, extent.target, prompt, progress)
+    return await comfy.enqueue(w.root)
 
 
 # async def inpaint(diffusion: Auto1111, image: Image, mask: Mask, prompt: str, progress: Progress):
@@ -204,16 +230,25 @@ async def generate(comfy: Client, input_extent: Extent, prompt: str):
 #         yield img
 
 
-# async def refine(
-#     diffusion: Auto1111, image: Image, prompt: str, strength: float, progress: Progress
-# ):
-#     assert strength > 0 and strength < 1
-#     downscale_if_needed = strength >= 0.7
-#     image, _, extent, progress = prepare(image, progress, downscale_if_needed)
+async def refine(comfy: Client, image: Image, prompt: str, strength: float):
+    assert strength > 0 and strength < 1
+    image, _, extent = prepare(image)
 
-#     result = await diffusion.img2img(image, prompt, strength, extent.initial, progress)
-#     for img in result:
-#         yield await postprocess(diffusion, img, extent.target, prompt, progress)
+    w = ComfyWorkflow()
+    model, clip, vae = w.checkpoint_loader("photon_v1.safetensors")
+    in_image = w.load_image(image)
+    if extent.initial != extent.target:
+        in_image = w.scale_image(out_image, extent.initial)
+    latent = w.vae_encode(vae, in_image)
+    positive = w.clip_text_encode(clip, prompt)
+    negative = w.clip_text_encode(clip, settings.negative_prompt)
+    sampler = w.ksampler(model, positive, negative, latent, denoise=strength, steps=20)
+    out_image = w.vae_decode(vae, sampler)
+    if extent.initial != extent.target:
+        out_image = w.scale_image(out_image, extent.target)
+    w.send_image(out_image)
+
+    return await comfy.enqueue(w.root)
 
 
 # async def refine_region(

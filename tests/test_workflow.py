@@ -6,7 +6,6 @@ from ai_tools import (
     Bounds,
     Extent,
     Image,
-    Progress,
     ImageCollection,
     Client,
     ClientEvent,
@@ -155,8 +154,8 @@ def test_generate(qtapp, comfy, temp_settings, extent):
     temp_settings.batch_size = 1
 
     async def main():
-        prompt = workflow.generate(comfy, extent, "ship")
-        results = await receive_images(comfy, prompt)
+        job = workflow.generate(comfy, extent, "ship")
+        results = await receive_images(comfy, job)
         results[0].save(result_dir / f"test_generate_{extent.width}x{extent.height}.png")
         assert results[0].extent == extent
 
@@ -195,19 +194,18 @@ def test_generate(qtapp, comfy, temp_settings, extent):
 #     qtapp.run(main())
 
 
-# def test_refine(qtapp, auto1111, temp_settings):
-#     temp_settings.batch_size = 1
-#     image = Image.load(image_dir / "beach_768x512.png")
-#     prompt = "in the style of vermeer, van gogh"
+def test_refine(qtapp, comfy, temp_settings):
+    temp_settings.batch_size = 1
+    image = Image.load(image_dir / "beach_768x512.png")
+    prompt = "in the style of vermeer, van gogh"
 
-#     async def main():
-#         result = await expect_one(
-#             workflow.refine(auto1111, image, prompt, 0.6, Progress(check_progress))
-#         )
-#         result.save(result_dir / "test_refine.png")
-#         assert result.extent == image.extent
+    async def main():
+        job = workflow.refine(comfy, image, prompt, 0.5)
+        results = await receive_images(comfy, job)
+        results[0].save(result_dir / "test_refine.png")
+        assert results[0].extent == image.extent
 
-#     qtapp.run(main())
+    qtapp.run(main())
 
 
 # def test_refine_region(qtapp, auto1111, temp_settings):

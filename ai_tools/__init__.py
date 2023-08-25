@@ -1,4 +1,4 @@
-from .network import Progress, NetworkError, Interrupted, OutOfMemoryError, RequestManager
+from .network import NetworkError, Interrupted, OutOfMemoryError, RequestManager
 from .client import Client, ClientEvent, ClientMessage
 from .image import Bounds, Extent, Mask, Image, ImageCollection
 from .settings import Settings, Setting, settings, GPUMemoryPreset
