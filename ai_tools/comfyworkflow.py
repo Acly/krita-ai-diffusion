@@ -14,25 +14,24 @@ class Output(NamedTuple):
 class ComfyWorkflow:
     """Builder for workflows which can be sent to the ComfyUI prompt API."""
 
-    _i = 0
+    node_count = 0
+    sample_count = 0
 
     def __init__(self) -> None:
         self.root = {}
 
     def add(self, class_type: str, output_count: int, **inputs):
         normalize = lambda x: [str(x.node), x.output] if isinstance(x, Output) else x
-        self._i += 1
-        self.root[str(self._i)] = {
+        self.node_count += 1
+        self.root[str(self.node_count)] = {
             "class_type": class_type,
             "inputs": {k: normalize(v) for k, v in inputs.items()},
         }
-        return (
-            Output(self._i, 0)
-            if output_count == 1
-            else tuple(Output(self._i, i) for i in range(output_count))
-        )
+        output = tuple(Output(self.node_count, i) for i in range(output_count))
+        return output[0] if output_count == 1 else output
 
     def ksampler(self, model, positive, negative, latent_image, steps=20, cfg=7, denoise=1):
+        self.sample_count += steps
         return self.add(
             "KSampler",
             1,

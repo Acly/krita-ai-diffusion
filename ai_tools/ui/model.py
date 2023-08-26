@@ -72,6 +72,9 @@ class JobQueue:
     def find(self, id: str):
         return next((j for j in self._entries if j.id == id), None)
 
+    def count(self, state: State):
+        return sum(1 for j in self._entries if j.state is state)
+
     def any_executing(self):
         return any(j.state is State.executing for j in self._entries)
 
@@ -86,7 +89,7 @@ class JobQueue:
 
 
 class Model(QObject):
-    """ViewModel for diffusion workflows on a Krita document. Stores all inputs related to
+    """View-model for diffusion workflows on a Krita document. Stores all inputs related to
     image generation. Launches generation jobs. Listens to server messages and keeps a
     list of finished, currently running and enqueued jobs.
     """
@@ -97,7 +100,6 @@ class Model(QObject):
     changed = pyqtSignal()
     progress_changed = pyqtSignal()
 
-    # state = State.setup
     prompt = ""
     strength = 1.0
     progress = 0.0
@@ -153,6 +155,7 @@ class Model(QObject):
 
         prompt_id = await job
         self.jobs.add(prompt_id, prompt, bounds)
+        self.changed.emit()
 
     def cancel(self):
         Connection.instance().interrupt()
@@ -171,13 +174,16 @@ class Model(QObject):
             self.changed.emit()
 
     def handle_message(self, message: ClientMessage):
+        job = self.jobs.find(message.prompt_id)
+        assert job is not None, 'Received "finished" message for unknown prompt ID.'
+
         if message.event is ClientEvent.progress:
+            job.state = State.executing
             self.report_progress(message.progress)
         elif message.event is ClientEvent.finished:
-            job = self.jobs.find(message.prompt_id)
-            assert job is not None, 'Received "finished" message for unknown prompt ID.'
             job.state = State.finished
             job.results = message.images
+            self.progress = 1
             self.changed.emit()
 
     def show_preview(self, prompt_id: str, index: int):
@@ -257,6 +263,8 @@ class ModelRegistry(QObject):
                 self._models.append(model)
                 self.created.emit(model)
             return model
+
+        return None
 
     def report_error(self, message: str, details: Optional[str] = None):
         for m in self._models:

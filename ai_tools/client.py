@@ -3,6 +3,8 @@ import json
 import struct
 import uuid
 from typing import NamedTuple, Union, Sequence
+
+from .comfyworkflow import ComfyWorkflow
 from .image import Extent, Image, ImageCollection
 from .network import RequestManager, Interrupted, NetworkError
 from .settings import settings
@@ -22,6 +24,39 @@ class ClientMessage(NamedTuple):
     images: ImageCollection
 
 
+class PromptInfo(NamedTuple):
+    id: str
+    node_count: int
+    sample_count: int
+
+
+class Progress:
+    _nodes = 0
+    _samples = 0
+    _info: PromptInfo
+
+    def __init__(self, prompt_info: PromptInfo):
+        self._info = prompt_info
+
+    def handle(self, msg: dict):
+        prompt_id = msg["data"].get("prompt_id", None)
+        if prompt_id is not None and prompt_id != self._info.id:
+            return
+        if msg["type"] == "executing":
+            self._nodes += 1
+        elif msg["type"] == "execution_cached":
+            self._nodes += len(msg["data"]["nodes"])
+        elif msg["type"] == "progress":
+            self._samples += 1
+
+    @property
+    def value(self):
+        # Add +1 to node count so progress doesn't go to 100% until images are received.
+        node_part = self._nodes / (self._info.node_count + 1)
+        sample_part = self._samples / self._info.sample_count
+        return 0.2 * node_part + 0.8 * sample_part
+
+
 class Client:
     """HTTP/WebSocket client which sends requests to and listens to messages from a ComfyUI server."""
 
@@ -30,6 +65,7 @@ class Client:
     _requests = RequestManager()
     _websocket: websockets.WebSocketClientProtocol
     _id: str
+    _prompts: dict
     _controlnet_inpaint_model: str
     _controlnet_tile_model: str
 
@@ -63,6 +99,7 @@ class Client:
     def __init__(self, url):
         self.url = url
         self._id = str(uuid.uuid4())
+        self._prompts = {}
 
     async def _get(self, op: str):
         return await self._requests.get(f"{self.url}/{op}")
@@ -70,13 +107,16 @@ class Client:
     async def _post(self, op: str, data: dict):
         return await self._requests.post(f"{self.url}/{op}", data)
 
-    async def enqueue(self, prompt: dict):
-        data = {"prompt": prompt, "client_id": self._id}
+    async def enqueue(self, workflow: ComfyWorkflow):
+        data = {"prompt": workflow.root, "client_id": self._id}
         result = await self._post("prompt", data)
-        return result["prompt_id"]
+        prompt_id = result["prompt_id"]
+        self._prompts[prompt_id] = PromptInfo(prompt_id, workflow.node_count, workflow.sample_count)
+        return prompt_id
 
     async def listen(self):
-        prompt_id = ""
+        prompt_id = None
+        progress = None
         images = ImageCollection()
 
         async for msg in self._websocket:
@@ -88,14 +128,16 @@ class Client:
                 msg = json.loads(msg)
                 if msg["type"] == "execution_start":
                     prompt_id = msg["data"]["prompt_id"]
-                elif msg["type"] == "progress":
-                    data = msg["data"]
-                    progress = data["value"] / data["max"]
-                    yield ClientMessage(ClientEvent.progress, prompt_id, progress, None)
+                    progress = Progress(self._prompts[prompt_id])
+                elif msg["type"] in ("execution_cached", "executing", "progress") and prompt_id:
+                    progress.handle(msg)
+                    yield ClientMessage(ClientEvent.progress, prompt_id, progress.value, None)
                 elif msg["type"] == "executed":
                     prompt_id = _validate_executed_node(msg, len(images))
                     if prompt_id is not None:
                         yield ClientMessage(ClientEvent.finished, prompt_id, 1, images)
+                        del self._prompts[prompt_id]
+                        prompt_id = None
                         images = ImageCollection()
 
     async def interrupt(self):

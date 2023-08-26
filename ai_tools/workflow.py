@@ -93,7 +93,7 @@ async def generate(comfy: Client, input_extent: Extent, prompt: str):
         out_image = w.scale_image(out_image, extent.target)
     w.send_image(out_image)
 
-    return await comfy.enqueue(w.root)
+    return await comfy.enqueue(w)
 
 
 # async def inpaint(diffusion: Auto1111, image: Image, mask: Mask, prompt: str, progress: Progress):
@@ -128,7 +128,7 @@ async def refine(comfy: Client, image: Image, prompt: str, strength: float):
         out_image = w.scale_image(out_image, extent.target)
     w.send_image(out_image)
 
-    return await comfy.enqueue(w.root)
+    return await comfy.enqueue(w)
 
 
 async def refine_region(comfy: Client, image: Image, mask: Mask, prompt: str, strength: float):
@@ -142,7 +142,6 @@ async def refine_region(comfy: Client, image: Image, mask: Mask, prompt: str, st
     model, clip, vae = w.load_checkpoint("photon_v1.safetensors")
     in_image = w.load_image(image)
     in_mask = w.load_mask(mask_image)
-    original_mask = in_mask
     if extent.scale > 1:
         in_image = w.scale_image(in_image, extent.initial)
         in_mask = w.scale_mask(in_mask, extent.initial)
@@ -159,7 +158,8 @@ async def refine_region(comfy: Client, image: Image, mask: Mask, prompt: str, st
     out_image = w.vae_decode(vae, out_latent)
     if extent.scale > 1:
         out_image = w.scale_image(out_image, extent.target)
+    original_mask = w.load_mask(mask.to_image())
     out_masked = w.apply_mask(out_image, original_mask)
     w.send_image(out_masked)
 
-    return await comfy.enqueue(w.root)
+    return await comfy.enqueue(w)

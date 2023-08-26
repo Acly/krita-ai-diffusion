@@ -3,6 +3,7 @@ from typing import Callable, Optional
 from pathlib import Path
 
 from PyQt5.QtWidgets import (
+    QAction,
     QSlider,
     QPushButton,
     QWidget,
@@ -14,8 +15,11 @@ from PyQt5.QtWidgets import (
     QListWidget,
     QListView,
     QListWidgetItem,
+    QMenu,
     QSpinBox,
     QStackedWidget,
+    QToolButton,
+    QHBoxLayout,
     QVBoxLayout,
 )
 from PyQt5.QtGui import QFontMetrics, QGuiApplication, QIcon
@@ -23,6 +27,7 @@ from PyQt5.QtCore import Qt, QSize, pyqtSignal
 from krita import Krita, DockWidget
 
 from .. import Client
+from . import actions
 from .model import Model, ModelRegistry, Job, State
 from .connection import Connection, ConnectionState
 
@@ -34,7 +39,7 @@ class GenerationWidget(QWidget):
 
     def __init__(self):
         super().__init__()
-        layout = QGridLayout(self)
+        layout = QVBoxLayout(self)
         self.setLayout(layout)
 
         self.prompt_textbox = QPlainTextEdit(self)
@@ -47,11 +52,16 @@ class GenerationWidget(QWidget):
         self.prompt_textbox.textChanged.connect(self.change_prompt)
         fm = QFontMetrics(self.prompt_textbox.document().defaultFont())
         self.prompt_textbox.setFixedHeight(fm.lineSpacing() * 2 + 4)
-        layout.addWidget(self.prompt_textbox, 0, 0, 1, 3)
+        layout.addWidget(self.prompt_textbox)
 
         strength_text = QLabel(self)
         strength_text.setText("Strength")
-        layout.addWidget(strength_text, 1, 0)
+
+        self.strength_slider = QSlider(Qt.Orientation.Horizontal, self)
+        self.strength_slider.setMinimum(0)
+        self.strength_slider.setMaximum(100)
+        self.strength_slider.setSingleStep(5)
+        self.strength_slider.valueChanged.connect(self.change_strength)
 
         self.strength_input = QSpinBox(self)
         self.strength_input.setMinimum(0)
@@ -59,39 +69,51 @@ class GenerationWidget(QWidget):
         self.strength_input.setSingleStep(5)
         self.strength_input.setSuffix("%")
         self.strength_input.valueChanged.connect(self.change_strength)
-        layout.addWidget(self.strength_input, 1, 2)
 
-        self.strength_slider = QSlider(Qt.Orientation.Horizontal, self)
-        self.strength_slider.setMinimum(0)
-        self.strength_slider.setMaximum(100)
-        self.strength_slider.setSingleStep(5)
-        self.strength_slider.valueChanged.connect(self.change_strength)
-        layout.addWidget(self.strength_slider, 1, 1)
+        strength_layout = QHBoxLayout()
+        strength_layout.addWidget(strength_text)
+        strength_layout.addWidget(self.strength_slider)
+        strength_layout.addWidget(self.strength_input)
+        layout.addLayout(strength_layout)
 
         self.generate_button = QPushButton("Generate", self)
         self.generate_button.clicked.connect(self.generate)
-        layout.addWidget(self.generate_button, 2, 0, 1, 2)
 
-        self.settings_button = QPushButton(QIcon(str(_icon_path / "settings.svg")), "", self)
+        queue_menu = QMenu(self)
+        queue_menu.addAction(self._create_action("cancel", actions.cancel))
+        self.queue_button = QToolButton(self)
+        self.queue_button.setText("+ 0")
+        self.queue_button.setMenu(queue_menu)
+        self.queue_button.setToolButtonStyle(Qt.ToolButtonTextOnly)
+        self.queue_button.setPopupMode(QToolButton.InstantPopup)
+        self.queue_button.setArrowType(Qt.NoArrow)
+        self.queue_button.setStyleSheet(
+            "border: none; border-radius: 6px; background-color: grey; color: white;"
+        )
+
+        self.settings_button = QToolButton(self)
+        self.settings_button.setIcon(QIcon(str(_icon_path / "settings.svg")))
+        self.settings_button.setStyleSheet("border: none")
         self.settings_button.clicked.connect(self.show_settings)
-        layout.addWidget(self.settings_button, 2, 2)
+
+        actions_layout = QHBoxLayout()
+        actions_layout.addWidget(self.generate_button)
+        actions_layout.addWidget(self.queue_button)
+        actions_layout.addWidget(self.settings_button)
+        layout.addLayout(actions_layout)
 
         self.progress_bar = QProgressBar(self)
         self.progress_bar.setMinimum(0)
         self.progress_bar.setMaximum(100)
         self.progress_bar.setTextVisible(False)
-        self.progress_bar.setFixedHeight(10)
-        layout.addWidget(self.progress_bar, 3, 0, 1, 2)
-
-        self.cancel_button = QPushButton("x", self)
-        self.cancel_button.clicked.connect(self.cancel)
-        layout.addWidget(self.cancel_button, 3, 2)
+        self.progress_bar.setFixedHeight(6)
+        layout.addWidget(self.progress_bar)
 
         self.error_text = QLabel(self)
         self.error_text.setStyleSheet("font-weight: bold; color: red;")
         self.error_text.setWordWrap(True)
         self.error_text.setVisible(False)
-        layout.addWidget(self.error_text, 4, 0, 1, 3)
+        layout.addWidget(self.error_text)
 
         self.preview_list = QListWidget(self)
         self.preview_list.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Expanding)
@@ -101,12 +123,11 @@ class GenerationWidget(QWidget):
         self.preview_list.setIconSize(QSize(96, 96))
         self.preview_list.currentItemChanged.connect(self.show_preview)
         self.preview_list.itemDoubleClicked.connect(self.apply_result)
-        layout.addWidget(self.preview_list, 5, 0, 1, 3)
-        layout.setRowStretch(5, 1)
+        layout.addWidget(self.preview_list)
 
         self.apply_button = QPushButton(QIcon(str(_icon_path / "apply.svg")), "Apply", self)
         self.apply_button.clicked.connect(self.apply_selected_result)
-        layout.addWidget(self.apply_button, 6, 0, 1, 3)
+        layout.addWidget(self.apply_button)
 
     @property
     def model(self):
@@ -142,6 +163,11 @@ class GenerationWidget(QWidget):
 
     def update_progress(self):
         self.progress_bar.setValue(int(self.model.progress * 100))
+        self.queue_button.setText(f"+{self.model.jobs.count(State.queued)} ")
+        col = "#53728E" if self.model.jobs.any_executing() else "#606060"
+        self.queue_button.setStyleSheet(
+            f"border: none; border-radius: 6px; background-color: {col}; color: white;"
+        )
 
     def generate(self):
         self.model.generate()
@@ -187,6 +213,11 @@ class GenerationWidget(QWidget):
     def apply_result(self, item: QListWidgetItem):
         self.show_preview(item, None)
         self.apply_selected_result()
+
+    def _create_action(self, name: str, func: Callable[[], None]):
+        action = QAction(name, self)
+        action.triggered.connect(func)
+        return action
 
 
 class WelcomeWidget(QWidget):
