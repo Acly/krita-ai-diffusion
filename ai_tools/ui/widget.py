@@ -100,11 +100,12 @@ class GenerationWidget(QWidget):
         self.preview_list.setViewMode(QListWidget.IconMode)
         self.preview_list.setIconSize(QSize(96, 96))
         self.preview_list.currentItemChanged.connect(self.show_preview)
+        self.preview_list.itemDoubleClicked.connect(self.apply_result)
         layout.addWidget(self.preview_list, 5, 0, 1, 3)
         layout.setRowStretch(5, 1)
 
         self.apply_button = QPushButton(QIcon(str(_icon_path / "apply.svg")), "Apply", self)
-        self.apply_button.clicked.connect(self.apply_result)
+        self.apply_button.clicked.connect(self.apply_selected_result)
         layout.addWidget(self.apply_button, 6, 0, 1, 3)
 
     @property
@@ -134,13 +135,13 @@ class GenerationWidget(QWidget):
                     item = QListWidgetItem(img.to_icon(), None)
                     item.setData(Qt.UserRole, job.id)
                     item.setData(Qt.UserRole + 1, i)
+                    item.setData(Qt.ToolTipRole, job.prompt)
                     self.preview_list.addItem(item)
 
     def update_progress(self):
         self.progress_bar.setValue(int(self.model.progress * 100))
 
     def generate(self):
-        self.model.setup()
         self.model.generate()
         self.update()
 
@@ -162,14 +163,19 @@ class GenerationWidget(QWidget):
         Krita.instance().action("ai_tools_settings").trigger()
 
     def show_preview(self, current, previous):
-        # index = self.preview_list.row(current)
         if current:
             job_id = current.data(Qt.UserRole)
             index = current.data(Qt.UserRole + 1)
             self.model.show_preview(job_id, index)
+        else:
+            self.model.hide_preview()
 
-    def apply_result(self):
+    def apply_selected_result(self):
         self.model.apply_current_result()
+
+    def apply_result(self, item: QListWidgetItem):
+        self.show_preview(item, None)
+        self.apply_selected_result()
 
 
 class WelcomeWidget(QWidget):

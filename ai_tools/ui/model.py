@@ -93,10 +93,6 @@ class Model(QObject):
 
     _doc: Document
     _layer: Optional[krita.Node] = None
-    _image: Optional[Image] = None
-    _mask: Optional[Mask] = None
-    _extent: Optional[Extent] = None
-    _bounds: Optional[Bounds] = None
 
     changed = pyqtSignal()
     progress_changed = pyqtSignal()
@@ -119,47 +115,44 @@ class Model(QObject):
         """Return the model for the currently active document."""
         return ModelRegistry.instance().model_for_active_document()
 
-    def setup(self):
-        """Retrieve the current image and selection mask as inputs for the next generation(s)."""
-        self._mask = self._doc.create_mask_from_selection()
-        if self._mask is not None or self.strength < 1.0:
-            self._image = self._doc.get_image()
-            self._bounds = self._mask.bounds if self._mask else Bounds(0, 0, *self._image.extent)
+    def generate(self):
+        """Enqueue image generation for the current setup."""
+        image = None
+        mask = self._doc.create_mask_from_selection()
+        if mask is not None or self.strength < 1.0:
+            image = self._doc.get_image(exclude_layer=self._layer)
+            bounds = mask.bounds if mask else Bounds(0, 0, *image.extent)
         else:
-            self._extent = self._doc.extent
-            self._bounds = Bounds(0, 0, *self._extent)
+            bounds = Bounds(0, 0, *self._doc.extent)
 
-    async def _generate(self):
-        # assert State.generating not in self.state
+        self.clear_error()
+        self.task = eventloop.run(_report_errors(self, self._generate(bounds, image, mask)))
+
+    async def _generate(self, bounds: Bounds, image: Optional[Image], mask: Optional[Mask]):
         assert Connection.instance().state is ConnectionState.connected
 
         client = Connection.instance().client
-        image, mask = self._image, self._mask
-        prompt, bounds = self.prompt, self._bounds
-        # self.state = self.state | State.generating
+        prompt = self.prompt
         if not self.jobs.any_executing():
             self.progress = 0.0
             self.changed.emit()
 
         if image is None and mask is None:
-            assert self._extent is not None and self.strength == 1
-            job = workflow.generate(client, self._extent, prompt)
+            assert self.strength == 1
+            job = workflow.generate(client, bounds.extent, prompt)
         elif mask is None and self.strength < 1:
             assert image is not None
-            job = workflow.refine(client, image, self.prompt, self.strength)
+            job = workflow.refine(client, image, prompt, self.strength)
         elif self.strength == 1:
             assert False, "Not implemented"
         #     assert image is not None and mask is not None
         #     generator = workflow.inpaint(client, image, mask, self.prompt, progress)
         else:
             assert image is not None and mask is not None and self.strength < 1
-            job = workflow.refine_region(client, image, mask, self.prompt, self.strength)
+            job = workflow.refine_region(client, image, mask, prompt, self.strength)
 
         prompt_id = await job
         self.jobs.add(prompt_id, prompt, bounds)
-
-    def generate(self):
-        self.task = eventloop.run(_report_errors(self, self._generate()))
 
     def cancel(self):
         Connection.instance().interrupt()
@@ -171,6 +164,11 @@ class Model(QObject):
     def report_error(self, message: str, details: Optional[str] = None):
         self.error = message
         self.changed.emit()
+
+    def clear_error(self):
+        if self.error != "":
+            self.error = ""
+            self.changed.emit()
 
     def handle_message(self, message: ClientMessage):
         if message.event is ClientEvent.progress:
@@ -184,21 +182,21 @@ class Model(QObject):
 
     def show_preview(self, prompt_id: str, index: int):
         job = self.jobs.find(prompt_id)
-        if self._layer is None:
-            self._layer = self._doc.insert_layer()
-        self._layer.setName(f"[Preview] {self.prompt}")
-        self._doc.set_layer_pixels(self._layer, job.results[index], job.bounds)
+        name = f"[Preview] {job.prompt}"
+        if self._layer is not None:
+            self._layer.remove()
+        self._layer = self._doc.insert_layer(name, job.results[index], job.bounds)
+
+    def hide_preview(self):
+        if self._layer is not None:
+            self._layer.setVisible(False)
 
     def apply_current_result(self):
-        """Apply selected result by duplicating the preview layer and inserting it below.
-        This allows to apply multiple results (eg. to combine them afterwards by erasing parts).
-        """
-        new_layer = self._layer
-        self._layer = self._layer.duplicate()
-        parent = new_layer.parentNode()
-        parent.addChildNode(self._layer, new_layer)
-        new_layer.setLocked(False)
-        new_layer.setName(new_layer.name().replace("[Preview]", "[Generated]"))
+        """Promote the preview layer to a user layer."""
+        assert self.can_apply_result
+        self._layer.setLocked(False)
+        self._layer.setName(self._layer.name().replace("[Preview]", "[Generated]"))
+        self._layer = None
 
     @property
     def can_apply_result(self):

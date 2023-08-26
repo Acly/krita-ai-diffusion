@@ -118,7 +118,7 @@ async def refine(comfy: Client, image: Image, prompt: str, strength: float):
     model, clip, vae = w.load_checkpoint("photon_v1.safetensors")
     in_image = w.load_image(image)
     if extent.initial != extent.target:
-        in_image = w.scale_image(out_image, extent.initial)
+        in_image = w.scale_image(in_image, extent.initial)
     latent = w.vae_encode(vae, in_image)
     positive = w.clip_text_encode(clip, prompt)
     negative = w.clip_text_encode(clip, settings.negative_prompt)
@@ -142,6 +142,7 @@ async def refine_region(comfy: Client, image: Image, mask: Mask, prompt: str, st
     model, clip, vae = w.load_checkpoint("photon_v1.safetensors")
     in_image = w.load_image(image)
     in_mask = w.load_mask(mask_image)
+    original_mask = in_mask
     if extent.scale > 1:
         in_image = w.scale_image(in_image, extent.initial)
         in_mask = w.scale_mask(in_mask, extent.initial)
@@ -156,9 +157,9 @@ async def refine_region(comfy: Client, image: Image, mask: Mask, prompt: str, st
     if extent.scale < 1:
         out_latent = upscale_latent(w, out_latent, extent.target, prompt, negative, model, clip)
     out_image = w.vae_decode(vae, out_latent)
-    out_masked = w.apply_mask(out_image, in_mask)
     if extent.scale > 1:
-        out_masked = w.scale_image(out_masked, extent.target)
+        out_image = w.scale_image(out_image, extent.target)
+    out_masked = w.apply_mask(out_image, original_mask)
     w.send_image(out_masked)
 
     return await comfy.enqueue(w.root)
