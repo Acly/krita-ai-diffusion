@@ -199,6 +199,10 @@ class Model(QObject):
         self._layer = None
 
     @property
+    def history(self):
+        return (job for job in self.jobs if job.state is State.finished)
+
+    @property
     def can_apply_result(self):
         return self._layer and self._layer.visible()
 

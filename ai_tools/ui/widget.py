@@ -23,7 +23,7 @@ from PyQt5.QtCore import Qt, QSize, pyqtSignal
 from krita import Krita, DockWidget
 
 from .. import Client
-from .model import Model, ModelRegistry, State
+from .model import Model, ModelRegistry, Job, State
 from .connection import Connection, ConnectionState
 
 _icon_path = Path(__file__).parent.parent / "icons"
@@ -127,16 +127,18 @@ class GenerationWidget(QWidget):
         self.error_text.setVisible(model.error != "")
         self.update_progress()
 
-        # TODO: don't rebuild entire list for every update (or at least cache icons)
-        self.preview_list.clear()
-        for job in self.model.jobs:
-            if job.state is State.finished:
-                for i, img in enumerate(job.results):
-                    item = QListWidgetItem(img.to_icon(), None)
-                    item.setData(Qt.UserRole, job.id)
-                    item.setData(Qt.UserRole + 1, i)
-                    item.setData(Qt.ToolTipRole, job.prompt)
-                    self.preview_list.addItem(item)
+        # Clear items which are too old and have been discarded
+        previews = self.preview_list
+        first_id = next((job.id for job in self.model.history), None)
+        while previews.count() > 0 and previews.item(0).data(Qt.UserRole) != first_id:
+            previews.takeItem(0)
+        # Add new items not yet in the list
+        row = 0
+        for job in self.model.history:
+            if row < previews.count() and previews.item(row).data(Qt.UserRole) == job.id:
+                row += len(job.results)
+            else:
+                self.add_preview(job)
 
     def update_progress(self):
         self.progress_bar.setValue(int(self.model.progress * 100))
@@ -162,7 +164,16 @@ class GenerationWidget(QWidget):
     def show_settings(self):
         Krita.instance().action("ai_tools_settings").trigger()
 
-    def show_preview(self, current, previous):
+    def add_preview(self, job: Job):
+        for i, img in enumerate(job.results):
+            item = QListWidgetItem(img.to_icon(), None)
+            item.setData(Qt.UserRole, job.id)
+            item.setData(Qt.UserRole + 1, i)
+            item.setData(Qt.ToolTipRole, job.prompt)
+            self.preview_list.addItem(item)
+        self.preview_list.scrollToBottom()
+
+    def show_preview(self, current: Optional[QListWidgetItem], previous):
         if current:
             job_id = current.data(Qt.UserRole)
             index = current.data(Qt.UserRole + 1)
