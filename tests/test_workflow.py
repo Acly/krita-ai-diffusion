@@ -208,18 +208,15 @@ def test_refine(qtapp, comfy, temp_settings):
     qtapp.run(main())
 
 
-# def test_refine_region(qtapp, auto1111, temp_settings):
-#     temp_settings.batch_size = 1
-#     image = Image.load(image_dir / "lake_1536x1024.png")
-#     mask = Mask.rectangle(Bounds(760, 240, 525, 375), feather=16)
+def test_refine_region(qtapp, comfy, temp_settings):
+    temp_settings.batch_size = 1
+    image = Image.load(image_dir / "lake_1536x1024.png")
+    mask = Mask.rectangle(Bounds(760, 240, 528, 376), feather=16)
 
-#     async def main():
-#         result = await expect_one(
-#             workflow.refine_region(
-#                 auto1111, image, mask, "waterfall", 0.5, Progress(check_progress)
-#             )
-#         )
-#         result.save(result_dir / "test_refine_region.png")
-#         assert result.extent == mask.bounds.extent
+    async def main():
+        job = workflow.refine_region(comfy, image, mask, "waterfall", 0.5)
+        results = await receive_images(comfy, job)
+        results[0].save(result_dir / "test_refine_region.png")
+        assert results[0].extent == mask.bounds.extent
 
-#     qtapp.run(main())
+    qtapp.run(main())

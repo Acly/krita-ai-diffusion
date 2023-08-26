@@ -56,8 +56,11 @@ class ComfyWorkflow:
             denoise=denoise,
         )
 
-    def checkpoint_loader(self, checkpoint):
+    def load_checkpoint(self, checkpoint):
         return self.add("CheckpointLoaderSimple", 3, ckpt_name=checkpoint)
+
+    def load_controlnet(self, controlnet):
+        return self.add("ControlNetLoader", 1, control_net_name=controlnet)
 
     def empty_latent_image(self, width, height):
         batch = compute_batch_size(
@@ -68,11 +71,27 @@ class ComfyWorkflow:
     def clip_text_encode(self, clip, text):
         return self.add("CLIPTextEncode", 1, clip=clip, text=text)
 
+    def apply_controlnet(self, conditioning, controlnet, image):
+        return self.add(
+            "ControlNetApply",
+            1,
+            conditioning=conditioning,
+            control_net=controlnet,
+            image=image,
+            strength=1.0,
+        )
+
+    def inpaint_preprocessor(self, image, mask):
+        return self.add("InpaintPreprocessor", 1, image=image, mask=mask)
+
     def vae_encode(self, vae, image):
         return self.add("VAEEncode", 1, vae=vae, pixels=image)
 
     def vae_decode(self, vae, latent_image):
         return self.add("VAEDecode", 1, vae=vae, samples=latent_image)
+
+    def set_latent_noise_mask(self, latent, mask):
+        return self.add("SetLatentNoiseMask", 1, samples=latent, mask=mask)
 
     def latent_upscale(self, latent, extent):
         return self.add(
@@ -106,6 +125,17 @@ class ComfyWorkflow:
             width=bounds.width,
             height=bounds.height,
         )
+
+    def image_to_mask(self, image):
+        return self.add("ImageToMask", 1, image=image, channel="red")
+
+    def mask_to_image(self, mask):
+        return self.add("MaskToImage", 1, mask=mask)
+
+    def scale_mask(self, mask, extent):
+        img = self.mask_to_image(mask)
+        scaled = self.scale_image(img, extent)
+        return self.image_to_mask(scaled)
 
     def apply_mask(self, image, mask):
         return self.add("ETN_ApplyMaskToImage", 1, image=image, mask=mask)
@@ -174,41 +204,35 @@ def prepare(inputs: Inputs, downscale=True) -> ScaledInputs:
     return ScaledInputs(image, mask_image, ScaledExtent(extent.multiple_of(8), extent, 1.0))
 
 
-# async def postprocess(
-#     diffusion: Auto1111,
-#     image: Image,
-#     output_extent: Extent,
-#     prompt: str,
-#     progress: Progress,
-# ):
-#     if image.extent.width < output_extent.width or image.extent.height < output_extent.height:
-#         # Result image resolution is lower than requested -> upscale the results.
-#         return await diffusion.upscale(image, output_extent, prompt, progress)
-
-#     if image.extent.width > output_extent.width or image.extent.height > output_extent.height:
-#         # Result image resolution is too high to fit into the inpaint section -> downscale.
-#         return Image.scale(image, output_extent)
-
-#     assert image.extent == output_extent
-#     return image
+def upscale_latent(
+    w: ComfyWorkflow,
+    latent: Output,
+    target: Extent,
+    prompt_pos: str,
+    prompt_neg: Output,
+    model: Output,
+    clip: Output,
+):
+    assert target.is_multiple_of(8)
+    upscale = w.latent_upscale(latent, target)
+    prompt = w.clip_text_encode(clip, f"{prompt_pos}, {settings.upscale_prompt}")
+    return w.ksampler(model, prompt, prompt_neg, upscale, denoise=0.5, steps=10)
 
 
 async def generate(comfy: Client, input_extent: Extent, prompt: str):
     _, _, extent = prepare(input_extent)
 
     w = ComfyWorkflow()
-    model, clip, vae = w.checkpoint_loader("photon_v1.safetensors")
+    model, clip, vae = w.load_checkpoint("photon_v1.safetensors")
     latent = w.empty_latent_image(extent.initial.width, extent.initial.height)
     positive = w.clip_text_encode(clip, prompt)
     negative = w.clip_text_encode(clip, settings.negative_prompt)
-    sampler = w.ksampler(model, positive, negative, latent)
+    out_latent = w.ksampler(model, positive, negative, latent)
     extent_sampled = extent.initial
     if extent.scale < 1:  # generated image is smaller than requested -> upscale
         extent_sampled = extent.target.multiple_of(8)
-        upscale = w.latent_upscale(sampler, extent_sampled)
-        positive_up = w.clip_text_encode(clip, f"{prompt}, {settings.upscale_prompt}")
-        sampler = w.ksampler(model, positive_up, negative, upscale, denoise=0.5, steps=10)
-    out_image = w.vae_decode(vae, sampler)
+        out_latent = upscale_latent(w, out_latent, extent_sampled, prompt, negative, model, clip)
+    out_image = w.vae_decode(vae, out_latent)
     if extent_sampled != extent.target:
         out_image = w.scale_image(out_image, extent.target)
     w.send_image(out_image)
@@ -235,7 +259,7 @@ async def refine(comfy: Client, image: Image, prompt: str, strength: float):
     image, _, extent = prepare(image)
 
     w = ComfyWorkflow()
-    model, clip, vae = w.checkpoint_loader("photon_v1.safetensors")
+    model, clip, vae = w.load_checkpoint("photon_v1.safetensors")
     in_image = w.load_image(image)
     if extent.initial != extent.target:
         in_image = w.scale_image(out_image, extent.initial)
@@ -251,18 +275,34 @@ async def refine(comfy: Client, image: Image, prompt: str, strength: float):
     return await comfy.enqueue(w.root)
 
 
-# async def refine_region(
-#     diffusion: Auto1111, image: Image, mask: Mask, prompt: str, strength: float, progress: Progress
-# ):
-#     assert strength > 0 and strength < 1
-#     downscale_if_needed = strength >= 0.7
-#     image = Image.sub_region(image, mask.bounds)
-#     image, mask_image, extent, progress = prepare((image, mask), progress, downscale_if_needed)
+async def refine_region(comfy: Client, image: Image, mask: Mask, prompt: str, strength: float):
+    assert strength > 0 and strength < 1
+    assert mask.bounds.extent.is_multiple_of(8)
+    downscale_if_needed = strength >= 0.7
+    image = Image.sub_region(image, mask.bounds)
+    image, mask_image, extent = prepare((image, mask), downscale_if_needed)
 
-#     result = await diffusion.img2img_inpaint(
-#         image, mask_image, prompt, strength, extent.initial, progress
-#     )
-#     for img in result:
-#         img = await postprocess(diffusion, img, extent.target, prompt, progress)
-#         Mask.apply(img, mask)
-#         yield img
+    w = ComfyWorkflow()
+    model, clip, vae = w.load_checkpoint("photon_v1.safetensors")
+    in_image = w.load_image(image)
+    in_mask = w.load_mask(mask_image)
+    if extent.scale > 1:
+        in_image = w.scale_image(in_image, extent.initial)
+        in_mask = w.scale_mask(in_mask, extent.initial)
+    latent = w.vae_encode(vae, in_image)
+    latent = w.set_latent_noise_mask(latent, in_mask)
+    controlnet = w.load_controlnet("control_v11p_sd15_inpaint.pth")
+    control_image = w.inpaint_preprocessor(in_image, in_mask)
+    positive = w.clip_text_encode(clip, prompt)
+    positive = w.apply_controlnet(positive, controlnet, control_image)
+    negative = w.clip_text_encode(clip, settings.negative_prompt)
+    out_latent = w.ksampler(model, positive, negative, latent, denoise=strength, steps=20)
+    if extent.scale < 1:
+        out_latent = upscale_latent(w, out_latent, extent.target, prompt, negative, model, clip)
+    out_image = w.vae_decode(vae, out_latent)
+    out_masked = w.apply_mask(out_image, in_mask)
+    if extent.scale > 1:
+        out_masked = w.scale_image(out_masked, extent.target)
+    w.send_image(out_masked)
+
+    return await comfy.enqueue(w.root)

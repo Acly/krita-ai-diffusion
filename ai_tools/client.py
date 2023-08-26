@@ -39,7 +39,9 @@ class Client:
     async def connect(url=default_url):
         client = Client(url)
         try:
-            client._websocket = await websockets.connect(f"ws://{url}/ws?clientId={client._id}")
+            client._websocket = await websockets.connect(
+                f"ws://{url}/ws?clientId={client._id}", max_size=2**30, read_limit=2**30
+            )
         except OSError as e:
             raise NetworkError(
                 e.errno, f"Could not connect to websocket server at {url}: {str(e)}", url

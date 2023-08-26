@@ -16,7 +16,6 @@ from .. import (
     Bounds,
     ImageCollection,
     workflow,
-    Progress,
     Interrupted,
     NetworkError,
 )
@@ -138,35 +137,26 @@ class Model(QObject):
         image, mask = self._image, self._mask
         prompt, bounds = self.prompt, self._bounds
         # self.state = self.state | State.generating
-        self.progress = 0.0
-        self.changed.emit()
+        if not self.jobs.any_executing():
+            self.progress = 0.0
+            self.changed.emit()
 
         if image is None and mask is None:
             assert self._extent is not None and self.strength == 1
             job = workflow.generate(client, self._extent, prompt)
-        # elif mask is None and self.strength < 1:
-        #     assert image is not None
-        #     generator = workflow.refine(client, image, self.prompt, self.strength, progress)
-        # elif self.strength == 1:
+        elif mask is None and self.strength < 1:
+            assert image is not None
+            job = workflow.refine(client, image, self.prompt, self.strength)
+        elif self.strength == 1:
+            assert False, "Not implemented"
         #     assert image is not None and mask is not None
         #     generator = workflow.inpaint(client, image, mask, self.prompt, progress)
-        # else:
-        #     assert image is not None and mask is not None and self.strength < 1
-        #     generator = workflow.refine_region(
-        #         client, image, mask, self.prompt, self.strength, progress
-        #     )
+        else:
+            assert image is not None and mask is not None and self.strength < 1
+            job = workflow.refine_region(client, image, mask, self.prompt, self.strength)
+
         prompt_id = await job
         self.jobs.add(prompt_id, prompt, bounds)
-        # async for result in generator:
-        #     self.state = State.preview | State.generating
-        #     self.results.append(result)
-        #     if self._layer is None:
-        #         self._layer = self._doc.insert_layer(
-        #             f"[Preview] {self.prompt}", result, self._bounds
-        #         )
-        #     self.changed.emit()
-        # self.state = State.preview
-        # self.changed.emit()
 
     def generate(self):
         self.task = eventloop.run(_report_errors(self, self._generate()))

@@ -22,6 +22,9 @@ class Extent(NamedTuple):
     def multiple_of(self, multiple: int):
         return Extent(multiple_of(self.width, multiple), multiple_of(self.height, multiple))
 
+    def is_multiple_of(self, multiple: int):
+        return self.width % multiple == 0 and self.height % multiple == 0
+
 
 class Bounds(NamedTuple):
     x: int
