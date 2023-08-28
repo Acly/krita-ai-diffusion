@@ -146,9 +146,8 @@ class Model(QObject):
             assert image is not None
             job = workflow.refine(client, image, prompt, self.strength)
         elif self.strength == 1:
-            assert False, "Not implemented"
-        #     assert image is not None and mask is not None
-        #     generator = workflow.inpaint(client, image, mask, self.prompt, progress)
+            assert image is not None and mask is not None
+            job = workflow.inpaint(client, image, mask, self.prompt)
         else:
             assert image is not None and mask is not None and self.strength < 1
             job = workflow.refine_region(client, image, mask, prompt, self.strength)

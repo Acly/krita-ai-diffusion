@@ -162,36 +162,36 @@ def test_generate(qtapp, comfy, temp_settings, extent):
     qtapp.run(main())
 
 
-# def test_inpaint(qtapp, auto1111, temp_settings):
-#     temp_settings.batch_size = 3  # max 3 images@512x512 -> 2 images@768x512
-#     image = Image.load(image_dir / "beach_768x512.png")
-#     mask = Mask.rectangle(Bounds(50, 100, 320, 200), feather=10)
+def test_inpaint(qtapp, comfy, temp_settings):
+    temp_settings.batch_size = 3  # max 3 images@512x512 -> 2 images@768x512
+    image = Image.load(image_dir / "beach_768x512.png")
+    mask = Mask.rectangle(Bounds(50, 100, 320, 200), feather=10)
 
-#     async def main():
-#         index = 0
-#         results = workflow.inpaint(auto1111, image, mask, "ship", Progress(check_progress))
-#         async for result in results:
-#             result.save(result_dir / f"test_inpaint_{index}.png")
-#             assert result.extent == Extent(320, 200)
-#             index += 1
-#         assert index == 2
+    async def main():
+        index = 0
+        job = workflow.inpaint(comfy, image, mask, "ship")
+        results = await receive_images(comfy, job)
+        for result in results:
+            result.save(result_dir / f"test_inpaint_{index}.png")
+            assert result.extent == Extent(320, 200)
+            index += 1
+        assert index == 2
 
-#     qtapp.run(main())
+    qtapp.run(main())
 
 
-# def test_inpaint_upscale(qtapp, auto1111, temp_settings):
-#     temp_settings.batch_size = 1
-#     image = Image.load(image_dir / "beach_1536x1024.png")
-#     mask = Mask.rectangle(Bounds(600, 200, 768, 512), feather=10)
+def test_inpaint_upscale(qtapp, comfy, temp_settings):
+    temp_settings.batch_size = 1
+    image = Image.load(image_dir / "beach_1536x1024.png")
+    mask = Mask.rectangle(Bounds(600, 200, 768, 512), feather=10)
 
-#     async def main():
-#         result = await expect_one(
-#             workflow.inpaint(auto1111, image, mask, "ship", Progress(check_progress))
-#         )
-#         result.save(result_dir / "test_inpaint_upscale.png")
-#         assert result.extent == mask.bounds.extent
+    async def main():
+        job = workflow.inpaint(comfy, image, mask, "ship")
+        results = await receive_images(comfy, job)
+        results[0].save(result_dir / "test_inpaint_upscale.png")
+        assert results[0].extent == mask.bounds.extent
 
-#     qtapp.run(main())
+    qtapp.run(main())
 
 
 def test_refine(qtapp, comfy, temp_settings):

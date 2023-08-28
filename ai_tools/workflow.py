@@ -4,6 +4,7 @@ from .image import Bounds, Extent, Image, ImageCollection, Mask
 from .client import Client
 from .settings import settings
 from .comfyworkflow import ComfyWorkflow, Output
+from .util import compute_batch_size
 
 
 Inputs = Union[Extent, Image, Tuple[Image, Mask]]
@@ -70,7 +71,7 @@ def upscale_latent(
     clip: Output,
 ):
     assert target.is_multiple_of(8)
-    upscale = w.latent_upscale(latent, target)
+    upscale = w.scale_latent(latent, target)
     prompt = w.clip_text_encode(clip, f"{prompt_pos}, {settings.upscale_prompt}")
     return w.ksampler(model, prompt, prompt_neg, upscale, denoise=0.5, steps=10)
 
@@ -96,23 +97,55 @@ async def generate(comfy: Client, input_extent: Extent, prompt: str):
     return await comfy.enqueue(w)
 
 
-# async def inpaint(diffusion: Auto1111, image: Image, mask: Mask, prompt: str, progress: Progress):
-#     image, mask_image, extent, progress = prepare((image, mask), progress)
-#     result = await diffusion.txt2img_inpaint(image, mask_image, prompt, extent.initial, progress)
+async def inpaint(comfy: Client, image: Image, mask: Mask, prompt: str):
+    image, mask_image, extent = prepare((image, mask))
+    batch_size = compute_batch_size(extent.target, settings.min_image_size, settings.batch_size)
 
-#     # Result is the whole image, continue to work only with the inpainted region
-#     scaled_bounds = Bounds.scale(mask.bounds, extent.scale)
-#     result = result.map(lambda img: Image.sub_region(img, scaled_bounds))
+    w = ComfyWorkflow()
+    model, clip, vae = w.load_checkpoint("realisticVisionV20_v20.safetensors")
+    controlnet = w.load_controlnet("control_v11p_sd15_inpaint.pth")
+    clip_vision_model = w.load_clip_vision("SD1.5\\pytorch_model.bin")
+    in_image = w.load_image(image)
+    in_mask = w.load_mask(mask_image)
+    cropped_mask = w.load_mask(mask.to_image())
+    if extent.scale > 1:
+        in_image = w.scale_image(in_image, extent.initial)
+        in_mask = w.scale_mask(in_mask, extent.initial)
+    clip_vision = w.clip_vision_encode(clip_vision_model, in_image)
+    ip_adapter = w.ip_adapter("ip-adapter_sd15.bin", model, clip_vision, 0.5)
+    control_image = w.inpaint_preprocessor(in_image, in_mask)
+    positive = w.clip_text_encode(clip, prompt)
+    positive = w.apply_controlnet(positive, controlnet, control_image)
+    negative = w.clip_text_encode(clip, settings.negative_prompt)
+    latent = w.vae_encode_inpaint(vae, in_image, in_mask)
+    latent = w.batch_latent(latent, batch_size)
+    out_latent = w.ksampler(ip_adapter, positive, negative, latent, sampler="ddim", steps=15, cfg=5)
+    if extent.scale < 1:
+        cropped_latent = w.crop_latent(out_latent, Bounds.scale(mask.bounds, extent.scale))
+        scaled_latent = w.scale_latent(cropped_latent, mask.bounds.extent)
+        no_mask = w.solid_mask(mask.bounds.extent, 1.0)
+        masked_latent = w.set_latent_noise_mask(scaled_latent, no_mask)
+        cropped_image = w.vae_decode(vae, cropped_latent)
+        control_image_upscale = w.inpaint_preprocessor(cropped_image, cropped_mask)
+        positive_upscale = w.clip_text_encode(clip, f"{prompt}, {settings.upscale_prompt}")
+        positive_upscale = w.apply_controlnet(positive_upscale, controlnet, control_image_upscale)
+        out_latent = w.ksampler(
+            ip_adapter, positive_upscale, negative, masked_latent, denoise=0.5, steps=15, cfg=5
+        )
+    else:
+        out_latent = w.crop_latent(out_latent, mask.bounds)
+    out_image = w.vae_decode(vae, out_latent)
+    if extent.scale > 1:
+        out_image = w.scale_image(out_image, extent.target)
+    out_masked = w.apply_mask(out_image, cropped_mask)
+    w.send_image(out_masked)
 
-#     for img in result:
-#         img = await postprocess(diffusion, img, mask.bounds.extent, prompt, progress)
-#         Mask.apply(img, mask)
-#         yield img
+    return await comfy.enqueue(w)
 
 
 async def refine(comfy: Client, image: Image, prompt: str, strength: float):
     assert strength > 0 and strength < 1
-    image, _, extent = prepare(image)
+    image, _, extent = prepare(image, downscale=False)
 
     w = ComfyWorkflow()
     model, clip, vae = w.load_checkpoint("photon_v1.safetensors")
