@@ -66,11 +66,8 @@ class ComfyWorkflow:
     def load_clip_vision(self, clip_name):
         return self.add("CLIPVisionLoader", 1, clip_name=clip_name)
 
-    def empty_latent_image(self, width, height):
-        batch = compute_batch_size(
-            Extent(width, height), settings.min_image_size, settings.batch_size
-        )
-        return self.add("EmptyLatentImage", 1, width=width, height=height, batch_size=batch)
+    def empty_latent_image(self, width, height, batch_size=1):
+        return self.add("EmptyLatentImage", 1, width=width, height=height, batch_size=batch_size)
 
     def clip_text_encode(self, clip, text):
         return self.add("CLIPTextEncode", 1, clip=clip, text=text)
