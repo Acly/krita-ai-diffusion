@@ -44,7 +44,23 @@ class Settings:
     _server_url = Setting(
         "Server URL",
         "127.0.0.1:8188",
-        "URL used to connect to a running ComfyUI server. Default is 127.0.0.1:8188",
+        "URL used to connect to a running ComfyUI server. Default is 127.0.0.1:8188 (local).",
+    )
+
+    _sd_checkpoint = Setting(
+        "Model Checkpoint",
+        "<No checkpoints found>",
+        (
+            "The Stable Diffusion checkpoint. This has a large impact on which kind of content will"
+            " be generated. To install additional checkpoints, place them into"
+            " <ComfyUI>/models/checkpoints."
+        ),
+    )
+
+    _style_prompt = Setting(
+        "Style Prompt",
+        "best quality, highres",
+        "Keywords which are appended to all prompts. Can be used to influence style and quality.",
     )
 
     _negative_prompt = Setting(
@@ -55,7 +71,7 @@ class Settings:
 
     _upscale_prompt = Setting(
         "Upscale Prompt",
-        "highres, 8k, uhd",
+        "8k uhd",
         "Additional text which is used to extend the prompt when upscaling images.",
     )
 
@@ -79,6 +95,26 @@ class Settings:
         ),
     )
 
+    _sampler = Setting("Sampler", "DPM++ 2M SDE", "The sampling strategy and scheduler.")
+
+    _sampler_steps = Setting(
+        "Sampler Steps",
+        20,
+        "Number of sampling steps. Higher values can produce more refined results but take longer.",
+    )
+
+    _sampler_steps_upscaling = Setting(
+        "Sampler Steps (Upscaling)",
+        15,
+        "Additional sampling steps to run when automatically upscaling images.",
+    )
+
+    _cfg_scale = Setting(
+        "Guidance Strength (CFG Scale)",
+        7,
+        "Value which indicates how closely image generation follows the text prompt.",
+    )
+
     _gpu_memory_preset = Setting(
         "GPU Memory Preset",
         GPUMemoryPreset.medium,
@@ -100,12 +136,6 @@ class Settings:
         ),
     )
 
-    _vae_endoding_tile_size = Setting(
-        "VAE Encoder Tile Size",
-        1024,
-        "Larger images are split up into tiles when passed to the VAE to allow large resolutions. ",
-    )
-
     _diffusion_tile_size = Setting(
         "Diffusion Tile Size",
         2048,
@@ -115,31 +145,17 @@ class Settings:
     _gpu_memory_presets = {
         GPUMemoryPreset.low: {
             "batch_size": 2,
-            "vae_endoding_tile_size": 512,
             "diffusion_tile_size": 1024,
         },
         GPUMemoryPreset.medium: {
             "batch_size": 4,
-            "vae_endoding_tile_size": 1024,
             "diffusion_tile_size": 2048,
         },
         GPUMemoryPreset.high: {
             "batch_size": 8,
-            "vae_endoding_tile_size": 2048,
             "diffusion_tile_size": 4096,
         },
     }
-
-    _upscaler = Setting(
-        "Upscaler",
-        "Lanczos",
-        "The algorithm to use whenever images need to be resized to a higher resolution.",
-    )
-    upscalers = ["Lanczos"]
-
-    @property
-    def upscaler_index(self):
-        return self.upscalers.index(self.upscaler)
 
     # Folder where intermediate images are stored for debug purposes (default: None)
     debug_image_folder = os.environ.get("KRITA_AI_TOOLS_DEBUG_IMAGE")

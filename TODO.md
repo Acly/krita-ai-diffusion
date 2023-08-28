@@ -2,4 +2,10 @@
 * Profile setPixel for large res and possibly find alternative (is it still used?)
 * Presets/Styles
 * Settings for: feather, grow, auto-preview
-* Comfy: cancel, refactor queue widget, show prompt data in preview list
+* Maybe move resolution settings to other tab
+* Server settings: allow specifying path instead of URL so extension can (re)start the server
+* Comfy: 
+    * cancel
+    * show prompt data in preview list
+    * clear layer instead of remove/readd
+    * lora

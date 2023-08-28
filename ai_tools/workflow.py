@@ -77,6 +77,30 @@ def prepare(inputs: Inputs, downscale=True) -> ScaledInputs:
     return ScaledInputs.init(image, mask_image, extent, extent, 1.0)
 
 
+def _ksampler_params(clip_vision=False, upscale=False):
+    sampler_name = {
+        "DDIM": "ddim",
+        "DPM++ 2M SDE": "dpmpp_2m_sde_gpu",
+        "DPM++ 2M SDE Karras": "dpmpp_2m_sde_gpu",
+    }[settings.sampler]
+    sampler_scheduler = {
+        "DDIM": "ddim_uniform",
+        "DPM++ 2M SDE": "normal",
+        "DPM++ 2M SDE Karras": "karras",
+    }[settings.sampler]
+    params = dict(
+        sampler=sampler_name,
+        scheduler=sampler_scheduler,
+        steps=settings.sampler_steps,
+        cfg=settings.cfg_scale,
+    )
+    if clip_vision:
+        params["cfg"] = min(5, settings.cfg_scale)
+    if upscale:
+        params["steps"] = settings.sampler_steps_upscaling
+    return params
+
+
 def upscale_latent(
     w: ComfyWorkflow,
     latent: Output,
@@ -89,18 +113,20 @@ def upscale_latent(
     assert target.is_multiple_of(8)
     upscale = w.scale_latent(latent, target)
     prompt = w.clip_text_encode(clip, f"{prompt_pos}, {settings.upscale_prompt}")
-    return w.ksampler(model, prompt, prompt_neg, upscale, denoise=0.5, steps=10)
+    return w.ksampler(
+        model, prompt, prompt_neg, upscale, denoise=0.5, **_ksampler_params(upscale=True)
+    )
 
 
 async def generate(comfy: Client, input_extent: Extent, prompt: str):
     _, _, extent, batch = prepare(input_extent)
 
     w = ComfyWorkflow()
-    model, clip, vae = w.load_checkpoint("photon_v1.safetensors")
+    model, clip, vae = w.load_checkpoint(settings.sd_checkpoint)
     latent = w.empty_latent_image(extent.initial.width, extent.initial.height, batch)
-    positive = w.clip_text_encode(clip, prompt)
+    positive = w.clip_text_encode(clip, f"{prompt} {settings.style_prompt}")
     negative = w.clip_text_encode(clip, settings.negative_prompt)
-    out_latent = w.ksampler(model, positive, negative, latent)
+    out_latent = w.ksampler(model, positive, negative, latent, **_ksampler_params())
     extent_sampled = extent.initial
     if extent.scale < 1:  # generated image is smaller than requested -> upscale
         extent_sampled = extent.target.multiple_of(8)
@@ -117,7 +143,7 @@ async def inpaint(comfy: Client, image: Image, mask: Mask, prompt: str):
     image, mask_image, extent, batch = prepare((image, mask))
 
     w = ComfyWorkflow()
-    model, clip, vae = w.load_checkpoint("realisticVisionV20_v20.safetensors")
+    model, clip, vae = w.load_checkpoint(settings.sd_checkpoint)
     controlnet = w.load_controlnet(comfy.controlnet_model["inpaint"])
     clip_vision_model = w.load_clip_vision(comfy.clip_vision_model)
     in_image = w.load_image(image)
@@ -129,12 +155,14 @@ async def inpaint(comfy: Client, image: Image, mask: Mask, prompt: str):
     clip_vision = w.clip_vision_encode(clip_vision_model, in_image)
     ip_adapter = w.ip_adapter(comfy.ip_adapter_model, model, clip_vision, 0.5)
     control_image = w.inpaint_preprocessor(in_image, in_mask)
-    positive = w.clip_text_encode(clip, prompt)
+    positive = w.clip_text_encode(clip, f"{prompt} {settings.style_prompt}")
     positive = w.apply_controlnet(positive, controlnet, control_image)
     negative = w.clip_text_encode(clip, settings.negative_prompt)
     latent = w.vae_encode_inpaint(vae, in_image, in_mask)
     latent = w.batch_latent(latent, batch)
-    out_latent = w.ksampler(ip_adapter, positive, negative, latent, sampler="ddim", steps=15, cfg=5)
+    out_latent = w.ksampler(
+        ip_adapter, positive, negative, latent, **_ksampler_params(clip_vision=True)
+    )
     if extent.scale < 1:
         cropped_latent = w.crop_latent(out_latent, Bounds.scale(mask.bounds, extent.scale))
         scaled_latent = w.scale_latent(cropped_latent, mask.bounds.extent)
@@ -144,8 +172,9 @@ async def inpaint(comfy: Client, image: Image, mask: Mask, prompt: str):
         control_image_upscale = w.inpaint_preprocessor(cropped_image, cropped_mask)
         positive_upscale = w.clip_text_encode(clip, f"{prompt}, {settings.upscale_prompt}")
         positive_upscale = w.apply_controlnet(positive_upscale, controlnet, control_image_upscale)
+        params = _ksampler_params(clip_vision=True, upscale=True)
         out_latent = w.ksampler(
-            ip_adapter, positive_upscale, negative, masked_latent, denoise=0.5, steps=15, cfg=5
+            ip_adapter, positive_upscale, negative, masked_latent, denoise=0.5, **params
         )
     else:
         out_latent = w.crop_latent(out_latent, mask.bounds)
@@ -163,15 +192,15 @@ async def refine(comfy: Client, image: Image, prompt: str, strength: float):
     image, _, extent, batch = prepare(image, downscale=False)
 
     w = ComfyWorkflow()
-    model, clip, vae = w.load_checkpoint("photon_v1.safetensors")
+    model, clip, vae = w.load_checkpoint(settings.sd_checkpoint)
     in_image = w.load_image(image)
     if extent.initial != extent.target:
         in_image = w.scale_image(in_image, extent.initial)
     latent = w.vae_encode(vae, in_image)
     latent = w.batch_latent(latent, batch)
-    positive = w.clip_text_encode(clip, prompt)
+    positive = w.clip_text_encode(clip, f"{prompt} {settings.style_prompt}")
     negative = w.clip_text_encode(clip, settings.negative_prompt)
-    sampler = w.ksampler(model, positive, negative, latent, denoise=strength, steps=20)
+    sampler = w.ksampler(model, positive, negative, latent, denoise=strength, **_ksampler_params())
     out_image = w.vae_decode(vae, sampler)
     if extent.initial != extent.target:
         out_image = w.scale_image(out_image, extent.target)
@@ -188,7 +217,7 @@ async def refine_region(comfy: Client, image: Image, mask: Mask, prompt: str, st
     image, mask_image, extent, batch = prepare((image, mask), downscale_if_needed)
 
     w = ComfyWorkflow()
-    model, clip, vae = w.load_checkpoint("photon_v1.safetensors")
+    model, clip, vae = w.load_checkpoint(settings.sd_checkpoint)
     in_image = w.load_image(image)
     in_mask = w.load_mask(mask_image)
     if extent.scale > 1:
@@ -199,10 +228,12 @@ async def refine_region(comfy: Client, image: Image, mask: Mask, prompt: str, st
     latent = w.batch_latent(latent, batch)
     controlnet = w.load_controlnet(comfy.controlnet_model["inpaint"])
     control_image = w.inpaint_preprocessor(in_image, in_mask)
-    positive = w.clip_text_encode(clip, prompt)
+    positive = w.clip_text_encode(clip, f"{prompt} {settings.style_prompt}")
     positive = w.apply_controlnet(positive, controlnet, control_image)
     negative = w.clip_text_encode(clip, settings.negative_prompt)
-    out_latent = w.ksampler(model, positive, negative, latent, denoise=strength, steps=20)
+    out_latent = w.ksampler(
+        model, positive, negative, latent, denoise=strength, **_ksampler_params()
+    )
     if extent.scale < 1:
         out_latent = upscale_latent(w, out_latent, extent.target, prompt, negative, model, clip)
     out_image = w.vae_decode(vae, out_latent)

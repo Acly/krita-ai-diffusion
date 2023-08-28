@@ -2,7 +2,7 @@ from enum import Enum
 import json
 import struct
 import uuid
-from typing import NamedTuple, Union, Sequence
+from typing import NamedTuple, Optional, Union, Sequence
 
 from .comfyworkflow import ComfyWorkflow
 from .image import Extent, Image, ImageCollection
@@ -57,6 +57,26 @@ class Progress:
         return 0.2 * node_part + 0.8 * sample_part
 
 
+class ResourceKind(Enum):
+    checkpoint = "SD Checkpoint"
+    controlnet = "ControlNet model"
+    clip_vision = "CLIP Vision model"
+    ip_adapter = "IP-Adapter model"
+    node = "custom node"
+
+
+class MissingResource(Exception):
+    kind: ResourceKind
+    names: Optional[Sequence[str]]
+
+    def __init__(self, kind: ResourceKind, names: Optional[Sequence[str]] = None):
+        self.kind = kind
+        self.names = names
+
+    def __str__(self):
+        return f"Missing {self.kind.value}: {', '.join(self.names)}"
+
+
 class Client:
     """HTTP/WebSocket client which sends requests to and listens to messages from a ComfyUI server."""
 
@@ -87,6 +107,10 @@ class Client:
         # Retrieve SD checkpoints
         sd = await client._get("object_info/CheckpointLoaderSimple")
         client.checkpoints = sd["CheckpointLoaderSimple"]["input"]["required"]["ckpt_name"][0]
+        if len(client.checkpoints) == 0:
+            raise MissingResource(ResourceKind.checkpoint)
+        if settings.sd_checkpoint == "<No checkpoints found>":
+            settings.sd_checkpoint = client.checkpoints[0]
 
         # Retrieve ControlNet models
         cns = await client._get("object_info/ControlNetLoader")
@@ -158,10 +182,7 @@ class Client:
 def _find_controlnet_model(model_list: Sequence[str], model_name: str):
     model = next((model for model in model_list if model.startswith(model_name)), None)
     if model is None:
-        raise Exception(
-            f"Could not find ControlNet model {model_name}. Make sure to download the model and"
-            " place it in the <ComfyUI>/models/controlnet folder."
-        )
+        raise MissingResource(ResourceKind.controlnet, [model_name])
     return model
 
 
@@ -171,10 +192,7 @@ def _find_clip_vision_model(model_list: Sequence[str], sdver: str):
     model = next((m for m in model_list if match(m)), None)
     if model is None:
         full_name = model_name if sdver == "SDXL" else f"{sdver}/{model_name}"
-        raise Exception(
-            f"Could not find ClipVision model {full_name}. Make sure to download the model"
-            " and place it in the <ComfyUI>/models/clip_vision folder."
-        )
+        raise MissingResource(ResourceKind.clip_vision, [full_name])
     return model
 
 
@@ -182,10 +200,7 @@ def _find_ip_adapter(model_list: Sequence[str], sdver: str):
     model_name = f"ip-adapter_{sdver}"
     model = next((m for m in model_list if model_name in m), None)
     if model is None:
-        raise Exception(
-            f"Could not find IP-Adapter model {model_name}. Make sure to download the model"
-            " and place it in the <ComfyUI>/custom_nodes/IPAdapter-ComfyUI/models folder."
-        )
+        raise MissingResource(ResourceKind.ip_adapter, [model_name])
     return model
 
 

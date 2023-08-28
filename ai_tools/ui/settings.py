@@ -1,5 +1,3 @@
-from pathlib import Path
-from typing import Callable
 from PyQt5.QtWidgets import (
     QVBoxLayout,
     QHBoxLayout,
@@ -9,6 +7,8 @@ from PyQt5.QtWidgets import (
     QListWidget,
     QListWidgetItem,
     QLineEdit,
+    QMainWindow,
+    QScrollArea,
     QSpinBox,
     QStackedWidget,
     QComboBox,
@@ -16,9 +16,8 @@ from PyQt5.QtWidgets import (
     QWidget,
 )
 from PyQt5.QtCore import Qt, QSize, pyqtSignal
-from PyQt5.QtGui import QPixmap
 
-from .. import Client, Setting, Settings, settings, GPUMemoryPreset
+from .. import Client, MissingResource, ResourceKind, Setting, Settings, settings, GPUMemoryPreset
 from .connection import Connection, ConnectionState
 
 
@@ -91,7 +90,7 @@ class ConnectionSettings(QWidget):
 
         layout = QVBoxLayout()
         self.setLayout(layout)
-        _add_title(layout, "Server configuration")
+        _add_title(layout, "Server Configuration")
 
         _add_header(layout, Settings._server_url)
         self._connection_status = QLabel(self)
@@ -135,6 +134,43 @@ class ConnectionSettings(QWidget):
         elif server.state == ConnectionState.error:
             self._connection_status.setText(f"<b>Error</b>: {server.error}")
             self._connection_status.setStyleSheet("color: red;")
+            if server.missing_resource is not None:
+                self._handle_missing_resource(server.missing_resource)
+
+    def _handle_missing_resource(self, resource: MissingResource):
+        if resource.kind is ResourceKind.checkpoint:
+            self._connection_status.setText(
+                "<b>Error</b>: No checkpoints found!\nCheckpoints must be placed into"
+                " <ComfyUI>/model/checkpoints.\n<a"
+                " href='https://civitai.com/models'>Civitai.com</a> has a large collection"
+                " of checkpoints available for download."
+            )
+            self._connection_status.setTextFormat(Qt.RichText)
+            self._connection_status.setTextInteractionFlags(Qt.TextBrowserInteraction)
+            self._connection_status.setOpenExternalLinks(True)
+        elif resource.kind is ResourceKind.controlnet:
+            self._connection_status.setText(
+                f"<b>Error</b>: Could not find ControlNet model {', '.join(resource.names)}. Make"
+                " sure to download the model and place it in the <ComfyUI>/models/controlnet"
+                " folder."
+            )
+        elif resource.kind is ResourceKind.clip_vision:
+            self._connection_status.setText(
+                f"<b>Error</b>: Could not find CLIPVision model {', '.join(resource.names)}. Make"
+                " sure to download the model and place it in the <ComfyUI>/models/clip_vision"
+                " folder."
+            )
+        elif resource.kind is ResourceKind.ip_adapter:
+            self._connection_status.setText(
+                f"<b>Error</b>: Could not find IPAdapter model {', '.join(resource.names)}. Make"
+                " sure to download the model and place it in the"
+                " <ComfyUI>/custom_nodes/IPAdapter-ComfyUI/models folder."
+            )
+        elif resource.kind is ResourceKind.node:
+            self._connection_status.setText(
+                "<b>Error</b>: The following ComfyUI custom nodes are missing:"
+                f" {', '.join(resource.names)}. Please install them."
+            )
 
 
 class DiffusionSettings(QWidget):
@@ -142,60 +178,106 @@ class DiffusionSettings(QWidget):
         super().__init__()
         self._write_guard = SettingsWriteGuard()
 
+        frame_layout = QVBoxLayout()
+        self.setLayout(frame_layout)
+        _add_title(frame_layout, "Image Diffusion Settings")
+
+        inner = QWidget(self)
         layout = QVBoxLayout()
-        self.setLayout(layout)
-        _add_title(layout, "Diffusion model settings")
+        inner.setLayout(layout)
+
+        _add_header(layout, Settings._sd_checkpoint)
+        self._sd_checkpoint = QComboBox(inner)
+        self._sd_checkpoint.currentIndexChanged.connect(self.write)
+        layout.addWidget(self._sd_checkpoint)
+
+        _add_header(layout, Settings._style_prompt)
+        self._style_prompt = QLineEdit(inner)
+        self._style_prompt.textChanged.connect(self.write)
+        layout.addWidget(self._style_prompt)
 
         _add_header(layout, Settings._negative_prompt)
-        self._negative_prompt = QLineEdit(self)
+        self._negative_prompt = QLineEdit(inner)
         self._negative_prompt.textChanged.connect(self.write)
         layout.addWidget(self._negative_prompt)
 
         _add_header(layout, Settings._upscale_prompt)
-        self._upscale_prompt = QLineEdit(self)
+        self._upscale_prompt = QLineEdit(inner)
         self._upscale_prompt.textChanged.connect(self.write)
         layout.addWidget(self._upscale_prompt)
 
-        _add_header(layout, Settings._upscaler)
-        self._upscaler = QComboBox(self)
-        self._upscaler.currentIndexChanged.connect(self.write)
-        layout.addWidget(self._upscaler)
-
         _add_header(layout, Settings._min_image_size)
-        self._min_image_size = QSpinBox(self)
+        self._min_image_size = QSpinBox(inner)
         self._min_image_size.setMaximum(1024)
         self._min_image_size.valueChanged.connect(self.write)
         layout.addWidget(self._min_image_size)
 
         _add_header(layout, Settings._max_image_size)
-        self._max_image_size = QSpinBox(self)
+        self._max_image_size = QSpinBox(inner)
         self._max_image_size.setMaximum(2048)
         self._max_image_size.valueChanged.connect(self.write)
         layout.addWidget(self._max_image_size)
 
-        layout.addStretch()
+        _add_header(layout, Settings._sampler)
+        self._sampler = QComboBox(inner)
+        self._sampler.addItem("DDIM")
+        self._sampler.addItem("DPM++ 2M SDE")
+        self._sampler.addItem("DPM++ 2M SDE Karras")
+        self._sampler.currentIndexChanged.connect(self.write)
+        layout.addWidget(self._sampler)
+
+        _add_header(layout, Settings._sampler_steps)
+        self._sampler_steps = SliderWithValue(1, 100, inner)
+        self._sampler_steps.value_changed.connect(self.write)
+        layout.addWidget(self._sampler_steps)
+
+        _add_header(layout, Settings._sampler_steps_upscaling)
+        self._sampler_steps_upscaling = SliderWithValue(1, 100, inner)
+        self._sampler_steps_upscaling.value_changed.connect(self.write)
+        layout.addWidget(self._sampler_steps_upscaling)
+
+        _add_header(layout, Settings._cfg_scale)
+        self._cfg_scale = SliderWithValue(1, 20, inner)
+        self._cfg_scale.value_changed.connect(self.write)
+        layout.addWidget(self._cfg_scale)
+
+        # layout.addStretch()
+        scroll = QScrollArea(self)
+        scroll.setWidget(inner)
+        scroll.setWidgetResizable(True)
+        scroll.setFrameShape(QScrollArea.NoFrame)
+        frame_layout.addWidget(scroll)
 
     def read(self):
         with self._write_guard:
+            self._sd_checkpoint.clear()
+            if Connection.instance().state == ConnectionState.connected:
+                client = Connection.instance().client
+                for checkpoint in client.checkpoints:
+                    self._sd_checkpoint.addItem(checkpoint)
+            self._sd_checkpoint.setCurrentText(settings.sd_checkpoint)
+            self._style_prompt.setText(settings.style_prompt)
             self._negative_prompt.setText(settings.negative_prompt)
             self._upscale_prompt.setText(settings.upscale_prompt)
             self._min_image_size.setValue(settings.min_image_size)
             self._max_image_size.setValue(settings.max_image_size)
-            self._upscaler.clear()
-            for index, upscaler in enumerate(settings.upscalers):
-                self._upscaler.insertItem(index, upscaler)
-            try:
-                self._upscaler.setCurrentIndex(settings.upscaler_index)
-            except Exception as e:
-                self._upscaler.setCurrentIndex(0)
+            self._sampler.setCurrentText(settings.sampler)
+            self._sampler_steps.value = settings.sampler_steps
+            self._sampler_steps_upscaling.value = settings.sampler_steps_upscaling
+            self._cfg_scale.value = settings.cfg_scale
 
     def write(self, *ignored):
         if not self._write_guard:
-            settings.negative_Prompt = self._negative_prompt.text()
+            settings.sd_checkpoint = self._sd_checkpoint.currentText()
+            settings.style_prompt = self._style_prompt.text()
+            settings.negative_prompt = self._negative_prompt.text()
             settings.upscale_prompt = self._upscale_prompt.text()
             settings.min_image_size = self._min_image_size.value()
             settings.max_image_size = self._max_image_size.value()
-            settings.upscaler = self._upscaler.currentText()
+            settings.sampler = self._sampler.currentText()
+            settings.sampler_steps = self._sampler_steps.value
+            settings.sampler_steps_upscaling = self._sampler_steps_upscaling.value
+            settings.cfg_scale = self._cfg_scale.value
 
 
 class PerformanceSettings(QWidget):
@@ -205,7 +287,7 @@ class PerformanceSettings(QWidget):
 
         layout = QVBoxLayout()
         self.setLayout(layout)
-        _add_title(layout, "Performance settings")
+        _add_title(layout, "Performance Settings")
 
         _add_header(layout, Settings._gpu_memory_preset)
         self._gpu_memory_preset = QComboBox(self)
@@ -225,13 +307,6 @@ class PerformanceSettings(QWidget):
         self._batch_size_slider = SliderWithValue(1, 16, self._advanced)
         self._batch_size_slider.value_changed.connect(self.write)
         advanced_layout.addWidget(self._batch_size_slider)
-
-        _add_header(advanced_layout, Settings._vae_endoding_tile_size)
-        self._vae_endoding_tile_size = QSpinBox(self._advanced)
-        self._vae_endoding_tile_size.setMinimum(768)
-        self._vae_endoding_tile_size.setMaximum(4096)
-        self._vae_endoding_tile_size.valueChanged.connect(self.write)
-        advanced_layout.addWidget(self._vae_endoding_tile_size)
 
         _add_header(advanced_layout, Settings._diffusion_tile_size)
         self._diffusion_tile_size = QSpinBox(self._advanced)
@@ -253,13 +328,11 @@ class PerformanceSettings(QWidget):
         with self._write_guard:
             self._batch_size_slider.value = settings.batch_size
             self._gpu_memory_preset.setCurrentIndex(settings.gpu_memory_preset.value)
-            self._vae_endoding_tile_size.setValue(settings.vae_endoding_tile_size)
             self._diffusion_tile_size.setValue(settings.diffusion_tile_size)
 
     def write(self, *ignored):
         if not self._write_guard:
             settings.batch_size = self._batch_size_slider.value
-            settings.vae_endoding_tile_size = self._vae_endoding_tile_size.value()
             settings.diffusion_tile_size = self._diffusion_tile_size.value()
             settings.gpu_memory_preset = GPUMemoryPreset(self._gpu_memory_preset.currentIndex())
 
@@ -269,10 +342,11 @@ class SettingsDialog(QDialog):
     _diffusion: DiffusionSettings
     _performance: PerformanceSettings
 
-    def __init__(self):
+    def __init__(self, main_window: QMainWindow):
         super().__init__()
         self.setMinimumSize(QSize(640, 480))
         self.setMaximumSize(QSize(800, 2048))
+        self.resize(QSize(800, int(main_window.height() * 0.8)))
         self.setWindowTitle("Configure Image Diffusion")
 
         layout = QHBoxLayout()

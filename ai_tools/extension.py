@@ -22,7 +22,7 @@ class AIToolsExtension(Extension):
         self._actions[name] = action
 
     def createActions(self, window):
-        self._settings_dialog = SettingsDialog()
+        self._settings_dialog = SettingsDialog(window.qwindow())
         self._create_action(window, "settings", self._settings_dialog.show)
         self._create_action(window, "generate", actions.generate)
         self._create_action(window, "cancel", actions.cancel)

@@ -15,6 +15,7 @@ from pathlib import Path
 test_dir = Path(__file__).parent
 image_dir = test_dir / "images"
 result_dir = test_dir / ".results"
+default_checkpoint = "realisticVisionV51_v51VAE.safetensors"
 
 
 @pytest.fixture(scope="session", autouse=True)
@@ -27,7 +28,10 @@ def clear_results():
 
 @pytest.fixture()
 def comfy(qtapp):
-    return qtapp.run(Client.connect())
+    client = qtapp.run(Client.connect())
+    if default_checkpoint in client.checkpoints:
+        settings.sd_checkpoint = default_checkpoint
+    return client
 
 
 async def receive_images(comfy, prompt):

@@ -1,7 +1,7 @@
 from enum import Enum
 from typing import Optional
 from PyQt5.QtCore import QObject, pyqtSignal
-from .. import Client, eventloop, settings, util
+from .. import Client, MissingResource, eventloop, settings, util
 
 
 class ConnectionState(Enum):
@@ -21,6 +21,7 @@ class Connection(QObject):
     state = ConnectionState.disconnected
     client: Optional[Client] = None
     error: Optional[str] = None
+    missing_resource: Optional[MissingResource] = None
 
     @classmethod
     def instance(cls):
@@ -34,10 +35,17 @@ class Connection(QObject):
     async def _connect(self):
         self.state = ConnectionState.connecting
         self.error = None
+        self.missing_resource = None
         self.changed.emit()
         try:
             self.client = await Client.connect(settings.server_url)
             self.state = ConnectionState.connected
+        except MissingResource as e:
+            self.error = (
+                f"Connection established, but the server is missing one or more {e.kind.value}s."
+            )
+            self.missing_resource = e
+            self.state = ConnectionState.error
         except Exception as e:
             self.error = util.log_error(e)
             self.state = ConnectionState.error
