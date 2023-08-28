@@ -28,10 +28,48 @@ from krita import Krita, DockWidget
 
 from .. import Client
 from . import actions
-from .model import Model, ModelRegistry, Job, State
+from .model import Model, ModelRegistry, Job, JobQueue, State
 from .connection import Connection, ConnectionState
 
 _icon_path = Path(__file__).parent.parent / "icons"
+
+
+class QueueWidget(QToolButton):
+    _style = """
+        QToolButton {{ border: none; border-radius: 6px; background-color: {color}; color: white; }}
+        QToolButton::menu-indicator {{ width: 0px; }}"""
+    _inactive_color = "#606060"
+    _active_color = "#53728E"
+
+    def __init__(self, parent):
+        super().__init__(parent)
+
+        queue_menu = QMenu(self)
+        queue_menu.addAction(self._create_action("Cancel active", actions.cancel))
+        self.setMenu(queue_menu)
+
+        self.setStyleSheet(self._style.format(color=self._inactive_color))
+        self.setToolButtonStyle(Qt.ToolButtonTextOnly)
+        self.setPopupMode(QToolButton.InstantPopup)
+        self.setArrowType(Qt.NoArrow)
+
+    def update(self, jobs: JobQueue):
+        count = jobs.count(State.queued)
+        if jobs.any_executing():
+            self.setStyleSheet(self._style.format(color=self._active_color))
+            if count > 0:
+                self.setToolTip(f"Generating image. {count} jobs queued - click to cancel.")
+            else:
+                self.setToolTip(f"Generating image. Click to cancel.")
+        else:
+            self.setStyleSheet(self._style.format(color=self._inactive_color))
+            self.setToolTip("Idle.")
+        self.setText(f"+{count} ")
+
+    def _create_action(self, name: str, func: Callable[[], None]):
+        action = QAction(name, self)
+        action.triggered.connect(func)
+        return action
 
 
 class GenerationWidget(QWidget):
@@ -79,17 +117,7 @@ class GenerationWidget(QWidget):
         self.generate_button = QPushButton("Generate", self)
         self.generate_button.clicked.connect(self.generate)
 
-        queue_menu = QMenu(self)
-        queue_menu.addAction(self._create_action("cancel", actions.cancel))
-        self.queue_button = QToolButton(self)
-        self.queue_button.setText("+ 0")
-        self.queue_button.setMenu(queue_menu)
-        self.queue_button.setToolButtonStyle(Qt.ToolButtonTextOnly)
-        self.queue_button.setPopupMode(QToolButton.InstantPopup)
-        self.queue_button.setArrowType(Qt.NoArrow)
-        self.queue_button.setStyleSheet(
-            "border: none; border-radius: 6px; background-color: grey; color: white;"
-        )
+        self.queue_button = QueueWidget(self)
 
         self.settings_button = QToolButton(self)
         self.settings_button.setIcon(QIcon(str(_icon_path / "settings.svg")))
@@ -163,11 +191,7 @@ class GenerationWidget(QWidget):
 
     def update_progress(self):
         self.progress_bar.setValue(int(self.model.progress * 100))
-        self.queue_button.setText(f"+{self.model.jobs.count(State.queued)} ")
-        col = "#53728E" if self.model.jobs.any_executing() else "#606060"
-        self.queue_button.setStyleSheet(
-            f"border: none; border-radius: 6px; background-color: {col}; color: white;"
-        )
+        self.queue_button.update(self.model.jobs)
 
     def generate(self):
         self.model.generate()
@@ -213,11 +237,6 @@ class GenerationWidget(QWidget):
     def apply_result(self, item: QListWidgetItem):
         self.show_preview(item, None)
         self.apply_selected_result()
-
-    def _create_action(self, name: str, func: Callable[[], None]):
-        action = QAction(name, self)
-        action.triggered.connect(func)
-        return action
 
 
 class WelcomeWidget(QWidget):
