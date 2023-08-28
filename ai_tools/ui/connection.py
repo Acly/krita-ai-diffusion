@@ -1,7 +1,7 @@
 from enum import Enum
 from typing import Optional
 from PyQt5.QtCore import QObject, pyqtSignal
-from .. import Client, eventloop, settings
+from .. import Client, eventloop, settings, util
 
 
 class ConnectionState(Enum):
@@ -39,7 +39,7 @@ class Connection(QObject):
             self.client = await Client.connect(settings.server_url)
             self.state = ConnectionState.connected
         except Exception as e:
-            self.error = str(e)
+            self.error = util.log_error(e)
             self.state = ConnectionState.error
         self.changed.emit()
 

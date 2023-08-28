@@ -18,6 +18,7 @@ from .. import (
     workflow,
     Interrupted,
     NetworkError,
+    util,
 )
 from .connection import Connection, ConnectionState
 import krita
@@ -27,15 +28,9 @@ async def _report_errors(parent, coro):
     try:
         return await coro
     except NetworkError as e:
-        parent.report_error(e.message, f"[url={e.url}, code={e.code}]")
-    except AssertionError as e:
-        _, _, tb = sys.exc_info()
-        traceback.print_tb(tb)
-        parent.report_error(f"Error: Internal assertion failed [{str(e)}]")
+        parent.report_error(f"{util.log_error(e)} [url={e.url}, code={e.code}]")
     except Exception as e:
-        _, _, tb = sys.exc_info()
-        traceback.print_tb(tb)
-        parent.report_error(f"Error: {str(e)}")
+        parent.report_error(util.log_error(e))
 
 
 class State(Flag):
@@ -163,7 +158,7 @@ class Model(QObject):
         self.progress = value
         self.progress_changed.emit()
 
-    def report_error(self, message: str, details: Optional[str] = None):
+    def report_error(self, message: str):
         self.error = message
         self.changed.emit()
 
@@ -183,6 +178,8 @@ class Model(QObject):
             job.state = State.finished
             job.results = message.images
             self.progress = 1
+            if self._layer is None:
+                self.show_preview(message.prompt_id, 0)
             self.changed.emit()
 
     def show_preview(self, prompt_id: str, index: int):
@@ -265,9 +262,9 @@ class ModelRegistry(QObject):
 
         return None
 
-    def report_error(self, message: str, details: Optional[str] = None):
+    def report_error(self, message: str):
         for m in self._models:
-            m.report_error(message, details)
+            m.report_error(message)
 
     def _find_model(self, prompt_id: str):
         return next((m for m in self._models if m.jobs.find(prompt_id)), None)

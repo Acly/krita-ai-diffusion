@@ -9,7 +9,7 @@ from .image import Extent, Image, ImageCollection
 from .network import RequestManager, Interrupted, NetworkError
 from .settings import settings
 from .util import compute_batch_size
-from . import websockets
+from .websockets.src import websockets
 
 
 class ClientEvent(Enum):
@@ -66,10 +66,12 @@ class Client:
     _websocket: websockets.WebSocketClientProtocol
     _id: str
     _prompts: dict
-    _controlnet_inpaint_model: str
-    _controlnet_tile_model: str
 
     url: str
+    checkpoints: Sequence[str]
+    controlnet_model: dict
+    clip_vision_model: str
+    ip_adapter_model: str
 
     @staticmethod
     async def connect(url=default_url):
@@ -82,18 +84,27 @@ class Client:
             raise NetworkError(
                 e.errno, f"Could not connect to websocket server at {url}: {str(e)}", url
             )
-        # upscalers = await result._get("sdapi/v1/upscalers")
-        # settings.upscalers = [u["name"] for u in upscalers if not u["name"] == "None"]
-        # controlnet_models = (await result._get("controlnet/model_list"))["model_list"]
-        # result._controlnet_inpaint_model = _find_controlnet_model(
-        #     controlnet_models, "control_v11p_sd15_inpaint"
-        # )
-        # result._controlnet_tile_model = _find_controlnet_model(
-        #     controlnet_models, "control_v11f1e_sd15_tile"
-        # )
-        # controlnet_modules = (await result._get("controlnet/module_list"))["module_list"]
-        # _find_controlnet_processor(controlnet_modules, "inpaint_only+lama")
-        # _find_controlnet_processor(controlnet_modules, "tile_resample")
+        # Retrieve SD checkpoints
+        sd = await client._get("object_info/CheckpointLoaderSimple")
+        client.checkpoints = sd["CheckpointLoaderSimple"]["input"]["required"]["ckpt_name"][0]
+
+        # Retrieve ControlNet models
+        cns = await client._get("object_info/ControlNetLoader")
+        cns = cns["ControlNetLoader"]["input"]["required"]["control_net_name"][0]
+        client.controlnet_model = {
+            "inpaint": _find_controlnet_model(cns, "control_v11p_sd15_inpaint")
+        }
+
+        # Retrieve CLIPVision models
+        cv = await client._get("object_info/CLIPVisionLoader")
+        cv = cv["CLIPVisionLoader"]["input"]["required"]["clip_name"][0]
+        client.clip_vision_model = _find_clip_vision_model(cv, "SD1.5")
+
+        # Retrieve IP-Adapter model
+        ip = await client._get("object_info/IPAdapter")
+        ip = ip["IPAdapter"]["input"]["required"]["model_name"][0]
+        client.ip_adapter_model = _find_ip_adapter(ip, "sd15")
+
         return client
 
     def __init__(self, url):
@@ -149,17 +160,33 @@ def _find_controlnet_model(model_list: Sequence[str], model_name: str):
     if model is None:
         raise Exception(
             f"Could not find ControlNet model {model_name}. Make sure to download the model and"
-            " place it in the ControlNet models folder."
+            " place it in the <ComfyUI>/models/controlnet folder."
         )
     return model
 
 
-def _find_controlnet_processor(processor_list: Sequence[str], processor_name: str):
-    if not processor_name in processor_list:
+def _find_clip_vision_model(model_list: Sequence[str], sdver: str):
+    model_name = "clip_vision_g.safetensors" if sdver == "SDXL" else "pytorch_model.bin"
+    match = lambda x: (sdver == "SDXL" or sdver in x) and model_name in x
+    model = next((m for m in model_list if match(m)), None)
+    if model is None:
+        full_name = model_name if sdver == "SDXL" else f"{sdver}/{model_name}"
         raise Exception(
-            f"Could not find ControlNet processor {processor_name}. Maybe the ControlNet extension"
-            " version is too old?"
+            f"Could not find ClipVision model {full_name}. Make sure to download the model"
+            " and place it in the <ComfyUI>/models/clip_vision folder."
         )
+    return model
+
+
+def _find_ip_adapter(model_list: Sequence[str], sdver: str):
+    model_name = f"ip-adapter_{sdver}"
+    model = next((m for m in model_list if model_name in m), None)
+    if model is None:
+        raise Exception(
+            f"Could not find IP-Adapter model {model_name}. Make sure to download the model"
+            " and place it in the <ComfyUI>/custom_nodes/IPAdapter-ComfyUI/models folder."
+        )
+    return model
 
 
 def _extract_message_png_image(data: memoryview):

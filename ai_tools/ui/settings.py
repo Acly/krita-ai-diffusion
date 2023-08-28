@@ -187,7 +187,6 @@ class DiffusionSettings(QWidget):
             try:
                 self._upscaler.setCurrentIndex(settings.upscaler_index)
             except Exception as e:
-                print("[krita-ai-tools] Can't find upscaler", settings.upscaler)
                 self._upscaler.setCurrentIndex(0)
 
     def write(self, *ignored):
