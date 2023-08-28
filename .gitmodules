@@ -1,0 +1,3 @@
+[submodule "ai_tools/websockets"]
+	path = ai_tools/websockets
+	url = https://github.com/python-websockets/websockets.git

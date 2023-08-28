@@ -5,4 +5,3 @@
 __pycache__
 tests/.results
 settings.json
-websockets
