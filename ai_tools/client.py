@@ -104,29 +104,35 @@ class Client:
             raise NetworkError(
                 e.errno, f"Could not connect to websocket server at {url}: {str(e)}", url
             )
+        # Check custom nodes
+        nodes = await client._get("object_info")
+        missing = [
+            package
+            for package, package_nodes in ComfyWorkflow.required_custom_nodes.items()
+            if any(node not in nodes for node in package_nodes)
+        ]
+        if len(missing) > 0:
+            raise MissingResource(ResourceKind.node, missing)
+
         # Retrieve SD checkpoints
-        sd = await client._get("object_info/CheckpointLoaderSimple")
-        client.checkpoints = sd["CheckpointLoaderSimple"]["input"]["required"]["ckpt_name"][0]
+        client.checkpoints = nodes["CheckpointLoaderSimple"]["input"]["required"]["ckpt_name"][0]
         if len(client.checkpoints) == 0:
             raise MissingResource(ResourceKind.checkpoint)
         if settings.sd_checkpoint == "<No checkpoints found>":
             settings.sd_checkpoint = client.checkpoints[0]
 
         # Retrieve ControlNet models
-        cns = await client._get("object_info/ControlNetLoader")
-        cns = cns["ControlNetLoader"]["input"]["required"]["control_net_name"][0]
+        cns = nodes["ControlNetLoader"]["input"]["required"]["control_net_name"][0]
         client.controlnet_model = {
             "inpaint": _find_controlnet_model(cns, "control_v11p_sd15_inpaint")
         }
 
         # Retrieve CLIPVision models
-        cv = await client._get("object_info/CLIPVisionLoader")
-        cv = cv["CLIPVisionLoader"]["input"]["required"]["clip_name"][0]
+        cv = nodes["CLIPVisionLoader"]["input"]["required"]["clip_name"][0]
         client.clip_vision_model = _find_clip_vision_model(cv, "SD1.5")
 
         # Retrieve IP-Adapter model
-        ip = await client._get("object_info/IPAdapter")
-        ip = ip["IPAdapter"]["input"]["required"]["model_name"][0]
+        ip = nodes["IPAdapter"]["input"]["required"]["model_name"][0]
         client.ip_adapter_model = _find_ip_adapter(ip, "sd15")
 
         return client

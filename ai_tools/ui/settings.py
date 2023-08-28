@@ -93,10 +93,6 @@ class ConnectionSettings(QWidget):
         _add_title(layout, "Server Configuration")
 
         _add_header(layout, Settings._server_url)
-        self._connection_status = QLabel(self)
-        self._connection_status.setWordWrap(True)
-        layout.addWidget(self._connection_status)
-
         server_layout = QHBoxLayout()
         self._server_url = QLineEdit(self)
         self._server_url.textChanged.connect(self.write)
@@ -105,6 +101,13 @@ class ConnectionSettings(QWidget):
         self._connect_button.clicked.connect(Connection.instance().connect)
         server_layout.addWidget(self._connect_button)
         layout.addLayout(server_layout)
+
+        self._connection_status = QLabel(self)
+        self._connection_status.setWordWrap(True)
+        self._connection_status.setTextFormat(Qt.RichText)
+        self._connection_status.setTextInteractionFlags(Qt.TextBrowserInteraction)
+        self._connection_status.setOpenExternalLinks(True)
+        layout.addWidget(self._connection_status)
 
         layout.addStretch()
 
@@ -145,9 +148,7 @@ class ConnectionSettings(QWidget):
                 " href='https://civitai.com/models'>Civitai.com</a> has a large collection"
                 " of checkpoints available for download."
             )
-            self._connection_status.setTextFormat(Qt.RichText)
-            self._connection_status.setTextInteractionFlags(Qt.TextBrowserInteraction)
-            self._connection_status.setOpenExternalLinks(True)
+
         elif resource.kind is ResourceKind.controlnet:
             self._connection_status.setText(
                 f"<b>Error</b>: Could not find ControlNet model {', '.join(resource.names)}. Make"
@@ -168,8 +169,15 @@ class ConnectionSettings(QWidget):
             )
         elif resource.kind is ResourceKind.node:
             self._connection_status.setText(
-                "<b>Error</b>: The following ComfyUI custom nodes are missing:"
-                f" {', '.join(resource.names)}. Please install them."
+                "<b>Error</b>: The following ComfyUI custom nodes are missing:<ul>"
+                + "\n".join(
+                    (
+                        f"<li>{p[:p.index('|')]} <a"
+                        f" href='{p[p.index('|')+1 :]}'>{p[p.index('|')+1 :]}</a></li>"
+                        for p in resource.names
+                    )
+                )
+                + "</ul>Please install them, restart the server and try again."
             )
 
 
