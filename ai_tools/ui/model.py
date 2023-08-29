@@ -37,6 +37,7 @@ class State(Flag):
     queued = 0
     executing = 1
     finished = 2
+    cancelled = 3
 
 
 class Job:
@@ -147,8 +148,8 @@ class Model(QObject):
             assert image is not None and mask is not None and self.strength < 1
             job = workflow.refine_region(client, image, mask, prompt, self.strength)
 
-        prompt_id = await client.enqueue(job)
-        self.jobs.add(prompt_id, prompt, bounds)
+        job_id = await client.enqueue(job)
+        self.jobs.add(job_id, prompt, bounds)
         self.changed.emit()
 
     def cancel(self):
@@ -168,8 +169,8 @@ class Model(QObject):
             self.changed.emit()
 
     def handle_message(self, message: ClientMessage):
-        job = self.jobs.find(message.prompt_id)
-        assert job is not None, 'Received "finished" message for unknown prompt ID.'
+        job = self.jobs.find(message.job_id)
+        assert job is not None, "Received message for unknown job."
 
         if message.event is ClientEvent.progress:
             job.state = State.executing
@@ -179,11 +180,14 @@ class Model(QObject):
             job.results = message.images
             self.progress = 1
             if self._layer is None:
-                self.show_preview(message.prompt_id, 0)
+                self.show_preview(message.job_id, 0)
             self.changed.emit()
+        elif message.event is ClientEvent.interrupted:
+            job.state = State.cancelled
+            self.report_progress(0)
 
-    def show_preview(self, prompt_id: str, index: int):
-        job = self.jobs.find(prompt_id)
+    def show_preview(self, job_id: str, index: int):
+        job = self.jobs.find(job_id)
         name = f"[Preview] {job.prompt}"
         if self._layer is not None:
             self._layer.remove()
@@ -266,15 +270,15 @@ class ModelRegistry(QObject):
         for m in self._models:
             m.report_error(message)
 
-    def _find_model(self, prompt_id: str):
-        return next((m for m in self._models if m.jobs.find(prompt_id)), None)
+    def _find_model(self, job_id: str):
+        return next((m for m in self._models if m.jobs.find(job_id)), None)
 
     async def _handle_messages_impl(self):
         assert Connection.instance().state is ConnectionState.connected
         client = Connection.instance().client
 
         async for msg in client.listen():
-            model = self._find_model(msg.prompt_id)
+            model = self._find_model(msg.job_id)
             if model is not None:
                 model.handle_message(msg)
 

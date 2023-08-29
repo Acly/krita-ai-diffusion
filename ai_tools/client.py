@@ -1,12 +1,13 @@
 from enum import Enum
+from collections import deque
 import json
 import struct
 import uuid
 from typing import NamedTuple, Optional, Union, Sequence
 
 from .comfyworkflow import ComfyWorkflow
-from .image import Extent, Image, ImageCollection
-from .network import RequestManager, Interrupted, NetworkError
+from .image import Image, ImageCollection
+from .network import RequestManager, NetworkError
 from .settings import settings
 from .util import compute_batch_size
 from .websockets.src import websockets
@@ -15,16 +16,17 @@ from .websockets.src import websockets
 class ClientEvent(Enum):
     progress = 0
     finished = 1
+    interrupted = 2
 
 
 class ClientMessage(NamedTuple):
     event: ClientEvent
-    prompt_id: str
+    job_id: str
     progress: float
-    images: ImageCollection
+    images: ImageCollection = None
 
 
-class PromptInfo(NamedTuple):
+class JobInfo(NamedTuple):
     id: str
     node_count: int
     sample_count: int
@@ -33,14 +35,14 @@ class PromptInfo(NamedTuple):
 class Progress:
     _nodes = 0
     _samples = 0
-    _info: PromptInfo
+    _info: JobInfo
 
-    def __init__(self, prompt_info: PromptInfo):
-        self._info = prompt_info
+    def __init__(self, job_info: JobInfo):
+        self._info = job_info
 
     def handle(self, msg: dict):
-        prompt_id = msg["data"].get("prompt_id", None)
-        if prompt_id is not None and prompt_id != self._info.id:
+        id = msg["data"].get("prompt_id", None)
+        if id is not None and id != self._info.id:
             return
         if msg["type"] == "executing":
             self._nodes += 1
@@ -53,7 +55,7 @@ class Progress:
     def value(self):
         # Add +1 to node count so progress doesn't go to 100% until images are received.
         node_part = self._nodes / (self._info.node_count + 1)
-        sample_part = self._samples / self._info.sample_count
+        sample_part = self._samples / max(self._info.sample_count, 1)
         return 0.2 * node_part + 0.8 * sample_part
 
 
@@ -85,7 +87,8 @@ class Client:
     _requests = RequestManager()
     _websocket: websockets.WebSocketClientProtocol
     _id: str
-    _prompts: dict
+    _jobs: deque
+    _active: Optional[JobInfo] = None
 
     url: str
     checkpoints: Sequence[str]
@@ -144,7 +147,7 @@ class Client:
     def __init__(self, url):
         self.url = url
         self._id = str(uuid.uuid4())
-        self._prompts = {}
+        self._jobs = deque()
 
     async def _get(self, op: str):
         return await self._requests.get(f"{self.url}/{op}")
@@ -155,12 +158,11 @@ class Client:
     async def enqueue(self, workflow: ComfyWorkflow):
         data = {"prompt": workflow.root, "client_id": self._id}
         result = await self._post("prompt", data)
-        prompt_id = result["prompt_id"]
-        self._prompts[prompt_id] = PromptInfo(prompt_id, workflow.node_count, workflow.sample_count)
-        return prompt_id
+        job_id = result["prompt_id"]
+        self._jobs.append(JobInfo(job_id, workflow.node_count, workflow.sample_count))
+        return job_id
 
     async def listen(self):
-        prompt_id = None
         progress = None
         images = ImageCollection()
 
@@ -169,24 +171,81 @@ class Client:
                 image = _extract_message_png_image(msg)
                 if image is not None:
                     images.append(image)
+
             elif isinstance(msg, str):
                 msg = json.loads(msg)
                 if msg["type"] == "execution_start":
-                    prompt_id = msg["data"]["prompt_id"]
-                    progress = Progress(self._prompts[prompt_id])
-                elif msg["type"] in ("execution_cached", "executing", "progress") and prompt_id:
+                    id = msg["data"]["prompt_id"]
+                    self._active = self._start_job(id)
+                    progress = Progress(self._active)
+                    images = ImageCollection()
+
+                if msg["type"] == "execution_interrupted":
+                    job = self._get_active_job(msg["data"]["prompt_id"])
+                    if job:
+                        self._clear_job(job.id)
+                        yield ClientMessage(ClientEvent.interrupted, job.id, 0)
+
+                if msg["type"] == "executing" and msg["data"]["node"] is None:
+                    self._clear_job(msg["data"]["prompt_id"])
+
+                elif msg["type"] in ("execution_cached", "executing", "progress"):
                     progress.handle(msg)
-                    yield ClientMessage(ClientEvent.progress, prompt_id, progress.value, None)
-                elif msg["type"] == "executed":
-                    prompt_id = _validate_executed_node(msg, len(images))
-                    if prompt_id is not None:
-                        yield ClientMessage(ClientEvent.finished, prompt_id, 1, images)
-                        del self._prompts[prompt_id]
-                        prompt_id = None
-                        images = ImageCollection()
+                    yield ClientMessage(ClientEvent.progress, self._active.id, progress.value)
+
+                if msg["type"] == "executed":
+                    job = self._get_active_job(msg["data"]["prompt_id"])
+                    if job and _validate_executed_node(msg, len(images)):
+                        self._clear_job(job.id)
+                        yield ClientMessage(ClientEvent.finished, job.id, 1, images)
 
     async def interrupt(self):
-        return await self._post("interrupt", {})
+        await self._post("interrupt", {})
+
+    @property
+    def queued_count(self):
+        return len(self._jobs)
+
+    @property
+    def is_executing(self):
+        return self._active is not None
+
+    def _get_active_job(self, id: str) -> Optional[JobInfo]:
+        if self._active and self._active.id == id:
+            return self._active
+        else:
+            print(
+                f"[krita-ai-diffusion] received message for job {id}, but"
+                f" job {self._active.id} is active"
+            )
+        if len(self._jobs) == 0:
+            print(f"[krita-ai-diffusion] received unknown job {id}")
+            return None
+        active = next((j for j in self._jobs if j.id == id), None)
+        if active is not None:
+            return active
+        return None
+
+    def _start_job(self, id: str):
+        if self._active is not None:
+            print(
+                f"[krita-ai-diffusion] started job {id}, but {self._active.id} was never finished"
+            )
+        if len(self._jobs) == 0:
+            print(f"[krita-ai-diffusion] received unknown job {id}")
+            return None
+        if self._jobs[0].id == id:
+            return self._jobs.popleft()
+        print(f"[krita-ai-diffusion] started job {id}, but {self._jobs[0].id} was expected")
+        active = next((j for j in self._jobs if j.id == id), None)
+        if active is not None:
+            self._jobs.remove(active)
+            return active
+        return None
+
+    def _clear_job(self, job_id: str):
+        if self._active is not None and self._active.id == job_id:
+            self._active = None
 
 
 def _find_controlnet_model(model_list: Sequence[str], model_name: str):
@@ -228,13 +287,13 @@ def _validate_executed_node(msg: dict, image_count: int):
     try:
         data = msg["data"]
         output = data["output"]["images"]
-        if len(output) != image_count:
+        if len(output) != image_count:  # not critical
             print(
                 "[krita-ai-diffusion] received number of images does not match:"
                 f" {len(output)} != {image_count}"
             )
         if len(output) > 0 and "source" in output[0] and output[0]["type"] == "output":
-            return data["prompt_id"]
+            return True
     except:
         print("[krita-ai-diffusion] received unknown message format", msg)
-        return None
+        return False
