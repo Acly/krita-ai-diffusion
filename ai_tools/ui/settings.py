@@ -11,6 +11,7 @@ from PyQt5.QtWidgets import (
     QScrollArea,
     QSpinBox,
     QStackedWidget,
+    QToolButton,
     QComboBox,
     QSlider,
     QWidget,
@@ -24,8 +25,10 @@ from .connection import Connection, ConnectionState
 class SliderWithValue(QWidget):
     value_changed = pyqtSignal(int)
 
-    def __init__(self, minimum=0, maximum=100, parent=None):
+    def __init__(self, minimum=0, maximum=100, parent=None, format_string="{}"):
         super().__init__(parent)
+        self._format_string = format_string
+
         layout = QHBoxLayout()
         self._slider = QSlider(Qt.Orientation.Horizontal, self)
         self._slider.setMinimum(minimum)
@@ -38,7 +41,7 @@ class SliderWithValue(QWidget):
         self.setLayout(layout)
 
     def _change_value(self, value: int):
-        self._label.setText(str(value))
+        self._label.setText(self._format_string.format(value))
         self.value_changed.emit(value)
 
     @property
@@ -48,6 +51,118 @@ class SliderWithValue(QWidget):
     @value.setter
     def value(self, v):
         self._slider.setValue(v)
+
+
+class LoraList(QWidget):
+    class Item(QWidget):
+        changed = pyqtSignal()
+        removed = pyqtSignal(QWidget)
+
+        def __init__(self, lora_names, parent=None):
+            super().__init__(parent)
+            self.setContentsMargins(0, 0, 0, 0)
+
+            layout = QHBoxLayout()
+            layout.setContentsMargins(0, 0, 0, 0)
+            self.setLayout(layout)
+
+            self._select = QComboBox(self)
+            self._select.addItems(lora_names)
+            self._select.currentIndexChanged.connect(self._update)
+
+            self._strength = QSpinBox(self)
+            self._strength.setMinimum(-100)
+            self._strength.setMaximum(100)
+            self._strength.setSingleStep(5)
+            self._strength.setValue(100)
+            self._strength.setSuffix("%")
+            self._strength.valueChanged.connect(self._update)
+
+            self._remove = QToolButton(self)
+            self._remove.setText("Remove")
+            self._remove.setToolButtonStyle(Qt.ToolButtonTextOnly)
+            self._remove.clicked.connect(self.remove)
+
+            layout.addWidget(self._select, 2)
+            layout.addWidget(self._strength, 1)
+            layout.addWidget(self._remove)
+
+        def _update(self):
+            self.changed.emit()
+
+        def remove(self):
+            self.removed.emit(self)
+
+        @property
+        def value(self):
+            return dict(name=self._select.currentText(), strength=self._strength.value() / 100)
+
+        @value.setter
+        def value(self, v):
+            self._select.setCurrentText(v["name"])
+            self._strength.setValue(int(v["strength"] * 100))
+
+    changed = pyqtSignal()
+
+    def __init__(self, parent=None):
+        super().__init__(parent)
+        self._loras = []
+        self._items = []
+        self._item_list = None
+
+        self._layout = QVBoxLayout()
+        self._layout.setContentsMargins(0, 0, 0, 0)
+        self.setLayout(self._layout)
+
+        self._item_list = QVBoxLayout()
+        self._item_list.setContentsMargins(0, 0, 0, 0)
+        self._layout.insertLayout(0, self._item_list)
+
+        self._add_button = QPushButton("Add", self)
+        self._add_button.clicked.connect(self._add_item)
+        self._layout.addWidget(self._add_button)
+
+    def _add_item(self, lora=None):
+        assert self._item_list is not None
+        item = self.Item(self._loras, self)
+        if isinstance(lora, dict):
+            item.value = lora
+        item.changed.connect(self._update_item)
+        item.removed.connect(self._remove_item)
+        self._items.append(item)
+        self._item_list.addWidget(item)
+        self.changed.emit()
+
+    def _remove_item(self, item: QWidget):
+        self._items.remove(item)
+        self._item_list.removeWidget(item)
+        item.deleteLater()
+        self.changed.emit()
+
+    def _update_item(self):
+        self.changed.emit()
+
+    @property
+    def names(self):
+        return self._loras
+
+    @names.setter
+    def names(self, v):
+        self._loras = v
+        for item in self._items:
+            item._select.clear()
+            item._select.addItems(v)
+
+    @property
+    def value(self):
+        return [item.value for item in self._items]
+
+    @value.setter
+    def value(self, v):
+        while not len(self._items) == 0:
+            self._remove_item(self._items[-1])
+        for lora in v:
+            self._add_item(lora)
 
 
 def _add_title(layout: QVBoxLayout, title: str):
@@ -77,7 +192,6 @@ class SettingsWriteGuard:
 
     def __exit__(self, *ignored):
         self._locked = False
-        settings.save()
 
     def __bool__(self):
         return self._locked
@@ -121,6 +235,7 @@ class ConnectionSettings(QWidget):
     def write(self, *ignored):
         if not self._write_guard:
             settings.server_url = self._server_url.text()
+            settings.save()
 
     def _update_server_status(self):
         server = Connection.instance()
@@ -199,6 +314,11 @@ class DiffusionSettings(QWidget):
         self._sd_checkpoint.currentIndexChanged.connect(self.write)
         layout.addWidget(self._sd_checkpoint)
 
+        _add_header(layout, Settings._loras)
+        self._loras = LoraList(inner)
+        self._loras.changed.connect(self.write)
+        layout.addWidget(self._loras)
+
         _add_header(layout, Settings._style_prompt)
         self._style_prompt = QLineEdit(inner)
         self._style_prompt.textChanged.connect(self.write)
@@ -249,7 +369,8 @@ class DiffusionSettings(QWidget):
         self._cfg_scale.value_changed.connect(self.write)
         layout.addWidget(self._cfg_scale)
 
-        # layout.addStretch()
+        layout.addStretch()
+
         scroll = QScrollArea(self)
         scroll.setWidget(inner)
         scroll.setWidgetResizable(True)
@@ -263,7 +384,10 @@ class DiffusionSettings(QWidget):
                 client = Connection.instance().client
                 for checkpoint in client.checkpoints:
                     self._sd_checkpoint.addItem(checkpoint)
+                self._loras.names = client.lora_models
+
             self._sd_checkpoint.setCurrentText(settings.sd_checkpoint)
+            self._loras.value = settings.loras
             self._style_prompt.setText(settings.style_prompt)
             self._negative_prompt.setText(settings.negative_prompt)
             self._upscale_prompt.setText(settings.upscale_prompt)
@@ -277,6 +401,7 @@ class DiffusionSettings(QWidget):
     def write(self, *ignored):
         if not self._write_guard:
             settings.sd_checkpoint = self._sd_checkpoint.currentText()
+            settings.loras = self._loras.value
             settings.style_prompt = self._style_prompt.text()
             settings.negative_prompt = self._negative_prompt.text()
             settings.upscale_prompt = self._upscale_prompt.text()
@@ -286,6 +411,7 @@ class DiffusionSettings(QWidget):
             settings.sampler_steps = self._sampler_steps.value
             settings.sampler_steps_upscaling = self._sampler_steps_upscaling.value
             settings.cfg_scale = self._cfg_scale.value
+            settings.save()
 
 
 class PerformanceSettings(QWidget):
@@ -343,6 +469,7 @@ class PerformanceSettings(QWidget):
             settings.batch_size = self._batch_size_slider.value
             settings.diffusion_tile_size = self._diffusion_tile_size.value()
             settings.gpu_memory_preset = GPUMemoryPreset(self._gpu_memory_preset.currentIndex())
+            settings.save()
 
 
 class SettingsDialog(QDialog):

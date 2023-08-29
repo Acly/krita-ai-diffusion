@@ -57,6 +57,12 @@ class Settings:
         ),
     )
 
+    _loras = Setting(
+        "LoRA",
+        [],
+        "Extensions to the checkpoint which influence generation based on additional training.",
+    )
+
     _style_prompt = Setting(
         "Style Prompt",
         "best quality, highres",

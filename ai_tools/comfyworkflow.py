@@ -81,6 +81,17 @@ class ComfyWorkflow:
     def load_clip_vision(self, clip_name):
         return self.add("CLIPVisionLoader", 1, clip_name=clip_name)
 
+    def load_lora(self, model, clip, lora_name, strength_model, strength_clip):
+        return self.add(
+            "LoraLoader",
+            2,
+            model=model,
+            clip=clip,
+            lora_name=lora_name,
+            strength_model=strength_model,
+            strength_clip=strength_clip,
+        )
+
     def empty_latent_image(self, width, height, batch_size=1):
         return self.add("EmptyLatentImage", 1, width=width, height=height, batch_size=batch_size)
 

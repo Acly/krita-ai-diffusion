@@ -89,6 +89,7 @@ class Client:
 
     url: str
     checkpoints: Sequence[str]
+    lora_models: Sequence[str]
     controlnet_model: dict
     clip_vision_model: str
     ip_adapter_model: str
@@ -120,6 +121,9 @@ class Client:
             raise MissingResource(ResourceKind.checkpoint)
         if settings.sd_checkpoint == "<No checkpoints found>":
             settings.sd_checkpoint = client.checkpoints[0]
+
+        # Retrieve LoRA models
+        client.lora_models = nodes["LoraLoader"]["input"]["required"]["lora_name"][0]
 
         # Retrieve ControlNet models
         cns = nodes["ControlNetLoader"]["input"]["required"]["control_net_name"][0]

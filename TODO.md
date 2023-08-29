@@ -8,4 +8,3 @@
     * cancel
     * show prompt data in preview list
     * clear layer instead of remove/readd
-    * lora

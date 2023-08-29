@@ -101,6 +101,13 @@ def _ksampler_params(clip_vision=False, upscale=False):
     return params
 
 
+def load_model_with_lora(w: ComfyWorkflow):
+    model, clip, vae = w.load_checkpoint(settings.sd_checkpoint)
+    for lora in settings.loras:
+        model, clip = w.load_lora(model, clip, lora["name"], lora["strength"], lora["strength"])
+    return model, clip, vae
+
+
 def upscale_latent(
     w: ComfyWorkflow,
     latent: Output,
@@ -122,7 +129,7 @@ def generate(input_extent: Extent, prompt: str):
     _, _, extent, batch = prepare(input_extent)
 
     w = ComfyWorkflow()
-    model, clip, vae = w.load_checkpoint(settings.sd_checkpoint)
+    model, clip, vae = load_model_with_lora(w)
     latent = w.empty_latent_image(extent.initial.width, extent.initial.height, batch)
     positive = w.clip_text_encode(clip, f"{prompt}, {settings.style_prompt}")
     negative = w.clip_text_encode(clip, settings.negative_prompt)
@@ -142,7 +149,7 @@ def inpaint(comfy: Client, image: Image, mask: Mask, prompt: str):
     image, mask_image, extent, batch = prepare((image, mask))
 
     w = ComfyWorkflow()
-    model, clip, vae = w.load_checkpoint(settings.sd_checkpoint)
+    model, clip, vae = load_model_with_lora(w)
     controlnet = w.load_controlnet(comfy.controlnet_model["inpaint"])
     clip_vision_model = w.load_clip_vision(comfy.clip_vision_model)
     in_image = w.load_image(image)
@@ -190,7 +197,7 @@ def refine(image: Image, prompt: str, strength: float):
     image, _, extent, batch = prepare(image, downscale=False)
 
     w = ComfyWorkflow()
-    model, clip, vae = w.load_checkpoint(settings.sd_checkpoint)
+    model, clip, vae = load_model_with_lora(w)
     in_image = w.load_image(image)
     if extent.initial != extent.target:
         in_image = w.scale_image(in_image, extent.initial)
@@ -214,7 +221,7 @@ def refine_region(comfy: Client, image: Image, mask: Mask, prompt: str, strength
     image, mask_image, extent, batch = prepare((image, mask), downscale_if_needed)
 
     w = ComfyWorkflow()
-    model, clip, vae = w.load_checkpoint(settings.sd_checkpoint)
+    model, clip, vae = load_model_with_lora(w)
     in_image = w.load_image(image)
     in_mask = w.load_mask(mask_image)
     if extent.scale > 1:
