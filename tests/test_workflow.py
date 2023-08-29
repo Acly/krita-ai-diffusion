@@ -2,11 +2,11 @@ import pytest
 from ai_tools import (
     settings,
     workflow,
+    ComfyWorkflow,
     Mask,
     Bounds,
     Extent,
     Image,
-    ImageCollection,
     Client,
     ClientEvent,
 )
@@ -34,8 +34,8 @@ def comfy(qtapp):
     return client
 
 
-async def receive_images(comfy, prompt):
-    prompt_id = await prompt
+async def receive_images(comfy, workflow: ComfyWorkflow):
+    prompt_id = await comfy.enqueue(workflow)
     async for msg in comfy.listen():
         if msg.event is ClientEvent.finished and msg.prompt_id == prompt_id:
             return msg.images
@@ -139,26 +139,12 @@ def test_prepare_no_downscale():
     )
 
 
-# @pytest.mark.parametrize(
-#     "target", [Extent(256, 256), Extent(256, 192), Extent(1024, 512), Extent(512, 256)]
-# )
-# def test_post(qtapp, auto1111, target):
-#     image = Image.create(Extent(512, 256))
-#     progress = Progress(check_progress)
-
-#     async def main():
-#         return await workflow.postprocess(auto1111, image, target, "", progress)
-
-#     result = qtapp.run(main())
-#     assert result.extent == target
-
-
 @pytest.mark.parametrize("extent", [Extent(256, 256), Extent(512, 1024)])
 def test_generate(qtapp, comfy, temp_settings, extent):
     temp_settings.batch_size = 1
 
     async def main():
-        job = workflow.generate(comfy, extent, "ship")
+        job = workflow.generate(extent, "ship")
         results = await receive_images(comfy, job)
         results[0].save(result_dir / f"test_generate_{extent.width}x{extent.height}.png")
         assert results[0].extent == extent
@@ -204,7 +190,7 @@ def test_refine(qtapp, comfy, temp_settings):
     prompt = "in the style of vermeer, van gogh"
 
     async def main():
-        job = workflow.refine(comfy, image, prompt, 0.5)
+        job = workflow.refine(image, prompt, 0.5)
         results = await receive_images(comfy, job)
         results[0].save(result_dir / "test_refine.png")
         assert results[0].extent == image.extent

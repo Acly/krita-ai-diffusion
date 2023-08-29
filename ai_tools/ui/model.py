@@ -136,10 +136,10 @@ class Model(QObject):
 
         if image is None and mask is None:
             assert self.strength == 1
-            job = workflow.generate(client, bounds.extent, prompt)
+            job = workflow.generate(bounds.extent, prompt)
         elif mask is None and self.strength < 1:
             assert image is not None
-            job = workflow.refine(client, image, prompt, self.strength)
+            job = workflow.refine(image, prompt, self.strength)
         elif self.strength == 1:
             assert image is not None and mask is not None
             job = workflow.inpaint(client, image, mask, self.prompt)
@@ -147,7 +147,7 @@ class Model(QObject):
             assert image is not None and mask is not None and self.strength < 1
             job = workflow.refine_region(client, image, mask, prompt, self.strength)
 
-        prompt_id = await job
+        prompt_id = await client.enqueue(job)
         self.jobs.add(prompt_id, prompt, bounds)
         self.changed.emit()
 

@@ -118,13 +118,13 @@ def upscale_latent(
     )
 
 
-async def generate(comfy: Client, input_extent: Extent, prompt: str):
+def generate(input_extent: Extent, prompt: str):
     _, _, extent, batch = prepare(input_extent)
 
     w = ComfyWorkflow()
     model, clip, vae = w.load_checkpoint(settings.sd_checkpoint)
     latent = w.empty_latent_image(extent.initial.width, extent.initial.height, batch)
-    positive = w.clip_text_encode(clip, f"{prompt} {settings.style_prompt}")
+    positive = w.clip_text_encode(clip, f"{prompt}, {settings.style_prompt}")
     negative = w.clip_text_encode(clip, settings.negative_prompt)
     out_latent = w.ksampler(model, positive, negative, latent, **_ksampler_params())
     extent_sampled = extent.initial
@@ -135,11 +135,10 @@ async def generate(comfy: Client, input_extent: Extent, prompt: str):
     if extent_sampled != extent.target:
         out_image = w.scale_image(out_image, extent.target)
     w.send_image(out_image)
+    return w
 
-    return await comfy.enqueue(w)
 
-
-async def inpaint(comfy: Client, image: Image, mask: Mask, prompt: str):
+def inpaint(comfy: Client, image: Image, mask: Mask, prompt: str):
     image, mask_image, extent, batch = prepare((image, mask))
 
     w = ComfyWorkflow()
@@ -155,7 +154,7 @@ async def inpaint(comfy: Client, image: Image, mask: Mask, prompt: str):
     clip_vision = w.clip_vision_encode(clip_vision_model, in_image)
     ip_adapter = w.ip_adapter(comfy.ip_adapter_model, model, clip_vision, 0.5)
     control_image = w.inpaint_preprocessor(in_image, in_mask)
-    positive = w.clip_text_encode(clip, f"{prompt} {settings.style_prompt}")
+    positive = w.clip_text_encode(clip, f"{prompt}, {settings.style_prompt}")
     positive = w.apply_controlnet(positive, controlnet, control_image)
     negative = w.clip_text_encode(clip, settings.negative_prompt)
     latent = w.vae_encode_inpaint(vae, in_image, in_mask)
@@ -183,11 +182,10 @@ async def inpaint(comfy: Client, image: Image, mask: Mask, prompt: str):
         out_image = w.scale_image(out_image, extent.target)
     out_masked = w.apply_mask(out_image, cropped_mask)
     w.send_image(out_masked)
+    return w
 
-    return await comfy.enqueue(w)
 
-
-async def refine(comfy: Client, image: Image, prompt: str, strength: float):
+def refine(image: Image, prompt: str, strength: float):
     assert strength > 0 and strength < 1
     image, _, extent, batch = prepare(image, downscale=False)
 
@@ -205,11 +203,10 @@ async def refine(comfy: Client, image: Image, prompt: str, strength: float):
     if extent.initial != extent.target:
         out_image = w.scale_image(out_image, extent.target)
     w.send_image(out_image)
+    return w
 
-    return await comfy.enqueue(w)
 
-
-async def refine_region(comfy: Client, image: Image, mask: Mask, prompt: str, strength: float):
+def refine_region(comfy: Client, image: Image, mask: Mask, prompt: str, strength: float):
     assert strength > 0 and strength < 1
     assert mask.bounds.extent.is_multiple_of(8)
     downscale_if_needed = strength >= 0.7
@@ -242,5 +239,4 @@ async def refine_region(comfy: Client, image: Image, mask: Mask, prompt: str, st
     original_mask = w.load_mask(mask.to_image())
     out_masked = w.apply_mask(out_image, original_mask)
     w.send_image(out_masked)
-
-    return await comfy.enqueue(w)
+    return w

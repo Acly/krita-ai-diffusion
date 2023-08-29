@@ -2,6 +2,7 @@ from .network import NetworkError, Interrupted, OutOfMemoryError, RequestManager
 from .client import Client, ClientEvent, ClientMessage, MissingResource, ResourceKind
 from .image import Bounds, Extent, Mask, Image, ImageCollection
 from .settings import Settings, Setting, settings, GPUMemoryPreset
+from .comfyworkflow import ComfyWorkflow
 from . import workflow
 from . import util
 
