@@ -109,6 +109,7 @@ class Model(QObject):
     _layer: Optional[krita.Node] = None
 
     changed = pyqtSignal()
+    job_finished = pyqtSignal(Job)
     progress_changed = pyqtSignal()
 
     prompt = ""
@@ -196,6 +197,7 @@ class Model(QObject):
             self.progress = 1
             if self._layer is None:
                 self.show_preview(message.job_id, 0)
+            self.job_finished.emit(job)
             self.changed.emit()
         elif message.event is ClientEvent.interrupted:
             job.state = State.cancelled

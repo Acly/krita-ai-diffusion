@@ -146,10 +146,12 @@ class GenerationWidget(QWidget):
         self.preview_list = QListWidget(self)
         self.preview_list.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Expanding)
         self.preview_list.setResizeMode(QListView.Adjust)
+        self.preview_list.setHorizontalScrollBarPolicy(Qt.ScrollBarAlwaysOff)
         self.preview_list.setFlow(QListView.LeftToRight)
         self.preview_list.setViewMode(QListWidget.IconMode)
         self.preview_list.setIconSize(QSize(96, 96))
         self.preview_list.currentItemChanged.connect(self.show_preview)
+        self.preview_list.itemClicked.connect(self.handle_preview_click)
         self.preview_list.itemDoubleClicked.connect(self.apply_result)
         layout.addWidget(self.preview_list)
 
@@ -176,22 +178,13 @@ class GenerationWidget(QWidget):
         self.error_text.setVisible(model.error != "")
         self.update_progress()
 
-        # Clear items which are too old and have been discarded
-        previews = self.preview_list
-        first_id = next((job.id for job in self.model.history), None)
-        while previews.count() > 0 and previews.item(0).data(Qt.UserRole) != first_id:
-            previews.takeItem(0)
-        # Add new items not yet in the list
-        row = 0
-        for job in self.model.history:
-            if row < previews.count() and previews.item(row).data(Qt.UserRole) == job.id:
-                row += len(job.results)
-            else:
-                self.add_preview(job)
-
     def update_progress(self):
         self.progress_bar.setValue(int(self.model.progress * 100))
         self.queue_button.update(self.model.jobs)
+
+    def show_results(self, job: Job):
+        self.clear_old_previews()
+        self.add_preview(job)
 
     def generate(self):
         self.model.generate()
@@ -215,11 +208,19 @@ class GenerationWidget(QWidget):
         Krita.instance().action("ai_tools_settings").trigger()
 
     def add_preview(self, job: Job):
+        header = QListWidgetItem(f"{job.timestamp:%H:%M} - {job.prompt}")
+        header.setFlags(Qt.NoItemFlags)
+        header.setData(Qt.UserRole, job.id)
+        header.setData(Qt.ToolTipRole, job.prompt)
+        header.setSizeHint(QSize(500, self.prompt_textbox.height() // 2))
+        header.setTextAlignment(Qt.AlignLeft)
+        self.preview_list.addItem(header)
+
         for i, img in enumerate(job.results):
             item = QListWidgetItem(img.to_icon(), None)
             item.setData(Qt.UserRole, job.id)
             item.setData(Qt.UserRole + 1, i)
-            item.setData(Qt.ToolTipRole, job.prompt)
+            item.setData(Qt.ToolTipRole, f"{job.prompt}\nClick to preview, double-click to apply.")
             self.preview_list.addItem(item)
         self.preview_list.scrollToBottom()
 
@@ -231,12 +232,23 @@ class GenerationWidget(QWidget):
         else:
             self.model.hide_preview()
 
+    def clear_old_previews(self):
+        previews = self.preview_list
+        first_id = next((job.id for job in self.model.history), None)
+        while previews.count() > 0 and previews.item(0).data(Qt.UserRole) != first_id:
+            previews.takeItem(0)
+
     def apply_selected_result(self):
         self.model.apply_current_result()
 
     def apply_result(self, item: QListWidgetItem):
         self.show_preview(item, None)
         self.apply_selected_result()
+
+    def handle_preview_click(self, item: QListWidgetItem):
+        if item.text() != "":
+            prompt = item.data(Qt.ToolTipRole)
+            QGuiApplication.clipboard().setText(prompt)
 
 
 class WelcomeWidget(QWidget):
@@ -309,6 +321,7 @@ class ImageDiffusionWidget(DockWidget):
 
     def register_model(self, model):
         model.changed.connect(self.update)
+        model.job_finished.connect(self._generation.show_results)
         model.progress_changed.connect(self._generation.update_progress)
 
     def update(self):
