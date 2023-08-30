@@ -121,6 +121,10 @@ class Settings:
         "Value which indicates how closely image generation follows the text prompt.",
     )
 
+    _history_size = Setting(
+        "History Size", 1000, "Main memory (RAM) used to keep the history of generated images."
+    )
+
     _gpu_memory_preset = Setting(
         "GPU Memory Preset",
         GPUMemoryPreset.medium,

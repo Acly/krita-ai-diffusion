@@ -9,6 +9,7 @@ from PyQt5.QtWidgets import (
     QLineEdit,
     QMainWindow,
     QScrollArea,
+    QSizePolicy,
     QSpinBox,
     QStackedWidget,
     QToolButton,
@@ -20,6 +21,7 @@ from PyQt5.QtCore import Qt, QSize, pyqtSignal
 
 from .. import Client, MissingResource, ResourceKind, Setting, Settings, settings, GPUMemoryPreset
 from .connection import Connection, ConnectionState
+from .model import Model
 
 
 class SliderWithValue(QWidget):
@@ -312,7 +314,7 @@ class DiffusionSettings(QWidget):
         _add_header(layout, Settings._sd_checkpoint)
         self._sd_checkpoint = QComboBox(inner)
         self._sd_checkpoint.currentIndexChanged.connect(self.write)
-        layout.addWidget(self._sd_checkpoint)
+        layout.addWidget(self._sd_checkpoint, alignment=Qt.AlignLeft)
 
         _add_header(layout, Settings._loras)
         self._loras = LoraList(inner)
@@ -336,15 +338,17 @@ class DiffusionSettings(QWidget):
 
         _add_header(layout, Settings._min_image_size)
         self._min_image_size = QSpinBox(inner)
+        self._min_image_size.setMinimumWidth(100)
         self._min_image_size.setMaximum(1024)
         self._min_image_size.valueChanged.connect(self.write)
-        layout.addWidget(self._min_image_size)
+        layout.addWidget(self._min_image_size, alignment=Qt.AlignLeft)
 
         _add_header(layout, Settings._max_image_size)
         self._max_image_size = QSpinBox(inner)
+        self._max_image_size.setMinimumWidth(100)
         self._max_image_size.setMaximum(2048)
         self._max_image_size.valueChanged.connect(self.write)
-        layout.addWidget(self._max_image_size)
+        layout.addWidget(self._max_image_size, alignment=Qt.AlignLeft)
 
         _add_header(layout, Settings._sampler)
         self._sampler = QComboBox(inner)
@@ -352,7 +356,7 @@ class DiffusionSettings(QWidget):
         self._sampler.addItem("DPM++ 2M SDE")
         self._sampler.addItem("DPM++ 2M SDE Karras")
         self._sampler.currentIndexChanged.connect(self.write)
-        layout.addWidget(self._sampler)
+        layout.addWidget(self._sampler, alignment=Qt.AlignLeft)
 
         _add_header(layout, Settings._sampler_steps)
         self._sampler_steps = SliderWithValue(1, 100, inner)
@@ -423,12 +427,26 @@ class PerformanceSettings(QWidget):
         self.setLayout(layout)
         _add_title(layout, "Performance Settings")
 
+        _add_header(layout, Settings._history_size)
+        self._history_size = QSpinBox(self)
+        self._history_size.setMinimum(8)
+        self._history_size.setMaximum(1024 * 16)
+        self._history_size.setSingleStep(100)
+        self._history_size.setSuffix(" MB")
+        self._history_size.valueChanged.connect(self.write)
+        self._history_usage = QLabel(self)
+        self._history_usage.setStyleSheet("font-style:italic; color: #3b3;")
+        history_layout = QHBoxLayout()
+        history_layout.addWidget(self._history_size)
+        history_layout.addWidget(self._history_usage)
+        layout.addLayout(history_layout)
+
         _add_header(layout, Settings._gpu_memory_preset)
         self._gpu_memory_preset = QComboBox(self)
         for preset in GPUMemoryPreset:
             self._gpu_memory_preset.addItem(preset.text)
         self._gpu_memory_preset.currentIndexChanged.connect(self._change_gpu_memory_preset)
-        layout.addWidget(self._gpu_memory_preset)
+        layout.addWidget(self._gpu_memory_preset, alignment=Qt.AlignLeft)
 
         self._advanced = QWidget(self)
         self._advanced.setEnabled(settings.gpu_memory_preset is GPUMemoryPreset.custom)
@@ -446,8 +464,9 @@ class PerformanceSettings(QWidget):
         self._diffusion_tile_size = QSpinBox(self._advanced)
         self._diffusion_tile_size.setMinimum(768)
         self._diffusion_tile_size.setMaximum(4096 * 2)
+        self._diffusion_tile_size.setMinimumWidth(100)
         self._diffusion_tile_size.valueChanged.connect(self.write)
-        advanced_layout.addWidget(self._diffusion_tile_size)
+        advanced_layout.addWidget(self._diffusion_tile_size, alignment=Qt.AlignLeft)
 
         layout.addStretch()
 
@@ -460,12 +479,16 @@ class PerformanceSettings(QWidget):
 
     def read(self):
         with self._write_guard:
+            memory_usage = Model.active().jobs.memory_usage
+            self._history_size.setValue(settings.history_size)
+            self._history_usage.setText(f"Currently using {memory_usage:.1f} MB")
             self._batch_size_slider.value = settings.batch_size
             self._gpu_memory_preset.setCurrentIndex(settings.gpu_memory_preset.value)
             self._diffusion_tile_size.setValue(settings.diffusion_tile_size)
 
     def write(self, *ignored):
         if not self._write_guard:
+            settings.history_size = self._history_size.value()
             settings.batch_size = self._batch_size_slider.value
             settings.diffusion_tile_size = self._diffusion_tile_size.value()
             settings.gpu_memory_preset = GPUMemoryPreset(self._gpu_memory_preset.currentIndex())

@@ -1,9 +1,8 @@
 import asyncio
+from collections import deque
 from datetime import datetime
-import sys
-import traceback
 from enum import Flag
-from typing import Sequence, NamedTuple, Optional, Callable
+from typing import Deque, Sequence, NamedTuple, Optional, Callable
 from PyQt5.QtCore import QObject, pyqtSignal
 from .. import (
     eventloop,
@@ -16,8 +15,8 @@ from .. import (
     Bounds,
     ImageCollection,
     workflow,
-    Interrupted,
     NetworkError,
+    settings,
     util,
 )
 from .connection import Connection, ConnectionState
@@ -46,21 +45,26 @@ class Job:
     prompt: str
     bounds: Bounds
     timestamp: datetime
-    results: ImageCollection
+    _results: ImageCollection
 
     def __init__(self, id, prompt, bounds):
         self.id = id
         self.prompt = prompt
         self.bounds = bounds
         self.timestamp = datetime.now()
-        self.results = ImageCollection()
+        self._results = ImageCollection()
+
+    @property
+    def results(self):
+        return self._results
 
 
 class JobQueue:
-    _entries: Sequence[Job]
+    _entries: Deque[Job]
+    _memory_usage = 0  # in MB
 
     def __init__(self):
-        self._entries = []
+        self._entries = deque()
 
     def add(self, id: str, prompt: str, bounds: Bounds):
         self._entries.append(Job(id, prompt, bounds))
@@ -70,6 +74,13 @@ class JobQueue:
 
     def count(self, state: State):
         return sum(1 for j in self._entries if j.state is state)
+
+    def set_results(self, job: Job, results: ImageCollection):
+        job._results = results
+        self._memory_usage += results.size / (1024**2)
+        while self._memory_usage > settings.history_size and self._entries[0] != job:
+            discarded = self._entries.popleft()
+            self._memory_usage -= discarded._results.size / (1024**2)
 
     def any_executing(self):
         return any(j.state is State.executing for j in self._entries)
@@ -82,6 +93,10 @@ class JobQueue:
 
     def __iter__(self):
         return iter(self._entries)
+
+    @property
+    def memory_usage(self):
+        return self._memory_usage
 
 
 class Model(QObject):
@@ -177,7 +192,7 @@ class Model(QObject):
             self.report_progress(message.progress)
         elif message.event is ClientEvent.finished:
             job.state = State.finished
-            job.results = message.images
+            self.jobs.set_results(job, message.images)
             self.progress = 1
             if self._layer is None:
                 self.show_preview(message.job_id, 0)

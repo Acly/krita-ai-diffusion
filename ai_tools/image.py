@@ -135,6 +135,7 @@ class Image:
         return (qRed(c), qGreen(c), qBlue(c), qAlpha(c))
 
     def set_pixel(self, x: int, y: int, color: Tuple[int, int, int, int]):
+        # Note: this is slow, only used for testing
         r, g, b, a = color
         self._qimage.setPixel(x, y, qRgba(r, g, b, a))
 
@@ -143,6 +144,10 @@ class Image:
         ptr = self._qimage.bits()
         ptr.setsize(self._qimage.byteCount())
         return QByteArray(ptr.asstring())
+
+    @property
+    def size(self):  # in bytes
+        return self._qimage.byteCount()
 
     def to_base64(self):
         byte_array = QByteArray()
@@ -204,6 +209,10 @@ class ImageCollection:
     def debug_save(self, name):
         for i, img in enumerate(self._items):
             img.debug_save(f"{name}_{i}")
+
+    @property
+    def size(self):
+        return sum(i.size for i in self)
 
     def __len__(self):
         return len(self._items)
