@@ -72,6 +72,61 @@ class QueueWidget(QToolButton):
         return action
 
 
+class HistoryWidget(QListWidget):
+    _last_prompt = None
+
+    def __init__(self, parent):
+        super().__init__(parent)
+        self.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Expanding)
+        self.setResizeMode(QListView.Adjust)
+        self.setHorizontalScrollBarPolicy(Qt.ScrollBarAlwaysOff)
+        self.setFlow(QListView.LeftToRight)
+        self.setViewMode(QListWidget.IconMode)
+        self.setIconSize(QSize(96, 96))
+        self.itemClicked.connect(self.handle_preview_click)
+
+    def add(self, job: Job):
+        if self._last_prompt != job.prompt:
+            self._last_prompt = job.prompt
+
+            header = QListWidgetItem(f"{job.timestamp:%H:%M} - {job.prompt}")
+            header.setFlags(Qt.NoItemFlags)
+            header.setData(Qt.UserRole, job.id)
+            header.setData(Qt.ToolTipRole, job.prompt)
+            header.setSizeHint(QSize(500, self.fontMetrics().lineSpacing() + 4))
+            header.setTextAlignment(Qt.AlignLeft)
+            self.addItem(header)
+
+        for i, img in enumerate(job.results):
+            item = QListWidgetItem(img.to_icon(), None)
+            item.setData(Qt.UserRole, job.id)
+            item.setData(Qt.UserRole + 1, i)
+            item.setData(Qt.ToolTipRole, f"{job.prompt}\nClick to preview, double-click to apply.")
+            self.addItem(item)
+
+        scrollbar = self.verticalScrollBar()
+        if scrollbar.value() >= scrollbar.maximum() - 4:
+            self.scrollToBottom()
+
+    def prune(self, jobs: JobQueue):
+        first_id = next((job.id for job in jobs), None)
+        while self.count() > 0 and self.item(0).data(Qt.UserRole) != first_id:
+            self.takeItem(0)
+
+    def rebuild(self, jobs: JobQueue):
+        self.clear()
+        for job in jobs:
+            self.add(job)
+
+    def item_info(self, item: QListWidgetItem):
+        return item.data(Qt.UserRole), item.data(Qt.UserRole + 1)
+
+    def handle_preview_click(self, item: QListWidgetItem):
+        if item.text() != "":
+            prompt = item.data(Qt.ToolTipRole)
+            QGuiApplication.clipboard().setText(prompt)
+
+
 class GenerationWidget(QWidget):
     _model: Optional[Model] = None
 
@@ -143,17 +198,10 @@ class GenerationWidget(QWidget):
         self.error_text.setVisible(False)
         layout.addWidget(self.error_text)
 
-        self.preview_list = QListWidget(self)
-        self.preview_list.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Expanding)
-        self.preview_list.setResizeMode(QListView.Adjust)
-        self.preview_list.setHorizontalScrollBarPolicy(Qt.ScrollBarAlwaysOff)
-        self.preview_list.setFlow(QListView.LeftToRight)
-        self.preview_list.setViewMode(QListWidget.IconMode)
-        self.preview_list.setIconSize(QSize(96, 96))
-        self.preview_list.currentItemChanged.connect(self.show_preview)
-        self.preview_list.itemClicked.connect(self.handle_preview_click)
-        self.preview_list.itemDoubleClicked.connect(self.apply_result)
-        layout.addWidget(self.preview_list)
+        self.history = HistoryWidget(self)
+        self.history.currentItemChanged.connect(self.show_preview)
+        self.history.itemDoubleClicked.connect(self.apply_result)
+        layout.addWidget(self.history)
 
         self.apply_button = QPushButton(QIcon(str(_icon_path / "apply.svg")), "Apply", self)
         self.apply_button.clicked.connect(self.apply_selected_result)
@@ -167,7 +215,7 @@ class GenerationWidget(QWidget):
     @model.setter
     def model(self, model: Model):
         if self._model != model:
-            self.preview_list.clear()
+            self.history.rebuild(model.history)
             self._model = model
 
     def update(self):
@@ -183,8 +231,8 @@ class GenerationWidget(QWidget):
         self.queue_button.update(self.model.jobs)
 
     def show_results(self, job: Job):
-        self.clear_old_previews()
-        self.add_preview(job)
+        self.history.prune(self.model.jobs)
+        self.history.add(job)
 
     def generate(self):
         self.model.generate()
@@ -207,36 +255,12 @@ class GenerationWidget(QWidget):
     def show_settings(self):
         Krita.instance().action("ai_tools_settings").trigger()
 
-    def add_preview(self, job: Job):
-        header = QListWidgetItem(f"{job.timestamp:%H:%M} - {job.prompt}")
-        header.setFlags(Qt.NoItemFlags)
-        header.setData(Qt.UserRole, job.id)
-        header.setData(Qt.ToolTipRole, job.prompt)
-        header.setSizeHint(QSize(500, self.prompt_textbox.height() // 2))
-        header.setTextAlignment(Qt.AlignLeft)
-        self.preview_list.addItem(header)
-
-        for i, img in enumerate(job.results):
-            item = QListWidgetItem(img.to_icon(), None)
-            item.setData(Qt.UserRole, job.id)
-            item.setData(Qt.UserRole + 1, i)
-            item.setData(Qt.ToolTipRole, f"{job.prompt}\nClick to preview, double-click to apply.")
-            self.preview_list.addItem(item)
-        self.preview_list.scrollToBottom()
-
     def show_preview(self, current: Optional[QListWidgetItem], previous):
         if current:
-            job_id = current.data(Qt.UserRole)
-            index = current.data(Qt.UserRole + 1)
+            job_id, index = self.history.item_info(current)
             self.model.show_preview(job_id, index)
         else:
             self.model.hide_preview()
-
-    def clear_old_previews(self):
-        previews = self.preview_list
-        first_id = next((job.id for job in self.model.history), None)
-        while previews.count() > 0 and previews.item(0).data(Qt.UserRole) != first_id:
-            previews.takeItem(0)
 
     def apply_selected_result(self):
         self.model.apply_current_result()
@@ -244,11 +268,6 @@ class GenerationWidget(QWidget):
     def apply_result(self, item: QListWidgetItem):
         self.show_preview(item, None)
         self.apply_selected_result()
-
-    def handle_preview_click(self, item: QListWidgetItem):
-        if item.text() != "":
-            prompt = item.data(Qt.ToolTipRole)
-            QGuiApplication.clipboard().setText(prompt)
 
 
 class WelcomeWidget(QWidget):
