@@ -1,6 +1,6 @@
 from math import ceil
 from PyQt5.QtGui import QImage, QPixmap, QIcon, qRgba, qRed, qGreen, qBlue, qAlpha
-from PyQt5.QtCore import Qt, QByteArray, QBuffer
+from PyQt5.QtCore import Qt, QByteArray, QBuffer, QRect
 from typing import Callable, Iterable, Tuple, NamedTuple, Union, Optional
 from itertools import product
 from pathlib import Path
@@ -79,6 +79,10 @@ class Bounds(NamedTuple):
         y, height = impl(bounds.y, bounds.height, extent.height)
         return Bounds(x, y, width, height)
 
+    @staticmethod
+    def from_qrect(qrect: QRect):
+        return Bounds(qrect.x(), qrect.y(), qrect.width(), qrect.height())
+
 
 def extent_equal(a: QImage, b: QImage):
     return a.width() == b.width() and a.height() == b.height()
@@ -97,8 +101,11 @@ class Image:
         return Image(image.convertToFormat(QImage.Format_ARGB32))
 
     @staticmethod
-    def create(extent: Extent):
-        return Image(QImage(extent.width, extent.height, QImage.Format_ARGB32))
+    def create(extent: Extent, fill=None):
+        img = Image(QImage(extent.width, extent.height, QImage.Format_ARGB32))
+        if fill is not None:
+            img._qimage.fill(fill)
+        return img
 
     @property
     def width(self):

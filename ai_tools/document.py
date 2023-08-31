@@ -47,6 +47,7 @@ class Document:
         restore_layer = False
         if exclude_layer and exclude_layer.visible():
             exclude_layer.setVisible(False)
+            # This is quite slow and blocks the UI. Maybe async spinning on tryBarrierLock works?
             self._doc.refreshProjection()
             restore_layer = True
         img = QImage(
@@ -65,5 +66,16 @@ class Document:
         self._doc.rootNode().addChildNode(layer, None)
         layer.setPixelData(img.data, *bounds)
         layer.setLocked(True)
+        self._doc.refreshProjection()
+        return layer
+
+    def set_layer_content(self, layer, img: Image, bounds: Bounds):
+        layer_bounds = Bounds.from_qrect(layer.bounds())
+        if layer_bounds != bounds:
+            # layer.cropNode(*bounds)  <- more efficient, but clutters the undo stack
+            blank = Image.create(layer_bounds.extent, fill=0)
+            layer.setPixelData(blank.data, *layer_bounds)
+        layer.setPixelData(img.data, *bounds)
+        layer.setVisible(True)
         self._doc.refreshProjection()
         return layer
