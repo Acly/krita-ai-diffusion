@@ -18,10 +18,11 @@ class GPUMemoryPreset(Enum):
 
 
 class Setting:
-    def __init__(self, name: str, default, desc: str):
+    def __init__(self, name: str, default, desc="", help=""):
         self.name = name
         self.desc = desc
         self.default = default
+        self.help = help
 
     def str_to_enum(self, s: str):
         assert isinstance(self.default, Enum)
@@ -43,40 +44,89 @@ class Settings:
 
     _server_url = Setting(
         "Server URL",
-        "http://127.0.0.1:7860",
-        "URL used to connect to a running Automatic1111 server.",
+        "127.0.0.1:8188",
+        "URL used to connect to a running ComfyUI server. Default is 127.0.0.1:8188 (local).",
+    )
+
+    _sd_checkpoint = Setting(
+        "Model Checkpoint",
+        "<No checkpoints found>",
+        "The Stable Diffusion checkpoint file",
+        (
+            "This has a large impact on which kind of content will"
+            " be generated. To install additional checkpoints, place them into"
+            " [ComfyUI]/models/checkpoints."
+        ),
+    )
+
+    _loras = Setting(
+        "LoRA",
+        [],
+        "Extensions to the checkpoint which influence generation based on additional training.",
+    )
+
+    _style_prompt = Setting(
+        "Style Prompt",
+        "best quality, highres",
+        "Keywords which are appended to all prompts. Can be used to influence style and quality.",
     )
 
     _negative_prompt = Setting(
         "Negative Prompt",
-        "EasyNegative verybadimagenegative_v1.3",
+        "bad quality, low resolution, blurry",
         "Textual description of things to avoid in generated images.",
     )
 
     _upscale_prompt = Setting(
         "Upscale Prompt",
-        "highres, 8k, uhd",
+        "8k uhd",
         "Additional text which is used to extend the prompt when upscaling images.",
     )
 
     _min_image_size = Setting(
         "Minimum Image Size",
         512,
+        "Smaller images are automatically scaled before and after generation",
         (
             "Generation will run at a resolution of at least the configured value, "
             "even if the selected input image content is smaller. "
-            "Results are automatically downscaled to fit the target area."
+            "Afterwards results are automatically downscaled to fit the target area."
         ),
     )
 
     _max_image_size = Setting(
         "Maximum Image Size",
         768,
+        "Larger images automatically use two-pass generation with upscaling",
         (
             "Initial image generation will run with a resolution no higher than the value "
             "configured here. If the resolution of the target area is higher, the results "
             "will be upscaled afterwards."
         ),
+    )
+
+    _sampler = Setting("Sampler", "DPM++ 2M SDE", "The sampling strategy and scheduler")
+
+    _sampler_steps = Setting(
+        "Sampler Steps",
+        20,
+        "Higher values can produce more refined results but take longer",
+    )
+
+    _sampler_steps_upscaling = Setting(
+        "Sampler Steps (Upscaling)",
+        15,
+        "Additional sampling steps to run when automatically upscaling images",
+    )
+
+    _cfg_scale = Setting(
+        "Guidance Strength (CFG Scale)",
+        7,
+        "Value which indicates how closely image generation follows the text prompt",
+    )
+
+    _history_size = Setting(
+        "History Size", 1000, "Main memory (RAM) used to keep the history of generated images"
     )
 
     _gpu_memory_preset = Setting(
@@ -93,53 +143,34 @@ class Settings:
     _batch_size = Setting(
         "Maximum Batch Size",
         4,
+        "Increase efficiency by generating multiple images at once",
         (
-            "Number of low resolution images which are generated at once. Improves"
+            "This defines the number of low resolution images which are generated at once. Improves"
             " generation efficiency but requires more GPU memory. Batch size is automatically"
             " adjusted for larger resolutions."
         ),
     )
 
-    _vae_endoding_tile_size = Setting(
-        "VAE Encoder Tile Size",
-        1024,
-        "Larger images are split up into tiles when passed to the VAE to allow large resolutions. ",
-    )
-
     _diffusion_tile_size = Setting(
         "Diffusion Tile Size",
         2048,
-        "Resolution threshold at which diffusion is split up into multiple tiles. ",
+        "Resolution threshold at which diffusion is split up into multiple tiles",
     )
 
     _gpu_memory_presets = {
         GPUMemoryPreset.low: {
             "batch_size": 2,
-            "vae_endoding_tile_size": 512,
             "diffusion_tile_size": 1024,
         },
         GPUMemoryPreset.medium: {
             "batch_size": 4,
-            "vae_endoding_tile_size": 1024,
             "diffusion_tile_size": 2048,
         },
         GPUMemoryPreset.high: {
             "batch_size": 8,
-            "vae_endoding_tile_size": 2048,
             "diffusion_tile_size": 4096,
         },
     }
-
-    _upscaler = Setting(
-        "Upscaler",
-        "Lanczos",
-        "The algorithm to use whenever images need to be resized to a higher resolution.",
-    )
-    upscalers = ["Lanczos"]
-
-    @property
-    def upscaler_index(self):
-        return self.upscalers.index(self.upscaler)
 
     # Folder where intermediate images are stored for debug purposes (default: None)
     debug_image_folder = os.environ.get("KRITA_AI_TOOLS_DEBUG_IMAGE")
@@ -164,6 +195,7 @@ class Settings:
         self.__dict__["_values"] = {
             k[1:]: v.default for k, v in Settings.__dict__.items() if isinstance(v, Setting)
         }
+        self.save()
 
     def save(self, path: Path = ...):
         path = self.default_path if path is ... else path

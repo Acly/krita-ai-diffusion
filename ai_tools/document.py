@@ -43,24 +43,39 @@ class Document:
         data = selection.pixelData(*bounds)
         return Mask(bounds, data)
 
-    def get_image(self):
+    def get_image(self, exclude_layer=None):
+        restore_layer = False
+        if exclude_layer and exclude_layer.visible():
+            exclude_layer.setVisible(False)
+            # This is quite slow and blocks the UI. Maybe async spinning on tryBarrierLock works?
+            self._doc.refreshProjection()
+            restore_layer = True
         img = QImage(
             self._doc.pixelData(0, 0, self._doc.width(), self._doc.height()),
             self._doc.width(),
             self._doc.height(),
             QImage.Format_ARGB32,
         )
+        if restore_layer:
+            exclude_layer.setVisible(True)
+            self._doc.refreshProjection()
         return Image(img)
 
     def insert_layer(self, name: str, img: Image, bounds: Bounds):
-        assert img.extent == bounds.extent
         layer = self._doc.createNode(name, "paintLayer")
         self._doc.rootNode().addChildNode(layer, None)
-        self.set_layer_pixels(layer, img, bounds)
+        layer.setPixelData(img.data, *bounds)
         layer.setLocked(True)
+        self._doc.refreshProjection()
         return layer
 
-    def set_layer_pixels(self, layer: krita.Node, img: Image, bounds: Bounds):
-        # TODO make sure image extent and format match
+    def set_layer_content(self, layer, img: Image, bounds: Bounds):
+        layer_bounds = Bounds.from_qrect(layer.bounds())
+        if layer_bounds != bounds:
+            # layer.cropNode(*bounds)  <- more efficient, but clutters the undo stack
+            blank = Image.create(layer_bounds.extent, fill=0)
+            layer.setPixelData(blank.data, *layer_bounds)
         layer.setPixelData(img.data, *bounds)
+        layer.setVisible(True)
         self._doc.refreshProjection()
+        return layer

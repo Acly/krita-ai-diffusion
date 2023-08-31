@@ -1,5 +1,5 @@
-* Two-phase generation (low-res, select candidate, upscale)
-* VRAM settings to set VAE tile size, diffusion tile size and batch size
-* SAM
-* Profile setPixel for large res and possibly find alternative
-* Bug: black bar at bottom (right)?
+* Tiled diffusion
+* Presets/Styles
+* Settings for: feather, grow, auto-preview
+* Settings: Maybe move resolution settings to other tab
+* Server settings: allow specifying path instead of URL so extension can (re)start the server

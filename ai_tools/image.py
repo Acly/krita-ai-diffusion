@@ -1,15 +1,15 @@
+from math import ceil
 from PyQt5.QtGui import QImage, QPixmap, QIcon, qRgba, qRed, qGreen, qBlue, qAlpha
-from PyQt5.QtCore import Qt, QByteArray, QBuffer
+from PyQt5.QtCore import Qt, QByteArray, QBuffer, QRect
 from typing import Callable, Iterable, Tuple, NamedTuple, Union, Optional
 from itertools import product
 from pathlib import Path
 from .settings import settings
 
 
-def round_to_multiple(number, multiple):
-    if multiple == 1:
-        return number
-    return multiple * (number // multiple + 1)
+def multiple_of(number, multiple):
+    """Round up to the nearest multiple of a number."""
+    return ((number + multiple - 1) // multiple) * multiple
 
 
 class Extent(NamedTuple):
@@ -18,6 +18,16 @@ class Extent(NamedTuple):
 
     def __mul__(self, scale: float):
         return Extent(round(self.width * scale), round(self.height * scale))
+
+    def multiple_of(self, multiple: int):
+        return Extent(multiple_of(self.width, multiple), multiple_of(self.height, multiple))
+
+    def is_multiple_of(self, multiple: int):
+        return self.width % multiple == 0 and self.height % multiple == 0
+
+    @staticmethod
+    def largest(a, b):
+        return a if a.width * a.height > b.width * b.height else b
 
 
 class Bounds(NamedTuple):
@@ -46,8 +56,8 @@ class Bounds(NamedTuple):
 
     @staticmethod
     def pad(bounds, padding: int, multiple: int):
-        new_width = round_to_multiple(bounds.width + 2 * padding, multiple)
-        new_height = round_to_multiple(bounds.height + 2 * padding, multiple)
+        new_width = multiple_of(bounds.width + 2 * padding, multiple)
+        new_height = multiple_of(bounds.height + 2 * padding, multiple)
         new_x = bounds.x - padding
         new_y = bounds.y - padding
         return Bounds(new_x, new_y, new_width, new_height)
@@ -69,6 +79,10 @@ class Bounds(NamedTuple):
         y, height = impl(bounds.y, bounds.height, extent.height)
         return Bounds(x, y, width, height)
 
+    @staticmethod
+    def from_qrect(qrect: QRect):
+        return Bounds(qrect.x(), qrect.y(), qrect.width(), qrect.height())
+
 
 def extent_equal(a: QImage, b: QImage):
     return a.width() == b.width() and a.height() == b.height()
@@ -87,8 +101,11 @@ class Image:
         return Image(image.convertToFormat(QImage.Format_ARGB32))
 
     @staticmethod
-    def create(extent: Extent):
-        return Image(QImage(extent.width, extent.height, QImage.Format_ARGB32))
+    def create(extent: Extent, fill=None):
+        img = Image(QImage(extent.width, extent.height, QImage.Format_ARGB32))
+        if fill is not None:
+            img._qimage.fill(fill)
+        return img
 
     @property
     def width(self):
@@ -105,8 +122,13 @@ class Image:
     @staticmethod
     def from_base64(data: str):
         bytes = QByteArray.fromBase64(data.encode("utf-8"))
-        img = QImage.fromData(bytes, "PNG").convertToFormat(QImage.Format_ARGB32)
-        return Image(img)
+        return Image.png_from_bytes(bytes)
+
+    @staticmethod
+    def png_from_bytes(data: QByteArray):
+        img = QImage.fromData(data, "PNG")
+        assert img and not img.isNull(), "Failed to load PNG image from memory"
+        return Image(img.convertToFormat(QImage.Format_ARGB32))
 
     @staticmethod
     def scale(img, target: Extent):
@@ -124,6 +146,7 @@ class Image:
         return (qRed(c), qGreen(c), qBlue(c), qAlpha(c))
 
     def set_pixel(self, x: int, y: int, color: Tuple[int, int, int, int]):
+        # Note: this is slow, only used for testing
         r, g, b, a = color
         self._qimage.setPixel(x, y, qRgba(r, g, b, a))
 
@@ -132,6 +155,10 @@ class Image:
         ptr = self._qimage.bits()
         ptr.setsize(self._qimage.byteCount())
         return QByteArray(ptr.asstring())
+
+    @property
+    def size(self):  # in bytes
+        return self._qimage.byteCount()
 
     def to_base64(self):
         byte_array = QByteArray()
@@ -193,6 +220,10 @@ class ImageCollection:
     def debug_save(self, name):
         for i, img in enumerate(self._items):
             img.debug_save(f"{name}_{i}")
+
+    @property
+    def size(self):
+        return sum(i.size for i in self)
 
     def __len__(self):
         return len(self._items)
