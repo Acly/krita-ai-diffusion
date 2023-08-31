@@ -35,9 +35,9 @@ def comfy(qtapp):
 
 
 async def receive_images(comfy, workflow: ComfyWorkflow):
-    prompt_id = await comfy.enqueue(workflow)
+    job_id = await comfy.enqueue(workflow)
     async for msg in comfy.listen():
-        if msg.event is ClientEvent.finished and msg.prompt_id == prompt_id:
+        if msg.event is ClientEvent.finished and msg.job_id == job_id:
             return msg.images
     assert False, "Connection closed without receiving images"
 
@@ -161,25 +161,26 @@ def test_inpaint(qtapp, comfy, temp_settings):
         index = 0
         job = workflow.inpaint(comfy, image, mask, "ship")
         results = await receive_images(comfy, job)
-        for result in results:
-            result.save(result_dir / f"test_inpaint_{index}.png")
+        assert len(results) == 2
+        for i, result in enumerate(results):
+            result.save(result_dir / f"test_inpaint_{i}.png")
             assert result.extent == Extent(320, 200)
-            index += 1
-        assert index == 2
 
     qtapp.run(main())
 
 
 def test_inpaint_upscale(qtapp, comfy, temp_settings):
-    temp_settings.batch_size = 1
+    temp_settings.batch_size = 3  # max 3 images@512x512 -> 2 images@768x512
     image = Image.load(image_dir / "beach_1536x1024.png")
     mask = Mask.rectangle(Bounds(600, 200, 768, 512), feather=10)
 
     async def main():
         job = workflow.inpaint(comfy, image, mask, "ship")
         results = await receive_images(comfy, job)
-        results[0].save(result_dir / "test_inpaint_upscale.png")
-        assert results[0].extent == mask.bounds.extent
+        assert len(results) == 2
+        for i, result in enumerate(results):
+            result.save(result_dir / f"test_inpaint_upscale_{i}.png")
+            assert result.extent == mask.bounds.extent
 
     qtapp.run(main())
 

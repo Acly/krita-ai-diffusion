@@ -88,8 +88,9 @@ class HistoryWidget(QListWidget):
     def add(self, job: Job):
         if self._last_prompt != job.prompt:
             self._last_prompt = job.prompt
+            prompt = job.prompt if job.prompt != "" else "<no prompt>"
 
-            header = QListWidgetItem(f"{job.timestamp:%H:%M} - {job.prompt}")
+            header = QListWidgetItem(f"{job.timestamp:%H:%M} - {prompt}")
             header.setFlags(Qt.NoItemFlags)
             header.setData(Qt.UserRole, job.id)
             header.setData(Qt.ToolTipRole, job.prompt)
@@ -122,7 +123,7 @@ class HistoryWidget(QListWidget):
         return item.data(Qt.UserRole), item.data(Qt.UserRole + 1)
 
     def handle_preview_click(self, item: QListWidgetItem):
-        if item.text() != "":
+        if item.text() != "" and item.text() != "<no prompt>":
             prompt = item.data(Qt.ToolTipRole)
             QGuiApplication.clipboard().setText(prompt)
 

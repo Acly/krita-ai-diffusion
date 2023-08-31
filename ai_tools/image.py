@@ -25,6 +25,10 @@ class Extent(NamedTuple):
     def is_multiple_of(self, multiple: int):
         return self.width % multiple == 0 and self.height % multiple == 0
 
+    @staticmethod
+    def largest(a, b):
+        return a if a.width * a.height > b.width * b.height else b
+
 
 class Bounds(NamedTuple):
     x: int

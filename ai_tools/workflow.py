@@ -146,14 +146,19 @@ def generate(input_extent: Extent, prompt: str):
 
 
 def inpaint(comfy: Client, image: Image, mask: Mask, prompt: str):
-    image, mask_image, extent, batch = prepare((image, mask))
-
+    scaled_image, scaled_mask, extent, _ = prepare((image, mask))
+    image_region = Image.sub_region(image, mask.bounds)
+    batch = compute_batch_size(
+        Extent.largest(scaled_image.extent, image_region.extent),
+        settings.min_image_size,
+        settings.batch_size,
+    )
     w = ComfyWorkflow()
     model, clip, vae = load_model_with_lora(w)
     controlnet = w.load_controlnet(comfy.controlnet_model["inpaint"])
     clip_vision_model = w.load_clip_vision(comfy.clip_vision_model)
-    in_image = w.load_image(image)
-    in_mask = w.load_mask(mask_image)
+    in_image = w.load_image(scaled_image)
+    in_mask = w.load_mask(scaled_mask)
     cropped_mask = w.load_mask(mask.to_image())
     if extent.scale > 1:
         in_image = w.scale_image(in_image, extent.initial)
@@ -174,7 +179,7 @@ def inpaint(comfy: Client, image: Image, mask: Mask, prompt: str):
         scaled_latent = w.scale_latent(cropped_latent, mask.bounds.extent)
         no_mask = w.solid_mask(mask.bounds.extent, 1.0)
         masked_latent = w.set_latent_noise_mask(scaled_latent, no_mask)
-        cropped_image = w.vae_decode(vae, cropped_latent)
+        cropped_image = w.load_image(image_region)
         control_image_upscale = w.inpaint_preprocessor(cropped_image, cropped_mask)
         positive_upscale = w.clip_text_encode(clip, f"{prompt}, {settings.upscale_prompt}")
         positive_upscale = w.apply_controlnet(positive_upscale, controlnet, control_image_upscale)
