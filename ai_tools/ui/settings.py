@@ -24,27 +24,86 @@ from .connection import Connection, ConnectionState
 from .model import Model
 
 
-class SliderWithValue(QWidget):
-    value_changed = pyqtSignal(int)
+def _add_title(layout: QVBoxLayout, title: str):
+    title_label = QLabel(title)
+    title_label.setStyleSheet("font-size: 16px")
+    layout.addWidget(title_label)
+    layout.addSpacing(6)
 
-    def __init__(self, minimum=0, maximum=100, parent=None, format_string="{}"):
+
+def _add_header(layout: QVBoxLayout, setting: Setting):
+    title_label = QLabel(setting.name)
+    title_label.setStyleSheet("font-weight:bold")
+    desc_label = QLabel(setting.desc)
+    desc_label.setWordWrap(True)
+    layout.addSpacing(6)
+    layout.addWidget(title_label)
+    layout.addWidget(desc_label)
+
+
+class SettingWidget(QWidget):
+    value_changed = pyqtSignal()
+
+    def __init__(self, setting: Setting, parent=None):
         super().__init__(parent)
-        self._format_string = format_string
 
-        layout = QHBoxLayout()
+        key_label = QLabel(f"<b>{setting.name}</b><br>{setting.desc}")
+        key_label.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Preferred)
+
+        self._layout = QHBoxLayout()
+        self._layout.setContentsMargins(0, 2, 0, 2)
+        self._layout.addWidget(key_label, alignment=Qt.AlignLeft)
+        self.setLayout(self._layout)
+
+
+class SpinBoxSetting(SettingWidget):
+    def __init__(self, setting: Setting, parent=None, minimum=0, maximum=100, suffix=""):
+        super().__init__(setting, parent)
+
+        self._spinbox = QSpinBox(self)
+        self._spinbox.setMinimumWidth(100)
+        self._spinbox.setMinimum(minimum)
+        self._spinbox.setMaximum(maximum)
+        self._spinbox.setSingleStep(1)
+        self._spinbox.setSuffix(suffix)
+        self._spinbox.valueChanged.connect(self._change_value)
+        self._layout.addWidget(self._spinbox, alignment=Qt.AlignRight)
+
+    def _change_value(self, value: int):
+        self.value_changed.emit()
+
+    @property
+    def value(self):
+        return self._spinbox.value()
+
+    @value.setter
+    def value(self, v):
+        self._spinbox.setValue(v)
+
+
+class SliderSetting(SettingWidget):
+    def __init__(self, setting: Setting, parent=None, minimum=0, maximum=100):
+        super().__init__(setting, parent)
+
+        slider_widget = QWidget(self)
+        slider_layout = QHBoxLayout()
+        slider_widget.setLayout(slider_layout)
         self._slider = QSlider(Qt.Orientation.Horizontal, self)
+        self._slider.setMinimumWidth(200)
+        self._slider.setMaximumWidth(300)
         self._slider.setMinimum(minimum)
         self._slider.setMaximum(maximum)
         self._slider.setSingleStep(1)
         self._slider.valueChanged.connect(self._change_value)
         self._label = QLabel(str(self._slider.value()), self)
-        layout.addWidget(self._slider)
-        layout.addWidget(self._label)
-        self.setLayout(layout)
+        self._label.setMinimumWidth(12)
+        slider_layout.addWidget(self._slider)
+        slider_layout.addWidget(self._label)
+        self._layout.addWidget(slider_widget, alignment=Qt.AlignRight)
 
     def _change_value(self, value: int):
-        self._label.setText(self._format_string.format(value))
-        self.value_changed.emit(value)
+        self._label.setText(str(value))
+        self.value_changed.emit()
 
     @property
     def value(self):
@@ -53,6 +112,35 @@ class SliderWithValue(QWidget):
     @value.setter
     def value(self, v):
         self._slider.setValue(v)
+
+
+class ComboBoxSetting(SettingWidget):
+    _suppress_change = False
+
+    def __init__(self, setting: Setting, parent=None):
+        super().__init__(setting, parent)
+        self._combo = QComboBox(self)
+        self._combo.setMinimumWidth(100)
+        self._combo.currentIndexChanged.connect(self._change_value)
+        self._layout.addWidget(self._combo, alignment=Qt.AlignRight)
+
+    def set_items(self, items):
+        self._suppress_change = True
+        self._combo.clear()
+        self._combo.addItems(items)
+        self._suppress_change = False
+
+    def _change_value(self):
+        if not self._suppress_change:
+            self.value_changed.emit()
+
+    @property
+    def value(self):
+        return self._combo.currentText()
+
+    @value.setter
+    def value(self, v):
+        self._combo.setCurrentText(v)
 
 
 class LoraList(QWidget):
@@ -121,8 +209,9 @@ class LoraList(QWidget):
         self._layout.insertLayout(0, self._item_list)
 
         self._add_button = QPushButton("Add", self)
+        self._add_button.setMinimumWidth(100)
         self._add_button.clicked.connect(self._add_item)
-        self._layout.addWidget(self._add_button)
+        self._layout.addWidget(self._add_button, alignment=Qt.AlignLeft)
 
     def _add_item(self, lora=None):
         assert self._item_list is not None
@@ -165,23 +254,6 @@ class LoraList(QWidget):
             self._remove_item(self._items[-1])
         for lora in v:
             self._add_item(lora)
-
-
-def _add_title(layout: QVBoxLayout, title: str):
-    title_label = QLabel(title)
-    title_label.setStyleSheet("font-size: 16px")
-    layout.addWidget(title_label)
-    layout.addSpacing(6)
-
-
-def _add_header(layout: QVBoxLayout, setting: Setting):
-    title_label = QLabel(setting.name)
-    title_label.setStyleSheet("font-weight:bold")
-    desc_label = QLabel(setting.desc)
-    desc_label.setWordWrap(True)
-    layout.addSpacing(6)
-    layout.addWidget(title_label)
-    layout.addWidget(desc_label)
 
 
 class SettingsWriteGuard:
@@ -261,7 +333,7 @@ class ConnectionSettings(QWidget):
         if resource.kind is ResourceKind.checkpoint:
             self._connection_status.setText(
                 "<b>Error</b>: No checkpoints found!\nCheckpoints must be placed into"
-                " <ComfyUI>/model/checkpoints.\n<a"
+                " [ComfyUI]/model/checkpoints.\n<a"
                 " href='https://civitai.com/models'>Civitai.com</a> has a large collection"
                 " of checkpoints available for download."
             )
@@ -269,20 +341,20 @@ class ConnectionSettings(QWidget):
         elif resource.kind is ResourceKind.controlnet:
             self._connection_status.setText(
                 f"<b>Error</b>: Could not find ControlNet model {', '.join(resource.names)}. Make"
-                " sure to download the model and place it in the <ComfyUI>/models/controlnet"
+                " sure to download the model and place it in the [ComfyUI]/models/controlnet"
                 " folder."
             )
         elif resource.kind is ResourceKind.clip_vision:
             self._connection_status.setText(
                 f"<b>Error</b>: Could not find CLIPVision model {', '.join(resource.names)}. Make"
-                " sure to download the model and place it in the <ComfyUI>/models/clip_vision"
+                " sure to download the model and place it in the [ComfyUI]/models/clip_vision"
                 " folder."
             )
         elif resource.kind is ResourceKind.ip_adapter:
             self._connection_status.setText(
                 f"<b>Error</b>: Could not find IPAdapter model {', '.join(resource.names)}. Make"
                 " sure to download the model and place it in the"
-                " <ComfyUI>/custom_nodes/IPAdapter-ComfyUI/models folder."
+                " [ComfyUI]/custom_nodes/IPAdapter-ComfyUI/models folder."
             )
         elif resource.kind is ResourceKind.node:
             self._connection_status.setText(
@@ -302,6 +374,7 @@ class DiffusionSettings(QWidget):
     def __init__(self):
         super().__init__()
         self._write_guard = SettingsWriteGuard()
+        self._widgets = {}
 
         frame_layout = QVBoxLayout()
         self.setLayout(frame_layout)
@@ -311,10 +384,12 @@ class DiffusionSettings(QWidget):
         layout = QVBoxLayout()
         inner.setLayout(layout)
 
-        _add_header(layout, Settings._sd_checkpoint)
-        self._sd_checkpoint = QComboBox(inner)
-        self._sd_checkpoint.currentIndexChanged.connect(self.write)
-        layout.addWidget(self._sd_checkpoint, alignment=Qt.AlignLeft)
+        def add(name: str, widget):
+            layout.addWidget(widget)
+            self._widgets[name] = widget
+            widget.value_changed.connect(self.write)
+
+        add("sd_checkpoint", ComboBoxSetting(Settings._sd_checkpoint, inner))
 
         _add_header(layout, Settings._loras)
         self._loras = LoraList(inner)
@@ -336,42 +411,16 @@ class DiffusionSettings(QWidget):
         self._upscale_prompt.textChanged.connect(self.write)
         layout.addWidget(self._upscale_prompt)
 
-        _add_header(layout, Settings._min_image_size)
-        self._min_image_size = QSpinBox(inner)
-        self._min_image_size.setMinimumWidth(100)
-        self._min_image_size.setMaximum(1024)
-        self._min_image_size.valueChanged.connect(self.write)
-        layout.addWidget(self._min_image_size, alignment=Qt.AlignLeft)
-
-        _add_header(layout, Settings._max_image_size)
-        self._max_image_size = QSpinBox(inner)
-        self._max_image_size.setMinimumWidth(100)
-        self._max_image_size.setMaximum(2048)
-        self._max_image_size.valueChanged.connect(self.write)
-        layout.addWidget(self._max_image_size, alignment=Qt.AlignLeft)
-
-        _add_header(layout, Settings._sampler)
-        self._sampler = QComboBox(inner)
-        self._sampler.addItem("DDIM")
-        self._sampler.addItem("DPM++ 2M SDE")
-        self._sampler.addItem("DPM++ 2M SDE Karras")
-        self._sampler.currentIndexChanged.connect(self.write)
-        layout.addWidget(self._sampler, alignment=Qt.AlignLeft)
-
-        _add_header(layout, Settings._sampler_steps)
-        self._sampler_steps = SliderWithValue(1, 100, inner)
-        self._sampler_steps.value_changed.connect(self.write)
-        layout.addWidget(self._sampler_steps)
-
-        _add_header(layout, Settings._sampler_steps_upscaling)
-        self._sampler_steps_upscaling = SliderWithValue(1, 100, inner)
-        self._sampler_steps_upscaling.value_changed.connect(self.write)
-        layout.addWidget(self._sampler_steps_upscaling)
-
-        _add_header(layout, Settings._cfg_scale)
-        self._cfg_scale = SliderWithValue(1, 20, inner)
-        self._cfg_scale.value_changed.connect(self.write)
-        layout.addWidget(self._cfg_scale)
+        add("min_image_size", SpinBoxSetting(Settings._min_image_size, inner, 64, 2048, " px"))
+        add("max_image_size", SpinBoxSetting(Settings._max_image_size, inner, 64, 2048, " px"))
+        add("sampler", ComboBoxSetting(Settings._sampler, inner))
+        self._widgets["sampler"].set_items(["DDIM", "DPM++ 2M SDE", "DPM++ 2M SDE Karras"])
+        add("sampler_steps", SliderSetting(Settings._sampler_steps, inner, 1, 100))
+        add(
+            "sampler_steps_upscaling",
+            SliderSetting(Settings._sampler_steps_upscaling, inner, 1, 100),
+        )
+        add("cfg_scale", SliderSetting(Settings._cfg_scale, inner, 1, 20))
 
         layout.addStretch()
 
@@ -383,38 +432,26 @@ class DiffusionSettings(QWidget):
 
     def read(self):
         with self._write_guard:
-            self._sd_checkpoint.clear()
             if Connection.instance().state == ConnectionState.connected:
                 client = Connection.instance().client
-                for checkpoint in client.checkpoints:
-                    self._sd_checkpoint.addItem(checkpoint)
+                self._widgets["sd_checkpoint"].set_items(client.checkpoints)
                 self._loras.names = client.lora_models
 
-            self._sd_checkpoint.setCurrentText(settings.sd_checkpoint)
             self._loras.value = settings.loras
             self._style_prompt.setText(settings.style_prompt)
             self._negative_prompt.setText(settings.negative_prompt)
             self._upscale_prompt.setText(settings.upscale_prompt)
-            self._min_image_size.setValue(settings.min_image_size)
-            self._max_image_size.setValue(settings.max_image_size)
-            self._sampler.setCurrentText(settings.sampler)
-            self._sampler_steps.value = settings.sampler_steps
-            self._sampler_steps_upscaling.value = settings.sampler_steps_upscaling
-            self._cfg_scale.value = settings.cfg_scale
+            for name, widget in self._widgets.items():
+                widget.value = getattr(settings, name)
 
     def write(self, *ignored):
         if not self._write_guard:
-            settings.sd_checkpoint = self._sd_checkpoint.currentText()
             settings.loras = self._loras.value
             settings.style_prompt = self._style_prompt.text()
             settings.negative_prompt = self._negative_prompt.text()
             settings.upscale_prompt = self._upscale_prompt.text()
-            settings.min_image_size = self._min_image_size.value()
-            settings.max_image_size = self._max_image_size.value()
-            settings.sampler = self._sampler.currentText()
-            settings.sampler_steps = self._sampler_steps.value
-            settings.sampler_steps_upscaling = self._sampler_steps_upscaling.value
-            settings.cfg_scale = self._cfg_scale.value
+            for name, widget in self._widgets.items():
+                setattr(settings, name, widget.value)
             settings.save()
 
 
@@ -455,18 +492,15 @@ class PerformanceSettings(QWidget):
         advanced_layout = QVBoxLayout()
         self._advanced.setLayout(advanced_layout)
 
-        _add_header(advanced_layout, Settings._batch_size)
-        self._batch_size_slider = SliderWithValue(1, 16, self._advanced)
-        self._batch_size_slider.value_changed.connect(self.write)
-        advanced_layout.addWidget(self._batch_size_slider)
+        self._batch_size = SliderSetting(Settings._batch_size, self._advanced, 1, 16)
+        self._batch_size.value_changed.connect(self.write)
+        advanced_layout.addWidget(self._batch_size)
 
-        _add_header(advanced_layout, Settings._diffusion_tile_size)
-        self._diffusion_tile_size = QSpinBox(self._advanced)
-        self._diffusion_tile_size.setMinimum(768)
-        self._diffusion_tile_size.setMaximum(4096 * 2)
-        self._diffusion_tile_size.setMinimumWidth(100)
-        self._diffusion_tile_size.valueChanged.connect(self.write)
-        advanced_layout.addWidget(self._diffusion_tile_size, alignment=Qt.AlignLeft)
+        self._diffusion_tile_size = SpinBoxSetting(
+            Settings._diffusion_tile_size, self._advanced, 768, 4096 * 2
+        )
+        self._diffusion_tile_size.value_changed.connect(self.write)
+        advanced_layout.addWidget(self._diffusion_tile_size)
 
         layout.addStretch()
 
@@ -482,15 +516,15 @@ class PerformanceSettings(QWidget):
             memory_usage = Model.active().jobs.memory_usage
             self._history_size.setValue(settings.history_size)
             self._history_usage.setText(f"Currently using {memory_usage:.1f} MB")
-            self._batch_size_slider.value = settings.batch_size
+            self._batch_size.value = settings.batch_size
             self._gpu_memory_preset.setCurrentIndex(settings.gpu_memory_preset.value)
-            self._diffusion_tile_size.setValue(settings.diffusion_tile_size)
+            self._diffusion_tile_size.value = settings.diffusion_tile_size
 
     def write(self, *ignored):
         if not self._write_guard:
             settings.history_size = self._history_size.value()
-            settings.batch_size = self._batch_size_slider.value
-            settings.diffusion_tile_size = self._diffusion_tile_size.value()
+            settings.batch_size = self._batch_size.value
+            settings.diffusion_tile_size = self._diffusion_tile_size.value
             settings.gpu_memory_preset = GPUMemoryPreset(self._gpu_memory_preset.currentIndex())
             settings.save()
 
@@ -502,9 +536,9 @@ class SettingsDialog(QDialog):
 
     def __init__(self, main_window: QMainWindow):
         super().__init__()
-        self.setMinimumSize(QSize(640, 480))
-        self.setMaximumSize(QSize(800, 2048))
-        self.resize(QSize(800, int(main_window.height() * 0.8)))
+        self.setMinimumSize(QSize(800, 480))
+        self.setMaximumSize(QSize(1000, 2048))
+        self.resize(QSize(900, int(main_window.height() * 0.8)))
         self.setWindowTitle("Configure Image Diffusion")
 
         layout = QHBoxLayout()

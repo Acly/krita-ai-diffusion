@@ -93,7 +93,7 @@ class HistoryWidget(QListWidget):
             header.setFlags(Qt.NoItemFlags)
             header.setData(Qt.UserRole, job.id)
             header.setData(Qt.ToolTipRole, job.prompt)
-            header.setSizeHint(QSize(500, self.fontMetrics().lineSpacing() + 4))
+            header.setSizeHint(QSize(800, self.fontMetrics().lineSpacing() + 4))
             header.setTextAlignment(Qt.AlignLeft)
             self.addItem(header)
 
