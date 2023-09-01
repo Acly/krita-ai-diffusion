@@ -1,6 +1,6 @@
 import pytest
-from ai_tools import Extent
-from ai_tools.util import compute_batch_size
+from ai_diffusion import Extent
+from ai_diffusion.util import compute_batch_size
 
 
 @pytest.mark.parametrize(

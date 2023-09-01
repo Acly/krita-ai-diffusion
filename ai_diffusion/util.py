@@ -5,6 +5,10 @@ from .image import Extent
 from .settings import settings
 
 
+def log_warning(message: str):
+    print("[krita-ai-diffusion]", message)
+
+
 def log_error(error: Exception):
     if isinstance(error, AssertionError):
         message = f"Error: Internal assertion failed [{error}]"

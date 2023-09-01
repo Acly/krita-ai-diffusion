@@ -1,8 +1,10 @@
+from typing import Optional
 from PyQt5.QtWidgets import (
     QVBoxLayout,
     QHBoxLayout,
     QDialog,
     QPushButton,
+    QFrame,
     QLabel,
     QListWidget,
     QListWidgetItem,
@@ -17,9 +19,21 @@ from PyQt5.QtWidgets import (
     QSlider,
     QWidget,
 )
-from PyQt5.QtCore import Qt, QSize, pyqtSignal
+from PyQt5.QtCore import Qt, QSize, QUrl, pyqtSignal
+from PyQt5.QtGui import QDesktopServices
+from krita import Krita
 
-from .. import Client, MissingResource, ResourceKind, Setting, Settings, settings, GPUMemoryPreset
+from .. import (
+    MissingResource,
+    ResourceKind,
+    Setting,
+    Settings,
+    settings,
+    Style,
+    Styles,
+    StyleSettings,
+    GPUMemoryPreset,
+)
 from .connection import Connection, ConnectionState
 from .model import Model
 
@@ -120,7 +134,9 @@ class ComboBoxSetting(SettingWidget):
     def __init__(self, setting: Setting, parent=None):
         super().__init__(setting, parent)
         self._combo = QComboBox(self)
-        self._combo.setMinimumWidth(100)
+        if setting.items:
+            self._combo.addItems(setting.items)
+        self._combo.setMinimumWidth(230)
         self._combo.currentIndexChanged.connect(self._change_value)
         self._layout.addWidget(self._combo, alignment=Qt.AlignRight)
 
@@ -141,6 +157,54 @@ class ComboBoxSetting(SettingWidget):
     @value.setter
     def value(self, v):
         self._combo.setCurrentText(v)
+
+
+class TextSetting(SettingWidget):
+    def __init__(self, setting: Setting, parent=None):
+        super().__init__(setting, parent)
+        self._edit = QLineEdit(self)
+        self._edit.setMinimumWidth(230)
+        self._edit.setMaximumWidth(300)
+        self._edit.textChanged.connect(self._change_value)
+        self._layout.addWidget(self._edit, alignment=Qt.AlignRight)
+
+    def _change_value(self):
+        self.value_changed.emit()
+
+    @property
+    def value(self):
+        return self._edit.text()
+
+    @value.setter
+    def value(self, v):
+        self._edit.setText(v)
+
+
+class LineEditSetting(QWidget):
+    value_changed = pyqtSignal()
+
+    def __init__(self, setting: Setting, parent=None):
+        super().__init__(parent)
+
+        layout = QVBoxLayout()
+        layout.setContentsMargins(0, 0, 0, 0)
+        self.setLayout(layout)
+        _add_header(layout, setting)
+
+        self._edit = QLineEdit(self)
+        self._edit.textChanged.connect(self._change_value)
+        layout.addWidget(self._edit)
+
+    def _change_value(self):
+        self.value_changed.emit()
+
+    @property
+    def value(self):
+        return self._edit.text()
+
+    @value.setter
+    def value(self, v):
+        self._edit.setText(v)
 
 
 class LoraList(QWidget):
@@ -192,9 +256,9 @@ class LoraList(QWidget):
             self._select.setCurrentText(v["name"])
             self._strength.setValue(int(v["strength"] * 100))
 
-    changed = pyqtSignal()
+    value_changed = pyqtSignal()
 
-    def __init__(self, parent=None):
+    def __init__(self, setting: Setting, parent=None):
         super().__init__(parent)
         self._loras = []
         self._items = []
@@ -204,9 +268,11 @@ class LoraList(QWidget):
         self._layout.setContentsMargins(0, 0, 0, 0)
         self.setLayout(self._layout)
 
+        _add_header(self._layout, setting)
+
         self._item_list = QVBoxLayout()
         self._item_list.setContentsMargins(0, 0, 0, 0)
-        self._layout.insertLayout(0, self._item_list)
+        self._layout.addLayout(self._item_list)
 
         self._add_button = QPushButton("Add", self)
         self._add_button.setMinimumWidth(100)
@@ -222,16 +288,16 @@ class LoraList(QWidget):
         item.removed.connect(self._remove_item)
         self._items.append(item)
         self._item_list.addWidget(item)
-        self.changed.emit()
+        self.value_changed.emit()
 
     def _remove_item(self, item: QWidget):
         self._items.remove(item)
         self._item_list.removeWidget(item)
         item.deleteLater()
-        self.changed.emit()
+        self.value_changed.emit()
 
     def _update_item(self):
-        self.changed.emit()
+        self.value_changed.emit()
 
     @property
     def names(self):
@@ -271,16 +337,61 @@ class SettingsWriteGuard:
         return self._locked
 
 
-class ConnectionSettings(QWidget):
-    def __init__(self):
+class SettingsTab(QWidget):
+    _write_guard: SettingsWriteGuard
+    _widgets: dict
+    _layout: QVBoxLayout
+
+    def __init__(self, title: str):
         super().__init__()
         self._write_guard = SettingsWriteGuard()
+        self._widgets = {}
 
-        layout = QVBoxLayout()
-        self.setLayout(layout)
-        _add_title(layout, "Server Configuration")
+        frame_layout = QVBoxLayout()
+        self.setLayout(frame_layout)
+        _add_title(frame_layout, title)
 
-        _add_header(layout, Settings._server_url)
+        inner = QWidget(self)
+        self._layout = QVBoxLayout()
+        inner.setLayout(self._layout)
+
+        scroll = QScrollArea(self)
+        scroll.setWidget(inner)
+        scroll.setWidgetResizable(True)
+        scroll.setFrameStyle(QFrame.NoFrame)
+        scroll.setHorizontalScrollBarPolicy(Qt.ScrollBarAlwaysOff)
+        frame_layout.addWidget(scroll)
+
+    def add(self, name: str, widget):
+        self._layout.addWidget(widget)
+        self._widgets[name] = widget
+        widget.value_changed.connect(self.write)
+
+    def _read(self):
+        pass
+
+    def read(self):
+        with self._write_guard:
+            for name, widget in self._widgets.items():
+                widget.value = getattr(settings, name)
+            self._read()
+
+    def _write(self):
+        pass
+
+    def write(self, *ignored):
+        if not self._write_guard:
+            for name, widget in self._widgets.items():
+                setattr(settings, name, widget.value)
+            self._write()
+            settings.save()
+
+
+class ConnectionSettings(SettingsTab):
+    def __init__(self):
+        super().__init__("Server Configuration")
+
+        _add_header(self._layout, Settings._server_url)
         server_layout = QHBoxLayout()
         self._server_url = QLineEdit(self)
         self._server_url.textChanged.connect(self.write)
@@ -288,28 +399,25 @@ class ConnectionSettings(QWidget):
         self._connect_button = QPushButton("Connect", self)
         self._connect_button.clicked.connect(Connection.instance().connect)
         server_layout.addWidget(self._connect_button)
-        layout.addLayout(server_layout)
+        self._layout.addLayout(server_layout)
 
         self._connection_status = QLabel(self)
         self._connection_status.setWordWrap(True)
         self._connection_status.setTextFormat(Qt.RichText)
         self._connection_status.setTextInteractionFlags(Qt.TextBrowserInteraction)
         self._connection_status.setOpenExternalLinks(True)
-        layout.addWidget(self._connection_status)
+        self._layout.addWidget(self._connection_status)
 
-        layout.addStretch()
+        self._layout.addStretch()
 
         Connection.instance().changed.connect(self._update_server_status)
         self._update_server_status()
 
-    def read(self):
-        with self._write_guard:
-            self._server_url.setText(settings.server_url)
+    def _read(self):
+        self._server_url.setText(settings.server_url)
 
-    def write(self, *ignored):
-        if not self._write_guard:
-            settings.server_url = self._server_url.text()
-            settings.save()
+    def _write(self):
+        settings.server_url = self._server_url.text()
 
     def _update_server_status(self):
         server = Connection.instance()
@@ -370,101 +478,124 @@ class ConnectionSettings(QWidget):
             )
 
 
-class DiffusionSettings(QWidget):
+class StylePresets(SettingsTab):
     def __init__(self):
-        super().__init__()
-        self._write_guard = SettingsWriteGuard()
-        self._widgets = {}
+        super().__init__("Style Presets")
 
-        frame_layout = QVBoxLayout()
-        self.setLayout(frame_layout)
-        _add_title(frame_layout, "Image Diffusion Settings")
+        frame = QFrame(self)
+        frame.setFrameStyle(QFrame.StyledPanel)
+        frame.setLineWidth(1)
+        frame_layout = QHBoxLayout()
+        frame.setLayout(frame_layout)
 
-        inner = QWidget(self)
-        layout = QVBoxLayout()
-        inner.setLayout(layout)
+        self._style_list = QComboBox(self)
+        self._populate_style_list()
+        self._style_list.currentIndexChanged.connect(self._change_style)
+        frame_layout.addWidget(self._style_list)
 
-        def add(name: str, widget):
-            layout.addWidget(widget)
-            self._widgets[name] = widget
+        self._refresh_button = QToolButton(self)
+        self._refresh_button.setIcon(Krita.instance().icon("reload-preset"))
+        self._refresh_button.clicked.connect(self._update_style_list)
+        frame_layout.addWidget(self._refresh_button)
+
+        self._open_folder_button = QToolButton(self)
+        self._open_folder_button.setIcon(Krita.instance().icon("document-open"))
+        self._open_folder_button.clicked.connect(self._open_folder)
+        frame_layout.addWidget(self._open_folder_button)
+
+        self._layout.addWidget(frame)
+
+        self._style_widgets = {}
+
+        def add(name: str, widget: QWidget):
+            self._style_widgets[name] = widget
+            self._layout.addWidget(widget)
             widget.value_changed.connect(self.write)
 
-        add("sd_checkpoint", ComboBoxSetting(Settings._sd_checkpoint, inner))
-
-        _add_header(layout, Settings._loras)
-        self._loras = LoraList(inner)
-        self._loras.changed.connect(self.write)
-        layout.addWidget(self._loras)
-
-        _add_header(layout, Settings._style_prompt)
-        self._style_prompt = QLineEdit(inner)
-        self._style_prompt.textChanged.connect(self.write)
-        layout.addWidget(self._style_prompt)
-
-        _add_header(layout, Settings._negative_prompt)
-        self._negative_prompt = QLineEdit(inner)
-        self._negative_prompt.textChanged.connect(self.write)
-        layout.addWidget(self._negative_prompt)
-
-        _add_header(layout, Settings._upscale_prompt)
-        self._upscale_prompt = QLineEdit(inner)
-        self._upscale_prompt.textChanged.connect(self.write)
-        layout.addWidget(self._upscale_prompt)
-
-        add("min_image_size", SpinBoxSetting(Settings._min_image_size, inner, 64, 2048, " px"))
-        add("max_image_size", SpinBoxSetting(Settings._max_image_size, inner, 64, 2048, " px"))
-        add("sampler", ComboBoxSetting(Settings._sampler, inner))
-        self._widgets["sampler"].set_items(["DDIM", "DPM++ 2M SDE", "DPM++ 2M SDE Karras"])
-        add("sampler_steps", SliderSetting(Settings._sampler_steps, inner, 1, 100))
+        add("name", TextSetting(StyleSettings.name, self))
+        add("sd_checkpoint", ComboBoxSetting(StyleSettings.sd_checkpoint, self))
+        add("loras", LoraList(StyleSettings.loras, self))
+        add("style_prompt", LineEditSetting(StyleSettings.style_prompt, self))
+        add("negative_prompt", LineEditSetting(StyleSettings.negative_prompt, self))
+        add("upscale_prompt", LineEditSetting(StyleSettings.upscale_prompt, self))
+        add("sampler", ComboBoxSetting(StyleSettings.sampler, self))
+        add("sampler_steps", SliderSetting(StyleSettings.sampler_steps, self, 1, 100))
         add(
             "sampler_steps_upscaling",
-            SliderSetting(Settings._sampler_steps_upscaling, inner, 1, 100),
+            SliderSetting(StyleSettings.sampler_steps_upscaling, self, 1, 100),
         )
-        add("cfg_scale", SliderSetting(Settings._cfg_scale, inner, 1, 20))
+        add("cfg_scale", SliderSetting(StyleSettings.cfg_scale, self, 1, 20))
+        self._layout.addStretch()
+        self._style_widgets["name"].value_changed.connect(self._update_name)
 
-        layout.addStretch()
+    @property
+    def current_style(self) -> Style:
+        return Styles.list()[self._style_list.currentIndex()]
 
-        scroll = QScrollArea(self)
-        scroll.setWidget(inner)
-        scroll.setWidgetResizable(True)
-        scroll.setFrameShape(QScrollArea.NoFrame)
-        frame_layout.addWidget(scroll)
+    @current_style.setter
+    def current_style(self, style: Style):
+        index = Styles.list().find(style.filename)[1]
+        if index >= 0:
+            self._style_list.setCurrentIndex(index)
+            self._read_style(style)
 
-    def read(self):
+    def _open_folder(self):
+        QDesktopServices.openUrl(QUrl.fromLocalFile(str(Styles.list().folder)))
+
+    def _populate_style_list(self):
+        self._style_list.addItems([f"{style.name} ({style.filename})" for style in Styles.list()])
+
+    def _update_style_list(self):
+        previous = None
+        if self._style_list.count() > 0:
+            previous = self._style_list.currentText()
+            self._style_list.clear()
+        Styles.list().reload()
+        self._populate_style_list()
+        if previous is not None:
+            self._style_list.setCurrentText(previous)
+
+    def _update_name(self):
+        index = self._style_list.currentIndex()
+        style = self.current_style
+        self._style_list.setItemText(index, f"{style.name} ({style.filename})")
+        Styles.list().name_changed.emit()
+
+    def _change_style(self):
+        self._read_style(self.current_style)
+
+    def _read_style(self, style: Style):
         with self._write_guard:
-            if Connection.instance().state == ConnectionState.connected:
-                client = Connection.instance().client
-                self._widgets["sd_checkpoint"].set_items(client.checkpoints)
-                self._loras.names = client.lora_models
+            for name, widget in self._style_widgets.items():
+                widget.value = getattr(style, name)
 
-            self._loras.value = settings.loras
-            self._style_prompt.setText(settings.style_prompt)
-            self._negative_prompt.setText(settings.negative_prompt)
-            self._upscale_prompt.setText(settings.upscale_prompt)
-            for name, widget in self._widgets.items():
-                widget.value = getattr(settings, name)
+    def _read(self):
+        if Connection.instance().state == ConnectionState.connected:
+            client = Connection.instance().client
+            self._style_widgets["sd_checkpoint"].set_items(client.checkpoints)
+            self._style_widgets["loras"].names = client.lora_models
+        self._read_style(self.current_style)
 
-    def write(self, *ignored):
-        if not self._write_guard:
-            settings.loras = self._loras.value
-            settings.style_prompt = self._style_prompt.text()
-            settings.negative_prompt = self._negative_prompt.text()
-            settings.upscale_prompt = self._upscale_prompt.text()
-            for name, widget in self._widgets.items():
-                setattr(settings, name, widget.value)
-            settings.save()
+    def _write(self):
+        style = self.current_style
+        for name, widget in self._style_widgets.items():
+            setattr(style, name, widget.value)
+        style.save()
 
 
-class PerformanceSettings(QWidget):
+class DiffusionSettings(SettingsTab):
     def __init__(self):
-        super().__init__()
-        self._write_guard = SettingsWriteGuard()
+        super().__init__("Image Diffusion Settings")
+        self.add("min_image_size", SpinBoxSetting(Settings._min_image_size, self, 64, 2048, " px"))
+        self.add("max_image_size", SpinBoxSetting(Settings._max_image_size, self, 64, 2048, " px"))
+        self._layout.addStretch()
 
-        layout = QVBoxLayout()
-        self.setLayout(layout)
-        _add_title(layout, "Performance Settings")
 
-        _add_header(layout, Settings._history_size)
+class PerformanceSettings(SettingsTab):
+    def __init__(self):
+        super().__init__("Performance Settings")
+
+        _add_header(self._layout, Settings._history_size)
         self._history_size = QSpinBox(self)
         self._history_size.setMinimum(8)
         self._history_size.setMaximum(1024 * 16)
@@ -476,19 +607,19 @@ class PerformanceSettings(QWidget):
         history_layout = QHBoxLayout()
         history_layout.addWidget(self._history_size)
         history_layout.addWidget(self._history_usage)
-        layout.addLayout(history_layout)
+        self._layout.addLayout(history_layout)
 
-        _add_header(layout, Settings._gpu_memory_preset)
+        _add_header(self._layout, Settings._gpu_memory_preset)
         self._gpu_memory_preset = QComboBox(self)
         for preset in GPUMemoryPreset:
             self._gpu_memory_preset.addItem(preset.text)
         self._gpu_memory_preset.currentIndexChanged.connect(self._change_gpu_memory_preset)
-        layout.addWidget(self._gpu_memory_preset, alignment=Qt.AlignLeft)
+        self._layout.addWidget(self._gpu_memory_preset, alignment=Qt.AlignLeft)
 
         self._advanced = QWidget(self)
         self._advanced.setEnabled(settings.gpu_memory_preset is GPUMemoryPreset.custom)
         self._advanced.setContentsMargins(0, 0, 0, 0)
-        layout.addWidget(self._advanced)
+        self._layout.addWidget(self._advanced)
         advanced_layout = QVBoxLayout()
         self._advanced.setLayout(advanced_layout)
 
@@ -502,7 +633,7 @@ class PerformanceSettings(QWidget):
         self._diffusion_tile_size.value_changed.connect(self.write)
         advanced_layout.addWidget(self._diffusion_tile_size)
 
-        layout.addStretch()
+        self._layout.addStretch()
 
     def _change_gpu_memory_preset(self, index):
         self.write()
@@ -511,31 +642,37 @@ class PerformanceSettings(QWidget):
         if not is_custom:
             self.read()
 
-    def read(self):
-        with self._write_guard:
-            memory_usage = Model.active().jobs.memory_usage
-            self._history_size.setValue(settings.history_size)
-            self._history_usage.setText(f"Currently using {memory_usage:.1f} MB")
-            self._batch_size.value = settings.batch_size
-            self._gpu_memory_preset.setCurrentIndex(settings.gpu_memory_preset.value)
-            self._diffusion_tile_size.value = settings.diffusion_tile_size
+    def _read(self):
+        memory_usage = Model.active().jobs.memory_usage
+        self._history_size.setValue(settings.history_size)
+        self._history_usage.setText(f"Currently using {memory_usage:.1f} MB")
+        self._batch_size.value = settings.batch_size
+        self._gpu_memory_preset.setCurrentIndex(settings.gpu_memory_preset.value)
+        self._diffusion_tile_size.value = settings.diffusion_tile_size
 
-    def write(self, *ignored):
-        if not self._write_guard:
-            settings.history_size = self._history_size.value()
-            settings.batch_size = self._batch_size.value
-            settings.diffusion_tile_size = self._diffusion_tile_size.value
-            settings.gpu_memory_preset = GPUMemoryPreset(self._gpu_memory_preset.currentIndex())
-            settings.save()
+    def _write(self):
+        settings.history_size = self._history_size.value()
+        settings.batch_size = self._batch_size.value
+        settings.diffusion_tile_size = self._diffusion_tile_size.value
+        settings.gpu_memory_preset = GPUMemoryPreset(self._gpu_memory_preset.currentIndex())
 
 
 class SettingsDialog(QDialog):
     _server: ConnectionSettings
+    _styles: StylePresets
     _diffusion: DiffusionSettings
     _performance: PerformanceSettings
+    _instance = None
+
+    @classmethod
+    def instance(Class):
+        assert Class._instance is not None
+        return Class._instance
 
     def __init__(self, main_window: QMainWindow):
         super().__init__()
+        type(self)._instance = self
+
         self.setMinimumSize(QSize(800, 480))
         self.setMaximumSize(QSize(1000, 2048))
         self.resize(QSize(900, int(main_window.height() * 0.8)))
@@ -552,6 +689,7 @@ class SettingsDialog(QDialog):
             item.setSizeHint(QSize(112, 20))
 
         create_list_item("Connection")
+        create_list_item("Styles")
         create_list_item("Diffusion")
         create_list_item("Performance")
         self._list.setCurrentRow(0)
@@ -563,9 +701,11 @@ class SettingsDialog(QDialog):
 
         self._stack = QStackedWidget(self)
         self._connection = ConnectionSettings()
+        self._styles = StylePresets()
         self._diffusion = DiffusionSettings()
         self._performance = PerformanceSettings()
         self._stack.addWidget(self._connection)
+        self._stack.addWidget(self._styles)
         self._stack.addWidget(self._diffusion)
         self._stack.addWidget(self._performance)
         inner.addWidget(self._stack)
@@ -585,6 +725,7 @@ class SettingsDialog(QDialog):
 
     def read(self):
         self._connection.read()
+        self._styles.read()
         self._diffusion.read()
         self._performance.read()
 
@@ -592,9 +733,12 @@ class SettingsDialog(QDialog):
         settings.restore()
         self.read()
 
-    def show(self):
+    def show(self, style: Optional[Style] = None):
         self.read()
         super().show()
+        if style:
+            self._list.setCurrentRow(1)
+            self._styles.current_style = style
         self._close_button.setFocus()
 
     def _change_page(self, index):

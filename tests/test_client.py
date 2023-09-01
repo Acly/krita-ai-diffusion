@@ -1,6 +1,6 @@
 import pytest
 
-from ai_tools import Client, ClientEvent, ComfyWorkflow, NetworkError, Image, Extent
+from ai_diffusion import Client, ClientEvent, ComfyWorkflow, NetworkError, Image, Extent
 
 default_checkpoint = "realisticVisionV51_v51VAE.safetensors"
 

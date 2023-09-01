@@ -8,8 +8,6 @@ from typing import NamedTuple, Optional, Union, Sequence
 from .comfyworkflow import ComfyWorkflow
 from .image import Image, ImageCollection
 from .network import RequestManager, NetworkError
-from .settings import settings
-from .util import compute_batch_size
 from .websockets.src import websockets
 
 
@@ -122,8 +120,6 @@ class Client:
         client.checkpoints = nodes["CheckpointLoaderSimple"]["input"]["required"]["ckpt_name"][0]
         if len(client.checkpoints) == 0:
             raise MissingResource(ResourceKind.checkpoint)
-        if settings.sd_checkpoint == "<No checkpoints found>":
-            settings.sd_checkpoint = client.checkpoints[0]
 
         # Retrieve LoRA models
         client.lora_models = nodes["LoraLoader"]["input"]["required"]["lora_name"][0]

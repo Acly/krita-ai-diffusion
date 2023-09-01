@@ -1,4 +1,5 @@
-from ai_tools import Settings, GPUMemoryPreset
+import json
+from ai_diffusion import Settings, Setting, Style, Styles, StyleSettings, GPUMemoryPreset
 from tempfile import TemporaryDirectory
 from pathlib import Path
 
@@ -12,15 +13,6 @@ def test_get_set():
     s.min_image_size = 5
     s.max_image_size = 99
     assert s.min_image_size == 5 and s.max_image_size == 99
-
-
-def test_upscaler_index():
-    s = Settings()
-    assert s.upscaler == Settings._upscaler.default
-    s.upscalers = ["A", Settings._upscaler.default, "B", "C"]
-    assert s.upscaler_index == 1
-    s.upscaler = "B"
-    assert s.upscaler_index == 2
 
 
 def test_restore():
@@ -54,4 +46,58 @@ def test_save():
 def test_gpu_memory_preset():
     s = Settings()
     s.gpu_memory_preset = GPUMemoryPreset.low
-    assert s.batch_size == 2 and s.vae_endoding_tile_size == 512 and s.diffusion_tile_size == 1024
+    assert s.batch_size == 2 and s.diffusion_tile_size == 1024
+
+
+def style_is_default(style):
+    return all(
+        [
+            getattr(style, name) == s.default
+            for name, s in StyleSettings.__dict__.items()
+            if isinstance(s, Setting) and name != "name"
+        ]
+    )
+
+
+def test_styles():
+    with TemporaryDirectory(dir=Path(__file__).parent) as dir:
+        style = Style(Path(dir) / "test_style.json")
+        style.name = "Test Style"
+        style.save()
+
+        styles = Styles(Path(dir))
+        assert len(styles) == 1
+        loaded_style = styles[0]
+        assert loaded_style.filename == style.filename
+        assert loaded_style.name == "Test Style"
+        assert styles.find(style.filename) == (loaded_style, 0)
+        assert styles.find(Path("nonexistent.json")) == (None, -1)
+        assert style_is_default(loaded_style)
+
+
+def test_bad_style_file():
+    with TemporaryDirectory(dir=Path(__file__).parent) as dir:
+        path = Path(dir) / "test_style.json"
+        path.write_text("bad json")
+        styles = Styles(Path(dir))
+        assert len(styles) == 1  # no error, default style inserted
+        assert style_is_default(styles[0])
+
+
+def test_bad_style_type():
+    with TemporaryDirectory(dir=Path(__file__).parent) as dir:
+        path = Path(dir) / "test_style.json"
+        path.write_text(json.dumps({"cfg_scale": "bad", "sampler": "bad", "style_prompt": -1}))
+        style = Style.load(path)
+        assert (
+            style.cfg_scale == StyleSettings.cfg_scale.default
+            and style.sampler == StyleSettings.sampler.default
+            and style.style_prompt == StyleSettings.style_prompt.default
+        )
+
+
+def test_default_style():
+    with TemporaryDirectory(dir=Path(__file__).parent) as dir:
+        styles = Styles(Path(dir))
+        style = styles.default
+        assert style_is_default(style)

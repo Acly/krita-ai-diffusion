@@ -18,11 +18,12 @@ class GPUMemoryPreset(Enum):
 
 
 class Setting:
-    def __init__(self, name: str, default, desc="", help=""):
+    def __init__(self, name: str, default, desc="", help="", items=None):
         self.name = name
         self.desc = desc
         self.default = default
         self.help = help
+        self.items = items
 
     def str_to_enum(self, s: str):
         assert isinstance(self.default, Enum)
@@ -48,41 +49,6 @@ class Settings:
         "URL used to connect to a running ComfyUI server. Default is 127.0.0.1:8188 (local).",
     )
 
-    _sd_checkpoint = Setting(
-        "Model Checkpoint",
-        "<No checkpoints found>",
-        "The Stable Diffusion checkpoint file",
-        (
-            "This has a large impact on which kind of content will"
-            " be generated. To install additional checkpoints, place them into"
-            " [ComfyUI]/models/checkpoints."
-        ),
-    )
-
-    _loras = Setting(
-        "LoRA",
-        [],
-        "Extensions to the checkpoint which influence generation based on additional training.",
-    )
-
-    _style_prompt = Setting(
-        "Style Prompt",
-        "best quality, highres",
-        "Keywords which are appended to all prompts. Can be used to influence style and quality.",
-    )
-
-    _negative_prompt = Setting(
-        "Negative Prompt",
-        "bad quality, low resolution, blurry",
-        "Textual description of things to avoid in generated images.",
-    )
-
-    _upscale_prompt = Setting(
-        "Upscale Prompt",
-        "8k uhd",
-        "Additional text which is used to extend the prompt when upscaling images.",
-    )
-
     _min_image_size = Setting(
         "Minimum Image Size",
         512,
@@ -103,26 +69,6 @@ class Settings:
             "configured here. If the resolution of the target area is higher, the results "
             "will be upscaled afterwards."
         ),
-    )
-
-    _sampler = Setting("Sampler", "DPM++ 2M SDE", "The sampling strategy and scheduler")
-
-    _sampler_steps = Setting(
-        "Sampler Steps",
-        20,
-        "Higher values can produce more refined results but take longer",
-    )
-
-    _sampler_steps_upscaling = Setting(
-        "Sampler Steps (Upscaling)",
-        15,
-        "Additional sampling steps to run when automatically upscaling images",
-    )
-
-    _cfg_scale = Setting(
-        "Guidance Strength (CFG Scale)",
-        7,
-        "Value which indicates how closely image generation follows the text prompt",
     )
 
     _history_size = Setting(
@@ -173,7 +119,7 @@ class Settings:
     }
 
     # Folder where intermediate images are stored for debug purposes (default: None)
-    debug_image_folder = os.environ.get("KRITA_AI_TOOLS_DEBUG_IMAGE")
+    debug_image_folder = os.environ.get("KRITA_ai_diffusion_DEBUG_IMAGE")
 
     def __init__(self):
         self.restore()

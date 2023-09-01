@@ -1,7 +1,7 @@
 import pytest
 from PyQt5.QtGui import QImage, qRgba
 from PyQt5.QtCore import QByteArray
-from ai_tools import image, Mask, Bounds, Extent, Image, ImageCollection
+from ai_diffusion import image, Mask, Bounds, Extent, Image, ImageCollection
 
 
 def create_test_image(w, h):

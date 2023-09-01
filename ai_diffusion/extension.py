@@ -17,7 +17,7 @@ class AIToolsExtension(Extension):
         Connection.instance().connect()
 
     def _create_action(self, window, name: str, func: Callable[[], None]):
-        action = window.createAction(f"ai_tools_{name}", "", "")
+        action = window.createAction(f"ai_diffusion_{name}", "", "")
         action.triggered.connect(func)
         self._actions[name] = action
 

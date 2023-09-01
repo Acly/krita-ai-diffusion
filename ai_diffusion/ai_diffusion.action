@@ -3,7 +3,7 @@
     <Actions category="Scripts">
         <text>AI Tools: Image Generation</text>
 
-        <Action name="ai_tools_generate">
+        <Action name="ai_diffusion_generate">
             <icon/>
             <text>Generate image</text>
             <whatsThis/>
@@ -15,7 +15,7 @@
             <isCheckable>false</isCheckable>
             <statusTip/>
         </Action>
-        <Action name="ai_tools_cancel">
+        <Action name="ai_diffusion_cancel">
             <icon/>
             <text>Cancel generation</text>
             <whatsThis/>
@@ -27,7 +27,7 @@
             <isCheckable>false</isCheckable>
             <statusTip/>
         </Action>
-        <Action name="ai_tools_apply">
+        <Action name="ai_diffusion_apply">
             <icon/>
             <text>Apply result</text>
             <whatsThis/>
@@ -39,7 +39,7 @@
             <isCheckable>false</isCheckable>
             <statusTip/>
         </Action>
-        <Action name="ai_tools_apply_multiple">
+        <Action name="ai_diffusion_apply_multiple">
             <icon/>
             <text>Apply result (multiple)</text>
             <whatsThis/>
@@ -51,7 +51,7 @@
             <isCheckable>false</isCheckable>
             <statusTip/>
         </Action>
-        <Action name="ai_tools_discard">
+        <Action name="ai_diffusion_discard">
             <icon/>
             <text>Discard results</text>
             <whatsThis/>
@@ -63,7 +63,7 @@
             <isCheckable>false</isCheckable>
             <statusTip/>
         </Action>
-        <Action name="ai_tools_settings">
+        <Action name="ai_diffusion_settings">
             <icon/>
             <text>Show Settings</text>
             <whatsThis/>

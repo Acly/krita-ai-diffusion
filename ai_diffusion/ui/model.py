@@ -16,6 +16,8 @@ from .. import (
     ImageCollection,
     workflow,
     NetworkError,
+    Style,
+    Styles,
     settings,
     util,
 )
@@ -112,6 +114,7 @@ class Model(QObject):
     job_finished = pyqtSignal(Job)
     progress_changed = pyqtSignal()
 
+    style: Style
     prompt = ""
     strength = 1.0
     progress = 0.0
@@ -122,6 +125,7 @@ class Model(QObject):
     def __init__(self, document: Document):
         super().__init__()
         self._doc = document
+        self.style = Styles.list().default
         self.jobs = JobQueue()
 
     @staticmethod
@@ -146,23 +150,23 @@ class Model(QObject):
         assert Connection.instance().state is ConnectionState.connected
 
         client = Connection.instance().client
-        prompt = self.prompt
+        style, prompt = self.style, self.prompt
         if not self.jobs.any_executing():
             self.progress = 0.0
             self.changed.emit()
 
         if image is None and mask is None:
             assert self.strength == 1
-            job = workflow.generate(bounds.extent, prompt)
+            job = workflow.generate(client, style, bounds.extent, prompt)
         elif mask is None and self.strength < 1:
             assert image is not None
-            job = workflow.refine(image, prompt, self.strength)
+            job = workflow.refine(client, style, image, prompt, self.strength)
         elif self.strength == 1:
             assert image is not None and mask is not None
-            job = workflow.inpaint(client, image, mask, self.prompt)
+            job = workflow.inpaint(client, style, image, mask, self.prompt)
         else:
             assert image is not None and mask is not None and self.strength < 1
-            job = workflow.refine_region(client, image, mask, prompt, self.strength)
+            job = workflow.refine_region(client, style, image, mask, prompt, self.strength)
 
         job_id = await client.enqueue(job)
         self.jobs.add(job_id, prompt, bounds)

@@ -1,5 +1,5 @@
 import pytest
-from ai_tools import (
+from ai_diffusion import (
     settings,
     workflow,
     ComfyWorkflow,
@@ -9,6 +9,7 @@ from ai_tools import (
     Image,
     Client,
     ClientEvent,
+    Style,
 )
 from pathlib import Path
 
@@ -28,10 +29,16 @@ def clear_results():
 
 @pytest.fixture()
 def comfy(qtapp):
-    client = qtapp.run(Client.connect())
-    if default_checkpoint in client.checkpoints:
-        settings.sd_checkpoint = default_checkpoint
-    return client
+    return qtapp.run(Client.connect())
+
+
+@pytest.fixture()
+def default_style(comfy):
+    style = Style(Path("default.json"))
+    style.sd_checkpoint = (
+        default_checkpoint if default_checkpoint in comfy.checkpoints else comfy.checkpoints[0]
+    )
+    return style
 
 
 async def receive_images(comfy, workflow: ComfyWorkflow):
@@ -140,11 +147,11 @@ def test_prepare_no_downscale():
 
 
 @pytest.mark.parametrize("extent", [Extent(256, 256), Extent(512, 1024)])
-def test_generate(qtapp, comfy, temp_settings, extent):
+def test_generate(qtapp, comfy, default_style, temp_settings, extent):
     temp_settings.batch_size = 1
 
     async def main():
-        job = workflow.generate(extent, "ship")
+        job = workflow.generate(comfy, default_style, extent, "ship")
         results = await receive_images(comfy, job)
         results[0].save(result_dir / f"test_generate_{extent.width}x{extent.height}.png")
         assert results[0].extent == extent
@@ -152,14 +159,14 @@ def test_generate(qtapp, comfy, temp_settings, extent):
     qtapp.run(main())
 
 
-def test_inpaint(qtapp, comfy, temp_settings):
+def test_inpaint(qtapp, comfy, default_style, temp_settings):
     temp_settings.batch_size = 3  # max 3 images@512x512 -> 2 images@768x512
     image = Image.load(image_dir / "beach_768x512.png")
     mask = Mask.rectangle(Bounds(50, 100, 320, 200), feather=10)
 
     async def main():
         index = 0
-        job = workflow.inpaint(comfy, image, mask, "ship")
+        job = workflow.inpaint(comfy, default_style, image, mask, "ship")
         results = await receive_images(comfy, job)
         assert len(results) == 2
         for i, result in enumerate(results):
@@ -169,13 +176,13 @@ def test_inpaint(qtapp, comfy, temp_settings):
     qtapp.run(main())
 
 
-def test_inpaint_upscale(qtapp, comfy, temp_settings):
+def test_inpaint_upscale(qtapp, comfy, default_style, temp_settings):
     temp_settings.batch_size = 3  # max 3 images@512x512 -> 2 images@768x512
     image = Image.load(image_dir / "beach_1536x1024.png")
     mask = Mask.rectangle(Bounds(600, 200, 768, 512), feather=10)
 
     async def main():
-        job = workflow.inpaint(comfy, image, mask, "ship")
+        job = workflow.inpaint(comfy, default_style, image, mask, "ship")
         results = await receive_images(comfy, job)
         assert len(results) == 2
         for i, result in enumerate(results):
@@ -185,13 +192,13 @@ def test_inpaint_upscale(qtapp, comfy, temp_settings):
     qtapp.run(main())
 
 
-def test_refine(qtapp, comfy, temp_settings):
+def test_refine(qtapp, comfy, default_style, temp_settings):
     temp_settings.batch_size = 1
     image = Image.load(image_dir / "beach_768x512.png")
     prompt = "in the style of vermeer, van gogh"
 
     async def main():
-        job = workflow.refine(image, prompt, 0.5)
+        job = workflow.refine(comfy, default_style, image, prompt, 0.5)
         results = await receive_images(comfy, job)
         results[0].save(result_dir / "test_refine.png")
         assert results[0].extent == image.extent
@@ -199,13 +206,13 @@ def test_refine(qtapp, comfy, temp_settings):
     qtapp.run(main())
 
 
-def test_refine_region(qtapp, comfy, temp_settings):
+def test_refine_region(qtapp, comfy, default_style, temp_settings):
     temp_settings.batch_size = 1
     image = Image.load(image_dir / "lake_1536x1024.png")
     mask = Mask.rectangle(Bounds(760, 240, 528, 376), feather=16)
 
     async def main():
-        job = workflow.refine_region(comfy, image, mask, "waterfall", 0.5)
+        job = workflow.refine_region(comfy, default_style, image, mask, "waterfall", 0.5)
         results = await receive_images(comfy, job)
         results[0].save(result_dir / "test_refine_region.png")
         assert results[0].extent == mask.bounds.extent

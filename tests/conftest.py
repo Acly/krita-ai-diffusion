@@ -6,8 +6,8 @@ from PyQt5.QtCore import QCoreApplication
 root_dir = Path(__file__).parent.parent
 sys.path.append(str(root_dir))
 
-from ai_tools import eventloop
-from ai_tools.settings import settings, Settings
+from ai_diffusion import eventloop
+from ai_diffusion.settings import settings, Settings
 
 
 class QtTestApp:

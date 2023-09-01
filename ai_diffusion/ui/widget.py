@@ -10,7 +10,6 @@ from PyQt5.QtWidgets import (
     QPlainTextEdit,
     QLabel,
     QProgressBar,
-    QGridLayout,
     QSizePolicy,
     QListWidget,
     QListView,
@@ -19,6 +18,7 @@ from PyQt5.QtWidgets import (
     QSpinBox,
     QStackedWidget,
     QToolButton,
+    QComboBox,
     QHBoxLayout,
     QVBoxLayout,
 )
@@ -26,8 +26,8 @@ from PyQt5.QtGui import QFontMetrics, QGuiApplication, QIcon
 from PyQt5.QtCore import Qt, QSize, pyqtSignal
 from krita import Krita, DockWidget
 
-from .. import Client
-from . import actions
+from .. import Client, Style, Styles
+from . import actions, SettingsDialog
 from .model import Model, ModelRegistry, Job, JobQueue, State
 from .connection import Connection, ConnectionState
 
@@ -136,6 +136,22 @@ class GenerationWidget(QWidget):
         layout = QVBoxLayout(self)
         self.setLayout(layout)
 
+        self.style_select = QComboBox(self)
+        self.style_select.addItems([style.name for style in Styles.list()])
+        self.style_select.currentIndexChanged.connect(self.change_style)
+        Styles.list().changed.connect(self.update_styles)
+        Styles.list().name_changed.connect(self.update_styles)
+
+        self.settings_button = QToolButton(self)
+        self.settings_button.setIcon(QIcon(str(_icon_path / "settings.svg")))
+        self.settings_button.setAutoRaise(True)
+        self.settings_button.clicked.connect(self.show_settings)
+
+        style_layout = QHBoxLayout()
+        style_layout.addWidget(self.style_select)
+        style_layout.addWidget(self.settings_button)
+        layout.addLayout(style_layout)
+
         self.prompt_textbox = QPlainTextEdit(self)
         self.prompt_textbox.setHorizontalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAlwaysOff)
         self.prompt_textbox.setVerticalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAlwaysOff)
@@ -175,15 +191,9 @@ class GenerationWidget(QWidget):
 
         self.queue_button = QueueWidget(self)
 
-        self.settings_button = QToolButton(self)
-        self.settings_button.setIcon(QIcon(str(_icon_path / "settings.svg")))
-        self.settings_button.setStyleSheet("border: none")
-        self.settings_button.clicked.connect(self.show_settings)
-
         actions_layout = QHBoxLayout()
         actions_layout.addWidget(self.generate_button)
         actions_layout.addWidget(self.queue_button)
-        actions_layout.addWidget(self.settings_button)
         layout.addLayout(actions_layout)
 
         self.progress_bar = QProgressBar(self)
@@ -243,6 +253,15 @@ class GenerationWidget(QWidget):
         self.model.cancel()
         self.update()
 
+    def update_styles(self):
+        self.style_select.clear()
+        self.style_select.addItems([style.name for style in Styles.list()])
+        self.style_select.setCurrentText(self.model.style.name)
+
+    def change_style(self, index: int):
+        style = Styles.list()[index]
+        self.model.style = style
+
     def change_prompt(self):
         self.model.prompt = self.prompt_textbox.toPlainText()
 
@@ -254,7 +273,7 @@ class GenerationWidget(QWidget):
             self.strength_slider.setValue(value)
 
     def show_settings(self):
-        Krita.instance().action("ai_tools_settings").trigger()
+        SettingsDialog.instance().show(self.model.style)
 
     def show_preview(self, current: Optional[QListWidgetItem], previous):
         if current:
@@ -319,7 +338,7 @@ class WelcomeWidget(QWidget):
             self._connect_error.setVisible(False)
 
     def show_settings(self):
-        Krita.instance().action("ai_tools_settings").trigger()
+        Krita.instance().action("ai_diffusion_settings").trigger()
 
 
 class ImageDiffusionWidget(DockWidget):
