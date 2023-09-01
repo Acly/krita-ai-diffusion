@@ -5,3 +5,5 @@
 __pycache__
 tests/.results
 settings.json
+ai_diffusion/styles/violet*
+TODO.md
