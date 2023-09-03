@@ -231,6 +231,7 @@ class GenerationWidget(QWidget):
 
     def update(self):
         model = self.model
+        self.style_select.setCurrentText(model.style.name)
         self.prompt_textbox.setPlainText(model.prompt)
         self.strength_input.setValue(int(model.strength * 100))
         self.error_text.setText(model.error)
@@ -254,9 +255,15 @@ class GenerationWidget(QWidget):
         self.update()
 
     def update_styles(self):
+        self.style_select.blockSignals(True)
         self.style_select.clear()
         self.style_select.addItems([style.name for style in Styles.list()])
-        self.style_select.setCurrentText(self.model.style.name)
+        if self.model.style in Styles.list():
+            self.style_select.setCurrentText(self.model.style.name)
+        else:
+            self.model.style = Styles.list()[0]
+            self.style_select.setCurrentIndex(0)
+        self.style_select.blockSignals(False)
 
     def change_style(self, index: int):
         style = Styles.list()[index]
