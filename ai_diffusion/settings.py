@@ -4,6 +4,11 @@ from enum import Enum
 from pathlib import Path
 
 
+class ServerMode(Enum):
+    managed = 0
+    external = 1
+
+
 class GPUMemoryPreset(Enum):
     custom = 0
     low = 1
@@ -42,6 +47,10 @@ def encode_json(obj):
 
 class Settings:
     default_path = Path(__file__).parent / "settings.json"
+
+    _server_mode = Setting("Server Mode", ServerMode.managed)
+
+    _server_path = Setting("Server Path", ".server", "Folder where ComfyUI is installed")
 
     _server_url = Setting(
         "Server URL",

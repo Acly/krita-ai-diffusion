@@ -9,6 +9,8 @@ from .comfyworkflow import ComfyWorkflow
 from .image import Image, ImageCollection
 from .network import RequestManager, NetworkError
 from .websockets.src import websockets
+from .server import MissingResource, ResourceKind
+from . import server
 
 
 class ClientEvent(Enum):
@@ -57,26 +59,6 @@ class Progress:
         return 0.2 * node_part + 0.8 * sample_part
 
 
-class ResourceKind(Enum):
-    checkpoint = "SD Checkpoint"
-    controlnet = "ControlNet model"
-    clip_vision = "CLIP Vision model"
-    ip_adapter = "IP-Adapter model"
-    node = "custom node"
-
-
-class MissingResource(Exception):
-    kind: ResourceKind
-    names: Optional[Sequence[str]]
-
-    def __init__(self, kind: ResourceKind, names: Optional[Sequence[str]] = None):
-        self.kind = kind
-        self.names = names
-
-    def __str__(self):
-        return f"Missing {self.kind.value}: {', '.join(self.names)}"
-
-
 class Client:
     """HTTP/WebSocket client which sends requests to and listens to messages from a ComfyUI server."""
 
@@ -109,9 +91,9 @@ class Client:
         # Check custom nodes
         nodes = await client._get("object_info")
         missing = [
-            package
-            for package, package_nodes in ComfyWorkflow.required_custom_nodes.items()
-            if any(node not in nodes for node in package_nodes)
+            package.name
+            for package in server.required_custom_nodes
+            if any(node not in nodes for node in package.nodes)
         ]
         if len(missing) > 0:
             raise MissingResource(ResourceKind.node, missing)

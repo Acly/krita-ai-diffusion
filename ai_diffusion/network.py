@@ -1,7 +1,8 @@
 import asyncio
 import json
+from pathlib import Path
 from typing import NamedTuple, Callable
-from PyQt5.QtCore import QByteArray, QUrl
+from PyQt5.QtCore import QByteArray, QUrl, QFile
 from PyQt5.QtNetwork import QNetworkAccessManager, QNetworkRequest, QNetworkReply
 
 
@@ -103,3 +104,46 @@ class RequestManager:
         self._requests = {
             reply: request for reply, request in self._requests.items() if not reply.isFinished()
         }
+
+
+async def download(network: QNetworkAccessManager, url: str, path: Path):
+    request = QNetworkRequest(QUrl(url))
+    request.setAttribute(QNetworkRequest.FollowRedirectsAttribute, True)
+    reply = network.get(request)
+
+    out_file = QFile(str(path))
+    if not out_file.open(QFile.WriteOnly):
+        raise Exception(f"Error during download: could not open {path} for writing")
+    progress_future = asyncio.get_running_loop().create_future()
+    finished_future = asyncio.get_running_loop().create_future()
+
+    def handle_progress(bytes_received, bytes_total):
+        out_file.write(reply.readAll())
+        if not progress_future.done():
+            p = bytes_received / bytes_total if bytes_total > 0 else -1
+            progress_future.set_result(p)
+
+    def handle_finished():
+        out_file.write(reply.readAll())
+        out_file.close()
+        if finished_future.cancelled():
+            return  # operation was cancelled, discard result
+        if reply.error() == QNetworkReply.NoError:
+            finished_future.set_result(path)
+        else:
+            finished_future.set_exception(NetworkError.from_reply(reply))
+
+    reply.downloadProgress.connect(handle_progress)
+    reply.finished.connect(handle_finished)
+
+    while not reply.isFinished():
+        await asyncio.wait([progress_future, finished_future], return_when=asyncio.FIRST_COMPLETED)
+        if progress_future.done():
+            progress = progress_future.result()
+            progress_future = asyncio.get_running_loop().create_future()
+            yield progress
+
+    if finished_future.exception() is not None:
+        out_file.remove()
+        raise finished_future.exception()
+    yield 1.0

@@ -14,20 +14,6 @@ class Output(NamedTuple):
 class ComfyWorkflow:
     """Builder for workflows which can be sent to the ComfyUI prompt API."""
 
-    required_custom_nodes = {
-        "ControlNet Preprocessors|https://github.com/Fannovel16/comfyui_controlnet_aux": [
-            "InpaintPreprocessor"
-        ],
-        "IP-Adapter|https://github.com/laksjdjf/IPAdapter-ComfyUI": ["IPAdapter"],
-        "External Tooling Nodes|https://github.com/Acly/comfyui-tooling-nodes": [
-            "ETN_LoadImageBase64",
-            "ETN_LoadMaskBase64",
-            "ETN_SendImageWebSocket",
-            "ETN_CropImage",
-            "ETN_ApplyMaskToImage",
-        ],
-    }
-
     node_count = 0
     sample_count = 0
 

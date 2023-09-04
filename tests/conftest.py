@@ -10,6 +10,10 @@ from ai_diffusion import eventloop
 from ai_diffusion.settings import settings, Settings
 
 
+def pytest_addoption(parser):
+    parser.addoption("--test-install", action="store_true")
+
+
 class QtTestApp:
     def __init__(self):
         self._app = QCoreApplication([])

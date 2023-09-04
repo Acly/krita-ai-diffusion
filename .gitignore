@@ -4,6 +4,7 @@
 .vscode
 __pycache__
 tests/.results
+tests/.server
 settings.json
 ai_diffusion/styles/violet*
 TODO.md
