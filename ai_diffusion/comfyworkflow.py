@@ -84,9 +84,6 @@ class ComfyWorkflow:
     def clip_text_encode(self, clip, text):
         return self.add("CLIPTextEncode", 1, clip=clip, text=text)
 
-    def clip_vision_encode(self, clip_vision, image):
-        return self.add("CLIPVisionEncode", 1, clip_vision=clip_vision, image=image)
-
     def apply_controlnet(self, conditioning, controlnet, image):
         return self.add(
             "ControlNetApply",
@@ -97,13 +94,15 @@ class ComfyWorkflow:
             strength=1.0,
         )
 
-    def ip_adapter(self, model_name, model, clip_vision, weight, dtype="fp16"):
+    def ip_adapter(self, model_name, model, clip_vision, image, mask, weight, dtype="fp16"):
         return self.add(
             "IPAdapter",
             1,
             model_name=model_name,
             model=model,
-            clip_vision_output=clip_vision,
+            clip_vision=clip_vision,
+            image=image,
+            mask=mask,
             weight=weight,
             dtype=dtype,
         )

@@ -165,7 +165,6 @@ def test_inpaint(qtapp, comfy, default_style, temp_settings):
     mask = Mask.rectangle(Bounds(50, 100, 320, 200), feather=10)
 
     async def main():
-        index = 0
         job = workflow.inpaint(comfy, default_style, image, mask, "ship")
         results = await receive_images(comfy, job)
         assert len(results) == 2
