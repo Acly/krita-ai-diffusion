@@ -1,10 +1,11 @@
 .debug
 .env
+.logs
 .pytest_cache
+.server
 .vscode
 __pycache__
 tests/.results
-tests/.server
 settings.json
 ai_diffusion/styles/violet*
 TODO.md

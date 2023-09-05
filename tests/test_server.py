@@ -45,14 +45,15 @@ def test_install_and_run(qtapp, pytestconfig):
         ServerState.missing_resources,
     ]
 
-    def log(msg):
-        print(msg)
+    def handle_progress(report):
+        assert report.progress == -1 or report.progress >= 0 and report.progress <= 1
+        assert report.stage != ""
 
     async def main():
-        await server.install(log)
+        await server.install(handle_progress)
         assert server.state is ServerState.stopped
 
-        url = await server.start(log)
+        url = await server.start()
         assert server.state is ServerState.running
         assert url == "127.0.0.1:8188"
 
@@ -70,11 +71,8 @@ def test_run_external(qtapp):
     server.backend = ServerBackend.cpu
     assert server.state in [ServerState.stopped, ServerState.missing_resources]
 
-    def log(msg):
-        print(msg)
-
     async def main():
-        url = await server.start(log)
+        url = await server.start()
         assert server.state is ServerState.running
         assert url == "127.0.0.1:8188"
 

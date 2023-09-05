@@ -255,6 +255,8 @@ class GenerationWidget(QWidget):
         self.update()
 
     def update_styles(self):
+        if not self._model:
+            return
         self.style_select.blockSignals(True)
         self.style_select.clear()
         self.style_select.addItems([style.name for style in Styles.list()])

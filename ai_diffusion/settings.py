@@ -5,8 +5,14 @@ from pathlib import Path
 
 
 class ServerMode(Enum):
+    undefined = -1
     managed = 0
     external = 1
+
+
+class ServerBackend(Enum):
+    cpu = "cpu"
+    cuda = "cuda"
 
 
 class GPUMemoryPreset(Enum):
@@ -48,15 +54,28 @@ def encode_json(obj):
 class Settings:
     default_path = Path(__file__).parent / "settings.json"
 
-    _server_mode = Setting("Server Mode", ServerMode.managed)
+    _server_mode = Setting(
+        "Server Management",
+        ServerMode.undefined,
+        "To generate images, the plugin connects to a ComfyUI server",
+    )
 
-    _server_path = Setting("Server Path", ".server", "Folder where ComfyUI is installed")
+    _server_path = Setting(
+        "Server Path",
+        str(Path(__file__).parent / ".server"),
+        (
+            "Directory where ComfyUI is installed. At least 10GB of free disk space are required"
+            " for a full installation."
+        ),
+    )
 
     _server_url = Setting(
         "Server URL",
         "127.0.0.1:8188",
         "URL used to connect to a running ComfyUI server. Default is 127.0.0.1:8188 (local).",
     )
+
+    _server_backend = Setting("Server Backend", ServerBackend.cuda)
 
     _min_image_size = Setting(
         "Minimum Image Size",
@@ -150,7 +169,6 @@ class Settings:
         self.__dict__["_values"] = {
             k[1:]: v.default for k, v in Settings.__dict__.items() if isinstance(v, Setting)
         }
-        self.save()
 
     def save(self, path: Path = ...):
         path = self.default_path if path is ... else path

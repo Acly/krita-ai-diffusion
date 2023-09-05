@@ -111,7 +111,7 @@ async def download(network: QNetworkAccessManager, url: str, path: Path):
     request.setAttribute(QNetworkRequest.FollowRedirectsAttribute, True)
     reply = network.get(request)
 
-    out_file = QFile(str(path))
+    out_file = QFile(str(path) + ".part")
     if not out_file.open(QFile.WriteOnly):
         raise Exception(f"Error during download: could not open {path} for writing")
     progress_future = asyncio.get_running_loop().create_future()
@@ -146,4 +146,6 @@ async def download(network: QNetworkAccessManager, url: str, path: Path):
     if finished_future.exception() is not None:
         out_file.remove()
         raise finished_future.exception()
+
+    out_file.rename(str(path))
     yield 1.0

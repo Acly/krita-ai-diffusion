@@ -14,6 +14,7 @@ from PyQt5.QtWidgets import (
     QSizePolicy,
     QSpinBox,
     QStackedWidget,
+    QRadioButton,
     QToolButton,
     QComboBox,
     QSlider,
@@ -29,6 +30,8 @@ from .. import (
     Setting,
     Settings,
     settings,
+    Server,
+    ServerMode,
     Style,
     Styles,
     StyleSettings,
@@ -36,6 +39,7 @@ from .. import (
 )
 from .connection import Connection, ConnectionState
 from .model import Model
+from .server import ServerWidget
 
 
 def _add_title(layout: QVBoxLayout, title: str):
@@ -388,36 +392,82 @@ class SettingsTab(QWidget):
 
 
 class ConnectionSettings(SettingsTab):
-    def __init__(self):
+    def __init__(self, server: Server):
         super().__init__("Server Configuration")
 
-        _add_header(self._layout, Settings._server_url)
+        _add_header(self._layout, Settings._server_mode)
+        self._server_managed = QRadioButton("Local server managed by Krita plugin", self)
+        self._server_external = QRadioButton("Connect to external Server (local or remote)", self)
+        self._server_managed.toggled.connect(self._change_server_mode)
+        info_managed = QLabel(
+            "Let the Krita plugin install and manage a local server on your machine", self
+        )
+        info_external = QLabel("You are responsible to set up and start the server yourself", self)
+        for button in (self._server_managed, self._server_external):
+            button.setStyleSheet("font-weight:bold")
+        for label in (info_managed, info_external):
+            label.setContentsMargins(20, 0, 0, 0)
+
+        self._server_widget = ServerWidget(server, self)
+        self._connection_widget = QWidget(self)
+        self._server_stack = QStackedWidget(self)
+        self._server_stack.addWidget(self._server_widget)
+        self._server_stack.addWidget(self._connection_widget)
+
+        connection_layout = QVBoxLayout()
+        self._connection_widget.setLayout(connection_layout)
+
+        _add_header(connection_layout, Settings._server_url)
         server_layout = QHBoxLayout()
-        self._server_url = QLineEdit(self)
+        self._server_url = QLineEdit(self._connection_widget)
         self._server_url.textChanged.connect(self.write)
         server_layout.addWidget(self._server_url)
-        self._connect_button = QPushButton("Connect", self)
+        self._connect_button = QPushButton("Connect", self._connection_widget)
         self._connect_button.clicked.connect(Connection.instance().connect)
         server_layout.addWidget(self._connect_button)
-        self._layout.addLayout(server_layout)
+        connection_layout.addLayout(server_layout)
 
-        self._connection_status = QLabel(self)
+        self._connection_status = QLabel(self._connection_widget)
         self._connection_status.setWordWrap(True)
         self._connection_status.setTextFormat(Qt.RichText)
         self._connection_status.setTextInteractionFlags(Qt.TextBrowserInteraction)
         self._connection_status.setOpenExternalLinks(True)
-        self._layout.addWidget(self._connection_status)
+        connection_layout.addWidget(self._connection_status)
+        connection_layout.addStretch()
 
-        self._layout.addStretch()
+        self._layout.addWidget(self._server_managed)
+        self._layout.addWidget(info_managed)
+        self._layout.addWidget(self._server_external)
+        self._layout.addWidget(info_external)
+        self._layout.addWidget(self._server_stack)
 
         Connection.instance().changed.connect(self._update_server_status)
         self._update_server_status()
 
+    @property
+    def server_mode(self):
+        return ServerMode.managed if self._server_managed.isChecked() else ServerMode.external
+
+    @server_mode.setter
+    def server_mode(self, mode: ServerMode):
+        if self.server_mode != mode:
+            self._server_managed.setChecked(mode is ServerMode.managed)
+            self._server_external.setChecked(mode is ServerMode.external)
+        self._server_stack.setCurrentWidget(
+            self._server_widget if mode is ServerMode.managed else self._connection_widget
+        )
+
     def _read(self):
+        self.server_mode = settings.server_mode
         self._server_url.setText(settings.server_url)
 
     def _write(self):
+        settings.server_mode = self.server_mode
         settings.server_url = self._server_url.text()
+
+    def _change_server_mode(self, checked: bool):
+        self.server_mode = ServerMode.managed if checked else ServerMode.external
+        self.write()
 
     def _update_server_status(self):
         server = Connection.instance()
@@ -669,7 +719,7 @@ class SettingsDialog(QDialog):
         assert Class._instance is not None
         return Class._instance
 
-    def __init__(self, main_window: QMainWindow):
+    def __init__(self, main_window: QMainWindow, server: Server):
         super().__init__()
         type(self)._instance = self
 
@@ -700,7 +750,7 @@ class SettingsDialog(QDialog):
         layout.addLayout(inner)
 
         self._stack = QStackedWidget(self)
-        self._connection = ConnectionSettings()
+        self._connection = ConnectionSettings(server)
         self._styles = StylePresets()
         self._diffusion = DiffusionSettings()
         self._performance = PerformanceSettings()
@@ -731,6 +781,7 @@ class SettingsDialog(QDialog):
 
     def restore_defaults(self):
         settings.restore()
+        settings.save()
         self.read()
 
     def show(self, style: Optional[Style] = None):

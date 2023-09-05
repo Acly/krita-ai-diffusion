@@ -7,8 +7,9 @@ from typing import Callable, List, NamedTuple, Optional, Sequence
 from zipfile import ZipFile
 from PyQt5.QtNetwork import QNetworkAccessManager
 
-from .settings import settings
+from .settings import settings, ServerBackend
 from .network import download
+from .util import server_logger as log
 
 
 class CustomNode(NamedTuple):
@@ -19,7 +20,7 @@ class CustomNode(NamedTuple):
 
 
 class ResourceKind(Enum):
-    checkpoint = "SD Checkpoint"
+    checkpoint = "Stable Diffusion Checkpoint"
     controlnet = "ControlNet model"
     clip_vision = "CLIP Vision model"
     ip_adapter = "IP-Adapter model"
@@ -71,14 +72,14 @@ required_models = [
         "https://huggingface.co/comfyanonymous/ControlNet-v1-1_fp16_safetensors/resolve/main/control_v11p_sd15_inpaint_fp16.safetensors",
     ),
     ModelResource(
-        "CLIP Vision",
+        "CLIP Vision model",
         ResourceKind.clip_vision,
         Path("models/clip_vision/SD1.5"),
         "pytorch_model.bin",
         "https://huggingface.co/h94/IP-Adapter/resolve/main/models/image_encoder/pytorch_model.bin",
     ),
     ModelResource(
-        "IP-Adapter",
+        "IP-Adapter model",
         ResourceKind.ip_adapter,
         Path("custom_nodes/IPAdapter-ComfyUI/models"),
         "ip-adapter_sd15.bin",
@@ -116,21 +117,14 @@ class MissingResource(Exception):
         return f"Missing {self.kind.value}: {', '.join(self.names)}"
 
 
-_all_resources = [
-    MissingResource(ResourceKind.node, [n.name for n in required_custom_nodes]),
-    MissingResource(ResourceKind.controlnet),
-    MissingResource(ResourceKind.clip_vision),
-    MissingResource(ResourceKind.ip_adapter),
-    MissingResource(ResourceKind.checkpoint, [n.name for n in default_checkpoints]),
-]
+_all_resources = (
+    [n.name for n in required_custom_nodes]
+    + [m.name for m in required_models]
+    + [c.name for c in default_checkpoints]
+)
 
 _is_windows = "win" in sys.platform
 _exe = ".exe" if _is_windows else ""
-
-
-class ServerBackend(Enum):
-    cpu = "cpu"
-    cuda = "cuda"
 
 
 class ServerState(Enum):
@@ -141,31 +135,30 @@ class ServerState(Enum):
     stopped = 4
     starting = 5
     running = 6
-    error = 7
 
 
 class InstallationProgress(NamedTuple):
     stage: str
-    message: str = ""
     progress: float = -1
 
 
 Callback = Callable[[InstallationProgress], None]
+InternalCB = Callable[[str, str, float], None]
 
 
 class Server:
     path: Path
-    url: str
+    url: Optional[str] = None
     backend = ServerBackend.cuda
     state = ServerState.stopped
-    missing_resources: List[MissingResource]
+    missing_resources: List[str]
 
-    _python_cmd: Optional[str]
-    _pip_cmd: Optional[str]
-    _comfy_dir: Optional[Path]
-    _cache_dir: Optional[Path]
-    _process: Optional[asyncio.subprocess.Process]
-    _task: Optional[asyncio.Task]
+    _python_cmd: Optional[str] = None
+    _pip_cmd: Optional[str] = None
+    _comfy_dir: Optional[Path] = None
+    _cache_dir: Optional[Path] = None
+    _process: Optional[asyncio.subprocess.Process] = None
+    _task: Optional[asyncio.Task] = None
 
     def __init__(self, path: str = None):
         self.path = Path(path or settings.server_path)
@@ -175,71 +168,73 @@ class Server:
 
     def check_install(self):
         self.missing_resources = []
-
         self._cache_dir = self.path / ".cache"
+
         comfy_pkg = ["main.py", "nodes.py", "custom_nodes"]
         self._comfy_dir = _find_component(comfy_pkg, [self.path, self.path / "ComfyUI"])
+
+        python_pkg = ["python3.dll", "python.exe"] if _is_windows else ["python", "python.so"]
+        python_search_paths = [self.path / "python"]
+        if self._comfy_dir:
+            python_search_paths += [self._comfy_dir / "python", self._comfy_dir.parent / "python"]
+        python_path = _find_component(python_pkg, python_search_paths)
+        if python_path is None:
+            self._python_cmd = _find_program("python")
+            self._pip_cmd = _find_program("pip")
+        else:
+            self._python_cmd = python_path / f"python{_exe}"
+            self._pip_cmd = python_path / "Scripts" / f"pip{_exe}"
+
         if self._comfy_dir is None:
             self.state = ServerState.missing_comfy
             self.missing_resources = _all_resources
             return
 
-        python_path = _find_component(
-            ["python3.dll", "python.exe"] if _is_windows else ["python.so", "python"],
-            [self.path / "python", self._comfy_dir / "python", self._comfy_dir / "../python"],
-        )
-        if python_path is None:
-            self._python_cmd = _find_program("python")
-            self._pip_cmd = _find_program("pip")
-            if self._python_cmd is None or self._pip_cmd is None:
-                self.state = ServerState.missing_python
-                self.missing_resources = _all_resources
-                return
-        else:
-            self._python_cmd = python_path / f"python{_exe}"
-            self._pip_cmd = python_path / "Scripts" / f"pip{_exe}"
+        if self._python_cmd is None or self._pip_cmd is None:
+            self.state = ServerState.missing_python
+            self.missing_resources = _all_resources
+            return
 
         missing_nodes = [
             package.name
             for package in required_custom_nodes
             if not Path(self._comfy_dir / "custom_nodes" / package.folder).exists()
         ]
-        if len(missing_nodes) > 0:
-            self.missing_resources.append(MissingResource(ResourceKind.node, missing_nodes))
+        self.missing_resources += missing_nodes
 
         self.missing_resources += [
-            MissingResource(r.kind)
+            r.name
             for r in required_models
             if not (self._comfy_dir / r.folder / r.filename).exists()
         ]
         if len(self.missing_resources) > 0:
             self.state = ServerState.missing_resources
+        else:
+            self.state = ServerState.stopped
 
         # Optional resources
         self.missing_resources += [
-            MissingResource(r.kind, [r.name])
+            r.name
             for r in default_checkpoints
             if not (self._comfy_dir / r.folder / r.filename).exists()
         ]
 
-    async def install(self, cb: Callback):
-        assert self.state in [
-            ServerState.missing_comfy,
-            ServerState.missing_python,
-            ServerState.missing_resources,
-        ]
+    async def _install(self, cb: InternalCB):
         self.state = ServerState.installing
+        cb("Installing", f"Installation started in {self.path}")
 
         network = QNetworkAccessManager()
         self._cache_dir = self.path / ".cache"
         self._cache_dir.mkdir(parents=True, exist_ok=True)
 
-        python_dir = self.path / "python"
-        self._python_cmd = python_dir / f"python{_exe}"
-        self._pip_cmd = python_dir / "Scripts" / f"pip{_exe}"
-        await _install_if_missing(python_dir, self._install_python, network, cb)
+        no_python = self._python_cmd is None or self._pip_cmd is None
+        if _is_windows and (self._comfy_dir is None or no_python):
+            python_dir = self.path / "python"
+            self._python_cmd = python_dir / f"python{_exe}"
+            self._pip_cmd = python_dir / "Scripts" / f"pip{_exe}"
+            await _install_if_missing(python_dir, self._install_python, network, cb)
 
-        self._comfy_dir = self.path / "ComfyUI"
+        self._comfy_dir = self._comfy_dir or self.path / "ComfyUI"
         await _install_if_missing(self._comfy_dir, self._install_comfy, network, cb)
 
         for pkg in required_custom_nodes:
@@ -254,22 +249,10 @@ class Server:
                 await _download_cached(resource.name, network, resource.url, target_file, cb)
 
         self.state = ServerState.stopped
+        cb("Finished", f"Installation finished in {self.path}")
         self.check_install()
 
-    async def install_optional(self, cb: Callback):
-        network = QNetworkAccessManager()
-        prev_state = self.state
-        self.state = ServerState.installing
-
-        for resource in default_checkpoints:
-            target_file = self._comfy_dir / resource.folder / resource.filename
-            if not target_file.exists():
-                await _download_cached(resource.name, network, resource.url, target_file, cb)
-
-        self.state = prev_state
-        self.check_install()
-
-    async def _install_python(self, network: QNetworkAccessManager, cb: Callback):
+    async def _install_python(self, network: QNetworkAccessManager, cb: InternalCB):
         url = "https://www.python.org/ftp/python/3.10.9/python-3.10.9-embed-amd64.zip"
         archive_path = self._cache_dir / "python-3.10.9-embed-amd64.zip"
         dir = self.path / "python"
@@ -278,7 +261,7 @@ class Server:
         await _extract_archive("Python", archive_path, dir, cb)
 
         python_pth = dir / "python310._pth"
-        cb(InstallationProgress("Installing Python", f"Patching {python_pth}"))
+        cb("Installing Python", f"Patching {python_pth}")
         with open(python_pth, "a") as file:
             file.write("import site\n")
 
@@ -295,11 +278,11 @@ class Server:
         torch_cmd = [self._pip_cmd, *torch_args, torch_index[self.backend]]
         await _execute_process("PyTorch", torch_cmd, dir, cb)
 
-        cb(InstallationProgress("Installing Python", f"Patching {python_pth}"))
+        cb("Installing Python", f"Patching {python_pth}")
         _prepend_file(python_pth, "../ComfyUI\n")
-        cb(InstallationProgress("Installing Python", "Finished installing Python"))
+        cb("Installing Python", "Finished installing Python")
 
-    async def _install_comfy(self, network: QNetworkAccessManager, cb: Callback):
+    async def _install_comfy(self, network: QNetworkAccessManager, cb: InternalCB):
         url = "https://github.com/comfyanonymous/ComfyUI/archive/refs/heads/master.zip"
         archive_path = self._cache_dir / "ComfyUI.zip"
         await _download_cached("ComfyUI", network, url, archive_path, cb)
@@ -309,10 +292,10 @@ class Server:
         requirements_txt = self._comfy_dir / "requirements.txt"
         requirements_cmd = [self._pip_cmd, "install", "-r", requirements_txt]
         await _execute_process("ComfyUI", requirements_cmd, self._comfy_dir, cb)
-        cb(InstallationProgress("Installing ComfyUI", "Finished installing ComfyUI"))
+        cb("Installing ComfyUI", "Finished installing ComfyUI")
 
     async def _install_custom_node(
-        self, pkg: CustomNode, network: QNetworkAccessManager, cb: Callback
+        self, pkg: CustomNode, network: QNetworkAccessManager, cb: InternalCB
     ):
         folder = self._comfy_dir / "custom_nodes" / pkg.folder
         resource_url = f"{pkg.url}/archive/refs/heads/main.zip"
@@ -325,10 +308,48 @@ class Server:
         requirements_cmd = [self._pip_cmd, "install", "-r", requirements_txt]
         if requirements_txt.exists():
             await _execute_process(pkg.name, requirements_cmd, folder, cb)
-        cb(InstallationProgress(f"Installing {pkg.name}", f"Finished installing {pkg.name}"))
+        cb(f"Installing {pkg.name}", f"Finished installing {pkg.name}")
 
-    async def start(self, log_cb: Callable[[str], None]):
-        assert self.state in [ServerState.stopped, ServerState.error, ServerState.missing_resources]
+    async def install(self, callback: Callback):
+        assert self.state in [
+            ServerState.missing_comfy,
+            ServerState.missing_python,
+            ServerState.missing_resources,
+        ]
+        if not _is_windows and (self._python_cmd is None or self._pip_cmd is None):
+            raise Exception(
+                "Python not found. Please install Python via your package manager and restart."
+            )
+
+        def cb(stage: str, message: str, progress: float = -1):
+            if message:
+                log.info(message)
+            callback(InstallationProgress(stage, progress))
+
+        try:
+            await self._install(cb)
+        except Exception as e:
+            log.exception(str(e))
+            log.error("Installation failed")
+            self.state = ServerState.stopped
+            self.check_install()
+            raise e
+
+    async def install_optional(self, cb):
+        network = QNetworkAccessManager()
+        prev_state = self.state
+        self.state = ServerState.installing
+
+        for resource in default_checkpoints:
+            target_file = self._comfy_dir / resource.folder / resource.filename
+            if not target_file.exists():
+                await _download_cached(resource.name, network, resource.url, target_file, cb)
+
+        self.state = prev_state
+        self.check_install()
+
+    async def start(self):
+        assert self.state in [ServerState.stopped, ServerState.missing_resources]
 
         self.state = ServerState.starting
         PIPE = asyncio.subprocess.PIPE
@@ -339,35 +360,36 @@ class Server:
 
         async for line in self._process.stdout:
             text = line.decode().strip()
-            log_cb(text)
+            log.info(text)
             if text.startswith("To see the GUI go to:"):
                 self.state = ServerState.running
                 self.url = text.split("http://")[-1]
                 break
 
         if self.state != ServerState.running:
-            self.error = "Process exited unexpectedly"
+            error = "Process exited unexpectedly"
             try:
                 out, err = await asyncio.wait_for(self._process.communicate(), timeout=10)
-                log_cb(out.decode().strip())
-                self.error = err.decode()
+                log.info(out.decode().strip())
+                error = err.decode()
+                log.error(error)
             except asyncio.TimeoutError:
                 self._process.kill()
 
-            self.state = ServerState.error
+            self.state = ServerState.stopped
             ret = self._process.returncode
             self._process = None
-            raise Exception(f"Error during server startup: {self.error} [{ret}]")
+            raise Exception(f"Error during server startup: {error} [{ret}]")
 
-        self._task = asyncio.create_task(self.run(log_cb))
+        self._task = asyncio.create_task(self.run())
         return self.url
 
-    async def run(self, log_cb: Callable[[str], None]):
+    async def run(self):
         assert self.state is ServerState.running
 
         async def forward(stream: asyncio.StreamReader):
             async for line in stream:
-                log_cb(line.decode().strip())
+                log.info(line.decode().strip())
 
         try:
             await asyncio.gather(
@@ -389,6 +411,14 @@ class Server:
             self.state = ServerState.stopped
             self._process = None
             self._task = None
+
+    def terminate(self):
+        try:
+            if self._process is not None:
+                self._process.terminate()
+        except Exception as e:
+            print(e)
+            pass
 
 
 def _find_component(files: List[str], search_paths: List[Path]):
@@ -412,29 +442,29 @@ async def _download_cached(
     network: QNetworkAccessManager,
     url: str,
     archive: Path,
-    cb: Callback,
+    cb: InternalCB,
 ):
     if not archive.exists():
-        cb(InstallationProgress(f"Downloading {name}", 0, f"Downloading {url} to {archive}"))
+        cb(f"Downloading {name}", f"Downloading {url} to {archive}", 0)
         async for progress in download(network, url, archive):
-            cb(InstallationProgress(f"Downloading {name}", progress=progress))
+            cb(f"Downloading {name}", None, progress)
 
 
-async def _extract_archive(name: str, archive: Path, target: Path, cb: Callback):
-    cb(InstallationProgress(f"Installing {name}", f"Extracting {archive} to {target}"))
+async def _extract_archive(name: str, archive: Path, target: Path, cb: InternalCB):
+    cb(f"Installing {name}", f"Extracting {archive} to {target}")
     with ZipFile(archive) as zip_file:
         zip_file.extractall(target)
 
 
-async def _execute_process(name: str, cmd: list, cwd: Path, cb: Callback):
+async def _execute_process(name: str, cmd: list, cwd: Path, cb: InternalCB):
     PIPE = asyncio.subprocess.PIPE
     cmd = [str(c) for c in cmd]
-    cb(InstallationProgress(f"Installing {name}", f"Executing {' '.join(cmd)}"))
+    cb(f"Installing {name}", f"Executing {' '.join(cmd)}")
     process = await asyncio.create_subprocess_exec(
         cmd[0], *cmd[1:], cwd=cwd, stdout=PIPE, stderr=PIPE
     )
     async for line in process.stdout:
-        cb(InstallationProgress(f"Installing {name}", line.decode().strip()))
+        cb(f"Installing {name}", line.decode().strip())
     if process.returncode != 0:
         err = (await process.stderr.read()).decode()
         raise Exception(f"Error during PyTorch installation: {err}")
