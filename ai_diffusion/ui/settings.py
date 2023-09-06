@@ -414,7 +414,7 @@ class ConnectionSettings(SettingsTab):
         self._server_url.textChanged.connect(self.write)
         server_layout.addWidget(self._server_url)
         self._connect_button = QPushButton("Connect", self._connection_widget)
-        self._connect_button.clicked.connect(Connection.instance().connect)
+        self._connect_button.clicked.connect(self._connect)
         server_layout.addWidget(self._connect_button)
         connection_layout.addLayout(server_layout)
 
@@ -437,7 +437,12 @@ class ConnectionSettings(SettingsTab):
 
     @property
     def server_mode(self):
-        return ServerMode.managed if self._server_managed.isChecked() else ServerMode.external
+        if self._server_managed.isChecked():
+            return ServerMode.managed
+        elif self._server_external.isChecked():
+            return ServerMode.external
+        else:
+            return ServerMode.undefined
 
     @server_mode.setter
     def server_mode(self, mode: ServerMode):
@@ -462,6 +467,9 @@ class ConnectionSettings(SettingsTab):
     def _change_server_mode(self, checked: bool):
         self.server_mode = ServerMode.managed if checked else ServerMode.external
         self.write()
+
+    def _connect(self):
+        Connection.instance().connect(settings.server_url)
 
     def _update_server_status(self):
         server = Connection.instance()
