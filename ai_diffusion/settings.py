@@ -64,7 +64,7 @@ class Settings:
         "Server Path",
         str(Path(__file__).parent / ".server"),
         (
-            "Directory where ComfyUI is installed. At least 10GB of free disk space are required"
+            "Directory where ComfyUI is installed. At least 10GB of free disk space is required"
             " for a full installation."
         ),
     )

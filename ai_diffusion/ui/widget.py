@@ -22,11 +22,11 @@ from PyQt5.QtWidgets import (
     QHBoxLayout,
     QVBoxLayout,
 )
-from PyQt5.QtGui import QFontMetrics, QGuiApplication, QIcon
+from PyQt5.QtGui import QFontMetrics, QGuiApplication
 from PyQt5.QtCore import Qt, QSize, pyqtSignal
 from krita import Krita, DockWidget
 
-from .. import Client, Style, Styles
+from .. import Styles
 from . import actions, SettingsDialog, theme
 from .model import Model, ModelRegistry, Job, JobQueue, State
 from .connection import Connection, ConnectionState
@@ -153,7 +153,7 @@ class GenerationWidget(QWidget):
         self.prompt_textbox.setVerticalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAlwaysOff)
         self.prompt_textbox.setTabChangesFocus(True)
         self.prompt_textbox.setPlaceholderText(
-            "Optional prompt: describe the content you want to see, or leave empty."
+            "Describe the content you want to see, or leave empty."
         )
         self.prompt_textbox.textChanged.connect(self.change_prompt)
         fm = QFontMetrics(self.prompt_textbox.document().defaultFont())
@@ -300,22 +300,30 @@ class WelcomeWidget(QWidget):
         super().__init__()
         layout = QVBoxLayout()
         self.setLayout(layout)
-        layout.addWidget(QLabel("AI Image Generation", self))
 
-        self._connect_status = QLabel("Not connected to ComfyUI server.", self)
+        header_layout = QHBoxLayout()
+        header_logo = QLabel(self)
+        header_logo.setPixmap(theme.logo().scaled(64, 64))
+        header_logo.setMaximumSize(64, 64)
+        header_text = QLabel("AI Image\nGeneration", self)
+        header_text.setStyleSheet("font-size: 16px")
+        header_layout.addWidget(header_logo)
+        header_layout.addWidget(header_text)
+        layout.addLayout(header_layout)
+        layout.addSpacing(12)
+
+        self._connect_status = QLabel("Not connected to server.", self)
         layout.addWidget(self._connect_status)
+        layout.addSpacing(6)
 
         self._connect_error = QLabel(self)
         self._connect_error.setVisible(False)
         self._connect_error.setWordWrap(True)
-        self._connect_error.setStyleSheet("font-weight: bold; color: red;")
+        self._connect_error.setStyleSheet(f"color: {theme.yellow};")
         layout.addWidget(self._connect_error)
 
-        self._connect_button = QPushButton("Connect", self)
-        self._connect_button.clicked.connect(Connection.instance().connect)
-        layout.addWidget(self._connect_button)
-
-        self._settings_button = QPushButton("Settings", self)
+        self._settings_button = QPushButton(theme.icon("settings"), "Configure", self)
+        self._settings_button.setMinimumHeight(32)
         self._settings_button.clicked.connect(self.show_settings)
         layout.addWidget(self._settings_button)
 
@@ -326,20 +334,19 @@ class WelcomeWidget(QWidget):
     def update(self):
         connection = Connection.instance()
         if connection.state in [ConnectionState.disconnected, ConnectionState.error]:
-            self._connect_status.setText("Not connected to ComfyUI server.")
-            self._connect_button.setVisible(True)
+            self._connect_status.setText("Not connected to server.")
         if connection.state is ConnectionState.error:
-            self._connect_error.setText(connection.error)
+            self._connect_error.setText(
+                "Connection attempt failed! Click below to configure and reconnect."
+            )
             self._connect_error.setVisible(True)
         if connection.state is ConnectionState.connecting:
-            self._connect_status.setText(f"Connecting to ComfyUI server at {Client.default_url}...")
-            self._connect_button.setVisible(False)
+            self._connect_status.setText(f"Connecting to server...")
         if connection.state is ConnectionState.connected:
             self._connect_status.setText(
-                f"Connected to ComfyUI server at {connection.client.url}.\n\nCreate"
-                " a new document or open an existing image to start."
+                f"Connected to server at {connection.client.url}.\n\nCreate"
+                " a new document or open an existing image to start!"
             )
-            self._connect_button.setVisible(False)
             self._connect_error.setVisible(False)
 
     def show_settings(self):
@@ -373,6 +380,7 @@ class ImageDiffusionWidget(DockWidget):
         connection = Connection.instance()
         if model is None or connection.state in [
             ConnectionState.disconnected,
+            ConnectionState.connecting,
             ConnectionState.error,
         ]:
             self._frame.setCurrentWidget(self._welcome)

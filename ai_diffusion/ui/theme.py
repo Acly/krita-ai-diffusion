@@ -1,4 +1,4 @@
-from PyQt5.QtGui import QGuiApplication, QPalette, QIcon
+from PyQt5.QtGui import QGuiApplication, QPalette, QIcon, QPixmap
 from PyQt5.QtWidgets import QVBoxLayout, QLabel
 from pathlib import Path
 
@@ -21,6 +21,10 @@ icon_path = Path(__file__).parent.parent / "icons"
 def icon(name: str):
     theme = "dark" if is_dark else "light"
     return QIcon(str(icon_path / f"{name}-{theme}.svg"))
+
+
+def logo():
+    return QPixmap(str(icon_path / "logo-128.png"))
 
 
 def add_header(layout: QVBoxLayout, setting: Setting):
