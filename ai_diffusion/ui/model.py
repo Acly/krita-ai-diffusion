@@ -234,7 +234,7 @@ class Model(QObject):
 
     @property
     def can_apply_result(self):
-        return self._layer and self._layer.visible()
+        return self._layer is not None and self._layer.visible()
 
     @property
     def is_active(self):

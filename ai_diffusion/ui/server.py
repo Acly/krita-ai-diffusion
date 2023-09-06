@@ -163,7 +163,8 @@ class ServerWidget(QWidget):
         path = QFileDialog.getExistingDirectory(
             self, "Select Directory", str(path), QFileDialog.ShowDirsOnly
         )
-        self._location_edit.setText(path)
+        if path:
+            self._location_edit.setText(path)
 
     def _change_backend(self):
         backend = ServerBackend.cuda if self._use_cuda.isChecked() else ServerBackend.cpu

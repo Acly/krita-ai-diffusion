@@ -130,6 +130,7 @@ class GenerationWidget(QWidget):
     def __init__(self):
         super().__init__()
         layout = QVBoxLayout(self)
+        layout.setContentsMargins(0, 0, 0, 0)
         self.setLayout(layout)
 
         self.style_select = QComboBox(self)
@@ -232,6 +233,7 @@ class GenerationWidget(QWidget):
         self.strength_input.setValue(int(model.strength * 100))
         self.error_text.setText(model.error)
         self.error_text.setVisible(model.error != "")
+        self.apply_button.setEnabled(model.can_apply_result)
         self.update_progress()
 
     def update_progress(self):
@@ -284,11 +286,13 @@ class GenerationWidget(QWidget):
         if current:
             job_id, index = self.history.item_info(current)
             self.model.show_preview(job_id, index)
+            self.apply_button.setEnabled(self.model.can_apply_result)
         else:
             self.model.hide_preview()
 
     def apply_selected_result(self):
         self.model.apply_current_result()
+        self.apply_button.setEnabled(self.model.can_apply_result)
 
     def apply_result(self, item: QListWidgetItem):
         self.show_preview(item, None)
