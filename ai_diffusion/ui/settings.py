@@ -457,6 +457,9 @@ class ConnectionSettings(SettingsTab):
             self._server_widget if mode is ServerMode.managed else self._connection_widget
         )
 
+    def update(self):
+        self._server_widget.update()
+
     def _read(self):
         self.server_mode = settings.server_mode
         self._server_url.setText(settings.server_url)
@@ -708,10 +711,11 @@ class PerformanceSettings(SettingsTab):
 
 
 class SettingsDialog(QDialog):
-    _server: ConnectionSettings
-    _styles: StylePresets
-    _diffusion: DiffusionSettings
-    _performance: PerformanceSettings
+    connection: ConnectionSettings
+    styles: StylePresets
+    diffusion: DiffusionSettings
+    performance: PerformanceSettings
+
     _instance = None
 
     @classmethod
@@ -750,14 +754,14 @@ class SettingsDialog(QDialog):
         layout.addLayout(inner)
 
         self._stack = QStackedWidget(self)
-        self._connection = ConnectionSettings(server)
-        self._styles = StylePresets()
-        self._diffusion = DiffusionSettings()
-        self._performance = PerformanceSettings()
-        self._stack.addWidget(self._connection)
-        self._stack.addWidget(self._styles)
-        self._stack.addWidget(self._diffusion)
-        self._stack.addWidget(self._performance)
+        self.connection = ConnectionSettings(server)
+        self.styles = StylePresets()
+        self.diffusion = DiffusionSettings()
+        self.performance = PerformanceSettings()
+        self._stack.addWidget(self.connection)
+        self._stack.addWidget(self.styles)
+        self._stack.addWidget(self.diffusion)
+        self._stack.addWidget(self.performance)
         inner.addWidget(self._stack)
         inner.addSpacing(6)
 
@@ -774,10 +778,10 @@ class SettingsDialog(QDialog):
         inner.addLayout(button_layout)
 
     def read(self):
-        self._connection.read()
-        self._styles.read()
-        self._diffusion.read()
-        self._performance.read()
+        self.connection.read()
+        self.styles.read()
+        self.diffusion.read()
+        self.performance.read()
 
     def restore_defaults(self):
         settings.restore()
@@ -789,7 +793,7 @@ class SettingsDialog(QDialog):
         super().show()
         if style:
             self._list.setCurrentRow(1)
-            self._styles.current_style = style
+            self.styles.current_style = style
         self._close_button.setFocus()
 
     def _change_page(self, index):

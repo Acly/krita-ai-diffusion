@@ -31,7 +31,9 @@ class AIToolsExtension(Extension):
                 and self._server.state is ServerState.stopped
             ):
                 url = await self._server.start()
+                self._settings_dialog.connection.update()
                 await connection._connect(url)
+                self._settings_dialog.connection.update()
             elif settings.server_mode in [ServerMode.undefined, ServerMode.external]:
                 await connection._connect(settings.server_url)
                 if settings.server_mode is ServerMode.undefined:

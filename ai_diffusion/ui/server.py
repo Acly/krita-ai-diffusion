@@ -1,5 +1,6 @@
 from pathlib import Path
-from PyQt5.QtCore import Qt
+from PyQt5.QtCore import Qt, QUrl
+from PyQt5.QtGui import QDesktopServices
 from PyQt5.QtWidgets import (
     QWidget,
     QCheckBox,
@@ -7,7 +8,6 @@ from PyQt5.QtWidgets import (
     QVBoxLayout,
     QGridLayout,
     QFileDialog,
-    QPlainTextEdit,
     QLabel,
     QLineEdit,
     QProgressBar,
@@ -16,7 +16,17 @@ from PyQt5.QtWidgets import (
 )
 from krita import Krita
 
-from .. import Server, ServerState, ServerBackend, Setting, Settings, eventloop, server, settings
+from .. import (
+    Server,
+    ServerState,
+    ServerBackend,
+    Setting,
+    Settings,
+    eventloop,
+    server,
+    settings,
+    util,
+)
 from . import Connection, ConnectionState
 
 green = "#3b3"
@@ -96,6 +106,11 @@ class ServerWidget(QWidget):
         layout.addLayout(package_layout)
 
         layout.addStretch()
+        open_log_button = QLabel(f"<a href='file://{util.log_path}'>View log files</a>", self)
+        open_log_button.linkActivated.connect(
+            lambda _: QDesktopServices.openUrl(QUrl.fromLocalFile(str(util.log_path)))
+        )
+        layout.addWidget(open_log_button, 0, Qt.AlignRight)
 
         self.update()
         self.update_packages()
