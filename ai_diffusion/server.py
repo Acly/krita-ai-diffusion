@@ -99,8 +99,8 @@ default_checkpoints = [
         "DreamShaper",
         ResourceKind.checkpoint,
         Path("models/checkpoints"),
-        "dreamshaper_7.safetensors",
-        "https://civitai.com/api/download/models/109123?type=Model&format=SafeTensor&size=pruned&fp=fp16",
+        "dreamshaper_8.safetensors",
+        "https://civitai.com/api/download/models/128713?type=Model&format=SafeTensor&size=pruned&fp=fp16",
     ),
 ]
 
