@@ -140,6 +140,7 @@ class ServerWidget(QWidget):
         name = QLabel(name, self)
         name.setContentsMargins(5, 0, 0, 0)
         status = QCheckBox("Install", self)
+        status.setChecked(not self._server.has_comfy)
         status.stateChanged.connect(self.update)
         layout.addWidget(name, layout.rowCount(), 0)
         layout.addWidget(status, layout.rowCount() - 1, 1)
