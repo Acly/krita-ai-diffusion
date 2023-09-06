@@ -27,19 +27,15 @@ from PyQt5.QtCore import Qt, QSize, pyqtSignal
 from krita import Krita, DockWidget
 
 from .. import Client, Style, Styles
-from . import actions, SettingsDialog
+from . import actions, SettingsDialog, theme
 from .model import Model, ModelRegistry, Job, JobQueue, State
 from .connection import Connection, ConnectionState
-
-_icon_path = Path(__file__).parent.parent / "icons"
 
 
 class QueueWidget(QToolButton):
     _style = """
         QToolButton {{ border: none; border-radius: 6px; background-color: {color}; color: white; }}
         QToolButton::menu-indicator {{ width: 0px; }}"""
-    _inactive_color = "#606060"
-    _active_color = "#53728E"
 
     def __init__(self, parent):
         super().__init__(parent)
@@ -48,7 +44,7 @@ class QueueWidget(QToolButton):
         queue_menu.addAction(self._create_action("Cancel active", actions.cancel))
         self.setMenu(queue_menu)
 
-        self.setStyleSheet(self._style.format(color=self._inactive_color))
+        self.setStyleSheet(self._style.format(color=theme.background_inactive))
         self.setToolButtonStyle(Qt.ToolButtonTextOnly)
         self.setPopupMode(QToolButton.InstantPopup)
         self.setArrowType(Qt.NoArrow)
@@ -56,13 +52,13 @@ class QueueWidget(QToolButton):
     def update(self, jobs: JobQueue):
         count = jobs.count(State.queued)
         if jobs.any_executing():
-            self.setStyleSheet(self._style.format(color=self._active_color))
+            self.setStyleSheet(self._style.format(color=theme.background_active))
             if count > 0:
                 self.setToolTip(f"Generating image. {count} jobs queued - click to cancel.")
             else:
                 self.setToolTip(f"Generating image. Click to cancel.")
         else:
-            self.setStyleSheet(self._style.format(color=self._inactive_color))
+            self.setStyleSheet(self._style.format(color=theme.background_inactive))
             self.setToolTip("Idle.")
         self.setText(f"+{count} ")
 
@@ -143,7 +139,7 @@ class GenerationWidget(QWidget):
         Styles.list().name_changed.connect(self.update_styles)
 
         self.settings_button = QToolButton(self)
-        self.settings_button.setIcon(QIcon(str(_icon_path / "settings.svg")))
+        self.settings_button.setIcon(theme.icon("settings"))
         self.settings_button.setAutoRaise(True)
         self.settings_button.clicked.connect(self.show_settings)
 
@@ -214,7 +210,7 @@ class GenerationWidget(QWidget):
         self.history.itemDoubleClicked.connect(self.apply_result)
         layout.addWidget(self.history)
 
-        self.apply_button = QPushButton(QIcon(str(_icon_path / "apply.svg")), "Apply", self)
+        self.apply_button = QPushButton(theme.icon("apply"), "Apply", self)
         self.apply_button.clicked.connect(self.apply_selected_result)
         layout.addWidget(self.apply_button)
 

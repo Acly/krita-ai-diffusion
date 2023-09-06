@@ -23,9 +23,16 @@ def test_download(qtapp):
         with TemporaryDirectory() as tmp:
             url = "https://github.com/Acly/krita-ai-diffusion/archive/refs/tags/v0.1.0.zip"
             path = Path(tmp) / "test.zip"
+            got_finished = False
             async for progress in network.download(net, url, path):
-                assert progress == -1 or (progress >= 0 and progress <= 1)
-            assert path.exists() and path.stat().st_size > 0
+                if progress and progress.total > 0:
+                    assert progress.value >= 0 and progress.value <= 1
+                    assert progress.received <= progress.total
+                    assert progress.speed >= 0
+                    got_finished = got_finished or progress.value == 1
+                elif progress and progress.total == 0:
+                    assert progress.value == -1
+            assert got_finished and path.exists() and path.stat().st_size > 0
 
     qtapp.run(main())
 
@@ -39,11 +46,7 @@ def test_install_and_run(qtapp, pytestconfig):
 
     server = Server(str(test_dir))
     server.backend = ServerBackend.cpu
-    assert server.state in [
-        ServerState.missing_comfy,
-        ServerState.missing_python,
-        ServerState.missing_resources,
-    ]
+    assert server.state in [ServerState.not_installed, ServerState.missing_resources]
 
     def handle_progress(report):
         assert report.progress == -1 or report.progress >= 0 and report.progress <= 1
@@ -63,7 +66,9 @@ def test_install_and_run(qtapp, pytestconfig):
     qtapp.run(main())
 
 
-def test_run_external(qtapp):
+def test_run_external(qtapp, pytestconfig):
+    if not pytestconfig.getoption("--test-install"):
+        pytest.skip("Only runs with --test-install")
     if not comfy_dir.exists():
         pytest.skip("External ComfyUI installation not found")
 

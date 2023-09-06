@@ -1,6 +1,6 @@
 from .settings import Settings, Setting, settings, GPUMemoryPreset, ServerBackend, ServerMode
 from .style import Style, Styles, StyleSettings
-from .network import NetworkError, Interrupted, OutOfMemoryError, RequestManager
+from .network import NetworkError, Interrupted, OutOfMemoryError, RequestManager, DownloadProgress
 from .client import Client, ClientEvent, ClientMessage, MissingResource, ResourceKind
 from .image import Bounds, Extent, Mask, Image, ImageCollection
 from .comfyworkflow import ComfyWorkflow

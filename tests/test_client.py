@@ -71,3 +71,12 @@ def test_cancel(qtapp, cancel_point):
         assert client.is_executing == False and client.queued_count == 0
 
     qtapp.run(main())
+
+
+def test_disconnect(qtapp):
+    async def main():
+        client = await Client.connect()
+        await client.disconnect()
+        assert client.is_executing == False and client.queued_count == 0
+
+    qtapp.run(main())

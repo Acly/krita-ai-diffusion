@@ -40,6 +40,7 @@ from .. import (
 from .connection import Connection, ConnectionState
 from .model import Model
 from .server import ServerWidget
+from .theme import add_header, red, yellow, green, grey
 
 
 def _add_title(layout: QVBoxLayout, title: str):
@@ -47,16 +48,6 @@ def _add_title(layout: QVBoxLayout, title: str):
     title_label.setStyleSheet("font-size: 16px")
     layout.addWidget(title_label)
     layout.addSpacing(6)
-
-
-def _add_header(layout: QVBoxLayout, setting: Setting):
-    title_label = QLabel(setting.name)
-    title_label.setStyleSheet("font-weight:bold")
-    desc_label = QLabel(setting.desc)
-    desc_label.setWordWrap(True)
-    layout.addSpacing(6)
-    layout.addWidget(title_label)
-    layout.addWidget(desc_label)
 
 
 class SettingWidget(QWidget):
@@ -193,7 +184,7 @@ class LineEditSetting(QWidget):
         layout = QVBoxLayout()
         layout.setContentsMargins(0, 0, 0, 0)
         self.setLayout(layout)
-        _add_header(layout, setting)
+        add_header(layout, setting)
 
         self._edit = QLineEdit(self)
         self._edit.textChanged.connect(self._change_value)
@@ -272,7 +263,7 @@ class LoraList(QWidget):
         self._layout.setContentsMargins(0, 0, 0, 0)
         self.setLayout(self._layout)
 
-        _add_header(self._layout, setting)
+        add_header(self._layout, setting)
 
         self._item_list = QVBoxLayout()
         self._item_list.setContentsMargins(0, 0, 0, 0)
@@ -395,7 +386,7 @@ class ConnectionSettings(SettingsTab):
     def __init__(self, server: Server):
         super().__init__("Server Configuration")
 
-        _add_header(self._layout, Settings._server_mode)
+        add_header(self._layout, Settings._server_mode)
         self._server_managed = QRadioButton("Local server managed by Krita plugin", self)
         self._server_external = QRadioButton("Connect to external Server (local or remote)", self)
         self._server_managed.toggled.connect(self._change_server_mode)
@@ -417,7 +408,7 @@ class ConnectionSettings(SettingsTab):
         connection_layout = QVBoxLayout()
         self._connection_widget.setLayout(connection_layout)
 
-        _add_header(connection_layout, Settings._server_url)
+        add_header(connection_layout, Settings._server_url)
         server_layout = QHBoxLayout()
         self._server_url = QLineEdit(self._connection_widget)
         self._server_url.textChanged.connect(self.write)
@@ -477,16 +468,16 @@ class ConnectionSettings(SettingsTab):
         self._connect_button.setEnabled(server.state != ConnectionState.connecting)
         if server.state == ConnectionState.connected:
             self._connection_status.setText("Connected")
-            self._connection_status.setStyleSheet("color: #3b3; font-weight:bold")
+            self._connection_status.setStyleSheet(f"color: {green}; font-weight:bold")
         elif server.state == ConnectionState.connecting:
             self._connection_status.setText("Connecting")
-            self._connection_status.setStyleSheet("color: #cc3; font-weight:bold")
+            self._connection_status.setStyleSheet(f"color: {yellow}; font-weight:bold")
         elif server.state == ConnectionState.disconnected:
             self._connection_status.setText("Disconnected")
-            self._connection_status.setStyleSheet("color: #888; font-style:italic")
+            self._connection_status.setStyleSheet(f"color: {grey}; font-style:italic")
         elif server.state == ConnectionState.error:
             self._connection_status.setText(f"<b>Error</b>: {server.error}")
-            self._connection_status.setStyleSheet("color: red;")
+            self._connection_status.setStyleSheet(f"color: {red};")
             if server.missing_resource is not None:
                 self._handle_missing_resource(server.missing_resource)
 
@@ -648,7 +639,7 @@ class PerformanceSettings(SettingsTab):
     def __init__(self):
         super().__init__("Performance Settings")
 
-        _add_header(self._layout, Settings._history_size)
+        add_header(self._layout, Settings._history_size)
         self._history_size = QSpinBox(self)
         self._history_size.setMinimum(8)
         self._history_size.setMaximum(1024 * 16)
@@ -656,13 +647,13 @@ class PerformanceSettings(SettingsTab):
         self._history_size.setSuffix(" MB")
         self._history_size.valueChanged.connect(self.write)
         self._history_usage = QLabel(self)
-        self._history_usage.setStyleSheet("font-style:italic; color: #3b3;")
+        self._history_usage.setStyleSheet(f"font-style:italic; color: {green};")
         history_layout = QHBoxLayout()
         history_layout.addWidget(self._history_size)
         history_layout.addWidget(self._history_usage)
         self._layout.addLayout(history_layout)
 
-        _add_header(self._layout, Settings._gpu_memory_preset)
+        add_header(self._layout, Settings._gpu_memory_preset)
         self._gpu_memory_preset = QComboBox(self)
         for preset in GPUMemoryPreset:
             self._gpu_memory_preset.addItem(preset.text)

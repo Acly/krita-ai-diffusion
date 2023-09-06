@@ -57,5 +57,14 @@ class Connection(QObject):
     def connect(self, url: str = settings.server_url):
         eventloop.run(self._connect(url))
 
+    async def disconnect(self):
+        if self.client is not None:
+            await self.client.disconnect()
+            self.client = None
+        self.state = ConnectionState.disconnected
+        self.error = None
+        self.missing_resource = None
+        self.changed.emit()
+
     def interrupt(self):
         eventloop.run(self.client.interrupt())

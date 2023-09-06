@@ -262,6 +262,9 @@ class ModelRegistry(QObject):
         def handle_messages():
             if self._task is None and connection.state is ConnectionState.connected:
                 self._task = eventloop._loop.create_task(self._handle_messages())
+            elif self._task and connection.state is ConnectionState.disconnected:
+                self._task.cancel()
+                self._task = None
 
         connection.changed.connect(handle_messages)
 

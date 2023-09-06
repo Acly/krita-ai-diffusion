@@ -8,7 +8,7 @@ from zipfile import ZipFile
 from PyQt5.QtNetwork import QNetworkAccessManager
 
 from .settings import settings, ServerBackend
-from .network import download
+from .network import download, DownloadProgress
 from .util import server_logger as log
 
 
@@ -128,8 +128,7 @@ _exe = ".exe" if _is_windows else ""
 
 
 class ServerState(Enum):
-    missing_comfy = 0
-    missing_python = 1
+    not_installed = 0
     missing_resources = 2
     installing = 3
     stopped = 4
@@ -139,11 +138,11 @@ class ServerState(Enum):
 
 class InstallationProgress(NamedTuple):
     stage: str
-    progress: float = -1
+    progress: Optional[DownloadProgress] = None
 
 
 Callback = Callable[[InstallationProgress], None]
-InternalCB = Callable[[str, str, float], None]
+InternalCB = Callable[[str, str, Optional[DownloadProgress]], None]
 
 
 class Server:
@@ -185,13 +184,8 @@ class Server:
             self._python_cmd = python_path / f"python{_exe}"
             self._pip_cmd = python_path / "Scripts" / f"pip{_exe}"
 
-        if self._comfy_dir is None:
-            self.state = ServerState.missing_comfy
-            self.missing_resources = _all_resources
-            return
-
-        if self._python_cmd is None or self._pip_cmd is None:
-            self.state = ServerState.missing_python
+        if not (self.has_comfy and self.has_python):
+            self.state = ServerState.not_installed
             self.missing_resources = _all_resources
             return
 
@@ -311,17 +305,13 @@ class Server:
         cb(f"Installing {pkg.name}", f"Finished installing {pkg.name}")
 
     async def install(self, callback: Callback):
-        assert self.state in [
-            ServerState.missing_comfy,
-            ServerState.missing_python,
-            ServerState.missing_resources,
-        ]
+        assert self.state in [ServerState.not_installed, ServerState.missing_resources]
         if not _is_windows and (self._python_cmd is None or self._pip_cmd is None):
             raise Exception(
                 "Python not found. Please install Python via your package manager and restart."
             )
 
-        def cb(stage: str, message: str, progress: float = -1):
+        def cb(stage: str, message: str, progress: Optional[DownloadProgress] = None):
             if message:
                 log.info(message)
             callback(InstallationProgress(stage, progress))
@@ -335,18 +325,28 @@ class Server:
             self.check_install()
             raise e
 
-    async def install_optional(self, cb):
+    async def install_optional(self, packages: List[str], callback: Callback):
+        assert self.has_comfy, "Must install ComfyUI before downloading checkpoints"
         network = QNetworkAccessManager()
         prev_state = self.state
         self.state = ServerState.installing
 
-        for resource in default_checkpoints:
-            target_file = self._comfy_dir / resource.folder / resource.filename
-            if not target_file.exists():
-                await _download_cached(resource.name, network, resource.url, target_file, cb)
+        def cb(stage: str, message: str, progress: Optional[DownloadProgress] = None):
+            if message:
+                log.info(message)
+            callback(InstallationProgress(stage, progress))
 
-        self.state = prev_state
-        self.check_install()
+        try:
+            for resource in (cp for cp in default_checkpoints if cp.name in packages):
+                target_file = self._comfy_dir / resource.folder / resource.filename
+                if not target_file.exists():
+                    await _download_cached(resource.name, network, resource.url, target_file, cb)
+        except Exception as e:
+            log.exception(str(e))
+            raise e
+        finally:
+            self.state = prev_state
+            self.check_install()
 
     async def start(self):
         assert self.state in [ServerState.stopped, ServerState.missing_resources]
@@ -402,10 +402,13 @@ class Server:
     async def stop(self):
         assert self.state is ServerState.running
         try:
+            log.info("Stopping server")
             self._process.terminate()
             self._task.cancel()
             await asyncio.wait_for(self._process.communicate(), timeout=5)
+            log.info(f"Server terminated with code {self._process.returncode}")
         except asyncio.TimeoutError:
+            log.warning("Server did not terminate in time")
             pass
         finally:
             self.state = ServerState.stopped
@@ -419,6 +422,14 @@ class Server:
         except Exception as e:
             print(e)
             pass
+
+    @property
+    def has_python(self):
+        return self._python_cmd is not None and self._pip_cmd is not None
+
+    @property
+    def has_comfy(self):
+        return self._comfy_dir is not None
 
 
 def _find_component(files: List[str], search_paths: List[Path]):
@@ -445,7 +456,7 @@ async def _download_cached(
     cb: InternalCB,
 ):
     if not archive.exists():
-        cb(f"Downloading {name}", f"Downloading {url} to {archive}", 0)
+        cb(f"Downloading {name}", f"Downloading {url} to {archive}")
         async for progress in download(network, url, archive):
             cb(f"Downloading {name}", None, progress)
 

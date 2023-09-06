@@ -180,6 +180,9 @@ class Client:
     async def interrupt(self):
         await self._post("interrupt", {})
 
+    async def disconnect(self):
+        await self._websocket.close()
+
     @property
     def queued_count(self):
         return len(self._jobs)

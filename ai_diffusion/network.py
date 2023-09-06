@@ -1,5 +1,6 @@
 import asyncio
 import json
+from datetime import datetime
 from pathlib import Path
 from typing import NamedTuple, Callable
 from PyQt5.QtCore import QByteArray, QUrl, QFile
@@ -106,6 +107,36 @@ class RequestManager:
         }
 
 
+class DownloadProgress(NamedTuple):
+    received: float  # in mb
+    total: float  # in mb
+    speed: float  # in mb/s
+    value: float  # in [0, 1]
+
+
+class DownloadHelper:
+    _total = 0
+    _received = 0
+    _time: datetime = None
+
+    def update(self, received_bytes: int, total_bytes: int = 0):
+        received = received_bytes / 10**6
+        total = total_bytes / 10**6
+        diff = received - self._received
+        now = datetime.now()
+        speed = 0
+        self._received = received
+        self._total = max(self._total, total)
+        if self._time is not None:
+            speed = diff / max((now - self._time).total_seconds(), 0.0001)
+        self._time = now
+        progress = self._received / self._total if self._total > 0 else -1
+        return DownloadProgress(self._received, self._total, speed, progress)
+
+    def final(self):
+        return DownloadProgress(self._received, self._total, 0, 1)
+
+
 async def download(network: QNetworkAccessManager, url: str, path: Path):
     request = QNetworkRequest(QUrl(url))
     request.setAttribute(QNetworkRequest.FollowRedirectsAttribute, True)
@@ -116,12 +147,13 @@ async def download(network: QNetworkAccessManager, url: str, path: Path):
         raise Exception(f"Error during download: could not open {path} for writing")
     progress_future = asyncio.get_running_loop().create_future()
     finished_future = asyncio.get_running_loop().create_future()
+    progress_helper = DownloadHelper()
 
     def handle_progress(bytes_received, bytes_total):
         out_file.write(reply.readAll())
+        result = progress_helper.update(bytes_received, bytes_total)
         if not progress_future.done():
-            p = bytes_received / bytes_total if bytes_total > 0 else -1
-            progress_future.set_result(p)
+            progress_future.set_result(result)
 
     def handle_finished():
         out_file.write(reply.readAll())
@@ -148,4 +180,4 @@ async def download(network: QNetworkAccessManager, url: str, path: Path):
         raise finished_future.exception()
 
     out_file.rename(str(path))
-    yield 1.0
+    yield progress_helper.final()
