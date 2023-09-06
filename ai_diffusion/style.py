@@ -38,12 +38,6 @@ class StyleSettings:
         "Textual description of things to avoid in generated images.",
     )
 
-    upscale_prompt = Setting(
-        "Upscale Prompt",
-        "8k uhd",
-        "Additional text which is used to extend the prompt when upscaling images.",
-    )
-
     sampler = Setting(
         "Sampler",
         "DPM++ 2M SDE",
@@ -78,7 +72,6 @@ class Style:
     loras: list
     style_prompt = StyleSettings.style_prompt.default
     negative_prompt = StyleSettings.negative_prompt.default
-    upscale_prompt = StyleSettings.upscale_prompt.default
     sampler = StyleSettings.sampler.default
     sampler_steps = StyleSettings.sampler_steps.default
     sampler_steps_upscaling = StyleSettings.sampler_steps_upscaling.default

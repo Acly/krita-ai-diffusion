@@ -5,7 +5,6 @@
     "loras": [],
     "style_prompt": "cinematic photo, photograph, film, best quality, highres",
     "negative_prompt": "drawing, painting, sketch, bad quality, low resolution, blurry",
-    "upscale_prompt": "8k uhd",
     "sampler": "DPM++ 2M SDE Karras",
     "sampler_steps": 20,
     "sampler_steps_upscaling": 15,

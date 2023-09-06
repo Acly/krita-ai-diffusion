@@ -569,7 +569,6 @@ class StylePresets(SettingsTab):
         add("loras", LoraList(StyleSettings.loras, self))
         add("style_prompt", LineEditSetting(StyleSettings.style_prompt, self))
         add("negative_prompt", LineEditSetting(StyleSettings.negative_prompt, self))
-        add("upscale_prompt", LineEditSetting(StyleSettings.upscale_prompt, self))
         add("sampler", ComboBoxSetting(StyleSettings.sampler, self))
         add("sampler_steps", SliderSetting(StyleSettings.sampler_steps, self, 1, 100))
         add(

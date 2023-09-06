@@ -129,7 +129,7 @@ def upscale_latent(
 ):
     assert target.is_multiple_of(8)
     upscale = w.scale_latent(latent, target)
-    prompt = w.clip_text_encode(clip, f"{prompt_pos}, {style.style_prompt}, {style.upscale_prompt}")
+    prompt = w.clip_text_encode(clip, f"{prompt_pos}, {style.style_prompt}")
     return w.ksampler(
         model, prompt, prompt_neg, upscale, denoise=0.5, **_sampler_params(style, upscale=True)
     )
@@ -193,8 +193,7 @@ def inpaint(comfy: Client, style: Style, image: Image, mask: Mask, prompt: str):
         masked_latent = w.set_latent_noise_mask(scaled_latent, no_mask)
         cropped_image = w.load_image(image_region)
         control_image_upscale = w.inpaint_preprocessor(cropped_image, cropped_mask)
-        prompt_text = f"{prompt}, {style.style_prompt}, {style.upscale_prompt}"
-        positive_upscale = w.clip_text_encode(clip, prompt_text)
+        positive_upscale = w.clip_text_encode(clip, f"{prompt}, {style.style_prompt}")
         positive_upscale = w.apply_controlnet(positive_upscale, controlnet, control_image_upscale)
         params = _sampler_params(style, clip_vision=True, upscale=True)
         out_latent = w.ksampler(
