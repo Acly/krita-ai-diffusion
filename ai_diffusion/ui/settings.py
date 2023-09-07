@@ -40,7 +40,7 @@ from .. import (
 from .connection import Connection, ConnectionState
 from .model import Model
 from .server import ServerWidget
-from .theme import add_header, red, yellow, green, grey
+from .theme import add_header, icon, red, yellow, green, grey
 
 
 def _add_title(layout: QVBoxLayout, title: str):
@@ -224,15 +224,15 @@ class LoraList(QWidget):
             self._strength.setMaximum(100)
             self._strength.setSingleStep(5)
             self._strength.setValue(100)
+            self._strength.setPrefix("Strength: ")
             self._strength.setSuffix("%")
             self._strength.valueChanged.connect(self._update)
 
             self._remove = QToolButton(self)
-            self._remove.setText("Remove")
-            self._remove.setToolButtonStyle(Qt.ToolButtonTextOnly)
+            self._remove.setIcon(icon("discard"))
             self._remove.clicked.connect(self.remove)
 
-            layout.addWidget(self._select, 2)
+            layout.addWidget(self._select, 3)
             layout.addWidget(self._strength, 1)
             layout.addWidget(self._remove)
 
@@ -263,16 +263,22 @@ class LoraList(QWidget):
         self._layout.setContentsMargins(0, 0, 0, 0)
         self.setLayout(self._layout)
 
-        add_header(self._layout, setting)
-
-        self._item_list = QVBoxLayout()
-        self._item_list.setContentsMargins(0, 0, 0, 0)
-        self._layout.addLayout(self._item_list)
+        header_layout = QHBoxLayout()
+        header_layout.setContentsMargins(0, 0, 0, 0)
+        header_text_layout = QVBoxLayout()
+        add_header(header_text_layout, setting)
 
         self._add_button = QPushButton("Add", self)
         self._add_button.setMinimumWidth(100)
         self._add_button.clicked.connect(self._add_item)
-        self._layout.addWidget(self._add_button, alignment=Qt.AlignLeft)
+
+        header_layout.addLayout(header_text_layout, 3)
+        header_layout.addWidget(self._add_button, 1, Qt.AlignRight | Qt.AlignVCenter)
+        self._layout.addLayout(header_layout)
+
+        self._item_list = QVBoxLayout()
+        self._item_list.setContentsMargins(0, 0, 0, 0)
+        self._layout.addLayout(self._item_list)
 
     def _add_item(self, lora=None):
         assert self._item_list is not None
@@ -726,7 +732,7 @@ class SettingsDialog(QDialog):
         type(self)._instance = self
 
         self.setWindowTitle("Configure Image Diffusion")
-        self.setMinimumSize(QSize(800, 480))
+        self.setMinimumSize(QSize(840, 480))
         self.resize(
             QSize(max(900, int(main_window.width() * 0.6)), int(main_window.height() * 0.8))
         )
