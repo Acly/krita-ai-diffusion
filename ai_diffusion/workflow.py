@@ -81,11 +81,15 @@ def prepare(inputs: Inputs, downscale=True) -> ScaledInputs:
 def _sampler_params(style: Style, clip_vision=False, upscale=False):
     sampler_name = {
         "DDIM": "ddim",
+        "DPM++ 2M": "dpmpp_2m",
+        "DPM++ 2M Karras": "dpmpp_2m",
         "DPM++ 2M SDE": "dpmpp_2m_sde_gpu",
         "DPM++ 2M SDE Karras": "dpmpp_2m_sde_gpu",
     }[style.sampler]
     sampler_scheduler = {
         "DDIM": "ddim_uniform",
+        "DPM++ 2M": "normal",
+        "DPM++ 2M Karras": "karras",
         "DPM++ 2M SDE": "normal",
         "DPM++ 2M SDE Karras": "karras",
     }[style.sampler]

@@ -23,7 +23,7 @@ class StyleSettings:
     loras = Setting(
         "LoRA",
         [],
-        "Extensions to the checkpoint which influence generation based on additional training.",
+        "Extensions to the checkpoint which expand its range based on additional training",
     )
 
     style_prompt = Setting(
@@ -35,14 +35,14 @@ class StyleSettings:
     negative_prompt = Setting(
         "Negative Prompt",
         "bad quality, low resolution, blurry",
-        "Textual description of things to avoid in generated images.",
+        "Textual description of things to avoid in generated images",
     )
 
     sampler = Setting(
         "Sampler",
         "DPM++ 2M SDE",
         "The sampling strategy and scheduler",
-        items=["DDIM", "DPM++ 2M SDE", "DPM++ 2M SDE Karras"],
+        items=["DDIM", "DPM++ 2M", "DPM++ 2M Karras", "DPM++ 2M SDE", "DPM++ 2M SDE Karras"],
     )
 
     sampler_steps = Setting(
