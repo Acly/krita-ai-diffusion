@@ -176,7 +176,7 @@ def inpaint(comfy: Client, style: Style, image: Image, mask: Mask, prompt: str):
     if extent.scale > 1:
         in_image = w.scale_image(in_image, extent.initial)
         in_mask = w.scale_mask(in_mask, extent.initial)
-    ip_adapter = w.ip_adapter(comfy.ip_adapter_model, model, clip_vision, in_image, in_mask, 0.5)
+    ip_adapter = w.ip_adapter(comfy.ip_adapter_model, model, clip_vision, in_image, 0.5)
     control_image = w.inpaint_preprocessor(in_image, in_mask)
     positive = w.clip_text_encode(clip, f"{prompt}, {style.style_prompt}")
     positive = w.apply_controlnet(positive, controlnet, control_image)

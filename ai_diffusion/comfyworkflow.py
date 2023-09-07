@@ -94,7 +94,7 @@ class ComfyWorkflow:
             strength=1.0,
         )
 
-    def ip_adapter(self, model_name, model, clip_vision, image, mask, weight, dtype="fp16"):
+    def ip_adapter(self, model_name, model, clip_vision, image, weight, mask=None, dtype="fp16"):
         return self.add(
             "IPAdapter",
             1,
