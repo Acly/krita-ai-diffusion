@@ -26,7 +26,7 @@ from PyQt5.QtGui import QFontMetrics, QGuiApplication
 from PyQt5.QtCore import Qt, QSize, pyqtSignal
 from krita import Krita, DockWidget
 
-from .. import Styles
+from .. import Styles, Bounds
 from . import actions, SettingsDialog, theme
 from .model import Model, ModelRegistry, Job, JobQueue, State
 from .connection import Connection, ConnectionState
@@ -69,7 +69,8 @@ class QueueWidget(QToolButton):
 
 
 class HistoryWidget(QListWidget):
-    _last_prompt = None
+    _last_prompt: Optional[str] = None
+    _last_bounds: Optional[Bounds] = None
 
     def __init__(self, parent):
         super().__init__(parent)
@@ -82,8 +83,9 @@ class HistoryWidget(QListWidget):
         self.itemClicked.connect(self.handle_preview_click)
 
     def add(self, job: Job):
-        if self._last_prompt != job.prompt:
+        if self._last_prompt != job.prompt or self._last_bounds != job.bounds:
             self._last_prompt = job.prompt
+            self._last_bounds = job.bounds
             prompt = job.prompt if job.prompt != "" else "<no prompt>"
 
             header = QListWidgetItem(f"{job.timestamp:%H:%M} - {prompt}")
@@ -102,11 +104,11 @@ class HistoryWidget(QListWidget):
             self.addItem(item)
 
         scrollbar = self.verticalScrollBar()
-        if scrollbar.value() >= scrollbar.maximum() - 4:
+        if scrollbar.isVisible() and scrollbar.value() >= scrollbar.maximum() - 4:
             self.scrollToBottom()
 
     def prune(self, jobs: JobQueue):
-        first_id = next((job.id for job in jobs), None)
+        first_id = next((job.id for job in jobs if job.state is State.finished), None)
         while self.count() > 0 and self.item(0).data(Qt.UserRole) != first_id:
             self.takeItem(0)
 
