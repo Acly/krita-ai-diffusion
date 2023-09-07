@@ -206,6 +206,9 @@ class Model(QObject):
         elif message.event is ClientEvent.interrupted:
             job.state = State.cancelled
             self.report_progress(0)
+        elif message.event is ClientEvent.error:
+            job.state = State.cancelled
+            self.report_error(f"Server execution error: {message.error}")
 
     def show_preview(self, job_id: str, index: int):
         job = self.jobs.find(job_id)
@@ -213,6 +216,7 @@ class Model(QObject):
         if self._layer and self._layer.parentNode() is None:
             self._layer = None
         if self._layer is not None:
+            self._layer.setName(name)
             self._doc.set_layer_content(self._layer, job.results[index], job.bounds)
         else:
             self._layer = self._doc.insert_layer(name, job.results[index], job.bounds)

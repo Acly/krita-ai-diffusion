@@ -11,12 +11,14 @@ from .network import RequestManager, NetworkError
 from .websockets.src import websockets
 from .server import MissingResource, ResourceKind
 from . import server
+from .util import client_logger as log
 
 
 class ClientEvent(Enum):
     progress = 0
     finished = 1
     interrupted = 2
+    error = 3
 
 
 class ClientMessage(NamedTuple):
@@ -24,6 +26,7 @@ class ClientMessage(NamedTuple):
     job_id: str
     progress: float
     images: ImageCollection = None
+    error: Optional[str] = None
 
 
 class JobInfo(NamedTuple):
@@ -176,6 +179,15 @@ class Client:
                     if job and _validate_executed_node(msg, len(images)):
                         self._clear_job(job.id)
                         yield ClientMessage(ClientEvent.finished, job.id, 1, images)
+
+                if msg["type"] == "execution_error":
+                    job = self._get_active_job(msg["data"]["prompt_id"])
+                    if job:
+                        error = msg["data"].get("exception_message", "execution_error")
+                        traceback = msg["data"].get("traceback", "no traceback")
+                        log.error(f"Job {job.id} failed: {error}\n{traceback}")
+                        self._clear_job(job.id)
+                        yield ClientMessage(ClientEvent.error, job.id, 0, error=error)
 
     async def interrupt(self):
         await self._post("interrupt", {})
