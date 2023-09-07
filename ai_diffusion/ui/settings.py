@@ -45,7 +45,7 @@ from .theme import add_header, red, yellow, green, grey
 
 def _add_title(layout: QVBoxLayout, title: str):
     title_label = QLabel(title)
-    title_label.setStyleSheet("font-size: 16px")
+    title_label.setStyleSheet("font-size: 12pt")
     layout.addWidget(title_label)
     layout.addSpacing(6)
 
@@ -725,10 +725,11 @@ class SettingsDialog(QDialog):
         super().__init__()
         type(self)._instance = self
 
-        self.setMinimumSize(QSize(800, 480))
-        self.setMaximumSize(QSize(1000, 2048))
-        self.resize(QSize(900, int(main_window.height() * 0.8)))
         self.setWindowTitle("Configure Image Diffusion")
+        self.setMinimumSize(QSize(800, 480))
+        self.resize(
+            QSize(max(900, int(main_window.width() * 0.6)), int(main_window.height() * 0.8))
+        )
 
         layout = QHBoxLayout()
         self.setLayout(layout)
@@ -738,7 +739,7 @@ class SettingsDialog(QDialog):
 
         def create_list_item(text: str):
             item = QListWidgetItem(text, self._list)
-            item.setSizeHint(QSize(112, 20))
+            item.setSizeHint(QSize(112, 24))
 
         create_list_item("Connection")
         create_list_item("Styles")

@@ -130,7 +130,7 @@ class GenerationWidget(QWidget):
     def __init__(self):
         super().__init__()
         layout = QVBoxLayout(self)
-        layout.setContentsMargins(0, 0, 0, 0)
+        layout.setContentsMargins(0, 2, 2, 0)
         self.setLayout(layout)
 
         self.style_select = QComboBox(self)
@@ -310,7 +310,7 @@ class WelcomeWidget(QWidget):
         header_logo.setPixmap(theme.logo().scaled(64, 64))
         header_logo.setMaximumSize(64, 64)
         header_text = QLabel("AI Image\nGeneration", self)
-        header_text.setStyleSheet("font-size: 16px")
+        header_text.setStyleSheet("font-size: 12pt")
         header_layout.addWidget(header_logo)
         header_layout.addWidget(header_text)
         layout.addLayout(header_layout)
