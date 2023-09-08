@@ -25,6 +25,10 @@ class Extent(NamedTuple):
     def is_multiple_of(self, multiple: int):
         return self.width % multiple == 0 and self.height % multiple == 0
 
+    @property
+    def pixel_count(self):
+        return self.width * self.height
+
     @staticmethod
     def largest(a, b):
         return a if a.width * a.height > b.width * b.height else b
@@ -49,17 +53,30 @@ class Bounds(NamedTuple):
 
     @staticmethod
     def scale(b, scale: float):
+        if scale == 1:
+            return b
+
         def apply(x):
             return int(round(x * scale))
 
         return Bounds(apply(b.x), apply(b.y), apply(b.width), apply(b.height))
 
     @staticmethod
-    def pad(bounds, padding: int, multiple: int):
-        new_width = multiple_of(bounds.width + 2 * padding, multiple)
-        new_height = multiple_of(bounds.height + 2 * padding, multiple)
-        new_x = bounds.x - padding
-        new_y = bounds.y - padding
+    def pad(bounds, padding: int, min_size=0, multiple=8):
+        """Grow bounds by adding `padding` evenly on all side. Add additional padding if the area
+        is still smaller than `min_size` and ensure the result is a multiple of `multiple`.
+        """
+
+        def pad_scalar(x, size):
+            padded_size = size + 2 * padding
+            new_size = multiple_of(max(padded_size, min_size), multiple)
+            new_x = x - (new_size - size) // 2
+            return new_x, new_size
+
+        # min_pad_x = -(-(min_size - bounds.width) // 2)  # ceil division
+        # min_pad_y = (min_size - bounds.height) // 2
+        new_x, new_width = pad_scalar(bounds.x, bounds.width)
+        new_y, new_height = pad_scalar(bounds.y, bounds.height)
         return Bounds(new_x, new_y, new_width, new_height)
 
     @staticmethod

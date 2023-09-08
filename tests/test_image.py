@@ -33,14 +33,20 @@ def test_image_collection_map():
 
 def test_pad_bounds():
     bounds = Bounds(3, 1, 5, 9)
-    result = Bounds.pad(bounds, 2, 1)
+    result = Bounds.pad(bounds, 2, multiple=1)
     assert result == Bounds(1, -1, 9, 13)
 
 
 def test_pad_bounds_multiple():
     bounds = Bounds(3, 2, 5, 9)
-    result = Bounds.pad(bounds, 0, 4)
-    assert result == Bounds(3, 2, 8, 12)
+    result = Bounds.pad(bounds, 0, multiple=4)
+    assert result == Bounds(2, 1, 8, 12)
+
+
+def test_pad_bounds_min_size():
+    bounds = Bounds(3, 2, 5, 9)
+    result = Bounds.pad(bounds, 2, min_size=10, multiple=1)
+    assert result == Bounds(1, 0, 10, 13)
 
 
 @pytest.mark.parametrize(

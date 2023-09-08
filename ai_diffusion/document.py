@@ -25,7 +25,7 @@ class Document:
     def is_valid(self):
         return self._doc in Krita.instance().documents()
 
-    def create_mask_from_selection(self):
+    def create_mask_from_selection(self, min_size):
         user_selection = self._doc.selection()
         if not user_selection:
             return None
@@ -38,7 +38,7 @@ class Document:
         selection.feather(feather_radius)
 
         bounds = Bounds(selection.x(), selection.y(), selection.width(), selection.height())
-        bounds = Bounds.pad(bounds, size_factor // 32, 8)
+        bounds = Bounds.pad(bounds, size_factor // 32, min_size=min_size, multiple=8)
         bounds = Bounds.clamp(bounds, extent)
         data = selection.pixelData(*bounds)
         return Mask(bounds, data)

@@ -136,7 +136,11 @@ class Model(QObject):
     def generate(self):
         """Enqueue image generation for the current setup."""
         image = None
-        mask = self._doc.create_mask_from_selection()
+        # For 100% strength inpainting, pad the mask if it is small to get additional context
+        # For img2img inpainting, use a smaller mask area and scale it to get more detail
+        pad_min_size = 512 if self.strength == 1 else 0
+        mask = self._doc.create_mask_from_selection(pad_min_size)
+
         if mask is not None or self.strength < 1.0:
             image = self._doc.get_image(exclude_layer=self._layer)
             bounds = mask.bounds if mask else Bounds(0, 0, *image.extent)
