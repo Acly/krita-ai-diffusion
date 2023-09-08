@@ -1,6 +1,7 @@
 .debug
 .env
 .logs
+.package
 .pytest_cache
 .server
 .vscode
@@ -8,4 +9,5 @@ __pycache__
 tests/.results
 settings.json
 ai_diffusion/styles/violet*
+krita_ai_diffusion*.zip
 TODO.md
