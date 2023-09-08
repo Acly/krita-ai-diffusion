@@ -139,6 +139,7 @@ class ServerState(Enum):
 class InstallationProgress(NamedTuple):
     stage: str
     progress: Optional[DownloadProgress] = None
+    message: str = ""
 
 
 Callback = Callable[[InstallationProgress], None]
@@ -172,7 +173,7 @@ class Server:
         comfy_pkg = ["main.py", "nodes.py", "custom_nodes"]
         self._comfy_dir = _find_component(comfy_pkg, [self.path, self.path / "ComfyUI"])
 
-        python_pkg = ["python3.dll", "python.exe"] if _is_windows else ["python", "python.so"]
+        python_pkg = ["python3.dll", "python.exe"] if _is_windows else ["python3", "libpython.so"]
         python_search_paths = [self.path / "python"]
         if self._comfy_dir:
             python_search_paths += [
@@ -182,8 +183,8 @@ class Server:
             ]
         python_path = _find_component(python_pkg, python_search_paths)
         if python_path is None:
-            self._python_cmd = _find_program("python")
-            self._pip_cmd = _find_program("pip")
+            self._python_cmd = _find_program("python3", "python")
+            self._pip_cmd = _find_program("pip3", "pip")
         else:
             self._python_cmd = python_path / f"python{_exe}"
             self._pip_cmd = python_path / "Scripts" / f"pip{_exe}"
@@ -318,7 +319,10 @@ class Server:
         def cb(stage: str, message: str, progress: Optional[DownloadProgress] = None):
             if message:
                 log.info(message)
-            callback(InstallationProgress(stage, progress))
+            filters = ["Downloading", "Installing", "Collecting", "Using"]
+            if not (message and any(s in message[:16] for s in filters)):
+                message = ""
+            callback(InstallationProgress(stage, progress, message))
 
         try:
             await self._install(cb)
@@ -447,9 +451,12 @@ def _find_component(files: List[str], search_paths: List[Path]):
     )
 
 
-def _find_program(command: str):
-    p = shutil.which(command)
-    return Path(p) if p is not None else None
+def _find_program(*commands: str):
+    for command in commands:
+        p = shutil.which(command)
+        if p is not None:
+            return Path(p)
+    return None
 
 
 async def _download_cached(

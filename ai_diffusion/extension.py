@@ -21,7 +21,11 @@ class AIToolsExtension(Extension):
 
         notifier = Krita.instance().notifier()
         notifier.setActive(True)
-        notifier.applicationClosing.connect(self._server.terminate)
+        notifier.applicationClosing.connect(self.shutdown)
+
+    def shutdown(self):
+        self._server.terminate()
+        eventloop.stop()
 
     async def autostart(self):
         connection = Connection.instance()
@@ -59,5 +63,5 @@ class AIToolsExtension(Extension):
 
 Krita.instance().addExtension(AIToolsExtension(Krita.instance()))
 Krita.instance().addDockWidgetFactory(
-    DockWidgetFactory("imageDiffusion", DockWidgetFactoryBase.DockTop, ImageDiffusionWidget)
+    DockWidgetFactory("imageDiffusion", DockWidgetFactoryBase.DockRight, ImageDiffusionWidget)
 )

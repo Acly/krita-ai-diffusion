@@ -28,7 +28,7 @@ from .. import (
     util,
 )
 from . import Connection, ConnectionState
-from .theme import add_header, green, grey, red, yellow, highlight
+from .theme import add_header, set_text_clipped, green, grey, red, yellow, highlight
 
 
 class ServerWidget(QWidget):
@@ -66,6 +66,10 @@ class ServerWidget(QWidget):
         self._progress_bar.setVisible(False)
         self._progress_bar.setMaximumHeight(16)
 
+        self._progress_info = QLabel(self)
+        self._progress_info.setStyleSheet("font-style:italic")
+        self._progress_info.setVisible(False)
+
         self._use_cuda = QCheckBox("Use CUDA (requires NVIDIA GPU)", self)
         self._use_cuda.stateChanged.connect(self._change_backend)
 
@@ -75,6 +79,7 @@ class ServerWidget(QWidget):
         self._launch_button.clicked.connect(self._launch)
 
         open_log_button = QLabel(f"<a href='file://{util.log_path}'>View log files</a>", self)
+        open_log_button.setToolTip(str(util.log_path))
         open_log_button.linkActivated.connect(
             lambda _: QDesktopServices.openUrl(QUrl.fromLocalFile(str(util.log_path)))
         )
@@ -83,6 +88,7 @@ class ServerWidget(QWidget):
         status_layout.addWidget(self._status_label)
         status_layout.addWidget(self._use_cuda)
         status_layout.addWidget(self._progress_bar)
+        status_layout.addWidget(self._progress_info)
         status_layout.addStretch()
 
         buttons_layout = QVBoxLayout()
@@ -217,6 +223,7 @@ class ServerWidget(QWidget):
             self._status_label.setStyleSheet(f"color:{highlight};font-weight:bold")
             self._use_cuda.setVisible(False)
             self._progress_bar.setVisible(True)
+            self._progress_info.setVisible(True)
 
             if self._server.state in [ServerState.not_installed, ServerState.missing_resources]:
                 await self._server.install(self._handle_progress)
@@ -235,6 +242,7 @@ class ServerWidget(QWidget):
 
     def _handle_progress(self, report: server.InstallationProgress):
         self._status_label.setText(f"{report.stage}...")
+        set_text_clipped(self._progress_info, report.message)
         if report.progress and report.progress.total > 0:
             self._progress_bar.setMaximum(100)
             self._progress_bar.setValue(int(report.progress.value * 100))
@@ -259,6 +267,7 @@ class ServerWidget(QWidget):
         self._location_edit.setText(settings.server_path)
         self._use_cuda.setChecked(settings.server_backend is ServerBackend.cuda)
         self._progress_bar.setVisible(False)
+        self._progress_info.setVisible(False)
         self._use_cuda.setVisible(True)
         self._launch_button.setEnabled(True)
 
@@ -271,8 +280,9 @@ class ServerWidget(QWidget):
             self._status_label.setStyleSheet(f"color:{red};font-weight:bold")
         elif state is ServerState.installing:
             self._progress_bar.setVisible(True)
+            self._progress_info.setVisible(True)
             self._use_cuda.setVisible(False)
-            self._launch_button.setText("Cancel")
+            self._launch_button.setEnabled(False)
         elif state is ServerState.stopped:
             self._status_label.setText("Server stopped")
             self._status_label.setStyleSheet(f"color:{red};font-weight:bold")

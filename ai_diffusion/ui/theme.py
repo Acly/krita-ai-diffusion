@@ -1,4 +1,5 @@
-from PyQt5.QtGui import QGuiApplication, QPalette, QIcon, QPixmap
+from PyQt5.QtCore import Qt
+from PyQt5.QtGui import QGuiApplication, QPalette, QIcon, QPixmap, QFontMetrics
 from PyQt5.QtWidgets import QVBoxLayout, QLabel
 from pathlib import Path
 
@@ -35,3 +36,9 @@ def add_header(layout: QVBoxLayout, setting: Setting):
     layout.addSpacing(6)
     layout.addWidget(title_label)
     layout.addWidget(desc_label)
+
+
+def set_text_clipped(label: QLabel, text: str):
+    metrics = QFontMetrics(label.font())
+    elided = metrics.elidedText(text, Qt.ElideRight, label.width() - 2)
+    label.setText(elided)
