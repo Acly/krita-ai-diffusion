@@ -1,3 +1,4 @@
+from enum import Enum
 from typing import Optional
 from PyQt5.QtWidgets import (
     QVBoxLayout,
@@ -32,6 +33,7 @@ from .. import (
     settings,
     Server,
     ServerMode,
+    SDVersion,
     Style,
     Styles,
     StyleSettings,
@@ -56,12 +58,12 @@ class SettingWidget(QWidget):
     def __init__(self, setting: Setting, parent=None):
         super().__init__(parent)
 
-        key_label = QLabel(f"<b>{setting.name}</b><br>{setting.desc}")
-        key_label.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Preferred)
+        self._key_label = QLabel(f"<b>{setting.name}</b><br>{setting.desc}")
+        self._key_label.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Preferred)
 
         self._layout = QHBoxLayout()
         self._layout.setContentsMargins(0, 2, 0, 2)
-        self._layout.addWidget(key_label, alignment=Qt.AlignLeft)
+        self._layout.addWidget(self._key_label, alignment=Qt.AlignLeft)
         self.setLayout(self._layout)
 
 
@@ -125,15 +127,24 @@ class SliderSetting(SettingWidget):
 
 class ComboBoxSetting(SettingWidget):
     _suppress_change = False
+    _enum_type = None
+    _original_text = ""
 
     def __init__(self, setting: Setting, parent=None):
         super().__init__(setting, parent)
         self._combo = QComboBox(self)
-        if setting.items:
+        if isinstance(setting.default, Enum):
+            self._enum_type = type(setting.default)
+            for i, e in enumerate(self._enum_type):
+                self._combo.addItem(e.value)
+                self._combo.setItemData(i, e.name, Qt.UserRole)
+        elif setting.items:
             self._combo.addItems(setting.items)
+
         self._combo.setMinimumWidth(230)
         self._combo.currentIndexChanged.connect(self._change_value)
         self._layout.addWidget(self._combo, alignment=Qt.AlignRight)
+        self._original_text = self._key_label.text()
 
     def set_items(self, items):
         self._suppress_change = True
@@ -145,13 +156,24 @@ class ComboBoxSetting(SettingWidget):
         if not self._suppress_change:
             self.value_changed.emit()
 
+    def set_text(self, text):
+        self._key_label.setText(self._original_text + text)
+
     @property
     def value(self):
-        return self._combo.currentText()
+        if self._enum_type is not None:
+            name = self._combo.itemData(self._combo.currentIndex(), Qt.UserRole)
+            return self._enum_type[name]
+        else:
+            return self._combo.currentText()
 
     @value.setter
     def value(self, v):
-        self._combo.setCurrentText(v)
+        if self._enum_type is not None:
+            index = self._combo.findData(v.name, Qt.UserRole)
+            self._combo.setCurrentIndex(index)
+        else:
+            self._combo.setCurrentText(v)
 
 
 class TextSetting(SettingWidget):
@@ -575,6 +597,7 @@ class StylePresets(SettingsTab):
         add("loras", LoraList(StyleSettings.loras, self))
         add("style_prompt", LineEditSetting(StyleSettings.style_prompt, self))
         add("negative_prompt", LineEditSetting(StyleSettings.negative_prompt, self))
+        add("sd_version", ComboBoxSetting(StyleSettings.sd_version, self))
         add("sampler", ComboBoxSetting(StyleSettings.sampler, self))
         add("sampler_steps", SliderSetting(StyleSettings.sampler_steps, self, 1, 100))
         add(
@@ -621,6 +644,13 @@ class StylePresets(SettingsTab):
     def _change_style(self):
         self._read_style(self.current_style)
 
+    def _set_sd_version_text(self):
+        if self.current_style.sd_version is SDVersion.auto:
+            actual = self.current_style.sd_version_resolved
+            self._style_widgets["sd_version"].set_text(f". <i>Detected {actual.value}</i>")
+        else:
+            self._style_widgets["sd_version"].set_text("")
+
     def _read_style(self, style: Style):
         with self._write_guard:
             for name, widget in self._style_widgets.items():
@@ -632,20 +662,14 @@ class StylePresets(SettingsTab):
             self._style_widgets["sd_checkpoint"].set_items(client.checkpoints)
             self._style_widgets["loras"].names = client.lora_models
         self._read_style(self.current_style)
+        self._set_sd_version_text()
 
     def _write(self):
         style = self.current_style
         for name, widget in self._style_widgets.items():
             setattr(style, name, widget.value)
+        self._set_sd_version_text()
         style.save()
-
-
-class DiffusionSettings(SettingsTab):
-    def __init__(self):
-        super().__init__("Image Diffusion Settings")
-        self.add("min_image_size", SpinBoxSetting(Settings._min_image_size, self, 64, 2048, " px"))
-        self.add("max_image_size", SpinBoxSetting(Settings._max_image_size, self, 64, 2048, " px"))
-        self._layout.addStretch()
 
 
 class PerformanceSettings(SettingsTab):
@@ -717,7 +741,6 @@ class PerformanceSettings(SettingsTab):
 class SettingsDialog(QDialog):
     connection: ConnectionSettings
     styles: StylePresets
-    diffusion: DiffusionSettings
     performance: PerformanceSettings
 
     _instance = None
@@ -749,7 +772,6 @@ class SettingsDialog(QDialog):
 
         create_list_item("Connection")
         create_list_item("Styles")
-        create_list_item("Diffusion")
         create_list_item("Performance")
         self._list.setCurrentRow(0)
         self._list.currentRowChanged.connect(self._change_page)
@@ -761,11 +783,9 @@ class SettingsDialog(QDialog):
         self._stack = QStackedWidget(self)
         self.connection = ConnectionSettings(server)
         self.styles = StylePresets()
-        self.diffusion = DiffusionSettings()
         self.performance = PerformanceSettings()
         self._stack.addWidget(self.connection)
         self._stack.addWidget(self.styles)
-        self._stack.addWidget(self.diffusion)
         self._stack.addWidget(self.performance)
         inner.addWidget(self._stack)
         inner.addSpacing(6)
@@ -785,7 +805,6 @@ class SettingsDialog(QDialog):
     def read(self):
         self.connection.read()
         self.styles.read()
-        self.diffusion.read()
         self.performance.read()
 
     def restore_defaults(self):

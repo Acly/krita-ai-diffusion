@@ -1,35 +1,44 @@
 import json
-from ai_diffusion import Settings, Setting, Style, Styles, StyleSettings, GPUMemoryPreset
 from tempfile import TemporaryDirectory
 from pathlib import Path
+
+from ai_diffusion import (
+    Settings,
+    Setting,
+    ServerMode,
+    Style,
+    Styles,
+    StyleSettings,
+    GPUMemoryPreset,
+)
 
 
 def test_get_set():
     s = Settings()
     assert (
-        s.min_image_size == Settings._min_image_size.default
-        and s.max_image_size == Settings._max_image_size.default
+        s.history_size == Settings._history_size.default
+        and s.server_mode == Settings._server_mode.default
     )
-    s.min_image_size = 5
-    s.max_image_size = 99
-    assert s.min_image_size == 5 and s.max_image_size == 99
+    s.history_size = 5
+    s.server_mode = ServerMode.external
+    assert s.history_size == 5 and s.server_mode == ServerMode.external
 
 
 def test_restore():
     s = Settings()
-    s.min_image_size = 5
-    s.max_image_size = 99
+    s.history_size = 5
+    s.server_mode = ServerMode.external
     s.restore()
     assert (
-        s.min_image_size == Settings._min_image_size.default
-        and s.max_image_size == Settings._max_image_size.default
+        s.history_size == Settings._history_size.default
+        and s.server_mode == Settings._server_mode.default
     )
 
 
 def test_save():
     original = Settings()
-    original.min_image_size = 5
-    original.max_image_size = 99
+    original.history_size = 5
+    original.server_mode = ServerMode.external
     original.gpu_memory_preset = GPUMemoryPreset.low
     result = Settings()
     with TemporaryDirectory(dir=Path(__file__).parent) as dir:
@@ -37,8 +46,8 @@ def test_save():
         original.save(filepath)
         result.load(filepath)
     assert (
-        result.min_image_size == 5
-        and result.max_image_size == 99
+        result.history_size == 5
+        and result.server_mode == ServerMode.external
         and result.gpu_memory_preset == GPUMemoryPreset.low
     )
 

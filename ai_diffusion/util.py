@@ -1,3 +1,4 @@
+from enum import Enum
 from pathlib import Path
 import logging
 import logging.handlers
@@ -23,10 +24,6 @@ client_logger = create_logger("krita.ai_diffusion.client", log_path / "client.lo
 server_logger = create_logger("krita.ai_diffusion.server", log_path / "server.log")
 
 
-def log_warning(message: str):
-    client_logger.warning(message)
-
-
 def log_error(error: Exception):
     if isinstance(error, AssertionError):
         message = f"Error: Internal assertion failed [{error}]"
@@ -36,8 +33,13 @@ def log_error(error: Exception):
     return message
 
 
-def compute_batch_size(extent: Extent, min_size: int = None, max_batches: int = None):
-    min_size = min_size or settings.min_image_size
+def encode_json(obj):
+    if isinstance(obj, Enum):
+        return obj.name
+    raise TypeError(f"Object of type {obj.__class__.__name__} is not JSON serializable")
+
+
+def compute_batch_size(extent: Extent, min_size=512, max_batches: int = None):
     max_batches = max_batches or settings.batch_size
     desired_pixels = min_size * min_size * max_batches
     requested_pixels = extent.width * extent.height

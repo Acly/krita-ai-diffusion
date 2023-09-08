@@ -1,6 +1,7 @@
 {
     "name": "Cinematic Photo",
     "version": 1,
+    "sd_version": "auto",
     "sd_checkpoint": "realisticVisionV51_v51VAE.safetensors",
     "loras": [],
     "style_prompt": "cinematic photo, photograph, film, best quality, highres",

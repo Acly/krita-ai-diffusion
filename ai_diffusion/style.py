@@ -1,13 +1,41 @@
+from enum import Enum
 import json
 from pathlib import Path
 from PyQt5.QtCore import QObject, pyqtSignal
 
 from . import Setting, settings, util
+from .util import client_logger as log
+
+
+class SDVersion(Enum):
+    auto = "Automatic"
+    sd1_5 = "SD 1.5"
+    sdxl = "SD XL"
+
+    def matches(self, checkpoint: str):
+        # Check is not very robust, but don't know better alternative
+        xl_in_name = "xl" in checkpoint.lower()
+        return self is SDVersion.auto or ((self is SDVersion.sdxl) == xl_in_name)
+
+    def resolve(self, checkpoint: str):
+        if self is SDVersion.auto:
+            return SDVersion.sdxl if SDVersion.sdxl.matches(checkpoint) else SDVersion.sd1_5
+        return self
+
+    @property
+    def has_controlnet_inpaint(self):
+        return self is SDVersion.sd1_5
 
 
 class StyleSettings:
     name = Setting("Name", "Default Style")
     version = Setting("Version", 1)
+
+    sd_version = Setting(
+        "Stable Diffusion Version",
+        SDVersion.auto,
+        "The base architecture must match checkpoint and LoRA",
+    )
 
     sd_checkpoint = Setting(
         "Model Checkpoint",
@@ -40,7 +68,7 @@ class StyleSettings:
 
     sampler = Setting(
         "Sampler",
-        "DPM++ 2M SDE",
+        "DPM++ 2M Karras",
         "The sampling strategy and scheduler",
         items=["DDIM", "DPM++ 2M", "DPM++ 2M Karras", "DPM++ 2M SDE", "DPM++ 2M SDE Karras"],
     )
@@ -68,6 +96,7 @@ class Style:
     filepath: Path
     version = StyleSettings.version.default
     name = StyleSettings.name.default
+    sd_version: SDVersion = StyleSettings.sd_version.default
     sd_checkpoint = StyleSettings.sd_checkpoint.default
     loras: list
     style_prompt = StyleSettings.style_prompt.default
@@ -97,12 +126,12 @@ class Style:
                         or (isinstance(setting.default, str) != isinstance(value, str))
                         or (isinstance(setting.default, numtype) != isinstance(value, numtype))
                     ):
-                        util.log_warning(f"Style {filepath} has invalid value for {name}: {value}")
+                        log.warning(f"Style {filepath} has invalid value for {name}: {value}")
                         value = setting.default
                     setattr(style, name, value)
             return style
         except json.JSONDecodeError as e:
-            util.log_warning(f"Failed to load style {filepath}: {e}")
+            log.warning(f"Failed to load style {filepath}: {e}")
             return None
 
     def save(self):
@@ -111,11 +140,15 @@ class Style:
             for name, setting in StyleSettings.__dict__.items()
             if isinstance(setting, Setting)
         }
-        self.filepath.write_text(json.dumps(cfg, indent=4))
+        self.filepath.write_text(json.dumps(cfg, indent=4, default=util.encode_json))
 
     @property
     def filename(self):
         return self.filepath.name
+
+    @property
+    def sd_version_resolved(self):
+        return self.sd_version.resolve(self.sd_checkpoint)
 
 
 class Styles(QObject):

@@ -175,7 +175,11 @@ class Server:
         python_pkg = ["python3.dll", "python.exe"] if _is_windows else ["python", "python.so"]
         python_search_paths = [self.path / "python"]
         if self._comfy_dir:
-            python_search_paths += [self._comfy_dir / "python", self._comfy_dir.parent / "python"]
+            python_search_paths += [
+                self._comfy_dir / "python",
+                self._comfy_dir.parent / "python",
+                self._comfy_dir.parent / "python_embeded",
+            ]
         python_path = _find_component(python_pkg, python_search_paths)
         if python_path is None:
             self._python_cmd = _find_program("python")

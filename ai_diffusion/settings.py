@@ -3,6 +3,8 @@ import json
 from enum import Enum
 from pathlib import Path
 
+from . import util
+
 
 class ServerMode(Enum):
     undefined = -1
@@ -45,12 +47,6 @@ class Setting:
             return self.default
 
 
-def encode_json(obj):
-    if isinstance(obj, Enum):
-        return obj.name
-    raise TypeError(f"Object of type {obj.__class__.__name__} is not JSON serializable")
-
-
 class Settings:
     default_path = Path(__file__).parent / "settings.json"
 
@@ -77,28 +73,6 @@ class Settings:
 
     _server_backend = Setting("Server Backend", ServerBackend.cuda)
 
-    _min_image_size = Setting(
-        "Minimum Image Size",
-        512,
-        "Smaller images are automatically scaled before and after generation",
-        (
-            "Generation will run at a resolution of at least the configured value, "
-            "even if the selected input image content is smaller. "
-            "Afterwards results are automatically downscaled to fit the target area."
-        ),
-    )
-
-    _max_image_size = Setting(
-        "Maximum Image Size",
-        768,
-        "Larger images automatically use two-pass generation with upscaling",
-        (
-            "Initial image generation will run with a resolution no higher than the value "
-            "configured here. If the resolution of the target area is higher, the results "
-            "will be upscaled afterwards."
-        ),
-    )
-
     _history_size = Setting(
         "History Size", 1000, "Main memory (RAM) used to keep the history of generated images"
     )
@@ -118,11 +92,6 @@ class Settings:
         "Maximum Batch Size",
         4,
         "Increase efficiency by generating multiple images at once",
-        (
-            "This defines the number of low resolution images which are generated at once. Improves"
-            " generation efficiency but requires more GPU memory. Batch size is automatically"
-            " adjusted for larger resolutions."
-        ),
     )
 
     _diffusion_tile_size = Setting(
@@ -173,7 +142,7 @@ class Settings:
     def save(self, path: Path = ...):
         path = self.default_path if path is ... else path
         with open(path, "w") as file:
-            file.write(json.dumps(self._values, default=encode_json, indent=4))
+            file.write(json.dumps(self._values, default=util.encode_json, indent=4))
 
     def load(self, path: Path = ...):
         path = self.default_path if path is ... else path

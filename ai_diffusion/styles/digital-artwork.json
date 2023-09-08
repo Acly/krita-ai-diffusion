@@ -1,5 +1,7 @@
 {
     "name": "Digital Artwork",
+    "version": 1,
+    "sd_version": "auto",
     "sd_checkpoint": "dreamshaper_8.safetensors",
     "loras": [],
     "style_prompt": "digital artwork, best quality, highres, 4k",
