@@ -1,4 +1,4 @@
-<div style="display:flex"><div><img width="80" src="ai_diffusion/icons/logo-128.png"></div><h1 style="margin-left:1em">Generative AI<br><i>for Krita</i></h1></div>
+<table><tr><td><img width="80" src="ai_diffusion/icons/logo-128.png"></td><td><h1>Generative AI<br><i>for Krita</i></h1></td></tr></table>
 
 [Features](#features) | [Download](https://github.com/Acly/krita-ai-diffusion/releases/latest) | [Installation](#installation) | [Video](https://youtu.be/1d_jns4W1cM) | [Screenshots](#screenshots)
 
@@ -67,15 +67,17 @@ To use an external installation, the following extensions and models are require
   * [Clip-Vision (SD1.5)](https://huggingface.co/h94/IP-Adapter/blob/main/models/image_encoder/pytorch_model.bin) to `models/clip_vision/SD1.5`
   * [IP-Adapter (SD1.5)](https://huggingface.co/h94/IP-Adapter/resolve/main/models/ip-adapter_sd15.bin) to `custom_nodes/IPAdapter-ComfyUI/models`
 
-## <a name="screenshots"></a> Demo and Screenshots
+## <a name="screenshots"></a> Screenshots
 
 <img alt="Inpainting on a photo using a realistic model" src="media/screenshot-2.png">
-
-<img alt="Server installation" width="49%" src="media/screenshot-installation.png"> <img alt="Style preset configuraiton" width="49%" src="media/screenshot-style.png">
 
 <img alt="Reworking and adding content to an AI generated image" src="media/screenshot-1.png">
 
 <img alt="Adding detail and iteratively refining small parts of the image" src="media/screenshot-3.png">
+
+<img alt="Server installation" src="media/screenshot-installation.png"> <img alt="Style preset configuraiton" src="media/screenshot-style.png">
+
+
 
 ## Technology
 
