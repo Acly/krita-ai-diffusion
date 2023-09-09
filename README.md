@@ -1,6 +1,6 @@
 <div style="display:flex"><div><img width="80" src="ai_diffusion/icons/logo-128.png"></div><h1 style="margin-left:1em">Generative AI<br><i>for Krita</i></h1></div>
 
-[Features](#features) | [Installation](#installation) | Demo
+[Features](#features) | [Download](https://github.com/Acly/krita-ai-diffusion/releases/latest) | [Installation](#installation) | [Video](https://youtu.be/1d_jns4W1cM) | [Screenshots](#screenshots)
 
 Generate images from within Krita with minimal fuss: Select an area, push a button,
 and new content that matches your image will be generated. Or expand your canvas and
@@ -13,6 +13,8 @@ Powerful customization is available for advanced users.
 
 _Local. Open source. Free._
 
+[![Watch video demo](media/screenshot-1.png)](https://youtu.be/1d_jns4W1cM "Watch video demo")
+
 ## <a name="features"></a> Features
 
 Features are designed to fit an interactive workflow where AI generation is used as just another
@@ -20,7 +22,7 @@ tool while painting. They are meant to synergize with traditional tools and the 
 
 * **Inpaint**: Use Krita's selection tools to mark an area and remove or replace existing content in the image. Simple text prompts can be used to steer generation.
 * **Outpaint**: Extend your canvas, select a blank area and automatically fill it with content that seamlessly blends into the existing image.
-* **Generate**: Create new images from scratch by decribing them with words.
+* **Generate**: Create new images from scratch by decribing them with words. Supports SD1.5 and SDXL.
 * **Refine**: Use the strength slider to refine existing image content instead of replacing it entirely. This also works great for adding new things to an image by painting a (crude) sketch and refining at high strength!
 * **Resolutions**: Work efficiently at any resolution. The plugin will automatically use resolutions appropriate for the AI model, and scale them to fit your image region.
 * **Job Queue**: Depending on hardware, image generation can take some time. The plugin allows you to queue and cancel jobs while working on your image.
@@ -30,28 +32,29 @@ tool while painting. They are meant to synergize with traditional tools and the 
 
 ## <a name="installation"></a> Getting Started
 
-The plugin comes with an automated installer for the Stable Diffusion backend.
+The plugin comes with an integrated installer for the Stable Diffusion backend.
 
 ### Requirements
 
 * Windows or Linux (MacOS is untested)
-* NVIDIA graphics card with at least 4 GB RAM is recommended (CPU is supported, but slow)
-* _Linux only:_ Python must be installed (available via package manager)
+* NVIDIA graphics card with 6+ GB VRAM is recommended (CPU is supported, but slow)
+* _On Linux:_ Python and pip must be installed (available via package manager)
 
 ### Installation
 
-* If you haven't yet, go and install [Krita](https://krita.org/)! _Recommended version: 5.2.0_
-* _[TODO: no release yet]_ Download and install this plugin. Like other Krita Python plugins, unpack the archive into your `pykrita` folder.
-  * _Windows:_ Usually `C:\Users\<user>\AppData\Roaming\krita\pykrita`
-  * _Linux:_ Usually `~/.local/share/krita/pykrita`
-  * See [Krita's official documentation](https://docs.krita.org/en/user_manual/python_scripting/install_custom_python_plugin.html) for more information.
-* Activate the plugin in Krita and restart.
-* In the plugin docker, click "Configure" to start server installation. _Requires ~10 GB free disk space._
+1. If you haven't yet, go and install [Krita](https://krita.org/)! _Recommended version: 5.2.0_
+1. [Download the plugin](https://github.com/Acly/krita-ai-diffusion/releases/latest). Unpack the archive into your `pykrita` folder.
+    * _Windows:_ Usually `C:\Users\<user>\AppData\Roaming\krita\pykrita`
+    * _Linux:_ Usually `~/.local/share/krita/pykrita`
+    * Check [Krita's official documentation](https://docs.krita.org/en/user_manual/python_scripting/install_custom_python_plugin.html) if you have trouble locating it.
+1. Enable the plugin in Krita (Settings ‣ Configure Krita ‣ Python Plugins Manager) and restart.
+1. To show the plugin docker: Settings ‣ Dockers ‣ AI Image Generation.
+1. In the plugin docker, click "Configure" to start server installation. _Requires ~10 GB free disk space._
 
-### Custom ComfyUI Server
+### _Optional:_ Custom ComfyUI Server
 
-The plugin uses [ComfyUI](https://github.com/comfyanonymous/ComfyUI) as backend. As an _alternative_ to the automatic installation,
-you can install it manually, or use an existing installation. If the server is already running locally before starting Krita, the plugin will
+The plugin uses [ComfyUI](https://github.com/comfyanonymous/ComfyUI) as backend. As an alternative to the automatic installation,
+you can install it manually or use an existing installation. If the server is already running locally before starting Krita, the plugin will
 automatically try to connect. Using a remote server is also possible this way.
 
 To use an external installation, the following extensions and models are required:
@@ -63,6 +66,16 @@ To use an external installation, the following extensions and models are require
   * [ControlNet inpaint](https://huggingface.co/comfyanonymous/ControlNet-v1-1_fp16_safetensors/resolve/main/control_v11p_sd15_inpaint_fp16.safetensors) to `models/controlnet`
   * [Clip-Vision (SD1.5)](https://huggingface.co/h94/IP-Adapter/blob/main/models/image_encoder/pytorch_model.bin) to `models/clip_vision/SD1.5`
   * [IP-Adapter (SD1.5)](https://huggingface.co/h94/IP-Adapter/resolve/main/models/ip-adapter_sd15.bin) to `custom_nodes/IPAdapter-ComfyUI/models`
+
+## <a name="screenshots"></a> Demo and Screenshots
+
+<img alt="Inpainting on a photo using a realistic model" src="media/screenshot-2.png">
+
+<img alt="Server installation" width="49%" src="media/screenshot-installation.png"> <img alt="Style preset configuraiton" width="49%" src="media/screenshot-style.png">
+
+<img alt="Reworking and adding content to an AI generated image" src="media/screenshot-1.png">
+
+<img alt="Adding detail and iteratively refining small parts of the image" src="media/screenshot-3.png">
 
 ## Technology
 
