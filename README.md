@@ -1,4 +1,4 @@
-<table><tr><td><img width="80" src="ai_diffusion/icons/logo-128.png"></td><td><h1>Generative AI<br><i>for Krita</i></h1></td></tr></table>
+<h1><img width="64px" src="ai_diffusion/icons/logo-128.png"> Generative AI <i>for Krita</i></h1>
 
 [Features](#features) | [Download](https://github.com/Acly/krita-ai-diffusion/releases/latest) | [Installation](#installation) | [Video](https://youtu.be/1d_jns4W1cM) | [Screenshots](#screenshots)
 
