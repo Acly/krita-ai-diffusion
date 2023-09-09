@@ -460,8 +460,7 @@ class ConnectionSettings(SettingsTab):
         self._layout.addWidget(info_external)
         self._layout.addWidget(self._server_stack)
 
-        Connection.instance().changed.connect(self._update_server_status)
-        self._update_server_status()
+        self.update_server_status()
 
     @property
     def server_mode(self):
@@ -499,7 +498,7 @@ class ConnectionSettings(SettingsTab):
     def _connect(self):
         Connection.instance().connect(settings.server_url)
 
-    def _update_server_status(self):
+    def update_server_status(self):
         server = Connection.instance()
         self._connect_button.setEnabled(server.state != ConnectionState.connecting)
         if server.state == ConnectionState.connected:
@@ -619,6 +618,9 @@ class StylePresets(SettingsTab):
             self._style_list.setCurrentIndex(index)
             self._read_style(style)
 
+    def update_model_lists(self):
+        self._read()
+
     def _open_folder(self):
         QDesktopServices.openUrl(QUrl.fromLocalFile(str(Styles.list().folder)))
 
@@ -694,7 +696,6 @@ class PerformanceSettings(SettingsTab):
         self._device_info = QLabel(self)
         self._device_info.setStyleSheet(f"font-style:italic")
         self._layout.addWidget(self._device_info)
-        Connection.instance().changed.connect(self._update_device_info)
 
         self._performance_preset = QComboBox(self)
         for preset in PerformancePreset:
@@ -733,7 +734,7 @@ class PerformanceSettings(SettingsTab):
         if not is_custom:
             self.read()
 
-    def _update_device_info(self):
+    def update_device_info(self):
         if Connection.instance().state is ConnectionState.connected:
             client = Connection.instance().client
             self._device_info.setText(
@@ -750,7 +751,7 @@ class PerformanceSettings(SettingsTab):
             list(PerformancePreset).index(settings.performance_preset)
         )
         self._diffusion_tile_size.value = settings.diffusion_tile_size
-        self._update_device_info()
+        self.update_device_info()
 
     def _write(self):
         settings.history_size = self._history_size.value()
@@ -825,6 +826,8 @@ class SettingsDialog(QDialog):
         button_layout.addWidget(self._close_button)
         inner.addLayout(button_layout)
 
+        Connection.instance().changed.connect(self._update_connection)
+
     def read(self):
         self.connection.read()
         self.styles.read()
@@ -845,3 +848,9 @@ class SettingsDialog(QDialog):
 
     def _change_page(self, index):
         self._stack.setCurrentIndex(index)
+
+    def _update_connection(self):
+        if Connection.instance().state == ConnectionState.connected:
+            self.connection.update_server_status()
+            self.styles.update_model_lists()
+            self.performance.update_device_info()
