@@ -1,7 +1,17 @@
 from enum import Enum
 from typing import Optional
 from PyQt5.QtCore import QObject, pyqtSignal
-from .. import Client, MissingResource, NetworkError, eventloop, settings, util
+from .. import (
+    Client,
+    DeviceInfo,
+    MissingResource,
+    NetworkError,
+    PerformancePreset,
+    Settings,
+    eventloop,
+    settings,
+    util,
+)
 
 
 class ConnectionState(Enum):
@@ -39,6 +49,7 @@ class Connection(QObject):
         self.changed.emit()
         try:
             self.client = await Client.connect(url)
+            apply_performance_preset(settings, self.client.device_info)
             self.state = ConnectionState.connected
         except MissingResource as e:
             self.error = (
@@ -68,3 +79,15 @@ class Connection(QObject):
 
     def interrupt(self):
         eventloop.run(self.client.interrupt())
+
+
+def apply_performance_preset(settings: Settings, device: DeviceInfo):
+    if settings.performance_preset is PerformancePreset.auto:
+        if device.type == "cpu":
+            settings.apply_performance_preset(PerformancePreset.cpu)
+        elif device.vram <= 6:
+            settings.apply_performance_preset(PerformancePreset.low)
+        elif device.vram <= 12:
+            settings.apply_performance_preset(PerformancePreset.medium)
+        else:
+            settings.apply_performance_preset(PerformancePreset.high)

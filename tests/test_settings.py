@@ -9,7 +9,7 @@ from ai_diffusion import (
     Style,
     Styles,
     StyleSettings,
-    GPUMemoryPreset,
+    PerformancePreset,
 )
 
 
@@ -39,7 +39,7 @@ def test_save():
     original = Settings()
     original.history_size = 5
     original.server_mode = ServerMode.external
-    original.gpu_memory_preset = GPUMemoryPreset.low
+    original.performance_preset = PerformancePreset.low
     result = Settings()
     with TemporaryDirectory(dir=Path(__file__).parent) as dir:
         filepath = Path(dir) / "test_settings.json"
@@ -48,13 +48,13 @@ def test_save():
     assert (
         result.history_size == 5
         and result.server_mode == ServerMode.external
-        and result.gpu_memory_preset == GPUMemoryPreset.low
+        and result.performance_preset == PerformancePreset.low
     )
 
 
-def test_gpu_memory_preset():
+def test_performance_preset():
     s = Settings()
-    s.gpu_memory_preset = GPUMemoryPreset.low
+    s.performance_preset = PerformancePreset.low
     assert s.batch_size == 2 and s.diffusion_tile_size == 1024
 
 

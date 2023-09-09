@@ -17,17 +17,13 @@ class ServerBackend(Enum):
     cuda = "cuda"
 
 
-class GPUMemoryPreset(Enum):
-    custom = 0
-    low = 1
-    medium = 2
-    high = 3
-
-    @property
-    def text(self):
-        return ["Custom", "Low (less than 6GB)", "Medium (6GB to 12GB)", "High (more than 12GB)"][
-            self.value
-        ]
+class PerformancePreset(Enum):
+    auto = "Automatic"
+    cpu = "CPU"
+    low = "GPU low (less than 6GB)"
+    medium = "GPU medium (6GB to 12GB)"
+    high = "GPU high (more than 12GB)"
+    custom = "Custom"
 
 
 class Setting:
@@ -77,15 +73,10 @@ class Settings:
         "History Size", 1000, "Main memory (RAM) used to keep the history of generated images"
     )
 
-    _gpu_memory_preset = Setting(
-        "GPU Memory Preset",
-        GPUMemoryPreset.medium,
-        (
-            "Controls how much GPU memory (VRAM) is used for image generation. If you encounter out"
-            " of memory errors, switch to a lower setting. All functionality and resolutions should"
-            " work even on the lowest setting. More memory will allow more efficient generation"
-            " by using larger batches and tiles."
-        ),
+    _performance_preset = Setting(
+        "Performance Preset",
+        PerformancePreset.auto,
+        "Configures performance settings to match available hardware.",
     )
 
     _batch_size = Setting(
@@ -100,16 +91,20 @@ class Settings:
         "Resolution threshold at which diffusion is split up into multiple tiles",
     )
 
-    _gpu_memory_presets = {
-        GPUMemoryPreset.low: {
+    _performance_presets = {
+        PerformancePreset.cpu: {
+            "batch_size": 1,
+            "diffusion_tile_size": 4096,
+        },
+        PerformancePreset.low: {
             "batch_size": 2,
             "diffusion_tile_size": 1024,
         },
-        GPUMemoryPreset.medium: {
+        PerformancePreset.medium: {
             "batch_size": 4,
             "diffusion_tile_size": 2048,
         },
-        GPUMemoryPreset.high: {
+        PerformancePreset.high: {
             "batch_size": 8,
             "diffusion_tile_size": 4096,
         },
@@ -129,8 +124,8 @@ class Settings:
     def __setattr__(self, name: str, value):
         if name in self._values:
             self._values[name] = value
-            if name == "gpu_memory_preset":
-                self._apply_gpu_memory_preset(value)
+            if name == "performance_preset":
+                self.apply_performance_preset(value)
         else:
             object.__setattr__(self, name, value)
 
@@ -161,9 +156,9 @@ class Settings:
                     else:
                         raise Exception(f"{v} is not a valid value for '{k}'")
 
-    def _apply_gpu_memory_preset(self, preset: GPUMemoryPreset):
-        if preset is not GPUMemoryPreset.custom:
-            for k, v in self._gpu_memory_presets[preset].items():
+    def apply_performance_preset(self, preset: PerformancePreset):
+        if preset not in [PerformancePreset.custom, PerformancePreset.auto]:
+            for k, v in self._performance_presets[preset].items():
                 self._values[k] = v
 
 

@@ -37,9 +37,9 @@ from .. import (
     Style,
     Styles,
     StyleSettings,
-    GPUMemoryPreset,
+    PerformancePreset,
 )
-from .connection import Connection, ConnectionState
+from .connection import Connection, ConnectionState, apply_performance_preset
 from .model import Model
 from .server import ServerWidget
 from .theme import add_header, icon, red, yellow, green, grey
@@ -690,15 +690,20 @@ class PerformanceSettings(SettingsTab):
         history_layout.addWidget(self._history_usage)
         self._layout.addLayout(history_layout)
 
-        add_header(self._layout, Settings._gpu_memory_preset)
-        self._gpu_memory_preset = QComboBox(self)
-        for preset in GPUMemoryPreset:
-            self._gpu_memory_preset.addItem(preset.text)
-        self._gpu_memory_preset.currentIndexChanged.connect(self._change_gpu_memory_preset)
-        self._layout.addWidget(self._gpu_memory_preset, alignment=Qt.AlignLeft)
+        add_header(self._layout, Settings._performance_preset)
+        self._device_info = QLabel(self)
+        self._device_info.setStyleSheet(f"font-style:italic")
+        self._layout.addWidget(self._device_info)
+        Connection.instance().changed.connect(self._update_device_info)
+
+        self._performance_preset = QComboBox(self)
+        for preset in PerformancePreset:
+            self._performance_preset.addItem(preset.value)
+        self._performance_preset.currentIndexChanged.connect(self._change_performance_preset)
+        self._layout.addWidget(self._performance_preset, alignment=Qt.AlignLeft)
 
         self._advanced = QWidget(self)
-        self._advanced.setEnabled(settings.gpu_memory_preset is GPUMemoryPreset.custom)
+        self._advanced.setEnabled(settings.performance_preset is PerformancePreset.custom)
         self._advanced.setContentsMargins(0, 0, 0, 0)
         self._layout.addWidget(self._advanced)
         advanced_layout = QVBoxLayout()
@@ -716,26 +721,44 @@ class PerformanceSettings(SettingsTab):
 
         self._layout.addStretch()
 
-    def _change_gpu_memory_preset(self, index):
+    def _change_performance_preset(self, index):
         self.write()
-        is_custom = settings.gpu_memory_preset is GPUMemoryPreset.custom
+        is_custom = settings.performance_preset is PerformancePreset.custom
         self._advanced.setEnabled(is_custom)
+        if (
+            settings.performance_preset is PerformancePreset.auto
+            and Connection.instance().state is ConnectionState.connected
+        ):
+            apply_performance_preset(settings, Connection.instance().client.device_info)
         if not is_custom:
             self.read()
+
+    def _update_device_info(self):
+        if Connection.instance().state is ConnectionState.connected:
+            client = Connection.instance().client
+            self._device_info.setText(
+                f"Device: [{client.device_info.type.upper()}] {client.device_info.name} ("
+                f"{client.device_info.vram} GB)"
+            )
 
     def _read(self):
         memory_usage = Model.active().jobs.memory_usage
         self._history_size.setValue(settings.history_size)
         self._history_usage.setText(f"Currently using {memory_usage:.1f} MB")
         self._batch_size.value = settings.batch_size
-        self._gpu_memory_preset.setCurrentIndex(settings.gpu_memory_preset.value)
+        self._performance_preset.setCurrentIndex(
+            list(PerformancePreset).index(settings.performance_preset)
+        )
         self._diffusion_tile_size.value = settings.diffusion_tile_size
+        self._update_device_info()
 
     def _write(self):
         settings.history_size = self._history_size.value()
         settings.batch_size = self._batch_size.value
         settings.diffusion_tile_size = self._diffusion_tile_size.value
-        settings.gpu_memory_preset = GPUMemoryPreset(self._gpu_memory_preset.currentIndex())
+        settings.performance_preset = list(PerformancePreset)[
+            self._performance_preset.currentIndex()
+        ]
 
 
 class SettingsDialog(QDialog):

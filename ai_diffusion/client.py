@@ -62,6 +62,23 @@ class Progress:
         return 0.2 * node_part + 0.8 * sample_part
 
 
+class DeviceInfo(NamedTuple):
+    type: str
+    name: str
+    vram: int  # in GB
+
+    @staticmethod
+    def parse(data: dict):
+        try:
+            name = data["devices"][0]["name"]
+            name = name.split(":")[1] if ":" in name else name
+            vram = int(round(data["devices"][0]["vram_total"] / (1024**3)))
+            return DeviceInfo(data["devices"][0]["type"], name, vram)
+        except Exception as e:
+            log.error(f"Could not parse device info {data}: {str(e)}")
+            return DeviceInfo("cpu", "unknown", 0)
+
+
 class Client:
     """HTTP/WebSocket client which sends requests to and listens to messages from a ComfyUI server."""
 
@@ -79,6 +96,7 @@ class Client:
     controlnet_model: dict
     clip_vision_model: str
     ip_adapter_model: str
+    device_info: DeviceInfo
 
     @staticmethod
     async def connect(url=default_url):
@@ -91,6 +109,9 @@ class Client:
             raise NetworkError(
                 e.errno, f"Could not connect to websocket server at {url}: {str(e)}", url
             )
+        # Retrieve system info
+        client.device_info = DeviceInfo.parse(await client._get("system_stats"))
+
         # Check custom nodes
         nodes = await client._get("object_info")
         missing = [
