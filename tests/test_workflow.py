@@ -53,26 +53,31 @@ async def receive_images(comfy, workflow: ComfyWorkflow):
     async for msg in comfy.listen():
         if msg.event is ClientEvent.finished and msg.job_id == job_id:
             return msg.images
+        if msg.event is ClientEvent.error and msg.job_id == job_id:
+            raise Exception(msg.error)
     assert False, "Connection closed without receiving images"
 
 
 @pytest.mark.parametrize(
-    "input,expected,scale",
+    "input,expected_initial,expected_expanded,expected_scale",
     [
-        (Extent(1536, 600), Extent(1008, 392), 0.6532),
-        (Extent(400, 1024), Extent(392, 1008), 0.9798),
+        (Extent(1536, 600), Extent(1008, 392), Extent(1536, 600), 0.6532),
+        (Extent(400, 1024), Extent(392, 1008), Extent(400, 1024), 0.9798),
+        (Extent(777, 999), Extent(560, 712), Extent(784, 1000), 0.7117),
     ],
 )
-def test_prepare_highres(input, expected, scale):
+def test_prepare_highres(input, expected_initial, expected_expanded, expected_scale):
     image = Image.create(input)
     mask = Mask.rectangle(Bounds(0, 0, input.width, input.height))
     result = workflow.prepare((image, mask), SDVersion.sd1_5)
     assert (
-        result.image.extent == expected
-        and result.mask_image.extent == expected
-        and result.extent.initial == expected
+        result.extent.requires_upscale
+        and result.image.extent == expected_initial
+        and result.mask_image.extent == expected_initial
+        and result.extent.initial == expected_initial
+        and result.extent.expanded == expected_expanded
         and result.extent.target == input
-        and result.extent.scale == pytest.approx(scale, abs=1e-3)
+        and result.extent.scale == pytest.approx(expected_scale, abs=1e-3)
     )
 
 
@@ -89,10 +94,12 @@ def test_prepare_lowres(input, expected):
     mask = Mask.rectangle(Bounds(0, 0, input.width, input.height))
     result = workflow.prepare((image, mask), SDVersion.sd1_5)
     assert (
-        result.image.extent == input
+        result.extent.requires_downscale
+        and result.image.extent == input
         and result.mask_image.extent == input
         and result.extent.target == input
         and result.extent.initial == expected
+        and result.extent.expanded == input.multiple_of(8)
         and result.extent.scale > 1
     )
 
@@ -110,6 +117,7 @@ def test_prepare_passthrough(input):
         and result.mask_image.extent == input
         and result.extent.initial == input
         and result.extent.target == input
+        and result.extent.expanded == input
         and result.extent.scale == 1
     )
 
@@ -119,7 +127,12 @@ def test_prepare_passthrough(input):
 )
 def test_prepare_multiple8(input, expected):
     result = workflow.prepare(input, SDVersion.sd1_5)
-    assert result.extent.initial == expected and result.extent.target == input
+    assert (
+        result.extent.is_incompatible
+        and result.extent.initial == expected
+        and result.extent.target == input
+        and result.extent.expanded == input.multiple_of(8)
+    )
 
 
 @pytest.mark.parametrize("sdver", [SDVersion.sd1_5, SDVersion.sdxl])
@@ -152,7 +165,8 @@ def test_prepare_no_downscale():
     image = Image.create(Extent(1536, 1536))
     result = workflow.prepare(image, SDVersion.sd1_5, downscale=False)
     assert (
-        result.image == image
+        result.extent.requires_upscale is False
+        and result.image == image
         and result.mask_image is None
         and result.extent.initial == image.extent
         and result.extent.target == image.extent
@@ -202,6 +216,21 @@ def test_inpaint_upscale(qtapp, comfy, temp_settings, sdver):
         for i, result in enumerate(results):
             result.save(result_dir / f"test_inpaint_upscale_{sdver.name}_{i}.png")
             assert result.extent == mask.bounds.extent
+
+    qtapp.run(main())
+
+
+def test_inpaint_odd_resolution(qtapp, comfy, temp_settings):
+    temp_settings.batch_size = 1
+    image = Image.load(image_dir / "beach_768x512.png")
+    image = Image.scale(image, Extent(612, 513))
+    mask = Mask.rectangle(Bounds(0, 0, 200, 513))
+
+    async def main():
+        job = workflow.inpaint(comfy, default_style(comfy), image, mask, "")
+        results = await receive_images(comfy, job)
+        results[0].save(result_dir / "test_inpaint_odd_resolution.png")
+        assert results[0].extent == mask.bounds.extent
 
     qtapp.run(main())
 

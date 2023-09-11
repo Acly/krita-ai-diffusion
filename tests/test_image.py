@@ -27,7 +27,7 @@ def test_image_collection_each():
 
 def test_image_collection_map():
     col = ImageCollection([create_test_image(2, 2), create_test_image(2, 2)])
-    sub = col.map(lambda img: Image.sub_region(img, Bounds(0, 0, 2, 1)))
+    sub = col.map(lambda img: Image.crop(img, Bounds(0, 0, 2, 1)))
     assert sub[0].extent == (2, 1) and sub[1].extent == (2, 1)
 
 
@@ -96,21 +96,6 @@ def test_mask_to_image_no_extent():
         and img.pixel(1, 0) == (1, 1, 1, 255)
         and img.pixel(0, 1) == (2, 2, 2, 255)
         and img.pixel(1, 1) == (255, 255, 255, 255)
-    )
-
-
-def test_apply_mask():
-    data = QByteArray(b"\x00\x01\x02\xff")
-    mask = Mask(Bounds(1, 2, 2, 2), data)
-    img = create_test_image(4, 4)
-    Mask.apply(img, mask)
-    assert (
-        img.pixel(0, 0) == (0, 0, 0, 0)
-        and img.pixel(1, 2) == (1, 2, 0, 0)
-        and img.pixel(2, 2) == (2, 2, 0, 1)
-        and img.pixel(1, 3) == (1, 3, 0, 2)
-        and img.pixel(2, 3) == (2, 3, 0, 255)
-        and img.pixel(3, 3) == (3, 3, 0, 0)
     )
 
 

@@ -155,7 +155,7 @@ class Image:
         return Image(scaled.convertToFormat(QImage.Format_ARGB32))
 
     @staticmethod
-    def sub_region(img, bounds: Bounds):
+    def crop(img, bounds: Bounds):
         return Image(img._qimage.copy(*bounds))
 
     def pixel(self, x: int, y: int):
@@ -272,19 +272,6 @@ class Mask:
                 )
                 m[y * bounds.width + x] = 255 - alpha
         return Mask(bounds, QByteArray(bytes(m)))
-
-    @staticmethod
-    def apply(img: Image, mask):
-        if img.width == mask.bounds.width and img.height == mask.bounds.height:
-            x_offset, y_offset = 0, 0
-        else:
-            x_offset, y_offset = mask.bounds.offset
-
-        for y in range(img.height):
-            for x in range(img.width):
-                r, g, b, _ = img.pixel(x, y)
-                a = mask.value(x - x_offset, y - y_offset)
-                img.set_pixel(x, y, (r, g, b, a))
 
     def value(self, x: int, y: int):
         if self.bounds.is_within(x, y):
