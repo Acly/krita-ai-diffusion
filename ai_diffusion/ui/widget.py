@@ -144,6 +144,25 @@ class HistoryWidget(QListWidget):
         return super().mousePressEvent(e)
 
 
+class TextPromptWidget(QPlainTextEdit):
+    activated = pyqtSignal()
+
+    def __init__(self, parent):
+        super().__init__(parent)
+        self.setHorizontalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAlwaysOff)
+        self.setVerticalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAlwaysOff)
+        self.setTabChangesFocus(True)
+        self.setPlaceholderText("Describe the content you want to see, or leave empty.")
+        fm = QFontMetrics(self.document().defaultFont())
+        self.setFixedHeight(fm.lineSpacing() * 2 + 4)
+
+    def keyPressEvent(self, event: QKeyEvent):
+        if event.key() == Qt.Key_Return and event.modifiers() == Qt.ShiftModifier:
+            self.activated.emit()
+        else:
+            super().keyPressEvent(event)
+
+
 class GenerationWidget(QWidget):
     _model: Optional[Model] = None
 
@@ -169,16 +188,9 @@ class GenerationWidget(QWidget):
         style_layout.addWidget(self.settings_button)
         layout.addLayout(style_layout)
 
-        self.prompt_textbox = QPlainTextEdit(self)
-        self.prompt_textbox.setHorizontalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAlwaysOff)
-        self.prompt_textbox.setVerticalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAlwaysOff)
-        self.prompt_textbox.setTabChangesFocus(True)
-        self.prompt_textbox.setPlaceholderText(
-            "Describe the content you want to see, or leave empty."
-        )
+        self.prompt_textbox = TextPromptWidget(self)
         self.prompt_textbox.textChanged.connect(self.change_prompt)
-        fm = QFontMetrics(self.prompt_textbox.document().defaultFont())
-        self.prompt_textbox.setFixedHeight(fm.lineSpacing() * 2 + 4)
+        self.prompt_textbox.activated.connect(self.generate)
         layout.addWidget(self.prompt_textbox)
 
         strength_text = QLabel(self)
