@@ -6,6 +6,8 @@ from typing import NamedTuple, Callable
 from PyQt5.QtCore import QByteArray, QUrl, QFile
 from PyQt5.QtNetwork import QNetworkAccessManager, QNetworkRequest, QNetworkReply
 
+from .util import client_logger as log
+
 
 class NetworkError(Exception):
     def __init__(self, code, msg, url):
@@ -115,9 +117,13 @@ class DownloadProgress(NamedTuple):
 
 
 class DownloadHelper:
+    _initial = 0
     _total = 0
     _received = 0
     _time: datetime = None
+
+    def __init__(self, resume_from: int = 0):
+        self._initial = resume_from / 10**6
 
     def update(self, received_bytes: int, total_bytes: int = 0):
         received = received_bytes / 10**6
@@ -130,24 +136,33 @@ class DownloadHelper:
         if self._time is not None:
             speed = diff / max((now - self._time).total_seconds(), 0.0001)
         self._time = now
-        progress = self._received / self._total if self._total > 0 else -1
-        return DownloadProgress(self._received, self._total, speed, progress)
+        current = self._initial + self._received
+        total = 0
+        progress = -1
+        if self._total > 0:
+            total = self._initial + self._total
+            progress = current / total
+        return DownloadProgress(current, total, speed, progress)
 
     def final(self):
-        return DownloadProgress(self._received, self._total, 0, 1)
+        return DownloadProgress(self._initial + self._received, self._initial + self._total, 0, 1)
 
 
-async def download(network: QNetworkAccessManager, url: str, path: Path):
+async def _try_download(network: QNetworkAccessManager, url: str, path: Path):
+    out_file = QFile(str(path) + ".part")
+    if not out_file.open(QFile.ReadWrite | QFile.Append):
+        raise Exception(f"Error during download: could not open {path} for writing")
+
     request = QNetworkRequest(QUrl(url))
     request.setAttribute(QNetworkRequest.FollowRedirectsAttribute, True)
+    if out_file.size() > 0:
+        log.info(f"Found {path}.part, resuming download from {out_file.size()} bytes")
+        request.setRawHeader(b"Range", f"bytes={out_file.size()}-".encode("utf-8"))
     reply = network.get(request)
 
-    out_file = QFile(str(path) + ".part")
-    if not out_file.open(QFile.WriteOnly):
-        raise Exception(f"Error during download: could not open {path} for writing")
     progress_future = asyncio.get_running_loop().create_future()
     finished_future = asyncio.get_running_loop().create_future()
-    progress_helper = DownloadHelper()
+    progress_helper = DownloadHelper(resume_from=out_file.size())
 
     def handle_progress(bytes_received, bytes_total):
         out_file.write(reply.readAll())
@@ -162,6 +177,8 @@ async def download(network: QNetworkAccessManager, url: str, path: Path):
             return  # operation was cancelled, discard result
         if reply.error() == QNetworkReply.NoError:
             finished_future.set_result(path)
+        elif reply.attribute(QNetworkReply.HttpStatusCodeAttribute) == 416:  # Range Not Satisfiable
+            finished_future.set_exception(NetworkError(416, "Resume not supported", url))
         else:
             finished_future.set_exception(NetworkError.from_reply(reply))
 
@@ -176,8 +193,31 @@ async def download(network: QNetworkAccessManager, url: str, path: Path):
             yield progress
 
     if finished_future.exception() is not None:
-        out_file.remove()
         raise finished_future.exception()
 
     out_file.rename(str(path))
     yield progress_helper.final()
+
+
+async def download(network: QNetworkAccessManager, url: str, path: Path):
+    for retry in range(3, 0, -1):
+        try:
+            async for progress in _try_download(network, url, path):
+                yield progress
+            break
+        except NetworkError as e:
+            if e.code == 416:  # Range Not Satisfiable
+                log.info("Download received code 416: Resume not supported, restarting")
+                QFile.remove(str(path) + ".part")
+            elif e.code in [
+                QNetworkReply.RemoteHostClosedError,
+                QNetworkReply.TemporaryNetworkFailureError,
+            ]:
+                log.warning(f"Download interrupted: {e}")
+                if retry == 1:
+                    raise e
+                await asyncio.sleep(1)
+        except Exception as e:
+            raise e
+
+        log.info(f"Retrying download of {url}, {retry - 1} attempts left")

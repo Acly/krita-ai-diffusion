@@ -17,12 +17,17 @@ def clear_downloads():
     test_dir.mkdir(exist_ok=True)
 
 
-def test_download(qtapp):
+@pytest.mark.parametrize("mode", ["from_scratch", "resume"])
+def test_download(qtapp, mode):
     async def main():
         net = QNetworkAccessManager()
         with TemporaryDirectory() as tmp:
             url = "https://github.com/Acly/krita-ai-diffusion/archive/refs/tags/v0.1.0.zip"
             path = Path(tmp) / "test.zip"
+            if mode == "resume":
+                part = Path(tmp) / "test.zip.part"
+                part.touch()
+                part.write_bytes(b"1234567890")
             got_finished = False
             async for progress in network.download(net, url, path):
                 if progress and progress.total > 0:
