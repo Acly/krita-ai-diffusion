@@ -79,3 +79,8 @@ class Document:
         layer.setVisible(True)
         self._doc.refreshProjection()
         return layer
+
+    def hide_layer(self, layer):
+        layer.setVisible(False)
+        self._doc.refreshProjection()
+        return layer

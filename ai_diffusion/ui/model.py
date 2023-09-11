@@ -224,10 +224,12 @@ class Model(QObject):
             self._doc.set_layer_content(self._layer, job.results[index], job.bounds)
         else:
             self._layer = self._doc.insert_layer(name, job.results[index], job.bounds)
+        self.changed.emit()
 
     def hide_preview(self):
         if self._layer is not None:
-            self._layer.setVisible(False)
+            self._doc.hide_layer(self._layer)
+            self.changed.emit()
 
     def apply_current_result(self):
         """Promote the preview layer to a user layer."""
@@ -235,6 +237,7 @@ class Model(QObject):
         self._layer.setLocked(False)
         self._layer.setName(self._layer.name().replace("[Preview]", "[Generated]"))
         self._layer = None
+        self.changed.emit()
 
     @property
     def history(self):

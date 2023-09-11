@@ -22,7 +22,7 @@ from PyQt5.QtWidgets import (
     QHBoxLayout,
     QVBoxLayout,
 )
-from PyQt5.QtGui import QFontMetrics, QGuiApplication
+from PyQt5.QtGui import QFontMetrics, QGuiApplication, QKeyEvent, QMouseEvent
 from PyQt5.QtCore import Qt, QSize, pyqtSignal
 from krita import Krita, DockWidget
 
@@ -100,7 +100,9 @@ class HistoryWidget(QListWidget):
             item = QListWidgetItem(img.to_icon(), None)
             item.setData(Qt.UserRole, job.id)
             item.setData(Qt.UserRole + 1, i)
-            item.setData(Qt.ToolTipRole, f"{job.prompt}\nClick to preview, double-click to apply.")
+            item.setData(
+                Qt.ToolTipRole, f"{job.prompt}\nClick to toggle preview, double-click to apply."
+            )
             self.addItem(item)
 
         scrollbar = self.verticalScrollBar()
@@ -124,6 +126,22 @@ class HistoryWidget(QListWidget):
         if item.text() != "" and item.text() != "<no prompt>":
             prompt = item.data(Qt.ToolTipRole)
             QGuiApplication.clipboard().setText(prompt)
+
+    def mousePressEvent(self, e: QMouseEvent) -> None:
+        # make single click deselect current item (usually requires Ctrl+click)
+        mods = e.modifiers()
+        mods |= Qt.ControlModifier
+        e = QMouseEvent(
+            e.type(),
+            e.localPos(),
+            e.windowPos(),
+            e.screenPos(),
+            e.button(),
+            e.buttons(),
+            mods,
+            e.source(),
+        )
+        return super().mousePressEvent(e)
 
 
 class GenerationWidget(QWidget):
@@ -209,7 +227,7 @@ class GenerationWidget(QWidget):
         layout.addWidget(self.error_text)
 
         self.history = HistoryWidget(self)
-        self.history.currentItemChanged.connect(self.show_preview)
+        self.history.itemSelectionChanged.connect(self.select_preview)
         self.history.itemDoubleClicked.connect(self.apply_result)
         layout.addWidget(self.history)
 
@@ -284,20 +302,22 @@ class GenerationWidget(QWidget):
     def show_settings(self):
         SettingsDialog.instance().show(self.model.style)
 
-    def show_preview(self, current: Optional[QListWidgetItem], previous):
-        if current:
-            job_id, index = self.history.item_info(current)
-            self.model.show_preview(job_id, index)
-            self.apply_button.setEnabled(self.model.can_apply_result)
+    def show_preview(self, item: QListWidgetItem):
+        job_id, index = self.history.item_info(item)
+        self.model.show_preview(job_id, index)
+
+    def select_preview(self):
+        items = self.history.selectedItems()
+        if len(items) > 0:
+            self.show_preview(items[0])
         else:
             self.model.hide_preview()
 
     def apply_selected_result(self):
         self.model.apply_current_result()
-        self.apply_button.setEnabled(self.model.can_apply_result)
 
     def apply_result(self, item: QListWidgetItem):
-        self.show_preview(item, None)
+        self.show_preview(item)
         self.apply_selected_result()
 
 
