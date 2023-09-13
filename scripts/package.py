@@ -1,4 +1,5 @@
 import sys
+from markdown import markdown
 from shutil import rmtree, copy, copytree, ignore_patterns, make_archive
 from pathlib import Path
 from zipfile import ZipFile
@@ -11,6 +12,14 @@ import ai_diffusion
 
 version = ai_diffusion.__version__
 package_name = f"krita_ai_diffusion-{version}"
+
+
+def convert_markdown_to_html(markdown_file: Path, html_file: Path):
+    with open(markdown_file, "r") as f:
+        text = f.read()
+    html = markdown(text, extensions=["fenced_code", "codehilite"])
+    with open(html_file, "w") as f:
+        f.write(html)
 
 
 def build_package():
@@ -29,8 +38,8 @@ def build_package():
         return filtered
 
     copytree(plugin_src, plugin_dst, ignore=ignore)
-    copy(root / "README.md", plugin_dst)
     copy(root / "LICENSE", plugin_dst)
+    convert_markdown_to_html(root / "README.md", plugin_dst / "manual.html")
 
     make_archive(root / package_name, "zip", package_dir)
 
