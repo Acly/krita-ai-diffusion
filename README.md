@@ -66,6 +66,7 @@ To use an external installation, the following extensions and models are require
   * [ControlNet inpaint](https://huggingface.co/comfyanonymous/ControlNet-v1-1_fp16_safetensors/resolve/main/control_v11p_sd15_inpaint_fp16.safetensors) to `models/controlnet`
   * [Clip-Vision (SD1.5)](https://huggingface.co/h94/IP-Adapter/blob/main/models/image_encoder/pytorch_model.bin) to `models/clip_vision/SD1.5`
   * [IP-Adapter (SD1.5)](https://huggingface.co/h94/IP-Adapter/resolve/main/models/ip-adapter_sd15.bin) to `custom_nodes/IPAdapter-ComfyUI/models`
+  * [NMKD Superscale SP_178000_G](https://huggingface.co/gemasai/4x_NMKD-Superscale-SP_178000_G/resolve/main/4x_NMKD-Superscale-SP_178000_G.pth) to `models/upscale_models`
 
 ## <a name="screenshots"></a> Screenshots
 
@@ -76,7 +77,6 @@ To use an external installation, the following extensions and models are require
 <img alt="Adding detail and iteratively refining small parts of the image" src="media/screenshot-3.png">
 
 <img alt="Server installation" src="media/screenshot-installation.png"> <img alt="Style preset configuraiton" src="media/screenshot-style.png">
-
 
 
 ## Technology

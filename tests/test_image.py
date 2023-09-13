@@ -12,6 +12,21 @@ def create_test_image(w, h):
     return Image(img)
 
 
+def test_image_rgba():
+    img = create_test_image(2, 5)
+    assert img.extent == Extent(2, 5)
+    assert img.is_rgba and not img.is_mask
+
+
+def test_image_mask():
+    qimg = QImage(2, 5, QImage.Format_Grayscale8)
+    qimg.fill(123)
+    img = Image(qimg)
+    assert img.extent == Extent(2, 5)
+    assert img.is_mask and not img.is_rgba
+    assert img.pixel(1, 1) == 123
+
+
 def test_base64():
     img = create_test_image(15, 21)
     encoded = img.to_base64()
@@ -49,6 +64,12 @@ def test_pad_bounds_min_size():
     assert result == Bounds(1, 0, 10, 13)
 
 
+def test_pad_square():
+    bounds = Bounds(0, 0, 8, 2)
+    result = Bounds.pad(bounds, 2, square=True, multiple=1)
+    assert result == Bounds(0, -2, 8, 6)
+
+
 @pytest.mark.parametrize(
     "input,expected",
     [
@@ -67,10 +88,10 @@ def test_mask_to_image():
     mask = Mask(Bounds(0, 0, 2, 2), data)
     img = mask.to_image(Extent(2, 2))
     assert (
-        img.pixel(0, 0) == (0, 0, 0, 255)
-        and img.pixel(1, 0) == (1, 1, 1, 255)
-        and img.pixel(0, 1) == (2, 2, 2, 255)
-        and img.pixel(1, 1) == (255, 255, 255, 255)
+        img.pixel(0, 0) == 0
+        and img.pixel(1, 0) == 1
+        and img.pixel(0, 1) == 2
+        and img.pixel(1, 1) == 255
     )
 
 
@@ -79,10 +100,10 @@ def test_mask_to_image_offset():
     mask = Mask(Bounds(1, 2, 2, 2), data)
     img = mask.to_image(Extent(4, 4))
     assert (
-        img.pixel(1, 2) == (0, 0, 0, 255)
-        and img.pixel(2, 2) == (1, 1, 1, 255)
-        and img.pixel(1, 3) == (2, 2, 2, 255)
-        and img.pixel(2, 3) == (255, 255, 255, 255)
+        img.pixel(1, 2) == 0
+        and img.pixel(2, 2) == 1
+        and img.pixel(1, 3) == 2
+        and img.pixel(2, 3) == 255
     )
 
 
@@ -92,10 +113,10 @@ def test_mask_to_image_no_extent():
     img = mask.to_image()
     assert img.width == 2 and img.height == 2
     assert (
-        img.pixel(0, 0) == (0, 0, 0, 255)
-        and img.pixel(1, 0) == (1, 1, 1, 255)
-        and img.pixel(0, 1) == (2, 2, 2, 255)
-        and img.pixel(1, 1) == (255, 255, 255, 255)
+        img.pixel(0, 0) == 0
+        and img.pixel(1, 0) == 1
+        and img.pixel(0, 1) == 2
+        and img.pixel(1, 1) == 255
     )
 
 

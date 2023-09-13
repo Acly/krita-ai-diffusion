@@ -520,9 +520,7 @@ class ConnectionSettings(SettingsTab):
         if resource.kind is ResourceKind.checkpoint:
             self._connection_status.setText(
                 "<b>Error</b>: No checkpoints found!\nCheckpoints must be placed into"
-                " [ComfyUI]/model/checkpoints.\n<a"
-                " href='https://civitai.com/models'>Civitai.com</a> has a large collection"
-                " of checkpoints available for download."
+                " [ComfyUI]/model/checkpoints."
             )
 
         elif resource.kind is ResourceKind.controlnet:
@@ -547,11 +545,7 @@ class ConnectionSettings(SettingsTab):
             self._connection_status.setText(
                 "<b>Error</b>: The following ComfyUI custom nodes are missing:<ul>"
                 + "\n".join(
-                    (
-                        f"<li>{p[:p.index('|')]} <a"
-                        f" href='{p[p.index('|')+1 :]}'>{p[p.index('|')+1 :]}</a></li>"
-                        for p in resource.names
-                    )
+                    (f"<li>{p.name} <a href='{p.url}'>{p.url}</a></li>" for p in resource.names)
                 )
                 + "</ul>Please install them, restart the server and try again."
             )
@@ -852,7 +846,7 @@ class SettingsDialog(QDialog):
         self._stack.setCurrentIndex(index)
 
     def _update_connection(self):
+        self.connection.update_server_status()
         if Connection.instance().state == ConnectionState.connected:
-            self.connection.update_server_status()
             self.styles.update_model_lists()
             self.performance.update_device_info()

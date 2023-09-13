@@ -253,11 +253,11 @@ def test_refine(qtapp, comfy, sdver, temp_settings):
 
 def test_refine_region(qtapp, comfy, temp_settings):
     temp_settings.batch_size = 1
-    image = Image.load(image_dir / "lake_1536x1024.png")
-    mask = Mask.rectangle(Bounds(760, 240, 528, 376), feather=16)
+    image = Image.load(image_dir / "lake_region.png")
+    mask = Mask.load(image_dir / "lake_region_mask.png")
 
     async def main():
-        job = workflow.refine_region(comfy, default_style(comfy), image, mask, "waterfall", 0.5)
+        job = workflow.refine_region(comfy, default_style(comfy), image, mask, "waterfall", 0.6)
         results = await receive_images(comfy, job)
         results[0].save(result_dir / "test_refine_region.png")
         assert results[0].extent == mask.bounds.extent

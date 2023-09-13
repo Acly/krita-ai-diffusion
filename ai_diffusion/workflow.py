@@ -41,6 +41,25 @@ class ScaledInputs(NamedTuple):
     batch_size: int
 
 
+def compute_bounds(extent: Extent, mask_bounds: Optional[Bounds], strength: float):
+    """Compute the area of the image to use as input for diffusion."""
+
+    if mask_bounds is not None:
+        if strength == 1.0:
+            # For 100% strength inpainting get additional surrounding image content for context
+            context_padding = max(extent.longest_side // 16, mask_bounds.extent.average_side // 2)
+            image_bounds = Bounds.pad(
+                mask_bounds, context_padding, min_size=512, multiple=8, square=True
+            )
+            image_bounds = Bounds.clamp(image_bounds, extent)
+            return image_bounds
+        else:
+            # For img2img inpainting (strength < 100%) only use the mask area as input
+            return mask_bounds
+    else:
+        return Bounds(0, 0, *extent)
+
+
 def prepare(inputs: Inputs, sdver: SDVersion, downscale=True) -> ScaledInputs:
     input_is_masked_image = isinstance(inputs, tuple) and isinstance(inputs[0], Image)
     image = inputs[0] if input_is_masked_image else None
@@ -170,9 +189,7 @@ def inpaint(comfy: Client, style: Style, image: Image, mask: Mask, prompt: str):
     scaled_image, scaled_mask, extent, _ = prepare((image, mask), sd_ver)
     target_bounds = mask.bounds
     region_expanded = target_bounds.extent.multiple_of(8)
-    expanded_bounds = Bounds(
-        mask.bounds.x, mask.bounds.y, region_expanded.width, region_expanded.height
-    )
+    expanded_bounds = Bounds(*mask.bounds.offset, *region_expanded)
     batch = compute_batch_size(Extent.largest(scaled_image.extent, region_expanded))
 
     w = ComfyWorkflow()
@@ -197,21 +214,33 @@ def inpaint(comfy: Client, style: Style, image: Image, mask: Mask, prompt: str):
         model, positive, negative, latent, **_sampler_params(style, clip_vision=True)
     )
     if extent.requires_upscale:
-        latent = w.scale_latent(out_latent, extent.expanded)
-        latent = w.crop_latent(latent, expanded_bounds)
-        no_mask = w.solid_mask(expanded_bounds.extent, 1.0)
-        latent = w.set_latent_noise_mask(latent, no_mask)
+        params = _sampler_params(style, clip_vision=True, upscale=True)
+        if extent.scale > (1 / 1.5):
+            # up to 1.5x scale: upscale latent
+            latent = w.scale_latent(out_latent, extent.expanded)
+            latent = w.crop_latent(latent, expanded_bounds)
+            no_mask = w.solid_mask(expanded_bounds.extent, 1.0)
+            latent = w.set_latent_noise_mask(latent, no_mask)
+        else:
+            # for larger upscaling factors use super-resolution model
+            upscale_model = w.load_upscale_model(comfy.default_upscaler)
+            upscale = w.vae_decode(vae, out_latent)
+            upscale = w.crop_image(upscale, Bounds.scale(expanded_bounds, extent.scale))
+            upscale = w.upscale_image(upscale_model, upscale)
+            upscale = w.scale_image(upscale, expanded_bounds.extent)
+            latent = w.vae_encode(vae, upscale)
+
         positive_upscale = w.clip_text_encode(clip, f"{prompt}, {style.style_prompt}")
         if sd_ver.has_controlnet_inpaint:
             cropped_image = w.load_image(Image.crop(image, target_bounds))
             control_image_up = w.inpaint_preprocessor(cropped_image, cropped_mask)
             positive_upscale = w.apply_controlnet(positive_upscale, controlnet, control_image_up)
-        params = _sampler_params(style, clip_vision=True, upscale=True)
         out_latent = w.ksampler(model, positive_upscale, negative, latent, denoise=0.5, **params)
     elif extent.requires_downscale:
         pass  # crop to target bounds after decode and downscale
     else:
         out_latent = w.crop_latent(out_latent, expanded_bounds)
+
     out_image = w.vae_decode(vae, out_latent)
     if expanded_bounds.extent != target_bounds.extent:
         out_image = w.scale_image(out_image, target_bounds.extent)
@@ -253,7 +282,6 @@ def refine_region(
 
     downscale_if_needed = strength >= 0.7
     sd_ver = style.sd_version_resolved
-    image = Image.crop(image, mask.bounds)
     image, mask_image, extent, batch = prepare((image, mask), sd_ver, downscale_if_needed)
 
     w = ComfyWorkflow()

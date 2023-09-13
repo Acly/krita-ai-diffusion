@@ -111,7 +111,7 @@ class Settings:
     }
 
     # Folder where intermediate images are stored for debug purposes (default: None)
-    debug_image_folder = os.environ.get("KRITA_ai_diffusion_DEBUG_IMAGE")
+    debug_image_folder = os.environ.get("KRITA_AI_DIFFUSION_DEBUG_IMAGE")
 
     def __init__(self):
         self.restore()

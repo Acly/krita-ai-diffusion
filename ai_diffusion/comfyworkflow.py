@@ -67,6 +67,9 @@ class ComfyWorkflow:
     def load_clip_vision(self, clip_name):
         return self.add("CLIPVisionLoader", 1, clip_name=clip_name)
 
+    def load_upscale_model(self, model_name):
+        return self.add("UpscaleModelLoader", 1, model_name=model_name)
+
     def load_lora(self, model, clip, lora_name, strength_model, strength_clip):
         return self.add(
             "LoraLoader",
@@ -169,6 +172,9 @@ class ComfyWorkflow:
             crop="disabled",
         )
 
+    def upscale_image(self, upscale_model, image):
+        return self.add("ImageUpscaleWithModel", 1, upscale_model=upscale_model, image=image)
+
     def crop_mask(self, mask, bounds: Bounds):
         return self.add(
             "CropMask",
@@ -205,3 +211,6 @@ class ComfyWorkflow:
 
     def send_image(self, image):
         return self.add("ETN_SendImageWebSocket", 1, images=image)
+
+    def save_image(self, image, prefix):
+        return self.add("SaveImage", 1, images=image, filename_prefix=prefix)

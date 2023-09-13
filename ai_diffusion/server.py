@@ -24,6 +24,7 @@ class ResourceKind(Enum):
     controlnet = "ControlNet model"
     clip_vision = "CLIP Vision model"
     ip_adapter = "IP-Adapter model"
+    upscaler = "Upscale model"
     node = "custom node"
 
 
@@ -84,6 +85,13 @@ required_models = [
         Path("custom_nodes/IPAdapter-ComfyUI/models"),
         "ip-adapter_sd15.bin",
         "https://huggingface.co/h94/IP-Adapter/resolve/main/models/ip-adapter_sd15.bin",
+    ),
+    ModelResource(
+        "NMKD Superscale model",
+        ResourceKind.upscaler,
+        Path("models/upscale_models"),
+        "4x_NMKD-Superscale-SP_178000_G.pth",
+        "https://huggingface.co/gemasai/4x_NMKD-Superscale-SP_178000_G/resolve/main/4x_NMKD-Superscale-SP_178000_G.pth",
     ),
 ]
 

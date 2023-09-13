@@ -93,6 +93,8 @@ class Client:
     url: str
     checkpoints: Sequence[str]
     lora_models: Sequence[str]
+    upscalers: Sequence[str]
+    default_upscaler: str
     controlnet_model: dict
     clip_vision_model: str
     ip_adapter_model: str
@@ -115,7 +117,7 @@ class Client:
         # Check custom nodes
         nodes = await client._get("object_info")
         missing = [
-            package.name
+            package
             for package in server.required_custom_nodes
             if any(node not in nodes for node in package.nodes)
         ]
@@ -143,6 +145,14 @@ class Client:
         # Retrieve IP-Adapter model
         ip = nodes["IPAdapter"]["input"]["required"]["model_name"][0]
         client.ip_adapter_model = _find_ip_adapter(ip, "sd15")
+
+        # Retrieve upscale models
+        client.upscalers = nodes["UpscaleModelLoader"]["input"]["required"]["model_name"][0]
+        if len(client.upscalers) == 0:
+            raise MissingResource(ResourceKind.upscaler)
+        client.default_upscaler = _find_upscaler(
+            client.upscalers, "4x_NMKD-Superscale-SP_178000_G.pth"
+        )
 
         return client
 
@@ -285,6 +295,13 @@ def _find_ip_adapter(model_list: Sequence[str], sdver: str):
     if model is None:
         raise MissingResource(ResourceKind.ip_adapter, [model_name])
     return model
+
+
+def _find_upscaler(model_list: Sequence[str], model_name: str):
+    if model_name in model_list:
+        return model_name
+    log.warning(f"Could not find default upscaler {model_name}, using {model_list[0]} instead")
+    return model_list[0]
 
 
 def _extract_message_png_image(data: memoryview):

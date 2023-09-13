@@ -136,19 +136,15 @@ class Model(QObject):
     def generate(self):
         """Enqueue image generation for the current setup."""
         image = None
-        # For 100% strength inpainting, pad the mask if it is small to get additional context
-        # For img2img inpainting, use a smaller mask area and scale it to get more detail
-        pad_min_size = 512 if self.strength == 1 else 0
-        mask = self._doc.create_mask_from_selection(pad_min_size)
+        extent = self._doc.extent
 
+        mask = self._doc.create_mask_from_selection()
+        image_bounds = workflow.compute_bounds(extent, mask.bounds if mask else None, self.strength)
         if mask is not None or self.strength < 1.0:
-            image = self._doc.get_image(exclude_layer=self._layer)
-            bounds = mask.bounds if mask else Bounds(0, 0, *image.extent)
-        else:
-            bounds = Bounds(0, 0, *self._doc.extent)
+            image = self._doc.get_image(image_bounds, exclude_layer=self._layer)
 
         self.clear_error()
-        self.task = eventloop.run(_report_errors(self, self._generate(bounds, image, mask)))
+        self.task = eventloop.run(_report_errors(self, self._generate(image_bounds, image, mask)))
 
     async def _generate(self, bounds: Bounds, image: Optional[Image], mask: Optional[Mask]):
         assert Connection.instance().state is ConnectionState.connected
@@ -158,6 +154,13 @@ class Model(QObject):
         if not self.jobs.any_executing():
             self.progress = 0.0
             self.changed.emit()
+
+        if mask is not None:
+            mask_bounds_rel = Bounds(  # mask bounds relative to cropped image
+                mask.bounds.x - bounds.x, mask.bounds.y - bounds.y, *mask.bounds.extent
+            )
+            bounds = mask.bounds  # absolute mask bounds, required to insert result image
+            mask.bounds = mask_bounds_rel
 
         if image is None and mask is None:
             assert self.strength == 1

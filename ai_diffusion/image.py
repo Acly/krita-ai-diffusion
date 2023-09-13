@@ -1,5 +1,5 @@
-from math import ceil
-from PyQt5.QtGui import QImage, QPixmap, QIcon, qRgba, qRed, qGreen, qBlue, qAlpha
+from math import ceil, sqrt
+from PyQt5.QtGui import QImage, QPixmap, QIcon, QPainter, qRgba, qRed, qGreen, qBlue, qAlpha, qGray
 from PyQt5.QtCore import Qt, QByteArray, QBuffer, QRect
 from typing import Callable, Iterable, Tuple, NamedTuple, Union, Optional
 from itertools import product
@@ -24,6 +24,18 @@ class Extent(NamedTuple):
 
     def is_multiple_of(self, multiple: int):
         return self.width % multiple == 0 and self.height % multiple == 0
+
+    @property
+    def longest_side(self):
+        return max(self.width, self.height)
+
+    @property
+    def average_side(self):
+        return (self.width + self.height) // 2
+
+    @property
+    def diagonal(self):
+        return sqrt(self.width**2 + self.height**2)
 
     @property
     def pixel_count(self):
@@ -62,21 +74,26 @@ class Bounds(NamedTuple):
         return Bounds(apply(b.x), apply(b.y), apply(b.width), apply(b.height))
 
     @staticmethod
-    def pad(bounds, padding: int, min_size=0, multiple=8):
+    def pad(bounds, padding: int, min_size=0, multiple=8, square=False):
         """Grow bounds by adding `padding` evenly on all side. Add additional padding if the area
         is still smaller than `min_size` and ensure the result is a multiple of `multiple`.
+        If `square` is set, works towards making width and height balanced.
         """
 
-        def pad_scalar(x, size):
-            padded_size = size + 2 * padding
+        def pad_scalar(x, size, pad):
+            padded_size = size + 2 * pad
             new_size = multiple_of(max(padded_size, min_size), multiple)
             new_x = x - (new_size - size) // 2
             return new_x, new_size
 
-        # min_pad_x = -(-(min_size - bounds.width) // 2)  # ceil division
-        # min_pad_y = (min_size - bounds.height) // 2
-        new_x, new_width = pad_scalar(bounds.x, bounds.width)
-        new_y, new_height = pad_scalar(bounds.y, bounds.height)
+        pad_x, pad_y = padding, padding
+        if square and bounds.width > bounds.height:
+            pad_x = max(0, pad_x - (bounds.width - bounds.height) // 2)
+        elif square and bounds.height > bounds.width:
+            pad_y = max(0, pad_y - (bounds.height - bounds.width) // 2)
+
+        new_x, new_width = pad_scalar(bounds.x, bounds.width, pad_x)
+        new_y, new_height = pad_scalar(bounds.y, bounds.height, pad_y)
         return Bounds(new_x, new_y, new_width, new_height)
 
     @staticmethod
@@ -107,7 +124,7 @@ def extent_equal(a: QImage, b: QImage):
 
 class Image:
     def __init__(self, qimage: QImage):
-        assert qimage.format() == QImage.Format_ARGB32
+        assert qimage.format() in [QImage.Format_ARGB32, QImage.Format_Grayscale8]
         self._qimage = qimage
 
     @staticmethod
@@ -136,6 +153,14 @@ class Image:
     def extent(self):
         return Extent(self.width, self.height)
 
+    @property
+    def is_rgba(self):
+        return self._qimage.format() == QImage.Format_ARGB32
+
+    @property
+    def is_mask(self):
+        return self._qimage.format() == QImage.Format_Grayscale8
+
     @staticmethod
     def from_base64(data: str):
         bytes = QByteArray.fromBase64(data.encode("utf-8"))
@@ -160,7 +185,10 @@ class Image:
 
     def pixel(self, x: int, y: int):
         c = self._qimage.pixel(x, y)
-        return (qRed(c), qGreen(c), qBlue(c), qAlpha(c))
+        if self.is_rgba:
+            return (qRed(c), qGreen(c), qBlue(c), qAlpha(c))
+        else:
+            return qGray(c)
 
     def set_pixel(self, x: int, y: int, color: Tuple[int, int, int, int]):
         # Note: this is slow, only used for testing
@@ -250,12 +278,26 @@ class ImageCollection:
 
 
 class Mask:
-    bounds: Bounds
-    data: QByteArray
+    _data: Optional[QByteArray]
 
-    def __init__(self, bounds: Bounds, data: QByteArray):
+    bounds: Bounds
+    image: QImage
+
+    def __init__(self, bounds: Bounds, data: Union[QImage, QByteArray]):
         self.bounds = bounds
-        self.data = data
+        if isinstance(data, QImage):
+            self.image = data
+        else:
+            assert len(data) == bounds.width * bounds.height
+            self._data = data
+            self.image = QImage(
+                self._data.data(),
+                bounds.width,
+                bounds.height,
+                bounds.width,
+                QImage.Format_Grayscale8,
+            )
+            assert not self.image.isNull()
 
     @staticmethod
     def rectangle(bounds: Bounds, feather=0):
@@ -273,22 +315,28 @@ class Mask:
                 m[y * bounds.width + x] = 255 - alpha
         return Mask(bounds, QByteArray(bytes(m)))
 
+    @staticmethod
+    def load(filepath: Union[str, Path]):
+        mask = QImage()
+        success = mask.load(str(filepath))
+        assert success, f"Failed to load mask {filepath}"
+        assert mask.format() == QImage.Format_Grayscale8
+        return Mask(Bounds(0, 0, mask.width(), mask.height()), mask)
+
     def value(self, x: int, y: int):
         if self.bounds.is_within(x, y):
-            return int.from_bytes(self.data[y * self.bounds.width + x], "big")
+            return qGray(self.image.pixel(x, y))
         return 0
 
     def to_array(self):
-        return [x[0] for x in self.data]
+        e = self.bounds.extent
+        return [self.value(x, y) for y in range(e.height) for x in range(e.width)]
 
     def to_image(self, extent: Optional[Extent] = None):
-        extent = extent or self.bounds.extent
-        offset = (0, 0) if extent == self.bounds.extent else self.bounds.offset
-        img = QImage(extent.width, extent.height, QImage.Format_ARGB32)
+        if extent is None:
+            return Image(self.image)
+        img = QImage(extent.width, extent.height, QImage.Format_Grayscale8)
         img.fill(0)
-        for y in range(self.bounds.height):
-            for x in range(self.bounds.width):
-                a = self.data[y * self.bounds.width + x][0]
-                col = qRgba(a, a, a, 255)
-                img.setPixel(offset[0] + x, offset[1] + y, col)
+        painter = QPainter(img)
+        painter.drawImage(self.bounds.x, self.bounds.y, self.image)
         return Image(img)
