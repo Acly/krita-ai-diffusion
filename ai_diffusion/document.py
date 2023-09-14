@@ -59,6 +59,9 @@ class Document:
             self._doc.refreshProjection()
         return Image(img)
 
+    def get_layer_image(self, layer, bounds: Bounds):
+        return Image(QImage(layer.pixelData(*bounds), *bounds.extent, QImage.Format_ARGB32))
+
     def insert_layer(self, name: str, img: Image, bounds: Bounds):
         layer = self._doc.createNode(name, "paintLayer")
         self._doc.rootNode().addChildNode(layer, None)

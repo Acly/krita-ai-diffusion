@@ -1,10 +1,12 @@
+from enum import Enum
 import math
-from typing import NamedTuple, Tuple, Union, Optional
+from typing import List, NamedTuple, Tuple, Union, Optional
 
 from .image import Bounds, Extent, Image, ImageCollection, Mask
 from .client import Client
 from .settings import settings
 from .style import SDVersion, Style
+from .server import ControlType
 from .comfyworkflow import ComfyWorkflow, Output
 from .util import compute_batch_size, client_logger as log
 
@@ -146,36 +148,92 @@ def load_model_with_lora(w: ComfyWorkflow, comfy: Client, style: Style):
     return model, clip, vae
 
 
+class Control:
+    type: ControlType
+    image: Union[Image, Output]
+    mask: Union[None, Mask, Output] = None
+    strength: float = 1.0
+
+    def __init__(self, type: ControlType, image: Image, strength=1.0, mask: Optional[Mask] = None):
+        self.type = type
+        self.image = image
+        self.strength = strength
+        self.mask = mask
+
+    def load_image(self, w: ComfyWorkflow):
+        if isinstance(self.image, Image):
+            self.image = w.load_image(self.image)
+        return self.image
+
+    def load_mask(self, w: ComfyWorkflow):
+        if isinstance(self.mask, Mask):
+            self.mask = w.load_mask(self.mask.to_image())
+        return self.mask
+
+
+class Conditioning:
+    prompt: str
+    control: List[Control]
+
+    def __init__(self, prompt="", control: List[Control] = None):
+        self.prompt = prompt
+        self.control = control or []
+
+    def add_control(
+        self, type: ControlType, image: Image, strength=1.0, mask: Optional[Mask] = None
+    ):
+        self.control.append(Control(type, image, strength, mask))
+
+    def create(self, w: ComfyWorkflow, comfy: Client, clip: Output, style: Style):
+        sd_ver = style.sd_version_resolved
+        positive = w.clip_text_encode(clip, f"{self.prompt}, {style.style_prompt}")
+        negative = w.clip_text_encode(clip, style.negative_prompt)
+
+        for control in self.control:
+            if control.type is ControlType.inpaint and not sd_ver.has_controlnet_inpaint:
+                continue
+            image = control.load_image(w)
+            if control.type is ControlType.inpaint:
+                image = w.inpaint_preprocessor(image, control.load_mask(w))
+            controlnet = w.load_controlnet(comfy.control_model[control.type][sd_ver])
+            positive = w.apply_controlnet(positive, controlnet, image, control.strength)
+
+        return positive, negative
+
+    def crop(self, w: ComfyWorkflow, bounds: Bounds):
+        for control in self.control:
+            control.image = w.crop_image(control.load_image(w), bounds)
+            if control.mask:
+                control.mask = w.crop_mask(control.load_mask(w), bounds)
+
+
 def upscale_latent(
     w: ComfyWorkflow,
     style: Style,
     latent: Output,
     target: Extent,
-    prompt_pos: str,
+    prompt_pos: Output,
     prompt_neg: Output,
     model: Output,
-    clip: Output,
 ):
     assert target.is_multiple_of(8)
     upscale = w.scale_latent(latent, target)
-    prompt = w.clip_text_encode(clip, f"{prompt_pos}, {style.style_prompt}")
     return w.ksampler(
-        model, prompt, prompt_neg, upscale, denoise=0.5, **_sampler_params(style, upscale=True)
+        model, prompt_pos, prompt_neg, upscale, denoise=0.5, **_sampler_params(style, upscale=True)
     )
 
 
-def generate(comfy: Client, style: Style, input_extent: Extent, prompt: str):
+def generate(comfy: Client, style: Style, input_extent: Extent, cond: Conditioning):
     _, _, extent, batch = prepare(input_extent, style.sd_version_resolved)
 
     w = ComfyWorkflow()
     model, clip, vae = load_model_with_lora(w, comfy, style)
     latent = w.empty_latent_image(extent.initial.width, extent.initial.height, batch)
-    positive = w.clip_text_encode(clip, f"{prompt}, {style.style_prompt}")
-    negative = w.clip_text_encode(clip, style.negative_prompt)
+    positive, negative = cond.create(w, comfy, clip, style)
     out_latent = w.ksampler(model, positive, negative, latent, **_sampler_params(style))
     if extent.requires_upscale:
         out_latent = upscale_latent(
-            w, style, out_latent, extent.expanded, prompt, negative, model, clip
+            w, style, out_latent, extent.expanded, positive, negative, model
         )
     out_image = w.vae_decode(vae, out_latent)
     if extent.requires_downscale or extent.is_incompatible:
@@ -184,7 +242,7 @@ def generate(comfy: Client, style: Style, input_extent: Extent, prompt: str):
     return w
 
 
-def inpaint(comfy: Client, style: Style, image: Image, mask: Mask, prompt: str):
+def inpaint(comfy: Client, style: Style, image: Image, mask: Mask, cond: Conditioning):
     sd_ver = style.sd_version_resolved
     scaled_image, scaled_mask, extent, _ = prepare((image, mask), sd_ver)
     target_bounds = mask.bounds
@@ -200,14 +258,11 @@ def inpaint(comfy: Client, style: Style, image: Image, mask: Mask, prompt: str):
     if extent.requires_downscale:
         in_image = w.scale_image(in_image, extent.initial)
         in_mask = w.scale_mask(in_mask, extent.initial)
-    positive = w.clip_text_encode(clip, f"{prompt}, {style.style_prompt}")
-    negative = w.clip_text_encode(clip, style.negative_prompt)
-    if sd_ver.has_controlnet_inpaint:
-        controlnet = w.load_controlnet(comfy.controlnet_model["inpaint"])
+    cond.add_control(ControlType.inpaint, in_image, mask=in_mask)
+    positive, negative = cond.create(w, comfy, clip, style)
+    if sd_ver.has_ip_adapter:
         clip_vision = w.load_clip_vision(comfy.clip_vision_model)
         model = w.ip_adapter(comfy.ip_adapter_model, model, clip_vision, in_image, 0.5)
-        control_image = w.inpaint_preprocessor(in_image, in_mask)
-        positive = w.apply_controlnet(positive, controlnet, control_image)
     latent = w.vae_encode_inpaint(vae, in_image, in_mask)
     latent = w.batch_latent(latent, batch)
     out_latent = w.ksampler(
@@ -230,11 +285,10 @@ def inpaint(comfy: Client, style: Style, image: Image, mask: Mask, prompt: str):
             upscale = w.scale_image(upscale, expanded_bounds.extent)
             latent = w.vae_encode(vae, upscale)
 
-        positive_upscale = w.clip_text_encode(clip, f"{prompt}, {style.style_prompt}")
-        if sd_ver.has_controlnet_inpaint:
-            cropped_image = w.load_image(Image.crop(image, target_bounds))
-            control_image_up = w.inpaint_preprocessor(cropped_image, cropped_mask)
-            positive_upscale = w.apply_controlnet(positive_upscale, controlnet, control_image_up)
+        cond.control.pop()  # remove inpaint control
+        cond.crop(w, expanded_bounds)
+        cond.add_control(ControlType.inpaint, Image.crop(image, target_bounds), mask=cropped_mask)
+        positive_upscale, _ = cond.create(w, comfy, clip, style)
         out_latent = w.ksampler(model, positive_upscale, negative, latent, denoise=0.5, **params)
     elif extent.requires_downscale:
         pass  # crop to target bounds after decode and downscale
@@ -252,7 +306,7 @@ def inpaint(comfy: Client, style: Style, image: Image, mask: Mask, prompt: str):
     return w
 
 
-def refine(comfy: Client, style: Style, image: Image, prompt: str, strength: float):
+def refine(comfy: Client, style: Style, image: Image, cond: Conditioning, strength: float):
     assert strength > 0 and strength < 1
     image, _, extent, batch = prepare(image, style.sd_version_resolved, downscale=False)
 
@@ -263,8 +317,7 @@ def refine(comfy: Client, style: Style, image: Image, prompt: str, strength: flo
         in_image = w.scale_image(in_image, extent.expanded)
     latent = w.vae_encode(vae, in_image)
     latent = w.batch_latent(latent, batch)
-    positive = w.clip_text_encode(clip, f"{prompt}, {style.style_prompt}")
-    negative = w.clip_text_encode(clip, style.negative_prompt)
+    positive, negative = cond.create(w, comfy, clip, style)
     sampler = w.ksampler(
         model, positive, negative, latent, denoise=strength, **_sampler_params(style)
     )
@@ -276,7 +329,7 @@ def refine(comfy: Client, style: Style, image: Image, prompt: str, strength: flo
 
 
 def refine_region(
-    comfy: Client, style: Style, image: Image, mask: Mask, prompt: str, strength: float
+    comfy: Client, style: Style, image: Image, mask: Mask, cond: Conditioning, strength: float
 ):
     assert strength > 0 and strength < 1
 
@@ -297,18 +350,14 @@ def refine_region(
     latent = w.vae_encode(vae, in_image)
     latent = w.set_latent_noise_mask(latent, in_mask)
     latent = w.batch_latent(latent, batch)
-    positive = w.clip_text_encode(clip, f"{prompt}, {style.style_prompt}")
-    negative = w.clip_text_encode(clip, style.negative_prompt)
-    if sd_ver.has_controlnet_inpaint:
-        controlnet = w.load_controlnet(comfy.controlnet_model["inpaint"])
-        control_image = w.inpaint_preprocessor(in_image, in_mask)
-        positive = w.apply_controlnet(positive, controlnet, control_image)
+    cond.add_control(ControlType.inpaint, in_image, mask=in_mask)
+    positive, negative = cond.create(w, comfy, clip, style)
     out_latent = w.ksampler(
         model, positive, negative, latent, denoise=strength, **_sampler_params(style)
     )
     if extent.requires_upscale:
         out_latent = upscale_latent(
-            w, style, out_latent, extent.expanded, prompt, negative, model, clip
+            w, style, out_latent, extent.expanded, positive, negative, model
         )
     out_image = w.vae_decode(vae, out_latent)
     if extent.requires_downscale or extent.is_incompatible:

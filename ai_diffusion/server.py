@@ -8,6 +8,7 @@ from zipfile import ZipFile
 from PyQt5.QtNetwork import QNetworkAccessManager
 
 from .settings import settings, ServerBackend
+from .style import SDVersion
 from .network import download, DownloadProgress
 from .util import server_logger as log
 
@@ -64,12 +65,38 @@ required_custom_nodes = [
 ]
 
 
+class ControlType(Enum):
+    inpaint = 0
+    scribble = 1
+    lineart = 2
+    sketch = 3
+
+
+control_filename = {
+    ControlType.inpaint: {
+        SDVersion.sd1_5: "control_v11p_sd15_inpaint",
+        SDVersion.sdxl: None,
+    },
+    ControlType.scribble: {
+        SDVersion.sd1_5: "control_lora_rank128_v11p_sd15_scribble_fp16",
+        SDVersion.sdxl: None,
+    },
+    ControlType.lineart: {
+        SDVersion.sd1_5: "control_lora_rank128_v11p_sd15s2_lineart_anime_fp16",
+        SDVersion.sdxl: None,
+    },
+    ControlType.sketch: {
+        SDVersion.sd1_5: "control_lora_rank128_v11p_sd15_lineart_fp16",
+        SDVersion.sdxl: "control-lora-sketch-rank256",
+    },
+}
+
 required_models = [
     ModelResource(
         "ControlNet Inpaint",
         ResourceKind.controlnet,
         Path("models/controlnet"),
-        "control_v11p_sd15_inpaint.safetensors",
+        "control_v11p_sd15_inpaint_fp16.safetensors",
         "https://huggingface.co/comfyanonymous/ControlNet-v1-1_fp16_safetensors/resolve/main/control_v11p_sd15_inpaint_fp16.safetensors",
     ),
     ModelResource(

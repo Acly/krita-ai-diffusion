@@ -26,6 +26,10 @@ class SDVersion(Enum):
     def has_controlnet_inpaint(self):
         return self is SDVersion.sd1_5
 
+    @property
+    def has_ip_adapter(self):
+        return self is SDVersion.sd1_5
+
 
 class StyleSettings:
     name = Setting("Name", "Default Style")
@@ -121,8 +125,14 @@ class Style:
             for name, setting in StyleSettings.__dict__.items():
                 if isinstance(setting, Setting):
                     value = cfg.get(name, setting.default)
+                    if isinstance(setting.default, Enum):
+                        try:
+                            value = type(setting.default)[value]
+                        except KeyError:
+                            pass  # handled below
                     if (
                         (setting.items is not None and value not in setting.items)
+                        or (isinstance(setting.default, Enum) != isinstance(value, Enum))
                         or (isinstance(setting.default, str) != isinstance(value, str))
                         or (isinstance(setting.default, numtype) != isinstance(value, numtype))
                     ):

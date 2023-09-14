@@ -9,7 +9,8 @@ from .comfyworkflow import ComfyWorkflow
 from .image import Image, ImageCollection
 from .network import RequestManager, NetworkError
 from .websockets.src import websockets
-from .server import MissingResource, ResourceKind
+from .style import SDVersion
+from .server import ControlType, MissingResource, ResourceKind
 from . import server
 from .util import client_logger as log
 
@@ -95,7 +96,7 @@ class Client:
     lora_models: Sequence[str]
     upscalers: Sequence[str]
     default_upscaler: str
-    controlnet_model: dict
+    control_model: dict
     clip_vision_model: str
     ip_adapter_model: str
     device_info: DeviceInfo
@@ -134,9 +135,7 @@ class Client:
 
         # Retrieve ControlNet models
         cns = nodes["ControlNetLoader"]["input"]["required"]["control_net_name"][0]
-        client.controlnet_model = {
-            "inpaint": _find_controlnet_model(cns, "control_v11p_sd15_inpaint")
-        }
+        client.control_model = {type: _find_control_model(cns, type) for type in ControlType}
 
         # Retrieve CLIPVision models
         cv = nodes["CLIPVisionLoader"]["input"]["required"]["clip_name"][0]
@@ -238,12 +237,9 @@ class Client:
         if self._active and self._active.id == id:
             return self._active
         else:
-            print(
-                f"[krita-ai-diffusion] received message for job {id}, but"
-                f" job {self._active.id} is active"
-            )
+            log.warning(f"Received message for job {id}, but job {self._active.id} is active")
         if len(self._jobs) == 0:
-            print(f"[krita-ai-diffusion] received unknown job {id}")
+            log.warning(f"Received unknown job {id}")
             return None
         active = next((j for j in self._jobs if j.id == id), None)
         if active is not None:
@@ -252,15 +248,13 @@ class Client:
 
     def _start_job(self, id: str):
         if self._active is not None:
-            print(
-                f"[krita-ai-diffusion] started job {id}, but {self._active.id} was never finished"
-            )
+            log.warning(f"Started job {id}, but {self._active.id} was never finished")
         if len(self._jobs) == 0:
-            print(f"[krita-ai-diffusion] received unknown job {id}")
+            log.warning(f"Received unknown job {id}")
             return None
         if self._jobs[0].id == id:
             return self._jobs.popleft()
-        print(f"[krita-ai-diffusion] started job {id}, but {self._jobs[0].id} was expected")
+        log.warning(f"Started job {id}, but {self._jobs[0].id} was expected")
         active = next((j for j in self._jobs if j.id == id), None)
         if active is not None:
             self._jobs.remove(active)
@@ -272,11 +266,19 @@ class Client:
             self._active = None
 
 
-def _find_controlnet_model(model_list: Sequence[str], model_name: str):
-    model = next((model for model in model_list if model.startswith(model_name)), None)
-    if model is None:
-        raise MissingResource(ResourceKind.controlnet, [model_name])
-    return model
+def _find_control_model(model_list: Sequence[str], type: ControlType, optional=False):
+    def _find(name: Optional[str]):
+        if name is None:
+            return None
+        model = next((model for model in model_list if model.startswith(name)), None)
+        if model is None and not optional:
+            raise MissingResource(ResourceKind.controlnet, [name])
+        return model
+
+    return {
+        version: _find(server.control_filename[type][version])
+        for version in [SDVersion.sd1_5, SDVersion.sdxl]
+    }
 
 
 def _find_clip_vision_model(model_list: Sequence[str], sdver: str):

@@ -1,5 +1,5 @@
 import random
-from typing import NamedTuple
+from typing import Dict, NamedTuple
 
 from .util import compute_batch_size
 from .image import Bounds, Extent, Image
@@ -17,8 +17,11 @@ class ComfyWorkflow:
     node_count = 0
     sample_count = 0
 
+    _cache: Dict[str, Output]
+
     def __init__(self) -> None:
         self.root = {}
+        self._cache = {}
 
     def add(self, class_type: str, output_count: int, **inputs):
         normalize = lambda x: [str(x.node), x.output] if isinstance(x, Output) else x
@@ -29,6 +32,14 @@ class ComfyWorkflow:
         }
         output = tuple(Output(self.node_count, i) for i in range(output_count))
         return output[0] if output_count == 1 else output
+
+    def add_cached(self, class_type: str, output_count: int, **inputs):
+        key = class_type + str(inputs)
+        result = self._cache.get(key, None)
+        if result is None:
+            result = self.add(class_type, output_count, **inputs)
+            self._cache[key] = result
+        return result
 
     def ksampler(
         self,
@@ -59,16 +70,16 @@ class ComfyWorkflow:
         )
 
     def load_checkpoint(self, checkpoint):
-        return self.add("CheckpointLoaderSimple", 3, ckpt_name=checkpoint)
+        return self.add_cached("CheckpointLoaderSimple", 3, ckpt_name=checkpoint)
 
     def load_controlnet(self, controlnet):
-        return self.add("ControlNetLoader", 1, control_net_name=controlnet)
+        return self.add_cached("ControlNetLoader", 1, control_net_name=controlnet)
 
     def load_clip_vision(self, clip_name):
-        return self.add("CLIPVisionLoader", 1, clip_name=clip_name)
+        return self.add_cached("CLIPVisionLoader", 1, clip_name=clip_name)
 
     def load_upscale_model(self, model_name):
-        return self.add("UpscaleModelLoader", 1, model_name=model_name)
+        return self.add_cached("UpscaleModelLoader", 1, model_name=model_name)
 
     def load_lora(self, model, clip, lora_name, strength_model, strength_clip):
         return self.add(
@@ -87,14 +98,14 @@ class ComfyWorkflow:
     def clip_text_encode(self, clip, text):
         return self.add("CLIPTextEncode", 1, clip=clip, text=text)
 
-    def apply_controlnet(self, conditioning, controlnet, image):
+    def apply_controlnet(self, conditioning, controlnet, image, strength=1.0):
         return self.add(
             "ControlNetApply",
             1,
             conditioning=conditioning,
             control_net=controlnet,
             image=image,
-            strength=1.0,
+            strength=strength,
         )
 
     def ip_adapter(self, model_name, model, clip_vision, image, weight, mask=None, dtype="fp16"):

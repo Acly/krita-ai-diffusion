@@ -4,6 +4,9 @@ from ai_diffusion import (
     settings,
     workflow,
     ComfyWorkflow,
+    Conditioning,
+    Control,
+    ControlType,
     Mask,
     Bounds,
     Extent,
@@ -56,6 +59,12 @@ async def receive_images(comfy, workflow: ComfyWorkflow):
         if msg.event is ClientEvent.error and msg.job_id == job_id:
             raise Exception(msg.error)
     assert False, "Connection closed without receiving images"
+
+
+async def run_and_save(comfy, workflow: ComfyWorkflow, filename: str):
+    results = await receive_images(comfy, workflow)
+    assert len(results) == 1
+    results[0].save(result_dir / filename)
 
 
 @pytest.mark.parametrize(
@@ -177,9 +186,10 @@ def test_prepare_no_downscale():
 @pytest.mark.parametrize("extent", [Extent(256, 256), Extent(512, 1024)])
 def test_generate(qtapp, comfy, temp_settings, extent):
     temp_settings.batch_size = 1
+    prompt = Conditioning("ship")
 
     async def main():
-        job = workflow.generate(comfy, default_style(comfy), extent, "ship")
+        job = workflow.generate(comfy, default_style(comfy), extent, prompt)
         results = await receive_images(comfy, job)
         results[0].save(result_dir / f"test_generate_{extent.width}x{extent.height}.png")
         assert results[0].extent == extent
@@ -191,9 +201,10 @@ def test_inpaint(qtapp, comfy, temp_settings):
     temp_settings.batch_size = 3  # max 3 images@512x512 -> 2 images@768x512
     image = Image.load(image_dir / "beach_768x512.png")
     mask = Mask.rectangle(Bounds(50, 100, 320, 200), feather=10)
+    prompt = Conditioning("ship")
 
     async def main():
-        job = workflow.inpaint(comfy, default_style(comfy), image, mask, "ship")
+        job = workflow.inpaint(comfy, default_style(comfy), image, mask, prompt)
         results = await receive_images(comfy, job)
         assert len(results) == 2
         for i, result in enumerate(results):
@@ -208,9 +219,10 @@ def test_inpaint_upscale(qtapp, comfy, temp_settings, sdver):
     temp_settings.batch_size = 3  # 2 images for 1.5, 1 image for XL
     image = Image.load(image_dir / "beach_1536x1024.png")
     mask = Mask.rectangle(Bounds(600, 200, 768, 512), feather=10)
+    prompt = Conditioning("ship")
 
     async def main():
-        job = workflow.inpaint(comfy, default_style(comfy, sdver), image, mask, "ship")
+        job = workflow.inpaint(comfy, default_style(comfy, sdver), image, mask, prompt)
         results = await receive_images(comfy, job)
         assert len(results) == 2 if sdver == SDVersion.sd1_5 else 1
         for i, result in enumerate(results):
@@ -225,9 +237,10 @@ def test_inpaint_odd_resolution(qtapp, comfy, temp_settings):
     image = Image.load(image_dir / "beach_768x512.png")
     image = Image.scale(image, Extent(612, 513))
     mask = Mask.rectangle(Bounds(0, 0, 200, 513))
+    prompt = Conditioning()
 
     async def main():
-        job = workflow.inpaint(comfy, default_style(comfy), image, mask, "")
+        job = workflow.inpaint(comfy, default_style(comfy), image, mask, prompt)
         results = await receive_images(comfy, job)
         results[0].save(result_dir / "test_inpaint_odd_resolution.png")
         assert results[0].extent == mask.bounds.extent
@@ -239,7 +252,7 @@ def test_inpaint_odd_resolution(qtapp, comfy, temp_settings):
 def test_refine(qtapp, comfy, sdver, temp_settings):
     temp_settings.batch_size = 1
     image = Image.load(image_dir / "beach_768x512.png")
-    prompt = "painting in the style of Vincent van Gogh"
+    prompt = Conditioning("painting in the style of Vincent van Gogh")
     strength = {SDVersion.sd1_5: 0.5, SDVersion.sdxl: 0.65}[sdver]
 
     async def main():
@@ -255,11 +268,47 @@ def test_refine_region(qtapp, comfy, temp_settings):
     temp_settings.batch_size = 1
     image = Image.load(image_dir / "lake_region.png")
     mask = Mask.load(image_dir / "lake_region_mask.png")
+    prompt = Conditioning("waterfall")
 
     async def main():
-        job = workflow.refine_region(comfy, default_style(comfy), image, mask, "waterfall", 0.6)
+        job = workflow.refine_region(comfy, default_style(comfy), image, mask, prompt, 0.6)
         results = await receive_images(comfy, job)
         results[0].save(result_dir / "test_refine_region.png")
         assert results[0].extent == mask.bounds.extent
+
+    qtapp.run(main())
+
+
+@pytest.mark.parametrize(
+    "op", ["generate", "inpaint", "refine", "refine_region", "inpaint_upscale"]
+)
+def test_control_scribble(qtapp, comfy, temp_settings, op):
+    temp_settings.batch_size = 1
+    style = default_style(comfy)
+    scribble_image = Image.load(image_dir / "owls_scribble.png")
+    inpaint_image = Image.load(image_dir / "owls_inpaint.png")
+    mask = Mask.load(image_dir / "owls_mask.png")
+    mask.bounds = Bounds(256, 0, 256, 512)
+    control = Conditioning("owls", [Control(ControlType.scribble, scribble_image)])
+
+    if op == "generate":
+        job = workflow.generate(comfy, style, Extent(512, 512), control)
+    elif op == "inpaint":
+        job = workflow.inpaint(comfy, style, inpaint_image, mask, control)
+    elif op == "refine":
+        job = workflow.refine(comfy, style, inpaint_image, control, 0.7)
+    elif op == "refine_region":
+        cropped_image = Image.crop(inpaint_image, mask.bounds)
+        job = workflow.refine_region(comfy, style, cropped_image, mask, control, 0.7)
+    elif op == "inpaint_upscale":
+        control.control[0].image = Image.scale(scribble_image, Extent(1024, 1024))
+        upscaled_image = Image.scale(inpaint_image, Extent(1024, 1024))
+        upscaled_mask = Mask(
+            Bounds(512, 0, 512, 1024), Image.scale(Image(mask.image), Extent(512, 1024))._qimage
+        )
+        job = workflow.inpaint(comfy, style, upscaled_image, upscaled_mask, control)
+
+    async def main():
+        await run_and_save(comfy, job, f"test_control_scribble_{op}.png")
 
     qtapp.run(main())
