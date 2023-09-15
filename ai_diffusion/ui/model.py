@@ -2,12 +2,15 @@ import asyncio
 from collections import deque
 from datetime import datetime
 from enum import Flag
-from typing import Deque, Sequence, NamedTuple, Optional, Callable
+from typing import Deque, List, Sequence, NamedTuple, Optional, Callable
 from PyQt5.QtCore import QObject, pyqtSignal
 from .. import (
     eventloop,
     ClientMessage,
     ClientEvent,
+    Control,
+    ControlType,
+    Conditioning,
     Document,
     Image,
     Mask,
@@ -116,6 +119,7 @@ class Model(QObject):
 
     style: Style
     prompt = ""
+    control: List[Control] = None
     strength = 1.0
     progress = 0.0
     jobs: JobQueue
@@ -126,6 +130,7 @@ class Model(QObject):
         super().__init__()
         self._doc = document
         self.style = Styles.list().default
+        self.control = []
         self.jobs = JobQueue()
 
     @staticmethod
@@ -143,14 +148,28 @@ class Model(QObject):
         if mask is not None or self.strength < 1.0:
             image = self._doc.get_image(image_bounds, exclude_layer=self._layer)
 
-        self.clear_error()
-        self.task = eventloop.run(_report_errors(self, self._generate(image_bounds, image, mask)))
+        control = [
+            Control(c.type, self._doc.get_layer_image(c.image, image_bounds), c.strength)
+            for c in self.control
+        ]
+        conditioning = Conditioning(self.prompt, control)
 
-    async def _generate(self, bounds: Bounds, image: Optional[Image], mask: Optional[Mask]):
+        self.clear_error()
+        self.task = eventloop.run(
+            _report_errors(self, self._generate(image_bounds, conditioning, image, mask))
+        )
+
+    async def _generate(
+        self,
+        bounds: Bounds,
+        conditioning: Conditioning,
+        image: Optional[Image],
+        mask: Optional[Mask],
+    ):
         assert Connection.instance().state is ConnectionState.connected
 
         client = Connection.instance().client
-        style, prompt = self.style, self.prompt
+        style, strength = self.style, self.strength
         if not self.jobs.any_executing():
             self.progress = 0.0
             self.changed.emit()
@@ -163,20 +182,20 @@ class Model(QObject):
             mask.bounds = mask_bounds_rel
 
         if image is None and mask is None:
-            assert self.strength == 1
-            job = workflow.generate(client, style, bounds.extent, prompt)
-        elif mask is None and self.strength < 1:
+            assert strength == 1
+            job = workflow.generate(client, style, bounds.extent, conditioning)
+        elif mask is None and strength < 1:
             assert image is not None
-            job = workflow.refine(client, style, image, prompt, self.strength)
-        elif self.strength == 1:
+            job = workflow.refine(client, style, image, conditioning, strength)
+        elif strength == 1:
             assert image is not None and mask is not None
-            job = workflow.inpaint(client, style, image, mask, self.prompt)
+            job = workflow.inpaint(client, style, image, mask, conditioning)
         else:
-            assert image is not None and mask is not None and self.strength < 1
-            job = workflow.refine_region(client, style, image, mask, prompt, self.strength)
+            assert image is not None and mask is not None and strength < 1
+            job = workflow.refine_region(client, style, image, mask, conditioning, strength)
 
         job_id = await client.enqueue(job)
-        self.jobs.add(job_id, prompt, bounds)
+        self.jobs.add(job_id, conditioning.prompt, bounds)
         self.changed.emit()
 
     def cancel(self):

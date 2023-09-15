@@ -14,7 +14,7 @@ grey = "#888" if is_dark else "#555"
 highlight = "#8df" if is_dark else "#346"
 
 background_inactive = "#606060"
-background_active = "#53728E"
+background_active = QGuiApplication.palette().highlight().color().name()
 
 icon_path = Path(__file__).parent.parent / "icons"
 
@@ -42,3 +42,17 @@ def set_text_clipped(label: QLabel, text: str):
     metrics = QFontMetrics(label.font())
     elided = metrics.elidedText(text, Qt.ElideRight, label.width() - 2)
     label.setText(elided)
+
+
+class EventSuppression:
+    def __init__(self):
+        self.active = False
+
+    def __enter__(self):
+        self.active = True
+
+    def __exit__(self, exc_type, exc_val, exc_tb):
+        self.active = False
+
+    def __bool__(self):
+        return self.active

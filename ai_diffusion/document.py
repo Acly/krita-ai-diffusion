@@ -1,6 +1,7 @@
 import krita
 from krita import Krita
 from .image import Extent, Bounds, Mask, Image
+from PyQt5.QtCore import QUuid
 from PyQt5.QtGui import QImage
 
 
@@ -63,7 +64,7 @@ class Document:
         return Image(QImage(layer.pixelData(*bounds), *bounds.extent, QImage.Format_ARGB32))
 
     def insert_layer(self, name: str, img: Image, bounds: Bounds):
-        layer = self._doc.createNode(name, "paintLayer")
+        layer = self._doc.createNode(name, "paintlayer")
         self._doc.rootNode().addChildNode(layer, None)
         layer.setPixelData(img.data, *bounds)
         layer.setLocked(True)
@@ -85,3 +86,14 @@ class Document:
         layer.setVisible(False)
         self._doc.refreshProjection()
         return layer
+
+    @property
+    def paint_layers(self):
+        return [node for node in self._doc.rootNode().childNodes() if node.type() == "paintlayer"]
+
+    def find_layer(self, id: QUuid):
+        return next((layer for layer in self.paint_layers if layer.uniqueId() == id), None)
+
+    @property
+    def active_layer(self):
+        return self._doc.activeNode()

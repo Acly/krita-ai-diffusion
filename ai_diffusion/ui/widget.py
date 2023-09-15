@@ -1,5 +1,5 @@
 from __future__ import annotations
-from typing import Callable, Optional
+from typing import Callable, List, Optional
 from pathlib import Path
 
 from PyQt5.QtWidgets import (
@@ -23,11 +23,11 @@ from PyQt5.QtWidgets import (
     QVBoxLayout,
 )
 from PyQt5.QtGui import QFontMetrics, QGuiApplication, QKeyEvent, QMouseEvent
-from PyQt5.QtCore import Qt, QSize, pyqtSignal
+from PyQt5.QtCore import Qt, QSize, QUuid, pyqtSignal
 from krita import Krita, DockWidget
 
-from .. import Styles, Bounds
-from . import actions, SettingsDialog, theme
+from .. import Control, ControlType, Styles, Bounds, Document
+from . import actions, EventSuppression, SettingsDialog, theme
 from .model import Model, ModelRegistry, Job, JobQueue, State
 from .connection import Connection, ConnectionState
 
@@ -66,6 +66,145 @@ class QueueWidget(QToolButton):
         action = QAction(name, self)
         action.triggered.connect(func)
         return action
+
+
+class ControlWidget(QWidget):
+    changed = pyqtSignal()
+
+    control_types = {
+        ControlType.scribble: "Scribble",
+        ControlType.lineart: "Line Art",
+    }
+
+    def __init__(self, parent=None):
+        super().__init__(parent)
+        layout = QHBoxLayout(self)
+        layout.setContentsMargins(0, 0, 0, 0)
+        self.setLayout(layout)
+
+        self.type_select = QComboBox(self)
+        self.type_select.setStyleSheet(
+            "QComboBox { border:none; background-color:transparent; padding: 1px 10px 1px 2px;}"
+        )
+        for type in self.control_types:
+            self.type_select.addItem(self.control_types[type], type.value)
+        self.type_select.currentIndexChanged.connect(self._notify)
+
+        self.layer_select = QComboBox(self)
+        self.layer_select.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Preferred)
+        self.update_and_select_layer(Document.active().active_layer.uniqueId())
+        self.layer_select.currentIndexChanged.connect(self._notify)
+
+        self.strength_spin = QSpinBox(self)
+        self.strength_spin.setRange(0, 100)
+        self.strength_spin.setValue(100)
+        self.strength_spin.setSuffix("%")
+        self.strength_spin.setSingleStep(10)
+        self.strength_spin.valueChanged.connect(self._notify)
+
+        self.remove_button = QToolButton(self)
+        self.remove_button.setText("X")
+        self.remove_button.setAutoRaise(True)
+
+        layout.addWidget(self.type_select)
+        layout.addWidget(self.layer_select)
+        layout.addWidget(self.strength_spin)
+        layout.addWidget(self.remove_button)
+
+        # non-exhaustive list of actions that create/remove layers
+        Krita.instance().action("add_new_paint_layer").triggered.connect(self.update_layers)
+        Krita.instance().action("duplicatelayer").triggered.connect(self.update_layers)
+        Krita.instance().action("remove_layer").triggered.connect(self.update_layers)
+
+    _suppress_changes = EventSuppression()
+
+    def _notify(self):
+        if not self._suppress_changes:
+            self.changed.emit()
+
+    def update_and_select_layer(self, id: QUuid):
+        layers = Document.active().paint_layers
+        self.layer_select.clear()
+        for layer in layers:
+            self.layer_select.addItem(layer.name(), layer.uniqueId())
+        index = next((i for i, layer in enumerate(layers) if layer.uniqueId() == id), -1)
+        if index == -1:
+            self.remove_button.click()
+        else:
+            self.layer_select.setCurrentIndex(index)
+
+    def update_layers(self):
+        with self._suppress_changes:
+            self.update_and_select_layer(self.layer_select.currentData())
+
+    @property
+    def value(self):
+        type = ControlType(self.type_select.currentData())
+        id = self.layer_select.currentData()
+        layer = Document.active().find_layer(id)
+        return Control(type, layer, self.strength_spin.value() / 100)
+
+    @value.setter
+    def value(self, control: Control):
+        with self._suppress_changes:
+            self.update_and_select_layer(control.image.uniqueId())
+            self.type_select.setCurrentIndex(self.type_select.findData(control.type.value))
+            self.strength_spin.setValue(int(control.strength * 100))
+
+
+class ControlListWidget(QWidget):
+    _controls: List[ControlWidget]
+
+    changed = pyqtSignal()
+
+    def __init__(self, parent=None):
+        super().__init__(parent)
+        self._layout = QVBoxLayout(self)
+        self._layout.setContentsMargins(0, 0, 0, 0)
+        self.setLayout(self._layout)
+
+        self._controls = []
+
+    def add(self):
+        control = ControlWidget(self)
+        control.changed.connect(self._notify)
+        self._controls.append(control)
+        self._layout.addWidget(control)
+        control.remove_button.clicked.connect(lambda: self.remove(control))
+        self._notify()
+        return control
+
+    def remove(self, control: ControlWidget):
+        self._controls.remove(control)
+        control.deleteLater()
+        self._notify()
+
+    _suppress_changes = EventSuppression()
+
+    def _notify(self):
+        if not self._suppress_changes:
+            self.changed.emit()
+
+    @property
+    def value(self):
+        # Filter out controls whose layer has been deleted
+        result, removed = [], []
+        for control in self._controls:
+            c = control.value
+            removed.append(control) if c.image is None else result.append(c)
+        with self._suppress_changes:
+            for control in removed:
+                self.remove(control)
+        return result
+
+    @value.setter
+    def value(self, controls: List[Control]):
+        with self._suppress_changes:
+            while len(self._controls) > 0:
+                self.remove(self._controls[0])
+            for control in controls:
+                control_widget = self.add()
+                control_widget.value = control
 
 
 class HistoryWidget(QListWidget):
@@ -209,13 +348,25 @@ class GenerationWidget(QWidget):
         self.strength_input.setSuffix("%")
         self.strength_input.valueChanged.connect(self.change_strength)
 
+        self.add_control_button = QToolButton(self)
+        self.add_control_button.setText("+")
+        self.add_control_button.setToolTip("Add control layer")
+        self.add_control_button.setAutoRaise(True)
+
         strength_layout = QHBoxLayout()
         strength_layout.addWidget(strength_text)
         strength_layout.addWidget(self.strength_slider)
         strength_layout.addWidget(self.strength_input)
+        strength_layout.addWidget(self.add_control_button)
         layout.addLayout(strength_layout)
 
+        self.control_list = ControlListWidget(self)
+        self.control_list.changed.connect(self.change_control)
+        self.add_control_button.clicked.connect(self.control_list.add)
+        layout.addWidget(self.control_list)
+
         self.generate_button = QPushButton("Generate", self)
+        self.generate_button.setMinimumHeight(int(self.generate_button.sizeHint().height() * 1.2))
         self.generate_button.clicked.connect(self.generate)
 
         self.queue_button = QueueWidget(self)
@@ -262,6 +413,7 @@ class GenerationWidget(QWidget):
         model = self.model
         self.style_select.setCurrentText(model.style.name)
         self.prompt_textbox.setPlainText(model.prompt)
+        self.control_list.value = model.control
         self.strength_input.setValue(int(model.strength * 100))
         self.error_text.setText(model.error)
         self.error_text.setVisible(model.error != "")
@@ -310,6 +462,9 @@ class GenerationWidget(QWidget):
             self.strength_input.setValue(value)
         if self.strength_slider.value() != value:
             self.strength_slider.setValue(value)
+
+    def change_control(self):
+        self.model.control = self.control_list.value
 
     def show_settings(self):
         SettingsDialog.instance().show(self.model.style)
