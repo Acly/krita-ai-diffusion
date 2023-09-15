@@ -1,5 +1,6 @@
 from pathlib import Path
-from PyQt5.QtCore import Qt, QUrl
+from typing import List, Optional
+from PyQt5.QtCore import Qt, QUrl, pyqtSignal
 from PyQt5.QtGui import QDesktopServices
 from PyQt5.QtWidgets import (
     QWidget,
@@ -8,11 +9,13 @@ from PyQt5.QtWidgets import (
     QVBoxLayout,
     QGridLayout,
     QFileDialog,
+    QFrame,
     QLabel,
     QLineEdit,
     QProgressBar,
     QPushButton,
     QToolButton,
+    QScrollArea,
 )
 from krita import Krita
 
@@ -29,6 +32,125 @@ from .. import (
 )
 from . import Connection, ConnectionState
 from .theme import add_header, set_text_clipped, green, grey, red, yellow, highlight
+
+
+class PackageGroupWidget(QWidget):
+    _layout: QGridLayout
+    _widgets: list
+    _status: QLabel
+    _desc: Optional[QLabel] = None
+
+    changed = pyqtSignal()
+
+    def __init__(
+        self,
+        name: str,
+        packages: List[str],
+        description: Optional[str] = None,
+        is_expanded=True,
+        is_optional=False,
+        is_checked=False,
+        parent=None,
+    ):
+        super().__init__(parent)
+
+        self._layout = QGridLayout()
+        self._layout.setContentsMargins(0, 0, 0, 0)
+        self._layout.setColumnMinimumWidth(0, 300)
+        self.setLayout(self._layout)
+
+        self._header = QToolButton(self)
+        self._header.setToolButtonStyle(Qt.ToolButtonTextBesideIcon)
+        self._header.setContentsMargins(0, 0, 0, 0)
+        self._header.setText(name)
+        self._header.setCheckable(True)
+        self._header.setChecked(is_expanded)
+        self._header.setStyleSheet("font-weight:bold; border:none;")
+        self._layout.addWidget(self._header, 0, 0)
+        self._header.toggled.connect(self._update_visibility)
+
+        self._status = QLabel(self)
+        self._layout.addWidget(self._status, 0, 1)
+
+        if description:
+            self._desc = QLabel(self)
+            self._desc.setText(description)
+            self._desc.setContentsMargins(20, 0, 0, 0)
+            self._desc.setWordWrap(True)
+            self._layout.addWidget(self._desc, 1, 0, 1, 2)
+
+        self._widgets = [self.add_widget(p, is_optional, is_checked) for p in packages]
+        self._update_visibility()
+
+    def _update_visibility(self):
+        self._header.setArrowType(Qt.DownArrow if self._header.isChecked() else Qt.RightArrow)
+        if self._desc:
+            self._desc.setVisible(self._header.isChecked())
+        for widget in self._widgets:
+            widget[0].setVisible(self._header.isChecked())
+            widget[1].setVisible(self._header.isChecked())
+
+    def add_widget(self, name: str, is_optional=False, is_checked=False):
+        key = QLabel(name, self)
+        key.setContentsMargins(20, 0, 0, 0)
+        if is_optional:
+            value = QCheckBox("Install", self)
+            value.setChecked(is_checked)
+            value.toggled.connect(self._handle_checkbox_toggle)
+        else:
+            value = QLabel(self)
+        self._layout.addWidget(key, self._layout.rowCount(), 0)
+        self._layout.addWidget(value, self._layout.rowCount() - 1, 1)
+        return key, value
+
+    @property
+    def is_checkable(self):
+        return isinstance(self._widgets[0][1], QCheckBox)
+
+    @property
+    def values(self):
+        if self.is_checkable:
+            return [not widget[1].isEnabled() for widget in self._widgets]
+        else:
+            return [widget[1].text() == "Installed" for widget in self._widgets]
+
+    @values.setter
+    def values(self, values: List[bool]):
+        for widget, value in zip(self._widgets, values):
+            if self.is_checkable:
+                widget[1].setText("Installed" if value else "Install")
+                widget[1].setStyleSheet(f"color:{green}" if value else "")
+                widget[1].setChecked(widget[1].isChecked() or value)
+                widget[1].setEnabled(not value)
+            else:
+                widget[1].setText("Installed" if value else "Not installed")
+                widget[1].setStyleSheet(f"color:{green}" if value else f"color:{grey}")
+        self._update_status(values)
+
+    @property
+    def is_checked(self):
+        return [widget[1].isEnabled() and widget[1].isChecked() for widget in self._widgets]
+
+    def _update_status(self, installed: List[bool]):
+        available = len(installed) - sum(installed)
+        if available == 0:
+            self._status.setText("All installed")
+            self._status.setStyleSheet(f"color:{green}")
+        elif self.is_checkable:
+            selected = sum(self.is_checked)
+            if selected > 0:
+                self._status.setText(f"{selected} of {available} packages selected")
+                self._status.setStyleSheet(f"color:{yellow}")
+            else:
+                self._status.setText(f"{available} packages available")
+                self._status.setStyleSheet(f"color:{grey}")
+        else:
+            self._status.setText(f"{available} packages require installation")
+            self._status.setStyleSheet(f"color:{yellow}")
+
+    def _handle_checkbox_toggle(self):
+        self._update_status(self.values)
+        self.changed.emit()
 
 
 class ServerWidget(QWidget):
@@ -100,57 +222,63 @@ class ServerWidget(QWidget):
         launch_layout.addLayout(buttons_layout, 0)
         layout.addLayout(launch_layout)
 
-        required_text = (
-            "The following extensions and models are required by the plugin and can be installed"
-            " automatically."
-        )
-        add_header(layout, Setting("Required components", "", required_text))
-        package_layout = QGridLayout()
-        self._python_package = self._add_package_widget("Python", package_layout)
-        self._comfy_package = self._add_package_widget("ComfyUI", package_layout)
-        self._node_packages = [
-            self._add_package_widget(node.name, package_layout)
-            for node in server.required_custom_nodes
-        ]
-        self._model_packages = [
-            self._add_package_widget(model.name, package_layout) for model in server.required_models
-        ]
-        layout.addLayout(package_layout)
+        package_list = QWidget(self)
+        package_layout = QVBoxLayout()
+        package_layout.setContentsMargins(0, 0, 0, 0)
+        package_list.setLayout(package_layout)
 
-        recommended_text = (
-            "At least one Stable Diffusion checkpoint is required. Below are some popular choices,"
-            " more can be found online."
-        )
-        add_header(layout, Setting("Recommended checkpoints", "", recommended_text))
-        checkpoint_layout = QGridLayout()
-        self._checkpoint_packages = [
-            self._add_checkpoint_widget(checkpoint.name, checkpoint_layout)
-            for checkpoint in server.default_checkpoints
-        ]
-        layout.addLayout(checkpoint_layout)
+        scroll = QScrollArea(self)
+        scroll.setWidget(package_list)
+        scroll.setWidgetResizable(True)
+        scroll.setFrameStyle(QFrame.NoFrame)
+        scroll.setHorizontalScrollBarPolicy(Qt.ScrollBarAlwaysOff)
+        layout.addWidget(scroll, 1)
 
-        layout.addStretch()
+        self._required_group = PackageGroupWidget(
+            "Core components", ["Python", "ComfyUI"], parent=self
+        )
+        package_layout.addWidget(self._required_group)
+
+        node_packages = [node.name for node in server.required_custom_nodes]
+        self._nodes_group = PackageGroupWidget(
+            "Required custom nodes", node_packages, is_expanded=False, parent=self
+        )
+        package_layout.addWidget(self._nodes_group)
+
+        model_packages = [model.name for model in server.required_models]
+        self._models_group = PackageGroupWidget(
+            "Required models", model_packages, is_expanded=False, parent=self
+        )
+        package_layout.addWidget(self._models_group)
+
+        self._checkpoint_group = PackageGroupWidget(
+            "Recommended checkpoints",
+            [checkpoint.name for checkpoint in server.default_checkpoints],
+            description=(
+                "At least one Stable Diffusion checkpoint is required. Below are some popular"
+                " choices, more can be found online."
+            ),
+            is_optional=True,
+            is_checked=not self._server.has_comfy,
+            parent=self,
+        )
+        self._checkpoint_group.changed.connect(self.update)
+        package_layout.addWidget(self._checkpoint_group)
+
+        self._control_group = PackageGroupWidget(
+            "Control extensions",
+            [control.name for control in server.optional_models],
+            is_optional=True,
+            is_checked=not self._server.has_comfy,
+            parent=self,
+        )
+        self._control_group.changed.connect(self.update)
+        package_layout.addWidget(self._control_group)
+
+        package_layout.addStretch()
 
         self.update()
-        self.update_packages()
-
-    def _add_package_widget(self, name: str, layout: QGridLayout):
-        name = QLabel(name, self)
-        name.setContentsMargins(5, 0, 0, 0)
-        status = QLabel(self)
-        layout.addWidget(name, layout.rowCount(), 0)
-        layout.addWidget(status, layout.rowCount() - 1, 1)
-        return status
-
-    def _add_checkpoint_widget(self, name: str, layout: QGridLayout):
-        name = QLabel(name, self)
-        name.setContentsMargins(5, 0, 0, 0)
-        status = QCheckBox("Install", self)
-        status.setChecked(not self._server.has_comfy)
-        status.stateChanged.connect(self.update)
-        layout.addWidget(name, layout.rowCount(), 0)
-        layout.addWidget(status, layout.rowCount() - 1, 1)
-        return status
+        self.update_required()
 
     def _change_location(self):
         if settings.server_path != self._location_edit.text():
@@ -159,7 +287,7 @@ class ServerWidget(QWidget):
             settings.server_path = self._location_edit.text()
             settings.save()
             self.update()
-            self.update_packages()
+            self.update_required()
 
     def _select_location(self):
         path = self._server.path
@@ -227,9 +355,9 @@ class ServerWidget(QWidget):
 
             if self._server.state in [ServerState.not_installed, ServerState.missing_resources]:
                 await self._server.install(self._handle_progress)
-            self.update_packages()
+            self.update_required()
 
-            checkpoints_to_install = self.update_checkpoints()
+            checkpoints_to_install = self.update_optional()
             if len(checkpoints_to_install) > 0:
                 await self._server.install_optional(checkpoints_to_install, self._handle_progress)
             self.update()
@@ -318,42 +446,36 @@ class ServerWidget(QWidget):
             self._status_label.setText(f"<b>Error:</b> {self._error}")
             self._status_label.setStyleSheet(f"color:{red}")
 
-    def update_packages(self):
-        _update_package(self._python_package, self._server.has_python)
-        _update_package(self._comfy_package, self._server.has_comfy)
-        for package, node in zip(self._node_packages, server.required_custom_nodes):
-            _update_package(package, node.name not in self._server.missing_resources)
-        for package, model in zip(self._model_packages, server.required_models):
-            _update_package(package, model.name not in self._server.missing_resources)
+    def update_required(self):
+        self._required_group.values = [self._server.has_python, self._server.has_comfy]
+        self._nodes_group.values = [
+            node.name not in self._server.missing_resources for node in server.required_custom_nodes
+        ]
+        self._models_group.values = [
+            model.name not in self._server.missing_resources for model in server.required_models
+        ]
 
-    def update_checkpoints(self):
-        requires_install = []
-        for package, checkpoint in zip(self._checkpoint_packages, server.default_checkpoints):
-            installed = checkpoint.name not in self._server.missing_resources
-            if installed:
-                package.setChecked(True)
-                package.setEnabled(False)
-                package.setText("Installed")
-                package.setStyleSheet(f"color:{green}")
-            else:
-                package.setEnabled(True)
-                package.setText("Install")
-                package.setStyleSheet("")
-                if package.isChecked():
-                    requires_install.append(checkpoint.name)
-        return requires_install
+    def update_optional(self):
+        self._checkpoint_group.values = [
+            r.name not in self._server.missing_resources for r in server.default_checkpoints
+        ]
+        self._control_group.values = [
+            r.name not in self._server.missing_resources for r in server.optional_models
+        ]
+
+        def checked_packages(group, pkgs):
+            return [pkg.name for pkg, checked in zip(pkgs, group.is_checked) if checked]
+
+        to_install = checked_packages(self._checkpoint_group, server.default_checkpoints)
+        to_install += checked_packages(self._control_group, server.optional_models)
+        return to_install
 
     @property
     def requires_install(self):
         state = self._server.state
-        checkpoints_to_install = self.update_checkpoints()
+        checkpoints_to_install = self.update_optional()
         install_required = state in [ServerState.not_installed, ServerState.missing_resources]
         install_optional = (
             state in [ServerState.stopped, ServerState.running] and len(checkpoints_to_install) > 0
         )
         return install_required or install_optional
-
-
-def _update_package(package_widget: QLabel, installed: bool):
-    package_widget.setText("Installed" if installed else "Not installed")
-    package_widget.setStyleSheet(f"color:{green}" if installed else f"color:{grey}")

@@ -1,5 +1,6 @@
 import asyncio
 from enum import Enum
+from itertools import chain
 from pathlib import Path
 import shutil
 import sys
@@ -139,6 +140,30 @@ default_checkpoints = [
     ),
 ]
 
+optional_models = [
+    ModelResource(
+        "ControlNet Scribble",
+        ResourceKind.controlnet,
+        Path("models/controlnet"),
+        "control_lora_rank128_v11p_sd15_scribble_fp16.safetensors",
+        "https://huggingface.co/comfyanonymous/ControlNet-v1-1_fp16_safetensors/resolve/main/control_lora_rank128_v11p_sd15_scribble_fp16.safetensors",
+    ),
+    ModelResource(
+        "ControlNet Line Art",
+        ResourceKind.controlnet,
+        Path("models/controlnet"),
+        "control_lora_rank128_v11p_sd15s2_lineart_anime_fp16.safetensors",
+        "https://huggingface.co/comfyanonymous/ControlNet-v1-1_fp16_safetensors/resolve/main/control_lora_rank128_v11p_sd15s2_lineart_anime_fp16.safetensors",
+    ),
+    ModelResource(
+        "ControlNet Sketch",
+        ResourceKind.controlnet,
+        Path("models/controlnet"),
+        "control_lora_rank128_v11p_sd15_lineart_fp16.safetensors",
+        "https://huggingface.co/comfyanonymous/ControlNet-v1-1_fp16_safetensors/resolve/main/control_lora_rank128_v11p_sd15_lineart_fp16.safetensors",
+    ),
+]
+
 
 class MissingResource(Exception):
     kind: ResourceKind
@@ -236,22 +261,22 @@ class Server:
         ]
         self.missing_resources += missing_nodes
 
-        self.missing_resources += [
-            r.name
-            for r in required_models
-            if not (self._comfy_dir / r.folder / r.filename).exists()
-        ]
+        def find_missing(folder: Path, resources: List[ModelResource]):
+            return [
+                resource.name
+                for resource in resources
+                if not (folder / resource.folder / resource.filename).exists()
+            ]
+
+        self.missing_resources += find_missing(self._comfy_dir, required_models)
         if len(self.missing_resources) > 0:
             self.state = ServerState.missing_resources
         else:
             self.state = ServerState.stopped
 
         # Optional resources
-        self.missing_resources += [
-            r.name
-            for r in default_checkpoints
-            if not (self._comfy_dir / r.folder / r.filename).exists()
-        ]
+        self.missing_resources += find_missing(self._comfy_dir, default_checkpoints)
+        self.missing_resources += find_missing(self._comfy_dir, optional_models)
 
     async def _install(self, cb: InternalCB):
         self.state = ServerState.installing
@@ -380,7 +405,9 @@ class Server:
             callback(InstallationProgress(stage, progress))
 
         try:
-            for resource in (cp for cp in default_checkpoints if cp.name in packages):
+            all_optional = chain(default_checkpoints, optional_models)
+            to_install = (r for r in all_optional if r.name in packages)
+            for resource in to_install:
                 target_file = self._comfy_dir / resource.folder / resource.filename
                 if not target_file.exists():
                     await _download_cached(resource.name, network, resource.url, target_file, cb)
