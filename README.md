@@ -1,6 +1,6 @@
 <h1><img width="64px" src="ai_diffusion/icons/logo-128.png"> Generative AI <i>for Krita</i></h1>
 
-[Features](#features) | [Download](https://github.com/Acly/krita-ai-diffusion/releases/latest) | [Installation](#installation) | [Video](https://youtu.be/1d_jns4W1cM) | [Screenshots](#screenshots)
+[Features](#features) | [Download](https://github.com/Acly/krita-ai-diffusion/releases/latest) | [Installation](#installation) | [Video](https://youtu.be/Ly6USRwTHe0) | [Screenshots](#screenshots)
 
 Generate images from within Krita with minimal fuss: Select an area, push a button,
 and new content that matches your image will be generated. Or expand your canvas and
@@ -13,7 +13,7 @@ Powerful customization is available for advanced users.
 
 _Local. Open source. Free._
 
-[![Watch video demo](media/screenshot-1.png)](https://youtu.be/1d_jns4W1cM "Watch video demo")
+[![Watch video demo](media/screenshot-1.png)](https://youtu.be/Ly6USRwTHe0 "Watch video demo")
 
 ## <a name="features"></a> Features
 
@@ -71,13 +71,23 @@ To use an external installation, the following extensions and models are require
 
 ## <a name="screenshots"></a> Screenshots
 
-<img alt="Inpainting on a photo using a realistic model" src="media/screenshot-2.png">
+_Inpainting on a photo using a realistic model_
+<img src="media/screenshot-2.png">
 
-<img alt="Reworking and adding content to an AI generated image" src="media/screenshot-1.png">
+_Reworking and adding content to an AI generated image_
+<img src="media/screenshot-1.png">
 
-<img alt="Adding detail and iteratively refining small parts of the image" src="media/screenshot-3.png">
+_Adding detail and iteratively refining small parts of the image_
+<img src="media/screenshot-3.png">
 
-<img alt="Server installation" src="media/screenshot-installation.png"> <img alt="Style preset configuraiton" src="media/screenshot-style.png">
+_Using ControlNet to guid image generation with a crude scribble_
+<img src="media/screenshot-4.png">
+
+_Server installation_
+<img src="media/screenshot-installation.png">
+
+_Style preset configuration_
+<img src="media/screenshot-style.png">
 
 
 ## Technology
