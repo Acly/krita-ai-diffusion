@@ -169,6 +169,7 @@ _all_resources = (
     [n.name for n in required_custom_nodes]
     + [m.name for m in required_models]
     + [c.name for c in default_checkpoints]
+    + [m.name for m in optional_models]
 )
 
 _is_windows = "win" in sys.platform

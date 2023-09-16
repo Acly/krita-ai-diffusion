@@ -266,12 +266,12 @@ class Client:
             self._active = None
 
 
-def _find_control_model(model_list: Sequence[str], type: ControlType, optional=False):
+def _find_control_model(model_list: Sequence[str], type: ControlType):
     def _find(name: Optional[str]):
         if name is None:
             return None
         model = next((model for model in model_list if model.startswith(name)), None)
-        if model is None and not optional:
+        if model is None and type is ControlType.inpaint:
             raise MissingResource(ResourceKind.controlnet, [name])
         return model
 

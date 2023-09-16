@@ -26,7 +26,7 @@ from PyQt5.QtGui import QFontMetrics, QGuiApplication, QKeyEvent, QMouseEvent
 from PyQt5.QtCore import Qt, QSize, QUuid, pyqtSignal
 from krita import Krita, DockWidget
 
-from .. import Control, ControlType, Styles, Bounds, Document
+from .. import Control, ControlType, Styles, Bounds, Document, server
 from . import actions, EventSuppression, SettingsDialog, theme
 from .model import Model, ModelRegistry, Job, JobQueue, State
 from .connection import Connection, ConnectionState
@@ -75,6 +75,10 @@ class ControlWidget(QWidget):
         ControlType.scribble: "Scribble",
         ControlType.lineart: "Line Art",
     }
+    control_icons = {
+        ControlType.scribble: theme.icon("control-scribble"),
+        ControlType.lineart: theme.icon("control-lineart"),
+    }
 
     def __init__(self, parent=None):
         super().__init__(parent)
@@ -84,15 +88,14 @@ class ControlWidget(QWidget):
 
         self.type_select = QComboBox(self)
         self.type_select.setStyleSheet(
-            "QComboBox { border:none; background-color:transparent; padding: 1px 10px 1px 2px;}"
+            "QComboBox { border:none; background-color:transparent; padding: 1px 12px 1px 2px;}"
         )
         for type in self.control_types:
-            self.type_select.addItem(self.control_types[type], type.value)
+            self.type_select.addItem(self.control_icons[type], self.control_types[type], type.value)
         self.type_select.currentIndexChanged.connect(self._notify)
+        self.type_select.currentIndexChanged.connect(self._check_is_installed)
 
         self.layer_select = QComboBox(self)
-        self.layer_select.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Preferred)
-        self.update_and_select_layer(Document.active().active_layer.uniqueId())
         self.layer_select.currentIndexChanged.connect(self._notify)
 
         self.strength_spin = QSpinBox(self)
@@ -102,14 +105,26 @@ class ControlWidget(QWidget):
         self.strength_spin.setSingleStep(10)
         self.strength_spin.valueChanged.connect(self._notify)
 
+        self.error_text = QLabel(self)
+        self.error_text.setText("ControlNet not installed")
+        self.error_text.setStyleSheet(f"color: {theme.red};")
+        self.error_text.setVisible(False)
+
         self.remove_button = QToolButton(self)
-        self.remove_button.setText("X")
+        self.remove_button.setToolButtonStyle(Qt.ToolButtonStyle.ToolButtonIconOnly)
+        self.remove_button.setIcon(theme.icon("remove"))
+        self.remove_button.setToolTip("Remove control layer")
+        button_height = self.remove_button.iconSize().height()
+        self.remove_button.setIconSize(QSize(int(button_height * 1.25), button_height))
         self.remove_button.setAutoRaise(True)
 
         layout.addWidget(self.type_select)
-        layout.addWidget(self.layer_select)
+        layout.addWidget(self.layer_select, 1)
         layout.addWidget(self.strength_spin)
+        layout.addWidget(self.error_text, 1)
         layout.addWidget(self.remove_button)
+
+        self.value = Control(ControlType.scribble, Document.active().active_layer, 1)
 
         # non-exhaustive list of actions that create/remove layers
         Krita.instance().action("add_new_paint_layer").triggered.connect(self.update_layers)
@@ -150,6 +165,26 @@ class ControlWidget(QWidget):
             self.update_and_select_layer(control.image.uniqueId())
             self.type_select.setCurrentIndex(self.type_select.findData(control.type.value))
             self.strength_spin.setValue(int(control.strength * 100))
+            self._check_is_installed()
+
+    def _check_is_installed(self):
+        connection = Connection.instance()
+        model = Model.active()
+        is_installed = True
+        if model and connection.state is ConnectionState.connected:
+            type = ControlType(self.type_select.currentData())
+            sdver = model.style.sd_version_resolved
+            if connection.client.control_model[type][sdver] is None:
+                filename = server.control_filename[type][sdver]
+                self.error_text.setToolTip(
+                    f"The server is missing {filename}"
+                    if filename
+                    else f"Control mode is not supported for {sdver.value}"
+                )
+                is_installed = False
+        self.layer_select.setVisible(is_installed)
+        self.strength_spin.setVisible(is_installed)
+        self.error_text.setVisible(not is_installed)
 
 
 class ControlListWidget(QWidget):
@@ -332,8 +367,9 @@ class GenerationWidget(QWidget):
         self.prompt_textbox.activated.connect(self.generate)
         layout.addWidget(self.prompt_textbox)
 
-        strength_text = QLabel(self)
-        strength_text.setText("Strength")
+        self.control_list = ControlListWidget(self)
+        self.control_list.changed.connect(self.change_control)
+        layout.addWidget(self.control_list)
 
         self.strength_slider = QSlider(Qt.Orientation.Horizontal, self)
         self.strength_slider.setMinimum(0)
@@ -345,25 +381,24 @@ class GenerationWidget(QWidget):
         self.strength_input.setMinimum(0)
         self.strength_input.setMaximum(100)
         self.strength_input.setSingleStep(5)
+        self.strength_input.setPrefix("Strength: ")
         self.strength_input.setSuffix("%")
         self.strength_input.valueChanged.connect(self.change_strength)
 
         self.add_control_button = QToolButton(self)
-        self.add_control_button.setText("+")
+        self.add_control_button.setToolButtonStyle(Qt.ToolButtonStyle.ToolButtonIconOnly)
+        self.add_control_button.setIcon(theme.icon("control-add"))
         self.add_control_button.setToolTip("Add control layer")
         self.add_control_button.setAutoRaise(True)
+        icon_height = self.add_control_button.iconSize().height()
+        self.add_control_button.setIconSize(QSize(int(icon_height * 1.25), icon_height))
+        self.add_control_button.clicked.connect(self.control_list.add)
 
         strength_layout = QHBoxLayout()
-        strength_layout.addWidget(strength_text)
         strength_layout.addWidget(self.strength_slider)
         strength_layout.addWidget(self.strength_input)
         strength_layout.addWidget(self.add_control_button)
         layout.addLayout(strength_layout)
-
-        self.control_list = ControlListWidget(self)
-        self.control_list.changed.connect(self.change_control)
-        self.add_control_button.clicked.connect(self.control_list.add)
-        layout.addWidget(self.control_list)
 
         self.generate_button = QPushButton("Generate", self)
         self.generate_button.setMinimumHeight(int(self.generate_button.sizeHint().height() * 1.2))
