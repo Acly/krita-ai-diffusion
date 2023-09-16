@@ -3,6 +3,7 @@ from enum import Enum
 from itertools import chain
 from pathlib import Path
 import shutil
+import subprocess
 import sys
 from typing import Callable, List, NamedTuple, Optional, Sequence
 from zipfile import ZipFile
@@ -174,6 +175,7 @@ _all_resources = (
 
 _is_windows = "win" in sys.platform
 _exe = ".exe" if _is_windows else ""
+_process_flags = subprocess.CREATE_NO_WINDOW if _is_windows else 0
 
 
 class ServerState(Enum):
@@ -213,6 +215,7 @@ class Server:
         self.path = Path(path or settings.server_path)
         if not self.path.is_absolute():
             self.path = Path(__file__).parent / self.path
+        self.backend = settings.server_backend
         self.check_install()
 
     def check_install(self):
@@ -411,10 +414,14 @@ class Server:
         assert self.state in [ServerState.stopped, ServerState.missing_resources]
 
         self.state = ServerState.starting
-        PIPE = asyncio.subprocess.PIPE
         args = ["-u", "main.py"] + (["--cpu"] if self.backend is ServerBackend.cpu else [])
         self._process = await asyncio.create_subprocess_exec(
-            self._python_cmd, *args, cwd=self._comfy_dir, stdout=PIPE, stderr=PIPE
+            self._python_cmd,
+            *args,
+            cwd=self._comfy_dir,
+            stdout=asyncio.subprocess.PIPE,
+            stderr=asyncio.subprocess.PIPE,
+            creationflags=_process_flags,
         )
 
         async for line in self._process.stdout:
@@ -534,7 +541,7 @@ async def _execute_process(name: str, cmd: list, cwd: Path, cb: InternalCB):
     cmd = [str(c) for c in cmd]
     cb(f"Installing {name}", f"Executing {' '.join(cmd)}")
     process = await asyncio.create_subprocess_exec(
-        cmd[0], *cmd[1:], cwd=cwd, stdout=PIPE, stderr=PIPE
+        cmd[0], *cmd[1:], cwd=cwd, stdout=PIPE, stderr=PIPE, creationflags=_process_flags
     )
     async for line in process.stdout:
         cb(f"Installing {name}", line.decode().strip())
