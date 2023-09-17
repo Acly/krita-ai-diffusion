@@ -4,7 +4,7 @@ from PyQt5.QtNetwork import QNetworkAccessManager
 import pytest
 import shutil
 
-from ai_diffusion import network, Server, ServerState, ServerBackend
+from ai_diffusion import network, Server, ServerState, ServerBackend, InstallationProgress
 
 test_dir = Path(__file__).parent / ".server"
 comfy_dir = Path("C:/Dev/ComfyUI")
@@ -53,9 +53,16 @@ def test_install_and_run(qtapp, pytestconfig):
     server.backend = ServerBackend.cpu
     assert server.state in [ServerState.not_installed, ServerState.missing_resources]
 
-    def handle_progress(report):
-        assert report.progress == -1 or report.progress >= 0 and report.progress <= 1
+    def handle_progress(report: InstallationProgress):
+        assert (
+            report.progress is None
+            or report.progress.value == -1
+            or report.progress.value >= 0
+            and report.progress.value <= 1
+        )
         assert report.stage != ""
+        if report.progress is None:
+            print(report.stage, report.message)
 
     async def main():
         await server.install(handle_progress)

@@ -225,11 +225,17 @@ class Server:
         comfy_pkg = ["main.py", "nodes.py", "custom_nodes"]
         self._comfy_dir = _find_component(comfy_pkg, [self.path, self.path / "ComfyUI"])
 
-        python_pkg = ["python3.dll", "python.exe"] if _is_windows else ["python3", "libpython.so"]
-        python_search_paths = [self.path / "python"]
+        python_pkg = ["python3.dll", "python.exe"] if _is_windows else ["python3", "pip3"]
+        python_search_paths = [
+            self.path / "python",
+            self.path / "venv" / "bin",
+            self.path / ".venv" / "bin",
+        ]
         if self._comfy_dir:
             python_search_paths += [
                 self._comfy_dir / "python",
+                self._comfy_dir / "venv" / "bin",
+                self._comfy_dir / ".venv" / "bin",
                 self._comfy_dir.parent / "python",
                 self._comfy_dir.parent / "python_embeded",
             ]
@@ -239,7 +245,9 @@ class Server:
             self._pip_cmd = _find_program("pip", "pip3")
         else:
             self._python_cmd = python_path / f"python{_exe}"
-            self._pip_cmd = python_path / "Scripts" / f"pip{_exe}"
+            self._pip_cmd = python_path / "pip"
+            if _is_windows:
+                self._pip_cmd = python_path / "Scripts" / "pip.exe"
 
         if not (self.has_comfy and self.has_python):
             self.state = ServerState.not_installed
@@ -280,10 +288,17 @@ class Server:
 
         no_python = self._python_cmd is None or self._pip_cmd is None
         if _is_windows and (self._comfy_dir is None or no_python):
+            # On Windows install an embedded version of Python
             python_dir = self.path / "python"
             self._python_cmd = python_dir / f"python{_exe}"
             self._pip_cmd = python_dir / "Scripts" / f"pip{_exe}"
             await _install_if_missing(python_dir, self._install_python, network, cb)
+        elif not _is_windows and (self._comfy_dir is None or self._pip_cmd is None):
+            # On Linux a system Python is required to create a virtual environment
+            python_dir = self.path / "venv"
+            await _install_if_missing(python_dir, self._create_venv, cb)
+            self._python_cmd = python_dir / "bin" / "python3"
+            self._pip_cmd = python_dir / "bin" / "pip3"
 
         self._comfy_dir = self._comfy_dir or self.path / "ComfyUI"
         await _install_if_missing(self._comfy_dir, self._install_comfy, network, cb)
@@ -321,17 +336,14 @@ class Server:
         await _download_cached("Python", network, git_pip_url, get_pip_file, cb)
         await _execute_process("Python", [self._python_cmd, get_pip_file], dir, cb)
 
-        torch_args = ["install", "torch", "torchvision", "torchaudio", "--index-url"]
-        torch_index = {
-            ServerBackend.cuda: "https://download.pytorch.org/whl/cu118",
-            ServerBackend.cpu: "https://download.pytorch.org/whl/cpu",
-        }
-        torch_cmd = [self._pip_cmd, *torch_args, torch_index[self.backend]]
-        await _execute_process("PyTorch", torch_cmd, dir, cb)
-
         cb("Installing Python", f"Patching {python_pth}")
         _prepend_file(python_pth, "../ComfyUI\n")
         cb("Installing Python", "Finished installing Python")
+
+    async def _create_venv(self, cb: InternalCB):
+        cb("Creating Python virtual environment", f"Creating venv in {self.path / 'venv'}")
+        venv_cmd = [self._python_cmd, "-m", "venv", "venv"]
+        await _execute_process("Python", venv_cmd, self.path, cb)
 
     async def _install_comfy(self, network: QNetworkAccessManager, cb: InternalCB):
         url = "https://github.com/comfyanonymous/ComfyUI/archive/refs/heads/master.zip"
@@ -339,6 +351,14 @@ class Server:
         await _download_cached("ComfyUI", network, url, archive_path, cb)
         await _extract_archive("ComfyUI", archive_path, self._comfy_dir.parent, cb)
         _rename_extracted_folder("ComfyUI", self._comfy_dir, "-master")
+
+        torch_args = ["install", "torch", "torchvision", "torchaudio", "--index-url"]
+        torch_index = {
+            ServerBackend.cuda: "https://download.pytorch.org/whl/cu118",
+            ServerBackend.cpu: "https://download.pytorch.org/whl/cpu",
+        }
+        torch_cmd = [self._pip_cmd, *torch_args, torch_index[self.backend]]
+        await _execute_process("PyTorch", torch_cmd, self._comfy_dir, cb)
 
         requirements_txt = self._comfy_dir / "requirements.txt"
         requirements_cmd = [self._pip_cmd, "install", "-r", requirements_txt]
@@ -363,9 +383,10 @@ class Server:
 
     async def install(self, callback: Callback):
         assert self.state in [ServerState.not_installed, ServerState.missing_resources]
-        if not _is_windows and (self._python_cmd is None or self._pip_cmd is None):
+        if not _is_windows and self._python_cmd is None:
             raise Exception(
-                "Python not found. Please install Python via your package manager and restart."
+                "Python not found. Please install python3, python3-venv via your package manager"
+                " and restart."
             )
 
         def cb(stage: str, message: str, progress: Optional[DownloadProgress] = None):
@@ -547,7 +568,7 @@ async def _execute_process(name: str, cmd: list, cwd: Path, cb: InternalCB):
         cb(f"Installing {name}", line.decode().strip())
     if process.returncode != 0:
         err = (await process.stderr.read()).decode()
-        raise Exception(f"Error during PyTorch installation: {err}")
+        raise Exception(f"Error during installation: {err}")
 
 
 async def _install_if_missing(path: Path, installer, *args):

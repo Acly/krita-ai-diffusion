@@ -1,6 +1,6 @@
 """Generative AI plugin for Krita using Stable Diffusion"""
 
-__version__ = "1.0.1"
+__version__ = "1.0.2"
 
 from . import util
 from .settings import Settings, Setting, settings, PerformancePreset, ServerBackend, ServerMode
@@ -9,7 +9,7 @@ from .network import NetworkError, Interrupted, OutOfMemoryError, RequestManager
 from .client import Client, ClientEvent, ClientMessage, DeviceInfo, MissingResource, ResourceKind
 from .image import Bounds, Extent, Mask, Image, ImageCollection
 from .comfyworkflow import ComfyWorkflow
-from .server import Server, ServerState
+from .server import Server, ServerState, InstallationProgress
 from .workflow import Control, ControlType, Conditioning
 from . import network, workflow
 
