@@ -1,4 +1,5 @@
 from enum import Enum
+from pathlib import Path
 from typing import Optional
 from PyQt5.QtWidgets import (
     QVBoxLayout,
@@ -530,10 +531,10 @@ class ConnectionSettings(SettingsTab):
                 " folder."
             )
         elif resource.kind is ResourceKind.clip_vision:
+            model = Path("models", "clip_vision", resource.names[0])
             self._connection_status.setText(
-                f"<b>Error</b>: Could not find CLIPVision model {', '.join(resource.names)}. Make"
-                " sure to download the model and place it in the [ComfyUI]/models/clip_vision"
-                " folder."
+                f"<b>Error</b>: Could not find CLIPVision model {model.name} for SD1.5. Make sure"
+                f" to download the model and place it in [ComfyUI]/{model.parent.as_posix()}"
             )
         elif resource.kind is ResourceKind.ip_adapter:
             self._connection_status.setText(
