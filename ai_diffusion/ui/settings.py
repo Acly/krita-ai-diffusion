@@ -592,6 +592,7 @@ class StylePresets(SettingsTab):
         add("style_prompt", LineEditSetting(StyleSettings.style_prompt, self))
         add("negative_prompt", LineEditSetting(StyleSettings.negative_prompt, self))
         add("sd_version", ComboBoxSetting(StyleSettings.sd_version, self))
+        add("vae", ComboBoxSetting(StyleSettings.vae, self))
         add("sampler", ComboBoxSetting(StyleSettings.sampler, self))
         add("sampler_steps", SliderSetting(StyleSettings.sampler_steps, self, 1, 100))
         add(
@@ -658,6 +659,7 @@ class StylePresets(SettingsTab):
             client = Connection.instance().client
             self._style_widgets["sd_checkpoint"].set_items(client.checkpoints)
             self._style_widgets["loras"].names = client.lora_models
+            self._style_widgets["vae"].set_items([StyleSettings.vae.default] + client.vae_models)
         self._read_style(self.current_style)
         self._set_sd_version_text()
 

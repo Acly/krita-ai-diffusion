@@ -70,6 +70,12 @@ class StyleSettings:
         "Textual description of things to avoid in generated images",
     )
 
+    vae = Setting(
+        "VAE",
+        "Checkpoint Default",
+        "Model to encode and decode images. Commonly affects saturation and sharpness.",
+    )
+
     sampler = Setting(
         "Sampler",
         "DPM++ 2M Karras",
@@ -105,6 +111,7 @@ class Style:
     loras: list
     style_prompt = StyleSettings.style_prompt.default
     negative_prompt = StyleSettings.negative_prompt.default
+    vae = StyleSettings.vae.default
     sampler = StyleSettings.sampler.default
     sampler_steps = StyleSettings.sampler_steps.default
     sampler_steps_upscaling = StyleSettings.sampler_steps_upscaling.default

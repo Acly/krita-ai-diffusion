@@ -93,6 +93,7 @@ class Client:
 
     url: str
     checkpoints: Sequence[str]
+    vae_models: Sequence[str]
     lora_models: Sequence[str]
     upscalers: Sequence[str]
     default_upscaler: str
@@ -129,6 +130,9 @@ class Client:
         client.checkpoints = nodes["CheckpointLoaderSimple"]["input"]["required"]["ckpt_name"][0]
         if len(client.checkpoints) == 0:
             raise MissingResource(ResourceKind.checkpoint)
+
+        # Retrieve VAE
+        client.vae_models = nodes["VAELoader"]["input"]["required"]["vae_name"][0]
 
         # Retrieve LoRA models
         client.lora_models = nodes["LoraLoader"]["input"]["required"]["lora_name"][0]

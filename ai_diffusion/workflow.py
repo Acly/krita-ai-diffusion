@@ -5,7 +5,7 @@ from typing import List, NamedTuple, Tuple, Union, Optional
 from .image import Bounds, Extent, Image, ImageCollection, Mask
 from .client import Client
 from .settings import settings
-from .style import SDVersion, Style
+from .style import SDVersion, Style, StyleSettings
 from .server import ControlType
 from .comfyworkflow import ComfyWorkflow, Output
 from .util import compute_batch_size, client_logger as log
@@ -139,6 +139,12 @@ def load_model_with_lora(w: ComfyWorkflow, comfy: Client, style: Style):
         checkpoint = comfy.checkpoints[0]
         log.warning(f"Style checkpoint {style.sd_checkpoint} not found, using default {checkpoint}")
     model, clip, vae = w.load_checkpoint(checkpoint)
+
+    if style.vae != StyleSettings.vae.default:
+        if style.vae in comfy.vae_models:
+            vae = w.load_vae(style.vae)
+        else:
+            log.warning(f"Style VAE {style.vae} not found, using default VAE from checkpoint")
 
     for lora in style.loras:
         if lora["name"] not in comfy.lora_models:

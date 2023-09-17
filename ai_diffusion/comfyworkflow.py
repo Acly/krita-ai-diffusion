@@ -72,6 +72,9 @@ class ComfyWorkflow:
     def load_checkpoint(self, checkpoint):
         return self.add_cached("CheckpointLoaderSimple", 3, ckpt_name=checkpoint)
 
+    def load_vae(self, vae_name):
+        return self.add_cached("VAELoader", 1, vae_name=vae_name)
+
     def load_controlnet(self, controlnet):
         return self.add_cached("ControlNetLoader", 1, control_net_name=controlnet)
 
