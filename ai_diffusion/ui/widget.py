@@ -100,6 +100,10 @@ class ControlWidget(QWidget):
 
         self.layer_select = QComboBox(self)
         self.layer_select.currentIndexChanged.connect(self._notify)
+        self.layer_select.setMinimumContentsLength(20)
+        self.layer_select.setSizeAdjustPolicy(
+            QComboBox.SizeAdjustPolicy.AdjustToMinimumContentsLength
+        )
 
         self.strength_spin = QSpinBox(self)
         self.strength_spin.setRange(0, 100)
@@ -185,6 +189,7 @@ class ControlWidget(QWidget):
                     else f"Control mode is not supported for {sdver.value}"
                 )
                 is_installed = False
+        self.error_text.setVisible(False)  # Avoid layout resize
         self.layer_select.setVisible(is_installed)
         self.strength_spin.setVisible(is_installed)
         self.error_text.setVisible(not is_installed)
