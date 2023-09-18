@@ -3,7 +3,7 @@ from PyQt5.QtGui import QGuiApplication, QPalette, QIcon, QPixmap, QFontMetrics
 from PyQt5.QtWidgets import QVBoxLayout, QLabel
 from pathlib import Path
 
-from ..settings import Setting
+from ..settings import Setting, util
 
 is_dark = QGuiApplication.palette().color(QPalette.Window).lightness() < 128
 
@@ -21,7 +21,13 @@ icon_path = Path(__file__).parent.parent / "icons"
 
 def icon(name: str):
     theme = "dark" if is_dark else "light"
-    return QIcon(str(icon_path / f"{name}-{theme}.svg"))
+    path = icon_path / f"{name}-{theme}.svg"
+    if not path.exists():
+        path = path.with_suffix(".png")
+    if not path.exists():
+        util.client_logger.error(f"Icon {name} not found for them {theme}")
+        return QIcon()
+    return QIcon(str(path))
 
 
 def logo():

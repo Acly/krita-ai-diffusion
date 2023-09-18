@@ -3,6 +3,7 @@
 .logs
 .package
 .pytest_cache
+.resources
 .server
 .vscode
 __pycache__

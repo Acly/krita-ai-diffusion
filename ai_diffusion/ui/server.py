@@ -269,7 +269,6 @@ class ServerWidget(QWidget):
             "Control extensions",
             [control.name for control in server.optional_models],
             is_optional=True,
-            is_checked=not self._server.has_comfy,
             parent=self,
         )
         self._control_group.changed.connect(self.update)

@@ -73,11 +73,13 @@ class ControlWidget(QWidget):
 
     control_types = {
         ControlType.scribble: "Scribble",
-        ControlType.lineart: "Line Art",
-    }
-    control_icons = {
-        ControlType.scribble: theme.icon("control-scribble"),
-        ControlType.lineart: theme.icon("control-lineart"),
+        ControlType.line_art: "Line Art",
+        ControlType.soft_edge: "Soft Edge",
+        ControlType.canny_edge: "Canny Edge",
+        ControlType.depth: "Depth",
+        ControlType.normal: "Normal",
+        ControlType.pose: "Pose",
+        ControlType.segmentation: "Segment",
     }
 
     def __init__(self, parent=None):
@@ -91,7 +93,8 @@ class ControlWidget(QWidget):
             "QComboBox { border:none; background-color:transparent; padding: 1px 12px 1px 2px;}"
         )
         for type in self.control_types:
-            self.type_select.addItem(self.control_icons[type], self.control_types[type], type.value)
+            icon = theme.icon(f"control-{type.name}")
+            self.type_select.addItem(icon, self.control_types[type], type.value)
         self.type_select.currentIndexChanged.connect(self._notify)
         self.type_select.currentIndexChanged.connect(self._check_is_installed)
 
