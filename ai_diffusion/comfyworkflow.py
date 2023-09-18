@@ -189,6 +189,9 @@ class ComfyWorkflow:
     def upscale_image(self, upscale_model, image):
         return self.add("ImageUpscaleWithModel", 1, upscale_model=upscale_model, image=image)
 
+    def invert_image(self, image):
+        return self.add("ImageInvert", 1, image=image)
+
     def crop_mask(self, mask, bounds: Bounds):
         return self.add(
             "CropMask",

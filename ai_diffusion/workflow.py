@@ -201,6 +201,8 @@ class Conditioning:
             image = control.load_image(w)
             if control.type is ControlType.inpaint:
                 image = w.inpaint_preprocessor(image, control.load_mask(w))
+            if control.type.is_lines:  # ControlNet expects white lines on black background
+                image = w.invert_image(image)
             controlnet = w.load_controlnet(comfy.control_model[control.type][sd_ver])
             positive = w.apply_controlnet(positive, controlnet, image, control.strength)
 

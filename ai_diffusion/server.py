@@ -70,7 +70,22 @@ required_custom_nodes = [
 class ControlType(Enum):
     inpaint = 0
     scribble = 1
-    lineart = 2
+    line_art = 2
+    soft_edge = 3
+    canny_edge = 4
+    depth = 5
+    normal = 6
+    pose = 7
+    segmentation = 8
+
+    @property
+    def is_lines(self):
+        return self in [
+            ControlType.scribble,
+            ControlType.line_art,
+            ControlType.soft_edge,
+            ControlType.canny_edge,
+        ]
 
 
 control_filename = {
@@ -82,9 +97,33 @@ control_filename = {
         SDVersion.sd1_5: "control_v11p_sd15_scribble",
         SDVersion.sdxl: None,
     },
-    ControlType.lineart: {
+    ControlType.line_art: {
         SDVersion.sd1_5: "control_v11p_sd15_lineart",
         SDVersion.sdxl: "control-lora-sketch-rank256",
+    },
+    ControlType.soft_edge: {
+        SDVersion.sd1_5: "control_v11p_sd15_softedge",
+        SDVersion.sdxl: None,
+    },
+    ControlType.canny_edge: {
+        SDVersion.sd1_5: "control_v11p_sd15_canny",
+        SDVersion.sdxl: "control-lora-canny-rank256",
+    },
+    ControlType.depth: {
+        SDVersion.sd1_5: "control_lora_rank128_v11f1p_sd15_depth",
+        SDVersion.sdxl: "control-lora-depth-rank256",
+    },
+    ControlType.normal: {
+        SDVersion.sd1_5: "control_lora_rank128_v11p_sd15_normalbae",
+        SDVersion.sdxl: None,
+    },
+    ControlType.pose: {
+        SDVersion.sd1_5: "control_v11p_sd15_openpose",
+        SDVersion.sdxl: "control-lora-openposeXL2-rank256",
+    },
+    ControlType.segmentation: {
+        SDVersion.sd1_5: "control_lora_rank128_v11p_sd15_seg",
+        SDVersion.sdxl: None,
     },
 }
 
@@ -150,6 +189,48 @@ optional_models = [
         Path("models/controlnet"),
         "control_v11p_sd15_lineart_fp16.safetensors",
         "https://huggingface.co/comfyanonymous/ControlNet-v1-1_fp16_safetensors/resolve/main/control_v11p_sd15_lineart_fp16.safetensors",
+    ),
+    ModelResource(
+        "ControlNet Soft Edge",
+        ResourceKind.controlnet,
+        Path("models/controlnet"),
+        "control_v11p_sd15_softedge_fp16.safetensors",
+        "https://huggingface.co/comfyanonymous/ControlNet-v1-1_fp16_safetensors/resolve/main/control_v11p_sd15_softedge_fp16.safetensors",
+    ),
+    ModelResource(
+        "ControlNet Canny Edge",
+        ResourceKind.controlnet,
+        Path("models/controlnet"),
+        "control_v11p_sd15_canny_fp16.safetensors",
+        "https://huggingface.co/comfyanonymous/ControlNet-v1-1_fp16_safetensors/resolve/main/control_v11p_sd15_canny_fp16.safetensors",
+    ),
+    ModelResource(
+        "ControlNet Depth",
+        ResourceKind.controlnet,
+        Path("models/controlnet"),
+        "control_lora_rank128_v11f1p_sd15_depth_fp16.safetensors",
+        "https://huggingface.co/comfyanonymous/ControlNet-v1-1_fp16_safetensors/resolve/main/control_lora_rank128_v11f1p_sd15_depth_fp16.safetensors",
+    ),
+    ModelResource(
+        "ControlNet Normal",
+        ResourceKind.controlnet,
+        Path("models/controlnet"),
+        "control_lora_rank128_v11p_sd15_normalbae_fp16.safetensors",
+        "https://huggingface.co/comfyanonymous/ControlNet-v1-1_fp16_safetensors/resolve/main/control_lora_rank128_v11p_sd15_normalbae_fp16.safetensors",
+    ),
+    ModelResource(
+        "ControlNet Pose",
+        ResourceKind.controlnet,
+        Path("models/controlnet"),
+        "control_v11p_sd15_openpose_fp16.safetensors",
+        "https://huggingface.co/comfyanonymous/ControlNet-v1-1_fp16_safetensors/resolve/main/control_v11p_sd15_openpose_fp16.safetensors",
+    ),
+    ModelResource(
+        "ControlNet Segmentation",
+        ResourceKind.controlnet,
+        Path("models/controlnet"),
+        "control_lora_rank128_v11p_sd15_seg_fp16.safetensors",
+        "https://huggingface.co/comfyanonymous/ControlNet-v1-1_fp16_safetensors/resolve/main/control_lora_rank128_v11p_sd15_seg_fp16.safetensors",
     ),
 ]
 
