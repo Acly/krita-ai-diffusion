@@ -140,6 +140,11 @@ class Model(QObject):
 
     def generate(self):
         """Enqueue image generation for the current setup."""
+        ok, msg = self._doc.check_color_mode()
+        if not ok:
+            self.report_error(msg)
+            return
+
         image = None
         extent = self._doc.extent
 

@@ -26,6 +26,16 @@ class Document:
     def is_valid(self):
         return self._doc in Krita.instance().documents()
 
+    def check_color_mode(self):
+        model = self._doc.colorModel()
+        msg_fmt = "Incompatible document: Color {0} must be {1} (current {0}: {2})"
+        if model != "RGBA":
+            return False, msg_fmt.format("model", "RGB/Alpha", model)
+        depth = self._doc.colorDepth()
+        if depth != "U8":
+            return False, msg_fmt.format("depth", "8-bit integer", depth)
+        return True, None
+
     def create_mask_from_selection(self):
         user_selection = self._doc.selection()
         if not user_selection:
