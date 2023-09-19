@@ -3,7 +3,7 @@ from collections import deque
 from datetime import datetime
 from enum import Flag
 from typing import Deque, List, Sequence, NamedTuple, Optional, Callable
-from PyQt5.QtCore import QObject, pyqtSignal
+from PyQt5.QtCore import Qt, QObject, pyqtSignal
 from .. import (
     eventloop,
     ClientMessage,
@@ -153,10 +153,7 @@ class Model(QObject):
         if mask is not None or self.strength < 1.0:
             image = self._doc.get_image(image_bounds, exclude_layer=self._layer)
 
-        control = [
-            Control(c.type, self._doc.get_layer_image(c.image, image_bounds), c.strength)
-            for c in self.control
-        ]
+        control = [self._get_control_image(c, image_bounds) for c in self.control]
         conditioning = Conditioning(self.prompt, control)
 
         self.clear_error()
@@ -202,6 +199,12 @@ class Model(QObject):
         job_id = await client.enqueue(job)
         self.jobs.add(job_id, conditioning.prompt, bounds)
         self.changed.emit()
+
+    def _get_control_image(self, control: Control, bounds: Bounds):
+        image = self._doc.get_layer_image(control.image, bounds)
+        if control.type.is_lines:
+            image.make_opaque(background=Qt.white)
+        return Control(control.type, image, control.strength)
 
     def cancel(self):
         Connection.instance().interrupt()

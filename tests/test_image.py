@@ -1,6 +1,6 @@
 import pytest
 from PyQt5.QtGui import QImage, qRgba
-from PyQt5.QtCore import QByteArray
+from PyQt5.QtCore import Qt, QByteArray
 from ai_diffusion import image, Mask, Bounds, Extent, Image, ImageCollection
 
 
@@ -32,6 +32,19 @@ def test_base64():
     encoded = img.to_base64()
     decoded = Image.from_base64(encoded)
     assert img == decoded
+
+
+def test_image_make_opaque():
+    img = Image(QImage(2, 2, QImage.Format_ARGB32))
+    img.set_pixel(0, 0, (0, 0, 0, 0))
+    img.set_pixel(1, 0, (0, 0, 0, 155))
+    img.set_pixel(0, 1, (42, 42, 42, 255))
+    img.make_opaque(Qt.white)
+    assert (
+        img.pixel(0, 0) == (255, 255, 255, 255)
+        and img.pixel(1, 0) == (100, 100, 100, 255)
+        and img.pixel(0, 1) == (42, 42, 42, 255)
+    )
 
 
 def test_image_collection_each():

@@ -195,6 +195,12 @@ class Image:
         r, g, b, a = color
         self._qimage.setPixel(x, y, qRgba(r, g, b, a))
 
+    def make_opaque(self, background=Qt.white):
+        painter = QPainter(self._qimage)
+        painter.setCompositionMode(QPainter.CompositionMode_DestinationOver)
+        painter.fillRect(self._qimage.rect(), background)
+        painter.end()
+
     @property
     def data(self):
         ptr = self._qimage.bits()
