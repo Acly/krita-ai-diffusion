@@ -333,14 +333,14 @@ def _extract_message_png_image(data: memoryview):
 def _validate_executed_node(msg: dict, image_count: int):
     try:
         data = msg["data"]
+        if "openpose_json" in data:
+            return False  # not the end result we are interested in
+
         output = data["output"]["images"]
         if len(output) != image_count:  # not critical
-            print(
-                "[krita-ai-diffusion] received number of images does not match:"
-                f" {len(output)} != {image_count}"
-            )
+            log.warning(f"Received number of images does not match: {len(output)} != {image_count}")
         if len(output) > 0 and "source" in output[0] and output[0]["type"] == "output":
             return True
     except:
-        print("[krita-ai-diffusion] received unknown message format", msg)
+        log.warning("Received unknown message format", msg)
         return False

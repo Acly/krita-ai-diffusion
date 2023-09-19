@@ -30,6 +30,10 @@ class Extent(NamedTuple):
         return max(self.width, self.height)
 
     @property
+    def shortest_side(self):
+        return min(self.width, self.height)
+
+    @property
     def average_side(self):
         return (self.width + self.height) // 2
 
@@ -183,6 +187,16 @@ class Image:
     def crop(img, bounds: Bounds):
         return Image(img._qimage.copy(*bounds))
 
+    @staticmethod
+    def compare(a, b):
+        assert extent_equal(a._qimage, b._qimage)
+        import numpy as np
+
+        # Compute RMSE
+        a = a.to_array()
+        b = b.to_array()
+        return np.sqrt(np.mean((a - b) ** 2))
+
     def pixel(self, x: int, y: int):
         c = self._qimage.pixel(x, y)
         if self.is_rgba:
@@ -210,6 +224,14 @@ class Image:
     @property
     def size(self):  # in bytes
         return self._qimage.byteCount()
+
+    def to_array(self):
+        import numpy as np
+
+        w, h = self.extent
+        ptr = self._qimage.constBits().asarray(w * h * 4)
+        array = np.frombuffer(ptr, np.uint8).reshape(w, h, 4)
+        return array.astype(np.float32) / 255
 
     def to_base64(self):
         byte_array = QByteArray()

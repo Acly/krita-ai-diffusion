@@ -1,1 +1,2 @@
 tests/images/*.png filter=lfs diff=lfs merge=lfs -text
+tests/references/*.png filter=lfs diff=lfs merge=lfs -text

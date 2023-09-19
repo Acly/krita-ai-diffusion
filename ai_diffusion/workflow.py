@@ -374,3 +374,38 @@ def refine_region(
     out_masked = w.apply_mask(out_image, original_mask)
     w.send_image(out_masked)
     return w
+
+
+def create_control_image(image: Image, mode: ControlType):
+    w = ComfyWorkflow()
+    input = w.load_image(image)
+    if mode is ControlType.canny_edge:
+        result = w.add("Canny", 1, image=input, low_threshold=0.4, high_threshold=0.8)
+    else:
+        args = {
+            "image": input,
+            "resolution": image.extent.multiple_of(64).shortest_side,
+        }
+        if mode is ControlType.scribble:
+            result = w.add("FakeScribblePreprocessor", 1, **args, safe="enable")
+        elif mode is ControlType.line_art:
+            result = w.add("LineArtPreprocessor", 1, **args, coarse="disable")
+        elif mode is ControlType.soft_edge:
+            result = w.add("HEDPreprocessor", 1, **args, safe="enable")
+        elif mode is ControlType.depth:
+            result = w.add("MiDaS-DepthMapPreprocessor", 1, **args, a=math.pi * 2, bg_threshold=0.1)
+        elif mode is ControlType.normal:
+            result = w.add("BAE-NormalMapPreprocessor", 1, **args)
+        elif mode is ControlType.pose:
+            feat = dict(detect_hand="enable", detect_body="enable", detect_face="enable")
+            result = w.add("DWPreprocessor", 1, **args, **feat)
+        elif mode is ControlType.segmentation:
+            result = w.add("OneFormer-COCO-SemSegPreprocessor", 1, **args)
+
+        if args["resolution"] != image.extent.shortest_side:
+            result = w.scale_image(result, image.extent)
+
+    if mode.is_lines:
+        result = w.invert_image(result)
+    w.send_image(result)
+    return w

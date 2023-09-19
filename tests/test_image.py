@@ -1,4 +1,5 @@
 import pytest
+import numpy as np
 from PyQt5.QtGui import QImage, qRgba
 from PyQt5.QtCore import Qt, QByteArray
 from ai_diffusion import image, Mask, Bounds, Extent, Image, ImageCollection
@@ -45,6 +46,21 @@ def test_image_make_opaque():
         and img.pixel(1, 0) == (100, 100, 100, 255)
         and img.pixel(0, 1) == (42, 42, 42, 255)
     )
+
+
+def test_image_to_array():
+    img = create_test_image(2, 2)
+    expected = np.array(
+        [[[0, 0, 0, 1], [0, 0, 1 / 255, 1]], [[0, 1 / 255, 0, 1], [0, 1 / 255, 1 / 255, 1]]],
+        np.float32,
+    )
+    assert np.all(np.isclose(img.to_array(), expected))
+
+
+def test_image_compare():
+    img1 = create_test_image(2, 2)
+    img2 = create_test_image(2, 2)
+    assert Image.compare(img1, img2) < 0.0001
 
 
 def test_image_collection_each():

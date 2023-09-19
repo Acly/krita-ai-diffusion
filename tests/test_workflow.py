@@ -21,6 +21,7 @@ from pathlib import Path
 test_dir = Path(__file__).parent
 image_dir = test_dir / "images"
 result_dir = test_dir / ".results"
+reference_dir = test_dir / "references"
 default_checkpoint = {
     SDVersion.sd1_5: "realisticVisionV51_v51VAE.safetensors",
     SDVersion.sdxl: "sdXL_v10VAEFix.safetensors",
@@ -51,7 +52,7 @@ def default_style(comfy, sd_ver=SDVersion.sd1_5):
     return style
 
 
-async def receive_images(comfy, workflow: ComfyWorkflow):
+async def receive_images(comfy: Client, workflow: ComfyWorkflow):
     job_id = await comfy.enqueue(workflow)
     async for msg in comfy.listen():
         if msg.event is ClientEvent.finished and msg.job_id == job_id:
@@ -65,6 +66,7 @@ async def run_and_save(comfy, workflow: ComfyWorkflow, filename: str):
     results = await receive_images(comfy, workflow)
     assert len(results) == 1
     results[0].save(result_dir / filename)
+    return results[0]
 
 
 @pytest.mark.parametrize(
@@ -310,5 +312,19 @@ def test_control_scribble(qtapp, comfy, temp_settings, op):
 
     async def main():
         await run_and_save(comfy, job, f"test_control_scribble_{op}.png")
+
+    qtapp.run(main())
+
+
+@pytest.mark.parametrize("mode", [m for m in ControlType if not m is ControlType.inpaint])
+def test_create_control_image(qtapp, comfy, mode):
+    image_name = f"test_create_control_image_{mode.name}.png"
+    image = Image.load(image_dir / "adobe_stock.jpg")
+    job = workflow.create_control_image(image, mode)
+
+    async def main():
+        result = await run_and_save(comfy, job, image_name)
+        reference = Image.load(reference_dir / image_name)
+        assert Image.compare(result, reference) < 0.001
 
     qtapp.run(main())
