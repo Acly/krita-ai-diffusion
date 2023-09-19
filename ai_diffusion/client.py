@@ -83,7 +83,7 @@ class DeviceInfo(NamedTuple):
 class Client:
     """HTTP/WebSocket client which sends requests to and listens to messages from a ComfyUI server."""
 
-    default_url = "127.0.0.1:8188"
+    default_url = "http://127.0.0.1:8188"
 
     _requests = RequestManager()
     _websocket: websockets.WebSocketClientProtocol
@@ -104,10 +104,20 @@ class Client:
 
     @staticmethod
     async def connect(url=default_url):
+        # Parse url
+        url = url.strip("/")
+        if url.startswith("http"):
+            protocol, hostname = url.split('://', 1)
+        else:
+            protocol = "http"
+            hostname = url
+            url = f"{protocol}://{hostname}"
+
         client = Client(url)
         try:
+            ws_protocol = "wss" if protocol == "https" else "ws"
             client._websocket = await websockets.connect(
-                f"ws://{url}/ws?clientId={client._id}", max_size=2**30, read_limit=2**30
+                f"{ws_protocol}://{hostname}/ws?clientId={client._id}", max_size=2**30, read_limit=2**30
             )
         except OSError as e:
             raise NetworkError(

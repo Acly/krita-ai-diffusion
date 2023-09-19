@@ -62,7 +62,7 @@ class RequestManager:
     def http(self, method, url: str, data: dict = None):
         self._cleanup()
 
-        request = QNetworkRequest(QUrl(f"http://{url}"))
+        request = QNetworkRequest(QUrl(url))
         # request.setTransferTimeout({"GET": 30000, "POST": 0}[method]) # requires Qt 5.15 (Krita 5.2)
         if data is not None:
             data_bytes = QByteArray(json.dumps(data).encode("utf-8"))
