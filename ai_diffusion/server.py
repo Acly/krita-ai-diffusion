@@ -1,4 +1,5 @@
 import asyncio
+import locale
 from enum import Enum
 from itertools import chain
 from pathlib import Path
@@ -12,7 +13,7 @@ from PyQt5.QtNetwork import QNetworkAccessManager
 from .settings import settings, ServerBackend
 from .style import SDVersion
 from .network import download, DownloadProgress
-from .util import server_logger as log
+from .util import client_logger as log, server_logger as server_log
 
 
 class CustomNode(NamedTuple):
@@ -516,7 +517,9 @@ class Server:
         assert self.state in [ServerState.stopped, ServerState.missing_resources]
 
         self.state = ServerState.starting
-        args = ["-u", "main.py"] + (["--cpu"] if self.backend is ServerBackend.cpu else [])
+        args = ["-u", "-X", "utf8", "main.py"]
+        if self.backend is ServerBackend.cpu:
+            args.append("--cpu")
         self._process = await asyncio.create_subprocess_exec(
             self._python_cmd,
             *args,
@@ -527,8 +530,8 @@ class Server:
         )
 
         async for line in self._process.stdout:
-            text = line.decode().strip()
-            log.info(text)
+            text = line.decode("utf-8").strip()
+            server_log.info(text)
             if text.startswith("To see the GUI go to:"):
                 self.state = ServerState.running
                 self.url = text.split("http://")[-1]
@@ -538,9 +541,9 @@ class Server:
             error = "Process exited unexpectedly"
             try:
                 out, err = await asyncio.wait_for(self._process.communicate(), timeout=10)
-                log.info(out.decode().strip())
-                error = err.decode()
-                log.error(error)
+                server_log.info(out.decode("utf-8").strip())
+                error = err.decode("utf-8")
+                server_log.error(error)
             except asyncio.TimeoutError:
                 self._process.kill()
 
@@ -557,7 +560,7 @@ class Server:
 
         async def forward(stream: asyncio.StreamReader):
             async for line in stream:
-                log.info(line.decode().strip())
+                server_log.info(line.decode().strip())
 
         try:
             await asyncio.gather(
@@ -640,16 +643,30 @@ async def _extract_archive(name: str, archive: Path, target: Path, cb: InternalC
 
 async def _execute_process(name: str, cmd: list, cwd: Path, cb: InternalCB):
     PIPE = asyncio.subprocess.PIPE
+    enc = locale.getpreferredencoding(False)
+    errlog = ""
+
     cmd = [str(c) for c in cmd]
     cb(f"Installing {name}", f"Executing {' '.join(cmd)}")
     process = await asyncio.create_subprocess_exec(
         cmd[0], *cmd[1:], cwd=cwd, stdout=PIPE, stderr=PIPE, creationflags=_process_flags
     )
-    async for line in process.stdout:
-        cb(f"Installing {name}", line.decode().strip())
+
+    async def forward(stream: asyncio.StreamReader):
+        async for line in stream:
+            cb(f"Installing {name}", line.decode(enc, errors="surrogateescape").strip())
+
+    async def collect(stream: asyncio.StreamReader):
+        nonlocal errlog
+        async for line in stream:
+            errlog += line.decode(enc, errors="surrogateescape")
+
+    await asyncio.gather(forward(process.stdout), collect(process.stderr))
+
     if process.returncode != 0:
-        err = (await process.stderr.read()).decode()
-        raise Exception(f"Error during installation: {err}")
+        if errlog == "":
+            errlog = f"Process exited with code {process.returncode}"
+        raise Exception(f"Error during installation: {errlog}")
 
 
 async def _install_if_missing(path: Path, installer, *args):
