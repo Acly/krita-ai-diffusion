@@ -1,5 +1,6 @@
 from enum import Enum
 import json
+import os
 from pathlib import Path
 from PyQt5.QtCore import QObject, pyqtSignal
 
@@ -193,14 +194,27 @@ class Styles(QObject):
     @property
     def default(self):
         return self[0]
+    
+    def create(self, name: str) -> Style:
+        new_style = Style(self.folder / f"{name}.json")
+        new_style.name = name
+        self._list.append(new_style)
+        new_style.save()
+        self.changed.emit()
+        return new_style
+    
+    def delete(self, style: Style):
+        self._list.remove(style)
+        os.remove(style.filepath)
+        self.changed.emit()
 
     def reload(self):
         styles = (Style.load(f) for f in self.folder.iterdir() if f.suffix == ".json")
         self._list = [s for s in styles if s is not None]
         if len(self._list) == 0:
-            self._list.append(Style(self.folder / "default.json"))
-            self[0].save()
-        self.changed.emit()
+            self.create("default")
+        else:
+            self.changed.emit()
         return self._list
 
     def find(self, filename: str):
