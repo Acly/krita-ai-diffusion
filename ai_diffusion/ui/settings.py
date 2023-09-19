@@ -5,6 +5,7 @@ from PyQt5.QtWidgets import (
     QVBoxLayout,
     QHBoxLayout,
     QDialog,
+    QInputDialog,
     QPushButton,
     QFrame,
     QLabel,
@@ -576,6 +577,16 @@ class StylePresets(SettingsTab):
         self._open_folder_button.setIcon(Krita.instance().icon("document-open"))
         self._open_folder_button.clicked.connect(self._open_folder)
         frame_layout.addWidget(self._open_folder_button)
+        
+        self._create_style_button = QToolButton(self)
+        self._create_style_button.setIcon(Krita.instance().icon("list-add"))
+        self._create_style_button.clicked.connect(self._create_style)
+        frame_layout.addWidget(self._create_style_button)
+        
+        self._delete_style_button = QToolButton(self)
+        self._delete_style_button.setIcon(Krita.instance().icon("deletelayer"))
+        self._delete_style_button.clicked.connect(self._delete_style)
+        frame_layout.addWidget(self._delete_style_button)
 
         self._layout.addWidget(frame)
 
@@ -616,6 +627,17 @@ class StylePresets(SettingsTab):
 
     def update_model_lists(self):
         self._read()
+    
+    def _create_style(self):
+        filename, ok = QInputDialog.getText(self, "New style", "")
+        if ok and filename:
+            self.current_style = Styles.list().create(filename)
+            self._change_style()
+        self._update_style_list()
+            
+    def _delete_style(self):
+        Styles.list().delete(self.current_style)
+        self._update_style_list()
 
     def _open_folder(self):
         QDesktopServices.openUrl(QUrl.fromLocalFile(str(Styles.list().folder)))
