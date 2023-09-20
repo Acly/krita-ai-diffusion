@@ -10,8 +10,8 @@ from .image import Image, ImageCollection
 from .network import RequestManager, NetworkError
 from .websockets.src import websockets
 from .style import SDVersion
-from .server import ControlMode, MissingResource, ResourceKind
-from . import server
+from .resources import ControlMode, MissingResource, ResourceKind
+from . import resources
 from .util import client_logger as log
 
 
@@ -132,7 +132,7 @@ class Client:
         nodes = await client._get("object_info")
         missing = [
             package
-            for package in server.required_custom_nodes
+            for package in resources.required_custom_nodes
             if any(node not in nodes for node in package.nodes)
         ]
         if len(missing) > 0:
@@ -300,8 +300,7 @@ def _find_control_model(model_list: Sequence[str], mode: ControlMode):
         return model
 
     return {
-        version: _find(server.control_filename[mode][version])
-        for version in [SDVersion.sd1_5, SDVersion.sdxl]
+        version: _find(mode.filenames(version)) for version in [SDVersion.sd1_5, SDVersion.sdxl]
     }
 
 

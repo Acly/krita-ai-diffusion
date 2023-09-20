@@ -1,12 +1,10 @@
-from enum import Enum
 import math
 from typing import List, NamedTuple, Tuple, Union, Optional
 
 from .image import Bounds, Extent, Image, ImageCollection, Mask
 from .client import Client
-from .settings import settings
 from .style import SDVersion, Style, StyleSettings
-from .server import ControlMode
+from .resources import ControlMode
 from .comfyworkflow import ComfyWorkflow, Output
 from .util import compute_batch_size, client_logger as log
 

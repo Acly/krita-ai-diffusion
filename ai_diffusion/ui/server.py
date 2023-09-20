@@ -23,9 +23,9 @@ from .. import (
     Server,
     ServerState,
     ServerBackend,
-    Setting,
     Settings,
     eventloop,
+    resources,
     server,
     settings,
     util,
@@ -239,13 +239,13 @@ class ServerWidget(QWidget):
         )
         package_layout.addWidget(self._required_group)
 
-        node_packages = [node.name for node in server.required_custom_nodes]
+        node_packages = [node.name for node in resources.required_custom_nodes]
         self._nodes_group = PackageGroupWidget(
             "Required custom nodes", node_packages, is_expanded=False, parent=self
         )
         package_layout.addWidget(self._nodes_group)
 
-        model_packages = [model.name for model in server.required_models]
+        model_packages = [model.name for model in resources.required_models]
         self._models_group = PackageGroupWidget(
             "Required models", model_packages, is_expanded=False, parent=self
         )
@@ -253,7 +253,7 @@ class ServerWidget(QWidget):
 
         self._checkpoint_group = PackageGroupWidget(
             "Recommended checkpoints",
-            [checkpoint.name for checkpoint in server.default_checkpoints],
+            [checkpoint.name for checkpoint in resources.default_checkpoints],
             description=(
                 "At least one Stable Diffusion checkpoint is required. Below are some popular"
                 " choices, more can be found online."
@@ -267,7 +267,7 @@ class ServerWidget(QWidget):
 
         self._control_group = PackageGroupWidget(
             "Control extensions",
-            [control.name for control in server.optional_models],
+            [control.name for control in resources.optional_models],
             is_optional=True,
             parent=self,
         )
@@ -448,25 +448,26 @@ class ServerWidget(QWidget):
     def update_required(self):
         self._required_group.values = [self._server.has_python, self._server.has_comfy]
         self._nodes_group.values = [
-            node.name not in self._server.missing_resources for node in server.required_custom_nodes
+            node.name not in self._server.missing_resources
+            for node in resources.required_custom_nodes
         ]
         self._models_group.values = [
-            model.name not in self._server.missing_resources for model in server.required_models
+            model.name not in self._server.missing_resources for model in resources.required_models
         ]
 
     def update_optional(self):
         self._checkpoint_group.values = [
-            r.name not in self._server.missing_resources for r in server.default_checkpoints
+            r.name not in self._server.missing_resources for r in resources.default_checkpoints
         ]
         self._control_group.values = [
-            r.name not in self._server.missing_resources for r in server.optional_models
+            r.name not in self._server.missing_resources for r in resources.optional_models
         ]
 
         def checked_packages(group, pkgs):
             return [pkg.name for pkg, checked in zip(pkgs, group.is_checked) if checked]
 
-        to_install = checked_packages(self._checkpoint_group, server.default_checkpoints)
-        to_install += checked_packages(self._control_group, server.optional_models)
+        to_install = checked_packages(self._checkpoint_group, resources.default_checkpoints)
+        to_install += checked_packages(self._control_group, resources.optional_models)
         return to_install
 
     @property

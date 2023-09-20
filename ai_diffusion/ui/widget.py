@@ -195,10 +195,10 @@ class ControlWidget(QWidget):
             mode = ControlMode(self.mode_select.currentData())
             sdver = model.style.sd_version_resolved
             if connection.client.control_model[mode][sdver] is None:
-                filename = server.control_filename[mode][sdver]
+                filenames = mode.filenames(sdver)
                 self.error_text.setToolTip(
-                    f"The server is missing {filename}"
-                    if filename
+                    f"The server is missing {filenames}"
+                    if filenames
                     else f"Control mode is not supported for {sdver.value}"
                 )
                 is_installed = False

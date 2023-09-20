@@ -5,12 +5,13 @@ __version__ = "1.0.2"
 from . import util
 from .settings import Settings, Setting, settings, PerformancePreset, ServerBackend, ServerMode
 from .style import SDVersion, Style, Styles, StyleSettings
+from .resources import ControlMode, ResourceKind, MissingResource
 from .network import NetworkError, Interrupted, OutOfMemoryError, RequestManager, DownloadProgress
-from .client import Client, ClientEvent, ClientMessage, DeviceInfo, MissingResource, ResourceKind
+from .client import Client, ClientEvent, ClientMessage, DeviceInfo
 from .image import Bounds, Extent, Mask, Image, ImageCollection
 from .comfyworkflow import ComfyWorkflow
 from .server import Server, ServerState, InstallationProgress
-from .workflow import Control, ControlMode, Conditioning
+from .workflow import Control, Conditioning
 from . import network, workflow
 
 import importlib.util

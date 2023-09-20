@@ -11,265 +11,11 @@ from zipfile import ZipFile
 from PyQt5.QtNetwork import QNetworkAccessManager
 
 from .settings import settings, ServerBackend
-from .style import SDVersion
+from . import resources
+from .resources import CustomNode, ModelResource
 from .network import download, DownloadProgress
 from .util import client_logger as log, server_logger as server_log
 
-
-class CustomNode(NamedTuple):
-    name: str
-    folder: str
-    url: str
-    nodes: Sequence[str]
-
-
-class ResourceKind(Enum):
-    checkpoint = "Stable Diffusion Checkpoint"
-    controlnet = "ControlNet model"
-    clip_vision = "CLIP Vision model"
-    ip_adapter = "IP-Adapter model"
-    upscaler = "Upscale model"
-    node = "custom node"
-
-
-class ModelResource(NamedTuple):
-    name: str
-    kind: ResourceKind
-    folder: Path
-    filename: str
-    url: str
-
-
-required_custom_nodes = [
-    CustomNode(
-        "ControlNet Preprocessors",
-        "comfyui_controlnet_aux",
-        "https://github.com/Fannovel16/comfyui_controlnet_aux",
-        ["InpaintPreprocessor"],
-    ),
-    CustomNode(
-        "IP-Adapter",
-        "IPAdapter-ComfyUI",
-        "https://github.com/laksjdjf/IPAdapter-ComfyUI",
-        ["IPAdapter"],
-    ),
-    CustomNode(
-        "External Tooling Nodes",
-        "comfyui-tooling-nodes",
-        "https://github.com/Acly/comfyui-tooling-nodes",
-        [
-            "ETN_LoadImageBase64",
-            "ETN_LoadMaskBase64",
-            "ETN_SendImageWebSocket",
-            "ETN_CropImage",
-            "ETN_ApplyMaskToImage",
-        ],
-    ),
-]
-
-
-class ControlMode(Enum):
-    inpaint = 0
-    scribble = 1
-    line_art = 2
-    soft_edge = 3
-    canny_edge = 4
-    depth = 5
-    normal = 6
-    pose = 7
-    segmentation = 8
-
-    @property
-    def is_lines(self):
-        return self in [
-            ControlMode.scribble,
-            ControlMode.line_art,
-            ControlMode.soft_edge,
-            ControlMode.canny_edge,
-        ]
-
-    @property
-    def text(self):
-        return {
-            ControlMode.scribble: "Scribble",
-            ControlMode.line_art: "Line Art",
-            ControlMode.soft_edge: "Soft Edge",
-            ControlMode.canny_edge: "Canny Edge",
-            ControlMode.depth: "Depth",
-            ControlMode.normal: "Normal",
-            ControlMode.pose: "Pose",
-            ControlMode.segmentation: "Segment",
-        }[self]
-
-
-control_filename = {
-    ControlMode.inpaint: {
-        SDVersion.sd1_5: "control_v11p_sd15_inpaint",
-        SDVersion.sdxl: None,
-    },
-    ControlMode.scribble: {
-        SDVersion.sd1_5: ["control_v11p_sd15_scribble", "control_lora_rank128_v11p_sd15_scribble"],
-        SDVersion.sdxl: None,
-    },
-    ControlMode.line_art: {
-        SDVersion.sd1_5: ["control_v11p_sd15_lineart", "control_lora_rank128_v11p_sd15_lineart"],
-        SDVersion.sdxl: "control-lora-sketch-rank256",
-    },
-    ControlMode.soft_edge: {
-        SDVersion.sd1_5: ["control_v11p_sd15_softedge", "control_lora_rank128_v11p_sd15_softedge"],
-        SDVersion.sdxl: None,
-    },
-    ControlMode.canny_edge: {
-        SDVersion.sd1_5: ["control_v11p_sd15_canny", "control_lora_rank128_v11p_sd15_canny"],
-        SDVersion.sdxl: "control-lora-canny-rank256",
-    },
-    ControlMode.depth: {
-        SDVersion.sd1_5: ["control_v11f1p_sd15_depth", "control_lora_rank128_v11f1p_sd15_depth"],
-        SDVersion.sdxl: "control-lora-depth-rank256",
-    },
-    ControlMode.normal: {
-        SDVersion.sd1_5: [
-            "control_v11p_sd15_normalbae",
-            "control_lora_rank128_v11p_sd15_normalbae",
-        ],
-        SDVersion.sdxl: None,
-    },
-    ControlMode.pose: {
-        SDVersion.sd1_5: ["control_v11p_sd15_openpose", "control_lora_rank128_v11p_sd15_openpose"],
-        SDVersion.sdxl: "control-lora-openposeXL2-rank256",
-    },
-    ControlMode.segmentation: {
-        SDVersion.sd1_5: ["control_v11p_sd15_seg", "control_lora_rank128_v11p_sd15_seg"],
-        SDVersion.sdxl: None,
-    },
-}
-
-required_models = [
-    ModelResource(
-        "ControlNet Inpaint",
-        ResourceKind.controlnet,
-        Path("models/controlnet"),
-        "control_v11p_sd15_inpaint_fp16.safetensors",
-        "https://huggingface.co/comfyanonymous/ControlNet-v1-1_fp16_safetensors/resolve/main/control_v11p_sd15_inpaint_fp16.safetensors",
-    ),
-    ModelResource(
-        "CLIP Vision model",
-        ResourceKind.clip_vision,
-        Path("models/clip_vision/SD1.5"),
-        "pytorch_model.bin",
-        "https://huggingface.co/h94/IP-Adapter/resolve/main/models/image_encoder/pytorch_model.bin",
-    ),
-    ModelResource(
-        "IP-Adapter model",
-        ResourceKind.ip_adapter,
-        Path("custom_nodes/IPAdapter-ComfyUI/models"),
-        "ip-adapter_sd15.bin",
-        "https://huggingface.co/h94/IP-Adapter/resolve/main/models/ip-adapter_sd15.bin",
-    ),
-    ModelResource(
-        "NMKD Superscale model",
-        ResourceKind.upscaler,
-        Path("models/upscale_models"),
-        "4x_NMKD-Superscale-SP_178000_G.pth",
-        "https://huggingface.co/gemasai/4x_NMKD-Superscale-SP_178000_G/resolve/main/4x_NMKD-Superscale-SP_178000_G.pth",
-    ),
-]
-
-default_checkpoints = [
-    ModelResource(
-        "Realistic Vision",
-        ResourceKind.checkpoint,
-        Path("models/checkpoints"),
-        "realisticVisionV51_v51VAE.safetensors",
-        "https://civitai.com/api/download/models/130072?type=Model&format=SafeTensor&size=pruned&fp=fp16",
-    ),
-    ModelResource(
-        "DreamShaper",
-        ResourceKind.checkpoint,
-        Path("models/checkpoints"),
-        "dreamshaper_8.safetensors",
-        "https://civitai.com/api/download/models/128713?type=Model&format=SafeTensor&size=pruned&fp=fp16",
-    ),
-]
-
-optional_models = [
-    ModelResource(
-        "ControlNet Scribble",
-        ResourceKind.controlnet,
-        Path("models/controlnet"),
-        "control_lora_rank128_v11p_sd15_scribble_fp16.safetensors",
-        "https://huggingface.co/comfyanonymous/ControlNet-v1-1_fp16_safetensors/resolve/main/control_lora_rank128_v11p_sd15_scribble_fp16.safetensors",
-    ),
-    ModelResource(
-        "ControlNet Line Art",
-        ResourceKind.controlnet,
-        Path("models/controlnet"),
-        "control_v11p_sd15_lineart_fp16.safetensors",
-        "https://huggingface.co/comfyanonymous/ControlNet-v1-1_fp16_safetensors/resolve/main/control_v11p_sd15_lineart_fp16.safetensors",
-    ),
-    ModelResource(
-        "ControlNet Soft Edge",
-        ResourceKind.controlnet,
-        Path("models/controlnet"),
-        "control_v11p_sd15_softedge_fp16.safetensors",
-        "https://huggingface.co/comfyanonymous/ControlNet-v1-1_fp16_safetensors/resolve/main/control_v11p_sd15_softedge_fp16.safetensors",
-    ),
-    ModelResource(
-        "ControlNet Canny Edge",
-        ResourceKind.controlnet,
-        Path("models/controlnet"),
-        "control_v11p_sd15_canny_fp16.safetensors",
-        "https://huggingface.co/comfyanonymous/ControlNet-v1-1_fp16_safetensors/resolve/main/control_v11p_sd15_canny_fp16.safetensors",
-    ),
-    ModelResource(
-        "ControlNet Depth",
-        ResourceKind.controlnet,
-        Path("models/controlnet"),
-        "control_lora_rank128_v11f1p_sd15_depth_fp16.safetensors",
-        "https://huggingface.co/comfyanonymous/ControlNet-v1-1_fp16_safetensors/resolve/main/control_lora_rank128_v11f1p_sd15_depth_fp16.safetensors",
-    ),
-    ModelResource(
-        "ControlNet Normal",
-        ResourceKind.controlnet,
-        Path("models/controlnet"),
-        "control_lora_rank128_v11p_sd15_normalbae_fp16.safetensors",
-        "https://huggingface.co/comfyanonymous/ControlNet-v1-1_fp16_safetensors/resolve/main/control_lora_rank128_v11p_sd15_normalbae_fp16.safetensors",
-    ),
-    ModelResource(
-        "ControlNet Pose",
-        ResourceKind.controlnet,
-        Path("models/controlnet"),
-        "control_lora_rank128_v11p_sd15_openpose_fp16.safetensors",
-        "https://huggingface.co/comfyanonymous/ControlNet-v1-1_fp16_safetensors/resolve/main/control_lora_rank128_v11p_sd15_openpose_fp16.safetensors",
-    ),
-    ModelResource(
-        "ControlNet Segmentation",
-        ResourceKind.controlnet,
-        Path("models/controlnet"),
-        "control_lora_rank128_v11p_sd15_seg_fp16.safetensors",
-        "https://huggingface.co/comfyanonymous/ControlNet-v1-1_fp16_safetensors/resolve/main/control_lora_rank128_v11p_sd15_seg_fp16.safetensors",
-    ),
-]
-
-
-class MissingResource(Exception):
-    kind: ResourceKind
-    names: Optional[Sequence[str]]
-
-    def __init__(self, kind: ResourceKind, names: Optional[Sequence[str]] = None):
-        self.kind = kind
-        self.names = names
-
-    def __str__(self):
-        return f"Missing {self.kind.value}: {', '.join(self.names)}"
-
-
-_all_resources = (
-    [n.name for n in required_custom_nodes]
-    + [m.name for m in required_models]
-    + [c.name for c in default_checkpoints]
-    + [m.name for m in optional_models]
-)
 
 _is_windows = "win" in sys.platform
 _exe = ".exe" if _is_windows else ""
@@ -349,12 +95,12 @@ class Server:
 
         if not (self.has_comfy and self.has_python):
             self.state = ServerState.not_installed
-            self.missing_resources = _all_resources
+            self.missing_resources = resources.all
             return
 
         missing_nodes = [
             package.name
-            for package in required_custom_nodes
+            for package in resources.required_custom_nodes
             if not Path(self._comfy_dir / "custom_nodes" / package.folder).exists()
         ]
         self.missing_resources += missing_nodes
@@ -366,15 +112,15 @@ class Server:
                 if not (folder / resource.folder / resource.filename).exists()
             ]
 
-        self.missing_resources += find_missing(self._comfy_dir, required_models)
+        self.missing_resources += find_missing(self._comfy_dir, resources.required_models)
         if len(self.missing_resources) > 0:
             self.state = ServerState.missing_resources
         else:
             self.state = ServerState.stopped
 
         # Optional resources
-        self.missing_resources += find_missing(self._comfy_dir, default_checkpoints)
-        self.missing_resources += find_missing(self._comfy_dir, optional_models)
+        self.missing_resources += find_missing(self._comfy_dir, resources.default_checkpoints)
+        self.missing_resources += find_missing(self._comfy_dir, resources.optional_models)
 
     async def _install(self, cb: InternalCB):
         self.state = ServerState.installing
@@ -401,11 +147,11 @@ class Server:
         self._comfy_dir = self._comfy_dir or self.path / "ComfyUI"
         await _install_if_missing(self._comfy_dir, self._install_comfy, network, cb)
 
-        for pkg in required_custom_nodes:
+        for pkg in resources.required_custom_nodes:
             dir = self._comfy_dir / "custom_nodes" / pkg.folder
             await _install_if_missing(dir, self._install_custom_node, pkg, network, cb)
 
-        for resource in required_models:
+        for resource in resources.required_models:
             target_folder = self._comfy_dir / resource.folder
             target_file = self._comfy_dir / resource.folder / resource.filename
             if not target_file.exists():
@@ -516,7 +262,7 @@ class Server:
             callback(InstallationProgress(stage, progress))
 
         try:
-            all_optional = chain(default_checkpoints, optional_models)
+            all_optional = chain(resources.default_checkpoints, resources.optional_models)
             to_install = (r for r in all_optional if r.name in packages)
             for resource in to_install:
                 target_file = self._comfy_dir / resource.folder / resource.filename
