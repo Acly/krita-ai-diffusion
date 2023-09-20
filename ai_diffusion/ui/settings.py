@@ -5,7 +5,6 @@ from PyQt5.QtWidgets import (
     QVBoxLayout,
     QHBoxLayout,
     QDialog,
-    QInputDialog,
     QPushButton,
     QCheckBox,
     QFrame,
@@ -628,14 +627,13 @@ class StylePresets(SettingsTab):
 
     def update_model_lists(self):
         self._read()
-    
+
     def _create_style(self):
-        filename, ok = QInputDialog.getText(self, "New style", "")
-        if ok and filename:
-            self.current_style = Styles.list().create(filename)
-            self._change_style()
+        # make sure the new style is in the combobox before setting it as the current style
+        new_style = Styles.list().create()
         self._update_style_list()
-            
+        self.current_style = new_style
+
     def _delete_style(self):
         Styles.list().delete(self.current_style)
         self._update_style_list()
