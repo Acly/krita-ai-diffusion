@@ -107,7 +107,7 @@ class Client:
         # Parse url
         url = url.strip("/")
         if url.startswith("http"):
-            protocol, hostname = url.split('://', 1)
+            protocol, hostname = url.split("://", 1)
         else:
             protocol = "http"
             hostname = url
@@ -117,7 +117,9 @@ class Client:
         try:
             ws_protocol = "wss" if protocol == "https" else "ws"
             client._websocket = await websockets.connect(
-                f"{ws_protocol}://{hostname}/ws?clientId={client._id}", max_size=2**30, read_limit=2**30
+                f"{ws_protocol}://{hostname}/ws?clientId={client._id}",
+                max_size=2**30,
+                read_limit=2**30,
             )
         except OSError as e:
             raise NetworkError(
@@ -281,12 +283,14 @@ class Client:
 
 
 def _find_control_model(model_list: Sequence[str], type: ControlType):
-    def _find(name: Optional[str]):
+    def _find(name: Union[str, list, None]):
         if name is None:
             return None
-        model = next((model for model in model_list if model.startswith(name)), None)
+        names = [name] if isinstance(name, str) else name
+        matches_name = lambda model: any(model.startswith(name) for name in names)
+        model = next((model for model in model_list if matches_name(model)), None)
         if model is None and type is ControlType.inpaint:
-            raise MissingResource(ResourceKind.controlnet, [name])
+            raise MissingResource(ResourceKind.controlnet, names)
         return model
 
     return {

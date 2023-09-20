@@ -95,35 +95,38 @@ control_filename = {
         SDVersion.sdxl: None,
     },
     ControlType.scribble: {
-        SDVersion.sd1_5: "control_v11p_sd15_scribble",
+        SDVersion.sd1_5: ["control_v11p_sd15_scribble", "control_lora_rank128_v11p_sd15_scribble"],
         SDVersion.sdxl: None,
     },
     ControlType.line_art: {
-        SDVersion.sd1_5: "control_v11p_sd15_lineart",
+        SDVersion.sd1_5: ["control_v11p_sd15_lineart", "control_lora_rank128_v11p_sd15_lineart"],
         SDVersion.sdxl: "control-lora-sketch-rank256",
     },
     ControlType.soft_edge: {
-        SDVersion.sd1_5: "control_v11p_sd15_softedge",
+        SDVersion.sd1_5: ["control_v11p_sd15_softedge", "control_lora_rank128_v11p_sd15_softedge"],
         SDVersion.sdxl: None,
     },
     ControlType.canny_edge: {
-        SDVersion.sd1_5: "control_v11p_sd15_canny",
+        SDVersion.sd1_5: ["control_v11p_sd15_canny", "control_lora_rank128_v11p_sd15_canny"],
         SDVersion.sdxl: "control-lora-canny-rank256",
     },
     ControlType.depth: {
-        SDVersion.sd1_5: "control_lora_rank128_v11f1p_sd15_depth",
+        SDVersion.sd1_5: ["control_v11f1p_sd15_depth", "control_lora_rank128_v11f1p_sd15_depth"],
         SDVersion.sdxl: "control-lora-depth-rank256",
     },
     ControlType.normal: {
-        SDVersion.sd1_5: "control_lora_rank128_v11p_sd15_normalbae",
+        SDVersion.sd1_5: [
+            "control_v11p_sd15_normalbae",
+            "control_lora_rank128_v11p_sd15_normalbae",
+        ],
         SDVersion.sdxl: None,
     },
     ControlType.pose: {
-        SDVersion.sd1_5: "control_v11p_sd15_openpose",
+        SDVersion.sd1_5: ["control_v11p_sd15_openpose", "control_lora_rank128_v11p_sd15_openpose"],
         SDVersion.sdxl: "control-lora-openposeXL2-rank256",
     },
     ControlType.segmentation: {
-        SDVersion.sd1_5: "control_lora_rank128_v11p_sd15_seg",
+        SDVersion.sd1_5: ["control_v11p_sd15_seg", "control_lora_rank128_v11p_sd15_seg"],
         SDVersion.sdxl: None,
     },
 }
@@ -181,8 +184,8 @@ optional_models = [
         "ControlNet Scribble",
         ResourceKind.controlnet,
         Path("models/controlnet"),
-        "control_v11p_sd15_scribble_fp16.safetensors",
-        "https://huggingface.co/comfyanonymous/ControlNet-v1-1_fp16_safetensors/resolve/main/control_v11p_sd15_scribble_fp16.safetensors",
+        "control_lora_rank128_v11p_sd15_scribble_fp16.safetensors",
+        "https://huggingface.co/comfyanonymous/ControlNet-v1-1_fp16_safetensors/resolve/main/control_lora_rank128_v11p_sd15_scribble_fp16.safetensors",
     ),
     ModelResource(
         "ControlNet Line Art",
@@ -223,8 +226,8 @@ optional_models = [
         "ControlNet Pose",
         ResourceKind.controlnet,
         Path("models/controlnet"),
-        "control_v11p_sd15_openpose_fp16.safetensors",
-        "https://huggingface.co/comfyanonymous/ControlNet-v1-1_fp16_safetensors/resolve/main/control_v11p_sd15_openpose_fp16.safetensors",
+        "control_lora_rank128_v11p_sd15_openpose_fp16.safetensors",
+        "https://huggingface.co/comfyanonymous/ControlNet-v1-1_fp16_safetensors/resolve/main/control_lora_rank128_v11p_sd15_openpose_fp16.safetensors",
     ),
     ModelResource(
         "ControlNet Segmentation",
