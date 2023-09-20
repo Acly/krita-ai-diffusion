@@ -1,7 +1,7 @@
 import asyncio
 from collections import deque
 from datetime import datetime
-from enum import Flag
+from enum import Enum, Flag
 from typing import Deque, List, Sequence, NamedTuple, Optional, Callable
 from PyQt5.QtCore import Qt, QObject, pyqtSignal
 from .. import (
@@ -44,16 +44,24 @@ class State(Flag):
     cancelled = 3
 
 
+class JobKind(Enum):
+    diffusion = 0
+    control_layer = 1
+
+
 class Job:
-    id: str
+    id: Optional[str]
+    kind: JobKind
     state = State.queued
     prompt: str
     bounds: Bounds
+    control: Optional[Control] = None
     timestamp: datetime
     _results: ImageCollection
 
-    def __init__(self, id, prompt, bounds):
+    def __init__(self, id, kind, prompt, bounds):
         self.id = id
+        self.kind = kind
         self.prompt = prompt
         self.bounds = bounds
         self.timestamp = datetime.now()
@@ -72,18 +80,38 @@ class JobQueue:
         self._entries = deque()
 
     def add(self, id: str, prompt: str, bounds: Bounds):
-        self._entries.append(Job(id, prompt, bounds))
+        self._entries.append(Job(id, JobKind.diffusion, prompt, bounds))
+
+    def add_control(self, control: Control, bounds: Bounds):
+        job = Job(None, JobKind.control_layer, f"[Control] {control.type.text}", bounds)
+        job.control = control
+        self._entries.append(job)
+        return job
+
+    def remove(self, job: Job):
+        # Diffusion jobs: kept for history, pruned according to meomry usage
+        # Control layer jobs: removed immediately once finished
+        assert job.kind is JobKind.control_layer
+        self._entries.remove(job)
 
     def find(self, id: str):
-        return next((j for j in self._entries if j.id == id), None)
+        if isinstance(id, str):
+            return next((j for j in self._entries if j.id == id), None)
+        elif isinstance(id, Control):
+            return next((j for j in self._entries if j.control is id), None)
+        assert False, "Invalid job id"
 
     def count(self, state: State):
         return sum(1 for j in self._entries if j.state is state)
 
     def set_results(self, job: Job, results: ImageCollection):
         job._results = results
-        self._memory_usage += results.size / (1024**2)
-        while self._memory_usage > settings.history_size and self._entries[0] != job:
+        if job.kind is JobKind.diffusion:
+            self._memory_usage += results.size / (1024**2)
+            self.prune(keep=job)
+
+    def prune(self, keep: Job):
+        while self._memory_usage > settings.history_size and self._entries[0] != keep:
             discarded = self._entries.popleft()
             self._memory_usage -= discarded._results.size / (1024**2)
 
@@ -206,6 +234,26 @@ class Model(QObject):
             image.make_opaque(background=Qt.white)
         return Control(control.type, image, control.strength)
 
+    def generate_control_layer(self, control: Control):
+        ok, msg = self._doc.check_color_mode()
+        if not ok:
+            self.report_error(msg)
+            return
+
+        image = self._doc.get_image(Bounds(0, 0, *self._doc.extent))
+        job = self.jobs.add_control(control, Bounds(0, 0, *image.extent))
+        self.clear_error()
+        self.task = eventloop.run(
+            _report_errors(self, self._generate_control_layer(job, image, control.type))
+        )
+
+    async def _generate_control_layer(self, job: Job, image: Image, mode: ControlType):
+        assert Connection.instance().state is ConnectionState.connected
+        client = Connection.instance().client
+        work = workflow.create_control_image(image, mode)
+        job.id = await client.enqueue(work)
+        self.changed.emit()
+
     def cancel(self):
         Connection.instance().interrupt()
 
@@ -233,8 +281,11 @@ class Model(QObject):
             job.state = State.finished
             self.jobs.set_results(job, message.images)
             self.progress = 1
-            if self._layer is None:
-                self.show_preview(message.job_id, 0)
+            if job.kind is JobKind.diffusion and self._layer is None:
+                self.show_preview(job.id, 0)
+            if job.kind is JobKind.control_layer:
+                job.control.image = self.add_control_layer(job)
+                self.jobs.remove(job)
             self.job_finished.emit(job)
             self.changed.emit()
         elif message.event is ClientEvent.interrupted:
@@ -254,6 +305,7 @@ class Model(QObject):
             self._doc.set_layer_content(self._layer, job.results[index], job.bounds)
         else:
             self._layer = self._doc.insert_layer(name, job.results[index], job.bounds)
+            self._layer.setLocked(True)
         self.changed.emit()
 
     def hide_preview(self):
@@ -269,6 +321,12 @@ class Model(QObject):
         self._layer = None
         self.changed.emit()
 
+    def add_control_layer(self, job: Job):
+        assert job.kind is JobKind.control_layer
+        if len(job.results) > 0:
+            return self._doc.insert_layer(job.prompt, job.results[0], job.bounds, below=self._layer)
+        return self.document.active_layer  # Execution was cached and no image was produced
+
     @property
     def history(self):
         return (job for job in self.jobs if job.state is State.finished)
@@ -276,6 +334,10 @@ class Model(QObject):
     @property
     def can_apply_result(self):
         return self._layer is not None and self._layer.visible()
+
+    @property
+    def document(self):
+        return self._doc
 
     @property
     def is_active(self):

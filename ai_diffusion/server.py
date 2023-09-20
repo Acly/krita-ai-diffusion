@@ -88,6 +88,19 @@ class ControlType(Enum):
             ControlType.canny_edge,
         ]
 
+    @property
+    def text(self):
+        return {
+            ControlType.scribble: "Scribble",
+            ControlType.line_art: "Line Art",
+            ControlType.soft_edge: "Soft Edge",
+            ControlType.canny_edge: "Canny Edge",
+            ControlType.depth: "Depth",
+            ControlType.normal: "Normal",
+            ControlType.pose: "Pose",
+            ControlType.segmentation: "Segment",
+        }[self]
+
 
 control_filename = {
     ControlType.inpaint: {

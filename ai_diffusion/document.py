@@ -1,3 +1,4 @@
+from typing import Optional
 import krita
 from krita import Krita
 from .image import Extent, Bounds, Mask, Image
@@ -73,11 +74,18 @@ class Document:
     def get_layer_image(self, layer, bounds: Bounds):
         return Image(QImage(layer.pixelData(*bounds), *bounds.extent, QImage.Format_ARGB32))
 
-    def insert_layer(self, name: str, img: Image, bounds: Bounds):
+    def insert_layer(
+        self, name: str, img: Image, bounds: Bounds, below: Optional[krita.Node] = None
+    ):
         layer = self._doc.createNode(name, "paintlayer")
-        self._doc.rootNode().addChildNode(layer, None)
+        above = None
+        if below:
+            nodes = self._doc.rootNode().childNodes()
+            index = nodes.index(below)
+            if index >= 1:
+                above = nodes[index - 1]
+        self._doc.rootNode().addChildNode(layer, above)
         layer.setPixelData(img.data, *bounds)
-        layer.setLocked(True)
         self._doc.refreshProjection()
         return layer
 

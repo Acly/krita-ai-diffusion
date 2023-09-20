@@ -28,7 +28,7 @@ from krita import Krita, DockWidget
 
 from .. import Control, ControlType, Styles, Bounds, Document, server
 from . import actions, EventSuppression, SettingsDialog, theme
-from .model import Model, ModelRegistry, Job, JobQueue, State
+from .model import Model, ModelRegistry, Job, JobKind, JobQueue, State
 from .connection import Connection, ConnectionState
 
 
@@ -71,19 +71,14 @@ class QueueWidget(QToolButton):
 class ControlWidget(QWidget):
     changed = pyqtSignal()
 
-    control_types = {
-        ControlType.scribble: "Scribble",
-        ControlType.line_art: "Line Art",
-        ControlType.soft_edge: "Soft Edge",
-        ControlType.canny_edge: "Canny Edge",
-        ControlType.depth: "Depth",
-        ControlType.normal: "Normal",
-        ControlType.pose: "Pose",
-        ControlType.segmentation: "Segment",
-    }
+    _model: Model
+    _control: Control
 
     def __init__(self, parent=None):
         super().__init__(parent)
+        self._model = Model.active()
+        self._control = Control(ControlType.scribble, self._model.document.active_layer)
+
         layout = QHBoxLayout(self)
         layout.setContentsMargins(0, 0, 0, 0)
         self.setLayout(layout)
@@ -92,9 +87,9 @@ class ControlWidget(QWidget):
         self.type_select.setStyleSheet(
             "QComboBox { border:none; background-color:transparent; padding: 1px 12px 1px 2px;}"
         )
-        for type in self.control_types:
-            icon = theme.icon(f"control-{type.name}")
-            self.type_select.addItem(icon, self.control_types[type], type.value)
+        for mode in (m for m in ControlType if m is not ControlType.inpaint):
+            icon = theme.icon(f"control-{mode.name}")
+            self.type_select.addItem(icon, mode.text, mode.value)
         self.type_select.currentIndexChanged.connect(self._notify)
         self.type_select.currentIndexChanged.connect(self._check_is_installed)
 
@@ -104,6 +99,12 @@ class ControlWidget(QWidget):
         self.layer_select.setSizeAdjustPolicy(
             QComboBox.SizeAdjustPolicy.AdjustToMinimumContentsLength
         )
+
+        self.generate_button = QToolButton(self)
+        self.generate_button.setToolButtonStyle(Qt.ToolButtonStyle.ToolButtonIconOnly)
+        self.generate_button.setIcon(theme.icon("control-generate"))
+        self.generate_button.setToolTip("Generate control layer from current image")
+        self.generate_button.clicked.connect(self.generate)
 
         self.strength_spin = QSpinBox(self)
         self.strength_spin.setRange(0, 100)
@@ -127,6 +128,7 @@ class ControlWidget(QWidget):
 
         layout.addWidget(self.type_select)
         layout.addWidget(self.layer_select, 1)
+        layout.addWidget(self.generate_button)
         layout.addWidget(self.strength_spin)
         layout.addWidget(self.error_text, 1)
         layout.addWidget(self.remove_button)
@@ -142,10 +144,14 @@ class ControlWidget(QWidget):
 
     def _notify(self):
         if not self._suppress_changes:
+            self._control.type = ControlType(self.type_select.currentData())
+            id = self.layer_select.currentData()
+            self._control.image = self._model.document.find_layer(id)
+            self._control.strength = self.strength_spin.value() / 100
             self.changed.emit()
 
     def update_and_select_layer(self, id: QUuid):
-        layers = Document.active().paint_layers
+        layers = self._model.document.paint_layers
         self.layer_select.clear()
         for layer in layers:
             self.layer_select.addItem(layer.name(), layer.uniqueId())
@@ -159,20 +165,27 @@ class ControlWidget(QWidget):
         with self._suppress_changes:
             self.update_and_select_layer(self.layer_select.currentData())
 
+    def generate(self):
+        self._model.generate_control_layer(self.value)
+        self.generate_button.setEnabled(False)
+        self.layer_select.setEnabled(False)
+
     @property
     def value(self):
-        type = ControlType(self.type_select.currentData())
-        id = self.layer_select.currentData()
-        layer = Document.active().find_layer(id)
-        return Control(type, layer, self.strength_spin.value() / 100)
+        return self._control
 
     @value.setter
     def value(self, control: Control):
+        self._control = control
         with self._suppress_changes:
             self.update_and_select_layer(control.image.uniqueId())
             self.type_select.setCurrentIndex(self.type_select.findData(control.type.value))
             self.strength_spin.setValue(int(control.strength * 100))
-            self._check_is_installed()
+            if self._check_is_installed():
+                active_job = self._model.jobs.find(control)
+                has_active_job = active_job and active_job.state is not State.finished
+                self.generate_button.setEnabled(not has_active_job)
+                self.layer_select.setEnabled(not has_active_job)
 
     def _check_is_installed(self):
         connection = Connection.instance()
@@ -191,8 +204,10 @@ class ControlWidget(QWidget):
                 is_installed = False
         self.error_text.setVisible(False)  # Avoid layout resize
         self.layer_select.setVisible(is_installed)
+        self.generate_button.setVisible(is_installed)
         self.strength_spin.setVisible(is_installed)
         self.error_text.setVisible(not is_installed)
+        return is_installed
 
 
 class ControlListWidget(QWidget):
@@ -291,15 +306,17 @@ class HistoryWidget(QListWidget):
         if scrollbar.isVisible() and scrollbar.value() >= scrollbar.maximum() - 4:
             self.scrollToBottom()
 
+    def is_finished(self, job: Job):
+        return job.kind is JobKind.diffusion and job.state is State.finished
+
     def prune(self, jobs: JobQueue):
-        first_id = next((job.id for job in jobs if job.state is State.finished), None)
+        first_id = next((job.id for job in jobs if self.is_finished(job)), None)
         while self.count() > 0 and self.item(0).data(Qt.UserRole) != first_id:
             self.takeItem(0)
 
     def rebuild(self, jobs: JobQueue):
         self.clear()
-        for job in jobs:
-            self.add(job)
+        (self.add(job) for job in jobs if self.is_finished(job))
 
     def item_info(self, item: QListWidgetItem):
         return item.data(Qt.UserRole), item.data(Qt.UserRole + 1)
@@ -468,8 +485,9 @@ class GenerationWidget(QWidget):
         self.queue_button.update(self.model.jobs)
 
     def show_results(self, job: Job):
-        self.history.prune(self.model.jobs)
-        self.history.add(job)
+        if job.kind is JobKind.diffusion:
+            self.history.prune(self.model.jobs)
+            self.history.add(job)
 
     def generate(self):
         self.model.generate()

@@ -214,7 +214,11 @@ class Client:
                         yield ClientMessage(ClientEvent.interrupted, job.id, 0)
 
                 if msg["type"] == "executing" and msg["data"]["node"] is None:
-                    self._clear_job(msg["data"]["prompt_id"])
+                    job_id = msg["data"]["prompt_id"]
+                    if self._clear_job(job_id):
+                        # Usually we don't get here because finished, interrupted or error is sent first.
+                        # But it may happen if the entire execution is cached and no images are sent.
+                        yield ClientMessage(ClientEvent.finished, job_id, 1, images)
 
                 elif msg["type"] in ("execution_cached", "executing", "progress"):
                     progress.handle(msg)
@@ -280,6 +284,8 @@ class Client:
     def _clear_job(self, job_id: str):
         if self._active is not None and self._active.id == job_id:
             self._active = None
+            return True
+        return False
 
 
 def _find_control_model(model_list: Sequence[str], type: ControlType):
