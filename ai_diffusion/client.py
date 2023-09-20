@@ -10,7 +10,7 @@ from .image import Image, ImageCollection
 from .network import RequestManager, NetworkError
 from .websockets.src import websockets
 from .style import SDVersion
-from .server import ControlType, MissingResource, ResourceKind
+from .server import ControlMode, MissingResource, ResourceKind
 from . import server
 from .util import client_logger as log
 
@@ -151,7 +151,7 @@ class Client:
 
         # Retrieve ControlNet models
         cns = nodes["ControlNetLoader"]["input"]["required"]["control_net_name"][0]
-        client.control_model = {type: _find_control_model(cns, type) for type in ControlType}
+        client.control_model = {mode: _find_control_model(cns, mode) for mode in ControlMode}
 
         # Retrieve CLIPVision models
         cv = nodes["CLIPVisionLoader"]["input"]["required"]["clip_name"][0]
@@ -288,19 +288,19 @@ class Client:
         return False
 
 
-def _find_control_model(model_list: Sequence[str], type: ControlType):
+def _find_control_model(model_list: Sequence[str], mode: ControlMode):
     def _find(name: Union[str, list, None]):
         if name is None:
             return None
         names = [name] if isinstance(name, str) else name
         matches_name = lambda model: any(model.startswith(name) for name in names)
         model = next((model for model in model_list if matches_name(model)), None)
-        if model is None and type is ControlType.inpaint:
+        if model is None and mode is ControlMode.inpaint:
             raise MissingResource(ResourceKind.controlnet, names)
         return model
 
     return {
-        version: _find(server.control_filename[type][version])
+        version: _find(server.control_filename[mode][version])
         for version in [SDVersion.sd1_5, SDVersion.sdxl]
     }
 

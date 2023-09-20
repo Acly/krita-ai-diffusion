@@ -9,7 +9,7 @@ from .. import (
     ClientMessage,
     ClientEvent,
     Control,
-    ControlType,
+    ControlMode,
     Conditioning,
     Document,
     Image,
@@ -83,7 +83,7 @@ class JobQueue:
         self._entries.append(Job(id, JobKind.diffusion, prompt, bounds))
 
     def add_control(self, control: Control, bounds: Bounds):
-        job = Job(None, JobKind.control_layer, f"[Control] {control.type.text}", bounds)
+        job = Job(None, JobKind.control_layer, f"[Control] {control.mode.text}", bounds)
         job.control = control
         self._entries.append(job)
         return job
@@ -230,9 +230,9 @@ class Model(QObject):
 
     def _get_control_image(self, control: Control, bounds: Bounds):
         image = self._doc.get_layer_image(control.image, bounds)
-        if control.type.is_lines:
+        if control.mode.is_lines:
             image.make_opaque(background=Qt.white)
-        return Control(control.type, image, control.strength)
+        return Control(control.mode, image, control.strength)
 
     def generate_control_layer(self, control: Control):
         ok, msg = self._doc.check_color_mode()
@@ -244,10 +244,10 @@ class Model(QObject):
         job = self.jobs.add_control(control, Bounds(0, 0, *image.extent))
         self.clear_error()
         self.task = eventloop.run(
-            _report_errors(self, self._generate_control_layer(job, image, control.type))
+            _report_errors(self, self._generate_control_layer(job, image, control.mode))
         )
 
-    async def _generate_control_layer(self, job: Job, image: Image, mode: ControlType):
+    async def _generate_control_layer(self, job: Job, image: Image, mode: ControlMode):
         assert Connection.instance().state is ConnectionState.connected
         client = Connection.instance().client
         work = workflow.create_control_image(image, mode)

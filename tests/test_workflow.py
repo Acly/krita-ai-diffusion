@@ -6,7 +6,7 @@ from ai_diffusion import (
     ComfyWorkflow,
     Conditioning,
     Control,
-    ControlType,
+    ControlMode,
     Mask,
     Bounds,
     Extent,
@@ -291,7 +291,7 @@ def test_control_scribble(qtapp, comfy, temp_settings, op):
     inpaint_image = Image.load(image_dir / "owls_inpaint.png")
     mask = Mask.load(image_dir / "owls_mask.png")
     mask.bounds = Bounds(256, 0, 256, 512)
-    control = Conditioning("owls", [Control(ControlType.scribble, scribble_image)])
+    control = Conditioning("owls", [Control(ControlMode.scribble, scribble_image)])
 
     if op == "generate":
         job = workflow.generate(comfy, style, Extent(512, 512), control)
@@ -316,7 +316,7 @@ def test_control_scribble(qtapp, comfy, temp_settings, op):
     qtapp.run(main())
 
 
-@pytest.mark.parametrize("mode", [m for m in ControlType if not m is ControlType.inpaint])
+@pytest.mark.parametrize("mode", [m for m in ControlMode if not m is ControlMode.inpaint])
 def test_create_control_image(qtapp, comfy, mode):
     image_name = f"test_create_control_image_{mode.name}.png"
     image = Image.load(image_dir / "adobe_stock.jpg")

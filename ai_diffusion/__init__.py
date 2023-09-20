@@ -10,7 +10,7 @@ from .client import Client, ClientEvent, ClientMessage, DeviceInfo, MissingResou
 from .image import Bounds, Extent, Mask, Image, ImageCollection
 from .comfyworkflow import ComfyWorkflow
 from .server import Server, ServerState, InstallationProgress
-from .workflow import Control, ControlType, Conditioning
+from .workflow import Control, ControlMode, Conditioning
 from . import network, workflow
 
 import importlib.util

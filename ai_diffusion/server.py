@@ -68,7 +68,7 @@ required_custom_nodes = [
 ]
 
 
-class ControlType(Enum):
+class ControlMode(Enum):
     inpaint = 0
     scribble = 1
     line_art = 2
@@ -82,63 +82,63 @@ class ControlType(Enum):
     @property
     def is_lines(self):
         return self in [
-            ControlType.scribble,
-            ControlType.line_art,
-            ControlType.soft_edge,
-            ControlType.canny_edge,
+            ControlMode.scribble,
+            ControlMode.line_art,
+            ControlMode.soft_edge,
+            ControlMode.canny_edge,
         ]
 
     @property
     def text(self):
         return {
-            ControlType.scribble: "Scribble",
-            ControlType.line_art: "Line Art",
-            ControlType.soft_edge: "Soft Edge",
-            ControlType.canny_edge: "Canny Edge",
-            ControlType.depth: "Depth",
-            ControlType.normal: "Normal",
-            ControlType.pose: "Pose",
-            ControlType.segmentation: "Segment",
+            ControlMode.scribble: "Scribble",
+            ControlMode.line_art: "Line Art",
+            ControlMode.soft_edge: "Soft Edge",
+            ControlMode.canny_edge: "Canny Edge",
+            ControlMode.depth: "Depth",
+            ControlMode.normal: "Normal",
+            ControlMode.pose: "Pose",
+            ControlMode.segmentation: "Segment",
         }[self]
 
 
 control_filename = {
-    ControlType.inpaint: {
+    ControlMode.inpaint: {
         SDVersion.sd1_5: "control_v11p_sd15_inpaint",
         SDVersion.sdxl: None,
     },
-    ControlType.scribble: {
+    ControlMode.scribble: {
         SDVersion.sd1_5: ["control_v11p_sd15_scribble", "control_lora_rank128_v11p_sd15_scribble"],
         SDVersion.sdxl: None,
     },
-    ControlType.line_art: {
+    ControlMode.line_art: {
         SDVersion.sd1_5: ["control_v11p_sd15_lineart", "control_lora_rank128_v11p_sd15_lineart"],
         SDVersion.sdxl: "control-lora-sketch-rank256",
     },
-    ControlType.soft_edge: {
+    ControlMode.soft_edge: {
         SDVersion.sd1_5: ["control_v11p_sd15_softedge", "control_lora_rank128_v11p_sd15_softedge"],
         SDVersion.sdxl: None,
     },
-    ControlType.canny_edge: {
+    ControlMode.canny_edge: {
         SDVersion.sd1_5: ["control_v11p_sd15_canny", "control_lora_rank128_v11p_sd15_canny"],
         SDVersion.sdxl: "control-lora-canny-rank256",
     },
-    ControlType.depth: {
+    ControlMode.depth: {
         SDVersion.sd1_5: ["control_v11f1p_sd15_depth", "control_lora_rank128_v11f1p_sd15_depth"],
         SDVersion.sdxl: "control-lora-depth-rank256",
     },
-    ControlType.normal: {
+    ControlMode.normal: {
         SDVersion.sd1_5: [
             "control_v11p_sd15_normalbae",
             "control_lora_rank128_v11p_sd15_normalbae",
         ],
         SDVersion.sdxl: None,
     },
-    ControlType.pose: {
+    ControlMode.pose: {
         SDVersion.sd1_5: ["control_v11p_sd15_openpose", "control_lora_rank128_v11p_sd15_openpose"],
         SDVersion.sdxl: "control-lora-openposeXL2-rank256",
     },
-    ControlType.segmentation: {
+    ControlMode.segmentation: {
         SDVersion.sd1_5: ["control_v11p_sd15_seg", "control_lora_rank128_v11p_sd15_seg"],
         SDVersion.sdxl: None,
     },

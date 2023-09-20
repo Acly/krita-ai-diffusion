@@ -6,7 +6,7 @@ from .image import Bounds, Extent, Image, ImageCollection, Mask
 from .client import Client
 from .settings import settings
 from .style import SDVersion, Style, StyleSettings
-from .server import ControlType
+from .server import ControlMode
 from .comfyworkflow import ComfyWorkflow, Output
 from .util import compute_batch_size, client_logger as log
 
@@ -155,13 +155,13 @@ def load_model_with_lora(w: ComfyWorkflow, comfy: Client, style: Style):
 
 
 class Control:
-    type: ControlType
+    mode: ControlMode
     image: Union[Image, Output]
     mask: Union[None, Mask, Output] = None
     strength: float = 1.0
 
-    def __init__(self, type: ControlType, image: Image, strength=1.0, mask: Optional[Mask] = None):
-        self.type = type
+    def __init__(self, mode: ControlMode, image: Image, strength=1.0, mask: Optional[Mask] = None):
+        self.mode = mode
         self.image = image
         self.strength = strength
         self.mask = mask
@@ -186,7 +186,7 @@ class Conditioning:
         self.control = control or []
 
     def add_control(
-        self, type: ControlType, image: Image, strength=1.0, mask: Optional[Mask] = None
+        self, type: ControlMode, image: Image, strength=1.0, mask: Optional[Mask] = None
     ):
         self.control.append(Control(type, image, strength, mask))
 
@@ -196,14 +196,14 @@ class Conditioning:
         negative = w.clip_text_encode(clip, style.negative_prompt)
 
         for control in self.control:
-            if control.type is ControlType.inpaint and not sd_ver.has_controlnet_inpaint:
+            if control.mode is ControlMode.inpaint and not sd_ver.has_controlnet_inpaint:
                 continue
             image = control.load_image(w)
-            if control.type is ControlType.inpaint:
+            if control.mode is ControlMode.inpaint:
                 image = w.inpaint_preprocessor(image, control.load_mask(w))
-            if control.type.is_lines:  # ControlNet expects white lines on black background
+            if control.mode.is_lines:  # ControlNet expects white lines on black background
                 image = w.invert_image(image)
-            controlnet = w.load_controlnet(comfy.control_model[control.type][sd_ver])
+            controlnet = w.load_controlnet(comfy.control_model[control.mode][sd_ver])
             positive = w.apply_controlnet(positive, controlnet, image, control.strength)
 
         return positive, negative
@@ -266,7 +266,7 @@ def inpaint(comfy: Client, style: Style, image: Image, mask: Mask, cond: Conditi
     if extent.requires_downscale:
         in_image = w.scale_image(in_image, extent.initial)
         in_mask = w.scale_mask(in_mask, extent.initial)
-    cond.add_control(ControlType.inpaint, in_image, mask=in_mask)
+    cond.add_control(ControlMode.inpaint, in_image, mask=in_mask)
     positive, negative = cond.create(w, comfy, clip, style)
     if sd_ver.has_ip_adapter:
         clip_vision = w.load_clip_vision(comfy.clip_vision_model)
@@ -295,7 +295,7 @@ def inpaint(comfy: Client, style: Style, image: Image, mask: Mask, cond: Conditi
 
         cond.control.pop()  # remove inpaint control
         cond.crop(w, expanded_bounds)
-        cond.add_control(ControlType.inpaint, Image.crop(image, target_bounds), mask=cropped_mask)
+        cond.add_control(ControlMode.inpaint, Image.crop(image, target_bounds), mask=cropped_mask)
         positive_upscale, _ = cond.create(w, comfy, clip, style)
         out_latent = w.ksampler(model, positive_upscale, negative, latent, denoise=0.5, **params)
     elif extent.requires_downscale:
@@ -358,7 +358,7 @@ def refine_region(
     latent = w.vae_encode(vae, in_image)
     latent = w.set_latent_noise_mask(latent, in_mask)
     latent = w.batch_latent(latent, batch)
-    cond.add_control(ControlType.inpaint, in_image, mask=in_mask)
+    cond.add_control(ControlMode.inpaint, in_image, mask=in_mask)
     positive, negative = cond.create(w, comfy, clip, style)
     out_latent = w.ksampler(
         model, positive, negative, latent, denoise=strength, **_sampler_params(style)
@@ -376,30 +376,30 @@ def refine_region(
     return w
 
 
-def create_control_image(image: Image, mode: ControlType):
+def create_control_image(image: Image, mode: ControlMode):
     w = ComfyWorkflow()
     input = w.load_image(image)
-    if mode is ControlType.canny_edge:
+    if mode is ControlMode.canny_edge:
         result = w.add("Canny", 1, image=input, low_threshold=0.4, high_threshold=0.8)
     else:
         args = {
             "image": input,
             "resolution": image.extent.multiple_of(64).shortest_side,
         }
-        if mode is ControlType.scribble:
+        if mode is ControlMode.scribble:
             result = w.add("FakeScribblePreprocessor", 1, **args, safe="enable")
-        elif mode is ControlType.line_art:
+        elif mode is ControlMode.line_art:
             result = w.add("LineArtPreprocessor", 1, **args, coarse="disable")
-        elif mode is ControlType.soft_edge:
+        elif mode is ControlMode.soft_edge:
             result = w.add("HEDPreprocessor", 1, **args, safe="enable")
-        elif mode is ControlType.depth:
+        elif mode is ControlMode.depth:
             result = w.add("MiDaS-DepthMapPreprocessor", 1, **args, a=math.pi * 2, bg_threshold=0.1)
-        elif mode is ControlType.normal:
+        elif mode is ControlMode.normal:
             result = w.add("BAE-NormalMapPreprocessor", 1, **args)
-        elif mode is ControlType.pose:
+        elif mode is ControlMode.pose:
             feat = dict(detect_hand="enable", detect_body="enable", detect_face="enable")
             result = w.add("DWPreprocessor", 1, **args, **feat)
-        elif mode is ControlType.segmentation:
+        elif mode is ControlMode.segmentation:
             result = w.add("OneFormer-COCO-SemSegPreprocessor", 1, **args)
 
         if args["resolution"] != image.extent.shortest_side:

@@ -26,7 +26,7 @@ from PyQt5.QtGui import QFontMetrics, QGuiApplication, QKeyEvent, QMouseEvent
 from PyQt5.QtCore import Qt, QSize, QUuid, pyqtSignal
 from krita import Krita, DockWidget
 
-from .. import Control, ControlType, Styles, Bounds, Document, server
+from .. import Control, ControlMode, Styles, Bounds, Document, server
 from . import actions, EventSuppression, SettingsDialog, theme
 from .model import Model, ModelRegistry, Job, JobKind, JobQueue, State
 from .connection import Connection, ConnectionState
@@ -77,21 +77,21 @@ class ControlWidget(QWidget):
     def __init__(self, parent=None):
         super().__init__(parent)
         self._model = Model.active()
-        self._control = Control(ControlType.scribble, self._model.document.active_layer)
+        self._control = Control(ControlMode.scribble, self._model.document.active_layer)
 
         layout = QHBoxLayout(self)
         layout.setContentsMargins(0, 0, 0, 0)
         self.setLayout(layout)
 
-        self.type_select = QComboBox(self)
-        self.type_select.setStyleSheet(
+        self.mode_select = QComboBox(self)
+        self.mode_select.setStyleSheet(
             "QComboBox { border:none; background-color:transparent; padding: 1px 12px 1px 2px;}"
         )
-        for mode in (m for m in ControlType if m is not ControlType.inpaint):
+        for mode in (m for m in ControlMode if m is not ControlMode.inpaint):
             icon = theme.icon(f"control-{mode.name}")
-            self.type_select.addItem(icon, mode.text, mode.value)
-        self.type_select.currentIndexChanged.connect(self._notify)
-        self.type_select.currentIndexChanged.connect(self._check_is_installed)
+            self.mode_select.addItem(icon, mode.text, mode.value)
+        self.mode_select.currentIndexChanged.connect(self._notify)
+        self.mode_select.currentIndexChanged.connect(self._check_is_installed)
 
         self.layer_select = QComboBox(self)
         self.layer_select.currentIndexChanged.connect(self._notify)
@@ -126,14 +126,14 @@ class ControlWidget(QWidget):
         self.remove_button.setIconSize(QSize(int(button_height * 1.25), button_height))
         self.remove_button.setAutoRaise(True)
 
-        layout.addWidget(self.type_select)
+        layout.addWidget(self.mode_select)
         layout.addWidget(self.layer_select, 1)
         layout.addWidget(self.generate_button)
         layout.addWidget(self.strength_spin)
         layout.addWidget(self.error_text, 1)
         layout.addWidget(self.remove_button)
 
-        self.value = Control(ControlType.scribble, Document.active().active_layer, 1)
+        self.value = Control(ControlMode.scribble, Document.active().active_layer, 1)
 
         # non-exhaustive list of actions that create/remove layers
         Krita.instance().action("add_new_paint_layer").triggered.connect(self.update_layers)
@@ -144,7 +144,7 @@ class ControlWidget(QWidget):
 
     def _notify(self):
         if not self._suppress_changes:
-            self._control.type = ControlType(self.type_select.currentData())
+            self._control.mode = ControlMode(self.mode_select.currentData())
             id = self.layer_select.currentData()
             self._control.image = self._model.document.find_layer(id)
             self._control.strength = self.strength_spin.value() / 100
@@ -179,7 +179,7 @@ class ControlWidget(QWidget):
         self._control = control
         with self._suppress_changes:
             self.update_and_select_layer(control.image.uniqueId())
-            self.type_select.setCurrentIndex(self.type_select.findData(control.type.value))
+            self.mode_select.setCurrentIndex(self.mode_select.findData(control.mode.value))
             self.strength_spin.setValue(int(control.strength * 100))
             if self._check_is_installed():
                 active_job = self._model.jobs.find(control)
@@ -192,10 +192,10 @@ class ControlWidget(QWidget):
         model = Model.active()
         is_installed = True
         if model and connection.state is ConnectionState.connected:
-            type = ControlType(self.type_select.currentData())
+            mode = ControlMode(self.mode_select.currentData())
             sdver = model.style.sd_version_resolved
-            if connection.client.control_model[type][sdver] is None:
-                filename = server.control_filename[type][sdver]
+            if connection.client.control_model[mode][sdver] is None:
+                filename = server.control_filename[mode][sdver]
                 self.error_text.setToolTip(
                     f"The server is missing {filename}"
                     if filename
