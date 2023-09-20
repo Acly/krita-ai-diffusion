@@ -536,6 +536,8 @@ class Server:
         args = ["-u", "-X", "utf8", "main.py"]
         if self.backend is ServerBackend.cpu:
             args.append("--cpu")
+        if settings.server_arguments:
+            args += settings.server_arguments.split(" ")
         self._process = await asyncio.create_subprocess_exec(
             self._python_cmd,
             *args,

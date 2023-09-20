@@ -69,6 +69,10 @@ class Settings:
 
     _server_backend = Setting("Server Backend", ServerBackend.cuda)
 
+    _server_arguments = Setting(
+        "Server Arguments", "", "Additional command line arguments passed to the server"
+    )
+
     _history_size = Setting(
         "History Size", 1000, "Main memory (RAM) used to keep the history of generated images"
     )
