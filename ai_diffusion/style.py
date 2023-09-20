@@ -1,6 +1,5 @@
 from enum import Enum
 import json
-import os
 from pathlib import Path
 from PyQt5.QtCore import QObject, pyqtSignal
 
@@ -195,7 +194,14 @@ class Styles(QObject):
     def default(self):
         return self[0]
     
-    def create(self, name: str) -> Style:
+    def create(self, name: str = "style") -> Style:
+        if Path(self.folder / f"{name}.json").exists():
+            i = 1
+            basename = name
+            while Path(self.folder / f"{basename}_{i}.json").exists():
+                i += 1
+            name = f"{basename}_{i}"
+        
         new_style = Style(self.folder / f"{name}.json")
         new_style.name = name
         self._list.append(new_style)
@@ -205,7 +211,7 @@ class Styles(QObject):
     
     def delete(self, style: Style):
         self._list.remove(style)
-        os.remove(style.filepath)
+        style.filepath.unlink()
         self.changed.emit()
 
     def reload(self):
