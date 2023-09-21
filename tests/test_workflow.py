@@ -185,7 +185,7 @@ def test_prepare_no_downscale():
     )
 
 
-@pytest.mark.parametrize("extent", [Extent(256, 256), Extent(512, 1024)])
+@pytest.mark.parametrize("extent", [Extent(256, 256), Extent(800, 800), Extent(512, 1024)])
 def test_generate(qtapp, comfy, temp_settings, extent):
     temp_settings.batch_size = 1
     prompt = Conditioning("ship")

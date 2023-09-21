@@ -219,20 +219,33 @@ class Conditioning:
                 control.mask = w.crop_mask(control.load_mask(w), bounds)
 
 
-def upscale_latent(
+def upscale(
     w: ComfyWorkflow,
     style: Style,
     latent: Output,
-    target: Extent,
+    extent: ScaledExtent,
     prompt_pos: Output,
     prompt_neg: Output,
     model: Output,
+    vae: Output,
+    comfy: Client,
 ):
-    assert target.is_multiple_of(8)
-    upscale = w.scale_latent(latent, target)
-    return w.ksampler(
-        model, prompt_pos, prompt_neg, upscale, denoise=0.5, **_sampler_params(style, upscale=True)
-    )
+    params = _sampler_params(style, upscale=True)
+    if extent.scale > (1 / 1.5):
+        # up to 1.5x scale: upscale latent
+        upscale = w.scale_latent(latent, extent.expanded)
+        params["denoise"] = 0.5
+    else:
+        # for larger upscaling factors use super-resolution model
+        upscale_model = w.load_upscale_model(comfy.default_upscaler)
+        decoded = w.vae_decode(vae, latent)
+        upscale = w.upscale_image(upscale_model, decoded)
+        upscale = w.scale_image(upscale, extent.expanded)
+        upscale = w.vae_encode(vae, upscale)
+        params["denoise"] = 0.4
+        params["steps"] = max(1, int(params["steps"] * 0.8))
+
+    return w.ksampler(model, prompt_pos, prompt_neg, upscale, **params)
 
 
 def generate(comfy: Client, style: Style, input_extent: Extent, cond: Conditioning):
@@ -244,9 +257,7 @@ def generate(comfy: Client, style: Style, input_extent: Extent, cond: Conditioni
     positive, negative = cond.create(w, comfy, clip, style)
     out_latent = w.ksampler(model, positive, negative, latent, **_sampler_params(style))
     if extent.requires_upscale:
-        out_latent = upscale_latent(
-            w, style, out_latent, extent.expanded, positive, negative, model
-        )
+        out_latent = upscale(w, style, out_latent, extent, positive, negative, model, vae, comfy)
     out_image = w.vae_decode(vae, out_latent)
     if extent.requires_downscale or extent.is_incompatible:
         out_image = w.scale_image(out_image, extent.target)
@@ -368,9 +379,7 @@ def refine_region(
         model, positive, negative, latent, denoise=strength, **_sampler_params(style)
     )
     if extent.requires_upscale:
-        out_latent = upscale_latent(
-            w, style, out_latent, extent.expanded, positive, negative, model
-        )
+        out_latent = upscale(w, style, out_latent, extent, positive, negative, model, vae, comfy)
     out_image = w.vae_decode(vae, out_latent)
     if extent.requires_downscale or extent.is_incompatible:
         out_image = w.scale_image(out_image, extent.target)
