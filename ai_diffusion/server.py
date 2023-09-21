@@ -163,8 +163,8 @@ class Server:
         self.check_install()
 
     async def _install_python(self, network: QNetworkAccessManager, cb: InternalCB):
-        url = "https://www.python.org/ftp/python/3.10.9/python-3.10.9-embed-amd64.zip"
-        archive_path = self._cache_dir / "python-3.10.9-embed-amd64.zip"
+        url = "https://www.python.org/ftp/python/3.10.11/python-3.10.11-embed-amd64.zip"
+        archive_path = self._cache_dir / "python-3.10.11-embed-amd64.zip"
         dir = self.path / "python"
 
         await _download_cached("Python", network, url, archive_path, cb)
