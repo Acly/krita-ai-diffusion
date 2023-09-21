@@ -52,12 +52,13 @@ class ComfyWorkflow:
         steps=20,
         cfg=7,
         denoise=1,
+        seed=-1,
     ):
         self.sample_count += steps
         return self.add(
             "KSampler",
             1,
-            seed=random.getrandbits(64),
+            seed=random.getrandbits(64) if seed == -1 else seed,
             sampler_name=sampler,
             scheduler=scheduler,
             model=model,

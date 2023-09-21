@@ -73,6 +73,12 @@ class Settings:
         "Server Arguments", "", "Additional command line arguments passed to the server"
     )
 
+    _fixed_seed = Setting("Use Fixed Seed", False, "Fixes the random seed to a specific value")
+
+    _random_seed = Setting(
+        "Random Seed", "0", "Random number to produce different results with each generation"
+    )
+
     _history_size = Setting(
         "History Size", 1000, "Main memory (RAM) used to keep the history of generated images"
     )

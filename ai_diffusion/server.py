@@ -48,14 +48,14 @@ class Server:
     state = ServerState.stopped
     missing_resources: List[str]
 
-    _python_cmd: Optional[str] = None
-    _pip_cmd: Optional[str] = None
+    _python_cmd: Optional[Path] = None
+    _pip_cmd: Optional[Path] = None
     _comfy_dir: Optional[Path] = None
     _cache_dir: Optional[Path] = None
     _process: Optional[asyncio.subprocess.Process] = None
     _task: Optional[asyncio.Task] = None
 
-    def __init__(self, path: str = None):
+    def __init__(self, path: Optional[str] = None):
         self.path = Path(path or settings.server_path)
         if not self.path.is_absolute():
             self.path = Path(__file__).parent / self.path

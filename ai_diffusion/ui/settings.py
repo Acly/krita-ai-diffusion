@@ -6,6 +6,7 @@ from PyQt5.QtWidgets import (
     QHBoxLayout,
     QDialog,
     QPushButton,
+    QCheckBox,
     QFrame,
     QLabel,
     QListWidget,
@@ -671,6 +672,26 @@ class StylePresets(SettingsTab):
         style.save()
 
 
+class DiffusionSettings(SettingsTab):
+    def __init__(self):
+        super().__init__("Diffusion Settings")
+
+        self.add("random_seed", TextSetting(Settings._random_seed, self))
+        self._fixed_seed_checkbox = QCheckBox("Use fixed seed", self)
+        self._fixed_seed_checkbox.stateChanged.connect(self.write)
+        self._layout.addWidget(self._fixed_seed_checkbox)
+
+        self._layout.addStretch()
+
+    def _read(self):
+        self._fixed_seed_checkbox.setChecked(settings.fixed_seed)
+        self._widgets["random_seed"].setEnabled(settings.fixed_seed)
+
+    def _write(self):
+        settings.fixed_seed = self._fixed_seed_checkbox.isChecked()
+        self._widgets["random_seed"].setEnabled(settings.fixed_seed)
+
+
 class PerformanceSettings(SettingsTab):
     def __init__(self):
         super().__init__("Performance Settings")
@@ -787,30 +808,31 @@ class SettingsDialog(QDialog):
         layout = QHBoxLayout()
         self.setLayout(layout)
 
+        self.connection = ConnectionSettings(server)
+        self.styles = StylePresets()
+        self.diffusion = DiffusionSettings()
+        self.performance = PerformanceSettings()
+
+        self._stack = QStackedWidget(self)
         self._list = QListWidget(self)
         self._list.setFixedWidth(120)
 
-        def create_list_item(text: str):
+        def create_list_item(text: str, widget: QWidget):
             item = QListWidgetItem(text, self._list)
             item.setSizeHint(QSize(112, 24))
+            self._stack.addWidget(widget)
 
-        create_list_item("Connection")
-        create_list_item("Styles")
-        create_list_item("Performance")
+        create_list_item("Connection", self.connection)
+        create_list_item("Styles", self.styles)
+        create_list_item("Diffusion", self.diffusion)
+        create_list_item("Performance", self.performance)
+
         self._list.setCurrentRow(0)
         self._list.currentRowChanged.connect(self._change_page)
         layout.addWidget(self._list)
 
         inner = QVBoxLayout()
         layout.addLayout(inner)
-
-        self._stack = QStackedWidget(self)
-        self.connection = ConnectionSettings(server)
-        self.styles = StylePresets()
-        self.performance = PerformanceSettings()
-        self._stack.addWidget(self.connection)
-        self._stack.addWidget(self.styles)
-        self._stack.addWidget(self.performance)
         inner.addWidget(self._stack)
         inner.addSpacing(6)
 
@@ -831,6 +853,7 @@ class SettingsDialog(QDialog):
     def read(self):
         self.connection.read()
         self.styles.read()
+        self.diffusion.read()
         self.performance.read()
 
     def restore_defaults(self):

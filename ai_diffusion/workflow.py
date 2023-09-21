@@ -5,6 +5,7 @@ from .image import Bounds, Extent, Image, ImageCollection, Mask
 from .client import Client
 from .style import SDVersion, Style, StyleSettings
 from .resources import ControlMode
+from .settings import settings
 from .comfyworkflow import ComfyWorkflow, Output
 from .util import compute_batch_size, client_logger as log
 
@@ -128,6 +129,11 @@ def _sampler_params(style: Style, clip_vision=False, upscale=False):
         params["cfg"] = min(5, style.cfg_scale)
     if upscale:
         params["steps"] = style.sampler_steps_upscaling
+    if settings.fixed_seed:
+        try:
+            params["seed"] = int(settings.random_seed)
+        except ValueError:
+            log.warning(f"Invalid random seed: {settings.random_seed}")
     return params
 
 
