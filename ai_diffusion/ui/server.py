@@ -5,6 +5,7 @@ from PyQt5.QtGui import QDesktopServices
 from PyQt5.QtWidgets import (
     QWidget,
     QCheckBox,
+    QComboBox,
     QHBoxLayout,
     QVBoxLayout,
     QGridLayout,
@@ -192,8 +193,11 @@ class ServerWidget(QWidget):
         self._progress_info.setStyleSheet("font-style:italic")
         self._progress_info.setVisible(False)
 
-        self._use_cuda = QCheckBox("Use CUDA (requires NVIDIA GPU)", self)
-        self._use_cuda.stateChanged.connect(self._change_backend)
+        backend_supported = lambda b: b is not ServerBackend.directml or util.is_windows
+        backends = [b.value for b in ServerBackend if backend_supported(b)]
+        self._backend_select = QComboBox(self)
+        self._backend_select.addItems(backends)
+        self._backend_select.currentIndexChanged.connect(self._change_backend)
 
         self._launch_button = QPushButton("Launch", self)
         self._launch_button.setMinimumWidth(150)
@@ -208,7 +212,7 @@ class ServerWidget(QWidget):
 
         status_layout = QVBoxLayout()
         status_layout.addWidget(self._status_label)
-        status_layout.addWidget(self._use_cuda)
+        status_layout.addWidget(self._backend_select, 0, Qt.AlignLeft)
         status_layout.addWidget(self._progress_bar)
         status_layout.addWidget(self._progress_info)
         status_layout.addStretch()
@@ -300,7 +304,7 @@ class ServerWidget(QWidget):
             self._location_edit.setText(path)
 
     def _change_backend(self):
-        backend = ServerBackend.cuda if self._use_cuda.isChecked() else ServerBackend.cpu
+        backend = list(ServerBackend)[self._backend_select.currentIndex()]
         if settings.server_backend != backend:
             self._server.backend = backend
             settings.server_backend = backend
@@ -348,7 +352,7 @@ class ServerWidget(QWidget):
 
             self._launch_button.setEnabled(False)
             self._status_label.setStyleSheet(f"color:{highlight};font-weight:bold")
-            self._use_cuda.setVisible(False)
+            self._backend_select.setVisible(False)
             self._progress_bar.setVisible(True)
             self._progress_info.setVisible(True)
 
@@ -392,10 +396,10 @@ class ServerWidget(QWidget):
 
     def update(self):
         self._location_edit.setText(settings.server_path)
-        self._use_cuda.setChecked(settings.server_backend is ServerBackend.cuda)
+        self._backend_select.setCurrentIndex(list(ServerBackend).index(settings.server_backend))
         self._progress_bar.setVisible(False)
         self._progress_info.setVisible(False)
-        self._use_cuda.setVisible(True)
+        self._backend_select.setVisible(True)
         self._launch_button.setEnabled(True)
 
         state = self._server.state
@@ -408,7 +412,7 @@ class ServerWidget(QWidget):
         elif state is ServerState.installing:
             self._progress_bar.setVisible(True)
             self._progress_info.setVisible(True)
-            self._use_cuda.setVisible(False)
+            self._backend_select.setVisible(False)
             self._launch_button.setEnabled(False)
         elif state is ServerState.stopped:
             self._status_label.setText("Server stopped")

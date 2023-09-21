@@ -1,10 +1,13 @@
 from enum import Enum
 from pathlib import Path
+import sys
 import logging
 import logging.handlers
 
 from .image import Extent
 from .settings import settings
+
+is_windows = "win" in sys.platform
 
 
 def create_logger(name: str, path: Path):

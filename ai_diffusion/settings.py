@@ -13,8 +13,9 @@ class ServerMode(Enum):
 
 
 class ServerBackend(Enum):
-    cpu = "cpu"
-    cuda = "cuda"
+    cpu = "Run on CPU"
+    cuda = "Use CUDA (NVIDIA GPU)"
+    directml = "Use DirectML (GPU)"
 
 
 class PerformancePreset(Enum):

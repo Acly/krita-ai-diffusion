@@ -14,12 +14,11 @@ from .settings import settings, ServerBackend
 from . import resources
 from .resources import CustomNode, ModelResource
 from .network import download, DownloadProgress
-from .util import client_logger as log, server_logger as server_log
+from .util import is_windows, client_logger as log, server_logger as server_log
 
 
-_is_windows = "win" in sys.platform
-_exe = ".exe" if _is_windows else ""
-_process_flags = subprocess.CREATE_NO_WINDOW if _is_windows else 0
+_exe = ".exe" if is_windows else ""
+_process_flags = subprocess.CREATE_NO_WINDOW if is_windows else 0
 
 
 class ServerState(Enum):
@@ -69,7 +68,7 @@ class Server:
         comfy_pkg = ["main.py", "nodes.py", "custom_nodes"]
         self.comfy_dir = _find_component(comfy_pkg, [self.path, self.path / "ComfyUI"])
 
-        python_pkg = ["python3.dll", "python.exe"] if _is_windows else ["python3", "pip3"]
+        python_pkg = ["python3.dll", "python.exe"] if is_windows else ["python3", "pip3"]
         python_search_paths = [
             self.path / "python",
             self.path / "venv" / "bin",
@@ -90,7 +89,7 @@ class Server:
         else:
             self._python_cmd = python_path / f"python{_exe}"
             self._pip_cmd = python_path / "pip"
-            if _is_windows:
+            if is_windows:
                 self._pip_cmd = python_path / "Scripts" / "pip.exe"
 
         if not (self.has_comfy and self.has_python):
@@ -131,13 +130,13 @@ class Server:
         self._cache_dir.mkdir(parents=True, exist_ok=True)
 
         no_python = self._python_cmd is None or self._pip_cmd is None
-        if _is_windows and (self.comfy_dir is None or no_python):
+        if is_windows and (self.comfy_dir is None or no_python):
             # On Windows install an embedded version of Python
             python_dir = self.path / "python"
             self._python_cmd = python_dir / f"python{_exe}"
             self._pip_cmd = python_dir / "Scripts" / f"pip{_exe}"
             await _install_if_missing(python_dir, self._install_python, network, cb)
-        elif not _is_windows and (self.comfy_dir is None or self._pip_cmd is None):
+        elif not is_windows and (self.comfy_dir is None or self._pip_cmd is None):
             # On Linux a system Python is required to create a virtual environment
             python_dir = self.path / "venv"
             await _install_if_missing(python_dir, self._create_venv, cb)
@@ -196,17 +195,21 @@ class Server:
         await _extract_archive("ComfyUI", archive_path, self.comfy_dir.parent, cb)
         _rename_extracted_folder("ComfyUI", self.comfy_dir, "-master")
 
-        torch_args = ["install", "torch", "torchvision", "torchaudio", "--index-url"]
-        torch_index = {
-            ServerBackend.cuda: "https://download.pytorch.org/whl/cu118",
-            ServerBackend.cpu: "https://download.pytorch.org/whl/cpu",
-        }
-        torch_cmd = [self._pip_cmd, *torch_args, torch_index[self.backend]]
-        await _execute_process("PyTorch", torch_cmd, self.comfy_dir, cb)
+        torch_args = ["install", "torch", "torchvision", "torchaudio"]
+        if self.backend is ServerBackend.cpu:
+            torch_args += ["--index-url", "https://download.pytorch.org/whl/cpu"]
+        elif self.backend is ServerBackend.cuda:
+            torch_args += ["--index-url", "https://download.pytorch.org/whl/cu118", "xformers"]
+        await _execute_process("PyTorch", [self._pip_cmd, *torch_args], self.comfy_dir, cb)
 
         requirements_txt = self.comfy_dir / "requirements.txt"
         requirements_cmd = [self._pip_cmd, "install", "-r", requirements_txt]
         await _execute_process("ComfyUI", requirements_cmd, self.comfy_dir, cb)
+
+        if self.backend is ServerBackend.directml:
+            await _execute_process(  # for some reason this must come AFTER ComfyUI requirements
+                "PyTorch", [self._pip_cmd, "install", "torch-directml"], self.comfy_dir, cb
+            )
         cb("Installing ComfyUI", "Finished installing ComfyUI")
 
     async def _install_custom_node(
@@ -227,7 +230,7 @@ class Server:
 
     async def install(self, callback: Callback):
         assert self.state in [ServerState.not_installed, ServerState.missing_resources]
-        if not _is_windows and self._python_cmd is None:
+        if not is_windows and self._python_cmd is None:
             raise Exception(
                 "Python not found. Please install python3, python3-venv via your package manager"
                 " and restart."
@@ -282,6 +285,8 @@ class Server:
         args = ["-u", "-X", "utf8", "main.py"]
         if self.backend is ServerBackend.cpu:
             args.append("--cpu")
+        elif self.backend is ServerBackend.directml:
+            args.append("--directml")
         if settings.server_arguments:
             args += settings.server_arguments.split(" ")
         self._process = await asyncio.create_subprocess_exec(
