@@ -568,6 +568,16 @@ class StylePresets(SettingsTab):
         self._style_list.currentIndexChanged.connect(self._change_style)
         frame_layout.addWidget(self._style_list)
 
+        self._create_style_button = QToolButton(self)
+        self._create_style_button.setIcon(Krita.instance().icon("list-add"))
+        self._create_style_button.clicked.connect(self._create_style)
+        frame_layout.addWidget(self._create_style_button)
+
+        self._delete_style_button = QToolButton(self)
+        self._delete_style_button.setIcon(Krita.instance().icon("deletelayer"))
+        self._delete_style_button.clicked.connect(self._delete_style)
+        frame_layout.addWidget(self._delete_style_button)
+
         self._refresh_button = QToolButton(self)
         self._refresh_button.setIcon(Krita.instance().icon("reload-preset"))
         self._refresh_button.clicked.connect(self._update_style_list)
@@ -577,16 +587,6 @@ class StylePresets(SettingsTab):
         self._open_folder_button.setIcon(Krita.instance().icon("document-open"))
         self._open_folder_button.clicked.connect(self._open_folder)
         frame_layout.addWidget(self._open_folder_button)
-        
-        self._create_style_button = QToolButton(self)
-        self._create_style_button.setIcon(Krita.instance().icon("list-add"))
-        self._create_style_button.clicked.connect(self._create_style)
-        frame_layout.addWidget(self._create_style_button)
-        
-        self._delete_style_button = QToolButton(self)
-        self._delete_style_button.setIcon(Krita.instance().icon("deletelayer"))
-        self._delete_style_button.clicked.connect(self._delete_style)
-        frame_layout.addWidget(self._delete_style_button)
 
         self._layout.addWidget(frame)
 
@@ -629,8 +629,9 @@ class StylePresets(SettingsTab):
         self._read()
 
     def _create_style(self):
+        checkpoint = self._style_widgets["sd_checkpoint"].value
         # make sure the new style is in the combobox before setting it as the current style
-        new_style = Styles.list().create()
+        new_style = Styles.list().create(checkpoint=checkpoint)
         self._update_style_list()
         self.current_style = new_style
 

@@ -97,7 +97,7 @@ class StyleSettings:
 
     cfg_scale = Setting(
         "Guidance Strength (CFG Scale)",
-        7.0,
+        7,
         "Value which indicates how closely image generation follows the text prompt",
     )
 
@@ -193,22 +193,24 @@ class Styles(QObject):
     @property
     def default(self):
         return self[0]
-    
-    def create(self, name: str = "style") -> Style:
+
+    def create(self, name: str = "style", checkpoint: str = "") -> Style:
         if Path(self.folder / f"{name}.json").exists():
             i = 1
             basename = name
             while Path(self.folder / f"{basename}_{i}.json").exists():
                 i += 1
             name = f"{basename}_{i}"
-        
+
         new_style = Style(self.folder / f"{name}.json")
-        new_style.name = name
+        new_style.name = "New Style"
+        if checkpoint:
+            new_style.sd_checkpoint = checkpoint
         self._list.append(new_style)
         new_style.save()
         self.changed.emit()
         return new_style
-    
+
     def delete(self, style: Style):
         self._list.remove(style)
         style.filepath.unlink()
