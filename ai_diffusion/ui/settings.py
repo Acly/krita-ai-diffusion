@@ -95,8 +95,9 @@ class SpinBoxSetting(SettingWidget):
 
 
 class SliderSetting(SettingWidget):
-    def __init__(self, setting: Setting, parent=None, minimum=0, maximum=100):
+    def __init__(self, setting: Setting, parent=None, minimum=0, maximum=100, format="{}"):
         super().__init__(setting, parent)
+        self._format_string = format
 
         slider_widget = QWidget(self)
         slider_layout = QHBoxLayout()
@@ -115,7 +116,7 @@ class SliderSetting(SettingWidget):
         self._layout.addWidget(slider_widget, alignment=Qt.AlignRight)
 
     def _change_value(self, value: int):
-        self._label.setText(str(value))
+        self._label.setText(self._format_string.format(value))
         self.value_changed.emit()
 
     @property
@@ -696,6 +697,11 @@ class StylePresets(SettingsTab):
 class DiffusionSettings(SettingsTab):
     def __init__(self):
         super().__init__("Diffusion Settings")
+
+        self.add("selection_grow", SliderSetting(Settings._selection_grow, self, 0, 25, "{} %"))
+        self.add(
+            "selection_feather", SliderSetting(Settings._selection_feather, self, 0, 25, "{} %")
+        )
 
         self.add("random_seed", TextSetting(Settings._random_seed, self))
         self._fixed_seed_checkbox = QCheckBox("Use fixed seed", self)

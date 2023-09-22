@@ -73,6 +73,14 @@ class Settings:
         "Server Arguments", "", "Additional command line arguments passed to the server"
     )
 
+    _selection_grow = Setting(
+        "Selection Grow", 7, "Selection area is expanded by a fraction of its size"
+    )
+
+    _selection_feather = Setting(
+        "Selection Feather", 7, "The border is blurred by a fraction of selection size"
+    )
+
     _fixed_seed = Setting("Use Fixed Seed", False, "Fixes the random seed to a specific value")
 
     _random_seed = Setting(

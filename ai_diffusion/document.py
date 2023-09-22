@@ -1,9 +1,10 @@
 from typing import Optional
 import krita
 from krita import Krita
-from .image import Extent, Bounds, Mask, Image
 from PyQt5.QtCore import QUuid
 from PyQt5.QtGui import QImage
+
+from .image import Extent, Bounds, Mask, Image
 
 
 class Document:
@@ -37,17 +38,20 @@ class Document:
             return False, msg_fmt.format("depth", "8-bit integer", depth)
         return True, None
 
-    def create_mask_from_selection(self):
+    def create_mask_from_selection(self, grow: float, feather: float):
         user_selection = self._doc.selection()
         if not user_selection:
             return None
 
         selection = user_selection.duplicate()
         size_factor = Extent(selection.width(), selection.height()).diagonal
-        feather_radius = int(0.07 * size_factor)
+        grow_pixels = int(grow * size_factor)
+        feather_radius = int(feather * size_factor)
 
-        selection.grow(feather_radius, feather_radius)
-        selection.feather(feather_radius)
+        if grow_pixels > 0:
+            selection.grow(grow_pixels, grow_pixels)
+        if feather_radius > 0:
+            selection.feather(feather_radius)
 
         bounds = Bounds(selection.x(), selection.y(), selection.width(), selection.height())
         bounds = Bounds.pad(bounds, feather_radius, multiple=8)
