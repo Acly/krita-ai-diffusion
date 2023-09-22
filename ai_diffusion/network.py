@@ -177,7 +177,8 @@ async def _try_download(network: QNetworkAccessManager, url: str, path: Path):
             return  # operation was cancelled, discard result
         if reply.error() == QNetworkReply.NoError:
             finished_future.set_result(path)
-        elif reply.attribute(QNetworkReply.HttpStatusCodeAttribute) == 416:  # Range Not Satisfiable
+        elif reply.attribute(QNetworkRequest.HttpStatusCodeAttribute) == 416:
+            # 416 = Range Not Satisfiable
             finished_future.set_exception(NetworkError(416, "Resume not supported", url))
         else:
             finished_future.set_exception(NetworkError.from_reply(reply))
