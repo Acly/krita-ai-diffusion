@@ -1,7 +1,7 @@
 from typing import Optional
 import krita
 from krita import Krita
-from PyQt5.QtCore import QUuid
+from PyQt5.QtCore import QUuid, QByteArray
 from PyQt5.QtGui import QImage
 
 from .image import Extent, Bounds, Mask, Image
@@ -76,7 +76,9 @@ class Document:
         return Image(img)
 
     def get_layer_image(self, layer, bounds: Bounds):
-        return Image(QImage(layer.pixelData(*bounds), *bounds.extent, QImage.Format_ARGB32))
+        data: QByteArray = layer.projectionPixelData(*bounds)
+        assert data is not None and data.size() >= bounds.extent.pixel_count * 4
+        return Image(QImage(data, *bounds.extent, QImage.Format_ARGB32))
 
     def insert_layer(
         self, name: str, img: Image, bounds: Bounds, below: Optional[krita.Node] = None
@@ -110,12 +112,19 @@ class Document:
         return layer
 
     @property
-    def paint_layers(self):
-        return [node for node in self._doc.rootNode().childNodes() if node.type() == "paintlayer"]
+    def image_layers(self):
+        return list(_traverse_layers(self._doc.rootNode(), ["paintlayer", "grouplayer"]))
 
     def find_layer(self, id: QUuid):
-        return next((layer for layer in self.paint_layers if layer.uniqueId() == id), None)
+        return next((layer for layer in self.image_layers if layer.uniqueId() == id), None)
 
     @property
     def active_layer(self):
         return self._doc.activeNode()
+
+
+def _traverse_layers(node, type_filter=None):
+    for child in node.childNodes():
+        yield from _traverse_layers(child, type_filter)
+        if not type_filter or child.type() in type_filter:
+            yield child

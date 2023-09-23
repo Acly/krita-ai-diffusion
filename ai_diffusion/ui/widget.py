@@ -151,11 +151,13 @@ class ControlWidget(QWidget):
             self.changed.emit()
 
     def update_and_select_layer(self, id: QUuid):
-        layers = self._model.document.paint_layers
+        layers = reversed(self._model.document.image_layers)
         self.layer_select.clear()
+        index = -1
         for layer in layers:
             self.layer_select.addItem(layer.name(), layer.uniqueId())
-        index = next((i for i, layer in enumerate(layers) if layer.uniqueId() == id), -1)
+            if layer.uniqueId() == id:
+                index = self.layer_select.count() - 1
         if index == -1:
             self.remove_button.click()
         else:
