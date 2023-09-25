@@ -7,6 +7,8 @@
 .server
 .vscode
 __pycache__
+scripts/docker/models
+scripts/docker/ip-adapter
 tests/.results
 settings.json
 ai_diffusion/styles/violet*

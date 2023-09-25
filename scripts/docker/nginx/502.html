@@ -1,0 +1,57 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <link rel="stylesheet" href="https://maxcdn.bootstrapcdn.com/bootstrap/4.0.0/css/bootstrap.min.css">
+  <style>
+    body {
+      background: url('https://images.unsplash.com/photo-1533749047139-189de3cf06d3?ixlib=rb-4.0.3&ixid=M3wxMjA3fDB8MHxwaG90by1wYWdlfHx8fGVufDB8fHx8fA%3D%3D&auto=format&fit=crop&w=2439&q=80') no-repeat center center fixed;
+      background-size: cover;
+      font-family: 'Arial', sans-serif;
+      color: white;
+    }
+
+    .container {
+      background: rgba(0,0,0,0.6);
+      border-radius: 15px;
+      padding: 20px;
+    }
+
+    .jumbotron {
+      background: none;
+    }
+
+    h1, h5, h4 {
+      text-shadow: 2px 2px 4px rgba(0,0,0,0.7);
+    }
+
+    .btn-primary {
+      background-color: #007BFF;
+      border-color: #007BFF;
+      box-shadow: 2px 2px 4px rgba(0,0,0,0.4);
+    }
+
+    .btn-primary:hover {
+      background-color: #0056b3;
+      border-color: #0056b3;
+    }
+  </style>
+  <title>Port Not Up Yet</title>
+</head>
+<body>
+<div class="container mt-5">
+  <div class="jumbotron">
+    <h1>The port is not up yet</h1>
+    <h5>NOTE: This is not necessarily an error</h5>
+    <h4 style="color:#FF6347">Check your container logs for the following:</h4>
+    <ul class="lead">
+      <li>Ensure that the applications have completed syncing to /workspace.</li>
+      <li>Ensure that there are no errors.</li>
+      <li>Ensure that the logs say <strong>Container is READY!</strong></li>
+    </ul>
+    <button class="btn btn-primary" onclick="location.reload()">Refresh</button>
+  </div>
+</div>
+</body>
+</html>
