@@ -116,14 +116,15 @@ class Client:
         client = Client(url)
         try:
             ws_protocol = "wss" if protocol == "https" else "ws"
+            ws_url = f"{ws_protocol}://{hostname}"
             client._websocket = await websockets.connect(
-                f"{ws_protocol}://{hostname}/ws?clientId={client._id}",
+                f"{ws_url}/ws?clientId={client._id}",
                 max_size=2**30,
                 read_limit=2**30,
             )
         except OSError as e:
             raise NetworkError(
-                e.errno, f"Could not connect to websocket server at {url}: {str(e)}", url
+                e.errno, f"Could not connect to websocket server at {ws_url}: {str(e)}", ws_url
             )
         # Retrieve system info
         client.device_info = DeviceInfo.parse(await client._get("system_stats"))
@@ -241,6 +242,10 @@ class Client:
 
     async def interrupt(self):
         await self._post("interrupt", {})
+
+    async def clear_queue(self):
+        await self._post("queue", {"clear": True})
+        self._jobs.clear()
 
     async def disconnect(self):
         await self._websocket.close()

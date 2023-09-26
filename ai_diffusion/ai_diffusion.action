@@ -17,7 +17,31 @@
         </Action>
         <Action name="ai_diffusion_cancel">
             <icon/>
-            <text>Cancel generation</text>
+            <text>Cancel current job</text>
+            <whatsThis/>
+            <toolTip/>
+            <iconText/>
+            <activationFlags>10000</activationFlags>
+            <activationConditions>0</activationConditions>
+            <shortcut></shortcut>
+            <isCheckable>false</isCheckable>
+            <statusTip/>
+        </Action>
+                <Action name="ai_diffusion_cancel_queued">
+            <icon/>
+            <text>Cancel queued jobs</text>
+            <whatsThis/>
+            <toolTip/>
+            <iconText/>
+            <activationFlags>10000</activationFlags>
+            <activationConditions>0</activationConditions>
+            <shortcut></shortcut>
+            <isCheckable>false</isCheckable>
+            <statusTip/>
+        </Action>
+                <Action name="ai_diffusion_cancel_all">
+            <icon/>
+            <text>Cancel all jobs</text>
             <whatsThis/>
             <toolTip/>
             <iconText/>

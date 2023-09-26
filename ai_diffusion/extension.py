@@ -57,7 +57,9 @@ class AIToolsExtension(Extension):
         self._settings_dialog = SettingsDialog(window.qwindow(), self._server)
         self._create_action(window, "settings", self._settings_dialog.show)
         self._create_action(window, "generate", actions.generate)
-        self._create_action(window, "cancel", actions.cancel)
+        self._create_action(window, "cancel", actions.cancel_active)
+        self._create_action(window, "cancel_queued", actions.cancel_queued)
+        self._create_action(window, "cancel_all", actions.cancel_all)
         self._create_action(window, "apply", actions.apply)
 
 

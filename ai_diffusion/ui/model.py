@@ -91,7 +91,6 @@ class JobQueue:
     def remove(self, job: Job):
         # Diffusion jobs: kept for history, pruned according to meomry usage
         # Control layer jobs: removed immediately once finished
-        assert job.kind is JobKind.control_layer
         self._entries.remove(job)
 
     def find(self, id: str):
@@ -256,8 +255,15 @@ class Model(QObject):
         job.id = await client.enqueue(work)
         self.changed.emit()
 
-    def cancel(self):
-        Connection.instance().interrupt()
+    def cancel(self, active=False, queued=False):
+        if queued:
+            to_remove = [job for job in self.jobs if job.state is State.queued]
+            if len(to_remove) > 0:
+                Connection.instance().clear_queue()
+                for job in to_remove:
+                    self.jobs.remove(job)
+        if active and self.jobs.any_executing():
+            Connection.instance().interrupt()
 
     def report_progress(self, value):
         self.progress = value
@@ -274,7 +280,9 @@ class Model(QObject):
 
     def handle_message(self, message: ClientMessage):
         job = self.jobs.find(message.job_id)
-        assert job is not None, "Received message for unknown job."
+        if job is None:
+            util.client_logger.error(f"Received message {message} for unknown job.")
+            return
 
         if message.event is ClientEvent.progress:
             job.state = State.executing

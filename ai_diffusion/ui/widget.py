@@ -41,7 +41,9 @@ class QueueWidget(QToolButton):
         super().__init__(parent)
 
         queue_menu = QMenu(self)
-        queue_menu.addAction(self._create_action("Cancel active", actions.cancel))
+        queue_menu.addAction(self._create_action("Cancel active", actions.cancel_active))
+        queue_menu.addAction(self._create_action("Cancel queued", actions.cancel_queued))
+        queue_menu.addAction(self._create_action("Cancel all", actions.cancel_all))
         self.setMenu(queue_menu)
 
         self.setStyleSheet(self._style.format(color=theme.background_inactive))
@@ -493,10 +495,6 @@ class GenerationWidget(QWidget):
 
     def generate(self):
         self.model.generate()
-        self.update()
-
-    def cancel(self):
-        self.model.cancel()
         self.update()
 
     def update_styles(self):

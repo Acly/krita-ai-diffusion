@@ -7,10 +7,22 @@ def generate():
         model.generate()
 
 
-def cancel():
+def cancel_active():
     model = Model.active()
-    if model and model.jobs.any_executing():
-        model.cancel()
+    if model:
+        model.cancel(active=True)
+
+
+def cancel_queued():
+    model = Model.active()
+    if model:
+        model.cancel(queued=True)
+
+
+def cancel_all():
+    model = Model.active()
+    if model:
+        model.cancel(active=True, queued=True)
 
 
 def apply():

@@ -80,6 +80,9 @@ class Connection(QObject):
     def interrupt(self):
         eventloop.run(self.client.interrupt())
 
+    def clear_queue(self):
+        eventloop.run(self.client.clear_queue())
+
 
 def apply_performance_preset(settings: Settings, device: DeviceInfo):
     if settings.performance_preset is PerformancePreset.auto:
