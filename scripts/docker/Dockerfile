@@ -52,23 +52,25 @@ RUN apt update && \
     echo "en_US.UTF-8 UTF-8" > /etc/locale.gen
 
 # Set Python
-RUN ln -s /usr/bin/python3.10 /usr/bin/python
+RUN ln -s /usr/bin/python3.10 /usr/bin/python && \
+    python -m venv /venv
+ENV PATH="/venv/bin:$PATH"
 
 # Install ComfyUI
-RUN git clone https://github.com/comfyanonymous/ComfyUI.git /ComfyUI
-WORKDIR /ComfyUI
-RUN pip3 install --no-cache-dir torch torchvision torchaudio --index-url https://download.pytorch.org/whl/cu118 && \
+RUN git clone https://github.com/comfyanonymous/ComfyUI.git /ComfyUI && \
+    pip3 install --no-cache-dir torch torchvision torchaudio --index-url https://download.pytorch.org/whl/cu118 && \
     pip3 install --no-cache-dir xformers==0.0.21 && \
-    pip3 install -r requirements.txt && \
+    pip3 install -r /ComfyUI/requirements.txt && \
     pip3 cache purge
 
 # Install ComfyUI Custom Nodes
-RUN git clone https://github.com/ltdrdata/ComfyUI-Manager.git custom_nodes/ComfyUI-Manager && \
-    git clone https://github.com/Fannovel16/comfyui_controlnet_aux custom_nodes/comfyui_controlnet_aux && \
-    git clone https://github.com/laksjdjf/IPAdapter-ComfyUI custom_nodes/IPAdapter-ComfyUI && \
-    git clone https://github.com/Acly/comfyui-tooling-nodes custom_nodes/comfyui-tooling-nodes && \
-    pip3 install -r custom_nodes/ComfyUI-Manager/requirements.txt && \
-    pip3 install -r custom_nodes/comfyui_controlnet_aux/requirements.txt
+RUN git clone https://github.com/ltdrdata/ComfyUI-Manager.git /ComfyUI/custom_nodes/ComfyUI-Manager && \
+    git clone https://github.com/Fannovel16/comfyui_controlnet_aux /ComfyUI/custom_nodes/comfyui_controlnet_aux && \
+    git clone https://github.com/laksjdjf/IPAdapter-ComfyUI /ComfyUI/custom_nodes/IPAdapter-ComfyUI && \
+    git clone https://github.com/Acly/comfyui-tooling-nodes /ComfyUI/custom_nodes/comfyui-tooling-nodes && \
+    pip3 install -r /ComfyUI/custom_nodes/ComfyUI-Manager/requirements.txt && \
+    pip3 install -r /ComfyUI/custom_nodes/comfyui_controlnet_aux/requirements.txt && \
+    pip3 cache purge
 
 # Copy models
 RUN mkdir -p models
@@ -77,7 +79,6 @@ COPY ip-adapter/* /ComfyUI/custom_nodes/IPAdapter-ComfyUI/models/
 COPY extra_model_paths.yaml /ComfyUI/
 
 # Install Jupyter
-WORKDIR /
 RUN pip3 install -U --no-cache-dir jupyterlab \
         jupyterlab_widgets \
         ipykernel \
@@ -100,10 +101,9 @@ COPY nginx/nginx.conf /etc/nginx/nginx.conf
 COPY nginx/502.html /usr/share/nginx/html/502.html
 COPY nginx/README.md /usr/share/nginx/html/README.md
 
-WORKDIR /
-
-# Copy the scripts
+# Copy the scripts and create workspace
 COPY --chmod=755 pre_start.sh start.sh ./
+RUN mkdir -p workspace
 
 # Start the container
 SHELL ["/bin/bash", "--login", "-c"]

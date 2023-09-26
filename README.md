@@ -80,7 +80,7 @@ _Reworking and adding content to an AI generated image_
 _Adding detail and iteratively refining small parts of the image_
 <img src="media/screenshot-3.png">
 
-_Using ControlNet to guid image generation with a crude scribble_
+_Using ControlNet to guide image generation with a crude scribble_
 <img src="media/screenshot-4.png">
 
 _Server installation_
