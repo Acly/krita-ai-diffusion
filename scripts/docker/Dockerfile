@@ -103,7 +103,7 @@ COPY nginx/README.md /usr/share/nginx/html/README.md
 
 # Copy the scripts and create workspace
 COPY --chmod=755 pre_start.sh start.sh ./
-RUN mkdir -p workspace
+RUN mkdir -p workspace/logs
 
 # Start the container
 SHELL ["/bin/bash", "--login", "-c"]

@@ -1,4 +1,4 @@
-# ComfyUI Server for Krita plugin - runpod.io Docker image
+# ComfyUI Server for Krita plugin - Docker image
 
 This image provides Stable Diffusion with all the prerequisites for use in Krita painting software via [this plugin](https://github.com/Acly/krita-ai-diffusion).
 
