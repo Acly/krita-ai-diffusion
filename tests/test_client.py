@@ -1,6 +1,7 @@
 import pytest
 
 from ai_diffusion import Client, ClientEvent, ComfyWorkflow, NetworkError, Image, Extent
+from ai_diffusion.client import parse_url
 
 default_checkpoint = "realisticVisionV51_v51VAE.safetensors"
 
@@ -80,3 +81,18 @@ def test_disconnect(qtapp):
         assert client.is_executing == False and client.queued_count == 0
 
     qtapp.run(main())
+
+
+@pytest.mark.parametrize(
+    "url,expected",
+    [
+        ("http://localhost:8000", ("http://localhost:8000", "ws://localhost:8000")),
+        ("http://localhost:8000/", ("http://localhost:8000", "ws://localhost:8000")),
+        ("http://localhost:8000/foo", ("http://localhost:8000/foo", "ws://localhost:8000/foo")),
+        ("http://127.0.0.1:1234", ("http://127.0.0.1:1234", "ws://127.0.0.1:1234")),
+        ("localhost:8000", ("http://localhost:8000", "ws://localhost:8000")),
+        ("https://localhost:8000", ("https://localhost:8000", "wss://localhost:8000")),
+    ],
+)
+def test_parse_url(url, expected):
+    assert parse_url(url) == expected

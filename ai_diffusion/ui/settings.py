@@ -24,7 +24,7 @@ from PyQt5.QtWidgets import (
     QWidget,
 )
 from PyQt5.QtCore import Qt, QSize, QUrl, pyqtSignal
-from PyQt5.QtGui import QDesktopServices, QGuiApplication
+from PyQt5.QtGui import QDesktopServices, QGuiApplication, QIcon
 from krita import Krita
 
 from .. import (
@@ -67,6 +67,14 @@ class SettingWidget(QWidget):
         self._layout.setContentsMargins(0, 2, 0, 2)
         self._layout.addWidget(self._key_label, alignment=Qt.AlignLeft)
         self.setLayout(self._layout)
+
+    def add_button(self, icon: QIcon, tooltip: str, handler):
+        button = QToolButton(self)
+        button.setToolButtonStyle(Qt.ToolButtonIconOnly)
+        button.setIcon(icon)
+        button.setToolTip(tooltip)
+        button.clicked.connect(handler)
+        self._layout.addWidget(button)
 
 
 class SpinBoxSetting(SettingWidget):
@@ -278,6 +286,8 @@ class LoraList(QWidget):
 
     value_changed = pyqtSignal()
 
+    open_folder_button: Optional[QToolButton] = None
+
     def __init__(self, setting: Setting, parent=None):
         super().__init__(parent)
         self._loras = []
@@ -292,13 +302,27 @@ class LoraList(QWidget):
         header_layout.setContentsMargins(0, 0, 0, 0)
         header_text_layout = QVBoxLayout()
         add_header(header_text_layout, setting)
+        header_layout.addLayout(header_text_layout, 3)
 
         self._add_button = QPushButton("Add", self)
         self._add_button.setMinimumWidth(100)
         self._add_button.clicked.connect(self._add_item)
-
-        header_layout.addLayout(header_text_layout, 3)
         header_layout.addWidget(self._add_button, 1, Qt.AlignRight | Qt.AlignVCenter)
+
+        self._refresh_button = QToolButton(self)
+        self._refresh_button.setToolButtonStyle(Qt.ToolButtonIconOnly)
+        self._refresh_button.setIcon(Krita.instance().icon("reload-preset"))
+        self._refresh_button.setToolTip("Look for new LoRA files")
+        self._refresh_button.clicked.connect(Connection.instance().refresh)
+        header_layout.addWidget(self._refresh_button, 0, Qt.AlignRight | Qt.AlignVCenter)
+
+        if settings.server_mode is ServerMode.managed:
+            self.open_folder_button = QToolButton(self)
+            self.open_folder_button.setToolButtonStyle(Qt.ToolButtonIconOnly)
+            self.open_folder_button.setIcon(Krita.instance().icon("document-open"))
+            self.open_folder_button.setToolTip("Open folder containing LoRA files")
+            header_layout.addWidget(self.open_folder_button, 0, Qt.AlignRight | Qt.AlignVCenter)
+
         self._layout.addLayout(header_layout)
 
         self._item_list = QVBoxLayout()
@@ -555,8 +579,9 @@ class ConnectionSettings(SettingsTab):
 
 
 class StylePresets(SettingsTab):
-    def __init__(self):
+    def __init__(self, server: Server):
         super().__init__("Style Presets")
+        self.server = server
 
         frame = QFrame(self)
         frame.setFrameStyle(QFrame.StyledPanel)
@@ -571,22 +596,26 @@ class StylePresets(SettingsTab):
 
         self._create_style_button = QToolButton(self)
         self._create_style_button.setIcon(Krita.instance().icon("list-add"))
+        self._create_style_button.setToolTip("Create a new style")
         self._create_style_button.clicked.connect(self._create_style)
         frame_layout.addWidget(self._create_style_button)
 
         self._delete_style_button = QToolButton(self)
         self._delete_style_button.setIcon(Krita.instance().icon("deletelayer"))
+        self._delete_style_button.setToolTip("Delete the current style")
         self._delete_style_button.clicked.connect(self._delete_style)
         frame_layout.addWidget(self._delete_style_button)
 
         self._refresh_button = QToolButton(self)
         self._refresh_button.setIcon(Krita.instance().icon("reload-preset"))
+        self._refresh_button.setToolTip("Look for new style files")
         self._refresh_button.clicked.connect(self._update_style_list)
         frame_layout.addWidget(self._refresh_button)
 
         self._open_folder_button = QToolButton(self)
         self._open_folder_button.setIcon(Krita.instance().icon("document-open"))
-        self._open_folder_button.clicked.connect(self._open_folder)
+        self._open_folder_button.setToolTip("Open folder containing style files")
+        self._open_folder_button.clicked.connect(self._open_style_folder)
         frame_layout.addWidget(self._open_folder_button)
 
         self._layout.addWidget(frame)
@@ -613,7 +642,21 @@ class StylePresets(SettingsTab):
         )
         add("cfg_scale", SliderSetting(StyleSettings.cfg_scale, self, 1, 20))
         self._layout.addStretch()
+
         self._style_widgets["name"].value_changed.connect(self._update_name)
+        self._style_widgets["sd_checkpoint"].add_button(
+            Krita.instance().icon("reload-preset"),
+            "Look for new checkpoint files",
+            Connection.instance().refresh,
+        )
+        if settings.server_mode is ServerMode.managed:
+            self._style_widgets["sd_checkpoint"].add_button(
+                Krita.instance().icon("document-open"),
+                "Open the folder where checkpoints are stored",
+                self._open_checkpoints_folder,
+            )
+        if self._style_widgets["loras"].open_folder_button:
+            self._style_widgets["loras"].open_folder_button.clicked.connect(self._open_lora_folder)
 
     @property
     def current_style(self) -> Style:
@@ -627,7 +670,8 @@ class StylePresets(SettingsTab):
             self._read_style(style)
 
     def update_model_lists(self):
-        self._read()
+        with self._write_guard:
+            self._read()
 
     def _create_style(self):
         checkpoint = self._style_widgets["sd_checkpoint"].value
@@ -640,7 +684,7 @@ class StylePresets(SettingsTab):
         Styles.list().delete(self.current_style)
         self._update_style_list()
 
-    def _open_folder(self):
+    def _open_style_folder(self):
         QDesktopServices.openUrl(QUrl.fromLocalFile(str(Styles.list().folder)))
 
     def _populate_style_list(self):
@@ -664,6 +708,18 @@ class StylePresets(SettingsTab):
 
     def _change_style(self):
         self._read_style(self.current_style)
+
+    def _open_checkpoints_folder(self):
+        if self.server.comfy_dir is not None:
+            QDesktopServices.openUrl(
+                QUrl.fromLocalFile(str(self.server.comfy_dir / "models" / "checkpoints"))
+            )
+
+    def _open_lora_folder(self):
+        if self.server.comfy_dir is not None:
+            QDesktopServices.openUrl(
+                QUrl.fromLocalFile(str(self.server.comfy_dir / "models" / "loras"))
+            )
 
     def _set_sd_version_text(self):
         if self.current_style.sd_version is SDVersion.auto:
@@ -836,7 +892,7 @@ class SettingsDialog(QDialog):
         self.setLayout(layout)
 
         self.connection = ConnectionSettings(server)
-        self.styles = StylePresets()
+        self.styles = StylePresets(server)
         self.diffusion = DiffusionSettings()
         self.performance = PerformanceSettings()
 

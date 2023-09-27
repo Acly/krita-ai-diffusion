@@ -47,10 +47,10 @@ class Server:
     backend = ServerBackend.cuda
     state = ServerState.stopped
     missing_resources: List[str]
+    comfy_dir: Optional[Path] = None
 
     _python_cmd: Optional[Path] = None
     _pip_cmd: Optional[Path] = None
-    _comfy_dir: Optional[Path] = None
     _cache_dir: Optional[Path] = None
     _process: Optional[asyncio.subprocess.Process] = None
     _task: Optional[asyncio.Task] = None
@@ -67,7 +67,7 @@ class Server:
         self._cache_dir = self.path / ".cache"
 
         comfy_pkg = ["main.py", "nodes.py", "custom_nodes"]
-        self._comfy_dir = _find_component(comfy_pkg, [self.path, self.path / "ComfyUI"])
+        self.comfy_dir = _find_component(comfy_pkg, [self.path, self.path / "ComfyUI"])
 
         python_pkg = ["python3.dll", "python.exe"] if _is_windows else ["python3", "pip3"]
         python_search_paths = [
@@ -75,13 +75,13 @@ class Server:
             self.path / "venv" / "bin",
             self.path / ".venv" / "bin",
         ]
-        if self._comfy_dir:
+        if self.comfy_dir:
             python_search_paths += [
-                self._comfy_dir / "python",
-                self._comfy_dir / "venv" / "bin",
-                self._comfy_dir / ".venv" / "bin",
-                self._comfy_dir.parent / "python",
-                self._comfy_dir.parent / "python_embeded",
+                self.comfy_dir / "python",
+                self.comfy_dir / "venv" / "bin",
+                self.comfy_dir / ".venv" / "bin",
+                self.comfy_dir.parent / "python",
+                self.comfy_dir.parent / "python_embeded",
             ]
         python_path = _find_component(python_pkg, python_search_paths)
         if python_path is None:
@@ -101,7 +101,7 @@ class Server:
         missing_nodes = [
             package.name
             for package in resources.required_custom_nodes
-            if not Path(self._comfy_dir / "custom_nodes" / package.folder).exists()
+            if not Path(self.comfy_dir / "custom_nodes" / package.folder).exists()
         ]
         self.missing_resources += missing_nodes
 
@@ -112,15 +112,15 @@ class Server:
                 if not (folder / resource.folder / resource.filename).exists()
             ]
 
-        self.missing_resources += find_missing(self._comfy_dir, resources.required_models)
+        self.missing_resources += find_missing(self.comfy_dir, resources.required_models)
         if len(self.missing_resources) > 0:
             self.state = ServerState.missing_resources
         else:
             self.state = ServerState.stopped
 
         # Optional resources
-        self.missing_resources += find_missing(self._comfy_dir, resources.default_checkpoints)
-        self.missing_resources += find_missing(self._comfy_dir, resources.optional_models)
+        self.missing_resources += find_missing(self.comfy_dir, resources.default_checkpoints)
+        self.missing_resources += find_missing(self.comfy_dir, resources.optional_models)
 
     async def _install(self, cb: InternalCB):
         self.state = ServerState.installing
@@ -131,29 +131,29 @@ class Server:
         self._cache_dir.mkdir(parents=True, exist_ok=True)
 
         no_python = self._python_cmd is None or self._pip_cmd is None
-        if _is_windows and (self._comfy_dir is None or no_python):
+        if _is_windows and (self.comfy_dir is None or no_python):
             # On Windows install an embedded version of Python
             python_dir = self.path / "python"
             self._python_cmd = python_dir / f"python{_exe}"
             self._pip_cmd = python_dir / "Scripts" / f"pip{_exe}"
             await _install_if_missing(python_dir, self._install_python, network, cb)
-        elif not _is_windows and (self._comfy_dir is None or self._pip_cmd is None):
+        elif not _is_windows and (self.comfy_dir is None or self._pip_cmd is None):
             # On Linux a system Python is required to create a virtual environment
             python_dir = self.path / "venv"
             await _install_if_missing(python_dir, self._create_venv, cb)
             self._python_cmd = python_dir / "bin" / "python3"
             self._pip_cmd = python_dir / "bin" / "pip3"
 
-        self._comfy_dir = self._comfy_dir or self.path / "ComfyUI"
-        await _install_if_missing(self._comfy_dir, self._install_comfy, network, cb)
+        self.comfy_dir = self.comfy_dir or self.path / "ComfyUI"
+        await _install_if_missing(self.comfy_dir, self._install_comfy, network, cb)
 
         for pkg in resources.required_custom_nodes:
-            dir = self._comfy_dir / "custom_nodes" / pkg.folder
+            dir = self.comfy_dir / "custom_nodes" / pkg.folder
             await _install_if_missing(dir, self._install_custom_node, pkg, network, cb)
 
         for resource in resources.required_models:
-            target_folder = self._comfy_dir / resource.folder
-            target_file = self._comfy_dir / resource.folder / resource.filename
+            target_folder = self.comfy_dir / resource.folder
+            target_file = self.comfy_dir / resource.folder / resource.filename
             if not target_file.exists():
                 target_folder.mkdir(parents=True, exist_ok=True)
                 await _download_cached(resource.name, network, resource.url, target_file, cb)
@@ -193,8 +193,8 @@ class Server:
         url = "https://github.com/comfyanonymous/ComfyUI/archive/refs/heads/master.zip"
         archive_path = self._cache_dir / "ComfyUI.zip"
         await _download_cached("ComfyUI", network, url, archive_path, cb)
-        await _extract_archive("ComfyUI", archive_path, self._comfy_dir.parent, cb)
-        _rename_extracted_folder("ComfyUI", self._comfy_dir, "-master")
+        await _extract_archive("ComfyUI", archive_path, self.comfy_dir.parent, cb)
+        _rename_extracted_folder("ComfyUI", self.comfy_dir, "-master")
 
         torch_args = ["install", "torch", "torchvision", "torchaudio", "--index-url"]
         torch_index = {
@@ -202,17 +202,17 @@ class Server:
             ServerBackend.cpu: "https://download.pytorch.org/whl/cpu",
         }
         torch_cmd = [self._pip_cmd, *torch_args, torch_index[self.backend]]
-        await _execute_process("PyTorch", torch_cmd, self._comfy_dir, cb)
+        await _execute_process("PyTorch", torch_cmd, self.comfy_dir, cb)
 
-        requirements_txt = self._comfy_dir / "requirements.txt"
+        requirements_txt = self.comfy_dir / "requirements.txt"
         requirements_cmd = [self._pip_cmd, "install", "-r", requirements_txt]
-        await _execute_process("ComfyUI", requirements_cmd, self._comfy_dir, cb)
+        await _execute_process("ComfyUI", requirements_cmd, self.comfy_dir, cb)
         cb("Installing ComfyUI", "Finished installing ComfyUI")
 
     async def _install_custom_node(
         self, pkg: CustomNode, network: QNetworkAccessManager, cb: InternalCB
     ):
-        folder = self._comfy_dir / "custom_nodes" / pkg.folder
+        folder = self.comfy_dir / "custom_nodes" / pkg.folder
         resource_url = f"{pkg.url}/archive/refs/heads/main.zip"
         resource_zip_path = self._cache_dir / f"{pkg.folder}.zip"
         await _download_cached(pkg.name, network, resource_url, resource_zip_path, cb)
@@ -265,7 +265,7 @@ class Server:
             all_optional = chain(resources.default_checkpoints, resources.optional_models)
             to_install = (r for r in all_optional if r.name in packages)
             for resource in to_install:
-                target_file = self._comfy_dir / resource.folder / resource.filename
+                target_file = self.comfy_dir / resource.folder / resource.filename
                 if not target_file.exists():
                     await _download_cached(resource.name, network, resource.url, target_file, cb)
         except Exception as e:
@@ -287,7 +287,7 @@ class Server:
         self._process = await asyncio.create_subprocess_exec(
             self._python_cmd,
             *args,
-            cwd=self._comfy_dir,
+            cwd=self.comfy_dir,
             stdout=asyncio.subprocess.PIPE,
             stderr=asyncio.subprocess.PIPE,
             creationflags=_process_flags,
@@ -364,7 +364,7 @@ class Server:
 
     @property
     def has_comfy(self):
-        return self._comfy_dir is not None
+        return self.comfy_dir is not None
 
 
 def _find_component(files: List[str], search_paths: List[Path]):
