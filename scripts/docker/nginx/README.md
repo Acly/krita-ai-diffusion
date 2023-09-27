@@ -1,6 +1,6 @@
 # ComfyUI Server for Krita plugin - Docker image
 
-This image provides Stable Diffusion with all the prerequisites for use in Krita painting software via [this plugin](https://github.com/Acly/krita-ai-diffusion).
+This image provides Stable Diffusion with all the prerequisites for use in Krita painting software via [this plugin](https://github.com/Acly/krita-ai-diffusion). You can find a guide on how to set it up on Cloud GPU services [here](https://github.com/Acly/krita-ai-diffusion/blob/doc/cloud-gpu.md).
 
 ## Contents
 
