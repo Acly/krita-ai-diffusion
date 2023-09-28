@@ -68,7 +68,7 @@ automatically try to connect. Using a remote server is also possible this way.
 To use an external installation, the following extensions and models are required:
 * ComfyUI custom nodes:
   * [ControlNet preprocessors](https://github.com/Fannovel16/comfyui_controlnet_aux)
-  * [IP-Adapter](https://github.com/laksjdjf/IPAdapter-ComfyUI)
+  * [IP-Adapter](https://github.com/cubiq/ComfyUI_IPAdapter_plus)
   * [External tooling nodes](https://github.com/Acly/comfyui-tooling-nodes)
 * Model files (paths are relative to ComfyUI install folder):
   * [ControlNet inpaint](https://huggingface.co/comfyanonymous/ControlNet-v1-1_fp16_safetensors/resolve/main/control_v11p_sd15_inpaint_fp16.safetensors) to `models/controlnet`

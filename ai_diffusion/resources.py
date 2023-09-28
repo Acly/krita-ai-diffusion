@@ -21,9 +21,9 @@ required_custom_nodes = [
     ),
     CustomNode(
         "IP-Adapter",
-        "IPAdapter-ComfyUI",
-        "https://github.com/laksjdjf/IPAdapter-ComfyUI",
-        ["IPAdapter"],
+        "ComfyUI_IPAdapter_plus",
+        "https://github.com/cubiq/ComfyUI_IPAdapter_plus",
+        ["IPAdapterModelLoader", "IPAdapterApply"],
     ),
     CustomNode(
         "External Tooling Nodes",
@@ -75,7 +75,7 @@ required_models = [
     ModelResource(
         "IP-Adapter model",
         ResourceKind.ip_adapter,
-        Path("custom_nodes/IPAdapter-ComfyUI/models"),
+        Path("custom_nodes/ComfyUI_IPAdapter_plus/models"),
         "ip-adapter_sd15.bin",
         "https://huggingface.co/h94/IP-Adapter/resolve/main/models/ip-adapter_sd15.bin",
     ),

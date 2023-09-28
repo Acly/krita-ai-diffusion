@@ -143,7 +143,7 @@ class Client:
         client.clip_vision_model = _find_clip_vision_model(cv, "SD1.5")
 
         # Retrieve IP-Adapter model
-        ip = nodes["IPAdapter"]["input"]["required"]["model_name"][0]
+        ip = nodes["IPAdapterModelLoader"]["input"]["required"]["ipadapter_file"][0]
         client.ip_adapter_model = _find_ip_adapter(ip, "sd15")
 
         # Retrieve upscale models
