@@ -1,0 +1,12 @@
+runpod:
+    base_path: /models
+
+    checkpoints: checkpoints
+    clip_vision: clip_vision
+    configs: checkpoints
+    vae: vae
+    loras: lora
+    upscale_models: upscale_models
+    embeddings: embeddings
+    hypernetworks: hypernetworks
+    controlnet: controlnet

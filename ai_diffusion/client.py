@@ -104,27 +104,18 @@ class Client:
 
     @staticmethod
     async def connect(url=default_url):
-        # Parse url
-        url = url.strip("/")
-        if url.startswith("http"):
-            protocol, hostname = url.split("://", 1)
-        else:
-            protocol = "http"
-            hostname = url
-            url = f"{protocol}://{hostname}"
+        url_http, url_ws = parse_url(url)
 
-        client = Client(url)
+        client = Client(url_http)
         try:
-            ws_protocol = "wss" if protocol == "https" else "ws"
-            ws_url = f"{ws_protocol}://{hostname}"
             client._websocket = await websockets.connect(
-                f"{ws_url}/ws?clientId={client._id}",
+                f"{url_ws}/ws?clientId={client._id}",
                 max_size=2**30,
                 read_limit=2**30,
             )
         except OSError as e:
             raise NetworkError(
-                e.errno, f"Could not connect to websocket server at {ws_url}: {str(e)}", ws_url
+                e.errno, f"Could not connect to websocket server at {url_ws}: {str(e)}", url_ws
             )
         # Retrieve system info
         client.device_info = DeviceInfo.parse(await client._get("system_stats"))
@@ -139,16 +130,9 @@ class Client:
         if len(missing) > 0:
             raise MissingResource(ResourceKind.node, missing)
 
-        # Retrieve SD checkpoints
-        client.checkpoints = nodes["CheckpointLoaderSimple"]["input"]["required"]["ckpt_name"][0]
+        client._refresh_models(nodes)
         if len(client.checkpoints) == 0:
             raise MissingResource(ResourceKind.checkpoint)
-
-        # Retrieve VAE
-        client.vae_models = nodes["VAELoader"]["input"]["required"]["vae_name"][0]
-
-        # Retrieve LoRA models
-        client.lora_models = nodes["LoraLoader"]["input"]["required"]["lora_name"][0]
 
         # Retrieve ControlNet models
         cns = nodes["ControlNetLoader"]["input"]["required"]["control_net_name"][0]
@@ -250,6 +234,15 @@ class Client:
     async def disconnect(self):
         await self._websocket.close()
 
+    async def refresh(self):
+        nodes = await self._get("object_info")
+        self._refresh_models(nodes)
+
+    def _refresh_models(self, nodes: dict):
+        self.checkpoints = nodes["CheckpointLoaderSimple"]["input"]["required"]["ckpt_name"][0]
+        self.vae_models = nodes["VAELoader"]["input"]["required"]["vae_name"][0]
+        self.lora_models = nodes["LoraLoader"]["input"]["required"]["lora_name"][0]
+
     @property
     def queued_count(self):
         return len(self._jobs)
@@ -291,6 +284,14 @@ class Client:
             self._active = None
             return True
         return False
+
+
+def parse_url(url_http: str):
+    url_http = url_http.strip("/")
+    if not url_http.startswith("http"):
+        url_http = f"http://{url_http}"
+    url_ws = url_http.replace("http", "ws", 1)
+    return url_http, url_ws
 
 
 def _find_control_model(model_list: Sequence[str], mode: ControlMode):
