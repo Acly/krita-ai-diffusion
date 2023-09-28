@@ -39,6 +39,7 @@ The plugin comes with an integrated installer for the Stable Diffusion backend.
 
 * Windows or Linux (MacOS is untested)
 * NVIDIA graphics card with 6+ GB VRAM is recommended (CPU is supported, but slow)
+    * _or_ you can rent a GPU from a Cloud service
 * _On Linux:_ Python + venv must be installed (available via package manager, eg. `apt install python3-venv`)
 
 ### Installation
@@ -51,6 +52,12 @@ The plugin comes with an integrated installer for the Stable Diffusion backend.
 1. Enable the plugin in Krita (Settings ‣ Configure Krita ‣ Python Plugins Manager) and restart.
 1. To show the plugin docker: Settings ‣ Dockers ‣ AI Image Generation.
 1. In the plugin docker, click "Configure" to start server installation. _Requires ~10 GB free disk space._
+
+### GPU Cloud
+
+You can also rent a GPU instead of running locally. In that case, step 5 is not needed. Instead use the plugin to connect to a remote server.
+
+There is a [step by step guide](https://github.com/Acly/krita-ai-diffusion/blob/main/doc/cloud-gpu.md) on how to setup cloud GPU on [runpod.io](https://www.runpod.io) or [vast.ai](https://vast.ai).
 
 ### _Optional:_ Custom ComfyUI Server
 

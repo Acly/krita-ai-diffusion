@@ -1,6 +1,6 @@
 """Generative AI plugin for Krita using Stable Diffusion"""
 
-__version__ = "1.1.0"
+__version__ = "1.2.0"
 
 from . import util
 from .settings import Settings, Setting, settings, PerformancePreset, ServerBackend, ServerMode
