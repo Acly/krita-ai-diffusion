@@ -376,7 +376,7 @@ class ModelRegistry(QObject):
             if self._task is None and connection.state is ConnectionState.connected:
                 self._task = eventloop._loop.create_task(self._handle_messages())
             elif self._task and connection.state is ConnectionState.disconnected:
-                self._task.cancel()
+                assert self._task.done()
                 self._task = None
 
         connection.changed.connect(handle_messages)
@@ -406,30 +406,41 @@ class ModelRegistry(QObject):
 
         return None
 
+    async def stop_listening(self):
+        if self._task is not None:
+            self._task.cancel()
+            await self._task
+
     def report_error(self, message: str):
         for m in self._models:
             m.report_error(message)
 
-    def _find_model(self, job_id: str):
+    def clear_error(self):
+        for m in self._models:
+            m.clear_error()
+
+    def _find_model(self, job_id: str) -> Optional[Model]:
         return next((m for m in self._models if m.jobs.find(job_id)), None)
 
-    async def _handle_messages_impl(self):
+    async def _handle_messages(self):
         assert Connection.instance().state is ConnectionState.connected
         client = Connection.instance().client
+        temporary_disconnect = False
 
-        async for msg in client.listen():
-            model = self._find_model(msg.job_id)
-            if model is not None:
-                model.handle_message(msg)
-
-    async def _handle_messages(self):
         try:
-            # TODO: maybe use async for websockets.connect which is meant for this
-            while True:
-                # Run inner loop
-                await _report_errors(self, self._handle_messages_impl())
-                # After error or unexpected disconnect, wait a bit before reconnecting
-                await asyncio.sleep(5)
-
+            async for msg in client.listen():
+                if msg.event is ClientEvent.error and not msg.job_id:
+                    self.report_error(f"Error communicating with server: {msg.error}")
+                elif msg.event is ClientEvent.disconnected:
+                    temporary_disconnect = True
+                    self.report_error("Disconnected from server, trying to reconnect...")
+                elif msg.event is ClientEvent.connected:
+                    if temporary_disconnect:
+                        temporary_disconnect = False
+                        self.clear_error()
+                else:
+                    model = self._find_model(msg.job_id)
+                    if model is not None:
+                        model.handle_message(msg)
         except asyncio.CancelledError:
             pass  # shutdown

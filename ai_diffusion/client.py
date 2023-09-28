@@ -1,3 +1,4 @@
+import asyncio
 from enum import Enum
 from collections import deque
 import json
@@ -20,6 +21,8 @@ class ClientEvent(Enum):
     finished = 1
     interrupted = 2
     error = 3
+    connected = 4
+    disconnected = 5
 
 
 class ClientMessage(NamedTuple):
@@ -86,7 +89,6 @@ class Client:
     default_url = "http://127.0.0.1:8188"
 
     _requests = RequestManager()
-    _websocket: websockets.WebSocketClientProtocol
     _id: str
     _jobs: deque
     _active: Optional[JobInfo] = None
@@ -104,19 +106,8 @@ class Client:
 
     @staticmethod
     async def connect(url=default_url):
-        url_http, url_ws = parse_url(url)
+        client = Client(parse_url(url))
 
-        client = Client(url_http)
-        try:
-            client._websocket = await websockets.connect(
-                f"{url_ws}/ws?clientId={client._id}",
-                max_size=2**30,
-                read_limit=2**30,
-            )
-        except OSError as e:
-            raise NetworkError(
-                e.errno, f"Could not connect to websocket server at {url_ws}: {str(e)}", url_ws
-            )
         # Retrieve system info
         client.device_info = DeviceInfo.parse(await client._get("system_stats"))
 
@@ -175,10 +166,33 @@ class Client:
         return job_id
 
     async def listen(self):
+        url = websocket_url(self.url)
+        async for websocket in websockets.connect(
+            f"{url}/ws?clientId={self._id}", max_size=2**30, read_limit=2**30
+        ):
+            try:
+                async for msg in self._listen(websocket):
+                    yield msg
+            except websockets.ConnectionClosedError as e:
+                log.warning(f"Websocket connection closed: {str(e)}")
+                yield ClientMessage(ClientEvent.disconnected, "", 0)
+            except OSError as e:
+                msg = f"Could not connect to websocket server at {url}: {str(e)}"
+                yield ClientMessage(ClientEvent.error, "", 0, error=msg)
+            except asyncio.CancelledError:
+                websocket.close()
+                self._active = None
+                self._jobs.clear()
+                break
+            except Exception as e:
+                log.exception("Unhandled exception in websocket listener")
+                yield ClientMessage(ClientEvent.error, "", 0, error=str(e))
+
+    async def _listen(self, websocket: websockets.WebSocketClientProtocol):
         progress = None
         images = ImageCollection()
 
-        async for msg in self._websocket:
+        async for msg in websocket:
             if isinstance(msg, bytes):
                 image = _extract_message_png_image(msg)
                 if image is not None:
@@ -186,6 +200,10 @@ class Client:
 
             elif isinstance(msg, str):
                 msg = json.loads(msg)
+
+                if msg["type"] == "status":
+                    yield ClientMessage(ClientEvent.connected, "", 0)
+
                 if msg["type"] == "execution_start":
                     id = msg["data"]["prompt_id"]
                     self._active = self._start_job(id)
@@ -230,9 +248,6 @@ class Client:
     async def clear_queue(self):
         await self._post("queue", {"clear": True})
         self._jobs.clear()
-
-    async def disconnect(self):
-        await self._websocket.close()
 
     async def refresh(self):
         nodes = await self._get("object_info")
@@ -286,12 +301,15 @@ class Client:
         return False
 
 
-def parse_url(url_http: str):
-    url_http = url_http.strip("/")
-    if not url_http.startswith("http"):
-        url_http = f"http://{url_http}"
-    url_ws = url_http.replace("http", "ws", 1)
-    return url_http, url_ws
+def parse_url(url: str):
+    url = url.strip("/")
+    if not url.startswith("http"):
+        url = f"http://{url}"
+    return url
+
+
+def websocket_url(url_http: str):
+    return url_http.replace("http", "ws", 1)
 
 
 def _find_control_model(model_list: Sequence[str], mode: ControlMode):

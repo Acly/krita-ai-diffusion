@@ -1,7 +1,8 @@
+import asyncio
 import pytest
 
-from ai_diffusion import Client, ClientEvent, ComfyWorkflow, NetworkError, Image, Extent
-from ai_diffusion.client import parse_url
+from ai_diffusion import Client, ClientEvent, ComfyWorkflow, NetworkError, Image, Extent, eventloop
+from ai_diffusion.client import parse_url, websocket_url
 
 default_checkpoint = "realisticVisionV51_v51VAE.safetensors"
 
@@ -37,37 +38,43 @@ def test_connect_bad_url(qtapp):
 def test_cancel(qtapp, cancel_point):
     async def main():
         client = await Client.connect()
-        job_id = await client.enqueue(make_default_workflow(steps=200))
-        assert client.queued_count == 1
-        if cancel_point == "after_enqueue":
-            await client.interrupt()
-
+        job_id = None
         interrupted = False
-        async for msg in client.listen():
-            assert msg.event is not ClientEvent.finished
-            assert msg.job_id == job_id
-            if not interrupted:
-                if cancel_point == "after_start":
-                    await client.interrupt()
-                    interrupted = True
-                if cancel_point == "after_sampling" and msg.progress > 0.1:
-                    await client.interrupt()
-                    interrupted = True
-            if msg.event is ClientEvent.interrupted:
-                assert msg.job_id == job_id
-                break
-            else:
-                assert client.is_executing
-        assert client.is_executing == False and client.queued_count == 0
+        stage = 0
 
-        job_id = await client.enqueue(make_trivial_workflow())
-        assert client.queued_count == 1
         async for msg in client.listen():
-            assert msg.event is not ClientEvent.interrupted
-            assert msg.job_id == job_id
-            if msg.event is ClientEvent.finished:
-                assert msg.images[0].extent == Extent(16, 16)
-                break
+            if stage == 0:
+                assert msg.event is not ClientEvent.finished
+                assert msg.job_id == job_id or msg.job_id == ""
+                if not job_id:
+                    job_id = await client.enqueue(make_default_workflow(steps=200))
+                    assert client.queued_count == 1
+                if not interrupted:
+                    if cancel_point == "after_enqueue":
+                        await client.interrupt()
+                        interrupted = True
+                    if cancel_point == "after_start" and msg.event is ClientEvent.progress:
+                        await client.interrupt()
+                        interrupted = True
+                    if cancel_point == "after_sampling" and msg.progress > 0.1:
+                        await client.interrupt()
+                        interrupted = True
+                if msg.event is ClientEvent.interrupted:
+                    assert msg.job_id == job_id
+                    assert client.is_executing == False and client.queued_count == 0
+
+                    job_id = await client.enqueue(make_trivial_workflow())
+                    stage = 1
+                    assert client.queued_count == 1
+                elif msg.event is ClientEvent.progress:
+                    assert client.is_executing
+
+            elif stage == 1:
+                assert msg.event is not ClientEvent.interrupted
+                assert msg.job_id == job_id or msg.job_id == ""
+                if msg.event is ClientEvent.finished:
+                    assert msg.images[0].extent == Extent(16, 16)
+                    break
 
         assert client.is_executing == False and client.queued_count == 0
 
@@ -75,24 +82,32 @@ def test_cancel(qtapp, cancel_point):
 
 
 def test_disconnect(qtapp):
+    async def listen(client):
+        async for msg in client.listen():
+            assert msg.event is ClientEvent.connected
+
     async def main():
         client = await Client.connect()
-        await client.disconnect()
+        task = eventloop._loop.create_task(listen(client))
+        task.cancel()
+        with pytest.raises(asyncio.CancelledError):
+            await task
         assert client.is_executing == False and client.queued_count == 0
 
     qtapp.run(main())
 
 
 @pytest.mark.parametrize(
-    "url,expected",
+    "url,expected_http,expected_ws",
     [
-        ("http://localhost:8000", ("http://localhost:8000", "ws://localhost:8000")),
-        ("http://localhost:8000/", ("http://localhost:8000", "ws://localhost:8000")),
-        ("http://localhost:8000/foo", ("http://localhost:8000/foo", "ws://localhost:8000/foo")),
-        ("http://127.0.0.1:1234", ("http://127.0.0.1:1234", "ws://127.0.0.1:1234")),
-        ("localhost:8000", ("http://localhost:8000", "ws://localhost:8000")),
-        ("https://localhost:8000", ("https://localhost:8000", "wss://localhost:8000")),
+        ("http://localhost:8000", "http://localhost:8000", "ws://localhost:8000"),
+        ("http://localhost:8000/", "http://localhost:8000", "ws://localhost:8000"),
+        ("http://localhost:8000/foo", "http://localhost:8000/foo", "ws://localhost:8000/foo"),
+        ("http://127.0.0.1:1234", "http://127.0.0.1:1234", "ws://127.0.0.1:1234"),
+        ("localhost:8000", "http://localhost:8000", "ws://localhost:8000"),
+        ("https://localhost:8000", "https://localhost:8000", "wss://localhost:8000"),
     ],
 )
-def test_parse_url(url, expected):
-    assert parse_url(url) == expected
+def test_parse_url(url, expected_http, expected_ws):
+    parsed = parse_url(url)
+    assert parsed == expected_http and websocket_url(parsed) == expected_ws

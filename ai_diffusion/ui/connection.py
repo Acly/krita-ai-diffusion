@@ -43,6 +43,8 @@ class Connection(QObject):
         super().__init__()
 
     async def _connect(self, url: str):
+        if self.state is ConnectionState.connected:
+            await self.disconnect()
         self.state = ConnectionState.connecting
         self.error = None
         self.missing_resource = None
@@ -69,9 +71,10 @@ class Connection(QObject):
         eventloop.run(self._connect(url))
 
     async def disconnect(self):
-        if self.client is not None:
-            await self.client.disconnect()
-            self.client = None
+        from .model import ModelRegistry
+
+        await ModelRegistry.instance().stop_listening()
+        self.client = None
         self.state = ConnectionState.disconnected
         self.error = None
         self.missing_resource = None
