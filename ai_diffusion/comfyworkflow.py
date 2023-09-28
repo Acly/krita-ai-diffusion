@@ -82,6 +82,9 @@ class ComfyWorkflow:
     def load_clip_vision(self, clip_name):
         return self.add_cached("CLIPVisionLoader", 1, clip_name=clip_name)
 
+    def load_ip_adapter(self, ipadapter_file):
+        return self.add_cached("IPAdapterModelLoader", 1, ipadapter_file=ipadapter_file)
+
     def load_upscale_model(self, model_name):
         return self.add_cached("UpscaleModelLoader", 1, model_name=model_name)
 
@@ -112,17 +115,16 @@ class ComfyWorkflow:
             strength=strength,
         )
 
-    def ip_adapter(self, model_name, model, clip_vision, image, weight, mask=None, dtype="fp16"):
+    def apply_ip_adapter(self, ipadapter, clip_vision, image, model, weight, noise=0.0):
         return self.add(
-            "IPAdapter",
+            "IPAdapterApply",
             1,
-            model_name=model_name,
-            model=model,
+            ipadapter=ipadapter,
             clip_vision=clip_vision,
             image=image,
-            mask=mask,
+            model=model,
             weight=weight,
-            dtype=dtype,
+            noise=noise,
         )
 
     def inpaint_preprocessor(self, image, mask):

@@ -64,18 +64,22 @@ RUN git clone https://github.com/comfyanonymous/ComfyUI.git /ComfyUI && \
     pip3 cache purge
 
 # Install ComfyUI Custom Nodes
+# DEPRECATED: https://github.com/laksjdjf/IPAdapter-ComfyUI can be removed at some point
 RUN git clone https://github.com/ltdrdata/ComfyUI-Manager.git /ComfyUI/custom_nodes/ComfyUI-Manager && \
     git clone https://github.com/Fannovel16/comfyui_controlnet_aux /ComfyUI/custom_nodes/comfyui_controlnet_aux && \
     git clone https://github.com/laksjdjf/IPAdapter-ComfyUI /ComfyUI/custom_nodes/IPAdapter-ComfyUI && \
+    git clone https://github.com/cubiq/ComfyUI_IPAdapter_plus /ComfyUI/custom_nodes/ComfyUI_IPAdapter_plus && \
     git clone https://github.com/Acly/comfyui-tooling-nodes /ComfyUI/custom_nodes/comfyui-tooling-nodes && \
     pip3 install -r /ComfyUI/custom_nodes/ComfyUI-Manager/requirements.txt && \
     pip3 install -r /ComfyUI/custom_nodes/comfyui_controlnet_aux/requirements.txt && \
     pip3 cache purge
 
 # Copy models
+# DEPRECATED: ComfyUI/custom_nodes/IPAdapter-ComfyUI/models/ can be removed at some point
 RUN mkdir -p models
 COPY models/ /models/
 COPY ip-adapter/* /ComfyUI/custom_nodes/IPAdapter-ComfyUI/models/
+COPY ip-adapter/* /ComfyUI/custom_nodes/ComfyUI_IPAdapter_plus/models/
 COPY extra_model_paths.yaml /ComfyUI/
 
 # Install Jupyter

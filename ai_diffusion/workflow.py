@@ -285,7 +285,8 @@ def inpaint(comfy: Client, style: Style, image: Image, mask: Mask, cond: Conditi
     positive, negative = cond.create(w, comfy, clip, style)
     if sd_ver.has_ip_adapter:
         clip_vision = w.load_clip_vision(comfy.clip_vision_model)
-        model = w.ip_adapter(comfy.ip_adapter_model, model, clip_vision, in_image, 0.5)
+        ip_adapter = w.load_ip_adapter(comfy.ip_adapter_model)
+        model = w.apply_ip_adapter(ip_adapter, clip_vision, in_image, model, 0.5)
     latent = w.vae_encode_inpaint(vae, in_image, in_mask)
     latent = w.batch_latent(latent, batch)
     out_latent = w.ksampler(
