@@ -43,6 +43,9 @@ class Document:
         if not user_selection:
             return None
 
+        if _selection_is_entire_document(user_selection, self.extent):
+            return None
+
         selection = user_selection.duplicate()
         size_factor = Extent(selection.width(), selection.height()).diagonal
         grow_pixels = int(grow * size_factor)
@@ -128,3 +131,14 @@ def _traverse_layers(node, type_filter=None):
         yield from _traverse_layers(child, type_filter)
         if not type_filter or child.type() in type_filter:
             yield child
+
+
+def _selection_is_entire_document(selection, extent: Extent):
+    bounds = Bounds(selection.x(), selection.y(), selection.width(), selection.height())
+    if bounds.x > 0 or bounds.y > 0:
+        return False
+    if bounds.width + bounds.x < extent.width or bounds.height + bounds.y < extent.height:
+        return False
+    mask = selection.pixelData(*bounds)
+    is_opaque = all(x == b"\xff" for x in mask)
+    return is_opaque
