@@ -235,7 +235,7 @@ _control_filename = {
     },
     ControlMode.line_art: {
         SDVersion.sd1_5: ["control_v11p_sd15_lineart", "control_lora_rank128_v11p_sd15_lineart"],
-        SDVersion.sdxl: "control-lora-sketch-rank256",
+        SDVersion.sdxl: ["control-lora-sketch-rank", "sai_xl_sketch_"],
     },
     ControlMode.soft_edge: {
         SDVersion.sd1_5: ["control_v11p_sd15_softedge", "control_lora_rank128_v11p_sd15_softedge"],
@@ -243,11 +243,11 @@ _control_filename = {
     },
     ControlMode.canny_edge: {
         SDVersion.sd1_5: ["control_v11p_sd15_canny", "control_lora_rank128_v11p_sd15_canny"],
-        SDVersion.sdxl: "control-lora-canny-rank256",
+        SDVersion.sdxl: ["control-lora-canny-rank", "sai_xl_canny_"],
     },
     ControlMode.depth: {
         SDVersion.sd1_5: ["control_v11f1p_sd15_depth", "control_lora_rank128_v11f1p_sd15_depth"],
-        SDVersion.sdxl: "control-lora-depth-rank256",
+        SDVersion.sdxl: ["control-lora-depth-rank", "sai_xl_depth_"],
     },
     ControlMode.normal: {
         SDVersion.sd1_5: [
@@ -258,7 +258,7 @@ _control_filename = {
     },
     ControlMode.pose: {
         SDVersion.sd1_5: ["control_v11p_sd15_openpose", "control_lora_rank128_v11p_sd15_openpose"],
-        SDVersion.sdxl: "control-lora-openposeXL2-rank256",
+        SDVersion.sdxl: ["control-lora-openposeXL2-rank", "thibaud_xl_openpose"],
     },
     ControlMode.segmentation: {
         SDVersion.sd1_5: ["control_v11p_sd15_seg", "control_lora_rank128_v11p_sd15_seg"],
