@@ -58,7 +58,7 @@ The UI is very similar to runpod.io and so are the steps to set it up.
 
 ### Template
 
-You can use [this template](https://cloud.vast.ai/?ref_id=87451&template_id=698aae540db7f987f5a8cbbdac7ad9b9). Try to select a pod in your region with good internet connection. Click _Rent_.
+You can use [this template](https://cloud.vast.ai/?ref_id=87451&creator_id=87451&name=Stable%20Diffusion%20ComfyUI%20for%20Krita). Try to select a pod in your region with good internet connection. Click _Rent_.
 
 ![](images/vast-1.png)
 
