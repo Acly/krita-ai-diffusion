@@ -38,9 +38,16 @@ The plugin comes with an integrated installer for the Stable Diffusion backend.
 ### Requirements
 
 * Windows or Linux (MacOS is untested)
-* NVIDIA graphics card with 6+ GB VRAM is recommended (CPU is supported, but slow)
-    * _or_ you can rent a GPU from a Cloud service
 * _On Linux:_ Python + venv must be installed (available via package manager, eg. `apt install python3-venv`)
+
+#### Hardware support
+
+<table>
+<tr><td>NVIDIA GPU</td><td>supported via CUDA</td></tr>
+<tr><td>AMD GPU</td><td>supported via DirectML, Windows only</td></tr>
+<tr><td>CPU</td><td>supported, but very slow</td></tr>
+<tr><td>Cloud GPU</td><td>Docker image provided, see <a href="#gpu-cloud">below</a></td></tr>
+</table>
 
 ### Installation
 
