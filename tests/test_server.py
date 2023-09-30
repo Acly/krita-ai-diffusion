@@ -100,7 +100,10 @@ def test_run_external(qtapp, pytestconfig):
 
 
 def test_python_version(qtapp):
-    py = server.get_python_version("python")
-    assert py.startswith("Python 3.")
-    pip = server.get_python_version("pip")
-    assert pip.startswith("pip ")
+    async def main():
+        py = await server.get_python_version("python")
+        assert py.startswith("Python 3.")
+        pip = await server.get_python_version("pip")
+        assert pip.startswith("pip ")
+
+    qtapp.run(main())

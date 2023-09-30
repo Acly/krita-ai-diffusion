@@ -53,8 +53,10 @@ def default_style(comfy, sd_ver=SDVersion.sd1_5):
 
 
 async def receive_images(comfy: Client, workflow: ComfyWorkflow):
-    job_id = await comfy.enqueue(workflow)
+    job_id = None
     async for msg in comfy.listen():
+        if not job_id:
+            job_id = await comfy.enqueue(workflow)
         if msg.event is ClientEvent.finished and msg.job_id == job_id:
             return msg.images
         if msg.event is ClientEvent.error and msg.job_id == job_id:
