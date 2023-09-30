@@ -142,6 +142,8 @@ class Server:
             await _install_if_missing(python_dir, self._create_venv, cb)
             self._python_cmd = python_dir / "bin" / "python3"
             self._pip_cmd = python_dir / "bin" / "pip3"
+        log.info(f"Using Python: {await get_python_version(self._python_cmd)}, {self._python_cmd}")
+        log.info(f"Using pip: {await get_python_version(self._pip_cmd)}, {self._pip_cmd}")
 
         self.comfy_dir = self.comfy_dir or self.path / "ComfyUI"
         await _install_if_missing(self.comfy_dir, self._install_comfy, network, cb)
@@ -463,3 +465,12 @@ def _rename_extracted_folder(name: str, path: Path, suffix: str):
             f"Error during {name} installation: folder {extracted_folder} does not exist"
         )
     extracted_folder.rename(path)
+
+
+async def get_python_version(python_cmd: Path):
+    enc = locale.getpreferredencoding(False)
+    proc = await asyncio.create_subprocess_exec(
+        python_cmd, "--version", stdout=asyncio.subprocess.PIPE
+    )
+    out, _ = await proc.communicate()
+    return out.decode(enc).strip()

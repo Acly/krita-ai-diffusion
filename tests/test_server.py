@@ -4,7 +4,7 @@ from PyQt5.QtNetwork import QNetworkAccessManager
 import pytest
 import shutil
 
-from ai_diffusion import network, Server, ServerState, ServerBackend, InstallationProgress
+from ai_diffusion import network, Server, ServerState, ServerBackend, InstallationProgress, server
 
 test_dir = Path(__file__).parent / ".server"
 comfy_dir = Path("C:/Dev/ComfyUI")
@@ -97,3 +97,10 @@ def test_run_external(qtapp, pytestconfig):
         assert server.state is ServerState.stopped
 
     qtapp.run(main())
+
+
+def test_python_version(qtapp):
+    py = server.get_python_version("python")
+    assert py.startswith("Python 3.")
+    pip = server.get_python_version("pip")
+    assert pip.startswith("pip ")
