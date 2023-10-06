@@ -42,11 +42,13 @@ The plugin comes with an integrated installer for the Stable Diffusion backend.
 
 #### Hardware support
 
+To run locally a powerful graphics card with at least 6 GB VRAM is recommended. Otherwise generating images will take very long!
+
 <table>
 <tr><td>NVIDIA GPU</td><td>supported via CUDA</td></tr>
 <tr><td>AMD GPU</td><td>supported via DirectML, Windows only</td></tr>
 <tr><td>CPU</td><td>supported, but very slow</td></tr>
-<tr><td>Cloud GPU</td><td>Docker image provided, see <a href="#gpu-cloud">below</a></td></tr>
+<tr><td>Cloud GPU</td><td>supported, rent a GPU on an hourly basis, see <a href="#gpu-cloud">below</a></td></tr>
 </table>
 
 ### Installation
