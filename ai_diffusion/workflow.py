@@ -232,9 +232,9 @@ def apply_conditioning(
         image = control.load_image(w)
         if ip_image is None:
             ip_image = image
+            ip_strength = control.strength
         else:
             ip_image = w.batch_image(ip_image, image)
-        ip_strength = max(ip_strength, control.strength)
     if ip_image is not None:
         clip_vision = w.load_clip_vision(comfy.clip_vision_model)
         ip_adapter = w.load_ip_adapter(comfy.ip_adapter_model)

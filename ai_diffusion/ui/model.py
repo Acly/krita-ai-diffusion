@@ -257,6 +257,10 @@ class Model(QObject):
         job.id = await client.enqueue(work)
         self.changed.emit()
 
+    def remove_control_layer(self, control: Control):
+        self.control.remove(control)
+        self.changed.emit()
+
     def cancel(self, active=False, queued=False):
         if queued:
             to_remove = [job for job in self.jobs if job.state is State.queued]

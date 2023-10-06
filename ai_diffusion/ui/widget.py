@@ -79,7 +79,7 @@ class ControlWidget(QWidget):
     def __init__(self, parent=None):
         super().__init__(parent)
         self._model = Model.active()
-        self._control = Control(ControlMode.scribble, self._model.document.active_layer)
+        self._control = Control(ControlMode.image, self._model.document.active_layer)
 
         layout = QHBoxLayout(self)
         layout.setContentsMargins(0, 0, 0, 0)
@@ -127,6 +127,7 @@ class ControlWidget(QWidget):
         button_height = self.remove_button.iconSize().height()
         self.remove_button.setIconSize(QSize(int(button_height * 1.25), button_height))
         self.remove_button.setAutoRaise(True)
+        self.remove_button.clicked.connect(self.remove)
 
         layout.addWidget(self.mode_select)
         layout.addWidget(self.layer_select, 1)
@@ -174,6 +175,9 @@ class ControlWidget(QWidget):
         self.generate_button.setEnabled(False)
         self.layer_select.setEnabled(False)
 
+    def remove(self):
+        self._model.remove_control_layer(self.value)
+
     @property
     def value(self):
         return self._control
@@ -193,11 +197,10 @@ class ControlWidget(QWidget):
 
     def _check_is_installed(self):
         connection = Connection.instance()
-        model = Model.active()
         is_installed = True
-        if model and connection.state is ConnectionState.connected:
+        if connection.state is ConnectionState.connected:
             mode = ControlMode(self.mode_select.currentData())
-            sdver = model.style.sd_version_resolved
+            sdver = self._model.style.sd_version_resolved
             if mode is ControlMode.image:
                 if not sdver.has_ip_adapter:
                     self.error_text.setToolTip(f"Control mode is not supported for {sdver.value}")
@@ -214,8 +217,14 @@ class ControlWidget(QWidget):
         self.layer_select.setVisible(is_installed)
         self.generate_button.setVisible(is_installed and mode is not ControlMode.image)
         self.strength_spin.setVisible(is_installed)
+        self.strength_spin.setEnabled(self._is_first_image_mode())
         self.error_text.setVisible(not is_installed)
         return is_installed
+
+    def _is_first_image_mode(self):
+        return self._control.mode is not ControlMode.image or self._control == next(
+            (c for c in self._model.control if c.mode is ControlMode.image), None
+        )
 
 
 class ControlListWidget(QWidget):
@@ -232,24 +241,9 @@ class ControlListWidget(QWidget):
         self._controls = []
 
     def add(self):
-        control = ControlWidget(self)
-        control.changed.connect(self._notify)
-        self._controls.append(control)
-        self._layout.addWidget(control)
-        control.remove_button.clicked.connect(lambda: self.remove(control))
-        self._notify()
-        return control
-
-    def remove(self, control: ControlWidget):
-        self._controls.remove(control)
-        control.deleteLater()
-        self._notify()
-
-    _suppress_changes = EventSuppression()
-
-    def _notify(self):
-        if not self._suppress_changes:
-            self.changed.emit()
+        model = Model.active()
+        model.control.append(Control(ControlMode.image, model.document.active_layer))
+        self.value = model.control
 
     @property
     def value(self):
@@ -258,19 +252,35 @@ class ControlListWidget(QWidget):
         for control in self._controls:
             c = control.value
             removed.append(control) if c.image is None else result.append(c)
-        with self._suppress_changes:
-            for control in removed:
-                self.remove(control)
+        for control in removed:
+            self._remove_widget(control)
         return result
 
     @value.setter
     def value(self, controls: List[Control]):
         with self._suppress_changes:
             while len(self._controls) > 0:
-                self.remove(self._controls[0])
+                self._remove_widget(self._controls[0])
             for control in controls:
-                control_widget = self.add()
+                control_widget = self._add_widget()
                 control_widget.value = control
+
+    _suppress_changes = EventSuppression()
+
+    def _notify(self):
+        if not self._suppress_changes:
+            self.changed.emit()
+
+    def _add_widget(self):
+        control = ControlWidget(self)
+        control.changed.connect(self._notify)
+        self._controls.append(control)
+        self._layout.addWidget(control)
+        return control
+
+    def _remove_widget(self, control: ControlWidget):
+        self._controls.remove(control)
+        control.deleteLater()
 
 
 class HistoryWidget(QListWidget):
