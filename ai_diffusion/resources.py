@@ -186,15 +186,16 @@ all = (
 
 
 class ControlMode(Enum):
-    inpaint = 0
-    scribble = 1
-    line_art = 2
-    soft_edge = 3
-    canny_edge = 4
-    depth = 5
-    normal = 6
-    pose = 7
-    segmentation = 8
+    image = 0
+    inpaint = 1
+    scribble = 2
+    line_art = 3
+    soft_edge = 4
+    canny_edge = 5
+    depth = 6
+    normal = 7
+    pose = 8
+    segmentation = 9
 
     @property
     def is_lines(self):
@@ -214,6 +215,7 @@ class ControlMode(Enum):
 
 
 _control_text = {
+    ControlMode.image: "Image",
     ControlMode.scribble: "Scribble",
     ControlMode.line_art: "Line Art",
     ControlMode.soft_edge: "Soft Edge",
@@ -225,6 +227,10 @@ _control_text = {
 }
 
 _control_filename = {
+    ControlMode.image: {  # uses clip vision / ip-adapter
+        SDVersion.sd1_5: None,
+        SDVersion.sdxl: None,
+    },
     ControlMode.inpaint: {
         SDVersion.sd1_5: "control_v11p_sd15_inpaint",
         SDVersion.sdxl: None,

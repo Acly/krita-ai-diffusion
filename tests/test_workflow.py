@@ -318,7 +318,9 @@ def test_control_scribble(qtapp, comfy, temp_settings, op):
     qtapp.run(main())
 
 
-@pytest.mark.parametrize("mode", [m for m in ControlMode if not m is ControlMode.inpaint])
+@pytest.mark.parametrize(
+    "mode", [m for m in ControlMode if not m in [ControlMode.image, ControlMode.inpaint]]
+)
 def test_create_control_image(qtapp, comfy, mode):
     image_name = f"test_create_control_image_{mode.name}.png"
     image = Image.load(image_dir / "adobe_stock.jpg")
@@ -328,5 +330,17 @@ def test_create_control_image(qtapp, comfy, mode):
         result = await run_and_save(comfy, job, image_name)
         reference = Image.load(reference_dir / image_name)
         assert Image.compare(result, reference) < 0.001
+
+    qtapp.run(main())
+
+
+def test_ipadapter(qtapp, comfy, temp_settings):
+    temp_settings.batch_size = 1
+    image = Image.load(image_dir / "cat.png")
+    control = Conditioning("cat on a rooftop in paris", [Control(ControlMode.image, image, 0.6)])
+    job = workflow.generate(comfy, default_style(comfy), Extent(512, 512), control)
+
+    async def main():
+        await run_and_save(comfy, job, "test_ipadapter.png")
 
     qtapp.run(main())

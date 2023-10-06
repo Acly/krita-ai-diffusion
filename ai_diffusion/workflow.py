@@ -1,4 +1,5 @@
 import math
+from copy import copy
 from typing import List, NamedTuple, Tuple, Union, Optional
 
 from .image import Bounds, Extent, Image, ImageCollection, Mask
@@ -194,29 +195,39 @@ class Conditioning:
     ):
         self.control.append(Control(type, image, strength, mask))
 
-    def create(self, w: ComfyWorkflow, comfy: Client, clip: Output, style: Style):
-        sd_ver = style.sd_version_resolved
-        positive = w.clip_text_encode(clip, f"{self.prompt}, {style.style_prompt}")
-        negative = w.clip_text_encode(clip, style.negative_prompt)
-
-        for control in self.control:
-            if control.mode is ControlMode.inpaint and not sd_ver.has_controlnet_inpaint:
-                continue
-            image = control.load_image(w)
-            if control.mode is ControlMode.inpaint:
-                image = w.inpaint_preprocessor(image, control.load_mask(w))
-            if control.mode.is_lines:  # ControlNet expects white lines on black background
-                image = w.invert_image(image)
-            controlnet = w.load_controlnet(comfy.control_model[control.mode][sd_ver])
-            positive = w.apply_controlnet(positive, controlnet, image, control.strength)
-
-        return positive, negative
-
     def crop(self, w: ComfyWorkflow, bounds: Bounds):
         for control in self.control:
             control.image = w.crop_image(control.load_image(w), bounds)
             if control.mask:
                 control.mask = w.crop_mask(control.load_mask(w), bounds)
+
+
+def apply_conditioning(
+    cond: Conditioning, w: ComfyWorkflow, comfy: Client, model: Output, clip: Output, style: Style
+):
+    sd_ver = style.sd_version_resolved
+    positive = w.clip_text_encode(clip, f"{cond.prompt}, {style.style_prompt}")
+    negative = w.clip_text_encode(clip, style.negative_prompt)
+
+    for control in cond.control:
+        if control.mode is ControlMode.inpaint and not sd_ver.has_controlnet_inpaint:
+            continue
+        if control.mode is ControlMode.image and not sd_ver.has_ip_adapter:
+            continue
+        image = control.load_image(w)
+        if control.mode is ControlMode.inpaint:
+            image = w.inpaint_preprocessor(image, control.load_mask(w))
+        if control.mode.is_lines:  # ControlNet expects white lines on black background
+            image = w.invert_image(image)
+        if control.mode is ControlMode.image:
+            clip_vision = w.load_clip_vision(comfy.clip_vision_model)
+            ip_adapter = w.load_ip_adapter(comfy.ip_adapter_model)
+            model = w.apply_ip_adapter(ip_adapter, clip_vision, image, model, control.strength)
+        else:
+            controlnet = w.load_controlnet(comfy.control_model[control.mode][sd_ver])
+            positive = w.apply_controlnet(positive, controlnet, image, control.strength)
+
+    return model, positive, negative
 
 
 def upscale(
@@ -254,7 +265,7 @@ def generate(comfy: Client, style: Style, input_extent: Extent, cond: Conditioni
     w = ComfyWorkflow()
     model, clip, vae = load_model_with_lora(w, comfy, style)
     latent = w.empty_latent_image(extent.initial.width, extent.initial.height, batch)
-    positive, negative = cond.create(w, comfy, clip, style)
+    model, positive, negative = apply_conditioning(cond, w, comfy, model, clip, style)
     out_latent = w.ksampler(model, positive, negative, latent, **_sampler_params(style))
     if extent.requires_upscale:
         out_latent = upscale(w, style, out_latent, extent, positive, negative, model, vae, comfy)
@@ -281,12 +292,10 @@ def inpaint(comfy: Client, style: Style, image: Image, mask: Mask, cond: Conditi
     if extent.requires_downscale:
         in_image = w.scale_image(in_image, extent.initial)
         in_mask = w.scale_mask(in_mask, extent.initial)
-    cond.add_control(ControlMode.inpaint, in_image, mask=in_mask)
-    positive, negative = cond.create(w, comfy, clip, style)
-    if sd_ver.has_ip_adapter:
-        clip_vision = w.load_clip_vision(comfy.clip_vision_model)
-        ip_adapter = w.load_ip_adapter(comfy.ip_adapter_model)
-        model = w.apply_ip_adapter(ip_adapter, clip_vision, in_image, model, 0.5)
+    cond_base = copy(cond)
+    cond_base.add_control(ControlMode.image, in_image, 0.5)
+    cond_base.add_control(ControlMode.inpaint, in_image, mask=in_mask)
+    model, positive, negative = apply_conditioning(cond_base, w, comfy, model, clip, style)
     latent = w.vae_encode_inpaint(vae, in_image, in_mask)
     latent = w.batch_latent(latent, batch)
     out_latent = w.ksampler(
@@ -309,10 +318,9 @@ def inpaint(comfy: Client, style: Style, image: Image, mask: Mask, cond: Conditi
             upscale = w.scale_image(upscale, expanded_bounds.extent)
             latent = w.vae_encode(vae, upscale)
 
-        cond.control.pop()  # remove inpaint control
         cond.crop(w, expanded_bounds)
         cond.add_control(ControlMode.inpaint, Image.crop(image, target_bounds), mask=cropped_mask)
-        positive_upscale, _ = cond.create(w, comfy, clip, style)
+        _, positive_upscale, _ = apply_conditioning(cond, w, comfy, model, clip, style)
         out_latent = w.ksampler(model, positive_upscale, negative, latent, denoise=0.5, **params)
     elif extent.requires_downscale:
         pass  # crop to target bounds after decode and downscale
@@ -341,7 +349,7 @@ def refine(comfy: Client, style: Style, image: Image, cond: Conditioning, streng
         in_image = w.scale_image(in_image, extent.expanded)
     latent = w.vae_encode(vae, in_image)
     latent = w.batch_latent(latent, batch)
-    positive, negative = cond.create(w, comfy, clip, style)
+    model, positive, negative = apply_conditioning(cond, w, comfy, model, clip, style)
     sampler = w.ksampler(
         model, positive, negative, latent, denoise=strength, **_sampler_params(style)
     )
@@ -375,7 +383,7 @@ def refine_region(
     latent = w.set_latent_noise_mask(latent, in_mask)
     latent = w.batch_latent(latent, batch)
     cond.add_control(ControlMode.inpaint, in_image, mask=in_mask)
-    positive, negative = cond.create(w, comfy, clip, style)
+    model, positive, negative = apply_conditioning(cond, w, comfy, model, clip, style)
     out_latent = w.ksampler(
         model, positive, negative, latent, denoise=strength, **_sampler_params(style)
     )
@@ -391,6 +399,8 @@ def refine_region(
 
 
 def create_control_image(image: Image, mode: ControlMode):
+    assert mode not in [ControlMode.image, ControlMode.inpaint]
+
     w = ComfyWorkflow()
     input = w.load_image(image)
     if mode is ControlMode.canny_edge:
