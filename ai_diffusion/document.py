@@ -78,7 +78,8 @@ class Document:
             self._doc.refreshProjection()
         return Image(img)
 
-    def get_layer_image(self, layer, bounds: Bounds):
+    def get_layer_image(self, layer, bounds: Optional[Bounds]):
+        bounds = bounds or Bounds.from_qrect(layer.bounds())
         data: QByteArray = layer.projectionPixelData(*bounds)
         assert data is not None and data.size() >= bounds.extent.pixel_count * 4
         return Image(QImage(data, *bounds.extent, QImage.Format_ARGB32))

@@ -198,7 +198,11 @@ class ControlWidget(QWidget):
         if model and connection.state is ConnectionState.connected:
             mode = ControlMode(self.mode_select.currentData())
             sdver = model.style.sd_version_resolved
-            if connection.client.control_model[mode][sdver] is None:
+            if mode is ControlMode.image:
+                if not sdver.has_ip_adapter:
+                    self.error_text.setToolTip(f"Control mode is not supported for {sdver.value}")
+                    is_installed = False
+            elif connection.client.control_model[mode][sdver] is None:
                 filenames = mode.filenames(sdver)
                 self.error_text.setToolTip(
                     f"The server is missing {filenames}"
@@ -208,7 +212,7 @@ class ControlWidget(QWidget):
                 is_installed = False
         self.error_text.setVisible(False)  # Avoid layout resize
         self.layer_select.setVisible(is_installed)
-        self.generate_button.setVisible(is_installed)
+        self.generate_button.setVisible(is_installed and mode is not ControlMode.image)
         self.strength_spin.setVisible(is_installed)
         self.error_text.setVisible(not is_installed)
         return is_installed
@@ -320,7 +324,8 @@ class HistoryWidget(QListWidget):
 
     def rebuild(self, jobs: JobQueue):
         self.clear()
-        (self.add(job) for job in jobs if self.is_finished(job))
+        for job in filter(self.is_finished, jobs):
+            self.add(job)
 
     def item_info(self, item: QListWidgetItem):
         return item.data(Qt.UserRole), item.data(Qt.UserRole + 1)

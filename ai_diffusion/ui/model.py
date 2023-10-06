@@ -230,6 +230,8 @@ class Model(QObject):
         self.changed.emit()
 
     def _get_control_image(self, control: Control, bounds: Bounds):
+        if control.mode is ControlMode.image:
+            bounds = None  # ignore mask bounds, use layer bounds
         image = self._doc.get_layer_image(control.image, bounds)
         if control.mode.is_lines:
             image.make_opaque(background=Qt.white)

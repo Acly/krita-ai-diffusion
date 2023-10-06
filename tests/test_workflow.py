@@ -206,9 +206,9 @@ def test_inpaint(qtapp, comfy, temp_settings):
     image = Image.load(image_dir / "beach_768x512.png")
     mask = Mask.rectangle(Bounds(50, 100, 320, 200), feather=10)
     prompt = Conditioning("ship")
+    job = workflow.inpaint(comfy, default_style(comfy), image, mask, prompt)
 
     async def main():
-        job = workflow.inpaint(comfy, default_style(comfy), image, mask, prompt)
         results = await receive_images(comfy, job)
         assert len(results) == 2
         for i, result in enumerate(results):
@@ -224,9 +224,9 @@ def test_inpaint_upscale(qtapp, comfy, temp_settings, sdver):
     image = Image.load(image_dir / "beach_1536x1024.png")
     mask = Mask.rectangle(Bounds(600, 200, 768, 512), feather=10)
     prompt = Conditioning("ship")
+    job = workflow.inpaint(comfy, default_style(comfy, sdver), image, mask, prompt)
 
     async def main():
-        job = workflow.inpaint(comfy, default_style(comfy, sdver), image, mask, prompt)
         results = await receive_images(comfy, job)
         assert len(results) == 2 if sdver == SDVersion.sd1_5 else 1
         for i, result in enumerate(results):
@@ -334,13 +334,27 @@ def test_create_control_image(qtapp, comfy, mode):
     qtapp.run(main())
 
 
-def test_ipadapter(qtapp, comfy, temp_settings):
+def test_ip_adapter(qtapp, comfy, temp_settings):
     temp_settings.batch_size = 1
     image = Image.load(image_dir / "cat.png")
     control = Conditioning("cat on a rooftop in paris", [Control(ControlMode.image, image, 0.6)])
     job = workflow.generate(comfy, default_style(comfy), Extent(512, 512), control)
 
     async def main():
-        await run_and_save(comfy, job, "test_ipadapter.png")
+        await run_and_save(comfy, job, "test_ip_adapter.png")
+
+    qtapp.run(main())
+
+
+def test_ip_adapter_region(qtapp, comfy, temp_settings):
+    temp_settings.batch_size = 1
+    image = Image.load(image_dir / "flowers.png")
+    mask = Mask.load(image_dir / "flowers_mask.png")
+    control_img = Image.load(image_dir / "pegonia.png")
+    control = Conditioning("potted flowers", [Control(ControlMode.image, control_img, 0.7)])
+    job = workflow.refine_region(comfy, default_style(comfy), image, mask, control, 0.6)
+
+    async def main():
+        await run_and_save(comfy, job, "test_ip_adapter_region.png")
 
     qtapp.run(main())

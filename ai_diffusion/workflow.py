@@ -1,5 +1,4 @@
 import math
-from copy import copy
 from typing import List, NamedTuple, Tuple, Union, Optional
 
 from .image import Bounds, Extent, Image, ImageCollection, Mask
@@ -190,6 +189,9 @@ class Conditioning:
         self.prompt = prompt
         self.control = control or []
 
+    def copy(self):
+        return Conditioning(self.prompt, [c for c in self.control])
+
     def add_control(
         self, type: ControlMode, image: Image, strength=1.0, mask: Optional[Mask] = None
     ):
@@ -292,7 +294,7 @@ def inpaint(comfy: Client, style: Style, image: Image, mask: Mask, cond: Conditi
     if extent.requires_downscale:
         in_image = w.scale_image(in_image, extent.initial)
         in_mask = w.scale_mask(in_mask, extent.initial)
-    cond_base = copy(cond)
+    cond_base = cond.copy()
     cond_base.add_control(ControlMode.image, in_image, 0.5)
     cond_base.add_control(ControlMode.inpaint, in_image, mask=in_mask)
     model, positive, negative = apply_conditioning(cond_base, w, comfy, model, clip, style)
