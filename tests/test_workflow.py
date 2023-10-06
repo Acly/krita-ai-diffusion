@@ -358,3 +358,18 @@ def test_ip_adapter_region(qtapp, comfy, temp_settings):
         await run_and_save(comfy, job, "test_ip_adapter_region.png")
 
     qtapp.run(main())
+
+
+def test_ip_adapter_batch(qtapp, comfy, temp_settings):
+    temp_settings.batch_size = 1
+    image1 = Image.load(image_dir / "cat.png")
+    image2 = Image.load(image_dir / "owls_inpaint.png")
+    control = Conditioning(
+        "", [Control(ControlMode.image, image1, 0.6), Control(ControlMode.image, image2, 0.6)]
+    )
+    job = workflow.generate(comfy, default_style(comfy), Extent(512, 512), control)
+
+    async def main():
+        await run_and_save(comfy, job, "test_ip_adapter_batch.png")
+
+    qtapp.run(main())

@@ -211,23 +211,34 @@ def apply_conditioning(
     positive = w.clip_text_encode(clip, f"{cond.prompt}, {style.style_prompt}")
     negative = w.clip_text_encode(clip, style.negative_prompt)
 
-    for control in cond.control:
+    # Apply control net to the positive clip conditioning in a chain
+    for control in (c for c in cond.control if c.mode is not ControlMode.image):
         if control.mode is ControlMode.inpaint and not sd_ver.has_controlnet_inpaint:
-            continue
-        if control.mode is ControlMode.image and not sd_ver.has_ip_adapter:
             continue
         image = control.load_image(w)
         if control.mode is ControlMode.inpaint:
             image = w.inpaint_preprocessor(image, control.load_mask(w))
         if control.mode.is_lines:  # ControlNet expects white lines on black background
             image = w.invert_image(image)
-        if control.mode is ControlMode.image:
-            clip_vision = w.load_clip_vision(comfy.clip_vision_model)
-            ip_adapter = w.load_ip_adapter(comfy.ip_adapter_model)
-            model = w.apply_ip_adapter(ip_adapter, clip_vision, image, model, control.strength)
+        controlnet = w.load_controlnet(comfy.control_model[control.mode][sd_ver])
+        positive = w.apply_controlnet(positive, controlnet, image, control.strength)
+
+    # Merge all images into a single batch and apply IP-adapter to the model once
+    ip_image = None
+    ip_strength = 0
+    for control in (c for c in cond.control if c.mode is ControlMode.image):
+        if control.mode is ControlMode.image and not sd_ver.has_ip_adapter:
+            continue
+        image = control.load_image(w)
+        if ip_image is None:
+            ip_image = image
         else:
-            controlnet = w.load_controlnet(comfy.control_model[control.mode][sd_ver])
-            positive = w.apply_controlnet(positive, controlnet, image, control.strength)
+            ip_image = w.batch_image(ip_image, image)
+        ip_strength = max(ip_strength, control.strength)
+    if ip_image is not None:
+        clip_vision = w.load_clip_vision(comfy.clip_vision_model)
+        ip_adapter = w.load_ip_adapter(comfy.ip_adapter_model)
+        model = w.apply_ip_adapter(ip_adapter, clip_vision, ip_image, model, ip_strength)
 
     return model, positive, negative
 

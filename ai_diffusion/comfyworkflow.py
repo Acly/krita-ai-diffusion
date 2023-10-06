@@ -23,6 +23,11 @@ class ComfyWorkflow:
         self.root = {}
         self._cache = {}
 
+    def dump(self, filepath: str):
+        with open(filepath, "w") as f:
+            for key, value in self.root.items():
+                f.write(f"{key} = {value}\n")
+
     def add(self, class_type: str, output_count: int, **inputs):
         normalize = lambda x: [str(x.node), x.output] if isinstance(x, Output) else x
         self.node_count += 1
@@ -194,6 +199,9 @@ class ComfyWorkflow:
 
     def invert_image(self, image):
         return self.add("ImageInvert", 1, image=image)
+
+    def batch_image(self, batch, image):
+        return self.add("ImageBatch", 1, image1=batch, image2=image)
 
     def crop_mask(self, mask, bounds: Bounds):
         return self.add(
