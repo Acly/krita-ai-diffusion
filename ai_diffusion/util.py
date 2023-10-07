@@ -7,7 +7,7 @@ import logging.handlers
 from .image import Extent
 from .settings import settings
 
-is_windows = "win" in sys.platform
+is_windows = sys.platform.startswith("win")
 
 
 def create_logger(name: str, path: Path):
