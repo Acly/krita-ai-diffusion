@@ -11,7 +11,7 @@ from zipfile import ZipFile
 from PyQt5.QtNetwork import QNetworkAccessManager
 
 from .settings import settings, ServerBackend
-from . import resources
+from . import resources, __version__
 from .resources import CustomNode, ModelResource
 from .network import download, DownloadProgress
 from .util import is_windows, client_logger as log, server_logger as server_log
@@ -47,10 +47,12 @@ class Server:
     state = ServerState.stopped
     missing_resources: List[str]
     comfy_dir: Optional[Path] = None
+    version: Optional[str] = None
 
     _python_cmd: Optional[Path] = None
     _pip_cmd: Optional[Path] = None
     _cache_dir: Optional[Path] = None
+    _version_file: Optional[Path] = None
     _process: Optional[asyncio.subprocess.Process] = None
     _task: Optional[asyncio.Task] = None
 
@@ -64,6 +66,13 @@ class Server:
     def check_install(self):
         self.missing_resources = []
         self._cache_dir = self.path / ".cache"
+
+        self._version_file = self.path / ".version"
+        if self._version_file.exists():
+            self.version = self._version_file.read_text().strip()
+            log.info(f"Found server installation v{self.version} at {self.path}")
+        else:
+            self.version = None
 
         comfy_pkg = ["main.py", "nodes.py", "custom_nodes"]
         self.comfy_dir = _find_component(comfy_pkg, [self.path, self.path / "ComfyUI"])
@@ -158,6 +167,8 @@ class Server:
             if not target_file.exists():
                 target_folder.mkdir(parents=True, exist_ok=True)
                 await _download_cached(resource.name, network, resource.url, target_file, cb)
+
+        self._version_file.write_text(__version__)
 
         self.state = ServerState.stopped
         cb("Finished", f"Installation finished in {self.path}")
@@ -394,15 +405,13 @@ def _find_program(*commands: str):
 
 
 async def _download_cached(
-    name: str,
-    network: QNetworkAccessManager,
-    url: str,
-    archive: Path,
-    cb: InternalCB,
+    name: str, network: QNetworkAccessManager, url: str, file: Path, cb: InternalCB
 ):
-    if not archive.exists():
-        cb(f"Downloading {name}", f"Downloading {url} to {archive}")
-        async for progress in download(network, url, archive):
+    if file.exists():
+        cb(f"Found existing {name}", f"Using {file}")
+    else:
+        cb(f"Downloading {name}", f"Downloading {url} to {file}")
+        async for progress in download(network, url, file):
             cb(f"Downloading {name}", None, progress)
 
 

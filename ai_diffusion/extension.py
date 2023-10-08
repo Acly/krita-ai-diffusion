@@ -1,7 +1,8 @@
+import sys
 from typing import Callable, Optional
 from krita import Extension, Krita, DockWidgetFactory, DockWidgetFactoryBase
 
-from . import eventloop, settings, Server, ServerMode, ServerState
+from . import eventloop, settings, __version__, Server, ServerMode, ServerState
 from .ui import actions, ImageDiffusionWidget, SettingsDialog, Connection, ConnectionState
 from .util import client_logger as log
 
@@ -12,6 +13,7 @@ class AIToolsExtension(Extension):
 
     def __init__(self, parent):
         super().__init__(parent)
+        log.info(f"Extension initialized, Version: {__version__}, Python: {sys.version}")
 
     def setup(self):
         eventloop.setup()
