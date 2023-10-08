@@ -253,8 +253,8 @@ class LoraList(QWidget):
             self._select.currentIndexChanged.connect(self._update)
 
             self._strength = QSpinBox(self)
-            self._strength.setMinimum(-100)
-            self._strength.setMaximum(100)
+            self._strength.setMinimum(-400)
+            self._strength.setMaximum(400)
             self._strength.setSingleStep(5)
             self._strength.setValue(100)
             self._strength.setPrefix("Strength: ")
