@@ -64,6 +64,7 @@ class RequestManager:
 
         request = QNetworkRequest(QUrl(url))
         # request.setTransferTimeout({"GET": 30000, "POST": 0}[method]) # requires Qt 5.15 (Krita 5.2)
+        request.setRawHeader(b"ngrok-skip-browser-warning", b"69420")
         if data is not None:
             data_bytes = QByteArray(json.dumps(data).encode("utf-8"))
             request.setHeader(QNetworkRequest.ContentTypeHeader, "application/json")
