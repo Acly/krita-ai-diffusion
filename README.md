@@ -22,9 +22,9 @@ tool while painting. They are meant to synergize with traditional tools and the 
 
 * **Inpaint**: Use Krita's selection tools to mark an area and remove or replace existing content in the image. Simple text prompts can be used to steer generation.
 * **Outpaint**: Extend your canvas, select a blank area and automatically fill it with content that seamlessly blends into the existing image.
-* **Generate**: Create new images from scratch by decribing them with words. Supports SD1.5 and SDXL.
+* **Generate**: Create new images from scratch by decribing them with words or existing images. Supports SD1.5 and SDXL.
 * **Refine**: Use the strength slider to refine existing image content instead of replacing it entirely. This also works great for adding new things to an image by painting a (crude) approximation and refining at high strength!
-* **Control**: Guide image creation directly with sketches or line art. _Work in progress, more control modes coming soon!_
+* **Control**: Guide image creation directly with sketches or line art. Use depth or normal maps from existing images or 3D scenes. Transfer character pose from snapshots. Control composition with segmentation maps.
 * **Resolutions**: Work efficiently at any resolution. The plugin will automatically use resolutions appropriate for the AI model, and scale them to fit your image region.
 * **Job Queue**: Depending on hardware, image generation can take some time. The plugin allows you to queue and cancel jobs while working on your image.
 * **History**: Not every image will turn out a masterpiece. Preview results and browse previous generations and prompts at any time.
