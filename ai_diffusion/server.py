@@ -201,7 +201,7 @@ class Server:
         if self.backend is ServerBackend.cpu:
             torch_args += ["--index-url", "https://download.pytorch.org/whl/cpu"]
         elif self.backend is ServerBackend.cuda:
-            torch_args += ["--index-url", "https://download.pytorch.org/whl/cu118"]
+            torch_args += ["--index-url", "https://download.pytorch.org/whl/cu121"]
         await _execute_process("PyTorch", [self._pip_cmd, *torch_args], self.comfy_dir, cb)
 
         requirements_txt = self.comfy_dir / "requirements.txt"
@@ -212,13 +212,6 @@ class Server:
             await _execute_process(  # for some reason this must come AFTER ComfyUI requirements
                 "PyTorch", [self._pip_cmd, "install", "torch-directml"], self.comfy_dir, cb
             )
-        elif self.backend is ServerBackend.cuda:
-            try:
-                await _execute_process(
-                    "PyTorch", [self._pip_cmd, "install", "xformers"], self.comfy_dir, cb
-                )
-            except Exception as e:
-                log.error(f"Failed to install xformers: {e}")
         cb("Installing ComfyUI", "Finished installing ComfyUI")
 
     async def _install_custom_node(
