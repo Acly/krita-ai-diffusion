@@ -1,6 +1,6 @@
 import pytest
 from ai_diffusion import Extent
-from ai_diffusion.util import compute_batch_size
+from ai_diffusion.util import compute_batch_size, batched
 
 
 @pytest.mark.parametrize(
@@ -16,3 +16,10 @@ from ai_diffusion.util import compute_batch_size
 )
 def test_compute_batch_size(extent, min_size, max_batches, expected):
     assert compute_batch_size(extent, min_size, max_batches) == expected
+
+
+def test_batched():
+    iterable = [1, 2, 3, 4, 5, 6, 7, 8, 9]
+    n = 3
+    expected_output = [(1, 2, 3), (4, 5, 6), (7, 8, 9)]
+    assert list(batched(iterable, n)) == expected_output
