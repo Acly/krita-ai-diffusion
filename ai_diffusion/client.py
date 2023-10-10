@@ -27,9 +27,10 @@ class ClientEvent(Enum):
 
 class ClientMessage(NamedTuple):
     event: ClientEvent
-    job_id: str
-    progress: float
+    job_id: str = ""
+    progress: float = 0
     images: ImageCollection = None
+    result: Optional[dict] = None
     error: Optional[str] = None
 
 
@@ -175,10 +176,10 @@ class Client:
                     yield msg
             except websockets.ConnectionClosedError as e:
                 log.warning(f"Websocket connection closed: {str(e)}")
-                yield ClientMessage(ClientEvent.disconnected, "", 0)
+                yield ClientMessage(ClientEvent.disconnected)
             except OSError as e:
                 msg = f"Could not connect to websocket server at {url}: {str(e)}"
-                yield ClientMessage(ClientEvent.error, "", 0, error=msg)
+                yield ClientMessage(ClientEvent.error, error=msg)
             except asyncio.CancelledError:
                 websocket.close()
                 self._active = None
@@ -186,11 +187,12 @@ class Client:
                 break
             except Exception as e:
                 log.exception("Unhandled exception in websocket listener")
-                yield ClientMessage(ClientEvent.error, "", 0, error=str(e))
+                yield ClientMessage(ClientEvent.error, error=str(e))
 
     async def _listen(self, websocket: websockets.WebSocketClientProtocol):
         progress = None
         images = ImageCollection()
+        result = None
 
         async for msg in websocket:
             if isinstance(msg, bytes):
@@ -202,19 +204,20 @@ class Client:
                 msg = json.loads(msg)
 
                 if msg["type"] == "status":
-                    yield ClientMessage(ClientEvent.connected, "", 0)
+                    yield ClientMessage(ClientEvent.connected)
 
                 if msg["type"] == "execution_start":
                     id = msg["data"]["prompt_id"]
                     self._active = self._start_job(id)
                     progress = Progress(self._active)
                     images = ImageCollection()
+                    result = None
 
                 if msg["type"] == "execution_interrupted":
                     job = self._get_active_job(msg["data"]["prompt_id"])
                     if job:
                         self._clear_job(job.id)
-                        yield ClientMessage(ClientEvent.interrupted, job.id, 0)
+                        yield ClientMessage(ClientEvent.interrupted, job.id)
 
                 if msg["type"] == "executing" and msg["data"]["node"] is None:
                     job_id = msg["data"]["prompt_id"]
@@ -229,9 +232,12 @@ class Client:
 
                 if msg["type"] == "executed":
                     job = self._get_active_job(msg["data"]["prompt_id"])
-                    if job and _validate_executed_node(msg, len(images)):
+                    pose_json = _extract_pose_json(msg)
+                    if job and pose_json:
+                        result = pose_json
+                    elif job and _validate_executed_node(msg, len(images)):
                         self._clear_job(job.id)
-                        yield ClientMessage(ClientEvent.finished, job.id, 1, images)
+                        yield ClientMessage(ClientEvent.finished, job.id, 1, images, result)
 
                 if msg["type"] == "execution_error":
                     job = self._get_active_job(msg["data"]["prompt_id"])
@@ -363,17 +369,26 @@ def _extract_message_png_image(data: memoryview):
     return None
 
 
+def _extract_pose_json(msg: dict):
+    try:
+        output = msg["data"]["output"]
+        if "openpose_json" in output:
+            return json.loads(output["openpose_json"][0])
+    except Exception as e:
+        log.warning(f"Error processing message, error={str(e)}, msg={msg}")
+    return None
+
+
 def _validate_executed_node(msg: dict, image_count: int):
     try:
-        data = msg["data"]
-        if "openpose_json" in data:
-            return False  # not the end result we are interested in
+        output = msg["data"]["output"]
+        assert "openpose_json" not in output
 
-        output = data["output"]["images"]
-        if len(output) != image_count:  # not critical
-            log.warning(f"Received number of images does not match: {len(output)} != {image_count}")
-        if len(output) > 0 and "source" in output[0] and output[0]["type"] == "output":
+        images = output["images"]
+        if len(images) != image_count:  # not critical
+            log.warning(f"Received number of images does not match: {len(images)} != {image_count}")
+        if len(images) > 0 and "source" in images[0] and images[0]["type"] == "output":
             return True
-    except:
-        log.warning("Received unknown message format", msg)
+    except Exception as e:
+        log.warning(f"Error processing message, error={str(e)}, msg={msg}")
         return False
