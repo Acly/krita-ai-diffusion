@@ -1,5 +1,8 @@
-from typing import Dict, List, NamedTuple, Tuple
+from functools import reduce
+import operator
+from typing import Dict, List, NamedTuple, Optional, Set, Tuple
 from PyQt5.QtCore import QPointF
+from PyQt5.QtGui import QTransform
 from . import Extent
 from .util import batched
 
@@ -79,18 +82,33 @@ colors = [
 assert len(body_parts) == joint_count
 
 
-def bone_id(person_index: int, part_index: int):
-    return f"P{person_index:02d}_B{part_index:02d}"
+class JointIndex(NamedTuple):
+    person: int
+    joint: int
 
 
-def joint_id(person_index: int, part_index: int):
-    return f"P{person_index:02d}_J{part_index:02d}_{body_parts[part_index]}"
+class BoneIndex(NamedTuple):
+    person: int
+    bone: int
 
 
-def parse_id(bone_id: str):
-    if len(bone_id) < 7 or bone_id[0] != "P" or bone_id[3] != "_":
-        return None, None, None
-    return bone_id[4], int(bone_id[1:3]), int(bone_id[5:7])
+def bone_id(index: BoneIndex):
+    return f"P{index.person:02d}_B{index.bone:02d}"
+
+
+def joint_id(index: JointIndex):
+    return f"P{index.person:02d}_J{index.joint:02d}"
+
+
+def parse_id(string: str):
+    if len(string) != 7 or string[0] != "P" or string[3] != "_":
+        return None
+    person, part = int(string[1:3]), int(string[5:7])
+    if string[4] == "J":
+        return JointIndex(person, part)
+    elif string[4] == "B":
+        return BoneIndex(person, part)
+    return None
 
 
 def get_connected_bones(joint_id: int):
@@ -117,117 +135,111 @@ class Shape:
 
 
 class Pose:
-    person: int
     extent: Extent
-    joints: Dict[int, Point]
+    people: Set[int]
+    joints: Dict[JointIndex, Point]
 
-    def __init__(self, person: int, extent: Extent, initial_positions: Dict[int, Point]):
-        self.person = person
+    def __init__(
+        self,
+        extent: Extent,
+        people: Optional[Set[int]] = None,
+        joint_positions: Optional[Dict[JointIndex, Point]] = None,
+    ):
         self.extent = extent
-        self.joints = initial_positions
+        self.people = people or set()
+        self.joints = joint_positions or {}
 
     @staticmethod
     def from_open_pose_json(pose: dict):
         # Format described at https://github.com/CMU-Perceptual-Computing-Lab/openpose/blob/master/doc/02_output.md
         extent = Extent(pose["canvas_width"], pose["canvas_height"])
 
-        def parse_keypoints(keypoints: List[float]):
+        def parse_keypoints(person: int, keypoints: List[float]):
             assert len(keypoints) // 3 == joint_count, "Invalid keypoint count in OpenPose JSON"
-            return {i: Point(x, y) for i, (x, y, c) in enumerate(batched(keypoints, 3)) if c > 0.1}
+            return {
+                JointIndex(person, joint): Point(x, y)
+                for joint, (x, y, confidence) in enumerate(batched(keypoints, 3))
+                if confidence > 0.1
+            }
 
         people = pose.get("people", [])
-        return [
-            Pose(i, extent, parse_keypoints(p.get("pose_keypoints_2d", [])))
-            for i, p in enumerate(people)
-        ]
+        poses = (parse_keypoints(i, p.get("pose_keypoints_2d", [])) for i, p in enumerate(people))
+        return Pose(extent, set(range(len(people))), reduce(operator.ior, poses, {}))
 
     def update(self, shapes: List[Shape]):
-        deltas = {}
-        bones: Dict[int, Shape] = {}
+        changed = set()
+        bones: Dict[BoneIndex, Shape] = {}
+
         for shape in shapes:
-            kind, person, index = parse_id(shape.name())
-            if person != self.person:
-                continue
-            if kind == "J":
+            index = parse_id(shape.name())
+            if index:
+                self.people.add(index.person)
+            if isinstance(index, JointIndex):
                 pos = Point.from_qt(shape.position())
                 if not index in self.joints:
                     self.joints[index] = pos
                 else:
                     last_pos = self.joints[index]
-                    delta = (pos.x - last_pos.x, pos.y - last_pos.y)
-                    if delta != (0, 0):
-                        deltas[index] = (pos.x - last_pos.x, pos.y - last_pos.y)
+                    if pos.x != last_pos.x or pos.y != last_pos.y:
+                        changed.add(index)
                         self.joints[index] = pos
-            elif kind == "B":
+            elif isinstance(index, BoneIndex):
                 bones[index] = shape
 
-        if len(deltas) == 0:
-            return ""
+        if len(changed) == 0:
+            return None
 
-        new_bones = ""
+        width, height = self.extent.width, self.extent.height
+        new_bones = (
+            f'<svg xmlns="http://www.w3.org/2000/svg" width="{width}" height="{height}"'
+            f' viewBox="0 0 {width} {height}">'
+        )
 
-        for joint_index, delta in deltas.items():
+        for person, joint_index in changed:
             connected = get_connected_bones(joint_index)
-            for bone_index in connected:
+            for connected_bone_index in connected:
+                bone_index = BoneIndex(person, connected_bone_index)
                 bone_shape = bones.get(bone_index)
                 if bone_shape:
-                    bone_shape.remove()
-                    bone_joints = bone_connection[bone_index]
-                    joint_a = self.joints.get(bone_joints[0])
-                    joint_b = self.joints.get(bone_joints[1])
+                    bone_joints = bone_connection[bone_index.bone]
+                    joint_a = self.joints.get(JointIndex(person, bone_joints[0]))
+                    joint_b = self.joints.get(JointIndex(person, bone_joints[1]))
                     if joint_a and joint_b:
-                        new_bones += _draw_bone(self.person, bone_index, joint_a, joint_b)
-                        bones[bone_index] = bone_shape
-
+                        new_bones += _draw_bone(bone_index, joint_a, joint_b)
+                    bone_shape.remove()
                     del bones[bone_index]
 
-        return new_bones
+        return new_bones + "</svg>"
 
-    @staticmethod
-    def update_all(poses: List["Pose"], shapes: List[Shape]):
-        new_bones = ""
-        for pose in poses:
-            new_bones += pose.update(shapes)
-        if new_bones != "":
-            return "<svg>" + new_bones + "</svg>"
-        return None
-
-    @staticmethod
-    def to_svg(poses: List["Pose"]):
-        width, height = poses[0].extent.width, poses[0].extent.height
+    def to_svg(self):
+        width, height = self.extent.width, self.extent.height
         svg = (
             f'<svg xmlns="http://www.w3.org/2000/svg" width="{width}" height="{height}"'
             f' viewBox="0 0 {width} {height}">'
         )
-        for person, pose in enumerate(poses):
-            svg += _to_svg(person, pose)
-        svg += "</svg>"
-        return svg
+
+        for i, pos in self.joints.items():
+            svg += _draw_joint(i, pos)
+
+        for person in self.people:
+            for i, bone in enumerate(bone_connection):
+                beg = self.joints.get(JointIndex(person, bone[0]))
+                end = self.joints.get(JointIndex(person, bone[1]))
+                if beg and end:
+                    svg += _draw_bone(BoneIndex(person, i), beg, end)
+
+        return svg + "</svg>"
 
 
-def _draw_bone(person: int, index: int, a: Point, b: Point):
+def _draw_bone(index: BoneIndex, a: Point, b: Point):
     return (
-        f'<line id="{bone_id(person, index)}" x1="{a.x}" y1="{a.y}" x2="{b.x}" y2="{b.y}"'
-        f' stroke="#{colors[index]}" stroke-width="4" stroke-opacity="0.6"/>'
+        f'<line id="{bone_id(index)}" x1="{a.x}" y1="{a.y}" x2="{b.x}" y2="{b.y}"'
+        f' stroke="#{colors[index.bone]}" stroke-width="4" stroke-opacity="0.6"/>'
     )
 
 
-def _draw_joint(person: int, index: int, pos: Point):
+def _draw_joint(index: JointIndex, pos: Point):
     return (
-        f'<circle id="{joint_id(person, index)}" cx="{pos.x}" cy="{pos.y}" r="4"'
-        f' fill="#{colors[index]}"/>'
+        f'<circle id="{joint_id(index)}" cx="{pos.x}" cy="{pos.y}" r="4"'
+        f' fill="#{colors[index.joint]}"/>'
     )
-
-
-def _to_svg(person: int, pose: Pose):
-    svg = ""
-    for i, pos in pose.joints.items():
-        svg += _draw_joint(person, i, pos)
-
-    for i, bone in enumerate(bone_connection):
-        beg = pose.joints.get(bone[0])
-        end = pose.joints.get(bone[1])
-        if beg and end:
-            svg += _draw_bone(person, i, beg, end)
-
-    return svg
