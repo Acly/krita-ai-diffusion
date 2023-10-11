@@ -86,28 +86,31 @@ class JointIndex(NamedTuple):
     person: int
     joint: int
 
+    @property
+    def id(self):
+        return f"P{self.person:02d}_J{self.joint:02d}"
+
 
 class BoneIndex(NamedTuple):
     person: int
     bone: int
 
-
-def bone_id(index: BoneIndex):
-    return f"P{index.person:02d}_B{index.bone:02d}"
-
-
-def joint_id(index: JointIndex):
-    return f"P{index.person:02d}_J{index.joint:02d}"
+    @property
+    def id(self):
+        return f"P{self.person:02d}_B{self.bone:02d}"
 
 
 def parse_id(string: str):
     if len(string) != 7 or string[0] != "P" or string[3] != "_":
         return None
-    person, part = int(string[1:3]), int(string[5:7])
-    if string[4] == "J":
-        return JointIndex(person, part)
-    elif string[4] == "B":
-        return BoneIndex(person, part)
+    try:
+        person, part = int(string[1:3]), int(string[5:7])
+        if string[4] == "J":
+            return JointIndex(person, part)
+        elif string[4] == "B":
+            return BoneIndex(person, part)
+    except ValueError:
+        pass  # can't parse number
     return None
 
 
@@ -124,6 +127,9 @@ class Shape:
     def name(self):
         return self._name
 
+    def setName(self, name):
+        self._name = name
+
     def position(self):
         return self._position - QPointF(4, 4)
 
@@ -136,17 +142,17 @@ class Shape:
 
 class Pose:
     extent: Extent
-    people: Set[int]
+    people_count: int
     joints: Dict[JointIndex, Point]
 
     def __init__(
         self,
         extent: Extent,
-        people: Optional[Set[int]] = None,
+        people_count=0,
         joint_positions: Optional[Dict[JointIndex, Point]] = None,
     ):
         self.extent = extent
-        self.people = people or set()
+        self.people_count = people_count
         self.joints = joint_positions or {}
 
     @staticmethod
@@ -164,51 +170,68 @@ class Pose:
 
         people = pose.get("people", [])
         poses = (parse_keypoints(i, p.get("pose_keypoints_2d", [])) for i, p in enumerate(people))
-        return Pose(extent, set(range(len(people))), reduce(operator.ior, poses, {}))
+        return Pose(extent, len(people), reduce(operator.ior, poses, {}))
 
     def update(self, shapes: List[Shape], resolution=1.0):
         changed = set()
+        duplicates = set()
         bones: Dict[BoneIndex, Shape] = {}
+        new_people: Dict[int, int] = {}
+
+        def update_position(index, position):
+            self.joints[index] = position
+            changed.add(index)
 
         for shape in shapes:
             index = parse_id(shape.name())
-            if index:
-                self.people.add(index.person)
             if isinstance(index, JointIndex):
                 pos = (shape.position() + QPointF(4, 4)) * resolution
                 pos = Point.from_qt(pos)
-                if not index in self.joints:
-                    self.joints[index] = pos
-                else:
-                    last_pos = self.joints[index]
-                    if pos.x != last_pos.x or pos.y != last_pos.y:
-                        changed.add(index)
-                        self.joints[index] = pos
+                previous_pos = self.joints.get(index)
+                if previous_pos is None:
+                    self.people_count = max(self.people_count, index.person + 1)
+                    update_position(index, pos)
+                elif index not in duplicates:
+                    if pos != previous_pos:
+                        update_position(index, pos)
+                else:  # shape with same id exists already, probably it was copied
+                    person = new_people.setdefault(
+                        index.person, self.people_count + len(new_people)
+                    )
+                    new_index = JointIndex(person, index.joint)
+                    shape.setName(new_index.id)
+                    update_position(new_index, pos)
+                    changed.add(index)
+                duplicates.add(index)
             elif isinstance(index, BoneIndex):
+                if duplicate := bones.get(index):
+                    duplicate.remove()
                 bones[index] = shape
 
+        self.people_count += len(new_people)
         if len(changed) == 0:
             return None
 
         width, height = self.extent.width, self.extent.height
+        bones_to_draw = set(
+            BoneIndex(index.person, connected_bone)
+            for index in changed
+            for connected_bone in get_connected_bones(index.joint)
+        )
         new_bones = (
             f'<svg xmlns="http://www.w3.org/2000/svg" width="{width}" height="{height}"'
             f' viewBox="0 0 {width} {height}">'
         )
 
-        for person, joint_index in changed:
-            connected = get_connected_bones(joint_index)
-            for connected_bone_index in connected:
-                bone_index = BoneIndex(person, connected_bone_index)
-                bone_shape = bones.get(bone_index)
-                if bone_shape:
-                    bone_joints = bone_connection[bone_index.bone]
-                    joint_a = self.joints.get(JointIndex(person, bone_joints[0]))
-                    joint_b = self.joints.get(JointIndex(person, bone_joints[1]))
-                    if joint_a and joint_b:
-                        new_bones += _draw_bone(bone_index, joint_a, joint_b)
-                    bone_shape.remove()
-                    del bones[bone_index]
+        for bone_index in bones_to_draw:
+            bone_shape = bones.get(bone_index)
+            if bone_shape:
+                bone_shape.remove()
+            bone_joints = bone_connection[bone_index.bone]
+            joint_a = self.joints.get(JointIndex(bone_index.person, bone_joints[0]))
+            joint_b = self.joints.get(JointIndex(bone_index.person, bone_joints[1]))
+            if joint_a and joint_b:
+                new_bones += _draw_bone(bone_index, joint_a, joint_b)
 
         return new_bones + "</svg>"
 
@@ -219,28 +242,27 @@ class Pose:
             f' viewBox="0 0 {width} {height}">'
         )
 
-        for i, pos in self.joints.items():
-            svg += _draw_joint(i, pos)
-
-        for person in self.people:
+        for person in range(self.people_count):
             for i, bone in enumerate(bone_connection):
                 beg = self.joints.get(JointIndex(person, bone[0]))
                 end = self.joints.get(JointIndex(person, bone[1]))
                 if beg and end:
                     svg += _draw_bone(BoneIndex(person, i), beg, end)
 
+        for index, position in self.joints.items():
+            svg += _draw_joint(index, position)
+
         return svg + "</svg>"
 
 
 def _draw_bone(index: BoneIndex, a: Point, b: Point):
     return (
-        f'<line id="{bone_id(index)}" x1="{a.x}" y1="{a.y}" x2="{b.x}" y2="{b.y}"'
+        f'<line id="{index.id}" x1="{a.x}" y1="{a.y}" x2="{b.x}" y2="{b.y}"'
         f' stroke="#{colors[index.bone]}" stroke-width="4" stroke-opacity="0.6"/>'
     )
 
 
 def _draw_joint(index: JointIndex, pos: Point):
     return (
-        f'<circle id="{joint_id(index)}" cx="{pos.x}" cy="{pos.y}" r="4"'
-        f' fill="#{colors[index.joint]}"/>'
+        f'<circle id="{index.id}" cx="{pos.x}" cy="{pos.y}" r="4" fill="#{colors[index.joint]}"/>'
     )
