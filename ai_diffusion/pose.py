@@ -125,7 +125,7 @@ class Shape:
         return self._name
 
     def position(self):
-        return self._position
+        return self._position - QPointF(4, 4)
 
     def set_position(self, x, y):
         self._position = QPointF(x, y)
@@ -166,7 +166,7 @@ class Pose:
         poses = (parse_keypoints(i, p.get("pose_keypoints_2d", [])) for i, p in enumerate(people))
         return Pose(extent, set(range(len(people))), reduce(operator.ior, poses, {}))
 
-    def update(self, shapes: List[Shape]):
+    def update(self, shapes: List[Shape], resolution=1.0):
         changed = set()
         bones: Dict[BoneIndex, Shape] = {}
 
@@ -175,7 +175,8 @@ class Pose:
             if index:
                 self.people.add(index.person)
             if isinstance(index, JointIndex):
-                pos = Point.from_qt(shape.position())
+                pos = (shape.position() + QPointF(4, 4)) * resolution
+                pos = Point.from_qt(pos)
                 if not index in self.joints:
                     self.joints[index] = pos
                 else:

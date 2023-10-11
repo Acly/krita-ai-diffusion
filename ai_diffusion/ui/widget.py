@@ -161,8 +161,8 @@ class ControlWidget(QWidget):
             self.layer_select.addItem(layer.name(), layer.uniqueId())
             if layer.uniqueId() == id:
                 index = self.layer_select.count() - 1
-        if index == -1:
-            self.remove_button.click()
+        if index == -1 and self.value in self._model.control:
+            self.remove()
         else:
             self.layer_select.setCurrentIndex(index)
 

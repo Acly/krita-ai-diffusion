@@ -4,26 +4,13 @@ from datetime import datetime
 from enum import Enum, Flag
 from typing import Deque, List, Sequence, NamedTuple, Optional, Callable
 from PyQt5.QtCore import Qt, QObject, pyqtSignal
-from .. import (
-    eventloop,
-    ClientMessage,
-    ClientEvent,
-    Control,
-    ControlMode,
-    Conditioning,
-    Document,
-    Image,
-    Mask,
-    Extent,
-    Bounds,
-    ImageCollection,
-    workflow,
-    NetworkError,
-    Style,
-    Styles,
-    settings,
-    util,
-)
+
+from .. import eventloop, Document, workflow, NetworkError, settings, util
+from ..image import Image, ImageCollection, Mask, Bounds
+from ..client import ClientMessage, ClientEvent
+from ..pose import Pose
+from ..style import Style, Styles
+from ..workflow import Control, ControlMode, Conditioning
 from .connection import Connection, ConnectionState
 import krita
 
@@ -300,7 +287,7 @@ class Model(QObject):
             if job.kind is JobKind.diffusion and self._layer is None:
                 self.show_preview(job.id, 0)
             if job.kind is JobKind.control_layer:
-                job.control.image = self.add_control_layer(job)
+                job.control.image = self.add_control_layer(job, message.result)
                 self.jobs.remove(job)
             self.job_finished.emit(job)
             self.changed.emit()
@@ -337,9 +324,12 @@ class Model(QObject):
         self._layer = None
         self.changed.emit()
 
-    def add_control_layer(self, job: Job):
+    def add_control_layer(self, job: Job, result: Optional[dict]):
         assert job.kind is JobKind.control_layer
-        if len(job.results) > 0:
+        if job.control.mode is ControlMode.pose and result is not None:
+            svg = Pose.from_open_pose_json(result).to_svg()
+            return self._doc.insert_vector_layer(job.prompt, svg, below=self._layer)
+        elif len(job.results) > 0:
             return self._doc.insert_layer(job.prompt, job.results[0], job.bounds, below=self._layer)
         return self.document.active_layer  # Execution was cached and no image was produced
 
@@ -435,18 +425,24 @@ class ModelRegistry(QObject):
 
         try:
             async for msg in client.listen():
-                if msg.event is ClientEvent.error and not msg.job_id:
-                    self.report_error(f"Error communicating with server: {msg.error}")
-                elif msg.event is ClientEvent.disconnected:
-                    temporary_disconnect = True
-                    self.report_error("Disconnected from server, trying to reconnect...")
-                elif msg.event is ClientEvent.connected:
-                    if temporary_disconnect:
-                        temporary_disconnect = False
-                        self.clear_error()
-                else:
-                    model = self._find_model(msg.job_id)
-                    if model is not None:
-                        model.handle_message(msg)
+                try:
+                    if msg.event is ClientEvent.error and not msg.job_id:
+                        self.report_error(f"Error communicating with server: {msg.error}")
+                    elif msg.event is ClientEvent.disconnected:
+                        temporary_disconnect = True
+                        self.report_error("Disconnected from server, trying to reconnect...")
+                    elif msg.event is ClientEvent.connected:
+                        if temporary_disconnect:
+                            temporary_disconnect = False
+                            self.clear_error()
+                    else:
+                        model = self._find_model(msg.job_id)
+                        if model is not None:
+                            model.handle_message(msg)
+                except asyncio.CancelledError:
+                    break
+                except Exception as e:
+                    util.client_logger.exception(e)
+                    self.report_error(f"Error handling server message: {str(e)}")
         except asyncio.CancelledError:
             pass  # shutdown
