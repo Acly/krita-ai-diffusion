@@ -16,6 +16,7 @@ from ai_diffusion import (
     SDVersion,
     Style,
 )
+from ai_diffusion.pose import Pose
 from pathlib import Path
 
 test_dir = Path(__file__).parent
@@ -330,6 +331,29 @@ def test_create_control_image(qtapp, comfy, mode):
         result = await run_and_save(comfy, job, image_name)
         reference = Image.load(reference_dir / image_name)
         assert Image.compare(result, reference) < 0.001
+
+    qtapp.run(main())
+
+
+def test_create_open_pose_vector(qtapp, comfy):
+    image_name = f"test_create_open_pose_vector.svg"
+    image = Image.load(image_dir / "adobe_stock.jpg")
+    job = workflow.create_control_image(image, ControlMode.pose)
+
+    async def main():
+        job_id = None
+        async for msg in comfy.listen():
+            if not job_id:
+                job_id = await comfy.enqueue(job)
+            if msg.event is ClientEvent.finished and msg.job_id == job_id:
+                result = Pose.from_open_pose_json(msg.result).to_svg()
+                (result_dir / image_name).write_text(result)
+                reference = (reference_dir / image_name).read_text()
+                assert result == reference
+                return
+            if msg.event is ClientEvent.error and msg.job_id == job_id:
+                raise Exception(msg.error)
+        assert False, "Connection closed without receiving images"
 
     qtapp.run(main())
 
