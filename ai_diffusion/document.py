@@ -183,7 +183,9 @@ class PoseLayers:
         pose = self._layers.setdefault(layer.uniqueId(), Pose(doc.extent))
         changes = pose.update(layer.shapes(), doc.resolution)
         if changes:
-            layer.addShapesFromSvg(changes)
+            shapes = layer.addShapesFromSvg(changes)
+            for shape in shapes:
+                shape.setZIndex(-1)
 
 
 _pose_layers = PoseLayers()
