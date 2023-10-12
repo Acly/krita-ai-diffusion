@@ -1,3 +1,4 @@
+from __future__ import annotations
 from math import ceil, sqrt
 from PyQt5.QtGui import QImage, QPixmap, QIcon, QPainter, qRgba, qRed, qGreen, qBlue, qAlpha, qGray
 from PyQt5.QtCore import Qt, QByteArray, QBuffer, QRect
@@ -171,7 +172,7 @@ class Image:
         return Image.png_from_bytes(bytes)
 
     @staticmethod
-    def png_from_bytes(data: QByteArray):
+    def png_from_bytes(data: QByteArray | memoryview):
         img = QImage.fromData(data, "PNG")
         assert img and not img.isNull(), "Failed to load PNG image from memory"
         return Image(img.convertToFormat(QImage.Format_ARGB32))
@@ -209,7 +210,7 @@ class Image:
         r, g, b, a = color
         self._qimage.setPixel(x, y, qRgba(r, g, b, a))
 
-    def make_opaque(self, background=Qt.white):
+    def make_opaque(self, background=Qt.GlobalColor.white):
         painter = QPainter(self._qimage)
         painter.setCompositionMode(QPainter.CompositionMode_DestinationOver)
         painter.fillRect(self._qimage.rect(), background)
@@ -230,13 +231,13 @@ class Image:
 
         w, h = self.extent
         ptr = self._qimage.constBits().asarray(w * h * 4)
-        array = np.frombuffer(ptr, np.uint8).reshape(w, h, 4)
+        array = np.frombuffer(ptr, np.uint8).reshape(w, h, 4)  # type: ignore
         return array.astype(np.float32) / 255
 
     def to_base64(self):
         byte_array = QByteArray()
         buffer = QBuffer(byte_array)
-        buffer.open(QBuffer.WriteOnly)
+        buffer.open(QBuffer.OpenModeFlag.WriteOnly)
         self._qimage.save(buffer, "PNG")
         buffer.close()
         return byte_array.toBase64().data().decode("utf-8")
@@ -257,9 +258,11 @@ class Image:
 
 
 class ImageCollection:
-    def __init__(self, items: Iterable[Image] = ...):
+    _items: list[Image]
+
+    def __init__(self, items: Optional[Iterable[Image]] = None):
         self._items = []
-        if items is not ...:
+        if items is not None:
             self.append(items)
 
     def append(self, items: Union[Image, Iterable[Image]]):
@@ -303,6 +306,9 @@ class ImageCollection:
 
     def __getitem__(self, i):
         return self._items[i]
+
+    def __iter__(self):
+        return iter(self._items)
 
 
 class Mask:

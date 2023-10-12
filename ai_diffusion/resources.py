@@ -1,3 +1,4 @@
+from __future__ import annotations
 from enum import Enum
 from pathlib import Path
 from typing import NamedTuple, Optional, Sequence
@@ -167,14 +168,16 @@ optional_models = [
 
 class MissingResource(Exception):
     kind: ResourceKind
-    names: Optional[Sequence[str]]
+    names: Sequence[str] | Sequence[CustomNode] | None
 
-    def __init__(self, kind: ResourceKind, names: Optional[Sequence[str]] = None):
+    def __init__(
+        self, kind: ResourceKind, names: Sequence[str] | Sequence[CustomNode] | None = None
+    ):
         self.kind = kind
         self.names = names
 
     def __str__(self):
-        return f"Missing {self.kind.value}: {', '.join(self.names)}"
+        return f"Missing {self.kind.value}: {', '.join(str(n) for n in self.names or [])}"
 
 
 all = (

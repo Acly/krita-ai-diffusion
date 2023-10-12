@@ -1,3 +1,4 @@
+from __future__ import annotations
 import asyncio
 from enum import Enum
 from collections import deque
@@ -9,7 +10,8 @@ from typing import NamedTuple, Optional, Union, Sequence
 from .comfyworkflow import ComfyWorkflow
 from .image import Image, ImageCollection
 from .network import RequestManager, NetworkError
-from .websockets.src import websockets
+from .websockets.src.websockets import client as websockets_client
+from .websockets.src.websockets import exceptions as websockets_exceptions
 from .style import SDVersion
 from .resources import ControlMode, MissingResource, ResourceKind
 from . import resources
@@ -29,7 +31,7 @@ class ClientMessage(NamedTuple):
     event: ClientEvent
     job_id: str = ""
     progress: float = 0
-    images: ImageCollection = None
+    images: Optional[ImageCollection] = None
     result: Optional[dict] = None
     error: Optional[str] = None
 
@@ -91,14 +93,14 @@ class Client:
 
     _requests = RequestManager()
     _id: str
-    _jobs: deque
+    _jobs: deque[JobInfo]
     _active: Optional[JobInfo] = None
 
     url: str
-    checkpoints: Sequence[str]
-    vae_models: Sequence[str]
-    lora_models: Sequence[str]
-    upscalers: Sequence[str]
+    checkpoints: list[str]
+    vae_models: list[str]
+    lora_models: list[str]
+    upscalers: list[str]
     default_upscaler: str
     control_model: dict
     clip_vision_model: str
@@ -168,20 +170,20 @@ class Client:
 
     async def listen(self):
         url = websocket_url(self.url)
-        async for websocket in websockets.connect(
+        async for websocket in websockets_client.connect(
             f"{url}/ws?clientId={self._id}", max_size=2**30, read_limit=2**30
         ):
             try:
                 async for msg in self._listen(websocket):
                     yield msg
-            except websockets.ConnectionClosedError as e:
+            except websockets_exceptions.ConnectionClosedError as e:
                 log.warning(f"Websocket connection closed: {str(e)}")
                 yield ClientMessage(ClientEvent.disconnected)
             except OSError as e:
                 msg = f"Could not connect to websocket server at {url}: {str(e)}"
                 yield ClientMessage(ClientEvent.error, error=msg)
             except asyncio.CancelledError:
-                websocket.close()
+                await websocket.close()
                 self._active = None
                 self._jobs.clear()
                 break
@@ -189,14 +191,14 @@ class Client:
                 log.exception("Unhandled exception in websocket listener")
                 yield ClientMessage(ClientEvent.error, error=str(e))
 
-    async def _listen(self, websocket: websockets.WebSocketClientProtocol):
+    async def _listen(self, websocket: websockets_client.WebSocketClientProtocol):
         progress = None
         images = ImageCollection()
         result = None
 
         async for msg in websocket:
             if isinstance(msg, bytes):
-                image = _extract_message_png_image(msg)
+                image = _extract_message_png_image(memoryview(msg))
                 if image is not None:
                     images.append(image)
 
@@ -209,9 +211,10 @@ class Client:
                 if msg["type"] == "execution_start":
                     id = msg["data"]["prompt_id"]
                     self._active = self._start_job(id)
-                    progress = Progress(self._active)
-                    images = ImageCollection()
-                    result = None
+                    if self._active:
+                        progress = Progress(self._active)
+                        images = ImageCollection()
+                        result = None
 
                 if msg["type"] == "execution_interrupted":
                     job = self._get_active_job(msg["data"]["prompt_id"])
@@ -227,8 +230,11 @@ class Client:
                         yield ClientMessage(ClientEvent.finished, job_id, 1, images)
 
                 elif msg["type"] in ("execution_cached", "executing", "progress"):
-                    progress.handle(msg)
-                    yield ClientMessage(ClientEvent.progress, self._active.id, progress.value)
+                    if self._active and progress:
+                        progress.handle(msg)
+                        yield ClientMessage(ClientEvent.progress, self._active.id, progress.value)
+                    else:
+                        log.error(f"Received message {msg} but there is no active job")
 
                 if msg["type"] == "executed":
                     job = self._get_active_job(msg["data"]["prompt_id"])
@@ -275,7 +281,7 @@ class Client:
     def _get_active_job(self, id: str) -> Optional[JobInfo]:
         if self._active and self._active.id == id:
             return self._active
-        else:
+        elif self._active:
             log.warning(f"Received message for job {id}, but job {self._active.id} is active")
         if len(self._jobs) == 0:
             log.warning(f"Received unknown job {id}")

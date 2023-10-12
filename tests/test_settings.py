@@ -80,7 +80,7 @@ def test_styles():
         assert loaded_style.filename == style.filename
         assert loaded_style.name == "Test Style"
         assert styles.find(style.filename) == (loaded_style, 0)
-        assert styles.find(Path("nonexistent.json")) == (None, -1)
+        assert styles.find("nonexistent.json") == (None, -1)
         assert style_is_default(loaded_style)
 
 
@@ -99,7 +99,8 @@ def test_bad_style_type():
         path.write_text(json.dumps({"cfg_scale": "bad", "sampler": "bad", "style_prompt": -1}))
         style = Style.load(path)
         assert (
-            style.cfg_scale == StyleSettings.cfg_scale.default
+            style is not None
+            and style.cfg_scale == StyleSettings.cfg_scale.default
             and style.sampler == StyleSettings.sampler.default
             and style.style_prompt == StyleSettings.style_prompt.default
         )

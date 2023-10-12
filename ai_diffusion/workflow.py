@@ -1,16 +1,14 @@
+from __future__ import annotations
 import math
-from typing import List, NamedTuple, Tuple, Union, Optional
+from typing import Any, List, NamedTuple, Optional
 
-from .image import Bounds, Extent, Image, ImageCollection, Mask
+from .image import Bounds, Extent, Image, Mask
 from .client import Client
 from .style import SDVersion, Style, StyleSettings
 from .resources import ControlMode
 from .settings import settings
 from .comfyworkflow import ComfyWorkflow, Output
 from .util import compute_batch_size, client_logger as log
-
-
-Inputs = Union[Extent, Image, Tuple[Image, Mask]]
 
 
 class ScaledExtent(NamedTuple):
@@ -35,13 +33,6 @@ class ScaledExtent(NamedTuple):
         return self.target != self.expanded
 
 
-class ScaledInputs(NamedTuple):
-    image: Optional[Image]
-    mask_image: Optional[Image]
-    extent: ScaledExtent
-    batch_size: int
-
-
 def compute_bounds(extent: Extent, mask_bounds: Optional[Bounds], strength: float):
     """Compute the area of the image to use as input for diffusion."""
 
@@ -61,12 +52,9 @@ def compute_bounds(extent: Extent, mask_bounds: Optional[Bounds], strength: floa
         return Bounds(0, 0, *extent)
 
 
-def prepare(inputs: Inputs, sdver: SDVersion, downscale=True) -> ScaledInputs:
-    input_is_masked_image = isinstance(inputs, tuple) and isinstance(inputs[0], Image)
-    image = inputs[0] if input_is_masked_image else None
-    image = inputs if isinstance(inputs, Image) else image
-    extent = inputs if isinstance(inputs, Extent) else image.extent
-    mask = inputs[1] if input_is_masked_image else None
+def prepare(
+    extent: Extent, image: Image | None, mask: Mask | None, sdver: SDVersion, downscale=True
+):
     mask_image = mask.to_image(extent) if mask else None
 
     # Latent space uses an 8 times lower resolution, so results are always multiples of 8.
@@ -101,10 +89,27 @@ def prepare(inputs: Inputs, sdver: SDVersion, downscale=True) -> ScaledInputs:
         initial = expanded
 
     batch = compute_batch_size(Extent.largest(initial, extent))
-    return ScaledInputs(image, mask_image, ScaledExtent(initial, expanded, extent, scale), batch)
+    return ScaledExtent(initial, expanded, extent, scale), image, mask_image, batch
 
 
-def _sampler_params(style: Style, clip_vision=False, upscale=False):
+def prepare_extent(extent: Extent, sd_ver: SDVersion, downscale: bool = True):
+    scaled, _, _, batch = prepare(extent, None, None, sd_ver, downscale)
+    return scaled, batch
+
+
+def prepare_image(image: Image, sd_ver: SDVersion, downscale: bool = True):
+    scaled, out_image, _, batch = prepare(image.extent, image, None, sd_ver, downscale)
+    assert out_image is not None
+    return scaled, out_image, batch
+
+
+def prepare_masked(image: Image, mask: Mask, sd_ver: SDVersion, downscale: bool = True):
+    scaled, out_image, out_mask, batch = prepare(image.extent, image, mask, sd_ver, downscale)
+    assert out_image and out_mask
+    return scaled, out_image, out_mask, batch
+
+
+def _sampler_params(style: Style, clip_vision=False, upscale=False) -> dict[str, Any]:
     sampler_name = {
         "DDIM": "ddim",
         "DPM++ 2M": "dpmpp_2m",
@@ -160,11 +165,17 @@ def load_model_with_lora(w: ComfyWorkflow, comfy: Client, style: Style):
 
 class Control:
     mode: ControlMode
-    image: Union[Image, Output]
-    mask: Union[None, Mask, Output] = None
+    image: Image | Output
+    mask: None | Mask | Output = None
     strength: float = 1.0
 
-    def __init__(self, mode: ControlMode, image: Image, strength=1.0, mask: Optional[Mask] = None):
+    def __init__(
+        self,
+        mode: ControlMode,
+        image: Image | Output,
+        strength=1.0,
+        mask: None | Mask | Output = None,
+    ):
         self.mode = mode
         self.image = image
         self.strength = strength
@@ -176,6 +187,7 @@ class Control:
         return self.image
 
     def load_mask(self, w: ComfyWorkflow):
+        assert self.mask is not None
         if isinstance(self.mask, Mask):
             self.mask = w.load_mask(self.mask.to_image())
         return self.mask
@@ -185,17 +197,12 @@ class Conditioning:
     prompt: str
     control: List[Control]
 
-    def __init__(self, prompt="", control: List[Control] = None):
+    def __init__(self, prompt="", control: list[Control] | None = None):
         self.prompt = prompt
         self.control = control or []
 
     def copy(self):
         return Conditioning(self.prompt, [c for c in self.control])
-
-    def add_control(
-        self, type: ControlMode, image: Image, strength=1.0, mask: Optional[Mask] = None
-    ):
-        self.control.append(Control(type, image, strength, mask))
 
     def crop(self, w: ComfyWorkflow, bounds: Bounds):
         for control in self.control:
@@ -273,7 +280,7 @@ def upscale(
 
 
 def generate(comfy: Client, style: Style, input_extent: Extent, cond: Conditioning):
-    _, _, extent, batch = prepare(input_extent, style.sd_version_resolved)
+    extent, batch = prepare_extent(input_extent, style.sd_version_resolved)
 
     w = ComfyWorkflow()
     model, clip, vae = load_model_with_lora(w, comfy, style)
@@ -291,7 +298,7 @@ def generate(comfy: Client, style: Style, input_extent: Extent, cond: Conditioni
 
 def inpaint(comfy: Client, style: Style, image: Image, mask: Mask, cond: Conditioning):
     sd_ver = style.sd_version_resolved
-    scaled_image, scaled_mask, extent, _ = prepare((image, mask), sd_ver)
+    extent, scaled_image, scaled_mask, _ = prepare_masked(image, mask, sd_ver)
     target_bounds = mask.bounds
     region_expanded = target_bounds.extent.multiple_of(8)
     expanded_bounds = Bounds(*mask.bounds.offset, *region_expanded)
@@ -306,8 +313,8 @@ def inpaint(comfy: Client, style: Style, image: Image, mask: Mask, cond: Conditi
         in_image = w.scale_image(in_image, extent.initial)
         in_mask = w.scale_mask(in_mask, extent.initial)
     cond_base = cond.copy()
-    cond_base.add_control(ControlMode.image, in_image, 0.5)
-    cond_base.add_control(ControlMode.inpaint, in_image, mask=in_mask)
+    cond_base.control.append(Control(ControlMode.image, in_image, 0.5))
+    cond_base.control.append(Control(ControlMode.inpaint, in_image, mask=in_mask))
     model, positive, negative = apply_conditioning(cond_base, w, comfy, model, clip, style)
     latent = w.vae_encode_inpaint(vae, in_image, in_mask)
     latent = w.batch_latent(latent, batch)
@@ -332,7 +339,9 @@ def inpaint(comfy: Client, style: Style, image: Image, mask: Mask, cond: Conditi
             latent = w.vae_encode(vae, upscale)
 
         cond.crop(w, expanded_bounds)
-        cond.add_control(ControlMode.inpaint, Image.crop(image, target_bounds), mask=cropped_mask)
+        cond.control.append(
+            Control(ControlMode.inpaint, Image.crop(image, target_bounds), mask=cropped_mask)
+        )
         _, positive_upscale, _ = apply_conditioning(cond, w, comfy, model, clip, style)
         out_latent = w.ksampler(model, positive_upscale, negative, latent, denoise=0.5, **params)
     elif extent.requires_downscale:
@@ -353,7 +362,7 @@ def inpaint(comfy: Client, style: Style, image: Image, mask: Mask, cond: Conditi
 
 def refine(comfy: Client, style: Style, image: Image, cond: Conditioning, strength: float):
     assert strength > 0 and strength < 1
-    image, _, extent, batch = prepare(image, style.sd_version_resolved, downscale=False)
+    extent, image, batch = prepare_image(image, style.sd_version_resolved, downscale=False)
 
     w = ComfyWorkflow()
     model, clip, vae = load_model_with_lora(w, comfy, style)
@@ -380,7 +389,7 @@ def refine_region(
 
     downscale_if_needed = strength >= 0.7
     sd_ver = style.sd_version_resolved
-    image, mask_image, extent, batch = prepare((image, mask), sd_ver, downscale_if_needed)
+    extent, image, mask_image, batch = prepare_masked(image, mask, sd_ver, downscale_if_needed)
 
     w = ComfyWorkflow()
     model, clip, vae = load_model_with_lora(w, comfy, style)
@@ -395,7 +404,7 @@ def refine_region(
     latent = w.vae_encode(vae, in_image)
     latent = w.set_latent_noise_mask(latent, in_mask)
     latent = w.batch_latent(latent, batch)
-    cond.add_control(ControlMode.inpaint, in_image, mask=in_mask)
+    cond.control.append(Control(ControlMode.inpaint, in_image, mask=in_mask))
     model, positive, negative = apply_conditioning(cond, w, comfy, model, clip, style)
     out_latent = w.ksampler(
         model, positive, negative, latent, denoise=strength, **_sampler_params(style)
@@ -416,6 +425,8 @@ def create_control_image(image: Image, mode: ControlMode):
 
     w = ComfyWorkflow()
     input = w.load_image(image)
+    result = None
+
     if mode is ControlMode.canny_edge:
         result = w.add("Canny", 1, image=input, low_threshold=0.4, high_threshold=0.8)
     else:
@@ -438,6 +449,7 @@ def create_control_image(image: Image, mode: ControlMode):
             result = w.add("DWPreprocessor", 1, **args, **feat)
         elif mode is ControlMode.segmentation:
             result = w.add("OneFormer-COCO-SemSegPreprocessor", 1, **args)
+        assert result is not None
 
         if args["resolution"] != image.extent.shortest_side:
             result = w.scale_image(result, image.extent)

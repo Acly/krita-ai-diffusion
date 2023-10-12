@@ -40,7 +40,7 @@ def test_image_make_opaque():
     img.set_pixel(0, 0, (0, 0, 0, 0))
     img.set_pixel(1, 0, (0, 0, 0, 155))
     img.set_pixel(0, 1, (42, 42, 42, 255))
-    img.make_opaque(Qt.white)
+    img.make_opaque(Qt.GlobalColor.white)
     assert (
         img.pixel(0, 0) == (255, 255, 255, 255)
         and img.pixel(1, 0) == (100, 100, 100, 255)

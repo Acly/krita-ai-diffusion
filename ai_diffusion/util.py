@@ -4,6 +4,7 @@ from pathlib import Path
 import sys
 import logging
 import logging.handlers
+from typing import Optional
 
 from .image import Extent
 from .settings import settings
@@ -49,7 +50,7 @@ def encode_json(obj):
     raise TypeError(f"Object of type {obj.__class__.__name__} is not JSON serializable")
 
 
-def compute_batch_size(extent: Extent, min_size=512, max_batches: int = None):
+def compute_batch_size(extent: Extent, min_size=512, max_batches: Optional[int] = None):
     max_batches = max_batches or settings.batch_size
     desired_pixels = min_size * min_size * max_batches
     requested_pixels = extent.width * extent.height

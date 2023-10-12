@@ -1,3 +1,4 @@
+from __future__ import annotations
 import asyncio
 from collections import deque
 from datetime import datetime
@@ -80,7 +81,7 @@ class JobQueue:
         # Control layer jobs: removed immediately once finished
         self._entries.remove(job)
 
-    def find(self, id: str):
+    def find(self, id: str | Control):
         if isinstance(id, str):
             return next((j for j in self._entries if j.id == id), None)
         elif isinstance(id, Control):
@@ -133,7 +134,7 @@ class Model(QObject):
 
     style: Style
     prompt = ""
-    control: List[Control] = None
+    control: list[Control]
     strength = 1.0
     progress = 0.0
     jobs: JobQueue
@@ -155,7 +156,7 @@ class Model(QObject):
     def generate(self):
         """Enqueue image generation for the current setup."""
         ok, msg = self._doc.check_color_mode()
-        if not ok:
+        if not ok and msg:
             self.report_error(msg)
             return
 
@@ -184,8 +185,6 @@ class Model(QObject):
         image: Optional[Image],
         mask: Optional[Mask],
     ):
-        assert Connection.instance().state is ConnectionState.connected
-
         client = Connection.instance().client
         style, strength = self.style, self.strength
         if not self.jobs.any_executing():
@@ -216,17 +215,17 @@ class Model(QObject):
         self.jobs.add(job_id, conditioning.prompt, bounds)
         self.changed.emit()
 
-    def _get_control_image(self, control: Control, bounds: Bounds):
+    def _get_control_image(self, control: Control, bounds: Optional[Bounds]):
         if control.mode is ControlMode.image:
             bounds = None  # ignore mask bounds, use layer bounds
-        image = self._doc.get_layer_image(control.image, bounds)
+        image = self._doc.get_layer_image(control.image, bounds)  # type: ignore
         if control.mode.is_lines:
-            image.make_opaque(background=Qt.white)
+            image.make_opaque(background=Qt.GlobalColor.white)
         return Control(control.mode, image, control.strength)
 
     def generate_control_layer(self, control: Control):
         ok, msg = self._doc.check_color_mode()
-        if not ok:
+        if not ok and msg:
             self.report_error(msg)
             return
 
@@ -238,7 +237,6 @@ class Model(QObject):
         )
 
     async def _generate_control_layer(self, job: Job, image: Image, mode: ControlMode):
-        assert Connection.instance().state is ConnectionState.connected
         client = Connection.instance().client
         work = workflow.create_control_image(image, mode)
         job.id = await client.enqueue(work)
@@ -282,12 +280,13 @@ class Model(QObject):
             self.report_progress(message.progress)
         elif message.event is ClientEvent.finished:
             job.state = State.finished
-            self.jobs.set_results(job, message.images)
             self.progress = 1
-            if job.kind is JobKind.diffusion and self._layer is None:
+            if message.images:
+                self.jobs.set_results(job, message.images)
+            if job.kind is JobKind.diffusion and self._layer is None and job.id:
                 self.show_preview(job.id, 0)
             if job.kind is JobKind.control_layer:
-                job.control.image = self.add_control_layer(job, message.result)
+                job.control.image = self.add_control_layer(job, message.result)  # type: ignore
                 self.jobs.remove(job)
             self.job_finished.emit(job)
             self.changed.emit()
@@ -300,6 +299,7 @@ class Model(QObject):
 
     def show_preview(self, job_id: str, index: int):
         job = self.jobs.find(job_id)
+        assert job is not None, "Cannot show preview, invalid job id"
         name = f"[Preview] {job.prompt}"
         if self._layer and self._layer.parentNode() is None:
             self._layer = None
@@ -318,14 +318,14 @@ class Model(QObject):
 
     def apply_current_result(self):
         """Promote the preview layer to a user layer."""
-        assert self.can_apply_result
+        assert self._layer and self.can_apply_result
         self._layer.setLocked(False)
         self._layer.setName(self._layer.name().replace("[Preview]", "[Generated]"))
         self._layer = None
         self.changed.emit()
 
     def add_control_layer(self, job: Job, result: Optional[dict]):
-        assert job.kind is JobKind.control_layer
+        assert job.kind is JobKind.control_layer and job.control
         if job.control.mode is ControlMode.pose and result is not None:
             svg = Pose.from_open_pose_json(result).to_svg()
             return self._doc.insert_vector_layer(job.prompt, svg, below=self._layer)
@@ -359,7 +359,7 @@ class ModelRegistry(QObject):
     widgets when new ones are created."""
 
     _instance = None
-    _models = []
+    _models: list[Model] = []
     _task: Optional[asyncio.Task] = None
 
     created = pyqtSignal(Model)
@@ -392,10 +392,10 @@ class ModelRegistry(QObject):
         self._models = [m for m in self._models if m.is_valid]
 
         # Find or create model for active document
-        if Document.active() is not None:
+        if doc := Document.active():
             model = next((m for m in self._models if m.is_active), None)
             if model is None:
-                model = Model(Document.active())
+                model = Model(doc)
                 self._models.append(model)
                 self.created.emit(model)
             return model
@@ -419,7 +419,6 @@ class ModelRegistry(QObject):
         return next((m for m in self._models if m.jobs.find(job_id)), None)
 
     async def _handle_messages(self):
-        assert Connection.instance().state is ConnectionState.connected
         client = Connection.instance().client
         temporary_disconnect = False
 

@@ -1,5 +1,5 @@
 from __future__ import annotations
-from typing import Callable, List, Optional
+from typing import Callable, Iterable, List, Optional
 from pathlib import Path
 
 from PyQt5.QtWidgets import (
@@ -47,9 +47,9 @@ class QueueWidget(QToolButton):
         self.setMenu(queue_menu)
 
         self.setStyleSheet(self._style.format(color=theme.background_inactive))
-        self.setToolButtonStyle(Qt.ToolButtonTextOnly)
+        self.setToolButtonStyle(Qt.ToolButtonStyle.ToolButtonTextOnly)
         self.setPopupMode(QToolButton.InstantPopup)
-        self.setArrowType(Qt.NoArrow)
+        self.setArrowType(Qt.ArrowType.NoArrow)
 
     def update(self, jobs: JobQueue):
         count = jobs.count(State.queued)
@@ -78,8 +78,10 @@ class ControlWidget(QWidget):
 
     def __init__(self, parent=None):
         super().__init__(parent)
-        self._model = Model.active()
-        self._control = Control(ControlMode.image, self._model.document.active_layer)
+        model = Model.active()
+        assert model
+        self._model = model
+        self._control = Control(ControlMode.image, self._model.document.active_layer)  # type: ignore (CTRLLAYER)
 
         layout = QHBoxLayout(self)
         layout.setContentsMargins(0, 0, 0, 0)
@@ -93,7 +95,7 @@ class ControlWidget(QWidget):
             icon = theme.icon(f"control-{mode.name}")
             self.mode_select.addItem(icon, mode.text, mode.value)
         self.mode_select.currentIndexChanged.connect(self._notify)
-        self.mode_select.currentIndexChanged.connect(self._check_is_installed)
+        self.mode_select.currentIndexChanged.connect(self._update_installed_packages)
 
         self.layer_select = QComboBox(self)
         self.layer_select.currentIndexChanged.connect(self._notify)
@@ -136,7 +138,7 @@ class ControlWidget(QWidget):
         layout.addWidget(self.error_text, 1)
         layout.addWidget(self.remove_button)
 
-        self.value = Control(ControlMode.scribble, Document.active().active_layer, 1)
+        self.value = Control(ControlMode.scribble, self._model.document.active_layer, 1)  # type: ignore (CTRLLAYER)
 
         # non-exhaustive list of actions that create/remove layers
         Krita.instance().action("add_new_paint_layer").triggered.connect(self.update_layers)
@@ -149,7 +151,7 @@ class ControlWidget(QWidget):
         if not self._suppress_changes:
             self._control.mode = ControlMode(self.mode_select.currentData())
             id = self.layer_select.currentData()
-            self._control.image = self._model.document.find_layer(id)
+            self._control.image = self._model.document.find_layer(id)  # type: ignore (CTRLLAYER)
             self._control.strength = self.strength_spin.value() / 100
             self.changed.emit()
 
@@ -186,7 +188,7 @@ class ControlWidget(QWidget):
     def value(self, control: Control):
         self._control = control
         with self._suppress_changes:
-            self.update_and_select_layer(control.image.uniqueId())
+            self.update_and_select_layer(control.image.uniqueId())  # type: ignore (CTRLLAYER)
             self.mode_select.setCurrentIndex(self.mode_select.findData(control.mode.value))
             self.strength_spin.setValue(int(control.strength * 100))
             if self._check_is_installed():
@@ -198,8 +200,8 @@ class ControlWidget(QWidget):
     def _check_is_installed(self):
         connection = Connection.instance()
         is_installed = True
+        mode = ControlMode(self.mode_select.currentData())
         if connection.state is ConnectionState.connected:
-            mode = ControlMode(self.mode_select.currentData())
             sdver = self._model.style.sd_version_resolved
             if mode is ControlMode.image:
                 if not sdver.has_ip_adapter:
@@ -220,6 +222,9 @@ class ControlWidget(QWidget):
         self.strength_spin.setEnabled(self._is_first_image_mode())
         self.error_text.setVisible(not is_installed)
         return is_installed
+
+    def _update_installed_packages(self):
+        _ = self._check_is_installed()
 
     def _is_first_image_mode(self):
         return self._control.mode is not ControlMode.image or self._control == next(
@@ -242,7 +247,8 @@ class ControlListWidget(QWidget):
 
     def add(self):
         model = Model.active()
-        model.control.append(Control(ControlMode.image, model.document.active_layer))
+        assert model
+        model.control.append(Control(ControlMode.image, model.document.active_layer))  # type: ignore (CTRLLAYER)
         self.value = model.control
 
     @property
@@ -291,7 +297,7 @@ class HistoryWidget(QListWidget):
         super().__init__(parent)
         self.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Expanding)
         self.setResizeMode(QListView.Adjust)
-        self.setHorizontalScrollBarPolicy(Qt.ScrollBarAlwaysOff)
+        self.setHorizontalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAlwaysOff)
         self.setFlow(QListView.LeftToRight)
         self.setViewMode(QListWidget.IconMode)
         self.setIconSize(QSize(96, 96))
@@ -304,19 +310,20 @@ class HistoryWidget(QListWidget):
             prompt = job.prompt if job.prompt != "" else "<no prompt>"
 
             header = QListWidgetItem(f"{job.timestamp:%H:%M} - {prompt}")
-            header.setFlags(Qt.NoItemFlags)
-            header.setData(Qt.UserRole, job.id)
-            header.setData(Qt.ToolTipRole, job.prompt)
+            header.setFlags(Qt.ItemFlag.NoItemFlags)
+            header.setData(Qt.ItemDataRole.UserRole, job.id)
+            header.setData(Qt.ItemDataRole.ToolTipRole, job.prompt)
             header.setSizeHint(QSize(800, self.fontMetrics().lineSpacing() + 4))
-            header.setTextAlignment(Qt.AlignLeft)
+            header.setTextAlignment(Qt.AlignmentFlag.AlignLeft)
             self.addItem(header)
 
         for i, img in enumerate(job.results):
-            item = QListWidgetItem(img.to_icon(), None)
-            item.setData(Qt.UserRole, job.id)
-            item.setData(Qt.UserRole + 1, i)
+            item = QListWidgetItem(img.to_icon(), None)  # type: ignore (text can be None)
+            item.setData(Qt.ItemDataRole.UserRole, job.id)
+            item.setData(Qt.ItemDataRole.UserRole + 1, i)
             item.setData(
-                Qt.ToolTipRole, f"{job.prompt}\nClick to toggle preview, double-click to apply."
+                Qt.ItemDataRole.ToolTipRole,
+                f"{job.prompt}\nClick to toggle preview, double-click to apply.",
             )
             self.addItem(item)
 
@@ -329,26 +336,26 @@ class HistoryWidget(QListWidget):
 
     def prune(self, jobs: JobQueue):
         first_id = next((job.id for job in jobs if self.is_finished(job)), None)
-        while self.count() > 0 and self.item(0).data(Qt.UserRole) != first_id:
+        while self.count() > 0 and self.item(0).data(Qt.ItemDataRole.UserRole) != first_id:
             self.takeItem(0)
 
-    def rebuild(self, jobs: JobQueue):
+    def rebuild(self, jobs: Iterable[Job]):
         self.clear()
         for job in filter(self.is_finished, jobs):
             self.add(job)
 
     def item_info(self, item: QListWidgetItem):
-        return item.data(Qt.UserRole), item.data(Qt.UserRole + 1)
+        return item.data(Qt.ItemDataRole.UserRole), item.data(Qt.ItemDataRole.UserRole + 1)
 
     def handle_preview_click(self, item: QListWidgetItem):
         if item.text() != "" and item.text() != "<no prompt>":
-            prompt = item.data(Qt.ToolTipRole)
+            prompt = item.data(Qt.ItemDataRole.ToolTipRole)
             QGuiApplication.clipboard().setText(prompt)
 
     def mousePressEvent(self, e: QMouseEvent) -> None:
         # make single click deselect current item (usually requires Ctrl+click)
         mods = e.modifiers()
-        mods |= Qt.ControlModifier
+        mods |= Qt.KeyboardModifier.ControlModifier
         e = QMouseEvent(
             e.type(),
             e.localPos(),
@@ -375,7 +382,10 @@ class TextPromptWidget(QPlainTextEdit):
         self.setFixedHeight(fm.lineSpacing() * 2 + 4)
 
     def keyPressEvent(self, event: QKeyEvent):
-        if event.key() == Qt.Key_Return and event.modifiers() == Qt.ShiftModifier:
+        if (
+            event.key() == Qt.Key.Key_Return
+            and event.modifiers() == Qt.KeyboardModifier.ShiftModifier
+        ):
             self.activated.emit()
         else:
             super().keyPressEvent(event)

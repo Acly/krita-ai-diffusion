@@ -1,7 +1,9 @@
+from __future__ import annotations
 import os
 import json
 from enum import Enum
 from pathlib import Path
+from typing import Optional, Any
 
 from . import util
 
@@ -47,12 +49,14 @@ class Setting:
 class Settings:
     default_path = Path(__file__).parent / "settings.json"
 
+    server_mode: ServerMode
     _server_mode = Setting(
         "Server Management",
         ServerMode.undefined,
         "To generate images, the plugin connects to a ComfyUI server",
     )
 
+    server_path: str
     _server_path = Setting(
         "Server Path",
         str(Path(__file__).parent / ".server"),
@@ -62,48 +66,59 @@ class Settings:
         ),
     )
 
+    server_url: str
     _server_url = Setting(
         "Server URL",
         "127.0.0.1:8188",
         "URL used to connect to a running ComfyUI server. Default is 127.0.0.1:8188 (local).",
     )
 
+    server_backend: ServerBackend
     _server_backend = Setting("Server Backend", ServerBackend.cuda)
 
+    server_arguments: str
     _server_arguments = Setting(
         "Server Arguments", "", "Additional command line arguments passed to the server"
     )
 
+    selection_grow: int
     _selection_grow = Setting(
         "Selection Grow", 7, "Selection area is expanded by a fraction of its size"
     )
 
+    selection_feather: int
     _selection_feather = Setting(
         "Selection Feather", 7, "The border is blurred by a fraction of selection size"
     )
 
+    fixed_seed: bool
     _fixed_seed = Setting("Use Fixed Seed", False, "Fixes the random seed to a specific value")
 
+    random_seed: str
     _random_seed = Setting(
         "Random Seed", "0", "Random number to produce different results with each generation"
     )
 
+    history_size: int
     _history_size = Setting(
         "History Size", 1000, "Main memory (RAM) used to keep the history of generated images"
     )
 
+    performance_preset: PerformancePreset
     _performance_preset = Setting(
         "Performance Preset",
         PerformancePreset.auto,
         "Configures performance settings to match available hardware.",
     )
 
+    batch_size: int
     _batch_size = Setting(
         "Maximum Batch Size",
         4,
         "Increase efficiency by generating multiple images at once",
     )
 
+    diffusion_tile_size: int
     _diffusion_tile_size = Setting(
         "Diffusion Tile Size",
         2048,
@@ -132,6 +147,8 @@ class Settings:
     # Folder where intermediate images are stored for debug purposes (default: None)
     debug_image_folder = os.environ.get("KRITA_AI_DIFFUSION_DEBUG_IMAGE")
 
+    _values: dict[str, Any]
+
     def __init__(self):
         self.restore()
 
@@ -153,13 +170,13 @@ class Settings:
             k[1:]: v.default for k, v in Settings.__dict__.items() if isinstance(v, Setting)
         }
 
-    def save(self, path: Path = ...):
-        path = self.default_path if path is ... else path
+    def save(self, path: Optional[Path] = None):
+        path = self.default_path if path is None else path
         with open(path, "w") as file:
             file.write(json.dumps(self._values, default=util.encode_json, indent=4))
 
-    def load(self, path: Path = ...):
-        path = self.default_path if path is ... else path
+    def load(self, path: Optional[Path] = None):
+        path = self.default_path if path is None else path
         if not path.exists():
             self.save()  # create new file with defaults
             return

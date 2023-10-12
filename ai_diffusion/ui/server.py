@@ -61,7 +61,7 @@ class PackageGroupWidget(QWidget):
         self.setLayout(self._layout)
 
         self._header = QToolButton(self)
-        self._header.setToolButtonStyle(Qt.ToolButtonTextBesideIcon)
+        self._header.setToolButtonStyle(Qt.ToolButtonStyle.ToolButtonTextBesideIcon)
         self._header.setContentsMargins(0, 0, 0, 0)
         self._header.setText(name)
         self._header.setCheckable(True)
@@ -84,7 +84,9 @@ class PackageGroupWidget(QWidget):
         self._update_visibility()
 
     def _update_visibility(self):
-        self._header.setArrowType(Qt.DownArrow if self._header.isChecked() else Qt.RightArrow)
+        self._header.setArrowType(
+            Qt.ArrowType.DownArrow if self._header.isChecked() else Qt.ArrowType.RightArrow
+        )
         if self._desc:
             self._desc.setVisible(self._header.isChecked())
         for widget in self._widgets:
@@ -206,20 +208,18 @@ class ServerWidget(QWidget):
 
         open_log_button = QLabel(f"<a href='file://{util.log_path}'>View log files</a>", self)
         open_log_button.setToolTip(str(util.log_path))
-        open_log_button.linkActivated.connect(
-            lambda _: QDesktopServices.openUrl(QUrl.fromLocalFile(str(util.log_path)))
-        )
+        open_log_button.linkActivated.connect(self._open_logs)
 
         status_layout = QVBoxLayout()
         status_layout.addWidget(self._status_label)
-        status_layout.addWidget(self._backend_select, 0, Qt.AlignLeft)
+        status_layout.addWidget(self._backend_select, 0, Qt.AlignmentFlag.AlignLeft)
         status_layout.addWidget(self._progress_bar)
         status_layout.addWidget(self._progress_info)
         status_layout.addStretch()
 
         buttons_layout = QVBoxLayout()
         buttons_layout.addWidget(self._launch_button)
-        buttons_layout.addWidget(open_log_button, 0, Qt.AlignRight)
+        buttons_layout.addWidget(open_log_button, 0, Qt.AlignmentFlag.AlignRight)
 
         launch_layout = QHBoxLayout()
         launch_layout.addLayout(status_layout, 1)
@@ -235,7 +235,7 @@ class ServerWidget(QWidget):
         scroll.setWidget(package_list)
         scroll.setWidgetResizable(True)
         scroll.setFrameStyle(QFrame.NoFrame)
-        scroll.setHorizontalScrollBarPolicy(Qt.ScrollBarAlwaysOff)
+        scroll.setHorizontalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAlwaysOff)
         layout.addWidget(scroll, 1)
 
         self._required_group = PackageGroupWidget(
@@ -310,6 +310,9 @@ class ServerWidget(QWidget):
             settings.server_backend = backend
             settings.save()
 
+    def _open_logs(self):
+        QDesktopServices.openUrl(QUrl.fromLocalFile(str(util.log_path)))
+
     def _launch(self):
         self._error = ""
         if self.requires_install:
@@ -324,11 +327,11 @@ class ServerWidget(QWidget):
         self._status_label.setText("Starting server...")
         self._status_label.setStyleSheet("color:orange;font-weight:bold")
         try:
-            await self._server.start()
+            url = await self._server.start()
             self.update()
             self._status_label.setText("Server running - Connecting...")
             self._status_label.setStyleSheet(f"color:{yellow};font-weight:bold")
-            await Connection.instance()._connect(self._server.url)
+            await Connection.instance()._connect(url)
         except Exception as e:
             self._error = str(e)
         self.update()
@@ -435,9 +438,8 @@ class ServerWidget(QWidget):
                 self._status_label.setText("Server running - Connected")
                 self._status_label.setStyleSheet(f"color:{green};font-weight:bold")
             elif connection_state is ConnectionState.error:
-                self._status_label.setText(
-                    "<b>Server running - Connection error:</b> " + Connection.instance().error
-                )
+                error = Connection.instance().error or "Unknown error"
+                self._status_label.setText(f"<b>Server running - Connection error:</b> {error}")
                 self._status_label.setStyleSheet(f"color:{red}")
             self._launch_button.setText("Stop")
 

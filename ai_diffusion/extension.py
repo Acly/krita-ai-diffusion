@@ -1,6 +1,6 @@
 import sys
 from typing import Callable, Optional
-from krita import Extension, Krita, DockWidgetFactory, DockWidgetFactoryBase
+from krita import Extension, Krita, DockWidgetFactory, DockWidgetFactoryBase  # type: ignore
 
 from . import eventloop, settings, __version__, Server, ServerMode, ServerState
 from .ui import actions, ImageDiffusionWidget, SettingsDialog, Connection, ConnectionState
@@ -67,5 +67,5 @@ class AIToolsExtension(Extension):
 
 Krita.instance().addExtension(AIToolsExtension(Krita.instance()))
 Krita.instance().addDockWidgetFactory(
-    DockWidgetFactory("imageDiffusion", DockWidgetFactoryBase.DockRight, ImageDiffusionWidget)
+    DockWidgetFactory("imageDiffusion", DockWidgetFactoryBase.DockRight, ImageDiffusionWidget)  # type: ignore
 )

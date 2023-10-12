@@ -5,7 +5,7 @@ __version__ = "1.3.0"
 from . import util
 from .settings import Settings, Setting, settings, PerformancePreset, ServerBackend, ServerMode
 from .style import SDVersion, Style, Styles, StyleSettings
-from .resources import ControlMode, ResourceKind, MissingResource
+from .resources import ControlMode, CustomNode, ResourceKind, MissingResource
 from .network import NetworkError, Interrupted, OutOfMemoryError, RequestManager, DownloadProgress
 from .client import Client, ClientEvent, ClientMessage, DeviceInfo
 from .image import Bounds, Extent, Mask, Image, ImageCollection

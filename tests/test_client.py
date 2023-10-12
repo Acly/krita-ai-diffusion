@@ -73,6 +73,7 @@ def test_cancel(qtapp, cancel_point):
                 assert msg.event is not ClientEvent.interrupted
                 assert msg.job_id == job_id or msg.job_id == ""
                 if msg.event is ClientEvent.finished:
+                    assert msg.images is not None and len(msg.images) > 0
                     assert msg.images[0].extent == Extent(16, 16)
                     break
 

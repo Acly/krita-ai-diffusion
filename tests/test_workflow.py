@@ -1,7 +1,5 @@
-from typing import List
 import pytest
 from ai_diffusion import (
-    settings,
     workflow,
     ComfyWorkflow,
     Conditioning,
@@ -59,6 +57,7 @@ async def receive_images(comfy: Client, workflow: ComfyWorkflow):
         if not job_id:
             job_id = await comfy.enqueue(workflow)
         if msg.event is ClientEvent.finished and msg.job_id == job_id:
+            assert msg.images is not None
             return msg.images
         if msg.event is ClientEvent.error and msg.job_id == job_id:
             raise Exception(msg.error)
@@ -83,15 +82,15 @@ async def run_and_save(comfy, workflow: ComfyWorkflow, filename: str):
 def test_prepare_highres(input, expected_initial, expected_expanded, expected_scale):
     image = Image.create(input)
     mask = Mask.rectangle(Bounds(0, 0, input.width, input.height))
-    result = workflow.prepare((image, mask), SDVersion.sd1_5)
+    extent, image, mask_image, _ = workflow.prepare_masked(image, mask, SDVersion.sd1_5)
     assert (
-        result.extent.requires_upscale
-        and result.image.extent == expected_initial
-        and result.mask_image.extent == expected_initial
-        and result.extent.initial == expected_initial
-        and result.extent.expanded == expected_expanded
-        and result.extent.target == input
-        and result.extent.scale == pytest.approx(expected_scale, abs=1e-3)
+        extent.requires_upscale
+        and image.extent == expected_initial
+        and mask_image.extent == expected_initial
+        and extent.initial == expected_initial
+        and extent.expanded == expected_expanded
+        and extent.target == input
+        and extent.scale == pytest.approx(expected_scale, abs=1e-3)
     )
 
 
@@ -106,15 +105,15 @@ def test_prepare_highres(input, expected_initial, expected_expanded, expected_sc
 def test_prepare_lowres(input, expected):
     image = Image.create(input)
     mask = Mask.rectangle(Bounds(0, 0, input.width, input.height))
-    result = workflow.prepare((image, mask), SDVersion.sd1_5)
+    extent, image, mask_image, _ = workflow.prepare_masked(image, mask, SDVersion.sd1_5)
     assert (
-        result.extent.requires_downscale
-        and result.image.extent == input
-        and result.mask_image.extent == input
-        and result.extent.target == input
-        and result.extent.initial == expected
-        and result.extent.expanded == input.multiple_of(8)
-        and result.extent.scale > 1
+        extent.requires_downscale
+        and image.extent == input
+        and mask_image.extent == input
+        and extent.target == input
+        and extent.initial == expected
+        and extent.expanded == input.multiple_of(8)
+        and extent.scale > 1
     )
 
 
@@ -125,14 +124,14 @@ def test_prepare_lowres(input, expected):
 def test_prepare_passthrough(input):
     image = Image.create(input)
     mask = Mask.rectangle(Bounds(0, 0, input.width, input.height))
-    result = workflow.prepare((image, mask), SDVersion.sd1_5)
+    extent, image, mask_image, _ = workflow.prepare_masked(image, mask, SDVersion.sd1_5)
     assert (
-        result.image == image
-        and result.mask_image.extent == input
-        and result.extent.initial == input
-        and result.extent.target == input
-        and result.extent.expanded == input
-        and result.extent.scale == 1
+        image == image
+        and mask_image.extent == input
+        and extent.initial == input
+        and extent.target == input
+        and extent.expanded == input
+        and extent.scale == 1
     )
 
 
@@ -140,51 +139,43 @@ def test_prepare_passthrough(input):
     "input,expected", [(Extent(512, 513), Extent(512, 520)), (Extent(300, 1024), Extent(304, 1024))]
 )
 def test_prepare_multiple8(input, expected):
-    result = workflow.prepare(input, SDVersion.sd1_5)
+    result, _ = workflow.prepare_extent(input, SDVersion.sd1_5)
     assert (
-        result.extent.is_incompatible
-        and result.extent.initial == expected
-        and result.extent.target == input
-        and result.extent.expanded == input.multiple_of(8)
+        result.is_incompatible
+        and result.initial == expected
+        and result.target == input
+        and result.expanded == input.multiple_of(8)
     )
 
 
 @pytest.mark.parametrize("sdver", [SDVersion.sd1_5, SDVersion.sdxl])
 def test_prepare_extent(sdver: SDVersion):
     input = Extent(1024, 1536)
-    result = workflow.prepare(input, sdver)
+    result, _ = workflow.prepare_extent(input, sdver)
     expected = Extent(512, 768) if sdver == SDVersion.sd1_5 else Extent(840, 1256)
-    assert (
-        result.image is None
-        and result.mask_image is None
-        and result.extent.initial == expected
-        and result.extent.target == input
-        and result.extent.scale < 1
-    )
+    assert result.initial == expected and result.target == input and result.scale < 1
 
 
 def test_prepare_no_mask():
     image = Image.create(Extent(256, 256))
-    result = workflow.prepare(image, SDVersion.sd1_5)
+    extent, result, _ = workflow.prepare_image(image, SDVersion.sd1_5)
     assert (
-        result.image == image
-        and result.mask_image is None
-        and result.extent.initial == Extent(512, 512)
-        and result.extent.target == image.extent
-        and result.extent.scale == 2
+        result == image
+        and extent.initial == Extent(512, 512)
+        and extent.target == image.extent
+        and extent.scale == 2
     )
 
 
 def test_prepare_no_downscale():
     image = Image.create(Extent(1536, 1536))
-    result = workflow.prepare(image, SDVersion.sd1_5, downscale=False)
+    extent, result, _ = workflow.prepare_image(image, SDVersion.sd1_5, downscale=False)
     assert (
-        result.extent.requires_upscale is False
-        and result.image == image
-        and result.mask_image is None
-        and result.extent.initial == image.extent
-        and result.extent.target == image.extent
-        and result.extent.scale == 1
+        extent.requires_upscale is False
+        and result == image
+        and extent.initial == image.extent
+        and extent.target == image.extent
+        and extent.scale == 1
     )
 
 
@@ -305,7 +296,7 @@ def test_control_scribble(qtapp, comfy, temp_settings, op):
     elif op == "refine_region":
         cropped_image = Image.crop(inpaint_image, mask.bounds)
         job = workflow.refine_region(comfy, style, cropped_image, mask, control, 0.7)
-    elif op == "inpaint_upscale":
+    else:  # op == "inpaint_upscale":
         control.control[0].image = Image.scale(scribble_image, Extent(1024, 1024))
         upscaled_image = Image.scale(inpaint_image, Extent(1024, 1024))
         upscaled_mask = Mask(

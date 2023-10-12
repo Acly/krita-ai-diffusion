@@ -46,7 +46,7 @@ def add_header(layout: QVBoxLayout, setting: Setting):
 
 def set_text_clipped(label: QLabel, text: str):
     metrics = QFontMetrics(label.font())
-    elided = metrics.elidedText(text, Qt.ElideRight, label.width() - 2)
+    elided = metrics.elidedText(text, Qt.TextElideMode.ElideRight, label.width() - 2)
     label.setText(elided)
 
 

@@ -1,14 +1,17 @@
+from __future__ import annotations
 import random
-from typing import Dict, NamedTuple
+from typing import NamedTuple, Tuple, Literal, overload
 
-from .util import compute_batch_size
 from .image import Bounds, Extent, Image
-from .settings import settings
 
 
 class Output(NamedTuple):
     node: int
     output: int
+
+
+Output2 = Tuple[Output, Output]
+Output3 = Tuple[Output, Output, Output]
 
 
 class ComfyWorkflow:
@@ -17,7 +20,7 @@ class ComfyWorkflow:
     node_count = 0
     sample_count = 0
 
-    _cache: Dict[str, Output]
+    _cache: dict[str, Output | Output2 | Output3]
 
     def __init__(self) -> None:
         self.root = {}
@@ -27,6 +30,18 @@ class ComfyWorkflow:
         with open(filepath, "w") as f:
             for key, value in self.root.items():
                 f.write(f"{key} = {value}\n")
+
+    @overload
+    def add(self, class_type: str, output_count: Literal[1], **inputs) -> Output:
+        ...
+
+    @overload
+    def add(self, class_type: str, output_count: Literal[2], **inputs) -> Output2:
+        ...
+
+    @overload
+    def add(self, class_type: str, output_count: Literal[3], **inputs) -> Output3:
+        ...
 
     def add(self, class_type: str, output_count: int, **inputs):
         normalize = lambda x: [str(x.node), x.output] if isinstance(x, Output) else x
@@ -38,7 +53,15 @@ class ComfyWorkflow:
         output = tuple(Output(self.node_count, i) for i in range(output_count))
         return output[0] if output_count == 1 else output
 
-    def add_cached(self, class_type: str, output_count: int, **inputs):
+    @overload
+    def add_cached(self, class_type: str, output_count: Literal[1], **inputs) -> Output:
+        ...
+
+    @overload
+    def add_cached(self, class_type: str, output_count: Literal[3], **inputs) -> Output3:
+        ...
+
+    def add_cached(self, class_type: str, output_count: Literal[1] | Literal[3], **inputs):
         key = class_type + str(inputs)
         result = self._cache.get(key, None)
         if result is None:
@@ -48,15 +71,15 @@ class ComfyWorkflow:
 
     def ksampler(
         self,
-        model,
-        positive,
-        negative,
-        latent_image,
+        model: Output,
+        positive: Output,
+        negative: Output,
+        latent_image: Output,
         sampler="dpmpp_2m_sde_gpu",
         scheduler="normal",
         steps=20,
-        cfg=7,
-        denoise=1,
+        cfg=7.0,
+        denoise=1.0,
         seed=-1,
     ):
         self.sample_count += steps
@@ -75,25 +98,25 @@ class ComfyWorkflow:
             denoise=denoise,
         )
 
-    def load_checkpoint(self, checkpoint):
+    def load_checkpoint(self, checkpoint: str):
         return self.add_cached("CheckpointLoaderSimple", 3, ckpt_name=checkpoint)
 
-    def load_vae(self, vae_name):
+    def load_vae(self, vae_name: str):
         return self.add_cached("VAELoader", 1, vae_name=vae_name)
 
-    def load_controlnet(self, controlnet):
+    def load_controlnet(self, controlnet: str):
         return self.add_cached("ControlNetLoader", 1, control_net_name=controlnet)
 
-    def load_clip_vision(self, clip_name):
+    def load_clip_vision(self, clip_name: str):
         return self.add_cached("CLIPVisionLoader", 1, clip_name=clip_name)
 
-    def load_ip_adapter(self, ipadapter_file):
+    def load_ip_adapter(self, ipadapter_file: str):
         return self.add_cached("IPAdapterModelLoader", 1, ipadapter_file=ipadapter_file)
 
-    def load_upscale_model(self, model_name):
+    def load_upscale_model(self, model_name: str):
         return self.add_cached("UpscaleModelLoader", 1, model_name=model_name)
 
-    def load_lora(self, model, clip, lora_name, strength_model, strength_clip):
+    def load_lora(self, model: Output, clip: Output, lora_name, strength_model, strength_clip):
         return self.add(
             "LoraLoader",
             2,
@@ -104,13 +127,15 @@ class ComfyWorkflow:
             strength_clip=strength_clip,
         )
 
-    def empty_latent_image(self, width, height, batch_size=1):
+    def empty_latent_image(self, width: int, height: int, batch_size=1):
         return self.add("EmptyLatentImage", 1, width=width, height=height, batch_size=batch_size)
 
-    def clip_text_encode(self, clip, text):
+    def clip_text_encode(self, clip: Output, text: str):
         return self.add("CLIPTextEncode", 1, clip=clip, text=text)
 
-    def apply_controlnet(self, conditioning, controlnet, image, strength=1.0):
+    def apply_controlnet(
+        self, conditioning: Output, controlnet: Output, image: Output, strength=1.0
+    ):
         return self.add(
             "ControlNetApply",
             1,
@@ -120,7 +145,15 @@ class ComfyWorkflow:
             strength=strength,
         )
 
-    def apply_ip_adapter(self, ipadapter, clip_vision, image, model, weight, noise=0.0):
+    def apply_ip_adapter(
+        self,
+        ipadapter: Output,
+        clip_vision: Output,
+        image: Output,
+        model: Output,
+        weight: float,
+        noise=0.0,
+    ):
         return self.add(
             "IPAdapterApply",
             1,
@@ -132,25 +165,25 @@ class ComfyWorkflow:
             noise=noise,
         )
 
-    def inpaint_preprocessor(self, image, mask):
+    def inpaint_preprocessor(self, image: Output, mask: Output):
         return self.add("InpaintPreprocessor", 1, image=image, mask=mask)
 
-    def vae_encode(self, vae, image):
+    def vae_encode(self, vae: Output, image: Output):
         return self.add("VAEEncode", 1, vae=vae, pixels=image)
 
-    def vae_encode_inpaint(self, vae, image, mask):
+    def vae_encode_inpaint(self, vae: Output, image: Output, mask: Output):
         return self.add("VAEEncodeForInpaint", 1, vae=vae, pixels=image, mask=mask, grow_mask_by=0)
 
-    def vae_decode(self, vae, latent_image):
+    def vae_decode(self, vae: Output, latent_image: Output):
         return self.add("VAEDecode", 1, vae=vae, samples=latent_image)
 
-    def set_latent_noise_mask(self, latent, mask):
+    def set_latent_noise_mask(self, latent: Output, mask: Output):
         return self.add("SetLatentNoiseMask", 1, samples=latent, mask=mask)
 
-    def batch_latent(self, latent, batch_size):
+    def batch_latent(self, latent: Output, batch_size: int):
         return self.add("RepeatLatentBatch", 1, samples=latent, amount=batch_size)
 
-    def crop_latent(self, latent, bounds: Bounds):
+    def crop_latent(self, latent: Output, bounds: Bounds):
         return self.add(
             "LatentCrop",
             1,
@@ -161,7 +194,7 @@ class ComfyWorkflow:
             height=bounds.height,
         )
 
-    def scale_latent(self, latent, extent):
+    def scale_latent(self, latent: Output, extent: Extent):
         return self.add(
             "LatentUpscale",
             1,
@@ -172,7 +205,7 @@ class ComfyWorkflow:
             crop="disabled",
         )
 
-    def crop_image(self, image, bounds: Bounds):
+    def crop_image(self, image: Output, bounds: Bounds):
         return self.add(
             "ETN_CropImage",
             1,
@@ -183,7 +216,7 @@ class ComfyWorkflow:
             height=bounds.height,
         )
 
-    def scale_image(self, image, extent):
+    def scale_image(self, image: Output, extent: Extent):
         return self.add(
             "ImageScale",
             1,
@@ -194,16 +227,16 @@ class ComfyWorkflow:
             crop="disabled",
         )
 
-    def upscale_image(self, upscale_model, image):
+    def upscale_image(self, upscale_model: Output, image: Output):
         return self.add("ImageUpscaleWithModel", 1, upscale_model=upscale_model, image=image)
 
-    def invert_image(self, image):
+    def invert_image(self, image: Output):
         return self.add("ImageInvert", 1, image=image)
 
-    def batch_image(self, batch, image):
+    def batch_image(self, batch: Output, image: Output):
         return self.add("ImageBatch", 1, image1=batch, image2=image)
 
-    def crop_mask(self, mask, bounds: Bounds):
+    def crop_mask(self, mask: Output, bounds: Bounds):
         return self.add(
             "CropMask",
             1,
@@ -214,21 +247,21 @@ class ComfyWorkflow:
             height=bounds.height,
         )
 
-    def scale_mask(self, mask, extent):
+    def scale_mask(self, mask: Output, extent: Extent):
         img = self.mask_to_image(mask)
         scaled = self.scale_image(img, extent)
         return self.image_to_mask(scaled)
 
-    def image_to_mask(self, image):
+    def image_to_mask(self, image: Output):
         return self.add("ImageToMask", 1, image=image, channel="red")
 
-    def mask_to_image(self, mask):
+    def mask_to_image(self, mask: Output):
         return self.add("MaskToImage", 1, mask=mask)
 
-    def solid_mask(self, extent: Extent, value=1):
+    def solid_mask(self, extent: Extent, value=1.0):
         return self.add("SolidMask", 1, width=extent.width, height=extent.height, value=value)
 
-    def apply_mask(self, image, mask):
+    def apply_mask(self, image: Output, mask: Output):
         return self.add("ETN_ApplyMaskToImage", 1, image=image, mask=mask)
 
     def load_image(self, image: Image):
@@ -237,8 +270,8 @@ class ComfyWorkflow:
     def load_mask(self, mask: Image):
         return self.add("ETN_LoadMaskBase64", 1, mask=mask.to_base64())
 
-    def send_image(self, image):
+    def send_image(self, image: Output):
         return self.add("ETN_SendImageWebSocket", 1, images=image)
 
-    def save_image(self, image, prefix):
+    def save_image(self, image: Output, prefix: str):
         return self.add("SaveImage", 1, images=image, filename_prefix=prefix)

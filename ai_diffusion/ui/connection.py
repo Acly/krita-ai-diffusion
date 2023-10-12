@@ -29,9 +29,9 @@ class Connection(QObject):
     changed = pyqtSignal()
 
     state = ConnectionState.disconnected
-    client: Optional[Client] = None
     error: Optional[str] = None
     missing_resource: Optional[MissingResource] = None
+    _client: Optional[Client] = None
 
     @classmethod
     def instance(cls):
@@ -50,8 +50,8 @@ class Connection(QObject):
         self.missing_resource = None
         self.changed.emit()
         try:
-            self.client = await Client.connect(url)
-            apply_performance_preset(settings, self.client.device_info)
+            self._client = await Client.connect(url)
+            apply_performance_preset(settings, self._client.device_info)
             self.state = ConnectionState.connected
         except MissingResource as e:
             self.error = (
@@ -74,7 +74,7 @@ class Connection(QObject):
         from .model import ModelRegistry
 
         await ModelRegistry.instance().stop_listening()
-        self.client = None
+        self._client = None
         self.state = ConnectionState.disconnected
         self.error = None
         self.missing_resource = None
@@ -93,6 +93,11 @@ class Connection(QObject):
 
         if self.state is ConnectionState.connected:
             eventloop.run(_refresh())
+
+    @property
+    def client(self):
+        assert self.state is ConnectionState.connected and self._client is not None
+        return self._client
 
 
 def apply_performance_preset(settings: Settings, device: DeviceInfo):

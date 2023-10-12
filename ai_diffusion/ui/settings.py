@@ -1,6 +1,7 @@
+from __future__ import annotations
 from enum import Enum
 from pathlib import Path
-from typing import Optional
+from typing import Optional, cast
 from PyQt5.QtWidgets import (
     QVBoxLayout,
     QHBoxLayout,
@@ -27,20 +28,10 @@ from PyQt5.QtCore import Qt, QSize, QUrl, pyqtSignal
 from PyQt5.QtGui import QDesktopServices, QGuiApplication, QIcon
 from krita import Krita
 
-from .. import (
-    MissingResource,
-    ResourceKind,
-    Setting,
-    Settings,
-    settings,
-    Server,
-    ServerMode,
-    SDVersion,
-    Style,
-    Styles,
-    StyleSettings,
-    PerformancePreset,
-)
+from ..resources import CustomNode, MissingResource, ResourceKind, SDVersion
+from ..settings import Setting, Settings, ServerMode, PerformancePreset, settings
+from ..server import Server
+from ..style import Style, Styles, StyleSettings
 from .connection import Connection, ConnectionState, apply_performance_preset
 from .model import Model
 from .server import ServerWidget
@@ -65,12 +56,12 @@ class SettingWidget(QWidget):
 
         self._layout = QHBoxLayout()
         self._layout.setContentsMargins(0, 2, 0, 2)
-        self._layout.addWidget(self._key_label, alignment=Qt.AlignLeft)
+        self._layout.addWidget(self._key_label, alignment=Qt.AlignmentFlag.AlignLeft)
         self.setLayout(self._layout)
 
     def add_button(self, icon: QIcon, tooltip: str, handler):
         button = QToolButton(self)
-        button.setToolButtonStyle(Qt.ToolButtonIconOnly)
+        button.setToolButtonStyle(Qt.ToolButtonStyle.ToolButtonIconOnly)
         button.setIcon(icon)
         button.setToolTip(tooltip)
         button.clicked.connect(handler)
@@ -88,7 +79,7 @@ class SpinBoxSetting(SettingWidget):
         self._spinbox.setSingleStep(1)
         self._spinbox.setSuffix(suffix)
         self._spinbox.valueChanged.connect(self._change_value)
-        self._layout.addWidget(self._spinbox, alignment=Qt.AlignRight)
+        self._layout.addWidget(self._spinbox, alignment=Qt.AlignmentFlag.AlignRight)
 
     def _change_value(self, value: int):
         self.value_changed.emit()
@@ -121,7 +112,7 @@ class SliderSetting(SettingWidget):
         self._label.setMinimumWidth(12)
         slider_layout.addWidget(self._slider)
         slider_layout.addWidget(self._label)
-        self._layout.addWidget(slider_widget, alignment=Qt.AlignRight)
+        self._layout.addWidget(slider_widget, alignment=Qt.AlignmentFlag.AlignRight)
 
     def _change_value(self, value: int):
         self._label.setText(self._format_string.format(value))
@@ -148,13 +139,13 @@ class ComboBoxSetting(SettingWidget):
             self._enum_type = type(setting.default)
             for i, e in enumerate(self._enum_type):
                 self._combo.addItem(e.value)
-                self._combo.setItemData(i, e.name, Qt.UserRole)
+                self._combo.setItemData(i, e.name, Qt.ItemDataRole.UserRole)
         elif setting.items:
             self._combo.addItems(setting.items)
 
         self._combo.setMinimumWidth(230)
         self._combo.currentIndexChanged.connect(self._change_value)
-        self._layout.addWidget(self._combo, alignment=Qt.AlignRight)
+        self._layout.addWidget(self._combo, alignment=Qt.AlignmentFlag.AlignRight)
         self._original_text = self._key_label.text()
 
     def set_items(self, items):
@@ -173,7 +164,7 @@ class ComboBoxSetting(SettingWidget):
     @property
     def value(self):
         if self._enum_type is not None:
-            name = self._combo.itemData(self._combo.currentIndex(), Qt.UserRole)
+            name = self._combo.itemData(self._combo.currentIndex(), Qt.ItemDataRole.UserRole)
             return self._enum_type[name]
         else:
             return self._combo.currentText()
@@ -181,7 +172,7 @@ class ComboBoxSetting(SettingWidget):
     @value.setter
     def value(self, v):
         if self._enum_type is not None:
-            index = self._combo.findData(v.name, Qt.UserRole)
+            index = self._combo.findData(v.name, Qt.ItemDataRole.UserRole)
             self._combo.setCurrentIndex(index)
         else:
             self._combo.setCurrentText(v)
@@ -194,7 +185,7 @@ class TextSetting(SettingWidget):
         self._edit.setMinimumWidth(230)
         self._edit.setMaximumWidth(300)
         self._edit.textChanged.connect(self._change_value)
-        self._layout.addWidget(self._edit, alignment=Qt.AlignRight)
+        self._layout.addWidget(self._edit, alignment=Qt.AlignmentFlag.AlignRight)
 
     def _change_value(self):
         self.value_changed.emit()
@@ -292,7 +283,6 @@ class LoraList(QWidget):
         super().__init__(parent)
         self._loras = []
         self._items = []
-        self._item_list = None
 
         self._layout = QVBoxLayout()
         self._layout.setContentsMargins(0, 0, 0, 0)
@@ -307,21 +297,24 @@ class LoraList(QWidget):
         self._add_button = QPushButton("Add", self)
         self._add_button.setMinimumWidth(100)
         self._add_button.clicked.connect(self._add_item)
-        header_layout.addWidget(self._add_button, 1, Qt.AlignRight | Qt.AlignVCenter)
+        align_right_center = Qt.AlignmentFlag(
+            Qt.AlignmentFlag.AlignRight | Qt.AlignmentFlag.AlignVCenter
+        )
+        header_layout.addWidget(self._add_button, 1, align_right_center)
 
         self._refresh_button = QToolButton(self)
-        self._refresh_button.setToolButtonStyle(Qt.ToolButtonIconOnly)
+        self._refresh_button.setToolButtonStyle(Qt.ToolButtonStyle.ToolButtonIconOnly)
         self._refresh_button.setIcon(Krita.instance().icon("reload-preset"))
         self._refresh_button.setToolTip("Look for new LoRA files")
         self._refresh_button.clicked.connect(Connection.instance().refresh)
-        header_layout.addWidget(self._refresh_button, 0, Qt.AlignRight | Qt.AlignVCenter)
+        header_layout.addWidget(self._refresh_button, 0, align_right_center)
 
         if settings.server_mode is ServerMode.managed:
             self.open_folder_button = QToolButton(self)
-            self.open_folder_button.setToolButtonStyle(Qt.ToolButtonIconOnly)
+            self.open_folder_button.setToolButtonStyle(Qt.ToolButtonStyle.ToolButtonIconOnly)
             self.open_folder_button.setIcon(Krita.instance().icon("document-open"))
             self.open_folder_button.setToolTip("Open folder containing LoRA files")
-            header_layout.addWidget(self.open_folder_button, 0, Qt.AlignRight | Qt.AlignVCenter)
+            header_layout.addWidget(self.open_folder_button, 0, align_right_center)
 
         self._layout.addLayout(header_layout)
 
@@ -409,7 +402,7 @@ class SettingsTab(QWidget):
         scroll.setWidget(inner)
         scroll.setWidgetResizable(True)
         scroll.setFrameStyle(QFrame.NoFrame)
-        scroll.setHorizontalScrollBarPolicy(Qt.ScrollBarAlwaysOff)
+        scroll.setHorizontalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAlwaysOff)
         frame_layout.addWidget(scroll)
 
     def add(self, name: str, widget):
@@ -475,8 +468,10 @@ class ConnectionSettings(SettingsTab):
 
         self._connection_status = QLabel(self._connection_widget)
         self._connection_status.setWordWrap(True)
-        self._connection_status.setTextFormat(Qt.RichText)
-        self._connection_status.setTextInteractionFlags(Qt.TextBrowserInteraction)
+        self._connection_status.setTextFormat(Qt.TextFormat.RichText)
+        self._connection_status.setTextInteractionFlags(
+            Qt.TextInteractionFlag.TextBrowserInteraction
+        )
         self._connection_status.setOpenExternalLinks(True)
         connection_layout.addWidget(self._connection_status)
         connection_layout.addStretch()
@@ -551,29 +546,31 @@ class ConnectionSettings(SettingsTab):
             )
 
         elif resource.kind is ResourceKind.controlnet:
+            names = cast(list[str], resource.names)
             self._connection_status.setText(
-                f"<b>Error</b>: Could not find ControlNet model {', '.join(resource.names)}. Make"
+                f"<b>Error</b>: Could not find ControlNet model {', '.join(names)}. Make"
                 " sure to download the model and place it in the [ComfyUI]/models/controlnet"
                 " folder."
             )
         elif resource.kind is ResourceKind.clip_vision:
-            model = Path("models", "clip_vision", resource.names[0])
+            names = cast(list[str], resource.names)
+            model = Path("models", "clip_vision", names[0])
             self._connection_status.setText(
                 f"<b>Error</b>: Could not find CLIPVision model {model.name} for SD1.5. Make sure"
                 f" to download the model and place it in [ComfyUI]/{model.parent.as_posix()}"
             )
         elif resource.kind is ResourceKind.ip_adapter:
+            names = cast(list[str], resource.names)
             self._connection_status.setText(
-                f"<b>Error</b>: Could not find IPAdapter model {', '.join(resource.names)}. Make"
+                f"<b>Error</b>: Could not find IPAdapter model {', '.join(names)}. Make"
                 " sure to download the model and place it in the"
                 " [ComfyUI]/custom_nodes/IPAdapter-ComfyUI/models folder."
             )
         elif resource.kind is ResourceKind.node:
+            nodes = cast(list[CustomNode], resource.names)
             self._connection_status.setText(
                 "<b>Error</b>: The following ComfyUI custom nodes are missing:<ul>"
-                + "\n".join(
-                    (f"<li>{p.name} <a href='{p.url}'>{p.url}</a></li>" for p in resource.names)
-                )
+                + "\n".join((f"<li>{p.name} <a href='{p.url}'>{p.url}</a></li>" for p in nodes))
                 + "</ul>Please install them, restart the server and try again."
             )
 
@@ -736,9 +733,10 @@ class StylePresets(SettingsTab):
     def _read(self):
         if Connection.instance().state == ConnectionState.connected:
             client = Connection.instance().client
+            default_vae = cast(str, StyleSettings.vae.default)
             self._style_widgets["sd_checkpoint"].set_items(client.checkpoints)
             self._style_widgets["loras"].names = client.lora_models
-            self._style_widgets["vae"].set_items([StyleSettings.vae.default] + client.vae_models)
+            self._style_widgets["vae"].set_items([default_vae] + client.vae_models)
         self._read_style(self.current_style)
         self._set_sd_version_text()
 
@@ -802,7 +800,7 @@ class PerformanceSettings(SettingsTab):
         for preset in PerformancePreset:
             self._performance_preset.addItem(preset.value)
         self._performance_preset.currentIndexChanged.connect(self._change_performance_preset)
-        self._layout.addWidget(self._performance_preset, alignment=Qt.AlignLeft)
+        self._layout.addWidget(self._performance_preset, alignment=Qt.AlignmentFlag.AlignLeft)
 
         self._advanced = QWidget(self)
         self._advanced.setEnabled(settings.performance_preset is PerformancePreset.custom)
@@ -845,8 +843,8 @@ class PerformanceSettings(SettingsTab):
 
     def _read(self):
         memory_usage = 0
-        if Model.active() is not None:
-            memory_usage = Model.active().jobs.memory_usage
+        if model := Model.active():
+            memory_usage = model.jobs.memory_usage
         self._history_size.setValue(settings.history_size)
         self._history_usage.setText(f"Currently using {memory_usage:.1f} MB")
         self._batch_size.value = settings.batch_size
@@ -873,9 +871,9 @@ class SettingsDialog(QDialog):
     _instance = None
 
     @classmethod
-    def instance(Class):
-        assert Class._instance is not None
-        return Class._instance
+    def instance(cls):
+        assert cls._instance is not None
+        return cls._instance
 
     def __init__(self, main_window: QMainWindow, server: Server):
         super().__init__()
@@ -923,7 +921,7 @@ class SettingsDialog(QDialog):
         self._restore_button.clicked.connect(self.restore_defaults)
 
         self._close_button = QPushButton("Ok", self)
-        self._close_button.clicked.connect(self.close)
+        self._close_button.clicked.connect(self._close)
 
         button_layout = QHBoxLayout()
         button_layout.addWidget(self._restore_button)
@@ -960,3 +958,6 @@ class SettingsDialog(QDialog):
         if Connection.instance().state == ConnectionState.connected:
             self.styles.update_model_lists()
             self.performance.update_device_info()
+
+    def _close(self):
+        _ = self.close()

@@ -1,3 +1,4 @@
+from __future__ import annotations
 from enum import Enum
 import json
 from pathlib import Path
@@ -104,20 +105,18 @@ class StyleSettings:
 
 class Style:
     filepath: Path
-    version = StyleSettings.version.default
-    name = StyleSettings.name.default
+    version: int = StyleSettings.version.default
+    name: str = StyleSettings.name.default
     sd_version: SDVersion = StyleSettings.sd_version.default
-    sd_checkpoint = StyleSettings.sd_checkpoint.default
-    loras: list
-    style_prompt = StyleSettings.style_prompt.default
-    negative_prompt = StyleSettings.negative_prompt.default
-    vae = StyleSettings.vae.default
-    sampler = StyleSettings.sampler.default
-    sampler_steps = StyleSettings.sampler_steps.default
-    sampler_steps_upscaling = StyleSettings.sampler_steps_upscaling.default
-    cfg_scale = StyleSettings.cfg_scale.default
-
-    _list = []
+    sd_checkpoint: str = StyleSettings.sd_checkpoint.default
+    loras: list[dict[str, str | float]]
+    style_prompt: str = StyleSettings.style_prompt.default
+    negative_prompt: str = StyleSettings.negative_prompt.default
+    vae: str = StyleSettings.vae.default
+    sampler: str = StyleSettings.sampler.default
+    sampler_steps: int = StyleSettings.sampler_steps.default
+    sampler_steps_upscaling: int = StyleSettings.sampler_steps_upscaling.default
+    cfg_scale: int = StyleSettings.cfg_scale.default
 
     def __init__(self, filepath: Path):
         self.filepath = filepath
@@ -177,13 +176,13 @@ class Styles(QObject):
     changed = pyqtSignal()
     name_changed = pyqtSignal()
 
-    _list: list = None
+    _list: list[Style]
 
     @classmethod
-    def list(Class):
-        if Class._instance is None:
-            Class._instance = Styles()
-        return Class._instance
+    def list(cls):
+        if cls._instance is None:
+            cls._instance = Styles()
+        return cls._instance
 
     def __init__(self, folder: Path = default_folder):
         super().__init__()

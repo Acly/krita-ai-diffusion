@@ -11,6 +11,7 @@ def process_python_events():
 
 
 def setup():
+    assert _timer is not None
     _timer.setInterval(20)
     _timer.timeout.connect(process_python_events)
     _timer.start()
@@ -31,6 +32,7 @@ def run(future):
 
 
 def stop():
+    global _timer, _loop
     try:
         _timer.stop()
         _timer = None

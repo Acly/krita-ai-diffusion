@@ -108,12 +108,14 @@ def test_pose_update():
     shapes[3].removed = shapes[4].removed = False
     shapes[2].set_position(31, 38)
     changes = pose.update(shapes)
+    assert changes is not None
     assert "B12" not in changes
     assert '<line id="P00_B13" x1="11.0" y1="12.0" x2="31.0" y2="38.0"' in changes
     assert not shapes[3].removed and shapes[4].removed
 
     shapes[0].set_position(11, 18)
     changes = pose.update(shapes)
+    assert changes is not None
     assert '<line id="P00_B12" x1="21.0" y1="22.0" x2="11.0" y2="18.0"' in changes
     assert '<line id="P00_B13" x1="11.0" y1="18.0" x2="31.0" y2="38.0"' in changes
     assert shapes[3].removed and shapes[4].removed
@@ -146,6 +148,7 @@ def test_pose_update_copy(scenario):
     assert pose.joints[JointIndex(0, 1)] == Point(21, 32)
     assert pose.joints[JointIndex(1, 0)] == Point(51, 52)
     assert pose.joints[JointIndex(1, 1)] == Point(61, 62)
+    assert changes is not None
     assert '<line id="P00_B12" x1="21.0" y1="32.0" x2="11.0" y2="12.0"' in changes
     assert '<line id="P01_B12" x1="61.0" y1="62.0" x2="51.0" y2="52.0"' in changes
     assert shapes[2].name() == "P01_J00"

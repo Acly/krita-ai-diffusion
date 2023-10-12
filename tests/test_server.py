@@ -84,7 +84,7 @@ def test_run_external(qtapp, pytestconfig):
     if not comfy_dir.exists():
         pytest.skip("External ComfyUI installation not found")
 
-    server = Server(comfy_dir)
+    server = Server(str(comfy_dir))
     server.backend = ServerBackend.cpu
     assert server.state in [ServerState.stopped, ServerState.missing_resources]
 
@@ -101,9 +101,9 @@ def test_run_external(qtapp, pytestconfig):
 
 def test_python_version(qtapp):
     async def main():
-        py = await server.get_python_version("python")
+        py = await server.get_python_version(Path("python"))
         assert py.startswith("Python 3.")
-        pip = await server.get_python_version("pip")
+        pip = await server.get_python_version(Path("pip"))
         assert pip.startswith("pip ")
 
     qtapp.run(main())

@@ -1,4 +1,5 @@
-from typing import Dict, Optional
+from __future__ import annotations
+from typing import cast
 import krita
 from krita import Krita
 from PyQt5.QtCore import QUuid, QByteArray, QTimer
@@ -9,7 +10,9 @@ from .pose import Pose
 
 
 class Document:
-    def __init__(self, krita_document):
+    _doc: krita.Document
+
+    def __init__(self, krita_document: krita.Document):
         self._doc = krita_document
 
     @staticmethod
@@ -63,7 +66,7 @@ class Document:
         data = selection.pixelData(*bounds)
         return Mask(bounds, data)
 
-    def get_image(self, bounds: Bounds = None, exclude_layer=None):
+    def get_image(self, bounds: Bounds | None = None, exclude_layer: krita.Node | None = None):
         restore_layer = False
         if exclude_layer and exclude_layer.visible():
             exclude_layer.setVisible(False)
@@ -74,20 +77,18 @@ class Document:
         bounds = bounds or Bounds(0, 0, self._doc.width(), self._doc.height())
         img = QImage(self._doc.pixelData(*bounds), *bounds.extent, QImage.Format_ARGB32)
 
-        if restore_layer:
+        if exclude_layer and restore_layer:
             exclude_layer.setVisible(True)
             self._doc.refreshProjection()
         return Image(img)
 
-    def get_layer_image(self, layer, bounds: Optional[Bounds]):
+    def get_layer_image(self, layer: krita.Node, bounds: Bounds | None):
         bounds = bounds or Bounds.from_qrect(layer.bounds())
         data: QByteArray = layer.projectionPixelData(*bounds)
         assert data is not None and data.size() >= bounds.extent.pixel_count * 4
         return Image(QImage(data, *bounds.extent, QImage.Format_ARGB32))
 
-    def insert_layer(
-        self, name: str, img: Image, bounds: Bounds, below: Optional[krita.Node] = None
-    ):
+    def insert_layer(self, name: str, img: Image, bounds: Bounds, below: krita.Node | None = None):
         layer = self._doc.createNode(name, "paintlayer")
         above = _find_layer_above(self._doc, below)
         self._doc.rootNode().addChildNode(layer, above)
@@ -95,7 +96,7 @@ class Document:
         self._doc.refreshProjection()
         return layer
 
-    def insert_vector_layer(self, name: str, svg: str, below: Optional[krita.Node] = None):
+    def insert_vector_layer(self, name: str, svg: str, below: krita.Node | None = None):
         layer = self._doc.createVectorLayer(name)
         above = _find_layer_above(self._doc, below)
         self._doc.rootNode().addChildNode(layer, above)
@@ -103,7 +104,7 @@ class Document:
         self._doc.refreshProjection()
         return layer
 
-    def set_layer_content(self, layer, img: Image, bounds: Bounds):
+    def set_layer_content(self, layer: krita.Node, img: Image, bounds: Bounds):
         layer_bounds = Bounds.from_qrect(layer.bounds())
         if layer_bounds != bounds:
             # layer.cropNode(*bounds)  <- more efficient, but clutters the undo stack
@@ -114,7 +115,7 @@ class Document:
         self._doc.refreshProjection()
         return layer
 
-    def hide_layer(self, layer):
+    def hide_layer(self, layer: krita.Node):
         layer.setVisible(False)
         self._doc.refreshProjection()
         return layer
@@ -136,14 +137,14 @@ class Document:
         return self._doc.resolution() / 72.0  # KisImage::xRes which is applied to vectors
 
 
-def _traverse_layers(node, type_filter=None):
+def _traverse_layers(node: krita.Node, type_filter=None):
     for child in node.childNodes():
         yield from _traverse_layers(child, type_filter)
         if not type_filter or child.type() in type_filter:
             yield child
 
 
-def _find_layer_above(doc: krita.Document, layer_below: Optional[krita.Node]):
+def _find_layer_above(doc: krita.Document, layer_below: krita.Node | None):
     if layer_below:
         nodes = doc.rootNode().childNodes()
         index = nodes.index(layer_below)
@@ -152,7 +153,7 @@ def _find_layer_above(doc: krita.Document, layer_below: Optional[krita.Node]):
     return None
 
 
-def _selection_is_entire_document(selection, extent: Extent):
+def _selection_is_entire_document(selection: krita.Selection, extent: Extent):
     bounds = Bounds(selection.x(), selection.y(), selection.width(), selection.height())
     if bounds.x > 0 or bounds.y > 0:
         return False
@@ -164,7 +165,7 @@ def _selection_is_entire_document(selection, extent: Extent):
 
 
 class PoseLayers:
-    _layers: Dict[str, Pose] = {}
+    _layers: dict[str, Pose] = {}
     _timer = QTimer()
 
     def __init__(self):
@@ -180,8 +181,9 @@ class PoseLayers:
         if not layer or layer.type() != "vectorlayer":
             return
 
+        layer = cast(krita.VectorLayer, layer)
         pose = self._layers.setdefault(layer.uniqueId(), Pose(doc.extent))
-        changes = pose.update(layer.shapes(), doc.resolution)
+        changes = pose.update(layer.shapes(), doc.resolution)  # type: ignore
         if changes:
             shapes = layer.addShapesFromSvg(changes)
             for shape in shapes:

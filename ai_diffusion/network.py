@@ -1,3 +1,4 @@
+from __future__ import annotations
 import asyncio
 import json
 from datetime import datetime
@@ -21,7 +22,7 @@ class NetworkError(Exception):
 
     @staticmethod
     def from_reply(reply: QNetworkReply):
-        code = reply.error()
+        code = reply.error()  # type: ignore (bug in PyQt5-stubs)
         url = reply.url().toString()
         try:  # extract detailed information from the payload
             data = json.loads(reply.readAll().data())
@@ -59,19 +60,19 @@ class RequestManager:
         self._net.finished.connect(self._finished)
         self._requests = {}
 
-    def http(self, method, url: str, data: dict = None):
+    def http(self, method, url: str, data: dict | None = None):
         self._cleanup()
 
         request = QNetworkRequest(QUrl(url))
         # request.setTransferTimeout({"GET": 30000, "POST": 0}[method]) # requires Qt 5.15 (Krita 5.2)
         request.setRawHeader(b"ngrok-skip-browser-warning", b"69420")
-        if data is not None:
-            data_bytes = QByteArray(json.dumps(data).encode("utf-8"))
-            request.setHeader(QNetworkRequest.ContentTypeHeader, "application/json")
-            request.setHeader(QNetworkRequest.ContentLengthHeader, data_bytes.size())
 
         assert method in ["GET", "POST"]
         if method == "POST":
+            data = data or {}
+            data_bytes = QByteArray(json.dumps(data).encode("utf-8"))
+            request.setHeader(QNetworkRequest.ContentTypeHeader, "application/json")
+            request.setHeader(QNetworkRequest.ContentLengthHeader, data_bytes.size())
             reply = self._net.post(request, data_bytes)
         else:
             reply = self._net.get(request)
@@ -87,12 +88,13 @@ class RequestManager:
         return self.http("POST", url, data)
 
     def _finished(self, reply: QNetworkReply):
+        future = None
         try:
-            code = reply.error()
+            code = reply.error()  # type: ignore (bug in PyQt5-stubs)
             future = self._requests[reply].future
             if future.cancelled():
                 return  # operation was cancelled, discard result
-            if code == QNetworkReply.NoError:
+            if code == QNetworkReply.NetworkError.NoError:
                 content_type = reply.header(QNetworkRequest.ContentTypeHeader)
                 data = reply.readAll().data()
                 if "application/json" in content_type:
@@ -102,7 +104,8 @@ class RequestManager:
             else:
                 future.set_exception(NetworkError.from_reply(reply))
         except Exception as e:
-            future.set_exception(e)
+            if future is not None:
+                future.set_exception(e)
 
     def _cleanup(self):
         self._requests = {
@@ -121,7 +124,7 @@ class DownloadHelper:
     _initial = 0
     _total = 0
     _received = 0
-    _time: datetime = None
+    _time: datetime | None = None
 
     def __init__(self, resume_from: int = 0):
         self._initial = resume_from / 10**6
@@ -151,7 +154,7 @@ class DownloadHelper:
 
 async def _try_download(network: QNetworkAccessManager, url: str, path: Path):
     out_file = QFile(str(path) + ".part")
-    if not out_file.open(QFile.ReadWrite | QFile.Append):
+    if not out_file.open(QFile.ReadWrite | QFile.Append):  # type: ignore
         raise Exception(f"Error during download: could not open {path} for writing")
 
     request = QNetworkRequest(QUrl(url))
@@ -176,7 +179,7 @@ async def _try_download(network: QNetworkAccessManager, url: str, path: Path):
         out_file.close()
         if finished_future.cancelled():
             return  # operation was cancelled, discard result
-        if reply.error() == QNetworkReply.NoError:
+        if reply.error() == QNetworkReply.NetworkError.NoError:  # type: ignore (bug in PyQt5-stubs)
             finished_future.set_result(path)
         elif reply.attribute(QNetworkRequest.HttpStatusCodeAttribute) == 416:
             # 416 = Range Not Satisfiable
@@ -194,8 +197,8 @@ async def _try_download(network: QNetworkAccessManager, url: str, path: Path):
             progress_future = asyncio.get_running_loop().create_future()
             yield progress
 
-    if finished_future.exception() is not None:
-        raise finished_future.exception()
+    if e := finished_future.exception():
+        raise e
 
     out_file.rename(str(path))
     yield progress_helper.final()
@@ -212,8 +215,8 @@ async def download(network: QNetworkAccessManager, url: str, path: Path):
                 log.info("Download received code 416: Resume not supported, restarting")
                 QFile.remove(str(path) + ".part")
             elif e.code in [
-                QNetworkReply.RemoteHostClosedError,
-                QNetworkReply.TemporaryNetworkFailureError,
+                QNetworkReply.NetworkError.RemoteHostClosedError,
+                QNetworkReply.NetworkError.TemporaryNetworkFailureError,
             ]:
                 log.warning(f"Download interrupted: {e}")
                 if retry == 1:

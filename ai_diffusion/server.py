@@ -1,3 +1,4 @@
+from __future__ import annotations
 import asyncio
 import locale
 from enum import Enum
@@ -6,7 +7,7 @@ from pathlib import Path
 import shutil
 import subprocess
 import sys
-from typing import Callable, List, NamedTuple, Optional, Sequence
+from typing import Callable, NamedTuple, Optional, Union
 from zipfile import ZipFile
 from PyQt5.QtNetwork import QNetworkAccessManager
 
@@ -37,7 +38,7 @@ class InstallationProgress(NamedTuple):
 
 
 Callback = Callable[[InstallationProgress], None]
-InternalCB = Callable[[str, str, Optional[DownloadProgress]], None]
+InternalCB = Callable[[str, Union[str, DownloadProgress]], None]
 
 
 class Server:
@@ -45,14 +46,14 @@ class Server:
     url: Optional[str] = None
     backend = ServerBackend.cuda
     state = ServerState.stopped
-    missing_resources: List[str]
+    missing_resources: list[str]
     comfy_dir: Optional[Path] = None
     version: Optional[str] = None
 
     _python_cmd: Optional[Path] = None
     _pip_cmd: Optional[Path] = None
-    _cache_dir: Optional[Path] = None
-    _version_file: Optional[Path] = None
+    _cache_dir: Path
+    _version_file: Path
     _process: Optional[asyncio.subprocess.Process] = None
     _task: Optional[asyncio.Task] = None
 
@@ -106,6 +107,7 @@ class Server:
             self.missing_resources = resources.all
             return
 
+        assert self.comfy_dir is not None
         missing_nodes = [
             package.name
             for package in resources.required_custom_nodes
@@ -113,7 +115,7 @@ class Server:
         ]
         self.missing_resources += missing_nodes
 
-        def find_missing(folder: Path, resources: List[ModelResource]):
+        def find_missing(folder: Path, resources: list[ModelResource]):
             return [
                 resource.name
                 for resource in resources
@@ -151,6 +153,7 @@ class Server:
             await _install_if_missing(python_dir, self._create_venv, cb)
             self._python_cmd = python_dir / "bin" / "python3"
             self._pip_cmd = python_dir / "bin" / "pip3"
+        assert self._python_cmd is not None and self._pip_cmd is not None
         log.info(f"Using Python: {await get_python_version(self._python_cmd)}, {self._python_cmd}")
         log.info(f"Using pip: {await get_python_version(self._pip_cmd)}, {self._pip_cmd}")
 
@@ -202,6 +205,7 @@ class Server:
         await _execute_process("Python", venv_cmd, self.path, cb)
 
     async def _install_comfy(self, network: QNetworkAccessManager, cb: InternalCB):
+        assert self.comfy_dir is not None
         url = "https://github.com/comfyanonymous/ComfyUI/archive/refs/heads/master.zip"
         archive_path = self._cache_dir / "ComfyUI.zip"
         await _download_cached("ComfyUI", network, url, archive_path, cb)
@@ -228,6 +232,7 @@ class Server:
     async def _install_custom_node(
         self, pkg: CustomNode, network: QNetworkAccessManager, cb: InternalCB
     ):
+        assert self.comfy_dir is not None
         folder = self.comfy_dir / "custom_nodes" / pkg.folder
         resource_url = f"{pkg.url}/archive/refs/heads/main.zip"
         resource_zip_path = self._cache_dir / f"{pkg.folder}.zip"
@@ -249,13 +254,17 @@ class Server:
                 " and restart."
             )
 
-        def cb(stage: str, message: str, progress: Optional[DownloadProgress] = None):
-            if message:
-                log.info(message)
+        def cb(stage: str, message: str | DownloadProgress):
+            out_message = ""
+            progress = None
             filters = ["Downloading", "Installing", "Collecting", "Using"]
-            if not (message and any(s in message[:16] for s in filters)):
-                message = ""
-            callback(InstallationProgress(stage, progress, message))
+            if isinstance(message, str):
+                log.info(message)
+                if any(s in message[:16] for s in filters):
+                    out_message = message
+            elif isinstance(message, DownloadProgress):
+                progress = message
+            callback(InstallationProgress(stage, progress, out_message))
 
         try:
             await self._install(cb)
@@ -266,15 +275,16 @@ class Server:
             self.check_install()
             raise e
 
-    async def install_optional(self, packages: List[str], callback: Callback):
-        assert self.has_comfy, "Must install ComfyUI before downloading checkpoints"
+    async def install_optional(self, packages: list[str], callback: Callback):
+        assert self.comfy_dir, "Must install ComfyUI before downloading checkpoints"
         network = QNetworkAccessManager()
         prev_state = self.state
         self.state = ServerState.installing
 
-        def cb(stage: str, message: str, progress: Optional[DownloadProgress] = None):
-            if message:
+        def cb(stage: str, message: str | DownloadProgress):
+            if isinstance(message, str):
                 log.info(message)
+            progress = message if isinstance(message, DownloadProgress) else None
             callback(InstallationProgress(stage, progress))
 
         try:
@@ -293,6 +303,7 @@ class Server:
 
     async def start(self):
         assert self.state in [ServerState.stopped, ServerState.missing_resources]
+        assert self._python_cmd
 
         self.state = ServerState.starting
         args = ["-u", "-X", "utf8", "main.py"]
@@ -311,6 +322,7 @@ class Server:
             creationflags=_process_flags,
         )
 
+        assert self._process.stdout is not None
         async for line in self._process.stdout:
             text = line.decode("utf-8").strip()
             server_log.info(text)
@@ -335,10 +347,12 @@ class Server:
             raise Exception(f"Error during server startup: {error} [{ret}]")
 
         self._task = asyncio.create_task(self.run())
+        assert self.url is not None
         return self.url
 
     async def run(self):
         assert self.state is ServerState.running
+        assert self._process and self._process.stdout and self._process.stderr
 
         async def forward(stream: asyncio.StreamReader):
             async for line in stream:
@@ -355,11 +369,12 @@ class Server:
     async def stop(self):
         assert self.state is ServerState.running
         try:
-            log.info("Stopping server")
-            self._process.terminate()
-            self._task.cancel()
-            await asyncio.wait_for(self._process.communicate(), timeout=5)
-            log.info(f"Server terminated with code {self._process.returncode}")
+            if self._process and self._task:
+                log.info("Stopping server")
+                self._process.terminate()
+                self._task.cancel()
+                await asyncio.wait_for(self._process.communicate(), timeout=5)
+                log.info(f"Server terminated with code {self._process.returncode}")
         except asyncio.TimeoutError:
             log.warning("Server did not terminate in time")
             pass
@@ -385,7 +400,7 @@ class Server:
         return self.comfy_dir is not None
 
 
-def _find_component(files: List[str], search_paths: List[Path]):
+def _find_component(files: list[str], search_paths: list[Path]):
     return next(
         (
             path
@@ -412,7 +427,7 @@ async def _download_cached(
     else:
         cb(f"Downloading {name}", f"Downloading {url} to {file}")
         async for progress in download(network, url, file):
-            cb(f"Downloading {name}", None, progress)
+            cb(f"Downloading {name}", progress)
 
 
 async def _extract_archive(name: str, archive: Path, target: Path, cb: InternalCB):
@@ -441,6 +456,7 @@ async def _execute_process(name: str, cmd: list, cwd: Path, cb: InternalCB):
         async for line in stream:
             errlog += line.decode(enc, errors="surrogateescape")
 
+    assert process.stdout and process.stderr
     await asyncio.gather(forward(process.stdout), collect(process.stderr))
 
     if process.returncode != 0:
