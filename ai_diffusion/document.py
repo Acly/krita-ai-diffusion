@@ -1,10 +1,11 @@
-from typing import Optional
+from typing import Dict, Optional
 import krita
 from krita import Krita
-from PyQt5.QtCore import QUuid, QByteArray
+from PyQt5.QtCore import QUuid, QByteArray, QTimer
 from PyQt5.QtGui import QImage
 
 from .image import Extent, Bounds, Mask, Image
+from .pose import Pose
 
 
 class Document:
@@ -88,14 +89,17 @@ class Document:
         self, name: str, img: Image, bounds: Bounds, below: Optional[krita.Node] = None
     ):
         layer = self._doc.createNode(name, "paintlayer")
-        above = None
-        if below:
-            nodes = self._doc.rootNode().childNodes()
-            index = nodes.index(below)
-            if index >= 1:
-                above = nodes[index - 1]
+        above = _find_layer_above(self._doc, below)
         self._doc.rootNode().addChildNode(layer, above)
         layer.setPixelData(img.data, *bounds)
+        self._doc.refreshProjection()
+        return layer
+
+    def insert_vector_layer(self, name: str, svg: str, below: Optional[krita.Node] = None):
+        layer = self._doc.createVectorLayer(name)
+        above = _find_layer_above(self._doc, below)
+        self._doc.rootNode().addChildNode(layer, above)
+        layer.addShapesFromSvg(svg)
         self._doc.refreshProjection()
         return layer
 
@@ -117,7 +121,8 @@ class Document:
 
     @property
     def image_layers(self):
-        return list(_traverse_layers(self._doc.rootNode(), ["paintlayer", "grouplayer"]))
+        allowed_layer_types = ["paintlayer", "vectorlayer", "grouplayer"]
+        return list(_traverse_layers(self._doc.rootNode(), allowed_layer_types))
 
     def find_layer(self, id: QUuid):
         return next((layer for layer in self.image_layers if layer.uniqueId() == id), None)
@@ -126,12 +131,25 @@ class Document:
     def active_layer(self):
         return self._doc.activeNode()
 
+    @property
+    def resolution(self):
+        return self._doc.resolution() / 72.0  # KisImage::xRes which is applied to vectors
+
 
 def _traverse_layers(node, type_filter=None):
     for child in node.childNodes():
         yield from _traverse_layers(child, type_filter)
         if not type_filter or child.type() in type_filter:
             yield child
+
+
+def _find_layer_above(doc: krita.Document, layer_below: Optional[krita.Node]):
+    if layer_below:
+        nodes = doc.rootNode().childNodes()
+        index = nodes.index(layer_below)
+        if index >= 1:
+            return nodes[index - 1]
+    return None
 
 
 def _selection_is_entire_document(selection, extent: Extent):
@@ -143,3 +161,31 @@ def _selection_is_entire_document(selection, extent: Extent):
     mask = selection.pixelData(*bounds)
     is_opaque = all(x == b"\xff" for x in mask)
     return is_opaque
+
+
+class PoseLayers:
+    _layers: Dict[str, Pose] = {}
+    _timer = QTimer()
+
+    def __init__(self):
+        self._timer.setInterval(500)
+        self._timer.timeout.connect(self.update)
+        self._timer.start()
+
+    def update(self):
+        doc = Document.active()
+        if not doc:
+            return
+        layer = doc.active_layer
+        if not layer or layer.type() != "vectorlayer":
+            return
+
+        pose = self._layers.setdefault(layer.uniqueId(), Pose(doc.extent))
+        changes = pose.update(layer.shapes(), doc.resolution)
+        if changes:
+            shapes = layer.addShapesFromSvg(changes)
+            for shape in shapes:
+                shape.setZIndex(-1)
+
+
+_pose_layers = PoseLayers()

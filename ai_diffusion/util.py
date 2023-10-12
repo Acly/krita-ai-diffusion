@@ -1,4 +1,5 @@
 from enum import Enum
+from itertools import islice
 from pathlib import Path
 import sys
 import logging
@@ -34,6 +35,12 @@ def log_error(error: Exception):
         message = f"Error: {error}"
     client_logger.exception(message)
     return message
+
+
+def batched(iterable, n):
+    it = iter(iterable)
+    while batch := tuple(islice(it, n)):
+        yield batch
 
 
 def encode_json(obj):
