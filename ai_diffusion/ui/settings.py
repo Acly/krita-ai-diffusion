@@ -752,10 +752,10 @@ class DiffusionSettings(SettingsTab):
     def __init__(self):
         super().__init__("Diffusion Settings")
 
-        self.add("selection_grow", SliderSetting(Settings._selection_grow, self, 0, 25, "{} %"))
-        self.add(
-            "selection_feather", SliderSetting(Settings._selection_feather, self, 0, 25, "{} %")
-        )
+        S = Settings
+        self.add("selection_grow", SliderSetting(S._selection_grow, self, 0, 25, "{} %"))
+        self.add("selection_feather", SliderSetting(S._selection_feather, self, 0, 25, "{} %"))
+        self.add("selection_padding", SliderSetting(S._selection_padding, self, 0, 25, "{} %"))
 
         self.add("random_seed", TextSetting(Settings._random_seed, self))
         self._fixed_seed_checkbox = QCheckBox("Use fixed seed", self)

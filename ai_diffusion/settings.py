@@ -91,6 +91,11 @@ class Settings:
         "Selection Feather", 7, "The border is blurred by a fraction of selection size"
     )
 
+    selection_padding: int
+    _selection_padding = Setting(
+        "Selection Padding", 7, "Minimum additional padding around the selection area"
+    )
+
     fixed_seed: bool
     _fixed_seed = Setting("Use Fixed Seed", False, "Fixes the random seed to a specific value")
 

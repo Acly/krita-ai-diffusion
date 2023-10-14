@@ -164,7 +164,9 @@ class Model(QObject):
         extent = self._doc.extent
 
         mask = self._doc.create_mask_from_selection(
-            grow=settings.selection_grow / 100, feather=settings.selection_feather / 100
+            grow=settings.selection_grow / 100,
+            feather=settings.selection_feather / 100,
+            padding=settings.selection_padding / 100,
         )
         image_bounds = workflow.compute_bounds(extent, mask.bounds if mask else None, self.strength)
         if mask is not None or self.strength < 1.0:

@@ -42,7 +42,7 @@ class Document:
             return False, msg_fmt.format("depth", "8-bit integer", depth)
         return True, None
 
-    def create_mask_from_selection(self, grow: float, feather: float):
+    def create_mask_from_selection(self, grow: float, feather: float, padding: float):
         user_selection = self._doc.selection()
         if not user_selection:
             return None
@@ -54,6 +54,7 @@ class Document:
         size_factor = Extent(selection.width(), selection.height()).diagonal
         grow_pixels = int(grow * size_factor)
         feather_radius = int(feather * size_factor)
+        padding_pixels = int(padding * size_factor)
 
         if grow_pixels > 0:
             selection.grow(grow_pixels, grow_pixels)
@@ -61,7 +62,7 @@ class Document:
             selection.feather(feather_radius)
 
         bounds = Bounds(selection.x(), selection.y(), selection.width(), selection.height())
-        bounds = Bounds.pad(bounds, feather_radius, multiple=8)
+        bounds = Bounds.pad(bounds, padding_pixels, multiple=8)
         bounds = Bounds.clamp(bounds, self.extent)
         data = selection.pixelData(*bounds)
         return Mask(bounds, data)
