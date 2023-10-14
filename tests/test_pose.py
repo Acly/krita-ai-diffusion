@@ -155,3 +155,11 @@ def test_pose_update_copy(scenario):
     assert shapes[3].name() == "P01_J01"
     if scenario == "with_bones":
         assert shapes[-1].removed and shapes[-2].removed
+
+
+def test_stroke_width():
+    joints = {JointIndex(0, 0): Point(100, 100), JointIndex(0, 1): Point(200, 200)}
+    pose = Pose(Extent(2000, 2000), 1, joints)
+    svg = pose.to_svg()
+    assert 'stroke-width="11.' in svg
+    assert 'r="11.' in svg

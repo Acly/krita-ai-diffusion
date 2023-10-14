@@ -141,9 +141,12 @@ class Shape:
 
 
 class Pose:
-    extent: Extent
     people_count: int
     joints: Dict[JointIndex, Point]
+
+    _extent: Extent
+    _stroke_width = 4.0
+    _radius = 4.0
 
     def __init__(
         self,
@@ -175,6 +178,7 @@ class Pose:
     def scale(self, target: Extent):
         s = Point(target.width / self.extent.width, target.height / self.extent.height)
         self.joints = {i: Point(p.x * s.x, p.y * s.y) for i, p in self.joints.items()}
+        self.extent = target
 
     def update(self, shapes: List[Shape], resolution=1.0):
         changed = set()
@@ -189,7 +193,7 @@ class Pose:
         for shape in shapes:
             index = parse_id(shape.name())
             if isinstance(index, JointIndex):
-                pos = (shape.position() + QPointF(4, 4)) * resolution
+                pos = (shape.position() + QPointF(self._radius, self._radius)) * resolution
                 pos = Point.from_qt(pos)
                 previous_pos = self.joints.get(index)
                 if previous_pos is None:
@@ -235,7 +239,7 @@ class Pose:
             joint_a = self.joints.get(JointIndex(bone_index.person, bone_joints[0]))
             joint_b = self.joints.get(JointIndex(bone_index.person, bone_joints[1]))
             if joint_a and joint_b:
-                new_bones += _draw_bone(bone_index, joint_a, joint_b)
+                new_bones += self._draw_bone(bone_index, joint_a, joint_b)
 
         return new_bones + "</svg>"
 
@@ -251,22 +255,32 @@ class Pose:
                 beg = self.joints.get(JointIndex(person, bone[0]))
                 end = self.joints.get(JointIndex(person, bone[1]))
                 if beg and end:
-                    svg += _draw_bone(BoneIndex(person, i), beg, end)
+                    svg += self._draw_bone(BoneIndex(person, i), beg, end)
 
         for index, position in self.joints.items():
-            svg += _draw_joint(index, position)
+            svg += self._draw_joint(index, position)
 
         return svg + "</svg>"
 
+    @property
+    def extent(self):
+        return self._extent
 
-def _draw_bone(index: BoneIndex, a: Point, b: Point):
-    return (
-        f'<line id="{index.id}" x1="{a.x}" y1="{a.y}" x2="{b.x}" y2="{b.y}"'
-        f' stroke="#{colors[index.bone]}" stroke-width="4" stroke-opacity="0.6"/>'
-    )
+    @extent.setter
+    def extent(self, extent):
+        self._extent = extent
+        self._stroke_width = 4 + max(0, (self.extent.diagonal / 250) - 4)
+        self._radius = self._stroke_width
 
+    def _draw_bone(self, index: BoneIndex, a: Point, b: Point):
+        return (
+            f'<line id="{index.id}" x1="{a.x}" y1="{a.y}" x2="{b.x}" y2="{b.y}"'
+            f' stroke="#{colors[index.bone]}" stroke-width="{self._stroke_width}"'
+            ' stroke-opacity="0.6"/>'
+        )
 
-def _draw_joint(index: JointIndex, pos: Point):
-    return (
-        f'<circle id="{index.id}" cx="{pos.x}" cy="{pos.y}" r="4" fill="#{colors[index.joint]}"/>'
-    )
+    def _draw_joint(self, index: JointIndex, pos: Point):
+        return (
+            f'<circle id="{index.id}" cx="{pos.x}" cy="{pos.y}" r="{self._radius}"'
+            f' fill="#{colors[index.joint]}"/>'
+        )
