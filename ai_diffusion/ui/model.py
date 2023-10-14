@@ -327,8 +327,9 @@ class Model(QObject):
     def add_control_layer(self, job: Job, result: Optional[dict]):
         assert job.kind is JobKind.control_layer and job.control
         if job.control.mode is ControlMode.pose and result is not None:
-            svg = Pose.from_open_pose_json(result).to_svg()
-            return self._doc.insert_vector_layer(job.prompt, svg, below=self._layer)
+            pose = Pose.from_open_pose_json(result)
+            pose.scale(job.bounds.extent)
+            return self._doc.insert_vector_layer(job.prompt, pose.to_svg(), below=self._layer)
         elif len(job.results) > 0:
             return self._doc.insert_layer(job.prompt, job.results[0], job.bounds, below=self._layer)
         return self.document.active_layer  # Execution was cached and no image was produced

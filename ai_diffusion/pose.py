@@ -172,6 +172,10 @@ class Pose:
         poses = (parse_keypoints(i, p.get("pose_keypoints_2d", [])) for i, p in enumerate(people))
         return Pose(extent, len(people), reduce(operator.ior, poses, {}))
 
+    def scale(self, target: Extent):
+        s = Point(target.width / self.extent.width, target.height / self.extent.height)
+        self.joints = {i: Point(p.x * s.x, p.y * s.y) for i, p in self.joints.items()}
+
     def update(self, shapes: List[Shape], resolution=1.0):
         changed = set()
         duplicates = set()
