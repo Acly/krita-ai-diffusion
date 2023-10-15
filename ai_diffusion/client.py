@@ -15,7 +15,7 @@ from .websockets.src.websockets import exceptions as websockets_exceptions
 from .style import SDVersion
 from .resources import ControlMode, MissingResource, ResourceKind
 from . import resources
-from .util import client_logger as log
+from .util import is_windows, client_logger as log
 
 
 class ClientEvent(Enum):
@@ -325,19 +325,21 @@ def websocket_url(url_http: str):
 
 
 def _find_control_model(model_list: Sequence[str], mode: ControlMode):
-    def _find(name: Union[str, list, None]):
+    def match_filename(path: str, name: str):
+        path_sep = "\\" if is_windows else "/"
+        return path.startswith(name) or path.split(path_sep)[-1].startswith(name)
+
+    def find(name: Union[str, list, None]):
         if name is None:
             return None
         names = [name] if isinstance(name, str) else name
-        matches_name = lambda model: any(model.startswith(name) for name in names)
+        matches_name = lambda model: any(match_filename(model, name) for name in names)
         model = next((model for model in model_list if matches_name(model)), None)
         if model is None and mode is ControlMode.inpaint:
             raise MissingResource(ResourceKind.controlnet, names)
         return model
 
-    return {
-        version: _find(mode.filenames(version)) for version in [SDVersion.sd1_5, SDVersion.sdxl]
-    }
+    return {version: find(mode.filenames(version)) for version in [SDVersion.sd1_5, SDVersion.sdxl]}
 
 
 def _find_clip_vision_model(model_list: Sequence[str], sdver: str):
