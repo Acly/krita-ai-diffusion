@@ -25,6 +25,7 @@ from PyQt5.QtWidgets import (
 from PyQt5.QtGui import QFontMetrics, QGuiApplication, QKeyEvent, QMouseEvent
 from PyQt5.QtCore import Qt, QSize, QUuid, pyqtSignal
 from krita import Krita, DockWidget
+import krita
 
 from .. import Control, ControlMode, Styles, Bounds, Document, server
 from . import actions, EventSuppression, SettingsDialog, theme
@@ -110,6 +111,13 @@ class ControlWidget(QWidget):
         self.generate_button.setToolTip("Generate control layer from current image")
         self.generate_button.clicked.connect(self.generate)
 
+        self.add_pose_button = QToolButton(self)
+        self.add_pose_button.setToolButtonStyle(Qt.ToolButtonStyle.ToolButtonIconOnly)
+        self.add_pose_button.setIcon(theme.icon("add-pose"))
+        self.add_pose_button.setToolTip("Add new character pose to selected layer")
+        self.add_pose_button.setVisible(False)
+        self.add_pose_button.clicked.connect(self._add_pose_character)
+
         self.strength_spin = QSpinBox(self)
         self.strength_spin.setRange(0, 100)
         self.strength_spin.setValue(100)
@@ -134,6 +142,7 @@ class ControlWidget(QWidget):
         layout.addWidget(self.mode_select)
         layout.addWidget(self.layer_select, 1)
         layout.addWidget(self.generate_button)
+        layout.addWidget(self.add_pose_button)
         layout.addWidget(self.strength_spin)
         layout.addWidget(self.error_text, 1)
         layout.addWidget(self.remove_button)
@@ -180,6 +189,9 @@ class ControlWidget(QWidget):
     def remove(self):
         self._model.remove_control_layer(self.value)
 
+    def _add_pose_character(self):
+        self._model.document.add_pose_character(self.value.image)  # type: ignore (CTRLLAYER)
+
     @property
     def value(self):
         return self._control
@@ -218,6 +230,8 @@ class ControlWidget(QWidget):
         self.error_text.setVisible(False)  # Avoid layout resize
         self.layer_select.setVisible(is_installed)
         self.generate_button.setVisible(is_installed and mode is not ControlMode.image)
+        self.add_pose_button.setVisible(is_installed and mode is ControlMode.pose)
+        self.add_pose_button.setEnabled(self._is_vector_layer())
         self.strength_spin.setVisible(is_installed)
         self.strength_spin.setEnabled(self._is_first_image_mode())
         self.error_text.setVisible(not is_installed)
@@ -230,6 +244,9 @@ class ControlWidget(QWidget):
         return self._control.mode is not ControlMode.image or self._control == next(
             (c for c in self._model.control if c.mode is ControlMode.image), None
         )
+
+    def _is_vector_layer(self):
+        return isinstance(self.value.image, krita.Node) and self.value.image.type() == "vectorlayer"
 
 
 class ControlListWidget(QWidget):

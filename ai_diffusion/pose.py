@@ -38,6 +38,27 @@ body_parts = [
 ]
 joint_count = len(body_parts)
 
+default_positions = [
+    Point(153, 107),  # Nose
+    Point(152, 146),  # Neck
+    Point(128, 146),  # RShoulder
+    Point(116, 193),  # RElbow
+    Point(100, 238),  # RWrist
+    Point(176, 146),  # LShoulder
+    Point(188, 193),  # LElbow
+    Point(204, 238),  # LWrist
+    Point(131, 227),  # RHip
+    Point(129, 311),  # RKnee
+    Point(128, 394),  # RAnkle
+    Point(174, 227),  # LHip
+    Point(176, 311),  # LKnee
+    Point(178, 394),  # LAnkle
+    Point(143, 100),  # REye
+    Point(162, 100),  # LEye
+    Point(132, 105),  # REar
+    Point(174, 105),  # LEar
+]
+
 bone_connection = [
     (1, 2),  # 0
     (1, 5),  # 1
@@ -157,6 +178,14 @@ class Pose:
         self.extent = extent
         self.people_count = people_count
         self.joints = joint_positions or {}
+
+    @staticmethod
+    def create_default(extent: Extent, person=0):
+        s = extent.shortest_side / 400
+        joints = {
+            JointIndex(person, i): Point(p.x * s, p.y * s) for i, p in enumerate(default_positions)
+        }
+        return Pose(extent, 1, joints)
 
     @staticmethod
     def from_open_pose_json(pose: dict):

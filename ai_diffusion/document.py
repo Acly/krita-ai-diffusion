@@ -121,6 +121,10 @@ class Document:
         self._doc.refreshProjection()
         return layer
 
+    def add_pose_character(self, layer: krita.Node):
+        assert layer.type() == "vectorlayer"
+        _pose_layers.add_character(cast(krita.VectorLayer, layer))
+
     @property
     def image_layers(self):
         allowed_layer_types = ["paintlayer", "vectorlayer", "grouplayer"]
@@ -184,7 +188,20 @@ class PoseLayers:
 
         layer = cast(krita.VectorLayer, layer)
         pose = self._layers.setdefault(layer.uniqueId(), Pose(doc.extent))
-        changes = pose.update(layer.shapes(), doc.resolution)  # type: ignore
+        self._update(layer, layer.shapes(), pose, doc.resolution)
+
+    def add_character(self, layer: krita.VectorLayer):
+        doc = Document.active()
+        assert doc is not None
+        pose = self._layers.setdefault(layer.uniqueId(), Pose(doc.extent))
+        svg = Pose.create_default(doc.extent, pose.people_count).to_svg()
+        shapes = layer.addShapesFromSvg(svg)
+        self._update(layer, shapes, pose, doc.resolution)
+
+    def _update(
+        self, layer: krita.VectorLayer, shapes: list[krita.Shape], pose: Pose, resolution: float
+    ):
+        changes = pose.update(shapes, resolution)  # type: ignore
         if changes:
             shapes = layer.addShapesFromSvg(changes)
             for shape in shapes:
