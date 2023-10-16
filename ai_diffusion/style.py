@@ -10,26 +10,40 @@ from .util import client_logger as log
 
 class SDVersion(Enum):
     auto = "Automatic"
-    sd1_5 = "SD 1.5"
+    sd15 = "SD 1.5"
     sdxl = "SD XL"
 
+    @staticmethod
+    def from_string(string: str):
+        if string == "sd15":
+            return SDVersion.sd15
+        if string == "sdxl":
+            return SDVersion.sdxl
+        return None
+
+    @staticmethod
+    def from_checkpoint_name(checkpoint: str):
+        if SDVersion.sdxl.matches(checkpoint):
+            return SDVersion.sdxl
+        return SDVersion.sd15
+
     def matches(self, checkpoint: str):
-        # Check is not very robust, but don't know better alternative
+        # Fallback check if it can't be queried from the server
         xl_in_name = "xl" in checkpoint.lower()
         return self is SDVersion.auto or ((self is SDVersion.sdxl) == xl_in_name)
 
     def resolve(self, checkpoint: str):
         if self is SDVersion.auto:
-            return SDVersion.sdxl if SDVersion.sdxl.matches(checkpoint) else SDVersion.sd1_5
+            return SDVersion.sdxl if SDVersion.sdxl.matches(checkpoint) else SDVersion.sd15
         return self
 
     @property
     def has_controlnet_inpaint(self):
-        return self is SDVersion.sd1_5
+        return self is SDVersion.sd15
 
     @property
     def has_ip_adapter(self):
-        return self is SDVersion.sd1_5
+        return self is SDVersion.sd15
 
 
 class StyleSettings:
@@ -161,10 +175,6 @@ class Style:
     @property
     def filename(self):
         return self.filepath.name
-
-    @property
-    def sd_version_resolved(self):
-        return self.sd_version.resolve(self.sd_checkpoint)
 
 
 class Styles(QObject):

@@ -27,7 +27,7 @@ from PyQt5.QtCore import Qt, QSize, QUuid, pyqtSignal
 from krita import Krita, DockWidget
 import krita
 
-from .. import Control, ControlMode, Styles, Bounds, Document, server
+from .. import Control, ControlMode, Styles, Bounds, client
 from . import actions, EventSuppression, SettingsDialog, theme
 from .model import Model, ModelRegistry, Job, JobKind, JobQueue, State
 from .connection import Connection, ConnectionState
@@ -214,7 +214,7 @@ class ControlWidget(QWidget):
         is_installed = True
         mode = ControlMode(self.mode_select.currentData())
         if connection.state is ConnectionState.connected:
-            sdver = self._model.style.sd_version_resolved
+            sdver = client.resolve_sd_version(self._model.style, connection.client)
             if mode is ControlMode.image:
                 if not sdver.has_ip_adapter:
                     self.error_text.setToolTip(f"Control mode is not supported for {sdver.value}")

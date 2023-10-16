@@ -231,46 +231,46 @@ _control_text = {
 
 _control_filename = {
     ControlMode.image: {  # uses clip vision / ip-adapter
-        SDVersion.sd1_5: None,
+        SDVersion.sd15: None,
         SDVersion.sdxl: None,
     },
     ControlMode.inpaint: {
-        SDVersion.sd1_5: "control_v11p_sd15_inpaint",
+        SDVersion.sd15: "control_v11p_sd15_inpaint",
         SDVersion.sdxl: None,
     },
     ControlMode.scribble: {
-        SDVersion.sd1_5: ["control_v11p_sd15_scribble", "control_lora_rank128_v11p_sd15_scribble"],
+        SDVersion.sd15: ["control_v11p_sd15_scribble", "control_lora_rank128_v11p_sd15_scribble"],
         SDVersion.sdxl: None,
     },
     ControlMode.line_art: {
-        SDVersion.sd1_5: ["control_v11p_sd15_lineart", "control_lora_rank128_v11p_sd15_lineart"],
+        SDVersion.sd15: ["control_v11p_sd15_lineart", "control_lora_rank128_v11p_sd15_lineart"],
         SDVersion.sdxl: ["control-lora-sketch-rank", "sai_xl_sketch_"],
     },
     ControlMode.soft_edge: {
-        SDVersion.sd1_5: ["control_v11p_sd15_softedge", "control_lora_rank128_v11p_sd15_softedge"],
+        SDVersion.sd15: ["control_v11p_sd15_softedge", "control_lora_rank128_v11p_sd15_softedge"],
         SDVersion.sdxl: None,
     },
     ControlMode.canny_edge: {
-        SDVersion.sd1_5: ["control_v11p_sd15_canny", "control_lora_rank128_v11p_sd15_canny"],
+        SDVersion.sd15: ["control_v11p_sd15_canny", "control_lora_rank128_v11p_sd15_canny"],
         SDVersion.sdxl: ["control-lora-canny-rank", "sai_xl_canny_"],
     },
     ControlMode.depth: {
-        SDVersion.sd1_5: ["control_v11f1p_sd15_depth", "control_lora_rank128_v11f1p_sd15_depth"],
+        SDVersion.sd15: ["control_v11f1p_sd15_depth", "control_lora_rank128_v11f1p_sd15_depth"],
         SDVersion.sdxl: ["control-lora-depth-rank", "sai_xl_depth_"],
     },
     ControlMode.normal: {
-        SDVersion.sd1_5: [
+        SDVersion.sd15: [
             "control_v11p_sd15_normalbae",
             "control_lora_rank128_v11p_sd15_normalbae",
         ],
         SDVersion.sdxl: None,
     },
     ControlMode.pose: {
-        SDVersion.sd1_5: ["control_v11p_sd15_openpose", "control_lora_rank128_v11p_sd15_openpose"],
+        SDVersion.sd15: ["control_v11p_sd15_openpose", "control_lora_rank128_v11p_sd15_openpose"],
         SDVersion.sdxl: ["control-lora-openposeXL2-rank", "thibaud_xl_openpose"],
     },
     ControlMode.segmentation: {
-        SDVersion.sd1_5: ["control_v11p_sd15_seg", "control_lora_rank128_v11p_sd15_seg"],
+        SDVersion.sd15: ["control_v11p_sd15_seg", "control_lora_rank128_v11p_sd15_seg"],
         SDVersion.sdxl: None,
     },
 }

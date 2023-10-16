@@ -1,7 +1,7 @@
 from __future__ import annotations
 from enum import Enum
 from pathlib import Path
-from typing import Optional, cast
+from typing import Any, Optional, cast
 from PyQt5.QtWidgets import (
     QVBoxLayout,
     QHBoxLayout,
@@ -31,6 +31,7 @@ from krita import Krita
 from ..resources import CustomNode, MissingResource, ResourceKind, SDVersion
 from ..settings import Setting, Settings, ServerMode, PerformancePreset, settings
 from ..server import Server
+from ..client import resolve_sd_version
 from ..style import Style, Styles, StyleSettings
 from .connection import Connection, ConnectionState, apply_performance_preset
 from .model import Model
@@ -137,21 +138,27 @@ class ComboBoxSetting(SettingWidget):
         self._combo = QComboBox(self)
         if isinstance(setting.default, Enum):
             self._enum_type = type(setting.default)
-            for i, e in enumerate(self._enum_type):
-                self._combo.addItem(e.value)
-                self._combo.setItemData(i, e.name, Qt.ItemDataRole.UserRole)
+            self.set_items(self._enum_type)
         elif setting.items:
-            self._combo.addItems(setting.items)
+            self.set_items(setting.items)
 
         self._combo.setMinimumWidth(230)
         self._combo.currentIndexChanged.connect(self._change_value)
         self._layout.addWidget(self._combo, alignment=Qt.AlignmentFlag.AlignRight)
         self._original_text = self._key_label.text()
 
-    def set_items(self, items):
+    def set_items(self, items: list[str] | type[Enum] | list[tuple[str, Any]]):
         self._suppress_change = True
         self._combo.clear()
-        self._combo.addItems(items)
+        if isinstance(items, type):
+            for e in items:
+                self._combo.addItem(e.value, e.name)
+        else:
+            for name in items:
+                if isinstance(name, str):
+                    self._combo.addItem(name, name)
+                else:
+                    self._combo.addItem(name[0], name[1])
         self._suppress_change = False
 
     def _change_value(self):
@@ -164,18 +171,16 @@ class ComboBoxSetting(SettingWidget):
     @property
     def value(self):
         if self._enum_type is not None:
-            name = self._combo.itemData(self._combo.currentIndex(), Qt.ItemDataRole.UserRole)
-            return self._enum_type[name]
+            return self._enum_type[self._combo.currentData()]
         else:
-            return self._combo.currentText()
+            return self._combo.currentData()
 
     @value.setter
     def value(self, v):
         if self._enum_type is not None:
-            index = self._combo.findData(v.name, Qt.ItemDataRole.UserRole)
-            self._combo.setCurrentIndex(index)
-        else:
-            self._combo.setCurrentText(v)
+            v = v.name
+        index = self._combo.findData(v, Qt.ItemDataRole.UserRole)
+        self._combo.setCurrentIndex(index)
 
 
 class TextSetting(SettingWidget):
@@ -720,7 +725,9 @@ class StylePresets(SettingsTab):
 
     def _set_sd_version_text(self):
         if self.current_style.sd_version is SDVersion.auto:
-            actual = self.current_style.sd_version_resolved
+            actual = resolve_sd_version(
+                self.current_style, Connection.instance().client_if_connected
+            )
             self._style_widgets["sd_version"].set_text(f". <i>Detected {actual.value}</i>")
         else:
             self._style_widgets["sd_version"].set_text("")
@@ -731,10 +738,14 @@ class StylePresets(SettingsTab):
                 widget.value = getattr(style, name)
 
     def _read(self):
-        if Connection.instance().state == ConnectionState.connected:
-            client = Connection.instance().client
+        if client := Connection.instance().client_if_connected:
             default_vae = cast(str, StyleSettings.vae.default)
-            self._style_widgets["sd_checkpoint"].set_items(client.checkpoints)
+            checkpoints = [
+                (cp.name, cp.filename)
+                for cp in client.checkpoints.values()
+                if not (cp.is_refiner or cp.is_inpaint)
+            ]
+            self._style_widgets["sd_checkpoint"].set_items(checkpoints)
             self._style_widgets["loras"].names = client.lora_models
             self._style_widgets["vae"].set_items([default_vae] + client.vae_models)
         self._read_style(self.current_style)

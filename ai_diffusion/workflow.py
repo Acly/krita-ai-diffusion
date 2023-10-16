@@ -3,7 +3,7 @@ import math
 from typing import Any, List, NamedTuple, Optional
 
 from .image import Bounds, Extent, Image, Mask
-from .client import Client
+from .client import Client, resolve_sd_version
 from .style import SDVersion, Style, StyleSettings
 from .resources import ControlMode
 from .settings import settings
@@ -62,7 +62,7 @@ def prepare(
     expanded = extent.multiple_of(8)
 
     min_size, max_size, min_pixel_count, max_pixel_count = {
-        SDVersion.sd1_5: (512, 768, 512**2, 512 * 768),
+        SDVersion.sd15: (512, 768, 512**2, 512 * 768),
         SDVersion.sdxl: (896, 1280, 1024**2, 1024**2),
     }[sdver]
     min_scale = math.sqrt(min_pixel_count / extent.pixel_count)
@@ -145,7 +145,7 @@ def _sampler_params(style: Style, clip_vision=False, upscale=False) -> dict[str,
 def load_model_with_lora(w: ComfyWorkflow, comfy: Client, style: Style):
     checkpoint = style.sd_checkpoint
     if checkpoint not in comfy.checkpoints:
-        checkpoint = comfy.checkpoints[0]
+        checkpoint = next(iter(comfy.checkpoints.keys()))
         log.warning(f"Style checkpoint {style.sd_checkpoint} not found, using default {checkpoint}")
     model, clip, vae = w.load_checkpoint(checkpoint)
 
@@ -214,7 +214,7 @@ class Conditioning:
 def apply_conditioning(
     cond: Conditioning, w: ComfyWorkflow, comfy: Client, model: Output, clip: Output, style: Style
 ):
-    sd_ver = style.sd_version_resolved
+    sd_ver = resolve_sd_version(style, comfy)
     positive = w.clip_text_encode(clip, f"{cond.prompt}, {style.style_prompt}")
     negative = w.clip_text_encode(clip, style.negative_prompt)
 
@@ -280,7 +280,7 @@ def upscale(
 
 
 def generate(comfy: Client, style: Style, input_extent: Extent, cond: Conditioning):
-    extent, batch = prepare_extent(input_extent, style.sd_version_resolved)
+    extent, batch = prepare_extent(input_extent, resolve_sd_version(style, comfy))
 
     w = ComfyWorkflow()
     model, clip, vae = load_model_with_lora(w, comfy, style)
@@ -297,7 +297,7 @@ def generate(comfy: Client, style: Style, input_extent: Extent, cond: Conditioni
 
 
 def inpaint(comfy: Client, style: Style, image: Image, mask: Mask, cond: Conditioning):
-    sd_ver = style.sd_version_resolved
+    sd_ver = resolve_sd_version(style, comfy)
     extent, scaled_image, scaled_mask, _ = prepare_masked(image, mask, sd_ver)
     target_bounds = mask.bounds
     region_expanded = target_bounds.extent.multiple_of(8)
@@ -362,7 +362,7 @@ def inpaint(comfy: Client, style: Style, image: Image, mask: Mask, cond: Conditi
 
 def refine(comfy: Client, style: Style, image: Image, cond: Conditioning, strength: float):
     assert strength > 0 and strength < 1
-    extent, image, batch = prepare_image(image, style.sd_version_resolved, downscale=False)
+    extent, image, batch = prepare_image(image, resolve_sd_version(style, comfy), downscale=False)
 
     w = ComfyWorkflow()
     model, clip, vae = load_model_with_lora(w, comfy, style)
@@ -388,7 +388,7 @@ def refine_region(
     assert strength > 0 and strength < 1
 
     downscale_if_needed = strength >= 0.7
-    sd_ver = style.sd_version_resolved
+    sd_ver = resolve_sd_version(style, comfy)
     extent, image, mask_image, batch = prepare_masked(image, mask, sd_ver, downscale_if_needed)
 
     w = ComfyWorkflow()

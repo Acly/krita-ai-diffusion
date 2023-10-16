@@ -12,7 +12,7 @@ from .image import Image, ImageCollection
 from .network import RequestManager, NetworkError
 from .websockets.src.websockets import client as websockets_client
 from .websockets.src.websockets import exceptions as websockets_exceptions
-from .style import SDVersion
+from .style import SDVersion, Style
 from .resources import ControlMode, MissingResource, ResourceKind
 from . import resources
 from .util import is_windows, client_logger as log
@@ -86,6 +86,26 @@ class DeviceInfo(NamedTuple):
             return DeviceInfo("cpu", "unknown", 0)
 
 
+class CheckpointInfo(NamedTuple):
+    filename: str
+    sd_version: SDVersion
+    is_inpaint: bool = False
+    is_refiner: bool = False
+
+    @property
+    def name(self):
+        return self.filename.removesuffix(".safetensors")
+
+    @staticmethod
+    def deduce_from_filename(filename: str):
+        return CheckpointInfo(
+            filename,
+            SDVersion.from_checkpoint_name(filename),
+            "inpaint" in filename.lower(),
+            "refiner" in filename.lower(),
+        )
+
+
 class Client:
     """HTTP/WebSocket client which sends requests to and listens to messages from a ComfyUI server."""
 
@@ -97,7 +117,7 @@ class Client:
     _active: Optional[JobInfo] = None
 
     url: str
-    checkpoints: list[str]
+    checkpoints: dict[str, CheckpointInfo]
     vae_models: list[str]
     lora_models: list[str]
     upscalers: list[str]
@@ -124,7 +144,7 @@ class Client:
         if len(missing) > 0:
             raise MissingResource(ResourceKind.node, missing)
 
-        client._refresh_models(nodes)
+        client._refresh_models(nodes, await client.try_inspect_checkpoints())
         if len(client.checkpoints) == 0:
             raise MissingResource(ResourceKind.checkpoint)
 
@@ -261,12 +281,32 @@ class Client:
         await self._post("queue", {"clear": True})
         self._jobs.clear()
 
-    async def refresh(self):
-        nodes = await self._get("object_info")
-        self._refresh_models(nodes)
+    async def try_inspect_checkpoints(self):
+        try:
+            return await self._get("etn/model_info")
+        except NetworkError:
+            return None  # server has old external tooling version
 
-    def _refresh_models(self, nodes: dict):
-        self.checkpoints = nodes["CheckpointLoaderSimple"]["input"]["required"]["ckpt_name"][0]
+    async def refresh(self):
+        nodes, info = await asyncio.gather(self._get("object_info"), self.try_inspect_checkpoints())
+        self._refresh_models(nodes, info)
+
+    def _refresh_models(self, nodes: dict, checkpoint_info: Optional[dict]):
+        if checkpoint_info:
+            self.checkpoints = {
+                filename: CheckpointInfo(
+                    filename,
+                    SDVersion.from_string(info["base_model"]) or SDVersion.sd15,
+                    info.get("is_inpaint", False),
+                    info.get("is_refiner", False),
+                )
+                for filename, info in checkpoint_info.items()
+            }
+        else:
+            self.checkpoints = {
+                filename: CheckpointInfo.deduce_from_filename(filename)
+                for filename in nodes["CheckpointLoaderSimple"]["input"]["required"]["ckpt_name"][0]
+            }
         self.vae_models = nodes["VAELoader"]["input"]["required"]["vae_name"][0]
         self.lora_models = nodes["LoraLoader"]["input"]["required"]["lora_name"][0]
 
@@ -324,6 +364,14 @@ def websocket_url(url_http: str):
     return url_http.replace("http", "ws", 1)
 
 
+def resolve_sd_version(style: Style, client: Optional[Client] = None):
+    if style.sd_version is SDVersion.auto:
+        if client and style.sd_checkpoint in client.checkpoints:
+            return client.checkpoints[style.sd_checkpoint].sd_version
+        return style.sd_version.resolve(style.sd_checkpoint)
+    return style.sd_version
+
+
 def _find_control_model(model_list: Sequence[str], mode: ControlMode):
     def match_filename(path: str, name: str):
         path_sep = "\\" if is_windows else "/"
@@ -339,7 +387,7 @@ def _find_control_model(model_list: Sequence[str], mode: ControlMode):
             raise MissingResource(ResourceKind.controlnet, names)
         return model
 
-    return {version: find(mode.filenames(version)) for version in [SDVersion.sd1_5, SDVersion.sdxl]}
+    return {version: find(mode.filenames(version)) for version in [SDVersion.sd15, SDVersion.sdxl]}
 
 
 def _find_clip_vision_model(model_list: Sequence[str], sdver: str):

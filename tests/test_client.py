@@ -1,8 +1,11 @@
 import asyncio
+from pathlib import Path
 import pytest
 
-from ai_diffusion import Client, ClientEvent, ComfyWorkflow, NetworkError, Image, Extent, eventloop
-from ai_diffusion.client import parse_url, websocket_url
+from ai_diffusion import ComfyWorkflow, NetworkError, eventloop, ControlMode
+from ai_diffusion.image import Image, Extent
+from ai_diffusion.client import Client, ClientEvent, parse_url, resolve_sd_version, websocket_url
+from ai_diffusion.style import SDVersion, Style
 
 default_checkpoint = "realisticVisionV51_v51VAE.safetensors"
 
@@ -112,3 +115,40 @@ def test_disconnect(qtapp):
 def test_parse_url(url, expected_http, expected_ws):
     parsed = parse_url(url)
     assert parsed == expected_http and websocket_url(parsed) == expected_ws
+
+
+def check_client_info(client: Client):
+    assert client.device_info.type in ["cpu", "cuda"]
+    assert client.device_info.name != ""
+    assert client.device_info.vram > 0
+
+    assert len(client.checkpoints) > 0
+    for filename, cp in client.checkpoints.items():
+        assert cp.filename == filename
+        assert cp.filename.startswith(cp.name)
+        assert cp.is_inpaint == ("inpaint" in cp.name.lower())
+        assert cp.is_refiner == ("refiner" in cp.name.lower())
+
+    assert len(client.control_model) > 0
+    assert "inpaint" in client.control_model[ControlMode.inpaint][SDVersion.sd15]
+
+
+def check_resolve_sd_version(client: Client, sd_version: SDVersion):
+    checkpoint = next(cp for cp in client.checkpoints.values() if cp.sd_version == sd_version)
+    style = Style(Path("dummy"))
+    style.sd_version = SDVersion.auto
+    style.sd_checkpoint = checkpoint.filename
+    assert resolve_sd_version(style, client) == sd_version
+    assert resolve_sd_version(style, None) == sd_version
+
+
+def test_info(qtapp):
+    async def main():
+        client = await Client.connect()
+        check_client_info(client)
+        await client.refresh()
+        check_client_info(client)
+        check_resolve_sd_version(client, SDVersion.sd15)
+        check_resolve_sd_version(client, SDVersion.sdxl)
+
+    qtapp.run(main())

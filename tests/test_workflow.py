@@ -22,7 +22,7 @@ image_dir = test_dir / "images"
 result_dir = test_dir / ".results"
 reference_dir = test_dir / "references"
 default_checkpoint = {
-    SDVersion.sd1_5: "realisticVisionV51_v51VAE.safetensors",
+    SDVersion.sd15: "realisticVisionV51_v51VAE.safetensors",
     SDVersion.sdxl: "sdXL_v10VAEFix.safetensors",
 }
 
@@ -40,7 +40,7 @@ def comfy(qtapp):
     return qtapp.run(Client.connect())
 
 
-def default_style(comfy, sd_ver=SDVersion.sd1_5):
+def default_style(comfy, sd_ver=SDVersion.sd15):
     version_checkpoints = [c for c in comfy.checkpoints if sd_ver.matches(c)]
     checkpoint = default_checkpoint[sd_ver]
 
@@ -82,7 +82,7 @@ async def run_and_save(comfy, workflow: ComfyWorkflow, filename: str):
 def test_prepare_highres(input, expected_initial, expected_expanded, expected_scale):
     image = Image.create(input)
     mask = Mask.rectangle(Bounds(0, 0, input.width, input.height))
-    extent, image, mask_image, _ = workflow.prepare_masked(image, mask, SDVersion.sd1_5)
+    extent, image, mask_image, _ = workflow.prepare_masked(image, mask, SDVersion.sd15)
     assert (
         extent.requires_upscale
         and image.extent == expected_initial
@@ -105,7 +105,7 @@ def test_prepare_highres(input, expected_initial, expected_expanded, expected_sc
 def test_prepare_lowres(input, expected):
     image = Image.create(input)
     mask = Mask.rectangle(Bounds(0, 0, input.width, input.height))
-    extent, image, mask_image, _ = workflow.prepare_masked(image, mask, SDVersion.sd1_5)
+    extent, image, mask_image, _ = workflow.prepare_masked(image, mask, SDVersion.sd15)
     assert (
         extent.requires_downscale
         and image.extent == input
@@ -124,7 +124,7 @@ def test_prepare_lowres(input, expected):
 def test_prepare_passthrough(input):
     image = Image.create(input)
     mask = Mask.rectangle(Bounds(0, 0, input.width, input.height))
-    extent, image, mask_image, _ = workflow.prepare_masked(image, mask, SDVersion.sd1_5)
+    extent, image, mask_image, _ = workflow.prepare_masked(image, mask, SDVersion.sd15)
     assert (
         image == image
         and mask_image.extent == input
@@ -139,7 +139,7 @@ def test_prepare_passthrough(input):
     "input,expected", [(Extent(512, 513), Extent(512, 520)), (Extent(300, 1024), Extent(304, 1024))]
 )
 def test_prepare_multiple8(input, expected):
-    result, _ = workflow.prepare_extent(input, SDVersion.sd1_5)
+    result, _ = workflow.prepare_extent(input, SDVersion.sd15)
     assert (
         result.is_incompatible
         and result.initial == expected
@@ -148,17 +148,17 @@ def test_prepare_multiple8(input, expected):
     )
 
 
-@pytest.mark.parametrize("sdver", [SDVersion.sd1_5, SDVersion.sdxl])
+@pytest.mark.parametrize("sdver", [SDVersion.sd15, SDVersion.sdxl])
 def test_prepare_extent(sdver: SDVersion):
     input = Extent(1024, 1536)
     result, _ = workflow.prepare_extent(input, sdver)
-    expected = Extent(512, 768) if sdver == SDVersion.sd1_5 else Extent(840, 1256)
+    expected = Extent(512, 768) if sdver == SDVersion.sd15 else Extent(840, 1256)
     assert result.initial == expected and result.target == input and result.scale < 1
 
 
 def test_prepare_no_mask():
     image = Image.create(Extent(256, 256))
-    extent, result, _ = workflow.prepare_image(image, SDVersion.sd1_5)
+    extent, result, _ = workflow.prepare_image(image, SDVersion.sd15)
     assert (
         result == image
         and extent.initial == Extent(512, 512)
@@ -169,7 +169,7 @@ def test_prepare_no_mask():
 
 def test_prepare_no_downscale():
     image = Image.create(Extent(1536, 1536))
-    extent, result, _ = workflow.prepare_image(image, SDVersion.sd1_5, downscale=False)
+    extent, result, _ = workflow.prepare_image(image, SDVersion.sd15, downscale=False)
     assert (
         extent.requires_upscale is False
         and result == image
@@ -210,7 +210,7 @@ def test_inpaint(qtapp, comfy, temp_settings):
     qtapp.run(main())
 
 
-@pytest.mark.parametrize("sdver", [SDVersion.sd1_5, SDVersion.sdxl])
+@pytest.mark.parametrize("sdver", [SDVersion.sd15, SDVersion.sdxl])
 def test_inpaint_upscale(qtapp, comfy, temp_settings, sdver):
     temp_settings.batch_size = 3  # 2 images for 1.5, 1 image for XL
     image = Image.load(image_dir / "beach_1536x1024.png")
@@ -220,7 +220,7 @@ def test_inpaint_upscale(qtapp, comfy, temp_settings, sdver):
 
     async def main():
         results = await receive_images(comfy, job)
-        assert len(results) == 2 if sdver == SDVersion.sd1_5 else 1
+        assert len(results) == 2 if sdver == SDVersion.sd15 else 1
         for i, result in enumerate(results):
             result.save(result_dir / f"test_inpaint_upscale_{sdver.name}_{i}.png")
             assert result.extent == mask.bounds.extent
@@ -244,12 +244,12 @@ def test_inpaint_odd_resolution(qtapp, comfy, temp_settings):
     qtapp.run(main())
 
 
-@pytest.mark.parametrize("sdver", [SDVersion.sd1_5, SDVersion.sdxl])
+@pytest.mark.parametrize("sdver", [SDVersion.sd15, SDVersion.sdxl])
 def test_refine(qtapp, comfy, sdver, temp_settings):
     temp_settings.batch_size = 1
     image = Image.load(image_dir / "beach_768x512.png")
     prompt = Conditioning("painting in the style of Vincent van Gogh")
-    strength = {SDVersion.sd1_5: 0.5, SDVersion.sdxl: 0.65}[sdver]
+    strength = {SDVersion.sd15: 0.5, SDVersion.sdxl: 0.65}[sdver]
 
     async def main():
         job = workflow.refine(comfy, default_style(comfy, sdver), image, prompt, strength)

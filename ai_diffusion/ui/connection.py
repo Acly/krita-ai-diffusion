@@ -99,6 +99,10 @@ class Connection(QObject):
         assert self.state is ConnectionState.connected and self._client is not None
         return self._client
 
+    @property
+    def client_if_connected(self):
+        return self._client
+
 
 def apply_performance_preset(settings: Settings, device: DeviceInfo):
     if settings.performance_preset is PerformancePreset.auto:
