@@ -3,7 +3,7 @@ import asyncio
 from collections import deque
 from datetime import datetime
 from enum import Enum, Flag
-from typing import Deque, List, Sequence, NamedTuple, Optional, Callable
+from typing import Deque, Optional, cast
 from PyQt5.QtCore import Qt, QObject, pyqtSignal
 
 from .. import eventloop, Document, workflow, NetworkError, settings, util
@@ -170,7 +170,7 @@ class Model(QObject):
         )
         image_bounds = workflow.compute_bounds(extent, mask.bounds if mask else None, self.strength)
         if mask is not None or self.strength < 1.0:
-            image = self._doc.get_image(image_bounds, exclude_layer=self._layer)
+            image = self._get_current_image(image_bounds)
 
         control = [self._get_control_image(c, image_bounds) for c in self.control]
         conditioning = Conditioning(self.prompt, control)
@@ -216,6 +216,14 @@ class Model(QObject):
         job_id = await client.enqueue(job)
         self.jobs.add(job_id, conditioning.prompt, bounds)
         self.changed.emit()
+
+    def _get_current_image(self, bounds: Bounds):
+        exclude = [  # exclude control inputs
+            cast(krita.Node, c.image) for c in self.control if c.mode is not ControlMode.image
+        ]
+        if self._layer:  # exclude preview layer
+            exclude.append(self._layer)
+        return self._doc.get_image(bounds, exclude_layers=exclude)
 
     def _get_control_image(self, control: Control, bounds: Optional[Bounds]):
         if control.mode is ControlMode.image:

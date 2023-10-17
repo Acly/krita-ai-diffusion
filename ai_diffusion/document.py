@@ -67,19 +67,24 @@ class Document:
         data = selection.pixelData(*bounds)
         return Mask(bounds, data)
 
-    def get_image(self, bounds: Bounds | None = None, exclude_layer: krita.Node | None = None):
-        restore_layer = False
-        if exclude_layer and exclude_layer.visible():
-            exclude_layer.setVisible(False)
+    def get_image(
+        self, bounds: Bounds | None = None, exclude_layers: list[krita.Node] | None = None
+    ):
+        excluded: list[krita.Node] = []
+        if exclude_layers:
+            for layer in filter(lambda l: l.visible(), exclude_layers):
+                layer.setVisible(False)
+                excluded.append(layer)
+        if len(excluded) > 0:
             # This is quite slow and blocks the UI. Maybe async spinning on tryBarrierLock works?
             self._doc.refreshProjection()
-            restore_layer = True
 
         bounds = bounds or Bounds(0, 0, self._doc.width(), self._doc.height())
         img = QImage(self._doc.pixelData(*bounds), *bounds.extent, QImage.Format_ARGB32)
 
-        if exclude_layer and restore_layer:
-            exclude_layer.setVisible(True)
+        for layer in excluded:
+            layer.setVisible(True)
+        if len(excluded) > 0:
             self._doc.refreshProjection()
         return Image(img)
 
