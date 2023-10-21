@@ -52,6 +52,27 @@ def compute_bounds(extent: Extent, mask_bounds: Optional[Bounds], strength: floa
         return Bounds(0, 0, *extent)
 
 
+def create_inpaint_context(image: Image, area: Bounds, default: Output):
+    extent = image.extent
+    area = Bounds.pad(area, 0, multiple=8)
+    area = Bounds.clamp(area, extent)
+    # Check for outpaint scenario where mask covers the entire left/top/bottom/right side
+    # of the image. Crop away the masked area in that case.
+    if area.height >= extent.height and extent.width - area.width > 224:
+        offset = 0
+        if area.x == 0:
+            offset = area.width
+        if area.x == 0 or area.x + area.width == extent.width:
+            return Image.crop(image, Bounds(offset, 0, extent.width - area.width, extent.height))
+    if area.width >= extent.width and extent.height - area.height > 224:
+        offset = 0
+        if area.y == 0:
+            offset = area.height
+        if area.y == 0 or area.y + area.height == extent.height:
+            return Image.crop(image, Bounds(0, offset, extent.width, extent.height - area.height))
+    return default
+
+
 def prepare(
     extent: Extent, image: Image | None, mask: Mask | None, sdver: SDVersion, downscale=True
 ):
@@ -335,7 +356,8 @@ def inpaint(comfy: Client, style: Style, image: Image, mask: Mask, cond: Conditi
     cond_base.area = cond_base.area or mask.bounds
     cond_base.area = Bounds.scale(cond_base.area, extent.scale)
     image_strength = 0.5 if cond.prompt == "" else 0.3
-    cond_base.control.append(Control(ControlMode.image, in_image, image_strength))
+    image_context = create_inpaint_context(scaled_image, cond_base.area, default=in_image)
+    cond_base.control.append(Control(ControlMode.image, image_context, image_strength))
     cond_base.control.append(Control(ControlMode.inpaint, in_image, mask=in_mask))
     model, positive, negative = apply_conditioning(cond_base, w, comfy, model, clip, style)
 

@@ -1,5 +1,6 @@
 import pytest
 from ai_diffusion import (
+    comfyworkflow,
     workflow,
     ComfyWorkflow,
     Conditioning,
@@ -69,6 +70,31 @@ async def run_and_save(comfy, workflow: ComfyWorkflow, filename: str):
     assert len(results) == 1
     results[0].save(result_dir / filename)
     return results[0]
+
+
+@pytest.mark.parametrize(
+    "area,expected_extent,expected_crop",
+    [
+        (Bounds(0, 0, 128, 512), Extent(384, 512), (0, 256)),
+        (Bounds(384, 0, 128, 512), Extent(384, 512), (383, 256)),
+        (Bounds(0, 0, 512, 128), Extent(512, 384), (256, 0)),
+        (Bounds(0, 384, 512, 128), Extent(512, 384), (256, 383)),
+        (Bounds(0, 0, 512, 512), None, None),
+        (Bounds(0, 0, 256, 256), None, None),
+        (Bounds(256, 256, 256, 256), None, None),
+    ],
+    ids=["left", "right", "top", "bottom", "full", "small", "offset"],
+)
+def test_inpaint_context(area, expected_extent, expected_crop: tuple[int, int] | None):
+    image = Image.load(image_dir / "outpaint_context.png")
+    default = comfyworkflow.Output(0, 0)
+    result = workflow.create_inpaint_context(image, area, default)
+    if expected_crop:
+        assert isinstance(result, Image)
+        assert result.extent == expected_extent
+        assert result.pixel(*expected_crop) == (255, 255, 255, 255)
+    else:
+        assert result is default
 
 
 @pytest.mark.parametrize(

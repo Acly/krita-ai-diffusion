@@ -54,6 +54,7 @@ class Document:
         original_bounds = Bounds(
             selection.x(), selection.y(), selection.width(), selection.height()
         )
+        original_bounds = Bounds.clamp(original_bounds, self.extent)
         size_factor = original_bounds.extent.diagonal
         grow_pixels = int(grow * size_factor)
         feather_radius = int(feather * size_factor)
