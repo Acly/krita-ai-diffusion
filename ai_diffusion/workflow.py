@@ -195,14 +195,16 @@ class Control:
 
 class Conditioning:
     prompt: str
+    area: Optional[Bounds] = None
     control: List[Control]
 
-    def __init__(self, prompt="", control: list[Control] | None = None):
+    def __init__(self, prompt="", control: list[Control] | None = None, area: Bounds | None = None):
         self.prompt = prompt
         self.control = control or []
+        self.area = area
 
     def copy(self):
-        return Conditioning(self.prompt, [c for c in self.control])
+        return Conditioning(self.prompt, [c for c in self.control], self.area)
 
     def crop(self, w: ComfyWorkflow, bounds: Bounds):
         for control in self.control:
@@ -214,9 +216,26 @@ class Conditioning:
 def apply_conditioning(
     cond: Conditioning, w: ComfyWorkflow, comfy: Client, model: Output, clip: Output, style: Style
 ):
-    sd_ver = resolve_sd_version(style, comfy)
-    positive = w.clip_text_encode(clip, f"{cond.prompt}, {style.style_prompt}")
+    prompt = style.style_prompt if cond.area else f"{cond.prompt}, {style.style_prompt}"
+    positive = w.clip_text_encode(clip, prompt)
     negative = w.clip_text_encode(clip, style.negative_prompt)
+    model, positive = apply_control(cond, w, comfy, model, positive, style)
+    if cond.area and cond.prompt != "":
+        positive_area = w.clip_text_encode(clip, cond.prompt)
+        positive_area = w.conditioning_area(positive_area, cond.area)
+        positive = w.conditioning_combine(positive, positive_area)
+    return model, positive, negative
+
+
+def apply_control(
+    cond: Conditioning,
+    w: ComfyWorkflow,
+    comfy: Client,
+    model: Output,
+    positive: Output,
+    style: Style,
+):
+    sd_ver = resolve_sd_version(style, comfy)
 
     # Apply control net to the positive clip conditioning in a chain
     for control in (c for c in cond.control if c.mode is not ControlMode.image):
@@ -247,7 +266,7 @@ def apply_conditioning(
         ip_adapter = w.load_ip_adapter(comfy.ip_adapter_model)
         model = w.apply_ip_adapter(ip_adapter, clip_vision, ip_image, model, ip_strength)
 
-    return model, positive, negative
+    return model, positive
 
 
 def upscale(
@@ -302,7 +321,6 @@ def inpaint(comfy: Client, style: Style, image: Image, mask: Mask, cond: Conditi
     target_bounds = mask.bounds
     region_expanded = target_bounds.extent.multiple_of(8)
     expanded_bounds = Bounds(*mask.bounds.offset, *region_expanded)
-    batch = compute_batch_size(Extent.largest(scaled_image.extent, region_expanded))
 
     w = ComfyWorkflow()
     model, clip, vae = load_model_with_lora(w, comfy, style)
@@ -312,10 +330,16 @@ def inpaint(comfy: Client, style: Style, image: Image, mask: Mask, cond: Conditi
     if extent.requires_downscale:
         in_image = w.scale_image(in_image, extent.initial)
         in_mask = w.scale_mask(in_mask, extent.initial)
+
     cond_base = cond.copy()
-    cond_base.control.append(Control(ControlMode.image, in_image, 0.5))
+    cond_base.area = cond_base.area or mask.bounds
+    cond_base.area = Bounds.scale(cond_base.area, extent.scale)
+    image_strength = 0.5 if cond.prompt == "" else 0.3
+    cond_base.control.append(Control(ControlMode.image, in_image, image_strength))
     cond_base.control.append(Control(ControlMode.inpaint, in_image, mask=in_mask))
     model, positive, negative = apply_conditioning(cond_base, w, comfy, model, clip, style)
+
+    batch = compute_batch_size(Extent.largest(scaled_image.extent, region_expanded))
     latent = w.vae_encode_inpaint(vae, in_image, in_mask)
     latent = w.batch_latent(latent, batch)
     out_latent = w.ksampler(
@@ -338,11 +362,13 @@ def inpaint(comfy: Client, style: Style, image: Image, mask: Mask, cond: Conditi
             upscale = w.scale_image(upscale, expanded_bounds.extent)
             latent = w.vae_encode(vae, upscale)
 
-        cond.crop(w, expanded_bounds)
-        cond.control.append(
+        cond_upscale = cond.copy()
+        cond_upscale.area = None
+        cond_upscale.crop(w, expanded_bounds)
+        cond_upscale.control.append(
             Control(ControlMode.inpaint, Image.crop(image, target_bounds), mask=cropped_mask)
         )
-        _, positive_upscale, _ = apply_conditioning(cond, w, comfy, model, clip, style)
+        _, positive_upscale, _ = apply_conditioning(cond_upscale, w, comfy, model, clip, style)
         out_latent = w.ksampler(model, positive_upscale, negative, latent, denoise=0.5, **params)
     elif extent.requires_downscale:
         pass  # crop to target bounds after decode and downscale

@@ -290,6 +290,7 @@ def test_control_scribble(qtapp, comfy, temp_settings, op):
     if op == "generate":
         job = workflow.generate(comfy, style, Extent(512, 512), control)
     elif op == "inpaint":
+        control.area = Bounds(322, 108, 144, 300)
         job = workflow.inpaint(comfy, style, inpaint_image, mask, control)
     elif op == "refine":
         job = workflow.refine(comfy, style, inpaint_image, control, 0.7)
@@ -298,6 +299,7 @@ def test_control_scribble(qtapp, comfy, temp_settings, op):
         job = workflow.refine_region(comfy, style, cropped_image, mask, control, 0.7)
     else:  # op == "inpaint_upscale":
         control.control[0].image = Image.scale(scribble_image, Extent(1024, 1024))
+        control.area = Bounds(322 * 2, 108 * 2, 144 * 2, 300 * 2)
         upscaled_image = Image.scale(inpaint_image, Extent(1024, 1024))
         upscaled_mask = Mask(
             Bounds(512, 0, 512, 1024), Image.scale(Image(mask.image), Extent(512, 1024))._qimage

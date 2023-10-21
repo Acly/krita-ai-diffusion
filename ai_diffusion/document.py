@@ -45,13 +45,16 @@ class Document:
     def create_mask_from_selection(self, grow: float, feather: float, padding: float):
         user_selection = self._doc.selection()
         if not user_selection:
-            return None
+            return None, None
 
         if _selection_is_entire_document(user_selection, self.extent):
-            return None
+            return None, None
 
         selection = user_selection.duplicate()
-        size_factor = Extent(selection.width(), selection.height()).diagonal
+        original_bounds = Bounds(
+            selection.x(), selection.y(), selection.width(), selection.height()
+        )
+        size_factor = original_bounds.extent.diagonal
         grow_pixels = int(grow * size_factor)
         feather_radius = int(feather * size_factor)
         padding_pixels = int(padding * size_factor)
@@ -65,7 +68,7 @@ class Document:
         bounds = Bounds.pad(bounds, padding_pixels, multiple=8)
         bounds = Bounds.clamp(bounds, self.extent)
         data = selection.pixelData(*bounds)
-        return Mask(bounds, data)
+        return Mask(bounds, data), original_bounds
 
     def get_image(
         self, bounds: Bounds | None = None, exclude_layers: list[krita.Node] | None = None

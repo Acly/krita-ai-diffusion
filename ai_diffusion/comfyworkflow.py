@@ -133,6 +133,21 @@ class ComfyWorkflow:
     def clip_text_encode(self, clip: Output, text: str):
         return self.add("CLIPTextEncode", 1, clip=clip, text=text)
 
+    def conditioning_area(self, conditioning: Output, area: Bounds, strength=1.0):
+        return self.add(
+            "ConditioningSetArea",
+            1,
+            conditioning=conditioning,
+            x=area.x,
+            y=area.y,
+            width=area.width,
+            height=area.height,
+            strength=strength,
+        )
+
+    def conditioning_combine(self, a: Output, b: Output):
+        return self.add("ConditioningCombine", 1, conditioning_1=a, conditioning_2=b)
+
     def apply_controlnet(
         self, conditioning: Output, controlnet: Output, image: Output, strength=1.0
     ):

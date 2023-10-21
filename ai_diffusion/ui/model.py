@@ -163,7 +163,7 @@ class Model(QObject):
         image = None
         extent = self._doc.extent
 
-        mask = self._doc.create_mask_from_selection(
+        mask, selection_bounds = self._doc.create_mask_from_selection(
             grow=settings.selection_grow / 100,
             feather=settings.selection_feather / 100,
             padding=settings.selection_padding / 100,
@@ -174,6 +174,7 @@ class Model(QObject):
 
         control = [self._get_control_image(c, image_bounds) for c in self.control]
         conditioning = Conditioning(self.prompt, control)
+        conditioning.area = selection_bounds if self.strength == 1.0 else None
 
         self.clear_error()
         self.task = eventloop.run(
