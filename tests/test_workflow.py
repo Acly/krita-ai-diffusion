@@ -339,7 +339,8 @@ def test_control_scribble(qtapp, comfy, temp_settings, op):
 
 
 @pytest.mark.parametrize(
-    "mode", [m for m in ControlMode if not m in [ControlMode.image, ControlMode.inpaint]]
+    "mode",
+    [m for m in ControlMode if not m in [ControlMode.image, ControlMode.inpaint, ControlMode.blur]],
 )
 def test_create_control_image(qtapp, comfy, mode):
     image_name = f"test_create_control_image_{mode.name}.png"
@@ -414,5 +415,28 @@ def test_ip_adapter_batch(qtapp, comfy, temp_settings):
 
     async def main():
         await run_and_save(comfy, job, "test_ip_adapter_batch.png")
+
+    qtapp.run(main())
+
+
+def test_upscale_simple(qtapp, comfy):
+    image = Image.load(image_dir / "beach_768x512.png")
+    job = workflow.upscale_simple(comfy, image, comfy.default_upscaler, 2.0)
+
+    async def main():
+        await run_and_save(comfy, job, "test_upscale_simple.png")
+
+    qtapp.run(main())
+
+
+@pytest.mark.parametrize("sdver", [SDVersion.sd15, SDVersion.sdxl])
+def test_upscale_tiled(qtapp, comfy, sdver):
+    image = Image.load(image_dir / "beach_768x512.png")
+    job = workflow.upscale_tiled(
+        comfy, image, comfy.default_upscaler, 2.0, default_style(comfy, sdver), 0.5
+    )
+
+    async def main():
+        await run_and_save(comfy, job, f"test_upscale_tiled_{sdver.name}.png")
 
     qtapp.run(main())

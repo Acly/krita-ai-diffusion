@@ -219,8 +219,10 @@ class Model(QObject):
         self.changed.emit()
 
     def _get_current_image(self, bounds: Bounds):
-        exclude = [  # exclude control inputs
-            cast(krita.Node, c.image) for c in self.control if c.mode is not ControlMode.image
+        exclude = [  # exclude control layers from projection
+            cast(krita.Node, c.image)
+            for c in self.control
+            if c.mode not in [ControlMode.image, ControlMode.blur]
         ]
         if self._layer:  # exclude preview layer
             exclude.append(self._layer)

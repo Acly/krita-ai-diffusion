@@ -199,6 +199,7 @@ class ControlMode(Enum):
     normal = 7
     pose = 8
     segmentation = 9
+    blur = 10
 
     @property
     def is_lines(self):
@@ -227,6 +228,7 @@ _control_text = {
     ControlMode.normal: "Normal",
     ControlMode.pose: "Pose",
     ControlMode.segmentation: "Segment",
+    ControlMode.blur: "Blur",
 }
 
 _control_filename = {
@@ -271,6 +273,10 @@ _control_filename = {
     },
     ControlMode.segmentation: {
         SDVersion.sd15: ["control_v11p_sd15_seg", "control_lora_rank128_v11p_sd15_seg"],
+        SDVersion.sdxl: None,
+    },
+    ControlMode.blur: {
+        SDVersion.sd15: ["control_v11f1e_sd15_tile", "control_lora_rank128_v11f1e_sd15_tile"],
         SDVersion.sdxl: None,
     },
 }
