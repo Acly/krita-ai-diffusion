@@ -1,6 +1,5 @@
 from __future__ import annotations
 from typing import Callable, Iterable, List, Optional
-from pathlib import Path
 
 from PyQt5.QtWidgets import (
     QAction,
@@ -8,6 +7,7 @@ from PyQt5.QtWidgets import (
     QPushButton,
     QWidget,
     QPlainTextEdit,
+    QGroupBox,
     QLabel,
     QProgressBar,
     QSizePolicy,
@@ -16,6 +16,7 @@ from PyQt5.QtWidgets import (
     QListWidgetItem,
     QMenu,
     QSpinBox,
+    QDoubleSpinBox,
     QStackedWidget,
     QToolButton,
     QComboBox,
@@ -27,10 +28,11 @@ from PyQt5.QtCore import Qt, QSize, QUuid, pyqtSignal
 from krita import Krita, DockWidget
 import krita
 
-from .. import Control, ControlMode, Styles, Bounds, client
+from .. import Control, ControlMode, Style, Styles, Bounds, client
 from . import actions, EventSuppression, SettingsDialog, theme
-from .model import Model, ModelRegistry, Job, JobKind, JobQueue, State
+from .model import Model, ModelRegistry, Job, JobKind, JobQueue, State, Workspace
 from .connection import Connection, ConnectionState
+from ..util import ensure
 
 
 class QueueWidget(QToolButton):
@@ -386,6 +388,49 @@ class HistoryWidget(QListWidget):
         return super().mousePressEvent(e)
 
 
+class StyleSelectWidget(QComboBox):
+    _value: Style
+
+    changed = pyqtSignal()
+
+    def __init__(self, parent):
+        super().__init__(parent)
+        self._value = Styles.list()[0]
+
+        self.addItems([style.name for style in Styles.list()])
+        self.currentIndexChanged.connect(self.change_style)
+        Styles.list().changed.connect(self.update_styles)
+        Styles.list().name_changed.connect(self.update_styles)
+
+    def update_styles(self):
+        self.blockSignals(True)
+        self.clear()
+        self.addItems([style.name for style in Styles.list()])
+        if self._value in Styles.list():
+            self.setCurrentText(self._value.name)
+        else:
+            self._value = Styles.list()[0]
+            self.setCurrentIndex(0)
+            self.changed.emit()
+        self.blockSignals(False)
+
+    def change_style(self):
+        style = Styles.list()[self.currentIndex()]
+        if style != self._value:
+            self._value = style
+            self.changed.emit()
+
+    @property
+    def value(self):
+        return self._value
+
+    @value.setter
+    def value(self, style: Style):
+        if style != self._value:
+            self._value = style
+            self.setCurrentText(style.name)
+
+
 class TextPromptWidget(QPlainTextEdit):
     activated = pyqtSignal()
 
@@ -408,6 +453,51 @@ class TextPromptWidget(QPlainTextEdit):
             super().keyPressEvent(event)
 
 
+class WorkspaceSelectWidget(QToolButton):
+    _icons = {
+        Workspace.generation: theme.icon("workspace-generation"),
+        Workspace.upscaling: theme.icon("workspace-upscaling"),
+    }
+
+    _value = Workspace.generation
+
+    def __init__(self, parent):
+        super().__init__(parent)
+
+        menu = QMenu(self)
+        menu.addAction(self._create_action("Generate", Workspace.generation))
+        menu.addAction(self._create_action("Upscale", Workspace.upscaling))
+
+        self.setToolButtonStyle(Qt.ToolButtonStyle.ToolButtonIconOnly)
+        self.setMenu(menu)
+        self.setPopupMode(QToolButton.InstantPopup)
+        self.setArrowType(Qt.ArrowType.NoArrow)
+        self.setAutoRaise(True)
+        self.setToolTip("Switch between image generation and upscaling")
+        self.value = Workspace.generation
+
+    @property
+    def value(self):
+        return self._value
+
+    @value.setter
+    def value(self, workspace: Workspace):
+        self._value = workspace
+        self.setIcon(self._icons[workspace])
+
+    def _create_action(self, name: str, workspace: Workspace):
+        def set_workspace():
+            model = ensure(Model.active())
+            model.workspace = workspace
+            model.changed.emit()
+
+        action = QAction(name, self)
+        action.setIcon(self._icons[workspace])
+        action.setIconVisibleInMenu(True)
+        action.triggered.connect(set_workspace)
+        return action
+
+
 class GenerationWidget(QWidget):
     _model: Optional[Model] = None
 
@@ -417,11 +507,10 @@ class GenerationWidget(QWidget):
         layout.setContentsMargins(0, 2, 2, 0)
         self.setLayout(layout)
 
-        self.style_select = QComboBox(self)
-        self.style_select.addItems([style.name for style in Styles.list()])
-        self.style_select.currentIndexChanged.connect(self.change_style)
-        Styles.list().changed.connect(self.update_styles)
-        Styles.list().name_changed.connect(self.update_styles)
+        self.workspace_select = WorkspaceSelectWidget(self)
+
+        self.style_select = StyleSelectWidget(self)
+        self.style_select.changed.connect(self.change_style)
 
         self.settings_button = QToolButton(self)
         self.settings_button.setIcon(theme.icon("settings"))
@@ -429,6 +518,7 @@ class GenerationWidget(QWidget):
         self.settings_button.clicked.connect(self.show_settings)
 
         style_layout = QHBoxLayout()
+        style_layout.addWidget(self.workspace_select)
         style_layout.addWidget(self.style_select)
         style_layout.addWidget(self.settings_button)
         layout.addLayout(style_layout)
@@ -517,7 +607,8 @@ class GenerationWidget(QWidget):
 
     def update(self):
         model = self.model
-        self.style_select.setCurrentText(model.style.name)
+        self.workspace_select.value = model.workspace
+        self.style_select.value = model.style
         self.prompt_textbox.setPlainText(model.prompt)
         self.control_list.value = model.control
         self.strength_input.setValue(int(model.strength * 100))
@@ -539,22 +630,8 @@ class GenerationWidget(QWidget):
         self.model.generate()
         self.update()
 
-    def update_styles(self):
-        if not self._model:
-            return
-        self.style_select.blockSignals(True)
-        self.style_select.clear()
-        self.style_select.addItems([style.name for style in Styles.list()])
-        if self.model.style in Styles.list():
-            self.style_select.setCurrentText(self.model.style.name)
-        else:
-            self.model.style = Styles.list()[0]
-            self.style_select.setCurrentIndex(0)
-        self.style_select.blockSignals(False)
-
-    def change_style(self, index: int):
-        style = Styles.list()[index]
-        self.model.style = style
+    def change_style(self):
+        self.model.style = self.style_select.value
 
     def change_prompt(self):
         self.model.prompt = self.prompt_textbox.toPlainText()
@@ -589,6 +666,173 @@ class GenerationWidget(QWidget):
     def apply_result(self, item: QListWidgetItem):
         self.show_preview(item)
         self.apply_selected_result()
+
+
+class UpscaleWidget(QWidget):
+    model_: Optional[Model] = None
+
+    def __init__(self):
+        super().__init__()
+        layout = QVBoxLayout(self)
+        layout.setContentsMargins(0, 2, 4, 0)
+        self.setLayout(layout)
+
+        self.workspace_select = WorkspaceSelectWidget(self)
+
+        self.model_select = QComboBox(self)
+        self.model_select.currentIndexChanged.connect(self.change_model)
+
+        model_layout = QHBoxLayout()
+        model_layout.addWidget(self.workspace_select)
+        model_layout.addWidget(self.model_select)
+        layout.addLayout(model_layout)
+
+        self.factor_slider = QSlider(Qt.Orientation.Horizontal, self)
+        self.factor_slider.setMinimum(100)
+        self.factor_slider.setMaximum(400)
+        self.factor_slider.setSingleStep(10)
+        self.factor_slider.setPageStep(50)
+        self.factor_slider.valueChanged.connect(self.change_factor)
+
+        self.factor_input = QDoubleSpinBox(self)
+        self.factor_input.setMinimum(1.0)
+        self.factor_input.setMaximum(4.0)
+        self.factor_input.setSingleStep(0.5)
+        self.factor_input.setPrefix("Scale: ")
+        self.factor_input.setSuffix("x")
+        self.factor_input.setDecimals(1)
+        self.factor_input.valueChanged.connect(self.change_factor)
+
+        factor_layout = QHBoxLayout()
+        factor_layout.addWidget(self.factor_slider)
+        factor_layout.addWidget(self.factor_input)
+        layout.addLayout(factor_layout)
+
+        self.target_label = QLabel("Target size:", self)
+        layout.addWidget(self.target_label, alignment=Qt.AlignmentFlag.AlignRight)
+        layout.addSpacing(6)
+
+        self.refinement_checkbox = QGroupBox("Refine upscaled image", self)
+        self.refinement_checkbox.setCheckable(True)
+        self.refinement_checkbox.toggled.connect(self.change_refinement)
+
+        self.style_select = StyleSelectWidget(self)
+        self.style_select.changed.connect(self.change_style)
+
+        self.strength_slider = QSlider(Qt.Orientation.Horizontal, self)
+        self.strength_slider.setMinimum(20)
+        self.strength_slider.setMaximum(50)
+        self.strength_slider.setPageStep(5)
+        self.strength_slider.valueChanged.connect(self.change_strength)
+
+        self.strength_input = QSpinBox(self)
+        self.strength_input.setMinimum(0)
+        self.strength_input.setMaximum(100)
+        self.strength_input.setSingleStep(5)
+        self.strength_input.setPrefix("Strength: ")
+        self.strength_input.setSuffix("%")
+        self.strength_input.valueChanged.connect(self.change_strength)
+
+        strength_layout = QHBoxLayout()
+        strength_layout.addWidget(self.strength_slider)
+        strength_layout.addWidget(self.strength_input)
+
+        group_layout = QVBoxLayout(self.refinement_checkbox)
+        group_layout.addWidget(self.style_select)
+        group_layout.addLayout(strength_layout)
+        self.refinement_checkbox.setLayout(group_layout)
+        layout.addWidget(self.refinement_checkbox)
+
+        self.upscale_button = QPushButton("Upscale", self)
+        self.upscale_button.setMinimumHeight(int(self.upscale_button.sizeHint().height() * 1.2))
+        self.upscale_button.clicked.connect(self.upscale)
+
+        self.queue_button = QueueWidget(self)
+
+        actions_layout = QHBoxLayout()
+        actions_layout.addWidget(self.upscale_button)
+        actions_layout.addWidget(self.queue_button)
+        layout.addLayout(actions_layout)
+
+        self.progress_bar = QProgressBar(self)
+        self.progress_bar.setMinimum(0)
+        self.progress_bar.setMaximum(100)
+        self.progress_bar.setTextVisible(False)
+        self.progress_bar.setFixedHeight(6)
+        layout.addWidget(self.progress_bar)
+
+        self.error_text = QLabel(self)
+        self.error_text.setStyleSheet("font-weight: bold; color: red;")
+        self.error_text.setWordWrap(True)
+        self.error_text.setVisible(False)
+        layout.addWidget(self.error_text)
+
+        layout.addStretch()
+
+    @property
+    def model(self):
+        assert self._model is not None
+        return self._model
+
+    @model.setter
+    def model(self, model: Model):
+        self._model = model
+
+    def update(self):
+        client = Connection.instance().client
+        params = self.model.upscale
+        self.workspace_select.value = self.model.workspace
+        self.model_select.clear()
+        self.model_select.addItems(client.upscalers)
+        self.model_select.setCurrentText(params.upscaler)
+        self.factor_slider.setValue(int(params.factor * 100))
+        self.factor_input.setValue(params.factor)
+        self.target_label.setText(
+            f"Target size: {params.target_extent.width} x {params.target_extent.height}"
+        )
+        self.refinement_checkbox.setChecked(params.use_diffusion)
+        self.style_select.value = self.model.style
+        self.strength_slider.setValue(int(params.strength * 100))
+        self.strength_input.setValue(int(params.strength * 100))
+        self.error_text.setText(self.model.error)
+        self.error_text.setVisible(self.model.error != "")
+        self.update_progress()
+
+    def update_progress(self):
+        self.progress_bar.setValue(int(self.model.progress * 100))
+        self.queue_button.update(self.model.jobs)
+
+    def upscale(self):
+        self.model.upscale_image()
+
+    def change_model(self):
+        self.model.upscale.upscaler = self.model_select.currentText()
+
+    def change_factor(self, value: int | float):
+        params = self.model.upscale
+        value = value / 100 if isinstance(value, int) else value
+        params.factor = value
+        if self.factor_input.value() != value:
+            self.factor_input.setValue(value)
+        if self.factor_slider.value() != value:
+            self.factor_slider.setValue(int(value * 100))
+        self.target_label.setText(
+            f"Target size: {params.target_extent.width} x {params.target_extent.height}"
+        )
+
+    def change_refinement(self):
+        self.model.upscale.use_diffusion = self.refinement_checkbox.isChecked()
+        self.update()
+
+    def change_style(self):
+        self.model.style = self.style_select.value
+
+    def change_strength(self, value: int):
+        self.model.upscale.strength = value / 100
+        if self.strength_input.value() != value:
+            self.strength_input.setValue(value)
+        if self.strength_slider.value() != value:
+            self.strength_slider.setValue(value)
 
 
 class WelcomeWidget(QWidget):
@@ -655,9 +899,11 @@ class ImageDiffusionWidget(DockWidget):
         self.setWindowTitle("AI Image Generation")
         self._welcome = WelcomeWidget()
         self._generation = GenerationWidget()
+        self._upscaling = UpscaleWidget()
         self._frame = QStackedWidget(self)
         self._frame.addWidget(self._welcome)
         self._frame.addWidget(self._generation)
+        self._frame.addWidget(self._upscaling)
         self.setWidget(self._frame)
 
         Connection.instance().changed.connect(self.update)
@@ -669,7 +915,7 @@ class ImageDiffusionWidget(DockWidget):
     def register_model(self, model):
         model.changed.connect(self.update)
         model.job_finished.connect(self._generation.show_results)
-        model.progress_changed.connect(self._generation.update_progress)
+        model.progress_changed.connect(self.update_progress)
 
     def update(self):
         model = Model.active()
@@ -680,7 +926,18 @@ class ImageDiffusionWidget(DockWidget):
             ConnectionState.error,
         ]:
             self._frame.setCurrentWidget(self._welcome)
-        else:
+        elif model.workspace is Workspace.generation:
             self._generation.model = model
             self._generation.update()
             self._frame.setCurrentWidget(self._generation)
+        elif model.workspace is Workspace.upscaling:
+            self._upscaling.model = model
+            self._upscaling.update()
+            self._frame.setCurrentWidget(self._upscaling)
+
+    def update_progress(self):
+        model = ensure(Model.active())
+        if model.workspace is Workspace.generation:
+            self._generation.update_progress()
+        elif model.workspace is Workspace.upscaling:
+            self._upscaling.update_progress()

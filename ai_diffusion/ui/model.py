@@ -1,6 +1,7 @@
 from __future__ import annotations
 import asyncio
 from collections import deque
+from copy import copy
 from datetime import datetime
 from enum import Enum, Flag
 from typing import Deque, Optional, cast
@@ -35,6 +36,7 @@ class State(Flag):
 class JobKind(Enum):
     diffusion = 0
     control_layer = 1
+    upscaling = 2
 
 
 class Job:
@@ -47,7 +49,7 @@ class Job:
     timestamp: datetime
     _results: ImageCollection
 
-    def __init__(self, id, kind, prompt, bounds):
+    def __init__(self, id: Optional[str], kind: JobKind, prompt: str, bounds: Bounds):
         self.id = id
         self.kind = kind
         self.prompt = prompt
@@ -73,6 +75,11 @@ class JobQueue:
     def add_control(self, control: Control, bounds: Bounds):
         job = Job(None, JobKind.control_layer, f"[Control] {control.mode.text}", bounds)
         job.control = control
+        self._entries.append(job)
+        return job
+
+    def add_upscale(self, bounds: Bounds):
+        job = Job(None, JobKind.upscaling, f"[Upscale] {bounds.width}x{bounds.height}", bounds)
         self._entries.append(job)
         return job
 
@@ -119,6 +126,11 @@ class JobQueue:
         return self._memory_usage
 
 
+class Workspace(Enum):
+    generation = 0
+    upscaling = 1
+
+
 class Model(QObject):
     """View-model for diffusion workflows on a Krita document. Stores all inputs related to
     image generation. Launches generation jobs. Listens to server messages and keeps a
@@ -132,10 +144,12 @@ class Model(QObject):
     job_finished = pyqtSignal(Job)
     progress_changed = pyqtSignal()
 
+    workspace = Workspace.generation
     style: Style
     prompt = ""
     control: list[Control]
     strength = 1.0
+    upscale: UpscaleParams
     progress = 0.0
     jobs: JobQueue
     error = ""
@@ -146,6 +160,7 @@ class Model(QObject):
         self._doc = document
         self.style = Styles.list().default
         self.control = []
+        self.upscale = UpscaleParams(self)
         self.jobs = JobQueue()
 
     @staticmethod
@@ -259,6 +274,26 @@ class Model(QObject):
         self.control.remove(control)
         self.changed.emit()
 
+    def upscale_image(self):
+        image = self._doc.get_image(Bounds(0, 0, *self._doc.extent))
+        job = self.jobs.add_upscale(Bounds(0, 0, *self.upscale.target_extent))
+        self.clear_error()
+        self.task = eventloop.run(
+            _report_errors(self, self._upscale_image(job, image, copy(self.upscale)))
+        )
+
+    async def _upscale_image(self, job: Job, image: Image, params: UpscaleParams):
+        client = Connection.instance().client
+        if params.use_diffusion:
+            work = workflow.upscale_tiled(
+                client, image, params.upscaler, params.factor, self.style, params.strength
+            )
+        else:
+            work = workflow.upscale_simple(client, image, params.upscaler, params.factor)
+        job.id = await client.enqueue(work)
+        self._doc.resize(params.target_extent)
+        self.changed.emit()
+
     def cancel(self, active=False, queued=False):
         if queued:
             to_remove = [job for job in self.jobs if job.state is State.queued]
@@ -300,6 +335,9 @@ class Model(QObject):
                 self.show_preview(job.id, 0)
             if job.kind is JobKind.control_layer:
                 job.control.image = self.add_control_layer(job, message.result)  # type: ignore
+                self.jobs.remove(job)
+            if job.kind is JobKind.upscaling:
+                self.add_upscale_layer(job)
                 self.jobs.remove(job)
             self.job_finished.emit(job)
             self.changed.emit()
@@ -347,6 +385,11 @@ class Model(QObject):
             return self._doc.insert_layer(job.prompt, job.results[0], job.bounds, below=self._layer)
         return self.document.active_layer  # Execution was cached and no image was produced
 
+    def add_upscale_layer(self, job: Job):
+        assert job.kind is JobKind.upscaling
+        assert len(job.results) > 0, "Upscaling job did not produce an image"
+        self._doc.insert_layer(job.prompt, job.results[0], job.bounds)
+
     @property
     def history(self):
         return (job for job in self.jobs if job.state is State.finished)
@@ -366,6 +409,26 @@ class Model(QObject):
     @property
     def is_valid(self):
         return self._doc.is_valid
+
+
+class UpscaleParams:
+    upscaler: str
+    factor = 2.0
+    use_diffusion = True
+    strength = 0.3
+
+    _model: Model
+
+    def __init__(self, model: Model):
+        self._model = model
+        if client := Connection.instance().client_if_connected:
+            self.upscaler = client.default_upscaler
+        else:
+            self.upscaler = ""
+
+    @property
+    def target_extent(self):
+        return self._model.document.extent * self.factor
 
 
 class ModelRegistry(QObject):
