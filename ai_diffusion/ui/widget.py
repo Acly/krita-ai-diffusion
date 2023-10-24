@@ -690,9 +690,11 @@ class UpscaleWidget(QWidget):
         self.factor_slider = QSlider(Qt.Orientation.Horizontal, self)
         self.factor_slider.setMinimum(100)
         self.factor_slider.setMaximum(400)
-        self.factor_slider.setSingleStep(10)
+        self.factor_slider.setTickInterval(50)
+        self.factor_slider.setTickPosition(QSlider.TickPosition.TicksBelow)
+        self.factor_slider.setSingleStep(50)
         self.factor_slider.setPageStep(50)
-        self.factor_slider.valueChanged.connect(self.change_factor)
+        self.factor_slider.valueChanged.connect(self.change_factor_slider)
 
         self.factor_input = QDoubleSpinBox(self)
         self.factor_input.setMinimum(1.0)
@@ -700,7 +702,7 @@ class UpscaleWidget(QWidget):
         self.factor_input.setSingleStep(0.5)
         self.factor_input.setPrefix("Scale: ")
         self.factor_input.setSuffix("x")
-        self.factor_input.setDecimals(1)
+        self.factor_input.setDecimals(2)
         self.factor_input.valueChanged.connect(self.change_factor)
 
         factor_layout = QHBoxLayout()
@@ -742,6 +744,7 @@ class UpscaleWidget(QWidget):
         group_layout.addLayout(strength_layout)
         self.refinement_checkbox.setLayout(group_layout)
         layout.addWidget(self.refinement_checkbox)
+        self.factor_input.setMinimumWidth(self.strength_input.width() + 10)
 
         self.upscale_button = QPushButton("Upscale", self)
         self.upscale_button.setMinimumHeight(int(self.upscale_button.sizeHint().height() * 1.2))
@@ -808,17 +811,29 @@ class UpscaleWidget(QWidget):
     def change_model(self):
         self.model.upscale.upscaler = self.model_select.currentText()
 
-    def change_factor(self, value: int | float):
-        params = self.model.upscale
-        value = value / 100 if isinstance(value, int) else value
-        params.factor = value
-        if self.factor_input.value() != value:
-            self.factor_input.setValue(value)
+    def change_factor_slider(self, value: int | float):
+        value = round(value / 50) * 50
         if self.factor_slider.value() != value:
-            self.factor_slider.setValue(int(value * 100))
-        self.target_label.setText(
-            f"Target size: {params.target_extent.width} x {params.target_extent.height}"
-        )
+            self.factor_slider.setValue(value)
+        else:
+            value_float = value / 100
+            self.model.upscale.factor = value_float
+            if self.factor_input.value() != value_float:
+                self.factor_input.setValue(value_float)
+            self.update_target_extent()
+
+    def change_factor(self, value: float):
+        self.model.upscale.factor = value
+        value_int = round(value * 100)
+        if self.factor_slider.value() != value_int:
+            self.factor_slider.blockSignals(True)
+            self.factor_slider.setValue(value_int)
+            self.factor_slider.blockSignals(False)
+        self.update_target_extent()
+
+    def update_target_extent(self):
+        e = self.model.upscale.target_extent
+        self.target_label.setText(f"Target size: {e.width} x {e.height}")
 
     def change_refinement(self):
         self.model.upscale.use_diffusion = self.refinement_checkbox.isChecked()
