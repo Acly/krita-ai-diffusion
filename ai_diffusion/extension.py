@@ -1,14 +1,16 @@
 import sys
 from typing import Callable, Optional
-from krita import Extension, Krita, DockWidgetFactory, DockWidgetFactoryBase  # type: ignore
+from PyQt5.QtWidgets import QAction
+from krita import Extension, Krita, DockWidgetFactory, DockWidgetFactoryBase, Window  # type: ignore
 
 from . import eventloop, settings, __version__, Server, ServerMode, ServerState
-from .ui import actions, ImageDiffusionWidget, SettingsDialog, Connection, ConnectionState
+from .ui import actions, ImageDiffusionWidget, SettingsDialog, Workspace
+from .ui.connection import Connection, ConnectionState
 from .util import client_logger as log
 
 
 class AIToolsExtension(Extension):
-    _actions = {}
+    _actions: dict[str, QAction] = {}
     _server: Server
 
     def __init__(self, parent):
@@ -50,7 +52,7 @@ class AIToolsExtension(Extension):
         except Exception as e:
             log.warning(f"Failed to launch/connect server at startup: {e}")
 
-    def _create_action(self, window, name: str, func: Callable[[], None]):
+    def _create_action(self, window: Window, name: str, func: Callable[[], None]):
         action = window.createAction(f"ai_diffusion_{name}", "", "")
         action.triggered.connect(func)
         self._actions[name] = action
@@ -63,6 +65,13 @@ class AIToolsExtension(Extension):
         self._create_action(window, "cancel_queued", actions.cancel_queued)
         self._create_action(window, "cancel_all", actions.cancel_all)
         self._create_action(window, "apply", actions.apply)
+        self._create_action(
+            window, "set_workspace_generation", actions.set_workspace(Workspace.generation)
+        )
+        self._create_action(
+            window, "set_workspace_upscaling", actions.set_workspace(Workspace.upscaling)
+        )
+        self._create_action(window, "toggle_workspace", actions.toggle_workspace)
 
 
 Krita.instance().addExtension(AIToolsExtension(Krita.instance()))

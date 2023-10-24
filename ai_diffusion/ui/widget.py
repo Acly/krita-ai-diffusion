@@ -486,15 +486,10 @@ class WorkspaceSelectWidget(QToolButton):
         self.setIcon(self._icons[workspace])
 
     def _create_action(self, name: str, workspace: Workspace):
-        def set_workspace():
-            model = ensure(Model.active())
-            model.workspace = workspace
-            model.changed.emit()
-
         action = QAction(name, self)
         action.setIcon(self._icons[workspace])
         action.setIconVisibleInMenu(True)
-        action.triggered.connect(set_workspace)
+        action.triggered.connect(actions.set_workspace(workspace))
         return action
 
 
