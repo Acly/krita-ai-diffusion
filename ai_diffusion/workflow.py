@@ -525,8 +525,8 @@ def upscale_tiled(
 ):
     sd_ver = resolve_sd_version(style, comfy)
     cond = Conditioning("4k uhd")
+    target_extent = image.extent * factor
     if sd_ver is SDVersion.sd15:
-        target_extent = image.extent * factor
         tile_count = target_extent.longest_side / 768
         tile_extent = (target_extent * (1 / tile_count)).multiple_of(8)
     else:  # SDXL
@@ -552,5 +552,7 @@ def upscale_tiled(
         tile_extent=tile_extent,
         **_sampler_params(style, upscale=True),
     )
+    if not target_extent.is_multiple_of(8):
+        img = w.scale_image(img, target_extent)
     w.send_image(img)
     return w
