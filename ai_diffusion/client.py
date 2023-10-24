@@ -15,7 +15,7 @@ from .websockets.src.websockets import exceptions as websockets_exceptions
 from .style import SDVersion, Style
 from .resources import ControlMode, MissingResource, ResourceKind
 from . import resources
-from .util import is_windows, client_logger as log
+from .util import ensure, is_windows, client_logger as log
 
 
 class ClientEvent(Enum):
@@ -122,6 +122,7 @@ class Client:
     lora_models: list[str]
     upscalers: list[str]
     default_upscaler: str
+    quality_upscaler: Optional[str]
     control_model: dict
     clip_vision_model: str
     ip_adapter_model: str
@@ -164,8 +165,11 @@ class Client:
         client.upscalers = nodes["UpscaleModelLoader"]["input"]["required"]["model_name"][0]
         if len(client.upscalers) == 0:
             raise MissingResource(ResourceKind.upscaler)
-        client.default_upscaler = _find_upscaler(
-            client.upscalers, "4x_NMKD-Superscale-SP_178000_G.pth"
+        client.default_upscaler = ensure(
+            _find_upscaler(client.upscalers, "4x_NMKD-Superscale-SP_178000_G.pth")
+        )
+        client.quality_upscaler = _find_upscaler(
+            client.upscalers, "HAT-L_SRx4_ImageNet-pretrain.pth", optional=True
         )
 
         return client
@@ -408,9 +412,11 @@ def _find_ip_adapter(model_list: Sequence[str], sdver: str):
     return model
 
 
-def _find_upscaler(model_list: Sequence[str], model_name: str):
+def _find_upscaler(model_list: Sequence[str], model_name: str, optional=False):
     if model_name in model_list:
         return model_name
+    if optional:
+        return None
     log.warning(f"Could not find default upscaler {model_name}, using {model_list[0]} instead")
     return model_list[0]
 

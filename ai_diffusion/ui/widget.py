@@ -777,17 +777,12 @@ class UpscaleWidget(QWidget):
         self._model = model
 
     def update(self):
-        client = Connection.instance().client
         params = self.model.upscale
         self.workspace_select.value = self.model.workspace
-        self.model_select.clear()
-        self.model_select.addItems(client.upscalers)
-        self.model_select.setCurrentText(params.upscaler)
+        self.update_models()
         self.factor_slider.setValue(int(params.factor * 100))
         self.factor_input.setValue(params.factor)
-        self.target_label.setText(
-            f"Target size: {params.target_extent.width} x {params.target_extent.height}"
-        )
+        self.update_target_extent()
         self.refinement_checkbox.setChecked(params.use_diffusion)
         self.style_select.value = self.model.style
         self.strength_slider.setValue(int(params.strength * 100))
@@ -795,6 +790,23 @@ class UpscaleWidget(QWidget):
         self.error_text.setText(self.model.error)
         self.error_text.setVisible(self.model.error != "")
         self.update_progress()
+
+    def update_models(self):
+        client = Connection.instance().client
+        self.model_select.blockSignals(True)
+        self.model_select.clear()
+        for file in client.upscalers:
+            if file == client.default_upscaler:
+                name = f"Default ({file.removesuffix('.pth')})"
+                self.model_select.insertItem(0, name, file)
+            elif file == client.quality_upscaler:
+                name = f"Quality ({file.removesuffix('.pth')})"
+                self.model_select.insertItem(1, name, file)
+            else:
+                self.model_select.addItem(file, file)
+        selected = self.model_select.findData(self.model.upscale.upscaler)
+        self.model_select.setCurrentIndex(max(selected, 0))
+        self.model_select.blockSignals(False)
 
     def update_progress(self):
         self.progress_bar.setValue(int(self.model.progress * 100))
@@ -804,7 +816,7 @@ class UpscaleWidget(QWidget):
         self.model.upscale_image()
 
     def change_model(self):
-        self.model.upscale.upscaler = self.model_select.currentText()
+        self.model.upscale.upscaler = self.model_select.currentData()
 
     def change_factor_slider(self, value: int | float):
         value = round(value / 50) * 50
