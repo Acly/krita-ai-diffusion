@@ -389,7 +389,7 @@ class HistoryWidget(QListWidget):
         return super().mousePressEvent(e)
 
 
-class StyleSelectWidget(QComboBox):
+class StyleSelectWidget(QWidget):
     _value: Style
 
     changed = pyqtSignal()
@@ -398,28 +398,44 @@ class StyleSelectWidget(QComboBox):
         super().__init__(parent)
         self._value = Styles.list()[0]
 
-        self.addItems([style.name for style in Styles.list()])
-        self.currentIndexChanged.connect(self.change_style)
+        layout = QHBoxLayout(self)
+        layout.setContentsMargins(0, 0, 0, 0)
+        self.setLayout(layout)
+
+        self._combo = QComboBox(self)
+        self._combo.addItems([style.name for style in Styles.list()])
+        self._combo.currentIndexChanged.connect(self.change_style)
+        layout.addWidget(self._combo)
+
+        settings = QToolButton(self)
+        settings.setIcon(theme.icon("settings"))
+        settings.setAutoRaise(True)
+        settings.clicked.connect(self.show_settings)
+        layout.addWidget(settings)
+
         Styles.list().changed.connect(self.update_styles)
         Styles.list().name_changed.connect(self.update_styles)
 
     def update_styles(self):
-        self.blockSignals(True)
-        self.clear()
-        self.addItems([style.name for style in Styles.list()])
+        self._combo.blockSignals(True)
+        self._combo.clear()
+        self._combo.addItems([style.name for style in Styles.list()])
         if self._value in Styles.list():
-            self.setCurrentText(self._value.name)
+            self._combo.setCurrentText(self._value.name)
         else:
             self._value = Styles.list()[0]
-            self.setCurrentIndex(0)
+            self._combo.setCurrentIndex(0)
             self.changed.emit()
-        self.blockSignals(False)
+        self._combo.blockSignals(False)
 
     def change_style(self):
-        style = Styles.list()[self.currentIndex()]
+        style = Styles.list()[self._combo.currentIndex()]
         if style != self._value:
             self._value = style
             self.changed.emit()
+
+    def show_settings(self):
+        SettingsDialog.instance().show(self._value)
 
     @property
     def value(self):
@@ -429,7 +445,7 @@ class StyleSelectWidget(QComboBox):
     def value(self, style: Style):
         if style != self._value:
             self._value = style
-            self.setCurrentText(style.name)
+            self._combo.setCurrentText(style.name)
 
 
 class TextPromptWidget(QPlainTextEdit):
@@ -472,9 +488,9 @@ class WorkspaceSelectWidget(QToolButton):
         self.setToolButtonStyle(Qt.ToolButtonStyle.ToolButtonIconOnly)
         self.setMenu(menu)
         self.setPopupMode(QToolButton.InstantPopup)
-        self.setArrowType(Qt.ArrowType.NoArrow)
         self.setAutoRaise(True)
         self.setToolTip("Switch between image generation and upscaling")
+        self.setMinimumWidth(int(self.sizeHint().width() * 1.4))
         self.value = Workspace.generation
 
     @property
@@ -508,15 +524,9 @@ class GenerationWidget(QWidget):
         self.style_select = StyleSelectWidget(self)
         self.style_select.changed.connect(self.change_style)
 
-        self.settings_button = QToolButton(self)
-        self.settings_button.setIcon(theme.icon("settings"))
-        self.settings_button.setAutoRaise(True)
-        self.settings_button.clicked.connect(self.show_settings)
-
         style_layout = QHBoxLayout()
         style_layout.addWidget(self.workspace_select)
         style_layout.addWidget(self.style_select)
-        style_layout.addWidget(self.settings_button)
         layout.addLayout(style_layout)
 
         self.prompt_textbox = TextPromptWidget(self)
@@ -642,9 +652,6 @@ class GenerationWidget(QWidget):
     def change_control(self):
         self.model.control = self.control_list.value
 
-    def show_settings(self):
-        SettingsDialog.instance().show(self.model.style)
-
     def show_preview(self, item: QListWidgetItem):
         job_id, index = self.history.item_info(item)
         self.model.show_preview(job_id, index)
@@ -720,7 +727,7 @@ class UpscaleWidget(QWidget):
         self.strength_slider = QSlider(Qt.Orientation.Horizontal, self)
         self.strength_slider.setMinimum(20)
         self.strength_slider.setMaximum(50)
-        self.strength_slider.setPageStep(5)
+        self.strength_slider.setSingleStep(5)
         self.strength_slider.valueChanged.connect(self.change_strength)
 
         self.strength_input = QSpinBox(self)
