@@ -27,6 +27,12 @@ required_custom_nodes = [
         ["IPAdapterModelLoader", "IPAdapterApply"],
     ),
     CustomNode(
+        "Ultimate SD Upscale",
+        "ComfyUI_UltimateSDUpscale",
+        "https://github.com/Acly/krita-ai-diffusion/releases/download/v0.1.0/ComfyUI_UltimateSDUpscale_6ea48202a76ccf5904ddfa85f826efa80dd50520.zip",
+        ["UltimateSDUpscale"],
+    ),
+    CustomNode(
         "External Tooling Nodes",
         "comfyui-tooling-nodes",
         "https://github.com/Acly/comfyui-tooling-nodes",
@@ -67,6 +73,13 @@ required_models = [
         "https://huggingface.co/comfyanonymous/ControlNet-v1-1_fp16_safetensors/resolve/main/control_v11p_sd15_inpaint_fp16.safetensors",
     ),
     ModelResource(
+        "ControlNet Tile",
+        ResourceKind.controlnet,
+        Path("models/controlnet"),
+        "control_lora_rank128_v11f1e_sd15_tile_fp16.safetensors",
+        "https://huggingface.co/comfyanonymous/ControlNet-v1-1_fp16_safetensors/resolve/main/control_lora_rank128_v11f1e_sd15_tile_fp16.safetensors",
+    ),
+    ModelResource(
         "CLIP Vision model",
         ResourceKind.clip_vision,
         Path("models/clip_vision/SD1.5"),
@@ -103,6 +116,23 @@ default_checkpoints = [
         Path("models/checkpoints"),
         "dreamshaper_8.safetensors",
         "https://civitai.com/api/download/models/128713?type=Model&format=SafeTensor&size=pruned&fp=fp16",
+    ),
+]
+
+upscale_models = [
+    ModelResource(
+        "HAT Super-Resolution (quality)",
+        ResourceKind.upscaler,
+        Path("models/upscale_models"),
+        "HAT_SRx4_ImageNet-pretrain.pth",
+        "https://huggingface.co/Acly/hat/resolve/main/HAT_SRx4_ImageNet-pretrain.pth",
+    ),
+    ModelResource(
+        "Real HAT GAN Super-Resolution (sharper)",
+        ResourceKind.upscaler,
+        Path("models/upscale_models"),
+        "Real_HAT_GAN_sharper.pth",
+        "https://huggingface.co/Acly/hat/resolve/main/Real_HAT_GAN_sharper.pth",
     ),
 ]
 
@@ -186,6 +216,12 @@ all = (
     + [c.name for c in default_checkpoints]
     + [m.name for m in optional_models]
 )
+
+
+class UpscalerName(Enum):
+    default = "4x_NMKD-Superscale-SP_178000_G.pth"
+    quality = "HAT_SRx4_ImageNet-pretrain.pth"
+    sharp = "Real_HAT_GAN_sharper.pth"
 
 
 class ControlMode(Enum):

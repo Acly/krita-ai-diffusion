@@ -122,7 +122,6 @@ class Client:
     lora_models: list[str]
     upscalers: list[str]
     default_upscaler: str
-    quality_upscaler: Optional[str]
     control_model: dict
     clip_vision_model: str
     ip_adapter_model: str
@@ -167,9 +166,6 @@ class Client:
             raise MissingResource(ResourceKind.upscaler)
         client.default_upscaler = ensure(
             _find_upscaler(client.upscalers, "4x_NMKD-Superscale-SP_178000_G.pth")
-        )
-        client.quality_upscaler = _find_upscaler(
-            client.upscalers, "HAT-L_SRx4_ImageNet-pretrain.pth", optional=True
         )
 
         return client
@@ -412,11 +408,9 @@ def _find_ip_adapter(model_list: Sequence[str], sdver: str):
     return model
 
 
-def _find_upscaler(model_list: Sequence[str], model_name: str, optional=False):
+def _find_upscaler(model_list: Sequence[str], model_name: str):
     if model_name in model_list:
         return model_name
-    if optional:
-        return None
     log.warning(f"Could not find default upscaler {model_name}, using {model_list[0]} instead")
     return model_list[0]
 

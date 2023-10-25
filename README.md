@@ -78,9 +78,11 @@ To use an external installation, the following extensions and models are require
 * ComfyUI custom nodes:
   * [ControlNet preprocessors](https://github.com/Fannovel16/comfyui_controlnet_aux)
   * [IP-Adapter](https://github.com/cubiq/ComfyUI_IPAdapter_plus)
+  * [Ultimate SD Upscale](https://github.com/ssitu/ComfyUI_UltimateSDUpscale)
   * [External tooling nodes](https://github.com/Acly/comfyui-tooling-nodes)
 * Model files (paths are relative to ComfyUI install folder):
   * [ControlNet inpaint](https://huggingface.co/comfyanonymous/ControlNet-v1-1_fp16_safetensors/resolve/main/control_v11p_sd15_inpaint_fp16.safetensors) to `models/controlnet`
+  * [ControlNet tile](https://huggingface.co/comfyanonymous/ControlNet-v1-1_fp16_safetensors/resolve/main/control_lora_rank128_v11f1e_sd15_tile_fp16.safetensors) to `models/controlnet`
   * [Clip-Vision (SD1.5)](https://huggingface.co/h94/IP-Adapter/resolve/main/models/image_encoder/pytorch_model.bin) to `models/clip_vision/SD1.5`
   * [IP-Adapter (SD1.5)](https://huggingface.co/h94/IP-Adapter/resolve/main/models/ip-adapter_sd15.bin) to `custom_nodes/IPAdapter-ComfyUI/models`
   * [NMKD Superscale SP_178000_G](https://huggingface.co/gemasai/4x_NMKD-Superscale-SP_178000_G/resolve/main/4x_NMKD-Superscale-SP_178000_G.pth) to `models/upscale_models`

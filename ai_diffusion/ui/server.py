@@ -269,6 +269,15 @@ class ServerWidget(QWidget):
         self._checkpoint_group.changed.connect(self.update)
         package_layout.addWidget(self._checkpoint_group)
 
+        self._upscaler_group = PackageGroupWidget(
+            "Upscalers (super-resolution)",
+            [model.name for model in resources.upscale_models],
+            is_optional=True,
+            parent=self,
+        )
+        self._upscaler_group.changed.connect(self.update)
+        package_layout.addWidget(self._upscaler_group)
+
         self._control_group = PackageGroupWidget(
             "Control extensions",
             [control.name for control in resources.optional_models],
@@ -465,6 +474,9 @@ class ServerWidget(QWidget):
         self._checkpoint_group.values = [
             r.name not in self._server.missing_resources for r in resources.default_checkpoints
         ]
+        self._upscaler_group.values = [
+            r.name not in self._server.missing_resources for r in resources.upscale_models
+        ]
         self._control_group.values = [
             r.name not in self._server.missing_resources for r in resources.optional_models
         ]
@@ -473,6 +485,7 @@ class ServerWidget(QWidget):
             return [pkg.name for pkg, checked in zip(pkgs, group.is_checked) if checked]
 
         to_install = checked_packages(self._checkpoint_group, resources.default_checkpoints)
+        to_install += checked_packages(self._upscaler_group, resources.upscale_models)
         to_install += checked_packages(self._control_group, resources.optional_models)
         return to_install
 

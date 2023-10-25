@@ -32,6 +32,7 @@ from .. import Control, ControlMode, Style, Styles, Bounds, client
 from . import actions, EventSuppression, SettingsDialog, theme
 from .model import Model, ModelRegistry, Job, JobKind, JobQueue, State, Workspace
 from .connection import Connection, ConnectionState
+from ..resources import UpscalerName
 from ..util import ensure
 
 
@@ -796,12 +797,15 @@ class UpscaleWidget(QWidget):
         self.model_select.blockSignals(True)
         self.model_select.clear()
         for file in client.upscalers:
-            if file == client.default_upscaler:
+            if file == UpscalerName.default.value:
                 name = f"Default ({file.removesuffix('.pth')})"
                 self.model_select.insertItem(0, name, file)
-            elif file == client.quality_upscaler:
+            elif file == UpscalerName.quality.value:
                 name = f"Quality ({file.removesuffix('.pth')})"
                 self.model_select.insertItem(1, name, file)
+            elif file == UpscalerName.sharp.value:
+                name = f"Sharp ({file.removesuffix('.pth')})"
+                self.model_select.insertItem(2, name, file)
             else:
                 self.model_select.addItem(file, file)
         selected = self.model_select.findData(self.model.upscale.upscaler)
