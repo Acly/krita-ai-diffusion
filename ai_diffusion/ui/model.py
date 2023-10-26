@@ -233,6 +233,28 @@ class Model(QObject):
         self.jobs.add(job_id, conditioning.prompt, bounds)
         self.changed.emit()
 
+    def upscale_image(self):
+        image = self._doc.get_image(Bounds(0, 0, *self._doc.extent))
+        job = self.jobs.add_upscale(Bounds(0, 0, *self.upscale.target_extent))
+        self.clear_error()
+        self.task = eventloop.run(
+            _report_errors(self, self._upscale_image(job, image, copy(self.upscale)))
+        )
+
+    async def _upscale_image(self, job: Job, image: Image, params: UpscaleParams):
+        client = Connection.instance().client
+        if params.upscaler == "":
+            params.upscaler = client.default_upscaler
+        if params.use_diffusion:
+            work = workflow.upscale_tiled(
+                client, image, params.upscaler, params.factor, self.style, params.strength
+            )
+        else:
+            work = workflow.upscale_simple(client, image, params.upscaler, params.factor)
+        job.id = await client.enqueue(work)
+        self._doc.resize(params.target_extent)
+        self.changed.emit()
+
     def _get_current_image(self, bounds: Bounds):
         exclude = [  # exclude control layers from projection
             cast(krita.Node, c.image)
@@ -272,26 +294,6 @@ class Model(QObject):
 
     def remove_control_layer(self, control: Control):
         self.control.remove(control)
-        self.changed.emit()
-
-    def upscale_image(self):
-        image = self._doc.get_image(Bounds(0, 0, *self._doc.extent))
-        job = self.jobs.add_upscale(Bounds(0, 0, *self.upscale.target_extent))
-        self.clear_error()
-        self.task = eventloop.run(
-            _report_errors(self, self._upscale_image(job, image, copy(self.upscale)))
-        )
-
-    async def _upscale_image(self, job: Job, image: Image, params: UpscaleParams):
-        client = Connection.instance().client
-        if params.use_diffusion:
-            work = workflow.upscale_tiled(
-                client, image, params.upscaler, params.factor, self.style, params.strength
-            )
-        else:
-            work = workflow.upscale_simple(client, image, params.upscaler, params.factor)
-        job.id = await client.enqueue(work)
-        self._doc.resize(params.target_extent)
         self.changed.emit()
 
     def cancel(self, active=False, queued=False):
