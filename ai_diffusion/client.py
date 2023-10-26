@@ -15,7 +15,7 @@ from .websockets.src.websockets import exceptions as websockets_exceptions
 from .style import SDVersion, Style
 from .resources import ControlMode, MissingResource, ResourceKind
 from . import resources
-from .util import is_windows, client_logger as log
+from .util import ensure, is_windows, client_logger as log
 
 
 class ClientEvent(Enum):
@@ -164,8 +164,8 @@ class Client:
         client.upscalers = nodes["UpscaleModelLoader"]["input"]["required"]["model_name"][0]
         if len(client.upscalers) == 0:
             raise MissingResource(ResourceKind.upscaler)
-        client.default_upscaler = _find_upscaler(
-            client.upscalers, "4x_NMKD-Superscale-SP_178000_G.pth"
+        client.default_upscaler = ensure(
+            _find_upscaler(client.upscalers, "4x_NMKD-Superscale-SP_178000_G.pth")
         )
 
         return client

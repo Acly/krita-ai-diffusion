@@ -4,10 +4,12 @@ from pathlib import Path
 import sys
 import logging
 import logging.handlers
-from typing import Optional
+from typing import Optional, TypeVar
 
 from .image import Extent
 from .settings import settings
+
+T = TypeVar("T")
 
 is_windows = sys.platform.startswith("win")
 
@@ -36,6 +38,11 @@ def log_error(error: Exception):
         message = f"Error: {error}"
     client_logger.exception(message)
     return message
+
+
+def ensure(value: Optional[T]) -> T:
+    assert value is not None
+    return value
 
 
 def batched(iterable, n):

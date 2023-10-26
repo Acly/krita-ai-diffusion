@@ -1,4 +1,5 @@
 from __future__ import annotations
+import math
 import random
 from typing import NamedTuple, Tuple, Literal, overload
 
@@ -290,3 +291,54 @@ class ComfyWorkflow:
 
     def save_image(self, image: Output, prefix: str):
         return self.add("SaveImage", 1, images=image, filename_prefix=prefix)
+
+    def upscale_tiled(
+        self,
+        image: Output,
+        model: Output,
+        vae: Output,
+        positive: Output,
+        negative: Output,
+        upscale_model: Output,
+        original_extent: Extent,
+        factor: float,
+        tile_extent: Extent,
+        steps: int,
+        cfg: float,
+        sampler: str,
+        scheduler: str,
+        denoise: float,
+        seed=-1,
+    ):
+        target_extent = original_extent * factor
+        tiles_w = int(math.ceil(target_extent.width / tile_extent.width))
+        tiles_h = int(math.ceil(target_extent.height / tile_extent.height))
+        self.sample_count += 4 + tiles_w * tiles_h * steps  # approx, ignores padding
+        return self.add(
+            "UltimateSDUpscale",
+            1,
+            image=image,
+            model=model,
+            positive=positive,
+            negative=negative,
+            vae=vae,
+            upscale_model=upscale_model,
+            upscale_by=factor,
+            seed=random.getrandbits(64) if seed == -1 else seed,
+            steps=steps,
+            cfg=cfg,
+            sampler_name=sampler,
+            scheduler=scheduler,
+            denoise=denoise,
+            tile_width=tile_extent.width,
+            tile_height=tile_extent.height,
+            mode_type="Linear",
+            mask_blur=8,
+            tile_padding=32,
+            seam_fix_mode="None",
+            seam_fix_denoise=1.0,
+            seam_fix_width=64,
+            seam_fix_mask_blur=8,
+            seam_fix_padding=16,
+            force_uniform_tiles="enable",
+        )

@@ -130,6 +130,10 @@ class Document:
         self._doc.refreshProjection()
         return layer
 
+    def resize(self, extent: Extent):
+        res = self._doc.resolution()
+        self._doc.scaleImage(extent.width, extent.height, res, res, "Bilinear")
+
     def add_pose_character(self, layer: krita.Node):
         assert layer.type() == "vectorlayer"
         _pose_layers.add_character(cast(krita.VectorLayer, layer))

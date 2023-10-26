@@ -882,7 +882,7 @@ class SettingsDialog(QDialog):
     _instance = None
 
     @classmethod
-    def instance(cls):
+    def instance(cls) -> "SettingsDialog":
         assert cls._instance is not None
         return cls._instance
 

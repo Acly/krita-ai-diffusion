@@ -130,6 +130,7 @@ class Server:
 
         # Optional resources
         self.missing_resources += find_missing(self.comfy_dir, resources.default_checkpoints)
+        self.missing_resources += find_missing(self.comfy_dir, resources.upscale_models)
         self.missing_resources += find_missing(self.comfy_dir, resources.optional_models)
 
     async def _install(self, cb: InternalCB):
@@ -234,7 +235,9 @@ class Server:
     ):
         assert self.comfy_dir is not None
         folder = self.comfy_dir / "custom_nodes" / pkg.folder
-        resource_url = f"{pkg.url}/archive/refs/heads/main.zip"
+        resource_url = pkg.url
+        if not resource_url.endswith(".zip"):  # git repo URL
+            resource_url = f"{pkg.url}/archive/refs/heads/main.zip"
         resource_zip_path = self._cache_dir / f"{pkg.folder}.zip"
         await _download_cached(pkg.name, network, resource_url, resource_zip_path, cb)
         await _extract_archive(pkg.name, resource_zip_path, folder.parent, cb)
@@ -288,7 +291,9 @@ class Server:
             callback(InstallationProgress(stage, progress))
 
         try:
-            all_optional = chain(resources.default_checkpoints, resources.optional_models)
+            all_optional = chain(
+                resources.default_checkpoints, resources.upscale_models, resources.optional_models
+            )
             to_install = (r for r in all_optional if r.name in packages)
             for resource in to_install:
                 target_file = self.comfy_dir / resource.folder / resource.filename
@@ -484,6 +489,8 @@ def _prepend_file(path: Path, line: str):
 
 
 def _rename_extracted_folder(name: str, path: Path, suffix: str):
+    if path.exists():
+        return
     extracted_folder = path.parent / f"{path.name}{suffix}"
     if not extracted_folder.exists():
         raise Exception(

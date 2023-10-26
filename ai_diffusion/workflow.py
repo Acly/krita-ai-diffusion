@@ -1,5 +1,6 @@
 from __future__ import annotations
 import math
+import random
 from typing import Any, List, NamedTuple, Optional
 
 from .image import Bounds, Extent, Image, Mask
@@ -505,4 +506,53 @@ def create_control_image(image: Image, mode: ControlMode):
     if mode.is_lines:
         result = w.invert_image(result)
     w.send_image(result)
+    return w
+
+
+def upscale_simple(comfy: Client, image: Image, model: str, factor: float):
+    w = ComfyWorkflow()
+    upscale_model = w.load_upscale_model(model)
+    img = w.load_image(image)
+    img = w.upscale_image(upscale_model, img)
+    if factor != 4.0:
+        img = w.scale_image(img, image.extent * factor)
+    w.send_image(img)
+    return w
+
+
+def upscale_tiled(
+    comfy: Client, image: Image, model: str, factor: float, style: Style, strength: float
+):
+    sd_ver = resolve_sd_version(style, comfy)
+    cond = Conditioning("4k uhd")
+    target_extent = image.extent * factor
+    if sd_ver is SDVersion.sd15:
+        tile_count = target_extent.longest_side / 768
+        tile_extent = (target_extent * (1 / tile_count)).multiple_of(8)
+    else:  # SDXL
+        tile_extent = Extent(1024, 1024)
+
+    w = ComfyWorkflow()
+    img = w.load_image(image)
+    checkpoint, clip, vae = load_model_with_lora(w, comfy, style)
+    upscale_model = w.load_upscale_model(model)
+    if sd_ver.has_controlnet_blur:
+        cond.control.append(Control(ControlMode.blur, img))
+    checkpoint, positive, negative = apply_conditioning(cond, w, comfy, checkpoint, clip, style)
+    img = w.upscale_tiled(
+        image=img,
+        model=checkpoint,
+        positive=positive,
+        negative=negative,
+        vae=vae,
+        upscale_model=upscale_model,
+        factor=factor,
+        denoise=strength,
+        original_extent=image.extent,
+        tile_extent=tile_extent,
+        **_sampler_params(style, upscale=True),
+    )
+    if not target_extent.is_multiple_of(8):
+        img = w.scale_image(img, target_extent)
+    w.send_image(img)
     return w
