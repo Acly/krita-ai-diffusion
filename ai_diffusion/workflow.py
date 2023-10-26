@@ -235,10 +235,20 @@ class Conditioning:
                 control.mask = w.crop_mask(control.load_mask(w), bounds)
 
 
+def merge_prompt(prompt: str, style: Style):
+    if style.style_prompt == "":
+        return prompt
+    elif "{prompt}" in style.style_prompt:
+        return style.style_prompt.replace("{prompt}", prompt)
+    elif prompt == "":
+        return style.style_prompt
+    return f"{prompt}, {style.style_prompt}"
+
+
 def apply_conditioning(
     cond: Conditioning, w: ComfyWorkflow, comfy: Client, model: Output, clip: Output, style: Style
 ):
-    prompt = style.style_prompt if cond.area else f"{cond.prompt}, {style.style_prompt}"
+    prompt = merge_prompt("", style) if cond.area else merge_prompt(cond.prompt, style)
     positive = w.clip_text_encode(clip, prompt)
     negative = w.clip_text_encode(clip, style.negative_prompt)
     model, positive = apply_control(cond, w, comfy, model, positive, style)

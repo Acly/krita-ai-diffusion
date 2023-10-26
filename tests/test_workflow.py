@@ -205,6 +205,20 @@ def test_prepare_no_downscale():
     )
 
 
+def test_merge_prompt():
+    def style(prompt):
+        s = Style(Path("test.json"))
+        s.style_prompt = prompt
+        return s
+
+    assert workflow.merge_prompt("a", style("b")) == "a, b"
+    assert workflow.merge_prompt("", style("b")) == "b"
+    assert workflow.merge_prompt("a", style("")) == "a"
+    assert workflow.merge_prompt("", style("")) == ""
+    assert workflow.merge_prompt("a", style("b {prompt} c")) == "b a c"
+    assert workflow.merge_prompt("", style("b {prompt} c")) == "b  c"
+
+
 @pytest.mark.parametrize("extent", [Extent(256, 256), Extent(800, 800), Extent(512, 1024)])
 def test_generate(qtapp, comfy, temp_settings, extent):
     temp_settings.batch_size = 1

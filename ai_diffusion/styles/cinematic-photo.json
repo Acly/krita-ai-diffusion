@@ -4,7 +4,7 @@
     "sd_version": "auto",
     "sd_checkpoint": "realisticVisionV51_v51VAE.safetensors",
     "loras": [],
-    "style_prompt": "cinematic photo, photograph, film, best quality, highres",
+    "style_prompt": "cinematic photo of {prompt}, photograph, film, best quality, highres",
     "negative_prompt": "drawing, painting, sketch, bad quality, low resolution, blurry",
     "sampler": "DPM++ 2M Karras",
     "sampler_steps": 20,
