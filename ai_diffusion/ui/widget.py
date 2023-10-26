@@ -23,12 +23,12 @@ from PyQt5.QtWidgets import (
     QHBoxLayout,
     QVBoxLayout,
 )
-from PyQt5.QtGui import QFontMetrics, QGuiApplication, QKeyEvent, QMouseEvent
+from PyQt5.QtGui import QColor, QFontMetrics, QGuiApplication, QKeyEvent, QMouseEvent, QPalette
 from PyQt5.QtCore import Qt, QSize, QUuid, pyqtSignal
 from krita import Krita, DockWidget
 import krita
 
-from .. import Control, ControlMode, Style, Styles, Bounds, client
+from .. import Control, ControlMode, Style, Styles, Bounds, client, settings
 from . import actions, EventSuppression, SettingsDialog, theme
 from .model import Model, ModelRegistry, Job, JobKind, JobQueue, State, Workspace
 from .connection import Connection, ConnectionState
@@ -450,14 +450,16 @@ class StyleSelectWidget(QWidget):
 class TextPromptWidget(QPlainTextEdit):
     activated = pyqtSignal()
 
+    _line_count = 2
+    _is_negative = False
+
     def __init__(self, parent):
         super().__init__(parent)
         self.setHorizontalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAlwaysOff)
         self.setVerticalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAlwaysOff)
         self.setTabChangesFocus(True)
-        self.setPlaceholderText("Describe the content you want to see, or leave empty.")
-        fm = QFontMetrics(self.document().defaultFont())
-        self.setFixedHeight(fm.lineSpacing() * 2 + 4)
+        self.line_count = 2
+        self.is_negative = False
 
     def keyPressEvent(self, event: QKeyEvent):
         if (
@@ -467,6 +469,34 @@ class TextPromptWidget(QPlainTextEdit):
             self.activated.emit()
         else:
             super().keyPressEvent(event)
+
+    @property
+    def line_count(self):
+        return self._line_count
+
+    @line_count.setter
+    def line_count(self, value: int):
+        self._line_count = value
+        fm = QFontMetrics(self.document().defaultFont())
+        self.setFixedHeight(fm.lineSpacing() * value + 6)
+
+    @property
+    def is_negative(self):
+        return self._is_negative
+
+    @is_negative.setter
+    def is_negative(self, value: bool):
+        self._is_negative = value
+        if not value:
+            self.setPlaceholderText("Describe the content you want to see, or leave empty.")
+        else:
+            self.setPlaceholderText("Describe content you want to avoid.")
+            palette: QPalette = self.palette()
+            base = palette.color(QPalette.ColorRole.Base)
+            palette.setColor(
+                QPalette.ColorRole.Base, QColor(base.red(), base.green() - 8, base.blue() - 8)
+            )
+            self.setPalette(palette)
 
 
 class WorkspaceSelectWidget(QToolButton):
@@ -514,6 +544,8 @@ class GenerationWidget(QWidget):
 
     def __init__(self):
         super().__init__()
+        settings.changed.connect(self.update_settings)
+
         layout = QVBoxLayout(self)
         layout.setContentsMargins(0, 2, 2, 0)
         self.setLayout(layout)
@@ -529,9 +561,23 @@ class GenerationWidget(QWidget):
         layout.addLayout(style_layout)
 
         self.prompt_textbox = TextPromptWidget(self)
+        self.prompt_textbox.line_count = settings.prompt_line_count
         self.prompt_textbox.textChanged.connect(self.change_prompt)
         self.prompt_textbox.activated.connect(self.generate)
-        layout.addWidget(self.prompt_textbox)
+
+        self.negative_textbox = TextPromptWidget(self)
+        self.negative_textbox.line_count = 1
+        self.negative_textbox.is_negative = True
+        self.negative_textbox.setVisible(settings.show_negative_prompt)
+        self.negative_textbox.textChanged.connect(self.change_negative_prompt)
+        self.negative_textbox.activated.connect(self.generate)
+
+        prompt_layout = QVBoxLayout()
+        prompt_layout.setContentsMargins(0, 0, 0, 0)
+        prompt_layout.setSpacing(2)
+        prompt_layout.addWidget(self.prompt_textbox)
+        prompt_layout.addWidget(self.negative_textbox)
+        layout.addLayout(prompt_layout)
 
         self.control_list = ControlListWidget(self)
         self.control_list.changed.connect(self.change_control)
@@ -626,6 +672,13 @@ class GenerationWidget(QWidget):
         self.progress_bar.setValue(int(self.model.progress * 100))
         self.queue_button.update(self.model.jobs)
 
+    def update_settings(self, key: str, value):
+        if key == "prompt_line_count":
+            self.prompt_textbox.line_count = value
+        elif key == "show_negative_prompt":
+            self.negative_textbox.clear()
+            self.negative_textbox.setVisible(value)
+
     def show_results(self, job: Job):
         if job.kind is JobKind.diffusion:
             self.history.prune(self.model.jobs)
@@ -640,6 +693,9 @@ class GenerationWidget(QWidget):
 
     def change_prompt(self):
         self.model.prompt = self.prompt_textbox.toPlainText()
+
+    def change_negative_prompt(self):
+        self.model.negative_prompt = self.negative_textbox.toPlainText()
 
     def change_strength(self, value: int):
         self.model.strength = value / 100

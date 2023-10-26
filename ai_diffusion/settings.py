@@ -4,6 +4,7 @@ import json
 from enum import Enum
 from pathlib import Path
 from typing import Optional, Any
+from PyQt5.QtCore import QObject, pyqtSignal
 
 from . import util
 
@@ -46,7 +47,7 @@ class Setting:
             return self.default
 
 
-class Settings:
+class Settings(QObject):
     default_path = Path(__file__).parent / "settings.json"
 
     server_mode: ServerMode
@@ -104,6 +105,16 @@ class Settings:
         "Random Seed", "0", "Random number to produce different results with each generation"
     )
 
+    prompt_line_count: int
+    _prompt_line_count = Setting(
+        "Prompt Line Count", 2, "Size of the text editor for image descriptions"
+    )
+
+    show_negative_prompt: bool
+    _show_negative_prompt = Setting(
+        "Negative Prompt", False, "Show text editor to describe things to avoid"
+    )
+
     history_size: int
     _history_size = Setting(
         "History Size", 1000, "Main memory (RAM) used to keep the history of generated images"
@@ -152,9 +163,12 @@ class Settings:
     # Folder where intermediate images are stored for debug purposes (default: None)
     debug_image_folder = os.environ.get("KRITA_AI_DIFFUSION_DEBUG_IMAGE")
 
+    changed = pyqtSignal(str, object)
+
     _values: dict[str, Any]
 
     def __init__(self):
+        super().__init__()
         self.restore()
 
     def __getattr__(self, name: str):
@@ -165,6 +179,7 @@ class Settings:
     def __setattr__(self, name: str, value):
         if name in self._values:
             self._values[name] = value
+            self.changed.emit(name, value)
             if name == "performance_preset":
                 self.apply_performance_preset(value)
         else:

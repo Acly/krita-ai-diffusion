@@ -68,6 +68,9 @@ class SettingWidget(QWidget):
         button.clicked.connect(handler)
         self._layout.addWidget(button)
 
+    def _notify_value_changed(self):
+        self.value_changed.emit()
+
 
 class SpinBoxSetting(SettingWidget):
     def __init__(self, setting: Setting, parent=None, minimum=0, maximum=100, suffix=""):
@@ -79,11 +82,8 @@ class SpinBoxSetting(SettingWidget):
         self._spinbox.setMaximum(maximum)
         self._spinbox.setSingleStep(1)
         self._spinbox.setSuffix(suffix)
-        self._spinbox.valueChanged.connect(self._change_value)
+        self._spinbox.valueChanged.connect(self._notify_value_changed)
         self._layout.addWidget(self._spinbox, alignment=Qt.AlignmentFlag.AlignRight)
-
-    def _change_value(self, value: int):
-        self.value_changed.emit()
 
     @property
     def value(self):
@@ -189,11 +189,8 @@ class TextSetting(SettingWidget):
         self._edit = QLineEdit(self)
         self._edit.setMinimumWidth(230)
         self._edit.setMaximumWidth(300)
-        self._edit.textChanged.connect(self._change_value)
+        self._edit.textChanged.connect(self._notify_value_changed)
         self._layout.addWidget(self._edit, alignment=Qt.AlignmentFlag.AlignRight)
-
-    def _change_value(self):
-        self.value_changed.emit()
 
     @property
     def value(self):
@@ -229,6 +226,23 @@ class LineEditSetting(QWidget):
     @value.setter
     def value(self, v):
         self._edit.setText(v)
+
+
+class CheckBoxSetting(SettingWidget):
+    def __init__(self, setting: Setting, text: str, parent=None):
+        super().__init__(setting, parent)
+        self._checkbox = QCheckBox(self)
+        self._checkbox.setText(text)
+        self._checkbox.stateChanged.connect(self._notify_value_changed)
+        self._layout.addWidget(self._checkbox, alignment=Qt.AlignmentFlag.AlignRight)
+
+    @property
+    def value(self):
+        return self._checkbox.isChecked()
+
+    @value.setter
+    def value(self, v):
+        self._checkbox.setChecked(v)
 
 
 class LoraList(QWidget):
@@ -784,6 +798,17 @@ class DiffusionSettings(SettingsTab):
         self._widgets["random_seed"].setEnabled(settings.fixed_seed)
 
 
+class InterfaceSettings(SettingsTab):
+    def __init__(self):
+        super().__init__("Interface Settings")
+
+        S = Settings
+        self.add("prompt_line_count", SpinBoxSetting(S._prompt_line_count, self, 1, 10))
+        self.add("show_negative_prompt", CheckBoxSetting(S._show_negative_prompt, "Show", self))
+
+        self._layout.addStretch()
+
+
 class PerformanceSettings(SettingsTab):
     def __init__(self):
         super().__init__("Performance Settings")
@@ -903,6 +928,7 @@ class SettingsDialog(QDialog):
         self.connection = ConnectionSettings(server)
         self.styles = StylePresets(server)
         self.diffusion = DiffusionSettings()
+        self.interface = InterfaceSettings()
         self.performance = PerformanceSettings()
 
         self._stack = QStackedWidget(self)
@@ -917,6 +943,7 @@ class SettingsDialog(QDialog):
         create_list_item("Connection", self.connection)
         create_list_item("Styles", self.styles)
         create_list_item("Diffusion", self.diffusion)
+        create_list_item("Interface", self.interface)
         create_list_item("Performance", self.performance)
 
         self._list.setCurrentRow(0)
@@ -946,6 +973,7 @@ class SettingsDialog(QDialog):
         self.connection.read()
         self.styles.read()
         self.diffusion.read()
+        self.interface.read()
         self.performance.read()
 
     def restore_defaults(self):

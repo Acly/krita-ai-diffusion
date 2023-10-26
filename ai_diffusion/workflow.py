@@ -217,16 +217,24 @@ class Control:
 
 class Conditioning:
     prompt: str
+    negative_prompt: str = ""
     area: Optional[Bounds] = None
     control: List[Control]
 
-    def __init__(self, prompt="", control: list[Control] | None = None, area: Bounds | None = None):
+    def __init__(
+        self,
+        prompt="",
+        negative_prompt="",
+        control: list[Control] | None = None,
+        area: Bounds | None = None,
+    ):
         self.prompt = prompt
+        self.negative_prompt = negative_prompt
         self.control = control or []
         self.area = area
 
     def copy(self):
-        return Conditioning(self.prompt, [c for c in self.control], self.area)
+        return Conditioning(self.prompt, self.negative_prompt, [c for c in self.control], self.area)
 
     def crop(self, w: ComfyWorkflow, bounds: Bounds):
         for control in self.control:
@@ -235,22 +243,24 @@ class Conditioning:
                 control.mask = w.crop_mask(control.load_mask(w), bounds)
 
 
-def merge_prompt(prompt: str, style: Style):
-    if style.style_prompt == "":
+def merge_prompt(prompt: str, style_prompt: str):
+    if style_prompt == "":
         return prompt
-    elif "{prompt}" in style.style_prompt:
-        return style.style_prompt.replace("{prompt}", prompt)
+    elif "{prompt}" in style_prompt:
+        return style_prompt.replace("{prompt}", prompt)
     elif prompt == "":
-        return style.style_prompt
-    return f"{prompt}, {style.style_prompt}"
+        return style_prompt
+    return f"{prompt}, {style_prompt}"
 
 
 def apply_conditioning(
     cond: Conditioning, w: ComfyWorkflow, comfy: Client, model: Output, clip: Output, style: Style
 ):
-    prompt = merge_prompt("", style) if cond.area else merge_prompt(cond.prompt, style)
+    prompt = merge_prompt(cond.prompt, style.style_prompt)
+    if cond.area:
+        prompt = merge_prompt("", style.style_prompt)
     positive = w.clip_text_encode(clip, prompt)
-    negative = w.clip_text_encode(clip, style.negative_prompt)
+    negative = w.clip_text_encode(clip, merge_prompt(cond.negative_prompt, style.negative_prompt))
     model, positive = apply_control(cond, w, comfy, model, positive, style)
     if cond.area and cond.prompt != "":
         positive_area = w.clip_text_encode(clip, cond.prompt)

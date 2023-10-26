@@ -147,6 +147,7 @@ class Model(QObject):
     workspace = Workspace.generation
     style: Style
     prompt = ""
+    negative_prompt = ""
     control: list[Control]
     strength = 1.0
     upscale: UpscaleParams
@@ -188,7 +189,7 @@ class Model(QObject):
             image = self._get_current_image(image_bounds)
 
         control = [self._get_control_image(c, image_bounds) for c in self.control]
-        conditioning = Conditioning(self.prompt, control)
+        conditioning = Conditioning(self.prompt, self.negative_prompt, control)
         conditioning.area = selection_bounds if self.strength == 1.0 else None
 
         self.clear_error()

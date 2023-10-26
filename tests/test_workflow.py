@@ -206,17 +206,12 @@ def test_prepare_no_downscale():
 
 
 def test_merge_prompt():
-    def style(prompt):
-        s = Style(Path("test.json"))
-        s.style_prompt = prompt
-        return s
-
-    assert workflow.merge_prompt("a", style("b")) == "a, b"
-    assert workflow.merge_prompt("", style("b")) == "b"
-    assert workflow.merge_prompt("a", style("")) == "a"
-    assert workflow.merge_prompt("", style("")) == ""
-    assert workflow.merge_prompt("a", style("b {prompt} c")) == "b a c"
-    assert workflow.merge_prompt("", style("b {prompt} c")) == "b  c"
+    assert workflow.merge_prompt("a", "b") == "a, b"
+    assert workflow.merge_prompt("", "b") == "b"
+    assert workflow.merge_prompt("a", "") == "a"
+    assert workflow.merge_prompt("", "") == ""
+    assert workflow.merge_prompt("a", "b {prompt} c") == "b a c"
+    assert workflow.merge_prompt("", "b {prompt} c") == "b  c"
 
 
 @pytest.mark.parametrize("extent", [Extent(256, 256), Extent(800, 800), Extent(512, 1024)])
@@ -325,7 +320,7 @@ def test_control_scribble(qtapp, comfy, temp_settings, op):
     inpaint_image = Image.load(image_dir / "owls_inpaint.png")
     mask = Mask.load(image_dir / "owls_mask.png")
     mask.bounds = Bounds(256, 0, 256, 512)
-    control = Conditioning("owls", [Control(ControlMode.scribble, scribble_image)])
+    control = Conditioning("owls", "", [Control(ControlMode.scribble, scribble_image)])
 
     if op == "generate":
         job = workflow.generate(comfy, style, Extent(512, 512), control)
@@ -396,7 +391,9 @@ def test_create_open_pose_vector(qtapp, comfy):
 def test_ip_adapter(qtapp, comfy, temp_settings, sdver):
     temp_settings.batch_size = 1
     image = Image.load(image_dir / "cat.png")
-    control = Conditioning("cat on a rooftop in paris", [Control(ControlMode.image, image, 0.6)])
+    control = Conditioning(
+        "cat on a rooftop in paris", "", [Control(ControlMode.image, image, 0.6)]
+    )
     extent = Extent(512, 512) if sdver == SDVersion.sd15 else Extent(1024, 1024)
     job = workflow.generate(comfy, default_style(comfy, sdver), extent, control)
 
@@ -411,7 +408,7 @@ def test_ip_adapter_region(qtapp, comfy, temp_settings):
     image = Image.load(image_dir / "flowers.png")
     mask = Mask.load(image_dir / "flowers_mask.png")
     control_img = Image.load(image_dir / "pegonia.png")
-    control = Conditioning("potted flowers", [Control(ControlMode.image, control_img, 0.7)])
+    control = Conditioning("potted flowers", "", [Control(ControlMode.image, control_img, 0.7)])
     job = workflow.refine_region(comfy, default_style(comfy), image, mask, control, 0.6)
 
     async def main():
@@ -425,7 +422,7 @@ def test_ip_adapter_batch(qtapp, comfy, temp_settings):
     image1 = Image.load(image_dir / "cat.png")
     image2 = Image.load(image_dir / "pegonia.png")
     control = Conditioning(
-        "", [Control(ControlMode.image, image1, 1.0), Control(ControlMode.image, image2, 1.0)]
+        "", "", [Control(ControlMode.image, image1, 1.0), Control(ControlMode.image, image2, 1.0)]
     )
     job = workflow.generate(comfy, default_style(comfy), Extent(512, 512), control)
 
