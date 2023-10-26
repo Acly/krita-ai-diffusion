@@ -211,23 +211,25 @@ class Server:
         archive_path = self._cache_dir / "ComfyUI.zip"
         await _download_cached("ComfyUI", network, url, archive_path, cb)
         await _extract_archive("ComfyUI", archive_path, self.comfy_dir.parent, cb)
-        _rename_extracted_folder("ComfyUI", self.comfy_dir, "-master")
+        temp_comfy_dir = self.comfy_dir.parent / "ComfyUI-master"
 
         torch_args = ["install", "torch", "torchvision", "torchaudio"]
         if self.backend is ServerBackend.cpu:
             torch_args += ["--index-url", "https://download.pytorch.org/whl/cpu"]
         elif self.backend is ServerBackend.cuda:
             torch_args += ["--index-url", "https://download.pytorch.org/whl/cu121"]
-        await _execute_process("PyTorch", [self._pip_cmd, *torch_args], self.comfy_dir, cb)
+        await _execute_process("PyTorch", [self._pip_cmd, *torch_args], self.path, cb)
 
-        requirements_txt = self.comfy_dir / "requirements.txt"
+        requirements_txt = temp_comfy_dir / "requirements.txt"
         requirements_cmd = [self._pip_cmd, "install", "-r", requirements_txt]
-        await _execute_process("ComfyUI", requirements_cmd, self.comfy_dir, cb)
+        await _execute_process("ComfyUI", requirements_cmd, self.path, cb)
 
         if self.backend is ServerBackend.directml:
             await _execute_process(  # for some reason this must come AFTER ComfyUI requirements
-                "PyTorch", [self._pip_cmd, "install", "torch-directml"], self.comfy_dir, cb
+                "PyTorch", [self._pip_cmd, "install", "torch-directml"], self.path, cb
             )
+
+        _rename_extracted_folder("ComfyUI", self.comfy_dir, "-master")
         cb("Installing ComfyUI", "Finished installing ComfyUI")
 
     async def _install_custom_node(
