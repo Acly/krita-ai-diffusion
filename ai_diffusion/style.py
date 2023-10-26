@@ -45,10 +45,6 @@ class SDVersion(Enum):
     def has_controlnet_blur(self):
         return self is SDVersion.sd15
 
-    @property
-    def has_ip_adapter(self):
-        return self is SDVersion.sd15
-
 
 class StyleSettings:
     name = Setting("Name", "Default Style")

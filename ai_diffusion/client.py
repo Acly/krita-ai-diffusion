@@ -122,9 +122,9 @@ class Client:
     lora_models: list[str]
     upscalers: list[str]
     default_upscaler: str
-    control_model: dict
+    control_model: dict[ControlMode, dict[SDVersion, str | None]]
     clip_vision_model: str
-    ip_adapter_model: str
+    ip_adapter_model: dict[SDVersion, str | None]
     device_info: DeviceInfo
 
     @staticmethod
@@ -158,7 +158,9 @@ class Client:
 
         # Retrieve IP-Adapter model
         ip = nodes["IPAdapterModelLoader"]["input"]["required"]["ipadapter_file"][0]
-        client.ip_adapter_model = _find_ip_adapter(ip, "sd15")
+        client.ip_adapter_model = {
+            ver: _find_ip_adapter(ip, ver) for ver in [SDVersion.sd15, SDVersion.sdxl]
+        }
 
         # Retrieve upscale models
         client.upscalers = nodes["UpscaleModelLoader"]["input"]["required"]["model_name"][0]
@@ -391,19 +393,20 @@ def _find_control_model(model_list: Sequence[str], mode: ControlMode):
 
 
 def _find_clip_vision_model(model_list: Sequence[str], sdver: str):
-    model_name = "clip_vision_g.safetensors" if sdver == "SDXL" else "pytorch_model.bin"
-    match = lambda x: (sdver == "SDXL" or sdver in x) and model_name in x
+    assert sdver == "SD1.5", "Using SD1.5 clip vision model also for SDXL IP-adapter"
+    model_name = "pytorch_model.bin"
+    match = lambda x: sdver in x and model_name in x
     model = next((m for m in model_list if match(m)), None)
     if model is None:
-        full_name = model_name if sdver == "SDXL" else f"{sdver}/{model_name}"
+        full_name = f"{sdver}/{model_name}"
         raise MissingResource(ResourceKind.clip_vision, [full_name])
     return model
 
 
-def _find_ip_adapter(model_list: Sequence[str], sdver: str):
-    model_name = f"ip-adapter_{sdver}"
+def _find_ip_adapter(model_list: Sequence[str], sdver: SDVersion):
+    model_name = "ip-adapter_sd15" if sdver is SDVersion.sd15 else "ip-adapter_sdxl_vit-h"
     model = next((m for m in model_list if model_name in m), None)
-    if model is None:
+    if model is None and sdver is SDVersion.sd15:
         raise MissingResource(ResourceKind.ip_adapter, [model_name])
     return model
 

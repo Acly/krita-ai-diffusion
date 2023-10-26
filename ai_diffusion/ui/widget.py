@@ -219,16 +219,15 @@ class ControlWidget(QWidget):
         if connection.state is ConnectionState.connected:
             sdver = client.resolve_sd_version(self._model.style, connection.client)
             if mode is ControlMode.image:
-                if not sdver.has_ip_adapter:
-                    self.error_text.setToolTip(f"Control mode is not supported for {sdver.value}")
+                if connection.client.ip_adapter_model[sdver] is None:
+                    self.error_text.setToolTip(f"The server is missing ip-adapter_sdxl_vit-h.bin")
                     is_installed = False
             elif connection.client.control_model[mode][sdver] is None:
                 filenames = mode.filenames(sdver)
-                self.error_text.setToolTip(
-                    f"The server is missing {filenames}"
-                    if filenames
-                    else f"Control mode is not supported for {sdver.value}"
-                )
+                if filenames:
+                    self.error_text.setToolTip(f"The server is missing {filenames}")
+                else:
+                    self.error_text.setText(f"Not supported for {sdver.value}")
                 is_installed = False
         self.error_text.setVisible(False)  # Avoid layout resize
         self.layer_select.setVisible(is_installed)

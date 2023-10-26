@@ -392,14 +392,16 @@ def test_create_open_pose_vector(qtapp, comfy):
     qtapp.run(main())
 
 
-def test_ip_adapter(qtapp, comfy, temp_settings):
+@pytest.mark.parametrize("sdver", [SDVersion.sd15, SDVersion.sdxl])
+def test_ip_adapter(qtapp, comfy, temp_settings, sdver):
     temp_settings.batch_size = 1
     image = Image.load(image_dir / "cat.png")
     control = Conditioning("cat on a rooftop in paris", [Control(ControlMode.image, image, 0.6)])
-    job = workflow.generate(comfy, default_style(comfy), Extent(512, 512), control)
+    extent = Extent(512, 512) if sdver == SDVersion.sd15 else Extent(1024, 1024)
+    job = workflow.generate(comfy, default_style(comfy, sdver), extent, control)
 
     async def main():
-        await run_and_save(comfy, job, "test_ip_adapter.png")
+        await run_and_save(comfy, job, f"test_ip_adapter_{sdver.name}.png")
 
     qtapp.run(main())
 
@@ -421,9 +423,9 @@ def test_ip_adapter_region(qtapp, comfy, temp_settings):
 def test_ip_adapter_batch(qtapp, comfy, temp_settings):
     temp_settings.batch_size = 1
     image1 = Image.load(image_dir / "cat.png")
-    image2 = Image.load(image_dir / "owls_inpaint.png")
+    image2 = Image.load(image_dir / "pegonia.png")
     control = Conditioning(
-        "", [Control(ControlMode.image, image1, 0.6), Control(ControlMode.image, image2, 0.6)]
+        "", [Control(ControlMode.image, image1, 1.0), Control(ControlMode.image, image2, 1.0)]
     )
     job = workflow.generate(comfy, default_style(comfy), Extent(512, 512), control)
 
