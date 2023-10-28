@@ -193,7 +193,7 @@ class Client:
     async def listen(self):
         url = websocket_url(self.url)
         async for websocket in websockets_client.connect(
-            f"{url}/ws?clientId={self._id}", max_size=2**30, read_limit=2**30
+            f"{url}/ws?clientId={self._id}", max_size=2**30, read_limit=2**30, ping_timeout=60
         ):
             try:
                 async for msg in self._listen(websocket):
