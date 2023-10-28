@@ -19,7 +19,10 @@ docker_root = Path(__file__).parent / "docker"
 
 def all_models():
     return chain(
-        resources.required_models, resources.optional_models, resources.default_checkpoints
+        resources.required_models,
+        resources.optional_models,
+        resources.default_checkpoints,
+        resources.upscale_models,
     )
 
 
