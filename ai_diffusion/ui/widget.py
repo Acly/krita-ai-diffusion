@@ -913,7 +913,8 @@ class UpscaleWidget(QWidget):
         self.update()
 
     def change_style(self):
-        self.model.style = self.style_select.value
+        if self.model_ is not None:
+            self.model.style = self.style_select.value
 
     def change_strength(self, value: int):
         self.model.upscale.strength = value / 100
