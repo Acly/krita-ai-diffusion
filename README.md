@@ -26,6 +26,7 @@ tool while painting. They are meant to synergize with traditional tools and the 
 * **Refine**: Use the strength slider to refine existing image content instead of replacing it entirely. This also works great for adding new things to an image by painting a (crude) approximation and refining at high strength!
 * **Control**: Guide image creation directly with sketches or line art. Use depth or normal maps from existing images or 3D scenes. Transfer character pose from snapshots. Control composition with segmentation maps.
 * **Resolutions**: Work efficiently at any resolution. The plugin will automatically use resolutions appropriate for the AI model, and scale them to fit your image region.
+* **Upscaling**: Upscale and enrich images to 4k, 8k and beyond without running out of memory.
 * **Job Queue**: Depending on hardware, image generation can take some time. The plugin allows you to queue and cancel jobs while working on your image.
 * **History**: Not every image will turn out a masterpiece. Preview results and browse previous generations and prompts at any time.
 * **Strong Defaults**: Versatile default style presets allow for a simple UI which covers many scenarios.
@@ -100,6 +101,12 @@ _Adding detail and iteratively refining small parts of the image_
 
 _Using ControlNet to guide image generation with a crude scribble_
 <img src="media/screenshot-4.png">
+
+_Modifying the pose vector layer to control character stances_
+<img src="media/screenshot-5.png">
+
+_Upscaling to improve image quality and add details_
+<img src="media/screenshot-6.png">
 
 _Server installation_
 <img src="media/screenshot-installation.png">
