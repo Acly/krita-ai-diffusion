@@ -102,8 +102,8 @@ _Adding detail and iteratively refining small parts of the image_
 _Using ControlNet to guide image generation with a crude scribble_
 <img src="media/screenshot-4.png">
 
-_Modifying the pose vector layer to control character stances_
-<img src="media/screenshot-5.png">
+_Modifying the pose vector layer to control character stances (Click for video)_
+[![Watch video demo](media/screenshot-5.png)](https://youtu.be/-QDPEcVmdLI "Watch video demo")
 
 _Upscaling to improve image quality and add details_
 <img src="media/screenshot-6.png">
