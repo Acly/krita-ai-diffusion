@@ -391,6 +391,9 @@ class Model(QObject):
     def add_upscale_layer(self, job: Job):
         assert job.kind is JobKind.upscaling
         assert len(job.results) > 0, "Upscaling job did not produce an image"
+        if self._layer:
+            self._layer.remove()
+            self._layer = None
         self._doc.insert_layer(job.prompt, job.results[0], job.bounds)
 
     @property
