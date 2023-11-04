@@ -12,7 +12,7 @@ from zipfile import ZipFile
 from PyQt5.QtNetwork import QNetworkAccessManager
 
 from .settings import settings, ServerBackend
-from . import resources, __version__
+from . import SDVersion, resources, __version__
 from .resources import CustomNode, ModelResource
 from .network import download, DownloadProgress
 from .util import is_windows, client_logger as log, server_logger as server_log
@@ -115,18 +115,24 @@ class Server:
         ]
         self.missing_resources += missing_nodes
 
-        def find_missing(folder: Path, resources: list[ModelResource]):
+        def find_missing(
+            folder: Path, resources: list[ModelResource], ver: SDVersion | None = None
+        ):
             return [
-                resource.name
-                for resource in resources
-                if not (folder / resource.folder / resource.filename).exists()
+                res.name
+                for res in resources
+                if (not ver or res.sd_version is ver)
+                and not (folder / res.folder / res.filename).exists()
             ]
 
-        self.missing_resources += find_missing(self.comfy_dir, resources.required_models)
-        if len(self.missing_resources) > 0:
+        missing_shared = find_missing(self.comfy_dir, resources.required_models, SDVersion.all)
+        missing_sd15 = find_missing(self.comfy_dir, resources.required_models, SDVersion.sd15)
+        missing_sdxl = find_missing(self.comfy_dir, resources.required_models, SDVersion.sdxl)
+        if len(missing_shared) > 0 or (len(missing_sd15) > 0 and len(missing_sdxl) > 0):
             self.state = ServerState.missing_resources
         else:
             self.state = ServerState.stopped
+        self.missing_resources += missing_shared + missing_sd15 + missing_sdxl
 
         # Optional resources
         self.missing_resources += find_missing(self.comfy_dir, resources.default_checkpoints)
@@ -165,7 +171,7 @@ class Server:
             dir = self.comfy_dir / "custom_nodes" / pkg.folder
             await _install_if_missing(dir, self._install_custom_node, pkg, network, cb)
 
-        for resource in resources.required_models:
+        for resource in (m for m in resources.required_models if m.sd_version is SDVersion.all):
             target_folder = self.comfy_dir / resource.folder
             target_file = self.comfy_dir / resource.folder / resource.filename
             if not target_file.exists():
@@ -293,10 +299,13 @@ class Server:
             callback(InstallationProgress(stage, progress))
 
         try:
-            all_optional = chain(
-                resources.default_checkpoints, resources.upscale_models, resources.optional_models
+            all_models = chain(
+                resources.required_models,
+                resources.default_checkpoints,
+                resources.upscale_models,
+                resources.optional_models,
             )
-            to_install = (r for r in all_optional if r.name in packages)
+            to_install = (r for r in all_models if r.name in packages)
             for resource in to_install:
                 target_file = self.comfy_dir / resource.folder / resource.filename
                 if not target_file.exists():
@@ -405,6 +414,13 @@ class Server:
     @property
     def has_comfy(self):
         return self.comfy_dir is not None
+
+    def is_installed(self, package: str | ModelResource | CustomNode):
+        name = package if isinstance(package, str) else package.name
+        return name not in self.missing_resources
+
+    def all_installed(self, packages: list[str] | list[ModelResource] | list[CustomNode]):
+        return all(self.is_installed(p) for p in packages)
 
 
 def _find_component(files: list[str], search_paths: list[Path]):

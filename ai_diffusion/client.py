@@ -404,8 +404,6 @@ def _find_clip_vision_model(model_list: Sequence[str], sdver: str):
 def _find_ip_adapter(model_list: Sequence[str], sdver: SDVersion):
     model_name = "ip-adapter_sd15" if sdver is SDVersion.sd15 else "ip-adapter_sdxl_vit-h"
     model = next((m for m in model_list if model_name in m), None)
-    if model is None and sdver is SDVersion.sd15:
-        raise MissingResource(ResourceKind.ip_adapter, [model_name])
     return model
 
 

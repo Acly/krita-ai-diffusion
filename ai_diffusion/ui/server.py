@@ -1,5 +1,7 @@
+from __future__ import annotations
+from enum import Enum
 from pathlib import Path
-from typing import List, Optional
+from typing import Optional
 from PyQt5.QtCore import Qt, QUrl, pyqtSignal
 from PyQt5.QtGui import QDesktopServices
 from PyQt5.QtWidgets import (
@@ -20,37 +22,45 @@ from PyQt5.QtWidgets import (
 )
 from krita import Krita
 
-from .. import (
-    Server,
-    ServerState,
-    ServerBackend,
-    Settings,
-    eventloop,
-    resources,
-    server,
-    settings,
-    util,
-)
+from .. import Settings, SDVersion, eventloop, resources, server, settings, util
+from ..resources import ModelResource, CustomNode
+from ..server import Server, ServerBackend, ServerState
 from . import Connection, ConnectionState
 from .theme import add_header, set_text_clipped, green, grey, red, yellow, highlight
 
 
+class PackageState(Enum):
+    installed = 0
+    selected = 1
+    available = 2
+    disabled = 3
+
+
+class PackageItem:
+    label: QLabel
+    status: QLabel | QCheckBox
+    package: str | ModelResource | CustomNode
+    state: PackageState
+
+
 class PackageGroupWidget(QWidget):
     _layout: QGridLayout
-    _widgets: list
+    _items: list[PackageItem]
     _status: QLabel
     _desc: Optional[QLabel] = None
+    _workload = SDVersion.all
+    _is_checkable = False
 
     changed = pyqtSignal()
 
     def __init__(
         self,
         name: str,
-        packages: List[str],
+        packages: list[str] | list[ModelResource] | list[CustomNode],
         description: Optional[str] = None,
         is_expanded=True,
-        is_optional=False,
-        is_checked=False,
+        is_checkable=False,
+        initial=PackageState.available,
         parent=None,
     ):
         super().__init__(parent)
@@ -80,7 +90,8 @@ class PackageGroupWidget(QWidget):
             self._desc.setWordWrap(True)
             self._layout.addWidget(self._desc, 1, 0, 1, 2)
 
-        self._widgets = [self.add_widget(p, is_optional, is_checked) for p in packages]
+        self._is_checkable = is_checkable
+        self._items = [self.add_item(p, initial) for p in packages]
         self._update_visibility()
 
     def _update_visibility(self):
@@ -89,60 +100,107 @@ class PackageGroupWidget(QWidget):
         )
         if self._desc:
             self._desc.setVisible(self._header.isChecked())
-        for widget in self._widgets:
-            widget[0].setVisible(self._header.isChecked())
-            widget[1].setVisible(self._header.isChecked())
+        for item in self._items:
+            item.label.setVisible(self._header.isChecked())
+            item.status.setVisible(self._header.isChecked())
 
-    def add_widget(self, name: str, is_optional=False, is_checked=False):
-        key = QLabel(name, self)
-        key.setContentsMargins(20, 0, 0, 0)
-        if is_optional:
-            value = QCheckBox("Install", self)
-            value.setChecked(is_checked)
-            value.toggled.connect(self._handle_checkbox_toggle)
+    def add_item(self, package: str | ModelResource | CustomNode, initial: PackageState):
+        item = PackageItem()
+        item.package = package
+        item.state = initial
+        item.label = QLabel(self._package_name(package), self)
+        item.label.setContentsMargins(20, 0, 0, 0)
+        if self.is_checkable:
+            item.status = QCheckBox("Install", self)
+            item.status.setChecked(initial in [PackageState.selected, PackageState.installed])
+            item.status.toggled.connect(self._handle_checkbox_toggle)
         else:
-            value = QLabel(self)
-        self._layout.addWidget(key, self._layout.rowCount(), 0)
-        self._layout.addWidget(value, self._layout.rowCount() - 1, 1)
-        return key, value
+            item.status = QLabel(self)
+        self._layout.addWidget(item.label, self._layout.rowCount(), 0)
+        self._layout.addWidget(item.status, self._layout.rowCount() - 1, 1)
+        return item
 
     @property
     def is_checkable(self):
-        return isinstance(self._widgets[0][1], QCheckBox)
+        return self._is_checkable
 
     @property
     def values(self):
-        if self.is_checkable:
-            return [not widget[1].isEnabled() for widget in self._widgets]
-        else:
-            return [widget[1].text() == "Installed" for widget in self._widgets]
+        return [item.state for item in self._items]
 
     @values.setter
-    def values(self, values: List[bool]):
-        for widget, value in zip(self._widgets, values):
+    def values(self, values: list[PackageState]):
+        for item, value in zip(self._items, values):
+            item.state = value
+        self._update()
+
+    def _update(self):
+        for item in self._items:
+            if item.state is PackageState.installed:
+                item.status.setText("Installed")
+                item.status.setStyleSheet(f"color:{green}")
+            elif item.state is PackageState.available:
+                item.status.setText("Not installed")
+                item.status.setStyleSheet("")
             if self.is_checkable:
-                widget[1].setText("Installed" if value else "Install")
-                widget[1].setStyleSheet(f"color:{green}" if value else "")
-                widget[1].setChecked(widget[1].isChecked() or value)
-                widget[1].setEnabled(not value)
-            else:
-                widget[1].setText("Installed" if value else "Not installed")
-                widget[1].setStyleSheet(f"color:{green}" if value else f"color:{grey}")
-        self._update_status(values)
+                self._update_workload(item)
+                if item.state is PackageState.selected:
+                    item.status.setText("Not installed")
+                    item.status.setStyleSheet("")
+                elif item.state is PackageState.disabled:
+                    item.status.setText("Workload not selected")
+                    item.status.setStyleSheet(f"color:{grey}")
+                item.status.setChecked(
+                    item.state in [PackageState.selected, PackageState.installed]
+                )
+                item.status.setEnabled(item.state is not PackageState.disabled)
+        self._update_status()
+
+    def _update_workload(self, item: PackageItem):
+        enabled = not isinstance(item.package, ModelResource) or SDVersion.match(
+            self._workload, item.package.sd_version
+        )
+        if not enabled and item.state in [PackageState.selected, PackageState.available]:
+            item.state = PackageState.disabled
+        elif enabled and item.state is PackageState.disabled:
+            item.state = PackageState.available
 
     @property
-    def is_checked(self):
-        return [widget[1].isEnabled() and widget[1].isChecked() for widget in self._widgets]
+    def package_names(self):
+        return [self._package_name(item.package) for item in self._items]
 
-    def _update_status(self, installed: List[bool]):
-        available = len(installed) - sum(installed)
-        if available == 0:
+    @property
+    def selected_packages(self):
+        return [
+            self._package_name(item.package)
+            for item in self._items
+            if item.state is PackageState.selected
+        ]
+
+    @property
+    def workload(self):
+        return self._workload
+
+    @workload.setter
+    def workload(self, workload: SDVersion):
+        self._workload = workload
+        self._update()
+
+    def set_installed(self, installed: list[bool]):
+        for item, is_installed in zip(self._items, installed):
+            if is_installed:
+                item.state = PackageState.installed
+        self._update()
+
+    def _update_status(self):
+        available = sum(item.state is PackageState.available for item in self._items)
+        if all(item.state is PackageState.installed for item in self._items):
             self._status.setText("All installed")
             self._status.setStyleSheet(f"color:{green}")
         elif self.is_checkable:
-            selected = sum(self.is_checked)
+            selected = sum(item.state is PackageState.selected for item in self._items)
             if selected > 0:
-                self._status.setText(f"{selected} of {available} packages selected")
+                self._status.setText(f"{selected} of {selected + available} packages selected")
                 self._status.setStyleSheet(f"color:{yellow}")
             else:
                 self._status.setText(f"{available} packages available")
@@ -152,13 +210,22 @@ class PackageGroupWidget(QWidget):
             self._status.setStyleSheet(f"color:{yellow}")
 
     def _handle_checkbox_toggle(self):
-        self._update_status(self.values)
+        for item in self._items:
+            if item.state in [PackageState.available, PackageState.selected]:
+                item.state = (
+                    PackageState.selected if item.status.isChecked() else PackageState.available
+                )
+        self._update_status()
         self.changed.emit()
+
+    def _package_name(self, package: str | ModelResource | CustomNode):
+        return package if isinstance(package, str) else package.name
 
 
 class ServerWidget(QWidget):
     _server: Server
     _error = ""
+    _packages: dict[str, PackageGroupWidget]
 
     def __init__(self, srv: Server, parent=None):
         super().__init__(parent)
@@ -239,53 +306,49 @@ class ServerWidget(QWidget):
         layout.addWidget(scroll, 1)
 
         self._required_group = PackageGroupWidget(
-            "Core components", ["Python", "ComfyUI"], parent=self
+            "Core components",
+            ["Python", "ComfyUI", "Custom nodes", "Required models"],
+            is_expanded=False,
+            parent=self,
         )
         package_layout.addWidget(self._required_group)
 
-        node_packages = [node.name for node in resources.required_custom_nodes]
-        self._nodes_group = PackageGroupWidget(
-            "Required custom nodes", node_packages, is_expanded=False, parent=self
+        self._workload_group = PackageGroupWidget(
+            "Workloads",
+            ["Stable Diffusion 1.5", "Stable Diffusion XL"],
+            description="Choose one or both Stable Diffusion versions to work with.",
+            is_checkable=True,
+            parent=self,
         )
-        package_layout.addWidget(self._nodes_group)
+        self._workload_group.values = [PackageState.selected, PackageState.available]
+        self._workload_group.changed.connect(self.update)
+        package_layout.addWidget(self._workload_group)
 
-        model_packages = [model.name for model in resources.required_models]
-        self._models_group = PackageGroupWidget(
-            "Required models", model_packages, is_expanded=False, parent=self
-        )
-        package_layout.addWidget(self._models_group)
-
-        self._checkpoint_group = PackageGroupWidget(
-            "Recommended checkpoints",
-            [checkpoint.name for checkpoint in resources.default_checkpoints],
-            description=(
-                "At least one Stable Diffusion checkpoint is required. Below are some popular"
-                " choices, more can be found online."
+        self._packages = {
+            "checkpoints": PackageGroupWidget(
+                "Recommended checkpoints",
+                resources.default_checkpoints,
+                description=(
+                    "At least one Stable Diffusion checkpoint is required. Below are some popular"
+                    " choices, more can be found online."
+                ),
+                is_checkable=True,
+                initial=PackageState.available if self._server.has_comfy else PackageState.selected,
+                parent=self,
             ),
-            is_optional=True,
-            is_checked=not self._server.has_comfy,
-            parent=self,
-        )
-        self._checkpoint_group.changed.connect(self.update)
-        package_layout.addWidget(self._checkpoint_group)
-
-        self._upscaler_group = PackageGroupWidget(
-            "Upscalers (super-resolution)",
-            [model.name for model in resources.upscale_models],
-            is_optional=True,
-            parent=self,
-        )
-        self._upscaler_group.changed.connect(self.update)
-        package_layout.addWidget(self._upscaler_group)
-
-        self._control_group = PackageGroupWidget(
-            "Control extensions",
-            [control.name for control in resources.optional_models],
-            is_optional=True,
-            parent=self,
-        )
-        self._control_group.changed.connect(self.update)
-        package_layout.addWidget(self._control_group)
+            "upscalers": PackageGroupWidget(
+                "Upscalers (super-resolution)",
+                resources.upscale_models,
+                is_checkable=True,
+                parent=self,
+            ),
+            "control": PackageGroupWidget(
+                "Control extensions", resources.optional_models, is_checkable=True, parent=self
+            ),
+        }
+        for group in ["checkpoints", "upscalers", "control"]:
+            self._packages[group].changed.connect(self.update)
+            package_layout.addWidget(self._packages[group])
 
         package_layout.addStretch()
 
@@ -461,32 +524,43 @@ class ServerWidget(QWidget):
             self._status_label.setStyleSheet(f"color:{red}")
 
     def update_required(self):
-        self._required_group.values = [self._server.has_python, self._server.has_comfy]
-        self._nodes_group.values = [
-            node.name not in self._server.missing_resources
-            for node in resources.required_custom_nodes
+        has_missing_nodes = any(
+            node.name in self._server.missing_resources for node in resources.required_custom_nodes
+        )
+        has_missing_models = any(
+            model.name in self._server.missing_resources
+            for model in resources.required_models
+            if model.sd_version is SDVersion.all
+        )
+        installed_status = [
+            self._server.has_python,
+            self._server.has_comfy,
+            not has_missing_nodes,
+            not has_missing_models,
         ]
-        self._models_group.values = [
-            model.name not in self._server.missing_resources for model in resources.required_models
-        ]
+        self._required_group.set_installed(installed_status)
 
     def update_optional(self):
-        self._checkpoint_group.values = [
-            r.name not in self._server.missing_resources for r in resources.default_checkpoints
+        if all(state is PackageState.available for state in self._workload_group.values):
+            self._workload_group.values = [PackageState.selected, PackageState.available]
+
+        workloads = [
+            [m for m in resources.required_models if m.sd_version is SDVersion.sd15],
+            [m for m in resources.required_models if m.sd_version is SDVersion.sdxl],
         ]
-        self._upscaler_group.values = [
-            r.name not in self._server.missing_resources for r in resources.upscale_models
-        ]
-        self._control_group.values = [
-            r.name not in self._server.missing_resources for r in resources.optional_models
+        self._workload_group.set_installed([self._server.all_installed(w) for w in workloads])
+        to_install = [
+            m.name
+            for workload, state in zip(workloads, self._workload_group.values)
+            if state is PackageState.selected
+            for m in workload
         ]
 
-        def checked_packages(group, pkgs):
-            return [pkg.name for pkg, checked in zip(pkgs, group.is_checked) if checked]
+        for widget in self._packages.values():
+            widget.workload = self.selected_workload
+            widget.set_installed([self._server.is_installed(p) for p in widget.package_names])
 
-        to_install = checked_packages(self._checkpoint_group, resources.default_checkpoints)
-        to_install += checked_packages(self._upscaler_group, resources.upscale_models)
-        to_install += checked_packages(self._control_group, resources.optional_models)
+        to_install += [p for widget in self._packages.values() for p in widget.selected_packages]
         return to_install
 
     @property
@@ -498,3 +572,17 @@ class ServerWidget(QWidget):
             state in [ServerState.stopped, ServerState.running] and len(checkpoints_to_install) > 0
         )
         return install_required or install_optional
+
+    @property
+    def selected_workload(self):
+        selected_or_installed = [
+            state in [PackageState.selected, PackageState.installed]
+            for state in self._workload_group.values
+        ]
+        if all(selected_or_installed):
+            return SDVersion.all
+        if selected_or_installed[0]:
+            return SDVersion.sd15
+        if selected_or_installed[1]:
+            return SDVersion.sdxl
+        assert False, "No workload selected!"
