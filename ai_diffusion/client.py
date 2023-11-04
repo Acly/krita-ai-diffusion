@@ -385,8 +385,6 @@ def _find_control_model(model_list: Sequence[str], mode: ControlMode):
         names = [name] if isinstance(name, str) else name
         matches_name = lambda model: any(match_filename(model, name) for name in names)
         model = next((model for model in model_list if matches_name(model)), None)
-        if model is None and mode is ControlMode.inpaint:
-            raise MissingResource(ResourceKind.controlnet, names)
         return model
 
     return {version: find(mode.filenames(version)) for version in [SDVersion.sd15, SDVersion.sdxl]}

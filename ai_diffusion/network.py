@@ -1,6 +1,7 @@
 from __future__ import annotations
 import asyncio
 import json
+import os
 from datetime import datetime
 from pathlib import Path
 from typing import NamedTuple, Callable
@@ -157,7 +158,7 @@ async def _try_download(network: QNetworkAccessManager, url: str, path: Path):
     if not out_file.open(QFile.ReadWrite | QFile.Append):  # type: ignore
         raise Exception(f"Error during download: could not open {path} for writing")
 
-    request = QNetworkRequest(QUrl(url))
+    request = QNetworkRequest(QUrl(_map_host(url)))
     request.setAttribute(QNetworkRequest.FollowRedirectsAttribute, True)
     if out_file.size() > 0:
         log.info(f"Found {path}.part, resuming download from {out_file.size()} bytes")
@@ -226,3 +227,17 @@ async def download(network: QNetworkAccessManager, url: str, path: Path):
             raise e
 
         log.info(f"Retrying download of {url}, {retry - 1} attempts left")
+
+
+HOSTMAP_LOCAL = {  # for testing
+    "https://huggingface.co": "http://localhost:2222",
+    "https://civitai.com": "http://localhost:2222",
+}
+HOSTMAP = HOSTMAP_LOCAL if os.environ.get("HOSTMAP") else {}
+
+
+def _map_host(url: str):
+    for host, mapped in HOSTMAP.items():
+        if url.startswith(host):
+            return mapped + url[len(host) :]
+    return url

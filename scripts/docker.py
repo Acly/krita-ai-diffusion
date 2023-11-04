@@ -5,13 +5,11 @@ import asyncio
 from itertools import chain
 import aiohttp
 import sys
-import subprocess
 from pathlib import Path
-import requests
 
 sys.path.append(str(Path(__file__).parent.parent))
 import ai_diffusion
-from ai_diffusion import resources, network
+from ai_diffusion import resources
 
 version = f"v{ai_diffusion.__version__}"
 docker_root = Path(__file__).parent / "docker"
