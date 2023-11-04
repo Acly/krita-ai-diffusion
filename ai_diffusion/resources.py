@@ -59,6 +59,7 @@ class ResourceKind(Enum):
 class ModelResource(NamedTuple):
     name: str
     kind: ResourceKind
+    sd_version: SDVersion
     folder: Path
     filename: str
     url: str
@@ -66,8 +67,25 @@ class ModelResource(NamedTuple):
 
 required_models = [
     ModelResource(
+        "CLIP Vision model",
+        ResourceKind.clip_vision,
+        SDVersion.all,
+        Path("models/clip_vision/SD1.5"),
+        "pytorch_model.bin",
+        "https://huggingface.co/h94/IP-Adapter/resolve/main/models/image_encoder/pytorch_model.bin",
+    ),
+    ModelResource(
+        "NMKD Superscale model",
+        ResourceKind.upscaler,
+        SDVersion.all,
+        Path("models/upscale_models"),
+        "4x_NMKD-Superscale-SP_178000_G.pth",
+        "https://huggingface.co/gemasai/4x_NMKD-Superscale-SP_178000_G/resolve/main/4x_NMKD-Superscale-SP_178000_G.pth",
+    ),
+    ModelResource(
         "ControlNet Inpaint",
         ResourceKind.controlnet,
+        SDVersion.sd15,
         Path("models/controlnet"),
         "control_v11p_sd15_inpaint_fp16.safetensors",
         "https://huggingface.co/comfyanonymous/ControlNet-v1-1_fp16_safetensors/resolve/main/control_v11p_sd15_inpaint_fp16.safetensors",
@@ -75,30 +93,26 @@ required_models = [
     ModelResource(
         "ControlNet Tile",
         ResourceKind.controlnet,
+        SDVersion.sd15,
         Path("models/controlnet"),
         "control_lora_rank128_v11f1e_sd15_tile_fp16.safetensors",
         "https://huggingface.co/comfyanonymous/ControlNet-v1-1_fp16_safetensors/resolve/main/control_lora_rank128_v11f1e_sd15_tile_fp16.safetensors",
     ),
     ModelResource(
-        "CLIP Vision model",
-        ResourceKind.clip_vision,
-        Path("models/clip_vision/SD1.5"),
-        "pytorch_model.bin",
-        "https://huggingface.co/h94/IP-Adapter/resolve/main/models/image_encoder/pytorch_model.bin",
-    ),
-    ModelResource(
-        "IP-Adapter model",
+        "IP-Adapter (SD1.5)",
         ResourceKind.ip_adapter,
+        SDVersion.sd15,
         Path("custom_nodes/ComfyUI_IPAdapter_plus/models"),
-        "ip-adapter_sd15.bin",
-        "https://huggingface.co/h94/IP-Adapter/resolve/main/models/ip-adapter_sd15.bin",
+        "ip-adapter_sd15.safetensors",
+        "https://huggingface.co/h94/IP-Adapter/resolve/main/models/ip-adapter_sd15.safetensors",
     ),
     ModelResource(
-        "NMKD Superscale model",
-        ResourceKind.upscaler,
-        Path("models/upscale_models"),
-        "4x_NMKD-Superscale-SP_178000_G.pth",
-        "https://huggingface.co/gemasai/4x_NMKD-Superscale-SP_178000_G/resolve/main/4x_NMKD-Superscale-SP_178000_G.pth",
+        "IP-Adapter (SDXL)",
+        ResourceKind.ip_adapter,
+        SDVersion.sdxl,
+        Path("custom_nodes/ComfyUI_IPAdapter_plus/models"),
+        "ip-adapter_sdxl_vit-h.safetensors",
+        "https://huggingface.co/h94/IP-Adapter/resolve/main/sdxl_models/ip-adapter_sdxl_vit-h.safetensors",
     ),
 ]
 
@@ -106,6 +120,7 @@ default_checkpoints = [
     ModelResource(
         "Realistic Vision",
         ResourceKind.checkpoint,
+        SDVersion.sd15,
         Path("models/checkpoints"),
         "realisticVisionV51_v51VAE.safetensors",
         "https://civitai.com/api/download/models/130072?type=Model&format=SafeTensor&size=pruned&fp=fp16",
@@ -113,9 +128,18 @@ default_checkpoints = [
     ModelResource(
         "DreamShaper",
         ResourceKind.checkpoint,
+        SDVersion.sd15,
         Path("models/checkpoints"),
         "dreamshaper_8.safetensors",
         "https://civitai.com/api/download/models/128713?type=Model&format=SafeTensor&size=pruned&fp=fp16",
+    ),
+    ModelResource(
+        "Juggernaut XL",
+        ResourceKind.checkpoint,
+        SDVersion.sdxl,
+        Path("models/checkpoints"),
+        "juggernautXL_version6Rundiffusion.safetensors",
+        "https://civitai.com/api/download/models/198530",
     ),
 ]
 
@@ -123,6 +147,7 @@ upscale_models = [
     ModelResource(
         "HAT Super-Resolution (quality)",
         ResourceKind.upscaler,
+        SDVersion.all,
         Path("models/upscale_models"),
         "HAT_SRx4_ImageNet-pretrain.pth",
         "https://huggingface.co/Acly/hat/resolve/main/HAT_SRx4_ImageNet-pretrain.pth",
@@ -130,6 +155,7 @@ upscale_models = [
     ModelResource(
         "Real HAT GAN Super-Resolution (sharper)",
         ResourceKind.upscaler,
+        SDVersion.all,
         Path("models/upscale_models"),
         "Real_HAT_GAN_sharper.pth",
         "https://huggingface.co/Acly/hat/resolve/main/Real_HAT_GAN_sharper.pth",
@@ -140,6 +166,7 @@ optional_models = [
     ModelResource(
         "ControlNet Scribble",
         ResourceKind.controlnet,
+        SDVersion.sd15,
         Path("models/controlnet"),
         "control_lora_rank128_v11p_sd15_scribble_fp16.safetensors",
         "https://huggingface.co/comfyanonymous/ControlNet-v1-1_fp16_safetensors/resolve/main/control_lora_rank128_v11p_sd15_scribble_fp16.safetensors",
@@ -147,6 +174,7 @@ optional_models = [
     ModelResource(
         "ControlNet Line Art",
         ResourceKind.controlnet,
+        SDVersion.sd15,
         Path("models/controlnet"),
         "control_v11p_sd15_lineart_fp16.safetensors",
         "https://huggingface.co/comfyanonymous/ControlNet-v1-1_fp16_safetensors/resolve/main/control_v11p_sd15_lineart_fp16.safetensors",
@@ -154,6 +182,7 @@ optional_models = [
     ModelResource(
         "ControlNet Soft Edge",
         ResourceKind.controlnet,
+        SDVersion.sd15,
         Path("models/controlnet"),
         "control_v11p_sd15_softedge_fp16.safetensors",
         "https://huggingface.co/comfyanonymous/ControlNet-v1-1_fp16_safetensors/resolve/main/control_v11p_sd15_softedge_fp16.safetensors",
@@ -161,6 +190,7 @@ optional_models = [
     ModelResource(
         "ControlNet Canny Edge",
         ResourceKind.controlnet,
+        SDVersion.sd15,
         Path("models/controlnet"),
         "control_v11p_sd15_canny_fp16.safetensors",
         "https://huggingface.co/comfyanonymous/ControlNet-v1-1_fp16_safetensors/resolve/main/control_v11p_sd15_canny_fp16.safetensors",
@@ -168,6 +198,7 @@ optional_models = [
     ModelResource(
         "ControlNet Depth",
         ResourceKind.controlnet,
+        SDVersion.sd15,
         Path("models/controlnet"),
         "control_lora_rank128_v11f1p_sd15_depth_fp16.safetensors",
         "https://huggingface.co/comfyanonymous/ControlNet-v1-1_fp16_safetensors/resolve/main/control_lora_rank128_v11f1p_sd15_depth_fp16.safetensors",
@@ -175,6 +206,7 @@ optional_models = [
     ModelResource(
         "ControlNet Normal",
         ResourceKind.controlnet,
+        SDVersion.sd15,
         Path("models/controlnet"),
         "control_lora_rank128_v11p_sd15_normalbae_fp16.safetensors",
         "https://huggingface.co/comfyanonymous/ControlNet-v1-1_fp16_safetensors/resolve/main/control_lora_rank128_v11p_sd15_normalbae_fp16.safetensors",
@@ -182,6 +214,7 @@ optional_models = [
     ModelResource(
         "ControlNet Pose",
         ResourceKind.controlnet,
+        SDVersion.sd15,
         Path("models/controlnet"),
         "control_lora_rank128_v11p_sd15_openpose_fp16.safetensors",
         "https://huggingface.co/comfyanonymous/ControlNet-v1-1_fp16_safetensors/resolve/main/control_lora_rank128_v11p_sd15_openpose_fp16.safetensors",
@@ -189,9 +222,42 @@ optional_models = [
     ModelResource(
         "ControlNet Segmentation",
         ResourceKind.controlnet,
+        SDVersion.sd15,
         Path("models/controlnet"),
         "control_lora_rank128_v11p_sd15_seg_fp16.safetensors",
         "https://huggingface.co/comfyanonymous/ControlNet-v1-1_fp16_safetensors/resolve/main/control_lora_rank128_v11p_sd15_seg_fp16.safetensors",
+    ),
+    ModelResource(
+        "ControlNet Line Art (XL)",
+        ResourceKind.controlnet,
+        SDVersion.sdxl,
+        Path("models/controlnet"),
+        "sai_xl_sketch_256lora.safetensors",
+        "https://huggingface.co/lllyasviel/sd_control_collection/resolve/main/sai_xl_sketch_256lora.safetensors",
+    ),
+    ModelResource(
+        "ControlNet Canny Edge (XL)",
+        ResourceKind.controlnet,
+        SDVersion.sdxl,
+        Path("models/controlnet"),
+        "sai_xl_canny_256lora.safetensors",
+        "https://huggingface.co/lllyasviel/sd_control_collection/resolve/main/sai_xl_canny_256lora.safetensors",
+    ),
+    ModelResource(
+        "ControlNet Depth (XL)",
+        ResourceKind.controlnet,
+        SDVersion.sdxl,
+        Path("models/controlnet"),
+        "sai_xl_depth_256lora.safetensors",
+        "https://huggingface.co/lllyasviel/sd_control_collection/resolve/main/sai_xl_depth_256lora.safetensors",
+    ),
+    ModelResource(
+        "ControlNet Pose (XL)",
+        ResourceKind.controlnet,
+        SDVersion.sdxl,
+        Path("models/controlnet"),
+        "thibaud_xl_openpose_256lora.safetensors",
+        "https://huggingface.co/lllyasviel/sd_control_collection/resolve/main/thibaud_xl_openpose_256lora.safetensors",
     ),
 ]
 

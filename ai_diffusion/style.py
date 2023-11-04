@@ -9,9 +9,11 @@ from .util import client_logger as log
 
 
 class SDVersion(Enum):
-    auto = "Automatic"
     sd15 = "SD 1.5"
     sdxl = "SD XL"
+
+    auto = "Automatic"
+    all = "All"
 
     @staticmethod
     def from_string(string: str):
@@ -26,6 +28,12 @@ class SDVersion(Enum):
         if SDVersion.sdxl.matches(checkpoint):
             return SDVersion.sdxl
         return SDVersion.sd15
+
+    @staticmethod
+    def match(a: SDVersion, b: SDVersion):
+        if a is SDVersion.all or b is SDVersion.all:
+            return True
+        return a is b
 
     def matches(self, checkpoint: str):
         # Fallback check if it can't be queried from the server
