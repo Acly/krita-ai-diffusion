@@ -4,10 +4,8 @@
 3) Set environment variable HOSTMAP=1 to replace all huggingface / civitai urls.
 """
 
-import http.server
+from aiohttp import web
 from itertools import chain
-import socketserver
-import os
 import sys
 from pathlib import Path
 
@@ -42,30 +40,23 @@ for url, path in files.items():
     print(f"- {url} -> {path}")
 
 
-def send_file(http: http.server.SimpleHTTPRequestHandler, filepath: Path):
-    http.send_response(200)
-    http.send_header("Content-type", "application/octet-stream")
-    http.send_header("Content-Disposition", f"attachment; filename={filepath.name}")
-    http.send_header("Content-Length", str(os.path.getsize(filepath)))
-    http.end_headers()
-    with open(filepath, "rb") as f:
-        http.wfile.write(f.read())
+async def handle(request: web.Request):
+    file = files.get(request.path, None)
+    if file and file.exists():
+        print(f"Sending {file}")
+        try:
+            return web.FileResponse(file)
+        except Exception as e:
+            print(f"Failed to send {file}: {e}")
+            return web.Response(status=500)
+    elif file:
+        print(f"File not found: {file}")
+        return web.Response(status=404)
+    else:
+        print(f"File not found: {request.path}")
+        return web.Response(status=404)
 
 
-class Handler(http.server.SimpleHTTPRequestHandler):
-    def do_GET(self):
-        file = files.get(self.path, None)
-        if file and file.exists():
-            print(f"Sending {file}")
-            send_file(self, file)
-        elif file:
-            print(f"File not found: {file}")
-            super().do_GET()
-        else:
-            print(f"File not found: {self.path}")
-            super().do_GET()
-
-
-with socketserver.TCPServer(("", port), Handler) as httpd:
-    print(f"Serving files at http://localhost:{port}")
-    httpd.serve_forever()
+app = web.Application()
+app.add_routes([web.get(url, handle) for url in files.keys()])
+web.run_app(app, host="localhost", port=port)
