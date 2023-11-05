@@ -223,15 +223,17 @@ async def download(network: QNetworkAccessManager, url: str, path: Path):
                 if retry == 1:
                     raise e
                 await asyncio.sleep(1)
+            else:
+                raise NetworkError(e.code, f"Failed to download {url}: {e.message}", url)
         except Exception as e:
-            raise e
+            raise Exception(f"Failed to download {url}: {e}") from e
 
         log.info(f"Retrying download of {url}, {retry - 1} attempts left")
 
 
 HOSTMAP_LOCAL = {  # for testing
-    "https://huggingface.co": "http://localhost:2222",
-    "https://civitai.com": "http://localhost:2222",
+    "https://huggingface.co": "http://localhost:51222",
+    "https://civitai.com": "http://localhost:51222",
 }
 HOSTMAP = HOSTMAP_LOCAL if os.environ.get("HOSTMAP") else {}
 
