@@ -320,7 +320,6 @@ class ServerWidget(QWidget):
             is_checkable=True,
             parent=self,
         )
-        self._workload_group.values = [PackageState.selected, PackageState.available]
         self._workload_group.changed.connect(self.update)
         package_layout.addWidget(self._workload_group)
 

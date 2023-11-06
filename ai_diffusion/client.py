@@ -125,6 +125,7 @@ class Client:
     control_model: dict[ControlMode, dict[SDVersion, str | None]]
     clip_vision_model: str
     ip_adapter_model: dict[SDVersion, str | None]
+    supported_sd_versions: list[SDVersion]
     device_info: DeviceInfo
 
     @staticmethod
@@ -144,9 +145,8 @@ class Client:
         if len(missing) > 0:
             raise MissingResource(ResourceKind.node, missing)
 
+        # Retrieve list of checkpoints
         client._refresh_models(nodes, await client.try_inspect_checkpoints())
-        if len(client.checkpoints) == 0:
-            raise MissingResource(ResourceKind.checkpoint)
 
         # Retrieve ControlNet models
         cns = nodes["ControlNetLoader"]["input"]["required"]["control_net_name"][0]
@@ -169,6 +169,12 @@ class Client:
         client.default_upscaler = ensure(
             _find_upscaler(client.upscalers, "4x_NMKD-Superscale-SP_178000_G.pth")
         )
+
+        # Check supported SD versions and make sure there is at least one
+        missing = {ver: client._check_workload(ver) for ver in [SDVersion.sd15, SDVersion.sdxl]}
+        client.supported_sd_versions = [ver for ver, miss in missing.items() if len(miss) == 0]
+        if len(client.supported_sd_versions) == 0:
+            raise missing[SDVersion.sd15][0]
 
         return client
 
@@ -289,6 +295,14 @@ class Client:
         except NetworkError:
             return None  # server has old external tooling version
 
+    @property
+    def queued_count(self):
+        return len(self._jobs)
+
+    @property
+    def is_executing(self):
+        return self._active is not None
+
     async def refresh(self):
         nodes, info = await asyncio.gather(self._get("object_info"), self.try_inspect_checkpoints())
         self._refresh_models(nodes, info)
@@ -311,14 +325,6 @@ class Client:
             }
         self.vae_models = nodes["VAELoader"]["input"]["required"]["vae_name"][0]
         self.lora_models = nodes["LoraLoader"]["input"]["required"]["lora_name"][0]
-
-    @property
-    def queued_count(self):
-        return len(self._jobs)
-
-    @property
-    def is_executing(self):
-        return self._active is not None
 
     def _get_active_job(self, id: str) -> Optional[JobInfo]:
         if self._active and self._active.id == id:
@@ -353,6 +359,23 @@ class Client:
             self._active = None
             return True
         return False
+
+    def _check_workload(self, sdver: SDVersion) -> list[MissingResource]:
+        missing = []
+        if not self.clip_vision_model:
+            missing.append(MissingResource(ResourceKind.clip_vision))
+        if not self.default_upscaler:
+            missing.append(MissingResource(ResourceKind.upscaler))
+        if not self.ip_adapter_model[sdver]:
+            missing.append(MissingResource(ResourceKind.ip_adapter))
+        if not any(cp.sd_version is sdver for cp in self.checkpoints.values()):
+            missing.append(MissingResource(ResourceKind.checkpoint))
+        if sdver is SDVersion.sd15:
+            if not self.control_model[ControlMode.inpaint][SDVersion.sd15]:
+                missing.append(MissingResource(ResourceKind.controlnet, ["ControlNet inpaint"]))
+            if not self.control_model[ControlMode.blur][SDVersion.sd15]:
+                missing.append(MissingResource(ResourceKind.controlnet, ["ControlNet tile"]))
+        return missing
 
 
 def parse_url(url: str):

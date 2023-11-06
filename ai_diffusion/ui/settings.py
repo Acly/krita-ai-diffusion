@@ -28,7 +28,7 @@ from PyQt5.QtCore import Qt, QSize, QUrl, pyqtSignal
 from PyQt5.QtGui import QDesktopServices, QGuiApplication, QIcon
 from krita import Krita
 
-from ..resources import CustomNode, MissingResource, ResourceKind, SDVersion
+from ..resources import CustomNode, MissingResource, ResourceKind, required_models
 from ..settings import Setting, Settings, ServerMode, PerformancePreset, settings
 from ..server import Server
 from ..client import resolve_sd_version
@@ -561,29 +561,29 @@ class ConnectionSettings(SettingsTab):
         if resource.kind is ResourceKind.checkpoint:
             self._connection_status.setText(
                 "<b>Error</b>: No checkpoints found!\nCheckpoints must be placed into"
-                " [ComfyUI]/model/checkpoints."
+                " ComfyUI/model/checkpoints."
             )
 
         elif resource.kind is ResourceKind.controlnet:
             names = cast(list[str], resource.names)
             self._connection_status.setText(
                 f"<b>Error</b>: Could not find ControlNet model {', '.join(names)}. Make"
-                " sure to download the model and place it in the [ComfyUI]/models/controlnet"
+                " sure to download the model and place it in the ComfyUI/models/controlnet"
                 " folder."
             )
         elif resource.kind is ResourceKind.clip_vision:
-            names = cast(list[str], resource.names)
-            model = Path("models", "clip_vision", names[0])
+            res = [r for r in required_models if r.kind is ResourceKind.clip_vision]
+            model = res[0].folder / res[0].filename
             self._connection_status.setText(
                 f"<b>Error</b>: Could not find CLIPVision model {model.name} for SD1.5. Make sure"
-                f" to download the model and place it in [ComfyUI]/{model.parent.as_posix()}"
+                f" to download the model and place it in ComfyUI/{model.parent.as_posix()}"
             )
         elif resource.kind is ResourceKind.ip_adapter:
-            names = cast(list[str], resource.names)
+            res = [r for r in required_models if r.kind is ResourceKind.ip_adapter]
             self._connection_status.setText(
-                f"<b>Error</b>: Could not find IPAdapter model {', '.join(names)}. Make"
-                " sure to download the model and place it in the"
-                " [ComfyUI]/custom_nodes/IPAdapter-ComfyUI/models folder."
+                "<b>Error</b>: Could not find IPAdapter model"
+                f" {', '.join(r.filename for r in res)}. Make sure to download the model and place"
+                f" it in the ComfyUI/{res[0].folder.as_posix()} folder."
             )
         elif resource.kind is ResourceKind.node:
             nodes = cast(list[CustomNode], resource.names)
@@ -644,11 +644,22 @@ class StylePresets(SettingsTab):
             widget.value_changed.connect(self.write)
 
         add("name", TextSetting(StyleSettings.name, self))
+        self._style_widgets["name"].value_changed.connect(self._update_name)
+
         add("sd_checkpoint", ComboBoxSetting(StyleSettings.sd_checkpoint, self))
+        self._style_widgets["sd_checkpoint"].add_button(
+            Krita.instance().icon("reload-preset"),
+            "Look for new checkpoint files",
+            Connection.instance().refresh,
+        )
+        self._checkpoint_warning = QLabel(self)
+        self._checkpoint_warning.setStyleSheet(f"font-style: italic; color: {yellow};")
+        self._checkpoint_warning.setVisible(False)
+        self._layout.addWidget(self._checkpoint_warning, alignment=Qt.AlignmentFlag.AlignRight)
+
         add("loras", LoraList(StyleSettings.loras, self))
         add("style_prompt", LineEditSetting(StyleSettings.style_prompt, self))
         add("negative_prompt", LineEditSetting(StyleSettings.negative_prompt, self))
-        add("sd_version", ComboBoxSetting(StyleSettings.sd_version, self))
         add("vae", ComboBoxSetting(StyleSettings.vae, self))
         add("sampler", ComboBoxSetting(StyleSettings.sampler, self))
         add("sampler_steps", SliderSetting(StyleSettings.sampler_steps, self, 1, 100))
@@ -659,12 +670,6 @@ class StylePresets(SettingsTab):
         add("cfg_scale", SliderSetting(StyleSettings.cfg_scale, self, 1, 20))
         self._layout.addStretch()
 
-        self._style_widgets["name"].value_changed.connect(self._update_name)
-        self._style_widgets["sd_checkpoint"].add_button(
-            Krita.instance().icon("reload-preset"),
-            "Look for new checkpoint files",
-            Connection.instance().refresh,
-        )
         if settings.server_mode is ServerMode.managed:
             self._style_widgets["sd_checkpoint"].add_button(
                 Krita.instance().icon("document-open"),
@@ -737,19 +742,27 @@ class StylePresets(SettingsTab):
                 QUrl.fromLocalFile(str(self.server.comfy_dir / "models" / "loras"))
             )
 
-    def _set_sd_version_text(self):
-        if self.current_style.sd_version is SDVersion.auto:
-            actual = resolve_sd_version(
-                self.current_style, Connection.instance().client_if_connected
-            )
-            self._style_widgets["sd_version"].set_text(f". <i>Detected {actual.value}</i>")
-        else:
-            self._style_widgets["sd_version"].set_text("")
+    def _set_checkpoint_warning(self):
+        self._checkpoint_warning.setVisible(False)
+        if client := Connection.instance().client_if_connected:
+            version = resolve_sd_version(self.current_style, client)
+            if self.current_style.sd_checkpoint not in client.checkpoints:
+                self._checkpoint_warning.setText(
+                    "The checkpoint used by this style is not installed."
+                )
+                self._checkpoint_warning.setVisible(True)
+            elif version not in client.supported_sd_versions:
+                self._checkpoint_warning.setText(
+                    f"This is a {version.value} checkpoint, but the {version.value} workload has"
+                    " not been installed."
+                )
+                self._checkpoint_warning.setVisible(True)
 
     def _read_style(self, style: Style):
         with self._write_guard:
             for name, widget in self._style_widgets.items():
                 widget.value = getattr(style, name)
+        self._set_checkpoint_warning()
 
     def _read(self):
         if client := Connection.instance().client_if_connected:
@@ -763,13 +776,12 @@ class StylePresets(SettingsTab):
             self._style_widgets["loras"].names = client.lora_models
             self._style_widgets["vae"].set_items([default_vae] + client.vae_models)
         self._read_style(self.current_style)
-        self._set_sd_version_text()
 
     def _write(self):
         style = self.current_style
         for name, widget in self._style_widgets.items():
             setattr(style, name, widget.value)
-        self._set_sd_version_text()
+        self._set_checkpoint_warning()
         style.save()
 
 
