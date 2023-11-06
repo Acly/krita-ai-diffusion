@@ -12,7 +12,6 @@ from pathlib import Path
 sys.path.append(str(Path(__file__).parent.parent))
 from ai_diffusion import resources
 
-port = int(sys.argv[1]) if len(sys.argv) > 1 else 51222
 dir = Path(__file__).parent / "docker"
 
 
@@ -35,10 +34,6 @@ models = chain(
 )
 files = {url_strip_host(m.url): get_path(m) for m in models}
 
-print("Serving files:")
-for url, path in files.items():
-    print(f"- {url} -> {path}")
-
 
 async def handle(request: web.Request):
     file = files.get(request.path, None)
@@ -57,6 +52,17 @@ async def handle(request: web.Request):
         return web.Response(status=404)
 
 
-app = web.Application()
-app.add_routes([web.get(url, handle) for url in files.keys()])
-web.run_app(app, host="localhost", port=port)
+def run(port=51222, verbose=False):
+    if verbose:
+        print("Serving files:")
+        for url, path in files.items():
+            print(f"- {url} -> {path}")
+
+    app = web.Application()
+    app.add_routes([web.get(url, handle) for url in files.keys()])
+    web.run_app(app, host="localhost", port=port)
+
+
+if __name__ == "__main__":
+    port = int(sys.argv[1]) if len(sys.argv) > 1 else 51222
+    run(port)

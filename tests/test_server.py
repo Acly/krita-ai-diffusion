@@ -4,10 +4,12 @@ from PyQt5.QtNetwork import QNetworkAccessManager
 import pytest
 import shutil
 
-from ai_diffusion import network, Server, ServerState, ServerBackend, InstallationProgress, server
+from ai_diffusion import network, server, resources, SDVersion
+from ai_diffusion.server import Server, ServerState, ServerBackend, InstallationProgress
 
 test_dir = Path(__file__).parent / ".server"
 comfy_dir = Path("C:/Dev/ComfyUI")
+workload_sd15 = [p.name for p in resources.required_models if p.sd_version is SDVersion.sd15]
 
 
 @pytest.fixture(scope="session", autouse=True)
@@ -42,9 +44,12 @@ def test_download(qtapp, mode):
     qtapp.run(main())
 
 
-def test_install_and_run(qtapp, pytestconfig):
+def test_install_and_run(qtapp, pytestconfig, local_download_server):
     """Test installing and running ComfyUI server from scratch.
-    Downloads ~5GB of data, so it does not run by default.
+    * Takes a while, only runs with --test-install
+    * Starts and downloads from local file server instead of huggingface/civitai
+      * Required to run scripts/docker.py to download models once
+      * Remove `local_download_server` fixture to download from original urls
     """
     if not pytestconfig.getoption("--test-install"):
         pytest.skip("Only runs with --test-install")
@@ -66,6 +71,8 @@ def test_install_and_run(qtapp, pytestconfig):
 
     async def main():
         await server.install(handle_progress)
+        assert server.state is ServerState.missing_resources
+        await server.install_optional(workload_sd15, handle_progress)
         assert server.state is ServerState.stopped
 
         url = await server.start()

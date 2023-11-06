@@ -1,13 +1,14 @@
 import sys
 import pytest
+import subprocess
 from pathlib import Path
 from PyQt5.QtCore import QCoreApplication
 
 root_dir = Path(__file__).parent.parent
 sys.path.append(str(root_dir))
 
-from ai_diffusion import eventloop
-from ai_diffusion.settings import settings, Settings
+from ai_diffusion import eventloop, network
+from ai_diffusion.settings import settings
 
 
 def pytest_addoption(parser):
@@ -35,3 +36,17 @@ def qtapp():
 def temp_settings():
     yield settings
     settings.restore()
+
+
+@pytest.fixture()
+def local_download_server():
+    script = root_dir / "scripts" / "file_server.py"
+    port = 51222
+
+    with subprocess.Popen([sys.executable, str(script), str(port)]) as proc:
+        network.HOSTMAP = network.HOSTMAP_LOCAL
+        yield f"http://localhost:{port}"
+        network.HOSTMAP = {}
+
+        proc.kill()
+        proc.wait()
