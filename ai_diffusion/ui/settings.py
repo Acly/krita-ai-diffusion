@@ -36,7 +36,7 @@ from ..style import Style, Styles, StyleSettings
 from .connection import Connection, ConnectionState, apply_performance_preset
 from .model import Model
 from .server import ServerWidget
-from .theme import add_header, icon, red, yellow, green, grey
+from .theme import add_header, icon, sd_version_icon, red, yellow, green, grey
 
 
 def _add_title(layout: QVBoxLayout, title: str):
@@ -147,7 +147,7 @@ class ComboBoxSetting(SettingWidget):
         self._layout.addWidget(self._combo, alignment=Qt.AlignmentFlag.AlignRight)
         self._original_text = self._key_label.text()
 
-    def set_items(self, items: list[str] | type[Enum] | list[tuple[str, Any]]):
+    def set_items(self, items: list[str] | type[Enum] | list[tuple[str, Any, QIcon]]):
         self._suppress_change = True
         self._combo.clear()
         if isinstance(items, type):
@@ -157,8 +157,10 @@ class ComboBoxSetting(SettingWidget):
             for name in items:
                 if isinstance(name, str):
                     self._combo.addItem(name, name)
-                else:
+                elif len(name) == 2:
                     self._combo.addItem(name[0], name[1])
+                elif len(name) == 3:
+                    self._combo.addItem(name[2], name[0], name[1])
         self._suppress_change = False
 
     def _change_value(self):
@@ -768,7 +770,7 @@ class StylePresets(SettingsTab):
         if client := Connection.instance().client_if_connected:
             default_vae = cast(str, StyleSettings.vae.default)
             checkpoints = [
-                (cp.name, cp.filename)
+                (cp.name, cp.filename, sd_version_icon(cp.sd_version, client))
                 for cp in client.checkpoints.values()
                 if not (cp.is_refiner or cp.is_inpaint)
             ]

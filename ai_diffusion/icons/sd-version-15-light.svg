@@ -1,0 +1,90 @@
+<?xml version="1.0" encoding="UTF-8" standalone="no"?>
+<svg
+   xmlns:dc="http://purl.org/dc/elements/1.1/"
+   xmlns:cc="http://creativecommons.org/ns#"
+   xmlns:rdf="http://www.w3.org/1999/02/22-rdf-syntax-ns#"
+   xmlns:svg="http://www.w3.org/2000/svg"
+   xmlns="http://www.w3.org/2000/svg"
+   xmlns:sodipodi="http://sodipodi.sourceforge.net/DTD/sodipodi-0.dtd"
+   xmlns:inkscape="http://www.inkscape.org/namespaces/inkscape"
+   width="512"
+   height="512"
+   viewBox="0 0 135.46667 135.46667"
+   version="1.1"
+   id="svg866"
+   inkscape:version="1.0.2-2 (e86c870879, 2021-01-15)"
+   sodipodi:docname="sd-version-15-light.svg">
+  <defs
+     id="defs860" />
+  <sodipodi:namedview
+     id="base"
+     pagecolor="#ffffff"
+     bordercolor="#666666"
+     borderopacity="1.0"
+     inkscape:pageopacity="0.0"
+     inkscape:pageshadow="2"
+     inkscape:zoom="0.98994949"
+     inkscape:cx="301.56832"
+     inkscape:cy="319.04547"
+     inkscape:document-units="mm"
+     inkscape:current-layer="layer1"
+     inkscape:document-rotation="0"
+     showgrid="false"
+     units="px"
+     width="512px"
+     inkscape:window-width="1920"
+     inkscape:window-height="1009"
+     inkscape:window-x="1912"
+     inkscape:window-y="-8"
+     inkscape:window-maximized="1" />
+  <metadata
+     id="metadata863">
+    <rdf:RDF>
+      <cc:Work
+         rdf:about="">
+        <dc:format>image/svg+xml</dc:format>
+        <dc:type
+           rdf:resource="http://purl.org/dc/dcmitype/StillImage" />
+        <dc:title></dc:title>
+      </cc:Work>
+    </rdf:RDF>
+  </metadata>
+  <g
+     inkscape:label="Layer 1"
+     inkscape:groupmode="layer"
+     id="layer1">
+    <rect
+       style="fill:#3d3d3d;fill-opacity:1;stroke-width:10.5833;stroke-linecap:round;stroke-linejoin:round"
+       id="rect1431"
+       width="132.29167"
+       height="90.132782"
+       x="1.7008928"
+       y="25.527931"
+       rx="21.166666"
+       ry="24.035408" />
+    <g
+       aria-label="XL"
+       transform="scale(0.80484602,1.2424737)"
+       id="text836"
+       style="font-style:normal;font-weight:normal;font-size:15.824px;line-height:1.25;font-family:sans-serif;fill:#3d3d3d;fill-opacity:1;stroke:none;stroke-width:0.264583">
+      <g
+         aria-label="1.5"
+         transform="scale(1.2424737,0.80484603)"
+         id="text845"
+         style="font-style:normal;font-weight:normal;font-size:22.4758px;line-height:1.25;font-family:sans-serif;fill:#3d3d3d;fill-opacity:1;stroke:none;stroke-width:0.0700041">
+        <path
+           d="m 34.735252,107.64451 7.336112,-69.369415 -6.47304,-0.53942 -26.323697,17.908744 5.070548,8.0913 13.269732,-8.307068 -5.3942,52.215859 z"
+           style="font-style:normal;font-variant:normal;font-weight:500;font-stretch:normal;font-size:107.884px;font-family:Postface;-inkscape-font-specification:'Postface Medium';fill:#c8c8c8;fill-opacity:1;stroke-width:0.0700041"
+           id="path847" />
+        <path
+           d="m 48.112768,99.984744 c 0,4.207476 3.452288,7.659766 7.659764,7.659766 4.207476,0 7.659764,-3.45229 7.659764,-7.659766 0,-4.207476 -3.452288,-7.659764 -7.659764,-7.659764 -4.207476,0 -7.659764,3.452288 -7.659764,7.659764 z"
+           style="font-style:normal;font-variant:normal;font-weight:500;font-stretch:normal;font-size:107.884px;font-family:Postface;-inkscape-font-specification:'Postface Medium';fill:#c8c8c8;fill-opacity:1;stroke-width:0.0700041"
+           id="path849" />
+        <path
+           d="M 122.22889,34.930691 H 85.97987 l -7.767648,33.44404 6.688808,6.257273 c 3.991708,-0.970956 6.257272,-2.373449 10.356864,-2.373449 5.825736,0 10.356866,4.746897 10.356866,10.572633 0,7.659764 -7.875534,12.083008 -15.535298,12.083008 -5.93362,0 -9.601676,-1.294608 -14.887992,-3.020752 l -4.531128,12.298776 c 6.041504,2.48133 11.219936,4.31536 18.771816,4.31536 16.722022,0 33.012502,-10.680516 33.012502,-27.402536 0,-12.514545 -10.35686,-22.655641 -22.871406,-22.655641 H 95.15001 l 2.265564,-10.572632 h 22.871406 z"
+           style="font-style:normal;font-variant:normal;font-weight:500;font-stretch:normal;font-size:107.884px;font-family:Postface;-inkscape-font-specification:'Postface Medium';fill:#c8c8c8;fill-opacity:1;stroke-width:0.0700041"
+           id="path851" />
+      </g>
+    </g>
+  </g>
+</svg>

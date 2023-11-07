@@ -402,7 +402,7 @@ class StyleSelectWidget(QWidget):
         self.setLayout(layout)
 
         self._combo = QComboBox(self)
-        self._combo.addItems([style.name for style in Styles.list()])
+        self.update_styles()
         self._combo.currentIndexChanged.connect(self.change_style)
         layout.addWidget(self._combo)
 
@@ -418,7 +418,11 @@ class StyleSelectWidget(QWidget):
     def update_styles(self):
         self._combo.blockSignals(True)
         self._combo.clear()
-        self._combo.addItems([style.name for style in Styles.list()])
+        for style in Styles.list():
+            icon = theme.sd_version_icon(
+                client.resolve_sd_version(style, Connection.instance().client_if_connected)
+            )
+            self._combo.addItem(icon, style.name, None)
         if self._value in Styles.list():
             self._combo.setCurrentText(self._value.name)
         else:

@@ -1,9 +1,12 @@
+from __future__ import annotations
 from PyQt5.QtCore import Qt
 from PyQt5.QtGui import QGuiApplication, QPalette, QIcon, QPixmap, QFontMetrics
 from PyQt5.QtWidgets import QVBoxLayout, QLabel
 from pathlib import Path
 
 from ..settings import Setting, util
+from ..style import SDVersion
+from ..client import Client
 
 is_dark = QGuiApplication.palette().color(QPalette.Window).lightness() < 128
 
@@ -28,6 +31,16 @@ def icon(name: str):
         util.client_logger.error(f"Icon {name} not found for them {theme}")
         return QIcon()
     return QIcon(str(path))
+
+
+def sd_version_icon(version: SDVersion, client: Client | None = None):
+    if client and version not in client.supported_sd_versions:
+        return icon("warning")
+    elif version is SDVersion.sd15:
+        return icon("sd-version-15")
+    elif version is SDVersion.sdxl:
+        return icon("sd-version-xl")
+    return None
 
 
 def logo():
