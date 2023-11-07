@@ -279,6 +279,19 @@ def test_inpaint_odd_resolution(qtapp, comfy, temp_settings):
     qtapp.run(main())
 
 
+def test_inpaint_area_conditioning(qtapp, comfy, temp_settings):
+    temp_settings.batch_size = 1
+    image = Image.load(image_dir / "lake_1536x1024.png")
+    mask = Mask.load(image_dir / "lake_1536x1024_mask_bottom_right.png")
+    prompt = Conditioning("crocodile")
+    job = workflow.inpaint(comfy, default_style(comfy), image, mask, prompt)
+
+    async def main():
+        await run_and_save(comfy, job, "test_inpaint_area_conditioning.png")
+
+    qtapp.run(main())
+
+
 @pytest.mark.parametrize("sdver", [SDVersion.sd15, SDVersion.sdxl])
 def test_refine(qtapp, comfy, sdver, temp_settings):
     temp_settings.batch_size = 1

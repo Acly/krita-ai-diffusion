@@ -187,6 +187,9 @@ class Model(QObject):
         image_bounds = workflow.compute_bounds(extent, mask.bounds if mask else None, self.strength)
         if mask is not None or self.strength < 1.0:
             image = self._get_current_image(image_bounds)
+        if selection_bounds is not None:
+            selection_bounds = Bounds.apply_crop(selection_bounds, image_bounds)
+            selection_bounds = Bounds.minimum_size(selection_bounds, 64, image_bounds.extent)
 
         control = [self._get_control_image(c, image_bounds) for c in self.control]
         conditioning = Conditioning(self.prompt, self.negative_prompt, control)

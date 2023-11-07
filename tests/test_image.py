@@ -5,6 +5,12 @@ from PyQt5.QtCore import Qt, QByteArray
 from ai_diffusion import image, Mask, Bounds, Extent, Image, ImageCollection
 
 
+def test_extent_compare():
+    assert (Extent(4, 3) < Extent(4, 4)) == True
+    assert (Extent(3, 4) < Extent(4, 4)) == True
+    assert (Extent(4, 4) < Extent(4, 4)) == False
+
+
 def create_test_image(w, h):
     img = QImage(w, h, QImage.Format_ARGB32)
     for y in range(h):
@@ -109,6 +115,36 @@ def test_pad_square():
 )
 def test_clamp_bounds(input, expected):
     result = Bounds.clamp(input, Extent(4, 10))
+    assert result == expected
+
+
+@pytest.mark.parametrize(
+    "input,target,expected",
+    [
+        (Bounds(0, 0, 1, 2), Bounds(0, 0, 2, 2), Bounds(0, 0, 1, 2)),
+        (Bounds(0, 0, 1, 2), Bounds(0, 0, 1, 1), Bounds(0, 0, 1, 1)),
+        (Bounds(2, 4, 1, 2), Bounds(1, 4, 2, 2), Bounds(1, 0, 1, 2)),
+        (Bounds(0, 0, 1, 2), Bounds(1, 4, 2, 2), Bounds(0, 0, 1, 2)),
+        (Bounds(3, 4, 5, 6), Bounds(1, 1, 2, 3), Bounds(0, 0, 2, 3)),
+    ],
+)
+def test_bounds_apply_crop(input, target, expected):
+    result = Bounds.apply_crop(input, target)
+    assert result == expected
+
+
+@pytest.mark.parametrize(
+    "input,min_size,max_extent,expected",
+    [
+        (Bounds(0, 0, 1, 2), 2, Extent(4, 4), Bounds(0, 0, 2, 2)),
+        (Bounds(3, 4, 5, 6), 8, Extent(12, 12), Bounds(3, 4, 8, 8)),
+        (Bounds(3, 4, 5, 6), 8, Extent(10, 10), Bounds(2, 2, 8, 8)),
+        (Bounds(3, 4, 5, 6), 8, Extent(8, 7), None),
+        (Bounds(3, 4, 5, 6), 5, Extent(8, 7), Bounds(3, 1, 5, 6)),
+    ],
+)
+def test_bounds_minimum_size(input, min_size, max_extent, expected):
+    result = Bounds.minimum_size(input, min_size, max_extent)
     assert result == expected
 
 

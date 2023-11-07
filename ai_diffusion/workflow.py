@@ -362,7 +362,7 @@ def inpaint(comfy: Client, style: Style, image: Image, mask: Mask, cond: Conditi
     sd_ver = resolve_sd_version(style, comfy)
     extent, scaled_image, scaled_mask, _ = prepare_masked(image, mask, sd_ver)
     target_bounds = mask.bounds
-    region_expanded = target_bounds.extent.multiple_of(8)
+    region_expanded = target_bounds.extent.at_least(64).multiple_of(8)
     expanded_bounds = Bounds(*mask.bounds.offset, *region_expanded)
 
     w = ComfyWorkflow()

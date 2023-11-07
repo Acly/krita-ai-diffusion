@@ -20,6 +20,9 @@ class Extent(NamedTuple):
     def __mul__(self, scale: float):
         return Extent(round(self.width * scale), round(self.height * scale))
 
+    def at_least(self, min_size: int):
+        return Extent(max(self.width, min_size), max(self.height, min_size))
+
     def multiple_of(self, multiple: int):
         return Extent(multiple_of(self.width, multiple), multiple_of(self.height, multiple))
 
@@ -69,7 +72,7 @@ class Bounds(NamedTuple):
         return x >= 0 and x < self.width and y >= 0 and y < self.height
 
     @staticmethod
-    def scale(b, scale: float):
+    def scale(b: "Bounds", scale: float):
         if scale == 1:
             return b
 
@@ -79,7 +82,7 @@ class Bounds(NamedTuple):
         return Bounds(apply(b.x), apply(b.y), apply(b.width), apply(b.height))
 
     @staticmethod
-    def pad(bounds, padding: int, min_size=0, multiple=8, square=False):
+    def pad(bounds: "Bounds", padding: int, min_size=0, multiple=8, square=False):
         """Grow bounds by adding `padding` evenly on all side. Add additional padding if the area
         is still smaller than `min_size` and ensure the result is a multiple of `multiple`.
         If `square` is set, works towards making width and height balanced.
@@ -102,7 +105,7 @@ class Bounds(NamedTuple):
         return Bounds(new_x, new_y, new_width, new_height)
 
     @staticmethod
-    def clamp(bounds, extent: Extent):
+    def clamp(bounds: "Bounds", extent: Extent):
         """Clamp mask bounds to be inside an image region. Bounds extent should remain unchanged,
         unless it is larger than the image extent.
         """
@@ -117,6 +120,24 @@ class Bounds(NamedTuple):
         x, width = impl(bounds.x, bounds.width, extent.width)
         y, height = impl(bounds.y, bounds.height, extent.height)
         return Bounds(x, y, width, height)
+
+    @staticmethod
+    def apply_crop(bounds: "Bounds", image_bounds: "Bounds"):
+        """Adjust bounds area after the image has been cropped."""
+        x = bounds.x - image_bounds.x
+        y = bounds.y - image_bounds.y
+        result = Bounds(x, y, bounds.width, bounds.height)
+        return Bounds.clamp(result, image_bounds.extent)
+
+    @staticmethod
+    def minimum_size(bounds: "Bounds", min_size: int, max_extent: Extent):
+        """Return bounds extended to a minimum size if they still fit."""
+        if any(x < min_size for x in max_extent):
+            return None  # doesn't fit, image too small
+        result = Bounds(
+            bounds.x, bounds.y, max(bounds.width, min_size), max(bounds.height, min_size)
+        )
+        return Bounds.clamp(result, max_extent)
 
     @staticmethod
     def from_qrect(qrect: QRect):
