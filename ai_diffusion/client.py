@@ -12,7 +12,7 @@ from .image import Image, ImageCollection
 from .network import RequestManager, NetworkError
 from .websockets.src.websockets import client as websockets_client
 from .websockets.src.websockets import exceptions as websockets_exceptions
-from .style import SDVersion, Style
+from .style import SDVersion, Style, Styles
 from .resources import ControlMode, MissingResource, ResourceKind
 from . import resources
 from .util import ensure, is_windows, client_logger as log
@@ -176,6 +176,7 @@ class Client:
         if len(client.supported_sd_versions) == 0:
             raise missing[SDVersion.sd15][0]
 
+        _ensure_supported_style(client)
         return client
 
     def __init__(self, url):
@@ -397,6 +398,17 @@ def resolve_sd_version(style: Style, client: Optional[Client] = None):
     return style.sd_version
 
 
+def filter_supported_styles(styles: Styles, client: Optional[Client] = None):
+    if client:
+        return [
+            style
+            for style in styles
+            if resolve_sd_version(style, client) in client.supported_sd_versions
+            and style.sd_checkpoint in client.checkpoints
+        ]
+    return list(styles)
+
+
 def _find_control_model(model_list: Sequence[str], mode: ControlMode):
     def match_filename(path: str, name: str):
         path_sep = "\\" if is_windows else "/"
@@ -435,6 +447,23 @@ def _find_upscaler(model_list: Sequence[str], model_name: str):
         return model_name
     log.warning(f"Could not find default upscaler {model_name}, using {model_list[0]} instead")
     return model_list[0]
+
+
+def _ensure_supported_style(client: Client):
+    styles = filter_supported_styles(Styles.list(), client)
+    if len(styles) == 0:
+        checkpoint = next(
+            cp.filename
+            for cp in client.checkpoints.values()
+            if cp.sd_version in client.supported_sd_versions
+        )
+        log.info(f"No supported styles found, creating default style with checkpoint {checkpoint}")
+        default = next((s for s in Styles.list() if s.filename == "default.json"), None)
+        if default:
+            default.sd_checkpoint = checkpoint
+            default.save()
+        else:
+            Styles.list().create("default", checkpoint)
 
 
 def _extract_message_png_image(data: memoryview):

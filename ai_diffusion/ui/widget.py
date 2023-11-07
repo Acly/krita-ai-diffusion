@@ -390,6 +390,7 @@ class HistoryWidget(QListWidget):
 
 class StyleSelectWidget(QWidget):
     _value: Style
+    _styles: list[Style]
 
     changed = pyqtSignal()
 
@@ -414,25 +415,26 @@ class StyleSelectWidget(QWidget):
 
         Styles.list().changed.connect(self.update_styles)
         Styles.list().name_changed.connect(self.update_styles)
+        Connection.instance().changed.connect(self.update_styles)
 
     def update_styles(self):
+        comfy = Connection.instance().client_if_connected
+        self._styles = client.filter_supported_styles(Styles.list(), comfy)
         self._combo.blockSignals(True)
         self._combo.clear()
-        for style in Styles.list():
-            icon = theme.sd_version_icon(
-                client.resolve_sd_version(style, Connection.instance().client_if_connected)
-            )
-            self._combo.addItem(icon, style.name, None)
-        if self._value in Styles.list():
+        for style in self._styles:
+            icon = theme.sd_version_icon(client.resolve_sd_version(style, comfy))
+            self._combo.addItem(icon, style.name, style.filename)
+        if self._value in self._styles:
             self._combo.setCurrentText(self._value.name)
-        else:
-            self._value = Styles.list()[0]
+        elif len(self._styles) > 0:
+            self._value = self._styles[0]
             self._combo.setCurrentIndex(0)
             self.changed.emit()
         self._combo.blockSignals(False)
 
     def change_style(self):
-        style = Styles.list()[self._combo.currentIndex()]
+        style = self._styles[self._combo.currentIndex()]
         if style != self._value:
             self._value = style
             self.changed.emit()
@@ -693,7 +695,8 @@ class GenerationWidget(QWidget):
         self.update()
 
     def change_style(self):
-        self.model.style = self.style_select.value
+        if self._model:
+            self.model.style = self.style_select.value
 
     def change_prompt(self):
         self.model.prompt = self.prompt_textbox.toPlainText()

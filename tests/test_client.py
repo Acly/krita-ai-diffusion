@@ -130,7 +130,8 @@ def check_client_info(client: Client):
         assert cp.is_refiner == ("refiner" in cp.name.lower())
 
     assert len(client.control_model) > 0
-    assert "inpaint" in client.control_model[ControlMode.inpaint][SDVersion.sd15]
+    inpaint = client.control_model[ControlMode.inpaint][SDVersion.sd15]
+    assert inpaint and "inpaint" in inpaint
 
 
 def check_resolve_sd_version(client: Client, sd_version: SDVersion):
