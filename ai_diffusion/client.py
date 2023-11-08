@@ -125,6 +125,7 @@ class Client:
     control_model: dict[ControlMode, dict[SDVersion, str | None]]
     clip_vision_model: str
     ip_adapter_model: dict[SDVersion, str | None]
+    ip_adapter_has_weight_type = False
     supported_sd_versions: list[SDVersion]
     device_info: DeviceInfo
 
@@ -161,6 +162,9 @@ class Client:
         client.ip_adapter_model = {
             ver: _find_ip_adapter(ip, ver) for ver in [SDVersion.sd15, SDVersion.sdxl]
         }
+        client.ip_adapter_has_weight_type = (
+            "weight_type" in nodes["IPAdapterApply"]["input"]["required"]
+        )
 
         # Retrieve upscale models
         client.upscalers = nodes["UpscaleModelLoader"]["input"]["required"]["model_name"][0]

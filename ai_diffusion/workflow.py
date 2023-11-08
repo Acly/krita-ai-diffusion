@@ -307,7 +307,10 @@ def apply_control(
         if ip_image is not None:
             clip_vision = w.load_clip_vision(comfy.clip_vision_model)
             ip_adapter = w.load_ip_adapter(ip_model_file)
-            model = w.apply_ip_adapter(ip_adapter, clip_vision, ip_image, model, ip_strength)
+            weight_type = "original" if comfy.ip_adapter_has_weight_type else None
+            model = w.apply_ip_adapter(
+                ip_adapter, clip_vision, ip_image, model, ip_strength, weight_type=weight_type
+            )
 
     return model, positive
 

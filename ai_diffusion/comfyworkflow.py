@@ -33,16 +33,13 @@ class ComfyWorkflow:
                 f.write(f"{key} = {value}\n")
 
     @overload
-    def add(self, class_type: str, output_count: Literal[1], **inputs) -> Output:
-        ...
+    def add(self, class_type: str, output_count: Literal[1], **inputs) -> Output: ...
 
     @overload
-    def add(self, class_type: str, output_count: Literal[2], **inputs) -> Output2:
-        ...
+    def add(self, class_type: str, output_count: Literal[2], **inputs) -> Output2: ...
 
     @overload
-    def add(self, class_type: str, output_count: Literal[3], **inputs) -> Output3:
-        ...
+    def add(self, class_type: str, output_count: Literal[3], **inputs) -> Output3: ...
 
     def add(self, class_type: str, output_count: int, **inputs):
         normalize = lambda x: [str(x.node), x.output] if isinstance(x, Output) else x
@@ -55,12 +52,10 @@ class ComfyWorkflow:
         return output[0] if output_count == 1 else output
 
     @overload
-    def add_cached(self, class_type: str, output_count: Literal[1], **inputs) -> Output:
-        ...
+    def add_cached(self, class_type: str, output_count: Literal[1], **inputs) -> Output: ...
 
     @overload
-    def add_cached(self, class_type: str, output_count: Literal[3], **inputs) -> Output3:
-        ...
+    def add_cached(self, class_type: str, output_count: Literal[3], **inputs) -> Output3: ...
 
     def add_cached(self, class_type: str, output_count: Literal[1] | Literal[3], **inputs):
         key = class_type + str(inputs)
@@ -169,10 +164,9 @@ class ComfyWorkflow:
         model: Output,
         weight: float,
         noise=0.0,
+        weight_type: str | None = None,
     ):
-        return self.add(
-            "IPAdapterApply",
-            1,
+        args: dict = dict(
             ipadapter=ipadapter,
             clip_vision=clip_vision,
             image=image,
@@ -180,6 +174,9 @@ class ComfyWorkflow:
             weight=weight,
             noise=noise,
         )
+        if weight_type is not None:
+            args["weight_type"] = weight_type
+        return self.add("IPAdapterApply", 1, **args)
 
     def inpaint_preprocessor(self, image: Output, mask: Output):
         return self.add("InpaintPreprocessor", 1, image=image, mask=mask)
