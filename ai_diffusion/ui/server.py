@@ -542,14 +542,13 @@ class ServerWidget(QWidget):
         self._required_group.set_installed(installed_status)
 
     def update_optional(self):
-        if all(state is PackageState.available for state in self._workload_group.values):
-            self._workload_group.values = [PackageState.selected, PackageState.available]
-
         workloads = [
             [m for m in resources.required_models if m.sd_version is SDVersion.sd15],
             [m for m in resources.required_models if m.sd_version is SDVersion.sdxl],
         ]
         self._workload_group.set_installed([self._server.all_installed(w) for w in workloads])
+        if all(state is PackageState.available for state in self._workload_group.values):
+            self._workload_group.values = [PackageState.selected, PackageState.available]
         to_install = [
             m.name
             for workload, state in zip(workloads, self._workload_group.values)
