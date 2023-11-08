@@ -15,8 +15,10 @@ from ai_diffusion import resources
 dir = Path(__file__).parent / "docker"
 
 
-def url_strip_host(url: str):
-    return "/" + url.split("/", 3)[-1]
+def url_strip(url: str):
+    without_host = "/" + url.split("/", 3)[-1]
+    without_query = without_host.split("?", 1)[0]
+    return without_query
 
 
 def get_path(m: resources.ModelResource):
@@ -32,10 +34,11 @@ models = chain(
     resources.default_checkpoints,
     resources.upscale_models,
 )
-files = {url_strip_host(m.url): get_path(m) for m in models}
+files = {url_strip(m.url): get_path(m) for m in models}
 
 
 async def handle(request: web.Request):
+    print(f"Request: {request.path}?{request.query_string}")
     file = files.get(request.path, None)
     if file and file.exists():
         print(f"Sending {file}")

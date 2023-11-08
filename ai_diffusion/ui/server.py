@@ -190,6 +190,8 @@ class PackageGroupWidget(QWidget):
         for item, is_installed in zip(self._items, installed):
             if is_installed:
                 item.state = PackageState.installed
+            elif item.state is PackageState.installed:
+                item.state = PackageState.available
         self._update()
 
     def _update_status(self):
