@@ -1,0 +1,14 @@
+{
+    "name": "Digital Artwork (XL)",
+    "version": 1,
+    "sd_version": "auto",
+    "sd_checkpoint": "juggernautXL_version6Rundiffusion.safetensors",
+    "loras": [],
+    "style_prompt": "concept art {prompt} . digital artwork, illustrative, matte painting",
+    "negative_prompt": "photo, photorealistic",
+    "vae": "Checkpoint Default",
+    "sampler": "DPM++ 2M Karras",
+    "sampler_steps": 20,
+    "sampler_steps_upscaling": 15,
+    "cfg_scale": 7
+}
