@@ -184,6 +184,9 @@ class Server:
         cb("Finished", f"Installation finished in {self.path}")
         self.check_install()
 
+    def _pip_install(self, *args):
+        return [self._python_cmd, "-m", "pip", "install", *args]
+
     async def _install_python(self, network: QNetworkAccessManager, cb: InternalCB):
         url = "https://www.python.org/ftp/python/3.10.11/python-3.10.11-embed-amd64.zip"
         archive_path = self._cache_dir / "python-3.10.11-embed-amd64.zip"
@@ -219,21 +222,19 @@ class Server:
         await _extract_archive("ComfyUI", archive_path, self.comfy_dir.parent, cb)
         temp_comfy_dir = self.comfy_dir.parent / "ComfyUI-master"
 
-        torch_args = ["install", "torch", "torchvision", "torchaudio"]
+        torch_args = ["torch", "torchvision", "torchaudio"]
         if self.backend is ServerBackend.cpu:
             torch_args += ["--index-url", "https://download.pytorch.org/whl/cpu"]
         elif self.backend is ServerBackend.cuda:
             torch_args += ["--index-url", "https://download.pytorch.org/whl/cu121"]
-        await _execute_process("PyTorch", [self._pip_cmd, *torch_args], self.path, cb)
+        await _execute_process("PyTorch", self._pip_install(*torch_args), self.path, cb)
 
         requirements_txt = temp_comfy_dir / "requirements.txt"
-        requirements_cmd = [self._pip_cmd, "install", "-r", requirements_txt]
-        await _execute_process("ComfyUI", requirements_cmd, self.path, cb)
+        await _execute_process("ComfyUI", self._pip_install("-r", requirements_txt), self.path, cb)
 
         if self.backend is ServerBackend.directml:
-            await _execute_process(  # for some reason this must come AFTER ComfyUI requirements
-                "PyTorch", [self._pip_cmd, "install", "torch-directml"], self.path, cb
-            )
+            # for some reason this must come AFTER ComfyUI requirements
+            await _execute_process("PyTorch", self._pip_install("torch-directml"), self.path, cb)
 
         _rename_extracted_folder("ComfyUI", self.comfy_dir, "-master")
         cb("Installing ComfyUI", "Finished installing ComfyUI")
@@ -252,9 +253,8 @@ class Server:
         _rename_extracted_folder(pkg.name, folder, "-main")
 
         requirements_txt = folder / "requirements.txt"
-        requirements_cmd = [self._pip_cmd, "install", "-r", requirements_txt]
         if requirements_txt.exists():
-            await _execute_process(pkg.name, requirements_cmd, folder, cb)
+            await _execute_process(pkg.name, self._pip_install("-r", requirements_txt), folder, cb)
         cb(f"Installing {pkg.name}", f"Finished installing {pkg.name}")
 
     async def install(self, callback: Callback):
