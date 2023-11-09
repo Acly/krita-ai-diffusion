@@ -54,7 +54,7 @@ To run locally a powerful graphics card with at least 6 GB VRAM is recommended. 
 
 ### Installation
 
-1. If you haven't yet, go and install [Krita](https://krita.org/)! _Recommended version: 5.2.0_
+1. If you haven't yet, go and install [Krita](https://krita.org/)! _Recommended version: 5.2.1_
 1. [Download the plugin](https://github.com/Acly/krita-ai-diffusion/releases/latest). Unpack the archive into your `pykrita` folder.
     * _Windows:_ Usually `C:\Users\<user>\AppData\Roaming\krita\pykrita`
     * _Linux:_ Usually `~/.local/share/krita/pykrita`
@@ -75,18 +75,7 @@ The plugin uses [ComfyUI](https://github.com/comfyanonymous/ComfyUI) as backend.
 you can install it manually or use an existing installation. If the server is already running locally before starting Krita, the plugin will
 automatically try to connect. Using a remote server is also possible this way.
 
-To use an external installation, the following extensions and models are required:
-* ComfyUI custom nodes:
-  * [ControlNet preprocessors](https://github.com/Fannovel16/comfyui_controlnet_aux)
-  * [IP-Adapter](https://github.com/cubiq/ComfyUI_IPAdapter_plus)
-  * [Ultimate SD Upscale](https://github.com/ssitu/ComfyUI_UltimateSDUpscale)
-  * [External tooling nodes](https://github.com/Acly/comfyui-tooling-nodes)
-* Model files (paths are relative to ComfyUI install folder):
-  * [ControlNet inpaint](https://huggingface.co/comfyanonymous/ControlNet-v1-1_fp16_safetensors/resolve/main/control_v11p_sd15_inpaint_fp16.safetensors) to `models/controlnet`
-  * [ControlNet tile](https://huggingface.co/comfyanonymous/ControlNet-v1-1_fp16_safetensors/resolve/main/control_lora_rank128_v11f1e_sd15_tile_fp16.safetensors) to `models/controlnet`
-  * [Clip-Vision (SD1.5)](https://huggingface.co/h94/IP-Adapter/resolve/main/models/image_encoder/pytorch_model.bin) to `models/clip_vision/SD1.5`
-  * [IP-Adapter (SD1.5)](https://huggingface.co/h94/IP-Adapter/resolve/main/models/ip-adapter_sd15.bin) to `custom_nodes/IPAdapter-ComfyUI/models`
-  * [NMKD Superscale SP_178000_G](https://huggingface.co/gemasai/4x_NMKD-Superscale-SP_178000_G/resolve/main/4x_NMKD-Superscale-SP_178000_G.pth) to `models/upscale_models`
+To use an external installation, [some extensions and models are required](doc/comfy-requirements.md).
 
 ## <a name="screenshots"></a> Screenshots
 
