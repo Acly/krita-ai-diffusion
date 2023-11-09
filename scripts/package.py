@@ -35,13 +35,15 @@ def build_package():
         if path.endswith("styles"):
             filtered.remove("cinematic-photo.json")
             filtered.remove("digital-artwork.json")
+            filtered.remove("cinematic-photo-xl.json")
+            filtered.remove("digital-artwork-xl.json")
         return filtered
 
     copytree(plugin_src, plugin_dst, ignore=ignore)
     copy(root / "LICENSE", plugin_dst)
     convert_markdown_to_html(root / "README.md", plugin_dst / "manual.html")
 
-    make_archive(root / package_name, "zip", package_dir)
+    make_archive(str(root / package_name), "zip", package_dir)
 
 
 if __name__ == "__main__":
