@@ -88,6 +88,8 @@ class PackageGroupWidget(QWidget):
             self._desc.setText(description)
             self._desc.setContentsMargins(20, 0, 0, 0)
             self._desc.setWordWrap(True)
+            self._desc.setTextFormat(Qt.TextFormat.RichText)
+            self._desc.setOpenExternalLinks(True)
             self._layout.addWidget(self._desc, 1, 0, 1, 2)
 
         self._is_checkable = is_checkable
@@ -318,7 +320,11 @@ class ServerWidget(QWidget):
         self._workload_group = PackageGroupWidget(
             "Workloads",
             ["Stable Diffusion 1.5", "Stable Diffusion XL"],
-            description="Choose one or both Stable Diffusion versions to work with.",
+            description=(
+                "Choose one or both Stable Diffusion versions to work with. <a"
+                " href='https://github.com/Acly/krita-ai-diffusion/tree/main/doc/sd-versions.md'>Read"
+                " more about workloads.</a>"
+            ),
             is_checkable=True,
             parent=self,
         )
