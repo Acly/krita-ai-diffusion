@@ -6,10 +6,15 @@ from typing import NamedTuple, Optional, Sequence
 from . import SDVersion
 
 
+comfy_url = "https://github.com/comfyanonymous/ComfyUI"
+comfy_version = "ec120001363271ca039c8e07dabd8837df6498cd"
+
+
 class CustomNode(NamedTuple):
     name: str
     folder: str
     url: str
+    version: str
     nodes: Sequence[str]
 
 
@@ -18,24 +23,28 @@ required_custom_nodes = [
         "ControlNet Preprocessors",
         "comfyui_controlnet_aux",
         "https://github.com/Fannovel16/comfyui_controlnet_aux",
+        "98bf5b70a98577dcbb1227cdf4fbbf022149a1e1",
         ["InpaintPreprocessor"],
     ),
     CustomNode(
         "IP-Adapter",
         "ComfyUI_IPAdapter_plus",
         "https://github.com/cubiq/ComfyUI_IPAdapter_plus",
+        "bf0508bd5945c6e301070fa92b65b5ddbae9a8f1",
         ["IPAdapterModelLoader", "IPAdapterApply"],
     ),
     CustomNode(
         "Ultimate SD Upscale",
         "ComfyUI_UltimateSDUpscale",
         "https://github.com/Acly/krita-ai-diffusion/releases/download/v0.1.0/ComfyUI_UltimateSDUpscale_6ea48202a76ccf5904ddfa85f826efa80dd50520.zip",
+        "6ea48202a76ccf5904ddfa85f826efa80dd50520",
         ["UltimateSDUpscale"],
     ),
     CustomNode(
         "External Tooling Nodes",
         "comfyui-tooling-nodes",
         "https://github.com/Acly/comfyui-tooling-nodes",
+        "d7d5ee0ea871fbda560168d9e015dd0ae2e13818",
         [
             "ETN_LoadImageBase64",
             "ETN_LoadMaskBase64",

@@ -216,11 +216,11 @@ class Server:
 
     async def _install_comfy(self, network: QNetworkAccessManager, cb: InternalCB):
         assert self.comfy_dir is not None
-        url = "https://github.com/comfyanonymous/ComfyUI/archive/refs/heads/master.zip"
+        url = f"{resources.comfy_url}/archive/{resources.comfy_version}.zip"
         archive_path = self._cache_dir / "ComfyUI.zip"
         await _download_cached("ComfyUI", network, url, archive_path, cb)
         await _extract_archive("ComfyUI", archive_path, self.comfy_dir.parent, cb)
-        temp_comfy_dir = self.comfy_dir.parent / "ComfyUI-master"
+        temp_comfy_dir = self.comfy_dir.parent / f"ComfyUI-{resources.comfy_version}"
 
         torch_args = ["torch", "torchvision", "torchaudio"]
         if self.backend is ServerBackend.cpu:
@@ -236,7 +236,7 @@ class Server:
             # for some reason this must come AFTER ComfyUI requirements
             await _execute_process("PyTorch", self._pip_install("torch-directml"), self.path, cb)
 
-        _rename_extracted_folder("ComfyUI", self.comfy_dir, "-master")
+        _rename_extracted_folder("ComfyUI", self.comfy_dir, resources.comfy_version)
         cb("Installing ComfyUI", "Finished installing ComfyUI")
 
     async def _install_custom_node(
@@ -246,11 +246,11 @@ class Server:
         folder = self.comfy_dir / "custom_nodes" / pkg.folder
         resource_url = pkg.url
         if not resource_url.endswith(".zip"):  # git repo URL
-            resource_url = f"{pkg.url}/archive/refs/heads/main.zip"
+            resource_url = f"{pkg.url}/archive/{pkg.version}.zip"
         resource_zip_path = self._cache_dir / f"{pkg.folder}.zip"
         await _download_cached(pkg.name, network, resource_url, resource_zip_path, cb)
         await _extract_archive(pkg.name, resource_zip_path, folder.parent, cb)
-        _rename_extracted_folder(pkg.name, folder, "-main")
+        _rename_extracted_folder(pkg.name, folder, pkg.version)
 
         requirements_txt = folder / "requirements.txt"
         if requirements_txt.exists():
@@ -509,7 +509,7 @@ def _prepend_file(path: Path, line: str):
 def _rename_extracted_folder(name: str, path: Path, suffix: str):
     if path.exists():
         return
-    extracted_folder = path.parent / f"{path.name}{suffix}"
+    extracted_folder = path.parent / f"{path.name}-{suffix}"
     if not extracted_folder.exists():
         raise Exception(
             f"Error during {name} installation: folder {extracted_folder} does not exist"
