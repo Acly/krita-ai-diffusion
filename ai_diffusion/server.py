@@ -171,15 +171,7 @@ class Server:
             dir = self.comfy_dir / "custom_nodes" / pkg.folder
             await _install_if_missing(dir, self._install_custom_node, pkg, network, cb)
 
-        for resource in (m for m in resources.required_models if m.sd_version is SDVersion.all):
-            target_folder = self.comfy_dir / resource.folder
-            target_file = self.comfy_dir / resource.folder / resource.filename
-            if not target_file.exists():
-                target_folder.mkdir(parents=True, exist_ok=True)
-                await _download_cached(resource.name, network, resource.url, target_file, cb)
-
         self._version_file.write_text(__version__)
-
         self.state = ServerState.stopped
         cb("Finished", f"Installation finished in {self.path}")
         self.check_install()
@@ -217,7 +209,7 @@ class Server:
     async def _install_comfy(self, network: QNetworkAccessManager, cb: InternalCB):
         assert self.comfy_dir is not None
         url = f"{resources.comfy_url}/archive/{resources.comfy_version}.zip"
-        archive_path = self._cache_dir / "ComfyUI.zip"
+        archive_path = self._cache_dir / f"ComfyUI-{resources.comfy_version}.zip"
         await _download_cached("ComfyUI", network, url, archive_path, cb)
         await _extract_archive("ComfyUI", archive_path, self.comfy_dir.parent, cb)
         temp_comfy_dir = self.comfy_dir.parent / f"ComfyUI-{resources.comfy_version}"
@@ -247,7 +239,7 @@ class Server:
         resource_url = pkg.url
         if not resource_url.endswith(".zip"):  # git repo URL
             resource_url = f"{pkg.url}/archive/{pkg.version}.zip"
-        resource_zip_path = self._cache_dir / f"{pkg.folder}.zip"
+        resource_zip_path = self._cache_dir / f"{pkg.folder}-{pkg.version}.zip"
         await _download_cached(pkg.name, network, resource_url, resource_zip_path, cb)
         await _extract_archive(pkg.name, resource_zip_path, folder.parent, cb)
         _rename_extracted_folder(pkg.name, folder, pkg.version)
@@ -258,7 +250,9 @@ class Server:
         cb(f"Installing {pkg.name}", f"Finished installing {pkg.name}")
 
     async def install(self, callback: Callback):
-        assert self.state in [ServerState.not_installed, ServerState.missing_resources]
+        assert self.state in [ServerState.not_installed, ServerState.missing_resources] or (
+            self.state is ServerState.stopped and self.upgrade_available
+        )
         if not is_windows and self._python_cmd is None:
             raise Exception(
                 "Python not found. Please install python3, python3-venv via your package manager"
@@ -286,8 +280,12 @@ class Server:
             self.check_install()
             raise e
 
-    async def install_optional(self, packages: list[str], callback: Callback):
-        assert self.comfy_dir, "Must install ComfyUI before downloading checkpoints"
+    async def download_required(self, callback: Callback):
+        models = [m.name for m in resources.required_models if m.sd_version is SDVersion.all]
+        await self.download(models, callback)
+
+    async def download(self, packages: list[str], callback: Callback):
+        assert self.comfy_dir, "Must install ComfyUI before downloading models"
         network = QNetworkAccessManager()
         prev_state = self.state
         self.state = ServerState.installing
@@ -307,8 +305,10 @@ class Server:
             )
             to_install = (r for r in all_models if r.name in packages)
             for resource in to_install:
-                target_file = self.comfy_dir / resource.folder / resource.filename
+                target_folder = self.comfy_dir / resource.folder
+                target_file = target_folder / resource.filename
                 if not target_file.exists():
+                    target_folder.mkdir(parents=True, exist_ok=True)
                     await _download_cached(resource.name, network, resource.url, target_file, cb)
         except Exception as e:
             log.exception(str(e))
@@ -316,6 +316,48 @@ class Server:
         finally:
             self.state = prev_state
             self.check_install()
+
+    async def upgrade(self, callback: Callback):
+        assert self.upgrade_available and self.comfy_dir is not None
+
+        def info(message: str):
+            log.info(message)
+            callback(InstallationProgress("Upgrading", message=message))
+
+        info(f"Starting upgrade from {self.version} to {__version__}")
+        upgrade_dir = self.path / f"upgrade-{__version__}"
+        upgrade_comfy_dir = upgrade_dir / "ComfyUI"
+        keep_paths = [
+            Path("models"),
+            Path("custom_nodes", "ComfyUI_IPAdapter_plus", "models"),
+            Path("extra_model_paths.yaml"),
+        ]
+        try:
+            info(f"Backing up {self.comfy_dir} to {upgrade_comfy_dir}")
+            shutil.move(self.comfy_dir, upgrade_comfy_dir)
+            await self.install(callback)
+        except Exception as e:
+            log.warning(f"Error during upgrade: {str(e)} - Restoring {upgrade_comfy_dir}")
+            shutil.move(upgrade_comfy_dir, self.comfy_dir)
+            raise e
+
+        try:
+            for path in keep_paths:
+                src = upgrade_comfy_dir / path
+                dst = self.comfy_dir / path
+                if src.exists():
+                    info(f"Migrating {dst}")
+                    if dst.is_dir():
+                        shutil.rmtree(dst)  # Remove placeholder
+                    shutil.move(src, dst)
+            # Clean up temporary directory
+            shutil.rmtree(upgrade_dir, ignore_errors=True)
+            info(message=f"Finished updating to {__version__}")
+        except Exception as e:
+            log.error(f"Error during upgrade: {str(e)}")
+            raise Exception(
+                f"Error during model migration: {str(e)}\nSome models remain in {upgrade_comfy_dir}"
+            )
 
     async def start(self):
         assert self.state in [ServerState.stopped, ServerState.missing_resources]
@@ -421,6 +463,15 @@ class Server:
 
     def all_installed(self, packages: list[str] | list[ModelResource] | list[CustomNode]):
         return all(self.is_installed(p) for p in packages)
+
+    @property
+    def upgrade_available(self):
+        return self.version is None or self.version != __version__
+
+    @property
+    def upgrade_required(self):
+        minor = 0 if self.version is None else int(self.version.split(".")[1])
+        return minor < 5
 
 
 def _find_component(files: list[str], search_paths: list[Path]):

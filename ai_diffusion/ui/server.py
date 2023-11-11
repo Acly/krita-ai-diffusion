@@ -22,7 +22,7 @@ from PyQt5.QtWidgets import (
 )
 from krita import Krita
 
-from .. import Settings, SDVersion, eventloop, resources, server, settings, util
+from .. import Settings, SDVersion, eventloop, resources, server, settings, util, __version__
 from ..resources import ModelResource, CustomNode
 from ..server import Server, ServerBackend, ServerState
 from . import Connection, ConnectionState
@@ -396,6 +396,8 @@ class ServerWidget(QWidget):
         self._error = ""
         if self.requires_install:
             eventloop.run(self._install())
+        elif self._server.upgrade_available:
+            eventloop.run(self._upgrade())
         elif self._server.state is ServerState.stopped:
             eventloop.run(self._start())
         elif self._server.state is ServerState.running:
@@ -429,22 +431,16 @@ class ServerWidget(QWidget):
 
     async def _install(self):
         try:
-            if self._server.state is ServerState.running:
-                await self._stop()
-
-            self._launch_button.setEnabled(False)
-            self._status_label.setStyleSheet(f"color:{highlight};font-weight:bold")
-            self._backend_select.setVisible(False)
-            self._progress_bar.setVisible(True)
-            self._progress_info.setVisible(True)
+            await self._prepare_for_install()
 
             if self._server.state in [ServerState.not_installed, ServerState.missing_resources]:
                 await self._server.install(self._handle_progress)
+                await self._server.download_required(self._handle_progress)
             self.update_required()
 
-            checkpoints_to_install = self.update_optional()
-            if len(checkpoints_to_install) > 0:
-                await self._server.install_optional(checkpoints_to_install, self._handle_progress)
+            models_to_install = self.update_optional()
+            if len(models_to_install) > 0:
+                await self._server.download(models_to_install, self._handle_progress)
             self.update()
 
             await self._start()
@@ -452,6 +448,30 @@ class ServerWidget(QWidget):
         except Exception as e:
             self._error = str(e)
         self.update()
+
+    async def _upgrade(self):
+        try:
+            assert self._server.state in [ServerState.stopped, ServerState.running]
+            assert self._server.upgrade_available
+
+            await self._prepare_for_install()
+            await self._server.upgrade(self._handle_progress)
+            self.update()
+            await self._start()
+
+        except Exception as e:
+            self._error = str(e)
+        self.update()
+
+    async def _prepare_for_install(self):
+        if self._server.state is ServerState.running:
+            await self._stop()
+
+        self._launch_button.setEnabled(False)
+        self._status_label.setStyleSheet(f"color:{highlight};font-weight:bold")
+        self._backend_select.setVisible(False)
+        self._progress_bar.setVisible(True)
+        self._progress_info.setVisible(True)
 
     def _handle_progress(self, report: server.InstallationProgress):
         self._status_label.setText(f"{report.stage}...")
@@ -496,6 +516,13 @@ class ServerWidget(QWidget):
             self._progress_info.setVisible(True)
             self._backend_select.setVisible(False)
             self._launch_button.setEnabled(False)
+        elif self._server.upgrade_available:
+            self._status_label.setText(
+                f"Upgrade available: v{self._server.version} -> v{__version__}"
+            )
+            self._status_label.setStyleSheet(f"color:{yellow};font-weight:bold")
+            self._launch_button.setText("Upgrade")
+            self._launch_button.setEnabled(True)
         elif state is ServerState.stopped:
             self._status_label.setText("Server stopped")
             self._status_label.setStyleSheet(f"color:{red};font-weight:bold")
