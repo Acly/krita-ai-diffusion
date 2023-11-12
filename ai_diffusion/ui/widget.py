@@ -734,7 +734,7 @@ class GenerationWidget(QWidget):
 
 
 class UpscaleWidget(QWidget):
-    model_: Optional[Model] = None
+    _model: Optional[Model] = None
 
     def __init__(self):
         super().__init__()
@@ -920,7 +920,7 @@ class UpscaleWidget(QWidget):
         self.update()
 
     def change_style(self):
-        if self.model_ is not None:
+        if self._model is not None:
             self.model.style = self.style_select.value
 
     def change_strength(self, value: int):
