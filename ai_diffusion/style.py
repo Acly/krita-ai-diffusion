@@ -68,11 +68,9 @@ class StyleSettings:
         "Model Checkpoint",
         "<no checkpoint set>",
         "The Stable Diffusion checkpoint file",
-        (
-            "This has a large impact on which kind of content will"
-            " be generated. To install additional checkpoints, place them into"
-            " [ComfyUI]/models/checkpoints."
-        ),
+        "This has a large impact on which kind of content will"
+        " be generated. To install additional checkpoints, place them into"
+        " [ComfyUI]/models/checkpoints.",
     )
 
     loras = Setting(
@@ -103,7 +101,7 @@ class StyleSettings:
         "Sampler",
         "DPM++ 2M Karras",
         "The sampling strategy and scheduler",
-        items=["DDIM", "DPM++ 2M", "DPM++ 2M Karras", "DPM++ 2M SDE", "DPM++ 2M SDE Karras"],
+        items=["DDIM", "DPM++ 2M", "DPM++ 2M Karras", "DPM++ 2M SDE", "DPM++ 2M SDE Karras", "LCM"],
     )
 
     sampler_steps = Setting(

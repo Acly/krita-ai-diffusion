@@ -138,6 +138,7 @@ def _sampler_params(style: Style, clip_vision=False, upscale=False) -> dict[str,
         "DPM++ 2M Karras": "dpmpp_2m",
         "DPM++ 2M SDE": "dpmpp_2m_sde_gpu",
         "DPM++ 2M SDE Karras": "dpmpp_2m_sde_gpu",
+        "LCM": "lcm",
     }[style.sampler]
     sampler_scheduler = {
         "DDIM": "ddim_uniform",
@@ -145,6 +146,7 @@ def _sampler_params(style: Style, clip_vision=False, upscale=False) -> dict[str,
         "DPM++ 2M Karras": "karras",
         "DPM++ 2M SDE": "normal",
         "DPM++ 2M SDE Karras": "karras",
+        "LCM": "sgm_uniform",
     }[style.sampler]
     params = dict(
         sampler=sampler_name,
@@ -182,6 +184,14 @@ def load_model_with_lora(w: ComfyWorkflow, comfy: Client, style: Style):
             log.warning(f"Style LoRA {lora['name']} not found, skipping")
             continue
         model, clip = w.load_lora(model, clip, lora["name"], lora["strength"], lora["strength"])
+
+    if style.sampler == "LCM":
+        sdver = resolve_sd_version(style, comfy)
+        if comfy.lcm_model[sdver] is None:
+            raise Exception(f"LCM LoRA model not found for {sdver}")
+        model, _ = w.load_lora(model, clip, comfy.lcm_model[sdver], 1.0, 1.0)
+        model = w.model_sampling_discrete(model, "lcm")
+
     return model, clip, vae
 
 
