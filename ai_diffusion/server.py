@@ -350,9 +350,11 @@ class Server:
                     info(f"Migrating {dst}")
                     safe_remove_dir(dst)  # Remove placeholder
                     shutil.move(src, dst)
+            self.check_install()
+
             # Clean up temporary directory
             safe_remove_dir(upgrade_dir)
-            info(message=f"Finished updating to {__version__}")
+            info(message=f"Finished upgrade to {__version__}")
         except Exception as e:
             log.error(f"Error during upgrade: {str(e)}")
             raise Exception(
@@ -568,11 +570,11 @@ def _rename_extracted_folder(name: str, path: Path, suffix: str):
     extracted_folder.rename(path)
 
 
-def safe_remove_dir(path: Path):
+def safe_remove_dir(path: Path, max_size=4 * 1024 * 1024):
     if path.is_dir():
         for p in path.rglob("*"):
             if p.is_file():
-                if p.stat().st_size > 1024 * 1024:
+                if p.stat().st_size > max_size:
                     raise Exception(f"Failed to remove {path}: found remaining large file {p}")
                 if p.suffix == ".safetensors":
                     raise Exception(f"Failed to remove {path}: found remaining model {p}")

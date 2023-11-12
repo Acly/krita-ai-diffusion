@@ -4,6 +4,7 @@ from PyQt5.QtNetwork import QNetworkAccessManager
 import pytest
 import shutil
 
+import ai_diffusion
 from ai_diffusion import network, server, resources, SDVersion
 from ai_diffusion.server import Server, ServerState, ServerBackend, InstallationProgress
 
@@ -50,6 +51,8 @@ def test_install_and_run(qtapp, pytestconfig, local_download_server):
     * Starts and downloads from local file server instead of huggingface/civitai
       * Required to run scripts/docker.py to download models once
       * Remove `local_download_server` fixture to download from original urls
+    * Also tests upgrading server from "previous" version
+      * In this case it's the same version, but it removes & re-installs anyway
     """
     if not pytestconfig.getoption("--test-install"):
         pytest.skip("Only runs with --test-install")
@@ -75,7 +78,7 @@ def test_install_and_run(qtapp, pytestconfig, local_download_server):
         await server.download_required(handle_progress)
         assert server.state is ServerState.missing_resources
         await server.download(workload_sd15, handle_progress)
-        assert server.state is ServerState.stopped
+        assert server.state is ServerState.stopped and server.version == ai_diffusion.__version__
 
         url = await server.start()
         assert server.state is ServerState.running
@@ -83,6 +86,15 @@ def test_install_and_run(qtapp, pytestconfig, local_download_server):
 
         await server.stop()
         assert server.state is ServerState.stopped
+
+        version_file = test_dir / ".version"
+        assert version_file.exists()
+        with version_file.open("w") as f:
+            f.write("1.0.42")
+        server.check_install()
+        assert server.upgrade_available and server.upgrade_required
+        await server.upgrade(handle_progress)
+        assert server.state is ServerState.stopped and server.version == ai_diffusion.__version__
 
     qtapp.run(main())
 
@@ -118,11 +130,11 @@ def test_safe_remove_dir(scenario):
         elif scenario == "large-file":
             large_file = path / "large_file"
             with large_file.open("wb") as f:
-                f.write(b"0" * (1024 * 1024 + 1))
+                f.write(b"0" * 1032)
         elif scenario == "model-file":
             (path / "model.safetensors").touch()
         try:
-            server.safe_remove_dir(path)
+            server.safe_remove_dir(path, max_size=1024)
             assert scenario == "regular-file" and not path.exists()
         except Exception as e:
             assert scenario != "regular-file"
