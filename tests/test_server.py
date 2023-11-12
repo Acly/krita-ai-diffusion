@@ -72,7 +72,9 @@ def test_install_and_run(qtapp, pytestconfig, local_download_server):
     async def main():
         await server.install(handle_progress)
         assert server.state is ServerState.missing_resources
-        await server.install_optional(workload_sd15, handle_progress)
+        await server.download_required(handle_progress)
+        assert server.state is ServerState.missing_resources
+        await server.download(workload_sd15, handle_progress)
         assert server.state is ServerState.stopped
 
         url = await server.start()
@@ -104,6 +106,26 @@ def test_run_external(qtapp, pytestconfig):
         assert server.state is ServerState.stopped
 
     qtapp.run(main())
+
+
+@pytest.mark.parametrize("scenario", ["regular-file", "large-file", "model-file"])
+def test_safe_remove_dir(scenario):
+    with TemporaryDirectory() as tmp:
+        path = Path(tmp) / "test"
+        path.mkdir()
+        if scenario == "regular-file":
+            (path / "file").touch()
+        elif scenario == "large-file":
+            large_file = path / "large_file"
+            with large_file.open("wb") as f:
+                f.write(b"0" * (1024 * 1024 + 1))
+        elif scenario == "model-file":
+            (path / "model.safetensors").touch()
+        try:
+            server.safe_remove_dir(path)
+            assert scenario == "regular-file" and not path.exists()
+        except Exception as e:
+            assert scenario != "regular-file"
 
 
 def test_python_version(qtapp):

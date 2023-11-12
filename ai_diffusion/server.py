@@ -330,6 +330,7 @@ class Server:
         keep_paths = [
             Path("models"),
             Path("custom_nodes", "ComfyUI_IPAdapter_plus", "models"),
+            Path("custom_nodes", "comfyui_controlnet_aux", "ckpts"),
             Path("extra_model_paths.yaml"),
         ]
         try:
@@ -347,11 +348,10 @@ class Server:
                 dst = self.comfy_dir / path
                 if src.exists():
                     info(f"Migrating {dst}")
-                    if dst.is_dir():
-                        shutil.rmtree(dst)  # Remove placeholder
+                    safe_remove_dir(dst)  # Remove placeholder
                     shutil.move(src, dst)
             # Clean up temporary directory
-            shutil.rmtree(upgrade_dir, ignore_errors=True)
+            safe_remove_dir(upgrade_dir)
             info(message=f"Finished updating to {__version__}")
         except Exception as e:
             log.error(f"Error during upgrade: {str(e)}")
@@ -566,6 +566,17 @@ def _rename_extracted_folder(name: str, path: Path, suffix: str):
             f"Error during {name} installation: folder {extracted_folder} does not exist"
         )
     extracted_folder.rename(path)
+
+
+def safe_remove_dir(path: Path):
+    if path.is_dir():
+        for p in path.rglob("*"):
+            if p.is_file():
+                if p.stat().st_size > 1024 * 1024:
+                    raise Exception(f"Failed to remove {path}: found remaining large file {p}")
+                if p.suffix == ".safetensors":
+                    raise Exception(f"Failed to remove {path}: found remaining model {p}")
+        shutil.rmtree(path, ignore_errors=True)
 
 
 async def get_python_version(python_cmd: Path):
