@@ -99,7 +99,7 @@ class ControlWidget(QWidget):
             icon = theme.icon(f"control-{mode.name}")
             self.mode_select.addItem(icon, mode.text, mode.value)
         self.mode_select.currentIndexChanged.connect(self._notify)
-        self.mode_select.currentIndexChanged.connect(self._update_installed_packages)
+        self.mode_select.currentIndexChanged.connect(self.update_installed_packages)
 
         self.layer_select = QComboBox(self)
         self.layer_select.currentIndexChanged.connect(self._notify)
@@ -239,7 +239,7 @@ class ControlWidget(QWidget):
         self.error_text.setVisible(not is_installed)
         return is_installed
 
-    def _update_installed_packages(self):
+    def update_installed_packages(self):
         _ = self._check_is_installed()
 
     def _is_first_image_mode(self):
@@ -289,6 +289,10 @@ class ControlListWidget(QWidget):
             for control in controls:
                 control_widget = self._add_widget()
                 control_widget.value = control
+
+    def notify_style_changed(self):
+        for control in self._controls:
+            control.update_installed_packages()
 
     _suppress_changes = EventSuppression()
 
@@ -396,7 +400,7 @@ class StyleSelectWidget(QWidget):
 
     def __init__(self, parent):
         super().__init__(parent)
-        self._value = Styles.list()[0]
+        self._value = Styles.list().default
 
         layout = QHBoxLayout(self)
         layout.setContentsMargins(0, 0, 0, 0)
@@ -666,6 +670,8 @@ class GenerationWidget(QWidget):
         model = self.model
         self.workspace_select.value = model.workspace
         self.style_select.value = model.style
+        if self.style_select.value != model.style:
+            self.change_style()  # Model style is not in style list (filtered out)
         self.prompt_textbox.setPlainText(model.prompt)
         self.control_list.value = model.control
         self.strength_input.setValue(int(model.strength * 100))
@@ -697,6 +703,7 @@ class GenerationWidget(QWidget):
     def change_style(self):
         if self._model:
             self.model.style = self.style_select.value
+            self.control_list.notify_style_changed()
 
     def change_prompt(self):
         self.model.prompt = self.prompt_textbox.toPlainText()
