@@ -28,11 +28,12 @@ from PyQt5.QtCore import Qt, QSize, QUuid, pyqtSignal
 from krita import Krita, DockWidget
 import krita
 
-from .. import Control, ControlMode, Style, Styles, Bounds, client, settings
+from .. import Control, ControlMode, Server, Style, Styles, Bounds, client
 from . import actions, EventSuppression, SettingsDialog, theme
 from .model import Model, ModelRegistry, Job, JobKind, JobQueue, State, Workspace
 from .connection import Connection, ConnectionState
 from ..resources import UpscalerName
+from ..settings import ServerMode, settings
 from ..util import ensure
 
 
@@ -939,8 +940,12 @@ class UpscaleWidget(QWidget):
 
 
 class WelcomeWidget(QWidget):
-    def __init__(self):
+    _server: Server
+
+    def __init__(self, server: Server):
         super().__init__()
+        self._server = server
+
         layout = QVBoxLayout()
         self.setLayout(layout)
 
@@ -973,6 +978,7 @@ class WelcomeWidget(QWidget):
         layout.addStretch()
 
         Connection.instance().changed.connect(self.update)
+        self.update()
 
     def update(self):
         connection = Connection.instance()
@@ -982,6 +988,13 @@ class WelcomeWidget(QWidget):
             self._connect_error.setText(
                 "Connection attempt failed! Click below to configure and reconnect."
             )
+            self._connect_error.setVisible(True)
+        if (
+            connection.state is ConnectionState.disconnected
+            and settings.server_mode is ServerMode.managed
+            and self._server.upgrade_required
+        ):
+            self._connect_error.setText("Server version is outdated. Click below to upgrade.")
             self._connect_error.setVisible(True)
         if connection.state is ConnectionState.connecting:
             self._connect_status.setText(f"Connecting to server...")
@@ -997,10 +1010,12 @@ class WelcomeWidget(QWidget):
 
 
 class ImageDiffusionWidget(DockWidget):
+    _server: Server = ...  # type: ignore (injected in extension.py)
+
     def __init__(self):
         super().__init__()
         self.setWindowTitle("AI Image Generation")
-        self._welcome = WelcomeWidget()
+        self._welcome = WelcomeWidget(self._server)
         self._generation = GenerationWidget()
         self._upscaling = UpscaleWidget()
         self._frame = QStackedWidget(self)

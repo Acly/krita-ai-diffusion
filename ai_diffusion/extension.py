@@ -17,15 +17,17 @@ class AIToolsExtension(Extension):
         super().__init__(parent)
         log.info(f"Extension initialized, Version: {__version__}, Python: {sys.version}")
 
-    def setup(self):
         eventloop.setup()
         settings.load()
         self._server = Server(settings.server_path)
-        eventloop.run(self.autostart())
+        ImageDiffusionWidget._server = self._server
 
         notifier = Krita.instance().notifier()
         notifier.setActive(True)
         notifier.applicationClosing.connect(self.shutdown)
+
+    def setup(self):
+        eventloop.run(self.autostart())
 
     def shutdown(self):
         self._server.terminate()
@@ -37,6 +39,7 @@ class AIToolsExtension(Extension):
             if (
                 settings.server_mode is ServerMode.managed
                 and self._server.state is ServerState.stopped
+                and not self._server.upgrade_required
             ):
                 url = await self._server.start()
                 self._settings_dialog.connection.update()

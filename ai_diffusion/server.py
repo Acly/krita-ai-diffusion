@@ -251,7 +251,7 @@ class Server:
 
     async def install(self, callback: Callback):
         assert self.state in [ServerState.not_installed, ServerState.missing_resources] or (
-            self.state is ServerState.stopped and self.upgrade_available
+            self.state is ServerState.stopped and self.upgrade_required
         )
         if not is_windows and self._python_cmd is None:
             raise Exception(
@@ -318,7 +318,7 @@ class Server:
             self.check_install()
 
     async def upgrade(self, callback: Callback):
-        assert self.upgrade_available and self.comfy_dir is not None
+        assert self.upgrade_required and self.comfy_dir is not None
 
         def info(message: str):
             log.info(message)
@@ -467,13 +467,8 @@ class Server:
         return all(self.is_installed(p) for p in packages)
 
     @property
-    def upgrade_available(self):
-        return self.version is None or self.version != __version__
-
-    @property
     def upgrade_required(self):
-        minor = 0 if self.version is None else int(self.version.split(".")[1])
-        return minor < 5
+        return self.version is None or self.version != resources.version
 
 
 def _find_component(files: list[str], search_paths: list[Path]):

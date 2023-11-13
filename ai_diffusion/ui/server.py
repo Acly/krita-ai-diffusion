@@ -396,7 +396,7 @@ class ServerWidget(QWidget):
         self._error = ""
         if self.requires_install:
             eventloop.run(self._install())
-        elif self._server.upgrade_available:
+        elif self._server.upgrade_required:
             eventloop.run(self._upgrade())
         elif self._server.state is ServerState.stopped:
             eventloop.run(self._start())
@@ -433,6 +433,9 @@ class ServerWidget(QWidget):
         try:
             await self._prepare_for_install()
 
+            if self._server.upgrade_required:
+                await self._server.upgrade(self._handle_progress)
+
             if self._server.state in [ServerState.not_installed, ServerState.missing_resources]:
                 await self._server.install(self._handle_progress)
                 await self._server.download_required(self._handle_progress)
@@ -452,7 +455,7 @@ class ServerWidget(QWidget):
     async def _upgrade(self):
         try:
             assert self._server.state in [ServerState.stopped, ServerState.running]
-            assert self._server.upgrade_available
+            assert self._server.upgrade_required
 
             await self._prepare_for_install()
             await self._server.upgrade(self._handle_progress)
@@ -516,9 +519,9 @@ class ServerWidget(QWidget):
             self._progress_info.setVisible(True)
             self._backend_select.setVisible(False)
             self._launch_button.setEnabled(False)
-        elif self._server.upgrade_available:
+        elif self._server.upgrade_required:
             self._status_label.setText(
-                f"Upgrade available: v{self._server.version} -> v{__version__}"
+                f"Upgrade required: v{self._server.version} -> v{resources.version}"
             )
             self._status_label.setStyleSheet(f"color:{yellow};font-weight:bold")
             self._launch_button.setText("Upgrade")

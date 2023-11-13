@@ -92,7 +92,7 @@ def test_install_and_run(qtapp, pytestconfig, local_download_server):
         with version_file.open("w") as f:
             f.write("1.0.42")
         server.check_install()
-        assert server.upgrade_available and server.upgrade_required
+        assert server.upgrade_required
         await server.upgrade(handle_progress)
         assert server.state is ServerState.stopped and server.version == ai_diffusion.__version__
 

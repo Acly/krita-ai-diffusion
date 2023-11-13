@@ -5,6 +5,9 @@ from typing import NamedTuple, Optional, Sequence
 
 from . import SDVersion
 
+# Version identifier for all the resources defined here. This is used as the server version.
+# It usually follows the plugin version, but not all new plugin versions also require a server update.
+version = "1.7.0"
 
 comfy_url = "https://github.com/comfyanonymous/ComfyUI"
 comfy_version = "ec120001363271ca039c8e07dabd8837df6498cd"
