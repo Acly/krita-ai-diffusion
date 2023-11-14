@@ -131,7 +131,15 @@ def prepare_masked(image: Image, mask: Mask, sd_ver: SDVersion, downscale: bool 
     return scaled, out_image, out_mask, batch
 
 
-def _sampler_params(style: Style, clip_vision=False, upscale=False) -> dict[str, Any]:
+class LiveParams:
+    is_active = False
+    strength = 0.3
+    seed = -1
+
+
+def _sampler_params(
+    style: Style, clip_vision=False, upscale=False, live=LiveParams()
+) -> dict[str, Any]:
     sampler_name = {
         "DDIM": "ddim",
         "DPM++ 2M": "dpmpp_2m",
@@ -158,7 +166,9 @@ def _sampler_params(style: Style, clip_vision=False, upscale=False) -> dict[str,
         params["cfg"] = min(5, style.cfg_scale)
     if upscale:
         params["steps"] = style.sampler_steps_upscaling
-    if settings.fixed_seed:
+    if live.is_active:
+        params["seed"] = live.seed
+    elif settings.fixed_seed:
         try:
             params["seed"] = int(settings.random_seed)
         except ValueError:
@@ -443,7 +453,14 @@ def inpaint(comfy: Client, style: Style, image: Image, mask: Mask, cond: Conditi
     return w
 
 
-def refine(comfy: Client, style: Style, image: Image, cond: Conditioning, strength: float):
+def refine(
+    comfy: Client,
+    style: Style,
+    image: Image,
+    cond: Conditioning,
+    strength: float,
+    live=LiveParams(),
+):
     assert strength > 0 and strength < 1
     extent, image, batch = prepare_image(image, resolve_sd_version(style, comfy), downscale=False)
 
@@ -453,11 +470,11 @@ def refine(comfy: Client, style: Style, image: Image, cond: Conditioning, streng
     if extent.is_incompatible:
         in_image = w.scale_image(in_image, extent.expanded)
     latent = w.vae_encode(vae, in_image)
-    latent = w.batch_latent(latent, batch)
+    if batch > 1 and not live.is_active:
+        latent = w.batch_latent(latent, batch)
     model, positive, negative = apply_conditioning(cond, w, comfy, model, clip, style)
-    sampler = w.ksampler(
-        model, positive, negative, latent, denoise=strength, **_sampler_params(style)
-    )
+    params = _sampler_params(style, live=live)
+    sampler = w.ksampler(model, positive, negative, latent, denoise=strength, **params)
     out_image = w.vae_decode(vae, sampler)
     if extent.is_incompatible:
         out_image = w.scale_image(out_image, extent.target)

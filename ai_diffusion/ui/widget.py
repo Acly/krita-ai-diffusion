@@ -514,6 +514,7 @@ class WorkspaceSelectWidget(QToolButton):
     _icons = {
         Workspace.generation: theme.icon("workspace-generation"),
         Workspace.upscaling: theme.icon("workspace-upscaling"),
+        Workspace.live: theme.icon("workspace-generation"),  # TODO
     }
 
     _value = Workspace.generation
@@ -524,12 +525,13 @@ class WorkspaceSelectWidget(QToolButton):
         menu = QMenu(self)
         menu.addAction(self._create_action("Generate", Workspace.generation))
         menu.addAction(self._create_action("Upscale", Workspace.upscaling))
+        menu.addAction(self._create_action("Live", Workspace.live))
 
         self.setToolButtonStyle(Qt.ToolButtonStyle.ToolButtonIconOnly)
         self.setMenu(menu)
         self.setPopupMode(QToolButton.InstantPopup)
         self.setAutoRaise(True)
-        self.setToolTip("Switch between image generation and upscaling")
+        self.setToolTip("Switch between workspaces: image generation, upscaling, live preview")
         self.setMinimumWidth(int(self.sizeHint().width() * 1.4))
         self.value = Workspace.generation
 
@@ -939,6 +941,111 @@ class UpscaleWidget(QWidget):
             self.strength_slider.setValue(value)
 
 
+class LiveWidget(QWidget):
+    _model: Optional[Model] = None
+
+    def __init__(self):
+        super().__init__()
+        layout = QVBoxLayout(self)
+        layout.setContentsMargins(0, 2, 4, 0)
+        self.setLayout(layout)
+
+        self.workspace_select = WorkspaceSelectWidget(self)
+
+        self.active_button = QPushButton("Run", self)
+        self.active_button.clicked.connect(self.toggle_active)
+
+        self.style_select = StyleSelectWidget(self)
+        self.style_select.changed.connect(self.change_style)
+
+        self.strength_slider = QSlider(Qt.Orientation.Horizontal, self)
+        self.strength_slider.setMinimum(0)
+        self.strength_slider.setMaximum(100)
+        self.strength_slider.setSingleStep(5)
+        self.strength_slider.valueChanged.connect(self.change_strength)
+
+        self.strength_input = QSpinBox(self)
+        self.strength_input.setMinimum(0)
+        self.strength_input.setMaximum(100)
+        self.strength_input.setSingleStep(5)
+        self.strength_input.setPrefix("Strength: ")
+        self.strength_input.setSuffix("%")
+        self.strength_input.valueChanged.connect(self.change_strength)
+
+        self.seed_input = QSpinBox(self)
+        self.seed_input.setMinimum(0)
+        self.seed_input.setMaximum(2**31 - 1)
+        self.seed_input.valueChanged.connect(self.change_seed)
+
+        controls_layout = QHBoxLayout()
+        controls_layout.addWidget(self.workspace_select)
+        controls_layout.addWidget(self.active_button)
+        controls_layout.addWidget(self.style_select)
+        controls_layout.addWidget(self.strength_slider)
+        controls_layout.addWidget(self.strength_input)
+        controls_layout.addWidget(self.seed_input)
+        layout.addLayout(controls_layout)
+
+        self.text_prompt = TextPromptWidget(self)
+        self.text_prompt.line_count = 1
+        self.text_prompt.textChanged.connect(self.change_prompt)
+        layout.addWidget(self.text_prompt)
+
+        self.preview_area = QLabel(self)
+        self.preview_area.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Expanding)
+        layout.addWidget(self.preview_area)
+
+    @property
+    def model(self):
+        assert self._model is not None
+        return self._model
+
+    @model.setter
+    def model(self, model: Model):
+        if self._model:
+            self._model.job_finished.disconnect(self.handle_job_finished)
+        self._model = model
+        self._model.job_finished.connect(self.handle_job_finished)
+
+    def update(self):
+        self.workspace_select.value = self.model.workspace
+        self.active_button.setText("Pause" if self.model.live.is_active else "Run")
+        self.style_select.value = self.model.style
+        self.strength_input.setValue(int(self.model.live.strength * 100))
+        self.strength_slider.setValue(int(self.model.live.strength * 100))
+        self.text_prompt.setPlainText(self.model.prompt)
+
+    def toggle_active(self):
+        self.model.live.is_active = not self.model.live.is_active
+        self.update()
+        if self.model.live.is_active:
+            self.model.generate_live()
+
+    def change_style(self):
+        if self._model is not None:
+            self.model.style = self.style_select.value
+
+    def change_strength(self, value: int):
+        self.model.live.strength = value / 100
+        if self.strength_input.value() != value:
+            self.strength_input.setValue(value)
+        if self.strength_slider.value() != value:
+            self.strength_slider.setValue(value)
+
+    def change_seed(self, value: int):
+        self.model.live.seed = value
+
+    def change_prompt(self):
+        self.model.prompt = self.text_prompt.toPlainText()
+
+    def handle_job_finished(self, job: Job):
+        if job.kind is JobKind.live_preview:
+            if len(job.results) > 0:  # no results if input didn't change!
+                self.preview_area.setPixmap(job.results[0].to_pixmap())
+            if self.model.workspace is Workspace.live and self.model.live.is_active:
+                self.model.generate_live()
+
+
 class WelcomeWidget(QWidget):
     _server: Server
 
@@ -1018,10 +1125,12 @@ class ImageDiffusionWidget(DockWidget):
         self._welcome = WelcomeWidget(self._server)
         self._generation = GenerationWidget()
         self._upscaling = UpscaleWidget()
+        self._live = LiveWidget()
         self._frame = QStackedWidget(self)
         self._frame.addWidget(self._welcome)
         self._frame.addWidget(self._generation)
         self._frame.addWidget(self._upscaling)
+        self._frame.addWidget(self._live)
         self.setWidget(self._frame)
 
         Connection.instance().changed.connect(self.update)
@@ -1052,6 +1161,10 @@ class ImageDiffusionWidget(DockWidget):
             self._upscaling.model = model
             self._upscaling.update()
             self._frame.setCurrentWidget(self._upscaling)
+        elif model.workspace is Workspace.live:
+            self._live.model = model
+            self._live.update()
+            self._frame.setCurrentWidget(self._live)
 
     def update_progress(self):
         model = ensure(Model.active())

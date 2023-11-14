@@ -263,8 +263,11 @@ class Image:
         buffer.close()
         return byte_array.toBase64().data().decode("utf-8")
 
+    def to_pixmap(self):
+        return QPixmap.fromImage(self._qimage)
+
     def to_icon(self):
-        return QIcon(QPixmap.fromImage(self._qimage))
+        return QIcon(self.to_pixmap())
 
     def save(self, filepath: Union[str, Path]):
         success = self._qimage.save(str(filepath))
@@ -325,7 +328,7 @@ class ImageCollection:
     def __len__(self):
         return len(self._items)
 
-    def __getitem__(self, i):
+    def __getitem__(self, i: int):
         return self._items[i]
 
     def __iter__(self):

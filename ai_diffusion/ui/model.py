@@ -12,7 +12,7 @@ from ..image import Image, ImageCollection, Mask, Bounds
 from ..client import ClientMessage, ClientEvent
 from ..pose import Pose
 from ..style import Style, Styles
-from ..workflow import Control, ControlMode, Conditioning
+from ..workflow import Control, ControlMode, Conditioning, LiveParams
 from .connection import Connection, ConnectionState
 import krita
 
@@ -37,6 +37,7 @@ class JobKind(Enum):
     diffusion = 0
     control_layer = 1
     upscaling = 2
+    live_preview = 3
 
 
 class Job:
@@ -80,6 +81,11 @@ class JobQueue:
 
     def add_upscale(self, bounds: Bounds):
         job = Job(None, JobKind.upscaling, f"[Upscale] {bounds.width}x{bounds.height}", bounds)
+        self._entries.append(job)
+        return job
+
+    def add_live(self, prompt: str, bounds: Bounds):
+        job = Job(None, JobKind.live_preview, prompt, bounds)
         self._entries.append(job)
         return job
 
@@ -129,6 +135,7 @@ class JobQueue:
 class Workspace(Enum):
     generation = 0
     upscaling = 1
+    live = 2
 
 
 class Model(QObject):
@@ -151,6 +158,7 @@ class Model(QObject):
     control: list[Control]
     strength = 1.0
     upscale: UpscaleParams
+    live: LiveParams
     progress = 0.0
     jobs: JobQueue
     error = ""
@@ -162,6 +170,7 @@ class Model(QObject):
         self.style = Styles.list().default
         self.control = []
         self.upscale = UpscaleParams(self)
+        self.live = LiveParams()
         self.jobs = JobQueue()
 
     @staticmethod
@@ -259,6 +268,18 @@ class Model(QObject):
         self._doc.resize(params.target_extent)
         self.changed.emit()
 
+    def generate_live(self):
+        image = self._doc.get_image(Bounds(0, 0, *self._doc.extent))
+        job = self.jobs.add_live(self.prompt, Bounds(0, 0, *self._doc.extent))
+        self.task = eventloop.run(_report_errors(self, self._generate_live(job, image, self.style)))
+
+    async def _generate_live(self, job: Job, image: Image, style: Style):
+        client = Connection.instance().client
+        cond = Conditioning(self.prompt, self.negative_prompt)
+        work = workflow.refine(client, style, image, cond, self.live.strength, self.live)
+        job.id = await client.enqueue(work)
+        self.changed.emit()
+
     def _get_current_image(self, bounds: Bounds):
         exclude = [  # exclude control layers from projection
             cast(krita.Node, c.image)
@@ -339,11 +360,11 @@ class Model(QObject):
                 self.jobs.set_results(job, message.images)
             if job.kind is JobKind.diffusion and self._layer is None and job.id:
                 self.show_preview(job.id, 0)
-            if job.kind is JobKind.control_layer:
+            elif job.kind is JobKind.control_layer:
                 job.control.image = self.add_control_layer(job, message.result)  # type: ignore
-                self.jobs.remove(job)
-            if job.kind is JobKind.upscaling:
+            elif job.kind is JobKind.upscaling:
                 self.add_upscale_layer(job)
+            if job.kind is not JobKind.diffusion:
                 self.jobs.remove(job)
             self.job_finished.emit(job)
             self.changed.emit()

@@ -25,8 +25,11 @@ def run(future):
         task = _loop.create_task(future)
         _loop.stop()
 
-    _loop.call_soon(schedule)
-    _loop.run_forever()
+    if not _loop.is_running():
+        _loop.call_soon(schedule)
+        _loop.run_forever()
+    else:
+        task = _loop.create_task(future)
     assert task, "Task was not scheduled"
     return task
 
