@@ -269,7 +269,7 @@ class Model(QObject):
         self.changed.emit()
 
     def generate_live(self):
-        image = self._doc.get_image(Bounds(0, 0, *self._doc.extent))
+        image = self._get_current_image(Bounds(0, 0, *self._doc.extent))
         job = self.jobs.add_live(self.prompt, Bounds(0, 0, *self._doc.extent))
         self.task = eventloop.run(_report_errors(self, self._generate_live(job, image, self.style)))
 
@@ -364,6 +364,8 @@ class Model(QObject):
                 job.control.image = self.add_control_layer(job, message.result)  # type: ignore
             elif job.kind is JobKind.upscaling:
                 self.add_upscale_layer(job)
+            elif job.kind is JobKind.live_preview and len(job.results) > 0:
+                self._show_preview(job, 0, "Live", visible=False)
             if job.kind is not JobKind.diffusion:
                 self.jobs.remove(job)
             self.job_finished.emit(job)
@@ -375,19 +377,22 @@ class Model(QObject):
             job.state = State.cancelled
             self.report_error(f"Server execution error: {message.error}")
 
-    def show_preview(self, job_id: str, index: int):
-        job = self.jobs.find(job_id)
-        assert job is not None, "Cannot show preview, invalid job id"
-        name = f"[Preview] {job.prompt}"
+    def _show_preview(self, job: Job, index=0, name_prefix="Preview", visible=True):
+        name = f"[{name_prefix}] {job.prompt}"
         if self._layer and self._layer.parentNode() is None:
             self._layer = None
         if self._layer is not None:
             self._layer.setName(name)
             self._doc.set_layer_content(self._layer, job.results[index], job.bounds)
         else:
-            self._layer = self._doc.insert_layer(name, job.results[index], job.bounds)
+            self._layer = self._doc.insert_layer(name, job.results[index], job.bounds, visible)
             self._layer.setLocked(True)
         self.changed.emit()
+
+    def show_preview(self, job_id: str, index: int):
+        job = self.jobs.find(job_id)
+        assert job is not None, "Cannot show preview, invalid job id"
+        self._show_preview(job, index, "Preview")
 
     def hide_preview(self):
         if self._layer is not None:

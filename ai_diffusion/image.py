@@ -1,7 +1,7 @@
 from __future__ import annotations
 from math import ceil, sqrt
 from PyQt5.QtGui import QImage, QPixmap, QIcon, QPainter, qRgba, qRed, qGreen, qBlue, qAlpha, qGray
-from PyQt5.QtCore import Qt, QByteArray, QBuffer, QRect
+from PyQt5.QtCore import Qt, QByteArray, QBuffer, QRect, QSize
 from typing import Callable, Iterable, Tuple, NamedTuple, Union, Optional
 from itertools import product
 from pathlib import Path
@@ -29,6 +29,10 @@ class Extent(NamedTuple):
     def is_multiple_of(self, multiple: int):
         return self.width % multiple == 0 and self.height % multiple == 0
 
+    def scale_keep_aspect(self, target: Extent):
+        scale = min(target.width / self.width, target.height / self.height)
+        return self * scale
+
     @property
     def longest_side(self):
         return max(self.width, self.height)
@@ -48,6 +52,10 @@ class Extent(NamedTuple):
     @property
     def pixel_count(self):
         return self.width * self.height
+
+    @staticmethod
+    def from_qsize(qsize: QSize):
+        return Extent(qsize.width(), qsize.height())
 
     @staticmethod
     def largest(a, b):
@@ -204,6 +212,10 @@ class Image:
         quality = Qt.TransformationMode.SmoothTransformation
         scaled = img._qimage.scaled(target.width, target.height, mode, quality)
         return Image(scaled.convertToFormat(QImage.Format_ARGB32))
+
+    @staticmethod
+    def scale_to_fit(img: "Image", target: Extent):
+        return Image.scale(img, img.extent.scale_keep_aspect(target))
 
     @staticmethod
     def crop(img, bounds: Bounds):

@@ -32,6 +32,7 @@ from .. import Control, ControlMode, Server, Style, Styles, Bounds, client
 from . import actions, EventSuppression, SettingsDialog, theme
 from .model import Model, ModelRegistry, Job, JobKind, JobQueue, State, Workspace
 from .connection import Connection, ConnectionState
+from ..image import Extent, Image
 from ..resources import UpscalerName
 from ..settings import ServerMode, settings
 from ..util import ensure
@@ -991,8 +992,15 @@ class LiveWidget(QWidget):
         self.text_prompt.textChanged.connect(self.change_prompt)
         layout.addWidget(self.text_prompt)
 
+        self.error_text = QLabel(self)
+        self.error_text.setStyleSheet("font-weight: bold; color: red;")
+        self.error_text.setWordWrap(True)
+        self.error_text.setVisible(False)
+        layout.addWidget(self.error_text)
+
         self.preview_area = QLabel(self)
         self.preview_area.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Expanding)
+        self.preview_area.setAlignment(Qt.AlignmentFlag.AlignTop | Qt.AlignmentFlag.AlignLeft)
         layout.addWidget(self.preview_area)
 
     @property
@@ -1013,7 +1021,10 @@ class LiveWidget(QWidget):
         self.style_select.value = self.model.style
         self.strength_input.setValue(int(self.model.live.strength * 100))
         self.strength_slider.setValue(int(self.model.live.strength * 100))
-        self.text_prompt.setPlainText(self.model.prompt)
+        if self.text_prompt.toPlainText() != self.model.prompt:
+            self.text_prompt.setPlainText(self.model.prompt)
+        self.error_text.setText(self.model.error)
+        self.error_text.setVisible(self.model.error != "")
 
     def toggle_active(self):
         self.model.live.is_active = not self.model.live.is_active
@@ -1041,7 +1052,10 @@ class LiveWidget(QWidget):
     def handle_job_finished(self, job: Job):
         if job.kind is JobKind.live_preview:
             if len(job.results) > 0:  # no results if input didn't change!
-                self.preview_area.setPixmap(job.results[0].to_pixmap())
+                target = Extent.from_qsize(self.preview_area.size())
+                img = Image.scale_to_fit(job.results[0], target)
+                self.preview_area.setPixmap(img.to_pixmap())
+                self.preview_area.setMinimumSize(256, 256)
             if self.model.workspace is Workspace.live and self.model.live.is_active:
                 self.model.generate_live()
 

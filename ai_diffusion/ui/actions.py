@@ -46,7 +46,9 @@ def set_workspace(workspace):
 def toggle_workspace():
     model = Model.active()
     if model:
-        model.workspace = (
-            Workspace.generation if model.workspace is Workspace.upscaling else Workspace.upscaling
-        )
+        if model.workspace is Workspace.live:
+            model.live.is_active = False
+        l = list(Workspace)
+        next = l[(l.index(model.workspace) + 1) % len(l)]
+        model.workspace = next
         model.changed.emit()
