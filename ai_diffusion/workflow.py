@@ -140,6 +140,7 @@ class LiveParams:
 def _sampler_params(
     style: Style, clip_vision=False, upscale=False, live=LiveParams()
 ) -> dict[str, Any]:
+    config = style.get_sampler_config(upscale, live.is_active)
     sampler_name = {
         "DDIM": "ddim",
         "DPM++ 2M": "dpmpp_2m",
@@ -147,7 +148,7 @@ def _sampler_params(
         "DPM++ 2M SDE": "dpmpp_2m_sde_gpu",
         "DPM++ 2M SDE Karras": "dpmpp_2m_sde_gpu",
         "LCM": "lcm",
-    }[style.sampler]
+    }[config.sampler]
     sampler_scheduler = {
         "DDIM": "ddim_uniform",
         "DPM++ 2M": "normal",
@@ -155,17 +156,12 @@ def _sampler_params(
         "DPM++ 2M SDE": "normal",
         "DPM++ 2M SDE Karras": "karras",
         "LCM": "sgm_uniform",
-    }[style.sampler]
+    }[config.sampler]
     params = dict(
-        sampler=sampler_name,
-        scheduler=sampler_scheduler,
-        steps=style.sampler_steps,
-        cfg=style.cfg_scale,
+        sampler=sampler_name, scheduler=sampler_scheduler, steps=config.steps, cfg=config.cfg
     )
     if clip_vision:
-        params["cfg"] = min(5, style.cfg_scale)
-    if upscale:
-        params["steps"] = style.sampler_steps_upscaling
+        params["cfg"] = min(5, config.cfg)
     if live.is_active:
         params["seed"] = live.seed
     elif settings.fixed_seed:
@@ -176,7 +172,7 @@ def _sampler_params(
     return params
 
 
-def load_model_with_lora(w: ComfyWorkflow, comfy: Client, style: Style):
+def load_model_with_lora(w: ComfyWorkflow, comfy: Client, style: Style, is_live=False):
     checkpoint = style.sd_checkpoint
     if checkpoint not in comfy.checkpoints:
         checkpoint = next(iter(comfy.checkpoints.keys()))
@@ -195,7 +191,7 @@ def load_model_with_lora(w: ComfyWorkflow, comfy: Client, style: Style):
             continue
         model, clip = w.load_lora(model, clip, lora["name"], lora["strength"], lora["strength"])
 
-    if style.sampler == "LCM":
+    if style.get_sampler_config(is_live=is_live).sampler == "LCM":
         sdver = resolve_sd_version(style, comfy)
         if comfy.lcm_model[sdver] is None:
             raise Exception(f"LCM LoRA model not found for {sdver}")
@@ -463,9 +459,10 @@ def refine(
 ):
     assert strength > 0 and strength < 1
     extent, image, batch = prepare_image(image, resolve_sd_version(style, comfy), downscale=False)
+    sampler_params = _sampler_params(style, live=live)
 
     w = ComfyWorkflow()
-    model, clip, vae = load_model_with_lora(w, comfy, style)
+    model, clip, vae = load_model_with_lora(w, comfy, style, is_live=live.is_active)
     in_image = w.load_image(image)
     if extent.is_incompatible:
         in_image = w.scale_image(in_image, extent.expanded)
@@ -473,8 +470,7 @@ def refine(
     if batch > 1 and not live.is_active:
         latent = w.batch_latent(latent, batch)
     model, positive, negative = apply_conditioning(cond, w, comfy, model, clip, style)
-    params = _sampler_params(style, live=live)
-    sampler = w.ksampler(model, positive, negative, latent, denoise=strength, **params)
+    sampler = w.ksampler(model, positive, negative, latent, denoise=strength, **sampler_params)
     out_image = w.vae_decode(vae, sampler)
     if extent.is_incompatible:
         out_image = w.scale_image(out_image, extent.target)

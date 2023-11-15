@@ -1,5 +1,6 @@
 from __future__ import annotations
 from enum import Enum
+from itertools import chain
 from typing import Any, Optional, cast
 from PyQt5.QtWidgets import (
     QVBoxLayout,
@@ -45,6 +46,22 @@ def _add_title(layout: QVBoxLayout, title: str):
     layout.addSpacing(6)
 
 
+class ExpanderButton(QToolButton):
+    def __init__(self, text, parent=None):
+        super().__init__(parent)
+        self.setContentsMargins(0, 8, 0, 2)
+        self.setCheckable(True)
+        self.setIconSize(QSize(8, 8))
+        self.setStyleSheet("QToolButton { border: none; font-weight: bold }")
+        self.setToolButtonStyle(Qt.ToolButtonStyle.ToolButtonTextBesideIcon)
+        self.setText(" " + text)
+        self._toggle(False)
+        self.toggled.connect(self._toggle)
+
+    def _toggle(self, value: bool):
+        self.setArrowType(Qt.ArrowType.DownArrow if value else Qt.ArrowType.RightArrow)
+
+
 class SettingWidget(QWidget):
     value_changed = pyqtSignal()
 
@@ -66,6 +83,22 @@ class SettingWidget(QWidget):
         button.setToolTip(tooltip)
         button.clicked.connect(handler)
         self._layout.addWidget(button)
+
+    @property
+    def visible(self):
+        return self.isVisible()
+
+    @visible.setter
+    def visible(self, v: bool):
+        self.setVisible(v)
+
+    @property
+    def indent(self):
+        return self._layout.contentsMargins().left() / 16
+
+    @indent.setter
+    def indent(self, v: int):
+        self._layout.setContentsMargins(v * 16, 2, 0, 2)
 
     def _notify_value_changed(self):
         self.value_changed.emit()
@@ -612,6 +645,9 @@ class ConnectionSettings(SettingsTab):
 
 
 class StylePresets(SettingsTab):
+    _default_sampler_widgets: list[SettingWidget]
+    _live_sampler_widgets: list[SettingWidget]
+
     def __init__(self, server: Server):
         super().__init__("Style Presets")
         self.server = server
@@ -659,6 +695,7 @@ class StylePresets(SettingsTab):
             self._style_widgets[name] = widget
             self._layout.addWidget(widget)
             widget.value_changed.connect(self.write)
+            return widget
 
         add("name", TextSetting(StyleSettings.name, self))
         self._style_widgets["name"].value_changed.connect(self._update_name)
@@ -678,13 +715,34 @@ class StylePresets(SettingsTab):
         add("style_prompt", LineEditSetting(StyleSettings.style_prompt, self))
         add("negative_prompt", LineEditSetting(StyleSettings.negative_prompt, self))
         add("vae", ComboBoxSetting(StyleSettings.vae, self))
-        add("sampler", ComboBoxSetting(StyleSettings.sampler, self))
-        add("sampler_steps", SliderSetting(StyleSettings.sampler_steps, self, 1, 100))
-        add(
-            "sampler_steps_upscaling",
-            SliderSetting(StyleSettings.sampler_steps_upscaling, self, 1, 100),
-        )
-        add("cfg_scale", SliderSetting(StyleSettings.cfg_scale, self, 1.0, 20.0))
+
+        default_sampler_button = ExpanderButton("Sampler settings (default)", self)
+        default_sampler_button.toggled.connect(self._toggle_default_sampler)
+        self._layout.addWidget(default_sampler_button)
+        self._default_sampler_widgets = [
+            add("sampler", ComboBoxSetting(StyleSettings.sampler, self)),
+            add("sampler_steps", SliderSetting(StyleSettings.sampler_steps, self, 1, 100)),
+            add(
+                "sampler_steps_upscaling",
+                SliderSetting(StyleSettings.sampler_steps_upscaling, self, 1, 100),
+            ),
+            add("cfg_scale", SliderSetting(StyleSettings.cfg_scale, self, 1.0, 20.0)),
+        ]
+        self._toggle_default_sampler(False)
+
+        live_sampler_button = ExpanderButton("Sampler settings (live)", self)
+        live_sampler_button.toggled.connect(self._toggle_live_sampler)
+        self._layout.addWidget(live_sampler_button)
+        self._live_sampler_widgets = [
+            add("live_sampler", ComboBoxSetting(StyleSettings.live_sampler, self)),
+            add("live_sampler_steps", SliderSetting(StyleSettings.live_sampler_steps, self, 1, 50)),
+            add("live_cfg_scale", SliderSetting(StyleSettings.live_cfg_scale, self, 0.1, 14.0)),
+        ]
+        self._toggle_live_sampler(False)
+
+        for widget in chain(self._default_sampler_widgets, self._live_sampler_widgets):
+            widget.indent = 1
+
         self._layout.addStretch()
 
         if settings.server_mode is ServerMode.managed:
@@ -774,6 +832,14 @@ class StylePresets(SettingsTab):
                     " not been installed."
                 )
                 self._checkpoint_warning.setVisible(True)
+
+    def _toggle_default_sampler(self, checked: bool):
+        for widget in self._default_sampler_widgets:
+            widget.visible = checked
+
+    def _toggle_live_sampler(self, checked: bool):
+        for widget in self._live_sampler_widgets:
+            widget.visible = checked
 
     def _read_style(self, style: Style):
         with self._write_guard:
