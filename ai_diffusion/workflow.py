@@ -134,7 +134,7 @@ def prepare_masked(image: Image, mask: Mask, sd_ver: SDVersion, downscale: bool 
 class LiveParams:
     is_active = False
     strength = 0.3
-    seed = -1
+    seed = random.randint(0, 2**31 - 1)
 
 
 def _sampler_params(

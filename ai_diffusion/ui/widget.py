@@ -1,4 +1,5 @@
 from __future__ import annotations
+import random
 from typing import Callable, Iterable, List, Optional
 
 from PyQt5.QtWidgets import (
@@ -954,10 +955,23 @@ class LiveWidget(QWidget):
         self.workspace_select = WorkspaceSelectWidget(self)
 
         self.active_button = QPushButton("Run", self)
+        self.active_button.setToolTip("Start/stop live preview")
         self.active_button.clicked.connect(self.toggle_active)
+
+        self.apply_button = QPushButton("Apply", self)
+        self.apply_button.setEnabled(False)
+        self.apply_button.setToolTip("Copy the current result to the image as a new layer")
+        self.apply_button.clicked.connect(self.apply_result)
 
         self.style_select = StyleSelectWidget(self)
         self.style_select.changed.connect(self.change_style)
+
+        controls_layout = QHBoxLayout()
+        controls_layout.addWidget(self.workspace_select)
+        controls_layout.addWidget(self.active_button)
+        controls_layout.addWidget(self.apply_button)
+        controls_layout.addWidget(self.style_select)
+        layout.addLayout(controls_layout)
 
         self.strength_slider = QSlider(Qt.Orientation.Horizontal, self)
         self.strength_slider.setMinimum(0)
@@ -976,16 +990,25 @@ class LiveWidget(QWidget):
         self.seed_input = QSpinBox(self)
         self.seed_input.setMinimum(0)
         self.seed_input.setMaximum(2**31 - 1)
+        self.seed_input.setPrefix("Seed: ")
+        self.seed_input.setToolTip(
+            "The seed controls the randomness of the output. The same seed value will always"
+            " produce the same result."
+        )
         self.seed_input.valueChanged.connect(self.change_seed)
 
-        controls_layout = QHBoxLayout()
-        controls_layout.addWidget(self.workspace_select)
-        controls_layout.addWidget(self.active_button)
-        controls_layout.addWidget(self.style_select)
-        controls_layout.addWidget(self.strength_slider)
-        controls_layout.addWidget(self.strength_input)
-        controls_layout.addWidget(self.seed_input)
-        layout.addLayout(controls_layout)
+        self.random_seed_button = QPushButton("random", self)
+        self.random_seed_button.setToolTip(
+            "Generate a random seed value to get a variation of the image."
+        )
+        self.random_seed_button.clicked.connect(self.randomize_seed)
+
+        params_layout = QHBoxLayout()
+        params_layout.addWidget(self.strength_slider)
+        params_layout.addWidget(self.strength_input)
+        params_layout.addWidget(self.seed_input)
+        params_layout.addWidget(self.random_seed_button)
+        layout.addLayout(params_layout)
 
         self.text_prompt = TextPromptWidget(self)
         self.text_prompt.line_count = 1
@@ -1018,9 +1041,11 @@ class LiveWidget(QWidget):
     def update(self):
         self.workspace_select.value = self.model.workspace
         self.active_button.setText("Pause" if self.model.live.is_active else "Run")
+        self.apply_button.setEnabled(self.model.has_live_result)
         self.style_select.value = self.model.style
         self.strength_input.setValue(int(self.model.live.strength * 100))
         self.strength_slider.setValue(int(self.model.live.strength * 100))
+        self.seed_input.setValue(self.model.live.seed)
         if self.text_prompt.toPlainText() != self.model.prompt:
             self.text_prompt.setPlainText(self.model.prompt)
         self.error_text.setText(self.model.error)
@@ -1031,6 +1056,10 @@ class LiveWidget(QWidget):
         self.update()
         if self.model.live.is_active:
             self.model.generate_live()
+
+    def apply_result(self):
+        if self.model.has_live_result:
+            self.model.add_live_layer()
 
     def change_style(self):
         if self._model is not None:
@@ -1045,6 +1074,9 @@ class LiveWidget(QWidget):
 
     def change_seed(self, value: int):
         self.model.live.seed = value
+
+    def randomize_seed(self):
+        self.seed_input.setValue(random.randint(0, 2**31 - 1))
 
     def change_prompt(self):
         self.model.prompt = self.text_prompt.toPlainText()
@@ -1181,8 +1213,8 @@ class ImageDiffusionWidget(DockWidget):
             self._frame.setCurrentWidget(self._live)
 
     def update_progress(self):
-        model = ensure(Model.active())
-        if model.workspace is Workspace.generation:
-            self._generation.update_progress()
-        elif model.workspace is Workspace.upscaling:
-            self._upscaling.update_progress()
+        if model := Model.active():
+            if model.workspace is Workspace.generation:
+                self._generation.update_progress()
+            elif model.workspace is Workspace.upscaling:
+                self._upscaling.update_progress()

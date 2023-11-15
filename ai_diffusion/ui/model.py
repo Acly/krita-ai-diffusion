@@ -146,6 +146,7 @@ class Model(QObject):
 
     _doc: Document
     _layer: Optional[krita.Node] = None
+    _live_result: Optional[Image] = None
 
     changed = pyqtSignal()
     job_finished = pyqtSignal(Job)
@@ -365,7 +366,7 @@ class Model(QObject):
             elif job.kind is JobKind.upscaling:
                 self.add_upscale_layer(job)
             elif job.kind is JobKind.live_preview and len(job.results) > 0:
-                self._show_preview(job, 0, "Live", visible=False)
+                self._live_result = job.results[0]
             if job.kind is not JobKind.diffusion:
                 self.jobs.remove(job)
             self.job_finished.emit(job)
@@ -377,7 +378,9 @@ class Model(QObject):
             job.state = State.cancelled
             self.report_error(f"Server execution error: {message.error}")
 
-    def _show_preview(self, job: Job, index=0, name_prefix="Preview", visible=True):
+    def show_preview(self, job_id: str, index: int, name_prefix="Preview"):
+        job = self.jobs.find(job_id)
+        assert job is not None, "Cannot show preview, invalid job id"
         name = f"[{name_prefix}] {job.prompt}"
         if self._layer and self._layer.parentNode() is None:
             self._layer = None
@@ -385,14 +388,9 @@ class Model(QObject):
             self._layer.setName(name)
             self._doc.set_layer_content(self._layer, job.results[index], job.bounds)
         else:
-            self._layer = self._doc.insert_layer(name, job.results[index], job.bounds, visible)
+            self._layer = self._doc.insert_layer(name, job.results[index], job.bounds)
             self._layer.setLocked(True)
         self.changed.emit()
-
-    def show_preview(self, job_id: str, index: int):
-        job = self.jobs.find(job_id)
-        assert job is not None, "Cannot show preview, invalid job id"
-        self._show_preview(job, index, "Preview")
 
     def hide_preview(self):
         if self._layer is not None:
@@ -425,6 +423,12 @@ class Model(QObject):
             self._layer = None
         self._doc.insert_layer(job.prompt, job.results[0], job.bounds)
 
+    def add_live_layer(self):
+        assert self._live_result is not None
+        self._doc.insert_layer(
+            f"[Live] {self.prompt}", self._live_result, Bounds(0, 0, *self._doc.extent)
+        )
+
     @property
     def history(self):
         return (job for job in self.jobs if job.state is State.finished)
@@ -432,6 +436,10 @@ class Model(QObject):
     @property
     def can_apply_result(self):
         return self._layer is not None and self._layer.visible()
+
+    @property
+    def has_live_result(self):
+        return self._live_result is not None
 
     @property
     def document(self):

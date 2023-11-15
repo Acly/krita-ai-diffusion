@@ -98,17 +98,12 @@ class Document:
         assert data is not None and data.size() >= bounds.extent.pixel_count * 4
         return Image(QImage(data, *bounds.extent, QImage.Format.Format_ARGB32))
 
-    def insert_layer(
-        self, name: str, img: Image, bounds: Bounds, visible=True, below: krita.Node | None = None
-    ):
+    def insert_layer(self, name: str, img: Image, bounds: Bounds, below: krita.Node | None = None):
         layer = self._doc.createNode(name, "paintlayer")
         above = _find_layer_above(self._doc, below)
         self._doc.rootNode().addChildNode(layer, above)
         layer.setPixelData(img.data, *bounds)
-        if visible:
-            self._doc.refreshProjection()
-        else:
-            layer.setVisible(False)
+        self._doc.refreshProjection()
         return layer
 
     def insert_vector_layer(self, name: str, svg: str, below: krita.Node | None = None):
