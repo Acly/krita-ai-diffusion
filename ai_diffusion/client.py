@@ -132,6 +132,7 @@ class Client:
     @staticmethod
     async def connect(url=default_url):
         client = Client(parse_url(url))
+        log.info(f"Connecting to {client.url}")
 
         # Retrieve system info
         client.device_info = DeviceInfo.parse(await client._get("system_stats"))
@@ -366,7 +367,7 @@ class Client:
         return False
 
     def _check_workload(self, sdver: SDVersion) -> list[MissingResource]:
-        missing = []
+        missing: list[MissingResource] = []
         if not self.clip_vision_model:
             missing.append(MissingResource(ResourceKind.clip_vision))
         if not self.default_upscaler:
@@ -380,6 +381,10 @@ class Client:
                 missing.append(MissingResource(ResourceKind.controlnet, ["ControlNet inpaint"]))
             if not self.control_model[ControlMode.blur][SDVersion.sd15]:
                 missing.append(MissingResource(ResourceKind.controlnet, ["ControlNet tile"]))
+        if len(missing) == 0:
+            log.info(f"{sdver.value}: supported")
+        else:
+            log.info(f"{sdver.value}: missing resources {', '.join(m.kind.value for m in missing)}")
         return missing
 
 
