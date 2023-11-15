@@ -272,6 +272,7 @@ class Model(QObject):
     def generate_live(self):
         image = self._get_current_image(Bounds(0, 0, *self._doc.extent))
         job = self.jobs.add_live(self.prompt, Bounds(0, 0, *self._doc.extent))
+        self.clear_error()
         self.task = eventloop.run(_report_errors(self, self._generate_live(job, image, self.style)))
 
     async def _generate_live(self, job: Job, image: Image, style: Style):
@@ -338,6 +339,7 @@ class Model(QObject):
 
     def report_error(self, message: str):
         self.error = message
+        self.live.is_active = False
         self.changed.emit()
 
     def clear_error(self):

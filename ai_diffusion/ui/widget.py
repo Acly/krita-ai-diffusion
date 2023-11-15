@@ -516,7 +516,7 @@ class WorkspaceSelectWidget(QToolButton):
     _icons = {
         Workspace.generation: theme.icon("workspace-generation"),
         Workspace.upscaling: theme.icon("workspace-upscaling"),
-        Workspace.live: theme.icon("workspace-generation"),  # TODO
+        Workspace.live: theme.icon("workspace-live"),
     }
 
     _value = Workspace.generation
@@ -599,13 +599,13 @@ class GenerationWidget(QWidget):
         layout.addWidget(self.control_list)
 
         self.strength_slider = QSlider(Qt.Orientation.Horizontal, self)
-        self.strength_slider.setMinimum(0)
+        self.strength_slider.setMinimum(1)
         self.strength_slider.setMaximum(100)
         self.strength_slider.setSingleStep(5)
         self.strength_slider.valueChanged.connect(self.change_strength)
 
         self.strength_input = QSpinBox(self)
-        self.strength_input.setMinimum(0)
+        self.strength_input.setMinimum(1)
         self.strength_input.setMaximum(100)
         self.strength_input.setSingleStep(5)
         self.strength_input.setPrefix("Strength: ")
@@ -944,6 +944,9 @@ class UpscaleWidget(QWidget):
 
 
 class LiveWidget(QWidget):
+    _play_icon = theme.icon("play")
+    _pause_icon = theme.icon("pause")
+
     _model: Optional[Model] = None
 
     def __init__(self):
@@ -954,11 +957,17 @@ class LiveWidget(QWidget):
 
         self.workspace_select = WorkspaceSelectWidget(self)
 
-        self.active_button = QPushButton("Run", self)
+        self.active_button = QToolButton(self)
+        self.active_button.setToolButtonStyle(Qt.ToolButtonStyle.ToolButtonIconOnly)
+        self.active_button.setIcon(self._play_icon)
+        self.active_button.setAutoRaise(True)
         self.active_button.setToolTip("Start/stop live preview")
         self.active_button.clicked.connect(self.toggle_active)
 
-        self.apply_button = QPushButton("Apply", self)
+        self.apply_button = QToolButton(self)
+        self.apply_button.setToolButtonStyle(Qt.ToolButtonStyle.ToolButtonIconOnly)
+        self.apply_button.setIcon(theme.icon("copy-image"))
+        self.apply_button.setAutoRaise(True)
         self.apply_button.setEnabled(False)
         self.apply_button.setToolTip("Copy the current result to the image as a new layer")
         self.apply_button.clicked.connect(self.apply_result)
@@ -974,14 +983,14 @@ class LiveWidget(QWidget):
         layout.addLayout(controls_layout)
 
         self.strength_slider = QSlider(Qt.Orientation.Horizontal, self)
-        self.strength_slider.setMinimum(0)
+        self.strength_slider.setMinimum(1)
         self.strength_slider.setMaximum(100)
         self.strength_slider.setSingleStep(5)
         self.strength_slider.valueChanged.connect(self.change_strength)
 
         self.strength_input = QSpinBox(self)
-        self.strength_input.setMinimum(0)
-        self.strength_input.setMaximum(100)
+        self.strength_input.setMinimum(1)
+        self.strength_input.setMaximum(99)
         self.strength_input.setSingleStep(5)
         self.strength_input.setPrefix("Strength: ")
         self.strength_input.setSuffix("%")
@@ -992,12 +1001,15 @@ class LiveWidget(QWidget):
         self.seed_input.setMaximum(2**31 - 1)
         self.seed_input.setPrefix("Seed: ")
         self.seed_input.setToolTip(
-            "The seed controls the randomness of the output. The same seed value will always"
+            "The seed controls the random part of the output. The same seed value will always"
             " produce the same result."
         )
         self.seed_input.valueChanged.connect(self.change_seed)
 
-        self.random_seed_button = QPushButton("random", self)
+        self.random_seed_button = QToolButton(self)
+        self.random_seed_button.setToolButtonStyle(Qt.ToolButtonStyle.ToolButtonIconOnly)
+        self.random_seed_button.setIcon(theme.icon("random"))
+        self.random_seed_button.setAutoRaise(True)
         self.random_seed_button.setToolTip(
             "Generate a random seed value to get a variation of the image."
         )
@@ -1040,7 +1052,9 @@ class LiveWidget(QWidget):
 
     def update(self):
         self.workspace_select.value = self.model.workspace
-        self.active_button.setText("Pause" if self.model.live.is_active else "Run")
+        self.active_button.setIcon(
+            self._pause_icon if self.model.live.is_active else self._play_icon
+        )
         self.apply_button.setEnabled(self.model.has_live_result)
         self.style_select.value = self.model.style
         self.strength_input.setValue(int(self.model.live.strength * 100))
