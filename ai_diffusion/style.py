@@ -118,7 +118,7 @@ class StyleSettings:
 
     cfg_scale = Setting(
         "Guidance Strength (CFG Scale)",
-        7,
+        7.0,
         "Value which indicates how closely image generation follows the text prompt",
     )
 
@@ -136,7 +136,7 @@ class Style:
     sampler: str = StyleSettings.sampler.default
     sampler_steps: int = StyleSettings.sampler_steps.default
     sampler_steps_upscaling: int = StyleSettings.sampler_steps_upscaling.default
-    cfg_scale: int = StyleSettings.cfg_scale.default
+    cfg_scale: float = StyleSettings.cfg_scale.default
 
     def __init__(self, filepath: Path):
         self.filepath = filepath

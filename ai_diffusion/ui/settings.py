@@ -1,6 +1,5 @@
 from __future__ import annotations
 from enum import Enum
-from pathlib import Path
 from typing import Any, Optional, cast
 from PyQt5.QtWidgets import (
     QVBoxLayout,
@@ -95,9 +94,19 @@ class SpinBoxSetting(SettingWidget):
 
 
 class SliderSetting(SettingWidget):
-    def __init__(self, setting: Setting, parent=None, minimum=0, maximum=100, format="{}"):
+    _is_float = False
+
+    def __init__(
+        self,
+        setting: Setting,
+        parent=None,
+        minimum: int | float = 0,
+        maximum: int | float = 100,
+        format="{}",
+    ):
         super().__init__(setting, parent)
         self._format_string = format
+        self._is_float = isinstance(setting.default, float)
 
         slider_widget = QWidget(self)
         slider_layout = QHBoxLayout()
@@ -105,8 +114,8 @@ class SliderSetting(SettingWidget):
         self._slider = QSlider(Qt.Orientation.Horizontal, self)
         self._slider.setMinimumWidth(200)
         self._slider.setMaximumWidth(300)
-        self._slider.setMinimum(minimum)
-        self._slider.setMaximum(maximum)
+        self._slider.setMinimum(round(minimum * self.multiplier))
+        self._slider.setMaximum(round(maximum * self.multiplier))
         self._slider.setSingleStep(1)
         self._slider.valueChanged.connect(self._change_value)
         self._label = QLabel(str(self._slider.value()), self)
@@ -116,16 +125,22 @@ class SliderSetting(SettingWidget):
         self._layout.addWidget(slider_widget, alignment=Qt.AlignmentFlag.AlignRight)
 
     def _change_value(self, value: int):
-        self._label.setText(self._format_string.format(value))
+        self._label.setText(self._format_string.format(self.value))
         self.value_changed.emit()
 
     @property
+    def multiplier(self):
+        return 1 if not self._is_float else 10
+
+    @property
     def value(self):
-        return self._slider.value()
+        x = self._slider.value()
+        return x if not self._is_float else x / self.multiplier
 
     @value.setter
-    def value(self, v):
-        self._slider.setValue(v)
+    def value(self, v: int | float):
+        x = int(v) if not self._is_float else round(v * self.multiplier)
+        self._slider.setValue(x)
 
 
 class ComboBoxSetting(SettingWidget):
@@ -669,7 +684,7 @@ class StylePresets(SettingsTab):
             "sampler_steps_upscaling",
             SliderSetting(StyleSettings.sampler_steps_upscaling, self, 1, 100),
         )
-        add("cfg_scale", SliderSetting(StyleSettings.cfg_scale, self, 1, 20))
+        add("cfg_scale", SliderSetting(StyleSettings.cfg_scale, self, 1.0, 20.0))
         self._layout.addStretch()
 
         if settings.server_mode is ServerMode.managed:
@@ -906,7 +921,7 @@ class PerformanceSettings(SettingsTab):
 
     def _write(self):
         settings.history_size = self._history_size.value()
-        settings.batch_size = self._batch_size.value
+        settings.batch_size = int(self._batch_size.value)
         settings.diffusion_tile_size = self._diffusion_tile_size.value
         settings.performance_preset = list(PerformancePreset)[
             self._performance_preset.currentIndex()
