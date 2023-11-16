@@ -468,7 +468,9 @@ class Server:
 
     @property
     def upgrade_required(self):
-        return self.version is None or self.version != resources.version
+        return self.state not in [ServerState.not_installed, ServerState.missing_resources] and (
+            self.version is None or self.version != resources.version
+        )
 
 
 def _find_component(files: list[str], search_paths: list[Path]):

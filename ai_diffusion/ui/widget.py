@@ -1185,9 +1185,13 @@ class WelcomeWidget(QWidget):
         if (
             connection.state is ConnectionState.disconnected
             and settings.server_mode is ServerMode.managed
-            and self._server.upgrade_required
         ):
-            self._connect_error.setText("Server version is outdated. Click below to upgrade.")
+            if self._server.upgrade_required:
+                self._connect_error.setText("Server version is outdated. Click below to upgrade.")
+            else:
+                self._connect_error.setText(
+                    "Server is not installed or not running. Click below to start."
+                )
             self._connect_error.setVisible(True)
         if connection.state is ConnectionState.connecting:
             self._connect_status.setText(f"Connecting to server...")

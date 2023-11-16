@@ -7,7 +7,7 @@ from enum import Enum, Flag
 from typing import Deque, Optional, cast
 from PyQt5.QtCore import Qt, QObject, pyqtSignal
 
-from .. import eventloop, Document, workflow, NetworkError, settings, util
+from .. import eventloop, Document, workflow, NetworkError, client, settings, util
 from ..image import Image, ImageCollection, Mask, Bounds
 from ..client import ClientMessage, ClientEvent
 from ..pose import Pose
@@ -168,7 +168,10 @@ class Model(QObject):
     def __init__(self, document: Document):
         super().__init__()
         self._doc = document
-        self.style = Styles.list().default
+        styles = client.filter_supported_styles(
+            Styles.list(), Connection.instance().client_if_connected
+        )
+        self.style = styles[0] if len(styles) > 0 else Styles.list().default
         self.control = []
         self.upscale = UpscaleParams(self)
         self.live = LiveParams()
