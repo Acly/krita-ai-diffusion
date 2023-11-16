@@ -10,7 +10,7 @@ from . import SDVersion
 version = "1.7.0"
 
 comfy_url = "https://github.com/comfyanonymous/ComfyUI"
-comfy_version = "ec120001363271ca039c8e07dabd8837df6498cd"
+comfy_version = "7114cfec0eefe713340257c85a2b342e98fdcfb2"
 
 
 class CustomNode(NamedTuple):
@@ -64,6 +64,7 @@ class ResourceKind(Enum):
     controlnet = "ControlNet model"
     clip_vision = "CLIP Vision model"
     ip_adapter = "IP-Adapter model"
+    lcm_lora = "LCM LoRA model"
     upscaler = "Upscale model"
     node = "custom node"
 
@@ -125,6 +126,22 @@ required_models = [
         Path("custom_nodes/ComfyUI_IPAdapter_plus/models"),
         "ip-adapter_sdxl_vit-h.safetensors",
         "https://huggingface.co/h94/IP-Adapter/resolve/main/sdxl_models/ip-adapter_sdxl_vit-h.safetensors",
+    ),
+    ModelResource(
+        "LCM-LoRA (SD1.5)",
+        ResourceKind.lcm_lora,
+        SDVersion.sd15,
+        Path("models/loras"),
+        "lcm-lora-sdv1-5.safetensors",
+        "https://huggingface.co/latent-consistency/lcm-lora-sdv1-5/resolve/main/pytorch_lora_weights.safetensors?download=true",
+    ),
+    ModelResource(
+        "LCM-LoRA (SDXL)",
+        ResourceKind.lcm_lora,
+        SDVersion.sdxl,
+        Path("models/loras"),
+        "lcm-lora-sdxl.safetensors",
+        "https://huggingface.co/latent-consistency/lcm-lora-sdxl/resolve/main/pytorch_lora_weights.safetensors?download=true",
     ),
 ]
 

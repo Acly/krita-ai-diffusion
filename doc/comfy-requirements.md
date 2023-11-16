@@ -22,9 +22,11 @@ Download models to the paths indicated below. If you are using `extra_model_path
   * [ControlNet inpaint](https://huggingface.co/comfyanonymous/ControlNet-v1-1_fp16_safetensors/resolve/main/control_v11p_sd15_inpaint_fp16.safetensors) to `models/controlnet`
   * [ControlNet tile](https://huggingface.co/comfyanonymous/ControlNet-v1-1_fp16_safetensors/resolve/main/control_lora_rank128_v11f1e_sd15_tile_fp16.safetensors) to `models/controlnet`
   * [IP-Adapter (SD1.5)](https://huggingface.co/h94/IP-Adapter/resolve/main/models/ip-adapter_sd15.safetensors) to `custom_nodes/ComfyUI_IPAdapter_plus/models`
+  * [LCM-LoRA (SD1.5)](https://huggingface.co/latent-consistency/lcm-lora-sdv1-5/resolve/main/pytorch_lora_weights.safetensors?download=true) to `models/loras/lcm-lora-sdv1-5.safetensors` _rename!_
 
 ### SD XL
   * [IP-Adapter (SDXL)](https://huggingface.co/h94/IP-Adapter/resolve/main/sdxl_models/ip-adapter_sdxl_vit-h.safetensors) to `custom_nodes/ComfyUI_IPAdapter_plus/models`
+  * [LCM-LoRA (SDXL)](https://huggingface.co/latent-consistency/lcm-lora-sdxl/resolve/main/pytorch_lora_weights.safetensors?download=true) to `models/loras/lcm-lora-sdxl.safetensors` _rename!_
 
 ## Checkpoints
 The following checkpoints are used by the default styles:
