@@ -126,6 +126,7 @@ class Client:
     clip_vision_model: str
     ip_adapter_model: dict[SDVersion, str | None]
     ip_adapter_has_weight_type = False
+    lcm_model: dict[SDVersion, str | None]
     supported_sd_versions: list[SDVersion]
     device_info: DeviceInfo
 
@@ -174,6 +175,12 @@ class Client:
         client.default_upscaler = ensure(
             _find_upscaler(client.upscalers, "4x_NMKD-Superscale-SP_178000_G.pth")
         )
+
+        # Retrieve LCM LoRA models
+        client.lcm_model = {
+            ver: _find_lcm(nodes["LoraLoader"]["input"]["required"]["lora_name"][0], ver)
+            for ver in [SDVersion.sd15, SDVersion.sdxl]
+        }
 
         # Check supported SD versions and make sure there is at least one
         missing = {ver: client._check_workload(ver) for ver in [SDVersion.sd15, SDVersion.sdxl]}
@@ -456,6 +463,15 @@ def _find_upscaler(model_list: Sequence[str], model_name: str):
         return model_name
     log.warning(f"Could not find default upscaler {model_name}, using {model_list[0]} instead")
     return model_list[0]
+
+
+def _find_lcm(model_list: Sequence[str], sdver: SDVersion):
+    verstr = ["sd15", "sdv1-5"] if sdver is SDVersion.sd15 else ["sdxl"]
+    base = ["lcm_lora", "lcm-lora"]
+    model = next(
+        (m for m in model_list if any(x in m for x in verstr) and any(x in m for x in base)), None
+    )
+    return model
 
 
 def _ensure_supported_style(client: Client):

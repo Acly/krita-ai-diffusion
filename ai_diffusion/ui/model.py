@@ -7,12 +7,12 @@ from enum import Enum, Flag
 from typing import Deque, Optional, cast
 from PyQt5.QtCore import Qt, QObject, pyqtSignal
 
-from .. import eventloop, Document, workflow, NetworkError, settings, util
+from .. import eventloop, Document, workflow, NetworkError, client, settings, util
 from ..image import Image, ImageCollection, Mask, Bounds
 from ..client import ClientMessage, ClientEvent
 from ..pose import Pose
 from ..style import Style, Styles
-from ..workflow import Control, ControlMode, Conditioning
+from ..workflow import Control, ControlMode, Conditioning, LiveParams
 from .connection import Connection, ConnectionState
 import krita
 
@@ -37,6 +37,7 @@ class JobKind(Enum):
     diffusion = 0
     control_layer = 1
     upscaling = 2
+    live_preview = 3
 
 
 class Job:
@@ -80,6 +81,11 @@ class JobQueue:
 
     def add_upscale(self, bounds: Bounds):
         job = Job(None, JobKind.upscaling, f"[Upscale] {bounds.width}x{bounds.height}", bounds)
+        self._entries.append(job)
+        return job
+
+    def add_live(self, prompt: str, bounds: Bounds):
+        job = Job(None, JobKind.live_preview, prompt, bounds)
         self._entries.append(job)
         return job
 
@@ -129,6 +135,7 @@ class JobQueue:
 class Workspace(Enum):
     generation = 0
     upscaling = 1
+    live = 2
 
 
 class Model(QObject):
@@ -139,6 +146,7 @@ class Model(QObject):
 
     _doc: Document
     _layer: Optional[krita.Node] = None
+    _live_result: Optional[Image] = None
 
     changed = pyqtSignal()
     job_finished = pyqtSignal(Job)
@@ -151,6 +159,7 @@ class Model(QObject):
     control: list[Control]
     strength = 1.0
     upscale: UpscaleParams
+    live: LiveParams
     progress = 0.0
     jobs: JobQueue
     error = ""
@@ -159,9 +168,13 @@ class Model(QObject):
     def __init__(self, document: Document):
         super().__init__()
         self._doc = document
-        self.style = Styles.list().default
+        styles = client.filter_supported_styles(
+            Styles.list(), Connection.instance().client_if_connected
+        )
+        self.style = styles[0] if len(styles) > 0 else Styles.list().default
         self.control = []
         self.upscale = UpscaleParams(self)
+        self.live = LiveParams()
         self.jobs = JobQueue()
 
     @staticmethod
@@ -259,6 +272,28 @@ class Model(QObject):
         self._doc.resize(params.target_extent)
         self.changed.emit()
 
+    def generate_live(self):
+        bounds = Bounds(0, 0, *self._doc.extent)
+        image = None
+        if self.live.strength < 1:
+            image = self._get_current_image(bounds)
+        control = [self._get_control_image(c, bounds) for c in self.control]
+        cond = Conditioning(self.prompt, self.negative_prompt, control)
+        job = self.jobs.add_live(self.prompt, bounds)
+        self.clear_error()
+        self.task = eventloop.run(
+            _report_errors(self, self._generate_live(job, image, self.style, cond))
+        )
+
+    async def _generate_live(self, job: Job, image: Image | None, style: Style, cond: Conditioning):
+        client = Connection.instance().client
+        if image:
+            work = workflow.refine(client, style, image, cond, self.live.strength, self.live)
+        else:
+            work = workflow.generate(client, style, self._doc.extent, cond, self.live)
+        job.id = await client.enqueue(work)
+        self.changed.emit()
+
     def _get_current_image(self, bounds: Bounds):
         exclude = [  # exclude control layers from projection
             cast(krita.Node, c.image)
@@ -270,9 +305,10 @@ class Model(QObject):
         return self._doc.get_image(bounds, exclude_layers=exclude)
 
     def _get_control_image(self, control: Control, bounds: Optional[Bounds]):
-        if control.mode is ControlMode.image:
+        layer = cast(krita.Node, control.image)
+        if control.mode is ControlMode.image and not layer.bounds().isEmpty():
             bounds = None  # ignore mask bounds, use layer bounds
-        image = self._doc.get_layer_image(control.image, bounds)  # type: ignore
+        image = self._doc.get_layer_image(layer, bounds)
         if control.mode.is_lines:
             image.make_opaque(background=Qt.GlobalColor.white)
         return Control(control.mode, image, control.strength)
@@ -316,6 +352,7 @@ class Model(QObject):
 
     def report_error(self, message: str):
         self.error = message
+        self.live.is_active = False
         self.changed.emit()
 
     def clear_error(self):
@@ -339,11 +376,13 @@ class Model(QObject):
                 self.jobs.set_results(job, message.images)
             if job.kind is JobKind.diffusion and self._layer is None and job.id:
                 self.show_preview(job.id, 0)
-            if job.kind is JobKind.control_layer:
+            elif job.kind is JobKind.control_layer:
                 job.control.image = self.add_control_layer(job, message.result)  # type: ignore
-                self.jobs.remove(job)
-            if job.kind is JobKind.upscaling:
+            elif job.kind is JobKind.upscaling:
                 self.add_upscale_layer(job)
+            elif job.kind is JobKind.live_preview and len(job.results) > 0:
+                self._live_result = job.results[0]
+            if job.kind is not JobKind.diffusion:
                 self.jobs.remove(job)
             self.job_finished.emit(job)
             self.changed.emit()
@@ -354,10 +393,10 @@ class Model(QObject):
             job.state = State.cancelled
             self.report_error(f"Server execution error: {message.error}")
 
-    def show_preview(self, job_id: str, index: int):
+    def show_preview(self, job_id: str, index: int, name_prefix="Preview"):
         job = self.jobs.find(job_id)
         assert job is not None, "Cannot show preview, invalid job id"
-        name = f"[Preview] {job.prompt}"
+        name = f"[{name_prefix}] {job.prompt}"
         if self._layer and self._layer.parentNode() is None:
             self._layer = None
         if self._layer is not None:
@@ -399,6 +438,12 @@ class Model(QObject):
             self._layer = None
         self._doc.insert_layer(job.prompt, job.results[0], job.bounds)
 
+    def add_live_layer(self):
+        assert self._live_result is not None
+        self._doc.insert_layer(
+            f"[Live] {self.prompt}", self._live_result, Bounds(0, 0, *self._doc.extent)
+        )
+
     @property
     def history(self):
         return (job for job in self.jobs if job.state is State.finished)
@@ -406,6 +451,10 @@ class Model(QObject):
     @property
     def can_apply_result(self):
         return self._layer is not None and self._layer.visible()
+
+    @property
+    def has_live_result(self):
+        return self._live_result is not None
 
     @property
     def document(self):

@@ -1,7 +1,7 @@
 from __future__ import annotations
 from math import ceil, sqrt
 from PyQt5.QtGui import QImage, QPixmap, QIcon, QPainter, qRgba, qRed, qGreen, qBlue, qAlpha, qGray
-from PyQt5.QtCore import Qt, QByteArray, QBuffer, QRect
+from PyQt5.QtCore import Qt, QByteArray, QBuffer, QRect, QSize
 from typing import Callable, Iterable, Tuple, NamedTuple, Union, Optional
 from itertools import product
 from pathlib import Path
@@ -29,6 +29,10 @@ class Extent(NamedTuple):
     def is_multiple_of(self, multiple: int):
         return self.width % multiple == 0 and self.height % multiple == 0
 
+    def scale_keep_aspect(self, target: Extent):
+        scale = min(target.width / self.width, target.height / self.height)
+        return self * scale
+
     @property
     def longest_side(self):
         return max(self.width, self.height)
@@ -48,6 +52,10 @@ class Extent(NamedTuple):
     @property
     def pixel_count(self):
         return self.width * self.height
+
+    @staticmethod
+    def from_qsize(qsize: QSize):
+        return Extent(qsize.width(), qsize.height())
 
     @staticmethod
     def largest(a, b):
@@ -206,6 +214,10 @@ class Image:
         return Image(scaled.convertToFormat(QImage.Format_ARGB32))
 
     @staticmethod
+    def scale_to_fit(img: "Image", target: Extent):
+        return Image.scale(img, img.extent.scale_keep_aspect(target))
+
+    @staticmethod
     def crop(img, bounds: Bounds):
         return Image(img._qimage.copy(*bounds))
 
@@ -256,15 +268,22 @@ class Image:
         return array.astype(np.float32) / 255
 
     def to_base64(self):
+        # Low compression rate, fast but large files. Good for local use, but maybe not optimal
+        # for remote server where images are transferred via internet.
+        # Conversion to PNG still takes time for large images and blocks the UI, might be worth to thread.
+        quality = 85
         byte_array = QByteArray()
         buffer = QBuffer(byte_array)
         buffer.open(QBuffer.OpenModeFlag.WriteOnly)
-        self._qimage.save(buffer, "PNG")
+        self._qimage.save(buffer, "PNG", quality)
         buffer.close()
         return byte_array.toBase64().data().decode("utf-8")
 
+    def to_pixmap(self):
+        return QPixmap.fromImage(self._qimage)
+
     def to_icon(self):
-        return QIcon(QPixmap.fromImage(self._qimage))
+        return QIcon(self.to_pixmap())
 
     def save(self, filepath: Union[str, Path]):
         success = self._qimage.save(str(filepath))
@@ -325,7 +344,7 @@ class ImageCollection:
     def __len__(self):
         return len(self._items)
 
-    def __getitem__(self, i):
+    def __getitem__(self, i: int):
         return self._items[i]
 
     def __iter__(self):

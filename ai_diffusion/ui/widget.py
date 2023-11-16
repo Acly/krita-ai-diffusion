@@ -1,4 +1,6 @@
 from __future__ import annotations
+from copy import copy
+import random
 from typing import Callable, Iterable, List, Optional
 
 from PyQt5.QtWidgets import (
@@ -32,6 +34,7 @@ from .. import Control, ControlMode, Server, Style, Styles, Bounds, client
 from . import actions, EventSuppression, SettingsDialog, theme
 from .model import Model, ModelRegistry, Job, JobKind, JobQueue, State, Workspace
 from .connection import Connection, ConnectionState
+from ..image import Extent, Image
 from ..resources import UpscalerName
 from ..settings import ServerMode, settings
 from ..util import ensure
@@ -202,11 +205,13 @@ class ControlWidget(QWidget):
 
     @value.setter
     def value(self, control: Control):
-        self._control = control
+        changed = self._control != control
+        self._control = copy(control)
         with self._suppress_changes:
-            self.update_and_select_layer(control.image.uniqueId())  # type: ignore (CTRLLAYER)
-            self.mode_select.setCurrentIndex(self.mode_select.findData(control.mode.value))
-            self.strength_spin.setValue(int(control.strength * 100))
+            if changed:
+                self.update_and_select_layer(control.image.uniqueId())  # type: ignore (CTRLLAYER)
+                self.mode_select.setCurrentIndex(self.mode_select.findData(control.mode.value))
+                self.strength_spin.setValue(int(control.strength * 100))
             if self._check_is_installed():
                 active_job = self._model.jobs.find(control)
                 has_active_job = active_job and active_job.state is not State.finished
@@ -285,11 +290,13 @@ class ControlListWidget(QWidget):
     @value.setter
     def value(self, controls: List[Control]):
         with self._suppress_changes:
-            while len(self._controls) > 0:
-                self._remove_widget(self._controls[0])
-            for control in controls:
-                control_widget = self._add_widget()
-                control_widget.value = control
+            if len(controls) != len(self._controls):
+                while len(self._controls) > len(controls):
+                    self._remove_widget(self._controls[0])
+                while len(self._controls) < len(controls):
+                    self._add_widget()
+            for control, widget in zip(controls, self._controls):
+                widget.value = control
 
     def notify_style_changed(self):
         for control in self._controls:
@@ -311,6 +318,17 @@ class ControlListWidget(QWidget):
     def _remove_widget(self, control: ControlWidget):
         self._controls.remove(control)
         control.deleteLater()
+
+
+class ControlLayerButton(QToolButton):
+    def __init__(self, parent=None):
+        super().__init__(parent)
+        self.setToolButtonStyle(Qt.ToolButtonStyle.ToolButtonIconOnly)
+        self.setIcon(theme.icon("control-add"))
+        self.setToolTip("Add control layer")
+        self.setAutoRaise(True)
+        icon_height = self.iconSize().height()
+        self.setIconSize(QSize(int(icon_height * 1.25), icon_height))
 
 
 class HistoryWidget(QListWidget):
@@ -514,6 +532,7 @@ class WorkspaceSelectWidget(QToolButton):
     _icons = {
         Workspace.generation: theme.icon("workspace-generation"),
         Workspace.upscaling: theme.icon("workspace-upscaling"),
+        Workspace.live: theme.icon("workspace-live"),
     }
 
     _value = Workspace.generation
@@ -524,12 +543,13 @@ class WorkspaceSelectWidget(QToolButton):
         menu = QMenu(self)
         menu.addAction(self._create_action("Generate", Workspace.generation))
         menu.addAction(self._create_action("Upscale", Workspace.upscaling))
+        menu.addAction(self._create_action("Live", Workspace.live))
 
         self.setToolButtonStyle(Qt.ToolButtonStyle.ToolButtonIconOnly)
         self.setMenu(menu)
         self.setPopupMode(QToolButton.InstantPopup)
         self.setAutoRaise(True)
-        self.setToolTip("Switch between image generation and upscaling")
+        self.setToolTip("Switch between workspaces: image generation, upscaling, live preview")
         self.setMinimumWidth(int(self.sizeHint().width() * 1.4))
         self.value = Workspace.generation
 
@@ -595,26 +615,20 @@ class GenerationWidget(QWidget):
         layout.addWidget(self.control_list)
 
         self.strength_slider = QSlider(Qt.Orientation.Horizontal, self)
-        self.strength_slider.setMinimum(0)
+        self.strength_slider.setMinimum(1)
         self.strength_slider.setMaximum(100)
         self.strength_slider.setSingleStep(5)
         self.strength_slider.valueChanged.connect(self.change_strength)
 
         self.strength_input = QSpinBox(self)
-        self.strength_input.setMinimum(0)
+        self.strength_input.setMinimum(1)
         self.strength_input.setMaximum(100)
         self.strength_input.setSingleStep(5)
         self.strength_input.setPrefix("Strength: ")
         self.strength_input.setSuffix("%")
         self.strength_input.valueChanged.connect(self.change_strength)
 
-        self.add_control_button = QToolButton(self)
-        self.add_control_button.setToolButtonStyle(Qt.ToolButtonStyle.ToolButtonIconOnly)
-        self.add_control_button.setIcon(theme.icon("control-add"))
-        self.add_control_button.setToolTip("Add control layer")
-        self.add_control_button.setAutoRaise(True)
-        icon_height = self.add_control_button.iconSize().height()
-        self.add_control_button.setIconSize(QSize(int(icon_height * 1.25), icon_height))
+        self.add_control_button = ControlLayerButton(self)
         self.add_control_button.clicked.connect(self.control_list.add)
 
         strength_layout = QHBoxLayout()
@@ -939,6 +953,185 @@ class UpscaleWidget(QWidget):
             self.strength_slider.setValue(value)
 
 
+class LiveWidget(QWidget):
+    _play_icon = theme.icon("play")
+    _pause_icon = theme.icon("pause")
+
+    _model: Optional[Model] = None
+
+    def __init__(self):
+        super().__init__()
+        layout = QVBoxLayout(self)
+        layout.setContentsMargins(0, 2, 4, 0)
+        self.setLayout(layout)
+
+        self.workspace_select = WorkspaceSelectWidget(self)
+
+        self.active_button = QToolButton(self)
+        self.active_button.setToolButtonStyle(Qt.ToolButtonStyle.ToolButtonIconOnly)
+        self.active_button.setIcon(self._play_icon)
+        self.active_button.setAutoRaise(True)
+        self.active_button.setToolTip("Start/stop live preview")
+        self.active_button.clicked.connect(self.toggle_active)
+
+        self.apply_button = QToolButton(self)
+        self.apply_button.setToolButtonStyle(Qt.ToolButtonStyle.ToolButtonIconOnly)
+        self.apply_button.setIcon(theme.icon("copy-image"))
+        self.apply_button.setAutoRaise(True)
+        self.apply_button.setEnabled(False)
+        self.apply_button.setToolTip("Copy the current result to the image as a new layer")
+        self.apply_button.clicked.connect(self.apply_result)
+
+        self.style_select = StyleSelectWidget(self)
+        self.style_select.changed.connect(self.change_style)
+
+        controls_layout = QHBoxLayout()
+        controls_layout.addWidget(self.workspace_select)
+        controls_layout.addWidget(self.active_button)
+        controls_layout.addWidget(self.apply_button)
+        controls_layout.addWidget(self.style_select)
+        layout.addLayout(controls_layout)
+
+        self.strength_slider = QSlider(Qt.Orientation.Horizontal, self)
+        self.strength_slider.setMinimum(1)
+        self.strength_slider.setMaximum(100)
+        self.strength_slider.setSingleStep(5)
+        self.strength_slider.valueChanged.connect(self.change_strength)
+
+        self.strength_input = QSpinBox(self)
+        self.strength_input.setMinimum(1)
+        self.strength_input.setMaximum(100)
+        self.strength_input.setSingleStep(5)
+        self.strength_input.setPrefix("Strength: ")
+        self.strength_input.setSuffix("%")
+        self.strength_input.valueChanged.connect(self.change_strength)
+
+        self.seed_input = QSpinBox(self)
+        self.seed_input.setMinimum(0)
+        self.seed_input.setMaximum(2**31 - 1)
+        self.seed_input.setPrefix("Seed: ")
+        self.seed_input.setToolTip(
+            "The seed controls the random part of the output. The same seed value will always"
+            " produce the same result."
+        )
+        self.seed_input.valueChanged.connect(self.change_seed)
+
+        self.random_seed_button = QToolButton(self)
+        self.random_seed_button.setToolButtonStyle(Qt.ToolButtonStyle.ToolButtonIconOnly)
+        self.random_seed_button.setIcon(theme.icon("random"))
+        self.random_seed_button.setAutoRaise(True)
+        self.random_seed_button.setToolTip(
+            "Generate a random seed value to get a variation of the image."
+        )
+        self.random_seed_button.clicked.connect(self.randomize_seed)
+
+        params_layout = QHBoxLayout()
+        params_layout.addWidget(self.strength_slider)
+        params_layout.addWidget(self.strength_input)
+        params_layout.addWidget(self.seed_input)
+        params_layout.addWidget(self.random_seed_button)
+        layout.addLayout(params_layout)
+
+        self.control_list = ControlListWidget(self)
+        self.control_list.changed.connect(self.change_control)
+
+        self.text_prompt = TextPromptWidget(self)
+        self.text_prompt.line_count = 1
+        self.text_prompt.textChanged.connect(self.change_prompt)
+
+        self.add_control_button = ControlLayerButton(self)
+        self.add_control_button.clicked.connect(self.control_list.add)
+
+        cond_layout = QHBoxLayout()
+        cond_layout.addWidget(self.text_prompt)
+        cond_layout.addWidget(self.add_control_button)
+        layout.addLayout(cond_layout)
+        layout.addWidget(self.control_list)
+
+        self.error_text = QLabel(self)
+        self.error_text.setStyleSheet("font-weight: bold; color: red;")
+        self.error_text.setWordWrap(True)
+        self.error_text.setVisible(False)
+        layout.addWidget(self.error_text)
+
+        self.preview_area = QLabel(self)
+        self.preview_area.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Expanding)
+        self.preview_area.setAlignment(Qt.AlignmentFlag.AlignTop | Qt.AlignmentFlag.AlignLeft)
+        layout.addWidget(self.preview_area)
+
+    @property
+    def model(self):
+        assert self._model is not None
+        return self._model
+
+    @model.setter
+    def model(self, model: Model):
+        if self._model:
+            self._model.job_finished.disconnect(self.handle_job_finished)
+        self._model = model
+        self._model.job_finished.connect(self.handle_job_finished)
+
+    def update(self):
+        self.workspace_select.value = self.model.workspace
+        self.active_button.setIcon(
+            self._pause_icon if self.model.live.is_active else self._play_icon
+        )
+        self.apply_button.setEnabled(self.model.has_live_result)
+        self.style_select.value = self.model.style
+        self.strength_input.setValue(int(self.model.live.strength * 100))
+        self.strength_slider.setValue(int(self.model.live.strength * 100))
+        self.seed_input.setValue(self.model.live.seed)
+        if self.text_prompt.toPlainText() != self.model.prompt:
+            self.text_prompt.setPlainText(self.model.prompt)
+        self.control_list.value = self.model.control
+        self.error_text.setText(self.model.error)
+        self.error_text.setVisible(self.model.error != "")
+
+    def toggle_active(self):
+        self.model.live.is_active = not self.model.live.is_active
+        self.update()
+        if self.model.live.is_active:
+            self.model.generate_live()
+
+    def apply_result(self):
+        if self.model.has_live_result:
+            self.model.add_live_layer()
+
+    def change_style(self):
+        if self._model is not None:
+            self.model.style = self.style_select.value
+            self.control_list.notify_style_changed()
+
+    def change_strength(self, value: int):
+        self.model.live.strength = value / 100
+        if self.strength_input.value() != value:
+            self.strength_input.setValue(value)
+        if self.strength_slider.value() != value:
+            self.strength_slider.setValue(value)
+
+    def change_seed(self, value: int):
+        self.model.live.seed = value
+
+    def randomize_seed(self):
+        self.seed_input.setValue(random.randint(0, 2**31 - 1))
+
+    def change_prompt(self):
+        self.model.prompt = self.text_prompt.toPlainText()
+
+    def change_control(self):
+        self.model.control = self.control_list.value
+
+    def handle_job_finished(self, job: Job):
+        if job.kind is JobKind.live_preview:
+            if len(job.results) > 0:  # no results if input didn't change!
+                target = Extent.from_qsize(self.preview_area.size())
+                img = Image.scale_to_fit(job.results[0], target)
+                self.preview_area.setPixmap(img.to_pixmap())
+                self.preview_area.setMinimumSize(256, 256)
+            if self.model.workspace is Workspace.live and self.model.live.is_active:
+                self.model.generate_live()
+
+
 class WelcomeWidget(QWidget):
     _server: Server
 
@@ -992,9 +1185,13 @@ class WelcomeWidget(QWidget):
         if (
             connection.state is ConnectionState.disconnected
             and settings.server_mode is ServerMode.managed
-            and self._server.upgrade_required
         ):
-            self._connect_error.setText("Server version is outdated. Click below to upgrade.")
+            if self._server.upgrade_required:
+                self._connect_error.setText("Server version is outdated. Click below to upgrade.")
+            else:
+                self._connect_error.setText(
+                    "Server is not installed or not running. Click below to start."
+                )
             self._connect_error.setVisible(True)
         if connection.state is ConnectionState.connecting:
             self._connect_status.setText(f"Connecting to server...")
@@ -1018,10 +1215,12 @@ class ImageDiffusionWidget(DockWidget):
         self._welcome = WelcomeWidget(self._server)
         self._generation = GenerationWidget()
         self._upscaling = UpscaleWidget()
+        self._live = LiveWidget()
         self._frame = QStackedWidget(self)
         self._frame.addWidget(self._welcome)
         self._frame.addWidget(self._generation)
         self._frame.addWidget(self._upscaling)
+        self._frame.addWidget(self._live)
         self.setWidget(self._frame)
 
         Connection.instance().changed.connect(self.update)
@@ -1052,10 +1251,14 @@ class ImageDiffusionWidget(DockWidget):
             self._upscaling.model = model
             self._upscaling.update()
             self._frame.setCurrentWidget(self._upscaling)
+        elif model.workspace is Workspace.live:
+            self._live.model = model
+            self._live.update()
+            self._frame.setCurrentWidget(self._live)
 
     def update_progress(self):
-        model = ensure(Model.active())
-        if model.workspace is Workspace.generation:
-            self._generation.update_progress()
-        elif model.workspace is Workspace.upscaling:
-            self._upscaling.update_progress()
+        if model := Model.active():
+            if model.workspace is Workspace.generation:
+                self._generation.update_progress()
+            elif model.workspace is Workspace.upscaling:
+                self._upscaling.update_progress()

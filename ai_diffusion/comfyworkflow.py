@@ -94,6 +94,9 @@ class ComfyWorkflow:
             denoise=denoise,
         )
 
+    def model_sampling_discrete(self, model: Output, sampling: str):
+        return self.add("ModelSamplingDiscrete", 1, model=model, sampling=sampling, zsnr=False)
+
     def load_checkpoint(self, checkpoint: str):
         return self.add_cached("CheckpointLoaderSimple", 3, ckpt_name=checkpoint)
 

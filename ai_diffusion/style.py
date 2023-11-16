@@ -2,6 +2,7 @@ from __future__ import annotations
 from enum import Enum
 import json
 from pathlib import Path
+from typing import NamedTuple
 from PyQt5.QtCore import QObject, pyqtSignal
 
 from . import Setting, settings, util
@@ -54,6 +55,16 @@ class SDVersion(Enum):
         return self is SDVersion.sd15
 
 
+sampler_options = [
+    "DDIM",
+    "DPM++ 2M",
+    "DPM++ 2M Karras",
+    "DPM++ 2M SDE",
+    "DPM++ 2M SDE Karras",
+    "LCM",
+]
+
+
 class StyleSettings:
     name = Setting("Name", "Default Style")
     version = Setting("Version", 1)
@@ -68,11 +79,9 @@ class StyleSettings:
         "Model Checkpoint",
         "<no checkpoint set>",
         "The Stable Diffusion checkpoint file",
-        (
-            "This has a large impact on which kind of content will"
-            " be generated. To install additional checkpoints, place them into"
-            " [ComfyUI]/models/checkpoints."
-        ),
+        "This has a large impact on which kind of content will"
+        " be generated. To install additional checkpoints, place them into"
+        " [ComfyUI]/models/checkpoints.",
     )
 
     loras = Setting(
@@ -103,7 +112,7 @@ class StyleSettings:
         "Sampler",
         "DPM++ 2M Karras",
         "The sampling strategy and scheduler",
-        items=["DDIM", "DPM++ 2M", "DPM++ 2M Karras", "DPM++ 2M SDE", "DPM++ 2M SDE Karras"],
+        items=sampler_options,
     )
 
     sampler_steps = Setting(
@@ -120,9 +129,19 @@ class StyleSettings:
 
     cfg_scale = Setting(
         "Guidance Strength (CFG Scale)",
-        7,
+        7.0,
         "Value which indicates how closely image generation follows the text prompt",
     )
+
+    live_sampler = Setting("Sampler", "LCM", sampler.desc, items=sampler_options)
+    live_sampler_steps = Setting("Sampler Steps", 6, sampler_steps.desc)
+    live_cfg_scale = Setting("Guidance Strength (CFG Scale)", 1.8, cfg_scale.desc)
+
+
+class SamplerConfig(NamedTuple):
+    sampler: str
+    steps: int
+    cfg: float
 
 
 class Style:
@@ -138,7 +157,10 @@ class Style:
     sampler: str = StyleSettings.sampler.default
     sampler_steps: int = StyleSettings.sampler_steps.default
     sampler_steps_upscaling: int = StyleSettings.sampler_steps_upscaling.default
-    cfg_scale: int = StyleSettings.cfg_scale.default
+    cfg_scale: float = StyleSettings.cfg_scale.default
+    live_sampler: str = StyleSettings.live_sampler.default
+    live_sampler_steps: int = StyleSettings.live_sampler_steps.default
+    live_cfg_scale: float = StyleSettings.live_cfg_scale.default
 
     def __init__(self, filepath: Path):
         self.filepath = filepath
@@ -183,6 +205,13 @@ class Style:
     @property
     def filename(self):
         return self.filepath.name
+
+    def get_sampler_config(self, is_upscaling=False, is_live=False):
+        if is_live:
+            return SamplerConfig(self.live_sampler, self.live_sampler_steps, self.live_cfg_scale)
+        if is_upscaling:
+            return SamplerConfig(self.sampler, self.sampler_steps_upscaling, self.cfg_scale)
+        return SamplerConfig(self.sampler, self.sampler_steps, self.cfg_scale)
 
 
 class Styles(QObject):

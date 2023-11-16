@@ -84,7 +84,7 @@ class Document:
             self._doc.refreshProjection()
 
         bounds = bounds or Bounds(0, 0, self._doc.width(), self._doc.height())
-        img = QImage(self._doc.pixelData(*bounds), *bounds.extent, QImage.Format_ARGB32)
+        img = QImage(self._doc.pixelData(*bounds), *bounds.extent, QImage.Format.Format_ARGB32)
 
         for layer in excluded:
             layer.setVisible(True)
@@ -96,7 +96,7 @@ class Document:
         bounds = bounds or Bounds.from_qrect(layer.bounds())
         data: QByteArray = layer.projectionPixelData(*bounds)
         assert data is not None and data.size() >= bounds.extent.pixel_count * 4
-        return Image(QImage(data, *bounds.extent, QImage.Format_ARGB32))
+        return Image(QImage(data, *bounds.extent, QImage.Format.Format_ARGB32))
 
     def insert_layer(self, name: str, img: Image, bounds: Bounds, below: krita.Node | None = None):
         layer = self._doc.createNode(name, "paintlayer")
@@ -121,8 +121,8 @@ class Document:
             blank = Image.create(layer_bounds.extent, fill=0)
             layer.setPixelData(blank.data, *layer_bounds)
         layer.setPixelData(img.data, *bounds)
-        layer.setVisible(True)
-        self._doc.refreshProjection()
+        if layer.visible():
+            self._doc.refreshProjection()
         return layer
 
     def hide_layer(self, layer: krita.Node):

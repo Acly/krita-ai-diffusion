@@ -131,32 +131,40 @@ def prepare_masked(image: Image, mask: Mask, sd_ver: SDVersion, downscale: bool 
     return scaled, out_image, out_mask, batch
 
 
-def _sampler_params(style: Style, clip_vision=False, upscale=False) -> dict[str, Any]:
+class LiveParams:
+    is_active = False
+    strength = 0.3
+    seed = random.randint(0, 2**31 - 1)
+
+
+def _sampler_params(
+    style: Style, clip_vision=False, upscale=False, live=LiveParams()
+) -> dict[str, Any]:
+    config = style.get_sampler_config(upscale, live.is_active)
     sampler_name = {
         "DDIM": "ddim",
         "DPM++ 2M": "dpmpp_2m",
         "DPM++ 2M Karras": "dpmpp_2m",
         "DPM++ 2M SDE": "dpmpp_2m_sde_gpu",
         "DPM++ 2M SDE Karras": "dpmpp_2m_sde_gpu",
-    }[style.sampler]
+        "LCM": "lcm",
+    }[config.sampler]
     sampler_scheduler = {
         "DDIM": "ddim_uniform",
         "DPM++ 2M": "normal",
         "DPM++ 2M Karras": "karras",
         "DPM++ 2M SDE": "normal",
         "DPM++ 2M SDE Karras": "karras",
-    }[style.sampler]
+        "LCM": "sgm_uniform",
+    }[config.sampler]
     params = dict(
-        sampler=sampler_name,
-        scheduler=sampler_scheduler,
-        steps=style.sampler_steps,
-        cfg=style.cfg_scale,
+        sampler=sampler_name, scheduler=sampler_scheduler, steps=config.steps, cfg=config.cfg
     )
     if clip_vision:
-        params["cfg"] = min(5, style.cfg_scale)
-    if upscale:
-        params["steps"] = style.sampler_steps_upscaling
-    if settings.fixed_seed:
+        params["cfg"] = min(5, config.cfg)
+    if live.is_active:
+        params["seed"] = live.seed
+    elif settings.fixed_seed:
         try:
             params["seed"] = int(settings.random_seed)
         except ValueError:
@@ -164,7 +172,7 @@ def _sampler_params(style: Style, clip_vision=False, upscale=False) -> dict[str,
     return params
 
 
-def load_model_with_lora(w: ComfyWorkflow, comfy: Client, style: Style):
+def load_model_with_lora(w: ComfyWorkflow, comfy: Client, style: Style, is_live=False):
     checkpoint = style.sd_checkpoint
     if checkpoint not in comfy.checkpoints:
         checkpoint = next(iter(comfy.checkpoints.keys()))
@@ -182,6 +190,14 @@ def load_model_with_lora(w: ComfyWorkflow, comfy: Client, style: Style):
             log.warning(f"Style LoRA {lora['name']} not found, skipping")
             continue
         model, clip = w.load_lora(model, clip, lora["name"], lora["strength"], lora["strength"])
+
+    if style.get_sampler_config(is_live=is_live).sampler == "LCM":
+        sdver = resolve_sd_version(style, comfy)
+        if comfy.lcm_model[sdver] is None:
+            raise Exception(f"LCM LoRA model not found for {sdver.value}")
+        model, _ = w.load_lora(model, clip, comfy.lcm_model[sdver], 1.0, 1.0)
+        model = w.model_sampling_discrete(model, "lcm")
+
     return model, clip, vae
 
 
@@ -213,6 +229,11 @@ class Control:
         if isinstance(self.mask, Mask):
             self.mask = w.load_mask(self.mask.to_image())
         return self.mask
+
+    def __eq__(self, other):
+        if isinstance(other, Control):
+            return self.__dict__ == other.__dict__
+        return False
 
 
 class Conditioning:
@@ -344,14 +365,20 @@ def upscale(
     return w.ksampler(model, prompt_pos, prompt_neg, upscale, **params)
 
 
-def generate(comfy: Client, style: Style, input_extent: Extent, cond: Conditioning):
-    extent, batch = prepare_extent(input_extent, resolve_sd_version(style, comfy))
+def generate(
+    comfy: Client, style: Style, input_extent: Extent, cond: Conditioning, live=LiveParams()
+):
+    extent, batch = prepare_extent(
+        input_extent, resolve_sd_version(style, comfy), downscale=not live.is_active
+    )
+    sampler_params = _sampler_params(style, live=live)
+    batch = 1 if live.is_active else batch
 
     w = ComfyWorkflow()
-    model, clip, vae = load_model_with_lora(w, comfy, style)
+    model, clip, vae = load_model_with_lora(w, comfy, style, is_live=live.is_active)
     latent = w.empty_latent_image(extent.initial.width, extent.initial.height, batch)
     model, positive, negative = apply_conditioning(cond, w, comfy, model, clip, style)
-    out_latent = w.ksampler(model, positive, negative, latent, **_sampler_params(style))
+    out_latent = w.ksampler(model, positive, negative, latent, **sampler_params)
     if extent.requires_upscale:
         out_latent = upscale(w, style, out_latent, extent, positive, negative, model, vae, comfy)
     out_image = w.vae_decode(vae, out_latent)
@@ -433,21 +460,28 @@ def inpaint(comfy: Client, style: Style, image: Image, mask: Mask, cond: Conditi
     return w
 
 
-def refine(comfy: Client, style: Style, image: Image, cond: Conditioning, strength: float):
+def refine(
+    comfy: Client,
+    style: Style,
+    image: Image,
+    cond: Conditioning,
+    strength: float,
+    live=LiveParams(),
+):
     assert strength > 0 and strength < 1
     extent, image, batch = prepare_image(image, resolve_sd_version(style, comfy), downscale=False)
+    sampler_params = _sampler_params(style, live=live)
 
     w = ComfyWorkflow()
-    model, clip, vae = load_model_with_lora(w, comfy, style)
+    model, clip, vae = load_model_with_lora(w, comfy, style, is_live=live.is_active)
     in_image = w.load_image(image)
     if extent.is_incompatible:
         in_image = w.scale_image(in_image, extent.expanded)
     latent = w.vae_encode(vae, in_image)
-    latent = w.batch_latent(latent, batch)
+    if batch > 1 and not live.is_active:
+        latent = w.batch_latent(latent, batch)
     model, positive, negative = apply_conditioning(cond, w, comfy, model, clip, style)
-    sampler = w.ksampler(
-        model, positive, negative, latent, denoise=strength, **_sampler_params(style)
-    )
+    sampler = w.ksampler(model, positive, negative, latent, denoise=strength, **sampler_params)
     out_image = w.vae_decode(vae, sampler)
     if extent.is_incompatible:
         out_image = w.scale_image(out_image, extent.target)
