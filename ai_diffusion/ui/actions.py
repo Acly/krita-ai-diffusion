@@ -37,6 +37,8 @@ def set_workspace(workspace):
     def action():
         model = Model.active()
         if model:
+            if model.workspace is Workspace.live:
+                model.live.is_active = False
             model.workspace = workspace
             model.changed.emit()
 

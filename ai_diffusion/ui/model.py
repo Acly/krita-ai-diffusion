@@ -302,9 +302,10 @@ class Model(QObject):
         return self._doc.get_image(bounds, exclude_layers=exclude)
 
     def _get_control_image(self, control: Control, bounds: Optional[Bounds]):
-        if control.mode is ControlMode.image:
+        layer = cast(krita.Node, control.image)
+        if control.mode is ControlMode.image and not layer.bounds().isEmpty():
             bounds = None  # ignore mask bounds, use layer bounds
-        image = self._doc.get_layer_image(control.image, bounds)  # type: ignore
+        image = self._doc.get_layer_image(layer, bounds)
         if control.mode.is_lines:
             image.make_opaque(background=Qt.GlobalColor.white)
         return Control(control.mode, image, control.strength)

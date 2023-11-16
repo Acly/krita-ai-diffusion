@@ -315,6 +315,17 @@ class ControlListWidget(QWidget):
         control.deleteLater()
 
 
+class ControlLayerButton(QToolButton):
+    def __init__(self, parent=None):
+        super().__init__(parent)
+        self.setToolButtonStyle(Qt.ToolButtonStyle.ToolButtonIconOnly)
+        self.setIcon(theme.icon("control-add"))
+        self.setToolTip("Add control layer")
+        self.setAutoRaise(True)
+        icon_height = self.iconSize().height()
+        self.setIconSize(QSize(int(icon_height * 1.25), icon_height))
+
+
 class HistoryWidget(QListWidget):
     _last_prompt: Optional[str] = None
     _last_bounds: Optional[Bounds] = None
@@ -612,13 +623,7 @@ class GenerationWidget(QWidget):
         self.strength_input.setSuffix("%")
         self.strength_input.valueChanged.connect(self.change_strength)
 
-        self.add_control_button = QToolButton(self)
-        self.add_control_button.setToolButtonStyle(Qt.ToolButtonStyle.ToolButtonIconOnly)
-        self.add_control_button.setIcon(theme.icon("control-add"))
-        self.add_control_button.setToolTip("Add control layer")
-        self.add_control_button.setAutoRaise(True)
-        icon_height = self.add_control_button.iconSize().height()
-        self.add_control_button.setIconSize(QSize(int(icon_height * 1.25), icon_height))
+        self.add_control_button = ControlLayerButton(self)
         self.add_control_button.clicked.connect(self.control_list.add)
 
         strength_layout = QHBoxLayout()
@@ -1022,10 +1027,21 @@ class LiveWidget(QWidget):
         params_layout.addWidget(self.random_seed_button)
         layout.addLayout(params_layout)
 
+        self.control_list = ControlListWidget(self)
+        self.control_list.changed.connect(self.change_control)
+
         self.text_prompt = TextPromptWidget(self)
         self.text_prompt.line_count = 1
         self.text_prompt.textChanged.connect(self.change_prompt)
-        layout.addWidget(self.text_prompt)
+
+        self.add_control_button = ControlLayerButton(self)
+        self.add_control_button.clicked.connect(self.control_list.add)
+
+        cond_layout = QHBoxLayout()
+        cond_layout.addWidget(self.text_prompt)
+        cond_layout.addWidget(self.add_control_button)
+        layout.addLayout(cond_layout)
+        layout.addWidget(self.control_list)
 
         self.error_text = QLabel(self)
         self.error_text.setStyleSheet("font-weight: bold; color: red;")
@@ -1062,6 +1078,7 @@ class LiveWidget(QWidget):
         self.seed_input.setValue(self.model.live.seed)
         if self.text_prompt.toPlainText() != self.model.prompt:
             self.text_prompt.setPlainText(self.model.prompt)
+        self.control_list.value = self.model.control
         self.error_text.setText(self.model.error)
         self.error_text.setVisible(self.model.error != "")
 
@@ -1078,6 +1095,7 @@ class LiveWidget(QWidget):
     def change_style(self):
         if self._model is not None:
             self.model.style = self.style_select.value
+            self.control_list.notify_style_changed()
 
     def change_strength(self, value: int):
         self.model.live.strength = value / 100
@@ -1094,6 +1112,9 @@ class LiveWidget(QWidget):
 
     def change_prompt(self):
         self.model.prompt = self.text_prompt.toPlainText()
+
+    def change_control(self):
+        self.model.control = self.control_list.value
 
     def handle_job_finished(self, job: Job):
         if job.kind is JobKind.live_preview:
