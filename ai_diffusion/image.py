@@ -268,10 +268,14 @@ class Image:
         return array.astype(np.float32) / 255
 
     def to_base64(self):
+        # Low compression rate, fast but large files. Good for local use, but maybe not optimal
+        # for remote server where images are transferred via internet.
+        # Conversion to PNG still takes time for large images and blocks the UI, might be worth to thread.
+        quality = 85
         byte_array = QByteArray()
         buffer = QBuffer(byte_array)
         buffer.open(QBuffer.OpenModeFlag.WriteOnly)
-        self._qimage.save(buffer, "PNG")
+        self._qimage.save(buffer, "PNG", quality)
         buffer.close()
         return byte_array.toBase64().data().decode("utf-8")
 
