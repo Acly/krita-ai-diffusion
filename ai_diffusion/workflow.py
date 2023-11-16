@@ -230,6 +230,11 @@ class Control:
             self.mask = w.load_mask(self.mask.to_image())
         return self.mask
 
+    def __eq__(self, other):
+        if isinstance(other, Control):
+            return self.__dict__ == other.__dict__
+        return False
+
 
 class Conditioning:
     prompt: str

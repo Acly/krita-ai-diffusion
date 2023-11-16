@@ -1,4 +1,5 @@
 from __future__ import annotations
+from copy import copy
 import random
 from typing import Callable, Iterable, List, Optional
 
@@ -204,11 +205,13 @@ class ControlWidget(QWidget):
 
     @value.setter
     def value(self, control: Control):
-        self._control = control
+        changed = self._control != control
+        self._control = copy(control)
         with self._suppress_changes:
-            self.update_and_select_layer(control.image.uniqueId())  # type: ignore (CTRLLAYER)
-            self.mode_select.setCurrentIndex(self.mode_select.findData(control.mode.value))
-            self.strength_spin.setValue(int(control.strength * 100))
+            if changed:
+                self.update_and_select_layer(control.image.uniqueId())  # type: ignore (CTRLLAYER)
+                self.mode_select.setCurrentIndex(self.mode_select.findData(control.mode.value))
+                self.strength_spin.setValue(int(control.strength * 100))
             if self._check_is_installed():
                 active_job = self._model.jobs.find(control)
                 has_active_job = active_job and active_job.state is not State.finished
@@ -287,11 +290,13 @@ class ControlListWidget(QWidget):
     @value.setter
     def value(self, controls: List[Control]):
         with self._suppress_changes:
-            while len(self._controls) > 0:
-                self._remove_widget(self._controls[0])
-            for control in controls:
-                control_widget = self._add_widget()
-                control_widget.value = control
+            if len(controls) != len(self._controls):
+                while len(self._controls) > len(controls):
+                    self._remove_widget(self._controls[0])
+                while len(self._controls) < len(controls):
+                    self._add_widget()
+            for control, widget in zip(controls, self._controls):
+                widget.value = control
 
     def notify_style_changed(self):
         for control in self._controls:
