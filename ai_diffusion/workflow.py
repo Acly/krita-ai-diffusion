@@ -360,14 +360,20 @@ def upscale(
     return w.ksampler(model, prompt_pos, prompt_neg, upscale, **params)
 
 
-def generate(comfy: Client, style: Style, input_extent: Extent, cond: Conditioning):
-    extent, batch = prepare_extent(input_extent, resolve_sd_version(style, comfy))
+def generate(
+    comfy: Client, style: Style, input_extent: Extent, cond: Conditioning, live=LiveParams()
+):
+    extent, batch = prepare_extent(
+        input_extent, resolve_sd_version(style, comfy), downscale=not live.is_active
+    )
+    sampler_params = _sampler_params(style, live=live)
+    batch = 1 if live.is_active else batch
 
     w = ComfyWorkflow()
-    model, clip, vae = load_model_with_lora(w, comfy, style)
+    model, clip, vae = load_model_with_lora(w, comfy, style, is_live=live.is_active)
     latent = w.empty_latent_image(extent.initial.width, extent.initial.height, batch)
     model, positive, negative = apply_conditioning(cond, w, comfy, model, clip, style)
-    out_latent = w.ksampler(model, positive, negative, latent, **_sampler_params(style))
+    out_latent = w.ksampler(model, positive, negative, latent, **sampler_params)
     if extent.requires_upscale:
         out_latent = upscale(w, style, out_latent, extent, positive, negative, model, vae, comfy)
     out_image = w.vae_decode(vae, out_latent)

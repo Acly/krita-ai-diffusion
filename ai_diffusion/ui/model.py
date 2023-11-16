@@ -270,15 +270,24 @@ class Model(QObject):
         self.changed.emit()
 
     def generate_live(self):
-        image = self._get_current_image(Bounds(0, 0, *self._doc.extent))
-        job = self.jobs.add_live(self.prompt, Bounds(0, 0, *self._doc.extent))
+        bounds = Bounds(0, 0, *self._doc.extent)
+        image = None
+        if self.live.strength < 1:
+            image = self._get_current_image(bounds)
+        control = [self._get_control_image(c, bounds) for c in self.control]
+        cond = Conditioning(self.prompt, self.negative_prompt, control)
+        job = self.jobs.add_live(self.prompt, bounds)
         self.clear_error()
-        self.task = eventloop.run(_report_errors(self, self._generate_live(job, image, self.style)))
+        self.task = eventloop.run(
+            _report_errors(self, self._generate_live(job, image, self.style, cond))
+        )
 
-    async def _generate_live(self, job: Job, image: Image, style: Style):
+    async def _generate_live(self, job: Job, image: Image | None, style: Style, cond: Conditioning):
         client = Connection.instance().client
-        cond = Conditioning(self.prompt, self.negative_prompt)
-        work = workflow.refine(client, style, image, cond, self.live.strength, self.live)
+        if image:
+            work = workflow.refine(client, style, image, cond, self.live.strength, self.live)
+        else:
+            work = workflow.generate(client, style, self._doc.extent, cond, self.live)
         job.id = await client.enqueue(work)
         self.changed.emit()
 

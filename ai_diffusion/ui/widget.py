@@ -990,7 +990,7 @@ class LiveWidget(QWidget):
 
         self.strength_input = QSpinBox(self)
         self.strength_input.setMinimum(1)
-        self.strength_input.setMaximum(99)
+        self.strength_input.setMaximum(100)
         self.strength_input.setSingleStep(5)
         self.strength_input.setPrefix("Strength: ")
         self.strength_input.setSuffix("%")
