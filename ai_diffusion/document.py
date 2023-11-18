@@ -121,8 +121,8 @@ class Document:
             blank = Image.create(layer_bounds.extent, fill=0)
             layer.setPixelData(blank.data, *layer_bounds)
         layer.setPixelData(img.data, *bounds)
-        if layer.visible():
-            self._doc.refreshProjection()
+        layer.setVisible(True)
+        self._doc.refreshProjection()
         return layer
 
     def hide_layer(self, layer: krita.Node):
