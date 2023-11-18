@@ -11,6 +11,7 @@ from PyQt5.QtWidgets import (
     QPlainTextEdit,
     QGroupBox,
     QLabel,
+    QLineEdit,
     QProgressBar,
     QSizePolicy,
     QListWidget,
@@ -1035,8 +1036,8 @@ class LiveWidget(QWidget):
         self.control_list = ControlListWidget(self)
         self.control_list.changed.connect(self.change_control)
 
-        self.text_prompt = TextPromptWidget(self)
-        self.text_prompt.line_count = 1
+        self.text_prompt = QLineEdit(self)
+        self.text_prompt.setPlaceholderText("Describe the content you want to see.")
         self.text_prompt.textChanged.connect(self.change_prompt)
 
         self.add_control_button = ControlLayerButton(self)
@@ -1081,8 +1082,8 @@ class LiveWidget(QWidget):
         self.strength_input.setValue(int(self.model.live.strength * 100))
         self.strength_slider.setValue(int(self.model.live.strength * 100))
         self.seed_input.setValue(self.model.live.seed)
-        if self.text_prompt.toPlainText() != self.model.prompt:
-            self.text_prompt.setPlainText(self.model.prompt)
+        if self.text_prompt.text() != self.model.prompt:
+            self.text_prompt.setText(self.model.prompt)
         self.control_list.value = self.model.control
         self.error_text.setText(self.model.error)
         self.error_text.setVisible(self.model.error != "")
@@ -1116,7 +1117,7 @@ class LiveWidget(QWidget):
         self.seed_input.setValue(random.randint(0, 2**31 - 1))
 
     def change_prompt(self):
-        self.model.prompt = self.text_prompt.toPlainText()
+        self.model.prompt = self.text_prompt.text()
 
     def change_control(self):
         self.model.control = self.control_list.value
