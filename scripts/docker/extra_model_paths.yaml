@@ -5,7 +5,7 @@ runpod:
     clip_vision: clip_vision
     configs: checkpoints
     vae: vae
-    loras: lora
+    loras: loras
     upscale_models: upscale_models
     embeddings: embeddings
     hypernetworks: hypernetworks
