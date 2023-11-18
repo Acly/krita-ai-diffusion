@@ -443,11 +443,11 @@ def _find_control_model(model_list: Sequence[str], mode: ControlMode):
 
 def _find_clip_vision_model(model_list: Sequence[str], sdver: str):
     assert sdver == "SD1.5", "Using SD1.5 clip vision model also for SDXL IP-adapter"
-    model_name = "pytorch_model.bin"
+    model_name = "model."
     match = lambda x: sdver in x and model_name in x
     model = next((m for m in model_list if match(m)), None)
     if model is None:
-        full_name = f"{sdver}/{model_name}"
+        full_name = f"{sdver}/model.safetensors"
         raise MissingResource(ResourceKind.clip_vision, [full_name])
     return model
 

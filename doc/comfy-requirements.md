@@ -15,7 +15,7 @@ Install custom nodes according to the instructions of the respective projects, o
 Download models to the paths indicated below. If you are using `extra_model_paths.yml`, those will also work. Shared models are always required, and at least one of SD1.5 and SDXL is needed.
 
 ### Shared
-  * [Clip-Vision](https://huggingface.co/h94/IP-Adapter/resolve/main/models/image_encoder/pytorch_model.bin) to `models/clip_vision/SD1.5`
+  * [Clip-Vision](https://huggingface.co/h94/IP-Adapter/resolve/main/models/image_encoder/model.safetensors?download=true) to `models/clip_vision/SD1.5`
   * [NMKD Superscale SP_178000_G](https://huggingface.co/gemasai/4x_NMKD-Superscale-SP_178000_G/resolve/main/4x_NMKD-Superscale-SP_178000_G.pth) to `models/upscale_models`
 
 ### SD 1.5
