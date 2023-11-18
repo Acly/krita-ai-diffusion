@@ -466,12 +466,14 @@ def _find_upscaler(model_list: Sequence[str], model_name: str):
 
 
 def _find_lcm(model_list: Sequence[str], sdver: SDVersion):
-    verstr = ["sd15", "sdv1-5"] if sdver is SDVersion.sd15 else ["sdxl"]
-    base = ["lcm_lora", "lcm-lora"]
-    model = next(
-        (m for m in model_list if any(x in m for x in verstr) and any(x in m for x in base)), None
-    )
-    return model
+    verstr = ["sd15", "sdv1-5", "sd1.5"] if sdver is SDVersion.sd15 else ["sdxl"]
+    base = ["lcm_lora", "lcm-lora", "pytorch_lora_weights"]
+
+    def match_path(path: str):
+        path = path.lower()
+        return any(x in path for x in verstr) and any(x in path for x in base) and "lcm" in path
+
+    return next((m for m in model_list if match_path(m)), None)
 
 
 def _ensure_supported_style(client: Client):
