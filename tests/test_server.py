@@ -78,7 +78,7 @@ def test_install_and_run(qtapp, pytestconfig, local_download_server):
         await server.download_required(handle_progress)
         assert server.state is ServerState.missing_resources
         await server.download(workload_sd15, handle_progress)
-        assert server.state is ServerState.stopped and server.version == ai_diffusion.__version__
+        assert server.state is ServerState.stopped and server.version == resources.version
 
         url = await server.start()
         assert server.state is ServerState.running
@@ -94,7 +94,7 @@ def test_install_and_run(qtapp, pytestconfig, local_download_server):
         server.check_install()
         assert server.upgrade_required
         await server.upgrade(handle_progress)
-        assert server.state is ServerState.stopped and server.version == ai_diffusion.__version__
+        assert server.state is ServerState.stopped and server.version == resources.version
 
     qtapp.run(main())
 

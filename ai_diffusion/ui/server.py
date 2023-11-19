@@ -22,7 +22,7 @@ from PyQt5.QtWidgets import (
 )
 from krita import Krita
 
-from .. import Settings, SDVersion, eventloop, resources, server, settings, util, __version__
+from .. import Settings, SDVersion, eventloop, resources, server, settings, util
 from ..resources import ModelResource, CustomNode
 from ..server import Server, ServerBackend, ServerState
 from . import Connection, ConnectionState
