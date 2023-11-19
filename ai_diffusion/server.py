@@ -12,7 +12,7 @@ from zipfile import ZipFile
 from PyQt5.QtNetwork import QNetworkAccessManager
 
 from .settings import settings, ServerBackend
-from . import SDVersion, resources, __version__
+from . import SDVersion, resources
 from .resources import CustomNode, ModelResource
 from .network import download, DownloadProgress
 from .util import is_windows, client_logger as log, server_logger as server_log
@@ -171,7 +171,7 @@ class Server:
             dir = self.comfy_dir / "custom_nodes" / pkg.folder
             await _install_if_missing(dir, self._install_custom_node, pkg, network, cb)
 
-        self._version_file.write_text(__version__)
+        self._version_file.write_text(resources.version)
         self.state = ServerState.stopped
         cb("Finished", f"Installation finished in {self.path}")
         self.check_install()
@@ -324,8 +324,8 @@ class Server:
             log.info(message)
             callback(InstallationProgress("Upgrading", message=message))
 
-        info(f"Starting upgrade from {self.version} to {__version__}")
-        upgrade_dir = self.path / f"upgrade-{__version__}"
+        info(f"Starting upgrade from {self.version} to {resources.version}")
+        upgrade_dir = self.path / f"upgrade-{resources.version}"
         upgrade_comfy_dir = upgrade_dir / "ComfyUI"
         keep_paths = [
             Path("models"),
@@ -354,7 +354,7 @@ class Server:
 
             # Clean up temporary directory
             safe_remove_dir(upgrade_dir)
-            info(message=f"Finished upgrade to {__version__}")
+            info(message=f"Finished upgrade to {resources.version}")
         except Exception as e:
             log.error(f"Error during upgrade: {str(e)}")
             raise Exception(
