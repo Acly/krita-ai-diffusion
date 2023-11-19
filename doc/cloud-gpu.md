@@ -20,7 +20,7 @@ You are free to choose one of the other options of course.
 
 ### Step 3: Select the template
 
-Runpod supports all kinds of workloads. To run a server for the Krita plugin, select "Stable Diffusion ComfyUI for Krita". Just typing "krita" into the search bar should find it. Click _Continue_.
+Runpod supports all kinds of workloads. To run a server for the Krita plugin, select "Stable Diffusion ComfyUI for Krita". Just typing "krita" into the search bar should find it, or use [this link](https://runpod.io/gsc?template=8myumeqonw&ref=of4awcqw). Click _Continue_.
 
 ![](images/runpod-2.png)
 
