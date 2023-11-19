@@ -401,7 +401,7 @@ _control_filename = {
     },
     ControlMode.pose: {
         SDVersion.sd15: ["control_v11p_sd15_openpose", "control_lora_rank128_v11p_sd15_openpose"],
-        SDVersion.sdxl: ["control-lora-openposeXL2-rank", "thibaud_xl_openpose"],
+        SDVersion.sdxl: ["control-lora-openposexl2-rank", "thibaud_xl_openpose"],
     },
     ControlMode.segmentation: {
         SDVersion.sd15: ["control_v11p_sd15_seg", "control_lora_rank128_v11p_sd15_seg"],

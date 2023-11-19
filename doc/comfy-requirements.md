@@ -35,3 +35,11 @@ The following checkpoints are used by the default styles:
 * [JuggernautXL](https://civitai.com/api/download/models/198530)
 
 At least one checkpoint is required, but it doesn't have to be one of the above.
+
+## Troubleshooting
+If you're getting errors about missing resources, or workload not being installed, it's probably because one of the models wasn't found.
+You can find the `client.log` file in the `.logs` folder where you installed the plugin. Check the log for warnings. Here you will also
+find which models were found in your installation, and the patterns the plugin looks for.
+
+Model paths must contain one of the search patterns entirely to match. The model path is allowed to be longer though: you may place models
+in arbitrary subfolders and they will still  be found. If there are multiple matches, any files placed inside a `krita` subfolder are prioritized.
