@@ -94,8 +94,8 @@ class Server:
             ]
         python_path = _find_component(python_pkg, python_search_paths)
         if python_path is None:
-            self._python_cmd = _find_program("python", "python3")
-            self._pip_cmd = _find_program("pip", "pip3")
+            self._python_cmd = _find_program("python3", "python")
+            self._pip_cmd = _find_program("pip3", "pip")
         else:
             self._python_cmd = python_path / f"python{_exe}"
             self._pip_cmd = python_path / "pip"
