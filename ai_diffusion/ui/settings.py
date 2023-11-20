@@ -33,6 +33,7 @@ from ..settings import Setting, Settings, ServerMode, PerformancePreset, setting
 from ..server import Server
 from ..client import resolve_sd_version
 from ..style import Style, Styles, StyleSettings
+from .. import util
 from .connection import Connection, ConnectionState, apply_performance_preset
 from .model import Model
 from .server import ServerWidget
@@ -542,7 +543,16 @@ class ConnectionSettings(SettingsTab):
             Qt.TextInteractionFlag.TextBrowserInteraction
         )
         self._connection_status.setOpenExternalLinks(True)
-        connection_layout.addWidget(self._connection_status)
+
+        open_log_button = QLabel(f"<a href='file://{util.log_path}'>View log files</a>", self)
+        open_log_button.setToolTip(str(util.log_path))
+        open_log_button.linkActivated.connect(self._open_logs)
+
+        status_layout = QHBoxLayout()
+        status_layout.addWidget(self._connection_status)
+        status_layout.addWidget(open_log_button, alignment=Qt.AlignmentFlag.AlignRight)
+
+        connection_layout.addLayout(status_layout)
         connection_layout.addStretch()
 
         self._layout.addWidget(self._server_managed)
@@ -642,6 +652,9 @@ class ConnectionSettings(SettingsTab):
                 + "\n".join((f"<li>{p.name} <a href='{p.url}'>{p.url}</a></li>" for p in nodes))
                 + "</ul>Please install them, restart the server and try again."
             )
+
+    def _open_logs(self):
+        QDesktopServices.openUrl(QUrl.fromLocalFile(str(util.log_path)))
 
 
 class StylePresets(SettingsTab):
