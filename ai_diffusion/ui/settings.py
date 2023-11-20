@@ -33,7 +33,7 @@ from ..settings import Setting, Settings, ServerMode, PerformancePreset, setting
 from ..server import Server
 from ..client import resolve_sd_version
 from ..style import Style, Styles, StyleSettings
-from .. import util
+from .. import util, __version__
 from .connection import Connection, ConnectionState, apply_performance_preset
 from .model import Model
 from .server import ServerWidget
@@ -1066,11 +1066,16 @@ class SettingsDialog(QDialog):
         self._restore_button = QPushButton("Restore Defaults", self)
         self._restore_button.clicked.connect(self.restore_defaults)
 
+        version_label = QLabel(f"Plugin version: {__version__}", self)
+        version_label.setStyleSheet(f"font-style:italic; color: {grey};")
+
         self._close_button = QPushButton("Ok", self)
         self._close_button.clicked.connect(self._close)
 
         button_layout = QHBoxLayout()
         button_layout.addWidget(self._restore_button)
+        button_layout.addStretch()
+        button_layout.addWidget(version_label)
         button_layout.addStretch()
         button_layout.addWidget(self._close_button)
         inner.addLayout(button_layout)
