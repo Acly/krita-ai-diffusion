@@ -123,14 +123,16 @@ class Server:
                 and not (folder / res.folder / res.filename).exists()
             ]
 
-        missing_shared = find_missing(self.comfy_dir, resources.required_models, SDVersion.all)
+        self.missing_resources += find_missing(
+            self.comfy_dir, resources.required_models, SDVersion.all
+        )
         missing_sd15 = find_missing(self.comfy_dir, resources.required_models, SDVersion.sd15)
         missing_sdxl = find_missing(self.comfy_dir, resources.required_models, SDVersion.sdxl)
-        if len(missing_shared) > 0 or (len(missing_sd15) > 0 and len(missing_sdxl) > 0):
+        if len(self.missing_resources) > 0 or (len(missing_sd15) > 0 and len(missing_sdxl) > 0):
             self.state = ServerState.missing_resources
         else:
             self.state = ServerState.stopped
-        self.missing_resources += missing_shared + missing_sd15 + missing_sdxl
+        self.missing_resources += missing_sd15 + missing_sdxl
 
         # Optional resources
         self.missing_resources += find_missing(self.comfy_dir, resources.default_checkpoints)
