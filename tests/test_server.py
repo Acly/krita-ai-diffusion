@@ -9,15 +9,7 @@ from ai_diffusion import network, server, resources, SDVersion
 from ai_diffusion.server import Server, ServerState, ServerBackend, InstallationProgress
 
 test_dir = Path(__file__).parent / ".server"
-comfy_dir = Path("C:/Dev/ComfyUI")
 workload_sd15 = [p.name for p in resources.required_models if p.sd_version is SDVersion.sd15]
-
-
-@pytest.fixture(scope="session", autouse=True)
-def clear_downloads():
-    if test_dir.exists():
-        shutil.rmtree(test_dir, ignore_errors=True)
-    test_dir.mkdir(exist_ok=True)
 
 
 @pytest.mark.parametrize("mode", ["from_scratch", "resume"])
@@ -45,6 +37,12 @@ def test_download(qtapp, mode):
     qtapp.run(main())
 
 
+def clear_test_server():
+    if test_dir.exists():
+        shutil.rmtree(test_dir, ignore_errors=True)
+    test_dir.mkdir(exist_ok=True)
+
+
 def test_install_and_run(qtapp, pytestconfig, local_download_server):
     """Test installing and running ComfyUI server from scratch.
     * Takes a while, only runs with --test-install
@@ -56,6 +54,8 @@ def test_install_and_run(qtapp, pytestconfig, local_download_server):
     """
     if not pytestconfig.getoption("--test-install"):
         pytest.skip("Only runs with --test-install")
+
+    clear_test_server()
 
     server = Server(str(test_dir))
     server.backend = ServerBackend.cpu
@@ -102,11 +102,12 @@ def test_install_and_run(qtapp, pytestconfig, local_download_server):
 def test_run_external(qtapp, pytestconfig):
     if not pytestconfig.getoption("--test-install"):
         pytest.skip("Only runs with --test-install")
-    if not comfy_dir.exists():
-        pytest.skip("External ComfyUI installation not found")
+    if not (test_dir / "ComfyUI").exists():
+        pytest.skip("ComfyUI installation not found")
 
-    server = Server(str(comfy_dir))
+    server = Server(str(test_dir))
     server.backend = ServerBackend.cpu
+    assert server.has_python
     assert server.state in [ServerState.stopped, ServerState.missing_resources]
 
     async def main():
