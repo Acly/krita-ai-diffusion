@@ -6,16 +6,14 @@ from itertools import chain
 from pathlib import Path
 import shutil
 import subprocess
-import sys
 from typing import Callable, NamedTuple, Optional, Union
-from zipfile import ZipFile
 from PyQt5.QtNetwork import QNetworkAccessManager
 
 from .settings import settings, ServerBackend
 from . import SDVersion, resources
 from .resources import CustomNode, ModelResource
 from .network import download, DownloadProgress
-from .util import is_windows, client_logger as log, server_logger as server_log
+from .util import ZipFile, is_windows, client_logger as log, server_logger as server_log
 
 
 _exe = ".exe" if is_windows else ""

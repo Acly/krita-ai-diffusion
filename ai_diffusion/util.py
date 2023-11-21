@@ -1,9 +1,11 @@
 from enum import Enum
 from itertools import islice
 from pathlib import Path
+import os
 import sys
 import logging
 import logging.handlers
+import zipfile
 from typing import Optional, TypeVar
 
 from .image import Extent
@@ -62,3 +64,19 @@ def compute_batch_size(extent: Extent, min_size=512, max_batches: Optional[int] 
     desired_pixels = min_size * min_size * max_batches
     requested_pixels = extent.width * extent.height
     return max(1, min(max_batches, desired_pixels // requested_pixels))
+
+
+class LongPathZipFile(zipfile.ZipFile):
+    # zipfile.ZipFile does not support long paths (260+?) on Windows
+    # for latest python, changing cwd and using relative paths helps, but not for python in Krita 5.2
+    def _extract_member(self, member, targetpath, pwd):
+        # Prepend \\?\ to targetpath to bypass MAX_PATH limit
+        targetpath = os.path.abspath(targetpath)
+        if targetpath.startswith("\\\\"):
+            targetpath = "\\\\?\\UNC\\" + targetpath[2:]
+        else:
+            targetpath = "\\\\?\\" + targetpath
+        return super()._extract_member(member, targetpath, pwd)  # type: ignore
+
+
+ZipFile = LongPathZipFile if is_windows else zipfile.ZipFile
