@@ -38,7 +38,7 @@ The plugin comes with an integrated installer for the Stable Diffusion backend.
 
 ### Requirements
 
-* Windows or Linux (MacOS is untested)
+* Windows, Linux, MacOS (experimental)
 * _On Linux:_ Python + venv must be installed (available via package manager, eg. `apt install python3-venv`)
 
 #### Hardware support
@@ -47,7 +47,7 @@ To run locally a powerful graphics card with at least 6 GB VRAM is recommended. 
 
 <table>
 <tr><td>NVIDIA GPU</td><td>supported via CUDA</td></tr>
-<tr><td>AMD GPU</td><td>supported via DirectML, Windows only</td></tr>
+<tr><td>AMD GPU</td><td>supported via DirectML on Windows, ROCm on Linux (only custom server)</td></tr>
 <tr><td>CPU</td><td>supported, but very slow</td></tr>
 <tr><td>Cloud GPU</td><td>supported, rent a GPU on an hourly basis, see <a href="#gpu-cloud">below</a></td></tr>
 </table>
@@ -60,8 +60,9 @@ To run locally a powerful graphics card with at least 6 GB VRAM is recommended. 
     * _Linux:_ Usually `~/.local/share/krita/pykrita`
     * Check [Krita's official documentation](https://docs.krita.org/en/user_manual/python_scripting/install_custom_python_plugin.html) if you have trouble locating it.
 1. Enable the plugin in Krita (Settings ‣ Configure Krita ‣ Python Plugins Manager) and restart.
+1. Create a new document or open an existing image.
 1. To show the plugin docker: Settings ‣ Dockers ‣ AI Image Generation.
-1. In the plugin docker, click "Configure" to start server installation. _Requires ~10 GB free disk space._
+1. In the plugin docker, click "Configure" to start server installation. _Requires 10+ GB free disk space._
 
 ### GPU Cloud
 
@@ -75,7 +76,7 @@ The plugin uses [ComfyUI](https://github.com/comfyanonymous/ComfyUI) as backend.
 you can install it manually or use an existing installation. If the server is already running locally before starting Krita, the plugin will
 automatically try to connect. Using a remote server is also possible this way.
 
-To use an external installation, [some extensions and models are required](doc/comfy-requirements.md).
+Please check the list of [required extensions and models](doc/comfy-requirements.md) to make sure your installation is compatible.
 
 ## <a name="screenshots"></a> Screenshots
 
