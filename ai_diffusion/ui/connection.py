@@ -12,6 +12,7 @@ from .. import (
     settings,
     util,
 )
+from ..horde import HordeClient
 
 
 class ConnectionState(Enum):
@@ -32,6 +33,7 @@ class Connection(QObject):
     error: Optional[str] = None
     missing_resource: Optional[MissingResource] = None
     _client: Optional[Client] = None
+    _horde: Optional[HordeClient] = None
 
     @classmethod
     def instance(cls):
@@ -52,6 +54,9 @@ class Connection(QObject):
         try:
             self._client = await Client.connect(url)
             apply_performance_preset(settings, self._client.device_info)
+
+            self._horde = await HordeClient.connect(apikey=settings.horde_apikey)
+
             self.state = ConnectionState.connected
         except MissingResource as e:
             self.error = (
@@ -102,6 +107,15 @@ class Connection(QObject):
     @property
     def client_if_connected(self):
         return self._client
+
+    @property
+    def horde(self):
+        assert self.state is ConnectionState.connected and self._horde is not None
+        return self._horde
+
+    @property
+    def horde_if_connected(self):
+        return self._horde
 
 
 def apply_performance_preset(settings: Settings, device: DeviceInfo):

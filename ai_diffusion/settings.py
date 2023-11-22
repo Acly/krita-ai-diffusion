@@ -61,10 +61,8 @@ class Settings(QObject):
     _server_path = Setting(
         "Server Path",
         str(Path(__file__).parent / ".server"),
-        (
-            "Directory where ComfyUI is installed. At least 10GB of free disk space is required"
-            " for a full installation."
-        ),
+        "Directory where ComfyUI is installed. At least 10GB of free disk space is required"
+        " for a full installation.",
     )
 
     server_url: str
@@ -81,6 +79,9 @@ class Settings(QObject):
     _server_arguments = Setting(
         "Server Arguments", "", "Additional command line arguments passed to the server"
     )
+
+    horde_apikey: str
+    _horde_apikey = Setting("API Key", "0000000000", "API key for the AI Horde")
 
     selection_grow: int
     _selection_grow = Setting(

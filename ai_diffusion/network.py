@@ -61,12 +61,16 @@ class RequestManager:
         self._net.finished.connect(self._finished)
         self._requests = {}
 
-    def http(self, method, url: str, data: dict | None = None):
+    def http(
+        self, method, url: str, data: dict | None = None, headers: dict[str, str] | None = None
+    ):
         self._cleanup()
 
         request = QNetworkRequest(QUrl(url))
         # request.setTransferTimeout({"GET": 30000, "POST": 0}[method]) # requires Qt 5.15 (Krita 5.2)
         request.setRawHeader(b"ngrok-skip-browser-warning", b"69420")
+        for k, v in (headers or {}).items():
+            request.setRawHeader(k.encode("utf-8"), v.encode("utf-8"))
 
         assert method in ["GET", "POST"]
         if method == "POST":
@@ -85,8 +89,8 @@ class RequestManager:
     def get(self, url: str):
         return self.http("GET", url)
 
-    def post(self, url: str, data: dict):
-        return self.http("POST", url, data)
+    def post(self, url: str, data: dict, headers: dict[str, str] | None = None):
+        return self.http("POST", url, data, headers)
 
     def _finished(self, reply: QNetworkReply):
         future = None

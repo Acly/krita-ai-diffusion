@@ -442,7 +442,7 @@ class StyleSelectWidget(QWidget):
         Connection.instance().changed.connect(self.update_styles)
 
     def update_styles(self):
-        comfy = Connection.instance().client_if_connected
+        comfy = None #!!!
         self._styles = client.filter_supported_styles(Styles.list(), comfy)
         self._combo.blockSignals(True)
         self._combo.clear()

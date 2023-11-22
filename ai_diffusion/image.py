@@ -198,12 +198,12 @@ class Image:
     @staticmethod
     def from_base64(data: str):
         bytes = QByteArray.fromBase64(data.encode("utf-8"))
-        return Image.png_from_bytes(bytes)
+        return Image.from_bytes(bytes)
 
     @staticmethod
-    def png_from_bytes(data: QByteArray | memoryview):
-        img = QImage.fromData(data, "PNG")
-        assert img and not img.isNull(), "Failed to load PNG image from memory"
+    def from_bytes(data: QByteArray | memoryview, format="PNG"):
+        img = QImage.fromData(data, format)
+        assert img and not img.isNull(), "Failed to load image from memory"
         return Image(img.convertToFormat(QImage.Format_ARGB32))
 
     @staticmethod

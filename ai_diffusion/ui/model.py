@@ -220,7 +220,7 @@ class Model(QObject):
         image: Optional[Image],
         mask: Optional[Mask],
     ):
-        client = Connection.instance().client
+        client = Connection.instance().horde
         style, strength = self.style, self.strength
         if not self.jobs.any_executing():
             self.progress = 0.0
@@ -235,18 +235,21 @@ class Model(QObject):
 
         if image is None and mask is None:
             assert strength == 1
-            job = workflow.generate(client, style, bounds.extent, conditioning)
+            # job = workflow.generate(client, style, bounds.extent, conditioning)
         elif mask is None and strength < 1:
             assert image is not None
-            job = workflow.refine(client, style, image, conditioning, strength)
+            assert False, "Not implemented"
+            # job = workflow.refine(client, style, image, conditioning, strength)
         elif strength == 1:
             assert image is not None and mask is not None
-            job = workflow.inpaint(client, style, image, mask, conditioning)
+            assert False, "Not implemented"
+            # job = workflow.inpaint(client, style, image, mask, conditioning)
         else:
             assert image is not None and mask is not None and strength < 1
-            job = workflow.refine_region(client, style, image, mask, conditioning, strength)
+            assert False, "Not implemented"
+            # job = workflow.refine_region(client, style, image, mask, conditioning, strength)
 
-        job_id = await client.enqueue(job)
+        job_id = await client.generate(style, bounds.extent, conditioning)
         self.jobs.add(job_id, conditioning.prompt, bounds)
         self.changed.emit()
 
@@ -554,7 +557,7 @@ class ModelRegistry(QObject):
         return next((m for m in self._models if m.jobs.find(job_id)), None)
 
     async def _handle_messages(self):
-        client = Connection.instance().client
+        client = Connection.instance().horde
         temporary_disconnect = False
 
         try:

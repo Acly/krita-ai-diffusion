@@ -32,7 +32,7 @@ from ..resources import CustomNode, MissingResource, ResourceKind, required_mode
 from ..settings import Setting, Settings, ServerMode, PerformancePreset, settings
 from ..server import Server
 from ..client import resolve_sd_version
-from ..style import Style, Styles, StyleSettings
+from ..style import Style, Styles, StyleSettings, SDVersion
 from .. import util, __version__
 from .connection import Connection, ConnectionState, apply_performance_preset
 from .model import Model
@@ -831,20 +831,21 @@ class StylePresets(SettingsTab):
             )
 
     def _set_checkpoint_warning(self):
-        self._checkpoint_warning.setVisible(False)
-        if client := Connection.instance().client_if_connected:
-            version = resolve_sd_version(self.current_style, client)
-            if self.current_style.sd_checkpoint not in client.checkpoints:
-                self._checkpoint_warning.setText(
-                    "The checkpoint used by this style is not installed."
-                )
-                self._checkpoint_warning.setVisible(True)
-            elif version not in client.supported_sd_versions:
-                self._checkpoint_warning.setText(
-                    f"This is a {version.value} checkpoint, but the {version.value} workload has"
-                    " not been installed."
-                )
-                self._checkpoint_warning.setVisible(True)
+        pass
+        # self._checkpoint_warning.setVisible(False)
+        # if client := Connection.instance().client_if_connected:
+        #     version = resolve_sd_version(self.current_style, client)
+        #     if self.current_style.sd_checkpoint not in client.checkpoints:
+        #         self._checkpoint_warning.setText(
+        #             "The checkpoint used by this style is not installed."
+        #         )
+        #         self._checkpoint_warning.setVisible(True)
+        #     elif version not in client.supported_sd_versions:
+        #         self._checkpoint_warning.setText(
+        #             f"This is a {version.value} checkpoint, but the {version.value} workload has"
+        #             " not been installed."
+        #         )
+        #         self._checkpoint_warning.setVisible(True)
 
     def _toggle_default_sampler(self, checked: bool):
         for widget in self._default_sampler_widgets:
@@ -861,16 +862,22 @@ class StylePresets(SettingsTab):
         self._set_checkpoint_warning()
 
     def _read(self):
-        if client := Connection.instance().client_if_connected:
-            default_vae = cast(str, StyleSettings.vae.default)
+        # if client := Connection.instance().client_if_connected:
+        #     default_vae = cast(str, StyleSettings.vae.default)
+        #     checkpoints = [
+        #         (cp.name, cp.filename, sd_version_icon(cp.sd_version, client))
+        #         for cp in client.checkpoints.values()
+        #         if not (cp.is_refiner or cp.is_inpaint)
+        #     ]
+        #     self._style_widgets["sd_checkpoint"].set_items(checkpoints)
+        #     self._style_widgets["loras"].names = client.lora_models
+        #     self._style_widgets["vae"].set_items([default_vae] + client.vae_models)
+        if client := Connection.instance().horde_if_connected:
             checkpoints = [
-                (cp.name, cp.filename, sd_version_icon(cp.sd_version, client))
+                (cp.name, cp.filename, sd_version_icon(SDVersion.sd15))
                 for cp in client.checkpoints.values()
-                if not (cp.is_refiner or cp.is_inpaint)
             ]
             self._style_widgets["sd_checkpoint"].set_items(checkpoints)
-            self._style_widgets["loras"].names = client.lora_models
-            self._style_widgets["vae"].set_items([default_vae] + client.vae_models)
         self._read_style(self.current_style)
 
     def _write(self):
