@@ -1,6 +1,16 @@
 """Generative AI plugin for Krita using Stable Diffusion"""
 
-__version__ = "1.7.1"
+__version__ = "1.7.2"
+
+import importlib.util
+
+if not importlib.util.find_spec(".websockets.src", "ai_diffusion"):
+    raise ImportError(
+        "Could not find websockets module. This indicates that it was not installed with the"
+        " plugin. Please make sure to download a plugin release package (NOT just the source!). You"
+        " can find the latest release package here:"
+        " https://github.com/Acly/krita-ai-diffusion/releases"
+    )
 
 from . import util
 from .settings import Settings, Setting, settings, PerformancePreset, ServerBackend, ServerMode
@@ -14,8 +24,7 @@ from .server import Server, ServerState, InstallationProgress
 from .workflow import Control, Conditioning
 from . import network, workflow
 
-import importlib.util
-
+# The following imports depend on the code running inside Krita, so the cannot be imported in tests.
 if importlib.util.find_spec("krita"):
     from .document import Document
     from .ui import ImageDiffusionWidget, SettingsDialog
