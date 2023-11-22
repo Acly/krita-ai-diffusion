@@ -24,6 +24,7 @@ tool while painting. They are meant to synergize with traditional tools and the 
 * **Outpaint**: Extend your canvas, select a blank area and automatically fill it with content that seamlessly blends into the existing image.
 * **Generate**: Create new images from scratch by decribing them with words or existing images. Supports SD1.5 and SDXL.
 * **Refine**: Use the strength slider to refine existing image content instead of replacing it entirely. This also works great for adding new things to an image by painting a (crude) approximation and refining at high strength!
+* **Live Painting**: Let AI interpret your canvas in real time for immediate feedback. [Watch Video](https://youtu.be/AF2VyqSApjA?si=Ve5uQJWcNOATtABU)
 * **Control**: Guide image creation directly with sketches or line art. Use depth or normal maps from existing images or 3D scenes. Transfer character pose from snapshots. Control composition with segmentation maps.
 * **Resolutions**: Work efficiently at any resolution. The plugin will automatically use resolutions appropriate for the AI model, and scale them to fit your image region.
 * **Upscaling**: Upscale and enrich images to 4k, 8k and beyond without running out of memory.
