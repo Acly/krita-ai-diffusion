@@ -18,6 +18,7 @@ class ServerMode(Enum):
 class ServerBackend(Enum):
     cpu = "Run on CPU"
     cuda = "Use CUDA (NVIDIA GPU)"
+    mps = "Use MPS (Metal Performance Shader)"
     directml = "Use DirectML (GPU)"
 
 

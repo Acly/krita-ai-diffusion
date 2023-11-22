@@ -375,6 +375,8 @@ class Server:
             args.append("--cpu")
         elif self.backend is ServerBackend.directml:
             args.append("--directml")
+        elif self.backend is ServerBackend.mps:
+            args.append("--force-fp16")
         if settings.server_arguments:
             args += settings.server_arguments.split(" ")
         self._process = await asyncio.create_subprocess_exec(
