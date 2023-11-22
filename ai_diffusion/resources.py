@@ -39,7 +39,7 @@ required_custom_nodes = [
     CustomNode(
         "Ultimate SD Upscale",
         "ComfyUI_UltimateSDUpscale",
-        "https://github.com/Acly/krita-ai-diffusion/releases/download/v0.1.0/ComfyUI_UltimateSDUpscale_6ea48202a76ccf5904ddfa85f826efa80dd50520.zip",
+        "https://github.com/Acly/krita-ai-diffusion/releases/download/v0.1.0/ComfyUI_UltimateSDUpscale-6ea48202a76ccf5904ddfa85f826efa80dd50520-repack.zip",
         "6ea48202a76ccf5904ddfa85f826efa80dd50520",
         ["UltimateSDUpscale"],
     ),

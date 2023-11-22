@@ -164,11 +164,12 @@ class Server:
         log.info(f"Using Python: {await get_python_version(self._python_cmd)}, {self._python_cmd}")
         log.info(f"Using pip: {await get_python_version(self._pip_cmd)}, {self._pip_cmd}")
 
-        self.comfy_dir = self.comfy_dir or self.path / "ComfyUI"
-        await _install_if_missing(self.comfy_dir, self._install_comfy, network, cb)
+        comfy_dir = self.comfy_dir or self.path / "ComfyUI"
+        if not self.has_comfy:
+            await _try_install(comfy_dir, self._install_comfy, comfy_dir, network, cb)
 
         for pkg in resources.required_custom_nodes:
-            dir = self.comfy_dir / "custom_nodes" / pkg.folder
+            dir = comfy_dir / "custom_nodes" / pkg.folder
             await _install_if_missing(dir, self._install_custom_node, pkg, network, cb)
 
         self._version_file.write_text(resources.version)
@@ -206,13 +207,12 @@ class Server:
         venv_cmd = [self._python_cmd, "-m", "venv", "venv"]
         await _execute_process("Python", venv_cmd, self.path, cb)
 
-    async def _install_comfy(self, network: QNetworkAccessManager, cb: InternalCB):
-        assert self.comfy_dir is not None
+    async def _install_comfy(self, comfy_dir: Path, network: QNetworkAccessManager, cb: InternalCB):
         url = f"{resources.comfy_url}/archive/{resources.comfy_version}.zip"
         archive_path = self._cache_dir / f"ComfyUI-{resources.comfy_version}.zip"
         await _download_cached("ComfyUI", network, url, archive_path, cb)
-        await _extract_archive("ComfyUI", archive_path, self.comfy_dir.parent, cb)
-        temp_comfy_dir = self.comfy_dir.parent / f"ComfyUI-{resources.comfy_version}"
+        await _extract_archive("ComfyUI", archive_path, comfy_dir.parent, cb)
+        temp_comfy_dir = comfy_dir.parent / f"ComfyUI-{resources.comfy_version}"
 
         torch_args = ["torch", "torchvision", "torchaudio"]
         if self.backend is ServerBackend.cpu:
@@ -228,7 +228,8 @@ class Server:
             # for some reason this must come AFTER ComfyUI requirements
             await _execute_process("PyTorch", self._pip_install("torch-directml"), self.path, cb)
 
-        _rename_extracted_folder("ComfyUI", self.comfy_dir, resources.comfy_version)
+        _rename_extracted_folder("ComfyUI", comfy_dir, resources.comfy_version)
+        self.comfy_dir = comfy_dir
         cb("Installing ComfyUI", "Finished installing ComfyUI")
 
     async def _install_custom_node(
@@ -325,6 +326,7 @@ class Server:
             callback(InstallationProgress("Upgrading", message=message))
 
         info(f"Starting upgrade from {self.version} to {resources.version}")
+        comfy_dir = self.comfy_dir
         upgrade_dir = self.path / f"upgrade-{resources.version}"
         upgrade_comfy_dir = upgrade_dir / "ComfyUI"
         keep_paths = [
@@ -334,18 +336,20 @@ class Server:
             Path("extra_model_paths.yaml"),
         ]
         try:
-            info(f"Backing up {self.comfy_dir} to {upgrade_comfy_dir}")
-            shutil.move(self.comfy_dir, upgrade_comfy_dir)
+            info(f"Backing up {comfy_dir} to {upgrade_comfy_dir}")
+            shutil.move(comfy_dir, upgrade_comfy_dir)
+            self.comfy_dir = None
             await self.install(callback)
         except Exception as e:
             log.warning(f"Error during upgrade: {str(e)} - Restoring {upgrade_comfy_dir}")
-            shutil.move(upgrade_comfy_dir, self.comfy_dir)
+            shutil.rmtree(comfy_dir, ignore_errors=True)
+            shutil.move(upgrade_comfy_dir, comfy_dir)
             raise e
 
         try:
             for path in keep_paths:
                 src = upgrade_comfy_dir / path
-                dst = self.comfy_dir / path
+                dst = comfy_dir / path
                 if src.exists():
                     info(f"Migrating {dst}")
                     safe_remove_dir(dst)  # Remove placeholder
@@ -538,13 +542,20 @@ async def _execute_process(name: str, cmd: list, cwd: Path, cb: InternalCB):
         raise Exception(f"Error during installation: {errlog}")
 
 
+async def _try_install(path: Path, installer, *args):
+    already_exists = path.exists()
+    try:
+        await installer(*args)
+    except Exception as e:
+        # Revert installation so it may be attempted again
+        if not already_exists:
+            shutil.rmtree(path, ignore_errors=True)
+        raise e
+
+
 async def _install_if_missing(path: Path, installer, *args):
     if not path.exists():
-        try:
-            await installer(*args)
-        except Exception as e:
-            shutil.rmtree(path, ignore_errors=True)
-            raise e
+        await _try_install(path, installer, *args)
 
 
 def _prepend_file(path: Path, line: str):
@@ -557,8 +568,11 @@ def _prepend_file(path: Path, line: str):
 
 
 def _rename_extracted_folder(name: str, path: Path, suffix: str):
-    if path.exists():
-        return
+    if path.exists() and path.is_dir() and not any(path.iterdir()):
+        path.rmdir()
+    elif path.exists():
+        raise Exception(f"Error during {name} installation: target folder {path} already exists")
+
     extracted_folder = path.parent / f"{path.name}-{suffix}"
     if not extracted_folder.exists():
         raise Exception(
