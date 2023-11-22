@@ -153,11 +153,11 @@ class Server:
             python_dir = self.path / "python"
             self._python_cmd = python_dir / f"python{_exe}"
             self._pip_cmd = python_dir / "Scripts" / f"pip{_exe}"
-            await _install_if_missing(python_dir, self._install_python, network, cb)
+            await install_if_missing(python_dir, self._install_python, network, cb)
         elif not is_windows and (self.comfy_dir is None or self._pip_cmd is None):
             # On Linux a system Python is required to create a virtual environment
             python_dir = self.path / "venv"
-            await _install_if_missing(python_dir, self._create_venv, cb)
+            await install_if_missing(python_dir, self._create_venv, cb)
             self._python_cmd = python_dir / "bin" / "python3"
             self._pip_cmd = python_dir / "bin" / "pip3"
         assert self._python_cmd is not None and self._pip_cmd is not None
@@ -166,11 +166,11 @@ class Server:
 
         comfy_dir = self.comfy_dir or self.path / "ComfyUI"
         if not self.has_comfy:
-            await _try_install(comfy_dir, self._install_comfy, comfy_dir, network, cb)
+            await try_install(comfy_dir, self._install_comfy, comfy_dir, network, cb)
 
         for pkg in resources.required_custom_nodes:
             dir = comfy_dir / "custom_nodes" / pkg.folder
-            await _install_if_missing(dir, self._install_custom_node, pkg, network, cb)
+            await install_if_missing(dir, self._install_custom_node, pkg, network, cb)
 
         self._version_file.write_text(resources.version)
         self.state = ServerState.stopped
@@ -228,7 +228,7 @@ class Server:
             # for some reason this must come AFTER ComfyUI requirements
             await _execute_process("PyTorch", self._pip_install("torch-directml"), self.path, cb)
 
-        _rename_extracted_folder("ComfyUI", comfy_dir, resources.comfy_version)
+        rename_extracted_folder("ComfyUI", comfy_dir, resources.comfy_version)
         self.comfy_dir = comfy_dir
         cb("Installing ComfyUI", "Finished installing ComfyUI")
 
@@ -243,7 +243,7 @@ class Server:
         resource_zip_path = self._cache_dir / f"{pkg.folder}-{pkg.version}.zip"
         await _download_cached(pkg.name, network, resource_url, resource_zip_path, cb)
         await _extract_archive(pkg.name, resource_zip_path, folder.parent, cb)
-        _rename_extracted_folder(pkg.name, folder, pkg.version)
+        rename_extracted_folder(pkg.name, folder, pkg.version)
 
         requirements_txt = folder / "requirements.txt"
         if requirements_txt.exists():
@@ -542,7 +542,7 @@ async def _execute_process(name: str, cmd: list, cwd: Path, cb: InternalCB):
         raise Exception(f"Error during installation: {errlog}")
 
 
-async def _try_install(path: Path, installer, *args):
+async def try_install(path: Path, installer, *args):
     already_exists = path.exists()
     try:
         await installer(*args)
@@ -553,9 +553,9 @@ async def _try_install(path: Path, installer, *args):
         raise e
 
 
-async def _install_if_missing(path: Path, installer, *args):
+async def install_if_missing(path: Path, installer, *args):
     if not path.exists():
-        await _try_install(path, installer, *args)
+        await try_install(path, installer, *args)
 
 
 def _prepend_file(path: Path, line: str):
@@ -567,7 +567,7 @@ def _prepend_file(path: Path, line: str):
         file.truncate()
 
 
-def _rename_extracted_folder(name: str, path: Path, suffix: str):
+def rename_extracted_folder(name: str, path: Path, suffix: str):
     if path.exists() and path.is_dir() and not any(path.iterdir()):
         path.rmdir()
     elif path.exists():

@@ -121,6 +121,72 @@ def test_run_external(qtapp, pytestconfig):
     qtapp.run(main())
 
 
+def test_install_if_missing(qtapp):
+    installed = False
+
+    async def install_func(target: Path):
+        nonlocal installed
+        installed = True
+        target.mkdir()
+        (target / "file").touch()
+
+    async def main():
+        nonlocal installed
+
+        with TemporaryDirectory() as tmp:
+            target = Path(tmp) / "test"
+            await server.install_if_missing(target, install_func, target)
+            assert installed and (target / "file").exists()
+
+            installed = False
+            await server.install_if_missing(target, install_func, target)
+            assert not installed
+
+    qtapp.run(main())
+
+
+def test_try_install(qtapp):
+    async def install_func(target: Path):
+        target.mkdir()
+        raise Exception("test")
+
+    async def main():
+        with TemporaryDirectory() as tmp:
+            target = Path(tmp) / "test"
+            with pytest.raises(Exception):
+                await server.install_if_missing(target, install_func, target)
+            assert not target.exists()
+
+            target.mkdir()
+            with pytest.raises(Exception):
+                await server.try_install(target, install_func, target)
+            assert target.exists()
+
+    qtapp.run(main())
+
+
+@pytest.mark.parametrize("scenario", ["default", "target-empty", "target-exists", "source-missing"])
+def test_rename_extracted_folder(scenario):
+    with TemporaryDirectory() as tmp:
+        source = Path(tmp) / "test-sffx"
+        if scenario != "source-missing":
+            source.mkdir()
+            (source / "file").touch()
+
+        target = Path(tmp) / "test"
+        if scenario in ["target-exists", "target-empty"]:
+            target.mkdir()
+        if scenario == "target-exists":
+            (target / "file").touch()
+
+        try:
+            server.rename_extracted_folder("Test", target, "sffx")
+            assert not source.exists()
+            assert (target / "file").exists()
+        except Exception as e:
+            assert scenario in ["target-exists", "source-missing"]
+
+
 @pytest.mark.parametrize("scenario", ["regular-file", "large-file", "model-file"])
 def test_safe_remove_dir(scenario):
     with TemporaryDirectory() as tmp:
