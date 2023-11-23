@@ -257,6 +257,14 @@ optional_models = [
         "https://huggingface.co/comfyanonymous/ControlNet-v1-1_fp16_safetensors/resolve/main/control_lora_rank128_v11p_sd15_seg_fp16.safetensors",
     ),
     ModelResource(
+        "Controlnet Stencil",
+        ResourceKind.controlnet,
+        SDVersion.sd15,
+        Path("models/controlnet"),
+        "control_v1p_sd15_qrcode_monster.safetensors",
+        "https://huggingface.co/monster-labs/control_v1p_sd15_qrcode_monster/resolve/main/control_v1p_sd15_qrcode_monster.safetensors",
+    ),
+    ModelResource(
         "ControlNet Line Art (XL)",
         ResourceKind.controlnet,
         SDVersion.sdxl,
@@ -332,6 +340,7 @@ class ControlMode(Enum):
     pose = 8
     segmentation = 9
     blur = 10
+    stencil = 11
 
     @property
     def is_lines(self):
@@ -361,6 +370,7 @@ _control_text = {
     ControlMode.pose: "Pose",
     ControlMode.segmentation: "Segment",
     ControlMode.blur: "Blur",
+    ControlMode.stencil: "Stencil",
 }
 
 _control_filename = {
@@ -393,10 +403,7 @@ _control_filename = {
         SDVersion.sdxl: ["control-lora-depth-rank", "sai_xl_depth_"],
     },
     ControlMode.normal: {
-        SDVersion.sd15: [
-            "control_v11p_sd15_normalbae",
-            "control_lora_rank128_v11p_sd15_normalbae",
-        ],
+        SDVersion.sd15: ["control_v11p_sd15_normalbae", "control_lora_rank128_v11p_sd15_normalbae"],
         SDVersion.sdxl: None,
     },
     ControlMode.pose: {
@@ -409,6 +416,10 @@ _control_filename = {
     },
     ControlMode.blur: {
         SDVersion.sd15: ["control_v11f1e_sd15_tile", "control_lora_rank128_v11f1e_sd15_tile"],
+        SDVersion.sdxl: None,
+    },
+    ControlMode.stencil: {
+        SDVersion.sd15: ["control_v1p_sd15_qrcode_monster"],
         SDVersion.sdxl: None,
     },
 }
