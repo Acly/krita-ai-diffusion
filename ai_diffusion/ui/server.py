@@ -2,6 +2,7 @@ from __future__ import annotations
 from enum import Enum
 from pathlib import Path
 from typing import Optional
+from itertools import accumulate
 from PyQt5.QtCore import Qt, QUrl, pyqtSignal
 from PyQt5.QtGui import QDesktopServices
 from PyQt5.QtWidgets import (
@@ -383,13 +384,11 @@ class ServerWidget(QWidget):
 
     def _change_backend(self):
         backends = list(ServerBackend)
-        i, j = 0, 0
-        while i < self._backend_select.currentIndex():
-            i += 1
-            j += 1
-            while not backends[j].value[1]:
-                j += 1
-        backend = backends[j]
+        indices = list(accumulate([b.value[1] for b in ServerBackend], initial=-1))[1:]
+        try:
+            backend = backends[indices.index(self._backend_select.currentIndex())]
+        except:
+            backend = backends[0]
         if settings.server_backend != backend:
             self._server.backend = backend
             settings.server_backend = backend
@@ -507,15 +506,13 @@ class ServerWidget(QWidget):
 
     def update(self):
         self._location_edit.setText(settings.server_path)
-        backends, i, j = list(ServerBackend), 0, 0
-        while i < len(backends) and backends[i] != settings.server_backend:
-            i += 1
-            try:
-                if backends[i].value[1]:
-                    j += 1
-            except:
-                pass
-        self._backend_select.setCurrentIndex(j)
+        backends = list(ServerBackend)
+        indices = list(accumulate([b.value[1] for b in ServerBackend], initial=-1))[1:]
+        try:
+            index = indices[backends.index(settings.server_backend)]
+        except:
+            index = 0
+        self._backend_select.setCurrentIndex(index)
         self._progress_bar.setVisible(False)
         self._progress_info.setVisible(False)
         self._backend_select.setVisible(True)
