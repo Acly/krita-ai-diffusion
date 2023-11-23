@@ -262,7 +262,7 @@ optional_models = [
         SDVersion.sd15,
         Path("models/controlnet"),
         "control_v1p_sd15_qrcode_monster.safetensors",
-        "https://huggingface.co/monster-labs/control_v1p_sd15_qrcode_monster/blob/main/control_v1p_sd15_qrcode_monster.safetensors",
+        "https://huggingface.co/monster-labs/control_v1p_sd15_qrcode_monster/resolve/main/control_v1p_sd15_qrcode_monster.safetensors",
     ),
     ModelResource(
         "ControlNet Line Art (XL)",
