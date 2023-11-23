@@ -546,7 +546,8 @@ def create_control_image(image: Image, mode: ControlMode):
             "resolution": image.extent.multiple_of(64).shortest_side,
         }
         if mode is ControlMode.scribble:
-            result = w.add("FakeScribblePreprocessor", 1, **args, safe="enable")
+            result = w.add("PiDiNetPreprocessor", 1, **args, safe="enable")
+            result = w.add("ScribblePreprocessor", 1, image=result, resolution=args['resolution'])
         elif mode is ControlMode.line_art:
             result = w.add("LineArtPreprocessor", 1, **args, coarse="disable")
         elif mode is ControlMode.soft_edge:
