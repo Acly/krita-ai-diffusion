@@ -148,15 +148,18 @@ class ComfyWorkflow:
         return self.add("ConditioningCombine", 1, conditioning_1=a, conditioning_2=b)
 
     def apply_controlnet(
-        self, conditioning: Output, controlnet: Output, image: Output, strength=1.0
+        self, positive: Output, negative: Output, controlnet: Output, image: Output, strength=1.0, start_percent=0.0, end_percent=1.0
     ):
         return self.add(
-            "ControlNetApply",
-            1,
-            conditioning=conditioning,
+            "ControlNetApplyAdvanced",
+            2,
+            positive=positive,
+            negative=negative,
             control_net=controlnet,
             image=image,
             strength=strength,
+            start_percent=start_percent,
+            end_percent=end_percent,
         )
 
     def apply_ip_adapter(

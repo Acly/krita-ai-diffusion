@@ -311,7 +311,7 @@ class Model(QObject):
         image = self._doc.get_layer_image(layer, bounds)
         if control.mode.is_lines:
             image.make_opaque(background=Qt.GlobalColor.white)
-        return Control(control.mode, image, control.strength)
+        return Control(control.mode, image, strength=control.strength, end=control.end)
 
     def generate_control_layer(self, control: Control):
         ok, msg = self._doc.check_color_mode()
