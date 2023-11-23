@@ -360,10 +360,7 @@ def test_control_scribble(qtapp, comfy, temp_settings, op):
     qtapp.run(main())
 
 
-@pytest.mark.parametrize(
-    "mode",
-    [m for m in ControlMode if not m in [ControlMode.image, ControlMode.inpaint, ControlMode.blur]],
-)
+@pytest.mark.parametrize("mode", [m for m in ControlMode if m.has_preprocessor])
 def test_create_control_image(qtapp, comfy, mode):
     image_name = f"test_create_control_image_{mode.name}.png"
     image = Image.load(image_dir / "adobe_stock.jpg")

@@ -352,6 +352,15 @@ class ControlMode(Enum):
         ]
 
     @property
+    def has_preprocessor(self):
+        return not (
+            self is ControlMode.image
+            or self is ControlMode.inpaint
+            or self is ControlMode.blur
+            or self is ControlMode.stencil
+        )
+
+    @property
     def text(self):
         return _control_text[self]
 

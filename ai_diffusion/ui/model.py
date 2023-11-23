@@ -309,7 +309,7 @@ class Model(QObject):
         if control.mode is ControlMode.image and not layer.bounds().isEmpty():
             bounds = None  # ignore mask bounds, use layer bounds
         image = self._doc.get_layer_image(layer, bounds)
-        if control.mode.is_lines:
+        if control.mode.is_lines or control.mode is ControlMode.stencil:
             image.make_opaque(background=Qt.GlobalColor.white)
         return Control(control.mode, image, control.strength)
 
