@@ -374,7 +374,7 @@ _control_filename = {
     },
     ControlMode.scribble: {
         SDVersion.sd15: ["control_v11p_sd15_scribble", "control_lora_rank128_v11p_sd15_scribble"],
-        SDVersion.sdxl: None,
+        SDVersion.sdxl: ["control-lora-sketch-rank", "sai_xl_sketch_"],
     },
     ControlMode.line_art: {
         SDVersion.sd15: ["control_v11p_sd15_lineart", "control_lora_rank128_v11p_sd15_lineart"],
