@@ -266,8 +266,7 @@ class ServerWidget(QWidget):
         self._progress_info.setStyleSheet("font-style:italic")
         self._progress_info.setVisible(False)
 
-        backend_supported = lambda b: b is not ServerBackend.directml or util.is_windows
-        backends = [b.value for b in ServerBackend if backend_supported(b)]
+        backends = [b.value[0] for b in ServerBackend if b.value[1]]
         self._backend_select = QComboBox(self)
         self._backend_select.addItems(backends)
         self._backend_select.currentIndexChanged.connect(self._change_backend)
@@ -383,7 +382,14 @@ class ServerWidget(QWidget):
             self._location_edit.setText(path)
 
     def _change_backend(self):
-        backend = list(ServerBackend)[self._backend_select.currentIndex()]
+        backends = list(ServerBackend)
+        i, j = 0, 0
+        while i < self._backend_select.currentIndex():
+            i += 1
+            j += 1
+            while not backends[j].value[1]:
+                j += 1
+        backend = backends[j]
         if settings.server_backend != backend:
             self._server.backend = backend
             settings.server_backend = backend
@@ -501,7 +507,15 @@ class ServerWidget(QWidget):
 
     def update(self):
         self._location_edit.setText(settings.server_path)
-        self._backend_select.setCurrentIndex(list(ServerBackend).index(settings.server_backend))
+        backends, i, j = list(ServerBackend), 0, 0
+        while i < len(backends) and backends[i] != settings.server_backend:
+            i += 1
+            try:
+                if backends[i].value[1]:
+                    j += 1
+            except:
+                pass
+        self._backend_select.setCurrentIndex(j)
         self._progress_bar.setVisible(False)
         self._progress_info.setVisible(False)
         self._backend_select.setVisible(True)

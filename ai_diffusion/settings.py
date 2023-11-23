@@ -1,5 +1,6 @@
 from __future__ import annotations
 import os
+import sys
 import json
 from enum import Enum
 from pathlib import Path
@@ -8,7 +9,6 @@ from PyQt5.QtCore import QObject, pyqtSignal
 
 from . import util
 
-
 class ServerMode(Enum):
     undefined = -1
     managed = 0
@@ -16,10 +16,10 @@ class ServerMode(Enum):
 
 
 class ServerBackend(Enum):
-    cpu = "Run on CPU"
-    cuda = "Use CUDA (NVIDIA GPU)"
-    mps = "Use MPS (Metal Performance Shader)"
-    directml = "Use DirectML (GPU)"
+    cpu = ("Run on CPU", True)
+    cuda = ("Use CUDA (NVIDIA GPU)", sys.platform != 'darwin')
+    mps = ("Use MPS (Metal Performance Shader)", sys.platform == 'darwin')
+    directml = ("Use DirectML (GPU)", sys.platform.startswith("win"))
 
 
 class PerformancePreset(Enum):
@@ -76,7 +76,7 @@ class Settings(QObject):
     )
 
     server_backend: ServerBackend
-    _server_backend = Setting("Server Backend", ServerBackend.cuda)
+    _server_backend = Setting("Server Backend", ServerBackend.cpu)
 
     server_arguments: str
     _server_arguments = Setting(

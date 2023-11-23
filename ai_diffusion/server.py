@@ -215,7 +215,7 @@ class Server:
         temp_comfy_dir = comfy_dir.parent / f"ComfyUI-{resources.comfy_version}"
 
         torch_args = ["torch", "torchvision", "torchaudio"]
-        if self.backend is ServerBackend.cpu:
+        if self.backend is ServerBackend.cpu or self.backend is ServerBackend.mps:
             torch_args += ["--index-url", "https://download.pytorch.org/whl/cpu"]
         elif self.backend is ServerBackend.cuda:
             torch_args += ["--index-url", "https://download.pytorch.org/whl/cu121"]
