@@ -117,7 +117,7 @@ class Settings(QObject):
 
     show_control_end: bool
     _show_control_end = Setting(
-        "Control end step", True, "Show control end step ratio"
+        "Control ending step", False, "Show control ending step ratio"
     )
 
     history_size: int

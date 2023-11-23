@@ -139,7 +139,7 @@ class ControlWidget(QWidget):
         self.end_spin.setValue(1.0)
         self.end_spin.setSuffix("")
         self.end_spin.setSingleStep(0.1)
-        self.end_spin.setToolTip("Control end step ratio")
+        self.end_spin.setToolTip("Control ending step ratio")
         self.end_spin.valueChanged.connect(self._notify)
         self.end_spin.setVisible(settings.show_control_end)
 
