@@ -238,7 +238,7 @@ class ControlWidget(QWidget):
                 is_installed = False
         self.error_text.setVisible(False)  # Avoid layout resize
         self.layer_select.setVisible(is_installed)
-        self.generate_button.setVisible(is_installed and mode is not ControlMode.image)
+        self.generate_button.setVisible(is_installed and mode not in [ControlMode.image, ControlMode.stencil])
         self.add_pose_button.setVisible(is_installed and mode is ControlMode.pose)
         self.add_pose_button.setEnabled(self._is_vector_layer())
         self.strength_spin.setVisible(is_installed)
