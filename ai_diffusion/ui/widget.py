@@ -141,6 +141,7 @@ class ControlWidget(QWidget):
         self.end_spin.setSingleStep(0.1)
         self.end_spin.setToolTip("Control end step ratio")
         self.end_spin.valueChanged.connect(self._notify)
+        self.end_spin.setVisible(settings.show_control_end)
 
         self.error_text = QLabel(self)
         self.error_text.setText("ControlNet not installed")
@@ -255,7 +256,7 @@ class ControlWidget(QWidget):
         self.add_pose_button.setEnabled(self._is_vector_layer())
         self.strength_spin.setVisible(is_installed)
         self.strength_spin.setEnabled(self._is_first_image_mode())
-        self.end_spin.setVisible(is_installed)
+        self.end_spin.setVisible(is_installed and settings.show_control_end)
         self.end_spin.setEnabled(self._is_first_image_mode())
         self.error_text.setVisible(not is_installed)
         return is_installed
@@ -333,6 +334,12 @@ class ControlListWidget(QWidget):
     def _remove_widget(self, control: ControlWidget):
         self._controls.remove(control)
         control.deleteLater()
+
+    def update_control_field(self, name, function):
+        for control in self._controls:
+            setting = getattr(control, name, None)
+            if setting is not None:
+                function(setting)
 
 
 class ControlLayerButton(QToolButton):
@@ -720,6 +727,9 @@ class GenerationWidget(QWidget):
         elif key == "show_negative_prompt":
             self.negative_textbox.clear()
             self.negative_textbox.setVisible(value)
+        elif key == "show_control_end":
+            self.control_list.update_control_field("end_spin", lambda x: x.setVisible(value))
+            self.control_list.update_control_field("end_spin", lambda x: x.setValue(1.0))
 
     def show_results(self, job: Job):
         if job.kind is JobKind.diffusion:
