@@ -257,7 +257,7 @@ optional_models = [
         "https://huggingface.co/comfyanonymous/ControlNet-v1-1_fp16_safetensors/resolve/main/control_lora_rank128_v11p_sd15_seg_fp16.safetensors",
     ),
     ModelResource(
-        "Controlnet QRCodeMonster",
+        "Controlnet Stencil",
         ResourceKind.controlnet,
         SDVersion.sd15,
         Path("models/controlnet"),
@@ -340,7 +340,7 @@ class ControlMode(Enum):
     pose = 8
     segmentation = 9
     blur = 10
-    qrcodemonster = 11
+    stencil = 11
 
     @property
     def is_lines(self):
@@ -349,7 +349,6 @@ class ControlMode(Enum):
             ControlMode.line_art,
             ControlMode.soft_edge,
             ControlMode.canny_edge,
-            ControlMode.qrcodemonster,
         ]
 
     @property
@@ -371,7 +370,7 @@ _control_text = {
     ControlMode.pose: "Pose",
     ControlMode.segmentation: "Segment",
     ControlMode.blur: "Blur",
-    ControlMode.qrcodemonster: "QRCodeMonster",
+    ControlMode.stencil: "Stencil",
 }
 
 _control_filename = {
@@ -419,7 +418,7 @@ _control_filename = {
         SDVersion.sd15: ["control_v11f1e_sd15_tile", "control_lora_rank128_v11f1e_sd15_tile"],
         SDVersion.sdxl: None,
     },
-    ControlMode.qrcodemonster: {
+    ControlMode.stencil: {
         SDVersion.sd15: ["control_v1p_sd15_qrcode_monster"],
         SDVersion.sdxl: None,
     },
