@@ -131,7 +131,16 @@ class ControlWidget(QWidget):
         self.strength_spin.setValue(100)
         self.strength_spin.setSuffix("%")
         self.strength_spin.setSingleStep(10)
+        self.strength_spin.setToolTip("Control strength")
         self.strength_spin.valueChanged.connect(self._notify)
+        
+        self.end_spin = QDoubleSpinBox(self)
+        self.end_spin.setRange(0.0, 1.0)
+        self.end_spin.setValue(1.0)
+        self.end_spin.setSuffix("")
+        self.end_spin.setSingleStep(0.1)
+        self.end_spin.setToolTip("Control end step ratio")
+        self.end_spin.valueChanged.connect(self._notify)
 
         self.error_text = QLabel(self)
         self.error_text.setText("ControlNet not installed")
@@ -152,6 +161,7 @@ class ControlWidget(QWidget):
         layout.addWidget(self.generate_button)
         layout.addWidget(self.add_pose_button)
         layout.addWidget(self.strength_spin)
+        layout.addWidget(self.end_spin)
         layout.addWidget(self.error_text, 1)
         layout.addWidget(self.remove_button)
 
@@ -170,6 +180,7 @@ class ControlWidget(QWidget):
             id = self.layer_select.currentData()
             self._control.image = self._model.document.find_layer(id)  # type: ignore (CTRLLAYER)
             self._control.strength = self.strength_spin.value() / 100
+            self._control.end = self.end_spin.value()
             self.changed.emit()
 
     def update_and_select_layer(self, id: QUuid):
@@ -213,6 +224,7 @@ class ControlWidget(QWidget):
                 self.update_and_select_layer(control.image.uniqueId())  # type: ignore (CTRLLAYER)
                 self.mode_select.setCurrentIndex(self.mode_select.findData(control.mode.value))
                 self.strength_spin.setValue(int(control.strength * 100))
+                self.end_spin.setValue(float(control.end))
             if self._check_is_installed():
                 active_job = self._model.jobs.find(control)
                 has_active_job = active_job and active_job.state is not State.finished
@@ -243,6 +255,8 @@ class ControlWidget(QWidget):
         self.add_pose_button.setEnabled(self._is_vector_layer())
         self.strength_spin.setVisible(is_installed)
         self.strength_spin.setEnabled(self._is_first_image_mode())
+        self.end_spin.setVisible(is_installed)
+        self.end_spin.setEnabled(self._is_first_image_mode())
         self.error_text.setVisible(not is_installed)
         return is_installed
 
