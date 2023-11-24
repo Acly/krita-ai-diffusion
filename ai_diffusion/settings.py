@@ -8,7 +8,6 @@ from PyQt5.QtCore import QObject, pyqtSignal
 
 from . import util
 
-
 class ServerMode(Enum):
     undefined = -1
     managed = 0
@@ -16,10 +15,21 @@ class ServerMode(Enum):
 
 
 class ServerBackend(Enum):
-    cpu = "Run on CPU"
-    cuda = "Use CUDA (NVIDIA GPU)"
-    directml = "Use DirectML (GPU)"
+    cpu = ("Run on CPU", True)
+    cuda = ("Use CUDA (NVIDIA GPU)", not util.is_macos)
+    mps = ("Use MPS (Metal Performance Shader)", util.is_macos)
+    directml = ("Use DirectML (GPU)", util.is_windows)
 
+    @staticmethod
+    def supported():
+        return [b for b in ServerBackend if b.value[1]]
+
+    @staticmethod
+    def default():
+        if util.is_macos:
+            return ServerBackend.mps
+        else:
+            return ServerBackend.cuda
 
 class PerformancePreset(Enum):
     auto = "Automatic"
@@ -75,7 +85,7 @@ class Settings(QObject):
     )
 
     server_backend: ServerBackend
-    _server_backend = Setting("Server Backend", ServerBackend.cuda)
+    _server_backend = Setting("Server Backend", ServerBackend.default())
 
     server_arguments: str
     _server_arguments = Setting(

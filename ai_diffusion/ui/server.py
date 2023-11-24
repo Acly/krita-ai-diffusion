@@ -2,6 +2,7 @@ from __future__ import annotations
 from enum import Enum
 from pathlib import Path
 from typing import Optional
+from itertools import accumulate
 from PyQt5.QtCore import Qt, QUrl, pyqtSignal
 from PyQt5.QtGui import QDesktopServices
 from PyQt5.QtWidgets import (
@@ -266,10 +267,8 @@ class ServerWidget(QWidget):
         self._progress_info.setStyleSheet("font-style:italic")
         self._progress_info.setVisible(False)
 
-        backend_supported = lambda b: b is not ServerBackend.directml or util.is_windows
-        backends = [b.value for b in ServerBackend if backend_supported(b)]
         self._backend_select = QComboBox(self)
-        self._backend_select.addItems(backends)
+        self._backend_select.addItems([b.value[0] for b in ServerBackend.supported()])
         self._backend_select.currentIndexChanged.connect(self._change_backend)
 
         self._launch_button = QPushButton("Launch", self)
@@ -383,7 +382,11 @@ class ServerWidget(QWidget):
             self._location_edit.setText(path)
 
     def _change_backend(self):
-        backend = list(ServerBackend)[self._backend_select.currentIndex()]
+        backends = ServerBackend.supported()
+        try:
+            backend = backends[self._backend_select.currentIndex()]
+        except:
+            backend = backends[0]
         if settings.server_backend != backend:
             self._server.backend = backend
             settings.server_backend = backend
@@ -501,7 +504,12 @@ class ServerWidget(QWidget):
 
     def update(self):
         self._location_edit.setText(settings.server_path)
-        self._backend_select.setCurrentIndex(list(ServerBackend).index(settings.server_backend))
+        backends = ServerBackend.supported()
+        try:
+            index = backends.index(settings.server_backend)
+        except:
+            index = 0
+        self._backend_select.setCurrentIndex(index)
         self._progress_bar.setVisible(False)
         self._progress_info.setVisible(False)
         self._backend_select.setVisible(True)

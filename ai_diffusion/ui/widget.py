@@ -133,7 +133,7 @@ class ControlWidget(QWidget):
         self.strength_spin.setSingleStep(10)
         self.strength_spin.setToolTip("Control strength")
         self.strength_spin.valueChanged.connect(self._notify)
-        
+
         self.end_spin = QDoubleSpinBox(self)
         self.end_spin.setRange(0.0, 1.0)
         self.end_spin.setValue(1.0)
@@ -251,12 +251,16 @@ class ControlWidget(QWidget):
                 is_installed = False
         self.error_text.setVisible(False)  # Avoid layout resize
         self.layer_select.setVisible(is_installed)
-        self.generate_button.setVisible(is_installed and mode not in [ControlMode.image, ControlMode.stencil])
+        self.generate_button.setVisible(
+            is_installed and mode not in [ControlMode.image, ControlMode.stencil]
+        )
         self.add_pose_button.setVisible(is_installed and mode is ControlMode.pose)
         self.add_pose_button.setEnabled(self._is_vector_layer())
         self.strength_spin.setVisible(is_installed)
         self.strength_spin.setEnabled(self._is_first_image_mode())
-        self.end_spin.setVisible(is_installed and settings.show_control_end and mode is not ControlMode.image)
+        self.end_spin.setVisible(
+            is_installed and settings.show_control_end and mode is not ControlMode.image
+        )
         self.end_spin.setEnabled(self._is_first_image_mode())
         self.error_text.setVisible(not is_installed)
         return is_installed
@@ -498,11 +502,10 @@ class StyleSelectWidget(QWidget):
             self._combo.setCurrentText(style.name)
 
 
-class TextPromptWidget(QPlainTextEdit):
+class MultiLineTextPromptWidget(QPlainTextEdit):
     activated = pyqtSignal()
 
     _line_count = 2
-    _is_negative = False
 
     def __init__(self, parent):
         super().__init__(parent)
@@ -531,6 +534,81 @@ class TextPromptWidget(QPlainTextEdit):
         fm = QFontMetrics(self.document().defaultFont())
         self.setFixedHeight(fm.lineSpacing() * value + 6)
 
+
+class TextPromptWidget(QWidget):
+    """Wraps a single or multi-line text widget, with ability to switch between them.
+    Using QPlainTextEdit set to a single line doesn't work properly because it still
+    scrolls to the next line when eg. selecting and then looks like it's empty."""
+
+    activated = pyqtSignal()
+    changed = pyqtSignal()
+
+    _multi: MultiLineTextPromptWidget
+    _single: QLineEdit
+    _line_count = 2
+    _is_negative = False
+    _base_color: QColor
+
+    def __init__(self, line_count=2, is_negative=False, parent=None):
+        super().__init__(parent)
+        self._line_count = line_count
+        self._is_negative = is_negative
+        self._layout = QVBoxLayout()
+        self._layout.setContentsMargins(0, 0, 0, 0)
+        self.setLayout(self._layout)
+        self.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Fixed)
+
+        self._multi = MultiLineTextPromptWidget(self)
+        self._multi.line_count = self._line_count
+        self._multi.activated.connect(self.notify_activated)
+        self._multi.textChanged.connect(self.notify_text_changed)
+        self._multi.setVisible(self._line_count > 1)
+
+        self._single = QLineEdit(self)
+        self._single.textChanged.connect(self.notify_text_changed)
+        self._single.returnPressed.connect(self.notify_activated)
+        self._single.setVisible(self._line_count == 1)
+
+        self._layout.addWidget(self._multi)
+        self._layout.addWidget(self._single)
+
+        palette: QPalette = self._multi.palette()
+        self._base_color = palette.color(QPalette.ColorRole.Base)
+        self.is_negative = self._is_negative
+
+    def notify_text_changed(self):
+        self.changed.emit()
+
+    def notify_activated(self):
+        self.activated.emit()
+
+    @property
+    def text(self):
+        return self._multi.toPlainText() if self._line_count > 1 else self._single.text()
+
+    @text.setter
+    def text(self, value: str):
+        if value == self.text:
+            return
+        if self._line_count > 1:
+            self._multi.setPlainText(value)
+        else:
+            self._single.setText(value)
+
+    @property
+    def line_count(self):
+        return self._line_count
+
+    @line_count.setter
+    def line_count(self, value: int):
+        text = self.text
+        self._line_count = value
+        self.text = text
+        self._multi.setVisible(self._line_count > 1)
+        self._single.setVisible(self._line_count == 1)
+        if self._line_count > 1:
+            self._multi.line_count = self._line_count
+
     @property
     def is_negative(self):
         return self._is_negative
@@ -538,16 +616,16 @@ class TextPromptWidget(QPlainTextEdit):
     @is_negative.setter
     def is_negative(self, value: bool):
         self._is_negative = value
-        if not value:
-            self.setPlaceholderText("Describe the content you want to see, or leave empty.")
-        else:
-            self.setPlaceholderText("Describe content you want to avoid.")
-            palette: QPalette = self.palette()
-            base = palette.color(QPalette.ColorRole.Base)
-            palette.setColor(
-                QPalette.ColorRole.Base, QColor(base.red(), base.green() - 8, base.blue() - 8)
-            )
-            self.setPalette(palette)
+        for w in [self._multi, self._single]:
+            palette: QPalette = w.palette()
+            color = self._base_color
+            if not value:
+                w.setPlaceholderText("Describe the content you want to see, or leave empty.")
+            else:
+                w.setPlaceholderText("Describe content you want to avoid.")
+                color = QColor(color.red(), color.green() - 8, color.blue() - 8)
+            palette.setColor(QPalette.ColorRole.Base, color)
+            w.setPalette(palette)
 
 
 class WorkspaceSelectWidget(QToolButton):
@@ -613,16 +691,14 @@ class GenerationWidget(QWidget):
         style_layout.addWidget(self.style_select)
         layout.addLayout(style_layout)
 
-        self.prompt_textbox = TextPromptWidget(self)
+        self.prompt_textbox = TextPromptWidget(parent=self)
         self.prompt_textbox.line_count = settings.prompt_line_count
-        self.prompt_textbox.textChanged.connect(self.change_prompt)
+        self.prompt_textbox.changed.connect(self.change_prompt)
         self.prompt_textbox.activated.connect(self.generate)
 
-        self.negative_textbox = TextPromptWidget(self)
-        self.negative_textbox.line_count = 1
-        self.negative_textbox.is_negative = True
+        self.negative_textbox = TextPromptWidget(line_count=1, is_negative=True, parent=self)
         self.negative_textbox.setVisible(settings.show_negative_prompt)
-        self.negative_textbox.textChanged.connect(self.change_negative_prompt)
+        self.negative_textbox.changed.connect(self.change_negative_prompt)
         self.negative_textbox.activated.connect(self.generate)
 
         prompt_layout = QVBoxLayout()
@@ -709,7 +785,8 @@ class GenerationWidget(QWidget):
         self.style_select.value = model.style
         if self.style_select.value != model.style:
             self.change_style()  # Model style is not in style list (filtered out)
-        self.prompt_textbox.setPlainText(model.prompt)
+        self.prompt_textbox.text = model.prompt
+        self.negative_textbox.text = model.negative_prompt
         self.control_list.value = model.control
         self.strength_input.setValue(int(model.strength * 100))
         self.error_text.setText(model.error)
@@ -725,7 +802,7 @@ class GenerationWidget(QWidget):
         if key == "prompt_line_count":
             self.prompt_textbox.line_count = value
         elif key == "show_negative_prompt":
-            self.negative_textbox.clear()
+            self.negative_textbox.text = ""
             self.negative_textbox.setVisible(value)
         elif key == "show_control_end":
             self.control_list.update_control_field("end_spin", lambda x: x.setVisible(value))
@@ -746,10 +823,10 @@ class GenerationWidget(QWidget):
             self.control_list.notify_style_changed()
 
     def change_prompt(self):
-        self.model.prompt = self.prompt_textbox.toPlainText()
+        self.model.prompt = self.prompt_textbox.text
 
     def change_negative_prompt(self):
-        self.model.negative_prompt = self.negative_textbox.toPlainText()
+        self.model.negative_prompt = self.negative_textbox.text
 
     def change_strength(self, value: int):
         self.model.strength = value / 100
@@ -986,6 +1063,8 @@ class LiveWidget(QWidget):
 
     def __init__(self):
         super().__init__()
+        settings.changed.connect(self.update_settings)
+
         layout = QVBoxLayout(self)
         layout.setContentsMargins(0, 2, 4, 0)
         self.setLayout(layout)
@@ -1060,15 +1139,23 @@ class LiveWidget(QWidget):
         self.control_list = ControlListWidget(self)
         self.control_list.changed.connect(self.change_control)
 
-        self.text_prompt = QLineEdit(self)
-        self.text_prompt.setPlaceholderText("Describe the content you want to see.")
-        self.text_prompt.textChanged.connect(self.change_prompt)
-
         self.add_control_button = ControlLayerButton(self)
         self.add_control_button.clicked.connect(self.control_list.add)
 
+        self.prompt_textbox = TextPromptWidget(line_count=1, parent=self)
+        self.prompt_textbox.changed.connect(self.change_prompt)
+
+        self.negative_textbox = TextPromptWidget(line_count=1, is_negative=True, parent=self)
+        self.negative_textbox.setVisible(settings.show_negative_prompt)
+        self.negative_textbox.changed.connect(self.change_negative_prompt)
+
+        prompt_layout = QVBoxLayout()
+        prompt_layout.setContentsMargins(0, 0, 0, 0)
+        prompt_layout.setSpacing(2)
+        prompt_layout.addWidget(self.prompt_textbox)
+        prompt_layout.addWidget(self.negative_textbox)
         cond_layout = QHBoxLayout()
-        cond_layout.addWidget(self.text_prompt)
+        cond_layout.addLayout(prompt_layout)
         cond_layout.addWidget(self.add_control_button)
         layout.addLayout(cond_layout)
         layout.addWidget(self.control_list)
@@ -1106,11 +1193,16 @@ class LiveWidget(QWidget):
         self.strength_input.setValue(int(self.model.live.strength * 100))
         self.strength_slider.setValue(int(self.model.live.strength * 100))
         self.seed_input.setValue(self.model.live.seed)
-        if self.text_prompt.text() != self.model.prompt:
-            self.text_prompt.setText(self.model.prompt)
+        self.prompt_textbox.text = self.model.prompt
+        self.negative_textbox.text = self.model.negative_prompt
         self.control_list.value = self.model.control
         self.error_text.setText(self.model.error)
         self.error_text.setVisible(self.model.error != "")
+
+    def update_settings(self, key: str, value):
+        if key == "show_negative_prompt":
+            self.negative_textbox.text = ""
+            self.negative_textbox.setVisible(value)
 
     def toggle_active(self):
         self.model.live.is_active = not self.model.live.is_active
@@ -1141,7 +1233,10 @@ class LiveWidget(QWidget):
         self.seed_input.setValue(random.randint(0, 2**31 - 1))
 
     def change_prompt(self):
-        self.model.prompt = self.text_prompt.text()
+        self.model.prompt = self.prompt_textbox.text
+
+    def change_negative_prompt(self):
+        self.model.negative_prompt = self.negative_textbox.text
 
     def change_control(self):
         self.model.control = self.control_list.value
