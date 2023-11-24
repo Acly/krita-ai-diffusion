@@ -50,7 +50,6 @@ def _add_title(layout: QVBoxLayout, title: str):
 class ExpanderButton(QToolButton):
     def __init__(self, text, parent=None):
         super().__init__(parent)
-        self.setContentsMargins(0, 8, 0, 2)
         self.setCheckable(True)
         self.setIconSize(QSize(8, 8))
         self.setStyleSheet("QToolButton { border: none; font-weight: bold }")
@@ -729,8 +728,12 @@ class StylePresets(SettingsTab):
         add("negative_prompt", LineEditSetting(StyleSettings.negative_prompt, self))
         add("vae", ComboBoxSetting(StyleSettings.vae, self))
 
-        default_sampler_button = ExpanderButton("Sampler settings (default)", self)
+        sdesc = "Configure sampler type, steps and CFG to tweak the quality of generated images."
+        add_header(self._layout, Setting("Sampler Settings", "", sdesc))
+
+        default_sampler_button = ExpanderButton("Quality Preset (generate and upscale)", self)
         default_sampler_button.toggled.connect(self._toggle_default_sampler)
+        self._layout.addSpacing(4)
         self._layout.addWidget(default_sampler_button)
         self._default_sampler_widgets = [
             add("sampler", ComboBoxSetting(StyleSettings.sampler, self)),
@@ -743,8 +746,9 @@ class StylePresets(SettingsTab):
         ]
         self._toggle_default_sampler(False)
 
-        live_sampler_button = ExpanderButton("Sampler settings (live)", self)
+        live_sampler_button = ExpanderButton("Performance Preset (live mode)", self)
         live_sampler_button.toggled.connect(self._toggle_live_sampler)
+        self._layout.addSpacing(4)
         self._layout.addWidget(live_sampler_button)
         self._live_sampler_widgets = [
             add("live_sampler", ComboBoxSetting(StyleSettings.live_sampler, self)),
