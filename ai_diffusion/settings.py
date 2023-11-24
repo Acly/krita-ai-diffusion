@@ -1,6 +1,5 @@
 from __future__ import annotations
 import os
-import sys
 import json
 from enum import Enum
 from pathlib import Path
@@ -17,10 +16,20 @@ class ServerMode(Enum):
 
 class ServerBackend(Enum):
     cpu = ("Run on CPU", True)
-    cuda = ("Use CUDA (NVIDIA GPU)", sys.platform != 'darwin')
-    mps = ("Use MPS (Metal Performance Shader)", sys.platform == 'darwin')
-    directml = ("Use DirectML (GPU)", sys.platform.startswith("win"))
+    cuda = ("Use CUDA (NVIDIA GPU)", not util.is_macos)
+    mps = ("Use MPS (Metal Performance Shader)", util.is_macos)
+    directml = ("Use DirectML (GPU)", util.is_windows)
 
+    @staticmethod
+    def supported():
+        return [b for b in ServerBackend if b.value[1]]
+
+    @staticmethod
+    def default():
+        if util.is_macos:
+            return ServerBackend.mps
+        else:
+            return ServerBackend.cuda
 
 class PerformancePreset(Enum):
     auto = "Automatic"
@@ -76,7 +85,7 @@ class Settings(QObject):
     )
 
     server_backend: ServerBackend
-    _server_backend = Setting("Server Backend", ServerBackend.cpu)
+    _server_backend = Setting("Server Backend", ServerBackend.default())
 
     server_arguments: str
     _server_arguments = Setting(

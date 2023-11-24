@@ -267,9 +267,8 @@ class ServerWidget(QWidget):
         self._progress_info.setStyleSheet("font-style:italic")
         self._progress_info.setVisible(False)
 
-        backends = [b.value[0] for b in ServerBackend if b.value[1]]
         self._backend_select = QComboBox(self)
-        self._backend_select.addItems(backends)
+        self._backend_select.addItems([b.value[0] for b in ServerBackend.supported()])
         self._backend_select.currentIndexChanged.connect(self._change_backend)
 
         self._launch_button = QPushButton("Launch", self)
@@ -383,10 +382,9 @@ class ServerWidget(QWidget):
             self._location_edit.setText(path)
 
     def _change_backend(self):
-        backends = list(ServerBackend)
-        indices = list(accumulate([b.value[1] for b in ServerBackend], initial=-1))[1:]
+        backends = ServerBackend.supported()
         try:
-            backend = backends[indices.index(self._backend_select.currentIndex())]
+            backend = backends[self._backend_select.currentIndex()]
         except:
             backend = backends[0]
         if settings.server_backend != backend:
@@ -506,10 +504,9 @@ class ServerWidget(QWidget):
 
     def update(self):
         self._location_edit.setText(settings.server_path)
-        backends = list(ServerBackend)
-        indices = list(accumulate([b.value[1] for b in ServerBackend], initial=-1))[1:]
+        backends = ServerBackend.supported()
         try:
-            index = indices[backends.index(settings.server_backend)]
+            index = backends.index(settings.server_backend)
         except:
             index = 0
         self._backend_select.setCurrentIndex(index)
