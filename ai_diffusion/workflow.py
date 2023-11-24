@@ -206,6 +206,7 @@ class Control:
     image: Image | Output
     mask: None | Mask | Output = None
     strength: float = 1.0
+    end: float = 1.0
 
     def __init__(
         self,
@@ -213,11 +214,13 @@ class Control:
         image: Image | Output,
         strength=1.0,
         mask: None | Mask | Output = None,
+        end: float=1.0,
     ):
         self.mode = mode
         self.image = image
         self.strength = strength
         self.mask = mask
+        self.end = end
 
     def load_image(self, w: ComfyWorkflow):
         if isinstance(self.image, Image):
@@ -282,7 +285,7 @@ def apply_conditioning(
         prompt = merge_prompt("", style.style_prompt)
     positive = w.clip_text_encode(clip, prompt)
     negative = w.clip_text_encode(clip, merge_prompt(cond.negative_prompt, style.negative_prompt))
-    model, positive = apply_control(cond, w, comfy, model, positive, style)
+    model, positive, negative = apply_control(cond, w, comfy, model, positive, negative, style)
     if cond.area and cond.prompt != "":
         positive_area = w.clip_text_encode(clip, cond.prompt)
         positive_area = w.conditioning_area(positive_area, cond.area)
@@ -296,6 +299,7 @@ def apply_control(
     comfy: Client,
     model: Output,
     positive: Output,
+    negative: Output,
     style: Style,
 ):
     sd_ver = resolve_sd_version(style, comfy)
@@ -311,7 +315,7 @@ def apply_control(
         if control.mode.is_lines:  # ControlNet expects white lines on black background
             image = w.invert_image(image)
         controlnet = w.load_controlnet(model_file)
-        positive = w.apply_controlnet(positive, controlnet, image, control.strength)
+        positive, negative = w.apply_controlnet(positive, negative, controlnet, image, strength=control.strength, end_percent=control.end)
 
     # Merge all images into a single batch and apply IP-adapter to the model once
     ip_model_file = comfy.ip_adapter_model[sd_ver]
@@ -333,7 +337,7 @@ def apply_control(
                 ip_adapter, clip_vision, ip_image, model, ip_strength, weight_type=weight_type
             )
 
-    return model, positive
+    return model, positive, negative
 
 
 def upscale(
@@ -542,7 +546,8 @@ def create_control_image(image: Image, mode: ControlMode):
             "resolution": image.extent.multiple_of(64).shortest_side,
         }
         if mode is ControlMode.scribble:
-            result = w.add("FakeScribblePreprocessor", 1, **args, safe="enable")
+            result = w.add("PiDiNetPreprocessor", 1, **args, safe="enable")
+            result = w.add("ScribblePreprocessor", 1, image=result, resolution=args['resolution'])
         elif mode is ControlMode.line_art:
             result = w.add("LineArtPreprocessor", 1, **args, coarse="disable")
         elif mode is ControlMode.soft_edge:

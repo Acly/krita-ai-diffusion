@@ -115,6 +115,11 @@ class Settings(QObject):
         "Negative Prompt", False, "Show text editor to describe things to avoid"
     )
 
+    show_control_end: bool
+    _show_control_end = Setting(
+        "Control ending step", False, "Show control ending step ratio"
+    )
+
     history_size: int
     _history_size = Setting(
         "History Size", 1000, "Main memory (RAM) used to keep the history of generated images"
