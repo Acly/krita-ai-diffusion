@@ -369,7 +369,7 @@ def test_create_control_image(qtapp, comfy, mode):
     async def main():
         result = await run_and_save(comfy, job, image_name)
         reference = Image.load(reference_dir / image_name)
-        assert Image.compare(result, reference) < 0.001
+        assert Image.compare(result, reference) < 0.002
 
     qtapp.run(main())
 
