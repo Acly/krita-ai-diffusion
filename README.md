@@ -113,6 +113,9 @@ _Server installation_
 _Style preset configuration_
 <img src="media/screenshot-style.png">
 
+## Contributing
+
+Contributions are very welcome! Check the [contributing guide](CONTRIBUTING.md) to get started.
 
 ## Technology
 
