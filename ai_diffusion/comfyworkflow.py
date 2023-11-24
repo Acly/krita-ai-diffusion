@@ -94,6 +94,39 @@ class ComfyWorkflow:
             denoise=denoise,
         )
 
+    def ksampler_advanced(
+        self,
+        model: Output,
+        positive: Output,
+        negative: Output,
+        latent_image: Output,
+        sampler="dpmpp_2m_sde_gpu",
+        scheduler="normal",
+        steps=20,
+        start_at_step=0,
+        cfg=7.0,
+        seed=-1,
+    ):
+        self.sample_count += steps - start_at_step
+
+        return self.add(
+            "KSamplerAdvanced",
+            1,
+            noise_seed=random.getrandbits(64) if seed == -1 else seed,
+            sampler_name=sampler,
+            scheduler=scheduler,
+            model=model,
+            positive=positive,
+            negative=negative,
+            latent_image=latent_image,
+            steps=steps,
+            start_at_step=start_at_step,
+            end_at_step=steps,
+            cfg=cfg,
+            add_noise='enable',
+            return_with_leftover_noise='disable',
+        )
+
     def model_sampling_discrete(self, model: Output, sampling: str):
         return self.add("ModelSamplingDiscrete", 1, model=model, sampling=sampling, zsnr=False)
 
