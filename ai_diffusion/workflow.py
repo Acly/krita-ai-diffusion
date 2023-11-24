@@ -351,7 +351,7 @@ def upscale(
     vae: Output,
     comfy: Client,
 ):
-    params = _sampler_params(style, upscale=True)
+    params = _sampler_params(style, upscale=not settings.use_advanced_sampler)
     if extent.scale > (1 / 1.5):
         # up to 1.5x scale: upscale latent
         upscale = w.scale_latent(latent, extent.expanded)
@@ -364,7 +364,8 @@ def upscale(
         upscale = w.scale_image(upscale, extent.expanded)
         upscale = w.vae_encode(vae, upscale)
         params["denoise"] = 0.4
-        params["steps"] = max(1, int(params["steps"] * 0.8))
+        if not settings.use_advanced_sampler:
+            params["steps"] = max(1, int(params["steps"] * 0.8))
 
     if settings.use_advanced_sampler:
         return w.ksampler_advanced(model, prompt_pos, prompt_neg, upscale, **params)
@@ -435,7 +436,7 @@ def inpaint(comfy: Client, style: Style, image: Image, mask: Mask, cond: Conditi
             model, positive, negative, latent, **_sampler_params(style, clip_vision=True)
         )
     if extent.requires_upscale:
-        params = _sampler_params(style, clip_vision=True, upscale=True)
+        params = _sampler_params(style, clip_vision=True, upscale=not settings.use_advanced_sampler)
         if extent.scale > (1 / 1.5):
             # up to 1.5x scale: upscale latent
             latent = w.scale_latent(out_latent, extent.expanded)
