@@ -8,13 +8,13 @@ import logging.handlers
 import zipfile
 from typing import Optional, TypeVar
 
-from .image import Extent
-from .settings import settings
-
 T = TypeVar("T")
 
 is_windows = sys.platform.startswith("win")
+is_macos = (sys.platform == 'darwin')
 
+from .image import Extent
+from .settings import settings
 
 def create_logger(name: str, path: Path):
     logger = logging.getLogger(name)
