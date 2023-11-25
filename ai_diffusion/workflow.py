@@ -179,6 +179,20 @@ def _sampler_params(
     return params
 
 
+def _apply_strength(strength: float, params: dict, fixed_steps: bool = False) -> dict[str, Any]:
+    steps = params['steps']
+    start_at_step = round(steps*(1-strength))
+
+    if fixed_steps and start_at_step > 0:
+        start_at_step = math.floor(steps * 1/strength - steps)
+        steps += start_at_step
+
+    params['steps'] = steps
+    params['start_at_step'] = start_at_step
+
+    return params
+
+
 def load_model_with_lora(w: ComfyWorkflow, comfy: Client, style: Style, is_live=False):
     checkpoint = style.sd_checkpoint
     if checkpoint not in comfy.checkpoints:
@@ -369,7 +383,7 @@ def upscale(
     if extent.scale > (1 / 1.5):
         # up to 1.5x scale: upscale latent
         upscale = w.scale_latent(latent, extent.expanded)
-        params["denoise"] = 0.5
+        params = _apply_strength(0.5, params)
     else:
         # for larger upscaling factors use super-resolution model
         upscale_model = w.load_upscale_model(comfy.default_upscaler)
@@ -377,7 +391,7 @@ def upscale(
         upscale = w.upscale_image(upscale_model, decoded)
         upscale = w.scale_image(upscale, extent.expanded)
         upscale = w.vae_encode(vae, upscale)
-        params["denoise"] = 0.4
+        params = _apply_strength(0.4, params)
 
     return w.ksampler_advanced(model, prompt_pos, prompt_neg, upscale, **params)
 
@@ -399,7 +413,6 @@ def generate(
         model, positive,
         negative,
         latent,
-        min_steps=sampler_params['steps'] if live.is_active else None,
         **sampler_params
     )
     if extent.requires_upscale:
@@ -444,6 +457,7 @@ def inpaint(comfy: Client, style: Style, image: Image, mask: Mask, cond: Conditi
     )
     if extent.requires_upscale:
         params = _sampler_params(style, clip_vision=True)
+        params = _apply_strength(0.5, params)
         if extent.scale > (1 / 1.5):
             # up to 1.5x scale: upscale latent
             latent = w.scale_latent(out_latent, extent.expanded)
@@ -466,7 +480,7 @@ def inpaint(comfy: Client, style: Style, image: Image, mask: Mask, cond: Conditi
             Control(ControlMode.inpaint, Image.crop(image, target_bounds), mask=cropped_mask)
         )
         _, positive_up, negative_up = apply_conditioning(cond_upscale, w, comfy, model, clip, style)
-        out_latent = w.ksampler_advanced(model, positive_up, negative_up, latent, denoise=0.5, **params)
+        out_latent = w.ksampler_advanced(model, positive_up, negative_up, latent, **params)
 
     elif extent.requires_downscale:
         pass  # crop to target bounds after decode and downscale
@@ -495,6 +509,7 @@ def refine(
     assert strength > 0 and strength < 1
     extent, image, batch = prepare_image(image, resolve_sd_version(style, comfy), downscale=False)
     sampler_params = _sampler_params(style, live=live)
+    sampler_params = _apply_strength(strength, sampler_params, fixed_steps=live.is_active)
 
     w = ComfyWorkflow()
     model, clip, vae = load_model_with_lora(w, comfy, style, is_live=live.is_active)
@@ -510,8 +525,6 @@ def refine(
         positive,
         negative,
         latent,
-        denoise=strength,
-        min_steps=sampler_params['steps'] if live.is_active else None,
         **sampler_params
     )
     out_image = w.vae_decode(vae, sampler)
@@ -529,6 +542,8 @@ def refine_region(
     downscale_if_needed = strength >= 0.7
     sd_ver = resolve_sd_version(style, comfy)
     extent, image, mask_image, batch = prepare_masked(image, mask, sd_ver, downscale_if_needed)
+    sampler_params = _sampler_params(style)
+    sampler_params = _apply_strength(strength, sampler_params)
 
     w = ComfyWorkflow()
     model, clip, vae = load_model_with_lora(w, comfy, style)
@@ -546,7 +561,7 @@ def refine_region(
     cond.control.append(Control(ControlMode.inpaint, in_image, mask=in_mask))
     model, positive, negative = apply_conditioning(cond, w, comfy, model, clip, style)
     out_latent = w.ksampler_advanced(
-        model, positive, negative, latent, denoise=strength, **_sampler_params(style)
+        model, positive, negative, latent, **sampler_params
     )
     if extent.requires_upscale:
         out_latent = upscale(w, style, out_latent, extent, positive, negative, model, vae, comfy)
