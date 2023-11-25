@@ -478,11 +478,11 @@ def inpaint(comfy: Client, style: Style, image: Image, mask: Mask, cond: Conditi
         cond_upscale.control.append(
             Control(ControlMode.inpaint, Image.crop(image, target_bounds), mask=cropped_mask)
         )
-        _, positive_upscale, _ = apply_conditioning(cond_upscale, w, comfy, model, clip, style)
+        _, positive_up, negative_up = apply_conditioning(cond_upscale, w, comfy, model, clip, style)
         if settings.use_advanced_sampler:
-            out_latent = w.ksampler_advanced(model, positive_upscale, negative, latent, denoise=0.5, **params)
+            out_latent = w.ksampler_advanced(model, positive_up, negative_up, negative, latent, denoise=0.5, **params)
         else:
-            out_latent = w.ksampler(model, positive_upscale, negative, latent, denoise=0.5, **params)
+            out_latent = w.ksampler(model, positive_up, negative_up, latent, denoise=0.5, **params)
 
     elif extent.requires_downscale:
         pass  # crop to target bounds after decode and downscale
