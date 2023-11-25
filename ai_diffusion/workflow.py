@@ -386,8 +386,14 @@ def generate(
     model, clip, vae = load_model_with_lora(w, comfy, style, is_live=live.is_active)
     latent = w.empty_latent_image(extent.initial.width, extent.initial.height, batch)
     model, positive, negative = apply_conditioning(cond, w, comfy, model, clip, style)
-    if settings.use_advanced_sampler and not live.is_active:
-        out_latent = w.ksampler_advanced(model, positive, negative, latent, **sampler_params)
+    if settings.use_advanced_sampler:
+        out_latent = w.ksampler_advanced(
+            model, positive,
+            negative,
+            latent,
+            min_steps=sampler_params['steps'] if live.is_active else None,
+            **sampler_params
+        )
     else:
         out_latent = w.ksampler(model, positive, negative, latent, **sampler_params)
     if extent.requires_upscale:
@@ -501,8 +507,16 @@ def refine(
     if batch > 1 and not live.is_active:
         latent = w.batch_latent(latent, batch)
     model, positive, negative = apply_conditioning(cond, w, comfy, model, clip, style)
-    if settings.use_advanced_sampler and not live.is_active:
-        sampler = w.ksampler_advanced(model, positive, negative, latent, denoise=strength, **sampler_params)
+    if settings.use_advanced_sampler:
+        sampler = w.ksampler_advanced(
+            model,
+            positive,
+            negative,
+            latent,
+            denoise=strength,
+            min_steps=sampler_params['steps'] if live.is_active else None,
+            **sampler_params
+        )
     else:
         sampler = w.ksampler(model, positive, negative, latent, denoise=strength, **sampler_params)
     out_image = w.vae_decode(vae, sampler)
