@@ -16,7 +16,7 @@ def make_default_workflow(steps=20):
     positive = w.clip_text_encode(clip, "a photo of a cat")
     negative = w.clip_text_encode(clip, "a photo of a dog")
     latent_image = w.empty_latent_image(512, 512)
-    latent_result = w.ksampler(model, positive, negative, latent_image, steps=steps)
+    latent_result = w.ksampler_advanced(model, positive, negative, latent_image, steps=steps)
     result_image = w.vae_decode(vae, latent_result)
     w.send_image(result_image)
     return w
