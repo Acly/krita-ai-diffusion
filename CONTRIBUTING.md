@@ -16,6 +16,15 @@ For bigger changes, it makes sense to create an issue first to discuss a proposa
 
 You can submit your changes by opening a [pull request](https://github.com/Acly/krita-ai-diffusion/pulls).
 
+### Plugin development
+
+The easiest way to run a development version of the plugin is to use symlinks:
+1. `git clone` the repository into a location of your choice
+1. `git submodule update --init`
+1. in the pykrita folder where Krita expects plugins:
+   * create a symlink to the `ai_diffusion` folder
+   * create a symlink to `ai_diffusion.desktop`
+
 ### Code formatting
 
 The codebase uses [black](https://github.com/psf/black) for formatting. The project root contains a `pyproject.toml` to configure the line length, it should be picked up automatically.
