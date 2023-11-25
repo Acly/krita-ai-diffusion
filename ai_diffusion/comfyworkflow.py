@@ -112,7 +112,7 @@ class ComfyWorkflow:
 
         start_at_step = round(steps*(1-denoise))
         if min_steps and steps - start_at_step < min_steps:
-            start_at_step = round(steps * 1/denoise - steps)
+            start_at_step = math.floor(steps * 1/denoise - steps)
             steps = start_at_step + min_steps
 
         return self.add(
