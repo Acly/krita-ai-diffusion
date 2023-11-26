@@ -170,9 +170,9 @@ def _sampler_params(
         "LCM": "sgm_uniform",
     }[config.sampler]
     params = dict(
-        sampler=sampler_name, scheduler=sampler_scheduler, steps=config.steps, start_at_step=0, cfg=config.cfg
+        sampler=sampler_name, scheduler=sampler_scheduler, steps=config.steps, cfg=config.cfg
     )
-    if strength is not None:
+    if strength is not None and not upscale:
         params["steps"], params["start_at_step"] = _apply_strength(strength=strength, steps=params["steps"], min_steps=config.steps if live.is_active else 1)
     if clip_vision:
         params["cfg"] = min(5, config.cfg)
