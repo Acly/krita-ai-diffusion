@@ -121,12 +121,6 @@ class StyleSettings:
         "Higher values can produce more refined results but take longer",
     )
 
-    sampler_steps_upscaling = Setting(
-        "Sampler Steps (Upscaling)",
-        15,
-        "Additional sampling steps to run when automatically upscaling images",
-    )
-
     cfg_scale = Setting(
         "Guidance Strength (CFG Scale)",
         7.0,
@@ -156,7 +150,6 @@ class Style:
     vae: str = StyleSettings.vae.default
     sampler: str = StyleSettings.sampler.default
     sampler_steps: int = StyleSettings.sampler_steps.default
-    sampler_steps_upscaling: int = StyleSettings.sampler_steps_upscaling.default
     cfg_scale: float = StyleSettings.cfg_scale.default
     live_sampler: str = StyleSettings.live_sampler.default
     live_sampler_steps: int = StyleSettings.live_sampler_steps.default
@@ -210,7 +203,7 @@ class Style:
         if is_live:
             return SamplerConfig(self.live_sampler, self.live_sampler_steps, self.live_cfg_scale)
         if is_upscaling:
-            return SamplerConfig(self.sampler, self.sampler_steps_upscaling, self.cfg_scale)
+            return SamplerConfig(self.sampler, self.sampler_steps, self.cfg_scale)
         return SamplerConfig(self.sampler, self.sampler_steps, self.cfg_scale)
 
 

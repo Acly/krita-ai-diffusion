@@ -738,10 +738,6 @@ class StylePresets(SettingsTab):
         self._default_sampler_widgets = [
             add("sampler", ComboBoxSetting(StyleSettings.sampler, self)),
             add("sampler_steps", SliderSetting(StyleSettings.sampler_steps, self, 1, 100)),
-            add(
-                "sampler_steps_upscaling",
-                SliderSetting(StyleSettings.sampler_steps_upscaling, self, 1, 100),
-            ),
             add("cfg_scale", SliderSetting(StyleSettings.cfg_scale, self, 1.0, 20.0)),
         ]
         self._toggle_default_sampler(False)
