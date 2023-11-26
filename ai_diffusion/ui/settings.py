@@ -872,8 +872,9 @@ class StylePresets(SettingsTab):
                 for cp in client.checkpoints.values()
                 if not (cp.is_refiner or cp.is_inpaint)
             ]
+            loras = [lora for lora in client.lora_models if lora not in client.lcm_model.values()]
             self._style_widgets["sd_checkpoint"].set_items(checkpoints)
-            self._style_widgets["loras"].names = client.lora_models
+            self._style_widgets["loras"].names = loras
             self._style_widgets["vae"].set_items([default_vae] + client.vae_models)
         self._read_style(self.current_style)
 

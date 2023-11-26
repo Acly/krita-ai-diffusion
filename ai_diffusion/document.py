@@ -140,7 +140,14 @@ class Document:
 
     @property
     def image_layers(self):
-        allowed_layer_types = ["paintlayer", "vectorlayer", "grouplayer"]
+        allowed_layer_types = [
+            "paintlayer",
+            "vectorlayer",
+            "grouplayer",
+            "filelayer",
+            "clonelayer",
+            "filterlayer",
+        ]
         return list(_traverse_layers(self._doc.rootNode(), allowed_layer_types))
 
     def find_layer(self, id: QUuid):

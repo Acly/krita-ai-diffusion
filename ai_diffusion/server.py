@@ -178,7 +178,7 @@ class Server:
         self.check_install()
 
     def _pip_install(self, *args):
-        return [self._python_cmd, "-m", "pip", "install", *args]
+        return [self._python_cmd, "-su", "-m", "pip", "install", *args]
 
     async def _install_python(self, network: QNetworkAccessManager, cb: InternalCB):
         url = "https://www.python.org/ftp/python/3.10.11/python-3.10.11-embed-amd64.zip"
@@ -370,7 +370,7 @@ class Server:
         assert self._python_cmd
 
         self.state = ServerState.starting
-        args = ["-u", "-X", "utf8", "main.py"]
+        args = ["-su", "-X", "utf8", "main.py"]
         if self.backend is ServerBackend.cpu:
             args.append("--cpu")
         elif self.backend is ServerBackend.directml:
@@ -474,7 +474,7 @@ class Server:
 
     @property
     def upgrade_required(self):
-        return self.state not in [ServerState.not_installed, ServerState.missing_resources] and (
+        return self.state is not ServerState.not_installed and (
             self.version is None or self.version != resources.version
         )
 
