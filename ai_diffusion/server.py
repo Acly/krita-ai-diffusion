@@ -474,7 +474,7 @@ class Server:
 
     @property
     def upgrade_required(self):
-        return self.state not in [ServerState.not_installed, ServerState.missing_resources] and (
+        return self.state is not ServerState.not_installed and (
             self.version is None or self.version != resources.version
         )
 
