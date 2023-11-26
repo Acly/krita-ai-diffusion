@@ -173,7 +173,7 @@ def _sampler_params(
         sampler=sampler_name, scheduler=sampler_scheduler, steps=config.steps, start_at_step=0, cfg=config.cfg
     )
     if strength is not None:
-        params["steps"], params["start_at_step"] = _apply_strength(strength=strength, steps=params["steps"], fixed_steps=live.is_active)
+        params["steps"], params["start_at_step"] = _apply_strength(strength=strength, steps=params["steps"], min_steps=config.steps if live.is_active else 1)
     if clip_vision:
         params["cfg"] = min(5, config.cfg)
     if live.is_active:
@@ -187,12 +187,12 @@ def _sampler_params(
     return params
 
 
-def _apply_strength(strength: float, steps: int, fixed_steps: bool = False) -> tuple[int, int]:
+def _apply_strength(strength: float, steps: int, min_steps: int = 0) -> tuple[int, int]:
     start_at_step = round(steps*(1-strength))
 
-    if fixed_steps and start_at_step > 0:
-        start_at_step = math.floor(steps * 1/strength - steps)
-        steps += start_at_step
+    if min_steps and steps - start_at_step < min_steps:
+        steps = math.floor(min_steps * 1/strength)
+        start_at_step = steps - min_steps
 
     return steps, start_at_step
 
