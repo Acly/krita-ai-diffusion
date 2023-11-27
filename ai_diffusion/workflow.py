@@ -354,6 +354,8 @@ def apply_control(
             clip_vision = w.load_clip_vision(comfy.clip_vision_model)
             ip_adapter = w.load_ip_adapter(ip_model_file)
             weight_type = "original" if comfy.ip_adapter_has_weight_type else None
+            if not comfy.ip_adapter_has_start:
+                ip_end_at = None
             model = w.apply_ip_adapter(
                 ip_adapter, clip_vision, ip_image, model, ip_strength, end_at=ip_end_at, weight_type=weight_type
             )
