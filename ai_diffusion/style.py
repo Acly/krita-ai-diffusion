@@ -108,6 +108,12 @@ class StyleSettings:
         "Model to encode and decode images. Commonly affects saturation and sharpness.",
     )
 
+    clip_skip = Setting(
+        "Clip Skip",
+        1,
+        "Last layer to stop CLIP at. Most models use 1 while some require 2.",
+    )
+
     sampler = Setting(
         "Sampler",
         "DPM++ 2M Karras",
@@ -154,6 +160,7 @@ class Style:
     style_prompt: str = StyleSettings.style_prompt.default
     negative_prompt: str = StyleSettings.negative_prompt.default
     vae: str = StyleSettings.vae.default
+    clip_skip: int = StyleSettings.clip_skip.default
     sampler: str = StyleSettings.sampler.default
     sampler_steps: int = StyleSettings.sampler_steps.default
     sampler_steps_upscaling: int = StyleSettings.sampler_steps_upscaling.default

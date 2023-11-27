@@ -727,6 +727,7 @@ class StylePresets(SettingsTab):
         add("style_prompt", LineEditSetting(StyleSettings.style_prompt, self))
         add("negative_prompt", LineEditSetting(StyleSettings.negative_prompt, self))
         add("vae", ComboBoxSetting(StyleSettings.vae, self))
+        add("clip_skip", SliderSetting(StyleSettings.clip_skip, self, 1, 12))
 
         sdesc = "Configure sampler type, steps and CFG to tweak the quality of generated images."
         add_header(self._layout, Setting("Sampler Settings", "", sdesc))

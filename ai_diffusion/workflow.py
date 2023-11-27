@@ -190,6 +190,7 @@ def load_model_with_lora(w: ComfyWorkflow, comfy: Client, style: Style, is_live=
         checkpoint = next(iter(comfy.checkpoints.keys()))
         log.warning(f"Style checkpoint {style.sd_checkpoint} not found, using default {checkpoint}")
     model, clip, vae = w.load_checkpoint(checkpoint)
+    clip = w.clip_set_last_layer(clip, (style.clip_skip * -1))
 
     if style.vae != StyleSettings.vae.default:
         if style.vae in comfy.vae_models:
