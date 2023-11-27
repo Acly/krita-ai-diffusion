@@ -248,8 +248,8 @@ class Control:
         mode: ControlMode,
         image: Image | Output,
         strength=1.0,
-        mask: None | Mask | Output = None,
         end=1.0,
+        mask: None | Mask | Output = None,
     ):
         self.mode = mode
         self.image = image

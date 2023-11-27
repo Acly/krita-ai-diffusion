@@ -27,5 +27,8 @@ from . import network, workflow
 # The following imports depend on the code running inside Krita, so the cannot be imported in tests.
 if importlib.util.find_spec("krita"):
     from .document import Document
+    from .connection import Connection, ConnectionState
+    from .model import Model, State, Workspace
+    from .root import Root, root
     from .ui import ImageDiffusionWidget, SettingsDialog
     from .extension import AIToolsExtension

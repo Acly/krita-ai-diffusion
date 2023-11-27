@@ -26,7 +26,7 @@ from krita import Krita
 from .. import Settings, SDVersion, eventloop, resources, server, settings, util
 from ..resources import ModelResource, CustomNode
 from ..server import Server, ServerBackend, ServerState
-from . import Connection, ConnectionState
+from .. import Connection, ConnectionState, root
 from .theme import add_header, set_text_clipped, green, grey, red, yellow, highlight
 
 
@@ -415,7 +415,7 @@ class ServerWidget(QWidget):
             self.update()
             self._status_label.setText("Server running - Connecting...")
             self._status_label.setStyleSheet(f"color:{yellow};font-weight:bold")
-            await Connection.instance()._connect(url)
+            await root.connection._connect(url)
         except Exception as e:
             self._error = str(e)
         self.update()
@@ -425,8 +425,8 @@ class ServerWidget(QWidget):
         self._status_label.setText("Stopping server...")
         self._status_label.setStyleSheet(f"color:{yellow};font-weight:bold")
         try:
-            if Connection.instance().state is ConnectionState.connected:
-                await Connection.instance().disconnect()
+            if root.connection.state is ConnectionState.connected:
+                await root.connection.disconnect()
             await self._server.stop()
         except Exception as e:
             self._error = str(e)
@@ -544,7 +544,7 @@ class ServerWidget(QWidget):
             self._launch_button.setText("Launch")
             self._launch_button.setEnabled(False)
         elif state is ServerState.running:
-            connection_state = Connection.instance().state
+            connection_state = root.connection.state
             if connection_state is ConnectionState.disconnected:
                 self._status_label.setText("Server running - Disconnected")
                 self._status_label.setStyleSheet(f"color:{grey};font-weight:bold")
@@ -555,7 +555,7 @@ class ServerWidget(QWidget):
                 self._status_label.setText("Server running - Connected")
                 self._status_label.setStyleSheet(f"color:{green};font-weight:bold")
             elif connection_state is ConnectionState.error:
-                error = Connection.instance().error or "Unknown error"
+                error = root.connection.error or "Unknown error"
                 self._status_label.setText(f"<b>Server running - Connection error:</b> {error}")
                 self._status_label.setStyleSheet(f"color:{red}")
             self._launch_button.setText("Stop")
