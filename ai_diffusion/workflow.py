@@ -152,7 +152,7 @@ class LiveParams:
 def _sampler_params(
     style: Style, clip_vision=False, advanced=False, live=LiveParams(), strength=1.0
 ) -> dict[str, Any]:
-    config = style.get_sampler_config(upscale, live.is_active)
+    config = style.get_sampler_config(live.is_active)
     sampler_name = {
         "DDIM": "ddim",
         "DPM++ 2M": "dpmpp_2m",

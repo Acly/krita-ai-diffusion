@@ -199,11 +199,9 @@ class Style:
     def filename(self):
         return self.filepath.name
 
-    def get_sampler_config(self, is_upscaling=False, is_live=False):
+    def get_sampler_config(self, is_live=False):
         if is_live:
             return SamplerConfig(self.live_sampler, self.live_sampler_steps, self.live_cfg_scale)
-        if is_upscaling:
-            return SamplerConfig(self.sampler, self.sampler_steps, self.cfg_scale)
         return SamplerConfig(self.sampler, self.sampler_steps, self.cfg_scale)
 
 
