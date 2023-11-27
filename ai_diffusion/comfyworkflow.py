@@ -170,6 +170,7 @@ class ComfyWorkflow:
         model: Output,
         weight: float,
         noise=0.0,
+        end_at=1.0,
         weight_type: str | None = None,
     ):
         args: dict = dict(
@@ -179,6 +180,8 @@ class ComfyWorkflow:
             model=model,
             weight=weight,
             noise=noise,
+            start_at=0.0,
+            end_at=end_at
         )
         if weight_type is not None:
             args["weight_type"] = weight_type
