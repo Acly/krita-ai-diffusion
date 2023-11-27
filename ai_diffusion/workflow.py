@@ -150,7 +150,7 @@ class LiveParams:
 
 
 def _sampler_params(
-    style: Style, clip_vision=False, advanced=False, live=LiveParams(), strength=1.0
+    style: Style, clip_vision=False, advanced=True, live=LiveParams(), strength=1.0
 ) -> dict[str, Any]:
     config = style.get_sampler_config(live.is_active)
     sampler_name = {
@@ -172,8 +172,11 @@ def _sampler_params(
     params = dict(
         sampler=sampler_name, scheduler=sampler_scheduler, steps=config.steps, cfg=config.cfg
     )
-    if strength < 1.0 and not advanced:
-        params["steps"], params["start_at_step"] = _apply_strength(strength=strength, steps=params["steps"], min_steps=config.steps if live.is_active else 1)
+    if advanced:
+        if strength < 1.0:
+            params["steps"], params["start_at_step"] = _apply_strength(strength=strength, steps=params["steps"], min_steps=config.steps if live.is_active else 1)
+        else:
+            params["start_at_step"] = 0
     if clip_vision:
         params["cfg"] = min(5, config.cfg)
     if live.is_active:
