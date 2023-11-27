@@ -150,7 +150,7 @@ class LiveParams:
 
 
 def _sampler_params(
-    style: Style, clip_vision=False, upscale=False, live=LiveParams(), strength: float = None
+    style: Style, clip_vision=False, advanced=False, live=LiveParams(), strength=1.0
 ) -> dict[str, Any]:
     config = style.get_sampler_config(upscale, live.is_active)
     sampler_name = {
@@ -172,7 +172,7 @@ def _sampler_params(
     params = dict(
         sampler=sampler_name, scheduler=sampler_scheduler, steps=config.steps, cfg=config.cfg
     )
-    if strength is not None and not upscale:
+    if strength < 1.0 and not advanced:
         params["steps"], params["start_at_step"] = _apply_strength(strength=strength, steps=params["steps"], min_steps=config.steps if live.is_active else 1)
     if clip_vision:
         params["cfg"] = min(5, config.cfg)
@@ -656,7 +656,7 @@ def upscale_tiled(
         denoise=strength,
         original_extent=image.extent,
         tile_extent=tile_extent,
-        **_sampler_params(style, upscale=True),
+        **_sampler_params(style, advanced=False),
     )
     if not target_extent.is_multiple_of(8):
         img = w.scale_image(img, target_extent)
