@@ -1,4 +1,5 @@
 from __future__ import annotations
+from typing import Callable
 from PyQt5.QtCore import QObject, pyqtSignal
 
 from .connection import Connection, ConnectionState
@@ -14,14 +15,19 @@ class Root(QObject):
     """Root object, exists once, maintains all other instances. Keeps track of documents
     openend in Krita and creates a corresponding Model for each."""
 
-    _server = Server(settings.server_path)
-    _connection = Connection()
-    _models: list[Model] = []
+    _server: Server
+    _connection: Connection
+    _models: list[Model]
 
     model_created = pyqtSignal(Model)
 
     def __init__(self):
         super().__init__()
+
+    def init(self):
+        self._server = Server(settings.server_path)
+        self._connection = Connection()
+        self._models = []
         self._connection.message_received.connect(self._handle_message)
 
     def model_for_active_document(self):
@@ -53,7 +59,7 @@ class Root(QObject):
             return model
         return Model(Document(), self._connection)
 
-    async def autostart(self):
+    async def autostart(self, signal_server_change: Callable):
         connection = self._connection
         try:
             if (
@@ -62,9 +68,9 @@ class Root(QObject):
                 and not self._server.upgrade_required
             ):
                 url = await self._server.start()
-                # self._settings_dialog.connection.update()
+                signal_server_change()
                 await connection._connect(url)
-                # self._settings_dialog.connection.update()
+                signal_server_change()
             elif settings.server_mode in [ServerMode.undefined, ServerMode.external]:
                 await connection._connect(settings.server_url)
                 if settings.server_mode is ServerMode.undefined:

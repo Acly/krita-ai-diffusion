@@ -138,15 +138,9 @@ def prepare_masked(image: Image, mask: Mask, sd_ver: SDVersion, downscale: bool 
     return scaled, out_image, out_mask, batch
 
 
-class LiveParams:
-    is_active = False
-    strength = 0.3
-    seed: int
-
-    def __init__(self, is_active=False, strength=0.3, seed=None):
-        self.is_active = is_active
-        self.strength = strength
-        self.seed = seed or random.randint(0, 2**31 - 1)
+class LiveParams(NamedTuple):
+    is_active: bool = False
+    seed: int = 0
 
 
 def _sampler_params(

@@ -560,6 +560,7 @@ class ConnectionSettings(SettingsTab):
         self._layout.addWidget(info_external)
         self._layout.addWidget(self._server_stack)
 
+        root.connection.state_changed.connect(self.update_server_status)
         self.update_server_status()
 
     @property
@@ -989,9 +990,7 @@ class PerformanceSettings(SettingsTab):
             )
 
     def _read(self):
-        memory_usage = 0
-        if model := Model.active():
-            memory_usage = model.jobs.memory_usage
+        memory_usage = root.active_model.jobs.memory_usage
         self._history_size.setValue(settings.history_size)
         self._history_usage.setText(f"Currently using {memory_usage:.1f} MB")
         self._batch_size.value = settings.batch_size
@@ -1022,7 +1021,7 @@ class SettingsDialog(QDialog):
         assert cls._instance is not None
         return cls._instance
 
-    def __init__(self, main_window: QMainWindow, server: Server):
+    def __init__(self, server: Server):
         super().__init__()
         type(self)._instance = self
 

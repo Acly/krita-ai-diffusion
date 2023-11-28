@@ -4,11 +4,12 @@ from collections import deque
 from copy import copy
 from datetime import datetime
 from enum import Enum, Flag
+import random
 from typing import Deque, NamedTuple, Optional, cast
 from PyQt5.QtCore import Qt, QObject, QUuid, pyqtSignal
 
 from . import eventloop, workflow, NetworkError, settings, util
-from .image import Image, ImageCollection, Mask, Bounds
+from .image import Extent, Image, ImageCollection, Mask, Bounds
 from .client import ClientMessage, ClientEvent, filter_supported_styles, resolve_sd_version
 from .document import Document, LayerObserver
 from .pose import Pose
@@ -76,28 +77,31 @@ class JobQueue(QObject):
         self._entries = deque()
 
     def add(self, id: str, prompt: str, bounds: Bounds):
-        self._entries.append(Job(id, JobKind.diffusion, prompt, bounds))
+        self._add(Job(id, JobKind.diffusion, prompt, bounds))
 
     def add_control(self, control: ControlLayer, bounds: Bounds):
         job = Job(None, JobKind.control_layer, f"[Control] {control.mode.text}", bounds)
         job.control = control
-        self._entries.append(job)
-        return job
+        return self._add(job)
 
     def add_upscale(self, bounds: Bounds):
         job = Job(None, JobKind.upscaling, f"[Upscale] {bounds.width}x{bounds.height}", bounds)
-        self._entries.append(job)
-        return job
+        return self._add(job)
 
     def add_live(self, prompt: str, bounds: Bounds):
         job = Job(None, JobKind.live_preview, prompt, bounds)
+        return self._add(job)
+
+    def _add(self, job: Job):
         self._entries.append(job)
+        self.count_changed.emit()
         return job
 
     def remove(self, job: Job):
         # Diffusion jobs: kept for history, pruned according to meomry usage
         # Control layer jobs: removed immediately once finished
         self._entries.remove(job)
+        self.count_changed.emit()
 
     def find(self, id: str):
         return next((j for j in self._entries if j.id == id), None)
@@ -110,6 +114,15 @@ class JobQueue(QObject):
         if job.kind is JobKind.diffusion:
             self._memory_usage += results.size / (1024**2)
             self.prune(keep=job)
+
+    def notify_started(self, job: Job):
+        job.state = State.executing
+        self.count_changed.emit()
+
+    def notify_finished(self, job: Job):
+        job.state = State.finished
+        self.job_finished.emit(job)
+        self.count_changed.emit()
 
     def prune(self, keep: Job):
         while self._memory_usage > settings.history_size and self._entries[0] != keep:
@@ -160,6 +173,7 @@ class ControlLayer(QObject, metaclass=PropertyMeta):
     is_pose_vector = Property(False)
     can_generate = Property(True)
     has_active_job = Property(False)
+    show_end = Property(False)
     error_text = Property("")
 
     _model: Model
@@ -181,6 +195,7 @@ class ControlLayer(QObject, metaclass=PropertyMeta):
         self.mode_changed.connect(self._update_is_pose_vector)
         self.layer_id_changed.connect(self._update_is_pose_vector)
         model.jobs.job_finished.connect(self._update_active_job)
+        settings.changed.connect(self._handle_settings)
 
     @property
     def layer(self):
@@ -214,12 +229,13 @@ class ControlLayer(QObject, metaclass=PropertyMeta):
             elif client.control_model[self.mode][sdver] is None:
                 filenames = self.mode.filenames(sdver)
                 if filenames:
-                    self.error_text = f"The server is missing {filenames}"
+                    self.error_text = f"The ControlNet model is not installed {filenames}"
                 else:
                     self.error_text = f"Not supported for {sdver.value}"
                 is_supported = False
 
         self.is_supported = is_supported
+        self.show_end = self.is_supported and settings.show_control_end
         self.can_generate = is_supported and self.mode not in [
             ControlMode.image,
             ControlMode.stencil,
@@ -233,6 +249,10 @@ class ControlLayer(QObject, metaclass=PropertyMeta):
         if self.has_active_job and not active:
             self._job = None  # job done
         self.has_active_job = active
+
+    def _handle_settings(self, name: str, value: object):
+        if name == "show_control_end":
+            self.show_end = self.is_supported and settings.show_control_end
 
 
 class ControlLayerList(QObject):
@@ -302,8 +322,8 @@ class Model(QObject, metaclass=PropertyMeta):
     negative_prompt = Property("")
     control: ControlLayerList
     strength = Property(1.0)
-    upscale: UpscaleParams
-    live: LiveParams
+    upscale: UpscaleWorkspace
+    live: LiveWorkspace
     progress = Property(0.0)
     jobs: JobQueue
     error = Property("")
@@ -316,10 +336,10 @@ class Model(QObject, metaclass=PropertyMeta):
         self._doc = document
         self._image_layers = document.create_layer_observer()
         self._connection = connection
-        self.control = ControlLayerList(self)
-        self.upscale = UpscaleParams(self)
-        self.live = LiveParams()
         self.jobs = JobQueue()
+        self.control = ControlLayerList(self)
+        self.upscale = UpscaleWorkspace(self)
+        self.live = LiveWorkspace(self)
 
         self.jobs.job_finished.connect(self.update_preview)
         self.jobs.selection_changed.connect(self.update_preview)
@@ -400,16 +420,15 @@ class Model(QObject, metaclass=PropertyMeta):
         job = self.jobs.add_upscale(Bounds(0, 0, *self.upscale.target_extent))
         self.clear_error()
         self.task = eventloop.run(
-            _report_errors(self, self._upscale_image(job, image, copy(self.upscale)))
+            _report_errors(self, self._upscale_image(job, image, self.upscale.params))
         )
 
     async def _upscale_image(self, job: Job, image: Image, params: UpscaleParams):
         client = self._connection.client
-        if params.upscaler == "":
-            params.upscaler = client.default_upscaler
+        upscaler = params.upscaler or client.default_upscaler
         if params.use_diffusion:
             work = workflow.upscale_tiled(
-                client, image, params.upscaler, params.factor, self.style, params.strength
+                client, image, upscaler, params.factor, self.style, params.strength
             )
         else:
             work = workflow.upscale_simple(client, image, params.upscaler, params.factor)
@@ -425,16 +444,15 @@ class Model(QObject, metaclass=PropertyMeta):
         cond = Conditioning(self.prompt, self.negative_prompt, control)
         job = self.jobs.add_live(self.prompt, bounds)
         self.clear_error()
-        self.task = eventloop.run(
-            _report_errors(self, self._generate_live(job, image, self.style, cond))
-        )
+        self.task = eventloop.run(_report_errors(self, self._generate_live(job, image, cond)))
 
-    async def _generate_live(self, job: Job, image: Image | None, style: Style, cond: Conditioning):
+    async def _generate_live(self, job: Job, image: Image | None, cond: Conditioning):
+        style, strength, params = self.style, self.live.strength, self.live.params
         client = self._connection.client
         if image:
-            work = workflow.refine(client, style, image, cond, self.live.strength, self.live)
+            work = workflow.refine(client, style, image, cond, strength, params)
         else:
-            work = workflow.generate(client, style, self._doc.extent, cond, self.live)
+            work = workflow.generate(client, style, self._doc.extent, cond, params)
         job.id = await client.enqueue(work)
 
     def _get_current_image(self, bounds: Bounds):
@@ -494,11 +512,9 @@ class Model(QObject, metaclass=PropertyMeta):
             return
 
         if message.event is ClientEvent.progress:
-            job.state = State.executing
+            self.jobs.notify_started(job)
             self.report_progress(message.progress)
         elif message.event is ClientEvent.finished:
-            job.state = State.finished
-            self.progress = 1
             if message.images:
                 self.jobs.set_results(job, message.images)
             if job.kind is JobKind.control_layer:
@@ -506,12 +522,11 @@ class Model(QObject, metaclass=PropertyMeta):
                 job.control.layer_id = self.add_control_layer(job, message.result).uniqueId()
             elif job.kind is JobKind.upscaling:
                 self.add_upscale_layer(job)
-            elif job.kind is JobKind.live_preview and len(job.results) > 0:
-                self._live_result = job.results[0]
+            self.progress = 1
+            self.jobs.notify_finished(job)
             if job.kind is not JobKind.diffusion:
                 self.jobs.remove(job)
-            self.jobs.job_finished.emit(job)
-            if job.kind is JobKind.diffusion and self._layer is None and job.id:
+            elif job.kind is JobKind.diffusion and self._layer is None and job.id:
                 self.jobs.select(job.id, 0)
         elif message.event is ClientEvent.interrupted:
             job.state = State.cancelled
@@ -611,24 +626,93 @@ class Model(QObject, metaclass=PropertyMeta):
         return self._doc.is_valid
 
 
-class UpscaleParams:
-    upscaler = ""
-    factor = 2.0
-    use_diffusion = True
-    strength = 0.3
+class UpscaleParams(NamedTuple):
+    upscaler: str
+    factor: float
+    use_diffusion: bool
+    strength: float
+    target_extent: Extent
+
+
+class UpscaleWorkspace(QObject, metaclass=PropertyMeta):
+    upscaler = Property("")
+    factor = Property(2.0)
+    use_diffusion = Property(True)
+    strength = Property(0.3)
+    target_extent = Property(Extent(1, 1))
 
     _model: Model
 
     def __init__(self, model: Model):
+        super().__init__()
         self._model = model
-        # if client := Connection.instance().client_if_connected:
-        #     self.upscaler = client.default_upscaler
-        # else:
-        #     self.upscaler = ""
+        if client := model._connection.client_if_connected:
+            self.upscaler = client.default_upscaler
+        self.factor_changed.connect(self._update_target_extent)
+        self._update_target_extent()
+
+    def _update_target_extent(self):
+        self.target_extent = self._model.document.extent * self.factor
 
     @property
-    def target_extent(self):
-        return self._model.document.extent * self.factor
+    def params(self):
+        self._update_target_extent()
+        return UpscaleParams(
+            upscaler=self.upscaler,
+            factor=self.factor,
+            use_diffusion=self.use_diffusion,
+            strength=self.strength,
+            target_extent=self.target_extent,
+        )
+
+
+class LiveWorkspace(QObject, metaclass=PropertyMeta):
+    is_active = Property(False, setter="toggle")
+    strength = Property(0.3)
+    seed = Property(0)
+    has_result = Property(False)
+
+    result_available = pyqtSignal(Image)
+
+    _model: Model
+    _result: Image | None = None
+
+    def __init__(self, model: Model):
+        super().__init__()
+        self._model = model
+        self.generate_seed()
+        model.jobs.job_finished.connect(self.handle_job_finished)
+
+    def generate_seed(self):
+        self.seed = random.randint(0, 2**31 - 1)
+
+    def toggle(self, active: bool):
+        if active != self.is_active:
+            self._is_active = active
+            self.is_active_changed.emit(active)
+            if active:
+                self._model.generate_live()
+
+    def handle_job_finished(self, job: Job):
+        if job.kind is JobKind.live_preview:
+            if len(job.results) > 0:
+                self.result = job.results[0]
+            if self.is_active:
+                self._model.generate_live()
+
+    @property
+    def result(self):
+        return self._result
+
+    @result.setter
+    def result(self, value: Image):
+        self._result = value
+        self.result_available.emit(value)
+        self.has_result = True
+
+    @property
+    def params(self):
+        return LiveParams(is_active=self.is_active, seed=self.seed)
 
 
 async def _report_errors(parent, coro):

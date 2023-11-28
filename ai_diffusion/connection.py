@@ -33,7 +33,6 @@ class Connection(QObject, metaclass=PropertyMeta):
 
     def __init__(self):
         super().__init__()
-        self.error = ""
 
     def __del__(self):
         if self._task is not None:

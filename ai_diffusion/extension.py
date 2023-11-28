@@ -3,16 +3,15 @@ from typing import Callable, Optional
 from PyQt5.QtWidgets import QAction
 from krita import Extension, Krita, DockWidgetFactory, DockWidgetFactoryBase, Window  # type: ignore
 
-from . import eventloop, settings, __version__, Server, ServerMode, ServerState, Workspace
+from . import eventloop, settings, __version__, Workspace
 from .ui import actions, ImageDiffusionWidget, SettingsDialog
-from .connection import Connection, ConnectionState
-from .root import Root
+from .root import root
 from .util import client_logger as log
 
 
 class AIToolsExtension(Extension):
     _actions: dict[str, QAction] = {}
-    _root: Root
+    _settings_dialog: SettingsDialog
 
     def __init__(self, parent):
         super().__init__(parent)
@@ -20,18 +19,18 @@ class AIToolsExtension(Extension):
 
         eventloop.setup()
         settings.load()
-        self._root = Root()
-        ImageDiffusionWidget._root = self._root
+        root.init()
+        self._settings_dialog = SettingsDialog(root.server)
 
         notifier = Krita.instance().notifier()
         notifier.setActive(True)
         notifier.applicationClosing.connect(self.shutdown)
 
     def setup(self):
-        eventloop.run(self._root.autostart())
+        eventloop.run(root.autostart(self._settings_dialog.connection.update))
 
     def shutdown(self):
-        self._root.server.terminate()
+        root.server.terminate()
         eventloop.stop()
 
     def _create_action(self, window: Window, name: str, func: Callable[[], None]):
@@ -40,7 +39,6 @@ class AIToolsExtension(Extension):
         self._actions[name] = action
 
     def createActions(self, window):
-        self._settings_dialog = SettingsDialog(window.qwindow(), self._root.server)
         self._create_action(window, "settings", self._settings_dialog.show)
         self._create_action(window, "generate", actions.generate)
         self._create_action(window, "cancel", actions.cancel_active)
