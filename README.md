@@ -40,7 +40,9 @@ The plugin comes with an integrated installer for the Stable Diffusion backend.
 ### Requirements
 
 * Windows, Linux, MacOS
-* _On Linux:_ Python + venv must be installed (available via package manager, eg. `apt install python3-venv`)
+* _On Linux/Mac:_ Python + venv must be installed
+    * version 3.9 or newer
+    * usually available via package manager, eg. `apt install python3-venv`
 
 #### Hardware support
 

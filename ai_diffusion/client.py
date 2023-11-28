@@ -126,6 +126,7 @@ class Client:
     clip_vision_model: str
     ip_adapter_model: dict[SDVersion, str | None]
     ip_adapter_has_weight_type = False
+    ip_adapter_has_start = False
     lcm_model: dict[SDVersion, str | None]
     supported_sd_versions: list[SDVersion]
     device_info: DeviceInfo
@@ -166,6 +167,9 @@ class Client:
         }
         client.ip_adapter_has_weight_type = (
             "weight_type" in nodes["IPAdapterApply"]["input"]["required"]
+        )
+        client.ip_adapter_has_start = (
+            "start_at" in nodes["IPAdapterApply"]["input"]["required"]
         )
 
         # Retrieve upscale models
@@ -397,6 +401,7 @@ class Client:
 
 def parse_url(url: str):
     url = url.strip("/")
+    url = url.replace('0.0.0.0', '127.0.0.1')
     if not url.startswith("http"):
         url = f"http://{url}"
     return url
