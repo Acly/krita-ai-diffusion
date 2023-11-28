@@ -258,9 +258,7 @@ class ControlWidget(QWidget):
         self.add_pose_button.setEnabled(self._is_vector_layer())
         self.strength_spin.setVisible(is_installed)
         self.strength_spin.setEnabled(self._is_first_image_mode())
-        self.end_spin.setVisible(
-            is_installed and settings.show_control_end and mode is not ControlMode.image
-        )
+        self.end_spin.setVisible(is_installed and settings.show_control_end)
         self.end_spin.setEnabled(self._is_first_image_mode())
         self.error_text.setVisible(not is_installed)
         return is_installed
