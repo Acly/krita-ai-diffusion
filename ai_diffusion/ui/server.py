@@ -23,10 +23,13 @@ from PyQt5.QtWidgets import (
 )
 from krita import Krita
 
-from .. import Settings, SDVersion, eventloop, resources, server, settings, util
+from ..settings import Settings, settings
+from ..style import SDVersion
 from ..resources import ModelResource, CustomNode
 from ..server import Server, ServerBackend, ServerState
-from .. import Connection, ConnectionState, root
+from ..connection import ConnectionState
+from ..root import root
+from .. import eventloop, resources, server, util
 from .theme import add_header, set_text_clipped, green, grey, red, yellow, highlight
 
 

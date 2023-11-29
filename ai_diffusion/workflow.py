@@ -1,6 +1,5 @@
 from __future__ import annotations
 import math
-import random
 from typing import Any, List, NamedTuple, Optional
 
 from .image import Bounds, Extent, Image, Mask

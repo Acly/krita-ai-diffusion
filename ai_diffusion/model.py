@@ -1,305 +1,30 @@
 from __future__ import annotations
 import asyncio
-from collections import deque
-from copy import copy
-from datetime import datetime
-from enum import Enum, Flag
 import random
-from typing import Deque, NamedTuple, Optional, cast
-from PyQt5.QtCore import Qt, QObject, QUuid, pyqtSignal
+from enum import Enum
+from typing import NamedTuple, cast
+from PyQt5.QtCore import QObject, pyqtSignal
 
-from . import eventloop, workflow, NetworkError, settings, util
+from . import eventloop, workflow, util
+from .settings import settings
+from .network import NetworkError
 from .image import Extent, Image, ImageCollection, Mask, Bounds
-from .client import ClientMessage, ClientEvent, filter_supported_styles, resolve_sd_version
+from .client import ClientMessage, ClientEvent, filter_supported_styles
 from .document import Document, LayerObserver
 from .pose import Pose
 from .style import Style, Styles
-from .workflow import Control, ControlMode, Conditioning, LiveParams
+from .workflow import ControlMode, Conditioning, LiveParams
 from .connection import Connection, ConnectionState
 from .properties import Property, PropertyMeta
+from .jobs import Job, JobKind, JobQueue, JobState
+from .control import ControlLayer, ControlLayerList
 import krita
-
-
-class State(Flag):
-    queued = 0
-    executing = 1
-    finished = 2
-    cancelled = 3
-
-
-class JobKind(Enum):
-    diffusion = 0
-    control_layer = 1
-    upscaling = 2
-    live_preview = 3
-
-
-class Job:
-    id: str | None
-    kind: JobKind
-    state = State.queued
-    prompt: str
-    bounds: Bounds
-    control: ControlLayer | None = None
-    timestamp: datetime
-    _results: ImageCollection
-
-    def __init__(self, id: str | None, kind: JobKind, prompt: str, bounds: Bounds):
-        self.id = id
-        self.kind = kind
-        self.prompt = prompt
-        self.bounds = bounds
-        self.timestamp = datetime.now()
-        self._results = ImageCollection()
-
-    @property
-    def results(self):
-        return self._results
-
-
-class JobQueue(QObject):
-    """Queue of waiting, ongoing and finished jobs for one document."""
-
-    class Item(NamedTuple):
-        job: str
-        image: int
-
-    count_changed = pyqtSignal()
-    selection_changed = pyqtSignal()
-    job_finished = pyqtSignal(Job)
-
-    _entries: Deque[Job]
-    _selection: Item | None = None
-    _memory_usage = 0  # in MB
-
-    def __init__(self):
-        super().__init__()
-        self._entries = deque()
-
-    def add(self, id: str, prompt: str, bounds: Bounds):
-        self._add(Job(id, JobKind.diffusion, prompt, bounds))
-
-    def add_control(self, control: ControlLayer, bounds: Bounds):
-        job = Job(None, JobKind.control_layer, f"[Control] {control.mode.text}", bounds)
-        job.control = control
-        return self._add(job)
-
-    def add_upscale(self, bounds: Bounds):
-        job = Job(None, JobKind.upscaling, f"[Upscale] {bounds.width}x{bounds.height}", bounds)
-        return self._add(job)
-
-    def add_live(self, prompt: str, bounds: Bounds):
-        job = Job(None, JobKind.live_preview, prompt, bounds)
-        return self._add(job)
-
-    def _add(self, job: Job):
-        self._entries.append(job)
-        self.count_changed.emit()
-        return job
-
-    def remove(self, job: Job):
-        # Diffusion jobs: kept for history, pruned according to meomry usage
-        # Control layer jobs: removed immediately once finished
-        self._entries.remove(job)
-        self.count_changed.emit()
-
-    def find(self, id: str):
-        return next((j for j in self._entries if j.id == id), None)
-
-    def count(self, state: State):
-        return sum(1 for j in self._entries if j.state is state)
-
-    def set_results(self, job: Job, results: ImageCollection):
-        job._results = results
-        if job.kind is JobKind.diffusion:
-            self._memory_usage += results.size / (1024**2)
-            self.prune(keep=job)
-
-    def notify_started(self, job: Job):
-        job.state = State.executing
-        self.count_changed.emit()
-
-    def notify_finished(self, job: Job):
-        job.state = State.finished
-        self.job_finished.emit(job)
-        self.count_changed.emit()
-
-    def prune(self, keep: Job):
-        while self._memory_usage > settings.history_size and self._entries[0] != keep:
-            discarded = self._entries.popleft()
-            self._memory_usage -= discarded._results.size / (1024**2)
-
-    def select(self, job_id: str, index: int):
-        self.selection = self.Item(job_id, index)
-
-    def any_executing(self):
-        return any(j.state is State.executing for j in self._entries)
-
-    def __len__(self):
-        return len(self._entries)
-
-    def __getitem__(self, i):
-        return self._entries[i]
-
-    def __iter__(self):
-        return iter(self._entries)
-
-    @property
-    def selection(self):
-        return self._selection
-
-    @selection.setter
-    def selection(self, value: Item | None):
-        self._selection = value
-        self.selection_changed.emit()
-
-    @property
-    def memory_usage(self):
-        return self._memory_usage
 
 
 class Workspace(Enum):
     generation = 0
     upscaling = 1
     live = 2
-
-
-class ControlLayer(QObject, metaclass=PropertyMeta):
-    mode = Property(ControlMode.image)
-    layer_id = Property(QUuid())
-    strength = Property(1.0)
-    end = Property(1.0)
-    is_supported = Property(True)
-    is_pose_vector = Property(False)
-    can_generate = Property(True)
-    has_active_job = Property(False)
-    show_end = Property(False)
-    error_text = Property("")
-
-    _model: Model
-    _generate_job: Job | None = None
-
-    def __init__(self, model: Model, mode: ControlMode, layer_id: QUuid):
-        from . import root
-
-        super().__init__()
-        self._model = model
-        self.mode = mode
-        self.layer_id = layer_id
-        self._update_is_supported()
-        self._update_is_pose_vector()
-
-        self.mode_changed.connect(self._update_is_supported)
-        model.style_changed.connect(self._update_is_supported)
-        root.connection.state_changed.connect(self._update_is_supported)
-        self.mode_changed.connect(self._update_is_pose_vector)
-        self.layer_id_changed.connect(self._update_is_pose_vector)
-        model.jobs.job_finished.connect(self._update_active_job)
-        settings.changed.connect(self._handle_settings)
-
-    @property
-    def layer(self):
-        layer = self._model.image_layers.find(self.layer_id)
-        assert layer is not None, "Control layer has been deleted"
-        return layer
-
-    def get_image(self, bounds: Optional[Bounds] = None):
-        layer = self.layer
-        if self.mode is ControlMode.image and not layer.bounds().isEmpty():
-            bounds = None  # ignore mask bounds, use layer bounds
-        image = self._model.document.get_layer_image(layer, bounds)
-        if self.mode.is_lines or self.mode is ControlMode.stencil:
-            image.make_opaque(background=Qt.GlobalColor.white)
-        return Control(self.mode, image, self.strength, self.end)
-
-    def generate(self):
-        self._generate_job = self._model.generate_control_layer(self)
-        self.has_active_job = True
-
-    def _update_is_supported(self):
-        from . import root
-
-        is_supported = True
-        if client := root.connection.client_if_connected:
-            sdver = resolve_sd_version(self._model.style, client)
-            if self.mode is ControlMode.image:
-                if client.ip_adapter_model[sdver] is None:
-                    self.error_text = f"The server is missing the IP-Adapter model"
-                    is_supported = False
-            elif client.control_model[self.mode][sdver] is None:
-                filenames = self.mode.filenames(sdver)
-                if filenames:
-                    self.error_text = f"The ControlNet model is not installed {filenames}"
-                else:
-                    self.error_text = f"Not supported for {sdver.value}"
-                is_supported = False
-
-        self.is_supported = is_supported
-        self.show_end = self.is_supported and settings.show_control_end
-        self.can_generate = is_supported and self.mode not in [
-            ControlMode.image,
-            ControlMode.stencil,
-        ]
-
-    def _update_is_pose_vector(self):
-        self.is_pose_vector = self.mode is ControlMode.pose and self.layer.type() == "vectorlayer"
-
-    def _update_active_job(self):
-        active = self._generate_job is not None and self._generate_job.state is not State.finished
-        if self.has_active_job and not active:
-            self._job = None  # job done
-        self.has_active_job = active
-
-    def _handle_settings(self, name: str, value: object):
-        if name == "show_control_end":
-            self.show_end = self.is_supported and settings.show_control_end
-
-
-class ControlLayerList(QObject):
-    """List of control layers for one document."""
-
-    added = pyqtSignal(ControlLayer)
-    removed = pyqtSignal(ControlLayer)
-
-    _model: Model
-    _layers: list[ControlLayer]
-    _last_mode = ControlMode.scribble
-
-    def __init__(self, model: Model):
-        super().__init__()
-        self._model = model
-        self._layers = []
-        model.image_layers.changed.connect(self._update_layer_list)
-
-    def add(self):
-        layer = self._model.document.active_layer.uniqueId()
-        control = ControlLayer(self._model, self._last_mode, layer)
-        control.mode_changed.connect(self._update_last_mode)
-        self._layers.append(control)
-        self.added.emit(control)
-
-    def remove(self, control: ControlLayer):
-        self._layers.remove(control)
-        self.removed.emit(control)
-
-    def _update_last_mode(self, mode: ControlMode):
-        self._last_mode = mode
-
-    def _update_layer_list(self):
-        # Remove layers that have been deleted
-        layer_ids = [l.uniqueId() for l in self._model.image_layers]
-        to_remove = [l for l in self._layers if l.layer_id not in layer_ids]
-        for l in to_remove:
-            self.remove(l)
-
-    def __len__(self):
-        return len(self._layers)
-
-    def __getitem__(self, i):
-        return self._layers[i]
-
-    def __iter__(self):
-        return iter(self._layers)
 
 
 class Model(QObject, metaclass=PropertyMeta):
@@ -310,11 +35,8 @@ class Model(QObject, metaclass=PropertyMeta):
 
     _doc: Document
     _connection: Connection
-    _layer: Optional[krita.Node] = None
-    _live_result: Optional[Image] = None
+    _layer: krita.Node | None = None
     _image_layers: LayerObserver
-
-    has_error_changed = pyqtSignal(bool)
 
     workspace = Property(Workspace.generation, setter="set_workspace")
     style = Property(Styles.list().default)
@@ -328,8 +50,17 @@ class Model(QObject, metaclass=PropertyMeta):
     jobs: JobQueue
     error = Property("")
     can_apply_result = Property(False)
+    task: asyncio.Task | None = None
 
-    task: Optional[asyncio.Task] = None
+    workspace_changed = pyqtSignal(Workspace)
+    style_changed = pyqtSignal(Style)
+    prompt_changed = pyqtSignal(str)
+    negative_prompt_changed = pyqtSignal(str)
+    strength_changed = pyqtSignal(float)
+    progress_changed = pyqtSignal(float)
+    error_changed = pyqtSignal(str)
+    can_apply_result_changed = pyqtSignal(bool)
+    has_error_changed = pyqtSignal(bool)
 
     def __init__(self, document: Document, connection: Connection):
         super().__init__()
@@ -381,11 +112,7 @@ class Model(QObject, metaclass=PropertyMeta):
         )
 
     async def _generate(
-        self,
-        bounds: Bounds,
-        conditioning: Conditioning,
-        image: Optional[Image],
-        mask: Optional[Mask],
+        self, bounds: Bounds, conditioning: Conditioning, image: Image | None, mask: Mask | None
     ):
         client = self._connection.client
         style, strength = self.style, self.strength
@@ -457,9 +184,7 @@ class Model(QObject, metaclass=PropertyMeta):
 
     def _get_current_image(self, bounds: Bounds):
         exclude = [  # exclude control layers from projection
-            cast(krita.Node, c.image)
-            for c in self.control
-            if c.mode not in [ControlMode.image, ControlMode.blur]
+            c.layer for c in self.control if c.mode not in [ControlMode.image, ControlMode.blur]
         ]
         if self._layer:  # exclude preview layer
             exclude.append(self._layer)
@@ -486,7 +211,7 @@ class Model(QObject, metaclass=PropertyMeta):
 
     def cancel(self, active=False, queued=False):
         if queued:
-            to_remove = [job for job in self.jobs if job.state is State.queued]
+            to_remove = [job for job in self.jobs if job.state is JobState.queued]
             if len(to_remove) > 0:
                 self._connection.clear_queue()
                 for job in to_remove:
@@ -529,10 +254,10 @@ class Model(QObject, metaclass=PropertyMeta):
             elif job.kind is JobKind.diffusion and self._layer is None and job.id:
                 self.jobs.select(job.id, 0)
         elif message.event is ClientEvent.interrupted:
-            job.state = State.cancelled
+            job.state = JobState.cancelled
             self.report_progress(0)
         elif message.event is ClientEvent.error:
-            job.state = State.cancelled
+            job.state = JobState.cancelled
             self.report_error(f"Server execution error: {message.error}")
 
     def update_preview(self):
@@ -560,14 +285,14 @@ class Model(QObject, metaclass=PropertyMeta):
         if self._layer is not None:
             self._doc.hide_layer(self._layer)
 
-    def apply_current_result(self):
-        """Promote the preview layer to a user layer."""
+    def apply_result(self):
         assert self._layer and self.can_apply_result
         self._layer.setLocked(False)
         self._layer.setName(self._layer.name().replace("[Preview]", "[Generated]"))
         self._layer = None
+        self.jobs.selection = None
 
-    def add_control_layer(self, job: Job, result: Optional[dict]):
+    def add_control_layer(self, job: Job, result: dict | None):
         assert job.kind is JobKind.control_layer and job.control
         if job.control.mode is ControlMode.pose and result is not None:
             pose = Pose.from_open_pose_json(result)
@@ -585,12 +310,6 @@ class Model(QObject, metaclass=PropertyMeta):
             self._layer = None
         self._doc.insert_layer(job.prompt, job.results[0], job.bounds)
 
-    def add_live_layer(self):
-        assert self._live_result is not None
-        self._doc.insert_layer(
-            f"[Live] {self.prompt}", self._live_result, Bounds(0, 0, *self._doc.extent)
-        )
-
     def set_workspace(self, workspace: Workspace):
         if self.workspace is Workspace.live:
             self.live.is_active = False
@@ -599,7 +318,7 @@ class Model(QObject, metaclass=PropertyMeta):
 
     @property
     def history(self):
-        return (job for job in self.jobs if job.state is State.finished)
+        return (job for job in self.jobs if job.state is JobState.finished)
 
     @property
     def has_live_result(self):
@@ -641,6 +360,12 @@ class UpscaleWorkspace(QObject, metaclass=PropertyMeta):
     strength = Property(0.3)
     target_extent = Property(Extent(1, 1))
 
+    upscaler_changed = pyqtSignal(str)
+    factor_changed = pyqtSignal(float)
+    use_diffusion_changed = pyqtSignal(bool)
+    strength_changed = pyqtSignal(float)
+    target_extent_changed = pyqtSignal(Extent)
+
     _model: Model
 
     def __init__(self, model: Model):
@@ -672,6 +397,10 @@ class LiveWorkspace(QObject, metaclass=PropertyMeta):
     seed = Property(0)
     has_result = Property(False)
 
+    is_active_changed = pyqtSignal(bool)
+    strength_changed = pyqtSignal(float)
+    seed_changed = pyqtSignal(int)
+    has_result_changed = pyqtSignal(bool)
     result_available = pyqtSignal(Image)
 
     _model: Model
@@ -699,6 +428,11 @@ class LiveWorkspace(QObject, metaclass=PropertyMeta):
                 self.result = job.results[0]
             if self.is_active:
                 self._model.generate_live()
+
+    def copy_result_to_layer(self):
+        assert self.result is not None
+        doc = self._model.document
+        doc.insert_layer(f"[Live] {self._model.prompt}", self.result, Bounds(0, 0, *doc.extent))
 
     @property
     def result(self):

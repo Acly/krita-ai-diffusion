@@ -1,5 +1,5 @@
 from enum import Enum
-from typing import NamedTuple, Sequence, TypeVar, Generic, cast
+from typing import NamedTuple, Sequence, TypeVar, Generic
 
 from PyQt5.QtCore import QObject, QMetaObject, pyqtSignal, pyqtBoundSignal, pyqtProperty  # type: ignore
 from PyQt5.QtWidgets import QComboBox
@@ -9,7 +9,7 @@ T = TypeVar("T")
 
 
 class PropertyMeta(type(QObject)):
-    """Lets a class succinctly define Qt properties."""
+    """Provides default implementations for properties (get, set, signal)."""
 
     def __new__(cls, name, bases, attrs):
         for key in list(attrs.keys()):
@@ -17,23 +17,19 @@ class PropertyMeta(type(QObject)):
             if not isinstance(attr, Property):
                 continue
 
-            property_type = type(attr._default_value)
-            notifier = pyqtSignal(property_type)
             attrs[f"_{key}"] = attr._default_value
-            attrs[f"{key}_changed"] = notifier
             getter, setter = None, None
             if attr._getter is not None:
                 getter = attrs[attr._getter]
             if attr._setter is not None:
                 setter = attrs[attr._setter]
-            attrs[key] = PropertyImpl(property_type, key, notifier, getter, setter)
+            attrs[key] = PropertyImpl(key, getter, setter)
 
         return super().__new__(cls, name, bases, attrs)
 
 
 class Property(Generic[T]):
-    """Property definition. Instances of this class will be replaced with their full
-    implementation by the PropertyMeta metaclass."""
+    """Property definition. Will be replaced with with PropertyImpl at instance creation."""
 
     _default_value: T
     _getter = None
@@ -49,13 +45,13 @@ class Property(Generic[T]):
     def __delete__(self, instance): ...
 
 
-class PropertyImpl(pyqtProperty):
+class PropertyImpl(property):
     """Property implementation: gets, sets, and notifies of change."""
 
     name: str
 
-    def __init__(self, property_type: type, name: str, notify, getter=None, setter=None):
-        super().__init__(property_type, getter or self.getter, setter or self.setter, notify=notify)
+    def __init__(self, name: str, getter=None, setter=None):
+        super().__init__(getter or self.getter, setter or self.setter)
         self.name = name
 
     def getter(self, instance):
@@ -95,10 +91,11 @@ class Bind(Enum):
 
 def bind(model, model_property: str, widget, widget_property: str, mode=Bind.two_way):
     # model change -> update widget
-    model_to_widget = _signal(model, model_property).connect(_setter(widget, widget_property))
+    widget_setter = _setter(widget, widget_property)
+    model_to_widget = _signal(model, model_property).connect(widget_setter)
 
     # set initial value from model
-    setattr(widget, widget_property, getattr(model, model_property))
+    widget_setter(getattr(model, model_property))
 
     if mode is Bind.one_way:
         return model_to_widget
@@ -106,13 +103,6 @@ def bind(model, model_property: str, widget, widget_property: str, mode=Bind.two
         # widget change -> update model
         widget_to_model = _signal(widget, widget_property).connect(_setter(model, model_property))
         return Binding(model_to_widget, widget_to_model)
-
-
-def bind_widget(model, model_property: str, widget_signal: pyqtBoundSignal, widget_setter):
-    model_to_widget = _signal(model, model_property).connect(widget_setter)
-    widget_setter(getattr(model, model_property))
-    widget_to_model = widget_signal.connect(_setter(model, model_property))
-    return Binding(model_to_widget, widget_to_model)
 
 
 def bind_combo(model, model_property: str, combo: QComboBox, mode=Bind.two_way):
@@ -133,12 +123,19 @@ def bind_combo(model, model_property: str, combo: QComboBox, mode=Bind.two_way):
         return Binding(model_to_widget, widget_to_model)
 
 
-def _signal(inst, property: str):
-    return getattr(inst, f"{property}_changed")
+def _signal(inst, property: str) -> pyqtBoundSignal:
+    if hasattr(inst, f"{property}_changed"):
+        return getattr(inst, f"{property}_changed")
+    else:
+        return getattr(inst, f"{property}Changed")
 
 
 def _setter(inst, property: str):
-    def _set(value):
+    def set_py(value):
         setattr(inst, property, value)
 
-    return _set
+    qt_setter_name = f"set{property.capitalize()}"
+    if hasattr(inst, qt_setter_name):
+        return getattr(inst, qt_setter_name)
+    else:
+        return set_py

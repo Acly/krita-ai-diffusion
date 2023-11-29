@@ -1,5 +1,5 @@
 from ..model import Model, Workspace
-from .. import root
+from ..root import root
 
 
 def generate():

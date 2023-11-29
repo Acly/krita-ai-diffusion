@@ -13,7 +13,6 @@ from PyQt5.QtWidgets import (
     QListWidget,
     QListWidgetItem,
     QLineEdit,
-    QMainWindow,
     QScrollArea,
     QSizePolicy,
     QSpinBox,
@@ -33,9 +32,9 @@ from ..settings import Setting, Settings, ServerMode, PerformancePreset, setting
 from ..server import Server
 from ..client import resolve_sd_version
 from ..style import Style, Styles, StyleSettings
-from .. import root, util, __version__
-from ..connection import Connection, ConnectionState, apply_performance_preset
-from ..model import Model
+from ..root import root
+from .. import util, __version__
+from ..connection import ConnectionState, apply_performance_preset
 from .server import ServerWidget
 from .theme import add_header, icon, sd_version_icon, red, yellow, green, grey
 

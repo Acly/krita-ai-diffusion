@@ -19,14 +19,14 @@ class ConnectionState(Enum):
 
 
 class Connection(QObject, metaclass=PropertyMeta):
-    # state_changed = pyqtSignal()
-    # error_changed = pyqtSignal(str)
-    models_changed = pyqtSignal()
-    message_received = pyqtSignal(ClientMessage)
-
     state = Property(ConnectionState.disconnected)
     error = Property("")
     missing_resource: MissingResource | None = None
+
+    state_changed = pyqtSignal(ConnectionState)
+    error_changed = pyqtSignal(str)
+    models_changed = pyqtSignal()
+    message_received = pyqtSignal(ClientMessage)
 
     _client: Client | None = None
     _task: asyncio.Task | None = None
