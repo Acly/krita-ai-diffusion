@@ -342,6 +342,7 @@ def apply_control(
         ip_image = None
         ip_strength = 0
         ip_end_at = 1.0
+        ip_unfold_batch = False
         for control in (c for c in cond.control if c.mode is ControlMode.image):
             image = control.load_image(w)
             if ip_image is None:
@@ -356,8 +357,17 @@ def apply_control(
             weight_type = "original" if comfy.ip_adapter_has_weight_type else None
             if not comfy.ip_adapter_has_start:
                 ip_end_at = None
+            if not comfy.ip_adapter_has_unfold:
+                ip_unfold_batch = None
             model = w.apply_ip_adapter(
-                ip_adapter, clip_vision, ip_image, model, ip_strength, end_at=ip_end_at, weight_type=weight_type
+                ip_adapter,
+                clip_vision,
+                ip_image,
+                model,
+                ip_strength,
+                end_at=ip_end_at,
+                weight_type=weight_type,
+                unfold_batch=ip_unfold_batch
             )
 
     return model, positive, negative

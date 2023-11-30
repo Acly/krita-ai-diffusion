@@ -172,6 +172,7 @@ class ComfyWorkflow:
         noise=0.0,
         end_at: float | None = None,
         weight_type: str | None = None,
+        unfold_batch: bool | None = None,
     ):
         args: dict = dict(
             ipadapter=ipadapter,
@@ -186,6 +187,8 @@ class ComfyWorkflow:
         if end_at is not None:
             args["start_at"] = 0.0
             args["end_at"] = end_at
+        if unfold_batch is not None:
+            args["unfold_batch"] = unfold_batch
         return self.add("IPAdapterApply", 1, **args)
 
     def inpaint_preprocessor(self, image: Output, mask: Output):
