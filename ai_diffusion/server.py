@@ -323,10 +323,15 @@ class Server:
             Path("custom_nodes", "comfyui_controlnet_aux", "ckpts"),
             Path("extra_model_paths.yaml"),
         ]
+        info(f"Backing up {comfy_dir} to {upgrade_comfy_dir}")
+        if upgrade_comfy_dir.exists():
+            raise Exception(
+                f"Backup folder {upgrade_comfy_dir} already exists! Please make sure it does not"
+                " contain any valuable data, delete it and try again."
+            )
+        shutil.move(comfy_dir, upgrade_comfy_dir)
+        self.comfy_dir = None
         try:
-            info(f"Backing up {comfy_dir} to {upgrade_comfy_dir}")
-            shutil.move(comfy_dir, upgrade_comfy_dir)
-            self.comfy_dir = None
             await self.install(callback)
         except Exception as e:
             if upgrade_comfy_dir.exists():
