@@ -5,7 +5,7 @@ from collections import deque
 import json
 import struct
 import uuid
-from typing import NamedTuple, Optional, Union, Sequence
+from typing import NamedTuple, Optional, Union, Sequence, Any
 
 from .comfyworkflow import ComfyWorkflow
 from .image import Image, ImageCollection
@@ -131,6 +131,7 @@ class Client:
     lcm_model: dict[SDVersion, str | None]
     supported_sd_versions: list[SDVersion]
     device_info: DeviceInfo
+    node_required_inputs: dict[str, list[str | list | dict]]
 
     @staticmethod
     async def connect(url=default_url):
@@ -176,6 +177,8 @@ class Client:
             "unfold_batch" in nodes["IPAdapterApply"]["input"]["required"]
         )
 
+        client.node_required_inputs["IPAdapterApply"] = nodes["IPAdapterApply"]["input"]["required"]
+
         # Retrieve upscale models
         client.upscalers = nodes["UpscaleModelLoader"]["input"]["required"]["model_name"][0]
         if len(client.upscalers) == 0:
@@ -198,6 +201,26 @@ class Client:
 
         _ensure_supported_style(client)
         return client
+
+    def get_node_input_defaults(self, node_name, **kwargs) -> dict[str, Any]:
+        if self.node_required_inputs.get(node_name, None) is None:
+            return {}
+
+        defaults = {}
+        for k, v in self.node_required_inputs.items():
+            if k in kwargs.keys():
+                continue
+            elif len(v) == 0:
+                continue
+
+            if len(v) == 1:
+                if isinstance(v[0], list) and len(v[0]) > 0:
+                    defaults[k] = v[0][0]
+            elif isinstance(v[1], dict):
+                if v[1].get("default", None) is not None:
+                    defaults[k] = v[1]["default"]
+
+        return defaults
 
     def __init__(self, url):
         self.url = url
