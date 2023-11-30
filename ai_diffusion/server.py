@@ -74,22 +74,10 @@ class Server:
             self.version = None
 
         comfy_pkg = ["main.py", "nodes.py", "custom_nodes"]
-        self.comfy_dir = _find_component(comfy_pkg, [self.path, self.path / "ComfyUI"])
+        self.comfy_dir = _find_component(comfy_pkg, [self.path / "ComfyUI"])
 
         python_pkg = ["python3.dll", "python.exe"] if is_windows else ["python3", "pip3"]
-        python_search_paths = [
-            self.path / "python",
-            self.path / "venv" / "bin",
-            self.path / ".venv" / "bin",
-        ]
-        if self.comfy_dir:
-            python_search_paths += [
-                self.comfy_dir / "python",
-                self.comfy_dir / "venv" / "bin",
-                self.comfy_dir / ".venv" / "bin",
-                self.comfy_dir.parent / "python",
-                self.comfy_dir.parent / "python_embeded",
-            ]
+        python_search_paths = [self.path / "python", self.path / "venv" / "bin"]
         python_path = _find_component(python_pkg, python_search_paths)
         if python_path is None:
             self._python_cmd = _find_program("python3", "python")
@@ -335,15 +323,21 @@ class Server:
             Path("custom_nodes", "comfyui_controlnet_aux", "ckpts"),
             Path("extra_model_paths.yaml"),
         ]
+        info(f"Backing up {comfy_dir} to {upgrade_comfy_dir}")
+        if upgrade_comfy_dir.exists():
+            raise Exception(
+                f"Backup folder {upgrade_comfy_dir} already exists! Please make sure it does not"
+                " contain any valuable data, delete it and try again."
+            )
+        shutil.move(comfy_dir, upgrade_comfy_dir)
+        self.comfy_dir = None
         try:
-            info(f"Backing up {comfy_dir} to {upgrade_comfy_dir}")
-            shutil.move(comfy_dir, upgrade_comfy_dir)
-            self.comfy_dir = None
             await self.install(callback)
         except Exception as e:
-            log.warning(f"Error during upgrade: {str(e)} - Restoring {upgrade_comfy_dir}")
-            shutil.rmtree(comfy_dir, ignore_errors=True)
-            shutil.move(upgrade_comfy_dir, comfy_dir)
+            if upgrade_comfy_dir.exists():
+                log.warning(f"Error during upgrade: {str(e)} - Restoring {upgrade_comfy_dir}")
+                safe_remove_dir(comfy_dir)
+                shutil.move(upgrade_comfy_dir, comfy_dir)
             raise e
 
         try:
@@ -473,9 +467,15 @@ class Server:
         return all(self.is_installed(p) for p in packages)
 
     @property
+    def can_install(self):
+        return not self.path.exists() or (self.path.is_dir() and not any(self.path.iterdir()))
+
+    @property
     def upgrade_required(self):
-        return self.state is not ServerState.not_installed and (
-            self.version is None or self.version != resources.version
+        return (
+            self.state is not ServerState.not_installed
+            and self.version is not None
+            and self.version != resources.version
         )
 
 
