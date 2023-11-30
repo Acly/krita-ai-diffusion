@@ -8,6 +8,7 @@ from PyQt5.QtCore import QObject, pyqtSignal
 
 from . import util
 
+
 class ServerMode(Enum):
     undefined = -1
     managed = 0
@@ -30,6 +31,7 @@ class ServerBackend(Enum):
             return ServerBackend.mps
         else:
             return ServerBackend.cuda
+
 
 class PerformancePreset(Enum):
     auto = "Automatic"
@@ -71,10 +73,8 @@ class Settings(QObject):
     _server_path = Setting(
         "Server Path",
         str(Path(__file__).parent / ".server"),
-        (
-            "Directory where ComfyUI is installed. At least 10GB of free disk space is required"
-            " for a full installation."
-        ),
+        "Directory where ComfyUI will be installed. At least 10GB of free disk space is required"
+        " for a full installation.",
     )
 
     server_url: str
@@ -126,9 +126,7 @@ class Settings(QObject):
     )
 
     show_control_end: bool
-    _show_control_end = Setting(
-        "Control ending step", False, "Show control ending step ratio"
-    )
+    _show_control_end = Setting("Control ending step", False, "Show control ending step ratio")
 
     history_size: int
     _history_size = Setting(

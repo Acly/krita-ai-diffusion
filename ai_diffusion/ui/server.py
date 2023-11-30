@@ -562,7 +562,15 @@ class ServerWidget(QWidget):
 
         if self.requires_install:
             self._launch_button.setText("Install")
-            self._launch_button.setEnabled(True)
+            if not self._server.version and not self._server.can_install:
+                self._status_label.setText(
+                    "Invalid location: directory is not empty, but no previous installation was"
+                    " found"
+                )
+                self._status_label.setStyleSheet(f"color:{red};font-weight:bold")
+                self._launch_button.setEnabled(False)
+            else:
+                self._launch_button.setEnabled(True)
 
         if self._error:
             self._status_label.setText(f"<b>Error:</b> {self._error}")
