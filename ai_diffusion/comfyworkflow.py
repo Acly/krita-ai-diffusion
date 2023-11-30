@@ -206,9 +206,8 @@ class ComfyWorkflow:
         model: Output,
         weight: float,
         noise=0.0,
-        end_at: float | None = None,
-        weight_type: str | None = None,
-        unfold_batch: bool | None = None,
+        comfy: None = None,  # type: # ignored Client
+        opt_args: dict | None = None
     ):
         args: dict = dict(
             ipadapter=ipadapter,
@@ -218,13 +217,8 @@ class ComfyWorkflow:
             weight=weight,
             noise=noise,
         )
-        if weight_type is not None:
-            args["weight_type"] = weight_type
-        if end_at is not None:
-            args["start_at"] = 0.0
-            args["end_at"] = end_at
-        if unfold_batch is not None:
-            args["unfold_batch"] = unfold_batch
+        args.update(comfy.get_node_optional_values("IPAdapterApply", opt_args))
+
         return self.add("IPAdapterApply", 1, **args)
 
     def inpaint_preprocessor(self, image: Output, mask: Output):
