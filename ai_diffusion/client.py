@@ -125,13 +125,10 @@ class Client:
     control_model: dict[ControlMode, dict[SDVersion, str | None]]
     clip_vision_model: str
     ip_adapter_model: dict[SDVersion, str | None]
-    ip_adapter_has_weight_type = False
-    ip_adapter_has_start = False
-    ip_adapter_has_unfold = False
     lcm_model: dict[SDVersion, str | None]
     supported_sd_versions: list[SDVersion]
     device_info: DeviceInfo
-    node_required_inputs: dict[str, list[str | list | dict]]
+    nodes_required_inputs: dict[str, dict[str, list[str | list | dict]]] = {}
 
     @staticmethod
     async def connect(url=default_url):
@@ -167,17 +164,7 @@ class Client:
         client.ip_adapter_model = {
             ver: _find_ip_adapter(ip, ver) for ver in [SDVersion.sd15, SDVersion.sdxl]
         }
-        client.ip_adapter_has_weight_type = (
-            "weight_type" in nodes["IPAdapterApply"]["input"]["required"]
-        )
-        client.ip_adapter_has_start = (
-            "start_at" in nodes["IPAdapterApply"]["input"]["required"]
-        )
-        client.ip_adapter_has_unfold = (
-            "unfold_batch" in nodes["IPAdapterApply"]["input"]["required"]
-        )
-
-        client.node_required_inputs["IPAdapterApply"] = nodes["IPAdapterApply"]["input"]["required"]
+        client.nodes_required_inputs["IPAdapterApply"] = nodes["IPAdapterApply"]["input"]["required"]
 
         # Retrieve upscale models
         client.upscalers = nodes["UpscaleModelLoader"]["input"]["required"]["model_name"][0]
@@ -202,25 +189,22 @@ class Client:
         _ensure_supported_style(client)
         return client
 
-    def get_node_input_defaults(self, node_name, **kwargs) -> dict[str, Any]:
-        if self.node_required_inputs.get(node_name, None) is None:
+    def get_node_optional_values(self, node_name: str, args: dict | None = None) -> dict[str, Any]:
+        if self.nodes_required_inputs.get(node_name, None) is None:
             return {}
 
-        defaults = {}
-        for k, v in self.node_required_inputs.items():
-            if k in kwargs.keys():
-                continue
-            elif len(v) == 0:
-                continue
-
-            if len(v) == 1:
+        values = {}
+        for k, v in self.nodes_required_inputs[node_name].items():
+            if args is not None and k in args.keys():
+                values[k] = args[k]
+            elif len(v) == 1:
                 if isinstance(v[0], list) and len(v[0]) > 0:
-                    defaults[k] = v[0][0]
-            elif isinstance(v[1], dict):
+                    values[k] = v[0][0]
+            elif len(k) >= 1 and isinstance(v[1], dict):
                 if v[1].get("default", None) is not None:
-                    defaults[k] = v[1]["default"]
+                    values[k] = v[1]["default"]
 
-        return defaults
+        return values
 
     def __init__(self, url):
         self.url = url
