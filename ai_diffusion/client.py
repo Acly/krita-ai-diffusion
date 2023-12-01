@@ -189,23 +189,6 @@ class Client:
         _ensure_supported_style(client)
         return client
 
-    def get_node_optional_values(self, node_name: str, args: dict | None = None) -> dict[str, Any]:
-        if self.nodes_required_inputs.get(node_name, None) is None:
-            return {}
-
-        values = {}
-        for k, v in self.nodes_required_inputs[node_name].items():
-            if args is not None and k in args.keys():
-                values[k] = args[k]
-            elif len(v) == 1:
-                if isinstance(v[0], list) and len(v[0]) > 0:
-                    values[k] = v[0][0]
-            elif len(k) >= 1 and isinstance(v[1], dict):
-                if v[1].get("default", None) is not None:
-                    values[k] = v[1]["default"]
-
-        return values
-
     def __init__(self, url):
         self.url = url
         self._id = str(uuid.uuid4())
