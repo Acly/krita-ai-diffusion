@@ -69,11 +69,9 @@ To run locally a powerful graphics card with at least 6 GB VRAM is recommended. 
 1. To show the plugin docker: Settings ‣ Dockers ‣ AI Image Generation.
 1. In the plugin docker, click "Configure" to start server installation. _Requires 10+ GB free disk space._
 
-### GPU Cloud
+### Update
 
-You can also rent a GPU instead of running locally. In that case, step 5 is not needed. Instead use the plugin to connect to a remote server.
-
-There is a [step by step guide](https://github.com/Acly/krita-ai-diffusion/blob/main/doc/cloud-gpu.md) on how to setup cloud GPU on [runpod.io](https://www.runpod.io) or [vast.ai](https://vast.ai).
+To upgrade a previous version of the plugin, download and extract the same way as when installing initially. Overwrite/replace existing files when prompted.
 
 ### _Optional:_ Custom ComfyUI Server
 
@@ -82,6 +80,12 @@ you can install it manually or use an existing installation. If the server is al
 automatically try to connect. Using a remote server is also possible this way.
 
 Please check the list of [required extensions and models](doc/comfy-requirements.md) to make sure your installation is compatible.
+
+### GPU Cloud
+
+You can also rent a GPU instead of running locally. In that case, step 5 is not needed. Instead use the plugin to connect to a remote server.
+
+There is a [step by step guide](https://github.com/Acly/krita-ai-diffusion/blob/main/doc/cloud-gpu.md) on how to setup cloud GPU on [runpod.io](https://www.runpod.io) or [vast.ai](https://vast.ai).
 
 ### Common Issues
 
