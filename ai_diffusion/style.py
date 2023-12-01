@@ -108,6 +108,12 @@ class StyleSettings:
         "Model to encode and decode images. Commonly affects saturation and sharpness.",
     )
 
+    clip_skip = Setting(
+        "Clip Skip",
+        1,
+        "Last layer to stop CLIP at. Most models use 1 while some require 2.",
+    )
+
     sampler = Setting(
         "Sampler",
         "DPM++ 2M Karras",
@@ -119,12 +125,6 @@ class StyleSettings:
         "Sampler Steps",
         20,
         "Higher values can produce more refined results but take longer",
-    )
-
-    sampler_steps_upscaling = Setting(
-        "Sampler Steps (Upscaling)",
-        15,
-        "Additional sampling steps to run when automatically upscaling images",
     )
 
     cfg_scale = Setting(
@@ -154,9 +154,9 @@ class Style:
     style_prompt: str = StyleSettings.style_prompt.default
     negative_prompt: str = StyleSettings.negative_prompt.default
     vae: str = StyleSettings.vae.default
+    clip_skip: int = StyleSettings.clip_skip.default
     sampler: str = StyleSettings.sampler.default
     sampler_steps: int = StyleSettings.sampler_steps.default
-    sampler_steps_upscaling: int = StyleSettings.sampler_steps_upscaling.default
     cfg_scale: float = StyleSettings.cfg_scale.default
     live_sampler: str = StyleSettings.live_sampler.default
     live_sampler_steps: int = StyleSettings.live_sampler_steps.default
@@ -206,11 +206,9 @@ class Style:
     def filename(self):
         return self.filepath.name
 
-    def get_sampler_config(self, is_upscaling=False, is_live=False):
+    def get_sampler_config(self, is_live=False):
         if is_live:
             return SamplerConfig(self.live_sampler, self.live_sampler_steps, self.live_cfg_scale)
-        if is_upscaling:
-            return SamplerConfig(self.sampler, self.sampler_steps_upscaling, self.cfg_scale)
         return SamplerConfig(self.sampler, self.sampler_steps, self.cfg_scale)
 
 

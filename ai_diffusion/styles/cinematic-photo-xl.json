@@ -9,6 +9,5 @@
     "vae": "Checkpoint Default",
     "sampler": "DPM++ 2M Karras",
     "sampler_steps": 20,
-    "sampler_steps_upscaling": 15,
     "cfg_scale": 6
 }

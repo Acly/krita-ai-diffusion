@@ -94,6 +94,39 @@ class ComfyWorkflow:
             denoise=denoise,
         )
 
+    def ksampler_advanced(
+        self,
+        model: Output,
+        positive: Output,
+        negative: Output,
+        latent_image: Output,
+        sampler="dpmpp_2m_sde_gpu",
+        scheduler="normal",
+        steps=20,
+        start_at_step=0,
+        cfg=7.0,
+        seed=-1,
+    ):
+        self.sample_count += steps - start_at_step
+
+        return self.add(
+            "KSamplerAdvanced",
+            1,
+            noise_seed=random.getrandbits(64) if seed == -1 else seed,
+            sampler_name=sampler,
+            scheduler=scheduler,
+            model=model,
+            positive=positive,
+            negative=negative,
+            latent_image=latent_image,
+            steps=steps,
+            start_at_step=start_at_step,
+            end_at_step=steps,
+            cfg=cfg,
+            add_noise='enable',
+            return_with_leftover_noise='disable',
+        )
+
     def model_sampling_discrete(self, model: Output, sampling: str):
         return self.add("ModelSamplingDiscrete", 1, model=model, sampling=sampling, zsnr=False)
 
@@ -128,6 +161,9 @@ class ComfyWorkflow:
 
     def empty_latent_image(self, width: int, height: int, batch_size=1):
         return self.add("EmptyLatentImage", 1, width=width, height=height, batch_size=batch_size)
+
+    def clip_set_last_layer(self, clip: Output, clip_layer: int):
+        return self.add("CLIPSetLastLayer", 1, clip=clip, stop_at_clip_layer=clip_layer)
 
     def clip_text_encode(self, clip: Output, text: str):
         return self.add("CLIPTextEncode", 1, clip=clip, text=text)

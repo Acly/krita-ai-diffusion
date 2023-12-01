@@ -8,6 +8,5 @@
     "negative_prompt": "photo, photorealistic, bad quality, low resolution, blurry",
     "sampler": "DPM++ 2M Karras",
     "sampler_steps": 20,
-    "sampler_steps_upscaling": 15,
     "cfg_scale": 7
 }
