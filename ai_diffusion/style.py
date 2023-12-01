@@ -61,6 +61,8 @@ sampler_options = [
     "DPM++ 2M Karras",
     "DPM++ 2M SDE",
     "DPM++ 2M SDE Karras",
+    "DPM++ SDE Karras",
+    "UniPC BH2",
     "LCM",
 ]
 
