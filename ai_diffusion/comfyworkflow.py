@@ -1,7 +1,7 @@
 from __future__ import annotations
 import math
 import random
-from typing import NamedTuple, Tuple, Literal, overload
+from typing import NamedTuple, Tuple, Literal, overload, Any
 
 from .image import Bounds, Extent, Image
 
@@ -23,9 +23,29 @@ class ComfyWorkflow:
 
     _cache: dict[str, Output | Output2 | Output3]
 
-    def __init__(self) -> None:
+    def __init__(self, node_inputs: dict | None = None) -> None:
         self.root = {}
         self._cache = {}
+        self.nodes_required_inputs = node_inputs or {}
+
+    def get_node_optional_values(self, node_name: str, args: dict | None = None) -> dict[str, Any]:
+        node_inputs = self.nodes_required_inputs.get(node_name, None)
+
+        if node_inputs is None:
+            return args
+
+        values = {}
+        for k, v in node_inputs.items():
+            if args is not None and k in args.keys():
+                values[k] = args[k]
+            elif len(v) == 1:
+                if isinstance(v[0], list) and len(v[0]) > 0:
+                    values[k] = v[0][0]
+            elif len(k) >= 1 and isinstance(v[1], dict):
+                if v[1].get("default", None) is not None:
+                    values[k] = v[1]["default"]
+
+        return values
 
     def dump(self, filepath: str):
         with open(filepath, "w") as f:
@@ -42,6 +62,7 @@ class ComfyWorkflow:
     def add(self, class_type: str, output_count: Literal[3], **inputs) -> Output3: ...
 
     def add(self, class_type: str, output_count: int, **inputs):
+        inputs = self.get_node_optional_values(class_type, inputs)
         normalize = lambda x: [str(x.node), x.output] if isinstance(x, Output) else x
         self.node_count += 1
         self.root[str(self.node_count)] = {
@@ -206,8 +227,7 @@ class ComfyWorkflow:
         model: Output,
         weight: float,
         noise=0.0,
-        comfy: None = None,  # type: # ignored Client
-        opt_args: dict | None = None
+        end_at=1.0,
     ):
         args: dict = dict(
             ipadapter=ipadapter,
@@ -216,8 +236,8 @@ class ComfyWorkflow:
             model=model,
             weight=weight,
             noise=noise,
+            end_at=end_at,
         )
-        args.update(comfy.get_node_optional_values("IPAdapterApply", opt_args))
 
         return self.add("IPAdapterApply", 1, **args)
 
