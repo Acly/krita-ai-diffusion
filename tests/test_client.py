@@ -2,7 +2,10 @@ import asyncio
 from pathlib import Path
 import pytest
 
-from ai_diffusion import ComfyWorkflow, NetworkError, eventloop, ControlMode
+from ai_diffusion import eventloop
+from ai_diffusion.resources import ControlMode
+from ai_diffusion.comfyworkflow import ComfyWorkflow
+from ai_diffusion.network import NetworkError
 from ai_diffusion.image import Image, Extent
 from ai_diffusion.client import Client, ClientEvent, parse_url, resolve_sd_version, websocket_url
 from ai_diffusion.style import SDVersion, Style

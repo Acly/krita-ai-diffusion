@@ -1,18 +1,10 @@
 import pytest
-from ai_diffusion import (
-    comfyworkflow,
-    workflow,
-    ComfyWorkflow,
-    ControlMode,
-    Mask,
-    Bounds,
-    Extent,
-    Image,
-    Client,
-    ClientEvent,
-    SDVersion,
-    Style,
-)
+from ai_diffusion import comfyworkflow, workflow
+from ai_diffusion.comfyworkflow import ComfyWorkflow
+from ai_diffusion.resources import ControlMode
+from ai_diffusion.image import Mask, Bounds, Extent, Image
+from ai_diffusion.client import Client, ClientEvent
+from ai_diffusion.style import SDVersion, Style
 from ai_diffusion.pose import Pose
 from ai_diffusion.workflow import LiveParams, Conditioning, Control
 from pathlib import Path
@@ -481,7 +473,7 @@ def test_upscale_tiled(qtapp, comfy, sdver):
 
 def test_generate_live(qtapp, comfy):
     scribble = Image.load(image_dir / "owls_scribble.png")
-    live = LiveParams(is_active=True, strength=1.0, seed=1234)
+    live = LiveParams(is_active=True, seed=1234)
     cond = Conditioning("owls", "", [Control(ControlMode.scribble, scribble)])
     job = workflow.generate(comfy, default_style(comfy), Extent(512, 512), cond, live)
 
@@ -496,7 +488,7 @@ def test_refine_live(qtapp, comfy, sdver):
     image = Image.load(image_dir / "pegonia.png")
     if sdver is SDVersion.sdxl:
         image = Image.scale(image, Extent(1024, 1024))  # result will be a bit blurry
-    live = LiveParams(is_active=True, strength=0.4, seed=1234)
+    live = LiveParams(is_active=True, seed=1234)
     job = workflow.refine(comfy, default_style(comfy, sdver), image, Conditioning(), 0.4, live)
 
     async def main():

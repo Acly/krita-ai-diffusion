@@ -5,8 +5,8 @@ from pathlib import Path
 from typing import NamedTuple
 from PyQt5.QtCore import QObject, pyqtSignal
 
-from . import Setting, settings, util
-from .util import client_logger as log
+from .settings import Setting
+from .util import encode_json, client_logger as log
 
 
 class SDVersion(Enum):
@@ -200,7 +200,7 @@ class Style:
             for name, setting in StyleSettings.__dict__.items()
             if isinstance(setting, Setting)
         }
-        self.filepath.write_text(json.dumps(cfg, indent=4, default=util.encode_json))
+        self.filepath.write_text(json.dumps(cfg, indent=4, default=encode_json))
 
     @property
     def filename(self):

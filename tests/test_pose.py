@@ -1,5 +1,5 @@
 import pytest
-from ai_diffusion import Extent
+from ai_diffusion.image import Extent
 from ai_diffusion.pose import (
     Pose,
     BoneIndex,

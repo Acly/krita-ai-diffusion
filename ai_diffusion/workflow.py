@@ -1,6 +1,5 @@
 from __future__ import annotations
 import math
-import random
 from typing import Any, List, NamedTuple, Optional
 
 from .image import Bounds, Extent, Image, Mask
@@ -138,15 +137,9 @@ def prepare_masked(image: Image, mask: Mask, sd_ver: SDVersion, downscale: bool 
     return scaled, out_image, out_mask, batch
 
 
-class LiveParams:
-    is_active = False
-    strength = 0.3
-    seed: int
-
-    def __init__(self, is_active=False, strength=0.3, seed=None):
-        self.is_active = is_active
-        self.strength = strength
-        self.seed = seed or random.randint(0, 2**31 - 1)
+class LiveParams(NamedTuple):
+    is_active: bool = False
+    seed: int = 0
 
 
 def _sampler_params(
@@ -248,8 +241,8 @@ class Control:
         mode: ControlMode,
         image: Image | Output,
         strength=1.0,
-        mask: None | Mask | Output = None,
         end=1.0,
+        mask: None | Mask | Output = None,
     ):
         self.mode = mode
         self.image = image
