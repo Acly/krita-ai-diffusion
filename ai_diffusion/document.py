@@ -271,7 +271,10 @@ class LayerObserver(QObject):
 
     def update(self):
         assert self._doc is not None
-        layers = list(_traverse_layers(self._doc.rootNode(), self.managed_layer_types))
+        root_node = self._doc.rootNode()
+        if root_node is None:
+            return  # Document has been closed
+        layers = list(_traverse_layers(root_node, self.managed_layer_types))
         if len(layers) != len(self._layers) or any(
             a.uniqueId() != b.uniqueId() for a, b in zip(layers, self._layers)
         ):
