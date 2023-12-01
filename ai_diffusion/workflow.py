@@ -357,7 +357,7 @@ def apply_control(
     if ip_model_file is not None:
         ip_image = None
         ip_strength = 0
-        ip_end_at=1.0,
+        ip_end_at = 1.0
 
         for control in (c for c in cond.control if c.mode is ControlMode.image):
             image = control.load_image(w)
