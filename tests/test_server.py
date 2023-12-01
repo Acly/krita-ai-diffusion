@@ -4,8 +4,8 @@ from PyQt5.QtNetwork import QNetworkAccessManager
 import pytest
 import shutil
 
-import ai_diffusion
-from ai_diffusion import network, server, resources, SDVersion
+from ai_diffusion import network, server, resources
+from ai_diffusion.style import SDVersion
 from ai_diffusion.server import Server, ServerState, ServerBackend, InstallationProgress
 
 test_dir = Path(__file__).parent / ".server"

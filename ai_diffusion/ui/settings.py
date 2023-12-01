@@ -13,7 +13,6 @@ from PyQt5.QtWidgets import (
     QListWidget,
     QListWidgetItem,
     QLineEdit,
-    QMainWindow,
     QScrollArea,
     QSizePolicy,
     QSpinBox,
@@ -33,9 +32,9 @@ from ..settings import Setting, Settings, ServerMode, PerformancePreset, setting
 from ..server import Server
 from ..client import resolve_sd_version
 from ..style import Style, Styles, StyleSettings
+from ..root import root
 from .. import util, __version__
-from .connection import Connection, ConnectionState, apply_performance_preset
-from .model import Model
+from ..connection import ConnectionState, apply_performance_preset
 from .server import ServerWidget
 from .theme import add_header, icon, sd_version_icon, red, yellow, green, grey
 
@@ -375,7 +374,7 @@ class LoraList(QWidget):
         self._refresh_button.setToolButtonStyle(Qt.ToolButtonStyle.ToolButtonIconOnly)
         self._refresh_button.setIcon(Krita.instance().icon("reload-preset"))
         self._refresh_button.setToolTip("Look for new LoRA files")
-        self._refresh_button.clicked.connect(Connection.instance().refresh)
+        self._refresh_button.clicked.connect(root.connection.refresh)
         header_layout.addWidget(self._refresh_button, 0, align_right_center)
 
         if settings.server_mode is ServerMode.managed:
@@ -560,6 +559,7 @@ class ConnectionSettings(SettingsTab):
         self._layout.addWidget(info_external)
         self._layout.addWidget(self._server_stack)
 
+        root.connection.state_changed.connect(self.update_server_status)
         self.update_server_status()
 
     @property
@@ -596,10 +596,10 @@ class ConnectionSettings(SettingsTab):
         self.write()
 
     def _connect(self):
-        Connection.instance().connect(settings.server_url)
+        root.connection.connect(settings.server_url)
 
     def update_server_status(self):
-        server = Connection.instance()
+        server = root.connection
         self._connect_button.setEnabled(server.state != ConnectionState.connecting)
         if server.state == ConnectionState.connected:
             self._connection_status.setText("Connected")
@@ -716,7 +716,7 @@ class StylePresets(SettingsTab):
         self._style_widgets["sd_checkpoint"].add_button(
             Krita.instance().icon("reload-preset"),
             "Look for new checkpoint files",
-            Connection.instance().refresh,
+            root.connection.refresh,
         )
         self._checkpoint_warning = QLabel(self)
         self._checkpoint_warning.setStyleSheet(f"font-style: italic; color: {yellow};")
@@ -833,7 +833,7 @@ class StylePresets(SettingsTab):
 
     def _set_checkpoint_warning(self):
         self._checkpoint_warning.setVisible(False)
-        if client := Connection.instance().client_if_connected:
+        if client := root.connection.client_if_connected:
             version = resolve_sd_version(self.current_style, client)
             if self.current_style.sd_checkpoint not in client.checkpoints:
                 self._checkpoint_warning.setText(
@@ -862,7 +862,7 @@ class StylePresets(SettingsTab):
         self._set_checkpoint_warning()
 
     def _read(self):
-        if client := Connection.instance().client_if_connected:
+        if client := root.connection.client_if_connected:
             default_vae = cast(str, StyleSettings.vae.default)
             checkpoints = [
                 (cp.name, cp.filename, sd_version_icon(cp.sd_version, client))
@@ -974,24 +974,22 @@ class PerformanceSettings(SettingsTab):
         self._advanced.setEnabled(is_custom)
         if (
             settings.performance_preset is PerformancePreset.auto
-            and Connection.instance().state is ConnectionState.connected
+            and root.connection.state is ConnectionState.connected
         ):
-            apply_performance_preset(settings, Connection.instance().client.device_info)
+            apply_performance_preset(settings, root.connection.client.device_info)
         if not is_custom:
             self.read()
 
     def update_device_info(self):
-        if Connection.instance().state is ConnectionState.connected:
-            client = Connection.instance().client
+        if root.connection.state is ConnectionState.connected:
+            client = root.connection.client
             self._device_info.setText(
                 f"Device: [{client.device_info.type.upper()}] {client.device_info.name} ("
                 f"{client.device_info.vram} GB)"
             )
 
     def _read(self):
-        memory_usage = 0
-        if model := Model.active():
-            memory_usage = model.jobs.memory_usage
+        memory_usage = root.active_model.jobs.memory_usage
         self._history_size.setValue(settings.history_size)
         self._history_usage.setText(f"Currently using {memory_usage:.1f} MB")
         self._batch_size.value = settings.batch_size
@@ -1022,7 +1020,7 @@ class SettingsDialog(QDialog):
         assert cls._instance is not None
         return cls._instance
 
-    def __init__(self, main_window: QMainWindow, server: Server):
+    def __init__(self, server: Server):
         super().__init__()
         type(self)._instance = self
 
@@ -1083,7 +1081,7 @@ class SettingsDialog(QDialog):
         button_layout.addWidget(self._close_button)
         inner.addLayout(button_layout)
 
-        Connection.instance().changed.connect(self._update_connection)
+        root.connection.state_changed.connect(self._update_connection)
 
     def read(self):
         self.connection.read()
@@ -1110,7 +1108,7 @@ class SettingsDialog(QDialog):
 
     def _update_connection(self):
         self.connection.update_server_status()
-        if Connection.instance().state == ConnectionState.connected:
+        if root.connection.state == ConnectionState.connected:
             self.styles.update_model_lists()
             self.performance.update_device_info()
 

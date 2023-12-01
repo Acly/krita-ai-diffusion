@@ -2,7 +2,7 @@ import pytest
 import numpy as np
 from PyQt5.QtGui import QImage, qRgba
 from PyQt5.QtCore import Qt, QByteArray
-from ai_diffusion import image, Mask, Bounds, Extent, Image, ImageCollection
+from ai_diffusion.image import Mask, Bounds, Extent, Image, ImageCollection
 
 
 def test_extent_compare():

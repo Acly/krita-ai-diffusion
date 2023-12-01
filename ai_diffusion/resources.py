@@ -1,9 +1,9 @@
 from __future__ import annotations
 from enum import Enum
 from pathlib import Path
-from typing import NamedTuple, Optional, Sequence
+from typing import NamedTuple, Sequence
 
-from . import SDVersion
+from .style import SDVersion
 
 # Version identifier for all the resources defined here. This is used as the server version.
 # It usually follows the plugin version, but not all new plugin versions also require a server update.

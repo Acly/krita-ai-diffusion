@@ -2,7 +2,7 @@ from __future__ import annotations
 from typing import cast
 import krita
 from krita import Krita
-from PyQt5.QtCore import QUuid, QByteArray, QTimer
+from PyQt5.QtCore import QObject, QUuid, QByteArray, QTimer, pyqtSignal
 from PyQt5.QtGui import QImage
 
 from .image import Extent, Bounds, Mask, Image
@@ -10,6 +10,72 @@ from .pose import Pose
 
 
 class Document:
+    """Document interface. Used as placeholder when there is no open Document in Krita."""
+
+    @property
+    def extent(self):
+        return Extent(0, 0)
+
+    @property
+    def is_active(self):
+        return Krita.instance().activeDocument() is None
+
+    @property
+    def is_valid(self):
+        return True
+
+    def check_color_mode(self):
+        return True, None
+
+    def create_mask_from_selection(self, grow: float, feather: float, padding: float):
+        raise NotImplementedError
+
+    def get_image(
+        self, bounds: Bounds | None = None, exclude_layers: list[krita.Node] | None = None
+    ):
+        raise NotImplementedError
+
+    def get_layer_image(self, layer: krita.Node, bounds: Bounds | None) -> Image:
+        raise NotImplementedError
+
+    def insert_layer(
+        self, name: str, img: Image, bounds: Bounds, below: krita.Node | None = None
+    ) -> krita.Node:
+        raise NotImplementedError
+
+    def insert_vector_layer(
+        self, name: str, svg: str, below: krita.Node | None = None
+    ) -> krita.Node:
+        raise NotImplementedError
+
+    def set_layer_content(self, layer: krita.Node, img: Image, bounds: Bounds):
+        raise NotImplementedError
+
+    def hide_layer(self, layer: krita.Node):
+        raise NotImplementedError
+
+    def resize(self, extent: Extent):
+        raise NotImplementedError
+
+    def add_pose_character(self, layer: krita.Node):
+        raise NotImplementedError
+
+    def create_layer_observer(self) -> LayerObserver:
+        return LayerObserver(None)
+
+    @property
+    def active_layer(self) -> krita.Node:
+        raise NotImplementedError
+
+    @property
+    def resolution(self):
+        return 0
+
+
+class KritaDocument(Document):
+    """Wrapper around a Krita Document (opened image). Manages multiple image layers and
+    allows to retrieve and modify pixel data."""
+
     _doc: krita.Document
 
     def __init__(self, krita_document: krita.Document):
@@ -18,7 +84,7 @@ class Document:
     @staticmethod
     def active():
         doc = Krita.instance().activeDocument()
-        return Document(doc) if doc else None
+        return KritaDocument(doc) if doc else None
 
     @property
     def extent(self):
@@ -138,20 +204,8 @@ class Document:
         assert layer.type() == "vectorlayer"
         _pose_layers.add_character(cast(krita.VectorLayer, layer))
 
-    @property
-    def image_layers(self):
-        allowed_layer_types = [
-            "paintlayer",
-            "vectorlayer",
-            "grouplayer",
-            "filelayer",
-            "clonelayer",
-            "filterlayer",
-        ]
-        return list(_traverse_layers(self._doc.rootNode(), allowed_layer_types))
-
-    def find_layer(self, id: QUuid):
-        return next((layer for layer in self.image_layers if layer.uniqueId() == id), None)
+    def create_layer_observer(self):
+        return LayerObserver(self._doc)
 
     @property
     def active_layer(self):
@@ -189,6 +243,54 @@ def _selection_is_entire_document(selection: krita.Selection, extent: Extent):
     return is_opaque
 
 
+class LayerObserver(QObject):
+    managed_layer_types = [
+        "paintlayer",
+        "vectorlayer",
+        "grouplayer",
+        "filelayer",
+        "clonelayer",
+        "filterlayer",
+    ]
+
+    changed = pyqtSignal()
+
+    _doc: krita.Document | None
+    _layers: list[krita.Node]
+    _timer: QTimer
+
+    def __init__(self, doc: krita.Document | None):
+        super().__init__()
+        self._doc = doc
+        self._layers = []
+        if doc is not None:
+            self._timer = QTimer()
+            self._timer.setInterval(500)
+            self._timer.timeout.connect(self.update)
+            self._timer.start()
+
+    def update(self):
+        assert self._doc is not None
+        layers = list(_traverse_layers(self._doc.rootNode(), self.managed_layer_types))
+        if len(layers) != len(self._layers) or any(
+            a.uniqueId() != b.uniqueId() for a, b in zip(layers, self._layers)
+        ):
+            self._layers = layers
+            self.changed.emit()
+
+    def find(self, id: QUuid):
+        return next((l for l in self._layers if l.uniqueId() == id), None)
+
+    def __iter__(self):
+        return iter(self._layers)
+
+    def __getitem__(self, index):
+        return self._layers[index]
+
+    def __len__(self):
+        return len(self._layers)
+
+
 class PoseLayers:
     _layers: dict[str, Pose] = {}
     _timer = QTimer()
@@ -199,7 +301,7 @@ class PoseLayers:
         self._timer.start()
 
     def update(self):
-        doc = Document.active()
+        doc = KritaDocument.active()
         if not doc:
             return
         layer = doc.active_layer
@@ -211,7 +313,7 @@ class PoseLayers:
         self._update(layer, layer.shapes(), pose, doc.resolution)
 
     def add_character(self, layer: krita.VectorLayer):
-        doc = Document.active()
+        doc = KritaDocument.active()
         assert doc is not None
         pose = self._layers.setdefault(layer.uniqueId(), Pose(doc.extent))
         svg = Pose.create_default(doc.extent, pose.people_count).to_svg()
