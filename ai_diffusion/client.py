@@ -5,7 +5,7 @@ from collections import deque
 import json
 import struct
 import uuid
-from typing import NamedTuple, Optional, Union, Sequence
+from typing import NamedTuple, Optional, Union, Sequence, Any
 
 from .comfyworkflow import ComfyWorkflow
 from .image import Image, ImageCollection
@@ -125,11 +125,10 @@ class Client:
     control_model: dict[ControlMode, dict[SDVersion, str | None]]
     clip_vision_model: str
     ip_adapter_model: dict[SDVersion, str | None]
-    ip_adapter_has_weight_type = False
-    ip_adapter_has_start = False
     lcm_model: dict[SDVersion, str | None]
     supported_sd_versions: list[SDVersion]
     device_info: DeviceInfo
+    nodes_required_inputs: dict[str, dict[str, list[str | list | dict]]] = {}
 
     @staticmethod
     async def connect(url=default_url):
@@ -165,12 +164,7 @@ class Client:
         client.ip_adapter_model = {
             ver: _find_ip_adapter(ip, ver) for ver in [SDVersion.sd15, SDVersion.sdxl]
         }
-        client.ip_adapter_has_weight_type = (
-            "weight_type" in nodes["IPAdapterApply"]["input"]["required"]
-        )
-        client.ip_adapter_has_start = (
-            "start_at" in nodes["IPAdapterApply"]["input"]["required"]
-        )
+        client.nodes_required_inputs["IPAdapterApply"] = nodes["IPAdapterApply"]["input"]["required"]
 
         # Retrieve upscale models
         client.upscalers = nodes["UpscaleModelLoader"]["input"]["required"]["model_name"][0]
