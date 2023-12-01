@@ -356,7 +356,7 @@ def apply_control(
     ip_model_file = comfy.ip_adapter_model[sd_ver]
     if ip_model_file is not None:
         ip_image = None
-        ip_strength = 0
+        ip_strength = 0.0
         ip_end_at = 1.0
 
         for control in (c for c in cond.control if c.mode is ControlMode.image):
@@ -375,8 +375,8 @@ def apply_control(
                 clip_vision,
                 ip_image,
                 model,
-                ip_strength,
-                ip_end_at,
+                weight=ip_strength,
+                end_at=ip_end_at,
             )
 
     return model, positive, negative
