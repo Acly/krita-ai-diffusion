@@ -57,6 +57,27 @@ def encode_json(obj):
     raise TypeError(f"Object of type {obj.__class__.__name__} is not JSON serializable")
 
 
+def get_path_dict(paths: list[str | Path]) -> dict:
+    """Builds a tree like structure out of a list of paths"""
+
+    def _recurse(dic: dict, chain: tuple[str, ...] | list[str]):
+        if len(chain) == 0:
+            return
+        if len(chain) == 1:
+            dic[chain[0]] = None
+            return
+        key, *new_chain = chain
+        if key not in dic:
+            dic[key] = {}
+        _recurse(dic[key], new_chain)
+        return
+
+    new_path_dict = {}
+    for path in paths:
+        _recurse(new_path_dict, Path(path).parts)
+    return new_path_dict
+
+
 class LongPathZipFile(zipfile.ZipFile):
     # zipfile.ZipFile does not support long paths (260+?) on Windows
     # for latest python, changing cwd and using relative paths helps, but not for python in Krita 5.2

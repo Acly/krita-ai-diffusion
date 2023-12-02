@@ -25,7 +25,9 @@ from PyQt5.QtWidgets import (
     QToolButton,
     QComboBox,
     QSlider,
-    QWidget, QMenu, QAction,
+    QWidget,
+    QMenu,
+    QAction,
 )
 from PyQt5.QtCore import Qt, QSize, QUrl, pyqtSignal
 from PyQt5.QtGui import QDesktopServices, QGuiApplication, QIcon
@@ -298,26 +300,6 @@ class CheckBoxSetting(SettingWidget):
         self._checkbox.setChecked(v)
 
 
-def get_path_dict(paths: list[str | Path]) -> dict:
-    """Builds a tree like structure out of a list of paths"""
-    def _recurse(dic: dict, chain: tuple[str, ...] | list[str]):
-        if len(chain) == 0:
-            return
-        if len(chain) == 1:
-            dic[chain[0]] = None
-            return
-        key, *new_chain = chain
-        if key not in dic:
-            dic[key] = {}
-        _recurse(dic[key], new_chain)
-        return
-
-    new_path_dict = {}
-    for path in paths:
-        _recurse(new_path_dict, Path(path).parts)
-    return new_path_dict
-
-
 class LoraList(QWidget):
     class Item(QWidget):
         changed = pyqtSignal()
@@ -334,7 +316,7 @@ class LoraList(QWidget):
             self._select_value = ""
             self._select = QPushButton(self)
             self._select.setStyleSheet("QPushButton {text-align: left; padding: 0.2em 0.4em;}")
-            self._select.setMenu(self._build_menu(get_path_dict(lora_names)))
+            self._select.setMenu(self._build_menu(util.get_path_dict(lora_names)))
 
             self._strength = QSpinBox(self)
             self._strength.setMinimum(-400)
@@ -359,12 +341,14 @@ class LoraList(QWidget):
         def remove(self):
             self.removed.emit(self)
 
-        def _build_menu(self, values, title=None, path="") -> QMenu:
+        def _build_menu(self, values, title="", path="") -> QMenu:
             menu = QMenu(title, self)
             for k, v in values.items():
                 if v is None:
                     action = QAction(k, self)
-                    action.triggered.connect(functools.partial(self._select_update, os.path.join(path, k)))
+                    action.triggered.connect(
+                        functools.partial(self._select_update, os.path.join(path, k))
+                    )
                     menu.addAction(action)
                 else:
                     menu.addMenu(self._build_menu(v, k, os.path.join(path, k)))
@@ -389,6 +373,9 @@ class LoraList(QWidget):
     value_changed = pyqtSignal()
 
     open_folder_button: Optional[QToolButton] = None
+
+    _loras: list[str]
+    _items: list[Item]
 
     def __init__(self, setting: Setting, parent=None):
         super().__init__(parent)
@@ -461,7 +448,7 @@ class LoraList(QWidget):
     def names(self, v):
         self._loras = v
         for item in self._items:
-            item._select.setMenu(item._build_menu(get_path_dict(self._loras)))
+            item._select.setMenu(item._build_menu(util.get_path_dict(self._loras)))
 
     @property
     def value(self):
