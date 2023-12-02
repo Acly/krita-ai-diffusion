@@ -9,10 +9,10 @@ from . import eventloop, workflow, util
 from .settings import settings
 from .network import NetworkError
 from .image import Extent, Image, ImageCollection, Mask, Bounds
-from .client import ClientMessage, ClientEvent, filter_supported_styles
+from .client import ClientMessage, ClientEvent, filter_supported_styles, resolve_sd_version
 from .document import Document, LayerObserver
 from .pose import Pose
-from .style import Style, Styles
+from .style import Style, Styles, SDVersion
 from .workflow import ControlMode, Conditioning, LiveParams
 from .connection import Connection, ConnectionState
 from .properties import Property, PropertyMeta
@@ -50,7 +50,6 @@ class Model(QObject, metaclass=PropertyMeta):
     jobs: JobQueue
     error = Property("")
     can_apply_result = Property(False)
-    task: asyncio.Task | None = None
 
     workspace_changed = pyqtSignal(Workspace)
     style_changed = pyqtSignal(Style)
@@ -105,17 +104,22 @@ class Model(QObject, metaclass=PropertyMeta):
         control = [c.get_image(image_bounds) for c in self.control]
         conditioning = Conditioning(self.prompt, self.negative_prompt, control)
         conditioning.area = selection_bounds if self.strength == 1.0 else None
+        generator = self._generate(image_bounds, conditioning, self.strength, image, mask)
 
         self.clear_error()
-        self.task = eventloop.run(
-            _report_errors(self, self._generate(image_bounds, conditioning, image, mask))
-        )
+        eventloop.run(_report_errors(self, generator))
 
     async def _generate(
-        self, bounds: Bounds, conditioning: Conditioning, image: Image | None, mask: Mask | None
+        self,
+        bounds: Bounds,
+        conditioning: Conditioning,
+        strength: float,
+        image: Image | None,
+        mask: Mask | None,
+        live=LiveParams(),
     ):
         client = self._connection.client
-        style, strength = self.style, self.strength
+        style = self.style
         if not self.jobs.any_executing():
             self.progress = 0.0
 
@@ -128,27 +132,26 @@ class Model(QObject, metaclass=PropertyMeta):
 
         if image is None and mask is None:
             assert strength == 1
-            job = workflow.generate(client, style, bounds.extent, conditioning)
+            job = workflow.generate(client, style, bounds.extent, conditioning, live)
         elif mask is None and strength < 1:
             assert image is not None
-            job = workflow.refine(client, style, image, conditioning, strength)
-        elif strength == 1:
+            job = workflow.refine(client, style, image, conditioning, strength, live)
+        elif strength == 1 and not live.is_active:
             assert image is not None and mask is not None
             job = workflow.inpaint(client, style, image, mask, conditioning)
         else:
-            assert image is not None and mask is not None and strength < 1
-            job = workflow.refine_region(client, style, image, mask, conditioning, strength)
+            assert image is not None and mask is not None
+            job = workflow.refine_region(client, style, image, mask, conditioning, strength, live)
 
         job_id = await client.enqueue(job)
-        self.jobs.add(job_id, conditioning.prompt, bounds)
+        job_kind = JobKind.live_preview if live.is_active else JobKind.diffusion
+        self.jobs.add(job_kind, job_id, conditioning.prompt, bounds)
 
     def upscale_image(self):
         image = self._doc.get_image(Bounds(0, 0, *self._doc.extent))
         job = self.jobs.add_upscale(Bounds(0, 0, *self.upscale.target_extent))
         self.clear_error()
-        self.task = eventloop.run(
-            _report_errors(self, self._upscale_image(job, image, self.upscale.params))
-        )
+        eventloop.run(_report_errors(self, self._upscale_image(job, image, self.upscale.params)))
 
     async def _upscale_image(self, job: Job, image: Image, params: UpscaleParams):
         client = self._connection.client
@@ -163,24 +166,26 @@ class Model(QObject, metaclass=PropertyMeta):
         self._doc.resize(params.target_extent)
 
     def generate_live(self):
-        bounds = Bounds(0, 0, *self._doc.extent)
+        ver = resolve_sd_version(self.style, self._connection.client)
         image = None
-        if self.live.strength < 1:
+
+        mask, _ = self._doc.create_mask_from_selection(
+            grow=settings.selection_feather / 200,  # don't apply grow for live mode
+            feather=settings.selection_feather / 100,
+            padding=settings.selection_padding / 100,
+            min_size=512 if ver is SDVersion.sd15 else 1024,
+            square=True,
+        )
+        bounds = Bounds(0, 0, *self._doc.extent) if mask is None else mask.bounds
+        if mask is not None or self.live.strength < 1.0:
             image = self._get_current_image(bounds)
+
         control = [c.get_image(bounds) for c in self.control]
         cond = Conditioning(self.prompt, self.negative_prompt, control)
-        job = self.jobs.add_live(self.prompt, bounds)
-        self.clear_error()
-        self.task = eventloop.run(_report_errors(self, self._generate_live(job, image, cond)))
+        generator = self._generate(bounds, cond, self.live.strength, image, mask, self.live.params)
 
-    async def _generate_live(self, job: Job, image: Image | None, cond: Conditioning):
-        style, strength, params = self.style, self.live.strength, self.live.params
-        client = self._connection.client
-        if image:
-            work = workflow.refine(client, style, image, cond, strength, params)
-        else:
-            work = workflow.generate(client, style, self._doc.extent, cond, params)
-        job.id = await client.enqueue(work)
+        self.clear_error()
+        eventloop.run(_report_errors(self, generator))
 
     def _get_current_image(self, bounds: Bounds):
         exclude = [  # exclude control layers from projection
@@ -199,9 +204,7 @@ class Model(QObject, metaclass=PropertyMeta):
         image = self._doc.get_image(Bounds(0, 0, *self._doc.extent))
         job = self.jobs.add_control(control, Bounds(0, 0, *image.extent))
         self.clear_error()
-        self.task = eventloop.run(
-            _report_errors(self, self._generate_control_layer(job, image, control.mode))
-        )
+        eventloop.run(_report_errors(self, self._generate_control_layer(job, image, control.mode)))
         return job
 
     async def _generate_control_layer(self, job: Job, image: Image, mode: ControlMode):
@@ -405,6 +408,7 @@ class LiveWorkspace(QObject, metaclass=PropertyMeta):
 
     _model: Model
     _result: Image | None = None
+    _result_bounds: Bounds | None = None
 
     def __init__(self, model: Model):
         super().__init__()
@@ -425,22 +429,22 @@ class LiveWorkspace(QObject, metaclass=PropertyMeta):
     def handle_job_finished(self, job: Job):
         if job.kind is JobKind.live_preview:
             if len(job.results) > 0:
-                self.result = job.results[0]
+                self.set_result(job.results[0], job.bounds)
             if self.is_active:
                 self._model.generate_live()
 
     def copy_result_to_layer(self):
-        assert self.result is not None
+        assert self.result is not None and self._result_bounds is not None
         doc = self._model.document
-        doc.insert_layer(f"[Live] {self._model.prompt}", self.result, Bounds(0, 0, *doc.extent))
+        doc.insert_layer(f"[Live] {self._model.prompt}", self.result, self._result_bounds)
 
     @property
     def result(self):
         return self._result
 
-    @result.setter
-    def result(self, value: Image):
+    def set_result(self, value: Image, bounds: Bounds):
         self._result = value
+        self._result_bounds = bounds
         self.result_available.emit(value)
         self.has_result = True
 

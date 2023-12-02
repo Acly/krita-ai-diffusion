@@ -66,8 +66,8 @@ class JobQueue(QObject):
         super().__init__()
         self._entries = deque()
 
-    def add(self, id: str, prompt: str, bounds: Bounds):
-        self._add(Job(id, JobKind.diffusion, prompt, bounds))
+    def add(self, kind: JobKind, id: str, prompt: str, bounds: Bounds):
+        self._add(Job(id, kind, prompt, bounds))
 
     def add_control(self, control: "control.ControlLayer", bounds: Bounds):
         job = Job(None, JobKind.control_layer, f"[Control] {control.mode.text}", bounds)
@@ -76,10 +76,6 @@ class JobQueue(QObject):
 
     def add_upscale(self, bounds: Bounds):
         job = Job(None, JobKind.upscaling, f"[Upscale] {bounds.width}x{bounds.height}", bounds)
-        return self._add(job)
-
-    def add_live(self, prompt: str, bounds: Bounds):
-        job = Job(None, JobKind.live_preview, prompt, bounds)
         return self._add(job)
 
     def _add(self, job: Job):

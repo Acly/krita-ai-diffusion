@@ -539,17 +539,23 @@ def refine(
 
 
 def refine_region(
-    comfy: Client, style: Style, image: Image, mask: Mask, cond: Conditioning, strength: float
+    comfy: Client,
+    style: Style,
+    image: Image,
+    mask: Mask,
+    cond: Conditioning,
+    strength: float,
+    live=LiveParams(),
 ):
-    assert strength > 0 and strength < 1
+    assert strength > 0 and strength <= 1
 
     downscale_if_needed = strength >= 0.7
     sd_ver = resolve_sd_version(style, comfy)
     extent, image, mask_image, batch = prepare_masked(image, mask, sd_ver, downscale_if_needed)
-    sampler_params = _sampler_params(style, strength=strength)
+    sampler_params = _sampler_params(style, strength=strength, live=live)
 
     w = ComfyWorkflow(comfy.nodes_required_inputs)
-    model, clip, vae = load_model_with_lora(w, comfy, style)
+    model, clip, vae = load_model_with_lora(w, comfy, style, is_live=live.is_active)
     in_image = w.load_image(image)
     in_mask = w.load_mask(mask_image)
     if extent.requires_downscale:
@@ -560,8 +566,10 @@ def refine_region(
         in_mask = w.scale_mask(in_mask, extent.expanded)
     latent = w.vae_encode(vae, in_image)
     latent = w.set_latent_noise_mask(latent, in_mask)
-    latent = w.batch_latent(latent, batch)
-    cond.control.append(Control(ControlMode.inpaint, in_image, mask=in_mask))
+    if batch > 1 and not live.is_active:
+        latent = w.batch_latent(latent, batch)
+    if not live.is_active:
+        cond.control.append(Control(ControlMode.inpaint, in_image, mask=in_mask))
     model, positive, negative = apply_conditioning(cond, w, comfy, model, clip, style)
     out_latent = w.ksampler_advanced(model, positive, negative, latent, **sampler_params)
     if extent.requires_upscale:

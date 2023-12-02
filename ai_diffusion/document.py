@@ -27,7 +27,9 @@ class Document:
     def check_color_mode(self):
         return True, None
 
-    def create_mask_from_selection(self, grow: float, feather: float, padding: float):
+    def create_mask_from_selection(
+        self, grow: float, feather: float, padding: float, min_size=0, square=False
+    ) -> tuple[Mask, Bounds] | tuple[None, None]:
         raise NotImplementedError
 
     def get_image(
@@ -108,7 +110,9 @@ class KritaDocument(Document):
             return False, msg_fmt.format("depth", "8-bit integer", depth)
         return True, None
 
-    def create_mask_from_selection(self, grow: float, feather: float, padding: float):
+    def create_mask_from_selection(
+        self, grow: float, feather: float, padding: float, min_size=0, square=False
+    ):
         user_selection = self._doc.selection()
         if not user_selection:
             return None, None
@@ -132,7 +136,7 @@ class KritaDocument(Document):
             selection.feather(feather_radius)
 
         bounds = Bounds(selection.x(), selection.y(), selection.width(), selection.height())
-        bounds = Bounds.pad(bounds, padding_pixels, multiple=8)
+        bounds = Bounds.pad(bounds, padding_pixels, multiple=8, min_size=min_size, square=square)
         bounds = Bounds.clamp(bounds, self.extent)
         data = selection.pixelData(*bounds)
         return Mask(bounds, data), original_bounds

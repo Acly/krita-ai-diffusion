@@ -1,6 +1,7 @@
 from __future__ import annotations
 import math
 import random
+import json
 from typing import NamedTuple, Tuple, Literal, overload, Any
 
 from .image import Bounds, Extent, Image
@@ -22,14 +23,15 @@ class ComfyWorkflow:
     sample_count = 0
 
     _cache: dict[str, Output | Output2 | Output3]
+    _nodes_required_inputs: dict[str, dict[str, Any]]
 
     def __init__(self, node_inputs: dict | None = None) -> None:
         self.root = {}
         self._cache = {}
-        self.nodes_required_inputs = node_inputs or {}
+        self._nodes_required_inputs = node_inputs or {}
 
-    def get_node_optional_values(self, node_name: str, args: dict | None = None) -> dict[str, Any]:
-        node_inputs = self.nodes_required_inputs.get(node_name, None)
+    def get_node_optional_values(self, node_name: str, args: dict):
+        node_inputs = self._nodes_required_inputs.get(node_name, None)
 
         if node_inputs is None:
             return args
@@ -49,8 +51,7 @@ class ComfyWorkflow:
 
     def dump(self, filepath: str):
         with open(filepath, "w") as f:
-            for key, value in self.root.items():
-                f.write(f"{key} = {value}\n")
+            json.dump(self.root, f, indent=4)
 
     @overload
     def add(self, class_type: str, output_count: Literal[1], **inputs) -> Output: ...
@@ -144,8 +145,8 @@ class ComfyWorkflow:
             start_at_step=start_at_step,
             end_at_step=steps,
             cfg=cfg,
-            add_noise='enable',
-            return_with_leftover_noise='disable',
+            add_noise="enable",
+            return_with_leftover_noise="disable",
         )
 
     def model_sampling_discrete(self, model: Output, sampling: str):
@@ -205,7 +206,14 @@ class ComfyWorkflow:
         return self.add("ConditioningCombine", 1, conditioning_1=a, conditioning_2=b)
 
     def apply_controlnet(
-        self, positive: Output, negative: Output, controlnet: Output, image: Output, strength=1.0, start_percent=0.0, end_percent=1.0
+        self,
+        positive: Output,
+        negative: Output,
+        controlnet: Output,
+        image: Output,
+        strength=1.0,
+        start_percent=0.0,
+        end_percent=1.0,
     ):
         return self.add(
             "ControlNetApplyAdvanced",
