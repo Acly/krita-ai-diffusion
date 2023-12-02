@@ -1,5 +1,7 @@
 from __future__ import annotations
-from typing import Callable, Optional
+from typing import Callable, Optional, Tuple
+import functools
+import re
 
 from PyQt5.QtWidgets import (
     QAction,
@@ -344,6 +346,136 @@ class StyleSelectWidget(QWidget):
             self._combo.setCurrentText(style.name)
 
 
+def select_current_parenthesis_block(
+    text: str, cursor_pos: int, open_bracket: str, close_bracket: str
+) -> Tuple[int, int] | None:
+    """ """
+    # Ensure cursor position is within valid range
+    cursor_pos = max(0, min(cursor_pos, len(text)))
+
+    # Find the nearest '(' before the cursor
+    start = text.rfind(open_bracket, 0, cursor_pos)
+
+    # If '(' is found, find the corresponding ')' after the cursor
+    end = -1
+    if start != -1:
+        open_parens = 1
+        for i in range(start + 1, len(text)):
+            if text[i] == open_bracket:
+                open_parens += 1
+            elif text[i] == close_bracket:
+                open_parens -= 1
+                if open_parens == 0:
+                    end = i
+                    break
+
+    # Return the indices only if both '(' and ')' are found
+    if start != -1 and end != -1:
+        return (start, end + 1)
+    else:
+        return None
+
+
+def select_current_word(text: str, cursor_pos: int) -> Tuple[int, int]:
+    """ """
+    delimiters = r".,\/!?%^*;:{}=`~() " + "\t\r\n"
+    start = end = cursor_pos
+
+    # seek backward to find beginning
+    while start > 0 and text[start - 1] not in delimiters:
+        start -= 1
+
+    # seek forward to find end
+    while end < len(text) and text[end] not in delimiters:
+        end += 1
+
+    return start, end
+
+
+def edit_attention(text: str, start: int, end: int, positive: bool) -> str:
+    """ """
+    target_text = text[start:end]
+    if target_text == "":
+        return text
+
+    pattern = r"(.+?):(\s*\d+\.\d+\s*)"
+    match = (
+        re.match("\\(" + pattern + "\\)", target_text)
+        or re.search("\\[" + pattern + "\\]", target_text)
+        or re.search("<" + pattern + ">", target_text)
+    )
+    if match:
+        attention_string = match.group(1)
+        weight = float(match.group(2))
+        open_bracket = target_text[0]
+        close_bracket = target_text[-1]
+    else:
+        attention_string = target_text
+        weight = 1.0
+        open_bracket = "("
+        close_bracket = ")"
+
+    weight = max(weight + 0.1 * (1 if positive else -1), 0)
+    return (
+        text[:start]
+        + open_bracket
+        + attention_string
+        + ":"
+        + f"{weight:.1f}"
+        + close_bracket
+        + text[end:]
+    )
+
+
+def handle_weight_adjustment(
+    keyPressEvent: Callable[[QPlainTextEdit | QLineEdit, QKeyEvent], None]
+) -> Callable[[QPlainTextEdit | QLineEdit, QKeyEvent], None]:
+    """ """
+
+    def wrap_single(self: QLineEdit, event: QKeyEvent):
+        current_text = self.text()
+        if self.hasSelectedText():
+            start = self.selectionStart()
+            end = self.selectionEnd()
+        else:
+            cursor_pos = self.cursorPosition()
+            start, end = (
+                select_current_parenthesis_block(current_text, cursor_pos, "(", ")")
+                or select_current_parenthesis_block(current_text, cursor_pos, "[", "]")
+                or select_current_parenthesis_block(current_text, cursor_pos, "<", ">")
+                or select_current_word(current_text, cursor_pos)
+            )
+        self.setText(edit_attention(current_text, start, end, event.key() == Qt.Key.Key_Up))
+
+    def wrap_multi(self: QPlainTextEdit, event: QKeyEvent):
+        current_text = self.toPlainText()
+        if self.textCursor().hasSelection():
+            cursor = self.textCursor()
+            start = cursor.selectionStart()
+            end = cursor.selectionEnd()
+        else:
+            cursor_pos = self.textCursor().position()
+            start, end = (
+                select_current_parenthesis_block(current_text, cursor_pos, "(", ")")
+                or select_current_parenthesis_block(current_text, cursor_pos, "[", "]")
+                or select_current_parenthesis_block(current_text, cursor_pos, "<", ">")
+                or select_current_word(current_text, cursor_pos)
+            )
+        self.setPlainText(edit_attention(current_text, start, end, event.key() == Qt.Key.Key_Up))
+
+    @functools.wraps(keyPressEvent)
+    def wrapper(self: QPlainTextEdit | QLineEdit, event: QKeyEvent):
+        if event.key() in [Qt.Key.Key_Up, Qt.Key.Key_Down]:
+            if isinstance(self, QLineEdit):
+                wrap_single(self, event)
+            else:
+                wrap_multi(self, event)
+
+        keyPressEvent(self, event)
+
+    return wrapper
+
+
 class MultiLineTextPromptWidget(QPlainTextEdit):
     activated = pyqtSignal()
 
@@ -357,6 +489,7 @@ class MultiLineTextPromptWidget(QPlainTextEdit):
         self.line_count = 2
         self.is_negative = False
 
+    @handle_weight_adjustment
     def keyPressEvent(self, event: QKeyEvent):
         if (
             event.key() == Qt.Key.Key_Return
@@ -410,6 +543,7 @@ class TextPromptWidget(QWidget):
         self._single.textChanged.connect(self.notify_text_changed)
         self._single.returnPressed.connect(self.notify_activated)
         self._single.setVisible(self._line_count == 1)
+        self._single.keyPressEvent = handle_weight_adjustment(self._single.keyPressEvent)
 
         self._layout.addWidget(self._multi)
         self._layout.addWidget(self._single)
