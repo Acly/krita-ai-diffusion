@@ -1,5 +1,5 @@
 import re
-from typing import Tuple, List, Literal
+from typing import Tuple, List
 
 
 def select_current_parenthesis_block(
@@ -26,7 +26,7 @@ def select_current_parenthesis_block(
                     break
 
     # Return the indices only if both '(' and ')' are found
-    if start != -1 and end != -1:
+    if start != -1 and end > cursor_pos:
         return (start, end + 1)
     else:
         return None
@@ -80,7 +80,7 @@ def parse_expr(expression: str) -> List[ExprNode]:
     """
 
     def parse_segment(segment):
-        match = re.match(r"[([{<](.*?):([\d.]+)[\]})>]", segment)
+        match = re.match(r"^[([{<](.*?):([\d.]+)[\]})>]$", segment)
         if match:
             inner_expr = match.group(1)
             number = float(match.group(2))

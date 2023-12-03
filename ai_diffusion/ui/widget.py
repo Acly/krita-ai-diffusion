@@ -364,7 +364,10 @@ def handle_weight_adjustment(
         if isinstance(self, MultiLineTextPromptWidget):
             self.setSelection(start, start + len(text_after_edit))
         else:
-            self.setCursorPosition(start + len(text_after_edit) - 1)
+            # Note: setSelection has some wield bug in `SingleLineTextPromptWidget`
+            # that the end range will be set to end of text. So set cursor instead
+            # as compromise.
+            self.setCursorPosition(start + len(text_after_edit) - 2)
 
 class MultiLineTextPromptWidget(QPlainTextEdit):
     activated = pyqtSignal()
