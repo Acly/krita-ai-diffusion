@@ -190,6 +190,8 @@ class Pose:
     @staticmethod
     def from_open_pose_json(pose: dict):
         # Format described at https://github.com/CMU-Perceptual-Computing-Lab/openpose/blob/master/doc/02_output.md
+        if isinstance(pose, list):
+            pose = pose[0]  # Newer version of DWPose return a list of pose dicts
         extent = Extent(pose["canvas_width"], pose["canvas_height"])
 
         def parse_keypoints(person: int, keypoints: List[float]):
