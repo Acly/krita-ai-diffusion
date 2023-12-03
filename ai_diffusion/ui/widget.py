@@ -349,7 +349,8 @@ class StyleSelectWidget(QWidget):
 def handle_weight_adjustment(
     keyPressEvent: Callable[[MultiLineTextPromptWidget | QLineEdit, QKeyEvent], None]
 ) -> Callable[[MultiLineTextPromptWidget | QLineEdit, QKeyEvent], None]:
-    """ """
+    """Decorator that handles arrow key up / arrow key down attention weight adjustment."""
+
     @functools.wraps(keyPressEvent)
     def wrapper(self: MultiLineTextPromptWidget | QLineEdit, event: QKeyEvent):
         if event.key() in [Qt.Key.Key_Up, Qt.Key.Key_Down]:
