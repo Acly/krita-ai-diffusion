@@ -1,6 +1,7 @@
 from __future__ import annotations
 from typing import Callable, Optional
 import functools
+from PyQt5 import QtGui
 
 from PyQt5.QtWidgets import (
     QAction,
@@ -418,6 +419,12 @@ class MultiLineTextPromptWidget(QPlainTextEdit):
         self.setPlainText(text)
 
 
+class SingleLineTextPromptWidget(QLineEdit):
+    @handle_weight_adjustment
+    def keyPressEvent(self, event: QKeyEvent):
+        super().keyPressEvent(event)
+
+
 class TextPromptWidget(QWidget):
     """Wraps a single or multi-line text widget, with ability to switch between them.
     Using QPlainTextEdit set to a single line doesn't work properly because it still
@@ -447,11 +454,10 @@ class TextPromptWidget(QWidget):
         self._multi.textChanged.connect(self.notify_text_changed)
         self._multi.setVisible(self._line_count > 1)
 
-        self._single = QLineEdit(self)
+        self._single = SingleLineTextPromptWidget(self)
         self._single.textChanged.connect(self.notify_text_changed)
         self._single.returnPressed.connect(self.notify_activated)
         self._single.setVisible(self._line_count == 1)
-        self._single.keyPressEvent = handle_weight_adjustment(self._single.keyPressEvent)
 
         self._layout.addWidget(self._multi)
         self._layout.addWidget(self._single)
