@@ -348,8 +348,8 @@ class StyleSelectWidget(QWidget):
 def handle_weight_adjustment(
     self: MultiLineTextPromptWidget | SingleLineTextPromptWidget, event: QKeyEvent
 ):
-    """Handles arrow key up / arrow key down attention weight adjustment."""
-    if event.key() in [Qt.Key.Key_Up, Qt.Key.Key_Down]:
+    """Handles Ctrl + (arrow key up / arrow key down) attention weight adjustment."""
+    if event.key() in [Qt.Key.Key_Up, Qt.Key.Key_Down] and (event.modifiers() & Qt.Modifier.CTRL):
         if self.hasSelectedText():
             start = self.selectionStart()
             end = self.selectionEnd()
@@ -367,6 +367,7 @@ def handle_weight_adjustment(
             # that the end range will be set to end of text. So set cursor instead
             # as compromise.
             self.setCursorPosition(start + len(text_after_edit) - 2)
+
 
 class MultiLineTextPromptWidget(QPlainTextEdit):
     activated = pyqtSignal()
