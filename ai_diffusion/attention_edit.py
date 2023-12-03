@@ -73,7 +73,7 @@ class ExprNode:
 def parse_expr(expression: str) -> List[ExprNode]:
     """
     Parses following attention syntax language.
-    expr = text | (expr:number) | [expr:number] | <expr:number>
+    expr = text | (expr:number)
     expr = text + expr | expr + text
     """
 
