@@ -130,6 +130,15 @@ class Bounds(NamedTuple):
         return Bounds(x, y, width, height)
 
     @staticmethod
+    def restrict(bounds: "Bounds", within: "Bounds"):
+        """Restrict bounds to be inside another bounds."""
+        x = max(within.x, bounds.x)
+        y = max(within.y, bounds.y)
+        width = min(within.x + within.width, bounds.x + bounds.width) - x
+        height = min(within.y + within.height, bounds.y + bounds.height) - y
+        return Bounds(x, y, width, height)
+
+    @staticmethod
     def apply_crop(bounds: "Bounds", image_bounds: "Bounds"):
         """Adjust bounds area after the image has been cropped."""
         x = bounds.x - image_bounds.x

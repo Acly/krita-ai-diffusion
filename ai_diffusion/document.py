@@ -7,6 +7,7 @@ from PyQt5.QtGui import QImage
 
 from .image import Extent, Bounds, Mask, Image
 from .pose import Pose
+from .util import client_logger as log
 
 
 class Document:
@@ -30,6 +31,9 @@ class Document:
     def create_mask_from_selection(
         self, grow: float, feather: float, padding: float, min_size=0, square=False
     ) -> tuple[Mask, Bounds] | tuple[None, None]:
+        raise NotImplementedError
+
+    def create_mask_from_layer(self, padding: float, is_inpaint: bool) -> tuple[Mask, Bounds, None]:
         raise NotImplementedError
 
     def get_image(
@@ -135,11 +139,36 @@ class KritaDocument(Document):
         if feather_radius > 0:
             selection.feather(feather_radius)
 
-        bounds = Bounds(selection.x(), selection.y(), selection.width(), selection.height())
+        bounds = _selection_bounds(selection)
         bounds = Bounds.pad(bounds, padding_pixels, multiple=8, min_size=min_size, square=square)
         bounds = Bounds.clamp(bounds, self.extent)
         data = selection.pixelData(*bounds)
         return Mask(bounds, data), original_bounds
+
+    def create_mask_from_layer(self, padding: float, is_inpaint: bool):
+        image_bounds = Bounds(0, 0, *self.extent)
+        if context_selection := self._doc.selection():
+            image_bounds = Bounds.clamp(_selection_bounds(context_selection), self.extent)
+
+        assert self.active_layer.type() == "selectionmask"
+        layer = cast(krita.SelectionMask, self.active_layer)
+        mask_selection = layer.selection()
+        mask_bounds = image_bounds
+        if is_inpaint:
+            mask_bounds = _selection_bounds(mask_selection)
+            pad = int(mask_bounds.extent.diagonal * padding)
+            mask_bounds = Bounds.pad(mask_bounds, pad, 512, 8)
+            mask_bounds = Bounds.restrict(mask_bounds, image_bounds)
+
+        data: QByteArray = layer.projectionPixelData(*mask_bounds)
+        assert data is not None and data.size() >= mask_bounds.extent.pixel_count
+        mask = Mask(mask_bounds, data)
+
+        log.debug(
+            f"Using experimental selection mask {self.active_layer.name()}, mask bounds:"
+            f" {mask.bounds}, image bounds: {image_bounds}"
+        )
+        return mask, image_bounds, None
 
     def get_image(
         self, bounds: Bounds | None = None, exclude_layers: list[krita.Node] | None = None
@@ -236,8 +265,12 @@ def _find_layer_above(doc: krita.Document, layer_below: krita.Node | None):
     return None
 
 
+def _selection_bounds(selection: krita.Selection):
+    return Bounds(selection.x(), selection.y(), selection.width(), selection.height())
+
+
 def _selection_is_entire_document(selection: krita.Selection, extent: Extent):
-    bounds = Bounds(selection.x(), selection.y(), selection.width(), selection.height())
+    bounds = _selection_bounds(selection)
     if bounds.x > 0 or bounds.y > 0:
         return False
     if bounds.width + bounds.x < extent.width or bounds.height + bounds.y < extent.height:

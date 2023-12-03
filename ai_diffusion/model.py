@@ -89,12 +89,20 @@ class Model(QObject, metaclass=PropertyMeta):
         image = None
         extent = self._doc.extent
 
-        mask, selection_bounds = self._doc.create_mask_from_selection(
-            grow=settings.selection_grow / 100,
-            feather=settings.selection_feather / 100,
-            padding=settings.selection_padding / 100,
-        )
-        image_bounds = workflow.compute_bounds(extent, mask.bounds if mask else None, self.strength)
+        if self._doc.active_layer.type() == "selectionmask":
+            mask, image_bounds, selection_bounds = self._doc.create_mask_from_layer(
+                settings.selection_padding / 100, is_inpaint=self.strength == 1.0
+            )
+        else:
+            mask, selection_bounds = self._doc.create_mask_from_selection(
+                grow=settings.selection_grow / 100,
+                feather=settings.selection_feather / 100,
+                padding=settings.selection_padding / 100,
+            )
+            image_bounds = workflow.compute_bounds(
+                extent, mask.bounds if mask else None, self.strength
+            )
+
         if mask is not None or self.strength < 1.0:
             image = self._get_current_image(image_bounds)
         if selection_bounds is not None:
