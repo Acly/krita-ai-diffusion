@@ -43,6 +43,11 @@ class TestEditAttention:
 
     def test_nested(self):
         assert edit_whole("(foo:1.0), bar", positive=True) == "((foo:1.0), bar:1.1)"
+        assert (
+            edit_whole("(1girl:1.1), foo, (bar:1.3)", positive=True)
+            == "((1girl:1.1), foo, (bar:1.3):1.1)"
+        )
+        assert edit_whole("(:):1.0)", positive=True) == "(:):1.1)"
 
     def test_invalid_weight(self):
         assert edit_whole("(foo:bar)", positive=True) == "((foo:bar):1.1)"
