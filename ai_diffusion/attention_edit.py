@@ -119,21 +119,19 @@ def parse_expr(expression: str) -> List[ExprNode]:
     return segments
 
 
-def edit_attention(text: str, start: int, end: int, positive: bool) -> str:
-    """Edit the attention of text range within the prompt."""
-    target_text = text[start:end]
-    if target_text == "":
+def edit_attention(text: str, positive: bool) -> str:
+    """Edit the attention of text within the prompt."""
+    if text == "":
         return text
 
-    segments = parse_expr(target_text)
-    print(segments)
+    segments = parse_expr(text)
     if len(segments) == 1 and segments[0].type == "expr":
-        attention_string = target_text[1 : target_text.rfind(":")]
+        attention_string = text[1 : text.rfind(":")]
         weight = segments[0].weight
-        open_bracket = target_text[0]
-        close_bracket = target_text[-1]
+        open_bracket = text[0]
+        close_bracket = text[-1]
     else:
-        attention_string = target_text
+        attention_string = text
         weight = 1.0
         open_bracket = "("
         close_bracket = ")"
@@ -142,10 +140,9 @@ def edit_attention(text: str, start: int, end: int, positive: bool) -> str:
     weight = max(weight, 0.0)
     weight = min(weight, 2.0)
 
-    content = (
+    return (
         attention_string
         if weight == 1.0
         else f"{open_bracket}{attention_string}:{weight:.1f}{close_bracket}"
     )
-
-    return text[:start] + content + text[end:]
+    

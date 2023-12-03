@@ -356,8 +356,15 @@ def handle_weight_adjustment(
             end = self.selectionEnd()
         else:
             start, end = select_on_cursor_pos(self.text(), self.cursorPosition())
-        self.setText(edit_attention(self.text(), start, end, event.key() == Qt.Key.Key_Up))
 
+        text = self.text()
+        target_text = text[start:end]
+        text_after_edit = edit_attention(target_text, event.key() == Qt.Key.Key_Up)
+        self.setText(text[:start] + text_after_edit + text[end:])
+        if isinstance(self, MultiLineTextPromptWidget):
+            self.setSelection(start, start + len(text_after_edit))
+        else:
+            self.setCursorPosition(start + len(text_after_edit) - 1)
 
 class MultiLineTextPromptWidget(QPlainTextEdit):
     activated = pyqtSignal()
@@ -373,18 +380,7 @@ class MultiLineTextPromptWidget(QPlainTextEdit):
         self.is_negative = False
 
     def keyPressEvent(self, event: QKeyEvent):
-        # Save the current cursor position and selection
-        cursor = self.textCursor()
-        cursor_pos = cursor.position()
-        anchor_pos = cursor.anchor()
-
         handle_weight_adjustment(self, event)
-
-        # Create a new text cursor and restore position
-        new_cursor = self.textCursor()
-        new_cursor.setPosition(min(cursor_pos, len(self.toPlainText())))
-        new_cursor.setPosition(min(anchor_pos, len(self.toPlainText())), QTextCursor.KeepAnchor)
-        self.setTextCursor(new_cursor)
 
         if (
             event.key() == Qt.Key.Key_Return
@@ -422,18 +418,16 @@ class MultiLineTextPromptWidget(QPlainTextEdit):
     def setText(self, text: str):
         self.setPlainText(text)
 
+    def setSelection(self, start: int, end: int):
+        new_cursor = self.textCursor()
+        new_cursor.setPosition(min(end, len(self.toPlainText())))
+        new_cursor.setPosition(min(start, len(self.toPlainText())), QTextCursor.KeepAnchor)
+        self.setTextCursor(new_cursor)
+
 
 class SingleLineTextPromptWidget(QLineEdit):
     def keyPressEvent(self, event: QKeyEvent):
-        selection = (self.selectionStart(), self.selectionEnd()) if self.hasSelectedText() else None
-        cursor_pos = self.cursorPosition()
-
         handle_weight_adjustment(self, event)
-
-        self.setCursorPosition(cursor_pos)
-        if selection:
-            self.setSelection(*selection)
-
         super().keyPressEvent(event)
 
 
