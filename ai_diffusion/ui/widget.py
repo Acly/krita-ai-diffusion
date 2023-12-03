@@ -1,6 +1,5 @@
 from __future__ import annotations
 from typing import Callable, Optional
-import functools
 from PyQt5 import QtGui
 
 from PyQt5.QtWidgets import (
@@ -19,7 +18,7 @@ from PyQt5.QtWidgets import (
     QVBoxLayout,
     QSizePolicy,
 )
-from PyQt5.QtGui import QColor, QFontMetrics, QKeyEvent, QPalette
+from PyQt5.QtGui import QColor, QFontMetrics, QKeyEvent, QPalette, QTextCursor
 from PyQt5.QtCore import Qt, QMetaObject, QSize, pyqtSignal
 import krita
 
@@ -348,23 +347,16 @@ class StyleSelectWidget(QWidget):
 
 
 def handle_weight_adjustment(
-    keyPressEvent: Callable[[MultiLineTextPromptWidget | QLineEdit, QKeyEvent], None]
-) -> Callable[[MultiLineTextPromptWidget | QLineEdit, QKeyEvent], None]:
-    """Decorator that handles arrow key up / arrow key down attention weight adjustment."""
-
-    @functools.wraps(keyPressEvent)
-    def wrapper(self: MultiLineTextPromptWidget | QLineEdit, event: QKeyEvent):
-        if event.key() in [Qt.Key.Key_Up, Qt.Key.Key_Down]:
-            if self.hasSelectedText():
-                start = self.selectionStart()
-                end = self.selectionEnd()
-            else:
-                start, end = select_on_cursor_pos(self.text(), self.cursorPosition())
-            self.setText(edit_attention(self.text(), start, end, event.key() == Qt.Key.Key_Up))
-
-        keyPressEvent(self, event)
-
-    return wrapper
+    self: MultiLineTextPromptWidget | SingleLineTextPromptWidget, event: QKeyEvent
+):
+    """Handles arrow key up / arrow key down attention weight adjustment."""
+    if event.key() in [Qt.Key.Key_Up, Qt.Key.Key_Down]:
+        if self.hasSelectedText():
+            start = self.selectionStart()
+            end = self.selectionEnd()
+        else:
+            start, end = select_on_cursor_pos(self.text(), self.cursorPosition())
+        self.setText(edit_attention(self.text(), start, end, event.key() == Qt.Key.Key_Up))
 
 
 class MultiLineTextPromptWidget(QPlainTextEdit):
@@ -380,8 +372,20 @@ class MultiLineTextPromptWidget(QPlainTextEdit):
         self.line_count = 2
         self.is_negative = False
 
-    @handle_weight_adjustment
     def keyPressEvent(self, event: QKeyEvent):
+        # Save the current cursor position and selection
+        cursor = self.textCursor()
+        cursor_pos = cursor.position()
+        anchor_pos = cursor.anchor()
+
+        handle_weight_adjustment(self, event)
+
+        # Create a new text cursor and restore position
+        new_cursor = self.textCursor()
+        new_cursor.setPosition(min(cursor_pos, len(self.toPlainText())))
+        new_cursor.setPosition(min(anchor_pos, len(self.toPlainText())), QTextCursor.KeepAnchor)
+        self.setTextCursor(new_cursor)
+
         if (
             event.key() == Qt.Key.Key_Return
             and event.modifiers() == Qt.KeyboardModifier.ShiftModifier
@@ -420,8 +424,16 @@ class MultiLineTextPromptWidget(QPlainTextEdit):
 
 
 class SingleLineTextPromptWidget(QLineEdit):
-    @handle_weight_adjustment
     def keyPressEvent(self, event: QKeyEvent):
+        selection = (self.selectionStart(), self.selectionEnd()) if self.hasSelectedText() else None
+        cursor_pos = self.cursorPosition()
+
+        handle_weight_adjustment(self, event)
+
+        self.setCursorPosition(cursor_pos)
+        if selection:
+            self.setSelection(*selection)
+
         super().keyPressEvent(event)
 
 
