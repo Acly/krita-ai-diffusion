@@ -1,6 +1,5 @@
 from __future__ import annotations
 from typing import Callable, Optional
-from PyQt5 import QtGui
 
 from PyQt5.QtWidgets import (
     QAction,

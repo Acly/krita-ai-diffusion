@@ -23,14 +23,6 @@ class TestEditAttention:
         assert edit_attention("(bar:0)", positive=True) == "(bar:0.1)"
         assert edit_attention("(bar:.1)", positive=True) == "(bar:0.2)"
 
-    def test_square_bracket(self):
-        assert edit_attention("[bar:1.0]", positive=True) == "[bar:1.1]"
-        assert edit_attention("[foo:bar:1.0]", positive=True) == "[foo:bar:1.1]"
-
-    def test_angle_bracket(self):
-        assert edit_attention("<bar:1.0>", positive=True) == "<bar:1.1>"
-        assert edit_attention("<foo:bar:1.0>", positive=True) == "<foo:bar:1.1>"
-
     def test_nested(self):
         assert edit_attention("(foo:1.0), bar", positive=True) == "((foo:1.0), bar:1.1)"
         assert (

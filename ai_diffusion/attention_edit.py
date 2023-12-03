@@ -52,8 +52,6 @@ def select_on_cursor_pos(text: str, cursor_pos: int) -> Tuple[int, int]:
     """Return a range in the text based on the cursor_position."""
     return (
         select_current_parenthesis_block(text, cursor_pos, "(", ")")
-        or select_current_parenthesis_block(text, cursor_pos, "[", "]")
-        or select_current_parenthesis_block(text, cursor_pos, "<", ">")
         or select_current_word(text, cursor_pos)
     )
 
@@ -91,7 +89,7 @@ def parse_expr(expression: str) -> List[ExprNode]:
     segments = []
     stack = []
     start = 0
-    bracket_pairs = {"(": ")", "[": "]", "<": ">"}
+    bracket_pairs = {"(": ")"}
 
     for i, char in enumerate(expression):
         if char in bracket_pairs:
