@@ -31,6 +31,7 @@ from ..jobs import Job, JobKind, JobState, JobQueue
 from ..model import Model, Workspace, ControlLayer
 from .settings import SettingsDialog
 from .theme import SignalBlocker
+from .autocomplete import create_completer
 from . import actions, theme
 
 
@@ -410,6 +411,7 @@ class TextPromptWidget(QWidget):
         self._single.textChanged.connect(self.notify_text_changed)
         self._single.returnPressed.connect(self.notify_activated)
         self._single.setVisible(self._line_count == 1)
+        self._single.setCompleter(create_completer())
 
         self._layout.addWidget(self._multi)
         self._layout.addWidget(self._single)
