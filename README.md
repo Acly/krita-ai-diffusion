@@ -58,7 +58,7 @@ To run locally a powerful graphics card with at least 6 GB VRAM is recommended. 
 
 ### Installation
 
-1. If you haven't yet, go and install [Krita](https://krita.org/)! _Recommended version: 5.2.1_
+1. If you haven't yet, go and install [Krita](https://krita.org/)! _Required version: 5.2.0 or newer_
 1. [Download the plugin](https://github.com/Acly/krita-ai-diffusion/releases/latest). Unpack the archive into your `pykrita` folder.
     * _Windows:_ Usually `C:\Users\<user>\AppData\Roaming\krita\pykrita`
     * _Linux:_ Usually `~/.local/share/krita/pykrita`
@@ -80,6 +80,10 @@ you can install it manually or use an existing installation. If the server is al
 automatically try to connect. Using a remote server is also possible this way.
 
 Please check the list of [required extensions and models](doc/comfy-requirements.md) to make sure your installation is compatible.
+
+### _Optional:_ Object selection tools (Segmentation)
+
+If you're looking for a way to easily select objects in the image, there is a [separate plugin](https://github.com/Acly/krita-ai-tools) which adds AI segmentation tools.
 
 ### GPU Cloud
 
