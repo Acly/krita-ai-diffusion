@@ -11,6 +11,8 @@ scripts/docker/models
 scripts/docker/ip-adapter
 tests/.results
 settings.json
-ai_diffusion/styles/violet*
+ai_diffusion/styles/*
+!ai_diffusion/styles/cinematic-photo*.json
+!ai_diffusion/styles/digital-artwork*.json
 krita_ai_diffusion*.zip
 TODO.md
