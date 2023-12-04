@@ -17,7 +17,7 @@ from PyQt5.QtWidgets import (
     QVBoxLayout,
     QSizePolicy,
 )
-from PyQt5.QtGui import QColor, QFontMetrics, QKeyEvent, QPalette
+from PyQt5.QtGui import QColor, QFontMetrics, QKeyEvent, QPalette, QTextCursor
 from PyQt5.QtCore import Qt, QMetaObject, QSize, pyqtSignal
 import krita
 
@@ -32,6 +32,7 @@ from ..model import Model, Workspace, ControlLayer
 from .settings import SettingsDialog
 from .theme import SignalBlocker
 from . import actions, theme
+from ..attention_edit import edit_attention, select_on_cursor_pos
 
 
 class QueueWidget(QToolButton):
@@ -344,6 +345,30 @@ class StyleSelectWidget(QWidget):
             self._combo.setCurrentText(style.name)
 
 
+def handle_weight_adjustment(
+    self: MultiLineTextPromptWidget | SingleLineTextPromptWidget, event: QKeyEvent
+):
+    """Handles Ctrl + (arrow key up / arrow key down) attention weight adjustment."""
+    if event.key() in [Qt.Key.Key_Up, Qt.Key.Key_Down] and (event.modifiers() & Qt.Modifier.CTRL):
+        if self.hasSelectedText():
+            start = self.selectionStart()
+            end = self.selectionEnd()
+        else:
+            start, end = select_on_cursor_pos(self.text(), self.cursorPosition())
+
+        text = self.text()
+        target_text = text[start:end]
+        text_after_edit = edit_attention(target_text, event.key() == Qt.Key.Key_Up)
+        self.setText(text[:start] + text_after_edit + text[end:])
+        if isinstance(self, MultiLineTextPromptWidget):
+            self.setSelection(start, start + len(text_after_edit))
+        else:
+            # Note: setSelection has some wield bug in `SingleLineTextPromptWidget`
+            # that the end range will be set to end of text. So set cursor instead
+            # as compromise.
+            self.setCursorPosition(start + len(text_after_edit) - 2)
+
+
 class MultiLineTextPromptWidget(QPlainTextEdit):
     activated = pyqtSignal()
 
@@ -358,6 +383,8 @@ class MultiLineTextPromptWidget(QPlainTextEdit):
         self.is_negative = False
 
     def keyPressEvent(self, event: QKeyEvent):
+        handle_weight_adjustment(self, event)
+
         if (
             event.key() == Qt.Key.Key_Return
             and event.modifiers() == Qt.KeyboardModifier.ShiftModifier
@@ -375,6 +402,36 @@ class MultiLineTextPromptWidget(QPlainTextEdit):
         self._line_count = value
         fm = QFontMetrics(self.document().defaultFont())
         self.setFixedHeight(fm.lineSpacing() * value + 6)
+
+    def hasSelectedText(self) -> bool:
+        return self.textCursor().hasSelection()
+
+    def selectionStart(self) -> int:
+        return self.textCursor().selectionStart()
+
+    def selectionEnd(self) -> int:
+        return self.textCursor().selectionEnd()
+
+    def cursorPosition(self) -> int:
+        return self.textCursor().position()
+
+    def text(self) -> str:
+        return self.toPlainText()
+
+    def setText(self, text: str):
+        self.setPlainText(text)
+
+    def setSelection(self, start: int, end: int):
+        new_cursor = self.textCursor()
+        new_cursor.setPosition(min(end, len(self.toPlainText())))
+        new_cursor.setPosition(min(start, len(self.toPlainText())), QTextCursor.KeepAnchor)
+        self.setTextCursor(new_cursor)
+
+
+class SingleLineTextPromptWidget(QLineEdit):
+    def keyPressEvent(self, event: QKeyEvent):
+        handle_weight_adjustment(self, event)
+        super().keyPressEvent(event)
 
 
 class TextPromptWidget(QWidget):
@@ -406,7 +463,7 @@ class TextPromptWidget(QWidget):
         self._multi.textChanged.connect(self.notify_text_changed)
         self._multi.setVisible(self._line_count > 1)
 
-        self._single = QLineEdit(self)
+        self._single = SingleLineTextPromptWidget(self)
         self._single.textChanged.connect(self.notify_text_changed)
         self._single.returnPressed.connect(self.notify_activated)
         self._single.setVisible(self._line_count == 1)
