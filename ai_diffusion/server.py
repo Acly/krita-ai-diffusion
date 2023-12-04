@@ -10,9 +10,8 @@ from typing import Callable, NamedTuple, Optional, Union
 from PyQt5.QtNetwork import QNetworkAccessManager
 
 from .settings import settings, ServerBackend
-from .style import SDVersion
 from . import resources
-from .resources import CustomNode, ModelResource
+from .resources import CustomNode, ModelResource, SDVersion
 from .network import download, DownloadProgress
 from .util import ZipFile, is_windows, client_logger as log, server_logger as server_log
 

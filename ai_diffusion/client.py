@@ -12,8 +12,8 @@ from .image import Image, ImageCollection
 from .network import RequestManager, NetworkError
 from .websockets.src.websockets import client as websockets_client
 from .websockets.src.websockets import exceptions as websockets_exceptions
-from .style import SDVersion, Style, Styles
-from .resources import ControlMode, MissingResource, ResourceKind
+from .style import Style, Styles
+from .resources import ControlMode, MissingResource, ResourceKind, SDVersion
 from . import resources
 from .util import ensure, is_windows, client_logger as log
 

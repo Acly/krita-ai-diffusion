@@ -2,7 +2,6 @@ import sys
 from markdown import markdown
 from shutil import rmtree, copy, copytree, ignore_patterns, make_archive
 from pathlib import Path
-from zipfile import ZipFile
 
 root = Path(__file__).parent.parent
 package_dir = root / "scripts" / ".package"
@@ -40,6 +39,7 @@ def build_package():
         return filtered
 
     copytree(plugin_src, plugin_dst, ignore=ignore)
+    copy(root / "scripts" / "download_models.py", plugin_dst)
     copy(root / "LICENSE", plugin_dst)
     convert_markdown_to_html(root / "README.md", plugin_dst / "manual.html")
 

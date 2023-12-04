@@ -4,4 +4,5 @@ aiohttp
 markdown
 numpy
 pytest
+tqdm
 PyQt5

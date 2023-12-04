@@ -4,8 +4,8 @@ from typing import Any, List, NamedTuple, Optional
 
 from .image import Bounds, Extent, Image, Mask
 from .client import Client, resolve_sd_version
-from .style import SDVersion, Style, StyleSettings
-from .resources import ControlMode
+from .style import Style, StyleSettings
+from .resources import ControlMode, SDVersion
 from .settings import settings
 from .comfyworkflow import ComfyWorkflow, Output
 from .util import client_logger as log

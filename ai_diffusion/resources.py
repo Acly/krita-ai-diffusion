@@ -3,8 +3,6 @@ from enum import Enum
 from pathlib import Path
 from typing import NamedTuple, Sequence
 
-from .style import SDVersion
-
 # Version identifier for all the resources defined here. This is used as the server version.
 # It usually follows the plugin version, but not all new plugin versions also require a server update.
 version = "1.7.0"
@@ -57,6 +55,52 @@ required_custom_nodes = [
         ],
     ),
 ]
+
+
+class SDVersion(Enum):
+    sd15 = "SD 1.5"
+    sdxl = "SD XL"
+
+    auto = "Automatic"
+    all = "All"
+
+    @staticmethod
+    def from_string(string: str):
+        if string == "sd15":
+            return SDVersion.sd15
+        if string == "sdxl":
+            return SDVersion.sdxl
+        return None
+
+    @staticmethod
+    def from_checkpoint_name(checkpoint: str):
+        if SDVersion.sdxl.matches(checkpoint):
+            return SDVersion.sdxl
+        return SDVersion.sd15
+
+    @staticmethod
+    def match(a: SDVersion, b: SDVersion):
+        if a is SDVersion.all or b is SDVersion.all:
+            return True
+        return a is b
+
+    def matches(self, checkpoint: str):
+        # Fallback check if it can't be queried from the server
+        xl_in_name = "xl" in checkpoint.lower()
+        return self is SDVersion.auto or ((self is SDVersion.sdxl) == xl_in_name)
+
+    def resolve(self, checkpoint: str):
+        if self is SDVersion.auto:
+            return SDVersion.sdxl if SDVersion.sdxl.matches(checkpoint) else SDVersion.sd15
+        return self
+
+    @property
+    def has_controlnet_inpaint(self):
+        return self is SDVersion.sd15
+
+    @property
+    def has_controlnet_blur(self):
+        return self is SDVersion.sd15
 
 
 class ResourceKind(Enum):

@@ -8,7 +8,7 @@
 .vscode
 __pycache__
 scripts/docker/models
-scripts/docker/ip-adapter
+scripts/docker/custom_nodes/*
 tests/.results
 settings.json
 ai_diffusion/styles/*
