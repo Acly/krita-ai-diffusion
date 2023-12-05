@@ -185,6 +185,7 @@ class Server:
         get_pip_file = dir / "get-pip.py"
         await _download_cached("Python", network, git_pip_url, get_pip_file, cb)
         await _execute_process("Python", [self._python_cmd, get_pip_file], dir, cb)
+        await _execute_process("Python", self._pip_install("wheel", "setuptools"), dir, cb)
 
         cb("Installing Python", f"Patching {python_pth}")
         _prepend_file(python_pth, "../ComfyUI\n")
