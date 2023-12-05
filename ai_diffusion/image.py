@@ -261,6 +261,7 @@ class Image:
     @property
     def data(self):
         ptr = self._qimage.bits()
+        assert ptr is not None, "Accessing data of invalid image"
         ptr.setsize(self._qimage.byteCount())
         return QByteArray(ptr.asstring())
 
@@ -272,7 +273,9 @@ class Image:
         import numpy as np
 
         w, h = self.extent
-        ptr = self._qimage.constBits().asarray(w * h * 4)
+        bits = self._qimage.constBits()
+        assert bits is not None, "Accessing data of invalid image"
+        ptr = bits.asarray(w * h * 4)
         array = np.frombuffer(ptr, np.uint8).reshape(w, h, 4)  # type: ignore
         return array.astype(np.float32) / 255
 

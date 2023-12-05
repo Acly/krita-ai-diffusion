@@ -118,7 +118,9 @@ class LiveWidget(QWidget):
 
         self.preview_area = QLabel(self)
         self.preview_area.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Expanding)
-        self.preview_area.setAlignment(Qt.AlignmentFlag.AlignTop | Qt.AlignmentFlag.AlignLeft)
+        self.preview_area.setAlignment(
+            Qt.AlignmentFlag(Qt.AlignmentFlag.AlignTop | Qt.AlignmentFlag.AlignLeft)
+        )
         layout.addWidget(self.preview_area)
 
     @property

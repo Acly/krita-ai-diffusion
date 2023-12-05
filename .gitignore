@@ -7,8 +7,7 @@
 .server
 .vscode
 __pycache__
-scripts/docker/models
-scripts/docker/custom_nodes/*
+scripts/docker/downloads
 tests/.results
 settings.json
 ai_diffusion/styles/*

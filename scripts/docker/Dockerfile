@@ -74,8 +74,8 @@ RUN git clone https://github.com/ltdrdata/ComfyUI-Manager.git /ComfyUI/custom_no
 
 # Copy models
 RUN mkdir -p models
-COPY models/ /models/
-COPY custom_nodes/ComfyUI_IPAdapter_plus/models/* /ComfyUI/custom_nodes/ComfyUI_IPAdapter_plus/models/
+COPY downloads/models/ /models/
+COPY downloads/custom_nodes/ComfyUI_IPAdapter_plus/models/* /ComfyUI/custom_nodes/ComfyUI_IPAdapter_plus/models/
 COPY extra_model_paths.yaml /ComfyUI/
 
 # Install Jupyter

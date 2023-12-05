@@ -17,7 +17,7 @@ from .util import ZipFile, is_windows, client_logger as log, server_logger as se
 
 
 _exe = ".exe" if is_windows else ""
-_process_flags = subprocess.CREATE_NO_WINDOW if is_windows else 0
+_process_flags = subprocess.CREATE_NO_WINDOW if is_windows else 0  # type: ignore
 
 
 class ServerState(Enum):

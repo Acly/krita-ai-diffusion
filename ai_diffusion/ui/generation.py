@@ -20,6 +20,7 @@ from ..jobs import Job, JobQueue, JobState, JobKind
 from ..model import Model
 from ..root import root
 from ..settings import settings
+from ..util import ensure
 from . import theme
 from .widget import (
     WorkspaceSelectWidget,
@@ -94,7 +95,7 @@ class HistoryWidget(QListWidget):
             self.addItem(item)
 
         scrollbar = self.verticalScrollBar()
-        if scrollbar.isVisible() and scrollbar.value() >= scrollbar.maximum() - 4:
+        if scrollbar and scrollbar.isVisible() and scrollbar.value() >= scrollbar.maximum() - 4:
             self.scrollToBottom()
 
     def update_selection(self):
@@ -118,7 +119,7 @@ class HistoryWidget(QListWidget):
 
     def prune(self, jobs: JobQueue):
         first_id = next((job.id for job in jobs if self.is_finished(job)), None)
-        while self.count() > 0 and self.item(0).data(Qt.ItemDataRole.UserRole) != first_id:
+        while self.count() > 0 and ensure(self.item(0)).data(Qt.ItemDataRole.UserRole) != first_id:
             self.takeItem(0)
 
     def rebuild(self):
@@ -131,8 +132,9 @@ class HistoryWidget(QListWidget):
 
     def handle_preview_click(self, item: QListWidgetItem):
         if item.text() != "" and item.text() != "<no prompt>":
-            prompt = item.data(Qt.ItemDataRole.ToolTipRole)
-            QGuiApplication.clipboard().setText(prompt)
+            if clipboard := QGuiApplication.clipboard():
+                prompt = item.data(Qt.ItemDataRole.ToolTipRole)
+                clipboard.setText(prompt)
 
     def mousePressEvent(self, e: QMouseEvent) -> None:
         # make single click deselect current item (usually requires Ctrl+click)
@@ -151,7 +153,7 @@ class HistoryWidget(QListWidget):
         return super().mousePressEvent(e)
 
     def _find(self, id: JobQueue.Item):
-        items = (self.item(i) for i in range(self.count()))
+        items = (ensure(self.item(i)) for i in range(self.count()))
         return next((item for item in items if self._item_data(item) == id), None)
 
     def _item_data(self, item: QListWidgetItem):

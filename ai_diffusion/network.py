@@ -164,6 +164,7 @@ async def _try_download(network: QNetworkAccessManager, url: str, path: Path):
         log.info(f"Found {path}.part, resuming download from {out_file.size()} bytes")
         request.setRawHeader(b"Range", f"bytes={out_file.size()}-".encode("utf-8"))
     reply = network.get(request)
+    assert reply is not None, f"Network request for {url} failed: reply is None"
 
     progress_future = asyncio.get_running_loop().create_future()
     finished_future = asyncio.get_running_loop().create_future()

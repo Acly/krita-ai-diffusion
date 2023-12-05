@@ -27,7 +27,7 @@ The easiest way to run a development version of the plugin is to use symlinks:
 
 ### Code formatting
 
-The codebase uses [black](https://github.com/psf/black) for formatting. The project root contains a `pyproject.toml` to configure the line length, it should be picked up automatically.
+The codebase uses [black](https://github.com/psf/black) for formatting. You can check locally by running `black` in the repository root, or use an IDE integration.
 
 ### Code style
 
@@ -37,7 +37,9 @@ Code style follows the official Python recommendations. Only exception: no `ALL_
 
 Type annotations should be used where types can't be inferred. Basic type checks are enabled for the project and should not report errors.
 
-The `Krita` module is special in that it is usually only available when running inside Krita. To make type checking work, include `scripts/typeshed` in your `PYTHONPATH`.
+The `Krita` module is special in that it is usually only available when running inside Krita. To make type checking work an interface file is located in `scripts/typeshed`.
+
+You can run `pyright` from the repository root to perform type checks on the entire codebase. This is also done by the CI.
 
 Configuration for VSCode with Pylance (.vscode/settings.json):
 ```
@@ -77,9 +79,9 @@ Everything else has tests. Mostly. If effort is reasonable, tests are expected. 
 
 Testing changes to the installer is annoying because of the file sizes involved. There are some things that help. You can preload model files with the following script:
 ```
-python scripts/download_models.py --minimal scripts/docker
+python scripts/download_models.py --minimal scripts/docker/downloads
 ```
-This will download the minimum required models and store them in `scripts/docker` (used as default location because that way the docker build script can use them too).
+This will download the minimum required models and store them in `scripts/docker/downloads` (used as default location because that way the docker build script can use them too).
 
 The following command does some automated testing for installation and upgrade. It starts a local file server which pulls preloaded models, so it's reasonably fast and doesn't download the entire internet.
 ```

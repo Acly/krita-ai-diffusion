@@ -5,7 +5,7 @@ from typing import Tuple, List
 def select_current_parenthesis_block(
     text: str, cursor_pos: int, open_bracket: str, close_bracket: str
 ) -> Tuple[int, int] | None:
-    """Select the current parenthesis block that the cursor points to. """
+    """Select the current parenthesis block that the cursor points to."""
     # Ensure cursor position is within valid range
     cursor_pos = max(0, min(cursor_pos, len(text)))
 
@@ -50,9 +50,8 @@ def select_current_word(text: str, cursor_pos: int) -> Tuple[int, int]:
 
 def select_on_cursor_pos(text: str, cursor_pos: int) -> Tuple[int, int]:
     """Return a range in the text based on the cursor_position."""
-    return (
-        select_current_parenthesis_block(text, cursor_pos, "(", ")")
-        or select_current_word(text, cursor_pos)
+    return select_current_parenthesis_block(text, cursor_pos, "(", ")") or select_current_word(
+        text, cursor_pos
     )
 
 
@@ -143,4 +142,3 @@ def edit_attention(text: str, positive: bool) -> str:
         if weight == 1.0
         else f"{open_bracket}{attention_string}:{weight:.1f}{close_bracket}"
     )
-    

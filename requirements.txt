@@ -1,5 +1,10 @@
 # This file is for development and running tests.
 # The plugin itself will run inside Krita's embedded Python, and only has access to the Python standard library and Qt5.
+
+# Development
+black
+
+# Testing
 aiohttp
 markdown
 numpy

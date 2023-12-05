@@ -1,0 +1,52 @@
+name: Lint, Typecheck and Test
+on: [push, pull_request]
+
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v3
+        with:
+          submodules: true
+      - name: Python
+        uses: actions/setup-python@v4
+        with:
+          python-version: '3.10'
+          cache: 'pip'
+      - name: Dependencies
+        run: pip install -r requirements.txt          
+      - name: Typecheck
+        uses: jakebailey/pyright-action@v1
+        with:
+          pylance-version: latest-release
+      - name: Lint
+        if: ${{ !cancelled() }}
+        uses: psf/black@stable
+  
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v3
+        with:
+          submodules: true
+      - name: Python
+        uses: actions/setup-python@v4
+        with:
+          python-version: '3.10'
+          cache: 'pip'
+      - name: Dependencies
+        run: pip install -r requirements.txt
+      - name: Cache models
+        uses: actions/cache@v3
+        with:
+          path: scripts/docker/downloads
+          key: models-v1
+      - name: Download models
+        run: python scripts/download_models.py --minimal scripts/docker/downloads
+      - name: Test installer
+        run: python -m pytest tests/test_server.py -vs --test-install
+      - name: Test
+        run: python -m pytest tests -vs --ci
+

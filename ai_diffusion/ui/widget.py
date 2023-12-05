@@ -22,17 +22,17 @@ from PyQt5.QtCore import Qt, QMetaObject, QSize, pyqtSignal
 import krita
 
 from ..style import Style, Styles
-from ..image import Bounds
 from ..resources import ControlMode
 from ..root import root
 from ..client import filter_supported_styles, resolve_sd_version
 from ..properties import Binding, bind, bind_combo
-from ..jobs import Job, JobKind, JobState, JobQueue
+from ..jobs import JobState, JobQueue
 from ..model import Model, Workspace, ControlLayer
+from ..attention_edit import edit_attention, select_on_cursor_pos
+from ..util import ensure
 from .settings import SettingsDialog
 from .theme import SignalBlocker
 from . import actions, theme
-from ..attention_edit import edit_attention, select_on_cursor_pos
 
 
 class QueueWidget(QToolButton):
@@ -400,7 +400,7 @@ class MultiLineTextPromptWidget(QPlainTextEdit):
     @line_count.setter
     def line_count(self, value: int):
         self._line_count = value
-        fm = QFontMetrics(self.document().defaultFont())
+        fm = QFontMetrics(ensure(self.document()).defaultFont())
         self.setFixedHeight(fm.lineSpacing() * value + 6)
 
     def hasSelectedText(self) -> bool:

@@ -8,7 +8,7 @@ from ai_diffusion.style import SDVersion, Style
 from ai_diffusion.pose import Pose
 from ai_diffusion.workflow import LiveParams, Conditioning, Control
 from pathlib import Path
-from .config import image_dir, result_dir, reference_dir, default_checkpoint
+from .config import data_dir, image_dir, result_dir, reference_dir, default_checkpoint
 
 
 @pytest.fixture(scope="session", autouse=True)
@@ -86,7 +86,7 @@ def test_compute_batch_size(extent, min_size, max_batches, expected):
     ids=["left", "right", "top", "bottom", "full", "small", "offset"],
 )
 def test_inpaint_context(area, expected_extent, expected_crop: tuple[int, int] | None):
-    image = Image.load(image_dir / "outpaint_context.png")
+    image = Image.load(data_dir / "outpaint_context.png")
     default = comfyworkflow.Output(0, 0)
     result = workflow.create_inpaint_context(image, area, default)
     if expected_crop:

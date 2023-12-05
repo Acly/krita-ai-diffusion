@@ -48,7 +48,7 @@ def test_install_and_run(qtapp, pytestconfig, local_download_server):
     """Test installing and running ComfyUI server from scratch.
     * Takes a while, only runs with --test-install
     * Starts and downloads from local file server instead of huggingface/civitai
-      * Required to run `scripts/download_models.py -m scripts/docker` to download models once
+      * Required to run `scripts/download_models.py -m scripts/docker/downloads` to download models once
       * Remove `local_download_server` fixture to download from original urls
     * Also tests upgrading server from "previous" version
       * In this case it's the same version, but it removes & re-installs anyway
@@ -62,7 +62,10 @@ def test_install_and_run(qtapp, pytestconfig, local_download_server):
     server.backend = ServerBackend.cpu
     assert server.state in [ServerState.not_installed, ServerState.missing_resources]
 
+    last_stage = ""
+
     def handle_progress(report: InstallationProgress):
+        nonlocal last_stage
         assert (
             report.progress is None
             or report.progress.value == -1
@@ -70,8 +73,9 @@ def test_install_and_run(qtapp, pytestconfig, local_download_server):
             and report.progress.value <= 1
         )
         assert report.stage != ""
-        if report.progress is None:
-            print(report.stage, report.message)
+        if report.progress is None and report.stage != last_stage:
+            last_stage = report.stage
+            print(report.stage)
 
     async def main():
         await server.install(handle_progress)
@@ -81,9 +85,9 @@ def test_install_and_run(qtapp, pytestconfig, local_download_server):
         await server.download(workload_sd15, handle_progress)
         assert server.state is ServerState.stopped and server.version == resources.version
 
-        url = await server.start()
+        url = await server.start(port=8191)
         assert server.state is ServerState.running
-        assert url == "127.0.0.1:8188"
+        assert url == "127.0.0.1:8191"
 
         await server.stop()
         assert server.state is ServerState.stopped
@@ -112,9 +116,9 @@ def test_run_external(qtapp, pytestconfig):
     assert server.state in [ServerState.stopped, ServerState.missing_resources]
 
     async def main():
-        url = await server.start()
+        url = await server.start(port=8192)
         assert server.state is ServerState.running
-        assert url == "127.0.0.1:8188"
+        assert url == "127.0.0.1:8192"
 
         await server.stop()
         assert server.state is ServerState.stopped

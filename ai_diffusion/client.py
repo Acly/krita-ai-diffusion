@@ -128,7 +128,7 @@ class Client:
     lcm_model: dict[SDVersion, str | None]
     supported_sd_versions: list[SDVersion]
     device_info: DeviceInfo
-    nodes_required_inputs: dict[str, dict[str, list[str | list | dict]]] = {}
+    nodes_inputs: dict[str, dict[str, list[str | list | dict]]] = {}
 
     @staticmethod
     async def connect(url=default_url):
@@ -164,7 +164,7 @@ class Client:
         client.ip_adapter_model = {
             ver: _find_ip_adapter(ip, ver) for ver in [SDVersion.sd15, SDVersion.sdxl]
         }
-        client.nodes_required_inputs["IPAdapterApply"] = nodes["IPAdapterApply"]["input"]["required"]
+        client.nodes_inputs["IPAdapterApply"] = nodes["IPAdapterApply"]["input"]["required"]
 
         # Retrieve upscale models
         client.upscalers = nodes["UpscaleModelLoader"]["input"]["required"]["model_name"][0]
@@ -395,7 +395,7 @@ class Client:
 
 def parse_url(url: str):
     url = url.strip("/")
-    url = url.replace('0.0.0.0', '127.0.0.1')
+    url = url.replace("0.0.0.0", "127.0.0.1")
     if not url.startswith("http"):
         url = f"http://{url}"
     return url

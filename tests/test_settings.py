@@ -52,13 +52,11 @@ def test_performance_preset():
 
 
 def style_is_default(style):
-    return all(
-        [
-            getattr(style, name) == s.default
-            for name, s in StyleSettings.__dict__.items()
-            if isinstance(s, Setting) and name != "name"
-        ]
-    )
+    return all([
+        getattr(style, name) == s.default
+        for name, s in StyleSettings.__dict__.items()
+        if isinstance(s, Setting) and name != "name"
+    ])
 
 
 def test_styles():

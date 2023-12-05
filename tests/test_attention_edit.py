@@ -39,7 +39,7 @@ class TestEditAttention:
         assert edit_attention("(foo:bar)", positive=True) == "((foo:bar):1.1)"
 
     def test_no_weight(self):
-        assert edit_attention("(foo)", positive=True) == "((foo):1.1)"            
+        assert edit_attention("(foo)", positive=True) == "((foo):1.1)"
 
 
 class TestSelectOnCursorPos:
@@ -52,4 +52,3 @@ class TestSelectOnCursorPos:
     def test_range_selection(self):
         assert select_on_cursor_pos("(foo:1.3), bar, baz", 1) == (0, 9)
         assert select_on_cursor_pos("foo, (bar:1.1), baz", 6) == (5, 14)
-        
