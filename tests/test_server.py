@@ -7,9 +7,10 @@ import shutil
 from ai_diffusion import network, server, resources
 from ai_diffusion.style import SDVersion
 from ai_diffusion.server import Server, ServerState, ServerBackend, InstallationProgress
+from .config import server_dir
 
-test_dir = Path(__file__).parent / ".server"
 workload_sd15 = [p.name for p in resources.required_models if p.sd_version is SDVersion.sd15]
+workload_sd15 += [resources.default_checkpoints[0].name]
 
 
 @pytest.mark.parametrize("mode", ["from_scratch", "resume"])
@@ -38,9 +39,9 @@ def test_download(qtapp, mode):
 
 
 def clear_test_server():
-    if test_dir.exists():
-        shutil.rmtree(test_dir, ignore_errors=True)
-    test_dir.mkdir(exist_ok=True)
+    if server_dir.exists():
+        shutil.rmtree(server_dir, ignore_errors=True)
+    server_dir.mkdir(exist_ok=True)
 
 
 def test_install_and_run(qtapp, pytestconfig, local_download_server):
@@ -57,7 +58,7 @@ def test_install_and_run(qtapp, pytestconfig, local_download_server):
 
     clear_test_server()
 
-    server = Server(str(test_dir))
+    server = Server(str(server_dir))
     server.backend = ServerBackend.cpu
     assert server.state in [ServerState.not_installed, ServerState.missing_resources]
 
@@ -87,7 +88,7 @@ def test_install_and_run(qtapp, pytestconfig, local_download_server):
         await server.stop()
         assert server.state is ServerState.stopped
 
-        version_file = test_dir / ".version"
+        version_file = server_dir / ".version"
         assert version_file.exists()
         with version_file.open("w") as f:
             f.write("1.0.42")
@@ -102,10 +103,10 @@ def test_install_and_run(qtapp, pytestconfig, local_download_server):
 def test_run_external(qtapp, pytestconfig):
     if not pytestconfig.getoption("--test-install"):
         pytest.skip("Only runs with --test-install")
-    if not (test_dir / "ComfyUI").exists():
+    if not (server_dir / "ComfyUI").exists():
         pytest.skip("ComfyUI installation not found")
 
-    server = Server(str(test_dir))
+    server = Server(str(server_dir))
     server.backend = ServerBackend.cpu
     assert server.has_python
     assert server.state in [ServerState.stopped, ServerState.missing_resources]

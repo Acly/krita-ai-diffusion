@@ -360,7 +360,7 @@ class Server:
                 f"Error during model migration: {str(e)}\nSome models remain in {upgrade_comfy_dir}"
             )
 
-    async def start(self):
+    async def start(self, port: int | None = None):
         assert self.state in [ServerState.stopped, ServerState.missing_resources]
         assert self._python_cmd
 
@@ -374,6 +374,8 @@ class Server:
             args.append("--force-fp16")
         if settings.server_arguments:
             args += settings.server_arguments.split(" ")
+        if port is not None:
+            args += ["--port", str(port)]
         self._process = await asyncio.create_subprocess_exec(
             self._python_cmd,
             *args,

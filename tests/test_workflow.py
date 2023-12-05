@@ -8,15 +8,7 @@ from ai_diffusion.style import SDVersion, Style
 from ai_diffusion.pose import Pose
 from ai_diffusion.workflow import LiveParams, Conditioning, Control
 from pathlib import Path
-
-test_dir = Path(__file__).parent
-image_dir = test_dir / "images"
-result_dir = test_dir / ".results"
-reference_dir = test_dir / "references"
-default_checkpoint = {
-    SDVersion.sd15: "realisticVisionV51_v51VAE.safetensors",
-    SDVersion.sdxl: "sdXL_v10VAEFix.safetensors",
-}
+from .config import image_dir, result_dir, reference_dir, default_checkpoint
 
 
 @pytest.fixture(scope="session", autouse=True)
@@ -28,7 +20,9 @@ def clear_results():
 
 
 @pytest.fixture()
-def comfy(qtapp):
+def comfy(pytestconfig, qtapp):
+    if pytestconfig.getoption("--ci"):
+        pytest.skip("Diffusion is disabled on CI")
     return qtapp.run(Client.connect())
 
 

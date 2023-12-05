@@ -9,13 +9,25 @@ from ai_diffusion.network import NetworkError
 from ai_diffusion.image import Image, Extent
 from ai_diffusion.client import Client, ClientEvent, parse_url, resolve_sd_version, websocket_url
 from ai_diffusion.style import SDVersion, Style
+from ai_diffusion.server import Server, ServerState, ServerBackend
+from .config import server_dir, default_checkpoint
 
-default_checkpoint = "realisticVisionV51_v51VAE.safetensors"
+
+@pytest.fixture(scope="session")
+def comfy_server(qtapp):
+    server = Server(str(server_dir))
+    server.backend = ServerBackend.cpu
+    assert server.state is ServerState.stopped, (
+        f"Expected server installation at {server_dir}. To create the default installation run"
+        " `pytest tests/test_server.py --test-install`"
+    )
+    yield qtapp.run(server.start(port=8189))
+    qtapp.run(server.stop())
 
 
 def make_default_workflow(steps=20):
     w = ComfyWorkflow()
-    model, clip, vae = w.load_checkpoint(default_checkpoint)
+    model, clip, vae = w.load_checkpoint(default_checkpoint[SDVersion.sd15])
     positive = w.clip_text_encode(clip, "a photo of a cat")
     negative = w.clip_text_encode(clip, "a photo of a dog")
     latent_image = w.empty_latent_image(512, 512)
@@ -32,7 +44,7 @@ def make_trivial_workflow():
     return w
 
 
-def test_connect_bad_url(qtapp):
+def test_connect_bad_url(qtapp, comfy_server):
     async def main():
         with pytest.raises(NetworkError):
             await Client.connect("bad_url")
@@ -41,9 +53,9 @@ def test_connect_bad_url(qtapp):
 
 
 @pytest.mark.parametrize("cancel_point", ["after_enqueue", "after_start", "after_sampling"])
-def test_cancel(qtapp, cancel_point):
+def test_cancel(qtapp, comfy_server, cancel_point):
     async def main():
-        client = await Client.connect()
+        client = await Client.connect(comfy_server)
         job_id = None
         interrupted = False
         stage = 0
@@ -88,13 +100,13 @@ def test_cancel(qtapp, cancel_point):
     qtapp.run(main())
 
 
-def test_disconnect(qtapp):
-    async def listen(client):
+def test_disconnect(qtapp, comfy_server):
+    async def listen(client: Client):
         async for msg in client.listen():
             assert msg.event is ClientEvent.connected
 
     async def main():
-        client = await Client.connect()
+        client = await Client.connect(comfy_server)
         task = eventloop._loop.create_task(listen(client))
         task.cancel()
         with pytest.raises(asyncio.CancelledError):
@@ -146,13 +158,13 @@ def check_resolve_sd_version(client: Client, sd_version: SDVersion):
     assert resolve_sd_version(style, None) == sd_version
 
 
-def test_info(qtapp):
+def test_info(pytestconfig, qtapp, comfy_server):
     async def main():
-        client = await Client.connect()
+        client = await Client.connect(comfy_server)
         check_client_info(client)
         await client.refresh()
         check_client_info(client)
         check_resolve_sd_version(client, SDVersion.sd15)
-        check_resolve_sd_version(client, SDVersion.sdxl)
+        # check_resolve_sd_version(client, SDVersion.sdxl) # no SDXL checkpoint in default installation
 
     qtapp.run(main())
