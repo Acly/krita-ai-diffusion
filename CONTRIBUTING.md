@@ -75,11 +75,11 @@ Everything else has tests. Mostly. If effort is reasonable, tests are expected. 
 
 ### Testing the installer
 
-Testing changes to the installer is annoying because of the file sizes involved. There are some things that help. You can preload all model files with the following script:
+Testing changes to the installer is annoying because of the file sizes involved. There are some things that help. You can preload model files with the following script:
 ```
-python scripts/docker.py
+python scripts/download_models.py --minimal scripts/docker
 ```
-This _can_ be used to build a docker image afterwards, but it's not necessary for testing.
+This will download the minimum required models and store them in `scripts/docker` (used as default location because that way the docker build script can use them too).
 
 The following command does some automated testing for installation and upgrade. It starts a local file server which pulls preloaded models, so it's reasonably fast and doesn't download the entire internet.
 ```

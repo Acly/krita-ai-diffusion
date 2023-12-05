@@ -22,10 +22,7 @@ def url_strip(url: str):
 
 
 def get_path(m: resources.ModelResource):
-    if m.kind is resources.ResourceKind.ip_adapter:
-        return dir / "ip-adapter/" / m.filename
-    else:
-        return dir / m.folder / m.filename
+    return dir / m.folder / m.filename
 
 
 models = chain(
