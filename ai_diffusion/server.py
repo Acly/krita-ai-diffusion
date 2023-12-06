@@ -365,44 +365,53 @@ class Server:
         assert self._python_cmd
 
         self.state = ServerState.starting
-        args = ["-su", "-X", "utf8", "main.py"]
-        if self.backend is ServerBackend.cpu:
-            args.append("--cpu")
-        elif self.backend is ServerBackend.directml:
-            args.append("--directml")
-        elif self.backend is ServerBackend.mps:
-            args.append("--force-fp16")
-        if settings.server_arguments:
-            args += settings.server_arguments.split(" ")
-        if port is not None:
-            args += ["--port", str(port)]
-        self._process = await asyncio.create_subprocess_exec(
-            self._python_cmd,
-            *args,
-            cwd=self.comfy_dir,
-            stdout=asyncio.subprocess.PIPE,
-            stderr=asyncio.subprocess.PIPE,
-            creationflags=_process_flags,
-        )
+        try:
+            args = ["-su", "-Xutf8", "main.py"]
+            if self.backend is ServerBackend.cpu:
+                args.append("--cpu")
+            elif self.backend is ServerBackend.directml:
+                args.append("--directml")
+            elif self.backend is ServerBackend.mps:
+                args.append("--force-fp16")
+            if settings.server_arguments:
+                args += settings.server_arguments.split(" ")
+            if port is not None:
+                args += ["--port", str(port)]
+            self._process = await asyncio.create_subprocess_exec(
+                self._python_cmd,
+                *args,
+                cwd=self.comfy_dir,
+                stdout=asyncio.subprocess.PIPE,
+                stderr=asyncio.subprocess.PIPE,
+                creationflags=_process_flags,
+            )
 
-        assert self._process.stdout is not None
-        async for line in self._process.stdout:
-            text = line.decode("utf-8").strip()
-            server_log.info(text)
-            if text.startswith("To see the GUI go to:"):
-                self.state = ServerState.running
-                self.url = text.split("http://")[-1]
-                break
+            assert self._process.stdout is not None
+            async for line in self._process.stdout:
+                text = _decode_utf8_log_error(line).strip()
+                server_log.info(text)
+                if text.startswith("To see the GUI go to:"):
+                    self.state = ServerState.running
+                    self.url = text.split("http://")[-1]
+                    break
+        except Exception as e:
+            log.exception(f"Error during server start: {str(e)}")
+            if self._process is None:
+                self.state = ServerState.stopped
+                raise e
 
         if self.state != ServerState.running:
             error = "Process exited unexpectedly"
             try:
                 out, err = await asyncio.wait_for(self._process.communicate(), timeout=10)
-                server_log.info(out.decode("utf-8").strip())
-                error = err.decode("utf-8")
+                server_log.info(_decode_utf8_log_error(out).strip())
+                error = _decode_utf8_log_error(err)
                 server_log.error(error)
             except asyncio.TimeoutError:
                 self._process.kill()
+            except Exception as e:
+                log.exception(f"Error while waiting for process: {str(e)}")
+                error = str(e)
 
             self.state = ServerState.stopped
             ret = self._process.returncode
@@ -419,7 +428,7 @@ class Server:
 
         async def forward(stream: asyncio.StreamReader):
             async for line in stream:
-                server_log.info(line.decode().strip())
+                server_log.info(_decode_utf8_log_error(line).strip())
 
         try:
             await asyncio.gather(
@@ -570,6 +579,15 @@ def _prepend_file(path: Path, line: str):
         file.seek(0)
         file.writelines(lines)
         file.truncate()
+
+
+def _decode_utf8_log_error(b: bytes):
+    try:
+        return b.decode("utf-8")
+    except UnicodeDecodeError as e:
+        result = b.decode("utf-8", errors="replace")
+        log.warning(f"Failed to UTF-8 decode: '{result}': {str(e)}")
+        return result
 
 
 def rename_extracted_folder(name: str, path: Path, suffix: str):
