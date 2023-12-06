@@ -13,7 +13,7 @@ from .network import RequestManager, NetworkError
 from .websockets.src.websockets import client as websockets_client
 from .websockets.src.websockets import exceptions as websockets_exceptions
 from .style import Style, Styles
-from .resources import ControlMode, MissingResource, ResourceKind, SDVersion
+from .resources import ControlMode, MissingResource, ResourceKind, SDVersion, UpscalerName
 from . import resources
 from .util import ensure, is_windows, client_logger as log
 
@@ -169,10 +169,8 @@ class Client:
         # Retrieve upscale models
         client.upscalers = nodes["UpscaleModelLoader"]["input"]["required"]["model_name"][0]
         if len(client.upscalers) == 0:
-            raise MissingResource(ResourceKind.upscaler)
-        client.default_upscaler = ensure(
-            _find_upscaler(client.upscalers, "4x_NMKD-Superscale-SP_178000_G.pth")
-        )
+            raise MissingResource(ResourceKind.upscaler, [UpscalerName.default.value])
+        client.default_upscaler = _find_upscaler(client.upscalers, UpscalerName.default.value)
 
         # Retrieve LCM LoRA models
         client.lcm_model = {
