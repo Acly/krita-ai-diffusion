@@ -438,6 +438,7 @@ class LiveWorkspace(QObject, metaclass=PropertyMeta):
         if job.kind is JobKind.live_preview:
             if len(job.results) > 0:
                 self.set_result(job.results[0], job.bounds)
+            self.is_active = self._is_active and self._model.is_active
             if self.is_active:
                 self._model.generate_live()
 
