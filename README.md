@@ -13,7 +13,7 @@ Powerful customization is available for advanced users.
 
 _Local. Open source. Free._
 
-[![Watch video demo](media/screenshot-1.png)](https://youtu.be/Ly6USRwTHe0 "Watch video demo")
+[![Watch video demo](media/screenshot-video-preview.webp)](https://youtu.be/Ly6USRwTHe0 "Watch video demo")
 
 ## <a name="features"></a> Features
 
