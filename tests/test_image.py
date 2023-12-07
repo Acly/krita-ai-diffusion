@@ -119,6 +119,21 @@ def test_clamp_bounds(input, expected):
 
 
 @pytest.mark.parametrize(
+    "input,bounds,expected",
+    [
+        (Bounds(0, 0, 1, 2), Bounds(0, 0, 2, 2), Bounds(0, 0, 1, 2)),
+        (Bounds(0, 0, 1, 2), Bounds(0, 0, 1, 1), Bounds(0, 0, 1, 1)),
+        (Bounds(2, 4, 1, 2), Bounds(1, 4, 2, 2), Bounds(2, 4, 1, 2)),
+        (Bounds(2, 4, 7, 9), Bounds(1, 4, 2, 2), Bounds(2, 4, 1, 2)),
+        (Bounds(-1, 5, 3, 3), Bounds(0, 6, 5, 2), Bounds(0, 6, 2, 2)),
+    ],
+)
+def test_restrict_bounds(input: Bounds, bounds: Bounds, expected: Bounds):
+    result = Bounds.restrict(input, bounds)
+    assert result == expected
+
+
+@pytest.mark.parametrize(
     "input,target,expected",
     [
         (Bounds(0, 0, 1, 2), Bounds(0, 0, 2, 2), Bounds(0, 0, 1, 2)),

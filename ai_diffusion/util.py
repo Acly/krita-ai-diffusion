@@ -6,7 +6,7 @@ import sys
 import logging
 import logging.handlers
 import zipfile
-from typing import Optional, TypeVar
+from typing import Optional, Sequence, TypeVar
 
 T = TypeVar("T")
 
@@ -57,7 +57,7 @@ def encode_json(obj):
     raise TypeError(f"Object of type {obj.__class__.__name__} is not JSON serializable")
 
 
-def get_path_dict(paths: list[str | Path]) -> dict:
+def get_path_dict(paths: Sequence[str | Path]) -> dict:
     """Builds a tree like structure out of a list of paths"""
 
     def _recurse(dic: dict, chain: tuple[str, ...] | list[str]):

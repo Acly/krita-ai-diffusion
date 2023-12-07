@@ -120,9 +120,6 @@ class Connection(QObject, metaclass=PropertyMeta):
                             self.error = ""
                     else:
                         self.message_received.emit(msg)
-                        # model = self._find_model(msg.job_id)
-                        # if model is not None:
-                        #     model.handle_message(msg)
                 except asyncio.CancelledError:
                     break
                 except Exception as e:
@@ -130,14 +127,6 @@ class Connection(QObject, metaclass=PropertyMeta):
                     self.error = f"Error handling server message: {str(e)}"
         except asyncio.CancelledError:
             pass  # shutdown
-
-    # def _report_error(self, message: str):
-    #     self.error = message
-    #     self.error_reported.emit(message)
-
-    # def _clear_error(self):
-    #     self.error = None
-    #     self.error_reported.emit("")
 
 
 def apply_performance_preset(settings: Settings, device: DeviceInfo):

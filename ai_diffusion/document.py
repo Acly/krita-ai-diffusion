@@ -163,11 +163,6 @@ class KritaDocument(Document):
         data: QByteArray = layer.projectionPixelData(*mask_bounds)
         assert data is not None and data.size() >= mask_bounds.extent.pixel_count
         mask = Mask(mask_bounds, data)
-
-        log.debug(
-            f"Using experimental selection mask {self.active_layer.name()}, mask bounds:"
-            f" {mask.bounds}, image bounds: {image_bounds}"
-        )
         return mask, image_bounds, None
 
     def get_image(
