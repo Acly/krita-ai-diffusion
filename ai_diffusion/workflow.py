@@ -13,7 +13,7 @@ from .comfyworkflow import ComfyWorkflow, Output
 from .util import client_logger as log
 
 
-_pattern_lora = re.compile(r"\s*<lora:([^:<>]+)(?::([^:<>]*))?>\s*", re.IGNORECASE)
+_pattern_lora = re.compile(r"\s*<lora:([^:<>]+)(?::(-?[^:<>]*))?>\s*", re.IGNORECASE)
 
 
 class LoraException(Exception):
@@ -244,7 +244,7 @@ def _apply_strength(strength: float, steps: int, min_steps: int = 0) -> tuple[in
     return steps, start_at_step
 
 
-def load_model_with_lora(w: ComfyWorkflow, comfy: Client, style: Style, is_live=False, additional_loras: list[dict[str, str | float]] = ()):
+def load_model_with_lora(w: ComfyWorkflow, comfy: Client, style: Style, is_live=False, additional_loras: list[dict[str, str | float]] | tuple = ()):
     checkpoint = style.sd_checkpoint
     if checkpoint not in comfy.checkpoints:
         checkpoint = next(iter(comfy.checkpoints.keys()))
