@@ -326,6 +326,7 @@ class Client:
                     info.get("is_refiner", False),
                 )
                 for filename, info in checkpoint_info.items()
+                if info["base_model"] in ["sd15", "sdxl"]
             }
         else:
             self.checkpoints = {
