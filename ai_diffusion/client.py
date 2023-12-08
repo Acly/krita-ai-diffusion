@@ -524,7 +524,7 @@ def _extract_message_png_image(data: memoryview):
         event, format = struct.unpack_from(">II", data)
         # ComfyUI server.py: BinaryEventTypes.PREVIEW_IMAGE=1, PNG=2
         if event == 1 and format == 2:
-            return Image.png_from_bytes(data[s:])
+            return Image.from_bytes(data[s:])
     return None
 
 
