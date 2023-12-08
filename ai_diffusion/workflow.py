@@ -360,7 +360,6 @@ def apply_conditioning(
     cond: Conditioning, w: ComfyWorkflow, comfy: Client, model: Output, clip: Output, style: Style
 ):
     prompt = merge_prompt(_pattern_lora.sub("", cond.prompt), style.style_prompt)
-    log.debug(f"prompt: {prompt}")
     if cond.area:
         prompt = merge_prompt("", style.style_prompt)
     positive = w.clip_text_encode(clip, prompt)
