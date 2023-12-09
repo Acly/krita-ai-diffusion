@@ -395,32 +395,25 @@ def apply_control(
             end_percent=control.end,
         )
 
-    # Merge all images into a single batch and apply IP-adapter to the model once
-    ip_model_file = comfy.ip_adapter_model[sd_ver]
-    if ip_model_file is not None:
-        ip_image = None
-        ip_strength = 0.0
-        ip_end_at = 1.0
+    # Encode images with their weights into a batch and apply IP-adapter to the model once
+    if ip_model_file := comfy.ip_adapter_model[sd_ver]:
+        ip_images = []
+        ip_weights = []
+        ip_end_at = 0.1
 
         for control in (c for c in cond.control if c.mode is ControlMode.image):
-            image = control.load_image(w)
-            if ip_image is None:
-                ip_image = image
-                ip_strength = control.strength
-                ip_end_at = control.end
-            else:
-                ip_image = w.batch_image(ip_image, image)
-        if ip_image is not None:
+            if len(ip_images) >= 4:
+                raise Exception("Too many control layers of type 'reference image' (maximum is 4)")
+            ip_images.append(control.load_image(w))
+            ip_weights.append(control.strength)
+            ip_end_at = max(ip_end_at, control.end)
+        if len(ip_images) > 0:
+            max_weight = max(ip_weights)
+            ip_weights = [w / max_weight for w in ip_weights]
             clip_vision = w.load_clip_vision(comfy.clip_vision_model)
             ip_adapter = w.load_ip_adapter(ip_model_file)
-            model = w.apply_ip_adapter(
-                ip_adapter,
-                clip_vision,
-                ip_image,
-                model,
-                weight=ip_strength,
-                end_at=ip_end_at,
-            )
+            embeds = w.encode_ip_adapter(clip_vision, ip_images, ip_weights, noise=0.2)
+            model = w.apply_ip_adapter(ip_adapter, embeds, model, max_weight, ip_end_at)
 
     return model, positive, negative
 

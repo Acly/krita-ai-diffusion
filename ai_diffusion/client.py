@@ -164,7 +164,9 @@ class Client:
         client.ip_adapter_model = {
             ver: _find_ip_adapter(ip, ver) for ver in [SDVersion.sd15, SDVersion.sdxl]
         }
-        client.nodes_inputs["IPAdapterApply"] = nodes["IPAdapterApply"]["input"]["required"]
+        client.nodes_inputs["IPAdapterApplyEncoded"] = nodes["IPAdapterApplyEncoded"]["input"][
+            "required"
+        ]
 
         # Retrieve upscale models
         client.upscalers = nodes["UpscaleModelLoader"]["input"]["required"]["model_name"][0]
