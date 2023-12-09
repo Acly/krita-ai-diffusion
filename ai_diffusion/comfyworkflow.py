@@ -249,6 +249,17 @@ class ComfyWorkflow:
 
         return self.add("IPAdapterApply", 1, **args)
 
+    def apply_freeu(self, model: Output, b1: float, b2: float, s1: float, s2: float):
+        return self.add(
+            "FreeU_V2",
+            1,
+            model=model,
+            b1=b1,
+            b2=b2,
+            s1=s1,
+            s2=s2,
+        )
+
     def inpaint_preprocessor(self, image: Output, mask: Output):
         return self.add("InpaintPreprocessor", 1, image=image, mask=mask)
 
