@@ -1,7 +1,7 @@
 from __future__ import annotations
 import math
-import os.path
 import re
+from pathlib import Path
 from typing import Any, List, NamedTuple, Optional
 
 from .image import Bounds, Extent, Image, Mask
@@ -209,8 +209,7 @@ def _parse_loras(client: Client, prompt: str) -> list[dict[str, str | float]]:
         lora_name = ""
 
         for client_lora in client.lora_models:
-            _, lora_filename = os.path.split(client_lora)
-            lora_filename, _ = os.path.splitext(lora_filename)
+            lora_filename = Path(client_lora).stem
             if match[0].lower() == lora_filename.lower():
                 lora_name = client_lora
 
