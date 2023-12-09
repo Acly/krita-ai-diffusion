@@ -71,7 +71,6 @@ class Model(QObject, metaclass=PropertyMeta):
         self.upscale = UpscaleWorkspace(self)
         self.live = LiveWorkspace(self)
 
-        self.jobs.job_finished.connect(self.update_preview)
         self.jobs.selection_changed.connect(self.update_preview)
         self.error_changed.connect(lambda: self.has_error_changed.emit(self.has_error))
 
