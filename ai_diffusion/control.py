@@ -56,7 +56,7 @@ class ControlLayer(QObject, metaclass=PropertyMeta):
 
     @property
     def layer(self):
-        layer = self._model.image_layers.find(self.layer_id)
+        layer = self._model.image_layers.updated.find(self.layer_id)
         assert layer is not None, "Control layer has been deleted"
         return layer
 

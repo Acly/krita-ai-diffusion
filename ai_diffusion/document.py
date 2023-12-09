@@ -316,6 +316,11 @@ class LayerObserver(QObject):
     def find(self, id: QUuid):
         return next((l for l in self._layers if l.uniqueId() == id), None)
 
+    @property
+    def updated(self):
+        self.update()
+        return self
+
     def __iter__(self):
         return iter(self._layers)
 
