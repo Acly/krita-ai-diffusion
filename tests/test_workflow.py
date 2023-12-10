@@ -214,6 +214,40 @@ def test_merge_prompt():
     assert workflow.merge_prompt("", "b {prompt} c") == "b  c"
 
 
+def test_parse_lora(comfy):
+    client_loras = [
+        "/path/to/Lora-One.safetensors",
+        "Lora-two.safetensors",
+    ]
+
+    assert workflow._parse_loras(client_loras, "a ship") == []
+    assert workflow._parse_loras(client_loras, "a ship <lora:lora-one>") == [
+        {"name": client_loras[0], "strength": 1.0}
+    ]
+    assert workflow._parse_loras(client_loras, "a ship <lora:LoRA-one>") == [
+        {"name": client_loras[0], "strength": 1.0}
+    ]
+    assert workflow._parse_loras(client_loras, "a ship <lora:lora-one:0.0>") == [
+        {"name": client_loras[0], "strength": 0.0}
+    ]
+    assert workflow._parse_loras(client_loras, "a ship <lora:lora-two:0.5>") == [
+        {"name": client_loras[1], "strength": 0.5}
+    ]
+    assert workflow._parse_loras(client_loras, "a ship <lora:lora-two:-1.0>") == [
+        {"name": client_loras[1], "strength": -1.0}
+    ]
+
+    try:
+        workflow._parse_loras(client_loras, "a ship <lora:lora-three>")
+    except Exception as e:
+        assert str(e).startswith("LoRA not found")
+
+    try:
+        workflow._parse_loras(client_loras, "a ship <lora:lora-one:test-invalid-str>")
+    except Exception as e:
+        assert str(e).startswith("Invalid LoRA strength")
+
+
 @pytest.mark.parametrize("extent", [Extent(256, 256), Extent(800, 800), Extent(512, 1024)])
 def test_generate(qtapp, comfy, temp_settings, extent):
     temp_settings.batch_size = 1
