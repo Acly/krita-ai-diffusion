@@ -1,6 +1,7 @@
 from __future__ import annotations
 import math
 import re
+from itertools import chain
 from pathlib import Path
 from typing import Any, List, NamedTuple, Optional
 
@@ -14,11 +15,6 @@ from .util import client_logger as log
 
 
 _pattern_lora = re.compile(r"\s*<lora:([^:<>]+)(?::(-?[^:<>]*))?>\s*", re.IGNORECASE)
-
-
-class LoraException(Exception):
-    def __init__(self, msg):
-        super().__init__(msg)
 
 
 class ScaledExtent(NamedTuple):
@@ -216,7 +212,7 @@ def _parse_loras(client: Client, prompt: str) -> list[dict[str, str | float]]:
         if not lora_name:
             error = f"LoRA not found : {match[0]}"
             log.warning(error)
-            raise LoraException(error)
+            raise Exception(error)
 
         lora_strength = match[1] if match[1] != "" else 1.0
         try:
@@ -224,7 +220,7 @@ def _parse_loras(client: Client, prompt: str) -> list[dict[str, str | float]]:
         except ValueError:
             error = f"Invalid LoRA strength for {match[0]} : {lora_strength}"
             log.warning(error)
-            raise LoraException(error)
+            raise Exception(error)
 
         loras.append(dict(name=lora_name, strength=lora_strength))
     return loras
@@ -260,15 +256,9 @@ def load_model_with_lora(
         else:
             log.warning(f"Style VAE {style.vae} not found, using default VAE from checkpoint")
 
-    for lora in style.loras:
+    for lora in chain(style.loras, additional_loras):
         if lora["name"] not in comfy.lora_models:
-            log.warning(f"Style LoRA {lora['name']} not found, skipping")
-            continue
-        model, clip = w.load_lora(model, clip, lora["name"], lora["strength"], lora["strength"])
-
-    for lora in additional_loras:
-        if lora["name"] not in comfy.lora_models:
-            log.warning(f"Prompt LoRA {lora['name']} not found, skipping")
+            log.warning(f"LoRA {lora['name']} not found, skipping")
             continue
         model, clip = w.load_lora(model, clip, lora["name"], lora["strength"], lora["strength"])
 
