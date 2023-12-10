@@ -240,8 +240,8 @@ def load_model_with_lora(
     w: ComfyWorkflow,
     comfy: Client,
     style: Style,
+    prompt: str,
     is_live=False,
-    additional_loras: list[dict[str, str | float]] | tuple = (),
 ):
     checkpoint = style.sd_checkpoint
     if checkpoint not in comfy.checkpoints:
@@ -256,7 +256,7 @@ def load_model_with_lora(
         else:
             log.warning(f"Style VAE {style.vae} not found, using default VAE from checkpoint")
 
-    for lora in chain(style.loras, additional_loras):
+    for lora in chain(style.loras, _parse_loras(comfy, prompt)):
         if lora["name"] not in comfy.lora_models:
             log.warning(f"LoRA {lora['name']} not found, skipping")
             continue
@@ -462,9 +462,7 @@ def generate(
     batch = 1 if live.is_active else batch
 
     w = ComfyWorkflow(comfy.nodes_inputs)
-    model, clip, vae = load_model_with_lora(
-        w, comfy, style, is_live=live.is_active, additional_loras=_parse_loras(comfy, cond.prompt)
-    )
+    model, clip, vae = load_model_with_lora(w, comfy, style, cond.prompt, is_live=live.is_active)
     latent = w.empty_latent_image(extent.initial.width, extent.initial.height, batch)
     model, positive, negative = apply_conditioning(cond, w, comfy, model, clip, style)
     out_latent = w.ksampler_advanced(model, positive, negative, latent, **sampler_params)
@@ -485,9 +483,7 @@ def inpaint(comfy: Client, style: Style, image: Image, mask: Mask, cond: Conditi
     expanded_bounds = Bounds(*mask.bounds.offset, *region_expanded)
 
     w = ComfyWorkflow(comfy.nodes_inputs)
-    model, clip, vae = load_model_with_lora(
-        w, comfy, style, additional_loras=_parse_loras(comfy, cond.prompt)
-    )
+    model, clip, vae = load_model_with_lora(w, comfy, style, cond.prompt)
     in_image = w.load_image(scaled_image)
     in_mask = w.load_mask(scaled_mask)
     cropped_mask = w.load_mask(mask.to_image())
@@ -565,9 +561,7 @@ def refine(
     sampler_params = _sampler_params(style, live=live, strength=strength)
 
     w = ComfyWorkflow(comfy.nodes_inputs)
-    model, clip, vae = load_model_with_lora(
-        w, comfy, style, is_live=live.is_active, additional_loras=_parse_loras(comfy, cond.prompt)
-    )
+    model, clip, vae = load_model_with_lora(w, comfy, style, cond.prompt, is_live=live.is_active)
     in_image = w.load_image(image)
     if extent.is_incompatible:
         in_image = w.scale_image(in_image, extent.expanded)
@@ -600,9 +594,7 @@ def refine_region(
     sampler_params = _sampler_params(style, strength=strength, live=live)
 
     w = ComfyWorkflow(comfy.nodes_inputs)
-    model, clip, vae = load_model_with_lora(
-        w, comfy, style, is_live=live.is_active, additional_loras=_parse_loras(comfy, cond.prompt)
-    )
+    model, clip, vae = load_model_with_lora(w, comfy, style, cond.prompt, is_live=live.is_active)
     in_image = w.load_image(image)
     in_mask = w.load_mask(mask_image)
     if extent.requires_downscale:
@@ -696,9 +688,7 @@ def upscale_tiled(
 
     w = ComfyWorkflow(comfy.nodes_inputs)
     img = w.load_image(image)
-    checkpoint, clip, vae = load_model_with_lora(
-        w, comfy, style, additional_loras=_parse_loras(comfy, cond.prompt)
-    )
+    checkpoint, clip, vae = load_model_with_lora(w, comfy, style, cond.prompt)
     upscale_model = w.load_upscale_model(model)
     if sd_ver.has_controlnet_blur:
         cond.control.append(Control(ControlMode.blur, img))
