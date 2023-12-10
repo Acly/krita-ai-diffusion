@@ -199,12 +199,12 @@ def _sampler_params(
     return params
 
 
-def _parse_loras(client: Client, prompt: str) -> list[dict[str, str | float]]:
+def _parse_loras(client_loras: list[str], prompt: str) -> list[dict[str, str | float]]:
     loras = []
     for match in _pattern_lora.findall(prompt):
         lora_name = ""
 
-        for client_lora in client.lora_models:
+        for client_lora in client_loras:
             lora_filename = Path(client_lora).stem
             if match[0].lower() == lora_filename.lower():
                 lora_name = client_lora
@@ -256,7 +256,7 @@ def load_model_with_lora(
         else:
             log.warning(f"Style VAE {style.vae} not found, using default VAE from checkpoint")
 
-    for lora in chain(style.loras, _parse_loras(comfy, prompt)):
+    for lora in chain(style.loras, _parse_loras(comfy.lora_models, prompt)):
         if lora["name"] not in comfy.lora_models:
             log.warning(f"LoRA {lora['name']} not found, skipping")
             continue
