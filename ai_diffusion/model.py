@@ -261,7 +261,7 @@ class Model(QObject, metaclass=PropertyMeta):
             self.jobs.notify_finished(job)
             if job.kind is not JobKind.diffusion:
                 self.jobs.remove(job)
-            elif job.kind is JobKind.diffusion and self._layer is None and job.id:
+            elif settings.auto_preview and self._layer is None and job.id:
                 self.jobs.select(job.id, 0)
         elif message.event is ClientEvent.interrupted:
             job.state = JobState.cancelled
