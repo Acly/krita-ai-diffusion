@@ -52,8 +52,9 @@ def select_current_word(text: str, cursor_pos: int) -> Tuple[int, int]:
 
 def select_on_cursor_pos(text: str, cursor_pos: int) -> Tuple[int, int]:
     """Return a range in the text based on the cursor_position."""
-    return (select_current_parenthesis_block(text, cursor_pos, ["(", "<"], [")", ">"])
-            or select_current_word(text, cursor_pos))
+    return select_current_parenthesis_block(
+        text, cursor_pos, ["(", "<"], [")", ">"]
+    ) or select_current_word(text, cursor_pos)
 
 
 class ExprNode:
@@ -102,7 +103,7 @@ def parse_expr(expression: str) -> List[ExprNode]:
         elif stack and char == stack[-1]:
             stack.pop()
             if not stack:
-                node = parse_segment(expression[start: i + 1])
+                node = parse_segment(expression[start : i + 1])
                 if node.type == "expr":
                     segments.append(node)
                     start = i + 1
@@ -124,7 +125,7 @@ def edit_attention(text: str, positive: bool) -> str:
 
     segments = parse_expr(text)
     if len(segments) == 1 and segments[0].type == "expr":
-        attention_string = text[1: text.rfind(":")]
+        attention_string = text[1 : text.rfind(":")]
         weight = segments[0].weight
         open_bracket = text[0]
         close_bracket = text[-1]

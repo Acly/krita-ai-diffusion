@@ -59,4 +59,3 @@ class TestSelectOnCursorPos:
         assert select_on_cursor_pos("(foo:1.3), bar, baz", 1) == (0, 9)
         assert select_on_cursor_pos("foo, (bar:1.1), baz", 6) == (5, 14)
         assert select_on_cursor_pos("foo, (bar:1.1) <bar:baz:1.0>", 16) == (15, 28)
-
