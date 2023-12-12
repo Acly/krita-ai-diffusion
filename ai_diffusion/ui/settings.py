@@ -30,7 +30,7 @@ from PyQt5.QtWidgets import (
     QAction,
 )
 from PyQt5.QtCore import Qt, QSize, QUrl, pyqtSignal
-from PyQt5.QtGui import QDesktopServices, QGuiApplication, QIcon
+from PyQt5.QtGui import QDesktopServices, QGuiApplication, QIcon, QCursor
 from krita import Krita
 
 from ..resources import CustomNode, MissingResource, ResourceKind, required_models
@@ -1056,7 +1056,7 @@ class SettingsDialog(QDialog):
 
         self.setWindowTitle("Configure Image Diffusion")
         self.setMinimumSize(QSize(840, 480))
-        if screen := QGuiApplication.primaryScreen():
+        if screen := QGuiApplication.screenAt(QCursor.pos()):
             size = screen.availableSize()
             self.resize(QSize(max(900, int(size.width() * 0.6)), int(size.height() * 0.8)))
 
