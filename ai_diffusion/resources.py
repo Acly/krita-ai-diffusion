@@ -120,6 +120,7 @@ class ModelResource(NamedTuple):
     folder: Path
     filename: str
     url: str
+    alternatives: list[Path] | None = None  # for backwards compatibility
 
 
 required_models = [
@@ -128,8 +129,9 @@ required_models = [
         ResourceKind.clip_vision,
         SDVersion.all,
         Path("models/clip_vision/SD1.5"),
-        "pytorch_model.bin",
-        "https://huggingface.co/h94/IP-Adapter/resolve/main/models/image_encoder/pytorch_model.bin",
+        "model.safetensors",
+        "https://huggingface.co/h94/IP-Adapter/resolve/main/models/image_encoder/model.safetensors?download=true",
+        alternatives=[Path("models/clip_vision/SD1.5/pytorch_model.bin")],
     ),
     ModelResource(
         "NMKD Superscale model",
@@ -159,17 +161,23 @@ required_models = [
         "IP-Adapter (SD1.5)",
         ResourceKind.ip_adapter,
         SDVersion.sd15,
-        Path("custom_nodes/ComfyUI_IPAdapter_plus/models"),
+        Path("models/ipadapter"),
         "ip-adapter_sd15.safetensors",
         "https://huggingface.co/h94/IP-Adapter/resolve/main/models/ip-adapter_sd15.safetensors",
+        alternatives=[
+            Path("custom_nodes/ComfyUI_IPAdapter_plus/models/ip-adapter_sd15.safetensors")
+        ],
     ),
     ModelResource(
         "IP-Adapter (SDXL)",
         ResourceKind.ip_adapter,
         SDVersion.sdxl,
-        Path("custom_nodes/ComfyUI_IPAdapter_plus/models"),
+        Path("models/ipadapter"),
         "ip-adapter_sdxl_vit-h.safetensors",
         "https://huggingface.co/h94/IP-Adapter/resolve/main/sdxl_models/ip-adapter_sdxl_vit-h.safetensors",
+        alternatives=[
+            Path("custom_nodes/ComfyUI_IPAdapter_plus/models/ip-adapter_sdxl_vit-h.safetensors")
+        ],
     ),
     ModelResource(
         "LCM-LoRA (SD1.5)",

@@ -101,16 +101,6 @@ class Server:
         ]
         self.missing_resources += missing_nodes
 
-        def find_missing(
-            folder: Path, resources: list[ModelResource], ver: SDVersion | None = None
-        ):
-            return [
-                res.name
-                for res in resources
-                if (not ver or res.sd_version is ver)
-                and not (folder / res.folder / res.filename).exists()
-            ]
-
         self.missing_resources += find_missing(
             self.comfy_dir, resources.required_models, SDVersion.all
         )
@@ -588,6 +578,19 @@ def _decode_utf8_log_error(b: bytes):
         result = b.decode("utf-8", errors="replace")
         log.warning(f"Failed to UTF-8 decode: '{result}': {str(e)}")
         return result
+
+
+def find_missing(folder: Path, resources: list[ModelResource], ver: SDVersion | None = None):
+    def resource_exists(res: ModelResource):
+        return (folder / res.folder / res.filename).exists() or (
+            res.alternatives and any((folder / alt).exists() for alt in res.alternatives)
+        )
+
+    return [
+        res.name
+        for res in resources
+        if (not ver or res.sd_version is ver) and not resource_exists(res)
+    ]
 
 
 def rename_extracted_folder(name: str, path: Path, suffix: str):

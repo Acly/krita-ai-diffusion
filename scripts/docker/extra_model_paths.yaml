@@ -10,3 +10,4 @@ runpod:
     embeddings: embeddings
     hypernetworks: hypernetworks
     controlnet: controlnet
+    ipadapter: ipadapter
