@@ -254,7 +254,7 @@ class Image:
 
     def make_opaque(self, background=Qt.GlobalColor.white):
         painter = QPainter(self._qimage)
-        painter.setCompositionMode(QPainter.CompositionMode_DestinationOver)
+        painter.setCompositionMode(QPainter.CompositionMode.CompositionMode_DestinationOver)
         painter.fillRect(self._qimage.rect(), background)
         painter.end()
 
@@ -296,6 +296,16 @@ class Image:
 
     def to_icon(self):
         return QIcon(self.to_pixmap())
+
+    def draw_image(self, image: "Image", offset: tuple[int, int] = (0, 0)):
+        w, h = self.extent
+        x, y = offset[0] if offset[0] >= 0 else w + offset[0], (
+            offset[1] if offset[1] >= 0 else h + offset[1]
+        )
+        painter = QPainter(self._qimage)
+        painter.setCompositionMode(QPainter.CompositionMode.CompositionMode_SourceOver)
+        painter.drawImage(x, y, image._qimage)
+        painter.end()
 
     def save(self, filepath: Union[str, Path]):
         success = self._qimage.save(str(filepath))

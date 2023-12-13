@@ -7,6 +7,7 @@ from PyQt5.QtCore import QObject, pyqtSignal
 
 from .image import Bounds, ImageCollection
 from .settings import settings
+from .util import ensure
 from . import control
 
 
@@ -32,7 +33,8 @@ class Job:
     bounds: Bounds
     control: "control.ControlLayer | None" = None
     timestamp: datetime
-    _results: ImageCollection
+    results: ImageCollection
+    _in_use: dict[int, bool]
 
     def __init__(self, id: str | None, kind: JobKind, prompt: str, bounds: Bounds):
         self.id = id
@@ -40,11 +42,11 @@ class Job:
         self.prompt = prompt
         self.bounds = bounds
         self.timestamp = datetime.now()
-        self._results = ImageCollection()
+        self.results = ImageCollection()
+        self._in_use = {}
 
-    @property
-    def results(self):
-        return self._results
+    def result_was_used(self, index: int):
+        return self._in_use.get(index, False)
 
 
 class JobQueue(QObject):
@@ -57,6 +59,7 @@ class JobQueue(QObject):
     count_changed = pyqtSignal()
     selection_changed = pyqtSignal()
     job_finished = pyqtSignal(Job)
+    result_used = pyqtSignal(Item)
 
     _entries: Deque[Job]
     _selection: Item | None = None
@@ -96,7 +99,7 @@ class JobQueue(QObject):
         return sum(1 for j in self._entries if j.state is state)
 
     def set_results(self, job: Job, results: ImageCollection):
-        job._results = results
+        job.results = results
         if job.kind is JobKind.diffusion:
             self._memory_usage += results.size / (1024**2)
             self.prune(keep=job)
@@ -110,10 +113,15 @@ class JobQueue(QObject):
         self.job_finished.emit(job)
         self.count_changed.emit()
 
+    def notify_used(self, job_id: str, index: int):
+        job = ensure(self.find(job_id))
+        job._in_use[index] = True
+        self.result_used.emit(self.Item(job_id, index))
+
     def prune(self, keep: Job):
         while self._memory_usage > settings.history_size and self._entries[0] != keep:
             discarded = self._entries.popleft()
-            self._memory_usage -= discarded._results.size / (1024**2)
+            self._memory_usage -= discarded.results.size / (1024**2)
 
     def select(self, job_id: str, index: int):
         self.selection = self.Item(job_id, index)

@@ -27,8 +27,8 @@ def cancel_all():
 
 def apply():
     if model := root.model_for_active_document():
-        if model.can_apply_result:
-            model.apply_current_result()
+        if model.jobs.selection is not None:
+            model.apply_result(*model.jobs.selection)
 
 
 def set_workspace(workspace: Workspace):

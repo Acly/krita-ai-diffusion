@@ -49,7 +49,6 @@ class Model(QObject, metaclass=PropertyMeta):
     progress = Property(0.0)
     jobs: JobQueue
     error = Property("")
-    can_apply_result = Property(False)
 
     workspace_changed = pyqtSignal(Workspace)
     style_changed = pyqtSignal(Style)
@@ -58,7 +57,6 @@ class Model(QObject, metaclass=PropertyMeta):
     strength_changed = pyqtSignal(float)
     progress_changed = pyqtSignal(float)
     error_changed = pyqtSignal(str)
-    can_apply_result_changed = pyqtSignal(bool)
     has_error_changed = pyqtSignal(bool)
 
     def __init__(self, document: Document, connection: Connection):
@@ -273,10 +271,8 @@ class Model(QObject, metaclass=PropertyMeta):
     def update_preview(self):
         if selection := self.jobs.selection:
             self.show_preview(selection.job, selection.image)
-            self.can_apply_result = True
         else:
             self.hide_preview()
-            self.can_apply_result = False
 
     def show_preview(self, job_id: str, index: int, name_prefix="Preview"):
         job = self.jobs.find(job_id)
@@ -298,13 +294,15 @@ class Model(QObject, metaclass=PropertyMeta):
         if self._layer is not None:
             self._doc.hide_layer(self._layer)
 
-    def apply_result(self):
-        assert self._layer and self.can_apply_result
+    def apply_result(self, job_id: str, index: int):
+        self.jobs.select(job_id, index)
+        assert self._layer is not None
         self._layer.setLocked(False)
         self._layer.setName(self._layer.name().replace("[Preview]", "[Generated]"))
         self._doc.active_layer = self._layer
         self._layer = None
         self.jobs.selection = None
+        self.jobs.notify_used(job_id, index)
 
     def add_control_layer(self, job: Job, result: dict | None):
         assert job.kind is JobKind.control_layer and job.control

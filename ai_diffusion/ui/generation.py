@@ -15,7 +15,7 @@ from PyQt5.QtWidgets import (
 )
 
 from ..properties import Binding, bind, Bind
-from ..image import Bounds
+from ..image import Bounds, Extent, Image
 from ..jobs import Job, JobQueue, JobState, JobKind
 from ..model import Model
 from ..root import root
@@ -41,6 +41,7 @@ class HistoryWidget(QListWidget):
 
     item_activated = pyqtSignal(QListWidgetItem)
 
+    _applied_icon = Image.load(theme.icon_path / "star.png")
     _list_css = f"QListWidget::item:selected {{ border: 1px solid {theme.grey}; }}"
     _button_css = f"""
         QPushButton {{
@@ -88,6 +89,7 @@ class HistoryWidget(QListWidget):
             jobs.selection_changed.connect(self.update_selection),
             self.itemSelectionChanged.connect(self.select_item),
             jobs.job_finished.connect(self.add),
+            jobs.result_used.connect(self.update_image_thumbnail),
         ]
         self.rebuild()
         self.update_selection()
@@ -115,7 +117,7 @@ class HistoryWidget(QListWidget):
             self.addItem(header)
 
         for i, img in enumerate(job.results):
-            item = QListWidgetItem(img.to_icon(), None)  # type: ignore (text can be None)
+            item = QListWidgetItem(self._image_thumbnail(job, i), None)  # type: ignore (text can be None)
             item.setData(Qt.ItemDataRole.UserRole, job.id)
             item.setData(Qt.ItemDataRole.UserRole + 1, i)
             item.setData(
@@ -152,6 +154,11 @@ class HistoryWidget(QListWidget):
                 self._apply_button.setText("Apply")
         else:
             self._apply_button.setVisible(False)
+
+    def update_image_thumbnail(self, id: JobQueue.Item):
+        if item := self._find(id):
+            job = ensure(self._jobs.find(id.job))
+            item.setIcon(self._image_thumbnail(job, id.image))
 
     def select_item(self):
         items = self.selectedItems()
@@ -215,6 +222,14 @@ class HistoryWidget(QListWidget):
         return JobQueue.Item(
             item.data(Qt.ItemDataRole.UserRole), item.data(Qt.ItemDataRole.UserRole + 1)
         )
+
+    def _image_thumbnail(self, job: Job, index: int):
+        image = job.results[index]
+        if job.result_was_used(index):  # add tiny star icon to mark used results
+            thumb = Image.scale_to_fit(image, Extent(96 * 2, 96 * 2))
+            thumb.draw_image(self._applied_icon, offset=(-28, 4))
+            return thumb.to_icon()
+        return image.to_icon()
 
 
 class GenerationWidget(QWidget):
@@ -326,5 +341,4 @@ class GenerationWidget(QWidget):
 
     def apply_result(self, item: QListWidgetItem):
         job_id, index = self.history.item_info(item)
-        self.model.jobs.select(job_id, index)
-        self.model.apply_result()
+        self.model.apply_result(job_id, index)

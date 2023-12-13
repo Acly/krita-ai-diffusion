@@ -69,6 +69,18 @@ def test_image_compare():
     assert Image.compare(img1, img2) < 0.0001
 
 
+def test_draw_image():
+    base = Image.create(Extent(32, 32), Qt.GlobalColor.white)
+    icon = Image.create(Extent(4, 4), Qt.GlobalColor.red)
+    base.draw_image(icon, offset=(7, -9))
+    for y in range(32):
+        for x in range(32):
+            if 7 <= x < 11 and 23 <= y < 27:
+                assert base.pixel(x, y) == (255, 0, 0, 255)
+            else:
+                assert base.pixel(x, y) == (255, 255, 255, 255)
+
+
 def test_image_collection_each():
     col = ImageCollection([create_test_image(2, 2), create_test_image(2, 2)])
     col.each(lambda img: img.set_pixel(0, 0, (42, 42, 42, 42)))
