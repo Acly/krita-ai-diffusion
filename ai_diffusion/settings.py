@@ -125,6 +125,11 @@ class Settings(QObject):
         "Negative Prompt", False, "Show text editor to describe things to avoid"
     )
 
+    auto_preview: bool
+    _auto_preview = Setting(
+        "Auto Preview", True, "Automatically preview the first generated result on the canvas"
+    )
+
     show_control_end: bool
     _show_control_end = Setting("Control ending step", False, "Show control ending step ratio")
 

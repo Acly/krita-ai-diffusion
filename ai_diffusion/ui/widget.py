@@ -130,7 +130,6 @@ class ControlWidget(QWidget):
         self.add_pose_button = QToolButton(self)
         self.add_pose_button.setToolButtonStyle(Qt.ToolButtonStyle.ToolButtonIconOnly)
         self.add_pose_button.setIcon(theme.icon("add-pose"))
-        self.add_pose_button.setToolTip("Add new character pose to selected layer")
         self.add_pose_button.clicked.connect(self._add_pose_character)
 
         self.strength_spin = QSpinBox(self)
@@ -175,8 +174,10 @@ class ControlWidget(QWidget):
         control.is_supported_changed.connect(self._update_visibility)
         control.can_generate_changed.connect(self._update_visibility)
         control.show_end_changed.connect(self._update_visibility)
-        control.is_pose_vector_changed.connect(self._update_visibility)
+        control.mode_changed.connect(self._update_visibility)
+        control.is_pose_vector_changed.connect(self._update_pose_utils)
         self._update_visibility()
+        self._update_pose_utils()
 
     def _update_layers(self):
         layers: reversed[krita.Node] = reversed(self._model.image_layers)
@@ -202,7 +203,9 @@ class ControlWidget(QWidget):
         def controls():
             self.layer_select.setVisible(self._control.is_supported)
             self.generate_button.setVisible(self._control.can_generate)
-            self.add_pose_button.setVisible(self._control.is_pose_vector)
+            self.add_pose_button.setVisible(
+                self._control.is_supported and self._control.mode is ControlMode.pose
+            )
             self.strength_spin.setVisible(self._control.is_supported)
             self.end_spin.setVisible(self._control.show_end)
 
@@ -215,6 +218,14 @@ class ControlWidget(QWidget):
         else:  # always hide things to hide first to make space in the layout
             controls()
             error()
+
+    def _update_pose_utils(self):
+        self.add_pose_button.setEnabled(self._control.is_pose_vector)
+        self.add_pose_button.setToolTip(
+            "Add new character pose to selected layer"
+            if self._control.is_pose_vector
+            else "Disabled: selected layer must be a vector layer to add a pose"
+        )
 
     def _set_error(self, error: str):
         parts = error.split("[", 2)

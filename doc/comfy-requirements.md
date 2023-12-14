@@ -14,6 +14,9 @@ Install custom nodes according to the instructions of the respective projects, o
 ## Required models
 Download models to the paths indicated below. If you are using `extra_model_paths.yml`, those will also work. Shared models are always required, and at least one of SD1.5 and SDXL is needed.
 
+This can be done manually or via script ([see below](#script)).
+
+
 ### Shared
   * [Clip-Vision](https://huggingface.co/h94/IP-Adapter/resolve/main/models/image_encoder/model.safetensors?download=true) to `models/clip_vision/SD1.5`
   * [NMKD Superscale SP_178000_G](https://huggingface.co/gemasai/4x_NMKD-Superscale-SP_178000_G/resolve/main/4x_NMKD-Superscale-SP_178000_G.pth) to `models/upscale_models`
@@ -35,6 +38,25 @@ The following checkpoints are used by the default styles:
 * [JuggernautXL](https://civitai.com/api/download/models/198530)
 
 At least one checkpoint is required, but it doesn't have to be one of the above.
+
+## <a name="script"></a> Download Script
+The models above mostly list strict requirements, there are a lot of additional models (like ControlNet)
+which activate optional features in the plugin. If you have them already - great. Otherwise you can
+use the `download_models.py` script to fetch all required and optional models.
+
+Find the script in the plugin folder (called `ai_diffusion`). Open a command prompt and run:
+```
+python -m pip install aiohttp tqdm
+python download_models.py /path/to/your/comfyui
+```
+This will download _all_ models supported by the plugin directly into the specified folder with the correct version, location, and filename.
+The download location does not have to be your ComfyUI installation, you can use an empty folder if you want to avoid clashes and copy models afterwards.
+There are also options to only download a subset, or list all relevant URLs without downloading.
+```
+python download_models.py --help
+```
+
+_Note: The script downloads models only. It does not install or modify ComfyUI or custom nodes!_
 
 ## Troubleshooting
 If you're getting errors about missing resources, or workload not being installed, it's probably because one of the models wasn't found.

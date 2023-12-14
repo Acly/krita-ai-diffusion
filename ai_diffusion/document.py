@@ -1,4 +1,5 @@
 from __future__ import annotations
+from contextlib import nullcontext
 from typing import cast
 import krita
 from krita import Krita
@@ -7,7 +8,7 @@ from PyQt5.QtGui import QImage
 
 from .image import Extent, Bounds, Mask, Image
 from .pose import Pose
-from .util import client_logger as log
+from . import eventloop
 
 
 class Document:
@@ -44,20 +45,19 @@ class Document:
     def get_layer_image(self, layer: krita.Node, bounds: Bounds | None) -> Image:
         raise NotImplementedError
 
-    def insert_layer(
-        self, name: str, img: Image, bounds: Bounds, below: krita.Node | None = None
-    ) -> krita.Node:
+    def insert_layer(self, name: str, img: Image, bounds: Bounds, make_active=True) -> krita.Node:
         raise NotImplementedError
 
-    def insert_vector_layer(
-        self, name: str, svg: str, below: krita.Node | None = None
-    ) -> krita.Node:
+    def insert_vector_layer(self, name: str, svg: str) -> krita.Node:
         raise NotImplementedError
 
     def set_layer_content(self, layer: krita.Node, img: Image, bounds: Bounds):
         raise NotImplementedError
 
     def hide_layer(self, layer: krita.Node):
+        raise NotImplementedError
+
+    def move_to_top(self, layer: krita.Node):
         raise NotImplementedError
 
     def resize(self, extent: Extent):
@@ -72,6 +72,10 @@ class Document:
     @property
     def active_layer(self) -> krita.Node:
         raise NotImplementedError
+
+    @active_layer.setter
+    def active_layer(self, layer: krita.Node):
+        pass
 
     @property
     def resolution(self):
@@ -192,18 +196,17 @@ class KritaDocument(Document):
         assert data is not None and data.size() >= bounds.extent.pixel_count * 4
         return Image(QImage(data, *bounds.extent, QImage.Format.Format_ARGB32))
 
-    def insert_layer(self, name: str, img: Image, bounds: Bounds, below: krita.Node | None = None):
-        layer = self._doc.createNode(name, "paintlayer")
-        above = _find_layer_above(self._doc, below)
-        self._doc.rootNode().addChildNode(layer, above)
-        layer.setPixelData(img.data, *bounds)
-        self._doc.refreshProjection()
-        return layer
+    def insert_layer(self, name: str, img: Image, bounds: Bounds, make_active=True):
+        with RestoreActiveLayer(self._doc) if not make_active else nullcontext():
+            layer = self._doc.createNode(name, "paintlayer")
+            self._doc.rootNode().addChildNode(layer, None)
+            layer.setPixelData(img.data, *bounds)
+            self._doc.refreshProjection()
+            return layer
 
-    def insert_vector_layer(self, name: str, svg: str, below: krita.Node | None = None):
+    def insert_vector_layer(self, name: str, svg: str):
         layer = self._doc.createVectorLayer(name)
-        above = _find_layer_above(self._doc, below)
-        self._doc.rootNode().addChildNode(layer, above)
+        self._doc.rootNode().addChildNode(layer, None)
         layer.addShapesFromSvg(svg)
         self._doc.refreshProjection()
         return layer
@@ -224,6 +227,14 @@ class KritaDocument(Document):
         self._doc.refreshProjection()
         return layer
 
+    def move_to_top(self, layer: krita.Node):
+        parent = layer.parentNode()
+        if parent.childNodes()[-1] == layer:
+            return  # already top-most layer
+        with RestoreActiveLayer(self._doc):
+            parent.removeChildNode(layer)
+            parent.addChildNode(layer, None)
+
     def resize(self, extent: Extent):
         res = self._doc.resolution()
         self._doc.scaleImage(extent.width, extent.height, res, res, "Bilinear")
@@ -239,6 +250,10 @@ class KritaDocument(Document):
     def active_layer(self):
         return self._doc.activeNode()
 
+    @active_layer.setter
+    def active_layer(self, layer: krita.Node):
+        self._doc.setActiveNode(layer)
+
     @property
     def resolution(self):
         return self._doc.resolution() / 72.0  # KisImage::xRes which is applied to vectors
@@ -249,15 +264,6 @@ def _traverse_layers(node: krita.Node, type_filter=None):
         yield from _traverse_layers(child, type_filter)
         if not type_filter or child.type() in type_filter:
             yield child
-
-
-def _find_layer_above(doc: krita.Document, layer_below: krita.Node | None):
-    if layer_below:
-        nodes = doc.rootNode().childNodes()
-        index = nodes.index(layer_below)
-        if index >= 1:
-            return nodes[index - 1]
-    return None
 
 
 def _selection_bounds(selection: krita.Selection):
@@ -273,6 +279,25 @@ def _selection_is_entire_document(selection: krita.Selection, extent: Extent):
     mask = selection.pixelData(*bounds)
     is_opaque = all(x == b"\xff" for x in mask)
     return is_opaque
+
+
+class RestoreActiveLayer:
+    layer: krita.Node | None = None
+
+    def __init__(self, document: krita.Document):
+        self.document = document
+
+    def __enter__(self):
+        self.layer = self.document.activeNode()
+
+    def __exit__(self, exc_type, exc_value, traceback):
+        # Some operations like inserting a new layer change the active layer as a side effect.
+        # It doesn't happen directly, so changing it back in the same call doesn't work.
+        eventloop.run(self._restore())
+
+    async def _restore(self):
+        if self.layer:
+            self.document.setActiveNode(self.layer)
 
 
 class LayerObserver(QObject):
@@ -315,6 +340,11 @@ class LayerObserver(QObject):
 
     def find(self, id: QUuid):
         return next((l for l in self._layers if l.uniqueId() == id), None)
+
+    @property
+    def updated(self):
+        self.update()
+        return self
 
     def __iter__(self):
         return iter(self._layers)

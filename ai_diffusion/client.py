@@ -164,7 +164,9 @@ class Client:
         client.ip_adapter_model = {
             ver: _find_ip_adapter(ip, ver) for ver in [SDVersion.sd15, SDVersion.sdxl]
         }
-        client.nodes_inputs["IPAdapterApply"] = nodes["IPAdapterApply"]["input"]["required"]
+        client.nodes_inputs["IPAdapterApplyEncoded"] = nodes["IPAdapterApplyEncoded"]["input"][
+            "required"
+        ]
 
         # Retrieve upscale models
         client.upscalers = nodes["UpscaleModelLoader"]["input"]["required"]["model_name"][0]
@@ -326,6 +328,7 @@ class Client:
                     info.get("is_refiner", False),
                 )
                 for filename, info in checkpoint_info.items()
+                if info["base_model"] in ["sd15", "sdxl"]
             }
         else:
             self.checkpoints = {
@@ -524,7 +527,7 @@ def _extract_message_png_image(data: memoryview):
         event, format = struct.unpack_from(">II", data)
         # ComfyUI server.py: BinaryEventTypes.PREVIEW_IMAGE=1, PNG=2
         if event == 1 and format == 2:
-            return Image.png_from_bytes(data[s:])
+            return Image.from_bytes(data[s:])
     return None
 
 

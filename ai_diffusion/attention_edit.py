@@ -3,38 +3,40 @@ from typing import Tuple, List
 
 
 def select_current_parenthesis_block(
-    text: str, cursor_pos: int, open_bracket: str, close_bracket: str
+    text: str, cursor_pos: int, open_brackets: list[str], close_brackets: list[str]
 ) -> Tuple[int, int] | None:
     """Select the current parenthesis block that the cursor points to."""
     # Ensure cursor position is within valid range
     cursor_pos = max(0, min(cursor_pos, len(text)))
 
     # Find the nearest '(' before the cursor
-    start = text.rfind(open_bracket, 0, cursor_pos)
+    start = -1
+    for open_bracket in open_brackets:
+        start = max(start, text.rfind(open_bracket, 0, cursor_pos))
 
     # If '(' is found, find the corresponding ')' after the cursor
     end = -1
     if start != -1:
         open_parens = 1
         for i in range(start + 1, len(text)):
-            if text[i] == open_bracket:
+            if text[i] in open_brackets:
                 open_parens += 1
-            elif text[i] == close_bracket:
+            elif text[i] in close_brackets:
                 open_parens -= 1
                 if open_parens == 0:
                     end = i
                     break
 
     # Return the indices only if both '(' and ')' are found
-    if start != -1 and end > cursor_pos:
-        return (start, end + 1)
+    if start != -1 and end >= cursor_pos:
+        return start, end + 1
     else:
         return None
 
 
 def select_current_word(text: str, cursor_pos: int) -> Tuple[int, int]:
     """Select the word the cursor points to."""
-    delimiters = r".,\/!?%^*;:{}=`~() " + "\t\r\n"
+    delimiters = r".,\/!?%^*;:{}=`~()<> " + "\t\r\n"
     start = end = cursor_pos
 
     # seek backward to find beginning
@@ -50,9 +52,9 @@ def select_current_word(text: str, cursor_pos: int) -> Tuple[int, int]:
 
 def select_on_cursor_pos(text: str, cursor_pos: int) -> Tuple[int, int]:
     """Return a range in the text based on the cursor_position."""
-    return select_current_parenthesis_block(text, cursor_pos, "(", ")") or select_current_word(
-        text, cursor_pos
-    )
+    return select_current_parenthesis_block(
+        text, cursor_pos, ["(", "<"], [")", ">"]
+    ) or select_current_word(text, cursor_pos)
 
 
 class ExprNode:
@@ -77,7 +79,7 @@ def parse_expr(expression: str) -> List[ExprNode]:
     """
 
     def parse_segment(segment):
-        match = re.match(r"^[([{<](.*?):([\d.]+)[\]})>]$", segment)
+        match = re.match(r"^[([{<](.*?):(-?[\d.]+)[\]})>]$", segment)
         if match:
             inner_expr = match.group(1)
             number = float(match.group(2))
@@ -88,7 +90,7 @@ def parse_expr(expression: str) -> List[ExprNode]:
     segments = []
     stack = []
     start = 0
-    bracket_pairs = {"(": ")"}
+    bracket_pairs = {"(": ")", "<": ">"}
 
     for i, char in enumerate(expression):
         if char in bracket_pairs:
@@ -127,6 +129,11 @@ def edit_attention(text: str, positive: bool) -> str:
         weight = segments[0].weight
         open_bracket = text[0]
         close_bracket = text[-1]
+    elif text[0] == "<":
+        attention_string = text[1:-1]
+        weight = 1.0
+        open_bracket = "<"
+        close_bracket = ">"
     else:
         attention_string = text
         weight = 1.0
@@ -134,11 +141,11 @@ def edit_attention(text: str, positive: bool) -> str:
         close_bracket = ")"
 
     weight = weight + 0.1 * (1 if positive else -1)
-    weight = max(weight, 0.0)
+    weight = max(weight, -2.0)
     weight = min(weight, 2.0)
 
     return (
         attention_string
-        if weight == 1.0
+        if weight == 1.0 and open_bracket == "("
         else f"{open_bracket}{attention_string}:{weight:.1f}{close_bracket}"
     )

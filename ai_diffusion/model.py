@@ -71,7 +71,6 @@ class Model(QObject, metaclass=PropertyMeta):
         self.upscale = UpscaleWorkspace(self)
         self.live = LiveWorkspace(self)
 
-        self.jobs.job_finished.connect(self.update_preview)
         self.jobs.selection_changed.connect(self.update_preview)
         self.error_changed.connect(lambda: self.has_error_changed.emit(self.has_error))
 
@@ -262,7 +261,7 @@ class Model(QObject, metaclass=PropertyMeta):
             self.jobs.notify_finished(job)
             if job.kind is not JobKind.diffusion:
                 self.jobs.remove(job)
-            elif job.kind is JobKind.diffusion and self._layer is None and job.id:
+            elif settings.auto_preview and self._layer is None and job.id:
                 self.jobs.select(job.id, 0)
         elif message.event is ClientEvent.interrupted:
             job.state = JobState.cancelled
@@ -288,8 +287,11 @@ class Model(QObject, metaclass=PropertyMeta):
         if self._layer is not None:
             self._layer.setName(name)
             self._doc.set_layer_content(self._layer, job.results[index], job.bounds)
+            self._doc.move_to_top(self._layer)
         else:
-            self._layer = self._doc.insert_layer(name, job.results[index], job.bounds)
+            self._layer = self._doc.insert_layer(
+                name, job.results[index], job.bounds, make_active=False
+            )
             self._layer.setLocked(True)
 
     def hide_preview(self):
@@ -300,6 +302,7 @@ class Model(QObject, metaclass=PropertyMeta):
         assert self._layer and self.can_apply_result
         self._layer.setLocked(False)
         self._layer.setName(self._layer.name().replace("[Preview]", "[Generated]"))
+        self._doc.active_layer = self._layer
         self._layer = None
         self.jobs.selection = None
 
@@ -308,9 +311,9 @@ class Model(QObject, metaclass=PropertyMeta):
         if job.control.mode is ControlMode.pose and result is not None:
             pose = Pose.from_open_pose_json(result)
             pose.scale(job.bounds.extent)
-            return self._doc.insert_vector_layer(job.prompt, pose.to_svg(), below=self._layer)
+            return self._doc.insert_vector_layer(job.prompt, pose.to_svg())
         elif len(job.results) > 0:
-            return self._doc.insert_layer(job.prompt, job.results[0], job.bounds, below=self._layer)
+            return self._doc.insert_layer(job.prompt, job.results[0], job.bounds)
         return self.document.active_layer  # Execution was cached and no image was produced
 
     def add_upscale_layer(self, job: Job):

@@ -70,12 +70,12 @@ RUN git clone https://github.com/ltdrdata/ComfyUI-Manager.git /ComfyUI/custom_no
     git clone https://github.com/Acly/comfyui-tooling-nodes /ComfyUI/custom_nodes/comfyui-tooling-nodes && \
     pip3 install -r /ComfyUI/custom_nodes/ComfyUI-Manager/requirements.txt && \
     pip3 install -r /ComfyUI/custom_nodes/comfyui_controlnet_aux/requirements.txt && \
-    pip3 cache purge
+    pip3 cache purge && \
+    echo v1.10.0 > .krita-ai-diffusion.version
 
 # Copy models
 RUN mkdir -p models
 COPY downloads/models/ /models/
-COPY downloads/custom_nodes/ComfyUI_IPAdapter_plus/models/* /ComfyUI/custom_nodes/ComfyUI_IPAdapter_plus/models/
 COPY extra_model_paths.yaml /ComfyUI/
 
 # Install Jupyter

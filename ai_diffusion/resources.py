@@ -5,10 +5,10 @@ from typing import NamedTuple, Sequence
 
 # Version identifier for all the resources defined here. This is used as the server version.
 # It usually follows the plugin version, but not all new plugin versions also require a server update.
-version = "1.7.0"
+version = "1.10.0"
 
 comfy_url = "https://github.com/comfyanonymous/ComfyUI"
-comfy_version = "7114cfec0eefe713340257c85a2b342e98fdcfb2"
+comfy_version = "a4ec54a40d978c4249dc6a7e2d5133657d1fd109"
 
 
 class CustomNode(NamedTuple):
@@ -24,14 +24,14 @@ required_custom_nodes = [
         "ControlNet Preprocessors",
         "comfyui_controlnet_aux",
         "https://github.com/Fannovel16/comfyui_controlnet_aux",
-        "98bf5b70a98577dcbb1227cdf4fbbf022149a1e1",
+        "ce7e758f5ccf14bb90e073c774f895cbd56b85a9",
         ["InpaintPreprocessor"],
     ),
     CustomNode(
         "IP-Adapter",
         "ComfyUI_IPAdapter_plus",
         "https://github.com/cubiq/ComfyUI_IPAdapter_plus",
-        "bf0508bd5945c6e301070fa92b65b5ddbae9a8f1",
+        "689fa4a0c16a2f8339900587473a99ba9ae284df",
         ["IPAdapterModelLoader", "IPAdapterApply"],
     ),
     CustomNode(
@@ -45,7 +45,7 @@ required_custom_nodes = [
         "External Tooling Nodes",
         "comfyui-tooling-nodes",
         "https://github.com/Acly/comfyui-tooling-nodes",
-        "d7d5ee0ea871fbda560168d9e015dd0ae2e13818",
+        "b2496a3f132f8c3f7d452a0960c422f55c33d128",
         [
             "ETN_LoadImageBase64",
             "ETN_LoadMaskBase64",
@@ -120,6 +120,7 @@ class ModelResource(NamedTuple):
     folder: Path
     filename: str
     url: str
+    alternatives: list[Path] | None = None  # for backwards compatibility
 
 
 required_models = [
@@ -128,8 +129,9 @@ required_models = [
         ResourceKind.clip_vision,
         SDVersion.all,
         Path("models/clip_vision/SD1.5"),
-        "pytorch_model.bin",
-        "https://huggingface.co/h94/IP-Adapter/resolve/main/models/image_encoder/pytorch_model.bin",
+        "model.safetensors",
+        "https://huggingface.co/h94/IP-Adapter/resolve/main/models/image_encoder/model.safetensors?download=true",
+        alternatives=[Path("models/clip_vision/SD1.5/pytorch_model.bin")],
     ),
     ModelResource(
         "NMKD Superscale model",
@@ -159,17 +161,23 @@ required_models = [
         "IP-Adapter (SD1.5)",
         ResourceKind.ip_adapter,
         SDVersion.sd15,
-        Path("custom_nodes/ComfyUI_IPAdapter_plus/models"),
+        Path("models/ipadapter"),
         "ip-adapter_sd15.safetensors",
         "https://huggingface.co/h94/IP-Adapter/resolve/main/models/ip-adapter_sd15.safetensors",
+        alternatives=[
+            Path("custom_nodes/ComfyUI_IPAdapter_plus/models/ip-adapter_sd15.safetensors")
+        ],
     ),
     ModelResource(
         "IP-Adapter (SDXL)",
         ResourceKind.ip_adapter,
         SDVersion.sdxl,
-        Path("custom_nodes/ComfyUI_IPAdapter_plus/models"),
+        Path("models/ipadapter"),
         "ip-adapter_sdxl_vit-h.safetensors",
         "https://huggingface.co/h94/IP-Adapter/resolve/main/sdxl_models/ip-adapter_sdxl_vit-h.safetensors",
+        alternatives=[
+            Path("custom_nodes/ComfyUI_IPAdapter_plus/models/ip-adapter_sdxl_vit-h.safetensors")
+        ],
     ),
     ModelResource(
         "LCM-LoRA (SD1.5)",

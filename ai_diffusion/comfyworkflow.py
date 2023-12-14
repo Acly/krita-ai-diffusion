@@ -227,27 +227,40 @@ class ComfyWorkflow:
             end_percent=end_percent,
         )
 
+    def encode_ip_adapter(
+        self, clip_vision: Output, images: list[Output], weights: list[float], noise=0.0
+    ):
+        weights += [1.0] * (4 - len(weights))
+        weight_inputs = {f"weight_{i + 1}": weight for i, weight in enumerate(weights)}
+        image_inputs = {f"image_{i + 1}": image for i, image in enumerate(images)}
+        return self.add(
+            "IPAdapterEncoder",
+            1,
+            clip_vision=clip_vision,
+            noise=noise,
+            ipadapter_plus=False,
+            **image_inputs,
+            **weight_inputs,
+        )
+
     def apply_ip_adapter(
         self,
         ipadapter: Output,
-        clip_vision: Output,
-        image: Output,
+        embeds: Output,
         model: Output,
         weight: float,
-        noise=0.0,
         end_at=1.0,
     ):
-        args: dict = dict(
+        return self.add(
+            "IPAdapterApplyEncoded",
+            1,
             ipadapter=ipadapter,
-            clip_vision=clip_vision,
-            image=image,
+            embeds=embeds,
             model=model,
             weight=weight,
-            noise=noise,
+            weight_type="linear",
             end_at=end_at,
         )
-
-        return self.add("IPAdapterApply", 1, **args)
 
     def apply_freeu(self, model: Output, b1: float, b2: float, s1: float, s2: float):
         return self.add(

@@ -985,6 +985,7 @@ class InterfaceSettings(SettingsTab):
         self.add("prompt_line_count", SpinBoxSetting(S._prompt_line_count, self, 1, 10))
         self.add("show_negative_prompt", CheckBoxSetting(S._show_negative_prompt, "Show", self))
         self.add("show_control_end", CheckBoxSetting(S._show_control_end, "Show", self))
+        self.add("auto_preview", CheckBoxSetting(S._auto_preview, "Enable", self))
 
         self._layout.addStretch()
 
