@@ -168,7 +168,6 @@ class Model(QObject, metaclass=PropertyMeta):
         else:
             work = workflow.upscale_simple(client, image, params.upscaler, params.factor)
         job.id = await client.enqueue(work)
-        self._doc.resize(params.target_extent)
 
     def generate_live(self):
         ver = resolve_sd_version(self.style, self._connection.client)
@@ -320,6 +319,8 @@ class Model(QObject, metaclass=PropertyMeta):
         if self._layer:
             self._layer.remove()
             self._layer = None
+        self._doc.resize(job.bounds.extent)
+        self.upscale.target_extent_changed.emit(self.upscale.target_extent)
         self._doc.insert_layer(job.prompt, job.results[0], job.bounds)
 
     def set_workspace(self, workspace: Workspace):
