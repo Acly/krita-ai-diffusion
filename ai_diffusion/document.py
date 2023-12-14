@@ -1,6 +1,6 @@
 from __future__ import annotations
 from contextlib import nullcontext
-from typing import cast
+from typing import NamedTuple, cast
 import krita
 from krita import Krita
 from PyQt5.QtCore import QObject, QUuid, QByteArray, QTimer, pyqtSignal
@@ -301,6 +301,15 @@ class RestoreActiveLayer:
 
 
 class LayerObserver(QObject):
+    """Periodically checks the document for changes in the layer structure. Krita doesn't expose
+    Python events for these kinds of changes, so we have to poll and compare.
+    """
+
+    class Desc(NamedTuple):
+        id: QUuid
+        name: str
+        node: krita.Node
+
     managed_layer_types = [
         "paintlayer",
         "vectorlayer",
@@ -313,7 +322,7 @@ class LayerObserver(QObject):
     changed = pyqtSignal()
 
     _doc: krita.Document | None
-    _layers: list[krita.Node]
+    _layers: list[Desc]
     _timer: QTimer
 
     def __init__(self, doc: krita.Document | None):
@@ -331,15 +340,18 @@ class LayerObserver(QObject):
         root_node = self._doc.rootNode()
         if root_node is None:
             return  # Document has been closed
-        layers = list(_traverse_layers(root_node, self.managed_layer_types))
+        layers = [
+            self.Desc(l.uniqueId(), l.name(), l)
+            for l in _traverse_layers(root_node, self.managed_layer_types)
+        ]
         if len(layers) != len(self._layers) or any(
-            a.uniqueId() != b.uniqueId() for a, b in zip(layers, self._layers)
+            a.id != b.id or a.name != b.name for a, b in zip(layers, self._layers)
         ):
             self._layers = layers
             self.changed.emit()
 
     def find(self, id: QUuid):
-        return next((l for l in self._layers if l.uniqueId() == id), None)
+        return next((l.node for l in self._layers if l.id == id), None)
 
     @property
     def updated(self):
@@ -347,10 +359,10 @@ class LayerObserver(QObject):
         return self
 
     def __iter__(self):
-        return iter(self._layers)
+        return (l.node for l in self._layers)
 
-    def __getitem__(self, index):
-        return self._layers[index]
+    def __getitem__(self, index: int):
+        return self._layers[index].node
 
     def __len__(self):
         return len(self._layers)
