@@ -370,7 +370,6 @@ class UpscaleWorkspace(QObject, metaclass=PropertyMeta):
     factor = Property(2.0)
     use_diffusion = Property(True)
     strength = Property(0.3)
-    target_extent = Property(Extent(1, 1))
 
     upscaler_changed = pyqtSignal(str)
     factor_changed = pyqtSignal(float)
@@ -385,15 +384,14 @@ class UpscaleWorkspace(QObject, metaclass=PropertyMeta):
         self._model = model
         if client := model._connection.client_if_connected:
             self.upscaler = client.default_upscaler
-        self.factor_changed.connect(self._update_target_extent)
-        self._update_target_extent()
+        self.factor_changed.connect(lambda _: self.target_extent_changed.emit(self.target_extent))
 
-    def _update_target_extent(self):
-        self.target_extent = self._model.document.extent * self.factor
+    @property
+    def target_extent(self):
+        return self._model.document.extent * self.factor
 
     @property
     def params(self):
-        self._update_target_extent()
         return UpscaleParams(
             upscaler=self.upscaler,
             factor=self.factor,
