@@ -18,6 +18,8 @@ sampler_options = [
     "DPM++ SDE Karras",
     "UniPC BH2",
     "LCM",
+    "Euler",
+    "Euler a",
 ]
 
 

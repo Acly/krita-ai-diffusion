@@ -16,3 +16,6 @@ ai_diffusion/styles/*
 !ai_diffusion/styles/digital-artwork*.json
 krita_ai_diffusion*.zip
 TODO.md
+.idea
+venv
+.DS_Store
