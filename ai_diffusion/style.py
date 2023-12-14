@@ -44,7 +44,8 @@ class StyleSettings:
         "Use FreeU",
         False,
         "FreeU is a method of modifying the UNet that can improve model output quality, "
-        "without any additional speed, memory, or computational costs.",
+        "without any additional speed, memory, or computational costs. However the resulting "
+        "images may suffer from oversaturation.",
     )
 
     b1 = Setting(

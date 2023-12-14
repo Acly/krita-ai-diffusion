@@ -20,7 +20,6 @@ from PyQt5.QtWidgets import (
     QScrollArea,
     QSizePolicy,
     QSpinBox,
-    QDoubleSpinBox,
     QStackedWidget,
     QRadioButton,
     QToolButton,
@@ -131,28 +130,6 @@ class SpinBoxSetting(SettingWidget):
     def value(self, v):
         self._spinbox.setValue(v)
 
-
-class DoubleSpinBoxSetting(SettingWidget):
-    def __init__(self, setting: Setting, parent=None, minimum=0, maximum=100, suffix="", single_step=0.10):
-        super().__init__(setting, parent)
-
-        self._double_spinbox = QDoubleSpinBox(self)
-        self._double_spinbox.setMinimumWidth(100)
-        self._double_spinbox.setMinimum(minimum)
-        self._double_spinbox.setMaximum(maximum)
-        self._double_spinbox.setSingleStep(single_step)
-        self._double_spinbox.setSuffix(suffix)
-        self._double_spinbox.setValue(setting.default)
-        self._double_spinbox.valueChanged.connect(self._notify_value_changed)
-        self._layout.addWidget(self._double_spinbox, alignment=Qt.AlignmentFlag.AlignRight)
-
-    @property
-    def value(self):
-        return self._double_spinbox.value()
-
-    @value.setter
-    def value(self, v):
-        self._double_spinbox.setValue(v)
 
 class SliderSetting(SettingWidget):
     _is_float = False
@@ -776,13 +753,6 @@ class StylePresets(SettingsTab):
         self._layout.addWidget(self._checkpoint_warning, alignment=Qt.AlignmentFlag.AlignRight)
 
         add("free_u", CheckBoxSetting(StyleSettings.free_u, "Use FreeU", self))
-        self._style_widgets["free_u"].value_changed.connect(self._toggle_freeu_settings)
-
-        add("b1", DoubleSpinBoxSetting(StyleSettings.b1, self, 0, 5))
-        add("b2", DoubleSpinBoxSetting(StyleSettings.b2, self, 0, 5))
-        add("s1", DoubleSpinBoxSetting(StyleSettings.s1, self, 0, 5))
-        add("s2", DoubleSpinBoxSetting(StyleSettings.s2, self, 0, 5))
-        self._toggle_freeu_settings()
 
         add("loras", LoraList(StyleSettings.loras, self))
         add("style_prompt", LineEditSetting(StyleSettings.style_prompt, self))
@@ -915,14 +885,6 @@ class StylePresets(SettingsTab):
     def _toggle_live_sampler(self, checked: bool):
         for widget in self._live_sampler_widgets:
             widget.visible = checked
-
-    def _toggle_freeu_settings(self):
-        # Toggle visibility based on the checkbox state
-        checked = self._style_widgets["free_u"].value
-        self._style_widgets["b1"].setVisible(checked)
-        self._style_widgets["b2"].setVisible(checked)
-        self._style_widgets["s1"].setVisible(checked)
-        self._style_widgets["s2"].setVisible(checked)
 
     def _read_style(self, style: Style):
         with self._write_guard:
