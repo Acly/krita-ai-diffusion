@@ -16,8 +16,10 @@ from PyQt5.QtWidgets import (
     QHBoxLayout,
     QVBoxLayout,
     QSizePolicy,
+    QStyle,
+    QStyleOption,
 )
-from PyQt5.QtGui import QColor, QFontMetrics, QKeyEvent, QPalette, QTextCursor
+from PyQt5.QtGui import QColor, QFontMetrics, QKeyEvent, QPalette, QTextCursor, QPainter
 from PyQt5.QtCore import Qt, QMetaObject, QSize, pyqtSignal
 import krita
 
@@ -605,8 +607,28 @@ class WorkspaceSelectWidget(QToolButton):
         self.setPopupMode(QToolButton.InstantPopup)
         self.setAutoRaise(True)
         self.setToolTip("Switch between workspaces: image generation, upscaling, live preview")
-        self.setMinimumWidth(int(self.sizeHint().width() * 1.4))
+        self.setMinimumWidth(int(self.sizeHint().width() * 1.6))
         self.value = Workspace.generation
+
+    def paintEvent(self, event):
+        opt = QStyleOption()
+        opt.initFrom(self)
+        painter = QPainter(self)
+        style = ensure(self.style())
+        rect = self.rect()
+        pixmap = self.icon().pixmap(int(rect.height() * 0.75))
+        element = QStyle.PrimitiveElement.PE_Widget
+        if opt.state & QStyle.StateFlag.State_MouseOver:
+            element = QStyle.PrimitiveElement.PE_PanelButtonCommand
+        style.drawPrimitive(element, opt, painter, self)
+        style.drawItemPixmap(
+            painter,
+            rect.adjusted(4, 0, 0, 0),
+            Qt.AlignmentFlag.AlignLeft | Qt.AlignmentFlag.AlignVCenter,
+            pixmap,
+        )
+        painter.translate(pixmap.width() - (rect.width() // 2) + 12, 0)
+        style.drawPrimitive(QStyle.PrimitiveElement.PE_IndicatorArrowDown, opt, painter)
 
     @property
     def value(self):
