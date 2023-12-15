@@ -40,6 +40,35 @@ class StyleSettings:
         " [ComfyUI]/models/checkpoints.",
     )
 
+    free_u = Setting(
+        "Use FreeU",
+        False,
+        "FreeU is a method of modifying the UNet that can improve model output quality, "
+        "without any additional speed, memory, or computational costs. However the resulting "
+        "images may suffer from oversaturation.",
+    )
+
+    b1 = Setting(
+        "b1",
+        1.1,
+        "Backbone factor of the first stage block of decoder.",
+    )
+    b2 = Setting(
+        "b2",
+        1.2,
+        "Backbone factor of the second stage block of decoder.",
+    )
+    s1 = Setting(
+        "s1",
+        0.6,
+        "Skip factor of the first stage block of decoder.",
+    )
+    s2 = Setting(
+        "s2",
+        0.4,
+        "Skip factor of the second stage block of decoder.",
+    )
+
     loras = Setting(
         "LoRA",
         [],
@@ -106,6 +135,11 @@ class Style:
     name: str = StyleSettings.name.default
     sd_version: SDVersion = StyleSettings.sd_version.default
     sd_checkpoint: str = StyleSettings.sd_checkpoint.default
+    free_u: bool = StyleSettings.free_u.default
+    b1: float = StyleSettings.b1.default
+    b2: float = StyleSettings.b2.default
+    s1: float = StyleSettings.s1.default
+    s2: float = StyleSettings.s2.default
     loras: list[dict[str, str | float]]
     style_prompt: str = StyleSettings.style_prompt.default
     negative_prompt: str = StyleSettings.negative_prompt.default

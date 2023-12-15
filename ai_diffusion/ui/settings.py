@@ -752,6 +752,8 @@ class StylePresets(SettingsTab):
         self._checkpoint_warning.setVisible(False)
         self._layout.addWidget(self._checkpoint_warning, alignment=Qt.AlignmentFlag.AlignRight)
 
+        add("free_u", CheckBoxSetting(StyleSettings.free_u, "Use FreeU", self))
+
         add("loras", LoraList(StyleSettings.loras, self))
         add("style_prompt", LineEditSetting(StyleSettings.style_prompt, self))
         add("negative_prompt", LineEditSetting(StyleSettings.negative_prompt, self))

@@ -250,6 +250,10 @@ def load_model_with_lora(
     model, clip, vae = w.load_checkpoint(checkpoint)
     clip = w.clip_set_last_layer(clip, (style.clip_skip * -1))
 
+    # Check if FreeU is enabled in the style settings and apply it to the model
+    if style.free_u:
+        model = w.apply_freeu(model, style.b1, style.b2, style.s1, style.s2)
+
     if style.vae != StyleSettings.vae.default:
         if style.vae in comfy.vae_models:
             vae = w.load_vae(style.vae)
