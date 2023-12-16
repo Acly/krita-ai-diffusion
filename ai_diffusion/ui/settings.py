@@ -361,8 +361,7 @@ class LoraList(QWidget):
                 else:
                     menu.addMenu(self._build_menu(v, k, os.path.join(path, k)))
 
-            screen = QGuiApplication.screenAt(QCursor.pos())
-            if screen:
+            if screen := GuiApplication.screenAt(QCursor.pos()):
                 if menu.width() > screen.availableSize().width():
                     menu.setStyleSheet("QMenu{menu-scrollable: 1;}")
                 
