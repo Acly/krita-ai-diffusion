@@ -1131,6 +1131,7 @@ class SettingsDialog(QDialog):
         inner.addLayout(button_layout)
 
         root.connection.state_changed.connect(self._update_connection)
+        root.connection.models_changed.connect(self.styles.update_model_lists)
 
     def read(self):
         self.connection.read()
@@ -1158,7 +1159,6 @@ class SettingsDialog(QDialog):
     def _update_connection(self):
         self.connection.update_server_status()
         if root.connection.state == ConnectionState.connected:
-            self.styles.update_model_lists()
             self.performance.update_device_info()
 
     def _close(self):
