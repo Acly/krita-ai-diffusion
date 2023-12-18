@@ -15,7 +15,6 @@ yellow = "#cc3" if is_dark else "#762"
 red = "#c33"
 grey = "#888" if is_dark else "#555"
 highlight = "#8df" if is_dark else "#346"
-
 background_inactive = "#606060"
 background_active = QGuiApplication.palette().highlight().color().name()
 

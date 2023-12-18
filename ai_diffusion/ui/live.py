@@ -8,6 +8,7 @@ from PyQt5.QtWidgets import (
     QLabel,
     QSpinBox,
     QSizePolicy,
+    QProgressBar,
 )
 
 from ..properties import Binding, bind, Bind
@@ -116,6 +117,21 @@ class LiveWidget(QWidget):
         self.error_text.setVisible(False)
         layout.addWidget(self.error_text)
 
+        self.progress_bar = QProgressBar(self)
+        self.progress_bar.setTextVisible(True)
+        self.progress_bar.setFormat("Loading %p%")
+        self.progress_bar.setStyleSheet(f"""
+            QProgressBar {{
+                background: transparent;
+                text-align: center;
+            }}
+            QProgressBar::chunk {{
+                background-color: {theme.grey};
+                width: 20px;
+            }}""")
+        self.progress_bar.setVisible(False)
+        layout.addWidget(self.progress_bar)
+
         self.preview_area = QLabel(self)
         self.preview_area.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Expanding)
         self.preview_area.setAlignment(
@@ -146,6 +162,7 @@ class LiveWidget(QWidget):
                 self.random_seed_button.clicked.connect(model.live.generate_seed),
                 model.error_changed.connect(self.error_text.setText),
                 model.has_error_changed.connect(self.error_text.setVisible),
+                model.progress_changed.connect(self.update_progress),
                 model.live.result_available.connect(self.show_result),
             ]
             self.control_list.model = model
@@ -163,7 +180,13 @@ class LiveWidget(QWidget):
             self._pause_icon if self.model.live.is_active else self._play_icon
         )
 
+    def update_progress(self):
+        if self.model.live.result is None:
+            self.progress_bar.setVisible(True)
+            self.progress_bar.setValue(int(self.model.progress * 100))
+
     def show_result(self, image: Image):
+        self.progress_bar.setVisible(False)
         target = Extent.from_qsize(self.preview_area.size())
         img = Image.scale_to_fit(image, target)
         self.preview_area.setPixmap(img.to_pixmap())
