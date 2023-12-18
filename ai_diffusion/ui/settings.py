@@ -686,6 +686,7 @@ class ConnectionSettings(SettingsTab):
 
 
 class StylePresets(SettingsTab):
+    _checkpoint_advanced_widgets: list[SettingWidget]
     _default_sampler_widgets: list[SettingWidget]
     _live_sampler_widgets: list[SettingWidget]
 
@@ -752,11 +753,22 @@ class StylePresets(SettingsTab):
         self._checkpoint_warning.setVisible(False)
         self._layout.addWidget(self._checkpoint_warning, alignment=Qt.AlignmentFlag.AlignRight)
 
+        checkpoint_advanced = ExpanderButton("Checkpoint configuration (advanced)", self)
+        checkpoint_advanced.toggled.connect(self._toggle_checkpoint_advanced)
+        self._layout.addWidget(checkpoint_advanced)
+        self._checkpoint_advanced_widgets = [
+            add("vae", ComboBoxSetting(StyleSettings.vae, self)),
+            add("clip_skip", SliderSetting(StyleSettings.clip_skip, self, 1, 12)),
+            add(
+                "v_prediction_zsnr",
+                CheckBoxSetting(StyleSettings.v_prediction_zsnr, "Enable", self),
+            ),
+        ]
+        self._toggle_checkpoint_advanced(False)
+
         add("loras", LoraList(StyleSettings.loras, self))
         add("style_prompt", LineEditSetting(StyleSettings.style_prompt, self))
         add("negative_prompt", LineEditSetting(StyleSettings.negative_prompt, self))
-        add("vae", ComboBoxSetting(StyleSettings.vae, self))
-        add("clip_skip", SliderSetting(StyleSettings.clip_skip, self, 1, 12))
 
         sdesc = "Configure sampler type, steps and CFG to tweak the quality of generated images."
         add_header(self._layout, Setting("Sampler Settings", "", sdesc))
@@ -783,7 +795,11 @@ class StylePresets(SettingsTab):
         ]
         self._toggle_live_sampler(False)
 
-        for widget in chain(self._default_sampler_widgets, self._live_sampler_widgets):
+        for widget in chain(
+            self._checkpoint_advanced_widgets,
+            self._default_sampler_widgets,
+            self._live_sampler_widgets,
+        ):
             widget.indent = 1
 
         self._layout.addStretch()
@@ -875,6 +891,10 @@ class StylePresets(SettingsTab):
                     " not been installed."
                 )
                 self._checkpoint_warning.setVisible(True)
+
+    def _toggle_checkpoint_advanced(self, checked: bool):
+        for widget in self._checkpoint_advanced_widgets:
+            widget.visible = checked
 
     def _toggle_default_sampler(self, checked: bool):
         for widget in self._default_sampler_widgets:

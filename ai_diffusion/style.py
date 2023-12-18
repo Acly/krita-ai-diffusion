@@ -70,6 +70,13 @@ class StyleSettings:
         "Last layer to stop CLIP at. Most models use 1 while some require 2.",
     )
 
+    v_prediction_zsnr = Setting(
+        "V-Prediction / Zero Terminal SNR",
+        False,
+        "Enable this if the checkpoint is a v-prediction model which requires zero terminal SNR"
+        " noise schedule",
+    )
+
     sampler = Setting(
         "Sampler",
         "DPM++ 2M Karras",
@@ -111,6 +118,7 @@ class Style:
     negative_prompt: str = StyleSettings.negative_prompt.default
     vae: str = StyleSettings.vae.default
     clip_skip: int = StyleSettings.clip_skip.default
+    v_prediction_zsnr: bool = StyleSettings.v_prediction_zsnr.default
     sampler: str = StyleSettings.sampler.default
     sampler_steps: int = StyleSettings.sampler_steps.default
     cfg_scale: float = StyleSettings.cfg_scale.default

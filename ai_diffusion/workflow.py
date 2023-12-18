@@ -262,11 +262,17 @@ def load_model_with_lora(
             continue
         model, clip = w.load_lora(model, clip, lora["name"], lora["strength"], lora["strength"])
 
-    if style.get_sampler_config(is_live=is_live).sampler == "LCM":
+    is_lcm = style.get_sampler_config(is_live=is_live).sampler == "LCM"
+    if is_lcm:
         sdver = resolve_sd_version(style, comfy)
         if comfy.lcm_model[sdver] is None:
             raise Exception(f"LCM LoRA model not found for {sdver.value}")
         model, _ = w.load_lora(model, clip, comfy.lcm_model[sdver], 1.0, 1.0)
+
+    if style.v_prediction_zsnr:
+        model = w.model_sampling_discrete(model, "v_prediction", zsnr=True)
+        model = w.rescale_cfg(model, 0.7)
+    elif is_lcm:
         model = w.model_sampling_discrete(model, "lcm")
 
     return model, clip, vae

@@ -46,7 +46,7 @@ class Root(QObject):
         return None
 
     @property
-    def connection(self):
+    def connection(self) -> Connection:
         return self._connection
 
     @property

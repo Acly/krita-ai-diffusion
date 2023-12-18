@@ -149,8 +149,11 @@ class ComfyWorkflow:
             return_with_leftover_noise="disable",
         )
 
-    def model_sampling_discrete(self, model: Output, sampling: str):
-        return self.add("ModelSamplingDiscrete", 1, model=model, sampling=sampling, zsnr=False)
+    def model_sampling_discrete(self, model: Output, sampling: str, zsnr=False):
+        return self.add("ModelSamplingDiscrete", 1, model=model, sampling=sampling, zsnr=zsnr)
+
+    def rescale_cfg(self, model: Output, multiplier=0.7):
+        return self.add("RescaleCFG", 1, model=model, multiplier=multiplier)
 
     def load_checkpoint(self, checkpoint: str):
         return self.add_cached("CheckpointLoaderSimple", 3, ckpt_name=checkpoint)
