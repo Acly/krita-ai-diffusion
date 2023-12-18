@@ -38,10 +38,6 @@ from . import actions, theme
 
 
 class QueueWidget(QToolButton):
-    _style = """
-        QToolButton {{ border: none; border-radius: 6px; background-color: {color}; color: white; }}
-        QToolButton::menu-indicator {{ width: 0px; }}"""
-
     _jobs: JobQueue
 
     def __init__(self, parent):
@@ -55,10 +51,9 @@ class QueueWidget(QToolButton):
         queue_menu.addAction(self._create_action("Cancel all", actions.cancel_all))
         self.setMenu(queue_menu)
 
-        self.setStyleSheet(self._style.format(color=theme.background_inactive))
-        self.setToolButtonStyle(Qt.ToolButtonStyle.ToolButtonTextOnly)
+        self.setToolButtonStyle(Qt.ToolButtonStyle.ToolButtonTextBesideIcon)
         self.setPopupMode(QToolButton.InstantPopup)
-        self.setArrowType(Qt.ArrowType.NoArrow)
+        self.setMinimumWidth(int(self.sizeHint().width() * 2.2))
         self._update()
 
     @property
@@ -74,20 +69,24 @@ class QueueWidget(QToolButton):
     def _update(self):
         count = self._jobs.count(JobState.queued)
         if self._jobs.any_executing():
-            self.setStyleSheet(self._style.format(color=theme.background_active))
+            self.setIcon(theme.icon("queue-active"))
             if count > 0:
                 self.setToolTip(f"Generating image. {count} jobs queued - click to cancel.")
             else:
                 self.setToolTip(f"Generating image. Click to cancel.")
+            count += 1
         else:
-            self.setStyleSheet(self._style.format(color=theme.background_inactive))
+            self.setIcon(theme.icon("queue-inactive"))
             self.setToolTip("Idle.")
-        self.setText(f"+{count} ")
+        self.setText(f"{count} ")
 
     def _create_action(self, name: str, func: Callable[[], None]):
         action = QAction(name, self)
         action.triggered.connect(func)
         return action
+
+    def paintEvent(self, event):
+        _paint_tool_drop_down(self, self.text())
 
 
 class ControlWidget(QWidget):
@@ -605,30 +604,12 @@ class WorkspaceSelectWidget(QToolButton):
         self.setToolButtonStyle(Qt.ToolButtonStyle.ToolButtonIconOnly)
         self.setMenu(menu)
         self.setPopupMode(QToolButton.InstantPopup)
-        self.setAutoRaise(True)
         self.setToolTip("Switch between workspaces: image generation, upscaling, live preview")
         self.setMinimumWidth(int(self.sizeHint().width() * 1.6))
         self.value = Workspace.generation
 
     def paintEvent(self, event):
-        opt = QStyleOption()
-        opt.initFrom(self)
-        painter = QPainter(self)
-        style = ensure(self.style())
-        rect = self.rect()
-        pixmap = self.icon().pixmap(int(rect.height() * 0.75))
-        element = QStyle.PrimitiveElement.PE_Widget
-        if opt.state & QStyle.StateFlag.State_MouseOver:
-            element = QStyle.PrimitiveElement.PE_PanelButtonCommand
-        style.drawPrimitive(element, opt, painter, self)
-        style.drawItemPixmap(
-            painter,
-            rect.adjusted(4, 0, 0, 0),
-            Qt.AlignmentFlag.AlignLeft | Qt.AlignmentFlag.AlignVCenter,
-            pixmap,
-        )
-        painter.translate(pixmap.width() - (rect.width() // 2) + 12, 0)
-        style.drawPrimitive(QStyle.PrimitiveElement.PE_IndicatorArrowDown, opt, painter)
+        _paint_tool_drop_down(self)
 
     @property
     def value(self):
@@ -645,3 +626,29 @@ class WorkspaceSelectWidget(QToolButton):
         action.setIconVisibleInMenu(True)
         action.triggered.connect(actions.set_workspace(workspace))
         return action
+
+
+def _paint_tool_drop_down(widget: QToolButton, text: str | None = None):
+    opt = QStyleOption()
+    opt.initFrom(widget)
+    painter = QPainter(widget)
+    style = ensure(widget.style())
+    rect = widget.rect()
+    pixmap = widget.icon().pixmap(int(rect.height() * 0.75))
+    element = QStyle.PrimitiveElement.PE_Widget
+    if opt.state & QStyle.StateFlag.State_MouseOver:
+        element = QStyle.PrimitiveElement.PE_PanelButtonCommand
+    style.drawPrimitive(element, opt, painter, widget)
+    style.drawItemPixmap(
+        painter,
+        rect.adjusted(4, 0, 0, 0),
+        Qt.AlignmentFlag.AlignLeft | Qt.AlignmentFlag.AlignVCenter,
+        pixmap,
+    )
+    if text:
+        text_rect = rect.adjusted(pixmap.width() + 4, 0, 0, 0)
+        style.drawItemText(
+            painter, text_rect, Qt.AlignmentFlag.AlignVCenter, widget.palette(), True, text
+        )
+    painter.translate(int(0.5 * rect.width() - 10), 0)
+    style.drawPrimitive(QStyle.PrimitiveElement.PE_IndicatorArrowDown, opt, painter)

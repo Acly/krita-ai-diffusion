@@ -280,6 +280,7 @@ class GenerationWidget(QWidget):
         self.generate_button = QPushButton("Generate", self)
         self.generate_button.setMinimumHeight(int(self.generate_button.sizeHint().height() * 1.2))
         self.queue_button = QueueWidget(self)
+        self.queue_button.setMinimumHeight(self.generate_button.minimumHeight())
         actions_layout = QHBoxLayout()
         actions_layout.addWidget(self.generate_button)
         actions_layout.addWidget(self.queue_button)

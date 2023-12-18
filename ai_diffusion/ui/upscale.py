@@ -85,6 +85,7 @@ class UpscaleWidget(QWidget):
         self.upscale_button.clicked.connect(self.upscale)
 
         self.queue_button = QueueWidget(self)
+        self.queue_button.setMinimumHeight(self.upscale_button.minimumHeight())
 
         actions_layout = QHBoxLayout()
         actions_layout.addWidget(self.upscale_button)
