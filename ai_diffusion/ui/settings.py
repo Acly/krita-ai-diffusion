@@ -42,6 +42,7 @@ from ..root import root
 from .. import util, __version__
 from ..connection import ConnectionState, apply_performance_preset
 from .server import ServerWidget
+from .switch import SwitchWidget
 from .theme import add_header, icon, sd_version_icon, red, yellow, green, grey
 
 
@@ -78,7 +79,8 @@ class SettingWidget(QWidget):
 
         self._layout = QHBoxLayout()
         self._layout.setContentsMargins(0, 2, 0, 2)
-        self._layout.addWidget(self._key_label, alignment=Qt.AlignmentFlag.AlignLeft)
+        self._layout.addWidget(self._key_label)
+        self._layout.addStretch(1)
         self.setLayout(self._layout)
 
     def add_button(self, icon: QIcon, tooltip: str, handler):
@@ -283,21 +285,34 @@ class LineEditSetting(QWidget):
         self._edit.setText(v)
 
 
-class CheckBoxSetting(SettingWidget):
-    def __init__(self, setting: Setting, text: str, parent=None):
+class SwitchSetting(SettingWidget):
+    _text: tuple[str, str]
+
+    def __init__(self, setting: Setting, text=("On", "Off"), parent=None):
         super().__init__(setting, parent)
-        self._checkbox = QCheckBox(self)
-        self._checkbox.setText(text)
-        self._checkbox.stateChanged.connect(self._notify_value_changed)
-        self._layout.addWidget(self._checkbox, alignment=Qt.AlignmentFlag.AlignRight)
+        self._text = text
+
+        self._label = QLabel(text[0], self)
+        self._switch = SwitchWidget(self)
+        self._switch.toggled.connect(self._notify_value_changed)
+        self._layout.addWidget(self._label)
+        self._layout.addWidget(self._switch)
+
+    def _update_text(self):
+        self._label.setText(self._text[0 if self._switch.is_checked else 1])
+
+    def _notify_value_changed(self):
+        self._update_text()
+        super()._notify_value_changed()
 
     @property
     def value(self):
-        return self._checkbox.isChecked()
+        return self._switch.is_checked
 
     @value.setter
     def value(self, v):
-        self._checkbox.setChecked(v)
+        self._switch.is_checked = v
+        self._update_text()
 
 
 class LoraList(QWidget):
@@ -759,10 +774,7 @@ class StylePresets(SettingsTab):
         self._checkpoint_advanced_widgets = [
             add("vae", ComboBoxSetting(StyleSettings.vae, self)),
             add("clip_skip", SliderSetting(StyleSettings.clip_skip, self, 1, 12)),
-            add(
-                "v_prediction_zsnr",
-                CheckBoxSetting(StyleSettings.v_prediction_zsnr, "Enable", self),
-            ),
+            add("v_prediction_zsnr", SwitchSetting(StyleSettings.v_prediction_zsnr, parent=self)),
         ]
         self._toggle_checkpoint_advanced(False)
 
@@ -963,9 +975,11 @@ class InterfaceSettings(SettingsTab):
 
         S = Settings
         self.add("prompt_line_count", SpinBoxSetting(S._prompt_line_count, self, 1, 10))
-        self.add("show_negative_prompt", CheckBoxSetting(S._show_negative_prompt, "Show", self))
-        self.add("show_control_end", CheckBoxSetting(S._show_control_end, "Show", self))
-        self.add("auto_preview", CheckBoxSetting(S._auto_preview, "Enable", self))
+        self.add(
+            "show_negative_prompt", SwitchSetting(S._show_negative_prompt, ("Show", "Hide"), self)
+        )
+        self.add("show_control_end", SwitchSetting(S._show_control_end, ("Show", "Hide"), self))
+        self.add("auto_preview", SwitchSetting(S._auto_preview, ("On", "Off"), self))
 
         self._layout.addStretch()
 
