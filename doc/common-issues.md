@@ -4,7 +4,7 @@ This document collects some common issues and potential solutions.
 > Before you report a problem on GitHub:
 > * make sure it cannot be resolved by one of the solutions proposed here
 > * use the search to find existing issues related to your problem
-> * gather relevant information such as OS, Krita and Plugin versions, GPU, log files
+> * gather relevant information such as OS, Krita and Plugin versions, GPU, [log files](#log-files)
 
 You can [create a new Issue here](https://github.com/Acly/krita-ai-diffusion/issues).
 
@@ -115,11 +115,11 @@ If you consider generation too slow, here are a few things to check:
 
 If you choose to manage your own ComfyUI installation rather than using the built-in installer, keep in mind that you are responsible for getting it running,
 installing the plugin's prerequisites as needed, and keeping it up to date. ComfyUI is a fast-moving project with a huge number of extensions and potential for customization.
-As a result you may also sometimes encounter problem and conflicts that need to be resolved.
+As a result you may also sometimes encounter problems and conflicts that need to be resolved.
 
 > [!IMPORTANT]
 > Please understand that we cannot give tech support for individual ComfyUI installations out there.
-> Don't open an Issue here if the problem is not related to the Krita plugin.
+> Don't open an issue here if the problem is not related to the Krita plugin.
 
 A lot of related issues can be resolved by carefully following the [requirements](comfy-requirements.md) and its troubleshooting section.
 

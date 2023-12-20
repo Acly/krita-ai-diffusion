@@ -86,7 +86,7 @@ If you're looking for a way to easily select objects in the image, there is a [s
 
 ### GPU Cloud
 
-You can also rent a GPU instead of running locally. In that case, step 5 is not needed. Instead use the plugin to connect to a remote server.
+You can also rent a GPU instead of running locally. In that case, step 6 is not needed. Instead use the plugin to connect to a remote server.
 
 There is a [step by step guide](https://github.com/Acly/krita-ai-diffusion/blob/main/doc/cloud-gpu.md) on how to setup cloud GPU on [runpod.io](https://www.runpod.io) or [vast.ai](https://vast.ai).
 
