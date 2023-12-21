@@ -299,13 +299,15 @@ class CheckBoxSetting(SettingWidget):
     def value(self, v):
         self._checkbox.setChecked(v)
 
-def _menu_width(menu) -> int:
+
+def _menu_width(menu: QMenu) -> int:
     if not menu.isEmpty():
         last_action = menu.actions()[-1]
         action_rect = menu.actionGeometry(last_action)
         return action_rect.right()
     else:
         return 0
+
 
 class LoraList(QWidget):
     class Item(QWidget):
