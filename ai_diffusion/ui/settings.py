@@ -299,15 +299,14 @@ class CheckBoxSetting(SettingWidget):
     def value(self, v):
         self._checkbox.setChecked(v)
 
-class QMenu(QMenu):
-    def width(self) -> int:
-        if not self.isEmpty():
-            last_action = self.actions()[-1]
-            action_rect = self.actionGeometry(last_action)
-            return action_rect.right()
-        else:
-            return 0
-            
+def _menu_width(menu) -> int:
+    if not menu.isEmpty():
+        last_action = menu.actions()[-1]
+        action_rect = menu.actionGeometry(last_action)
+        return action_rect.right()
+    else:
+        return 0
+
 class LoraList(QWidget):
     class Item(QWidget):
         changed = pyqtSignal()
@@ -362,9 +361,9 @@ class LoraList(QWidget):
                     menu.addMenu(self._build_menu(v, k, os.path.join(path, k)))
 
             if screen := QGuiApplication.screenAt(QCursor.pos()):
-                if menu.width() > screen.availableSize().width():
+                if _menu_width(menu) > screen.availableSize().width():
                     menu.setStyleSheet("QMenu{menu-scrollable: 1;}")
-                
+
             return menu
 
         def _select_update(self, text):
