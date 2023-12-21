@@ -44,8 +44,8 @@ class Model(QObject, metaclass=PropertyMeta):
     negative_prompt = Property("")
     control: ControlLayerList
     strength = Property(1.0)
-    upscale: UpscaleWorkspace
-    live: LiveWorkspace
+    upscale: "UpscaleWorkspace"
+    live: "LiveWorkspace"
     progress = Property(0.0)
     jobs: JobQueue
     error = Property("")
@@ -446,6 +446,8 @@ class LiveWorkspace(QObject, metaclass=PropertyMeta):
         assert self.result is not None and self._result_bounds is not None
         doc = self._model.document
         doc.insert_layer(f"[Live] {self._model.prompt}", self.result, self._result_bounds)
+        if settings.new_seed_after_apply:
+            self.generate_seed()
 
     @property
     def result(self):

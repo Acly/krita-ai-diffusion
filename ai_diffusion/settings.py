@@ -115,6 +115,13 @@ class Settings(QObject):
         "Random Seed", "0", "Random number to produce different results with each generation"
     )
 
+    new_seed_after_apply: bool
+    _new_seed_after_apply = Setting(
+        "Live: New Seed after Apply",
+        False,
+        "Pick a new seed after copying the result to the canvas in Live mode",
+    )
+
     prompt_line_count: int
     _prompt_line_count = Setting(
         "Prompt Line Count", 2, "Size of the text editor for image descriptions"
