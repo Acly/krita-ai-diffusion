@@ -621,10 +621,10 @@ def refine_region(
     return w
 
 
-def create_control_image(image: Image, mode: ControlMode):
+def create_control_image(comfy: Client, image: Image, mode: ControlMode):
     assert mode not in [ControlMode.image, ControlMode.inpaint]
 
-    w = ComfyWorkflow()
+    w = ComfyWorkflow(comfy.nodes_inputs)
     input = w.load_image(image)
     result = None
 
@@ -663,7 +663,7 @@ def create_control_image(image: Image, mode: ControlMode):
 
 
 def upscale_simple(comfy: Client, image: Image, model: str, factor: float):
-    w = ComfyWorkflow()
+    w = ComfyWorkflow(comfy.nodes_inputs)
     upscale_model = w.load_upscale_model(model)
     img = w.load_image(image)
     img = w.upscale_image(upscale_model, img)

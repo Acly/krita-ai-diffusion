@@ -39,7 +39,7 @@ class Document:
 
     def get_image(
         self, bounds: Bounds | None = None, exclude_layers: list[krita.Node] | None = None
-    ):
+    ) -> Image:
         raise NotImplementedError
 
     def get_layer_image(self, layer: krita.Node, bounds: Bounds | None) -> Image:

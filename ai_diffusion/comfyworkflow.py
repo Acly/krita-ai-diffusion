@@ -30,24 +30,19 @@ class ComfyWorkflow:
         self._cache = {}
         self._nodes_required_inputs = node_inputs or {}
 
-    def get_node_optional_values(self, node_name: str, args: dict):
-        node_inputs = self._nodes_required_inputs.get(node_name, None)
-
-        if node_inputs is None:
-            return args
-
-        values = {}
-        for k, v in node_inputs.items():
-            if args is not None and k in args.keys():
-                values[k] = args[k]
-            elif len(v) == 1:
-                if isinstance(v[0], list) and len(v[0]) > 0:
-                    values[k] = v[0][0]
-            elif len(k) >= 1 and isinstance(v[1], dict):
-                if v[1].get("default", None) is not None:
-                    values[k] = v[1]["default"]
-
-        return values
+    def add_default_values(self, node_name: str, args: dict):
+        if node_inputs := self._nodes_required_inputs.get(node_name, None):
+            for k, v in node_inputs.items():
+                if k not in args:
+                    if len(v) == 1 and isinstance(v[0], list) and len(v[0]) > 0:
+                        # enum type, use first value in list of possible values
+                        args[k] = v[0][0]
+                    elif len(v) > 1 and isinstance(v[1], dict):
+                        # other type, try to access default value
+                        default = v[1].get("default", None)
+                        if default is not None:
+                            args[k] = default
+        return args
 
     def dump(self, filepath: str):
         with open(filepath, "w") as f:
@@ -63,7 +58,7 @@ class ComfyWorkflow:
     def add(self, class_type: str, output_count: Literal[3], **inputs) -> Output3: ...
 
     def add(self, class_type: str, output_count: int, **inputs):
-        inputs = self.get_node_optional_values(class_type, inputs)
+        inputs = self.add_default_values(class_type, inputs)
         normalize = lambda x: [str(x.node), x.output] if isinstance(x, Output) else x
         self.node_count += 1
         self.root[str(self.node_count)] = {

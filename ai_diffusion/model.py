@@ -213,7 +213,7 @@ class Model(QObject, metaclass=PropertyMeta):
 
     async def _generate_control_layer(self, job: Job, image: Image, mode: ControlMode):
         client = self._connection.client
-        work = workflow.create_control_image(image, mode)
+        work = workflow.create_control_image(client, image, mode)
         job.id = await client.enqueue(work)
 
     def cancel(self, active=False, queued=False):

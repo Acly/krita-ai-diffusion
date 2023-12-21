@@ -398,7 +398,7 @@ def test_control_scribble(qtapp, comfy, temp_settings, op):
 def test_create_control_image(qtapp, comfy, mode):
     image_name = f"test_create_control_image_{mode.name}.png"
     image = Image.load(image_dir / "adobe_stock.jpg")
-    job = workflow.create_control_image(image, mode)
+    job = workflow.create_control_image(comfy, image, mode)
 
     async def main():
         result = await run_and_save(comfy, job, image_name)
@@ -411,7 +411,7 @@ def test_create_control_image(qtapp, comfy, mode):
 def test_create_open_pose_vector(qtapp, comfy):
     image_name = f"test_create_open_pose_vector.svg"
     image = Image.load(image_dir / "adobe_stock.jpg")
-    job = workflow.create_control_image(image, ControlMode.pose)
+    job = workflow.create_control_image(comfy, image, ControlMode.pose)
 
     async def main():
         job_id = None

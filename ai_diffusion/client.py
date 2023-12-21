@@ -147,6 +147,7 @@ class Client:
         ]
         if len(missing) > 0:
             raise MissingResource(ResourceKind.node, missing)
+        client.nodes_inputs = {name: nodes[name]["input"]["required"] for name in nodes}
 
         # Retrieve list of checkpoints
         client._refresh_models(nodes, await client.try_inspect_checkpoints())
@@ -164,9 +165,6 @@ class Client:
         client.ip_adapter_model = {
             ver: _find_ip_adapter(ip, ver) for ver in [SDVersion.sd15, SDVersion.sdxl]
         }
-        client.nodes_inputs["IPAdapterApplyEncoded"] = nodes["IPAdapterApplyEncoded"]["input"][
-            "required"
-        ]
 
         # Retrieve upscale models
         client.upscalers = nodes["UpscaleModelLoader"]["input"]["required"]["model_name"][0]
