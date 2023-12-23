@@ -147,7 +147,7 @@ class Client:
         ]
         if len(missing) > 0:
             raise MissingResource(ResourceKind.node, missing)
-        client.nodes_inputs = {name: nodes[name]["input"]["required"] for name in nodes}
+        client.nodes_inputs = {name: nodes[name]["input"].get("required", None) for name in nodes}
 
         # Retrieve list of checkpoints
         client._refresh_models(nodes, await client.try_inspect_checkpoints())
