@@ -409,9 +409,10 @@ class LoraList(QWidget):
                             self._select_update(lora_path)
                             return
 
-                self._select.setText("Error lora not detected by Comfy Server.\n"
-                                     "Make sure lora file is is Comfy Server's lora folder.\n"
-                                     "Try refreshing lora list."
+                self._select.setText(
+                    "Error lora not detected by Comfy Server.\n"
+                    "Make sure lora file is is Comfy Server's lora folder.\n"
+                    "Try refreshing lora list."
                 )
 
             else:
