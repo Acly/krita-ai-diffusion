@@ -401,7 +401,7 @@ class LoraList(QWidget):
                 url = event.mimeData().urls()[0]
                 lora_path = url.toLocalFile()
                 lora_path = lora_path.replace("/", os.sep)
-                
+
                 if client := root.connection.client_if_connected:
                     while os.sep in lora_path:
                         _, lora_path = lora_path.split(os.sep, 1)
