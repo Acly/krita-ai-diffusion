@@ -399,7 +399,7 @@ class LoraList(QWidget):
             if event.mimeData().hasUrls:
                 event.accept()
                 url = event.mimeData().urls()[0]
-                lora_path = url.toLocalFile() # DOCS "returned path will use '/', even if originally created from '\'"
+                lora_path = url.toLocalFile()
                 lora_path = lora_path.replace('/', os.sep)
                 
                 if client := root.connection.client_if_connected:
@@ -411,7 +411,8 @@ class LoraList(QWidget):
 
                 self._select.setText("Error lora not detected by Comfy Server.\n"
                                      "Make sure lora file is is Comfy Server's lora folder.\n"
-                                     "Try refreshing lora list.")
+                                     "Try refreshing lora list."
+                )
 
             else:
                 event.ignore()
