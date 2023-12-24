@@ -332,6 +332,7 @@ class LoraList(QWidget):
         def __init__(self, lora_names, parent=None):
             super().__init__(parent)
             self.setContentsMargins(0, 0, 0, 0)
+            self.setAcceptDrops(True)
 
             layout = QHBoxLayout()
             layout.setContentsMargins(0, 0, 0, 0)
@@ -387,6 +388,33 @@ class LoraList(QWidget):
             self._select_value = text
             self._select.setText(text)
             self._update()
+
+        def dragEnterEvent(self, event):
+            if event.mimeData().hasUrls:
+                event.accept()
+            else:
+                event.ignore()
+
+        def dropEvent(self, event):
+            if event.mimeData().hasUrls:
+                event.accept()
+                url = event.mimeData().urls()[0]
+                lora_path = url.toLocalFile() # DOCS "returned path will use '/', even if originally created from '\'"
+                lora_path = lora_path.replace('/', os.sep)
+                
+                if client := root.connection.client_if_connected:
+                    while os.sep in lora_path:
+                        _, lora_path = lora_path.split(os.sep, 1)
+                        if lora_path in client.lora_models:
+                            self._select_update(lora_path)
+                            return
+
+                self._select.setText("Error lora not detected by Comfy Server.\n"
+                                     "Make sure lora file is is Comfy Server's lora folder.\n"
+                                     "Try refreshing lora list.")
+
+            else:
+                event.ignore()
 
         @property
         def value(self):
