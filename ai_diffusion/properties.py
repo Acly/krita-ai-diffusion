@@ -1,7 +1,7 @@
 from enum import Enum
-from typing import NamedTuple, Sequence, TypeVar, Generic
+from typing import Any, NamedTuple, Sequence, TypeVar, Generic
 
-from PyQt5.QtCore import QObject, QMetaObject, pyqtSignal, pyqtBoundSignal, pyqtProperty  # type: ignore
+from PyQt5.QtCore import QObject, QMetaObject, QUuid, pyqtBoundSignal, pyqtProperty  # type: ignore
 from PyQt5.QtWidgets import QComboBox
 
 
@@ -17,13 +17,13 @@ class PropertyMeta(type(QObject)):
             if not isinstance(attr, Property):
                 continue
 
-            attrs[f"_{key}"] = attr._default_value
+            attrs[f"_{key}"] = attr.default_value
             getter, setter = None, None
-            if attr._getter is not None:
-                getter = attrs[attr._getter]
-            if attr._setter is not None:
-                setter = attrs[attr._setter]
-            attrs[key] = PropertyImpl(key, getter, setter)
+            if attr.getter is not None:
+                getter = attrs[attr.getter]
+            if attr.setter is not None:
+                setter = attrs[attr.setter]
+            attrs[key] = PropertyImpl(key, getter, setter, attr.persist)
 
         return super().__new__(cls, name, bases, attrs)
 
@@ -31,14 +31,16 @@ class PropertyMeta(type(QObject)):
 class Property(Generic[T]):
     """Property definition. Will be replaced with with PropertyImpl at instance creation."""
 
-    _default_value: T
-    _getter = None
-    _setter = None
+    default_value: T
+    getter = None
+    setter = None
+    persist = False
 
-    def __init__(self, default_value: T, getter=None, setter=None):
-        self._default_value = default_value
-        self._getter = getter
-        self._setter = setter
+    def __init__(self, default_value: T, getter=None, setter=None, persist=False):
+        self.default_value = default_value
+        self.getter = getter
+        self.setter = setter
+        self.persist = persist
 
     def __get__(self, instance, owner) -> T: ...
     def __set__(self, instance, value: T): ...
@@ -49,10 +51,12 @@ class PropertyImpl(property):
     """Property implementation: gets, sets, and notifies of change."""
 
     name: str
+    persist: bool
 
-    def __init__(self, name: str, getter=None, setter=None):
+    def __init__(self, name: str, getter, setter, persist: bool):
         super().__init__(getter or self.getter, setter or self.setter)
         self.name = name
+        self.persist = persist
 
     def getter(self, instance):
         return getattr(instance, f"_{self.name}")
@@ -65,6 +69,10 @@ class PropertyImpl(property):
         setattr(instance, f"_{self.name}", value)
         signal = getattr(instance, f"{self.name}_changed")
         signal.emit(value)
+
+        if self.persist:
+            if modified_signal := getattr(instance, "modified", None):
+                modified_signal.emit(instance, self.name)
 
 
 class Binding(NamedTuple):
@@ -139,3 +147,42 @@ def _setter(inst, property: str):
         return getattr(inst, qt_setter_name)
     else:
         return set_py
+
+
+def is_persistent(obj: QObject, name: str):
+    if prop := obj.__class__.__dict__.get(name, None):
+        return isinstance(prop, PropertyImpl) and prop.persist
+
+
+def _default_serializer(value):
+    return value
+
+
+def _default_deserializer(type, value):
+    return value
+
+
+def serialize(obj: QObject, converter=_default_serializer):
+    def _serialize(propt: str):
+        value = getattr(obj, propt)
+        if isinstance(value, Enum):
+            return value.value
+        elif isinstance(value, QUuid):
+            return value.toString()
+        return converter(value)
+
+    return {name: _serialize(name) for name in dir(obj.__class__) if is_persistent(obj, name)}
+
+
+def deserialize(obj: QObject, data: dict[str, Any], converter=_default_deserializer):
+    for name, value in data.items():
+        if is_persistent(obj, name):
+            current = getattr(obj, name, None)
+            if isinstance(current, Enum):
+                value = current.__class__(value)
+            elif isinstance(current, QUuid):
+                value = QUuid(value)
+            value = converter(type(current), value)
+            if not isinstance(value, type(current)):
+                raise TypeError(f"{name} was '{value}', but expected {type(current)}")
+            setattr(obj, name, value)

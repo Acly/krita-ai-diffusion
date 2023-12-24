@@ -9,6 +9,7 @@ from .document import Document, KritaDocument
 from .model import Model
 from .settings import ServerMode, settings
 from .util import client_logger as log
+from . import persistence
 
 
 class Root(QObject):
@@ -30,20 +31,29 @@ class Root(QObject):
         self._models = []
         self._connection.message_received.connect(self._handle_message)
 
-    def model_for_active_document(self):
+    def prune_models(self):
         # Remove models for documents that have been closed
-        self._models = [m for m in self._models if m.is_valid]
+        self._models = [m for m in self._models if m.document.is_valid]
 
-        # Find or create model for active document
-        if doc := KritaDocument.active():
-            model = next((m for m in self._models if m.is_active), None)
-            if model is None:
-                model = Model(doc, self._connection)
-                self._models.append(model)
-                self.model_created.emit(model)
-            return model
+    def create_model(self, doc: KritaDocument):
+        model = Model(doc, self._connection)
+        persistence.load(model)
+        persistence.track(model)
+        self._models.append(model)
+        self.model_created.emit(model)
+        self.prune_models()
+        return model
 
-        return None
+    def model_for_active_document(self) -> Model | None:
+        doc = KritaDocument.active()
+        if doc is None or not doc.is_valid:
+            return None
+        model = next((m for m in self._models if m.document == doc), None)
+        if model is None:
+            model = self.create_model(doc)
+        else:
+            model.document = doc
+        return model
 
     @property
     def connection(self) -> Connection:

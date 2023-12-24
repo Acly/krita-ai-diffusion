@@ -11,10 +11,10 @@ from .workflow import Control
 
 
 class ControlLayer(QObject, metaclass=PropertyMeta):
-    mode = Property(ControlMode.image)
-    layer_id = Property(QUuid())
-    strength = Property(100)
-    end = Property(1.0)
+    mode = Property(ControlMode.image, persist=True)
+    layer_id = Property(QUuid(), persist=True)
+    strength = Property(100, persist=True)
+    end = Property(1.0, persist=True)
     is_supported = Property(True)
     is_pose_vector = Property(False)
     can_generate = Property(True)
@@ -32,6 +32,7 @@ class ControlLayer(QObject, metaclass=PropertyMeta):
     has_active_job_changed = pyqtSignal(bool)
     show_end_changed = pyqtSignal(bool)
     error_text_changed = pyqtSignal(str)
+    modified = pyqtSignal(QObject, str)
 
     _model: model.Model
     _generate_job: jobs.Job | None = None
@@ -136,6 +137,7 @@ class ControlLayerList(QObject):
         control.mode_changed.connect(self._update_last_mode)
         self._layers.append(control)
         self.added.emit(control)
+        return control
 
     def remove(self, control: ControlLayer):
         self._layers.remove(control)

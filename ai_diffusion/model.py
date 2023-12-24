@@ -38,12 +38,12 @@ class Model(QObject, metaclass=PropertyMeta):
     _layer: krita.Node | None = None
     _image_layers: LayerObserver
 
-    workspace = Property(Workspace.generation, setter="set_workspace")
-    style = Property(Styles.list().default)
-    prompt = Property("")
-    negative_prompt = Property("")
+    workspace = Property(Workspace.generation, setter="set_workspace", persist=True)
+    style = Property(Styles.list().default, persist=True)
+    prompt = Property("", persist=True)
+    negative_prompt = Property("", persist=True)
     control: ControlLayerList
-    strength = Property(1.0)
+    strength = Property(1.0, persist=True)
     upscale: "UpscaleWorkspace"
     live: "LiveWorkspace"
     progress = Property(0.0)
@@ -58,6 +58,7 @@ class Model(QObject, metaclass=PropertyMeta):
     progress_changed = pyqtSignal(float)
     error_changed = pyqtSignal(str)
     has_error_changed = pyqtSignal(bool)
+    modified = pyqtSignal(QObject, str)
 
     def __init__(self, document: Document, connection: Connection):
         super().__init__()
@@ -334,10 +335,6 @@ class Model(QObject, metaclass=PropertyMeta):
         return (job for job in self.jobs if job.state is JobState.finished)
 
     @property
-    def has_live_result(self):
-        return self._live_result is not None
-
-    @property
     def has_error(self):
         return self.error != ""
 
@@ -345,17 +342,17 @@ class Model(QObject, metaclass=PropertyMeta):
     def document(self):
         return self._doc
 
+    @document.setter
+    def document(self, doc):
+        # Note: for some reason Krita sometimes creates a new object for an existing document.
+        # The old object is deleted and unusable. This method is used to update the object,
+        # but doesn't actually change the document identity.
+        assert doc == self._doc, "Cannot change document of model"
+        self._doc = doc
+
     @property
     def image_layers(self):
         return self._image_layers
-
-    @property
-    def is_active(self):
-        return self._doc.is_active
-
-    @property
-    def is_valid(self):
-        return self._doc.is_valid
 
 
 class UpscaleParams(NamedTuple):
@@ -367,16 +364,17 @@ class UpscaleParams(NamedTuple):
 
 
 class UpscaleWorkspace(QObject, metaclass=PropertyMeta):
-    upscaler = Property("")
-    factor = Property(2.0)
-    use_diffusion = Property(True)
-    strength = Property(0.3)
+    upscaler = Property("", persist=True)
+    factor = Property(2.0, persist=True)
+    use_diffusion = Property(True, persist=True)
+    strength = Property(0.3, persist=True)
 
     upscaler_changed = pyqtSignal(str)
     factor_changed = pyqtSignal(float)
     use_diffusion_changed = pyqtSignal(bool)
     strength_changed = pyqtSignal(float)
     target_extent_changed = pyqtSignal(Extent)
+    modified = pyqtSignal(QObject, str)
 
     _model: Model
 
@@ -404,8 +402,8 @@ class UpscaleWorkspace(QObject, metaclass=PropertyMeta):
 
 class LiveWorkspace(QObject, metaclass=PropertyMeta):
     is_active = Property(False, setter="toggle")
-    strength = Property(0.3)
-    seed = Property(0)
+    strength = Property(0.3, persist=True)
+    seed = Property(0, persist=True)
     has_result = Property(False)
 
     is_active_changed = pyqtSignal(bool)
@@ -413,6 +411,7 @@ class LiveWorkspace(QObject, metaclass=PropertyMeta):
     seed_changed = pyqtSignal(int)
     has_result_changed = pyqtSignal(bool)
     result_available = pyqtSignal(Image)
+    modified = pyqtSignal(QObject, str)
 
     _model: Model
     _result: Image | None = None

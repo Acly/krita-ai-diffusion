@@ -1,6 +1,7 @@
 from __future__ import annotations
 from PyQt5.QtWidgets import QWidget, QVBoxLayout, QHBoxLayout, QPushButton, QLabel, QStackedWidget
 from krita import Krita, DockWidget
+import krita
 
 from ..model import Model, Workspace
 from ..server import Server
@@ -105,8 +106,9 @@ class ImageDiffusionWidget(DockWidget):
         root.connection.state_changed.connect(self.update)
         root.model_created.connect(self.register_model)
 
-    def canvasChanged(self, canvas):
-        self.update()
+    def canvasChanged(self, canvas: krita.Canvas):
+        if canvas is not None and canvas.view() is not None:
+            self.update()
 
     def register_model(self, model: Model):
         model.workspace_changed.connect(self.update)

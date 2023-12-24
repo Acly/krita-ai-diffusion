@@ -1,6 +1,8 @@
 from enum import Enum
-from ai_diffusion.properties import Property, PropertyMeta, bind
+import pytest
 from PyQt5.QtCore import QObject, pyqtBoundSignal, pyqtSignal
+
+from ai_diffusion.properties import Property, PropertyMeta, bind, serialize, deserialize
 
 
 class Piong(Enum):
@@ -108,3 +110,101 @@ def test_bind_qt_to_property():
     b.inty = 99
     assert a.qtstyle() == b.inty
     assert a.qtstyle() == 99
+
+
+class PersistentObject(QObject, metaclass=PropertyMeta):
+    inty = Property(0, persist=True)
+    stringy = Property("", persist=True)
+    enumy = Property(Piong.a, persist=True)
+    not_persistent = Property(99)
+    not_property = "dummy"
+
+    inty_changed = pyqtSignal(int)
+    stringy_changed = pyqtSignal(str)
+    enumy_changed = pyqtSignal(Piong)
+    not_persistent_changed = pyqtSignal(int)
+    modified = pyqtSignal(QObject, str)
+
+
+def test_serialize():
+    a = PersistentObject()
+    a.inty = 5
+    a.enumy = Piong.b
+
+    state = serialize(a)
+    assert state == {"inty": 5, "stringy": "", "enumy": 2}
+
+    a.stringy = "hello"
+    state = serialize(a)
+    assert state == {"inty": 5, "stringy": "hello", "enumy": 2}
+
+    b = PersistentObject()
+    b.inty = 827
+    deserialize(b, state)
+    assert b.inty == 5
+    assert b.stringy == "hello"
+    assert b.enumy is Piong.b
+
+
+def test_deserialize_non_existing():
+    """Loading state with non-existing properties should not fail to
+    support previous versions after properties have been removed.
+    """
+    a = PersistentObject()
+    a.inty = 5
+
+    state = {"inty": 99, "doesnt_exist": 28}
+    deserialize(a, state)
+    assert a.inty == 99
+
+
+def test_deserialize_non_property():
+    a = PersistentObject()
+    a.inty = 5
+
+    state = {"inty": 99, "not_property": 28}
+    deserialize(a, state)
+    assert a.inty == 99
+    assert a.not_property == "dummy"
+
+
+def test_serialize_custom():
+    a = PersistentObject()
+    a.stringy = "hello"
+
+    def _serializer(obj):
+        if isinstance(obj, str):
+            return obj.upper()
+        return obj
+
+    def _deserializer(type, value):
+        if type is str:
+            return value.lower()
+        return value
+
+    state = serialize(a, _serializer)
+    assert state == {"inty": 0, "stringy": "HELLO", "enumy": 1}
+
+    b = PersistentObject()
+    deserialize(b, state, _deserializer)
+    assert b.stringy == "hello"
+
+
+def test_type_mismatch():
+    a = PersistentObject()
+    state = {"inty": "hello"}
+    with pytest.raises(TypeError):
+        deserialize(a, state)
+
+
+def test_modified():
+    called = []
+
+    def callback(obj, prop):
+        called.append((obj, prop))
+
+    a = PersistentObject()
+    a.modified.connect(callback)
+    a.inty = 5
+    a.not_persistent = 5
+    assert called == [(a, "inty")]
