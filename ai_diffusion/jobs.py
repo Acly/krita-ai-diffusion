@@ -70,7 +70,7 @@ class JobQueue(QObject):
         self._entries = deque()
 
     def add(self, kind: JobKind, id: str, prompt: str, bounds: Bounds):
-        self._add(Job(id, kind, prompt, bounds))
+        return self._add(Job(id, kind, prompt, bounds))
 
     def add_control(self, control: "control.ControlLayer", bounds: Bounds):
         job = Job(None, JobKind.control_layer, f"[Control] {control.mode.text}", bounds)

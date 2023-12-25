@@ -1,4 +1,5 @@
 from __future__ import annotations
+from enum import Enum
 from math import ceil, sqrt
 from PyQt5.QtGui import QImage, QPixmap, QIcon, QPainter, qRgba, qRed, qGreen, qBlue, qAlpha, qGray
 from PyQt5.QtCore import Qt, QByteArray, QBuffer, QRect, QSize
@@ -165,6 +166,14 @@ def extent_equal(a: QImage, b: QImage):
     return a.width() == b.width() and a.height() == b.height()
 
 
+class ImageFileFormat(Enum):
+    # Low compression rate, fast but large files. Good for local use, but maybe not optimal
+    # for remote server where images are transferred via internet.
+    png = ("PNG", 85)
+
+    webp = ("WEBP", -1)
+
+
 class Image:
     def __init__(self, qimage: QImage):
         assert qimage.format() in [QImage.Format_ARGB32, QImage.Format_Grayscale8]
@@ -279,16 +288,21 @@ class Image:
         array = np.frombuffer(ptr, np.uint8).reshape(w, h, 4)  # type: ignore
         return array.astype(np.float32) / 255
 
-    def to_base64(self, format="PNG"):
-        # Low compression rate, fast but large files. Good for local use, but maybe not optimal
-        # for remote server where images are transferred via internet.
-        # Conversion to PNG still takes time for large images and blocks the UI, might be worth to thread.
-        quality = 85
+    def write(self, buffer: QBuffer, format=ImageFileFormat.png):
+        # Compression takes time for large images and blocks the UI, might be worth to thread.
+        format_str, quality = format.value
+        self._qimage.save(buffer, format_str, quality)
+
+    def to_bytes(self, format=ImageFileFormat.png):
         byte_array = QByteArray()
         buffer = QBuffer(byte_array)
         buffer.open(QBuffer.OpenModeFlag.WriteOnly)
-        self._qimage.save(buffer, format, quality)
+        self.write(buffer, format)
         buffer.close()
+        return byte_array
+
+    def to_base64(self, format=ImageFileFormat.png):
+        byte_array = self.to_bytes(format)
         return byte_array.toBase64().data().decode("utf-8")
 
     def to_pixmap(self):
