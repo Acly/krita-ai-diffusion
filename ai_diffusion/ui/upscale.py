@@ -156,8 +156,9 @@ class UpscaleWidget(QWidget):
                 self.model_select.setCurrentIndex(max(selected, 0))
 
     def update_factor(self, value: float):
-        self.factor_slider.setValue(int(value * 100))
-        self.factor_input.setValue(value)
+        with SignalBlocker(self.factor_input), SignalBlocker(self.factor_slider):
+            self.factor_slider.setValue(int(value * 100))
+            self.factor_input.setValue(value)
 
     def update_progress(self):
         self.progress_bar.setValue(int(self.model.progress * 100))
@@ -166,23 +167,14 @@ class UpscaleWidget(QWidget):
         self.model.upscale_image()
 
     def change_factor_slider(self, value: int | float):
-        value = round(value / 50) * 50
-        if self.factor_slider.value() != value:
-            self.factor_slider.setValue(value)
+        rounded = round(value / 50) * 50
+        if rounded != value:
+            self.factor_slider.setValue(rounded)
         else:
-            value_float = value / 100
-            self.model.upscale.factor = value_float
-            if self.factor_input.value() != value_float:
-                self.factor_input.setValue(value_float)
-            self.update_target_extent()
+            self.model.upscale.factor = value / 100
 
     def change_factor(self, value: float):
         self.model.upscale.factor = value
-        value_int = round(value * 100)
-        if self.factor_slider.value() != value_int:
-            with SignalBlocker(self.factor_slider):
-                self.factor_slider.setValue(value_int)
-        self.update_target_extent()
 
     def update_target_extent(self):
         e = self.model.upscale.target_extent
