@@ -417,8 +417,8 @@ def apply_control(
             ip_images.append(control.load_image(w))
             ip_weights.append(control.strength)
             ip_end_at = max(ip_end_at, control.end)
-        if len(ip_images) > 0:
-            max_weight = max(ip_weights)
+        max_weight = max(ip_weights, default=0.0)
+        if len(ip_images) > 0 and max_weight > 0:
             ip_weights = [w / max_weight for w in ip_weights]
             clip_vision = w.load_clip_vision(comfy.clip_vision_model)
             ip_adapter = w.load_ip_adapter(ip_model_file)
