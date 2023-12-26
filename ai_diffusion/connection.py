@@ -67,7 +67,7 @@ class Connection(QObject, metaclass=PropertyMeta):
     def connect(self, url: str = settings.server_url):
         eventloop.run(self._connect(url))
 
-    async def disconnect(self):
+    async def disconnect(self):  # type: ignore (hides QObject.disconnect)
         if self._task is not None:
             self._task.cancel()
             await self._task

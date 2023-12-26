@@ -28,10 +28,10 @@ class AIToolsExtension(Extension):
 
         notifier = Krita.instance().notifier()
         notifier.setActive(True)
-        notifier.applicationClosing.connect(self.shutdown)
+        notifier.applicationClosing.connect(self.shutdown)  # type: ignore
 
     def setup(self):
-        eventloop.run(root.autostart(self._settings_dialog.connection.update))
+        eventloop.run(root.autostart(self._settings_dialog.connection.update_ui))
 
     def shutdown(self):
         root.server.terminate()

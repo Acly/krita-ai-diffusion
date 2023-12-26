@@ -3,7 +3,7 @@ from enum import Enum
 from math import ceil, sqrt
 from PyQt5.QtGui import QImage, QPixmap, QIcon, QPainter, qRgba, qRed, qGreen, qBlue, qAlpha, qGray
 from PyQt5.QtCore import Qt, QByteArray, QBuffer, QRect, QSize
-from typing import Callable, Iterable, Tuple, NamedTuple, Union, Optional
+from typing import Callable, Iterable, SupportsIndex, Tuple, NamedTuple, Union, Optional, overload
 from itertools import product
 from pathlib import Path
 from .settings import settings
@@ -18,8 +18,10 @@ class Extent(NamedTuple):
     width: int
     height: int
 
-    def __mul__(self, scale: float):
-        return Extent(round(self.width * scale), round(self.height * scale))
+    def __mul__(self, scale: float | SupportsIndex):
+        if isinstance(scale, float):
+            return Extent(round(self.width * scale), round(self.height * scale))
+        raise NotImplementedError()
 
     def at_least(self, min_size: int):
         return Extent(max(self.width, min_size), max(self.height, min_size))

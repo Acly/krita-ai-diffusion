@@ -637,7 +637,7 @@ class ConnectionSettings(SettingsTab):
             self._server_widget if mode is ServerMode.managed else self._connection_widget
         )
 
-    def update(self):
+    def update_ui(self):
         self._server_widget.update()
 
     def _read(self):

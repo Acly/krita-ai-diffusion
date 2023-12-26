@@ -67,7 +67,8 @@ class ExprNode:
     def __repr__(self):
         if self.type == "text":
             return f"Text('{self.value}')"
-        elif self.type == "expr":
+        else:
+            assert self.type == "expr"
             return f"Expr({self.children}, weight={self.weight})"
 
 

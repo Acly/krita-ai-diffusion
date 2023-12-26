@@ -137,7 +137,6 @@ class ControlLayerList(QObject):
         control.mode_changed.connect(self._update_last_mode)
         self._layers.append(control)
         self.added.emit(control)
-        return control
 
     def remove(self, control: ControlLayer):
         self._layers.remove(control)

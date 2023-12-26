@@ -330,7 +330,7 @@ class ServerWidget(QWidget):
             is_checkable=True,
             parent=self,
         )
-        self._workload_group.changed.connect(self.update)
+        self._workload_group.changed.connect(self.update_ui)
         package_layout.addWidget(self._workload_group)
 
         self._packages = {
@@ -356,12 +356,12 @@ class ServerWidget(QWidget):
             ),
         }
         for group in ["checkpoints", "upscalers", "control"]:
-            self._packages[group].changed.connect(self.update)
+            self._packages[group].changed.connect(self.update_ui)
             package_layout.addWidget(self._packages[group])
 
         package_layout.addStretch()
 
-        self.update()
+        self.update_ui()
         self.update_required()
 
     def _change_location(self):
@@ -370,7 +370,7 @@ class ServerWidget(QWidget):
             self._server.check_install()
             settings.server_path = self._location_edit.text()
             settings.save()
-            self.update()
+            self.update_ui()
             self.update_required()
 
     def _select_location(self):
@@ -415,13 +415,13 @@ class ServerWidget(QWidget):
         self._status_label.setStyleSheet("color:orange;font-weight:bold")
         try:
             url = await self._server.start()
-            self.update()
+            self.update_ui()
             self._status_label.setText("Server running - Connecting...")
             self._status_label.setStyleSheet(f"color:{yellow};font-weight:bold")
             await root.connection._connect(url)
         except Exception as e:
             self._error = str(e)
-        self.update()
+        self.update_ui()
 
     async def _stop(self):
         self._launch_button.setEnabled(False)
@@ -433,7 +433,7 @@ class ServerWidget(QWidget):
             await self._server.stop()
         except Exception as e:
             self._error = str(e)
-        self.update()
+        self.update_ui()
 
     async def _install(self):
         try:
@@ -450,13 +450,13 @@ class ServerWidget(QWidget):
             models_to_install = self.update_optional()
             if len(models_to_install) > 0:
                 await self._server.download(models_to_install, self._handle_progress)
-            self.update()
+            self.update_ui()
 
             await self._start()
 
         except Exception as e:
             self._error = str(e)
-        self.update()
+        self.update_ui()
 
     async def _upgrade(self):
         try:
@@ -465,12 +465,12 @@ class ServerWidget(QWidget):
 
             await self._prepare_for_install()
             await self._server.upgrade(self._handle_progress)
-            self.update()
+            self.update_ui()
             await self._start()
 
         except Exception as e:
             self._error = str(e)
-        self.update()
+        self.update_ui()
 
     async def _prepare_for_install(self):
         if self._server.state is ServerState.running:
@@ -505,7 +505,7 @@ class ServerWidget(QWidget):
             self._progress_bar.setValue(0)
             self._progress_bar.setTextVisible(False)
 
-    def update(self):
+    def update_ui(self):
         self._location_edit.setText(settings.server_path)
         backends = ServerBackend.supported()
         try:

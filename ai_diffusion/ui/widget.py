@@ -85,7 +85,7 @@ class QueueWidget(QToolButton):
         action.triggered.connect(func)
         return action
 
-    def paintEvent(self, event):
+    def paintEvent(self, a0):
         _paint_tool_drop_down(self, self.text())
 
 
@@ -394,16 +394,14 @@ class MultiLineTextPromptWidget(QPlainTextEdit):
         self.line_count = 2
         self.is_negative = False
 
-    def keyPressEvent(self, event: QKeyEvent):
-        handle_weight_adjustment(self, event)
+    def keyPressEvent(self, e: QKeyEvent | None):
+        assert e is not None
+        handle_weight_adjustment(self, e)
 
-        if (
-            event.key() == Qt.Key.Key_Return
-            and event.modifiers() == Qt.KeyboardModifier.ShiftModifier
-        ):
+        if e.key() == Qt.Key.Key_Return and e.modifiers() == Qt.KeyboardModifier.ShiftModifier:
             self.activated.emit()
         else:
-            super().keyPressEvent(event)
+            super().keyPressEvent(e)
 
     @property
     def line_count(self):
@@ -441,9 +439,10 @@ class MultiLineTextPromptWidget(QPlainTextEdit):
 
 
 class SingleLineTextPromptWidget(QLineEdit):
-    def keyPressEvent(self, event: QKeyEvent):
-        handle_weight_adjustment(self, event)
-        super().keyPressEvent(event)
+    def keyPressEvent(self, a0: QKeyEvent | None):
+        assert a0 is not None
+        handle_weight_adjustment(self, a0)
+        super().keyPressEvent(a0)
 
 
 class TextPromptWidget(QWidget):
@@ -608,7 +607,7 @@ class WorkspaceSelectWidget(QToolButton):
         self.setMinimumWidth(int(self.sizeHint().width() * 1.6))
         self.value = Workspace.generation
 
-    def paintEvent(self, event):
+    def paintEvent(self, a0):
         _paint_tool_drop_down(self)
 
     @property
@@ -636,7 +635,7 @@ def _paint_tool_drop_down(widget: QToolButton, text: str | None = None):
     rect = widget.rect()
     pixmap = widget.icon().pixmap(int(rect.height() * 0.75))
     element = QStyle.PrimitiveElement.PE_Widget
-    if opt.state & QStyle.StateFlag.State_MouseOver:
+    if int(opt.state) & QStyle.StateFlag.State_MouseOver:
         element = QStyle.PrimitiveElement.PE_PanelButtonCommand
     style.drawPrimitive(element, opt, painter, widget)
     style.drawItemPixmap(

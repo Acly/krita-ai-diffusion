@@ -54,14 +54,14 @@ class PropertyImpl(property):
     persist: bool
 
     def __init__(self, name: str, getter, setter, persist: bool):
-        super().__init__(getter or self.getter, setter or self.setter)
+        super().__init__(getter or self._getter, setter or self._setter)
         self.name = name
         self.persist = persist
 
-    def getter(self, instance):
+    def _getter(self, instance):
         return getattr(instance, f"_{self.name}")
 
-    def setter(self, instance, value):
+    def _setter(self, instance, value):
         previous = getattr(instance, f"_{self.name}")
         if previous == value:
             return

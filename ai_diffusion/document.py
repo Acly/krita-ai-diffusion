@@ -1,6 +1,6 @@
 from __future__ import annotations
 from contextlib import nullcontext
-from typing import NamedTuple, cast
+from typing import Literal, NamedTuple, cast
 import krita
 from krita import Krita
 from PyQt5.QtCore import QObject, QUuid, QByteArray, QTimer, pyqtSignal
@@ -19,10 +19,10 @@ class Document:
         return Extent(0, 0)
 
     @property
-    def filename(self):
+    def filename(self) -> str:
         return ""
 
-    def check_color_mode(self):
+    def check_color_mode(self) -> tuple[Literal[True], None] | tuple[Literal[False], str]:
         return True, None
 
     def create_mask_from_selection(
@@ -80,11 +80,11 @@ class Document:
         pass
 
     @property
-    def resolution(self):
-        return 0
+    def resolution(self) -> float:
+        return 0.0
 
     @property
-    def is_valid(self):
+    def is_valid(self) -> bool:
         return True
 
 

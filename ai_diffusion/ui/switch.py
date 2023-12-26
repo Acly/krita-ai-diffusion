@@ -43,7 +43,7 @@ class SwitchWidget(QAbstractButton):
     def offset(self):  # type: ignore
         return self._offset
 
-    @offset.setter
+    @offset.setter  # type: ignore
     def offset(self, value):
         self._offset = value
         self.update()
@@ -63,11 +63,11 @@ class SwitchWidget(QAbstractButton):
         super().setChecked(checked)
         self.offset = self._end_offset[checked]()
 
-    def resizeEvent(self, event):
-        super().resizeEvent(event)
+    def resizeEvent(self, a0):
+        super().resizeEvent(a0)
         self.offset = self._end_offset[self.isChecked()]()
 
-    def paintEvent(self, event):
+    def paintEvent(self, e):
         p = QPainter(self)
         p.setRenderHint(QPainter.Antialiasing, True)
         p.setPen(Qt.PenStyle.NoPen)
@@ -100,9 +100,9 @@ class SwitchWidget(QAbstractButton):
             2 * self._thumb_radius,
         )
 
-    def mouseReleaseEvent(self, event):
-        super().mouseReleaseEvent(event)
-        if event.button() == Qt.MouseButton.LeftButton:
+    def mouseReleaseEvent(self, e):
+        super().mouseReleaseEvent(e)
+        if e and e.button() == Qt.MouseButton.LeftButton:
             anim = QPropertyAnimation(self, b"offset", self)
             anim.setDuration(120)
             anim.setStartValue(self.offset)

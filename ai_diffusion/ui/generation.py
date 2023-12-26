@@ -194,20 +194,21 @@ class HistoryWidget(QListWidget):
                 prompt = item.data(Qt.ItemDataRole.ToolTipRole)
                 clipboard.setText(prompt)
 
-    def mousePressEvent(self, e: QMouseEvent) -> None:
+    def mousePressEvent(self, e: QMouseEvent | None) -> None:
         # make single click deselect current item (usually requires Ctrl+click)
-        mods = e.modifiers()
-        mods |= Qt.KeyboardModifier.ControlModifier
-        e = QMouseEvent(
-            e.type(),
-            e.localPos(),
-            e.windowPos(),
-            e.screenPos(),
-            e.button(),
-            e.buttons(),
-            mods,
-            e.source(),
-        )
+        if e is not None:
+            mods = e.modifiers()
+            mods |= Qt.KeyboardModifier.ControlModifier
+            e = QMouseEvent(
+                e.type(),
+                e.localPos(),
+                e.windowPos(),
+                e.screenPos(),
+                e.button(),
+                e.buttons(),
+                mods,
+                e.source(),
+            )
         return super().mousePressEvent(e)
 
     def resizeEvent(self, e):

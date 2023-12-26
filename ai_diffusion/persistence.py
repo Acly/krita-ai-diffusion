@@ -64,8 +64,8 @@ class ModelSync:
         _deserialize(model.live, state.get("live", {}))
 
         for control_state in state.get("control", []):
-            control = model.control.add()
-            _deserialize(control, control_state)
+            model.control.add()
+            _deserialize(model.control[-1], control_state)
 
         for result in state.get("history", []):
             item = _HistoryResult(*result)
