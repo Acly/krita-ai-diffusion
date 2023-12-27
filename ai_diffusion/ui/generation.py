@@ -41,6 +41,7 @@ class HistoryWidget(QListWidget):
 
     item_activated = pyqtSignal(QListWidgetItem)
 
+    _thumb_size = 96
     _applied_icon = Image.load(theme.icon_path / "star.png")
     _list_css = f"QListWidget::item:selected {{ border: 1px solid {theme.grey}; }}"
     _button_css = f"""
@@ -64,7 +65,7 @@ class HistoryWidget(QListWidget):
         self.setHorizontalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAlwaysOff)
         self.setFlow(QListView.LeftToRight)
         self.setViewMode(QListWidget.IconMode)
-        self.setIconSize(QSize(96, 96))
+        self.setIconSize(theme.screen_scale(self, QSize(self._thumb_size, self._thumb_size)))
         self.setFrameStyle(QListWidget.NoFrame)
         self.setStyleSheet(self._list_css)
         self.itemClicked.connect(self.handle_preview_click)
@@ -226,11 +227,13 @@ class HistoryWidget(QListWidget):
 
     def _image_thumbnail(self, job: Job, index: int):
         image = job.results[index]
+        # Use 2x thumb size for good quality on high-DPI screens
+        thumb = Image.scale_to_fit(image, Extent(self._thumb_size * 2, self._thumb_size * 2))
+        if thumb.extent.height < self._thumb_size:
+            thumb = Image.crop(thumb, Bounds(0, 0, thumb.extent.width, self._thumb_size))
         if job.result_was_used(index):  # add tiny star icon to mark used results
-            thumb = Image.scale_to_fit(image, Extent(96 * 2, 96 * 2))
             thumb.draw_image(self._applied_icon, offset=(-28, 4))
-            return thumb.to_icon()
-        return image.to_icon()
+        return thumb.to_icon()
 
 
 class GenerationWidget(QWidget):

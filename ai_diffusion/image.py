@@ -238,7 +238,7 @@ class Image:
         return Image.scale(img, img.extent.scale_keep_aspect(target))
 
     @staticmethod
-    def crop(img, bounds: Bounds):
+    def crop(img: "Image", bounds: Bounds):
         return Image(img._qimage.copy(*bounds))
 
     @staticmethod

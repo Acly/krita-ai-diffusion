@@ -1,7 +1,7 @@
 from __future__ import annotations
-from PyQt5.QtCore import Qt, QObject
+from PyQt5.QtCore import Qt, QObject, QSize
 from PyQt5.QtGui import QGuiApplication, QPalette, QIcon, QPixmap, QFontMetrics
-from PyQt5.QtWidgets import QVBoxLayout, QLabel
+from PyQt5.QtWidgets import QVBoxLayout, QLabel, QWidget
 from pathlib import Path
 
 from ..settings import Setting, util
@@ -62,6 +62,13 @@ def set_text_clipped(label: QLabel, text: str):
     metrics = QFontMetrics(label.font())
     elided = metrics.elidedText(text, Qt.TextElideMode.ElideRight, label.width() - 2)
     label.setText(elided)
+
+
+def screen_scale(widget: QWidget, size: QSize):
+    if util.is_windows:  # Not sure about other OS
+        scale = widget.logicalDpiX() / 96.0
+        return QSize(int(size.width() * scale), int(size.height() * scale))
+    return size
 
 
 class SignalBlocker:
