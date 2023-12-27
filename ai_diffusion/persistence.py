@@ -11,6 +11,7 @@ from .control import ControlLayer
 from .jobs import Job, JobKind
 from .style import Style, Styles
 from .properties import serialize, deserialize
+from .settings import settings
 from .util import client_logger as log
 
 # Version of the persistence format, increment when there are breaking changes
@@ -30,12 +31,13 @@ class ModelSync:
 
     _model: Model
     _history: list[_HistoryResult]
-    _slot = 0
-    _max_slots = 10
+    _memory_used: dict[int, int]  # slot -> memory used for images in bytes
+    _slot_index = 0
 
     def __init__(self, model: Model):
         self._model = model
         self._history = []
+        self._memory_used = {}
         if state_bytes := model.document.find_annotation("ui"):
             try:
                 self._load(model, state_bytes.data())
@@ -78,7 +80,8 @@ class ModelSync:
                 model.jobs.set_results(job, results)
                 model.jobs.notify_finished(job)
                 self._history.append(item)
-                self._slot = (item.slot + 1) % self._max_slots
+                self._memory_used[item.slot] = images_bytes.size()
+                self._slot_index = max(self._slot_index, item.slot + 1)
 
     def _track(self, model: Model):
         model.modified.connect(self._save)
@@ -96,14 +99,28 @@ class ModelSync:
 
     def _save_results(self, job: Job):
         if job.kind is JobKind.diffusion and len(job.results) > 0:
-            slot = self._slot
-            self._slot = (self._slot + 1) % self._max_slots
+            slot = self._slot_index
+            self._slot_index += 1
             image_data, image_offsets = _serialize_images(job.results)
             self._model.document.annotate(f"result{slot}", image_data)
             self._history.append(
                 _HistoryResult(job.id or "", job.prompt, job.bounds, slot, image_offsets)
             )
+            self._memory_used[slot] = image_data.size()
+            self._prune()
             self._save()
+
+    @property
+    def memory_used(self):
+        return sum(self._memory_used.values())
+
+    def _prune(self):
+        limit = settings.history_storage * 1024 * 1024
+        used = self.memory_used
+        while used > limit and len(self._history) > 0:
+            slot = self._history.pop(0).slot
+            self._model.document.remove_annotation(f"result{slot}")
+            used -= self._memory_used.pop(slot, 0)
 
 
 def _serialize(obj: QObject):

@@ -65,6 +65,9 @@ class Document:
     def find_annotation(self, key: str) -> QByteArray | None:
         return None
 
+    def remove_annotation(self, key: str):
+        pass
+
     def add_pose_character(self, layer: krita.Node):
         raise NotImplementedError
 
@@ -249,6 +252,9 @@ class KritaDocument(Document):
     def find_annotation(self, key: str) -> QByteArray | None:
         result = self._doc.annotation(f"ai_diffusion/{key}")
         return result if result.size() > 0 else None
+
+    def remove_annotation(self, key: str):
+        self._doc.removeAnnotation(f"ai_diffusion/{key}")
 
     def add_pose_character(self, layer: krita.Node):
         assert layer.type() == "vectorlayer"

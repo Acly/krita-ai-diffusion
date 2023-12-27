@@ -1,9 +1,10 @@
 from __future__ import annotations
 from enum import Enum
 from math import ceil, sqrt
-from PyQt5.QtGui import QImage, QPixmap, QIcon, QPainter, qRgba, qRed, qGreen, qBlue, qAlpha, qGray
+from PyQt5.QtGui import QImage, QImageWriter, QPixmap, QIcon, QPainter
+from PyQt5.QtGui import qRgba, qRed, qGreen, qBlue, qAlpha, qGray
 from PyQt5.QtCore import Qt, QByteArray, QBuffer, QRect, QSize
-from typing import Callable, Iterable, SupportsIndex, Tuple, NamedTuple, Union, Optional, overload
+from typing import Callable, Iterable, SupportsIndex, Tuple, NamedTuple, Union, Optional
 from itertools import product
 from pathlib import Path
 from .settings import settings
@@ -173,7 +174,7 @@ class ImageFileFormat(Enum):
     # for remote server where images are transferred via internet.
     png = ("PNG", 85)
 
-    webp = ("WEBP", -1)
+    webp = ("WEBP", 90)
 
 
 class Image:
@@ -293,7 +294,12 @@ class Image:
     def write(self, buffer: QBuffer, format=ImageFileFormat.png):
         # Compression takes time for large images and blocks the UI, might be worth to thread.
         format_str, quality = format.value
-        self._qimage.save(buffer, format_str, quality)
+        if format is ImageFileFormat.webp:
+            writer = QImageWriter(buffer, QByteArray(b"webp"))
+            writer.setQuality(quality)
+            writer.write(self._qimage)
+        else:
+            self._qimage.save(buffer, format_str, quality)
 
     def to_bytes(self, format=ImageFileFormat.png):
         byte_array = QByteArray()

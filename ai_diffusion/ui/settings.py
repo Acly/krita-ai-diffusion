@@ -998,23 +998,56 @@ class InterfaceSettings(SettingsTab):
         self._layout.addStretch()
 
 
+class HistorySizeWidget(QWidget):
+    value_changed = pyqtSignal()
+
+    def __init__(self, maximum: int, step: int, parent=None):
+        super().__init__(parent)
+
+        self._history_size = QSpinBox(self)
+        self._history_size.setMinimum(5)
+        self._history_size.setMaximum(maximum)
+        self._history_size.setSingleStep(step)
+        self._history_size.setSuffix(" MB")
+        self._history_size.valueChanged.connect(self._change_value)
+
+        self._history_usage = QLabel(self)
+        self._history_usage.setStyleSheet(f"font-style:italic; color: {green};")
+
+        layout = QHBoxLayout()
+        layout.setContentsMargins(0, 0, 0, 0)
+        layout.addWidget(self._history_size)
+        layout.addWidget(self._history_usage)
+        self.setLayout(layout)
+
+    def _change_value(self):
+        self.value_changed.emit()
+
+    @property
+    def value(self):
+        return self._history_size.value()
+
+    @value.setter
+    def value(self, v):
+        self._history_size.setValue(v)
+
+    def update_usage(self, usage: float):
+        self._history_usage.setText(f"Currently using {usage:.1f} MB")
+
+
 class PerformanceSettings(SettingsTab):
     def __init__(self):
         super().__init__("Performance Settings")
 
         add_header(self._layout, Settings._history_size)
-        self._history_size = QSpinBox(self)
-        self._history_size.setMinimum(8)
-        self._history_size.setMaximum(1024 * 16)
-        self._history_size.setSingleStep(100)
-        self._history_size.setSuffix(" MB")
-        self._history_size.valueChanged.connect(self.write)
-        self._history_usage = QLabel(self)
-        self._history_usage.setStyleSheet(f"font-style:italic; color: {green};")
-        history_layout = QHBoxLayout()
-        history_layout.addWidget(self._history_size)
-        history_layout.addWidget(self._history_usage)
-        self._layout.addLayout(history_layout)
+        self._history_size = HistorySizeWidget(maximum=10000, step=100, parent=self)
+        self._history_size.value_changed.connect(self.write)
+        self._layout.addWidget(self._history_size)
+
+        add_header(self._layout, Settings._history_storage)
+        self._history_storage = HistorySizeWidget(maximum=100, step=5, parent=self)
+        self._history_storage.value_changed.connect(self.write)
+        self._layout.addWidget(self._history_storage)
 
         add_header(self._layout, Settings._performance_preset)
         self._device_info = QLabel(self)
@@ -1067,9 +1100,10 @@ class PerformanceSettings(SettingsTab):
             )
 
     def _read(self):
-        memory_usage = root.active_model.jobs.memory_usage
-        self._history_size.setValue(settings.history_size)
-        self._history_usage.setText(f"Currently using {memory_usage:.1f} MB")
+        self._history_size.value = settings.history_size
+        self._history_size.update_usage(root.active_model.jobs.memory_usage)
+        self._history_storage.value = settings.history_storage
+        self._history_storage.update_usage(root.get_active_model_used_storage() / (1024**2))
         self._batch_size.value = settings.batch_size
         self._performance_preset.setCurrentIndex(
             list(PerformancePreset).index(settings.performance_preset)
@@ -1078,7 +1112,8 @@ class PerformanceSettings(SettingsTab):
         self.update_device_info()
 
     def _write(self):
-        settings.history_size = self._history_size.value()
+        settings.history_size = self._history_size.value
+        settings.history_storage = self._history_storage.value
         settings.batch_size = int(self._batch_size.value)
         settings.diffusion_tile_size = self._diffusion_tile_size.value
         settings.performance_preset = list(PerformancePreset)[

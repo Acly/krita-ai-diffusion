@@ -142,7 +142,12 @@ class Settings(QObject):
 
     history_size: int
     _history_size = Setting(
-        "History Size", 1000, "Main memory (RAM) used to keep the history of generated images"
+        "Active History Size", 1000, "Main memory (RAM) used for the history of generated images"
+    )
+
+    history_storage: int
+    _history_storage = Setting(
+        "Stored History Size", 20, "Memory used to store generated images in .kra files on disk"
     )
 
     performance_preset: PerformancePreset

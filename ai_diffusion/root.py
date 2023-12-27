@@ -94,6 +94,14 @@ class Root(QObject):
         except Exception as e:
             log.warning(f"Failed to launch/connect server at startup: {e}")
 
+    def get_active_model_used_storage(self):  # in bytes
+        doc = KritaDocument.active()
+        if doc is None or not doc.is_valid:
+            return 0
+        if persist := next((m.sync for m in self._models if m.model.document == doc), None):
+            return persist.memory_used
+        return 0
+
     def _find_model(self, job_id: str) -> Model | None:
         return next((m.model for m in self._models if m.model.jobs.find(job_id)), None)
 
