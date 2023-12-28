@@ -90,6 +90,7 @@ class HistoryWidget(QListWidget):
             jobs.selection_changed.connect(self.update_selection),
             self.itemSelectionChanged.connect(self.select_item),
             jobs.job_finished.connect(self.add),
+            jobs.job_discarded.connect(self.remove),
             jobs.result_used.connect(self.update_image_thumbnail),
         ]
         self.rebuild()
@@ -129,6 +130,22 @@ class HistoryWidget(QListWidget):
 
         if scroll_to_bottom:
             self.scrollToBottom()
+
+    def remove(self, job: Job):
+        item_was_selected = False
+        with theme.SignalBlocker(self):
+            # Remove all the job's items before triggering potential selection changes
+            for i in range(self.count()):
+                item = self.item(i)
+                while item and item.data(Qt.ItemDataRole.UserRole) == job.id:
+                    item_was_selected = item_was_selected or item.isSelected()
+                    self.takeItem(i)
+                    item = self.item(i)
+                break
+        if item_was_selected:
+            self._jobs.selection = None
+        else:
+            self.update_apply_button()  # selection may have moved
 
     def update_selection(self):
         selection = self._jobs.selection
@@ -175,11 +192,6 @@ class HistoryWidget(QListWidget):
 
     def is_finished(self, job: Job):
         return job.kind is JobKind.diffusion and job.state is JobState.finished
-
-    def prune(self, jobs: JobQueue):
-        first_id = next((job.id for job in jobs if self.is_finished(job)), None)
-        while self.count() > 0 and ensure(self.item(0)).data(Qt.ItemDataRole.UserRole) != first_id:
-            self.takeItem(0)
 
     def rebuild(self):
         self.clear()

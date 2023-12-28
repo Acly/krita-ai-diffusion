@@ -59,6 +59,7 @@ class JobQueue(QObject):
     count_changed = pyqtSignal()
     selection_changed = pyqtSignal()
     job_finished = pyqtSignal(Job)
+    job_discarded = pyqtSignal(Job)
     result_used = pyqtSignal(Item)
 
     _entries: Deque[Job]
@@ -122,6 +123,7 @@ class JobQueue(QObject):
         while self._memory_usage > settings.history_size and self._entries[0] != keep:
             discarded = self._entries.popleft()
             self._memory_usage -= discarded.results.size / (1024**2)
+            self.job_discarded.emit(discarded)
 
     def select(self, job_id: str, index: int):
         self.selection = self.Item(job_id, index)
