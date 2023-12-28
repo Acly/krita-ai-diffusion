@@ -1,21 +1,20 @@
 from __future__ import annotations
-import asyncio
 import random
 from enum import Enum
-from typing import NamedTuple, cast
+from typing import NamedTuple
 from PyQt5.QtCore import QObject, pyqtSignal
 
 from . import eventloop, workflow, util
 from .settings import settings
 from .network import NetworkError
-from .image import Extent, Image, ImageCollection, Mask, Bounds
+from .image import Extent, Image, Mask, Bounds
 from .client import ClientMessage, ClientEvent, filter_supported_styles, resolve_sd_version
 from .document import Document, LayerObserver
 from .pose import Pose
 from .style import Style, Styles, SDVersion
 from .workflow import ControlMode, Conditioning, LiveParams
-from .connection import Connection, ConnectionState
-from .properties import Property, PropertyMeta
+from .connection import Connection
+from .properties import Property, ObservableProperties
 from .jobs import Job, JobKind, JobQueue, JobState
 from .control import ControlLayer, ControlLayerList
 import krita
@@ -27,7 +26,7 @@ class Workspace(Enum):
     live = 2
 
 
-class Model(QObject, metaclass=PropertyMeta):
+class Model(QObject, ObservableProperties):
     """Represents diffusion workflows for a specific Krita document. Stores all inputs related to
     image generation. Launches generation jobs. Listens to server messages and keeps a
     list of finished, currently running and enqueued jobs.
@@ -364,7 +363,7 @@ class UpscaleParams(NamedTuple):
     target_extent: Extent
 
 
-class UpscaleWorkspace(QObject, metaclass=PropertyMeta):
+class UpscaleWorkspace(QObject, ObservableProperties):
     upscaler = Property("", persist=True)
     factor = Property(2.0, persist=True)
     use_diffusion = Property(True, persist=True)
@@ -401,7 +400,7 @@ class UpscaleWorkspace(QObject, metaclass=PropertyMeta):
         )
 
 
-class LiveWorkspace(QObject, metaclass=PropertyMeta):
+class LiveWorkspace(QObject, ObservableProperties):
     is_active = Property(False, setter="toggle")
     strength = Property(0.3, persist=True)
     seed = Property(0, persist=True)

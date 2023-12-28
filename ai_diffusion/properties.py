@@ -1,31 +1,30 @@
 from enum import Enum
 from typing import Any, NamedTuple, Sequence, TypeVar, Generic
 
-from PyQt5.QtCore import QObject, QMetaObject, QUuid, pyqtBoundSignal, pyqtProperty  # type: ignore
+from PyQt5.QtCore import QObject, QMetaObject, QUuid, pyqtBoundSignal
 from PyQt5.QtWidgets import QComboBox
 
 
 T = TypeVar("T")
 
 
-class PropertyMeta(type(QObject)):
-    """Provides default implementations for properties (get, set, signal)."""
+class ObservableProperties:
+    """Provides default implementations for properties (get, set, signal) to sub-classes."""
 
-    def __new__(cls, name, bases, attrs):
-        for key in list(attrs.keys()):
-            attr = attrs[key]
-            if not isinstance(attr, Property):
-                continue
+    def __init_subclass__(cls, **kwargs):
+        super().__init_subclass__(**kwargs)
 
-            attrs[f"_{key}"] = attr.default_value
+        properties = {
+            name: attr for name, attr in cls.__dict__.items() if isinstance(attr, Property)
+        }
+        for name, property in properties.items():
+            setattr(cls, f"_{name}", property.default_value)
             getter, setter = None, None
-            if attr.getter is not None:
-                getter = attrs[attr.getter]
-            if attr.setter is not None:
-                setter = attrs[attr.setter]
-            attrs[key] = PropertyImpl(key, getter, setter, attr.persist)
-
-        return super().__new__(cls, name, bases, attrs)
+            if property.getter is not None:
+                getter = getattr(cls, property.getter)
+            if property.setter is not None:
+                setter = getattr(cls, property.setter)
+            setattr(cls, name, PropertyImpl(name, getter, setter, property.persist))
 
 
 class Property(Generic[T]):
@@ -48,7 +47,7 @@ class Property(Generic[T]):
 
 
 class PropertyImpl(property):
-    """Property implementation: gets, sets, and notifies of change."""
+    """Property implementation: gets/sets a value, and emits a signal when it changes."""
 
     name: str
     persist: bool

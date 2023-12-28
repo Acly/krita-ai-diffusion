@@ -7,7 +7,7 @@ import asyncio
 from .client import Client, ClientMessage, ClientEvent, DeviceInfo, MissingResource
 from .network import NetworkError
 from .settings import Settings, PerformancePreset, settings
-from .properties import Property, PropertyMeta
+from .properties import Property, ObservableProperties
 from . import util, eventloop
 
 
@@ -18,7 +18,7 @@ class ConnectionState(Enum):
     error = 3
 
 
-class Connection(QObject, metaclass=PropertyMeta):
+class Connection(QObject, ObservableProperties):
     state = Property(ConnectionState.disconnected)
     error = Property("")
     missing_resource: MissingResource | None = None

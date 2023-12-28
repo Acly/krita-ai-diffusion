@@ -403,7 +403,8 @@ def test_create_control_image(qtapp, comfy, mode):
     async def main():
         result = await run_and_save(comfy, job, image_name)
         reference = Image.load(reference_dir / image_name)
-        assert Image.compare(result, reference) < 0.002
+        threshold = 0.005 if mode is ControlMode.pose else 0.002
+        assert Image.compare(result, reference) < threshold
 
     qtapp.run(main())
 

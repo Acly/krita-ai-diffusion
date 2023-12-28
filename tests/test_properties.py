@@ -1,8 +1,8 @@
 from enum import Enum
 import pytest
-from PyQt5.QtCore import QObject, pyqtBoundSignal, pyqtSignal
+from PyQt5.QtCore import QObject, pyqtSignal
 
-from ai_diffusion.properties import Property, PropertyMeta, bind, serialize, deserialize
+from ai_diffusion.properties import Property, ObservableProperties, bind, serialize, deserialize
 
 
 class Piong(Enum):
@@ -10,7 +10,7 @@ class Piong(Enum):
     b = 2
 
 
-class ObjectWithProperties(QObject, metaclass=PropertyMeta):
+class ObjectWithProperties(QObject, ObservableProperties):
     inty = Property(0)
     stringy = Property("")
     enumy = Property(Piong.a)
@@ -73,6 +73,15 @@ def test_property():
     assert called == [42, "hello", Piong.b, 5, 55]
 
 
+def test_multiple():
+    a = ObjectWithProperties()
+    b = ObjectWithProperties()
+
+    a.inty = 5
+    b.inty = 99
+    assert a.inty != b.inty
+
+
 def test_bind():
     a = ObjectWithProperties()
     b = ObjectWithProperties()
@@ -112,7 +121,7 @@ def test_bind_qt_to_property():
     assert a.qtstyle() == 99
 
 
-class PersistentObject(QObject, metaclass=PropertyMeta):
+class PersistentObject(QObject, ObservableProperties):
     inty = Property(0, persist=True)
     stringy = Property("", persist=True)
     enumy = Property(Piong.a, persist=True)

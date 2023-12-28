@@ -5,12 +5,12 @@ from . import model, jobs
 from .settings import settings
 from .resources import ControlMode
 from .client import resolve_sd_version
-from .properties import Property, PropertyMeta
+from .properties import Property, ObservableProperties
 from .image import Bounds
 from .workflow import Control
 
 
-class ControlLayer(QObject, metaclass=PropertyMeta):
+class ControlLayer(QObject, ObservableProperties):
     mode = Property(ControlMode.image, persist=True)
     layer_id = Property(QUuid(), persist=True)
     strength = Property(100, persist=True)
