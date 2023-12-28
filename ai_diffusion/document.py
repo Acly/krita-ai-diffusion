@@ -90,6 +90,10 @@ class Document:
     def is_valid(self) -> bool:
         return True
 
+    @property
+    def is_active(self) -> bool:
+        return Krita.instance().activeDocument() is None
+
 
 class KritaDocument(Document):
     """Wrapper around a Krita Document (opened image). Manages multiple image layers and
@@ -278,6 +282,10 @@ class KritaDocument(Document):
     @property
     def is_valid(self):
         return self._doc in Krita.instance().documents()
+
+    @property
+    def is_active(self):
+        return self._doc == Krita.instance().activeDocument()
 
     def __eq__(self, other):
         if self is other:
