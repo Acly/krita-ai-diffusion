@@ -6,7 +6,7 @@ from ai_diffusion.image import Mask, Bounds, Extent, Image
 from ai_diffusion.client import Client, ClientEvent
 from ai_diffusion.style import SDVersion, Style
 from ai_diffusion.pose import Pose
-from ai_diffusion.workflow import LiveParams, Conditioning, Control
+from ai_diffusion.workflow import Conditioning, Control
 from pathlib import Path
 from .config import data_dir, image_dir, result_dir, reference_dir, default_checkpoint
 
@@ -24,6 +24,9 @@ def comfy(pytestconfig, qtapp):
     if pytestconfig.getoption("--ci"):
         pytest.skip("Diffusion is disabled on CI")
     return qtapp.run(Client.connect())
+
+
+default_seed = 1234
 
 
 def default_style(comfy, sd_ver=SDVersion.sd15):
@@ -214,7 +217,7 @@ def test_merge_prompt():
     assert workflow.merge_prompt("", "b {prompt} c") == "b  c"
 
 
-def test_parse_lora(comfy):
+def test_parse_lora():
     client_loras = [
         "/path/to/Lora-One.safetensors",
         "Lora-two.safetensors",
@@ -248,13 +251,37 @@ def test_parse_lora(comfy):
         assert str(e).startswith("Invalid LoRA strength")
 
 
+@pytest.mark.parametrize("ksampler_type", ["basic", "advanced"])
+def test_increment_seed(ksampler_type):
+    w = ComfyWorkflow()
+    model, clip, vae = w.load_checkpoint(default_checkpoint[SDVersion.sd15])
+    prompt = w.clip_text_encode(clip, "")
+    o = w.empty_latent_image(512, 512)
+    if ksampler_type == "basic":
+        o = w.ksampler(model, prompt, prompt, o, seed=5)
+    else:
+        o = w.ksampler_advanced(model, prompt, prompt, o, seed=5)
+    o = w.vae_decode(vae, o)
+    w.save_image(o, "test_increment_seed.png")
+
+    class_type, seed_name = {
+        "basic": ("KSampler", "seed"),
+        "advanced": ("KSamplerAdvanced", "noise_seed"),
+    }[ksampler_type]
+    ksampler = w.root["4"]
+    assert ksampler["class_type"] == class_type
+    assert ksampler["inputs"][seed_name] == 5
+    w.increment_seed(3)
+    assert ksampler["inputs"][seed_name] == 8
+
+
 @pytest.mark.parametrize("extent", [Extent(256, 256), Extent(800, 800), Extent(512, 1024)])
 def test_generate(qtapp, comfy, temp_settings, extent):
     temp_settings.batch_size = 1
     prompt = Conditioning("ship")
 
     async def main():
-        job = workflow.generate(comfy, default_style(comfy), extent, prompt)
+        job = workflow.generate(comfy, default_style(comfy), extent, prompt, default_seed)
         results = await receive_images(comfy, job)
         results[0].save(result_dir / f"test_generate_{extent.width}x{extent.height}.png")
         assert results[0].extent == extent
@@ -267,7 +294,7 @@ def test_inpaint(qtapp, comfy, temp_settings):
     image = Image.load(image_dir / "beach_768x512.png")
     mask = Mask.rectangle(Bounds(50, 100, 320, 200), feather=10)
     prompt = Conditioning("ship")
-    job = workflow.inpaint(comfy, default_style(comfy), image, mask, prompt)
+    job = workflow.inpaint(comfy, default_style(comfy), image, mask, prompt, default_seed)
 
     async def main():
         results = await receive_images(comfy, job)
@@ -285,7 +312,7 @@ def test_inpaint_upscale(qtapp, comfy, temp_settings, sdver):
     image = Image.load(image_dir / "beach_1536x1024.png")
     mask = Mask.rectangle(Bounds(600, 200, 768, 512), feather=10)
     prompt = Conditioning("ship")
-    job = workflow.inpaint(comfy, default_style(comfy, sdver), image, mask, prompt)
+    job = workflow.inpaint(comfy, default_style(comfy, sdver), image, mask, prompt, default_seed)
 
     async def main():
         results = await receive_images(comfy, job)
@@ -305,7 +332,7 @@ def test_inpaint_odd_resolution(qtapp, comfy, temp_settings):
     prompt = Conditioning()
 
     async def main():
-        job = workflow.inpaint(comfy, default_style(comfy), image, mask, prompt)
+        job = workflow.inpaint(comfy, default_style(comfy), image, mask, prompt, default_seed)
         results = await receive_images(comfy, job)
         results[0].save(result_dir / "test_inpaint_odd_resolution.png")
         assert results[0].extent == mask.bounds.extent
@@ -318,7 +345,7 @@ def test_inpaint_area_conditioning(qtapp, comfy, temp_settings):
     image = Image.load(image_dir / "lake_1536x1024.png")
     mask = Mask.load(image_dir / "lake_1536x1024_mask_bottom_right.png")
     prompt = Conditioning("crocodile")
-    job = workflow.inpaint(comfy, default_style(comfy), image, mask, prompt)
+    job = workflow.inpaint(comfy, default_style(comfy), image, mask, prompt, default_seed)
 
     async def main():
         await run_and_save(comfy, job, "test_inpaint_area_conditioning.png")
@@ -334,7 +361,9 @@ def test_refine(qtapp, comfy, sdver, temp_settings):
     strength = {SDVersion.sd15: 0.5, SDVersion.sdxl: 0.65}[sdver]
 
     async def main():
-        job = workflow.refine(comfy, default_style(comfy, sdver), image, prompt, strength)
+        job = workflow.refine(
+            comfy, default_style(comfy, sdver), image, prompt, strength, default_seed
+        )
         results = await receive_images(comfy, job)
         results[0].save(result_dir / f"test_refine_{sdver.name}.png")
         assert results[0].extent == image.extent
@@ -349,7 +378,9 @@ def test_refine_region(qtapp, comfy, temp_settings):
     prompt = Conditioning("waterfall")
 
     async def main():
-        job = workflow.refine_region(comfy, default_style(comfy), image, mask, prompt, 0.6)
+        job = workflow.refine_region(
+            comfy, default_style(comfy), image, mask, prompt, 0.6, default_seed
+        )
         results = await receive_images(comfy, job)
         results[0].save(result_dir / "test_refine_region.png")
         assert results[0].extent == mask.bounds.extent
@@ -370,15 +401,15 @@ def test_control_scribble(qtapp, comfy, temp_settings, op):
     control = Conditioning("owls", "", [Control(ControlMode.scribble, scribble_image)])
 
     if op == "generate":
-        job = workflow.generate(comfy, style, Extent(512, 512), control)
+        job = workflow.generate(comfy, style, Extent(512, 512), control, default_seed)
     elif op == "inpaint":
         control.area = Bounds(322, 108, 144, 300)
-        job = workflow.inpaint(comfy, style, inpaint_image, mask, control)
+        job = workflow.inpaint(comfy, style, inpaint_image, mask, control, default_seed)
     elif op == "refine":
-        job = workflow.refine(comfy, style, inpaint_image, control, 0.7)
+        job = workflow.refine(comfy, style, inpaint_image, control, 0.7, default_seed)
     elif op == "refine_region":
         cropped_image = Image.crop(inpaint_image, mask.bounds)
-        job = workflow.refine_region(comfy, style, cropped_image, mask, control, 0.7)
+        job = workflow.refine_region(comfy, style, cropped_image, mask, control, 0.7, default_seed)
     else:  # op == "inpaint_upscale":
         control.control[0].image = Image.scale(scribble_image, Extent(1024, 1024))
         control.area = Bounds(322 * 2, 108 * 2, 144 * 2, 300 * 2)
@@ -386,7 +417,7 @@ def test_control_scribble(qtapp, comfy, temp_settings, op):
         upscaled_mask = Mask(
             Bounds(512, 0, 512, 1024), Image.scale(Image(mask.image), Extent(512, 1024))._qimage
         )
-        job = workflow.inpaint(comfy, style, upscaled_image, upscaled_mask, control)
+        job = workflow.inpaint(comfy, style, upscaled_image, upscaled_mask, control, default_seed)
 
     async def main():
         await run_and_save(comfy, job, f"test_control_scribble_{op}.png")
@@ -440,7 +471,7 @@ def test_ip_adapter(qtapp, comfy, temp_settings, sdver):
         "cat on a rooftop in paris", "", [Control(ControlMode.image, image, 0.6)]
     )
     extent = Extent(512, 512) if sdver == SDVersion.sd15 else Extent(1024, 1024)
-    job = workflow.generate(comfy, default_style(comfy, sdver), extent, control)
+    job = workflow.generate(comfy, default_style(comfy, sdver), extent, control, default_seed)
 
     async def main():
         await run_and_save(comfy, job, f"test_ip_adapter_{sdver.name}.png")
@@ -454,7 +485,9 @@ def test_ip_adapter_region(qtapp, comfy, temp_settings):
     mask = Mask.load(image_dir / "flowers_mask.png")
     control_img = Image.load(image_dir / "pegonia.png")
     control = Conditioning("potted flowers", "", [Control(ControlMode.image, control_img, 0.7)])
-    job = workflow.refine_region(comfy, default_style(comfy), image, mask, control, 0.6)
+    job = workflow.refine_region(
+        comfy, default_style(comfy), image, mask, control, 0.6, default_seed
+    )
 
     async def main():
         await run_and_save(comfy, job, "test_ip_adapter_region.png")
@@ -469,7 +502,7 @@ def test_ip_adapter_batch(qtapp, comfy, temp_settings):
     control = Conditioning(
         "", "", [Control(ControlMode.image, image1, 1.0), Control(ControlMode.image, image2, 1.0)]
     )
-    job = workflow.generate(comfy, default_style(comfy), Extent(512, 512), control)
+    job = workflow.generate(comfy, default_style(comfy), Extent(512, 512), control, default_seed)
 
     async def main():
         await run_and_save(comfy, job, "test_ip_adapter_batch.png")
@@ -491,7 +524,7 @@ def test_upscale_simple(qtapp, comfy):
 def test_upscale_tiled(qtapp, comfy, sdver):
     image = Image.load(image_dir / "beach_768x512.png")
     job = workflow.upscale_tiled(
-        comfy, image, comfy.default_upscaler, 2.0, default_style(comfy, sdver), 0.5
+        comfy, image, comfy.default_upscaler, 2.0, default_style(comfy, sdver), 0.5, default_seed
     )
 
     async def main():
@@ -502,9 +535,10 @@ def test_upscale_tiled(qtapp, comfy, sdver):
 
 def test_generate_live(qtapp, comfy):
     scribble = Image.load(image_dir / "owls_scribble.png")
-    live = LiveParams(is_active=True, seed=1234)
     cond = Conditioning("owls", "", [Control(ControlMode.scribble, scribble)])
-    job = workflow.generate(comfy, default_style(comfy), Extent(512, 512), cond, live)
+    job = workflow.generate(
+        comfy, default_style(comfy), Extent(512, 512), cond, default_seed, is_live=True
+    )
 
     async def main():
         await run_and_save(comfy, job, "test_generate_live.png")
@@ -517,8 +551,9 @@ def test_refine_live(qtapp, comfy, sdver):
     image = Image.load(image_dir / "pegonia.png")
     if sdver is SDVersion.sdxl:
         image = Image.scale(image, Extent(1024, 1024))  # result will be a bit blurry
-    live = LiveParams(is_active=True, seed=1234)
-    job = workflow.refine(comfy, default_style(comfy, sdver), image, Conditioning(), 0.4, live)
+    job = workflow.refine(
+        comfy, default_style(comfy, sdver), image, Conditioning(), 0.4, default_seed, is_live=True
+    )
 
     async def main():
         await run_and_save(comfy, job, f"test_refine_live_{sdver.name}.png")

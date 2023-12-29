@@ -143,15 +143,10 @@ def prepare_masked(image: Image, mask: Mask, sd_ver: SDVersion, downscale: bool 
     return scaled, out_image, out_mask, batch
 
 
-class LiveParams(NamedTuple):
-    is_active: bool = False
-    seed: int = 0
-
-
 def _sampler_params(
-    style: Style, clip_vision=False, advanced=True, live=LiveParams(), strength=1.0
+    style: Style, strength=1.0, seed=-1, clip_vision=False, advanced=True, is_live=False
 ) -> dict[str, Any]:
-    config = style.get_sampler_config(live.is_active)
+    config = style.get_sampler_config(is_live)
     sampler_name = {
         "DDIM": "ddim",
         "DPM++ 2M": "dpmpp_2m",
@@ -181,10 +176,11 @@ def _sampler_params(
         scheduler=sampler_scheduler,
         steps=config.steps,
         cfg=config.cfg,
+        seed=seed,
     )
     if advanced:
         if strength < 1.0:
-            min_steps = config.steps if live.is_active else 1
+            min_steps = config.steps if is_live else 1
             params["steps"], params["start_at_step"] = _apply_strength(
                 strength, params["steps"], min_steps
             )
@@ -192,14 +188,6 @@ def _sampler_params(
             params["start_at_step"] = 0
     if clip_vision:
         params["cfg"] = min(5, config.cfg)
-    if live.is_active:
-        params["seed"] = live.seed
-    elif settings.fixed_seed:
-        try:
-            params["seed"] = int(settings.random_seed)
-        except ValueError:
-            log.warning(f"Invalid random seed: {settings.random_seed}")
-
     return params
 
 
@@ -435,6 +423,7 @@ def upscale(
     extent: ScaledExtent,
     prompt_pos: Output,
     prompt_neg: Output,
+    seed: int,
     model: Output,
     vae: Output,
     comfy: Client,
@@ -442,7 +431,7 @@ def upscale(
     if extent.scale > (1 / 1.5):
         # up to 1.5x scale: upscale latent
         upscale = w.scale_latent(latent, extent.expanded)
-        params = _sampler_params(style, strength=0.5)
+        params = _sampler_params(style, strength=0.5, seed=seed)
     else:
         # for larger upscaling factors use super-resolution model
         upscale_model = w.load_upscale_model(comfy.default_upscaler)
@@ -450,27 +439,29 @@ def upscale(
         upscale = w.upscale_image(upscale_model, decoded)
         upscale = w.scale_image(upscale, extent.expanded)
         upscale = w.vae_encode(vae, upscale)
-        params = _sampler_params(style, strength=0.4)
+        params = _sampler_params(style, strength=0.4, seed=seed)
 
     return w.ksampler_advanced(model, prompt_pos, prompt_neg, upscale, **params)
 
 
 def generate(
-    comfy: Client, style: Style, input_extent: Extent, cond: Conditioning, live=LiveParams()
+    comfy: Client, style: Style, input_extent: Extent, cond: Conditioning, seed: int, is_live=False
 ):
     extent, batch = prepare_extent(
-        input_extent, resolve_sd_version(style, comfy), downscale=not live.is_active
+        input_extent, resolve_sd_version(style, comfy), downscale=not is_live
     )
-    sampler_params = _sampler_params(style, live=live)
-    batch = 1 if live.is_active else batch
+    sampler_params = _sampler_params(style, seed=seed, is_live=is_live)
+    batch = 1 if is_live else batch
 
     w = ComfyWorkflow(comfy.nodes_inputs)
-    model, clip, vae = load_model_with_lora(w, comfy, style, cond.prompt, is_live=live.is_active)
+    model, clip, vae = load_model_with_lora(w, comfy, style, cond.prompt, is_live=is_live)
     latent = w.empty_latent_image(extent.initial.width, extent.initial.height, batch)
     model, positive, negative = apply_conditioning(cond, w, comfy, model, clip, style)
     out_latent = w.ksampler_advanced(model, positive, negative, latent, **sampler_params)
     if extent.requires_upscale:
-        out_latent = upscale(w, style, out_latent, extent, positive, negative, model, vae, comfy)
+        out_latent = upscale(
+            w, style, out_latent, extent, positive, negative, seed, model, vae, comfy
+        )
     out_image = w.vae_decode(vae, out_latent)
     if extent.requires_downscale or extent.is_incompatible:
         out_image = w.scale_image(out_image, extent.target)
@@ -478,7 +469,7 @@ def generate(
     return w
 
 
-def inpaint(comfy: Client, style: Style, image: Image, mask: Mask, cond: Conditioning):
+def inpaint(comfy: Client, style: Style, image: Image, mask: Mask, cond: Conditioning, seed: int):
     sd_ver = resolve_sd_version(style, comfy)
     extent, scaled_image, scaled_mask, _ = prepare_masked(image, mask, sd_ver)
     target_bounds = mask.bounds
@@ -507,10 +498,10 @@ def inpaint(comfy: Client, style: Style, image: Image, mask: Mask, cond: Conditi
     latent = w.vae_encode_inpaint(vae, in_image, in_mask)
     latent = w.batch_latent(latent, batch)
     out_latent = w.ksampler_advanced(
-        model, positive, negative, latent, **_sampler_params(style, clip_vision=True)
+        model, positive, negative, latent, **_sampler_params(style, seed=seed, clip_vision=True)
     )
     if extent.requires_upscale:
-        params = _sampler_params(style, clip_vision=True, strength=0.5)
+        params = _sampler_params(style, strength=0.5, seed=seed, clip_vision=True)
         if extent.scale > (1 / 1.5):
             # up to 1.5x scale: upscale latent
             latent = w.scale_latent(out_latent, extent.expanded)
@@ -557,19 +548,20 @@ def refine(
     image: Image,
     cond: Conditioning,
     strength: float,
-    live=LiveParams(),
+    seed: int,
+    is_live=False,
 ):
     assert strength > 0 and strength < 1
     extent, image, batch = prepare_image(image, resolve_sd_version(style, comfy), downscale=False)
-    sampler_params = _sampler_params(style, live=live, strength=strength)
+    sampler_params = _sampler_params(style, strength, seed, is_live=is_live)
 
     w = ComfyWorkflow(comfy.nodes_inputs)
-    model, clip, vae = load_model_with_lora(w, comfy, style, cond.prompt, is_live=live.is_active)
+    model, clip, vae = load_model_with_lora(w, comfy, style, cond.prompt, is_live=is_live)
     in_image = w.load_image(image)
     if extent.is_incompatible:
         in_image = w.scale_image(in_image, extent.expanded)
     latent = w.vae_encode(vae, in_image)
-    if batch > 1 and not live.is_active:
+    if batch > 1 and not is_live:
         latent = w.batch_latent(latent, batch)
     model, positive, negative = apply_conditioning(cond, w, comfy, model, clip, style)
     sampler = w.ksampler_advanced(model, positive, negative, latent, **sampler_params)
@@ -587,17 +579,18 @@ def refine_region(
     mask: Mask,
     cond: Conditioning,
     strength: float,
-    live=LiveParams(),
+    seed: int,
+    is_live=False,
 ):
     assert strength > 0 and strength <= 1
 
     downscale_if_needed = strength >= 0.7
     sd_ver = resolve_sd_version(style, comfy)
     extent, image, mask_image, batch = prepare_masked(image, mask, sd_ver, downscale_if_needed)
-    sampler_params = _sampler_params(style, strength=strength, live=live)
+    sampler_params = _sampler_params(style, strength, seed, is_live=is_live)
 
     w = ComfyWorkflow(comfy.nodes_inputs)
-    model, clip, vae = load_model_with_lora(w, comfy, style, cond.prompt, is_live=live.is_active)
+    model, clip, vae = load_model_with_lora(w, comfy, style, cond.prompt, is_live=is_live)
     in_image = w.load_image(image)
     in_mask = w.load_mask(mask_image)
     if extent.requires_downscale:
@@ -608,14 +601,16 @@ def refine_region(
         in_mask = w.scale_mask(in_mask, extent.expanded)
     latent = w.vae_encode(vae, in_image)
     latent = w.set_latent_noise_mask(latent, in_mask)
-    if batch > 1 and not live.is_active:
+    if batch > 1 and not is_live:
         latent = w.batch_latent(latent, batch)
-    if not live.is_active:
+    if not is_live:
         cond.control.append(Control(ControlMode.inpaint, in_image, mask=in_mask))
     model, positive, negative = apply_conditioning(cond, w, comfy, model, clip, style)
     out_latent = w.ksampler_advanced(model, positive, negative, latent, **sampler_params)
     if extent.requires_upscale:
-        out_latent = upscale(w, style, out_latent, extent, positive, negative, model, vae, comfy)
+        out_latent = upscale(
+            w, style, out_latent, extent, positive, negative, seed, model, vae, comfy
+        )
     out_image = w.vae_decode(vae, out_latent)
     if extent.requires_downscale or extent.is_incompatible:
         out_image = w.scale_image(out_image, extent.target)
@@ -678,7 +673,7 @@ def upscale_simple(comfy: Client, image: Image, model: str, factor: float):
 
 
 def upscale_tiled(
-    comfy: Client, image: Image, model: str, factor: float, style: Style, strength: float
+    comfy: Client, image: Image, model: str, factor: float, style: Style, strength: float, seed: int
 ):
     sd_ver = resolve_sd_version(style, comfy)
     cond = Conditioning("4k uhd")
@@ -707,7 +702,7 @@ def upscale_tiled(
         denoise=strength,
         original_extent=image.extent,
         tile_extent=tile_extent,
-        **_sampler_params(style, advanced=False),
+        **_sampler_params(style, seed=seed, advanced=False),
     )
     if not target_extent.is_multiple_of(8):
         img = w.scale_image(img, target_extent)

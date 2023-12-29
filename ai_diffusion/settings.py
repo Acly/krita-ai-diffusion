@@ -107,14 +107,6 @@ class Settings(QObject):
         "Selection Padding", 7, "Minimum additional padding around the selection area"
     )
 
-    fixed_seed: bool
-    _fixed_seed = Setting("Use Fixed Seed", False, "Fixes the random seed to a specific value")
-
-    random_seed: str
-    _random_seed = Setting(
-        "Random Seed", "0", "Random number to produce different results with each generation"
-    )
-
     new_seed_after_apply: bool
     _new_seed_after_apply = Setting(
         "Live: New Seed after Apply",

@@ -28,7 +28,7 @@ from .widget import (
     TextPromptWidget,
     StrengthWidget,
     ControlLayerButton,
-    QueueWidget,
+    QueueButton,
     ControlListWidget,
 )
 
@@ -43,7 +43,10 @@ class HistoryWidget(QListWidget):
 
     _thumb_size = 96
     _applied_icon = Image.load(theme.icon_path / "star.png")
-    _list_css = f"QListWidget::item:selected {{ border: 1px solid {theme.grey}; }}"
+    _list_css = f"""
+        QListWidget {{ background-color: transparent; }}
+        QListWidget::item:selected {{ border: 1px solid {theme.grey}; }}
+    """
     _button_css = f"""
         QPushButton {{
             border: 1px solid {theme.grey};
@@ -295,7 +298,7 @@ class GenerationWidget(QWidget):
 
         self.generate_button = QPushButton("Generate", self)
         self.generate_button.setMinimumHeight(int(self.generate_button.sizeHint().height() * 1.2))
-        self.queue_button = QueueWidget(self)
+        self.queue_button = QueueButton(parent=self)
         self.queue_button.setMinimumHeight(self.generate_button.minimumHeight())
         actions_layout = QHBoxLayout()
         actions_layout.addWidget(self.generate_button)
@@ -343,7 +346,7 @@ class GenerationWidget(QWidget):
                 self.generate_button.clicked.connect(model.generate),
             ]
             self.control_list.model = model
-            self.queue_button.jobs = model.jobs
+            self.queue_button.model = model
             self.history.jobs = model.jobs
 
     def update_progress(self):

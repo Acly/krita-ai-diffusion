@@ -17,7 +17,7 @@ from ..resources import UpscalerName
 from ..model import Model
 from ..root import root
 from .theme import SignalBlocker
-from .widget import WorkspaceSelectWidget, StyleSelectWidget, StrengthWidget, QueueWidget
+from .widget import WorkspaceSelectWidget, StyleSelectWidget, StrengthWidget, QueueButton
 
 
 class UpscaleWidget(QWidget):
@@ -84,7 +84,7 @@ class UpscaleWidget(QWidget):
         self.upscale_button.setMinimumHeight(int(self.upscale_button.sizeHint().height() * 1.2))
         self.upscale_button.clicked.connect(self.upscale)
 
-        self.queue_button = QueueWidget(self)
+        self.queue_button = QueueButton(supports_batch=False, parent=self)
         self.queue_button.setMinimumHeight(self.upscale_button.minimumHeight())
 
         actions_layout = QHBoxLayout()
@@ -131,7 +131,7 @@ class UpscaleWidget(QWidget):
                 model.error_changed.connect(self.error_text.setText),
                 model.has_error_changed.connect(self.error_text.setVisible),
             ]
-            self.queue_button.jobs = model.jobs
+            self.queue_button.model = model
             self.update_factor(model.upscale.factor)
             self.update_target_extent()
             self.update_progress()

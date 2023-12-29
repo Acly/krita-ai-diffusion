@@ -82,6 +82,13 @@ class ComfyWorkflow:
             self._cache[key] = result
         return result
 
+    def increment_seed(self, offset: int):
+        for node in self.root.values():
+            if node["class_type"] == "KSampler":
+                node["inputs"]["seed"] += offset
+            elif node["class_type"] == "KSamplerAdvanced":
+                node["inputs"]["noise_seed"] += offset
+
     def ksampler(
         self,
         model: Output,

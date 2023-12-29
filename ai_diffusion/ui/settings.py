@@ -966,20 +966,7 @@ class DiffusionSettings(SettingsTab):
         self.add("selection_feather", SliderSetting(S._selection_feather, self, 0, 25, "{} %"))
         self.add("selection_padding", SliderSetting(S._selection_padding, self, 0, 25, "{} %"))
 
-        self.add("random_seed", TextSetting(Settings._random_seed, self))
-        self._fixed_seed_checkbox = QCheckBox("Use fixed seed", self)
-        self._fixed_seed_checkbox.stateChanged.connect(self.write)
-        self._layout.addWidget(self._fixed_seed_checkbox)
-
         self._layout.addStretch()
-
-    def _read(self):
-        self._fixed_seed_checkbox.setChecked(settings.fixed_seed)
-        self._widgets["random_seed"].setEnabled(settings.fixed_seed)
-
-    def _write(self):
-        settings.fixed_seed = self._fixed_seed_checkbox.isChecked()
-        self._widgets["random_seed"].setEnabled(settings.fixed_seed)
 
 
 class InterfaceSettings(SettingsTab):

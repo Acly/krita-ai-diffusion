@@ -18,6 +18,9 @@ from PyQt5.QtWidgets import (
     QSizePolicy,
     QStyle,
     QStyleOption,
+    QWidgetAction,
+    QCheckBox,
+    QGridLayout,
 )
 from PyQt5.QtGui import QColor, QFontMetrics, QKeyEvent, QPalette, QTextCursor, QPainter
 from PyQt5.QtCore import Qt, QMetaObject, QSize, pyqtSignal
@@ -27,7 +30,7 @@ from ..style import Style, Styles
 from ..resources import ControlMode
 from ..root import root
 from ..client import filter_supported_styles, resolve_sd_version
-from ..properties import Binding, bind, bind_combo
+from ..properties import Binding, Bind, bind, bind_combo
 from ..jobs import JobState, JobQueue
 from ..model import Model, Workspace, ControlLayer
 from ..attention_edit import edit_attention, select_on_cursor_pos
@@ -37,38 +40,146 @@ from .theme import SignalBlocker
 from . import actions, theme
 
 
-class QueueWidget(QToolButton):
-    _jobs: JobQueue
+class QueuePopup(QMenu):
+    _model: Model
+    _connections: list[QMetaObject.Connection]
 
-    def __init__(self, parent):
+    def __init__(self, supports_batch=True, parent: QWidget | None = None):
         super().__init__(parent)
-        self._jobs = JobQueue()
-        self._jobs.count_changed.connect(self._update)
+        self._model = root.active_model
+        self._connections = []
 
-        queue_menu = QMenu(self)
-        queue_menu.addAction(self._create_action("Cancel active", actions.cancel_active))
-        queue_menu.addAction(self._create_action("Cancel queued", actions.cancel_queued))
-        queue_menu.addAction(self._create_action("Cancel all", actions.cancel_all))
-        self.setMenu(queue_menu)
+        palette = self.palette()
+        self.setObjectName("QueuePopup")
+        self.setStyleSheet(f"""
+            QWidget#QueuePopup {{
+                background-color: {palette.window().color().name()}; 
+                border: 1px solid {palette.dark().color().name()};
+            }}""")
+
+        self._layout = QGridLayout()
+        self.setLayout(self._layout)
+
+        batch_label = QLabel("Batches", self)
+        batch_label.setVisible(supports_batch)
+        self._layout.addWidget(batch_label, 0, 0)
+        batch_layout = QHBoxLayout()
+        self._batch_slider = QSlider(Qt.Orientation.Horizontal, self)
+        self._batch_slider.setMinimum(1)
+        self._batch_slider.setMaximum(10)
+        self._batch_slider.setSingleStep(1)
+        self._batch_slider.setPageStep(1)
+        self._batch_slider.setVisible(supports_batch)
+        self._batch_slider.setToolTip("Number of jobs to enqueue at once")
+        self._batch_label = QLabel("1", self)
+        self._batch_label.setVisible(supports_batch)
+        batch_layout.addWidget(self._batch_slider)
+        batch_layout.addWidget(self._batch_label)
+        self._layout.addLayout(batch_layout, 0, 1)
+
+        self._seed_label = QLabel("Seed", self)
+        self._layout.addWidget(self._seed_label, 1, 0)
+        self._seed_input = QSpinBox(self)
+        self._seed_check = QCheckBox(self)
+        self._seed_check.setText("Fixed")
+        self._seed_input.setMinimum(0)
+        self._seed_input.setMaximum(2**31 - 1)
+        self._seed_input.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Preferred)
+        self._seed_input.setEnabled(False)
+        self._seed_input.setToolTip(
+            "The seed controls the random part of the output. A fixed seed value will always"
+            " produce the same result for the same inputs."
+        )
+        self._randomize_seed = QToolButton(self)
+        self._randomize_seed.setIcon(theme.icon("random"))
+        self._randomize_seed.setEnabled(False)
+        seed_layout = QHBoxLayout()
+        seed_layout.addWidget(self._seed_check)
+        seed_layout.addWidget(self._seed_input)
+        seed_layout.addWidget(self._randomize_seed)
+        self._layout.addLayout(seed_layout, 1, 1)
+
+        cancel_label = QLabel("Cancel", self)
+        self._layout.addWidget(cancel_label, 2, 0)
+        self._cancel_active = self._create_cancel_button("Active", actions.cancel_active)
+        self._cancel_queued = self._create_cancel_button("Queued", actions.cancel_queued)
+        self._cancel_all = self._create_cancel_button("All", actions.cancel_all)
+        cancel_layout = QHBoxLayout()
+        cancel_layout.addWidget(self._cancel_active)
+        cancel_layout.addWidget(self._cancel_queued)
+        cancel_layout.addWidget(self._cancel_all)
+        self._layout.addLayout(cancel_layout, 2, 1)
+
+    @property
+    def model(self):
+        return self._model
+
+    @model.setter
+    def model(self, model: Model):
+        Binding.disconnect_all(self._connections)
+        self._model = model
+        self._connections = [
+            bind(self._model, "batch_count", self._batch_slider, "value"),
+            model.batch_count_changed.connect(lambda v: self._batch_label.setText(str(v))),
+            bind(self._model, "seed", self._seed_input, "value"),
+            bind(self._model, "fixed_seed", self._seed_check, "checked", Bind.one_way),
+            self._seed_check.toggled.connect(lambda v: setattr(self._model, "fixed_seed", v)),
+            self._model.fixed_seed_changed.connect(self._seed_input.setEnabled),
+            self._model.fixed_seed_changed.connect(self._randomize_seed.setEnabled),
+            self._randomize_seed.clicked.connect(self._model.generate_seed),
+            model.jobs.count_changed.connect(self._update_cancel_buttons),
+        ]
+
+    def _create_cancel_button(self, name: str, action: Callable[[], None]):
+        button = QToolButton(self)
+        button.setToolButtonStyle(Qt.ToolButtonStyle.ToolButtonTextBesideIcon)
+        button.setText(name)
+        button.setIcon(theme.icon("cancel"))
+        button.setEnabled(False)
+        button.clicked.connect(action)
+        return button
+
+    def _update_cancel_buttons(self):
+        has_active = self._model.jobs.any_executing()
+        has_queued = self._model.jobs.count(JobState.queued) > 0
+        self._cancel_active.setEnabled(has_active)
+        self._cancel_queued.setEnabled(has_queued)
+        self._cancel_all.setEnabled(has_active or has_queued)
+
+
+class QueueButton(QToolButton):
+    _model: Model
+    _popup: QueuePopup
+
+    def __init__(self, supports_batch=True, parent: QWidget | None = None):
+        super().__init__(parent)
+        self._model = root.active_model
+        self._model.jobs.count_changed.connect(self._update)
+
+        self._popup = QueuePopup(supports_batch)
+        popup_action = QWidgetAction(self)
+        popup_action.setDefaultWidget(self._popup)
+        self.addAction(popup_action)
 
         self.setToolButtonStyle(Qt.ToolButtonStyle.ToolButtonTextBesideIcon)
-        self.setPopupMode(QToolButton.InstantPopup)
+        self.setPopupMode(QToolButton.ToolButtonPopupMode.InstantPopup)
         self.setMinimumWidth(int(self.sizeHint().width() * 2.2))
         self._update()
 
     @property
-    def jobs(self):
-        return self._jobs
+    def model(self):
+        return self._model
 
-    @jobs.setter
-    def jobs(self, jobs: JobQueue):
-        self._jobs.count_changed.disconnect(self._update)
-        self._jobs = jobs
-        self._jobs.count_changed.connect(self._update)
+    @model.setter
+    def model(self, model: Model):
+        self._model.jobs.count_changed.disconnect(self._update)
+        self._model = model
+        self._popup.model = model
+        self._model.jobs.count_changed.connect(self._update)
 
     def _update(self):
-        count = self._jobs.count(JobState.queued)
-        if self._jobs.any_executing():
+        count = self._model.jobs.count(JobState.queued)
+        if self._model.jobs.any_executing():
             self.setIcon(theme.icon("queue-active"))
             if count > 0:
                 self.setToolTip(f"Generating image. {count} jobs queued - click to cancel.")
@@ -79,11 +190,6 @@ class QueueWidget(QToolButton):
             self.setIcon(theme.icon("queue-inactive"))
             self.setToolTip("Idle.")
         self.setText(f"{count} ")
-
-    def _create_action(self, name: str, func: Callable[[], None]):
-        action = QAction(name, self)
-        action.triggered.connect(func)
-        return action
 
     def paintEvent(self, a0):
         _paint_tool_drop_down(self, self.text())
