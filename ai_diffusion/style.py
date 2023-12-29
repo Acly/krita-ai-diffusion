@@ -229,6 +229,7 @@ class Styles(QObject):
     def reload(self):
         styles = (Style.load(f) for f in self.folder.iterdir() if f.suffix == ".json")
         self._list = [s for s in styles if s is not None]
+        self._list.sort(key=lambda s: s.name)
         if len(self._list) == 0:
             self.create("default")
         else:
