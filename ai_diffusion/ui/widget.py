@@ -46,7 +46,6 @@ class QueuePopup(QMenu):
 
     def __init__(self, supports_batch=True, parent: QWidget | None = None):
         super().__init__(parent)
-        self._model = root.active_model
         self._connections = []
 
         palette = self.palette()
@@ -85,14 +84,12 @@ class QueuePopup(QMenu):
         self._seed_input.setMinimum(0)
         self._seed_input.setMaximum(2**31 - 1)
         self._seed_input.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Preferred)
-        self._seed_input.setEnabled(False)
         self._seed_input.setToolTip(
             "The seed controls the random part of the output. A fixed seed value will always"
             " produce the same result for the same inputs."
         )
         self._randomize_seed = QToolButton(self)
         self._randomize_seed.setIcon(theme.icon("random"))
-        self._randomize_seed.setEnabled(False)
         seed_layout = QHBoxLayout()
         seed_layout.addWidget(self._seed_check)
         seed_layout.addWidget(self._seed_input)
@@ -110,6 +107,8 @@ class QueuePopup(QMenu):
         cancel_layout.addWidget(self._cancel_all)
         self._layout.addLayout(cancel_layout, 2, 1)
 
+        self._model = root.active_model
+
     @property
     def model(self):
         return self._model
@@ -118,6 +117,9 @@ class QueuePopup(QMenu):
     def model(self, model: Model):
         Binding.disconnect_all(self._connections)
         self._model = model
+        self._randomize_seed.setEnabled(self._model.fixed_seed)
+        self._seed_input.setEnabled(self._model.fixed_seed)
+        self._batch_label.setText(str(self._model.batch_count))
         self._connections = [
             bind(self._model, "batch_count", self._batch_slider, "value"),
             model.batch_count_changed.connect(lambda v: self._batch_label.setText(str(v))),
