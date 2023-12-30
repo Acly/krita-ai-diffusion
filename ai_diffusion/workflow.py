@@ -146,7 +146,7 @@ def prepare_masked(image: Image, mask: Mask, sd_ver: SDVersion, downscale: bool 
 
 def generate_seed():
     # Currently only using 32 bit because Qt widgets don't support int64
-    return random.randint(0, 2**32 - 1)
+    return random.randint(0, 2**31 - 1)
 
 
 def _sampler_params(

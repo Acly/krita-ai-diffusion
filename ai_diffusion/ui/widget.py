@@ -1,5 +1,5 @@
 from __future__ import annotations
-from typing import Callable, Optional
+from typing import Callable, Optional, cast
 
 from PyQt5.QtWidgets import (
     QAction,
@@ -22,7 +22,15 @@ from PyQt5.QtWidgets import (
     QCheckBox,
     QGridLayout,
 )
-from PyQt5.QtGui import QColor, QFontMetrics, QKeyEvent, QPalette, QTextCursor, QPainter
+from PyQt5.QtGui import (
+    QColor,
+    QFontMetrics,
+    QKeyEvent,
+    QMouseEvent,
+    QPalette,
+    QTextCursor,
+    QPainter,
+)
 from PyQt5.QtCore import Qt, QMetaObject, QSize, pyqtSignal
 import krita
 
@@ -147,6 +155,11 @@ class QueuePopup(QMenu):
         self._cancel_active.setEnabled(has_active)
         self._cancel_queued.setEnabled(has_queued)
         self._cancel_all.setEnabled(has_active or has_queued)
+
+    def mouseReleaseEvent(self, a0: QMouseEvent | None) -> None:
+        if parent := cast(QWidget, self.parent()):
+            parent.close()
+        return super().mouseReleaseEvent(a0)
 
 
 class QueueButton(QToolButton):

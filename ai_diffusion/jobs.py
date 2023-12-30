@@ -1,5 +1,6 @@
 from __future__ import annotations
 from collections import deque
+from dataclasses import dataclass, fields
 from datetime import datetime
 from enum import Enum, Flag
 from typing import Deque, NamedTuple
@@ -25,24 +26,35 @@ class JobKind(Enum):
     live_preview = 3
 
 
+@dataclass
+class JobParams:
+    bounds: Bounds
+    prompt: str
+    negative_prompt: str = ""
+    seed: int = 0
+
+    @classmethod
+    def equal_ignore_seed(cls, a: JobParams | None, b: JobParams | None):
+        if a is None or b is None:
+            return a is b
+        field_names = (f.name for f in fields(cls) if not f.name == "seed")
+        return all(getattr(a, name) == getattr(b, name) for name in field_names)
+
+
 class Job:
     id: str | None
     kind: JobKind
     state = JobState.queued
-    prompt: str
-    bounds: Bounds
-    seed: int
+    params: JobParams
     control: "control.ControlLayer | None" = None
     timestamp: datetime
     results: ImageCollection
     _in_use: dict[int, bool]
 
-    def __init__(self, id: str | None, kind: JobKind, prompt: str, bounds: Bounds, seed=0):
+    def __init__(self, id: str | None, kind: JobKind, params: JobParams):
         self.id = id
         self.kind = kind
-        self.prompt = prompt
-        self.bounds = bounds
-        self.seed = seed
+        self.params = params
         self.timestamp = datetime.now()
         self.results = ImageCollection()
         self._in_use = {}
@@ -72,20 +84,20 @@ class JobQueue(QObject):
         super().__init__()
         self._entries = deque()
 
-    def add(self, kind: JobKind, id: str, prompt: str, bounds: Bounds, seed: int):
-        return self._add(Job(id, kind, prompt, bounds, seed))
+    def add(self, kind: JobKind, id: str, prompt: str, negative: str, bounds: Bounds, seed: int):
+        return self.add_job(Job(id, kind, JobParams(bounds, prompt, negative, seed)))
 
     def add_control(self, control: "control.ControlLayer", bounds: Bounds):
-        job = Job(None, JobKind.control_layer, f"[Control] {control.mode.text}", bounds)
+        job = Job(None, JobKind.control_layer, JobParams(bounds, f"[Control] {control.mode.text}"))
         job.control = control
-        return self._add(job)
+        return self.add_job(job)
 
     def add_upscale(self, bounds: Bounds, seed: int):
         name = f"[Upscale] {bounds.width}x{bounds.height}"
-        job = Job(None, JobKind.upscaling, name, bounds, seed)
-        return self._add(job)
+        job = Job(None, JobKind.upscaling, JobParams(bounds, name, seed=seed))
+        return self.add_job(job)
 
-    def _add(self, job: Job):
+    def add_job(self, job: Job):
         self._entries.append(job)
         self.count_changed.emit()
         return job

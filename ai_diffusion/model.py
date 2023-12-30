@@ -162,10 +162,11 @@ class Model(QObject, ObservableProperties):
                 client, style, image, mask, conditioning, strength, seed, is_live
             )
 
+        job_kind = JobKind.live_preview if is_live else JobKind.diffusion
+        pos, neg = conditioning.prompt, conditioning.negative_prompt
         for i in range(count):
             job_id = await client.enqueue(job)
-            job_kind = JobKind.live_preview if is_live else JobKind.diffusion
-            self.jobs.add(job_kind, job_id, conditioning.prompt, bounds, job.seed)
+            self.jobs.add(job_kind, job_id, pos, neg, bounds, job.seed)
             job.seed = seed + (i + 1) * settings.batch_size
 
     def upscale_image(self):
@@ -295,16 +296,16 @@ class Model(QObject, ObservableProperties):
     def show_preview(self, job_id: str, index: int, name_prefix="Preview"):
         job = self.jobs.find(job_id)
         assert job is not None, "Cannot show preview, invalid job id"
-        name = f"[{name_prefix}] {job.prompt}"
+        name = f"[{name_prefix}] {job.params.prompt}"
         if self._layer and self._layer.parentNode() is None:
             self._layer = None
         if self._layer is not None:
             self._layer.setName(name)
-            self._doc.set_layer_content(self._layer, job.results[index], job.bounds)
+            self._doc.set_layer_content(self._layer, job.results[index], job.params.bounds)
             self._doc.move_to_top(self._layer)
         else:
             self._layer = self._doc.insert_layer(
-                name, job.results[index], job.bounds, make_active=False
+                name, job.results[index], job.params.bounds, make_active=False
             )
             self._layer.setLocked(True)
 
@@ -326,10 +327,10 @@ class Model(QObject, ObservableProperties):
         assert job.kind is JobKind.control_layer and job.control
         if job.control.mode is ControlMode.pose and result is not None:
             pose = Pose.from_open_pose_json(result)
-            pose.scale(job.bounds.extent)
-            return self._doc.insert_vector_layer(job.prompt, pose.to_svg())
+            pose.scale(job.params.bounds.extent)
+            return self._doc.insert_vector_layer(job.params.prompt, pose.to_svg())
         elif len(job.results) > 0:
-            return self._doc.insert_layer(job.prompt, job.results[0], job.bounds)
+            return self._doc.insert_layer(job.params.prompt, job.results[0], job.params.bounds)
         return self.document.active_layer  # Execution was cached and no image was produced
 
     def add_upscale_layer(self, job: Job):
@@ -338,9 +339,9 @@ class Model(QObject, ObservableProperties):
         if self._layer:
             self._layer.remove()
             self._layer = None
-        self._doc.resize(job.bounds.extent)
+        self._doc.resize(job.params.bounds.extent)
         self.upscale.target_extent_changed.emit(self.upscale.target_extent)
-        self._doc.insert_layer(job.prompt, job.results[0], job.bounds)
+        self._doc.insert_layer(job.params.prompt, job.results[0], job.params.bounds)
 
     def set_workspace(self, workspace: Workspace):
         if self.workspace is Workspace.live:
@@ -455,7 +456,7 @@ class LiveWorkspace(QObject, ObservableProperties):
     def handle_job_finished(self, job: Job):
         if job.kind is JobKind.live_preview:
             if len(job.results) > 0:
-                self.set_result(job.results[0], job.bounds)
+                self.set_result(job.results[0], job.params.bounds)
             self.is_active = self._is_active and self._model.document.is_active
             if self.is_active:
                 self._model.generate_live()

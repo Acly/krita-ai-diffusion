@@ -9,7 +9,7 @@ from PyQt5.QtWidgets import QMessageBox
 from .image import Bounds, Image, ImageCollection, ImageFileFormat
 from .model import Model
 from .control import ControlLayer
-from .jobs import Job, JobKind
+from .jobs import Job, JobKind, JobParams
 from .style import Style, Styles
 from .properties import serialize, deserialize
 from .settings import settings
@@ -22,15 +22,14 @@ version = 1
 @dataclass
 class _HistoryResult:
     id: str
-    prompt: str
-    bounds: Bounds
     slot: int  # annotation slot where images are stored
     offsets: list[int]  # offsets in bytes for result images
-    seed: int = 0
+    params: JobParams
 
     @staticmethod
     def from_dict(data: dict[str, Any]):
-        data["bounds"] = Bounds(*data["bounds"])
+        data["params"]["bounds"] = Bounds(*data["params"]["bounds"])
+        data["params"] = JobParams(**data["params"])
         return _HistoryResult(**data)
 
 
@@ -80,9 +79,7 @@ class ModelSync:
         for result in state.get("history", []):
             item = _HistoryResult.from_dict(result)
             if images_bytes := model.document.find_annotation(f"result{item.slot}"):
-                job = model.jobs.add(
-                    JobKind.diffusion, item.id, item.prompt, item.bounds, item.seed
-                )
+                job = model.jobs.add_job(Job(item.id, JobKind.diffusion, item.params))
                 results = _deserialize_images(images_bytes, item.offsets, item.slot)
                 model.jobs.set_results(job, results)
                 model.jobs.notify_finished(job)
@@ -110,9 +107,7 @@ class ModelSync:
             self._slot_index += 1
             image_data, image_offsets = _serialize_images(job.results)
             self._model.document.annotate(f"result{slot}", image_data)
-            self._history.append(
-                _HistoryResult(job.id or "", job.prompt, job.bounds, slot, image_offsets, job.seed)
-            )
+            self._history.append(_HistoryResult(job.id or "", slot, image_offsets, job.params))
             self._memory_used[slot] = image_data.size()
             self._prune()
             self._save()
