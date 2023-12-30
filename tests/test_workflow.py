@@ -271,8 +271,9 @@ def test_increment_seed(ksampler_type):
     ksampler = w.root["4"]
     assert ksampler["class_type"] == class_type
     assert ksampler["inputs"][seed_name] == 5
-    w.increment_seed(3)
-    assert ksampler["inputs"][seed_name] == 8
+    assert w.seed == 5
+    w.seed += 4
+    assert ksampler["inputs"][seed_name] == 9
 
 
 @pytest.mark.parametrize("extent", [Extent(256, 256), Extent(800, 800), Extent(512, 1024)])

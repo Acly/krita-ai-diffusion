@@ -1,5 +1,6 @@
 from __future__ import annotations
 import math
+import random
 import re
 from itertools import chain
 from pathlib import Path
@@ -141,6 +142,11 @@ def prepare_masked(image: Image, mask: Mask, sd_ver: SDVersion, downscale: bool 
     scaled, out_image, out_mask, batch = prepare(image.extent, image, mask, sd_ver, downscale)
     assert out_image and out_mask
     return scaled, out_image, out_mask, batch
+
+
+def generate_seed():
+    # Currently only using 32 bit because Qt widgets don't support int64
+    return random.randint(0, 2**32 - 1)
 
 
 def _sampler_params(

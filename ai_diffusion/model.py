@@ -116,7 +116,7 @@ class Model(QObject, ObservableProperties):
         control = [c.get_image(image_bounds) for c in self.control]
         conditioning = Conditioning(self.prompt, self.negative_prompt, control)
         conditioning.area = selection_bounds if self.strength == 1.0 else None
-        seed = self.seed if self.fixed_seed else -1
+        seed = self.seed if self.fixed_seed else workflow.generate_seed()
         generator = self._generate(
             image_bounds, conditioning, self.strength, image, mask, seed, self.batch_count
         )
@@ -162,17 +162,18 @@ class Model(QObject, ObservableProperties):
                 client, style, image, mask, conditioning, strength, seed, is_live
             )
 
-        for _ in range(count):
+        for i in range(count):
             job_id = await client.enqueue(job)
             job_kind = JobKind.live_preview if is_live else JobKind.diffusion
-            self.jobs.add(job_kind, job_id, conditioning.prompt, bounds)
-            job.increment_seed(settings.batch_size)
+            self.jobs.add(job_kind, job_id, conditioning.prompt, bounds, job.seed)
+            job.seed = seed + (i + 1) * settings.batch_size
 
     def upscale_image(self):
+        params = self.upscale.params
         image = self._doc.get_image(Bounds(0, 0, *self._doc.extent))
-        job = self.jobs.add_upscale(Bounds(0, 0, *self.upscale.target_extent))
+        job = self.jobs.add_upscale(Bounds(0, 0, *self.upscale.target_extent), params.seed)
         self.clear_error()
-        eventloop.run(_report_errors(self, self._upscale_image(job, image, self.upscale.params)))
+        eventloop.run(_report_errors(self, self._upscale_image(job, image, params)))
 
     async def _upscale_image(self, job: Job, image: Image, params: UpscaleParams):
         client = self._connection.client
@@ -349,7 +350,7 @@ class Model(QObject, ObservableProperties):
         self.modified.emit(self, "workspace")
 
     def generate_seed(self):
-        self.seed = random.randint(0, 2**31 - 1)
+        self.seed = workflow.generate_seed()
 
     @property
     def history(self):
@@ -419,7 +420,7 @@ class UpscaleWorkspace(QObject, ObservableProperties):
             use_diffusion=self.use_diffusion,
             strength=self.strength,
             target_extent=self.target_extent,
-            seed=self._model.seed if self._model.fixed_seed else -1,
+            seed=self._model.seed if self._model.fixed_seed else workflow.generate_seed(),
         )
 
 

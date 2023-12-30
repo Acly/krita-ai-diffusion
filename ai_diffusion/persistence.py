@@ -1,6 +1,7 @@
 from __future__ import annotations
 import json
-from typing import Any, NamedTuple
+from dataclasses import dataclass, asdict
+from typing import Any
 from PyQt5.QtCore import QObject, QByteArray, QBuffer
 from PyQt5.QtGui import QImage
 from PyQt5.QtWidgets import QMessageBox
@@ -18,12 +19,19 @@ from .util import client_logger as log
 version = 1
 
 
-class _HistoryResult(NamedTuple):
+@dataclass
+class _HistoryResult:
     id: str
     prompt: str
     bounds: Bounds
     slot: int  # annotation slot where images are stored
     offsets: list[int]  # offsets in bytes for result images
+    seed: int = 0
+
+    @staticmethod
+    def from_dict(data: dict[str, Any]):
+        data["bounds"] = Bounds(*data["bounds"])
+        return _HistoryResult(**data)
 
 
 class ModelSync:
@@ -54,7 +62,7 @@ class ModelSync:
         state["upscale"] = _serialize(model.upscale)
         state["live"] = _serialize(model.live)
         state["control"] = [_serialize(c) for c in model.control]
-        state["history"] = self._history
+        state["history"] = [asdict(h) for h in self._history]
         state_str = json.dumps(state, indent=2)
         state_bytes = QByteArray(state_str.encode("utf-8"))
         model.document.annotate("ui", state_bytes)
@@ -70,12 +78,11 @@ class ModelSync:
             _deserialize(model.control[-1], control_state)
 
         for result in state.get("history", []):
-            item = _HistoryResult(*result)
-            item = _HistoryResult(
-                item.id, item.prompt, Bounds(*item.bounds), item.slot, item.offsets
-            )
+            item = _HistoryResult.from_dict(result)
             if images_bytes := model.document.find_annotation(f"result{item.slot}"):
-                job = model.jobs.add(JobKind.diffusion, item.id, item.prompt, item.bounds)
+                job = model.jobs.add(
+                    JobKind.diffusion, item.id, item.prompt, item.bounds, item.seed
+                )
                 results = _deserialize_images(images_bytes, item.offsets, item.slot)
                 model.jobs.set_results(job, results)
                 model.jobs.notify_finished(job)
@@ -104,7 +111,7 @@ class ModelSync:
             image_data, image_offsets = _serialize_images(job.results)
             self._model.document.annotate(f"result{slot}", image_data)
             self._history.append(
-                _HistoryResult(job.id or "", job.prompt, job.bounds, slot, image_offsets)
+                _HistoryResult(job.id or "", job.prompt, job.bounds, slot, image_offsets, job.seed)
             )
             self._memory_used[slot] = image_data.size()
             self._prune()

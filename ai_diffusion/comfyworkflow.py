@@ -82,12 +82,22 @@ class ComfyWorkflow:
             self._cache[key] = result
         return result
 
-    def increment_seed(self, offset: int):
+    @property
+    def seed(self):
         for node in self.root.values():
             if node["class_type"] == "KSampler":
-                node["inputs"]["seed"] += offset
+                return node["inputs"]["seed"]
             elif node["class_type"] == "KSamplerAdvanced":
-                node["inputs"]["noise_seed"] += offset
+                return node["inputs"]["noise_seed"]
+        return -1
+
+    @seed.setter
+    def seed(self, value: int):
+        for node in self.root.values():
+            if node["class_type"] == "KSampler":
+                node["inputs"]["seed"] = value
+            elif node["class_type"] == "KSamplerAdvanced":
+                node["inputs"]["noise_seed"] = value
 
     def ksampler(
         self,
@@ -106,7 +116,7 @@ class ComfyWorkflow:
         return self.add(
             "KSampler",
             1,
-            seed=random.getrandbits(64) if seed == -1 else seed,
+            seed=seed,
             sampler_name=sampler,
             scheduler=scheduler,
             model=model,
@@ -136,7 +146,7 @@ class ComfyWorkflow:
         return self.add(
             "KSamplerAdvanced",
             1,
-            noise_seed=random.getrandbits(64) if seed == -1 else seed,
+            noise_seed=seed,
             sampler_name=sampler,
             scheduler=scheduler,
             model=model,
@@ -410,7 +420,7 @@ class ComfyWorkflow:
             vae=vae,
             upscale_model=upscale_model,
             upscale_by=factor,
-            seed=random.getrandbits(64) if seed == -1 else seed,
+            seed=seed,
             steps=steps,
             cfg=cfg,
             sampler_name=sampler,

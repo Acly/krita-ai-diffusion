@@ -31,16 +31,18 @@ class Job:
     state = JobState.queued
     prompt: str
     bounds: Bounds
+    seed: int
     control: "control.ControlLayer | None" = None
     timestamp: datetime
     results: ImageCollection
     _in_use: dict[int, bool]
 
-    def __init__(self, id: str | None, kind: JobKind, prompt: str, bounds: Bounds):
+    def __init__(self, id: str | None, kind: JobKind, prompt: str, bounds: Bounds, seed=0):
         self.id = id
         self.kind = kind
         self.prompt = prompt
         self.bounds = bounds
+        self.seed = seed
         self.timestamp = datetime.now()
         self.results = ImageCollection()
         self._in_use = {}
@@ -70,16 +72,17 @@ class JobQueue(QObject):
         super().__init__()
         self._entries = deque()
 
-    def add(self, kind: JobKind, id: str, prompt: str, bounds: Bounds):
-        return self._add(Job(id, kind, prompt, bounds))
+    def add(self, kind: JobKind, id: str, prompt: str, bounds: Bounds, seed: int):
+        return self._add(Job(id, kind, prompt, bounds, seed))
 
     def add_control(self, control: "control.ControlLayer", bounds: Bounds):
         job = Job(None, JobKind.control_layer, f"[Control] {control.mode.text}", bounds)
         job.control = control
         return self._add(job)
 
-    def add_upscale(self, bounds: Bounds):
-        job = Job(None, JobKind.upscaling, f"[Upscale] {bounds.width}x{bounds.height}", bounds)
+    def add_upscale(self, bounds: Bounds, seed: int):
+        name = f"[Upscale] {bounds.width}x{bounds.height}"
+        job = Job(None, JobKind.upscaling, name, bounds, seed)
         return self._add(job)
 
     def _add(self, job: Job):
