@@ -654,7 +654,8 @@ class TextPromptWidget(QWidget):
                 w.setPlaceholderText("Describe the content you want to see, or leave empty.")
             else:
                 w.setPlaceholderText("Describe content you want to avoid.")
-                color = QColor(color.red(), color.green() - 8, color.blue() - 8)
+                o = 8 if theme.is_dark else 16
+                color = QColor(color.red(), color.green() - o, color.blue() - o)
             palette.setColor(QPalette.ColorRole.Base, color)
             w.setPalette(palette)
 

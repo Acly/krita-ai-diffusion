@@ -50,11 +50,11 @@ class HistoryWidget(QListWidget):
     _button_css = f"""
         QPushButton {{
             border: 1px solid {theme.grey};
-            background: {"rgba(96, 96, 96, 180)" if theme.is_dark else "rgba(192, 192, 192, 180)"};
+            background: {"rgba(64, 64, 64, 170)" if theme.is_dark else "rgba(240, 240, 240, 160)"};
             padding: 2px;
         }}
         QPushButton:hover {{
-            background: {"rgba(96, 96, 96, 220)" if theme.is_dark else "rgba(192, 192, 192, 220)"};
+            background: {"rgba(72, 72, 72, 210)" if theme.is_dark else "rgba(240, 240, 240, 200)"};
         }}
     """
 
@@ -78,6 +78,15 @@ class HistoryWidget(QListWidget):
         self._apply_button.setStyleSheet(self._button_css)
         self._apply_button.setVisible(False)
         self._apply_button.clicked.connect(self._activate_selection)
+
+        self._context_button = QPushButton(theme.icon("context"), "", self)
+        self._context_button.setStyleSheet(self._button_css)
+        self._context_button.setVisible(False)
+        self._context_button.clicked.connect(self._show_context_menu_dropdown)
+
+        f = self.fontMetrics()
+        self._apply_button.setFixedHeight(f.height() + 8)
+        self._context_button.setFixedWidth(f.height() + 8)
         if scrollbar := self.verticalScrollBar():
             scrollbar.valueChanged.connect(self.update_apply_button)
 
@@ -167,17 +176,28 @@ class HistoryWidget(QListWidget):
         selected = self.selectedItems()
         if len(selected) > 0:
             rect = self.visualItemRect(selected[0])
-            self._apply_button.setVisible(True)
-            self._apply_button.move(
-                QPoint(rect.left() + 3, rect.bottom() - self._apply_button.height() - 2)
-            )
-            self._apply_button.resize(QSize(rect.width() - 6, self._apply_button.height()))
-            if rect.width() < 56:
-                self._apply_button.setText("")
+            context_visible = rect.width() >= 0.5 * self.iconSize().width()
+            apply_text_visible = rect.width() >= 0.7 * self.iconSize().width()
+            apply_pos = QPoint(rect.left() + 3, rect.bottom() - self._apply_button.height() - 2)
+            if context_visible:
+                cw = self._context_button.width()
+                context_pos = QPoint(rect.right() - cw - 2, apply_pos.y())
+                context_size = QSize(cw, self._apply_button.height())
             else:
-                self._apply_button.setText("Apply")
+                context_pos = QPoint(rect.right(), apply_pos.y())
+                context_size = QSize(0, 0)
+            apply_size = QSize(context_pos.x() - rect.left() - 5, self._apply_button.height())
+            self._apply_button.setVisible(True)
+            self._apply_button.move(apply_pos)
+            self._apply_button.resize(apply_size)
+            self._apply_button.setText("Apply" if apply_text_visible else "")
+            self._context_button.setVisible(context_visible)
+            if context_visible:
+                self._context_button.move(context_pos)
+                self._context_button.resize(context_size)
         else:
             self._apply_button.setVisible(False)
+            self._context_button.setVisible(False)
 
     def update_image_thumbnail(self, id: JobQueue.Item):
         if item := self._find(id):
@@ -268,6 +288,11 @@ class HistoryWidget(QListWidget):
             menu.addAction("Copy Prompt", self._copy_prompt)
             menu.addAction("Copy Seed", self._copy_seed)
             menu.exec(self.mapToGlobal(pos))
+
+    def _show_context_menu_dropdown(self):
+        pos = self._context_button.pos()
+        pos.setY(pos.y() + self._context_button.height())
+        self._show_context_menu(pos)
 
     def _copy_prompt(self):
         if job := self.selected_job:
