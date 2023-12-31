@@ -1,4 +1,5 @@
 from __future__ import annotations
+from pathlib import Path
 import random
 from enum import Enum
 from typing import NamedTuple
@@ -353,6 +354,9 @@ class Model(QObject, ObservableProperties):
     def generate_seed(self):
         self.seed = workflow.generate_seed()
 
+    def save_result(self, job_id: str, index: int):
+        _save_job_result(self, self.jobs.find(job_id), index)
+
     @property
     def history(self):
         return (job for job in self.jobs if job.state is JobState.finished)
@@ -486,3 +490,17 @@ async def _report_errors(parent, coro):
         parent.report_error(f"{util.log_error(e)} [url={e.url}, code={e.code}]")
     except Exception as e:
         parent.report_error(util.log_error(e))
+
+
+def _save_job_result(model: Model, job: Job | None, index: int):
+    assert job is not None, "Cannot save result, invalid job id"
+    assert len(job.results) > index, "Cannot save result, invalid result index"
+    assert model.document.filename, "Cannot save result, document is not saved"
+    timestamp = job.timestamp.strftime("%Y%m%d-%H%M%S")
+    prompt = util.sanitize_prompt(job.params.prompt)
+    path = Path(model.document.filename)
+    path = path.parent / f"{path.stem}-generated-{timestamp}-{index}-{prompt}.webp"
+    base_image = model._get_current_image(Bounds(0, 0, *model.document.extent))
+    result_image = job.results[index]
+    base_image.draw_image(result_image, job.params.bounds.offset)
+    base_image.save(path)

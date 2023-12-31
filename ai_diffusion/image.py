@@ -331,7 +331,7 @@ class Image:
 
     def save(self, filepath: Union[str, Path]):
         success = self._qimage.save(str(filepath))
-        assert success, "Failed to save image to f{filepath}"
+        assert success, f"Failed to save image to {filepath}"
 
     def debug_save(self, name):
         if settings.debug_image_folder:

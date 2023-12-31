@@ -176,8 +176,8 @@ class HistoryWidget(QListWidget):
         selected = self.selectedItems()
         if len(selected) > 0:
             rect = self.visualItemRect(selected[0])
-            context_visible = rect.width() >= 0.5 * self.iconSize().width()
-            apply_text_visible = rect.width() >= 0.7 * self.iconSize().width()
+            context_visible = rect.width() >= 0.6 * self.iconSize().width()
+            apply_text_visible = rect.width() >= 0.85 * self.iconSize().width()
             apply_pos = QPoint(rect.left() + 3, rect.bottom() - self._apply_button.height() - 2)
             if context_visible:
                 cw = self._context_button.width()
@@ -287,6 +287,14 @@ class HistoryWidget(QListWidget):
             menu = QMenu(self)
             menu.addAction("Copy Prompt", self._copy_prompt)
             menu.addAction("Copy Seed", self._copy_seed)
+            save_action = ensure(menu.addAction("Save Image", self._save_image))
+            if self._model.document.filename == "":
+                save_action.setEnabled(False)
+                save_action.setToolTip(
+                    "Save as separate image to the same folder as the document.\nMust save the"
+                    " document first!"
+                )
+                menu.setToolTipsVisible(True)
             menu.exec(self.mapToGlobal(pos))
 
     def _show_context_menu_dropdown(self):
@@ -303,6 +311,12 @@ class HistoryWidget(QListWidget):
         if job := self.selected_job:
             self._model.fixed_seed = True
             self._model.seed = job.params.seed
+
+    def _save_image(self):
+        items = self.selectedItems()
+        if len(items) > 0:
+            job_id, image_index = self.item_info(items[0])
+            self._model.save_result(job_id, image_index)
 
 
 class GenerationWidget(QWidget):

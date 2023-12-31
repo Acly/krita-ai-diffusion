@@ -57,6 +57,13 @@ def encode_json(obj):
     raise TypeError(f"Object of type {obj.__class__.__name__} is not JSON serializable")
 
 
+def sanitize_prompt(prompt: str):
+    if prompt == "":
+        return "no prompt"
+    prompt = prompt[:40]
+    return "".join(c for c in prompt if c.isalnum() or c in " _-")
+
+
 def get_path_dict(paths: Sequence[str | Path]) -> dict:
     """Builds a tree like structure out of a list of paths"""
 
