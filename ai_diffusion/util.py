@@ -64,6 +64,18 @@ def sanitize_prompt(prompt: str):
     return "".join(c for c in prompt if c.isalnum() or c in " _-")
 
 
+def find_unused_path(path: Path):
+    """Finds an unused path by appending a number to the filename"""
+    if not path.exists():
+        return path
+    stem = path.stem
+    ext = path.suffix
+    i = 1
+    while (new_path := path.with_name(f"{stem}-{i}{ext}")).exists():
+        i += 1
+    return new_path
+
+
 def get_path_dict(paths: Sequence[str | Path]) -> dict:
     """Builds a tree like structure out of a list of paths"""
 

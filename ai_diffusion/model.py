@@ -500,6 +500,7 @@ def _save_job_result(model: Model, job: Job | None, index: int):
     prompt = util.sanitize_prompt(job.params.prompt)
     path = Path(model.document.filename)
     path = path.parent / f"{path.stem}-generated-{timestamp}-{index}-{prompt}.webp"
+    path = util.find_unused_path(path)
     base_image = model._get_current_image(Bounds(0, 0, *model.document.extent))
     result_image = job.results[index]
     base_image.draw_image(result_image, job.params.bounds.offset)
