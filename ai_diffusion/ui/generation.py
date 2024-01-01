@@ -120,12 +120,13 @@ class HistoryWidget(QListWidget):
         scroll_to_bottom = (
             scrollbar and scrollbar.isVisible() and scrollbar.value() >= scrollbar.maximum() - 4
         )
+        prompt = job.params.prompt if job.params.prompt != "" else "<no prompt>"
 
         if not JobParams.equal_ignore_seed(self._last_job_params, job.params):
             self._last_job_params = job.params
-            prompt = job.params.prompt if job.params.prompt != "" else "<no prompt>"
+            strength = f"{job.params.strength*100:.0f}% - " if job.params.strength != 1.0 else ""
 
-            header = QListWidgetItem(f"{job.timestamp:%H:%M} - {prompt}")
+            header = QListWidgetItem(f"{job.timestamp:%H:%M} - {strength}{prompt}")
             header.setFlags(Qt.ItemFlag.NoItemFlags)
             header.setData(Qt.ItemDataRole.UserRole, job.id)
             header.setData(Qt.ItemDataRole.ToolTipRole, job.params.prompt)
@@ -139,7 +140,8 @@ class HistoryWidget(QListWidget):
             item.setData(Qt.ItemDataRole.UserRole + 1, i)
             item.setData(
                 Qt.ItemDataRole.ToolTipRole,
-                f"{job.params.prompt}\nClick to toggle preview, double-click to apply.",
+                f"{prompt} @ {job.params.strength*100:.0f}% strength\n"
+                "Click to toggle preview, double-click to apply.",
             )
             self.addItem(item)
 
@@ -286,7 +288,9 @@ class HistoryWidget(QListWidget):
         if item is not None:
             menu = QMenu(self)
             menu.addAction("Copy Prompt", self._copy_prompt)
+            menu.addAction("Copy Strength", self._copy_strength)
             menu.addAction("Copy Seed", self._copy_seed)
+            menu.addSeparator()
             save_action = ensure(menu.addAction("Save Image", self._save_image))
             if self._model.document.filename == "":
                 save_action.setEnabled(False)
@@ -306,6 +310,10 @@ class HistoryWidget(QListWidget):
         if job := self.selected_job:
             self._model.prompt = job.params.prompt
             self._model.negative_prompt = job.params.negative_prompt
+
+    def _copy_strength(self):
+        if job := self.selected_job:
+            self._model.strength = job.params.strength
 
     def _copy_seed(self):
         if job := self.selected_job:

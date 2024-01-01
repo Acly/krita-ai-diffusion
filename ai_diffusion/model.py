@@ -167,7 +167,7 @@ class Model(QObject, ObservableProperties):
         pos, neg = conditioning.prompt, conditioning.negative_prompt
         for i in range(count):
             job_id = await client.enqueue(job)
-            self.jobs.add(job_kind, job_id, pos, neg, bounds, job.seed)
+            self.jobs.add(job_kind, job_id, pos, neg, bounds, strength, job.seed)
             job.seed = seed + (i + 1) * settings.batch_size
 
     def upscale_image(self):
