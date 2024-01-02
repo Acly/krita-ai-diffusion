@@ -6,7 +6,7 @@ from itertools import chain
 from pathlib import Path
 from typing import Any, List, NamedTuple, Optional
 
-from .image import Bounds, Extent, Image, Mask
+from .image import Bounds, Extent, Image, Mask, multiple_of
 from .client import Client, resolve_sd_version
 from .style import Style, StyleSettings
 from .resources import ControlMode, SDVersion
@@ -38,6 +38,31 @@ class ScaledExtent(NamedTuple):
     def is_incompatible(self):
         assert self.target == self.expanded or not self.target.is_multiple_of(8)
         return self.target != self.expanded
+
+
+class PreferredResolution(NamedTuple):
+    """Preferred resolution for a SD checkpoint, typically the resolution it was trained on."""
+
+    min_size: int
+    max_size: int
+    min_scale: float
+    max_scale: float
+
+    @staticmethod
+    def compute(extent: Extent, sd_ver: SDVersion, style: Style | None = None):
+        if style is None or style.preferred_resolution == 0:
+            min_size, max_size, min_pixel_count, max_pixel_count = {
+                SDVersion.sd15: (512, 768, 512**2, 512 * 768),
+                SDVersion.sdxl: (896, 1280, 1024**2, 1024**2),
+            }[sd_ver]
+        else:
+            range_offset = multiple_of(round(0.2 * style.preferred_resolution), 8)
+            min_size = style.preferred_resolution - range_offset
+            max_size = style.preferred_resolution + range_offset
+            min_pixel_count = max_pixel_count = style.preferred_resolution**2
+        min_scale = math.sqrt(min_pixel_count / extent.pixel_count)
+        max_scale = math.sqrt(max_pixel_count / extent.pixel_count)
+        return PreferredResolution(min_size, max_size, min_scale, max_scale)
 
 
 def compute_bounds(extent: Extent, mask_bounds: Optional[Bounds], strength: float):
@@ -88,20 +113,18 @@ def compute_batch_size(extent: Extent, min_size=512, max_batches: Optional[int] 
 
 
 def prepare(
-    extent: Extent, image: Image | None, mask: Mask | None, sdver: SDVersion, downscale=True
+    extent: Extent,
+    image: Image | None,
+    mask: Mask | None,
+    preferred_resolution: PreferredResolution,
+    downscale=True,
 ):
     mask_image = mask.to_image(extent) if mask else None
 
     # Latent space uses an 8 times lower resolution, so results are always multiples of 8.
     # If the target image is not a multiple of 8, the result must be scaled to fit.
     expanded = extent.multiple_of(8)
-
-    min_size, max_size, min_pixel_count, max_pixel_count = {
-        SDVersion.sd15: (512, 768, 512**2, 512 * 768),
-        SDVersion.sdxl: (896, 1280, 1024**2, 1024**2),
-    }[sdver]
-    min_scale = math.sqrt(min_pixel_count / extent.pixel_count)
-    max_scale = math.sqrt(max_pixel_count / extent.pixel_count)
+    min_size, max_size, min_scale, max_scale = preferred_resolution
 
     if downscale and max_scale < 1 and any(x > max_size for x in extent):
         # Image is larger than the maximum size. Scale down to avoid repetition artifacts.
@@ -127,19 +150,19 @@ def prepare(
     return ScaledExtent(initial, expanded, extent, scale), image, mask_image, batch
 
 
-def prepare_extent(extent: Extent, sd_ver: SDVersion, downscale: bool = True):
-    scaled, _, _, batch = prepare(extent, None, None, sd_ver, downscale)
+def prepare_extent(extent: Extent, res: PreferredResolution, downscale: bool = True):
+    scaled, _, _, batch = prepare(extent, None, None, res, downscale)
     return scaled, batch
 
 
-def prepare_image(image: Image, sd_ver: SDVersion, downscale: bool = True):
-    scaled, out_image, _, batch = prepare(image.extent, image, None, sd_ver, downscale)
+def prepare_image(image: Image, res: PreferredResolution, downscale: bool = True):
+    scaled, out_image, _, batch = prepare(image.extent, image, None, res, downscale)
     assert out_image is not None
     return scaled, out_image, batch
 
 
-def prepare_masked(image: Image, mask: Mask, sd_ver: SDVersion, downscale: bool = True):
-    scaled, out_image, out_mask, batch = prepare(image.extent, image, mask, sd_ver, downscale)
+def prepare_masked(image: Image, mask: Mask, res: PreferredResolution, downscale: bool = True):
+    scaled, out_image, out_mask, batch = prepare(image.extent, image, mask, res, downscale)
     assert out_image and out_mask
     return scaled, out_image, out_mask, batch
 
@@ -453,9 +476,8 @@ def upscale(
 def generate(
     comfy: Client, style: Style, input_extent: Extent, cond: Conditioning, seed: int, is_live=False
 ):
-    extent, batch = prepare_extent(
-        input_extent, resolve_sd_version(style, comfy), downscale=not is_live
-    )
+    resolution = PreferredResolution.compute(input_extent, resolve_sd_version(style, comfy), style)
+    extent, batch = prepare_extent(input_extent, resolution, downscale=not is_live)
     sampler_params = _sampler_params(style, seed=seed, is_live=is_live)
     batch = 1 if is_live else batch
 
@@ -476,8 +498,8 @@ def generate(
 
 
 def inpaint(comfy: Client, style: Style, image: Image, mask: Mask, cond: Conditioning, seed: int):
-    sd_ver = resolve_sd_version(style, comfy)
-    extent, scaled_image, scaled_mask, _ = prepare_masked(image, mask, sd_ver)
+    resolution = PreferredResolution.compute(image.extent, resolve_sd_version(style, comfy), style)
+    extent, scaled_image, scaled_mask, _ = prepare_masked(image, mask, resolution)
     target_bounds = mask.bounds
     region_expanded = target_bounds.extent.at_least(64).multiple_of(8)
     expanded_bounds = Bounds(*mask.bounds.offset, *region_expanded)
@@ -558,7 +580,8 @@ def refine(
     is_live=False,
 ):
     assert strength > 0 and strength < 1
-    extent, image, batch = prepare_image(image, resolve_sd_version(style, comfy), downscale=False)
+    resolution = PreferredResolution.compute(image.extent, resolve_sd_version(style, comfy), style)
+    extent, image, batch = prepare_image(image, resolution, downscale=False)
     sampler_params = _sampler_params(style, strength, seed, is_live=is_live)
 
     w = ComfyWorkflow(comfy.nodes_inputs)
@@ -591,8 +614,8 @@ def refine_region(
     assert strength > 0 and strength <= 1
 
     downscale_if_needed = strength >= 0.7
-    sd_ver = resolve_sd_version(style, comfy)
-    extent, image, mask_image, batch = prepare_masked(image, mask, sd_ver, downscale_if_needed)
+    resolution = PreferredResolution.compute(image.extent, resolve_sd_version(style, comfy), style)
+    extent, image, mask_image, batch = prepare_masked(image, mask, resolution, downscale_if_needed)
     sampler_params = _sampler_params(style, strength, seed, is_live=is_live)
 
     w = ComfyWorkflow(comfy.nodes_inputs)

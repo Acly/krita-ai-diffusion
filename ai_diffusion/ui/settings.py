@@ -33,7 +33,7 @@ from PyQt5.QtCore import Qt, QSize, QUrl, pyqtSignal
 from PyQt5.QtGui import QDesktopServices, QGuiApplication, QIcon, QCursor
 from krita import Krita
 
-from ..resources import CustomNode, MissingResource, ResourceKind, required_models
+from ..resources import SDVersion, CustomNode, MissingResource, ResourceKind, required_models
 from ..settings import Setting, Settings, ServerMode, PerformancePreset, settings
 from ..server import Server
 from ..client import resolve_sd_version
@@ -71,6 +71,10 @@ class ExpanderButton(QToolButton):
 class SettingWidget(QWidget):
     value_changed = pyqtSignal()
 
+    _checkbox: QCheckBox | None = None
+    _layout: QHBoxLayout
+    _widget: QWidget
+
     def __init__(self, setting: Setting, parent=None):
         super().__init__(parent)
 
@@ -83,6 +87,10 @@ class SettingWidget(QWidget):
         self._layout.addStretch(1)
         self.setLayout(self._layout)
 
+    def set_widget(self, widget: QWidget):
+        self._widget = widget
+        self._layout.addWidget(widget)
+
     def add_button(self, icon: QIcon, tooltip: str, handler):
         button = QToolButton(self)
         button.setToolButtonStyle(Qt.ToolButtonStyle.ToolButtonIconOnly)
@@ -91,6 +99,14 @@ class SettingWidget(QWidget):
         button.clicked.connect(handler)
         self._layout.addWidget(button)
 
+    def add_checkbox(self, text: str):
+        self._checkbox = QCheckBox(text, self)
+        self._checkbox.toggled.connect(lambda v: self._widget.setEnabled(v))
+        self._layout.removeWidget(self._widget)
+        self._layout.addWidget(self._checkbox)
+        self._layout.addWidget(self._widget)
+        return self._checkbox
+
     @property
     def visible(self):
         return self.isVisible()
@@ -98,6 +114,16 @@ class SettingWidget(QWidget):
     @visible.setter
     def visible(self, v: bool):
         self.setVisible(v)
+
+    @property
+    def enabled(self):
+        return self._widget.isEnabled()
+
+    @enabled.setter
+    def enabled(self, v: bool):
+        self._widget.setEnabled(v)
+        if self._checkbox is not None:
+            self._checkbox.setChecked(v)
 
     @property
     def indent(self):
@@ -112,17 +138,17 @@ class SettingWidget(QWidget):
 
 
 class SpinBoxSetting(SettingWidget):
-    def __init__(self, setting: Setting, parent=None, minimum=0, maximum=100, suffix=""):
+    def __init__(self, setting: Setting, parent=None, minimum=0, maximum=100, step=0, suffix=""):
         super().__init__(setting, parent)
 
         self._spinbox = QSpinBox(self)
         self._spinbox.setMinimumWidth(100)
         self._spinbox.setMinimum(minimum)
         self._spinbox.setMaximum(maximum)
-        self._spinbox.setSingleStep(1)
+        self._spinbox.setSingleStep(step)
         self._spinbox.setSuffix(suffix)
         self._spinbox.valueChanged.connect(self._notify_value_changed)
-        self._layout.addWidget(self._spinbox, alignment=Qt.AlignmentFlag.AlignRight)
+        self.set_widget(self._spinbox)
 
     @property
     def value(self):
@@ -162,7 +188,7 @@ class SliderSetting(SettingWidget):
         self._label.setMinimumWidth(12)
         slider_layout.addWidget(self._slider)
         slider_layout.addWidget(self._label)
-        self._layout.addWidget(slider_widget, alignment=Qt.AlignmentFlag.AlignRight)
+        self.set_widget(slider_widget)
 
     def _change_value(self, value: int):
         self._label.setText(self._format_string.format(self.value))
@@ -199,7 +225,7 @@ class ComboBoxSetting(SettingWidget):
 
         self._combo.setMinimumWidth(230)
         self._combo.currentIndexChanged.connect(self._change_value)
-        self._layout.addWidget(self._combo, alignment=Qt.AlignmentFlag.AlignRight)
+        self.set_widget(self._combo)
         self._original_text = self._key_label.text()
 
     def set_items(self, items: list[str] | type[Enum] | list[tuple[str, Any, QIcon]]):
@@ -247,7 +273,7 @@ class TextSetting(SettingWidget):
         self._edit.setMinimumWidth(230)
         self._edit.setMaximumWidth(300)
         self._edit.textChanged.connect(self._notify_value_changed)
-        self._layout.addWidget(self._edit, alignment=Qt.AlignmentFlag.AlignRight)
+        self.set_widget(self._edit)
 
     @property
     def value(self):
@@ -296,7 +322,7 @@ class SwitchSetting(SettingWidget):
         self._switch = SwitchWidget(self)
         self._switch.toggled.connect(self._notify_value_changed)
         self._layout.addWidget(self._label)
-        self._layout.addWidget(self._switch)
+        self.set_widget(self._switch)
 
     def _update_text(self):
         self._label.setText(self._text[0 if self._switch.is_checked else 1])
@@ -761,7 +787,7 @@ class StylePresets(SettingsTab):
 
         self._style_widgets = {}
 
-        def add(name: str, widget: QWidget):
+        def add(name: str, widget: SettingWidget):
             self._style_widgets[name] = widget
             self._layout.addWidget(widget)
             widget.value_changed.connect(self.write)
@@ -789,6 +815,19 @@ class StylePresets(SettingsTab):
             add("clip_skip", SliderSetting(StyleSettings.clip_skip, self, 1, 12)),
             add("v_prediction_zsnr", SwitchSetting(StyleSettings.v_prediction_zsnr, parent=self)),
         ]
+        self._resolution_spin = add(
+            "preferred_resolution",
+            SpinBoxSetting(
+                StyleSettings.preferred_resolution,
+                minimum=0,
+                maximum=2048,
+                step=8,
+                parent=self,
+            ),
+        )
+        resolution_check = self._resolution_spin.add_checkbox("Manual override")
+        resolution_check.toggled.connect(self._toggle_preferred_resolution)
+        self._checkpoint_advanced_widgets.append(self._resolution_spin)
         self._toggle_checkpoint_advanced(False)
 
         add("loras", LoraList(StyleSettings.loras, self))
@@ -917,6 +956,13 @@ class StylePresets(SettingsTab):
                 )
                 self._checkpoint_warning.setVisible(True)
 
+    def _toggle_preferred_resolution(self, checked: bool):
+        if checked:
+            sd_ver = resolve_sd_version(self.current_style, root.connection.client_if_connected)
+            self._resolution_spin.value = 640 if sd_ver is SDVersion.sd15 else 1024
+        else:
+            self._resolution_spin.value = 0
+
     def _toggle_checkpoint_advanced(self, checked: bool):
         for widget in self._checkpoint_advanced_widgets:
             widget.visible = checked
@@ -934,6 +980,7 @@ class StylePresets(SettingsTab):
             for name, widget in self._style_widgets.items():
                 widget.value = getattr(style, name)
         self._set_checkpoint_warning()
+        self._resolution_spin.enabled = style.preferred_resolution > 0
 
     def _read(self):
         if client := root.connection.client_if_connected:

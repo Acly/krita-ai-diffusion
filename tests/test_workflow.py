@@ -6,7 +6,7 @@ from ai_diffusion.image import Mask, Bounds, Extent, Image
 from ai_diffusion.client import Client, ClientEvent
 from ai_diffusion.style import SDVersion, Style
 from ai_diffusion.pose import Pose
-from ai_diffusion.workflow import Conditioning, Control
+from ai_diffusion.workflow import Conditioning, Control, PreferredResolution
 from pathlib import Path
 from .config import data_dir, image_dir, result_dir, reference_dir, default_checkpoint
 
@@ -76,6 +76,19 @@ def test_compute_batch_size(extent, min_size, max_batches, expected):
 
 
 @pytest.mark.parametrize(
+    "extent,preferred,expected",
+    [
+        (Extent(512, 512), 640, PreferredResolution(512, 768, 5 / 4, 5 / 4)),
+        (Extent(768, 768), 640, PreferredResolution(512, 768, 5 / 6, 5 / 6)),
+    ],
+)
+def test_compute_preferred_resolution(extent: Extent, preferred: int, expected):
+    style = Style(Path("default.json"))
+    style.preferred_resolution = preferred
+    assert PreferredResolution.compute(extent, SDVersion.sdxl, style) == expected
+
+
+@pytest.mark.parametrize(
     "area,expected_extent,expected_crop",
     [
         (Bounds(0, 0, 128, 512), Extent(384, 512), (0, 256)),
@@ -111,7 +124,8 @@ def test_inpaint_context(area, expected_extent, expected_crop: tuple[int, int] |
 def test_prepare_highres(input, expected_initial, expected_expanded, expected_scale):
     image = Image.create(input)
     mask = Mask.rectangle(Bounds(0, 0, input.width, input.height))
-    extent, image, mask_image, _ = workflow.prepare_masked(image, mask, SDVersion.sd15)
+    resolution = PreferredResolution.compute(image.extent, SDVersion.sd15)
+    extent, image, mask_image, _ = workflow.prepare_masked(image, mask, resolution)
     assert (
         extent.requires_upscale
         and image.extent == expected_initial
@@ -134,7 +148,8 @@ def test_prepare_highres(input, expected_initial, expected_expanded, expected_sc
 def test_prepare_lowres(input, expected):
     image = Image.create(input)
     mask = Mask.rectangle(Bounds(0, 0, input.width, input.height))
-    extent, image, mask_image, _ = workflow.prepare_masked(image, mask, SDVersion.sd15)
+    resolution = PreferredResolution.compute(image.extent, SDVersion.sd15)
+    extent, image, mask_image, _ = workflow.prepare_masked(image, mask, resolution)
     assert (
         extent.requires_downscale
         and image.extent == input
@@ -150,10 +165,11 @@ def test_prepare_lowres(input, expected):
     "input",
     [Extent(512, 512), Extent(128, 600), Extent(768, 240)],
 )
-def test_prepare_passthrough(input):
+def test_prepare_passthrough(input: Extent):
     image = Image.create(input)
     mask = Mask.rectangle(Bounds(0, 0, input.width, input.height))
-    extent, image, mask_image, _ = workflow.prepare_masked(image, mask, SDVersion.sd15)
+    resolution = PreferredResolution.compute(input, SDVersion.sd15)
+    extent, image, mask_image, _ = workflow.prepare_masked(image, mask, resolution)
     assert (
         image == image
         and mask_image.extent == input
@@ -168,7 +184,8 @@ def test_prepare_passthrough(input):
     "input,expected", [(Extent(512, 513), Extent(512, 520)), (Extent(300, 1024), Extent(304, 1024))]
 )
 def test_prepare_multiple8(input, expected):
-    result, _ = workflow.prepare_extent(input, SDVersion.sd15)
+    resolution = PreferredResolution.compute(input, SDVersion.sd15)
+    result, _ = workflow.prepare_extent(input, resolution)
     assert (
         result.is_incompatible
         and result.initial == expected
@@ -180,14 +197,16 @@ def test_prepare_multiple8(input, expected):
 @pytest.mark.parametrize("sdver", [SDVersion.sd15, SDVersion.sdxl])
 def test_prepare_extent(sdver: SDVersion):
     input = Extent(1024, 1536)
-    result, _ = workflow.prepare_extent(input, sdver)
+    resolution = PreferredResolution.compute(input, sdver)
+    result, _ = workflow.prepare_extent(input, resolution)
     expected = Extent(512, 768) if sdver == SDVersion.sd15 else Extent(840, 1256)
     assert result.initial == expected and result.target == input and result.scale < 1
 
 
 def test_prepare_no_mask():
     image = Image.create(Extent(256, 256))
-    extent, result, _ = workflow.prepare_image(image, SDVersion.sd15)
+    resolution = PreferredResolution.compute(image.extent, SDVersion.sd15)
+    extent, result, _ = workflow.prepare_image(image, resolution)
     assert (
         result == image
         and extent.initial == Extent(512, 512)
@@ -198,7 +217,8 @@ def test_prepare_no_mask():
 
 def test_prepare_no_downscale():
     image = Image.create(Extent(1536, 1536))
-    extent, result, _ = workflow.prepare_image(image, SDVersion.sd15, downscale=False)
+    resolution = PreferredResolution.compute(image.extent, SDVersion.sd15)
+    extent, result, _ = workflow.prepare_image(image, resolution, downscale=False)
     assert (
         extent.requires_upscale is False
         and result == image
