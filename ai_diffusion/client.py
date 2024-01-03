@@ -122,6 +122,7 @@ class Client:
     lora_models: list[str]
     upscalers: list[str]
     default_upscaler: str
+    fast_upscaler: dict[int, str]
     control_model: dict[ControlMode, dict[SDVersion, str | None]]
     clip_vision_model: str
     ip_adapter_model: dict[SDVersion, str | None]
@@ -168,9 +169,10 @@ class Client:
 
         # Retrieve upscale models
         client.upscalers = nodes["UpscaleModelLoader"]["input"]["required"]["model_name"][0]
-        if len(client.upscalers) == 0:
-            raise MissingResource(ResourceKind.upscaler, [UpscalerName.default.value])
-        client.default_upscaler = _find_upscaler(client.upscalers, UpscalerName.default.value)
+        client.default_upscaler = _find_upscaler(client.upscalers, UpscalerName.default.value, True)
+        client.fast_upscaler = {
+            n: _find_upscaler(client.upscalers, UpscalerName.fast_x(n).value) for n in [2, 3, 4]
+        }
 
         # Retrieve LCM LoRA models
         client.lcm_model = {
@@ -375,7 +377,10 @@ class Client:
         if not self.clip_vision_model:
             missing.append(MissingResource(ResourceKind.clip_vision))
         if not self.default_upscaler:
-            missing.append(MissingResource(ResourceKind.upscaler))
+            missing.append(MissingResource(ResourceKind.upscaler, [UpscalerName.default.value]))
+        if not all(self.fast_upscaler.values()):
+            names = [UpscalerName.fast_x(n).value for n in [2, 3, 4] if not self.fast_upscaler[n]]
+            missing.append(MissingResource(ResourceKind.upscaler, names))
         if not self.ip_adapter_model[sdver]:
             missing.append(MissingResource(ResourceKind.ip_adapter))
         if not any(cp.sd_version is sdver for cp in self.checkpoints.values()):
@@ -431,7 +436,7 @@ def _find_model(
     info: ControlMode | None = None,
 ):
     sanitize = lambda m: m.replace("\\", "/").lower()
-    matches = (m for m in model_list if any(p in sanitize(m) for p in search_paths))
+    matches = (m for m in model_list if any(sanitize(p) in sanitize(m) for p in search_paths))
     # if there are multiple matches, prefer the one with "krita" in the path
     prio = sorted(matches, key=lambda m: 0 if "krita" in m else 1)
     model_name = next(iter(prio), None)
@@ -443,7 +448,10 @@ def _find_model(
     if model_name is None and not is_optional:
         log.warning(f"Missing {model_id} for {sdver.value}")
         log.info(f"Available {model_id}s: {', '.join(sanitize(m) for m in model_list)}")
-        log.info(f"No model matches {model_id} search paths: {', '.join(search_paths)}")
+        log.info(
+            f"No model matches {model_id} search paths:"
+            f" {', '.join(sanitize(p) for p in search_paths)}"
+        )
     elif model_name is None:
         log.info(
             f"Optional {model_id} for {sdver.value} not found (search path:"
@@ -481,11 +489,11 @@ def _find_ip_adapter(model_list: Sequence[str], sdver: SDVersion):
     return _find_model(ResourceKind.ip_adapter, sdver, model_list, search_paths)
 
 
-def _find_upscaler(model_list: Sequence[str], model_name: str):
-    if model_name in model_list:
-        return model_name
-    log.warning(f"Could not find default upscaler {model_name}, using {model_list[0]} instead")
-    return model_list[0]
+def _find_upscaler(model_list: Sequence[str], model_name: str, use_any=False):
+    model = _find_model(ResourceKind.upscaler, SDVersion.all, model_list, [model_name])
+    if model is None and use_any and len(model_list) > 0:
+        return model_list[0]
+    return model or ""
 
 
 def _find_lcm(model_list: Sequence[str], sdver: SDVersion):

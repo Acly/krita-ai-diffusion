@@ -1105,11 +1105,17 @@ class PerformanceSettings(SettingsTab):
         self._batch_size.value_changed.connect(self.write)
         advanced_layout.addWidget(self._batch_size)
 
-        self._diffusion_tile_size = SpinBoxSetting(
-            Settings._diffusion_tile_size, self._advanced, 768, 4096 * 2
+        self._resolution_multiplier = SliderSetting(
+            Settings._resolution_multiplier, self._advanced, 0.3, 2.0, "{:.1f}x"
         )
-        self._diffusion_tile_size.value_changed.connect(self.write)
-        advanced_layout.addWidget(self._diffusion_tile_size)
+        self._resolution_multiplier.value_changed.connect(self.write)
+        advanced_layout.addWidget(self._resolution_multiplier)
+
+        self._max_pixel_count = SpinBoxSetting(
+            Settings._max_pixel_count, self._advanced, 1, 50, 1, " MP"
+        )
+        self._max_pixel_count.value_changed.connect(self.write)
+        advanced_layout.addWidget(self._max_pixel_count)
 
         self._layout.addStretch()
 
@@ -1142,14 +1148,16 @@ class PerformanceSettings(SettingsTab):
         self._performance_preset.setCurrentIndex(
             list(PerformancePreset).index(settings.performance_preset)
         )
-        self._diffusion_tile_size.value = settings.diffusion_tile_size
+        self._resolution_multiplier.value = settings.resolution_multiplier
+        self._max_pixel_count.value = settings.max_pixel_count
         self.update_device_info()
 
     def _write(self):
         settings.history_size = self._history_size.value
         settings.history_storage = self._history_storage.value
         settings.batch_size = int(self._batch_size.value)
-        settings.diffusion_tile_size = self._diffusion_tile_size.value
+        settings.resolution_multiplier = self._resolution_multiplier.value
+        settings.max_pixel_count = self._max_pixel_count.value
         settings.performance_preset = list(PerformancePreset)[
             self._performance_preset.currentIndex()
         ]
