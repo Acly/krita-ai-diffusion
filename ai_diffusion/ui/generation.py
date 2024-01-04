@@ -71,6 +71,7 @@ class HistoryWidget(QListWidget):
         self.setIconSize(theme.screen_scale(self, QSize(self._thumb_size, self._thumb_size)))
         self.setFrameStyle(QListWidget.NoFrame)
         self.setStyleSheet(self._list_css)
+        self.setDragEnabled(False)
         self.itemClicked.connect(self.handle_preview_click)
         self.itemDoubleClicked.connect(self.item_activated)
 
