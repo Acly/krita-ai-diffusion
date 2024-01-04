@@ -16,7 +16,7 @@ download_folder = docker_root / "downloads"
 
 
 def clean(models):
-    expected = set(m.folder / m.filename for m in models)
+    expected = set(m.folder / filename for m in models for filename in m.files.keys())
     for path in (download_folder).glob("**/*"):
         if path.is_file() and path.relative_to(download_folder) not in expected:
             print(f"- Deleting {path}")

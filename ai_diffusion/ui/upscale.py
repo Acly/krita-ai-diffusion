@@ -144,12 +144,17 @@ class UpscaleWidget(QWidget):
                     if file == UpscalerName.default.value:
                         name = f"Default ({file.removesuffix('.pth')})"
                         self.model_select.insertItem(0, name, file)
+                    elif file == UpscalerName.fast_4x.value:
+                        name = f"Fast ({file.removesuffix('.safetensors')})"
+                        self.model_select.insertItem(1, name, file)
                     elif file == UpscalerName.quality.value:
                         name = f"Quality ({file.removesuffix('.pth')})"
-                        self.model_select.insertItem(1, name, file)
+                        self.model_select.insertItem(2, name, file)
                     elif file == UpscalerName.sharp.value:
                         name = f"Sharp ({file.removesuffix('.pth')})"
-                        self.model_select.insertItem(2, name, file)
+                        self.model_select.insertItem(3, name, file)
+                    elif file in [UpscalerName.fast_2x.value, UpscalerName.fast_3x.value]:
+                        pass
                     else:
                         self.model_select.addItem(file, file)
                 selected = self.model_select.findData(self.model.upscale.upscaler)

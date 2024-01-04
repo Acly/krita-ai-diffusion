@@ -706,6 +706,14 @@ class ConnectionSettings(SettingsTab):
                 " ComfyUI/model/checkpoints."
             )
 
+        elif resource.kind is ResourceKind.upscaler:
+            names = cast(list[str], resource.names)
+            self._connection_status.setText(
+                "<b>Error</b>: Could not find Upscaler model"
+                f" {', '.join(names)}. Make sure to download the model and place it in the"
+                " ComfyUI/upscale_models folder."
+            )
+
         elif resource.kind is ResourceKind.controlnet:
             names = cast(list[str], resource.names)
             self._connection_status.setText(
