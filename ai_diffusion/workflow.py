@@ -79,30 +79,28 @@ class ScaledExtent(NamedTuple):
     initial: Extent  # resolution for initial generation
     desired: Extent  # resolution for high res refinement pass
     target: Extent  # target resolution in canvas (may not be multiple of 8)
-    # scale: float  # scale factor, <1 if initial is smaller than desired
 
-    @property
-    def ratio_initial_to_desired(self):
-        return self.initial.width / self.desired.width
-
-    @property
-    def ratio_desired_to_target(self):
-        return self.desired.width / self.target.width
-
-    @property
-    def ratio_target_to_initial(self):
-        return self.target.width / self.initial.width
+    def convert(self, extent: Extent | Bounds, src: str, dst: str):
+        """Converts an extent or bounds between two "resolution spaces"
+        by scaling with the respective ratio."""
+        w_src = getattr(self, src).width
+        w_dst = getattr(self, dst).width
+        if isinstance(extent, Extent):
+            return extent * (w_dst / w_src)
+        else:
+            return Bounds.scale(extent, w_dst / w_src)
 
     @property
     def initial_scaling(self):
-        if self.ratio_initial_to_desired < 1:
+        ratio = self.input.width / self.initial.width
+        if ratio < 1:
             return ScaleMode.resize
         else:
             return ScaleMode.none
 
     @property
     def refinement_scaling(self):
-        ratio = self.ratio_initial_to_desired
+        ratio = self.initial.width / self.desired.width
         if ratio < (1 / 1.5):
             return ScaleMode.upscale_quality
         elif ratio < 1:
@@ -114,7 +112,7 @@ class ScaledExtent(NamedTuple):
 
     @property
     def target_scaling(self):
-        ratio = self.ratio_desired_to_target
+        ratio = self.desired.width / self.target.width
         if ratio == 1:
             return ScaleMode.none
         elif ratio < 0.9:
@@ -161,12 +159,8 @@ def prepare(
     # Take settings into account to compute the desired resolution for diffusion.
     desired = extent * settings.resolution_multiplier
     max_pixels = settings.max_pixel_count * 10**6
-    if max_pixels > 0 and desired.pixel_count > max_pixels:
+    if max_pixels > 0 and desired.pixel_count > int(max_pixels * 1.1):
         desired = desired.scale_to_pixel_count(max_pixels)
-
-    # Latent space uses an 8 times lower resolution, so results are always multiples of 8.
-    # If the target image is not a multiple of 8, the result must be scaled to fit.
-    desired = desired.multiple_of(8)
 
     # The checkpoint may require a different resolution than what is requested.
     min_size, max_size, min_scale, max_scale = CheckpointResolution.compute(
@@ -177,6 +171,7 @@ def prepare(
         # Desired resolution is larger than the maximum size. Do 2 passes:
         # first pass at checkpoint resolution, then upscale to desired resolution and refine.
         input = initial = (desired * max_scale).multiple_of(8)
+        desired = desired.multiple_of(8)
         # Input images are scaled down here for the initial pass directly to avoid encoding
         # and processing large images in subsequent steps.
         image, mask_image = _scale_images(image, mask_image, target=initial)
@@ -184,11 +179,16 @@ def prepare(
     elif min_scale > 1 and all(x < min_size for x in desired):
         # Desired resolution is smaller than the minimum size. Do 1 pass at checkpoint resolution.
         input = extent
-        initial = desired = (desired * min_scale).multiple_of(8)
+        scaled = desired * min_scale
+        # Avoid unnecessary scaling if too small resolution is caused by resolution multiplier
+        if all(x >= min_size and x <= max_size for x in extent):
+            initial = desired = extent.multiple_of(8)
+        else:
+            initial = desired = scaled.multiple_of(8)
 
     else:  # Desired resolution is in acceptable range. Do 1 pass at desired resolution.
         input = extent
-        initial = desired
+        initial = desired = desired.multiple_of(8)
         # Scale down input images if needed due to resolution_multiplier or max_pixel_count
         if extent.pixel_count > desired.pixel_count:
             input = desired
@@ -558,11 +558,13 @@ def scale_refine_and_decode(
     comfy: Client,
 ):
     """Handles scaling images from `initial` to `desired` resolution.
-    If it is a substantial upscale, runs a high-res SD refinement pass."""
+    If it is a substantial upscale, runs a high-res SD refinement pass.
+    Takes latent as input and returns a decoded image."""
 
     mode = extent.refinement_scaling
     if mode in [ScaleMode.none, ScaleMode.resize, ScaleMode.upscale_fast]:
-        return scale(extent.initial, extent.desired, mode, w, latent, comfy)
+        decoded = w.vae_decode(vae, latent)
+        return scale(extent.initial, extent.desired, mode, w, decoded, comfy)
 
     if mode is ScaleMode.upscale_latent:
         upscale = w.scale_latent(latent, extent.desired)
@@ -604,20 +606,14 @@ def generate(
 
 
 def inpaint(comfy: Client, style: Style, image: Image, mask: Mask, cond: Conditioning, seed: int):
+    target_bounds = mask.bounds
     sd_ver = resolve_sd_version(style, comfy)
     # Resolutions for the full image pass
-    extent, scaled_image, scaled_mask, batch_size = prepare_masked(image, mask, sd_ver, style)
+    extent, scaled_image, scaled_mask, _ = prepare_masked(image, mask, sd_ver, style)
     # Resolutions for the (optional) refinement pass on the cropped inpaint area
-    target_bounds = mask.bounds
-    cropped_extent, cropped_batch_size = prepare_extent(
-        target_bounds.extent, sd_ver, style, downscale=False
-    )
-    desired_bounds = Bounds.scale(target_bounds, 1 / cropped_extent.ratio_desired_to_target)
-
-    ratio_initial_to_cropped = (
-        target_bounds.width * extent.ratio_target_to_initial
-    ) / cropped_extent.desired.width
-    crop_bounds = Bounds.scale(target_bounds, ratio_initial_to_cropped)
+    cropped_extent, _ = prepare_extent(target_bounds.extent, sd_ver, style, downscale=False)
+    initial_bounds = extent.convert(target_bounds, "target", "initial")
+    desired_bounds = cropped_extent.convert(target_bounds, "target", "desired")
 
     w = ComfyWorkflow(comfy.nodes_inputs)
     model, clip, vae = load_model_with_lora(w, comfy, style, cond.prompt)
@@ -630,30 +626,24 @@ def inpaint(comfy: Client, style: Style, image: Image, mask: Mask, cond: Conditi
     cond_base = cond.copy()
     cond_base.downscale(image.extent, extent.initial)
     cond_base.area = cond_base.area or mask.bounds
-    cond_base.area = Bounds.scale(cond_base.area, extent.ratio_target_to_initial)
+    cond_base.area = extent.convert(cond_base.area, "target", "initial")
     image_strength = 0.5 if cond.prompt == "" else 0.3
     image_context = create_inpaint_context(scaled_image, cond_base.area, default=in_image)
     cond_base.control.append(Control(ControlMode.image, image_context, image_strength))
     cond_base.control.append(Control(ControlMode.inpaint, in_image, mask=in_mask))
     model, positive, negative = apply_conditioning(cond_base, w, comfy, model, clip, style)
 
+    batch = compute_batch_size(Extent.largest(extent.initial, cropped_extent.desired))
     latent = w.vae_encode_inpaint(vae, in_image, in_mask)
-    latent = w.batch_latent(latent, min(batch_size, cropped_batch_size))
+    latent = w.batch_latent(latent, batch)
     out_latent = w.ksampler_advanced(
         model, positive, negative, latent, **_sampler_params(style, seed=seed, clip_vision=True)
     )
     if extent.refinement_scaling in [ScaleMode.upscale_latent, ScaleMode.upscale_quality]:
         params = _sampler_params(style, strength=0.5, seed=seed, clip_vision=True)
-        # if extent.refinement_scaling is ScaleMode.upscale_latent:
-        #     latent = w.scale_latent(out_latent, extent.initial * ratio_initial_to_cropped)
-        #     latent = w.crop_latent(latent, expanded_bounds)
-        #     no_mask = w.solid_mask(expanded_bounds.extent, 1.0)
-        #     latent = w.set_latent_noise_mask(latent, no_mask)
-        # else:
-        # for larger upscaling factors use super-resolution model
         upscale_model = w.load_upscale_model(comfy.default_upscaler)
         upscale = w.vae_decode(vae, out_latent)
-        upscale = w.crop_image(upscale, Bounds.scale(target_bounds, extent.ratio_target_to_initial))
+        upscale = w.crop_image(upscale, initial_bounds)
         upscale = w.upscale_image(upscale_model, upscale)
         upscale = w.scale_image(upscale, cropped_extent.desired)
         latent = w.vae_encode(vae, upscale)
@@ -666,14 +656,14 @@ def inpaint(comfy: Client, style: Style, image: Image, mask: Mask, cond: Conditi
         )
         _, positive_up, negative_up = apply_conditioning(cond_upscale, w, comfy, model, clip, style)
         out_latent = w.ksampler_advanced(model, positive_up, negative_up, latent, **params)
-
+        out_image = w.vae_decode(vae, out_latent)
     else:
-        out_latent = scale(
-            extent.initial, extent.desired, extent.refinement_scaling, w, out_latent, comfy
+        out_image = w.vae_decode(vae, out_latent)
+        out_image = scale(
+            extent.initial, extent.desired, extent.refinement_scaling, w, out_image, comfy
         )
-        out_latent = w.crop_latent(out_latent, target_bounds)
+        out_image = w.crop_image(out_image, desired_bounds)
 
-    out_image = w.vae_decode(vae, out_latent)
     out_image = scale_to_target(cropped_extent, w, out_image, comfy)
     out_masked = w.apply_mask(out_image, cropped_mask)
     w.send_image(out_masked)

@@ -20,7 +20,7 @@ class Extent(NamedTuple):
     height: int
 
     def __mul__(self, scale: float | SupportsIndex):
-        if isinstance(scale, float):
+        if isinstance(scale, (float, int)):
             return Extent(round(self.width * scale), round(self.height * scale))
         raise NotImplementedError()
 
