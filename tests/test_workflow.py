@@ -67,6 +67,7 @@ async def run_and_save(
     composition_image: Image | None = None,
     composition_mask: Mask | None = None,
 ):
+    workflow.dump((result_dir / filename).with_suffix(".json"))
     results = await receive_images(comfy, workflow)
     assert len(results) == 1
     if composition_image and composition_mask:
@@ -694,5 +695,33 @@ def test_refine_live(qtapp, comfy, sdver):
 
     async def main():
         await run_and_save(comfy, job, f"test_refine_live_{sdver.name}.png")
+
+    qtapp.run(main())
+
+
+def test_refine_max_pixels(qtapp, comfy, temp_settings):
+    temp_settings.max_pixel_count = 1  # million pixels
+    image = Image.load(image_dir / "lake_1536x1024.png")
+    cond = Conditioning("watercolor painting on structured paper, aquarelle, stylized")
+    job = workflow.refine(comfy, default_style(comfy), image, cond, 0.6, default_seed)
+
+    async def main():
+        await run_and_save(comfy, job, f"test_refine_max_pixels.png")
+
+    qtapp.run(main())
+
+
+def test_outpaint_resolution_multiplier(qtapp, comfy, temp_settings):
+    temp_settings.batch_size = 1
+    temp_settings.resolution_multiplier = 0.8
+    image = Image.create(Extent(2048, 1024))
+    beach = Image.load(image_dir / "beach_1536x1024.png")
+    image.draw_image(beach, (512, 0))
+    mask = Mask.load(image_dir / "beach_outpaint_mask.png")
+    cond = Conditioning("photo of a beach and jungle, nature photography, tropical")
+    job = workflow.inpaint(comfy, default_style(comfy), image, mask, cond, default_seed)
+
+    async def main():
+        await run_and_save(comfy, job, f"test_outpaint_resolution_multiplier.png", image, mask)
 
     qtapp.run(main())

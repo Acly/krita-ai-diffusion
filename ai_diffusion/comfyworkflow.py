@@ -1,7 +1,7 @@
 from __future__ import annotations
 import math
-import random
 import json
+from pathlib import Path
 from typing import NamedTuple, Tuple, Literal, overload, Any
 
 from .image import Bounds, Extent, Image
@@ -44,7 +44,7 @@ class ComfyWorkflow:
                             args[k] = default
         return args
 
-    def dump(self, filepath: str):
+    def dump(self, filepath: str | Path):
         with open(filepath, "w") as f:
             json.dump(self.root, f, indent=4)
 
