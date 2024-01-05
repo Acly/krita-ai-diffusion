@@ -160,8 +160,8 @@ class Settings(QObject):
     _resolution_multiplier = Setting(
         "Resolution Multiplier",
         1.0,
-        "Scaling factor for image generation. Values below 1.0 improve performance when working"
-        " on high resolution canvas.",
+        "Scaling factor for generation. Values below 1.0 improve performance for high resolution"
+        " canvas.",
     )
 
     max_pixel_count: int
