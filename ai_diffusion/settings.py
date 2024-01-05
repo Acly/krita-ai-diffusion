@@ -36,7 +36,7 @@ class ServerBackend(Enum):
 class PerformancePreset(Enum):
     auto = "Automatic"
     cpu = "CPU"
-    low = "GPU low (less than 6GB)"
+    low = "GPU low (up to 6GB)"
     medium = "GPU medium (6GB to 12GB)"
     high = "GPU high (more than 12GB)"
     custom = "Custom"
@@ -158,7 +158,7 @@ class Settings(QObject):
 
     resolution_multiplier: float
     _resolution_multiplier = Setting(
-        "Generation Resolution",
+        "Resolution Multiplier",
         1.0,
         "Scaling factor for image generation. Values below 1.0 improve performance when working"
         " on high resolution canvas.",
@@ -174,18 +174,22 @@ class Settings(QObject):
     _performance_presets = {
         PerformancePreset.cpu: {
             "batch_size": 1,
+            "resolution_multiplier": 1.0,
             "max_pixel_count": 2,
         },
         PerformancePreset.low: {
             "batch_size": 2,
+            "resolution_multiplier": 1.0,
             "max_pixel_count": 2,
         },
         PerformancePreset.medium: {
             "batch_size": 4,
+            "resolution_multiplier": 1.0,
             "max_pixel_count": 8,
         },
         PerformancePreset.high: {
             "batch_size": 8,
+            "resolution_multiplier": 1.0,
             "max_pixel_count": 24,
         },
     }

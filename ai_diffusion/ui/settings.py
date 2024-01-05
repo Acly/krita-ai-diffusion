@@ -185,7 +185,7 @@ class SliderSetting(SettingWidget):
         self._slider.setSingleStep(1)
         self._slider.valueChanged.connect(self._change_value)
         self._label = QLabel(str(self._slider.value()), self)
-        self._label.setMinimumWidth(12)
+        self._label.setMinimumWidth(16)
         slider_layout.addWidget(self._slider)
         slider_layout.addWidget(self._label)
         self.set_widget(slider_widget)
