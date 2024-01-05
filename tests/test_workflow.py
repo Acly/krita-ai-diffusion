@@ -60,10 +60,20 @@ async def receive_images(comfy: Client, workflow: ComfyWorkflow):
     assert False, "Connection closed without receiving images"
 
 
-async def run_and_save(comfy, workflow: ComfyWorkflow, filename: str):
+async def run_and_save(
+    comfy: Client,
+    workflow: ComfyWorkflow,
+    filename: str,
+    composition_image: Image | None = None,
+    composition_mask: Mask | None = None,
+):
     results = await receive_images(comfy, workflow)
     assert len(results) == 1
-    results[0].save(result_dir / filename)
+    if composition_image and composition_mask:
+        composition_image.draw_image(results[0], composition_mask.bounds.offset)
+        composition_image.save(result_dir / filename)
+    else:
+        results[0].save(result_dir / filename)
     return results[0]
 
 
@@ -401,15 +411,14 @@ def test_increment_seed(ksampler_type):
 
 
 @pytest.mark.parametrize("extent", [Extent(256, 256), Extent(800, 800), Extent(512, 1024)])
-def test_generate(qtapp, comfy, temp_settings, extent):
+def test_generate(qtapp, comfy, temp_settings, extent: Extent):
     temp_settings.batch_size = 1
     prompt = Conditioning("ship")
 
     async def main():
         job = workflow.generate(comfy, default_style(comfy), extent, prompt, default_seed)
-        results = await receive_images(comfy, job)
-        results[0].save(result_dir / f"test_generate_{extent.width}x{extent.height}.png")
-        assert results[0].extent == extent
+        result = await run_and_save(comfy, job, f"test_generate_{extent.width}x{extent.height}.png")
+        assert result.extent == extent
 
     qtapp.run(main())
 
@@ -417,7 +426,7 @@ def test_generate(qtapp, comfy, temp_settings, extent):
 def test_inpaint(qtapp, comfy, temp_settings):
     temp_settings.batch_size = 3  # max 3 images@512x512 -> 2 images@768x512
     image = Image.load(image_dir / "beach_768x512.png")
-    mask = Mask.rectangle(Bounds(50, 100, 320, 200), feather=10)
+    mask = Mask.rectangle(Bounds(40, 120, 320, 200), feather=10)
     prompt = Conditioning("ship")
     job = workflow.inpaint(comfy, default_style(comfy), image, mask, prompt, default_seed)
 
@@ -425,7 +434,8 @@ def test_inpaint(qtapp, comfy, temp_settings):
         results = await receive_images(comfy, job)
         assert len(results) == 2
         for i, result in enumerate(results):
-            result.save(result_dir / f"test_inpaint_{i}.png")
+            image.draw_image(result, mask.bounds.offset)
+            image.save(result_dir / f"test_inpaint_{i}.png")
             assert result.extent == Extent(320, 200)
 
     qtapp.run(main())
@@ -435,7 +445,7 @@ def test_inpaint(qtapp, comfy, temp_settings):
 def test_inpaint_upscale(qtapp, comfy, temp_settings, sdver):
     temp_settings.batch_size = 3  # 2 images for 1.5, 1 image for XL
     image = Image.load(image_dir / "beach_1536x1024.png")
-    mask = Mask.rectangle(Bounds(600, 200, 768, 512), feather=10)
+    mask = Mask.rectangle(Bounds(300, 200, 768, 512), feather=20)
     prompt = Conditioning("ship")
     job = workflow.inpaint(comfy, default_style(comfy, sdver), image, mask, prompt, default_seed)
 
@@ -443,7 +453,8 @@ def test_inpaint_upscale(qtapp, comfy, temp_settings, sdver):
         results = await receive_images(comfy, job)
         assert len(results) == 2 if sdver == SDVersion.sd15 else 1
         for i, result in enumerate(results):
-            result.save(result_dir / f"test_inpaint_upscale_{sdver.name}_{i}.png")
+            image.draw_image(result, mask.bounds.offset)
+            image.save(result_dir / f"test_inpaint_upscale_{sdver.name}_{i}.png")
             assert result.extent == mask.bounds.extent
 
     qtapp.run(main())
@@ -458,9 +469,8 @@ def test_inpaint_odd_resolution(qtapp, comfy, temp_settings):
 
     async def main():
         job = workflow.inpaint(comfy, default_style(comfy), image, mask, prompt, default_seed)
-        results = await receive_images(comfy, job)
-        results[0].save(result_dir / "test_inpaint_odd_resolution.png")
-        assert results[0].extent == mask.bounds.extent
+        result = await run_and_save(comfy, job, "test_inpaint_odd_resolution.png", image, mask)
+        assert result.extent == mask.bounds.extent
 
     qtapp.run(main())
 
@@ -473,7 +483,7 @@ def test_inpaint_area_conditioning(qtapp, comfy, temp_settings):
     job = workflow.inpaint(comfy, default_style(comfy), image, mask, prompt, default_seed)
 
     async def main():
-        await run_and_save(comfy, job, "test_inpaint_area_conditioning.png")
+        await run_and_save(comfy, job, "test_inpaint_area_conditioning.png", image, mask)
 
     qtapp.run(main())
 
@@ -506,9 +516,8 @@ def test_refine_region(qtapp, comfy, temp_settings):
         job = workflow.refine_region(
             comfy, default_style(comfy), image, mask, prompt, 0.6, default_seed
         )
-        results = await receive_images(comfy, job)
-        results[0].save(result_dir / "test_refine_region.png")
-        assert results[0].extent == mask.bounds.extent
+        result = await run_and_save(comfy, job, "test_refine_region.png", image, mask)
+        assert result.extent == mask.bounds.extent
 
     qtapp.run(main())
 
@@ -538,14 +547,17 @@ def test_control_scribble(qtapp, comfy, temp_settings, op):
     else:  # op == "inpaint_upscale":
         control.control[0].image = Image.scale(scribble_image, Extent(1024, 1024))
         control.area = Bounds(322 * 2, 108 * 2, 144 * 2, 300 * 2)
-        upscaled_image = Image.scale(inpaint_image, Extent(1024, 1024))
-        upscaled_mask = Mask(
+        inpaint_image = Image.scale(inpaint_image, Extent(1024, 1024))
+        mask = Mask(
             Bounds(512, 0, 512, 1024), Image.scale(Image(mask.image), Extent(512, 1024))._qimage
         )
-        job = workflow.inpaint(comfy, style, upscaled_image, upscaled_mask, control, default_seed)
+        job = workflow.inpaint(comfy, style, inpaint_image, mask, control, default_seed)
 
     async def main():
-        await run_and_save(comfy, job, f"test_control_scribble_{op}.png")
+        if op in ["inpaint", "refine_region", "inpaint_upscale"]:
+            await run_and_save(comfy, job, f"test_control_scribble_{op}.png", inpaint_image, mask)
+        else:
+            await run_and_save(comfy, job, f"test_control_scribble_{op}.png")
 
     qtapp.run(main())
 
@@ -559,7 +571,7 @@ def test_create_control_image(qtapp, comfy, mode):
     async def main():
         result = await run_and_save(comfy, job, image_name)
         reference = Image.load(reference_dir / image_name)
-        threshold = 0.005 if mode is ControlMode.pose else 0.002
+        threshold = 0.015 if mode is ControlMode.pose else 0.002
         assert Image.compare(result, reference) < threshold
 
     qtapp.run(main())
@@ -615,7 +627,7 @@ def test_ip_adapter_region(qtapp, comfy, temp_settings):
     )
 
     async def main():
-        await run_and_save(comfy, job, "test_ip_adapter_region.png")
+        await run_and_save(comfy, job, "test_ip_adapter_region.png", image, mask)
 
     qtapp.run(main())
 

@@ -31,7 +31,7 @@ models = chain(
     resources.default_checkpoints,
     resources.upscale_models,
 )
-files = {url_strip(url): get_path(m, filename) for m in models for url, filename in m.files.items()}
+files = {url_strip(url): get_path(m, filename) for m in models for filename, url in m.files.items()}
 
 
 async def handle(request: web.Request):

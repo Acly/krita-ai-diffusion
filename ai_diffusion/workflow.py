@@ -1,4 +1,5 @@
 from __future__ import annotations
+from copy import copy
 from enum import Enum
 import math
 import random
@@ -410,7 +411,9 @@ class Conditioning:
         self.area = area
 
     def copy(self):
-        return Conditioning(self.prompt, self.negative_prompt, [c for c in self.control], self.area)
+        return Conditioning(
+            self.prompt, self.negative_prompt, [copy(c) for c in self.control], self.area
+        )
 
     def downscale(self, original: Extent, target: Extent):
         # Meant to be called during preperation, when desired generation resolution is lower than canvas size:
@@ -608,12 +611,8 @@ def generate(
 def inpaint(comfy: Client, style: Style, image: Image, mask: Mask, cond: Conditioning, seed: int):
     target_bounds = mask.bounds
     sd_ver = resolve_sd_version(style, comfy)
-    # Resolutions for the full image pass
     extent, scaled_image, scaled_mask, _ = prepare_masked(image, mask, sd_ver, style)
-    # Resolutions for the (optional) refinement pass on the cropped inpaint area
-    cropped_extent, _ = prepare_extent(target_bounds.extent, sd_ver, style, downscale=False)
-    initial_bounds = extent.convert(target_bounds, "target", "initial")
-    desired_bounds = cropped_extent.convert(target_bounds, "target", "desired")
+    upscale_extent, _ = prepare_extent(target_bounds.extent, sd_ver, style, downscale=False)
 
     w = ComfyWorkflow(comfy.nodes_inputs)
     model, clip, vae = load_model_with_lora(w, comfy, style, cond.prompt)
@@ -633,19 +632,21 @@ def inpaint(comfy: Client, style: Style, image: Image, mask: Mask, cond: Conditi
     cond_base.control.append(Control(ControlMode.inpaint, in_image, mask=in_mask))
     model, positive, negative = apply_conditioning(cond_base, w, comfy, model, clip, style)
 
-    batch = compute_batch_size(Extent.largest(extent.initial, cropped_extent.desired))
+    batch = compute_batch_size(Extent.largest(extent.initial, upscale_extent.desired))
     latent = w.vae_encode_inpaint(vae, in_image, in_mask)
     latent = w.batch_latent(latent, batch)
     out_latent = w.ksampler_advanced(
         model, positive, negative, latent, **_sampler_params(style, seed=seed, clip_vision=True)
     )
     if extent.refinement_scaling in [ScaleMode.upscale_latent, ScaleMode.upscale_quality]:
+        initial_bounds = extent.convert(target_bounds, "target", "initial")
+
         params = _sampler_params(style, strength=0.5, seed=seed, clip_vision=True)
         upscale_model = w.load_upscale_model(comfy.default_upscaler)
         upscale = w.vae_decode(vae, out_latent)
         upscale = w.crop_image(upscale, initial_bounds)
         upscale = w.upscale_image(upscale_model, upscale)
-        upscale = w.scale_image(upscale, cropped_extent.desired)
+        upscale = w.scale_image(upscale, upscale_extent.desired)
         latent = w.vae_encode(vae, upscale)
 
         cond_upscale = cond.copy()
@@ -657,14 +658,23 @@ def inpaint(comfy: Client, style: Style, image: Image, mask: Mask, cond: Conditi
         _, positive_up, negative_up = apply_conditioning(cond_upscale, w, comfy, model, clip, style)
         out_latent = w.ksampler_advanced(model, positive_up, negative_up, latent, **params)
         out_image = w.vae_decode(vae, out_latent)
+        out_image = scale_to_target(upscale_extent, w, out_image, comfy)
     else:
+        desired_bounds = extent.convert(target_bounds, "target", "desired")
+        cropped_extent = ScaledExtent(
+            desired_bounds.extent,
+            desired_bounds.extent,
+            desired_bounds.extent,
+            target_bounds.extent,
+        )
+
         out_image = w.vae_decode(vae, out_latent)
         out_image = scale(
             extent.initial, extent.desired, extent.refinement_scaling, w, out_image, comfy
         )
         out_image = w.crop_image(out_image, desired_bounds)
+        out_image = scale_to_target(cropped_extent, w, out_image, comfy)
 
-    out_image = scale_to_target(cropped_extent, w, out_image, comfy)
     out_masked = w.apply_mask(out_image, cropped_mask)
     w.send_image(out_masked)
     return w
