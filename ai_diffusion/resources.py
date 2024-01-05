@@ -442,9 +442,9 @@ class UpscalerName(Enum):
     default = "4x_NMKD-Superscale-SP_178000_G.pth"
     quality = "HAT_SRx4_ImageNet-pretrain.pth"
     sharp = "Real_HAT_GAN_sharper.pth"
-    fast_2x = "OmniSR_X2_DIV2k.safetensors"
-    fast_3x = "OmniSR_X3_DIV2k.safetensors"
-    fast_4x = "OmniSR_X4_DIV2k.safetensors"
+    fast_2x = "OmniSR_X2_DIV2K.safetensors"
+    fast_3x = "OmniSR_X3_DIV2K.safetensors"
+    fast_4x = "OmniSR_X4_DIV2K.safetensors"
 
     @staticmethod
     def fast_x(x: int):

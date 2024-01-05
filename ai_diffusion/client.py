@@ -169,12 +169,14 @@ class Client:
 
         # Retrieve upscale models
         client.upscalers = nodes["UpscaleModelLoader"]["input"]["required"]["model_name"][0]
-        client.default_upscaler = _find_upscaler(client.upscalers, UpscalerName.default.value, True)
         client.fast_upscaler = {
             n: _find_upscaler(client.upscalers, UpscalerName.fast_x(n).value) for n in [2, 3, 4]
         }
-        if client.device_info.type == "privateuseone":  # DirectML: OmniSR makes Comfy crash (?)
+        client.default_upscaler = _find_upscaler(client.upscalers, UpscalerName.default.value)
+        if client.device_info.type == "privateuseone":  # DirectML: OmniSR causes a crash (?)
             client.fast_upscaler = {n: client.default_upscaler for n in [2, 3, 4]}
+        if not client.default_upscaler:
+            client.default_upscaler = client.fast_upscaler[4]
 
         # Retrieve LCM LoRA models
         client.lcm_model = {
