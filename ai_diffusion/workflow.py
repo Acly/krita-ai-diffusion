@@ -395,8 +395,8 @@ class Control:
 class Conditioning:
     prompt: str
     negative_prompt: str = ""
-    area: Optional[Bounds] = None
     control: List[Control]
+    _area: Optional[Bounds] = None
 
     def __init__(
         self,
@@ -446,14 +446,17 @@ def apply_conditioning(
     cond: Conditioning, w: ComfyWorkflow, comfy: Client, model: Output, clip: Output, style: Style
 ):
     prompt = merge_prompt(_pattern_lora.sub("", cond.prompt), style.style_prompt)
-    if cond.area:
+    area = cond.area
+    if area and any(c.mode not in [ControlMode.image, ControlMode.inpaint] for c in cond.control):
+        area = None  # Don't use area conditioning if there is already a ControlNet
+    elif area:
         prompt = merge_prompt("", style.style_prompt)
     positive = w.clip_text_encode(clip, prompt)
     negative = w.clip_text_encode(clip, merge_prompt(cond.negative_prompt, style.negative_prompt))
     model, positive, negative = apply_control(cond, w, comfy, model, positive, negative, style)
-    if cond.area and cond.prompt != "":
+    if area and cond.prompt != "":
         positive_area = w.clip_text_encode(clip, cond.prompt)
-        positive_area = w.conditioning_area(positive_area, cond.area)
+        positive_area = w.conditioning_area(positive_area, area)
         positive = w.conditioning_combine(positive, positive_area)
     return model, positive, negative
 
