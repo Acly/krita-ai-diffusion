@@ -67,7 +67,7 @@ async def run_and_save(
     composition_image: Image | None = None,
     composition_mask: Mask | None = None,
 ):
-    workflow.dump((result_dir / filename).with_suffix(".json"))
+    workflow.dump((result_dir / "workflows" / filename).with_suffix(".json"))
     results = await receive_images(comfy, workflow)
     assert len(results) == 1
     if composition_image and composition_mask:
@@ -426,7 +426,7 @@ def test_generate(qtapp, comfy, temp_settings, extent: Extent):
 
 def test_inpaint(qtapp, comfy, temp_settings):
     temp_settings.batch_size = 3  # max 3 images@512x512 -> 2 images@768x512
-    image = Image.load(image_dir / "beach_768x512.png")
+    image = Image.load(image_dir / "beach_768x512.webp")
     mask = Mask.rectangle(Bounds(40, 120, 320, 200), feather=10)
     prompt = Conditioning("ship")
     job = workflow.inpaint(comfy, default_style(comfy), image, mask, prompt, default_seed)
@@ -445,7 +445,7 @@ def test_inpaint(qtapp, comfy, temp_settings):
 @pytest.mark.parametrize("sdver", [SDVersion.sd15, SDVersion.sdxl])
 def test_inpaint_upscale(qtapp, comfy, temp_settings, sdver):
     temp_settings.batch_size = 3  # 2 images for 1.5, 1 image for XL
-    image = Image.load(image_dir / "beach_1536x1024.png")
+    image = Image.load(image_dir / "beach_1536x1024.webp")
     mask = Mask.rectangle(Bounds(300, 200, 768, 512), feather=20)
     prompt = Conditioning("ship")
     job = workflow.inpaint(comfy, default_style(comfy, sdver), image, mask, prompt, default_seed)
@@ -463,7 +463,7 @@ def test_inpaint_upscale(qtapp, comfy, temp_settings, sdver):
 
 def test_inpaint_odd_resolution(qtapp, comfy, temp_settings):
     temp_settings.batch_size = 1
-    image = Image.load(image_dir / "beach_768x512.png")
+    image = Image.load(image_dir / "beach_768x512.webp")
     image = Image.scale(image, Extent(612, 513))
     mask = Mask.rectangle(Bounds(0, 0, 200, 513))
     prompt = Conditioning()
@@ -478,7 +478,7 @@ def test_inpaint_odd_resolution(qtapp, comfy, temp_settings):
 
 def test_inpaint_area_conditioning(qtapp, comfy, temp_settings):
     temp_settings.batch_size = 1
-    image = Image.load(image_dir / "lake_1536x1024.png")
+    image = Image.load(image_dir / "lake_1536x1024.webp")
     mask = Mask.load(image_dir / "lake_1536x1024_mask_bottom_right.png")
     prompt = Conditioning("crocodile")
     job = workflow.inpaint(comfy, default_style(comfy), image, mask, prompt, default_seed)
@@ -492,7 +492,7 @@ def test_inpaint_area_conditioning(qtapp, comfy, temp_settings):
 @pytest.mark.parametrize("sdver", [SDVersion.sd15, SDVersion.sdxl])
 def test_refine(qtapp, comfy, sdver, temp_settings):
     temp_settings.batch_size = 1
-    image = Image.load(image_dir / "beach_768x512.png")
+    image = Image.load(image_dir / "beach_768x512.webp")
     prompt = Conditioning("painting in the style of Vincent van Gogh")
     strength = {SDVersion.sd15: 0.5, SDVersion.sdxl: 0.65}[sdver]
 
@@ -509,7 +509,7 @@ def test_refine(qtapp, comfy, sdver, temp_settings):
 
 def test_refine_region(qtapp, comfy, temp_settings):
     temp_settings.batch_size = 1
-    image = Image.load(image_dir / "lake_region.png")
+    image = Image.load(image_dir / "lake_region.webp")
     mask = Mask.load(image_dir / "lake_region_mask.png")
     prompt = Conditioning("waterfall")
 
@@ -529,8 +529,8 @@ def test_refine_region(qtapp, comfy, temp_settings):
 def test_control_scribble(qtapp, comfy, temp_settings, op):
     temp_settings.batch_size = 1
     style = default_style(comfy)
-    scribble_image = Image.load(image_dir / "owls_scribble.png")
-    inpaint_image = Image.load(image_dir / "owls_inpaint.png")
+    scribble_image = Image.load(image_dir / "owls_scribble.webp")
+    inpaint_image = Image.load(image_dir / "owls_inpaint.webp")
     mask = Mask.load(image_dir / "owls_mask.png")
     mask.bounds = Bounds(256, 0, 256, 512)
     control = Conditioning("owls", "", [Control(ControlMode.scribble, scribble_image)])
@@ -604,7 +604,7 @@ def test_create_open_pose_vector(qtapp, comfy):
 @pytest.mark.parametrize("sdver", [SDVersion.sd15, SDVersion.sdxl])
 def test_ip_adapter(qtapp, comfy, temp_settings, sdver):
     temp_settings.batch_size = 1
-    image = Image.load(image_dir / "cat.png")
+    image = Image.load(image_dir / "cat.webp")
     control = Conditioning(
         "cat on a rooftop in paris", "", [Control(ControlMode.image, image, 0.6)]
     )
@@ -619,9 +619,9 @@ def test_ip_adapter(qtapp, comfy, temp_settings, sdver):
 
 def test_ip_adapter_region(qtapp, comfy, temp_settings):
     temp_settings.batch_size = 1
-    image = Image.load(image_dir / "flowers.png")
+    image = Image.load(image_dir / "flowers.webp")
     mask = Mask.load(image_dir / "flowers_mask.png")
-    control_img = Image.load(image_dir / "pegonia.png")
+    control_img = Image.load(image_dir / "pegonia.webp")
     control = Conditioning("potted flowers", "", [Control(ControlMode.image, control_img, 0.7)])
     job = workflow.refine_region(
         comfy, default_style(comfy), image, mask, control, 0.6, default_seed
@@ -635,8 +635,8 @@ def test_ip_adapter_region(qtapp, comfy, temp_settings):
 
 def test_ip_adapter_batch(qtapp, comfy, temp_settings):
     temp_settings.batch_size = 1
-    image1 = Image.load(image_dir / "cat.png")
-    image2 = Image.load(image_dir / "pegonia.png")
+    image1 = Image.load(image_dir / "cat.webp")
+    image2 = Image.load(image_dir / "pegonia.webp")
     control = Conditioning(
         "", "", [Control(ControlMode.image, image1, 1.0), Control(ControlMode.image, image2, 1.0)]
     )
@@ -649,7 +649,7 @@ def test_ip_adapter_batch(qtapp, comfy, temp_settings):
 
 
 def test_upscale_simple(qtapp, comfy):
-    image = Image.load(image_dir / "beach_768x512.png")
+    image = Image.load(image_dir / "beach_768x512.webp")
     job = workflow.upscale_simple(comfy, image, comfy.default_upscaler, 2.0)
 
     async def main():
@@ -660,7 +660,7 @@ def test_upscale_simple(qtapp, comfy):
 
 @pytest.mark.parametrize("sdver", [SDVersion.sd15, SDVersion.sdxl])
 def test_upscale_tiled(qtapp, comfy, sdver):
-    image = Image.load(image_dir / "beach_768x512.png")
+    image = Image.load(image_dir / "beach_768x512.webp")
     job = workflow.upscale_tiled(
         comfy, image, comfy.default_upscaler, 2.0, default_style(comfy, sdver), 0.5, default_seed
     )
@@ -672,7 +672,7 @@ def test_upscale_tiled(qtapp, comfy, sdver):
 
 
 def test_generate_live(qtapp, comfy):
-    scribble = Image.load(image_dir / "owls_scribble.png")
+    scribble = Image.load(image_dir / "owls_scribble.webp")
     cond = Conditioning("owls", "", [Control(ControlMode.scribble, scribble)])
     job = workflow.generate(
         comfy, default_style(comfy), Extent(512, 512), cond, default_seed, is_live=True
@@ -686,7 +686,7 @@ def test_generate_live(qtapp, comfy):
 
 @pytest.mark.parametrize("sdver", [SDVersion.sd15, SDVersion.sdxl])
 def test_refine_live(qtapp, comfy, sdver):
-    image = Image.load(image_dir / "pegonia.png")
+    image = Image.load(image_dir / "pegonia.webp")
     if sdver is SDVersion.sdxl:
         image = Image.scale(image, Extent(1024, 1024))  # result will be a bit blurry
     job = workflow.refine(
@@ -701,7 +701,7 @@ def test_refine_live(qtapp, comfy, sdver):
 
 def test_refine_max_pixels(qtapp, comfy, temp_settings):
     temp_settings.max_pixel_count = 1  # million pixels
-    image = Image.load(image_dir / "lake_1536x1024.png")
+    image = Image.load(image_dir / "lake_1536x1024.webp")
     cond = Conditioning("watercolor painting on structured paper, aquarelle, stylized")
     job = workflow.refine(comfy, default_style(comfy), image, cond, 0.6, default_seed)
 
@@ -715,7 +715,7 @@ def test_outpaint_resolution_multiplier(qtapp, comfy, temp_settings):
     temp_settings.batch_size = 1
     temp_settings.resolution_multiplier = 0.8
     image = Image.create(Extent(2048, 1024))
-    beach = Image.load(image_dir / "beach_1536x1024.png")
+    beach = Image.load(image_dir / "beach_1536x1024.webp")
     image.draw_image(beach, (512, 0))
     mask = Mask.load(image_dir / "beach_outpaint_mask.png")
     cond = Conditioning("photo of a beach and jungle, nature photography, tropical")
