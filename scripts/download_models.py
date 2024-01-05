@@ -60,24 +60,25 @@ async def download(
     dry_run=False,
 ):
     target_dir = destination / model.folder
-    target_file = target_dir / model.filename
-    if verbose:
-        print(f"Looking for {target_file}")
-    if target_file.exists():
-        print(f"{model.name}: found - skipping")
-        return
-    if verbose:
-        print(f"Downloading {model.url}")
-    if not dry_run:
-        if not target_dir.exists():
-            target_dir.mkdir(parents=True)
-        async with client.get(model.url) as resp:
-            resp.raise_for_status()
-            with open(target_file, "wb") as fd:
-                with _progress(model.name, resp.content_length) as pbar:
-                    async for chunk, is_end in resp.content.iter_chunks():
-                        fd.write(chunk)
-                        pbar.update(len(chunk))
+    for filename, url in model.files.items():
+        target_file = target_dir / filename
+        if verbose:
+            print(f"Looking for {target_file}")
+        if target_file.exists():
+            print(f"{model.name}: found - skipping")
+            return
+        if verbose:
+            print(f"Downloading {url}")
+        if not dry_run:
+            if not target_dir.exists():
+                target_dir.mkdir(parents=True)
+            async with client.get(url) as resp:
+                resp.raise_for_status()
+                with open(target_file, "wb") as fd:
+                    with _progress(model.name, resp.content_length) as pbar:
+                        async for chunk, is_end in resp.content.iter_chunks():
+                            fd.write(chunk)
+                            pbar.update(len(chunk))
 
 
 async def main(

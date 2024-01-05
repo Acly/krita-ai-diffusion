@@ -20,7 +20,7 @@ class Extent(NamedTuple):
     height: int
 
     def __mul__(self, scale: float | SupportsIndex):
-        if isinstance(scale, float):
+        if isinstance(scale, (float, int)):
             return Extent(round(self.width * scale), round(self.height * scale))
         raise NotImplementedError()
 
@@ -35,6 +35,10 @@ class Extent(NamedTuple):
 
     def scale_keep_aspect(self, target: Extent):
         scale = min(target.width / self.width, target.height / self.height)
+        return self * scale
+
+    def scale_to_pixel_count(self, pixel_count: int):
+        scale = sqrt(pixel_count / self.pixel_count)
         return self * scale
 
     @property
@@ -228,7 +232,7 @@ class Image:
         return Image(img.convertToFormat(QImage.Format_ARGB32))
 
     @staticmethod
-    def scale(img, target: Extent):
+    def scale(img: "Image", target: Extent):
         mode = Qt.AspectRatioMode.IgnoreAspectRatio
         quality = Qt.TransformationMode.SmoothTransformation
         scaled = img._qimage.scaled(target.width, target.height, mode, quality)

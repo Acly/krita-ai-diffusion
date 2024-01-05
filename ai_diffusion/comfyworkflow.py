@@ -1,7 +1,7 @@
 from __future__ import annotations
 import math
-import random
 import json
+from pathlib import Path
 from typing import NamedTuple, Tuple, Literal, overload, Any
 
 from .image import Bounds, Extent, Image
@@ -44,7 +44,9 @@ class ComfyWorkflow:
                             args[k] = default
         return args
 
-    def dump(self, filepath: str):
+    def dump(self, filepath: str | Path):
+        filepath = Path(filepath)
+        filepath.parent.mkdir(parents=True, exist_ok=True)
         with open(filepath, "w") as f:
             json.dump(self.root, f, indent=4)
 
@@ -340,6 +342,7 @@ class ComfyWorkflow:
         )
 
     def upscale_image(self, upscale_model: Output, image: Output):
+        self.sample_count += 4  # approx, actual number depends on model and image size
         return self.add("ImageUpscaleWithModel", 1, upscale_model=upscale_model, image=image)
 
     def invert_image(self, image: Output):

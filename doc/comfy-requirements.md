@@ -20,6 +20,9 @@ This can be done manually or via script ([see below](#script)).
 ### Shared
   * [Clip-Vision](https://huggingface.co/h94/IP-Adapter/resolve/main/models/image_encoder/model.safetensors?download=true) to `models/clip_vision/SD1.5`
   * [NMKD Superscale SP_178000_G](https://huggingface.co/gemasai/4x_NMKD-Superscale-SP_178000_G/resolve/main/4x_NMKD-Superscale-SP_178000_G.pth) to `models/upscale_models`
+  * [OmniSR_X2_DIV2K](https://huggingface.co/Acly/Omni-SR/resolve/main/OmniSR_X2_DIV2K.safetensors) to `models/upscale_models`
+  * [OmniSR_X3_DIV2K](https://huggingface.co/Acly/Omni-SR/resolve/main/OmniSR_X3_DIV2K.safetensors) to `models/upscale_models`
+  * [OmniSR_X4_DIV2K](https://huggingface.co/Acly/Omni-SR/resolve/main/OmniSR_X4_DIV2K.safetensors) to `models/upscale_models`
 
 ### SD 1.5
   * [ControlNet inpaint](https://huggingface.co/comfyanonymous/ControlNet-v1-1_fp16_safetensors/resolve/main/control_v11p_sd15_inpaint_fp16.safetensors) to `models/controlnet`

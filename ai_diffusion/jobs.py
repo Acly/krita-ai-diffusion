@@ -139,6 +139,10 @@ class JobQueue(QObject):
         self.job_finished.emit(job)
         self.count_changed.emit()
 
+    def notify_cancelled(self, job: Job):
+        job.state = JobState.cancelled
+        self.count_changed.emit()
+
     def notify_used(self, job_id: str, index: int):
         job = ensure(self.find(job_id))
         job._in_use[index] = True

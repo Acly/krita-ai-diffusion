@@ -90,7 +90,7 @@ class Server:
 
         if not (self.has_comfy and self.has_python):
             self.state = ServerState.not_installed
-            self.missing_resources = resources.all
+            self.missing_resources = resources.all_resources
             return
 
         assert self.comfy_dir is not None
@@ -285,11 +285,12 @@ class Server:
             )
             to_install = (r for r in all_models if r.name in packages)
             for resource in to_install:
-                target_folder = self.comfy_dir / resource.folder
-                target_file = target_folder / resource.filename
-                if not target_file.exists():
-                    target_folder.mkdir(parents=True, exist_ok=True)
-                    await _download_cached(resource.name, network, resource.url, target_file, cb)
+                if not resource.exists_in(self.comfy_dir):
+                    target_folder = self.comfy_dir / resource.folder
+                    for filename, url in resource.files.items():
+                        target_file = target_folder / filename
+                        target_folder.mkdir(parents=True, exist_ok=True)
+                        await _download_cached(resource.name, network, url, target_file, cb)
         except Exception as e:
             log.exception(str(e))
             raise e
@@ -581,15 +582,10 @@ def _decode_utf8_log_error(b: bytes):
 
 
 def find_missing(folder: Path, resources: list[ModelResource], ver: SDVersion | None = None):
-    def resource_exists(res: ModelResource):
-        return (folder / res.folder / res.filename).exists() or (
-            res.alternatives and any((folder / alt).exists() for alt in res.alternatives)
-        )
-
     return [
         res.name
         for res in resources
-        if (not ver or res.sd_version is ver) and not resource_exists(res)
+        if (not ver or res.sd_version is ver) and not res.exists_in(folder)
     ]
 
 

@@ -11,6 +11,14 @@ def test_extent_compare():
     assert (Extent(4, 4) < Extent(4, 4)) == False
 
 
+def test_extent_scale_pixel_count():
+    assert Extent(4, 3).scale_to_pixel_count(12) == Extent(4, 3)
+    assert Extent(4, 3).scale_to_pixel_count(24) == Extent(6, 4)
+    assert Extent(4, 3).scale_to_pixel_count(50) == Extent(8, 6)
+    assert Extent(2, 8).scale_to_pixel_count(55) == Extent(4, 15)
+    assert Extent(10, 8).scale_to_pixel_count(60) == Extent(9, 7)
+
+
 def create_test_image(w, h):
     img = QImage(w, h, QImage.Format_ARGB32)
     for y in range(h):

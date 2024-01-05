@@ -36,7 +36,7 @@ class ServerBackend(Enum):
 class PerformancePreset(Enum):
     auto = "Automatic"
     cpu = "CPU"
-    low = "GPU low (less than 6GB)"
+    low = "GPU low (up to 6GB)"
     medium = "GPU medium (6GB to 12GB)"
     high = "GPU high (more than 12GB)"
     custom = "Custom"
@@ -156,29 +156,41 @@ class Settings(QObject):
         "Increase efficiency by generating multiple images at once",
     )
 
-    diffusion_tile_size: int
-    _diffusion_tile_size = Setting(
-        "Diffusion Tile Size",
-        2048,
-        "Resolution threshold at which diffusion is split up into multiple tiles",
+    resolution_multiplier: float
+    _resolution_multiplier = Setting(
+        "Resolution Multiplier",
+        1.0,
+        "Scaling factor for image generation. Values below 1.0 improve performance when working"
+        " on high resolution canvas.",
+    )
+
+    max_pixel_count: int
+    _max_pixel_count = Setting(
+        "Maximum Pixel Count",
+        8,
+        "Maximum resolution to generate images at, in megapixels (FullHD ~ 2MP, 4k ~ 8MP).",
     )
 
     _performance_presets = {
         PerformancePreset.cpu: {
             "batch_size": 1,
-            "diffusion_tile_size": 4096,
+            "resolution_multiplier": 1.0,
+            "max_pixel_count": 2,
         },
         PerformancePreset.low: {
             "batch_size": 2,
-            "diffusion_tile_size": 1024,
+            "resolution_multiplier": 1.0,
+            "max_pixel_count": 2,
         },
         PerformancePreset.medium: {
             "batch_size": 4,
-            "diffusion_tile_size": 2048,
+            "resolution_multiplier": 1.0,
+            "max_pixel_count": 8,
         },
         PerformancePreset.high: {
             "batch_size": 8,
-            "diffusion_tile_size": 4096,
+            "resolution_multiplier": 1.0,
+            "max_pixel_count": 24,
         },
     }
 

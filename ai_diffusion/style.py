@@ -79,6 +79,10 @@ class StyleSettings:
         " noise schedule",
     )
 
+    preferred_resolution = Setting(
+        "Preferred Resolution", 0, "Image resolution the checkpoint was trained on"
+    )
+
     sampler = Setting(
         "Sampler",
         "DPM++ 2M Karras",
@@ -121,6 +125,7 @@ class Style:
     vae: str = StyleSettings.vae.default
     clip_skip: int = StyleSettings.clip_skip.default
     v_prediction_zsnr: bool = StyleSettings.v_prediction_zsnr.default
+    preferred_resolution: int = StyleSettings.preferred_resolution.default
     sampler: str = StyleSettings.sampler.default
     sampler_steps: int = StyleSettings.sampler_steps.default
     cfg_scale: float = StyleSettings.cfg_scale.default
