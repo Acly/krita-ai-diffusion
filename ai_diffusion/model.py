@@ -283,10 +283,10 @@ class Model(QObject, ObservableProperties):
             elif settings.auto_preview and self._layer is None and job.id:
                 self.jobs.select(job.id, 0)
         elif message.event is ClientEvent.interrupted:
-            job.state = JobState.cancelled
+            self.jobs.notify_cancelled(job)
             self.report_progress(0)
         elif message.event is ClientEvent.error:
-            job.state = JobState.cancelled
+            self.jobs.notify_cancelled(job)
             self.report_error(f"Server execution error: {message.error}")
 
     def update_preview(self):
