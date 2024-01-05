@@ -24,7 +24,8 @@ def clear_results():
         for file in result_dir.iterdir():
             if file.is_dir():
                 shutil.rmtree(file)
-            file.unlink()
+            else:
+                file.unlink()
     result_dir.mkdir(exist_ok=True)
 
 

@@ -147,6 +147,14 @@ class CheckpointResolution(NamedTuple):
         return CheckpointResolution(min_size, max_size, min_scale, max_scale)
 
 
+def apply_resolution_settings(extent: Extent):
+    result = extent * settings.resolution_multiplier
+    max_pixels = settings.max_pixel_count * 10**6
+    if max_pixels > 0 and result.pixel_count > int(max_pixels * 1.1):
+        result = result.scale_to_pixel_count(max_pixels)
+    return result
+
+
 def prepare(
     extent: Extent,
     image: Image | None,
@@ -158,11 +166,7 @@ def prepare(
     mask_image = mask.to_image(extent) if mask else None
 
     # Take settings into account to compute the desired resolution for diffusion.
-    desired = extent * settings.resolution_multiplier
-    max_pixels = settings.max_pixel_count * 10**6
-    if max_pixels > 0 and desired.pixel_count > int(max_pixels * 1.1):
-        desired = desired.scale_to_pixel_count(max_pixels)
-
+    desired = apply_resolution_settings(extent)
     # The checkpoint may require a different resolution than what is requested.
     min_size, max_size, min_scale, max_scale = CheckpointResolution.compute(
         desired, sd_version, style
@@ -758,6 +762,11 @@ def refine_region(
 def create_control_image(comfy: Client, image: Image, mode: ControlMode):
     assert mode not in [ControlMode.image, ControlMode.inpaint]
 
+    target_extent = image.extent
+    current_extent = apply_resolution_settings(image.extent)
+    if current_extent != target_extent:
+        image = Image.scale(image, current_extent)
+
     w = ComfyWorkflow(comfy.nodes_inputs)
     input = w.load_image(image)
     result = None
@@ -765,10 +774,8 @@ def create_control_image(comfy: Client, image: Image, mode: ControlMode):
     if mode is ControlMode.canny_edge:
         result = w.add("Canny", 1, image=input, low_threshold=0.4, high_threshold=0.8)
     else:
-        args = {
-            "image": input,
-            "resolution": image.extent.multiple_of(64).shortest_side,
-        }
+        current_extent = current_extent.multiple_of(64)
+        args = {"image": input, "resolution": current_extent.shortest_side}
         if mode is ControlMode.scribble:
             result = w.add("PiDiNetPreprocessor", 1, **args, safe="enable")
             result = w.add("ScribblePreprocessor", 1, image=result, resolution=args["resolution"])
@@ -787,11 +794,11 @@ def create_control_image(comfy: Client, image: Image, mode: ControlMode):
             result = w.add("OneFormer-COCO-SemSegPreprocessor", 1, **args)
         assert result is not None
 
-        if args["resolution"] != image.extent.shortest_side:
-            result = w.scale_image(result, image.extent)
-
     if mode.is_lines:
         result = w.invert_image(result)
+    if current_extent != target_extent:
+        result = w.scale_image(result, target_extent)
+
     w.send_image(result)
     return w
 
