@@ -425,11 +425,11 @@ class Conditioning:
                 if control.image.extent == original:
                     control.image = Image.scale(control.image, target)
 
-    def crop(self, w: ComfyWorkflow, bounds: Bounds):
+    def crop(self, bounds: Bounds):
+        # Meant to be called during preperation, before adding inpaint layer.
         for control in self.control:
-            control.image = w.crop_image(control.load_image(w), bounds)
-            if control.mask:
-                control.mask = w.crop_mask(control.load_mask(w), bounds)
+            assert isinstance(control.image, Image) and control.mask is None
+            control.image = Image.crop(control.image, bounds)
 
 
 def merge_prompt(prompt: str, style_prompt: str):
@@ -654,7 +654,7 @@ def inpaint(comfy: Client, style: Style, image: Image, mask: Mask, cond: Conditi
 
         cond_upscale = cond.copy()
         cond_upscale.area = None
-        cond_upscale.crop(w, target_bounds)
+        cond_upscale.crop(target_bounds)
         cond_upscale.control.append(
             Control(ControlMode.inpaint, Image.crop(image, target_bounds), mask=cropped_mask)
         )
