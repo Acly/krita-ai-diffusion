@@ -161,7 +161,7 @@ class Settings(QObject):
         "Generation Resolution",
         1.0,
         "Scaling factor for image generation. Values below 1.0 improve performance when working"
-        " with high resolution canvas.",
+        " on high resolution canvas.",
     )
 
     max_pixel_count: int
@@ -186,7 +186,7 @@ class Settings(QObject):
         },
         PerformancePreset.high: {
             "batch_size": 8,
-            "max_pixel_count": 8,
+            "max_pixel_count": 24,
         },
     }
 

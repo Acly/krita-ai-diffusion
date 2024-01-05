@@ -1114,13 +1114,13 @@ class PerformanceSettings(SettingsTab):
         advanced_layout.addWidget(self._batch_size)
 
         self._resolution_multiplier = SliderSetting(
-            Settings._resolution_multiplier, self._advanced, 0.3, 2.0, "{:.1f}x"
+            Settings._resolution_multiplier, self._advanced, 0.3, 1.5, "{:.1f}x"
         )
         self._resolution_multiplier.value_changed.connect(self.write)
         advanced_layout.addWidget(self._resolution_multiplier)
 
         self._max_pixel_count = SpinBoxSetting(
-            Settings._max_pixel_count, self._advanced, 1, 50, 1, " MP"
+            Settings._max_pixel_count, self._advanced, 1, 99, 1, " MP"
         )
         self._max_pixel_count.value_changed.connect(self.write)
         advanced_layout.addWidget(self._max_pixel_count)

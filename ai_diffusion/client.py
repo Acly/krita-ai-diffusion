@@ -173,6 +173,8 @@ class Client:
         client.fast_upscaler = {
             n: _find_upscaler(client.upscalers, UpscalerName.fast_x(n).value) for n in [2, 3, 4]
         }
+        if client.device_info.type == "privateuseone":  # DirectML: OmniSR makes Comfy crash (?)
+            client.fast_upscaler = {n: client.default_upscaler for n in [2, 3, 4]}
 
         # Retrieve LCM LoRA models
         client.lcm_model = {
