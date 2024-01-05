@@ -1,3 +1,4 @@
+import shutil
 import pytest
 from pathlib import Path
 from ai_diffusion import comfyworkflow, workflow
@@ -21,6 +22,8 @@ from .config import data_dir, image_dir, result_dir, reference_dir, default_chec
 def clear_results():
     if result_dir.exists():
         for file in result_dir.iterdir():
+            if file.is_dir():
+                shutil.rmtree(file)
             file.unlink()
     result_dir.mkdir(exist_ok=True)
 

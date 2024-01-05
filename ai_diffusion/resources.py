@@ -164,13 +164,13 @@ required_models = [
         SDVersion.all,
         Path("models/upscale_models"),
         {
-            "OmniSR_X2_DIV2k.safetensors": (
-                "https://huggingface.co/Acly/Omni-SR/resolve/main/OmniSR_X2_DIV2k.safetensors"
+            "OmniSR_X2_DIV2K.safetensors": (
+                "https://huggingface.co/Acly/Omni-SR/resolve/main/OmniSR_X2_DIV2K.safetensors"
             ),
-            "OmniSR_X3_DIV2k.safetensors": (
+            "OmniSR_X3_DIV2K.safetensors": (
                 "https://huggingface.co/Acly/Omni-SR/resolve/main/OmniSR_X3_DIV2K.safetensors"
             ),
-            "OmniSR_X4_DIV2k.safetensors": (
+            "OmniSR_X4_DIV2K.safetensors": (
                 "https://huggingface.co/Acly/Omni-SR/resolve/main/OmniSR_X4_DIV2K.safetensors"
             ),
         },
