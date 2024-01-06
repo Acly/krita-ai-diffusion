@@ -5,10 +5,10 @@ from typing import NamedTuple, Sequence
 
 # Version identifier for all the resources defined here. This is used as the server version.
 # It usually follows the plugin version, but not all new plugin versions also require a server update.
-version = "1.10.0"
+version = "1.12.0"
 
 comfy_url = "https://github.com/comfyanonymous/ComfyUI"
-comfy_version = "a4ec54a40d978c4249dc6a7e2d5133657d1fd109"
+comfy_version = "af94eb14e3b44f6e6c48a7762a5e229cf3a006e4"
 
 
 class CustomNode(NamedTuple):
@@ -24,14 +24,14 @@ required_custom_nodes = [
         "ControlNet Preprocessors",
         "comfyui_controlnet_aux",
         "https://github.com/Fannovel16/comfyui_controlnet_aux",
-        "ce7e758f5ccf14bb90e073c774f895cbd56b85a9",
+        "15d9861bdd947b299bf5dde1e2e3d8a962e4f26a",
         ["InpaintPreprocessor"],
     ),
     CustomNode(
         "IP-Adapter",
         "ComfyUI_IPAdapter_plus",
         "https://github.com/cubiq/ComfyUI_IPAdapter_plus",
-        "689fa4a0c16a2f8339900587473a99ba9ae284df",
+        "4e898fe0c842259fb8eccbd9db1e2d533539cf9d",
         ["IPAdapterModelLoader", "IPAdapterApply"],
     ),
     CustomNode(
