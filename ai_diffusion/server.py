@@ -286,10 +286,9 @@ class Server:
             to_install = (r for r in all_models if r.name in packages)
             for resource in to_install:
                 if not resource.exists_in(self.comfy_dir):
-                    target_folder = self.comfy_dir / resource.folder
-                    for filename, url in resource.files.items():
-                        target_file = target_folder / filename
-                        target_folder.mkdir(parents=True, exist_ok=True)
+                    for filepath, url in resource.files.items():
+                        target_file = self.comfy_dir / filepath
+                        target_file.parent.mkdir(parents=True, exist_ok=True)
                         await _download_cached(resource.name, network, url, target_file, cb)
         except Exception as e:
             log.exception(str(e))

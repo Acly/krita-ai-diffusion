@@ -21,17 +21,13 @@ def url_strip(url: str):
     return without_query
 
 
-def get_path(m: resources.ModelResource, filename: str):
-    return dir / m.folder / filename
-
-
 models = chain(
     resources.required_models,
     resources.optional_models,
     resources.default_checkpoints,
     resources.upscale_models,
 )
-files = {url_strip(url): get_path(m, filename) for m in models for filename, url in m.files.items()}
+files = {url_strip(url): dir / filepath for m in models for filepath, url in m.files.items()}
 
 
 async def handle(request: web.Request):

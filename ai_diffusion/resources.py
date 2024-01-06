@@ -117,14 +117,17 @@ class ModelResource(NamedTuple):
     name: str
     kind: ResourceKind
     sd_version: SDVersion
-    folder: Path
-    files: dict[str, str]
+    files: dict[Path, str]
     alternatives: list[Path] | None = None  # for backwards compatibility
 
     @property
     def filename(self):
         assert len(self.files) == 1
-        return next(iter(self.files))
+        return next(iter(self.files)).name
+
+    @property
+    def folder(self):
+        return next(iter(self.files)).parent
 
     @property
     def url(self):
@@ -132,8 +135,7 @@ class ModelResource(NamedTuple):
         return next(iter(self.files.values()))
 
     def exists_in(self, path: Path):
-        dir = path / self.folder
-        exact = all((dir / filename).exists() for filename in self.files.keys())
+        exact = all((path / filepath).exists() for filepath in self.files.keys())
         alt = self.alternatives is not None and any((path / f).exists() for f in self.alternatives)
         return exact or alt
 
@@ -143,9 +145,10 @@ required_models = [
         "CLIP Vision model",
         ResourceKind.clip_vision,
         SDVersion.all,
-        Path("models/clip_vision/SD1.5"),
         {
-            "model.safetensors": "https://huggingface.co/h94/IP-Adapter/resolve/main/models/image_encoder/model.safetensors"
+            Path(
+                "models/clip_vision/SD1.5/model.safetensors"
+            ): "https://huggingface.co/h94/IP-Adapter/resolve/main/models/image_encoder/model.safetensors"
         },
         alternatives=[Path("models/clip_vision/SD1.5/pytorch_model.bin")],
     ),
@@ -153,53 +156,56 @@ required_models = [
         "NMKD Superscale model",
         ResourceKind.upscaler,
         SDVersion.all,
-        Path("models/upscale_models"),
         {
-            "4x_NMKD-Superscale-SP_178000_G.pth": "https://huggingface.co/gemasai/4x_NMKD-Superscale-SP_178000_G/resolve/main/4x_NMKD-Superscale-SP_178000_G.pth"
+            Path(
+                "models/upscale_models/4x_NMKD-Superscale-SP_178000_G.pth"
+            ): "https://huggingface.co/gemasai/4x_NMKD-Superscale-SP_178000_G/resolve/main/4x_NMKD-Superscale-SP_178000_G.pth"
         },
     ),
     ModelResource(
         "OmniSR Superscale model",
         ResourceKind.upscaler,
         SDVersion.all,
-        Path("models/upscale_models"),
         {
-            "OmniSR_X2_DIV2K.safetensors": (
-                "https://huggingface.co/Acly/Omni-SR/resolve/main/OmniSR_X2_DIV2K.safetensors"
-            ),
-            "OmniSR_X3_DIV2K.safetensors": (
-                "https://huggingface.co/Acly/Omni-SR/resolve/main/OmniSR_X3_DIV2K.safetensors"
-            ),
-            "OmniSR_X4_DIV2K.safetensors": (
-                "https://huggingface.co/Acly/Omni-SR/resolve/main/OmniSR_X4_DIV2K.safetensors"
-            ),
+            Path(
+                "models/upscale_models/OmniSR_X2_DIV2K.safetensors"
+            ): "https://huggingface.co/Acly/Omni-SR/resolve/main/OmniSR_X2_DIV2K.safetensors",
+            Path(
+                "models/upscale_models/OmniSR_X3_DIV2K.safetensors"
+            ): "https://huggingface.co/Acly/Omni-SR/resolve/main/OmniSR_X3_DIV2K.safetensors",
+            Path(
+                "models/upscale_models/OmniSR_X4_DIV2K.safetensors"
+            ): "https://huggingface.co/Acly/Omni-SR/resolve/main/OmniSR_X4_DIV2K.safetensors",
         },
     ),
     ModelResource(
         "ControlNet Inpaint",
         ResourceKind.controlnet,
         SDVersion.sd15,
-        Path("models/controlnet"),
         {
-            "control_v11p_sd15_inpaint_fp16.safetensors": "https://huggingface.co/comfyanonymous/ControlNet-v1-1_fp16_safetensors/resolve/main/control_v11p_sd15_inpaint_fp16.safetensors"
+            Path(
+                "models/controlnet/control_v11p_sd15_inpaint_fp16.safetensors"
+            ): "https://huggingface.co/comfyanonymous/ControlNet-v1-1_fp16_safetensors/resolve/main/control_v11p_sd15_inpaint_fp16.safetensors"
         },
     ),
     ModelResource(
         "ControlNet Tile",
         ResourceKind.controlnet,
         SDVersion.sd15,
-        Path("models/controlnet"),
         {
-            "control_lora_rank128_v11f1e_sd15_tile_fp16.safetensors": "https://huggingface.co/comfyanonymous/ControlNet-v1-1_fp16_safetensors/resolve/main/control_lora_rank128_v11f1e_sd15_tile_fp16.safetensors",
+            Path(
+                "models/controlnet/control_lora_rank128_v11f1e_sd15_tile_fp16.safetensors"
+            ): "https://huggingface.co/comfyanonymous/ControlNet-v1-1_fp16_safetensors/resolve/main/control_lora_rank128_v11f1e_sd15_tile_fp16.safetensors",
         },
     ),
     ModelResource(
         "IP-Adapter (SD1.5)",
         ResourceKind.ip_adapter,
         SDVersion.sd15,
-        Path("models/ipadapter"),
         {
-            "ip-adapter_sd15.safetensors": "https://huggingface.co/h94/IP-Adapter/resolve/main/models/ip-adapter_sd15.safetensors"
+            Path(
+                "models/ipadapter/ip-adapter_sd15.safetensors"
+            ): "https://huggingface.co/h94/IP-Adapter/resolve/main/models/ip-adapter_sd15.safetensors"
         },
         alternatives=[
             Path("custom_nodes/ComfyUI_IPAdapter_plus/models/ip-adapter_sd15.safetensors")
@@ -209,9 +215,10 @@ required_models = [
         "IP-Adapter (SDXL)",
         ResourceKind.ip_adapter,
         SDVersion.sdxl,
-        Path("models/ipadapter"),
         {
-            "ip-adapter_sdxl_vit-h.safetensors": "https://huggingface.co/h94/IP-Adapter/resolve/main/sdxl_models/ip-adapter_sdxl_vit-h.safetensors",
+            Path(
+                "models/ipadapter/ip-adapter_sdxl_vit-h.safetensors"
+            ): "https://huggingface.co/h94/IP-Adapter/resolve/main/sdxl_models/ip-adapter_sdxl_vit-h.safetensors",
         },
         alternatives=[
             Path("custom_nodes/ComfyUI_IPAdapter_plus/models/ip-adapter_sdxl_vit-h.safetensors")
@@ -221,18 +228,20 @@ required_models = [
         "LCM-LoRA (SD1.5)",
         ResourceKind.lcm_lora,
         SDVersion.sd15,
-        Path("models/loras"),
         {
-            "lcm-lora-sdv1-5.safetensors": "https://huggingface.co/latent-consistency/lcm-lora-sdv1-5/resolve/main/pytorch_lora_weights.safetensors",
+            Path(
+                "models/loras/lcm-lora-sdv1-5.safetensors"
+            ): "https://huggingface.co/latent-consistency/lcm-lora-sdv1-5/resolve/main/pytorch_lora_weights.safetensors",
         },
     ),
     ModelResource(
         "LCM-LoRA (SDXL)",
         ResourceKind.lcm_lora,
         SDVersion.sdxl,
-        Path("models/loras"),
         {
-            "lcm-lora-sdxl.safetensors": "https://huggingface.co/latent-consistency/lcm-lora-sdxl/resolve/main/pytorch_lora_weights.safetensors",
+            Path(
+                "models/loras/lcm-lora-sdxl.safetensors"
+            ): "https://huggingface.co/latent-consistency/lcm-lora-sdxl/resolve/main/pytorch_lora_weights.safetensors",
         },
     ),
 ]
@@ -242,29 +251,30 @@ default_checkpoints = [
         "Realistic Vision",
         ResourceKind.checkpoint,
         SDVersion.sd15,
-        Path("models/checkpoints"),
         {
-            "realisticVisionV51_v51VAE.safetensors": "https://civitai.com/api/download/models/130072?type=Model&format=SafeTensor&size=pruned&fp=fp16",
+            Path(
+                "models/checkpoints/realisticVisionV51_v51VAE.safetensors"
+            ): "https://civitai.com/api/download/models/130072?type=Model&format=SafeTensor&size=pruned&fp=fp16",
         },
     ),
     ModelResource(
         "DreamShaper",
         ResourceKind.checkpoint,
         SDVersion.sd15,
-        Path("models/checkpoints"),
         {
-            "dreamshaper_8.safetensors": "https://civitai.com/api/download/models/128713?type=Model&format=SafeTensor&size=pruned&fp=fp16",
+            Path(
+                "models/checkpoints/dreamshaper_8.safetensors"
+            ): "https://civitai.com/api/download/models/128713?type=Model&format=SafeTensor&size=pruned&fp=fp16",
         },
     ),
     ModelResource(
         "Juggernaut XL",
         ResourceKind.checkpoint,
         SDVersion.sdxl,
-        Path("models/checkpoints"),
         {
-            "juggernautXL_version6Rundiffusion.safetensors": (
-                "https://civitai.com/api/download/models/198530"
-            )
+            Path(
+                "models/checkpoints/juggernautXL_version6Rundiffusion.safetensors"
+            ): "https://civitai.com/api/download/models/198530"
         },
     ),
 ]
@@ -274,22 +284,20 @@ upscale_models = [
         "HAT Super-Resolution (quality)",
         ResourceKind.upscaler,
         SDVersion.all,
-        Path("models/upscale_models"),
         {
-            "HAT_SRx4_ImageNet-pretrain.pth": (
-                "https://huggingface.co/Acly/hat/resolve/main/HAT_SRx4_ImageNet-pretrain.pth"
-            )
+            Path(
+                "models/upscale_models/HAT_SRx4_ImageNet-pretrain.pth"
+            ): "https://huggingface.co/Acly/hat/resolve/main/HAT_SRx4_ImageNet-pretrain.pth"
         },
     ),
     ModelResource(
         "Real HAT GAN Super-Resolution (sharper)",
         ResourceKind.upscaler,
         SDVersion.all,
-        Path("models/upscale_models"),
         {
-            "Real_HAT_GAN_sharper.pth": (
-                "https://huggingface.co/Acly/hat/resolve/main/Real_HAT_GAN_sharper.pth"
-            )
+            Path(
+                "models/upscale_models/Real_HAT_GAN_sharper.pth"
+            ): "https://huggingface.co/Acly/hat/resolve/main/Real_HAT_GAN_sharper.pth"
         },
     ),
 ]
@@ -299,117 +307,130 @@ optional_models = [
         "ControlNet Scribble",
         ResourceKind.controlnet,
         SDVersion.sd15,
-        Path("models/controlnet"),
         {
-            "control_lora_rank128_v11p_sd15_scribble_fp16.safetensors": "https://huggingface.co/comfyanonymous/ControlNet-v1-1_fp16_safetensors/resolve/main/control_lora_rank128_v11p_sd15_scribble_fp16.safetensors",
+            Path(
+                "models/controlnet/control_lora_rank128_v11p_sd15_scribble_fp16.safetensors"
+            ): "https://huggingface.co/comfyanonymous/ControlNet-v1-1_fp16_safetensors/resolve/main/control_lora_rank128_v11p_sd15_scribble_fp16.safetensors",
         },
     ),
     ModelResource(
         "ControlNet Line Art",
         ResourceKind.controlnet,
         SDVersion.sd15,
-        Path("models/controlnet"),
         {
-            "control_v11p_sd15_lineart_fp16.safetensors": "https://huggingface.co/comfyanonymous/ControlNet-v1-1_fp16_safetensors/resolve/main/control_v11p_sd15_lineart_fp16.safetensors",
+            Path(
+                "models/controlnet/control_v11p_sd15_lineart_fp16.safetensors"
+            ): "https://huggingface.co/comfyanonymous/ControlNet-v1-1_fp16_safetensors/resolve/main/control_v11p_sd15_lineart_fp16.safetensors",
         },
     ),
     ModelResource(
         "ControlNet Soft Edge",
         ResourceKind.controlnet,
         SDVersion.sd15,
-        Path("models/controlnet"),
         {
-            "control_v11p_sd15_softedge_fp16.safetensors": "https://huggingface.co/comfyanonymous/ControlNet-v1-1_fp16_safetensors/resolve/main/control_v11p_sd15_softedge_fp16.safetensors",
+            Path(
+                "models/controlnet/control_v11p_sd15_softedge_fp16.safetensors"
+            ): "https://huggingface.co/comfyanonymous/ControlNet-v1-1_fp16_safetensors/resolve/main/control_v11p_sd15_softedge_fp16.safetensors",
         },
     ),
     ModelResource(
         "ControlNet Canny Edge",
         ResourceKind.controlnet,
         SDVersion.sd15,
-        Path("models/controlnet"),
         {
-            "control_v11p_sd15_canny_fp16.safetensors": "https://huggingface.co/comfyanonymous/ControlNet-v1-1_fp16_safetensors/resolve/main/control_v11p_sd15_canny_fp16.safetensors",
+            Path(
+                "models/controlnet/control_v11p_sd15_canny_fp16.safetensors"
+            ): "https://huggingface.co/comfyanonymous/ControlNet-v1-1_fp16_safetensors/resolve/main/control_v11p_sd15_canny_fp16.safetensors",
         },
     ),
     ModelResource(
         "ControlNet Depth",
         ResourceKind.controlnet,
         SDVersion.sd15,
-        Path("models/controlnet"),
         {
-            "control_lora_rank128_v11f1p_sd15_depth_fp16.safetensors": "https://huggingface.co/comfyanonymous/ControlNet-v1-1_fp16_safetensors/resolve/main/control_lora_rank128_v11f1p_sd15_depth_fp16.safetensors",
+            Path(
+                "models/controlnet/control_lora_rank128_v11f1p_sd15_depth_fp16.safetensors"
+            ): "https://huggingface.co/comfyanonymous/ControlNet-v1-1_fp16_safetensors/resolve/main/control_lora_rank128_v11f1p_sd15_depth_fp16.safetensors",
         },
     ),
     ModelResource(
         "ControlNet Normal",
         ResourceKind.controlnet,
         SDVersion.sd15,
-        Path("models/controlnet"),
         {
-            "control_lora_rank128_v11p_sd15_normalbae_fp16.safetensors": "https://huggingface.co/comfyanonymous/ControlNet-v1-1_fp16_safetensors/resolve/main/control_lora_rank128_v11p_sd15_normalbae_fp16.safetensors",
+            Path(
+                "models/controlnet/control_lora_rank128_v11p_sd15_normalbae_fp16.safetensors"
+            ): "https://huggingface.co/comfyanonymous/ControlNet-v1-1_fp16_safetensors/resolve/main/control_lora_rank128_v11p_sd15_normalbae_fp16.safetensors",
         },
     ),
     ModelResource(
         "ControlNet Pose",
         ResourceKind.controlnet,
         SDVersion.sd15,
-        Path("models/controlnet"),
         {
-            "control_lora_rank128_v11p_sd15_openpose_fp16.safetensors": "https://huggingface.co/comfyanonymous/ControlNet-v1-1_fp16_safetensors/resolve/main/control_lora_rank128_v11p_sd15_openpose_fp16.safetensors",
+            Path(
+                "models/controlnet/control_lora_rank128_v11p_sd15_openpose_fp16.safetensors"
+            ): "https://huggingface.co/comfyanonymous/ControlNet-v1-1_fp16_safetensors/resolve/main/control_lora_rank128_v11p_sd15_openpose_fp16.safetensors",
         },
     ),
     ModelResource(
         "ControlNet Segmentation",
         ResourceKind.controlnet,
         SDVersion.sd15,
-        Path("models/controlnet"),
         {
-            "control_lora_rank128_v11p_sd15_seg_fp16.safetensors": "https://huggingface.co/comfyanonymous/ControlNet-v1-1_fp16_safetensors/resolve/main/control_lora_rank128_v11p_sd15_seg_fp16.safetensors",
+            Path(
+                "models/controlnet/control_lora_rank128_v11p_sd15_seg_fp16.safetensors"
+            ): "https://huggingface.co/comfyanonymous/ControlNet-v1-1_fp16_safetensors/resolve/main/control_lora_rank128_v11p_sd15_seg_fp16.safetensors",
         },
     ),
     ModelResource(
         "Controlnet Stencil",
         ResourceKind.controlnet,
         SDVersion.sd15,
-        Path("models/controlnet"),
         {
-            "control_v1p_sd15_qrcode_monster.safetensors": "https://huggingface.co/monster-labs/control_v1p_sd15_qrcode_monster/resolve/main/control_v1p_sd15_qrcode_monster.safetensors",
+            Path(
+                "models/controlnet/control_v1p_sd15_qrcode_monster.safetensors"
+            ): "https://huggingface.co/monster-labs/control_v1p_sd15_qrcode_monster/resolve/main/control_v1p_sd15_qrcode_monster.safetensors",
         },
     ),
     ModelResource(
         "ControlNet Line Art (XL)",
         ResourceKind.controlnet,
         SDVersion.sdxl,
-        Path("models/controlnet"),
         {
-            "sai_xl_sketch_256lora.safetensors": "https://huggingface.co/lllyasviel/sd_control_collection/resolve/main/sai_xl_sketch_256lora.safetensors",
+            Path(
+                "models/controlnet/sai_xl_sketch_256lora.safetensors"
+            ): "https://huggingface.co/lllyasviel/sd_control_collection/resolve/main/sai_xl_sketch_256lora.safetensors",
         },
     ),
     ModelResource(
         "ControlNet Canny Edge (XL)",
         ResourceKind.controlnet,
         SDVersion.sdxl,
-        Path("models/controlnet"),
         {
-            "sai_xl_canny_256lora.safetensors": "https://huggingface.co/lllyasviel/sd_control_collection/resolve/main/sai_xl_canny_256lora.safetensors",
+            Path(
+                "models/controlnet/sai_xl_canny_256lora.safetensors"
+            ): "https://huggingface.co/lllyasviel/sd_control_collection/resolve/main/sai_xl_canny_256lora.safetensors",
         },
     ),
     ModelResource(
         "ControlNet Depth (XL)",
         ResourceKind.controlnet,
         SDVersion.sdxl,
-        Path("models/controlnet"),
         {
-            "sai_xl_depth_256lora.safetensors": "https://huggingface.co/lllyasviel/sd_control_collection/resolve/main/sai_xl_depth_256lora.safetensors",
+            Path(
+                "models/controlnet/sai_xl_depth_256lora.safetensors"
+            ): "https://huggingface.co/lllyasviel/sd_control_collection/resolve/main/sai_xl_depth_256lora.safetensors",
         },
     ),
     ModelResource(
         "ControlNet Pose (XL)",
         ResourceKind.controlnet,
         SDVersion.sdxl,
-        Path("models/controlnet"),
         {
-            "thibaud_xl_openpose_256lora.safetensors": "https://huggingface.co/lllyasviel/sd_control_collection/resolve/main/thibaud_xl_openpose_256lora.safetensors",
+            Path(
+                "models/controlnet/thibaud_xl_openpose_256lora.safetensors"
+            ): "https://huggingface.co/lllyasviel/sd_control_collection/resolve/main/thibaud_xl_openpose_256lora.safetensors",
         },
     ),
 ]

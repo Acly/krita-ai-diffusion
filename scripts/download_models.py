@@ -59,9 +59,8 @@ async def download(
     verbose=False,
     dry_run=False,
 ):
-    target_dir = destination / model.folder
-    for filename, url in model.files.items():
-        target_file = target_dir / filename
+    for filepath, url in model.files.items():
+        target_file = destination / filepath
         if verbose:
             print(f"Looking for {target_file}")
         if target_file.exists():
@@ -70,8 +69,7 @@ async def download(
         if verbose:
             print(f"Downloading {url}")
         if not dry_run:
-            if not target_dir.exists():
-                target_dir.mkdir(parents=True)
+            target_file.parent.mkdir(exist_ok=True, parents=True)
             async with client.get(url) as resp:
                 resp.raise_for_status()
                 with open(target_file, "wb") as fd:
