@@ -190,7 +190,7 @@ class Settings(QObject):
         PerformancePreset.high: {
             "batch_size": 8,
             "resolution_multiplier": 1.0,
-            "max_pixel_count": 24,
+            "max_pixel_count": 12,
         },
     }
 
