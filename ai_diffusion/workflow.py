@@ -6,7 +6,7 @@ import random
 import re
 from itertools import chain
 from pathlib import Path
-from typing import Any, List, NamedTuple, Optional
+from typing import Any, List, NamedTuple, Optional, overload
 
 from .image import Bounds, Extent, Image, Mask, multiple_of
 from .client import Client, resolve_sd_version
@@ -80,6 +80,12 @@ class ScaledExtent(NamedTuple):
     initial: Extent  # resolution for initial generation
     desired: Extent  # resolution for high res refinement pass
     target: Extent  # target resolution in canvas (may not be multiple of 8)
+
+    @overload
+    def convert(self, extent: Extent, src: str, dst: str) -> Extent: ...
+
+    @overload
+    def convert(self, extent: Bounds, src: str, dst: str) -> Bounds: ...
 
     def convert(self, extent: Extent | Bounds, src: str, dst: str):
         """Converts an extent or bounds between two "resolution spaces"
