@@ -224,7 +224,7 @@ class KritaDocument(Document):
 
     def set_layer_content(self, layer: krita.Node, img: Image, bounds: Bounds):
         layer_bounds = Bounds.from_qrect(layer.bounds())
-        if layer_bounds != bounds:
+        if layer_bounds != bounds and not layer_bounds.is_zero:
             # layer.cropNode(*bounds)  <- more efficient, but clutters the undo stack
             blank = Image.create(layer_bounds.extent, fill=0)
             layer.setPixelData(blank.data, *layer_bounds)

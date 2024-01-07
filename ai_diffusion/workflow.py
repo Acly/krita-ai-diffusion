@@ -84,16 +84,23 @@ class ScaledExtent(NamedTuple):
     def convert(self, extent: Extent | Bounds, src: str, dst: str):
         """Converts an extent or bounds between two "resolution spaces"
         by scaling with the respective ratio."""
-        w_src = getattr(self, src).width
-        w_dst = getattr(self, dst).width
+        src_extent: Extent = getattr(self, src)
+        dst_extent: Extent = getattr(self, dst)
+        scale_w = dst_extent.width / src_extent.width
+        scale_h = dst_extent.height / src_extent.height
         if isinstance(extent, Extent):
-            return extent * (w_dst / w_src)
+            return Extent(round(extent.width * scale_w), round(extent.height * scale_h))
         else:
-            return Bounds.scale(extent, w_dst / w_src)
+            return Bounds(
+                round(extent.x * scale_w),
+                round(extent.y * scale_h),
+                round(extent.width * scale_w),
+                round(extent.height * scale_h),
+            )
 
     @property
     def initial_scaling(self):
-        ratio = self.input.width / self.initial.width
+        ratio = Extent.ratio(self.input, self.initial)
         if ratio < 1:
             return ScaleMode.resize
         else:
@@ -101,7 +108,7 @@ class ScaledExtent(NamedTuple):
 
     @property
     def refinement_scaling(self):
-        ratio = self.initial.width / self.desired.width
+        ratio = Extent.ratio(self.initial, self.desired)
         if ratio < (1 / 1.5):
             return ScaleMode.upscale_quality
         elif ratio < 1:
@@ -113,7 +120,7 @@ class ScaledExtent(NamedTuple):
 
     @property
     def target_scaling(self):
-        ratio = self.desired.width / self.target.width
+        ratio = Extent.ratio(self.desired, self.target)
         if ratio == 1:
             return ScaleMode.none
         elif ratio < 0.9:

@@ -69,6 +69,10 @@ class Extent(NamedTuple):
     def largest(a, b):
         return a if a.width * a.height > b.width * b.height else b
 
+    @staticmethod
+    def ratio(a: "Extent", b: "Extent"):
+        return sqrt(a.pixel_count / b.pixel_count)
+
 
 class Bounds(NamedTuple):
     x: int
@@ -83,6 +87,10 @@ class Bounds(NamedTuple):
     @property
     def extent(self):
         return Extent(self.width, self.height)
+
+    @property
+    def is_zero(self):
+        return self.width == 0 and self.height == 0
 
     def is_within(self, x: int, y: int):
         return x >= 0 and x < self.width and y >= 0 and y < self.height

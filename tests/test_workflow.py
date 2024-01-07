@@ -140,6 +140,15 @@ def test_scaled_extent_downscale():
     assert e.convert(Extent(96, 96), "target", "initial") == Extent(200, 200)
 
 
+def test_scaled_extent_multiple8():
+    e = ScaledExtent(Extent(512, 513), Extent(512, 520), Extent(512, 520), Extent(512, 513))
+    assert e.initial_scaling is ScaleMode.resize
+    assert e.refinement_scaling is ScaleMode.none
+    assert e.target_scaling is ScaleMode.resize
+    assert e.convert(Extent(512, 513), "input", "initial") == Extent(512, 520)
+    assert e.convert(Extent(512, 520), "desired", "target") == Extent(512, 513)
+
+
 @pytest.mark.parametrize(
     "extent,preferred,expected",
     [
@@ -267,10 +276,16 @@ def test_prepare_no_mask():
     assert result == image and extent.initial == Extent(512, 512) and extent.target == image.extent
 
 
-def test_prepare_no_downscale():
-    image = Image.create(Extent(1536, 1536))
+@pytest.mark.parametrize("input", [Extent(512, 512), Extent(1024, 1628), Extent(1536, 999)])
+def test_prepare_no_downscale(input: Extent):
+    image = Image.create(input)
     extent, result, _ = workflow.prepare_image(image, SDVersion.sd15, dummy_style, downscale=False)
-    assert result == image and extent.initial == image.extent and extent.target == image.extent
+    assert (
+        result == image
+        and extent.initial == input.multiple_of(8)
+        and extent.desired == input.multiple_of(8)
+        and extent.target == input
+    )
 
 
 @pytest.mark.parametrize(
@@ -493,20 +508,24 @@ def test_inpaint_area_conditioning(qtapp, comfy, temp_settings):
     qtapp.run(main())
 
 
-@pytest.mark.parametrize("sdver", [SDVersion.sd15, SDVersion.sdxl])
-def test_refine(qtapp, comfy, sdver, temp_settings):
+@pytest.mark.parametrize("setup", ["sd15", "sdxl"])
+def test_refine(qtapp, comfy, setup, temp_settings):
     temp_settings.batch_size = 1
-    image = Image.load(image_dir / "beach_768x512.webp")
+    temp_settings.max_pixel_count = 2
+    sdver, extent, strength = {
+        "sd15": (SDVersion.sd15, Extent(768, 508), 0.5),
+        "sdxl": (SDVersion.sdxl, Extent(1111, 741), 0.65),
+    }[setup]
+    image = Image.load(image_dir / "beach_1536x1024.webp")
+    image = Image.scale(image, extent)
     prompt = Conditioning("painting in the style of Vincent van Gogh")
-    strength = {SDVersion.sd15: 0.5, SDVersion.sdxl: 0.65}[sdver]
 
     async def main():
         job = workflow.refine(
             comfy, default_style(comfy, sdver), image, prompt, strength, default_seed
         )
-        results = await receive_images(comfy, job)
-        results[0].save(result_dir / f"test_refine_{sdver.name}.png")
-        assert results[0].extent == image.extent
+        result = await run_and_save(comfy, job, f"test_refine_{setup}.png")
+        assert result.extent == extent
 
     qtapp.run(main())
 
