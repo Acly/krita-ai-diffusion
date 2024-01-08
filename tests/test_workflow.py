@@ -671,6 +671,20 @@ def test_ip_adapter_batch(qtapp, comfy, temp_settings):
     qtapp.run(main())
 
 
+def test_ip_adapter_face(qtapp, comfy, temp_settings):
+    temp_settings.batch_size = 1
+    image = Image.load(image_dir / "face.webp")
+    control = Conditioning(
+        "portrait of a woman at a garden party", "", [Control(ControlMode.face, image, 0.9)]
+    )
+    job = workflow.generate(comfy, default_style(comfy), Extent(650, 650), control, default_seed)
+
+    async def main():
+        await run_and_save(comfy, job, "test_ip_adapter_face.png")
+
+    qtapp.run(main())
+
+
 def test_upscale_simple(qtapp, comfy):
     image = Image.load(image_dir / "beach_768x512.webp")
     job = workflow.upscale_simple(comfy, image, comfy.default_upscaler, 2.0)

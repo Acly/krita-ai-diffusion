@@ -333,7 +333,7 @@ def load_model_with_lora(
     w: ComfyWorkflow,
     comfy: Client,
     style: Style,
-    prompt: str,
+    cond: Conditioning,
     is_live=False,
 ):
     checkpoint = style.sd_checkpoint
@@ -349,18 +349,25 @@ def load_model_with_lora(
         else:
             log.warning(f"Style VAE {style.vae} not found, using default VAE from checkpoint")
 
-    for lora in chain(style.loras, _parse_loras(comfy.lora_models, prompt)):
+    for lora in chain(style.loras, _parse_loras(comfy.lora_models, cond.prompt)):
         if lora["name"] not in comfy.lora_models:
             log.warning(f"LoRA {lora['name']} not found, skipping")
             continue
         model, clip = w.load_lora(model, clip, lora["name"], lora["strength"], lora["strength"])
 
+    sdver = resolve_sd_version(style, comfy)
     is_lcm = style.get_sampler_config(is_live=is_live).sampler == "LCM"
     if is_lcm:
-        sdver = resolve_sd_version(style, comfy)
-        if comfy.lcm_model[sdver] is None:
+        if lora := comfy.lcm_model[sdver]:
+            model = w.load_lora_model(model, lora, 1.0)
+        else:
             raise Exception(f"LCM LoRA model not found for {sdver.value}")
-        model, _ = w.load_lora(model, clip, comfy.lcm_model[sdver], 1.0, 1.0)
+
+    if any(c.mode is ControlMode.face for c in cond.control):
+        if lora := comfy.face_lora[sdver]:
+            model = w.load_lora_model(model, lora, 0.6)
+        else:
+            raise Exception(f"IP-Adapter Face LoRA model not found for {sdver.value}")
 
     if style.v_prediction_zsnr:
         model = w.model_sampling_discrete(model, "v_prediction", zsnr=True)
@@ -509,6 +516,23 @@ def apply_control(
             end_percent=control.end,
         )
 
+    if ip_face_model := comfy.ip_adapter_face_model[sd_ver]:
+        layers = [c for c in cond.control if c.mode is ControlMode.face]
+        if len(layers) > 0:
+            clip_vision = w.load_clip_vision(comfy.clip_vision_model)
+            ip_adapter = w.load_ip_adapter(ip_face_model)
+            insight_face = w.load_insight_face()
+            for control in layers:
+                model = w.apply_ip_adapter_face(
+                    ip_adapter,
+                    clip_vision,
+                    insight_face,
+                    model,
+                    control.load_image(w),
+                    control.strength,
+                    end_at=control.end,
+                )
+
     # Encode images with their weights into a batch and apply IP-adapter to the model once
     if ip_model_file := comfy.ip_adapter_model[sd_ver]:
         ip_images = []
@@ -616,7 +640,7 @@ def generate(
     batch = 1 if is_live else batch
 
     w = ComfyWorkflow(comfy.nodes_inputs)
-    model, clip, vae = load_model_with_lora(w, comfy, style, cond.prompt, is_live=is_live)
+    model, clip, vae = load_model_with_lora(w, comfy, style, cond, is_live=is_live)
     latent = w.empty_latent_image(extent.initial.width, extent.initial.height, batch)
     model, positive, negative = apply_conditioning(cond, w, comfy, model, clip, style)
     out_latent = w.ksampler_advanced(model, positive, negative, latent, **sampler_params)
@@ -635,7 +659,7 @@ def inpaint(comfy: Client, style: Style, image: Image, mask: Mask, cond: Conditi
     upscale_extent, _ = prepare_extent(target_bounds.extent, sd_ver, style, downscale=False)
 
     w = ComfyWorkflow(comfy.nodes_inputs)
-    model, clip, vae = load_model_with_lora(w, comfy, style, cond.prompt)
+    model, clip, vae = load_model_with_lora(w, comfy, style, cond)
     in_image = w.load_image(scaled_image)
     in_image = scale_to_initial(extent, w, in_image, comfy)
     in_mask = w.load_mask(scaled_mask)
@@ -716,7 +740,7 @@ def refine(
     sampler_params = _sampler_params(style, strength, seed, is_live=is_live)
 
     w = ComfyWorkflow(comfy.nodes_inputs)
-    model, clip, vae = load_model_with_lora(w, comfy, style, cond.prompt, is_live=is_live)
+    model, clip, vae = load_model_with_lora(w, comfy, style, cond, is_live=is_live)
     in_image = w.load_image(image)
     in_image = scale_to_initial(extent, w, in_image, comfy)
     latent = w.vae_encode(vae, in_image)
@@ -749,7 +773,7 @@ def refine_region(
     sampler_params = _sampler_params(style, strength, seed, is_live=is_live)
 
     w = ComfyWorkflow(comfy.nodes_inputs)
-    model, clip, vae = load_model_with_lora(w, comfy, style, cond.prompt, is_live=is_live)
+    model, clip, vae = load_model_with_lora(w, comfy, style, cond, is_live=is_live)
     in_image = w.load_image(image)
     in_image = scale_to_initial(extent, w, in_image, comfy)
     in_mask = w.load_mask(mask_image)
@@ -843,7 +867,7 @@ def upscale_tiled(
 
     w = ComfyWorkflow(comfy.nodes_inputs)
     img = w.load_image(image)
-    checkpoint, clip, vae = load_model_with_lora(w, comfy, style, cond.prompt)
+    checkpoint, clip, vae = load_model_with_lora(w, comfy, style, cond)
     upscale_model = w.load_upscale_model(model)
     if sd_ver.has_controlnet_blur:
         cond.control.append(Control(ControlMode.blur, img))

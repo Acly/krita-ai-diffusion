@@ -187,6 +187,11 @@ class ComfyWorkflow:
     def load_upscale_model(self, model_name: str):
         return self.add_cached("UpscaleModelLoader", 1, model_name=model_name)
 
+    def load_lora_model(self, model: Output, lora_name: str, strength: float):
+        return self.add(
+            "LoraLoaderModelOnly", 1, model=model, lora_name=lora_name, strength_model=strength
+        )
+
     def load_lora(self, model: Output, clip: Output, lora_name, strength_model, strength_clip):
         return self.add(
             "LoraLoader",
@@ -197,6 +202,9 @@ class ComfyWorkflow:
             strength_model=strength_model,
             strength_clip=strength_clip,
         )
+
+    def load_insight_face(self):
+        return self.add_cached("InsightFaceLoader", 1, provider="CPU")
 
     def empty_latent_image(self, width: int, height: int, batch_size=1):
         return self.add("EmptyLatentImage", 1, width=width, height=height, batch_size=batch_size)
@@ -277,6 +285,34 @@ class ComfyWorkflow:
             weight=weight,
             weight_type="linear",
             end_at=end_at,
+        )
+
+    def apply_ip_adapter_face(
+        self,
+        ipadapter: Output,
+        clip_vision: Output,
+        insightface: Output,
+        model: Output,
+        image: Output,
+        weight=1.0,
+        end_at=1.0,
+    ):
+        return self.add(
+            "IPAdapterApplyFaceID",
+            1,
+            ipadapter=ipadapter,
+            clip_vision=clip_vision,
+            insightface=insightface,
+            image=image,
+            model=model,
+            weight=weight,
+            weight_type="original",
+            start_at=0.0,
+            end_at=end_at,
+            noise=0.0,
+            faceid_v2=True,
+            weight_v2=1.0,
+            unfold_batch=False,
         )
 
     def inpaint_preprocessor(self, image: Output, mask: Output):

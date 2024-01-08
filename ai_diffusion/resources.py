@@ -394,6 +394,22 @@ optional_models = [
         },
     ),
     ModelResource(
+        "IP-Adapter Face (SD1.5)",
+        ResourceKind.ip_adapter,
+        SDVersion.sd15,
+        {
+            Path(
+                "models/ipadapter/ip-adapter-faceid-plusv2_sd15.bin"
+            ): "https://huggingface.co/h94/IP-Adapter-FaceID/resolve/main/ip-adapter-faceid-plusv2_sd15.bin",
+            Path(
+                "models/ipadapter/ip-adapter-plus-face_sd15.safetensors"
+            ): "https://huggingface.co/h94/IP-Adapter/resolve/main/models/ip-adapter-plus-face_sd15.safetensors",
+            Path(
+                "models/loras/ip-adapter-faceid-plusv2_sd15_lora.safetensors"
+            ): "https://huggingface.co/h94/IP-Adapter-FaceID/resolve/main/ip-adapter-faceid_sd15_lora.safetensors",
+        },
+    ),
+    ModelResource(
         "ControlNet Line Art (XL)",
         ResourceKind.controlnet,
         SDVersion.sdxl,
@@ -431,6 +447,19 @@ optional_models = [
             Path(
                 "models/controlnet/thibaud_xl_openpose_256lora.safetensors"
             ): "https://huggingface.co/lllyasviel/sd_control_collection/resolve/main/thibaud_xl_openpose_256lora.safetensors",
+        },
+    ),
+    ModelResource(
+        "IP-Adapter Face (XL)",
+        ResourceKind.ip_adapter,
+        SDVersion.sd15,
+        {
+            Path(
+                "models/ipadapter/ip-adapter-faceid_sdxl.bin"
+            ): "https://huggingface.co/h94/IP-Adapter-FaceID/resolve/main/ip-adapter-faceid_sdxl.bin",
+            Path(
+                "models/loras/ip-adapter-faceid_sdxl_lora.safetensors"
+            ): "https://huggingface.co/h94/IP-Adapter-FaceID/resolve/main/ip-adapter-faceid_sdxl_lora.safetensors",
         },
     ),
 ]
@@ -485,6 +514,7 @@ class ControlMode(Enum):
     segmentation = 9
     blur = 10
     stencil = 11
+    face = 12
 
     @property
     def is_lines(self):
@@ -524,6 +554,7 @@ _control_text = {
     ControlMode.segmentation: "Segment",
     ControlMode.blur: "Blur",
     ControlMode.stencil: "Stencil",
+    ControlMode.face: "Face",
 }
 
 _control_filename = {
@@ -573,6 +604,10 @@ _control_filename = {
     },
     ControlMode.stencil: {
         SDVersion.sd15: ["control_v1p_sd15_qrcode_monster"],
+        SDVersion.sdxl: None,
+    },
+    ControlMode.face: {
+        SDVersion.sd15: None,
         SDVersion.sdxl: None,
     },
 }

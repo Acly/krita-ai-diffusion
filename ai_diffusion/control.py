@@ -84,6 +84,10 @@ class ControlLayer(QObject, ObservableProperties):
                 if client.ip_adapter_model[sdver] is None:
                     self.error_text = f"The server is missing the IP-Adapter model"
                     is_supported = False
+            elif self.mode is ControlMode.face:
+                if client.ip_adapter_face_model[sdver] is None:
+                    self.error_text = f"The server is missing the IP-Adapter FaceID model"
+                    is_supported = False
             elif client.control_model[self.mode][sdver] is None:
                 filenames = self.mode.filenames(sdver)
                 if filenames:
@@ -96,6 +100,7 @@ class ControlLayer(QObject, ObservableProperties):
         self.show_end = self.is_supported and settings.show_control_end
         self.can_generate = is_supported and self.mode not in [
             ControlMode.image,
+            ControlMode.face,
             ControlMode.stencil,
         ]
 

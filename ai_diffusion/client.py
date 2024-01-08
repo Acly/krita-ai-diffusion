@@ -126,7 +126,9 @@ class Client:
     control_model: dict[ControlMode, dict[SDVersion, str | None]]
     clip_vision_model: str
     ip_adapter_model: dict[SDVersion, str | None]
+    ip_adapter_face_model: dict[SDVersion, str | None]
     lcm_model: dict[SDVersion, str | None]
+    face_lora: dict[SDVersion, str | None]
     supported_sd_versions: list[SDVersion]
     device_info: DeviceInfo
     nodes_inputs: dict[str, dict[str, list[str | list | dict]]] = {}
@@ -166,6 +168,9 @@ class Client:
         client.ip_adapter_model = {
             ver: _find_ip_adapter(ip, ver) for ver in [SDVersion.sd15, SDVersion.sdxl]
         }
+        client.ip_adapter_face_model = {
+            ver: _find_ip_adapter(ip, ver, is_face=True) for ver in [SDVersion.sd15, SDVersion.sdxl]
+        }
 
         # Retrieve upscale models
         client.upscalers = nodes["UpscaleModelLoader"]["input"]["required"]["model_name"][0]
@@ -178,10 +183,11 @@ class Client:
         if not client.default_upscaler:
             client.default_upscaler = client.fast_upscaler[4]
 
-        # Retrieve LCM LoRA models
-        client.lcm_model = {
-            ver: _find_lcm(nodes["LoraLoader"]["input"]["required"]["lora_name"][0], ver)
-            for ver in [SDVersion.sd15, SDVersion.sdxl]
+        # Retrieve LoRA models
+        loras = nodes["LoraLoader"]["input"]["required"]["lora_name"][0]
+        client.lcm_model = {ver: _find_lcm(loras, ver) for ver in [SDVersion.sd15, SDVersion.sdxl]}
+        client.face_lora = {
+            ver: _find_face_lora(loras, ver) for ver in [SDVersion.sd15, SDVersion.sdxl]
         }
 
         # Check supported SD versions and make sure there is at least one
@@ -485,11 +491,18 @@ def _find_clip_vision_model(model_list: Sequence[str]):
     return model
 
 
-def _find_ip_adapter(model_list: Sequence[str], sdver: SDVersion):
-    search_paths = {
-        SDVersion.sd15: ["ip-adapter_sd15"],
-        SDVersion.sdxl: ["ip-adapter_sdxl_vit-h"],
-    }[sdver]
+def _find_ip_adapter(model_list: Sequence[str], sdver: SDVersion, is_face=False):
+    if is_face:
+        search_paths = {
+            SDVersion.sd15: ["ip-adapter-faceid-plusv2_sd15"],
+            SDVersion.sdxl: ["ip-adapter-faceid_sdxl"],
+        }[sdver]
+    else:
+        search_paths = {
+            SDVersion.sd15: ["ip-adapter_sd15"],
+            SDVersion.sdxl: ["ip-adapter_sdxl_vit-h"],
+        }[sdver]
+
     return _find_model(ResourceKind.ip_adapter, sdver, model_list, search_paths)
 
 
@@ -510,6 +523,14 @@ def _find_lcm(model_list: Sequence[str], sdver: SDVersion):
             "lcm-lora-sdxl.safetensors",
             "lcm/sdxl/pytorch_lora_weights.safetensors",
         ],
+    }[sdver]
+    return _find_model(ResourceKind.lcm_lora, sdver, model_list, search_paths)
+
+
+def _find_face_lora(model_list: Sequence[str], sdver: SDVersion):
+    search_paths = {
+        SDVersion.sd15: ["ip-adapter-faceid-plusv2_sd15_lora"],
+        SDVersion.sdxl: ["ip-adapter-faceid_sdxl_lora"],
     }[sdver]
     return _find_model(ResourceKind.lcm_lora, sdver, model_list, search_paths)
 
