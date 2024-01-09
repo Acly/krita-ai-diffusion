@@ -351,11 +351,20 @@ class ServerWidget(QWidget):
                 is_checkable=True,
                 parent=self,
             ),
-            "control": PackageGroupWidget(
-                "Control extensions", resources.optional_models, is_checkable=True, parent=self
+            "control_sd15": PackageGroupWidget(
+                "Control extensions for SD 1.5",
+                [m for m in resources.optional_models if m.sd_version is SDVersion.sd15],
+                is_checkable=True,
+                parent=self,
+            ),
+            "control_sdxl": PackageGroupWidget(
+                "Control extensions for SD XL",
+                [m for m in resources.optional_models if m.sd_version is SDVersion.sdxl],
+                is_checkable=True,
+                parent=self,
             ),
         }
-        for group in ["checkpoints", "upscalers", "control"]:
+        for group in ["checkpoints", "upscalers", "control_sd15", "control_sdxl"]:
             self._packages[group].changed.connect(self.update_ui)
             package_layout.addWidget(self._packages[group])
 

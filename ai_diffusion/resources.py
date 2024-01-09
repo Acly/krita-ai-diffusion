@@ -5,7 +5,7 @@ from typing import NamedTuple, Sequence
 
 # Version identifier for all the resources defined here. This is used as the server version.
 # It usually follows the plugin version, but not all new plugin versions also require a server update.
-version = "1.12.0"
+version = "1.13.0"
 
 comfy_url = "https://github.com/comfyanonymous/ComfyUI"
 comfy_version = "af94eb14e3b44f6e6c48a7762a5e229cf3a006e4"
@@ -108,9 +108,14 @@ class ResourceKind(Enum):
     controlnet = "ControlNet model"
     clip_vision = "CLIP Vision model"
     ip_adapter = "IP-Adapter model"
-    lcm_lora = "LCM LoRA model"
+    lora = "LoRA model"
     upscaler = "Upscale model"
     node = "custom node"
+
+
+class ModelRequirements(Enum):
+    none = 0
+    insightface = 1
 
 
 class ModelResource(NamedTuple):
@@ -119,6 +124,7 @@ class ModelResource(NamedTuple):
     sd_version: SDVersion
     files: dict[Path, str]
     alternatives: list[Path] | None = None  # for backwards compatibility
+    requirements: ModelRequirements = ModelRequirements.none
 
     @property
     def filename(self):
@@ -226,7 +232,7 @@ required_models = [
     ),
     ModelResource(
         "LCM-LoRA (SD1.5)",
-        ResourceKind.lcm_lora,
+        ResourceKind.lora,
         SDVersion.sd15,
         {
             Path(
@@ -236,7 +242,7 @@ required_models = [
     ),
     ModelResource(
         "LCM-LoRA (SDXL)",
-        ResourceKind.lcm_lora,
+        ResourceKind.lora,
         SDVersion.sdxl,
         {
             Path(
@@ -401,13 +407,14 @@ optional_models = [
             Path(
                 "models/ipadapter/ip-adapter-faceid-plusv2_sd15.bin"
             ): "https://huggingface.co/h94/IP-Adapter-FaceID/resolve/main/ip-adapter-faceid-plusv2_sd15.bin",
-            Path(
-                "models/ipadapter/ip-adapter-plus-face_sd15.safetensors"
-            ): "https://huggingface.co/h94/IP-Adapter/resolve/main/models/ip-adapter-plus-face_sd15.safetensors",
+            # Path(
+            #     "models/ipadapter/ip-adapter-plus-face_sd15.safetensors"
+            # ): "https://huggingface.co/h94/IP-Adapter/resolve/main/models/ip-adapter-plus-face_sd15.safetensors",
             Path(
                 "models/loras/ip-adapter-faceid-plusv2_sd15_lora.safetensors"
             ): "https://huggingface.co/h94/IP-Adapter-FaceID/resolve/main/ip-adapter-faceid_sd15_lora.safetensors",
         },
+        requirements=ModelRequirements.insightface,
     ),
     ModelResource(
         "ControlNet Line Art (XL)",
@@ -452,7 +459,7 @@ optional_models = [
     ModelResource(
         "IP-Adapter Face (XL)",
         ResourceKind.ip_adapter,
-        SDVersion.sd15,
+        SDVersion.sdxl,
         {
             Path(
                 "models/ipadapter/ip-adapter-faceid_sdxl.bin"
@@ -461,6 +468,7 @@ optional_models = [
                 "models/loras/ip-adapter-faceid_sdxl_lora.safetensors"
             ): "https://huggingface.co/h94/IP-Adapter-FaceID/resolve/main/ip-adapter-faceid_sdxl_lora.safetensors",
         },
+        requirements=ModelRequirements.insightface,
     ),
 ]
 

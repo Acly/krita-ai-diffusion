@@ -444,24 +444,22 @@ def _find_model(
     model_list: Sequence[str],
     search_paths: Sequence[str],
     info: ControlMode | None = None,
+    is_optional=False,
 ):
     sanitize = lambda m: m.replace("\\", "/").lower()
     matches = (m for m in model_list if any(sanitize(p) in sanitize(m) for p in search_paths))
     # if there are multiple matches, prefer the one with "krita" in the path
     prio = sorted(matches, key=lambda m: 0 if "krita" in m else 1)
     model_name = next(iter(prio), None)
-
     model_id = kind.value if not info else f"{kind.value} {info.name}"
-    is_optional = kind is ResourceKind.controlnet and not (
-        sdver is SDVersion.sd15 and info in [ControlMode.inpaint, ControlMode.blur]
-    )
+
     if model_name is None and not is_optional:
         log.warning(f"Missing {model_id} for {sdver.value}")
-        log.info(f"Available {model_id}s: {', '.join(sanitize(m) for m in model_list)}")
         log.info(
-            f"No model matches {model_id} search paths:"
+            f"-> No model matches {model_id} search paths:"
             f" {', '.join(sanitize(p) for p in search_paths)}"
         )
+        log.info(f"-> Available {model_id}s: {', '.join(sanitize(m) for m in model_list)}")
     elif model_name is None:
         log.info(
             f"Optional {model_id} for {sdver.value} not found (search path:"
@@ -478,7 +476,10 @@ def _find_control_model(model_list: Sequence[str], mode: ControlMode):
         if name is None:
             return None
         names = [name] if isinstance(name, str) else name
-        return _find_model(ResourceKind.controlnet, sdver, model_list, names, mode)
+        is_optional = not (
+            sdver is SDVersion.sd15 and mode in [ControlMode.inpaint, ControlMode.blur]
+        )
+        return _find_model(ResourceKind.controlnet, sdver, model_list, names, mode, is_optional)
 
     return {version: find(version) for version in [SDVersion.sd15, SDVersion.sdxl]}
 
@@ -524,7 +525,7 @@ def _find_lcm(model_list: Sequence[str], sdver: SDVersion):
             "lcm/sdxl/pytorch_lora_weights.safetensors",
         ],
     }[sdver]
-    return _find_model(ResourceKind.lcm_lora, sdver, model_list, search_paths)
+    return _find_model(ResourceKind.lora, sdver, model_list, search_paths)
 
 
 def _find_face_lora(model_list: Sequence[str], sdver: SDVersion):
@@ -532,7 +533,7 @@ def _find_face_lora(model_list: Sequence[str], sdver: SDVersion):
         SDVersion.sd15: ["ip-adapter-faceid-plusv2_sd15_lora"],
         SDVersion.sdxl: ["ip-adapter-faceid_sdxl_lora"],
     }[sdver]
-    return _find_model(ResourceKind.lcm_lora, sdver, model_list, search_paths)
+    return _find_model(ResourceKind.lora, sdver, model_list, search_paths, is_optional=True)
 
 
 def _ensure_supported_style(client: Client):

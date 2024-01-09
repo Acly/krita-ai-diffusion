@@ -11,7 +11,7 @@ from PyQt5.QtNetwork import QNetworkAccessManager
 
 from .settings import settings, ServerBackend
 from . import resources
-from .resources import CustomNode, ModelResource, SDVersion
+from .resources import CustomNode, ModelResource, ModelRequirements, SDVersion
 from .network import download, DownloadProgress
 from .util import ZipFile, is_windows, client_logger as log, server_logger as server_log
 
@@ -229,6 +229,25 @@ class Server:
             await _execute_process(pkg.name, self._pip_install("-r", requirements_txt), folder, cb)
         cb(f"Installing {pkg.name}", f"Finished installing {pkg.name}")
 
+    async def _install_insightface(self, network: QNetworkAccessManager, cb: InternalCB):
+        assert self.comfy_dir is not None
+        onnxruntime = "onnxruntime"
+        # "onnxruntime-gpu" if self.backend is ServerBackend.cuda else "onnxruntime"
+        await _execute_process("FaceID", self._pip_install(onnxruntime), self.path, cb)
+        if is_windows:
+            whl_file = self._cache_dir / "insightface-0.7.3-cp310-cp310-win_amd64.whl"
+            whl_url = "https://github.com/bihailantian655/insightface_wheel/raw/main/insightface-0.7.3-cp310-cp310-win_amd64.whl"
+            await _download_cached("FaceID", network, whl_url, whl_file, cb)
+            await _execute_process("FaceID", self._pip_install(whl_file), self.path, cb)
+        else:
+            await _execute_process("FaceID", self._pip_install("insightface"), self.path, cb)
+
+    async def _install_requirements(
+        self, requirements: ModelRequirements, network: QNetworkAccessManager, cb: InternalCB
+    ):
+        if requirements is ModelRequirements.insightface:
+            await self._install_insightface(network, cb)
+
     async def install(self, callback: Callback):
         assert self.state in [ServerState.not_installed, ServerState.missing_resources] or (
             self.state is ServerState.stopped and self.upgrade_required
@@ -286,6 +305,7 @@ class Server:
             to_install = (r for r in all_models if r.name in packages)
             for resource in to_install:
                 if not resource.exists_in(self.comfy_dir):
+                    await self._install_requirements(resource.requirements, network, cb)
                     for filepath, url in resource.files.items():
                         target_file = self.comfy_dir / filepath
                         target_file.parent.mkdir(parents=True, exist_ok=True)
@@ -602,7 +622,7 @@ def rename_extracted_folder(name: str, path: Path, suffix: str):
     extracted_folder.rename(path)
 
 
-def safe_remove_dir(path: Path, max_size=4 * 1024 * 1024):
+def safe_remove_dir(path: Path, max_size=8 * 1024 * 1024):
     if path.is_dir():
         for p in path.rglob("*"):
             if p.is_file():

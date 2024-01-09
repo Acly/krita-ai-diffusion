@@ -69,8 +69,9 @@ RUN git clone https://github.com/ltdrdata/ComfyUI-Manager.git /ComfyUI/custom_no
     git clone https://github.com/cubiq/ComfyUI_IPAdapter_plus /ComfyUI/custom_nodes/ComfyUI_IPAdapter_plus && \
     git clone https://github.com/ssitu/ComfyUI_UltimateSDUpscale /ComfyUI/custom_nodes/ComfyUI_UltimateSDUpscale --recursive && \
     git clone https://github.com/Acly/comfyui-tooling-nodes /ComfyUI/custom_nodes/comfyui-tooling-nodes && \
-    pip3 install -r /ComfyUI/custom_nodes/ComfyUI-Manager/requirements.txt && \
+    pip3 install -r /ComfyUI/custom_nodes/ComfyUI-Manager/requirements.txt && \    
     pip3 install -r /ComfyUI/custom_nodes/comfyui_controlnet_aux/requirements.txt && \
+    pip3 install insightface onnxruntime onnxruntime-gpu && \
     pip3 cache purge
 
 # Copy models
