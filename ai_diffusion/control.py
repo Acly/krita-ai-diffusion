@@ -63,7 +63,7 @@ class ControlLayer(QObject, ObservableProperties):
 
     def get_image(self, bounds: Bounds | None = None):
         layer = self.layer
-        if self.mode is ControlMode.image and not layer.bounds().isEmpty():
+        if self.mode.is_ip_adapter and not layer.bounds().isEmpty():
             bounds = None  # ignore mask bounds, use layer bounds
         image = self._model.document.get_layer_image(layer, bounds)
         if self.mode.is_lines or self.mode is ControlMode.stencil:
@@ -88,7 +88,7 @@ class ControlLayer(QObject, ObservableProperties):
                 if client.ip_adapter_face_model[sdver] is None:
                     self.error_text = f"The server is missing the IP-Adapter FaceID model"
                     is_supported = False
-            elif client.control_model[self.mode][sdver] is None:
+            if self.mode.is_control_net and client.control_model[self.mode][sdver] is None:
                 filenames = self.mode.filenames(sdver)
                 if filenames:
                     self.error_text = f"The ControlNet model is not installed {filenames}"

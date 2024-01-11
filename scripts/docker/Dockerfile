@@ -71,7 +71,7 @@ RUN git clone https://github.com/ltdrdata/ComfyUI-Manager.git /ComfyUI/custom_no
     git clone https://github.com/Acly/comfyui-tooling-nodes /ComfyUI/custom_nodes/comfyui-tooling-nodes && \
     pip3 install -r /ComfyUI/custom_nodes/ComfyUI-Manager/requirements.txt && \    
     pip3 install -r /ComfyUI/custom_nodes/comfyui_controlnet_aux/requirements.txt && \
-    pip3 install insightface onnxruntime onnxruntime-gpu && \
+    pip3 install insightface onnxruntime && \
     pip3 cache purge
 
 # Copy models

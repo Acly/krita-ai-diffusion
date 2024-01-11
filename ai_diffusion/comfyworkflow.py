@@ -274,6 +274,7 @@ class ComfyWorkflow:
         embeds: Output,
         model: Output,
         weight: float,
+        start_at=0.0,
         end_at=1.0,
     ):
         return self.add(
@@ -284,6 +285,7 @@ class ComfyWorkflow:
             model=model,
             weight=weight,
             weight_type="linear",
+            start_at=start_at,
             end_at=end_at,
         )
 
@@ -296,6 +298,7 @@ class ComfyWorkflow:
         image: Output,
         weight=1.0,
         end_at=1.0,
+        faceid_v2=False,
     ):
         return self.add(
             "IPAdapterApplyFaceID",
@@ -310,8 +313,8 @@ class ComfyWorkflow:
             start_at=0.0,
             end_at=end_at,
             noise=0.0,
-            faceid_v2=True,
-            weight_v2=1.0,
+            faceid_v2=faceid_v2,
+            weight_v2=weight,
             unfold_batch=False,
         )
 

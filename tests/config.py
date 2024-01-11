@@ -11,5 +11,5 @@ reference_dir = test_dir / "references"
 
 default_checkpoint = {
     SDVersion.sd15: next(iter(default_checkpoints[0].files)).name,
-    SDVersion.sdxl: next(iter(default_checkpoints[1].files)).name,
+    SDVersion.sdxl: next(iter(default_checkpoints[2].files)).name,
 }

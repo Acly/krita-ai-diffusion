@@ -231,9 +231,7 @@ class Server:
 
     async def _install_insightface(self, network: QNetworkAccessManager, cb: InternalCB):
         assert self.comfy_dir is not None
-        onnxruntime = "onnxruntime"
-        # "onnxruntime-gpu" if self.backend is ServerBackend.cuda else "onnxruntime"
-        await _execute_process("FaceID", self._pip_install(onnxruntime), self.path, cb)
+        await _execute_process("FaceID", self._pip_install("onnxruntime"), self.path, cb)
         if is_windows:
             whl_file = self._cache_dir / "insightface-0.7.3-cp310-cp310-win_amd64.whl"
             whl_url = "https://github.com/bihailantian655/insightface_wheel/raw/main/insightface-0.7.3-cp310-cp310-win_amd64.whl"

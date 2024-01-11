@@ -535,12 +535,19 @@ class ControlMode(Enum):
 
     @property
     def has_preprocessor(self):
-        return not (
-            self is ControlMode.image
-            or self is ControlMode.inpaint
-            or self is ControlMode.blur
-            or self is ControlMode.stencil
-        )
+        return self.is_control_net and not self in [
+            ControlMode.inpaint,
+            ControlMode.blur,
+            ControlMode.stencil,
+        ]
+
+    @property
+    def is_control_net(self):
+        return not self.is_ip_adapter
+
+    @property
+    def is_ip_adapter(self):
+        return self in [ControlMode.image, ControlMode.face]
 
     @property
     def text(self):
@@ -566,10 +573,6 @@ _control_text = {
 }
 
 _control_filename = {
-    ControlMode.image: {  # uses clip vision / ip-adapter
-        SDVersion.sd15: None,
-        SDVersion.sdxl: None,
-    },
     ControlMode.inpaint: {
         SDVersion.sd15: "control_v11p_sd15_inpaint",
         SDVersion.sdxl: None,
@@ -612,10 +615,6 @@ _control_filename = {
     },
     ControlMode.stencil: {
         SDVersion.sd15: ["control_v1p_sd15_qrcode_monster"],
-        SDVersion.sdxl: None,
-    },
-    ControlMode.face: {
-        SDVersion.sd15: None,
         SDVersion.sdxl: None,
     },
 }

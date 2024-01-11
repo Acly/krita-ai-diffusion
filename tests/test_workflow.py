@@ -671,16 +671,18 @@ def test_ip_adapter_batch(qtapp, comfy, temp_settings):
     qtapp.run(main())
 
 
-def test_ip_adapter_face(qtapp, comfy, temp_settings):
+@pytest.mark.parametrize("sdver", [SDVersion.sd15, SDVersion.sdxl])
+def test_ip_adapter_face(qtapp, comfy, temp_settings, sdver):
     temp_settings.batch_size = 1
+    extent = Extent(650, 650) if sdver == SDVersion.sd15 else Extent(1024, 1024)
     image = Image.load(image_dir / "face.webp")
     control = Conditioning(
-        "portrait of a woman at a garden party", "", [Control(ControlMode.face, image, 0.9)]
+        "portrait photo of a woman at a garden party", "", [Control(ControlMode.face, image, 0.9)]
     )
-    job = workflow.generate(comfy, default_style(comfy), Extent(650, 650), control, default_seed)
+    job = workflow.generate(comfy, default_style(comfy), extent, control, default_seed)
 
     async def main():
-        await run_and_save(comfy, job, "test_ip_adapter_face.png")
+        await run_and_save(comfy, job, f"test_ip_adapter_face_{sdver.name}.png")
 
     qtapp.run(main())
 

@@ -157,7 +157,9 @@ class Client:
 
         # Retrieve ControlNet models
         cns = nodes["ControlNetLoader"]["input"]["required"]["control_net_name"][0]
-        client.control_model = {mode: _find_control_model(cns, mode) for mode in ControlMode}
+        client.control_model = {
+            mode: _find_control_model(cns, mode) for mode in ControlMode if mode.is_control_net
+        }
 
         # Retrieve CLIPVision models
         cv = nodes["CLIPVisionLoader"]["input"]["required"]["clip_name"][0]
