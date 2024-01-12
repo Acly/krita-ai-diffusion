@@ -1,6 +1,5 @@
 from __future__ import annotations
 from pathlib import Path
-import random
 from enum import Enum
 from typing import NamedTuple
 from PyQt5.QtCore import QObject, pyqtSignal
@@ -10,7 +9,7 @@ from .settings import settings
 from .network import NetworkError
 from .image import Extent, Image, Mask, Bounds
 from .client import ClientMessage, ClientEvent, filter_supported_styles, resolve_sd_version
-from .document import Document, LayerObserver
+from .document import Document, LayerObserver, RestoreActiveLayer
 from .pose import Pose
 from .style import Style, Styles, SDVersion
 from .workflow import ControlMode, Conditioning
@@ -432,10 +431,12 @@ class UpscaleWorkspace(QObject, ObservableProperties):
 
 class LiveWorkspace(QObject, ObservableProperties):
     is_active = Property(False, setter="toggle")
+    is_recording = Property(False, setter="toggle_record")
     strength = Property(0.3, persist=True)
     has_result = Property(False)
 
     is_active_changed = pyqtSignal(bool)
+    is_recording_changed = pyqtSignal(bool)
     strength_changed = pyqtSignal(float)
     seed_changed = pyqtSignal(int)
     has_result_changed = pyqtSignal(bool)
@@ -445,18 +446,31 @@ class LiveWorkspace(QObject, ObservableProperties):
     _model: Model
     _result: Image | None = None
     _result_bounds: Bounds | None = None
+    _recording_layer: krita.Node | None = None
+    _keyframes: list[tuple[Image, Bounds]]
 
     def __init__(self, model: Model):
         super().__init__()
         self._model = model
+        self._keyframes = []
         model.jobs.job_finished.connect(self.handle_job_finished)
 
     def toggle(self, active: bool):
-        if active != self.is_active:
+        if self.is_active != active:
             self._is_active = active
             self.is_active_changed.emit(active)
             if active:
                 self._model.generate_live()
+            else:
+                self.is_recording = False
+
+    def toggle_record(self, active: bool):
+        if self.is_recording != active:
+            self._is_recording = active
+            self.is_active = active
+            self.is_recording_changed.emit(active)
+            if not active:
+                self._insert_frames()
 
     def handle_job_finished(self, job: Job):
         if job.kind is JobKind.live_preview:
@@ -482,6 +496,45 @@ class LiveWorkspace(QObject, ObservableProperties):
         self._result_bounds = bounds
         self.result_available.emit(value)
         self.has_result = True
+
+        if self.is_recording:
+            self._keyframes.append((value, bounds))
+
+    def _insert_frames(self):
+        if len(self._keyframes) == 0:
+            return
+        doc = self._model.document
+        if self._recording_layer and self._recording_layer.parentNode() is None:
+            self._recording_layer = None
+        if self._recording_layer is None:
+            self._recording_layer = doc.insert_layer(
+                f"[Recording] {self._model.prompt}", make_active=False
+            )
+            self._recording_layer.enableAnimation()
+            self._recording_layer.setPinnedToTimeline(True)
+
+        eventloop.run(self._insert_frames_into_timeline(self._recording_layer, self._keyframes))
+        self._keyframes = []
+
+    async def _insert_frames_into_timeline(
+        self, layer: krita.Node, frames: list[tuple[Image, Bounds]]
+    ):
+        doc = self._model.document
+        doc.current_time = doc.find_last_keyframe(layer)
+        add_keyframe_action = krita.Krita.instance().action("add_duplicate_frame")
+
+        # Try to avoid ASSERT (krita): "row >= 0" in KisAnimCurvesChannelsModel.cpp, line 181
+        await eventloop.process_events()
+
+        with RestoreActiveLayer(doc):
+            doc.active_layer = layer
+            for frame in frames:
+                image, bounds = frame
+                doc.set_layer_content(layer, image, bounds)
+                add_keyframe_action.trigger()
+                await eventloop.wait_until(lambda: layer.hasKeyframeAtTime(doc.current_time))
+                doc.current_time += 1
+        doc.end_time = doc.current_time
 
 
 async def _report_errors(parent, coro):

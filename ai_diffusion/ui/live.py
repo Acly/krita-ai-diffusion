@@ -31,6 +31,9 @@ class LiveWidget(QWidget):
     _play_icon = theme.icon("play")
     _pause_icon = theme.icon("pause")
 
+    _record_icon = theme.icon("record")
+    _record_active_icon = theme.icon("record-active")
+
     _model: Model
     _model_bindings: list[QMetaObject.Connection | Binding]
 
@@ -53,6 +56,15 @@ class LiveWidget(QWidget):
         self.active_button.setToolTip("Start/stop live preview")
         self.active_button.clicked.connect(self.toggle_active)
 
+        self.record_button = QToolButton(self)
+        self.record_button.setToolButtonStyle(Qt.ToolButtonStyle.ToolButtonIconOnly)
+        self.record_button.setIcon(self._record_icon)
+        self.record_button.setAutoRaise(True)
+        self.record_button.setToolTip(
+            "Start live generation and insert images as keyframes into an animation"
+        )
+        self.record_button.clicked.connect(self.toggle_record)
+
         self.apply_button = QToolButton(self)
         self.apply_button.setToolButtonStyle(Qt.ToolButtonStyle.ToolButtonIconOnly)
         self.apply_button.setIcon(theme.icon("copy-image"))
@@ -65,6 +77,7 @@ class LiveWidget(QWidget):
         controls_layout = QHBoxLayout()
         controls_layout.addWidget(self.workspace_select)
         controls_layout.addWidget(self.active_button)
+        controls_layout.addWidget(self.record_button)
         controls_layout.addWidget(self.apply_button)
         controls_layout.addWidget(self.style_select)
         layout.addLayout(controls_layout)
@@ -156,6 +169,7 @@ class LiveWidget(QWidget):
                 bind(model, "prompt", self.prompt_textbox, "text"),
                 bind(model, "negative_prompt", self.negative_textbox, "text"),
                 model.live.is_active_changed.connect(self.update_is_active),
+                model.live.is_recording_changed.connect(self.update_is_recording),
                 model.live.has_result_changed.connect(self.apply_button.setEnabled),
                 self.apply_button.clicked.connect(model.live.copy_result_to_layer),
                 self.add_control_button.clicked.connect(model.control.add),
@@ -175,9 +189,17 @@ class LiveWidget(QWidget):
     def toggle_active(self):
         self.model.live.is_active = not self.model.live.is_active
 
+    def toggle_record(self):
+        self.model.live.is_recording = not self.model.live.is_recording
+
     def update_is_active(self):
         self.active_button.setIcon(
             self._pause_icon if self.model.live.is_active else self._play_icon
+        )
+
+    def update_is_recording(self):
+        self.record_button.setIcon(
+            self._record_active_icon if self.model.live.is_recording else self._record_icon
         )
 
     def update_progress(self):

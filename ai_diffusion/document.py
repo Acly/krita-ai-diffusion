@@ -41,7 +41,9 @@ class Document:
     def get_layer_image(self, layer: krita.Node, bounds: Bounds | None) -> Image:
         raise NotImplementedError
 
-    def insert_layer(self, name: str, img: Image, bounds: Bounds, make_active=True) -> krita.Node:
+    def insert_layer(
+        self, name: str, img: Image | None = None, bounds: Bounds | None = None, make_active=True
+    ) -> krita.Node:
         raise NotImplementedError
 
     def insert_vector_layer(self, name: str, svg: str) -> krita.Node:
@@ -85,6 +87,29 @@ class Document:
     @property
     def resolution(self) -> float:
         return 0.0
+
+    @property
+    def current_time(self) -> int:
+        return 0
+
+    @current_time.setter
+    def current_time(self, time: int):
+        pass
+
+    @property
+    def end_time(self) -> int:
+        return 0
+
+    @end_time.setter
+    def end_time(self, time: int):
+        pass
+
+    def find_last_keyframe(self, layer: krita.Node):
+        end = max(1, self.end_time)
+        for frame in range(end, 0, -1):
+            if layer.hasKeyframeAtTime(frame):
+                return frame
+        return 0
 
     @property
     def is_valid(self) -> bool:
@@ -207,12 +232,15 @@ class KritaDocument(Document):
         assert data is not None and data.size() >= bounds.extent.pixel_count * 4
         return Image(QImage(data, *bounds.extent, QImage.Format.Format_ARGB32))
 
-    def insert_layer(self, name: str, img: Image, bounds: Bounds, make_active=True):
-        with RestoreActiveLayer(self._doc) if not make_active else nullcontext():
+    def insert_layer(
+        self, name: str, img: Image | None = None, bounds: Bounds | None = None, make_active=True
+    ):
+        with RestoreActiveLayer(self) if not make_active else nullcontext():
             layer = self._doc.createNode(name, "paintlayer")
             self._doc.rootNode().addChildNode(layer, None)
-            layer.setPixelData(img.data, *bounds)
-            self._doc.refreshProjection()
+            if img and bounds:
+                layer.setPixelData(img.data, *bounds)
+                self._doc.refreshProjection()
             return layer
 
     def insert_vector_layer(self, name: str, svg: str):
@@ -242,7 +270,7 @@ class KritaDocument(Document):
         parent = layer.parentNode()
         if parent.childNodes()[-1] == layer:
             return  # already top-most layer
-        with RestoreActiveLayer(self._doc):
+        with RestoreActiveLayer(self):
             parent.removeChildNode(layer)
             parent.addChildNode(layer, None)
 
@@ -278,6 +306,22 @@ class KritaDocument(Document):
     @property
     def resolution(self):
         return self._doc.resolution() / 72.0  # KisImage::xRes which is applied to vectors
+
+    @property
+    def current_time(self) -> int:
+        return self._doc.currentTime()
+
+    @current_time.setter
+    def current_time(self, time: int):
+        self._doc.setCurrentTime(time)
+
+    @property
+    def end_time(self) -> int:
+        return self._doc.fullClipRangeEndTime()
+
+    @end_time.setter
+    def end_time(self, time: int):
+        self._doc.setFullClipRangeEndTime(time)
 
     @property
     def is_valid(self):
@@ -320,11 +364,11 @@ def _selection_is_entire_document(selection: krita.Selection, extent: Extent):
 class RestoreActiveLayer:
     layer: krita.Node | None = None
 
-    def __init__(self, document: krita.Document):
+    def __init__(self, document: Document):
         self.document = document
 
     def __enter__(self):
-        self.layer = self.document.activeNode()
+        self.layer = self.document.active_layer
 
     def __exit__(self, exc_type, exc_value, traceback):
         # Some operations like inserting a new layer change the active layer as a side effect.
@@ -333,7 +377,7 @@ class RestoreActiveLayer:
 
     async def _restore(self):
         if self.layer:
-            self.document.setActiveNode(self.layer)
+            self.document.active_layer = self.layer
 
 
 class LayerObserver(QObject):

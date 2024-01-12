@@ -1,4 +1,6 @@
 import asyncio
+import time
+from typing import Callable
 from PyQt5.QtCore import QTimer
 
 _loop = asyncio.new_event_loop()
@@ -43,3 +45,17 @@ def stop():
         _loop.close()
     except Exception:
         pass
+
+
+async def wait_until(condition: Callable[[], bool], timeout=1.0):
+    start = time.time()
+    while not condition():
+        if time.time() - start > timeout:
+            raise TimeoutError("Timeout while waiting for action to complete")
+        await asyncio.sleep(0.01)
+
+
+async def process_events():
+    # This is usually a hack where some API requires certain events to be processed first
+    # and this is not enforced by Krita
+    await asyncio.sleep(0.001)
