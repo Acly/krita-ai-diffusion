@@ -510,19 +510,19 @@ class UpscalerName(Enum):
 
 
 class ControlMode(Enum):
-    image = 0
-    inpaint = 1
-    scribble = 2
-    line_art = 3
-    soft_edge = 4
-    canny_edge = 5
-    depth = 6
-    normal = 7
-    pose = 8
-    segmentation = 9
-    blur = 10
-    stencil = 11
-    face = 12
+    reference = 0
+    face = 1
+    inpaint = 2
+    scribble = 3
+    line_art = 4
+    soft_edge = 5
+    canny_edge = 6
+    depth = 7
+    normal = 8
+    pose = 9
+    segmentation = 10
+    blur = 11
+    stencil = 12
 
     @property
     def is_lines(self):
@@ -547,7 +547,7 @@ class ControlMode(Enum):
 
     @property
     def is_ip_adapter(self):
-        return self in [ControlMode.image, ControlMode.face]
+        return self in [ControlMode.reference, ControlMode.face]
 
     @property
     def text(self):
@@ -558,7 +558,8 @@ class ControlMode(Enum):
 
 
 _control_text = {
-    ControlMode.image: "Image",
+    ControlMode.reference: "Reference",
+    ControlMode.face: "Face",
     ControlMode.scribble: "Scribble",
     ControlMode.line_art: "Line Art",
     ControlMode.soft_edge: "Soft Edge",
@@ -569,7 +570,6 @@ _control_text = {
     ControlMode.segmentation: "Segment",
     ControlMode.blur: "Blur",
     ControlMode.stencil: "Stencil",
-    ControlMode.face: "Face",
 }
 
 _control_filename = {

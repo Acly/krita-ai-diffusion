@@ -11,7 +11,7 @@ from .workflow import Control
 
 
 class ControlLayer(QObject, ObservableProperties):
-    mode = Property(ControlMode.image, persist=True)
+    mode = Property(ControlMode.reference, persist=True)
     layer_id = Property(QUuid(), persist=True)
     strength = Property(100, persist=True)
     end = Property(1.0, persist=True)
@@ -80,7 +80,7 @@ class ControlLayer(QObject, ObservableProperties):
         is_supported = True
         if client := root.connection.client_if_connected:
             sdver = resolve_sd_version(self._model.style, client)
-            if self.mode is ControlMode.image:
+            if self.mode is ControlMode.reference:
                 if client.ip_adapter_model[sdver] is None:
                     self.error_text = f"The server is missing the IP-Adapter model"
                     is_supported = False
@@ -99,7 +99,7 @@ class ControlLayer(QObject, ObservableProperties):
         self.is_supported = is_supported
         self.show_end = self.is_supported and settings.show_control_end
         self.can_generate = is_supported and self.mode not in [
-            ControlMode.image,
+            ControlMode.reference,
             ControlMode.face,
             ControlMode.stencil,
         ]

@@ -471,7 +471,9 @@ def apply_conditioning(
 ):
     prompt = merge_prompt(_pattern_lora.sub("", cond.prompt), style.style_prompt)
     area = cond.area
-    if area and any(c.mode not in [ControlMode.image, ControlMode.inpaint] for c in cond.control):
+    if area and any(
+        c.mode not in [ControlMode.reference, ControlMode.inpaint] for c in cond.control
+    ):
         area = None  # Don't use area conditioning if there is already a ControlNet
     elif area:
         prompt = merge_prompt("", style.style_prompt)
@@ -540,7 +542,7 @@ def apply_control(
     ip_weights = []
     ip_end_at = 0.1
 
-    for control in (c for c in cond.control if c.mode is ControlMode.image):
+    for control in (c for c in cond.control if c.mode is ControlMode.reference):
         if len(ip_images) >= 4:
             raise Exception("Too many control layers of type 'reference image' (maximum is 4)")
         ip_images.append(control.load_image(w))
@@ -673,7 +675,7 @@ def inpaint(comfy: Client, style: Style, image: Image, mask: Mask, cond: Conditi
     cond_base.area = extent.convert(cond_base.area, "target", "initial")
     image_strength = 0.5 if cond.prompt == "" else 0.3
     image_context = create_inpaint_context(scaled_image, cond_base.area, default=in_image)
-    cond_base.control.append(Control(ControlMode.image, image_context, image_strength))
+    cond_base.control.append(Control(ControlMode.reference, image_context, image_strength))
     cond_base.control.append(Control(ControlMode.inpaint, in_image, mask=in_mask))
     model, positive, negative = apply_conditioning(cond_base, w, comfy, model, clip, style)
 
@@ -798,7 +800,7 @@ def refine_region(
 
 
 def create_control_image(comfy: Client, image: Image, mode: ControlMode):
-    assert mode not in [ControlMode.image, ControlMode.inpaint]
+    assert mode not in [ControlMode.reference, ControlMode.face, ControlMode.inpaint]
 
     target_extent = image.extent
     current_extent = apply_resolution_settings(image.extent)
