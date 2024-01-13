@@ -235,7 +235,10 @@ class Model(QObject, ObservableProperties):
 
     async def _generate_control_layer(self, job: Job, image: Image, mode: ControlMode):
         client = self._connection.client
-        work = workflow.create_control_image(client, image, mode)
+        mask, _ = self.document.create_mask_from_selection(
+            settings.selection_grow / 100, 0, settings.selection_padding / 100, min_size=64
+        )
+        work = workflow.create_control_image(client, image, mode, mask.bounds if mask else None)
         job.id = await client.enqueue(work)
 
     def cancel(self, active=False, queued=False):

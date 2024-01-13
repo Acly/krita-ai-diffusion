@@ -799,7 +799,9 @@ def refine_region(
     return w
 
 
-def create_control_image(comfy: Client, image: Image, mode: ControlMode):
+def create_control_image(
+    comfy: Client, image: Image, mode: ControlMode, bounds: Bounds | None = None, seed: int = -1
+):
     assert mode not in [ControlMode.reference, ControlMode.face, ControlMode.inpaint]
 
     target_extent = image.extent
@@ -832,6 +834,23 @@ def create_control_image(comfy: Client, image: Image, mode: ControlMode):
             result = w.add("DWPreprocessor", 1, **args, **feat)
         elif mode is ControlMode.segmentation:
             result = w.add("OneFormer-COCO-SemSegPreprocessor", 1, **args)
+        elif mode is ControlMode.hands:
+            resolution = args["resolution"]
+            if bounds is not None:
+                input = w.crop_image(input, bounds)
+                resolution = bounds.extent.multiple_of(64).shortest_side
+            result, _ = w.add(
+                "MeshGraphormer-DepthMapPreprocessor",
+                2,
+                image=input,
+                resolution=resolution,
+                mask_type="based_on_depth",
+                rand_seed=seed if seed != -1 else generate_seed(),
+            )
+            if bounds is not None:
+                result = w.scale_image(result, bounds.extent)
+                result = w.pad_image_to(result, bounds, current_extent)
+
         assert result is not None
 
     if mode.is_lines:

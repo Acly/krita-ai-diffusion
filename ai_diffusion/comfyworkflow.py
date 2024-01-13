@@ -369,6 +369,27 @@ class ComfyWorkflow:
             height=bounds.height,
         )
 
+    def pad_image(self, image: Output, left: int, top: int, right: int, bottom: int):
+        return self.add(
+            "ImagePadForOutpaint",
+            2,
+            image=image,
+            left=left,
+            right=right,
+            top=top,
+            bottom=bottom,
+            feathering=0,
+        )[0]
+
+    def pad_image_to(self, image: Output, bounds: Bounds, extent: Extent):
+        return self.pad_image(
+            image,
+            left=bounds.x,
+            top=bounds.y,
+            right=extent.width - bounds.width - bounds.x,
+            bottom=extent.height - bounds.height - bounds.y,
+        )
+
     def scale_image(self, image: Output, extent: Extent):
         return self.add(
             "ImageScale",

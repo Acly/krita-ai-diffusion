@@ -390,13 +390,23 @@ optional_models = [
         },
     ),
     ModelResource(
-        "Controlnet Stencil",
+        "ControlNet Stencil",
         ResourceKind.controlnet,
         SDVersion.sd15,
         {
             Path(
                 "models/controlnet/control_v1p_sd15_qrcode_monster.safetensors"
             ): "https://huggingface.co/monster-labs/control_v1p_sd15_qrcode_monster/resolve/main/control_v1p_sd15_qrcode_monster.safetensors",
+        },
+    ),
+    ModelResource(
+        "ControlNet Hand Refiner",
+        ResourceKind.controlnet,
+        SDVersion.sd15,
+        {
+            Path(
+                "models/controlnet/control_sd15_inpaint_depth_hand_fp16.safetensors"
+            ): "https://huggingface.co/hr16/ControlNet-HandRefiner-pruned/resolve/main/control_sd15_inpaint_depth_hand_fp16.safetensors",
         },
     ),
     ModelResource(
@@ -407,9 +417,6 @@ optional_models = [
             Path(
                 "models/ipadapter/ip-adapter-faceid-plusv2_sd15.bin"
             ): "https://huggingface.co/h94/IP-Adapter-FaceID/resolve/main/ip-adapter-faceid-plusv2_sd15.bin",
-            # Path(
-            #     "models/ipadapter/ip-adapter-plus-face_sd15.safetensors"
-            # ): "https://huggingface.co/h94/IP-Adapter/resolve/main/models/ip-adapter-plus-face_sd15.safetensors",
             Path(
                 "models/loras/ip-adapter-faceid-plusv2_sd15_lora.safetensors"
             ): "https://huggingface.co/h94/IP-Adapter-FaceID/resolve/main/ip-adapter-faceid_sd15_lora.safetensors",
@@ -523,6 +530,7 @@ class ControlMode(Enum):
     segmentation = 10
     blur = 11
     stencil = 12
+    hands = 13
 
     @property
     def is_lines(self):
@@ -570,6 +578,7 @@ _control_text = {
     ControlMode.segmentation: "Segment",
     ControlMode.blur: "Blur",
     ControlMode.stencil: "Stencil",
+    ControlMode.hands: "Hands",
 }
 
 _control_filename = {
@@ -615,6 +624,10 @@ _control_filename = {
     },
     ControlMode.stencil: {
         SDVersion.sd15: ["control_v1p_sd15_qrcode_monster"],
+        SDVersion.sdxl: None,
+    },
+    ControlMode.hands: {
+        SDVersion.sd15: ["control_sd15_inpaint_depth_hand"],
         SDVersion.sdxl: None,
     },
 }
