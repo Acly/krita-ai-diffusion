@@ -1,4 +1,5 @@
 from __future__ import annotations
+from contextlib import nullcontext
 from pathlib import Path
 from enum import Enum
 from typing import NamedTuple
@@ -469,7 +470,9 @@ class LiveWorkspace(QObject, ObservableProperties):
             self._is_recording = active
             self.is_active = active
             self.is_recording_changed.emit(active)
-            if not active:
+            if active:
+                self._add_recording_layer()
+            else:
                 self._insert_frames()
 
     def handle_job_finished(self, job: Job):
@@ -500,21 +503,28 @@ class LiveWorkspace(QObject, ObservableProperties):
         if self.is_recording:
             self._keyframes.append((value, bounds))
 
-    def _insert_frames(self):
-        if len(self._keyframes) == 0:
-            return
+    def _add_recording_layer(self, restore_active=True):
         doc = self._model.document
         if self._recording_layer and self._recording_layer.parentNode() is None:
             self._recording_layer = None
         if self._recording_layer is None:
-            self._recording_layer = doc.insert_layer(
-                f"[Recording] {self._model.prompt}", make_active=False
-            )
-            self._recording_layer.enableAnimation()
-            self._recording_layer.setPinnedToTimeline(True)
+            with RestoreActiveLayer(doc) if restore_active else nullcontext():
+                self._recording_layer = doc.insert_layer(
+                    f"[Recording] {self._model.prompt}", below=doc.active_layer
+                )
+                self._recording_layer.enableAnimation()
+                self._recording_layer.setPinnedToTimeline(True)
+        return self._recording_layer
 
-        eventloop.run(self._insert_frames_into_timeline(self._recording_layer, self._keyframes))
-        self._keyframes = []
+    def _insert_frames(self):
+        if len(self._keyframes) > 0:
+            layer = self._add_recording_layer(restore_active=False)
+            eventloop.run(
+                _report_errors(
+                    self._model, self._insert_frames_into_timeline(layer, self._keyframes)
+                )
+            )
+            self._keyframes = []
 
     async def _insert_frames_into_timeline(
         self, layer: krita.Node, frames: list[tuple[Image, Bounds]]
@@ -537,7 +547,7 @@ class LiveWorkspace(QObject, ObservableProperties):
         doc.end_time = doc.current_time
 
 
-async def _report_errors(parent, coro):
+async def _report_errors(parent: Model, coro):
     try:
         return await coro
     except NetworkError as e:

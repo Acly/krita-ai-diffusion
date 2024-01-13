@@ -47,10 +47,10 @@ def stop():
         pass
 
 
-async def wait_until(condition: Callable[[], bool], timeout=1.0):
-    start = time.time()
-    while not condition():
-        if time.time() - start > timeout:
+async def wait_until(condition: Callable[[], bool], iterations=10, no_error=False):
+    while not condition() and iterations > 0:
+        iterations -= 1
+        if iterations == 0 and not no_error:
             raise TimeoutError("Timeout while waiting for action to complete")
         await asyncio.sleep(0.01)
 

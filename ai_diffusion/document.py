@@ -42,7 +42,12 @@ class Document:
         raise NotImplementedError
 
     def insert_layer(
-        self, name: str, img: Image | None = None, bounds: Bounds | None = None, make_active=True
+        self,
+        name: str,
+        img: Image | None = None,
+        bounds: Bounds | None = None,
+        make_active=True,
+        below: krita.Node | None = None,
     ) -> krita.Node:
         raise NotImplementedError
 
@@ -233,11 +238,16 @@ class KritaDocument(Document):
         return Image(QImage(data, *bounds.extent, QImage.Format.Format_ARGB32))
 
     def insert_layer(
-        self, name: str, img: Image | None = None, bounds: Bounds | None = None, make_active=True
+        self,
+        name: str,
+        img: Image | None = None,
+        bounds: Bounds | None = None,
+        make_active=True,
+        below: krita.Node | None = None,
     ):
         with RestoreActiveLayer(self) if not make_active else nullcontext():
             layer = self._doc.createNode(name, "paintlayer")
-            self._doc.rootNode().addChildNode(layer, None)
+            self._doc.rootNode().addChildNode(layer, _find_layer_above(self._doc, below))
             if img and bounds:
                 layer.setPixelData(img.data, *bounds)
                 self._doc.refreshProjection()
@@ -346,6 +356,15 @@ def _traverse_layers(node: krita.Node, type_filter=None):
             yield child
 
 
+def _find_layer_above(doc: krita.Document, layer_below: krita.Node | None):
+    if layer_below:
+        nodes = doc.rootNode().childNodes()
+        index = nodes.index(layer_below)
+        if index >= 1:
+            return nodes[index - 1]
+    return None
+
+
 def _selection_bounds(selection: krita.Selection):
     return Bounds(selection.x(), selection.y(), selection.width(), selection.height())
 
@@ -377,6 +396,11 @@ class RestoreActiveLayer:
 
     async def _restore(self):
         if self.layer:
+            if self.layer == self.document.active_layer:
+                # Maybe whatever event we expected to change the active layer hasn't happened yet.
+                await eventloop.wait_until(
+                    lambda: self.document.active_layer != self.layer, no_error=True
+                )
             self.document.active_layer = self.layer
 
 
