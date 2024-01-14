@@ -228,17 +228,20 @@ class Model(QObject, ObservableProperties):
             return
 
         image = self._doc.get_image(Bounds(0, 0, *self._doc.extent))
+        mask, _ = self.document.create_mask_from_selection(0, 0, padding=0.25, multiple=64)
+        bounds = mask.bounds if mask else None
+
         job = self.jobs.add_control(control, Bounds(0, 0, *image.extent))
+        generator = self._generate_control_layer(job, image, control.mode, bounds)
         self.clear_error()
-        eventloop.run(_report_errors(self, self._generate_control_layer(job, image, control.mode)))
+        eventloop.run(_report_errors(self, generator))
         return job
 
-    async def _generate_control_layer(self, job: Job, image: Image, mode: ControlMode):
+    async def _generate_control_layer(
+        self, job: Job, image: Image, mode: ControlMode, bounds: Bounds | None
+    ):
         client = self._connection.client
-        mask, _ = self.document.create_mask_from_selection(
-            settings.selection_grow / 100, 0, settings.selection_padding / 100, min_size=64
-        )
-        work = workflow.create_control_image(client, image, mode, mask.bounds if mask else None)
+        work = workflow.create_control_image(client, image, mode, bounds)
         job.id = await client.enqueue(work)
 
     def cancel(self, active=False, queued=False):

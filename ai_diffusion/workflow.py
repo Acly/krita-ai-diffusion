@@ -815,6 +815,26 @@ def create_control_image(
 
     if mode is ControlMode.canny_edge:
         result = w.add("Canny", 1, image=input, low_threshold=0.4, high_threshold=0.8)
+
+    elif mode is ControlMode.hands:
+        if bounds is None:
+            current_extent = current_extent.multiple_of(64)
+            resolution = current_extent.shortest_side
+        else:
+            input = w.crop_image(input, bounds)
+            resolution = bounds.extent.multiple_of(64).shortest_side
+        result, _ = w.add(
+            "MeshGraphormer-DepthMapPreprocessor",
+            2,
+            image=input,
+            resolution=resolution,
+            mask_type="based_on_depth",
+            rand_seed=seed if seed != -1 else generate_seed(),
+        )
+        if bounds is not None:
+            result = w.scale_image(result, bounds.extent)
+            empty = w.empty_image(current_extent)
+            result = w.composite_image_masked(result, empty, None, bounds.x, bounds.y)
     else:
         current_extent = current_extent.multiple_of(64)
         args = {"image": input, "resolution": current_extent.shortest_side}
@@ -834,22 +854,6 @@ def create_control_image(
             result = w.add("DWPreprocessor", 1, **args, **feat)
         elif mode is ControlMode.segmentation:
             result = w.add("OneFormer-COCO-SemSegPreprocessor", 1, **args)
-        elif mode is ControlMode.hands:
-            resolution = args["resolution"]
-            if bounds is not None:
-                input = w.crop_image(input, bounds)
-                resolution = bounds.extent.multiple_of(64).shortest_side
-            result, _ = w.add(
-                "MeshGraphormer-DepthMapPreprocessor",
-                2,
-                image=input,
-                resolution=resolution,
-                mask_type="based_on_depth",
-                rand_seed=seed if seed != -1 else generate_seed(),
-            )
-            if bounds is not None:
-                result = w.scale_image(result, bounds.extent)
-                result = w.pad_image_to(result, bounds, current_extent)
 
         assert result is not None
 

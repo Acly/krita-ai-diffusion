@@ -624,6 +624,25 @@ def test_create_open_pose_vector(qtapp, comfy):
     qtapp.run(main())
 
 
+@pytest.mark.parametrize("setup", ["no_mask", "right_hand", "left_hand"])
+def test_create_hand_refiner_image(qtapp, comfy, setup):
+    image_name = f"test_create_hand_refiner_image_{setup}.png"
+    image = Image.load(image_dir / "character.webp")
+    bounds = {
+        "no_mask": None,
+        "right_hand": Bounds(102, 398, 264, 240),
+        "left_hand": Bounds(541, 642, 232, 248),
+    }[setup]
+    job = workflow.create_control_image(comfy, image, ControlMode.hands, bounds, default_seed)
+
+    async def main():
+        result = await run_and_save(comfy, job, image_name)
+        reference = Image.load(reference_dir / image_name)
+        assert Image.compare(result, reference) < 0.002
+
+    qtapp.run(main())
+
+
 @pytest.mark.parametrize("sdver", [SDVersion.sd15, SDVersion.sdxl])
 def test_ip_adapter(qtapp, comfy, temp_settings, sdver):
     temp_settings.batch_size = 1

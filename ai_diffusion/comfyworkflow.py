@@ -358,6 +358,11 @@ class ComfyWorkflow:
             crop="disabled",
         )
 
+    def empty_image(self, extent: Extent, color=0):
+        return self.add(
+            "EmptyImage", 1, width=extent.width, height=extent.height, color=color, batch_size=1
+        )
+
     def crop_image(self, image: Output, bounds: Bounds):
         return self.add(
             "ETN_CropImage",
@@ -367,27 +372,6 @@ class ComfyWorkflow:
             y=bounds.y,
             width=bounds.width,
             height=bounds.height,
-        )
-
-    def pad_image(self, image: Output, left: int, top: int, right: int, bottom: int):
-        return self.add(
-            "ImagePadForOutpaint",
-            2,
-            image=image,
-            left=left,
-            right=right,
-            top=top,
-            bottom=bottom,
-            feathering=0,
-        )[0]
-
-    def pad_image_to(self, image: Output, bounds: Bounds, extent: Extent):
-        return self.pad_image(
-            image,
-            left=bounds.x,
-            top=bounds.y,
-            right=extent.width - bounds.width - bounds.x,
-            bottom=extent.height - bounds.height - bounds.y,
         )
 
     def scale_image(self, image: Output, extent: Extent):
@@ -429,6 +413,20 @@ class ComfyWorkflow:
 
     def image_to_mask(self, image: Output):
         return self.add("ImageToMask", 1, image=image, channel="red")
+
+    def composite_image_masked(
+        self, source: Output, destination: Output, mask: Output | None, x=0, y=0
+    ):
+        return self.add(
+            "ImageCompositeMasked",
+            1,
+            source=source,
+            destination=destination,
+            mask=mask,
+            x=x,
+            y=y,
+            resize_source=False,
+        )
 
     def mask_to_image(self, mask: Output):
         return self.add("MaskToImage", 1, mask=mask)

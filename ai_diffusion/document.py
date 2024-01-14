@@ -26,7 +26,7 @@ class Document:
         return True, None
 
     def create_mask_from_selection(
-        self, grow: float, feather: float, padding: float, min_size=0, square=False
+        self, grow: float, feather: float, padding: float, multiple=8, min_size=0, square=False
     ) -> tuple[Mask, Bounds] | tuple[None, None]:
         raise NotImplementedError
 
@@ -160,7 +160,7 @@ class KritaDocument(Document):
         return True, None
 
     def create_mask_from_selection(
-        self, grow: float, feather: float, padding: float, min_size=0, square=False
+        self, grow: float, feather: float, padding: float, multiple=8, min_size=0, square=False
     ):
         user_selection = self._doc.selection()
         if not user_selection:
@@ -185,7 +185,9 @@ class KritaDocument(Document):
             selection.feather(feather_radius)
 
         bounds = _selection_bounds(selection)
-        bounds = Bounds.pad(bounds, padding_pixels, multiple=8, min_size=min_size, square=square)
+        bounds = Bounds.pad(
+            bounds, padding_pixels, multiple=multiple, min_size=min_size, square=square
+        )
         bounds = Bounds.clamp(bounds, self.extent)
         data = selection.pixelData(*bounds)
         return Mask(bounds, data), original_bounds
