@@ -50,7 +50,6 @@ required_custom_nodes = [
             "ETN_LoadImageBase64",
             "ETN_LoadMaskBase64",
             "ETN_SendImageWebSocket",
-            "ETN_CropImage",
             "ETN_ApplyMaskToImage",
         ],
     ),

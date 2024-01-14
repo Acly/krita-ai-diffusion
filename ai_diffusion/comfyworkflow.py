@@ -365,7 +365,7 @@ class ComfyWorkflow:
 
     def crop_image(self, image: Output, bounds: Bounds):
         return self.add(
-            "ETN_CropImage",
+            "ImageCrop",
             1,
             image=image,
             x=bounds.x,
