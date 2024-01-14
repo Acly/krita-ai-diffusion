@@ -703,7 +703,7 @@ class ConnectionSettings(SettingsTab):
         if resource.kind is ResourceKind.checkpoint:
             self._connection_status.setText(
                 "<b>Error</b>: No checkpoints found!\nCheckpoints must be placed into"
-                " ComfyUI/model/checkpoints."
+                " ComfyUI/models/checkpoints."
             )
 
         elif resource.kind is ResourceKind.upscaler:
@@ -711,7 +711,7 @@ class ConnectionSettings(SettingsTab):
             self._connection_status.setText(
                 "<b>Error</b>: Could not find Upscaler model"
                 f" {', '.join(names)}. Make sure to download the model and place it in the"
-                " ComfyUI/upscale_models folder."
+                " ComfyUI/models/upscale_models folder."
             )
 
         elif resource.kind is ResourceKind.controlnet:
@@ -729,11 +729,11 @@ class ConnectionSettings(SettingsTab):
                 f" to download the model and place it in ComfyUI/{model.parent.as_posix()}"
             )
         elif resource.kind is ResourceKind.ip_adapter:
-            res = [r for r in required_models if r.kind is ResourceKind.ip_adapter]
+            names = cast(list[str], resource.names)
             self._connection_status.setText(
                 "<b>Error</b>: Could not find IPAdapter model"
-                f" {', '.join(r.filename for r in res)}. Make sure to download the model and place"
-                f" it in the ComfyUI/{res[0].folder.as_posix()} folder."
+                f" {', '.join(names)}. Make sure to download the model and place"
+                " it in the ComfyUI/models/ipadapter folder."
             )
         elif resource.kind is ResourceKind.node:
             nodes = cast(list[CustomNode], resource.names)
@@ -998,9 +998,8 @@ class StylePresets(SettingsTab):
                 for cp in client.checkpoints.values()
                 if not (cp.is_refiner or cp.is_inpaint)
             ]
-            loras = [lora for lora in client.lora_models if lora not in client.lcm_model.values()]
             self._style_widgets["sd_checkpoint"].set_items(checkpoints)
-            self._style_widgets["loras"].names = loras
+            self._style_widgets["loras"].names = client.loras
             self._style_widgets["vae"].set_items([default_vae] + client.vae_models)
         self._read_style(self.current_style)
 

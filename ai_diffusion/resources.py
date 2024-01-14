@@ -560,12 +560,10 @@ class ControlMode(Enum):
     def text(self):
         return _control_text[self]
 
-    def filenames(self, sd_version: SDVersion):
-        return _control_filename[self][sd_version]
-
 
 _control_text = {
     ControlMode.reference: "Reference",
+    ControlMode.inpaint: "Inpaint",
     ControlMode.face: "Face",
     ControlMode.scribble: "Scribble",
     ControlMode.line_art: "Line Art",
@@ -580,53 +578,73 @@ _control_text = {
     ControlMode.hands: "Hands",
 }
 
-_control_filename = {
-    ControlMode.inpaint: {
-        SDVersion.sd15: "control_v11p_sd15_inpaint",
-        SDVersion.sdxl: None,
-    },
-    ControlMode.scribble: {
-        SDVersion.sd15: ["control_v11p_sd15_scribble", "control_lora_rank128_v11p_sd15_scribble"],
-        SDVersion.sdxl: ["control-lora-sketch-rank", "sai_xl_sketch_"],
-    },
-    ControlMode.line_art: {
-        SDVersion.sd15: ["control_v11p_sd15_lineart", "control_lora_rank128_v11p_sd15_lineart"],
-        SDVersion.sdxl: ["control-lora-sketch-rank", "sai_xl_sketch_"],
-    },
-    ControlMode.soft_edge: {
-        SDVersion.sd15: ["control_v11p_sd15_softedge", "control_lora_rank128_v11p_sd15_softedge"],
-        SDVersion.sdxl: None,
-    },
-    ControlMode.canny_edge: {
-        SDVersion.sd15: ["control_v11p_sd15_canny", "control_lora_rank128_v11p_sd15_canny"],
-        SDVersion.sdxl: ["control-lora-canny-rank", "sai_xl_canny_"],
-    },
-    ControlMode.depth: {
-        SDVersion.sd15: ["control_v11f1p_sd15_depth", "control_lora_rank128_v11f1p_sd15_depth"],
-        SDVersion.sdxl: ["control-lora-depth-rank", "sai_xl_depth_"],
-    },
-    ControlMode.normal: {
-        SDVersion.sd15: ["control_v11p_sd15_normalbae", "control_lora_rank128_v11p_sd15_normalbae"],
-        SDVersion.sdxl: None,
-    },
-    ControlMode.pose: {
-        SDVersion.sd15: ["control_v11p_sd15_openpose", "control_lora_rank128_v11p_sd15_openpose"],
-        SDVersion.sdxl: ["control-lora-openposexl2-rank", "thibaud_xl_openpose"],
-    },
-    ControlMode.segmentation: {
-        SDVersion.sd15: ["control_v11p_sd15_seg", "control_lora_rank128_v11p_sd15_seg"],
-        SDVersion.sdxl: None,
-    },
-    ControlMode.blur: {
-        SDVersion.sd15: ["control_v11f1e_sd15_tile", "control_lora_rank128_v11f1e_sd15_tile"],
-        SDVersion.sdxl: None,
-    },
-    ControlMode.stencil: {
-        SDVersion.sd15: ["control_v1p_sd15_qrcode_monster"],
-        SDVersion.sdxl: None,
-    },
-    ControlMode.hands: {
-        SDVersion.sd15: ["control_sd15_inpaint_depth_hand"],
-        SDVersion.sdxl: ["control-lora-depth-rank", "sai_xl_depth_"],
-    },
+
+def resource_id(
+    kind: ResourceKind, version: SDVersion, identifier: ControlMode | UpscalerName | str
+):
+    if isinstance(identifier, Enum):
+        identifier = identifier.name
+    return f"{kind.name}-{identifier}-{version.name}"
+
+
+def search_path(
+    kind: ResourceKind, version: SDVersion, identifier: ControlMode | UpscalerName | str
+):
+    return search_paths.get(resource_id(kind, version, identifier), None)
+
+
+def is_required(
+    kind: ResourceKind, version: SDVersion, identifier: ControlMode | UpscalerName | str
+):
+    return resource_id(kind, version, identifier) in required_resource_ids
+
+
+# fmt: off
+search_paths: dict[str, list[str]] = {
+    resource_id(ResourceKind.controlnet, SDVersion.sd15, ControlMode.inpaint):  ["control_v11p_sd15_inpaint"],
+    resource_id(ResourceKind.controlnet, SDVersion.sd15, ControlMode.scribble): ["control_v11p_sd15_scribble", "control_lora_rank128_v11p_sd15_scribble"],
+    resource_id(ResourceKind.controlnet, SDVersion.sdxl, ControlMode.scribble): ["control-lora-sketch-rank", "sai_xl_sketch_"],
+    resource_id(ResourceKind.controlnet, SDVersion.sd15, ControlMode.line_art): ["control_v11p_sd15_lineart", "control_lora_rank128_v11p_sd15_lineart"],
+    resource_id(ResourceKind.controlnet, SDVersion.sdxl, ControlMode.line_art): ["control-lora-sketch-rank", "sai_xl_sketch_"],
+    resource_id(ResourceKind.controlnet, SDVersion.sd15, ControlMode.soft_edge): ["control_v11p_sd15_softedge", "control_lora_rank128_v11p_sd15_softedge"],
+    resource_id(ResourceKind.controlnet, SDVersion.sd15, ControlMode.canny_edge): ["control_v11p_sd15_canny", "control_lora_rank128_v11p_sd15_canny"],
+    resource_id(ResourceKind.controlnet, SDVersion.sdxl, ControlMode.canny_edge): ["control-lora-canny-rank", "sai_xl_canny_"],
+    resource_id(ResourceKind.controlnet, SDVersion.sd15, ControlMode.depth): ["control_v11f1p_sd15_depth", "control_lora_rank128_v11f1p_sd15_depth"],
+    resource_id(ResourceKind.controlnet, SDVersion.sdxl, ControlMode.depth): ["control-lora-depth-rank", "sai_xl_depth_"],
+    resource_id(ResourceKind.controlnet, SDVersion.sd15, ControlMode.normal): ["control_v11p_sd15_normalbae", "control_lora_rank128_v11p_sd15_normalbae"],
+    resource_id(ResourceKind.controlnet, SDVersion.sd15, ControlMode.pose): ["control_v11p_sd15_openpose", "control_lora_rank128_v11p_sd15_openpose"],
+    resource_id(ResourceKind.controlnet, SDVersion.sdxl, ControlMode.pose): ["control-lora-openposexl2-rank", "thibaud_xl_openpose"],
+    resource_id(ResourceKind.controlnet, SDVersion.sd15, ControlMode.segmentation): ["control_v11p_sd15_seg", "control_lora_rank128_v11p_sd15_seg"],
+    resource_id(ResourceKind.controlnet, SDVersion.sd15, ControlMode.blur): ["control_v11f1e_sd15_tile", "control_lora_rank128_v11f1e_sd15_tile"],
+    resource_id(ResourceKind.controlnet, SDVersion.sd15, ControlMode.stencil): ["control_v1p_sd15_qrcode_monster"],
+    resource_id(ResourceKind.controlnet, SDVersion.sd15, ControlMode.hands): ["control_sd15_inpaint_depth_hand"],
+    resource_id(ResourceKind.controlnet, SDVersion.sdxl, ControlMode.hands): ["control-lora-depth-rank", "sai_xl_depth_"],
+    resource_id(ResourceKind.ip_adapter, SDVersion.sd15, ControlMode.reference): ["ip-adapter_sd15"],
+    resource_id(ResourceKind.ip_adapter, SDVersion.sdxl, ControlMode.reference): ["ip-adapter_sdxl_vit-h"],
+    resource_id(ResourceKind.ip_adapter, SDVersion.sd15, ControlMode.face): ["ip-adapter-faceid-plusv2_sd15"],
+    resource_id(ResourceKind.ip_adapter, SDVersion.sdxl, ControlMode.face): ["ip-adapter-faceid_sdxl"],
+    resource_id(ResourceKind.clip_vision, SDVersion.all, "ip_adapter"): ["sd1.5/pytorch_model.bin", "sd1.5/model.safetensors"],
+    resource_id(ResourceKind.lora, SDVersion.sd15, "lcm"): ["lcm-lora-sdv1-5.safetensors", "lcm/sd1.5/pytorch_lora_weights.safetensors"],
+    resource_id(ResourceKind.lora, SDVersion.sdxl, "lcm"): ["lcm-lora-sdxl.safetensors", "lcm/sdxl/pytorch_lora_weights.safetensors"],
+    resource_id(ResourceKind.lora, SDVersion.sd15, ControlMode.face): ["ip-adapter-faceid-plusv2_sd15_lora"],
+    resource_id(ResourceKind.lora, SDVersion.sdxl, ControlMode.face): ["ip-adapter-faceid_sdxl_lora"],
+    resource_id(ResourceKind.upscaler, SDVersion.all, UpscalerName.default): [UpscalerName.default.value],
+    resource_id(ResourceKind.upscaler, SDVersion.all, UpscalerName.fast_2x): [UpscalerName.fast_2x.value],
+    resource_id(ResourceKind.upscaler, SDVersion.all, UpscalerName.fast_3x): [UpscalerName.fast_3x.value],
+    resource_id(ResourceKind.upscaler, SDVersion.all, UpscalerName.fast_4x): [UpscalerName.fast_4x.value],
 }
+# fmt: on
+
+required_resource_ids = set([
+    resource_id(ResourceKind.controlnet, SDVersion.sd15, ControlMode.inpaint),
+    resource_id(ResourceKind.controlnet, SDVersion.sd15, ControlMode.blur),
+    resource_id(ResourceKind.ip_adapter, SDVersion.sd15, ControlMode.reference),
+    resource_id(ResourceKind.ip_adapter, SDVersion.sdxl, ControlMode.reference),
+    resource_id(ResourceKind.clip_vision, SDVersion.all, "ip_adapter"),
+    resource_id(ResourceKind.lora, SDVersion.sd15, "lcm"),
+    resource_id(ResourceKind.lora, SDVersion.sdxl, "lcm"),
+    resource_id(ResourceKind.upscaler, SDVersion.all, UpscalerName.default),
+    resource_id(ResourceKind.upscaler, SDVersion.all, UpscalerName.fast_2x),
+    resource_id(ResourceKind.upscaler, SDVersion.all, UpscalerName.fast_3x),
+    resource_id(ResourceKind.upscaler, SDVersion.all, UpscalerName.fast_4x),
+])

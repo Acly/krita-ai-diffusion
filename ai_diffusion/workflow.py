@@ -11,7 +11,7 @@ from typing import Any, List, NamedTuple, Optional, overload
 from .image import Bounds, Extent, Image, Mask, multiple_of
 from .client import Client, resolve_sd_version
 from .style import Style, StyleSettings
-from .resources import ControlMode, SDVersion
+from .resources import ControlMode, SDVersion, UpscalerName
 from .settings import settings
 from .comfyworkflow import ComfyWorkflow, Output
 from .util import ensure, client_logger as log
@@ -349,8 +349,8 @@ def load_model_with_lora(
         else:
             log.warning(f"Style VAE {style.vae} not found, using default VAE from checkpoint")
 
-    for lora in chain(style.loras, _parse_loras(comfy.lora_models, cond.prompt)):
-        if lora["name"] not in comfy.lora_models:
+    for lora in chain(style.loras, _parse_loras(comfy.loras, cond.prompt)):
+        if lora["name"] not in comfy.loras:
             log.warning(f"LoRA {lora['name']} not found, skipping")
             continue
         model, clip = w.load_lora(model, clip, lora["name"], lora["strength"], lora["strength"])
@@ -358,13 +358,13 @@ def load_model_with_lora(
     sdver = resolve_sd_version(style, comfy)
     is_lcm = style.get_sampler_config(is_live=is_live).sampler == "LCM"
     if is_lcm:
-        if lora := comfy.lcm_model[sdver]:
+        if lora := comfy.lora_models["lcm"][sdver]:
             model = w.load_lora_model(model, lora, 1.0)
         else:
             raise Exception(f"LCM LoRA model not found for {sdver.value}")
 
     if any(c.mode is ControlMode.face for c in cond.control):
-        if lora := comfy.face_lora[sdver]:
+        if lora := comfy.lora_models["face"][sdver]:
             model = w.load_lora_model(model, lora, 0.6)
         else:
             raise Exception(f"IP-Adapter Face LoRA model not found for {sdver.value}")
@@ -521,7 +521,7 @@ def apply_control(
     # Create a separate embedding for each face ID (though more than 1 is questionable)
     face_layers = [c for c in cond.control if c.mode is ControlMode.face]
     if len(face_layers) > 0:
-        ipadapter_model_name = ensure(comfy.ip_adapter_face_model[sd_ver])
+        ipadapter_model_name = ensure(comfy.ip_adapter_model[ControlMode.face][sd_ver])
         clip_vision = w.load_clip_vision(comfy.clip_vision_model)
         ip_adapter = w.load_ip_adapter(ipadapter_model_name)
         insight_face = w.load_insight_face()
@@ -551,8 +551,9 @@ def apply_control(
     max_weight = max(ip_weights, default=0.0)
     if len(ip_images) > 0 and max_weight > 0:
         ip_weights = [w / max_weight for w in ip_weights]
+        ip_model_name = ensure(comfy.ip_adapter_model[ControlMode.reference][sd_ver])
         clip_vision = w.load_clip_vision(comfy.clip_vision_model)
-        ip_adapter = w.load_ip_adapter(ensure(comfy.ip_adapter_model[sd_ver]))
+        ip_adapter = w.load_ip_adapter(ip_model_name)
         embeds = w.encode_ip_adapter(clip_vision, ip_images, ip_weights, noise=0.2)
         model = w.apply_ip_adapter(ip_adapter, embeds, model, max_weight, end_at=ip_end_at)
 
@@ -573,7 +574,8 @@ def scale(
         assert mode is ScaleMode.upscale_fast
         ratio = target.pixel_count / extent.pixel_count
         factor = max(2, min(4, math.ceil(math.sqrt(ratio))))
-        upscale_model = w.load_upscale_model(comfy.fast_upscaler[factor])
+        upscale_model_name = ensure(comfy.upscale_models[UpscalerName.fast_x(factor)])
+        upscale_model = w.load_upscale_model(upscale_model_name)
         image = w.upscale_image(upscale_model, image)
         image = w.scale_image(image, target)
         return image

@@ -117,18 +117,17 @@ class Client:
     _active: Optional[JobInfo] = None
 
     url: str
+    # Lists of models as reported by the server
     checkpoints: dict[str, CheckpointInfo]
     vae_models: list[str]
-    lora_models: list[str]
+    loras: list[str]
     upscalers: list[str]
-    default_upscaler: str
-    fast_upscaler: dict[int, str]
+    # Lists of specific well-known models required by workflows
+    upscale_models: dict[UpscalerName, str | None]
     control_model: dict[ControlMode, dict[SDVersion, str | None]]
+    ip_adapter_model: dict[ControlMode, dict[SDVersion, str | None]]
+    lora_models: dict[str, dict[SDVersion, str | None]]
     clip_vision_model: str
-    ip_adapter_model: dict[SDVersion, str | None]
-    ip_adapter_face_model: dict[SDVersion, str | None]
-    lcm_model: dict[SDVersion, str | None]
-    face_lora: dict[SDVersion, str | None]
     supported_sd_versions: list[SDVersion]
     device_info: DeviceInfo
     nodes_inputs: dict[str, dict[str, list[str | list | dict]]] = {}
@@ -152,45 +151,32 @@ class Client:
             raise MissingResource(ResourceKind.node, missing)
         client.nodes_inputs = {name: nodes[name]["input"].get("required", None) for name in nodes}
 
-        # Retrieve list of checkpoints
-        client._refresh_models(nodes, await client.try_inspect_checkpoints())
-
         # Retrieve ControlNet models
-        cns = nodes["ControlNetLoader"]["input"]["required"]["control_net_name"][0]
-        client.control_model = {
-            mode: _find_control_model(cns, mode) for mode in ControlMode if mode.is_control_net
-        }
-
+        client.control_model = _find_control_models(
+            nodes["ControlNetLoader"]["input"]["required"]["control_net_name"][0]
+        )
         # Retrieve CLIPVision models
-        cv = nodes["CLIPVisionLoader"]["input"]["required"]["clip_name"][0]
-        client.clip_vision_model = _find_clip_vision_model(cv)
-
+        client.clip_vision_model = _find_clip_vision_model(
+            nodes["CLIPVisionLoader"]["input"]["required"]["clip_name"][0]
+        )
         # Retrieve IP-Adapter model
-        ip = nodes["IPAdapterModelLoader"]["input"]["required"]["ipadapter_file"][0]
-        client.ip_adapter_model = {
-            ver: _find_ip_adapter(ip, ver) for ver in [SDVersion.sd15, SDVersion.sdxl]
-        }
-        client.ip_adapter_face_model = {
-            ver: _find_ip_adapter(ip, ver, is_face=True) for ver in [SDVersion.sd15, SDVersion.sdxl]
-        }
-
+        client.ip_adapter_model = _find_ip_adapters(
+            nodes["IPAdapterModelLoader"]["input"]["required"]["ipadapter_file"][0]
+        )
         # Retrieve upscale models
         client.upscalers = nodes["UpscaleModelLoader"]["input"]["required"]["model_name"][0]
-        client.fast_upscaler = {
-            n: _find_upscaler(client.upscalers, UpscalerName.fast_x(n).value) for n in [2, 3, 4]
-        }
-        client.default_upscaler = _find_upscaler(client.upscalers, UpscalerName.default.value)
+        client.upscale_models = _find_upscalers(client.upscalers)
         if client.device_info.type == "privateuseone":  # DirectML: OmniSR causes a crash (?)
-            client.fast_upscaler = {n: client.default_upscaler for n in [2, 3, 4]}
-        if not client.default_upscaler:
-            client.default_upscaler = client.fast_upscaler[4]
-
+            for n in [2, 3, 4]:
+                client.upscale_models[UpscalerName.fast_x(n)] = client.upscale_models[
+                    UpscalerName.default
+                ]
         # Retrieve LoRA models
         loras = nodes["LoraLoader"]["input"]["required"]["lora_name"][0]
-        client.lcm_model = {ver: _find_lcm(loras, ver) for ver in [SDVersion.sd15, SDVersion.sdxl]}
-        client.face_lora = {
-            ver: _find_face_lora(loras, ver) for ver in [SDVersion.sd15, SDVersion.sdxl]
-        }
+        client.lora_models = _find_loras(loras)
+
+        # Retrieve list of checkpoints
+        client._refresh_models(nodes, await client.try_inspect_checkpoints())
 
         # Check supported SD versions and make sure there is at least one
         missing = {ver: client._check_workload(ver) for ver in [SDVersion.sd15, SDVersion.sdxl]}
@@ -348,7 +334,15 @@ class Client:
                 for filename in nodes["CheckpointLoaderSimple"]["input"]["required"]["ckpt_name"][0]
             }
         self.vae_models = nodes["VAELoader"]["input"]["required"]["vae_name"][0]
-        self.lora_models = nodes["LoraLoader"]["input"]["required"]["lora_name"][0]
+        self.loras = nodes["LoraLoader"]["input"]["required"]["lora_name"][0]
+        special_loras = [  # Filter out LCM, FaceID, etc. since they are added automatically
+            l for lora_versions in self.lora_models.values() for l in lora_versions.values()
+        ]
+        self.loras = [l for l in self.loras if l not in special_loras]
+
+    @property
+    def default_upscaler(self):
+        return ensure(self.upscale_models[UpscalerName.default])
 
     def _get_active_job(self, id: str) -> Optional[JobInfo]:
         if self._active and self._active.id == id:
@@ -388,20 +382,22 @@ class Client:
         missing: list[MissingResource] = []
         if not self.clip_vision_model:
             missing.append(MissingResource(ResourceKind.clip_vision))
-        if not self.default_upscaler:
-            missing.append(MissingResource(ResourceKind.upscaler, [UpscalerName.default.value]))
-        if not all(self.fast_upscaler.values()):
-            names = [UpscalerName.fast_x(n).value for n in [2, 3, 4] if not self.fast_upscaler[n]]
+        required_upscalers = [UpscalerName.default] + [UpscalerName.fast_x(n) for n in [2, 3, 4]]
+        if not all(self.upscale_models[u] for u in required_upscalers):
+            names = [u.value for u in required_upscalers if not self.upscale_models[u]]
             missing.append(MissingResource(ResourceKind.upscaler, names))
-        if not self.ip_adapter_model[sdver]:
-            missing.append(MissingResource(ResourceKind.ip_adapter))
+        if not self.ip_adapter_model[ControlMode.reference][sdver]:
+            names = resources.search_path(ResourceKind.ip_adapter, sdver, ControlMode.reference)
+            missing.append(MissingResource(ResourceKind.ip_adapter, names))
         if not any(cp.sd_version is sdver for cp in self.checkpoints.values()):
             missing.append(MissingResource(ResourceKind.checkpoint))
         if sdver is SDVersion.sd15:
-            if not self.control_model[ControlMode.inpaint][SDVersion.sd15]:
-                missing.append(MissingResource(ResourceKind.controlnet, ["ControlNet inpaint"]))
-            if not self.control_model[ControlMode.blur][SDVersion.sd15]:
-                missing.append(MissingResource(ResourceKind.controlnet, ["ControlNet tile"]))
+            if not self.control_model[ControlMode.inpaint][sdver]:
+                names = ["models/controlnet/control_v11p_sd15_inpaint_fp16.safetensors"]
+                missing.append(MissingResource(ResourceKind.controlnet, names))
+            if not self.control_model[ControlMode.blur][sdver]:
+                names = ["models/controlnet/control_lora_rank128_v11f1e_sd15_tile_fp16.safetensors"]
+                missing.append(MissingResource(ResourceKind.controlnet, names))
         if len(missing) == 0:
             log.info(f"{sdver.value}: supported")
         else:
@@ -441,101 +437,85 @@ def filter_supported_styles(styles: Styles, client: Optional[Client] = None):
 
 
 def _find_model(
+    model_list: Sequence[str],
     kind: ResourceKind,
     sdver: SDVersion,
-    model_list: Sequence[str],
-    search_paths: Sequence[str],
-    info: ControlMode | None = None,
-    is_optional=False,
+    identifier: ControlMode | UpscalerName | str,
 ):
+    search_paths = resources.search_path(kind, sdver, identifier)
+    if search_paths is None:
+        return None
+
     sanitize = lambda m: m.replace("\\", "/").lower()
     matches = (m for m in model_list if any(sanitize(p) in sanitize(m) for p in search_paths))
     # if there are multiple matches, prefer the one with "krita" in the path
     prio = sorted(matches, key=lambda m: 0 if "krita" in m else 1)
-    model_name = next(iter(prio), None)
-    model_id = kind.value if not info else f"{kind.value} {info.name}"
+    found = next(iter(prio), None)
+    model_id = identifier.name if isinstance(identifier, Enum) else identifier
+    model_name = f"{kind.value} {model_id}"
 
-    if model_name is None and not is_optional:
-        log.warning(f"Missing {model_id} for {sdver.value}")
+    if found is None and resources.is_required(kind, sdver, identifier):
+        log.warning(f"Missing {model_name} for {sdver.value}")
         log.info(
-            f"-> No model matches {model_id} search paths:"
-            f" {', '.join(sanitize(p) for p in search_paths)}"
+            f"-> No model matches search paths: {', '.join(sanitize(p) for p in search_paths)}"
         )
-        log.info(f"-> Available {model_id}s: {', '.join(sanitize(m) for m in model_list)}")
-    elif model_name is None:
+        log.info(f"-> Available models: {', '.join(sanitize(m) for m in model_list)}")
+    elif found is None:
         log.info(
-            f"Optional {model_id} for {sdver.value} not found (search path:"
+            f"Optional {model_name} for {sdver.value} not found (search path:"
             f" {', '.join(search_paths)})"
         )
     else:
-        log.info(f"Found {model_id} for {sdver.value}: {model_name}")
-    return model_name
+        log.info(f"Found {model_name} for {sdver.value}: {found}")
+    return found
 
 
-def _find_control_model(model_list: Sequence[str], mode: ControlMode):
-    def find(sdver: SDVersion):
-        name = mode.filenames(sdver)
-        if name is None:
-            return None
-        names = [name] if isinstance(name, str) else name
-        is_optional = not (
-            sdver is SDVersion.sd15 and mode in [ControlMode.inpaint, ControlMode.blur]
-        )
-        return _find_model(ResourceKind.controlnet, sdver, model_list, names, mode, is_optional)
+def _find_model_versions(model_list: Sequence[str], kind: ResourceKind, mode: ControlMode | str):
+    return {
+        ver: _find_model(model_list, kind, ver, mode) for ver in [SDVersion.sd15, SDVersion.sdxl]
+    }
 
-    return {version: find(version) for version in [SDVersion.sd15, SDVersion.sdxl]}
+
+def _find_control_models(model_list: Sequence[str]):
+    return {
+        mode: _find_model_versions(model_list, ResourceKind.controlnet, mode)
+        for mode in ControlMode
+        if mode.is_control_net
+    }
+
+
+def _find_ip_adapters(model_list: Sequence[str]):
+    return {
+        mode: _find_model_versions(model_list, ResourceKind.ip_adapter, mode)
+        for mode in ControlMode
+        if mode.is_ip_adapter
+    }
 
 
 def _find_clip_vision_model(model_list: Sequence[str]):
-    search_paths = ["sd1.5/pytorch_model.bin", "sd1.5/model.safetensors"]
-    model = _find_model(ResourceKind.clip_vision, SDVersion.all, model_list, search_paths)
+    model = _find_model(model_list, ResourceKind.clip_vision, SDVersion.all, "ip_adapter")
     if model is None:
-        raise MissingResource(ResourceKind.clip_vision, ["SD1.5/model.safetensors"])
+        raise MissingResource(
+            ResourceKind.clip_vision,
+            resources.search_path(ResourceKind.clip_vision, SDVersion.all, "ip_adapter"),
+        )
     return model
 
 
-def _find_ip_adapter(model_list: Sequence[str], sdver: SDVersion, is_face=False):
-    if is_face:
-        search_paths = {
-            SDVersion.sd15: ["ip-adapter-faceid-plusv2_sd15"],
-            SDVersion.sdxl: ["ip-adapter-faceid_sdxl"],
-        }[sdver]
-    else:
-        search_paths = {
-            SDVersion.sd15: ["ip-adapter_sd15"],
-            SDVersion.sdxl: ["ip-adapter_sdxl_vit-h"],
-        }[sdver]
-
-    return _find_model(ResourceKind.ip_adapter, sdver, model_list, search_paths)
+def _find_upscalers(model_list: Sequence[str]):
+    models = {
+        name: _find_model(model_list, ResourceKind.upscaler, SDVersion.all, name)
+        for name in UpscalerName
+    }
+    if models[UpscalerName.default] is None and len(model_list) > 0:
+        models[UpscalerName.default] = models[UpscalerName.fast_4x]
+    return models
 
 
-def _find_upscaler(model_list: Sequence[str], model_name: str, use_any=False):
-    model = _find_model(ResourceKind.upscaler, SDVersion.all, model_list, [model_name])
-    if model is None and use_any and len(model_list) > 0:
-        return model_list[0]
-    return model or ""
-
-
-def _find_lcm(model_list: Sequence[str], sdver: SDVersion):
-    search_paths = {
-        SDVersion.sd15: [
-            "lcm-lora-sdv1-5.safetensors",
-            "lcm/sd1.5/pytorch_lora_weights.safetensors",
-        ],
-        SDVersion.sdxl: [
-            "lcm-lora-sdxl.safetensors",
-            "lcm/sdxl/pytorch_lora_weights.safetensors",
-        ],
-    }[sdver]
-    return _find_model(ResourceKind.lora, sdver, model_list, search_paths)
-
-
-def _find_face_lora(model_list: Sequence[str], sdver: SDVersion):
-    search_paths = {
-        SDVersion.sd15: ["ip-adapter-faceid-plusv2_sd15_lora"],
-        SDVersion.sdxl: ["ip-adapter-faceid_sdxl_lora"],
-    }[sdver]
-    return _find_model(ResourceKind.lora, sdver, model_list, search_paths, is_optional=True)
+def _find_loras(model_list: Sequence[str]):
+    return {
+        name: _find_model_versions(model_list, ResourceKind.lora, name) for name in ["lcm", "face"]
+    }
 
 
 def _ensure_supported_style(client: Client):

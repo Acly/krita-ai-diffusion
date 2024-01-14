@@ -1,9 +1,9 @@
 from __future__ import annotations
 from PyQt5.QtCore import QObject, pyqtSignal, QUuid, Qt
 
-from . import model, jobs
+from . import model, jobs, resources
 from .settings import settings
-from .resources import ControlMode
+from .resources import ControlMode, ResourceKind
 from .client import resolve_sd_version
 from .properties import Property, ObservableProperties
 from .image import Bounds
@@ -81,17 +81,17 @@ class ControlLayer(QObject, ObservableProperties):
         if client := root.connection.client_if_connected:
             sdver = resolve_sd_version(self._model.style, client)
             if self.mode is ControlMode.reference:
-                if client.ip_adapter_model[sdver] is None:
+                if client.ip_adapter_model[ControlMode.reference][sdver] is None:
                     self.error_text = f"The server is missing the IP-Adapter model"
                     is_supported = False
             elif self.mode is ControlMode.face:
-                if client.ip_adapter_face_model[sdver] is None:
+                if client.ip_adapter_model[ControlMode.face][sdver] is None:
                     self.error_text = f"The server is missing the IP-Adapter FaceID model"
                     is_supported = False
             if self.mode.is_control_net and client.control_model[self.mode][sdver] is None:
-                filenames = self.mode.filenames(sdver)
-                if filenames:
-                    self.error_text = f"The ControlNet model is not installed {filenames}"
+                search_path = resources.search_path(ResourceKind.controlnet, sdver, self.mode)
+                if search_path:
+                    self.error_text = f"The ControlNet model is not installed {search_path}"
                 else:
                     self.error_text = f"Not supported for {sdver.value}"
                 is_supported = False
