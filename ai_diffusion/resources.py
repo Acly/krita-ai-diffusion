@@ -628,6 +628,6 @@ _control_filename = {
     },
     ControlMode.hands: {
         SDVersion.sd15: ["control_sd15_inpaint_depth_hand"],
-        SDVersion.sdxl: None,
+        SDVersion.sdxl: ["control-lora-depth-rank", "sai_xl_depth_"],
     },
 }
