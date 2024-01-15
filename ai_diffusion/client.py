@@ -14,8 +14,9 @@ from .websockets.src.websockets import client as websockets_client
 from .websockets.src.websockets import exceptions as websockets_exceptions
 from .style import Style, Styles
 from .resources import ControlMode, MissingResource, ResourceKind, SDVersion, UpscalerName
-from . import resources
+from .settings import settings
 from .util import ensure, is_windows, client_logger as log
+from . import resources, util
 
 
 class ClientEvent(Enum):
@@ -199,6 +200,8 @@ class Client:
         return await self._requests.post(f"{self.url}/{op}", data)
 
     async def enqueue(self, workflow: ComfyWorkflow):
+        if settings.debug_dump_workflow:
+            workflow.dump(util.log_path)
         data = {"prompt": workflow.root, "client_id": self._id}
         result = await self._post("prompt", data)
         job_id = result["prompt_id"]

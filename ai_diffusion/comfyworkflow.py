@@ -46,6 +46,8 @@ class ComfyWorkflow:
 
     def dump(self, filepath: str | Path):
         filepath = Path(filepath)
+        if filepath.suffix != ".json":
+            filepath = filepath / "workflow.json"
         filepath.parent.mkdir(parents=True, exist_ok=True)
         with open(filepath, "w") as f:
             json.dump(self.root, f, indent=4)

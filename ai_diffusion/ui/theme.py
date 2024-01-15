@@ -4,9 +4,10 @@ from PyQt5.QtGui import QGuiApplication, QPalette, QIcon, QPixmap, QFontMetrics
 from PyQt5.QtWidgets import QVBoxLayout, QLabel, QWidget
 from pathlib import Path
 
-from ..settings import Setting, util
+from ..settings import Setting
 from ..style import SDVersion
 from ..client import Client
+from ..util import is_windows, client_logger as log
 
 is_dark = QGuiApplication.palette().color(QPalette.Window).lightness() < 128
 
@@ -27,7 +28,7 @@ def icon(name: str):
     if not path.exists():
         path = path.with_suffix(".png")
     if not path.exists():
-        util.client_logger.error(f"Icon {name} not found for them {theme}")
+        log.error(f"Icon {name} not found for them {theme}")
         return QIcon()
     return QIcon(str(path))
 
@@ -40,7 +41,7 @@ def sd_version_icon(version: SDVersion, client: Client | None = None):
     elif version is SDVersion.sdxl:
         return icon("sd-version-xl")
     else:
-        util.client_logger.warning(f"Unresolved SD version {version}, cannot fetch icon")
+        log.warning(f"Unresolved SD version {version}, cannot fetch icon")
         return icon("warning")
 
 
@@ -65,7 +66,7 @@ def set_text_clipped(label: QLabel, text: str):
 
 
 def screen_scale(widget: QWidget, size: QSize):
-    if util.is_windows:  # Not sure about other OS
+    if is_windows:  # Not sure about other OS
         scale = widget.logicalDpiX() / 96.0
         return QSize(int(size.width() * scale), int(size.height() * scale))
     return size

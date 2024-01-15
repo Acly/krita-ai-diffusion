@@ -6,7 +6,7 @@ from pathlib import Path
 from typing import Optional, Any
 from PyQt5.QtCore import QObject, pyqtSignal
 
-from . import util
+from .util import is_macos, is_windows, encode_json, client_logger as log
 
 
 class ServerMode(Enum):
@@ -17,9 +17,9 @@ class ServerMode(Enum):
 
 class ServerBackend(Enum):
     cpu = ("Run on CPU", True)
-    cuda = ("Use CUDA (NVIDIA GPU)", not util.is_macos)
-    mps = ("Use MPS (Metal Performance Shader)", util.is_macos)
-    directml = ("Use DirectML (GPU)", util.is_windows)
+    cuda = ("Use CUDA (NVIDIA GPU)", not is_macos)
+    mps = ("Use MPS (Metal Performance Shader)", is_macos)
+    directml = ("Use DirectML (GPU)", is_windows)
 
     @staticmethod
     def supported():
@@ -27,7 +27,7 @@ class ServerBackend(Enum):
 
     @staticmethod
     def default():
-        if util.is_macos:
+        if is_macos:
             return ServerBackend.mps
         else:
             return ServerBackend.cuda
@@ -194,6 +194,11 @@ class Settings(QObject):
         },
     }
 
+    debug_dump_workflow: bool
+    _debug_dump_workflow = Setting(
+        "Dump Workflow", False, "Write latest ComfyUI prompt to the log folder for test & debug"
+    )
+
     # Folder where intermediate images are stored for debug purposes (default: None)
     debug_image_folder = os.environ.get("KRITA_AI_DIFFUSION_DEBUG_IMAGE")
 
@@ -227,7 +232,7 @@ class Settings(QObject):
     def save(self, path: Optional[Path] = None):
         path = self.default_path if path is None else path
         with open(path, "w") as file:
-            file.write(json.dumps(self._values, default=util.encode_json, indent=4))
+            file.write(json.dumps(self._values, default=encode_json, indent=4))
 
     def load(self, path: Optional[Path] = None):
         path = self.default_path if path is None else path
@@ -244,7 +249,8 @@ class Settings(QObject):
                     elif isinstance(setting.default, type(v)):
                         self._values[k] = v
                     else:
-                        raise Exception(f"{v} is not a valid value for '{k}'")
+                        log.error(f"{path}: {v} is not a valid value for '{k}'")
+                        self._values[k] = setting.default
 
     def apply_performance_preset(self, preset: PerformancePreset):
         if preset not in [PerformancePreset.custom, PerformancePreset.auto]:

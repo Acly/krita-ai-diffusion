@@ -1035,6 +1035,7 @@ class InterfaceSettings(SettingsTab):
         self.add("show_control_end", SwitchSetting(S._show_control_end, ("Show", "Hide"), self))
         self.add("auto_preview", SwitchSetting(S._auto_preview, parent=self))
         self.add("new_seed_after_apply", SwitchSetting(S._new_seed_after_apply, parent=self))
+        self.add("debug_dump_workflow", SwitchSetting(S._debug_dump_workflow, parent=self))
 
         self._layout.addStretch()
 
