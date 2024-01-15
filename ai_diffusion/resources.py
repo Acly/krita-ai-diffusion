@@ -517,19 +517,19 @@ class UpscalerName(Enum):
 
 class ControlMode(Enum):
     reference = 0
-    face = 1
-    inpaint = 2
-    scribble = 3
-    line_art = 4
-    soft_edge = 5
-    canny_edge = 6
-    depth = 7
-    normal = 8
-    pose = 9
-    segmentation = 10
-    blur = 11
-    stencil = 12
-    hands = 13
+    face = 13
+    inpaint = 1
+    scribble = 2
+    line_art = 3
+    soft_edge = 4
+    canny_edge = 5
+    depth = 6
+    normal = 7
+    pose = 8
+    segmentation = 9
+    blur = 10
+    stencil = 11
+    hands = 12
 
     @property
     def is_lines(self):
