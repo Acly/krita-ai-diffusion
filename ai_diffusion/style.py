@@ -68,8 +68,9 @@ class StyleSettings:
 
     clip_skip = Setting(
         "Clip Skip",
-        1,
-        "Last layer to stop CLIP at. Most models use 1 while some require 2.",
+        0,
+        "Clip layers to omit at the end. Some checkpoints prefer a different value than the"
+        " default.",
     )
 
     v_prediction_zsnr = Setting(

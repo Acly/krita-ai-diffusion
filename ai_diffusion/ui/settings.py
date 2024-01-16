@@ -158,6 +158,10 @@ class SpinBoxSetting(SettingWidget):
     def value(self, v):
         self._spinbox.setValue(v)
 
+    def add_checkbox(self, text: str):
+        self._spinbox.setSpecialValueText("Default")
+        return super().add_checkbox(text)
+
 
 class SliderSetting(SettingWidget):
     _is_float = False
@@ -818,24 +822,27 @@ class StylePresets(SettingsTab):
         checkpoint_advanced = ExpanderButton("Checkpoint configuration (advanced)", self)
         checkpoint_advanced.toggled.connect(self._toggle_checkpoint_advanced)
         self._layout.addWidget(checkpoint_advanced)
-        self._checkpoint_advanced_widgets = [
-            add("vae", ComboBoxSetting(StyleSettings.vae, self)),
-            add("clip_skip", SliderSetting(StyleSettings.clip_skip, self, 1, 12)),
-            add("v_prediction_zsnr", SwitchSetting(StyleSettings.v_prediction_zsnr, parent=self)),
-        ]
+
+        self._checkpoint_advanced_widgets = [add("vae", ComboBoxSetting(StyleSettings.vae, self))]
+
+        self._clip_skip = add(
+            "clip_skip", SpinBoxSetting(StyleSettings.clip_skip, self, 0, 12, step=1)
+        )
+        clip_skip_check = self._clip_skip.add_checkbox("Override")
+        clip_skip_check.toggled.connect(self._toggle_clip_skip)
+        self._checkpoint_advanced_widgets.append(self._clip_skip)
+
         self._resolution_spin = add(
             "preferred_resolution",
-            SpinBoxSetting(
-                StyleSettings.preferred_resolution,
-                minimum=0,
-                maximum=2048,
-                step=8,
-                parent=self,
-            ),
+            SpinBoxSetting(StyleSettings.preferred_resolution, self, 0, 2048, step=8),
         )
-        resolution_check = self._resolution_spin.add_checkbox("Manual override")
+        resolution_check = self._resolution_spin.add_checkbox("Override")
         resolution_check.toggled.connect(self._toggle_preferred_resolution)
         self._checkpoint_advanced_widgets.append(self._resolution_spin)
+
+        self._checkpoint_advanced_widgets.append(
+            add("v_prediction_zsnr", SwitchSetting(StyleSettings.v_prediction_zsnr, parent=self))
+        )
         self._toggle_checkpoint_advanced(False)
 
         add("loras", LoraList(StyleSettings.loras, self))
@@ -971,6 +978,13 @@ class StylePresets(SettingsTab):
         elif not checked and self._resolution_spin.value > 0:
             self._resolution_spin.value = 0
 
+    def _toggle_clip_skip(self, checked: bool):
+        if checked and self._clip_skip.value == 0:
+            sd_ver = resolve_sd_version(self.current_style, root.connection.client_if_connected)
+            self._clip_skip.value = 1 if sd_ver is SDVersion.sd15 else 2
+        elif not checked and self._clip_skip.value > 0:
+            self._clip_skip.value = 0
+
     def _toggle_checkpoint_advanced(self, checked: bool):
         for widget in self._checkpoint_advanced_widgets:
             widget.visible = checked
@@ -988,6 +1002,7 @@ class StylePresets(SettingsTab):
             for name, widget in self._style_widgets.items():
                 widget.value = getattr(style, name)
         self._set_checkpoint_warning()
+        self._clip_skip.enabled = style.clip_skip > 0
         self._resolution_spin.enabled = style.preferred_resolution > 0
 
     def _read(self):
