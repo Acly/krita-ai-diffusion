@@ -416,9 +416,14 @@ class UpscaleWorkspace(QObject, ObservableProperties):
     def __init__(self, model: Model):
         super().__init__()
         self._model = model
-        if client := model._connection.client_if_connected:
-            self.upscaler = client.default_upscaler
         self.factor_changed.connect(lambda _: self.target_extent_changed.emit(self.target_extent))
+        self._init_model()
+        model._connection.models_changed.connect(self._init_model)
+
+    def _init_model(self):
+        if self.upscaler == "":
+            if client := self._model._connection.client_if_connected:
+                self.upscaler = client.default_upscaler
 
     @property
     def target_extent(self):

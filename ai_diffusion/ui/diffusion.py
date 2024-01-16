@@ -112,6 +112,7 @@ class ImageDiffusionWidget(DockWidget):
 
     def register_model(self, model: Model):
         model.workspace_changed.connect(self.update_content)
+        self.update_content()
 
     def update_content(self):
         model = root.model_for_active_document()

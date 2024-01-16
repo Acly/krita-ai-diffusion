@@ -119,7 +119,8 @@ def bind_combo(model, model_property: str, combo: QComboBox, mode=Bind.two_way):
             combo.setCurrentIndex(index)
 
     def set_model(index):
-        setattr(model, model_property, combo.currentData())
+        if combo.count() > 0:
+            setattr(model, model_property, combo.currentData())
 
     model_to_widget = _signal(model, model_property).connect(set_combo)
     set_combo(getattr(model, model_property))
