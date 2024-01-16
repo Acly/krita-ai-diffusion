@@ -557,6 +557,10 @@ class ControlMode(Enum):
         return self in [ControlMode.reference, ControlMode.face]
 
     @property
+    def is_part_of_image(self):  # not only used a guidance hint
+        return self in [ControlMode.reference, ControlMode.line_art, ControlMode.blur]
+
+    @property
     def text(self):
         return _control_text[self]
 

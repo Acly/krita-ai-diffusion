@@ -215,7 +215,7 @@ class Model(QObject, ObservableProperties):
 
     def _get_current_image(self, bounds: Bounds):
         exclude = [  # exclude control layers from projection
-            c.layer for c in self.control if c.mode not in [ControlMode.reference, ControlMode.blur]
+            c.layer for c in self.control if not c.mode.is_part_of_image
         ]
         if self._layer:  # exclude preview layer
             exclude.append(self._layer)
