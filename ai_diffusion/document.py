@@ -1,5 +1,6 @@
 from __future__ import annotations
 from contextlib import nullcontext
+from pathlib import Path
 from typing import Literal, NamedTuple, cast
 import krita
 from krita import Krita
@@ -81,6 +82,9 @@ class Document:
     def create_layer_observer(self) -> LayerObserver:
         return LayerObserver(None)
 
+    def import_animation(self, files: list[Path], offset: int = 0):
+        raise NotImplementedError
+
     @property
     def active_layer(self) -> krita.Node:
         raise NotImplementedError
@@ -92,29 +96,6 @@ class Document:
     @property
     def resolution(self) -> float:
         return 0.0
-
-    @property
-    def current_time(self) -> int:
-        return 0
-
-    @current_time.setter
-    def current_time(self, time: int):
-        pass
-
-    @property
-    def end_time(self) -> int:
-        return 0
-
-    @end_time.setter
-    def end_time(self, time: int):
-        pass
-
-    def find_last_keyframe(self, layer: krita.Node):
-        end = max(1, self.end_time)
-        for frame in range(end, 0, -1):
-            if layer.hasKeyframeAtTime(frame):
-                return frame
-        return 0
 
     @property
     def is_valid(self) -> bool:
@@ -307,6 +288,12 @@ class KritaDocument(Document):
     def create_layer_observer(self):
         return LayerObserver(self._doc)
 
+    def import_animation(self, files: list[Path], offset: int = 0):
+        success = self._doc.importAnimation([str(f) for f in files], offset, 1)
+        if not success and len(files) > 0:
+            folder = files[0].parent
+            raise RuntimeError(f"Failed to import animation from {folder}")
+
     @property
     def active_layer(self):
         return self._doc.activeNode()
@@ -318,22 +305,6 @@ class KritaDocument(Document):
     @property
     def resolution(self):
         return self._doc.resolution() / 72.0  # KisImage::xRes which is applied to vectors
-
-    @property
-    def current_time(self) -> int:
-        return self._doc.currentTime()
-
-    @current_time.setter
-    def current_time(self, time: int):
-        self._doc.setCurrentTime(time)
-
-    @property
-    def end_time(self) -> int:
-        return self._doc.fullClipRangeEndTime()
-
-    @end_time.setter
-    def end_time(self, time: int):
-        self._doc.setFullClipRangeEndTime(time)
 
     @property
     def is_valid(self):

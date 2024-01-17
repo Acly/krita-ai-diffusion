@@ -1,5 +1,4 @@
 from __future__ import annotations
-from contextlib import nullcontext
 from pathlib import Path
 from enum import Enum
 from typing import NamedTuple
@@ -10,7 +9,7 @@ from .settings import settings
 from .network import NetworkError
 from .image import Extent, Image, Mask, Bounds
 from .client import ClientMessage, ClientEvent, filter_supported_styles, resolve_sd_version
-from .document import Document, LayerObserver, RestoreActiveLayer
+from .document import Document, LayerObserver
 from .pose import Pose
 from .style import Style, Styles, SDVersion
 from .workflow import ControlMode, Conditioning
@@ -458,8 +457,10 @@ class LiveWorkspace(QObject, ObservableProperties):
     _model: Model
     _result: Image | None = None
     _result_bounds: Bounds | None = None
-    _recording_layer: krita.Node | None = None
-    _keyframes: list[tuple[Image, Bounds]]
+    _keyframes_folder: Path | None = None
+    _keyframe_start = 0
+    _keyframe_index = 0
+    _keyframes: list[Path]
 
     def __init__(self, model: Model):
         super().__init__()
@@ -478,13 +479,16 @@ class LiveWorkspace(QObject, ObservableProperties):
 
     def toggle_record(self, active: bool):
         if self.is_recording != active:
+            if active and not self._start_recording():
+                self._model.report_error(
+                    "Cannot save recorded frames, document must be saved first!"
+                )
+                return
             self._is_recording = active
             self.is_active = active
             self.is_recording_changed.emit(active)
-            if active:
-                self._add_recording_layer()
-            else:
-                self._insert_frames()
+            if not active:
+                self._import_animation()
 
     def handle_job_finished(self, job: Job):
         if job.kind is JobKind.live_preview:
@@ -512,50 +516,38 @@ class LiveWorkspace(QObject, ObservableProperties):
         self.has_result = True
 
         if self.is_recording:
-            self._keyframes.append((value, bounds))
+            self._save_frame(value, bounds)
 
-    def _add_recording_layer(self, restore_active=True):
-        doc = self._model.document
-        if self._recording_layer and self._recording_layer.parentNode() is None:
-            self._recording_layer = None
-        if self._recording_layer is None:
-            with RestoreActiveLayer(doc) if restore_active else nullcontext():
-                self._recording_layer = doc.insert_layer(
-                    f"[Recording] {self._model.prompt}", below=doc.active_layer
-                )
-                self._recording_layer.enableAnimation()
-                self._recording_layer.setPinnedToTimeline(True)
-        return self._recording_layer
+    def _start_recording(self):
+        doc_filename = self._model.document.filename
+        if doc_filename:
+            path = Path(doc_filename)
+            folder = path.parent / f"{path.with_suffix('.live-frames')}"
+            folder.mkdir(exist_ok=True)
+            self._keyframes_folder = folder
+            while (self._keyframes_folder / f"frame-{self._keyframe_index}.webp").exists():
+                self._keyframe_index += 1
+            self._keyframe_start = self._keyframe_index
+        else:
+            self._keyframes_folder = None
+        return self._keyframes_folder
 
-    def _insert_frames(self):
-        if len(self._keyframes) > 0:
-            layer = self._add_recording_layer(restore_active=False)
-            eventloop.run(
-                _report_errors(
-                    self._model, self._insert_frames_into_timeline(layer, self._keyframes)
-                )
-            )
-            self._keyframes = []
+    def _save_frame(self, image: Image, bounds: Bounds):
+        assert self._keyframes_folder is not None
+        filename = self._keyframes_folder / f"frame-{self._keyframe_index}.webp"
+        self._keyframe_index += 1
 
-    async def _insert_frames_into_timeline(
-        self, layer: krita.Node, frames: list[tuple[Image, Bounds]]
-    ):
-        doc = self._model.document
-        doc.current_time = doc.find_last_keyframe(layer)
-        add_keyframe_action = krita.Krita.instance().action("add_duplicate_frame")
+        extent = self._model.document.extent
+        if bounds is not None and bounds.extent != extent:
+            image = Image.crop(image, bounds)
+        image.save(filename)
+        self._keyframes.append(filename)
 
-        # Try to avoid ASSERT (krita): "row >= 0" in KisAnimCurvesChannelsModel.cpp, line 181
-        await eventloop.process_events()
-
-        with RestoreActiveLayer(doc):
-            doc.active_layer = layer
-            for frame in frames:
-                image, bounds = frame
-                doc.set_layer_content(layer, image, bounds)
-                add_keyframe_action.trigger()
-                await eventloop.wait_until(lambda: layer.hasKeyframeAtTime(doc.current_time))
-                doc.current_time += 1
-        doc.end_time = doc.current_time
+    def _import_animation(self):
+        self._model.document.import_animation(self._keyframes, self._keyframe_start)
+        start, end = self._keyframe_start, self._keyframe_start + len(self._keyframes)
+        self._model.document.active_layer.setName(f"[Rec] {start}-{end}: {self._model.prompt}")
+        self._keyframes = []
 
 
 async def _report_errors(parent: Model, coro):
