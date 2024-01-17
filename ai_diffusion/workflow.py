@@ -521,43 +521,44 @@ def apply_control(
         )
 
     # Create a separate embedding for each face ID (though more than 1 is questionable)
-    face_layers = [c for c in cond.control if c.mode is ControlMode.face]
-    if len(face_layers) > 0:
-        ipadapter_model_name = ensure(comfy.ip_adapter_model[ControlMode.face][sd_ver])
-        clip_vision = w.load_clip_vision(comfy.clip_vision_model)
-        ip_adapter = w.load_ip_adapter(ipadapter_model_name)
-        insight_face = w.load_insight_face()
-        for control in face_layers:
-            model = w.apply_ip_adapter_face(
-                ip_adapter,
-                clip_vision,
-                insight_face,
-                model,
-                control.load_image(w),
-                control.strength,
-                end_at=control.end,
-                faceid_v2="v2" in ipadapter_model_name,
-            )
+    if ipadapter_model_name := comfy.ip_adapter_model[ControlMode.face][sd_ver]:
+        face_layers = [c for c in cond.control if c.mode is ControlMode.face]
+        if len(face_layers) > 0:
+            clip_vision = w.load_clip_vision(comfy.clip_vision_model)
+            ip_adapter = w.load_ip_adapter(ipadapter_model_name)
+            insight_face = w.load_insight_face()
+            for control in face_layers:
+                model = w.apply_ip_adapter_face(
+                    ip_adapter,
+                    clip_vision,
+                    insight_face,
+                    model,
+                    control.load_image(w),
+                    control.strength,
+                    end_at=control.end,
+                    faceid_v2="v2" in ipadapter_model_name,
+                )
 
     # Encode images with their weights into a batch and apply IP-adapter to the model once
-    ip_images = []
-    ip_weights = []
-    ip_end_at = 0.1
+    if ipadapter_model_name := comfy.ip_adapter_model[ControlMode.reference][sd_ver]:
+        ip_images = []
+        ip_weights = []
+        ip_end_at = 0.1
 
-    for control in (c for c in cond.control if c.mode is ControlMode.reference):
-        if len(ip_images) >= 4:
-            raise Exception("Too many control layers of type 'reference image' (maximum is 4)")
-        ip_images.append(control.load_image(w))
-        ip_weights.append(control.strength)
-        ip_end_at = max(ip_end_at, control.end)
-    max_weight = max(ip_weights, default=0.0)
-    if len(ip_images) > 0 and max_weight > 0:
-        ip_weights = [w / max_weight for w in ip_weights]
-        ip_model_name = ensure(comfy.ip_adapter_model[ControlMode.reference][sd_ver])
-        clip_vision = w.load_clip_vision(comfy.clip_vision_model)
-        ip_adapter = w.load_ip_adapter(ip_model_name)
-        embeds = w.encode_ip_adapter(clip_vision, ip_images, ip_weights, noise=0.2)
-        model = w.apply_ip_adapter(ip_adapter, embeds, model, max_weight, end_at=ip_end_at)
+        for control in (c for c in cond.control if c.mode is ControlMode.reference):
+            if len(ip_images) >= 4:
+                raise Exception("Too many control layers of type 'reference image' (maximum is 4)")
+            ip_images.append(control.load_image(w))
+            ip_weights.append(control.strength)
+            ip_end_at = max(ip_end_at, control.end)
+
+        max_weight = max(ip_weights, default=0.0)
+        if len(ip_images) > 0 and max_weight > 0:
+            ip_weights = [w / max_weight for w in ip_weights]
+            clip_vision = w.load_clip_vision(comfy.clip_vision_model)
+            ip_adapter = w.load_ip_adapter(ipadapter_model_name)
+            embeds = w.encode_ip_adapter(clip_vision, ip_images, ip_weights, noise=0.2)
+            model = w.apply_ip_adapter(ip_adapter, embeds, model, max_weight, end_at=ip_end_at)
 
     return model, positive, negative
 

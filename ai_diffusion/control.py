@@ -80,15 +80,12 @@ class ControlLayer(QObject, ObservableProperties):
         is_supported = True
         if client := root.connection.client_if_connected:
             sdver = resolve_sd_version(self._model.style, client)
-            if self.mode is ControlMode.reference:
-                if client.ip_adapter_model[ControlMode.reference][sdver] is None:
-                    self.error_text = f"The server is missing the IP-Adapter model"
-                    is_supported = False
-            elif self.mode is ControlMode.face:
-                if client.ip_adapter_model[ControlMode.face][sdver] is None:
-                    self.error_text = f"The server is missing the IP-Adapter FaceID model"
-                    is_supported = False
-            if self.mode.is_control_net and client.control_model[self.mode][sdver] is None:
+            if self.mode.is_ip_adapter and client.ip_adapter_model[self.mode][sdver] is None:
+                self.error_text = f"The server is missing the IP-Adapter {self.mode.text} model"
+                if not client.supports_ip_adapter:
+                    self.error_text = f"IP-Adapter is not supported by this GPU"
+                is_supported = False
+            elif self.mode.is_control_net and client.control_model[self.mode][sdver] is None:
                 search_path = resources.search_path(ResourceKind.controlnet, sdver, self.mode)
                 if search_path:
                     self.error_text = f"The ControlNet model is not installed {search_path}"
