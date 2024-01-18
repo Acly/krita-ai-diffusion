@@ -8,7 +8,7 @@ from typing import NamedTuple, Sequence
 version = "1.13.0"
 
 comfy_url = "https://github.com/comfyanonymous/ComfyUI"
-comfy_version = "af94eb14e3b44f6e6c48a7762a5e229cf3a006e4"
+comfy_version = "d76a04b6ea61306349861a7c4657567507385947"
 
 
 class CustomNode(NamedTuple):
@@ -24,14 +24,14 @@ required_custom_nodes = [
         "ControlNet Preprocessors",
         "comfyui_controlnet_aux",
         "https://github.com/Fannovel16/comfyui_controlnet_aux",
-        "15d9861bdd947b299bf5dde1e2e3d8a962e4f26a",
+        "678f2d57333777cf5d3ab2e9ae01eb350c17ab13",
         ["InpaintPreprocessor"],
     ),
     CustomNode(
         "IP-Adapter",
         "ComfyUI_IPAdapter_plus",
         "https://github.com/cubiq/ComfyUI_IPAdapter_plus",
-        "4e898fe0c842259fb8eccbd9db1e2d533539cf9d",
+        "52434a9c9033006c3ca45eb2f42493384bcefc91",
         ["IPAdapterModelLoader", "IPAdapterApply"],
     ),
     CustomNode(
@@ -45,7 +45,7 @@ required_custom_nodes = [
         "External Tooling Nodes",
         "comfyui-tooling-nodes",
         "https://github.com/Acly/comfyui-tooling-nodes",
-        "b2496a3f132f8c3f7d452a0960c422f55c33d128",
+        "69143ec68fd330309703c57a0284a803f0d6bf0b",
         [
             "ETN_LoadImageBase64",
             "ETN_LoadMaskBase64",
@@ -418,7 +418,7 @@ optional_models = [
             ): "https://huggingface.co/h94/IP-Adapter-FaceID/resolve/main/ip-adapter-faceid-plusv2_sd15.bin",
             Path(
                 "models/loras/ip-adapter-faceid-plusv2_sd15_lora.safetensors"
-            ): "https://huggingface.co/h94/IP-Adapter-FaceID/resolve/main/ip-adapter-faceid_sd15_lora.safetensors",
+            ): "https://huggingface.co/h94/IP-Adapter-FaceID/resolve/main/ip-adapter-faceid-plusv2_sd15_lora.safetensors",
         },
         requirements=ModelRequirements.insightface,
     ),
@@ -468,11 +468,11 @@ optional_models = [
         SDVersion.sdxl,
         {
             Path(
-                "models/ipadapter/ip-adapter-faceid_sdxl.bin"
-            ): "https://huggingface.co/h94/IP-Adapter-FaceID/resolve/main/ip-adapter-faceid_sdxl.bin",
+                "models/ipadapter/ip-adapter-faceid-plusv2_sdxl.bin"
+            ): "https://huggingface.co/h94/IP-Adapter-FaceID/resolve/main/ip-adapter-faceid-plusv2_sdxl.bin",
             Path(
-                "models/loras/ip-adapter-faceid_sdxl_lora.safetensors"
-            ): "https://huggingface.co/h94/IP-Adapter-FaceID/resolve/main/ip-adapter-faceid_sdxl_lora.safetensors",
+                "models/loras/ip-adapter-faceid-plusv2_sdxl_lora.safetensors"
+            ): "https://huggingface.co/h94/IP-Adapter-FaceID/resolve/main/ip-adapter-faceid-plusv2_sdxl_lora.safetensors",
         },
         requirements=ModelRequirements.insightface,
     ),
@@ -626,12 +626,12 @@ search_paths: dict[str, list[str]] = {
     resource_id(ResourceKind.ip_adapter, SDVersion.sd15, ControlMode.reference): ["ip-adapter_sd15"],
     resource_id(ResourceKind.ip_adapter, SDVersion.sdxl, ControlMode.reference): ["ip-adapter_sdxl_vit-h"],
     resource_id(ResourceKind.ip_adapter, SDVersion.sd15, ControlMode.face): ["ip-adapter-faceid-plusv2_sd15"],
-    resource_id(ResourceKind.ip_adapter, SDVersion.sdxl, ControlMode.face): ["ip-adapter-faceid_sdxl"],
+    resource_id(ResourceKind.ip_adapter, SDVersion.sdxl, ControlMode.face): ["ip-adapter-faceid-plusv2_sdxl"],
     resource_id(ResourceKind.clip_vision, SDVersion.all, "ip_adapter"): ["sd1.5/pytorch_model.bin", "sd1.5/model.safetensors"],
     resource_id(ResourceKind.lora, SDVersion.sd15, "lcm"): ["lcm-lora-sdv1-5.safetensors", "lcm/sd1.5/pytorch_lora_weights.safetensors"],
     resource_id(ResourceKind.lora, SDVersion.sdxl, "lcm"): ["lcm-lora-sdxl.safetensors", "lcm/sdxl/pytorch_lora_weights.safetensors"],
     resource_id(ResourceKind.lora, SDVersion.sd15, ControlMode.face): ["ip-adapter-faceid-plusv2_sd15_lora"],
-    resource_id(ResourceKind.lora, SDVersion.sdxl, ControlMode.face): ["ip-adapter-faceid_sdxl_lora"],
+    resource_id(ResourceKind.lora, SDVersion.sdxl, ControlMode.face): ["ip-adapter-faceid-plusv2_sdxl_lora"],
     resource_id(ResourceKind.upscaler, SDVersion.all, UpscalerName.default): [UpscalerName.default.value],
     resource_id(ResourceKind.upscaler, SDVersion.all, UpscalerName.fast_2x): [UpscalerName.fast_2x.value],
     resource_id(ResourceKind.upscaler, SDVersion.all, UpscalerName.fast_3x): [UpscalerName.fast_3x.value],

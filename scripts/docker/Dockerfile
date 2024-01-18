@@ -61,7 +61,7 @@ RUN git clone https://github.com/comfyanonymous/ComfyUI.git /ComfyUI && \
     pip3 install --no-cache-dir torch torchvision torchaudio --index-url https://download.pytorch.org/whl/cu121 && \
     pip3 install -r /ComfyUI/requirements.txt && \
     pip3 cache purge && \
-    echo v1.12.0 > .krita-ai-diffusion.version
+    echo v1.13.0 > .krita-ai-diffusion.version
 
 # Install ComfyUI Custom Nodes
 RUN git clone https://github.com/ltdrdata/ComfyUI-Manager.git /ComfyUI/custom_nodes/ComfyUI-Manager && \
