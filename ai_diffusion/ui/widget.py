@@ -178,7 +178,6 @@ class QueueButton(QToolButton):
 
         self.setToolButtonStyle(Qt.ToolButtonStyle.ToolButtonTextBesideIcon)
         self.setPopupMode(QToolButton.ToolButtonPopupMode.InstantPopup)
-        self.setMinimumWidth(int(self.sizeHint().width() * 2.2))
         self._update()
 
     @property
@@ -205,6 +204,11 @@ class QueueButton(QToolButton):
             self.setIcon(theme.icon("queue-inactive"))
             self.setToolTip("Idle.")
         self.setText(f"{count} ")
+
+    def sizeHint(self) -> QSize:
+        original = super().sizeHint()
+        width = original.height() * 0.75 + self.fontMetrics().width(" 99 ") + 20
+        return QSize(int(width), original.height())
 
     def paintEvent(self, a0):
         _paint_tool_drop_down(self, self.text())

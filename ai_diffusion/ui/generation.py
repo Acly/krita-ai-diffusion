@@ -179,8 +179,9 @@ class HistoryWidget(QListWidget):
         selected = self.selectedItems()
         if len(selected) > 0:
             rect = self.visualItemRect(selected[0])
+            font = self._apply_button.fontMetrics()
             context_visible = rect.width() >= 0.6 * self.iconSize().width()
-            apply_text_visible = rect.width() >= 0.85 * self.iconSize().width()
+            apply_text_visible = font.width("Apply") < 0.35 * rect.width()
             apply_pos = QPoint(rect.left() + 3, rect.bottom() - self._apply_button.height() - 2)
             if context_visible:
                 cw = self._context_button.width()
@@ -278,8 +279,9 @@ class HistoryWidget(QListWidget):
         image = job.results[index]
         # Use 2x thumb size for good quality on high-DPI screens
         thumb = Image.scale_to_fit(image, Extent(self._thumb_size * 2, self._thumb_size * 2))
-        if thumb.extent.height < self._thumb_size:
-            thumb = Image.crop(thumb, Bounds(0, 0, thumb.extent.width, self._thumb_size))
+        min_height = min(4 * self._apply_button.height(), 2 * self._thumb_size)
+        if thumb.extent.height < min_height:
+            thumb = Image.crop(thumb, Bounds(0, 0, thumb.extent.width, min_height))
         if job.result_was_used(index):  # add tiny star icon to mark used results
             thumb.draw_image(self._applied_icon, offset=(-28, 4))
         return thumb.to_icon()
