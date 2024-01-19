@@ -5,8 +5,9 @@ import os
 import sys
 import logging
 import logging.handlers
+import statistics
 import zipfile
-from typing import Optional, Sequence, TypeVar
+from typing import Iterable, Optional, Sequence, TypeVar
 
 T = TypeVar("T")
 
@@ -49,6 +50,13 @@ def batched(iterable, n):
     it = iter(iterable)
     while batch := tuple(islice(it, n)):
         yield batch
+
+
+def median_or_zero(values: Iterable[float]) -> float:
+    try:
+        return statistics.median(values)
+    except statistics.StatisticsError:
+        return 0
 
 
 def encode_json(obj):

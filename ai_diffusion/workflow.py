@@ -14,7 +14,7 @@ from .style import Style, StyleSettings
 from .resources import ControlMode, SDVersion, UpscalerName
 from .settings import settings
 from .comfyworkflow import ComfyWorkflow, Output
-from .util import ensure, client_logger as log
+from .util import ensure, median_or_zero, client_logger as log
 
 
 _pattern_lora = re.compile(r"\s*<lora:([^:<>]+)(?::(-?[^:<>]*))?>\s*", re.IGNORECASE)
@@ -365,9 +365,10 @@ def load_model_with_lora(
         else:
             raise Exception(f"LCM LoRA model not found for {sdver.value}")
 
-    if any(c.mode is ControlMode.face for c in cond.control):
+    face_weight = median_or_zero(c.strength for c in cond.control if c.mode is ControlMode.face)
+    if face_weight > 0:
         if lora := comfy.lora_models["face"][sdver]:
-            model = w.load_lora_model(model, lora, 0.6)
+            model = w.load_lora_model(model, lora, 0.65 * face_weight)
         else:
             raise Exception(f"IP-Adapter Face LoRA model not found for {sdver.value}")
 
