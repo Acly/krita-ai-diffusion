@@ -217,6 +217,7 @@ class QueueButton(QToolButton):
 class ControlWidget(QWidget):
     _model: Model
     _control: ControlLayer
+    _connections: list[QMetaObject.Connection | Binding]
 
     def __init__(self, model: Model, control: ControlLayer, parent: ControlListWidget):
         super().__init__(parent)
@@ -234,7 +235,6 @@ class ControlWidget(QWidget):
         for mode in (m for m in ControlMode if m is not ControlMode.inpaint):
             icon = theme.icon(f"control-{mode.name}")
             self.mode_select.addItem(icon, mode.text, mode)
-        bind_combo(control, "mode", self.mode_select)
 
         self.layer_select = QComboBox(self)
         self.layer_select.setMinimumContentsLength(20)
@@ -242,16 +242,13 @@ class ControlWidget(QWidget):
             QComboBox.SizeAdjustPolicy.AdjustToMinimumContentsLength
         )
         self._update_layers()
-        bind_combo(control, "layer_id", self.layer_select)
         self._model.image_layers.changed.connect(self._update_layers)
-        control.has_active_job_changed.connect(lambda x: self.layer_select.setEnabled(not x))
 
         self.generate_button = QToolButton(self)
         self.generate_button.setToolButtonStyle(Qt.ToolButtonStyle.ToolButtonIconOnly)
         self.generate_button.setIcon(theme.icon("control-generate"))
         self.generate_button.setToolTip("Generate control layer from current image")
         self.generate_button.clicked.connect(control.generate)
-        control.has_active_job_changed.connect(lambda x: self.generate_button.setEnabled(not x))
 
         self.add_pose_button = QToolButton(self)
         self.add_pose_button.setToolButtonStyle(Qt.ToolButtonStyle.ToolButtonIconOnly)
@@ -264,19 +261,16 @@ class ControlWidget(QWidget):
         self.strength_spin.setSuffix("%")
         self.strength_spin.setSingleStep(10)
         self.strength_spin.setToolTip("Control strength")
-        bind(control, "strength", self.strength_spin, "value")
 
         self.end_spin = QDoubleSpinBox(self)
         self.end_spin.setRange(0.0, 1.0)
         self.end_spin.setValue(control.end)
         self.end_spin.setSingleStep(0.1)
         self.end_spin.setToolTip("Control ending step ratio")
-        bind(control, "end", self.end_spin, "value")
 
         self.error_text = QLabel(self)
         self.error_text.setStyleSheet(f"color: {theme.red};")
         self.error_text.setVisible(not control.is_supported)
-        control.error_text_changed.connect(self._set_error)
         self._set_error(control.error_text)
 
         self.remove_button = QToolButton(self)
@@ -297,13 +291,28 @@ class ControlWidget(QWidget):
         layout.addWidget(self.error_text, 1)
         layout.addWidget(self.remove_button)
 
-        control.is_supported_changed.connect(self._update_visibility)
-        control.can_generate_changed.connect(self._update_visibility)
-        control.show_end_changed.connect(self._update_visibility)
-        control.mode_changed.connect(self._update_visibility)
-        control.is_pose_vector_changed.connect(self._update_pose_utils)
         self._update_visibility()
         self._update_pose_utils()
+
+        self._connections = [
+            bind_combo(control, "mode", self.mode_select),
+            bind_combo(control, "layer_id", self.layer_select),
+            bind(control, "strength", self.strength_spin, "value"),
+            bind(control, "end", self.end_spin, "value"),
+            control.has_active_job_changed.connect(
+                lambda x: self.generate_button.setEnabled(not x)
+            ),
+            control.has_active_job_changed.connect(lambda x: self.layer_select.setEnabled(not x)),
+            control.error_text_changed.connect(self._set_error),
+            control.is_supported_changed.connect(self._update_visibility),
+            control.can_generate_changed.connect(self._update_visibility),
+            control.show_end_changed.connect(self._update_visibility),
+            control.mode_changed.connect(self._update_visibility),
+            control.is_pose_vector_changed.connect(self._update_pose_utils),
+        ]
+
+    def disconnect_all(self):
+        Binding.disconnect_all(self._connections)
 
     def _update_layers(self):
         layers: reversed[krita.Node] = reversed(self._model.image_layers)
@@ -404,6 +413,7 @@ class ControlListWidget(QWidget):
         if isinstance(widget, ControlLayer):
             widget = next(w for w in self._controls if w._control == widget)
         self._controls.remove(widget)
+        widget.disconnect_all()
         widget.deleteLater()
 
 
