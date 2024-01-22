@@ -108,15 +108,20 @@ class Model(QObject, ObservableProperties):
                 extent, mask.bounds if mask else None, self.strength
             )
 
-        if mask is not None or self.strength < 1.0:
-            image = self._get_current_image(image_bounds)
+        # Use area conditioning for inpaint with large image context, but only if no other
+        # conditioning which has strong spatial influence on image composition/structure is present.
+        if self.strength < 1 or any(c.mode.is_structural for c in self.control):
+            selection_bounds = None
         if selection_bounds is not None:
             selection_bounds = Bounds.apply_crop(selection_bounds, image_bounds)
             selection_bounds = Bounds.minimum_size(selection_bounds, 64, image_bounds.extent)
 
         control = [c.get_image(image_bounds) for c in self.control]
-        conditioning = Conditioning(self.prompt, self.negative_prompt, control)
-        conditioning.area = selection_bounds if self.strength == 1.0 else None
+        prompt, loras = workflow.extract_loras(self.prompt, self._connection.client.loras)
+        conditioning = Conditioning(prompt, self.negative_prompt, control, selection_bounds, loras)
+
+        if mask is not None or self.strength < 1.0:
+            image = self._get_current_image(image_bounds)
         seed = self.seed if self.fixed_seed else workflow.generate_seed()
         generator = self._generate(
             image_bounds, conditioning, self.strength, image, mask, seed, self.batch_count

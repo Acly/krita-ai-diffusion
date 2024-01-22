@@ -561,6 +561,10 @@ class ControlMode(Enum):
         return self in [ControlMode.reference, ControlMode.line_art, ControlMode.blur]
 
     @property
+    def is_structural(self):  # strong impact on image composition/structure
+        return self not in [ControlMode.reference, ControlMode.face, ControlMode.inpaint]
+
+    @property
     def text(self):
         return _control_text[self]
 

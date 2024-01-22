@@ -30,7 +30,7 @@ def make_default_workflow(steps=20):
     model, clip, vae = w.load_checkpoint(default_checkpoint[SDVersion.sd15])
     positive = w.clip_text_encode(clip, "a photo of a cat")
     negative = w.clip_text_encode(clip, "a photo of a dog")
-    latent_image = w.empty_latent_image(512, 512)
+    latent_image = w.empty_latent_image(Extent(512, 512))
     latent_result = w.ksampler_advanced(
         model, positive, negative, latent_image, steps=steps, seed=123
     )

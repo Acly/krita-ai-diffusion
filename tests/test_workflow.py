@@ -371,36 +371,41 @@ def test_merge_prompt():
     assert workflow.merge_prompt("", "b {prompt} c") == "b  c"
 
 
-def test_parse_lora():
-    client_loras = [
+def test_extract_loras():
+    loras = [
         "/path/to/Lora-One.safetensors",
         "Lora-two.safetensors",
     ]
 
-    assert workflow._parse_loras(client_loras, "a ship") == []
-    assert workflow._parse_loras(client_loras, "a ship <lora:lora-one>") == [
-        {"name": client_loras[0], "strength": 1.0}
-    ]
-    assert workflow._parse_loras(client_loras, "a ship <lora:LoRA-one>") == [
-        {"name": client_loras[0], "strength": 1.0}
-    ]
-    assert workflow._parse_loras(client_loras, "a ship <lora:lora-one:0.0>") == [
-        {"name": client_loras[0], "strength": 0.0}
-    ]
-    assert workflow._parse_loras(client_loras, "a ship <lora:lora-two:0.5>") == [
-        {"name": client_loras[1], "strength": 0.5}
-    ]
-    assert workflow._parse_loras(client_loras, "a ship <lora:lora-two:-1.0>") == [
-        {"name": client_loras[1], "strength": -1.0}
-    ]
+    assert workflow.extract_loras("a ship", loras) == ("a ship", [])
+    assert workflow.extract_loras("a ship <lora:lora-one>", loras) == (
+        "a ship",
+        [{"name": loras[0], "strength": 1.0}],
+    )
+    assert workflow.extract_loras("a ship <lora:LoRA-one>", loras) == (
+        "a ship",
+        [{"name": loras[0], "strength": 1.0}],
+    )
+    assert workflow.extract_loras("a ship <lora:lora-one:0.0>", loras) == (
+        "a ship",
+        [{"name": loras[0], "strength": 0.0}],
+    )
+    assert workflow.extract_loras("a ship <lora:lora-two:0.5>", loras) == (
+        "a ship",
+        [{"name": loras[1], "strength": 0.5}],
+    )
+    assert workflow.extract_loras("a ship <lora:lora-two:-1.0>", loras) == (
+        "a ship",
+        [{"name": loras[1], "strength": -1.0}],
+    )
 
     try:
-        workflow._parse_loras(client_loras, "a ship <lora:lora-three>")
+        workflow.extract_loras("a ship <lora:lora-three>", loras)
     except Exception as e:
         assert str(e).startswith("LoRA not found")
 
     try:
-        workflow._parse_loras(client_loras, "a ship <lora:lora-one:test-invalid-str>")
+        workflow.extract_loras("a ship <lora:lora-one:test-invalid-str>", loras)
     except Exception as e:
         assert str(e).startswith("Invalid LoRA strength")
 
@@ -410,7 +415,7 @@ def test_increment_seed(ksampler_type):
     w = ComfyWorkflow()
     model, clip, vae = w.load_checkpoint(default_checkpoint[SDVersion.sd15])
     prompt = w.clip_text_encode(clip, "")
-    o = w.empty_latent_image(512, 512)
+    o = w.empty_latent_image(Extent(512, 512))
     if ksampler_type == "basic":
         o = w.ksampler(model, prompt, prompt, o, seed=5)
     else:
@@ -447,7 +452,7 @@ def test_inpaint(qtapp, comfy, temp_settings):
     temp_settings.batch_size = 3  # max 3 images@512x512 -> 2 images@768x512
     image = Image.load(image_dir / "beach_768x512.webp")
     mask = Mask.rectangle(Bounds(40, 120, 320, 200), feather=10)
-    prompt = Conditioning("ship")
+    prompt = Conditioning("ship", area=mask.bounds)
     job = workflow.inpaint(comfy, default_style(comfy), image, mask, prompt, default_seed)
 
     async def main():
@@ -466,7 +471,7 @@ def test_inpaint_upscale(qtapp, comfy, temp_settings, sdver):
     temp_settings.batch_size = 3  # 2 images for 1.5, 1 image for XL
     image = Image.load(image_dir / "beach_1536x1024.webp")
     mask = Mask.rectangle(Bounds(300, 200, 768, 512), feather=20)
-    prompt = Conditioning("ship")
+    prompt = Conditioning("ship", area=mask.bounds)
     job = workflow.inpaint(comfy, default_style(comfy, sdver), image, mask, prompt, default_seed)
 
     async def main():
@@ -499,7 +504,7 @@ def test_inpaint_area_conditioning(qtapp, comfy, temp_settings):
     temp_settings.batch_size = 1
     image = Image.load(image_dir / "lake_1536x1024.webp")
     mask = Mask.load(image_dir / "lake_1536x1024_mask_bottom_right.png")
-    prompt = Conditioning("crocodile")
+    prompt = Conditioning("crocodile", area=mask.bounds)
     job = workflow.inpaint(comfy, default_style(comfy), image, mask, prompt, default_seed)
 
     async def main():
@@ -561,7 +566,6 @@ def test_control_scribble(qtapp, comfy, temp_settings, op):
     if op == "generate":
         job = workflow.generate(comfy, style, Extent(512, 512), control, default_seed)
     elif op == "inpaint":
-        control.area = Bounds(322, 108, 144, 300)
         job = workflow.inpaint(comfy, style, inpaint_image, mask, control, default_seed)
     elif op == "refine":
         job = workflow.refine(comfy, style, inpaint_image, control, 0.7, default_seed)
@@ -570,7 +574,6 @@ def test_control_scribble(qtapp, comfy, temp_settings, op):
         job = workflow.refine_region(comfy, style, cropped_image, mask, control, 0.7, default_seed)
     else:  # op == "inpaint_upscale":
         control.control[0].image = Image.scale(scribble_image, Extent(1024, 1024))
-        control.area = Bounds(322 * 2, 108 * 2, 144 * 2, 300 * 2)
         inpaint_image = Image.scale(inpaint_image, Extent(1024, 1024))
         mask = Mask(
             Bounds(512, 0, 512, 1024), Image.scale(Image(mask.image), Extent(512, 1024))._qimage
@@ -582,6 +585,19 @@ def test_control_scribble(qtapp, comfy, temp_settings, op):
             await run_and_save(comfy, job, f"test_control_scribble_{op}.png", inpaint_image, mask)
         else:
             await run_and_save(comfy, job, f"test_control_scribble_{op}.png")
+
+    qtapp.run(main())
+
+
+def test_control_canny_downscale(qtapp, comfy, temp_settings):
+    temp_settings.batch_size = 1
+    style = default_style(comfy)
+    canny_image = Image.load(image_dir / "shrine_canny.webp")
+    control = Conditioning("shrine", "", [Control(ControlMode.canny_edge, canny_image, 1.0)])
+    job = workflow.generate(comfy, style, Extent(999, 999), control, default_seed)
+
+    async def main():
+        await run_and_save(comfy, job, "test_control_canny_downscale.png")
 
     qtapp.run(main())
 
