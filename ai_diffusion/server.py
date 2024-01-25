@@ -328,7 +328,6 @@ class Server:
         upgrade_comfy_dir = upgrade_dir / "ComfyUI"
         keep_paths = [
             Path("models"),
-            Path("custom_nodes", "ComfyUI_IPAdapter_plus", "models"),
             Path("custom_nodes", "comfyui_controlnet_aux", "ckpts"),
             Path("extra_model_paths.yaml"),
         ]

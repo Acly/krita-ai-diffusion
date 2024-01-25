@@ -212,9 +212,6 @@ required_models = [
                 "models/ipadapter/ip-adapter_sd15.safetensors"
             ): "https://huggingface.co/h94/IP-Adapter/resolve/main/models/ip-adapter_sd15.safetensors"
         },
-        alternatives=[
-            Path("custom_nodes/ComfyUI_IPAdapter_plus/models/ip-adapter_sd15.safetensors")
-        ],
     ),
     ModelResource(
         "IP-Adapter (SDXL)",
@@ -225,9 +222,6 @@ required_models = [
                 "models/ipadapter/ip-adapter_sdxl_vit-h.safetensors"
             ): "https://huggingface.co/h94/IP-Adapter/resolve/main/sdxl_models/ip-adapter_sdxl_vit-h.safetensors",
         },
-        alternatives=[
-            Path("custom_nodes/ComfyUI_IPAdapter_plus/models/ip-adapter_sdxl_vit-h.safetensors")
-        ],
     ),
     ModelResource(
         "LCM-LoRA (SD1.5)",
