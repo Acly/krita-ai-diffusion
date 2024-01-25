@@ -259,7 +259,7 @@ default_checkpoints = [
         {
             Path(
                 "models/checkpoints/realisticVisionV51_v51VAE.safetensors"
-            ): "https://civitai.com/api/download/models/130072?type=Model&format=SafeTensor&size=pruned&fp=fp16",
+            ): "https://huggingface.co/lllyasviel/fav_models/resolve/main/fav/realisticVisionV51_v51VAE.safetensors",
         },
     ),
     ModelResource(
@@ -269,7 +269,7 @@ default_checkpoints = [
         {
             Path(
                 "models/checkpoints/dreamshaper_8.safetensors"
-            ): "https://civitai.com/api/download/models/128713?type=Model&format=SafeTensor&size=pruned&fp=fp16",
+            ): "https://huggingface.co/Lykon/DreamShaper/resolve/main/DreamShaper_8_pruned.safetensors",
         },
     ),
     ModelResource(
@@ -279,7 +279,7 @@ default_checkpoints = [
         {
             Path(
                 "models/checkpoints/juggernautXL_version6Rundiffusion.safetensors"
-            ): "https://civitai.com/api/download/models/198530"
+            ): "https://huggingface.co/lllyasviel/fav_models/resolve/main/fav/juggernautXL_version6Rundiffusion.safetensors"
         },
     ),
 ]
