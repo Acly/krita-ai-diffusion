@@ -685,6 +685,16 @@ def generate(
     return w
 
 
+class InpaintMode(Enum):
+    automatic = 0
+    fill = 1
+    expand = 2
+    add_object = 3
+    remove_object = 4
+    replace_background = 5
+    custom = 6
+
+
 def inpaint(comfy: Client, style: Style, image: Image, mask: Mask, cond: Conditioning, seed: int):
     target_bounds = mask.bounds
     sd_ver = resolve_sd_version(style, comfy)
@@ -697,6 +707,7 @@ def inpaint(comfy: Client, style: Style, image: Image, mask: Mask, cond: Conditi
     in_image = scale_to_initial(extent, w, in_image, comfy)
     in_mask = w.load_mask(scaled_mask)
     in_mask = scale_to_initial(extent, w, in_mask, comfy, is_mask=True)
+    in_image = w.fill_masked(in_image, in_mask, "navier-stokes", 11)
     in_image = w.blur_masked(in_image, in_mask, extent.initial.shortest_side // 10, 11)
     cropped_mask = w.load_mask(mask.to_image())
 

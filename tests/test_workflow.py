@@ -14,6 +14,7 @@ from ai_diffusion.workflow import (
     CheckpointResolution,
     ScaledExtent,
     ScaleMode,
+    InpaintMode,
 )
 from . import config
 from .config import data_dir, image_dir, result_dir, reference_dir, default_checkpoint
@@ -804,22 +805,28 @@ def test_outpaint_resolution_multiplier(qtapp, comfy, temp_settings):
 
 
 inpaint_benchmark = {
-    "tori": "photo of tori, japanese garden",
-    "bruges": "photo of a canal in bruges, belgium",
-    "apple-tree": "children's illustration of kids next to an apple tree",
-    "girl-cornfield": "anime artwork of girl in a cornfield",
+    "tori": (InpaintMode.fill, "photo of tori, japanese garden"),
+    "bruges": (InpaintMode.fill, "photo of a canal in bruges, belgium"),
+    "apple-tree": (InpaintMode.expand, "children's illustration of kids next to an apple tree"),
+    "girl-cornfield": (InpaintMode.expand, "anime artwork of girl in a cornfield"),
+    "cuban-guitar": (InpaintMode.replace_background, "photo of a guitar player at a beach bar"),
+    "jungle": (InpaintMode.fill, "concept artwork of a lake in the jungle"),
+    "street": (InpaintMode.remove_object, "photo of a street in tokyo"),
 }
 
 
 @pytest.mark.parametrize("seed", [4213, 897281])
 @pytest.mark.parametrize("prompt_mode", ["prompt", "noprompt"])
-@pytest.mark.parametrize("image_name", inpaint_benchmark.keys())
+@pytest.mark.parametrize("scenario", inpaint_benchmark.keys())
 @pytest.mark.parametrize("sdver", [SDVersion.sd15, SDVersion.sdxl])
 def test_inpaint_benchmark(
-    pytestconfig, qtapp, comfy, sdver: SDVersion, prompt_mode: str, image_name: str, seed: int
+    pytestconfig, qtapp, comfy, sdver: SDVersion, prompt_mode: str, scenario: str, seed: int
 ):
     if not pytestconfig.getoption("--benchmark"):
         pytest.skip("Only runs with --benchmark")
+    mode, image_name = scenario
+    if mode is InpaintMode.replace_background and prompt_mode == "noprompt":
+        pytest.skip("replace_background requires a text prompt")
 
     image = Image.load(config.benchmark_dir / f"{image_name}-image.webp")
     mask = Mask.load(config.benchmark_dir / f"{image_name}-mask.webp")
