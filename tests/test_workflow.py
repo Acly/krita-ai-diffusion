@@ -15,6 +15,7 @@ from ai_diffusion.workflow import (
     ScaledExtent,
     ScaleMode,
 )
+from . import config
 from .config import data_dir, image_dir, result_dir, reference_dir, default_checkpoint
 
 
@@ -798,5 +799,36 @@ def test_outpaint_resolution_multiplier(qtapp, comfy, temp_settings):
 
     async def main():
         await run_and_save(comfy, job, f"test_outpaint_resolution_multiplier.png", image, mask)
+
+    qtapp.run(main())
+
+
+inpaint_benchmark = {
+    "tori": "photo of tori, japanese garden",
+    "bruges": "photo of a canal in bruges, belgium",
+    "apple-tree": "children's illustration of kids next to an apple tree",
+    "girl-cornfield": "anime artwork of girl in a cornfield",
+}
+
+
+@pytest.mark.parametrize("seed", [4213, 897281])
+@pytest.mark.parametrize("prompt_mode", ["prompt", "noprompt"])
+@pytest.mark.parametrize("image_name", inpaint_benchmark.keys())
+@pytest.mark.parametrize("sdver", [SDVersion.sd15, SDVersion.sdxl])
+def test_inpaint_benchmark(
+    pytestconfig, qtapp, comfy, sdver: SDVersion, prompt_mode: str, image_name: str, seed: int
+):
+    if not pytestconfig.getoption("--benchmark"):
+        pytest.skip("Only runs with --benchmark")
+
+    image = Image.load(config.benchmark_dir / f"{image_name}-image.webp")
+    mask = Mask.load(config.benchmark_dir / f"{image_name}-mask.webp")
+    prompt_text = inpaint_benchmark[image_name] if prompt_mode == "prompt" else ""
+    prompt = Conditioning(prompt_text, "text, watermark, blury")
+    job = workflow.inpaint(comfy, default_style(comfy, sdver), image, mask, prompt, seed)
+    result_name = f"benchmark_inpaint_{image_name}_{sdver.name}_{prompt_mode}_{seed}.png"
+
+    async def main():
+        await run_and_save(comfy, job, result_name, image, mask)
 
     qtapp.run(main())

@@ -14,6 +14,7 @@ from ai_diffusion.settings import settings
 def pytest_addoption(parser):
     parser.addoption("--test-install", action="store_true")
     parser.addoption("--ci", action="store_true")
+    parser.addoption("--benchmark", action="store_true")
 
 
 class QtTestApp:

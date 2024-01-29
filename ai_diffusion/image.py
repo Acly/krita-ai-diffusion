@@ -450,7 +450,7 @@ class Mask:
         mask = QImage()
         success = mask.load(str(filepath))
         assert success, f"Failed to load mask {filepath}"
-        assert mask.format() == QImage.Format_Grayscale8
+        mask = mask.convertToFormat(QImage.Format.Format_Grayscale8)
         return Mask(Bounds(0, 0, mask.width(), mask.height()), mask)
 
     def value(self, x: int, y: int):
