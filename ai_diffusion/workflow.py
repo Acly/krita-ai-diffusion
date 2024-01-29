@@ -697,38 +697,50 @@ def inpaint(comfy: Client, style: Style, image: Image, mask: Mask, cond: Conditi
     in_image = scale_to_initial(extent, w, in_image, comfy)
     in_mask = w.load_mask(scaled_mask)
     in_mask = scale_to_initial(extent, w, in_mask, comfy, is_mask=True)
+    in_image = w.blur_masked(in_image, in_mask, extent.initial.shortest_side // 10, 11)
     cropped_mask = w.load_mask(mask.to_image())
 
     cond_base = cond.copy()
     cond_base.downscale(image.extent, extent.initial)
     cond_base.area = extent.convert(cond.area, "target", "initial") if cond.area else None
-    image_strength = 0.5 if cond.prompt == "" else 0.3
-    image_context = create_inpaint_context(scaled_image, cond_base.area or mask.bounds, in_image)
-    cond_base.control.append(Control(ControlMode.reference, image_context, image_strength))
+    if cond.prompt == "":
+        context_bounds = cond_base.area or mask.bounds
+        image_context = create_inpaint_context(scaled_image, context_bounds, in_image)
+        cond_base.control.append(Control(ControlMode.reference, image_context, 0.5))
     cond_base.control.append(Control(ControlMode.inpaint, in_image, mask=in_mask))
     model = apply_ip_adapter(w, model, cond_base.control, comfy, sd_ver)
     prompt_pos, prompt_neg = encode_text_prompt(w, cond_base, clip, style)
     positive, negative = apply_control(
         w, prompt_pos, prompt_neg, cond_base.control, extent.initial, comfy, sd_ver
     )
-    positive = apply_area(w, positive, cond_base, clip)
 
     batch = compute_batch_size(Extent.largest(extent.initial, upscale_extent.desired))
-    latent = w.vae_encode_inpaint(vae, in_image, in_mask)
-    latent = w.batch_latent(latent, batch)
-    out_latent = w.ksampler_advanced(
-        model, positive, negative, latent, **_sampler_params(style, seed=seed, clip_vision=True)
+    positive, negative, latent_inpaint, latent = w.vae_encode_inpaint_conditioning(
+        vae, in_image, in_mask, positive, negative
     )
+    if sd_ver is SDVersion.sdxl:
+        inpaint_patch = w.load_fooocus_inpaint(**comfy.fooocus_inpaint_models)
+        inpaint_model = w.apply_fooocus_inpaint(model, inpaint_patch, latent_inpaint)
+    else:
+        # area conditioning doesn't work with SDXL inpaint model
+        positive = apply_area(w, positive, cond_base, clip)
+        inpaint_model = model
+
+    latent = w.batch_latent(latent, batch)
+    params = _sampler_params(style, seed=seed, clip_vision=cond.prompt == "")
+    out_latent = w.ksampler_advanced(inpaint_model, positive, negative, latent, **params)
+
     if extent.refinement_scaling in [ScaleMode.upscale_latent, ScaleMode.upscale_quality]:
         initial_bounds = extent.convert(target_bounds, "target", "initial")
 
-        params = _sampler_params(style, strength=0.5, seed=seed, clip_vision=True)
+        params = _sampler_params(style, strength=0.5, seed=seed)
         upscale_model = w.load_upscale_model(comfy.default_upscaler)
         upscale = w.vae_decode(vae, out_latent)
         upscale = w.crop_image(upscale, initial_bounds)
         upscale = w.upscale_image(upscale_model, upscale)
         upscale = w.scale_image(upscale, upscale_extent.desired)
         latent = w.vae_encode(vae, upscale)
+        latent = w.set_latent_noise_mask(latent, cropped_mask)
 
         cond_upscale = cond.copy()
         cond_upscale.crop(target_bounds)

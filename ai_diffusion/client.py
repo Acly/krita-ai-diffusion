@@ -127,6 +127,7 @@ class Client:
     upscale_models: dict[UpscalerName, str | None]
     control_model: dict[ControlMode, dict[SDVersion, str | None]]
     ip_adapter_model: dict[ControlMode, dict[SDVersion, str | None]]
+    inpaint_models: dict[str, str | None]
     lora_models: dict[str, dict[SDVersion, str | None]]
     clip_vision_model: str
     supported_sd_versions: list[SDVersion]
@@ -167,6 +168,11 @@ class Client:
         # Retrieve upscale models
         client.upscalers = nodes["UpscaleModelLoader"]["input"]["required"]["model_name"][0]
         client.upscale_models = _find_upscalers(client.upscalers)
+
+        # Retrieve inpaint models
+        client.inpaint_models = _find_inpaint_models(
+            nodes["INPAINT_LoadInpaintModel"]["input"]["required"]["model_name"][0]
+        )
 
         # Retrieve LoRA models
         loras = nodes["LoraLoader"]["input"]["required"]["lora_name"][0]
@@ -359,6 +365,13 @@ class Client:
     def supports_ip_adapter(self):
         return self.device_info.type != "privateuseone"
 
+    @property
+    def fooocus_inpaint_models(self):
+        return dict(
+            head=ensure(self.inpaint_models["fooocus_head"]),
+            patch=ensure(self.inpaint_models["fooocus_patch"]),
+        )
+
     def _get_active_job(self, id: str) -> Optional[JobInfo]:
         if self._active and self._active.id == id:
             return self._active
@@ -413,6 +426,11 @@ class Client:
             if not self.control_model[ControlMode.blur][sdver]:
                 names = ["models/controlnet/control_lora_rank128_v11f1e_sd15_tile_fp16.safetensors"]
                 missing.append(MissingResource(ResourceKind.controlnet, names))
+        if sdver is SDVersion.sdxl:
+            for id, model in self.inpaint_models.items():
+                if model is None:
+                    names = resources.search_path(ResourceKind.inpaint, sdver, id)
+                    missing.append(MissingResource(ResourceKind.inpaint, names))
         if len(missing) == 0:
             log.info(f"{sdver.value}: supported")
         else:
@@ -530,6 +548,13 @@ def _find_upscalers(model_list: Sequence[str]):
 def _find_loras(model_list: Sequence[str]):
     return {
         name: _find_model_versions(model_list, ResourceKind.lora, name) for name in ["lcm", "face"]
+    }
+
+
+def _find_inpaint_models(model_list: Sequence[str]):
+    return {
+        id: _find_model(model_list, ResourceKind.inpaint, SDVersion.sdxl, id)
+        for id in ["fooocus_head", "fooocus_patch"]
     }
 
 

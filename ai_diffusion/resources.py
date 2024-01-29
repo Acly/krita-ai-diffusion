@@ -53,6 +53,13 @@ required_custom_nodes = [
             "ETN_ApplyMaskToImage",
         ],
     ),
+    CustomNode(
+        "Inpaint Nodes",
+        "comfyui-inpaint-nodes",
+        "https://github.com/Acly/comfyui-inpaint-nodes",
+        "920ce539d8b49ab38a4f323cc2976fff5b64904a",
+        ["INPAINT_LoadFooocusInpaint", "INPAINT_ApplyFooocusInpaint"],
+    ),
 ]
 
 
@@ -109,6 +116,7 @@ class ResourceKind(Enum):
     ip_adapter = "IP-Adapter model"
     lora = "LoRA model"
     upscaler = "Upscale model"
+    inpaint = "Inpaint model"
     node = "custom node"
 
 
@@ -634,6 +642,8 @@ search_paths: dict[str, list[str]] = {
     resource_id(ResourceKind.upscaler, SDVersion.all, UpscalerName.fast_2x): [UpscalerName.fast_2x.value],
     resource_id(ResourceKind.upscaler, SDVersion.all, UpscalerName.fast_3x): [UpscalerName.fast_3x.value],
     resource_id(ResourceKind.upscaler, SDVersion.all, UpscalerName.fast_4x): [UpscalerName.fast_4x.value],
+    resource_id(ResourceKind.inpaint, SDVersion.sdxl, "fooocus_head"): ["fooocus_inpaint_head.pth"],
+    resource_id(ResourceKind.inpaint, SDVersion.sdxl, "fooocus_patch"): ["inpaint_v26.fooocus.patch"],
 }
 # fmt: on
 
@@ -649,4 +659,6 @@ required_resource_ids = set([
     resource_id(ResourceKind.upscaler, SDVersion.all, UpscalerName.fast_2x),
     resource_id(ResourceKind.upscaler, SDVersion.all, UpscalerName.fast_3x),
     resource_id(ResourceKind.upscaler, SDVersion.all, UpscalerName.fast_4x),
+    resource_id(ResourceKind.inpaint, SDVersion.sdxl, "fooocus_head"),
+    resource_id(ResourceKind.inpaint, SDVersion.sdxl, "fooocus_patch"),
 ])

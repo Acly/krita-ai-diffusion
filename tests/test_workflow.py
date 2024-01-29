@@ -475,6 +475,7 @@ def test_inpaint_upscale(qtapp, comfy, temp_settings, sdver):
     job = workflow.inpaint(comfy, default_style(comfy, sdver), image, mask, prompt, default_seed)
 
     async def main():
+        job.dump((result_dir / "workflows" / f"test_inpaint_upscale_{sdver.name}.json"))
         results = await receive_images(comfy, job)
         assert len(results) == 2 if sdver == SDVersion.sd15 else 1
         for i, result in enumerate(results):
