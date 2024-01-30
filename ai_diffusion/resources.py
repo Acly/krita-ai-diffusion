@@ -57,7 +57,7 @@ required_custom_nodes = [
         "Inpaint Nodes",
         "comfyui-inpaint-nodes",
         "https://github.com/Acly/comfyui-inpaint-nodes",
-        "920ce539d8b49ab38a4f323cc2976fff5b64904a",
+        "dd40b9ab7ad9cdb2a8cdab3ed86b987e42105b31",
         ["INPAINT_LoadFooocusInpaint", "INPAINT_ApplyFooocusInpaint"],
     ),
 ]
@@ -249,6 +249,19 @@ required_models = [
             Path(
                 "models/loras/lcm-lora-sdxl.safetensors"
             ): "https://huggingface.co/latent-consistency/lcm-lora-sdxl/resolve/main/pytorch_lora_weights.safetensors",
+        },
+    ),
+    ModelResource(
+        "Fooocus Inpaint",
+        ResourceKind.inpaint,
+        SDVersion.sdxl,
+        {
+            Path(
+                "models/inpaint/fooocus_inpaint_head.pth"
+            ): "https://huggingface.co/lllyasviel/fooocus_inpaint/resolve/main/fooocus_inpaint_head.pth",
+            Path(
+                "models/inpaint/inpaint_v26.fooocus.patch"
+            ): "https://huggingface.co/lllyasviel/fooocus_inpaint/resolve/main/inpaint_v26.fooocus.patch",
         },
     ),
 ]
@@ -644,6 +657,7 @@ search_paths: dict[str, list[str]] = {
     resource_id(ResourceKind.upscaler, SDVersion.all, UpscalerName.fast_4x): [UpscalerName.fast_4x.value],
     resource_id(ResourceKind.inpaint, SDVersion.sdxl, "fooocus_head"): ["fooocus_inpaint_head.pth"],
     resource_id(ResourceKind.inpaint, SDVersion.sdxl, "fooocus_patch"): ["inpaint_v26.fooocus.patch"],
+    resource_id(ResourceKind.inpaint, SDVersion.all, "lama"): ["big-lama.pt"],
 }
 # fmt: on
 

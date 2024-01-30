@@ -553,8 +553,13 @@ def _find_loras(model_list: Sequence[str]):
 
 def _find_inpaint_models(model_list: Sequence[str]):
     return {
-        id: _find_model(model_list, ResourceKind.inpaint, SDVersion.sdxl, id)
-        for id in ["fooocus_head", "fooocus_patch"]
+        "fooocus_head": _find_model(
+            model_list, ResourceKind.inpaint, SDVersion.sdxl, "fooocus_head"
+        ),
+        "fooocus_patch": _find_model(
+            model_list, ResourceKind.inpaint, SDVersion.sdxl, "fooocus_patch"
+        ),
+        "lama": _find_model(model_list, ResourceKind.inpaint, SDVersion.all, "lama"),
     }
 
 

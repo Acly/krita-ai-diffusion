@@ -1,6 +1,8 @@
 import shutil
 import pytest
+from datetime import datetime
 from pathlib import Path
+
 from ai_diffusion import comfyworkflow, workflow
 from ai_diffusion.comfyworkflow import ComfyWorkflow
 from ai_diffusion.resources import ControlMode
@@ -72,15 +74,16 @@ async def run_and_save(
     filename: str,
     composition_image: Image | None = None,
     composition_mask: Mask | None = None,
+    output_dir: Path = result_dir,
 ):
-    workflow.dump((result_dir / "workflows" / filename).with_suffix(".json"))
+    workflow.dump((output_dir / "workflows" / filename).with_suffix(".json"))
     results = await receive_images(comfy, workflow)
     assert len(results) == 1
     if composition_image and composition_mask:
         composition_image.draw_image(results[0], composition_mask.bounds.offset)
-        composition_image.save(result_dir / filename)
+        composition_image.save(output_dir / filename)
     else:
-        results[0].save(result_dir / filename)
+        results[0].save(output_dir / filename)
     return results[0]
 
 
@@ -179,14 +182,13 @@ def test_compute_checkpoint_resolution(extent: Extent, preferred: int, expected)
 )
 def test_inpaint_context(area, expected_extent, expected_crop: tuple[int, int] | None):
     image = Image.load(data_dir / "outpaint_context.png")
-    default = comfyworkflow.Output(0, 0)
-    result = workflow.create_inpaint_context(image, area, default)
+    mode, result = workflow.detect_inpaint_mode(image, area)
     if expected_crop:
-        assert isinstance(result, Image)
+        assert mode is InpaintMode.expand and isinstance(result, Image)
         assert result.extent == expected_extent
         assert result.pixel(*expected_crop) == (255, 255, 255, 255)
     else:
-        assert result is default
+        assert mode is InpaintMode.fill and result is None
 
 
 @pytest.mark.parametrize(
@@ -454,8 +456,9 @@ def test_inpaint(qtapp, comfy, temp_settings):
     temp_settings.batch_size = 3  # max 3 images@512x512 -> 2 images@768x512
     image = Image.load(image_dir / "beach_768x512.webp")
     mask = Mask.rectangle(Bounds(40, 120, 320, 200), feather=10)
-    prompt = Conditioning("ship", area=mask.bounds)
-    job = workflow.inpaint(comfy, default_style(comfy), image, mask, prompt, default_seed)
+    prompt = Conditioning("beach, the sea, cliffs, palm trees", area=mask.bounds)
+    style = default_style(comfy, SDVersion.sd15)
+    job = workflow.inpaint(comfy, style, image, mask, prompt, default_seed, InpaintMode.fill)
 
     async def main():
         results = await receive_images(comfy, job)
@@ -474,7 +477,8 @@ def test_inpaint_upscale(qtapp, comfy, temp_settings, sdver):
     image = Image.load(image_dir / "beach_1536x1024.webp")
     mask = Mask.rectangle(Bounds(300, 200, 768, 512), feather=20)
     prompt = Conditioning("ship", area=mask.bounds)
-    job = workflow.inpaint(comfy, default_style(comfy, sdver), image, mask, prompt, default_seed)
+    style = default_style(comfy, sdver)
+    job = workflow.inpaint(comfy, style, image, mask, prompt, default_seed, InpaintMode.add_object)
 
     async def main():
         job.dump((result_dir / "workflows" / f"test_inpaint_upscale_{sdver.name}.json"))
@@ -493,7 +497,7 @@ def test_inpaint_odd_resolution(qtapp, comfy, temp_settings):
     image = Image.load(image_dir / "beach_768x512.webp")
     image = Image.scale(image, Extent(612, 513))
     mask = Mask.rectangle(Bounds(0, 0, 200, 513))
-    prompt = Conditioning()
+    prompt = Conditioning(area=mask.bounds)
 
     async def main():
         job = workflow.inpaint(comfy, default_style(comfy), image, mask, prompt, default_seed)
@@ -508,7 +512,9 @@ def test_inpaint_area_conditioning(qtapp, comfy, temp_settings):
     image = Image.load(image_dir / "lake_1536x1024.webp")
     mask = Mask.load(image_dir / "lake_1536x1024_mask_bottom_right.png")
     prompt = Conditioning("crocodile", area=mask.bounds)
-    job = workflow.inpaint(comfy, default_style(comfy), image, mask, prompt, default_seed)
+    job = workflow.inpaint(
+        comfy, default_style(comfy), image, mask, prompt, default_seed, InpaintMode.add_object
+    )
 
     async def main():
         await run_and_save(comfy, job, "test_inpaint_area_conditioning.png", image, mask)
@@ -569,6 +575,7 @@ def test_control_scribble(qtapp, comfy, temp_settings, op):
     if op == "generate":
         job = workflow.generate(comfy, style, Extent(512, 512), control, default_seed)
     elif op == "inpaint":
+        control.area = mask.bounds
         job = workflow.inpaint(comfy, style, inpaint_image, mask, control, default_seed)
     elif op == "refine":
         job = workflow.refine(comfy, style, inpaint_image, control, 0.7, default_seed)
@@ -578,9 +585,9 @@ def test_control_scribble(qtapp, comfy, temp_settings, op):
     else:  # op == "inpaint_upscale":
         control.control[0].image = Image.scale(scribble_image, Extent(1024, 1024))
         inpaint_image = Image.scale(inpaint_image, Extent(1024, 1024))
-        mask = Mask(
-            Bounds(512, 0, 512, 1024), Image.scale(Image(mask.image), Extent(512, 1024))._qimage
-        )
+        scaled_mask = Image.scale(Image(mask.image), Extent(512, 1024))
+        mask = Mask(Bounds(512, 0, 512, 1024), scaled_mask._qimage)
+        control.area = mask.bounds
         job = workflow.inpaint(comfy, style, inpaint_image, mask, control, default_seed)
 
     async def main():
@@ -796,6 +803,7 @@ def test_outpaint_resolution_multiplier(qtapp, comfy, temp_settings):
     image.draw_image(beach, (512, 0))
     mask = Mask.load(image_dir / "beach_outpaint_mask.png")
     cond = Conditioning("photo of a beach and jungle, nature photography, tropical")
+    cond.area = mask.bounds
     job = workflow.inpaint(comfy, default_style(comfy), image, mask, cond, default_seed)
 
     async def main():
@@ -815,27 +823,41 @@ inpaint_benchmark = {
 }
 
 
+@pytest.fixture(scope="module")
+def benchmark_output_dir():
+    return config.benchmark_dir / datetime.now().strftime("%Y%m%d-%H%M")
+
+
 @pytest.mark.parametrize("seed", [4213, 897281])
 @pytest.mark.parametrize("prompt_mode", ["prompt", "noprompt"])
 @pytest.mark.parametrize("scenario", inpaint_benchmark.keys())
 @pytest.mark.parametrize("sdver", [SDVersion.sd15, SDVersion.sdxl])
 def test_inpaint_benchmark(
-    pytestconfig, qtapp, comfy, sdver: SDVersion, prompt_mode: str, scenario: str, seed: int
+    pytestconfig,
+    qtapp,
+    comfy,
+    sdver: SDVersion,
+    prompt_mode: str,
+    scenario: str,
+    seed: int,
+    benchmark_output_dir: Path,
 ):
     if not pytestconfig.getoption("--benchmark"):
         pytest.skip("Only runs with --benchmark")
-    mode, image_name = scenario
+    mode, prompt = inpaint_benchmark[scenario]
     if mode is InpaintMode.replace_background and prompt_mode == "noprompt":
         pytest.skip("replace_background requires a text prompt")
 
-    image = Image.load(config.benchmark_dir / f"{image_name}-image.webp")
-    mask = Mask.load(config.benchmark_dir / f"{image_name}-mask.webp")
-    prompt_text = inpaint_benchmark[image_name] if prompt_mode == "prompt" else ""
-    prompt = Conditioning(prompt_text, "text, watermark, blury")
-    job = workflow.inpaint(comfy, default_style(comfy, sdver), image, mask, prompt, seed)
-    result_name = f"benchmark_inpaint_{image_name}_{sdver.name}_{prompt_mode}_{seed}.png"
+    image_dir = config.benchmark_dir / "input"
+    image = Image.load(image_dir / f"{scenario}-image.webp")
+    mask = Mask.load(image_dir / f"{scenario}-mask.webp")
+    prompt_text = prompt if prompt_mode == "prompt" else ""
+    cond = Conditioning(prompt_text, "text, watermark, blury")
+    cond.area = mask.bounds
+    job = workflow.inpaint(comfy, default_style(comfy, sdver), image, mask, cond, seed, mode)
+    result_name = f"benchmark_inpaint_{scenario}_{sdver.name}_{prompt_mode}_{seed}.png"
 
     async def main():
-        await run_and_save(comfy, job, result_name, image, mask)
+        await run_and_save(comfy, job, result_name, image, mask, output_dir=benchmark_output_dir)
 
     qtapp.run(main())
