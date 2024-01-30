@@ -133,7 +133,8 @@ class LiveWidget(QWidget):
         self.progress_bar = QProgressBar(self)
         self.progress_bar.setTextVisible(True)
         self.progress_bar.setFormat("Loading %p%")
-        self.progress_bar.setStyleSheet(f"""
+        self.progress_bar.setStyleSheet(
+            f"""
             QProgressBar {{
                 background: transparent;
                 text-align: center;
@@ -141,7 +142,8 @@ class LiveWidget(QWidget):
             QProgressBar::chunk {{
                 background-color: {theme.grey};
                 width: 20px;
-            }}""")
+            }}"""
+        )
         self.progress_bar.setVisible(False)
         layout.addWidget(self.progress_bar)
 

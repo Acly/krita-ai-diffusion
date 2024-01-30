@@ -58,11 +58,13 @@ class QueuePopup(QMenu):
 
         palette = self.palette()
         self.setObjectName("QueuePopup")
-        self.setStyleSheet(f"""
+        self.setStyleSheet(
+            f"""
             QWidget#QueuePopup {{
                 background-color: {palette.window().color().name()}; 
                 border: 1px solid {palette.dark().color().name()};
-            }}""")
+            }}"""
+        )
 
         self._layout = QGridLayout()
         self.setLayout(self._layout)
