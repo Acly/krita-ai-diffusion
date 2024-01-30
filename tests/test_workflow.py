@@ -1,3 +1,4 @@
+import itertools
 import shutil
 import pytest
 from datetime import datetime
@@ -823,31 +824,10 @@ inpaint_benchmark = {
 }
 
 
-@pytest.fixture(scope="module")
-def benchmark_output_dir():
-    return config.benchmark_dir / datetime.now().strftime("%Y%m%d-%H%M")
-
-
-@pytest.mark.parametrize("seed", [4213, 897281])
-@pytest.mark.parametrize("prompt_mode", ["prompt", "noprompt"])
-@pytest.mark.parametrize("scenario", inpaint_benchmark.keys())
-@pytest.mark.parametrize("sdver", [SDVersion.sd15, SDVersion.sdxl])
-def test_inpaint_benchmark(
-    pytestconfig,
-    qtapp,
-    comfy,
-    sdver: SDVersion,
-    prompt_mode: str,
-    scenario: str,
-    seed: int,
-    benchmark_output_dir: Path,
+async def run_inpaint_benchmark(
+    comfy, sdver: SDVersion, prompt_mode: str, scenario: str, seed: int, out_dir: Path
 ):
-    if not pytestconfig.getoption("--benchmark"):
-        pytest.skip("Only runs with --benchmark")
     mode, prompt = inpaint_benchmark[scenario]
-    if mode is InpaintMode.replace_background and prompt_mode == "noprompt":
-        pytest.skip("replace_background requires a text prompt")
-
     image_dir = config.benchmark_dir / "input"
     image = Image.load(image_dir / f"{scenario}-image.webp")
     mask = Mask.load(image_dir / f"{scenario}-mask.webp")
@@ -856,8 +836,25 @@ def test_inpaint_benchmark(
     cond.area = mask.bounds
     job = workflow.inpaint(comfy, default_style(comfy, sdver), image, mask, cond, seed, mode)
     result_name = f"benchmark_inpaint_{scenario}_{sdver.name}_{prompt_mode}_{seed}.png"
+    await run_and_save(comfy, job, result_name, image, mask, output_dir=out_dir)
 
-    async def main():
-        await run_and_save(comfy, job, result_name, image, mask, output_dir=benchmark_output_dir)
 
-    qtapp.run(main())
+def test_inpaint_benchmark(pytestconfig, qtapp, comfy):
+    if not pytestconfig.getoption("--benchmark"):
+        pytest.skip("Only runs with --benchmark")
+    print()
+
+    output_dir = config.benchmark_dir / datetime.now().strftime("%Y%m%d-%H%M")
+    seeds = [4213, 897281]
+    prompt_modes = ["prompt", "noprompt"]
+    scenarios = inpaint_benchmark.keys()
+    sdvers = [SDVersion.sd15, SDVersion.sdxl]
+    runs = itertools.product(sdvers, scenarios, prompt_modes, seeds)
+
+    for sdver, scenario, prompt_mode, seed in runs:
+        mode, _ = inpaint_benchmark[scenario]
+        if mode is InpaintMode.replace_background and prompt_mode == "noprompt":
+            continue
+
+        print("-", scenario, "|", sdver.name, "|", prompt_mode, "|", seed)
+        qtapp.run(run_inpaint_benchmark(comfy, sdver, prompt_mode, scenario, seed, output_dir))

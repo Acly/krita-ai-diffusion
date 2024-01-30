@@ -1,7 +1,7 @@
 from __future__ import annotations
 from enum import Enum
 from math import ceil, sqrt
-from PyQt5.QtGui import QImage, QImageWriter, QPixmap, QIcon, QPainter
+from PyQt5.QtGui import QImage, QImageWriter, QPixmap, QIcon, QPainter, QColorSpace
 from PyQt5.QtGui import qRgba, qRed, qGreen, qBlue, qAlpha, qGray
 from PyQt5.QtCore import Qt, QByteArray, QBuffer, QRect, QSize
 from typing import Callable, Iterable, SupportsIndex, Tuple, NamedTuple, Union, Optional
@@ -450,6 +450,7 @@ class Mask:
         mask = QImage()
         success = mask.load(str(filepath))
         assert success, f"Failed to load mask {filepath}"
+        mask.setColorSpace(QColorSpace())
         mask = mask.convertToFormat(QImage.Format.Format_Grayscale8)
         return Mask(Bounds(0, 0, mask.width(), mask.height()), mask)
 
