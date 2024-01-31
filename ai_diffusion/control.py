@@ -68,7 +68,7 @@ class ControlLayer(QObject, ObservableProperties):
         image = self._model.document.get_layer_image(layer, bounds)
         if self.mode.is_lines or self.mode is ControlMode.stencil:
             image.make_opaque(background=Qt.GlobalColor.white)
-        return Control(self.mode, image, self.strength / 100, self.end)
+        return Control(self.mode, image, self.strength / 100, (0.0, self.end))
 
     def generate(self):
         self._generate_job = self._model.generate_control_layer(self)

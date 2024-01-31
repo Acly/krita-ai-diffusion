@@ -241,6 +241,16 @@ class ComfyWorkflow:
             strength=strength,
         )
 
+    def conditioning_set_mask(self, conditioning: Output, mask: Output, strength=1.0):
+        return self.add(
+            "ConditioningSetMask",
+            1,
+            conditioning=conditioning,
+            mask=mask,
+            strength=strength,
+            set_cond_area="default",
+        )
+
     def conditioning_combine(self, a: Output, b: Output):
         return self.add("ConditioningCombine", 1, conditioning_1=a, conditioning_2=b)
 
@@ -251,8 +261,7 @@ class ComfyWorkflow:
         controlnet: Output,
         image: Output,
         strength=1.0,
-        start_percent=0.0,
-        end_percent=1.0,
+        range: tuple[float, float] = (0.0, 1.0),
     ):
         return self.add(
             "ControlNetApplyAdvanced",
@@ -262,8 +271,8 @@ class ComfyWorkflow:
             control_net=controlnet,
             image=image,
             strength=strength,
-            start_percent=start_percent,
-            end_percent=end_percent,
+            start_percent=range[0],
+            end_percent=range[1],
         )
 
     def encode_ip_adapter(
@@ -288,8 +297,7 @@ class ComfyWorkflow:
         embeds: Output,
         model: Output,
         weight: float,
-        start_at=0.0,
-        end_at=1.0,
+        range: tuple[float, float] = (0.0, 1.0),
     ):
         return self.add(
             "IPAdapterApplyEncoded",
@@ -299,8 +307,8 @@ class ComfyWorkflow:
             model=model,
             weight=weight,
             weight_type="linear",
-            start_at=start_at,
-            end_at=end_at,
+            start_at=range[0],
+            end_at=range[1],
         )
 
     def apply_ip_adapter_face(
@@ -311,7 +319,7 @@ class ComfyWorkflow:
         model: Output,
         image: Output,
         weight=1.0,
-        end_at=1.0,
+        range: tuple[float, float] = (0.0, 1.0),
         faceid_v2=False,
     ):
         return self.add(
@@ -324,8 +332,8 @@ class ComfyWorkflow:
             model=model,
             weight=weight,
             weight_type="original",
-            start_at=0.0,
-            end_at=end_at,
+            start_at=range[0],
+            end_at=range[1],
             noise=0.0,
             faceid_v2=faceid_v2,
             weight_v2=weight,

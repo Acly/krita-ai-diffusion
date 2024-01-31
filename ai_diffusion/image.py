@@ -454,6 +454,10 @@ class Mask:
         mask = mask.convertToFormat(QImage.Format.Format_Grayscale8)
         return Mask(Bounds(0, 0, mask.width(), mask.height()), mask)
 
+    @staticmethod
+    def crop(mask: "Mask", bounds: Bounds):
+        return Mask(bounds, mask.image.copy(*bounds))
+
     def value(self, x: int, y: int):
         if self.bounds.is_within(x, y):
             return qGray(self.image.pixel(x, y))

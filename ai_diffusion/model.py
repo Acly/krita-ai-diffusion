@@ -107,13 +107,14 @@ class Model(QObject, ObservableProperties):
             image_bounds = workflow.compute_bounds(
                 extent, mask.bounds if mask else None, self.strength
             )
-        if selection_bounds is not None:
-            selection_bounds = Bounds.apply_crop(selection_bounds, image_bounds)
-            selection_bounds = Bounds.minimum_size(selection_bounds, 64, image_bounds.extent)
+        # TODO still need selection bounds?
+        # if selection_bounds is not None:
+        #     selection_bounds = Bounds.apply_crop(selection_bounds, image_bounds)
+        #     selection_bounds = Bounds.minimum_size(selection_bounds, 64, image_bounds.extent)
 
         control = [c.get_image(image_bounds) for c in self.control]
         prompt, loras = workflow.extract_loras(self.prompt, self._connection.client.loras)
-        conditioning = Conditioning(prompt, self.negative_prompt, control, selection_bounds, loras)
+        conditioning = Conditioning(prompt, self.negative_prompt, control, loras)
 
         if mask is not None or self.strength < 1.0:
             image = self._get_current_image(image_bounds)
@@ -156,7 +157,13 @@ class Model(QObject, ObservableProperties):
             job = workflow.refine(client, style, image, conditioning, strength, seed, is_live)
         elif strength == 1 and not is_live:
             assert image is not None and mask is not None
-            job = workflow.inpaint(client, style, image, mask, conditioning, seed)
+            params = workflow.InpaintParams.detect(
+                mask,
+                workflow.InpaintMode.automatic,
+                resolve_sd_version(style, client),
+                conditioning,
+            )
+            job = workflow.inpaint(client, style, image, conditioning, params, seed)
         else:
             assert image is not None and mask is not None
             job = workflow.refine_region(
