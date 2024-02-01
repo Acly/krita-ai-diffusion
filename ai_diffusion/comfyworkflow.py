@@ -485,10 +485,10 @@ class ComfyWorkflow:
     def solid_mask(self, extent: Extent, value=1.0):
         return self.add("SolidMask", 1, width=extent.width, height=extent.height, value=value)
 
-    def fill_masked(self, image: Output, mask: Output, mode="neutral", falloff: int = 11):
-        return self.add("INPAINT_MaskedFill", 1, image=image, mask=mask, mode=mode, falloff=falloff)
+    def fill_masked(self, image: Output, mask: Output, mode="neutral", falloff: int = 0):
+        return self.add("INPAINT_MaskedFill", 1, image=image, mask=mask, fill=mode, falloff=falloff)
 
-    def blur_masked(self, image: Output, mask: Output, blur: int, falloff: int):
+    def blur_masked(self, image: Output, mask: Output, blur: int, falloff: int = 0):
         return self.add("INPAINT_MaskedBlur", 1, image=image, mask=mask, blur=blur, falloff=falloff)
 
     def apply_mask(self, image: Output, mask: Output):

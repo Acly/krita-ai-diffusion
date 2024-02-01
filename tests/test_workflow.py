@@ -842,6 +842,11 @@ inpaint_benchmark = {
         "photo of a lady sitting on a bench in a park",
         Bounds(310, 370, 940, 1110),
     ),
+    "superman": (
+        InpaintMode.expand,
+        "superman giving a speech at a congress hall filled with people",
+        None,
+    ),
 }
 
 
@@ -855,7 +860,7 @@ async def run_inpaint_benchmark(
     if bounds:
         mask = Mask.crop(mask, bounds)
     prompt_text = prompt if prompt_mode == "prompt" else ""
-    cond = Conditioning(prompt_text, "text, watermark, blury")
+    cond = Conditioning(prompt_text)
     params = InpaintParams.detect(mask, mode, sdver, cond)
     job = workflow.inpaint(comfy, default_style(comfy, sdver), image, cond, params, seed)
     result_name = f"benchmark_inpaint_{scenario}_{sdver.name}_{prompt_mode}_{seed}.png"

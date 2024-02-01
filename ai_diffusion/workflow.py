@@ -737,12 +737,12 @@ def inpaint(
     cropped_mask = w.load_mask(params.mask.to_image())
 
     if params.mode is InpaintMode.fill:
-        in_image = w.blur_masked(in_image, in_mask, 65, 9)
+        in_image = w.blur_masked(in_image, in_mask, 65, falloff=9)
     elif params.mode is InpaintMode.expand:
         in_image = w.fill_masked(in_image, in_mask, "navier-stokes")
-        in_image = w.blur_masked(in_image, in_mask, 65, 9)
+        in_image = w.blur_masked(in_image, in_mask, 65)
     elif params.mode is InpaintMode.add_object:
-        in_image = w.fill_masked(in_image, in_mask, "neutral")
+        in_image = w.fill_masked(in_image, in_mask, "neutral", falloff=9)
     elif params.mode is InpaintMode.remove_object:
         lama = w.load_inpaint_model(ensure(comfy.inpaint_models["lama"]))
         in_image = w.inpaint_image(lama, in_image, in_mask)
