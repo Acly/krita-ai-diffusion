@@ -12,7 +12,7 @@ from .client import ClientMessage, ClientEvent, filter_supported_styles, resolve
 from .document import Document, LayerObserver
 from .pose import Pose
 from .style import Style, Styles, SDVersion
-from .workflow import ControlMode, Conditioning
+from .workflow import ControlMode, Conditioning, InpaintMode, InpaintParams
 from .connection import Connection
 from .properties import Property, ObservableProperties
 from .jobs import Job, JobKind, JobQueue, JobState
@@ -43,6 +43,7 @@ class Model(QObject, ObservableProperties):
     negative_prompt = Property("", persist=True)
     control: ControlLayerList
     strength = Property(1.0, persist=True)
+    inpaint_mode = Property(InpaintMode.automatic, persist=True)
     batch_count = Property(1, persist=True)
     seed = Property(0, persist=True)
     fixed_seed = Property(False, persist=True)
@@ -57,6 +58,7 @@ class Model(QObject, ObservableProperties):
     prompt_changed = pyqtSignal(str)
     negative_prompt_changed = pyqtSignal(str)
     strength_changed = pyqtSignal(float)
+    inpaint_mode_changed = pyqtSignal(InpaintMode)
     batch_count_changed = pyqtSignal(int)
     seed_changed = pyqtSignal(int)
     fixed_seed_changed = pyqtSignal(bool)
@@ -157,11 +159,8 @@ class Model(QObject, ObservableProperties):
             job = workflow.refine(client, style, image, conditioning, strength, seed, is_live)
         elif strength == 1 and not is_live:
             assert image is not None and mask is not None
-            params = workflow.InpaintParams.detect(
-                mask,
-                workflow.InpaintMode.automatic,
-                resolve_sd_version(style, client),
-                conditioning,
+            params = InpaintParams.detect(
+                mask, self.resolve_inpaint_mode(), resolve_sd_version(style, client), conditioning
             )
             job = workflow.inpaint(client, style, image, conditioning, params, seed)
         else:
@@ -369,6 +368,13 @@ class Model(QObject, ObservableProperties):
 
     def save_result(self, job_id: str, index: int):
         _save_job_result(self, self.jobs.find(job_id), index)
+
+    def resolve_inpaint_mode(self):
+        if self.inpaint_mode is InpaintMode.automatic:
+            if bounds := self.document.selection_bounds:
+                return workflow.detect_inpaint_mode(self.document.extent, bounds)
+            return InpaintMode.fill
+        return self.inpaint_mode
 
     @property
     def history(self):

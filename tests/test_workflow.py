@@ -184,8 +184,11 @@ def test_compute_checkpoint_resolution(extent: Extent, preferred: int, expected)
 )
 def test_inpaint_context(area, expected_extent, expected_crop: tuple[int, int] | None):
     image = Image.load(data_dir / "outpaint_context.png")
-    mode, result = workflow.detect_inpaint_mode(image, area)
-    if expected_crop:
+    mode = workflow.detect_inpaint_mode(image.extent, area)
+    result = workflow.get_inpaint_reference(image, area)
+    if area.extent == image.extent:
+        assert mode is InpaintMode.expand and result is None
+    elif expected_crop:
         assert mode is InpaintMode.expand and isinstance(result, Image)
         assert result.extent == expected_extent
         assert result.pixel(*expected_crop) == (255, 255, 255, 255)
@@ -502,7 +505,7 @@ def test_inpaint_odd_resolution(qtapp, comfy, temp_settings):
     image = Image.scale(image, Extent(612, 513))
     mask = Mask.rectangle(Bounds(0, 0, 200, 513))
     prompt = Conditioning()
-    params = InpaintParams.detect(mask, InpaintMode.automatic, SDVersion.sd15, prompt)
+    params = InpaintParams.automatic(mask, SDVersion.sd15, prompt, image.extent)
 
     async def main():
         job = workflow.inpaint(comfy, default_style(comfy), image, prompt, params, default_seed)
@@ -579,7 +582,7 @@ def test_control_scribble(qtapp, comfy, temp_settings, op):
     if op == "generate":
         job = workflow.generate(comfy, style, Extent(512, 512), control, default_seed)
     elif op == "inpaint":
-        params = InpaintParams.detect(mask, InpaintMode.automatic, SDVersion.sd15, control)
+        params = InpaintParams.automatic(mask, SDVersion.sd15, control, inpaint_image.extent)
         job = workflow.inpaint(comfy, style, inpaint_image, control, params, default_seed)
     elif op == "refine":
         job = workflow.refine(comfy, style, inpaint_image, control, 0.7, default_seed)
@@ -591,7 +594,7 @@ def test_control_scribble(qtapp, comfy, temp_settings, op):
         inpaint_image = Image.scale(inpaint_image, Extent(1024, 1024))
         scaled_mask = Image.scale(Image(mask.image), Extent(512, 1024))
         mask = Mask(Bounds(512, 0, 512, 1024), scaled_mask._qimage)
-        params = InpaintParams.detect(mask, InpaintMode.automatic, SDVersion.sd15, control)
+        params = InpaintParams.detect(mask, InpaintMode.fill, SDVersion.sd15, control)
         job = workflow.inpaint(comfy, style, inpaint_image, control, params, default_seed)
 
     async def main():
@@ -807,7 +810,7 @@ def test_outpaint_resolution_multiplier(qtapp, comfy, temp_settings):
     image.draw_image(beach, (512, 0))
     mask = Mask.load(image_dir / "beach_outpaint_mask.png")
     cond = Conditioning("photo of a beach and jungle, nature photography, tropical")
-    params = InpaintParams.detect(mask, InpaintMode.automatic, SDVersion.sd15, cond)
+    params = InpaintParams.automatic(mask, SDVersion.sd15, cond, image.extent)
     job = workflow.inpaint(comfy, default_style(comfy), image, cond, params, default_seed)
 
     async def main():

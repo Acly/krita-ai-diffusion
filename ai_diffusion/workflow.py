@@ -40,7 +40,13 @@ def compute_bounds(extent: Extent, mask_bounds: Optional[Bounds], strength: floa
         return Bounds(0, 0, *extent)
 
 
-def detect_inpaint_mode(image: Image, area: Bounds):
+def detect_inpaint_mode(extent: Extent, area: Bounds):
+    if area.width >= extent.width or area.height >= extent.height:
+        return InpaintMode.expand
+    return InpaintMode.fill
+
+
+def get_inpaint_reference(image: Image, area: Bounds):
     extent = image.extent
     area = Bounds.pad(area, 0, multiple=8)
     area = Bounds.clamp(area, extent)
@@ -51,16 +57,14 @@ def detect_inpaint_mode(image: Image, area: Bounds):
         if area.x == 0:
             offset = area.width
         if area.x == 0 or area.x + area.width == extent.width:
-            image = Image.crop(image, Bounds(offset, 0, extent.width - area.width, extent.height))
-            return InpaintMode.expand, image
+            return Image.crop(image, Bounds(offset, 0, extent.width - area.width, extent.height))
     if area.width >= extent.width and extent.height - area.height > 224:
         offset = 0
         if area.y == 0:
             offset = area.height
         if area.y == 0 or area.y + area.height == extent.height:
-            image = Image.crop(image, Bounds(0, offset, extent.width, extent.height - area.height))
-            return InpaintMode.expand, image
-    return InpaintMode.fill, None
+            return Image.crop(image, Bounds(0, offset, extent.width, extent.height - area.height))
+    return None
 
 
 def compute_batch_size(extent: Extent, min_size=512, max_batches: Optional[int] = None):
@@ -698,7 +702,9 @@ class InpaintParams:
 
     @staticmethod
     def detect(mask: Mask, mode: InpaintMode, sd_ver: SDVersion, cond: Conditioning):
+        assert mode is not InpaintMode.automatic
         result = InpaintParams(mask, mode)
+
         if sd_ver is SDVersion.sd15:
             result.use_inpaint_control = True
             result.use_condition_mask = (
@@ -708,12 +714,15 @@ class InpaintParams:
             )
         if sd_ver is SDVersion.sdxl:
             result.use_inpaint_model = True
-        result.use_reference = cond.prompt == "" and mode in [
-            InpaintMode.fill,
-            InpaintMode.expand,
-            InpaintMode.remove_object,
-        ]
+
+        is_ref_mode = mode in [InpaintMode.fill, InpaintMode.expand]
+        result.use_reference = is_ref_mode and cond.prompt == ""
         return result
+
+    @staticmethod
+    def automatic(mask: Mask, sd_ver: SDVersion, cond: Conditioning, image_extent: Extent):
+        mode = detect_inpaint_mode(image_extent, mask.bounds)
+        return InpaintParams.detect(mask, mode, sd_ver, cond)
 
 
 def inpaint(
@@ -723,10 +732,7 @@ def inpaint(
     sd_ver = resolve_sd_version(style, comfy)
     extent, scaled_image, scaled_mask, _ = prepare_masked(image, params.mask, sd_ver, style)
     upscale_extent, _ = prepare_extent(target_bounds.extent, sd_ver, style, downscale=False)
-
-    detected_mode, reference_image = detect_inpaint_mode(scaled_image, params.mask.bounds)
-    if params.mode is InpaintMode.automatic:
-        params.mode = detected_mode
+    initial_bounds = extent.convert(target_bounds, "target", "initial")
 
     w = ComfyWorkflow(comfy.nodes_inputs)
     model, clip, vae = load_model_with_lora(w, comfy, style, cond)
@@ -752,12 +758,14 @@ def inpaint(
     cond_base = cond.copy()
     cond_base.downscale(image.extent, extent.initial)
     if params.use_reference:
-        reference = reference_image or in_image
+        reference = get_inpaint_reference(scaled_image, initial_bounds) or in_image
         cond_base.control.append(Control(ControlMode.reference, reference, 0.5, (0.2, 0.8)))
     if params.use_inpaint_control:
         cond_base.control.append(Control(ControlMode.inpaint, in_image, mask=in_mask))
     if params.use_condition_mask:
         cond_base.mask = in_mask
+    if params.mode is InpaintMode.remove_object and cond_base.prompt == "":
+        cond_base.prompt = "background scenery"
     model = apply_ip_adapter(w, model, cond_base.control, comfy, sd_ver)
     positive, negative = encode_text_prompt(w, cond_base, clip, style)
     positive, negative = apply_control(
@@ -780,8 +788,6 @@ def inpaint(
     out_latent = w.ksampler_advanced(inpaint_model, positive, negative, latent, **sampler_params)
 
     if extent.refinement_scaling in [ScaleMode.upscale_latent, ScaleMode.upscale_quality]:
-        initial_bounds = extent.convert(target_bounds, "target", "initial")
-
         sampler_params = _sampler_params(style, strength=0.4, seed=seed)
         upscale_model = w.load_upscale_model(comfy.default_upscaler)
         upscale = w.vae_decode(vae, out_latent)

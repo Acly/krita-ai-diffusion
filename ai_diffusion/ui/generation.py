@@ -2,6 +2,7 @@ from __future__ import annotations
 from PyQt5.QtCore import Qt, QMetaObject, QSize, QPoint, pyqtSignal
 from PyQt5.QtGui import QGuiApplication, QMouseEvent
 from PyQt5.QtWidgets import (
+    QAction,
     QWidget,
     QVBoxLayout,
     QHBoxLayout,
@@ -12,6 +13,7 @@ from PyQt5.QtWidgets import (
     QListWidgetItem,
     QListView,
     QSizePolicy,
+    QToolButton,
     QMenu,
 )
 
@@ -20,6 +22,7 @@ from ..image import Bounds, Extent, Image
 from ..jobs import Job, JobQueue, JobState, JobKind, JobParams
 from ..model import Model
 from ..root import root
+from ..workflow import InpaintMode
 from ..settings import settings
 from ..util import ensure
 from . import theme
@@ -375,12 +378,26 @@ class GenerationWidget(QWidget):
         strength_layout.addWidget(self.add_control_button)
         layout.addLayout(strength_layout)
 
-        self.generate_button = QPushButton("Generate", self)
+        self.generate_button = QPushButton(self)
         self.generate_button.setMinimumHeight(int(self.generate_button.sizeHint().height() * 1.2))
+
+        self.inpaint_mode_button = QToolButton(self)
+        self.inpaint_mode_button.setArrowType(Qt.ArrowType.DownArrow)
+        self.inpaint_mode_button.setMinimumHeight(self.generate_button.minimumHeight())
+        self.inpaint_mode_button.clicked.connect(self.show_inpaint_menu)
+        self.inpaint_menu = self._create_inpaint_menu()
+        self.update_generate_button()
+
+        generate_layout = QHBoxLayout()
+        generate_layout.setSpacing(0)
+        generate_layout.addWidget(self.generate_button)
+        generate_layout.addWidget(self.inpaint_mode_button)
+
         self.queue_button = QueueButton(parent=self)
         self.queue_button.setMinimumHeight(self.generate_button.minimumHeight())
+
         actions_layout = QHBoxLayout()
-        actions_layout.addWidget(self.generate_button)
+        actions_layout.addLayout(generate_layout)
         actions_layout.addWidget(self.queue_button)
         layout.addLayout(actions_layout)
 
@@ -416,6 +433,9 @@ class GenerationWidget(QWidget):
                 bind(model, "prompt", self.prompt_textbox, "text"),
                 bind(model, "negative_prompt", self.negative_textbox, "text"),
                 bind(model, "strength", self.strength_slider, "value"),
+                model.inpaint_mode_changed.connect(self.update_generate_button),
+                model.strength_changed.connect(self.update_generate_button),
+                model.document.selection_bounds_changed.connect(self.update_generate_button),
                 model.progress_changed.connect(self.update_progress),
                 model.error_changed.connect(self.error_text.setText),
                 model.has_error_changed.connect(self.error_text.setVisible),
@@ -441,3 +461,48 @@ class GenerationWidget(QWidget):
     def apply_result(self, item: QListWidgetItem):
         job_id, index = self.history.item_info(item)
         self.model.apply_result(job_id, index)
+
+    _inpaint_text = {
+        InpaintMode.automatic: "Default (Auto-detect)",
+        InpaintMode.fill: "Fill",
+        InpaintMode.expand: "Expand",
+        InpaintMode.add_object: "Add Content",
+        InpaintMode.remove_object: "Remove Content",
+        InpaintMode.replace_background: "Replace Background",
+        InpaintMode.custom: "Generate (Custom)",
+    }
+
+    def _create_inpaint_menu(self):
+        menu = QMenu(self)
+        for mode in InpaintMode:
+            action = QAction(self._inpaint_text[mode], self)
+            action.setIcon(theme.icon(f"inpaint-{mode.name}"))
+            action.setIconVisibleInMenu(True)
+            action.triggered.connect(lambda _, m=mode: self.change_inpaint_mode(m))
+            menu.addAction(action)
+        return menu
+
+    def show_inpaint_menu(self):
+        width = self.generate_button.width() + self.inpaint_mode_button.width()
+        pos = QPoint(0, self.generate_button.height())
+        self.inpaint_menu.setFixedWidth(width)
+        self.inpaint_menu.exec_(self.generate_button.mapToGlobal(pos))
+
+    def change_inpaint_mode(self, mode: InpaintMode):
+        self.model.inpaint_mode = mode
+
+    def update_generate_button(self):
+        if self.model.document.selection_bounds is None:
+            self.generate_button.setIcon(theme.icon("workspace-generation"))
+            self.generate_button.setText("Generate" if self.model.strength == 1.0 else "Refine")
+            self.inpaint_mode_button.setVisible(False)
+        elif self.model.strength == 1.0:
+            mode = self.model.resolve_inpaint_mode()
+            self.generate_button.setIcon(theme.icon(f"inpaint-{mode.name}"))
+            self.generate_button.setText(self._inpaint_text[mode])
+            self.inpaint_mode_button.setVisible(True)
+        else:
+            self.generate_button.setIcon(theme.icon("workspace-generation"))
+            self.generate_button.setText("Refine")
+            self.inpaint_mode_button.setVisible(False)
+        self.generate_button.setText("  " + self.generate_button.text())

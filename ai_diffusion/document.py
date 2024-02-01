@@ -12,8 +12,13 @@ from .pose import Pose
 from . import eventloop
 
 
-class Document:
+class Document(QObject):
     """Document interface. Used as placeholder when there is no open Document in Krita."""
+
+    selection_bounds_changed = pyqtSignal()
+
+    def __init__(self):
+        super().__init__()
 
     @property
     def extent(self):
@@ -94,6 +99,10 @@ class Document:
         pass
 
     @property
+    def selection_bounds(self) -> Bounds | None:
+        return None
+
+    @property
     def resolution(self) -> float:
         return 0.0
 
@@ -112,10 +121,17 @@ class KritaDocument(Document):
 
     _doc: krita.Document
     _id: QUuid
+    _poller: QTimer
+    _selection_bounds: Bounds | None = None
 
     def __init__(self, krita_document: krita.Document):
+        super().__init__()
         self._doc = krita_document
         self._id = krita_document.rootNode().uniqueId()
+        self._poller = QTimer()
+        self._poller.setInterval(10)
+        self._poller.timeout.connect(self._poll)
+        self._poller.start()
 
     @staticmethod
     def active():
@@ -303,6 +319,10 @@ class KritaDocument(Document):
         self._doc.setActiveNode(layer)
 
     @property
+    def selection_bounds(self):
+        return self._selection_bounds
+
+    @property
     def resolution(self):
         return self._doc.resolution() / 72.0  # KisImage::xRes which is applied to vectors
 
@@ -313,6 +333,16 @@ class KritaDocument(Document):
     @property
     def is_active(self):
         return self._doc == Krita.instance().activeDocument()
+
+    def _poll(self):
+        if self.is_valid:
+            selection = self._doc.selection()
+            selection_bounds = _selection_bounds(selection) if selection else None
+            if selection_bounds != self._selection_bounds:
+                self._selection_bounds = selection_bounds
+                self.selection_bounds_changed.emit()
+        else:
+            self._poller.stop()
 
     def __eq__(self, other):
         if self is other:
