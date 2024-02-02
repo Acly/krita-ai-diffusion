@@ -8,7 +8,7 @@ from typing import NamedTuple, Sequence
 version = "1.14.0"
 
 comfy_url = "https://github.com/comfyanonymous/ComfyUI"
-comfy_version = "d76a04b6ea61306349861a7c4657567507385947"
+comfy_version = "d0e2354c287d306b0559f1e570c79f2fdac064f4"
 
 
 class CustomNode(NamedTuple):
@@ -24,14 +24,14 @@ required_custom_nodes = [
         "ControlNet Preprocessors",
         "comfyui_controlnet_aux",
         "https://github.com/Fannovel16/comfyui_controlnet_aux",
-        "678f2d57333777cf5d3ab2e9ae01eb350c17ab13",
+        "c24b2dcb00cd26e4515cd897e14ec21cc5ff3b2d",
         ["InpaintPreprocessor"],
     ),
     CustomNode(
         "IP-Adapter",
         "ComfyUI_IPAdapter_plus",
         "https://github.com/cubiq/ComfyUI_IPAdapter_plus",
-        "52434a9c9033006c3ca45eb2f42493384bcefc91",
+        "46241f3ba5401f076f8d90c2aa85f2194910e1a9",
         ["IPAdapterModelLoader", "IPAdapterApply"],
     ),
     CustomNode(
@@ -57,7 +57,7 @@ required_custom_nodes = [
         "Inpaint Nodes",
         "comfyui-inpaint-nodes",
         "https://github.com/Acly/comfyui-inpaint-nodes",
-        "ea8a1bd5f8e553b9857573f67e0e281caec57657",
+        "54493635e83539bfa1caaf08564a618bc3567878",
         ["INPAINT_LoadFooocusInpaint", "INPAINT_ApplyFooocusInpaint"],
     ),
 ]

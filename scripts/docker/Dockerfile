@@ -61,13 +61,14 @@ RUN git clone https://github.com/comfyanonymous/ComfyUI.git /ComfyUI && \
     pip3 install --no-cache-dir torch torchvision torchaudio --index-url https://download.pytorch.org/whl/cu121 && \
     pip3 install -r /ComfyUI/requirements.txt && \
     pip3 cache purge && \
-    echo v1.13.0 > .krita-ai-diffusion.version
+    echo v1.14.0 > .krita-ai-diffusion.version
 
 # Install ComfyUI Custom Nodes
 RUN git clone https://github.com/ltdrdata/ComfyUI-Manager.git /ComfyUI/custom_nodes/ComfyUI-Manager && \
     git clone https://github.com/Fannovel16/comfyui_controlnet_aux /ComfyUI/custom_nodes/comfyui_controlnet_aux && \
     git clone https://github.com/cubiq/ComfyUI_IPAdapter_plus /ComfyUI/custom_nodes/ComfyUI_IPAdapter_plus && \
     git clone https://github.com/ssitu/ComfyUI_UltimateSDUpscale /ComfyUI/custom_nodes/ComfyUI_UltimateSDUpscale --recursive && \
+    git clone https://github.com/Acly/comfyui-inpaint-nodes /ComfyUI/custom_nodes/comfyui-inpaint-nodes && \
     git clone https://github.com/Acly/comfyui-tooling-nodes /ComfyUI/custom_nodes/comfyui-tooling-nodes && \
     pip3 install -r /ComfyUI/custom_nodes/ComfyUI-Manager/requirements.txt && \    
     pip3 install -r /ComfyUI/custom_nodes/comfyui_controlnet_aux/requirements.txt && \

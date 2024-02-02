@@ -11,3 +11,4 @@ runpod:
     hypernetworks: hypernetworks
     controlnet: controlnet
     ipadapter: ipadapter
+    inpaint: inpaint
