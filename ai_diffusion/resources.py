@@ -5,7 +5,7 @@ from typing import NamedTuple, Sequence
 
 # Version identifier for all the resources defined here. This is used as the server version.
 # It usually follows the plugin version, but not all new plugin versions also require a server update.
-version = "1.13.0"
+version = "1.14.0"
 
 comfy_url = "https://github.com/comfyanonymous/ComfyUI"
 comfy_version = "d76a04b6ea61306349861a7c4657567507385947"
@@ -262,6 +262,16 @@ required_models = [
             Path(
                 "models/inpaint/inpaint_v26.fooocus.patch"
             ): "https://huggingface.co/lllyasviel/fooocus_inpaint/resolve/main/inpaint_v26.fooocus.patch",
+        },
+    ),
+    ModelResource(
+        "MAT Inpaint",
+        ResourceKind.inpaint,
+        SDVersion.all,
+        {
+            Path(
+                "models/inpaint/MAT_Places512_G_fp16.safetensors"
+            ): "https://huggingface.co/Acly/MAT/resolve/main/MAT_Places512_G_fp16.safetensors",
         },
     ),
 ]
@@ -657,7 +667,7 @@ search_paths: dict[str, list[str]] = {
     resource_id(ResourceKind.upscaler, SDVersion.all, UpscalerName.fast_4x): [UpscalerName.fast_4x.value],
     resource_id(ResourceKind.inpaint, SDVersion.sdxl, "fooocus_head"): ["fooocus_inpaint_head.pth"],
     resource_id(ResourceKind.inpaint, SDVersion.sdxl, "fooocus_patch"): ["inpaint_v26.fooocus.patch"],
-    resource_id(ResourceKind.inpaint, SDVersion.all, "lama"): ["big-lama.pt"],
+    resource_id(ResourceKind.inpaint, SDVersion.all, "default"): ["MAT_Places512_G_fp16", "Places_512_FullData_G", "big-lama.pt"],
 }
 # fmt: on
 
@@ -675,4 +685,5 @@ required_resource_ids = set([
     resource_id(ResourceKind.upscaler, SDVersion.all, UpscalerName.fast_4x),
     resource_id(ResourceKind.inpaint, SDVersion.sdxl, "fooocus_head"),
     resource_id(ResourceKind.inpaint, SDVersion.sdxl, "fooocus_patch"),
+    resource_id(ResourceKind.inpaint, SDVersion.all, "default"),
 ])

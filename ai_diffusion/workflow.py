@@ -765,7 +765,7 @@ def inpaint(
     elif params.mode is InpaintMode.add_object:
         in_image = w.fill_masked(in_image, in_mask, "neutral", falloff=9)
     elif params.mode is InpaintMode.remove_object:
-        mat = w.load_inpaint_model(ensure(comfy.inpaint_models["mat"]))
+        mat = w.load_inpaint_model(ensure(comfy.inpaint_models["default"]))
         in_image = w.inpaint_image(mat, in_image, in_mask)
     elif params.mode is InpaintMode.replace_background:
         in_image = w.fill_masked(in_image, in_mask, "neutral")

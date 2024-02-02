@@ -426,11 +426,13 @@ class Client:
             if not self.control_model[ControlMode.blur][sdver]:
                 names = ["models/controlnet/control_lora_rank128_v11f1e_sd15_tile_fp16.safetensors"]
                 missing.append(MissingResource(ResourceKind.controlnet, names))
+        required_inpaint = ["default"]
         if sdver is SDVersion.sdxl:
-            for id, model in self.inpaint_models.items():
-                if model is None:
-                    names = resources.search_path(ResourceKind.inpaint, sdver, id)
-                    missing.append(MissingResource(ResourceKind.inpaint, names))
+            required_inpaint += ["fooocus_head", "fooocus_patch"]
+        for id, model in self.inpaint_models.items():
+            if id in required_inpaint and model is None:
+                names = resources.search_path(ResourceKind.inpaint, sdver, id)
+                missing.append(MissingResource(ResourceKind.inpaint, names))
         if len(missing) == 0:
             log.info(f"{sdver.value}: supported")
         else:
@@ -559,7 +561,7 @@ def _find_inpaint_models(model_list: Sequence[str]):
         "fooocus_patch": _find_model(
             model_list, ResourceKind.inpaint, SDVersion.sdxl, "fooocus_patch"
         ),
-        "lama": _find_model(model_list, ResourceKind.inpaint, SDVersion.all, "lama"),
+        "default": _find_model(model_list, ResourceKind.inpaint, SDVersion.all, "default"),
     }
 
 

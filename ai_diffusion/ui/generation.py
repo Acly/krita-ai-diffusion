@@ -447,6 +447,7 @@ class GenerationWidget(QWidget):
             self.control_list.model = model
             self.queue_button.model = model
             self.history.model_ = model
+            self.update_generate_button()
 
     def update_progress(self):
         self.progress_bar.setValue(int(self.model.progress * 100))
