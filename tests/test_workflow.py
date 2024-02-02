@@ -825,9 +825,13 @@ inpaint_benchmark = {
     "apple-tree": (
         InpaintMode.expand,
         "children's illustration of kids next to an apple tree",
-        None,
+        Bounds(0, 640, 1024, 384),
     ),
-    "girl-cornfield": (InpaintMode.expand, "anime artwork of girl in a cornfield", None),
+    "girl-cornfield": (
+        InpaintMode.expand,
+        "anime artwork of girl in a cornfield",
+        Bounds(0, 0, 773 - 261, 768),
+    ),
     "cuban-guitar": (InpaintMode.replace_background, "photo of a beach bar", None),
     "jungle": (
         InpaintMode.fill,

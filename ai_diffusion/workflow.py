@@ -483,8 +483,11 @@ def merge_prompt(prompt: str, style_prompt: str):
 
 
 def encode_text_prompt(w: ComfyWorkflow, cond: Conditioning, clip: Output, style: Style):
-    prompt = "" if cond.mask else cond.prompt
-    prompt = merge_prompt(prompt, style.style_prompt)
+    prompt = cond.prompt
+    if prompt != "" and cond.mask:
+        prompt = merge_prompt("", style.style_prompt)
+    elif prompt != "":
+        prompt = merge_prompt(cond.prompt, style.style_prompt)
     positive = w.clip_text_encode(clip, prompt)
     negative = w.clip_text_encode(clip, merge_prompt(cond.negative_prompt, style.negative_prompt))
     if cond.mask and cond.prompt != "":
@@ -742,19 +745,6 @@ def inpaint(
     in_mask = scale_to_initial(extent, w, in_mask, comfy, is_mask=True)
     cropped_mask = w.load_mask(params.mask.to_image())
 
-    if params.mode is InpaintMode.fill:
-        in_image = w.blur_masked(in_image, in_mask, 65, falloff=9)
-    elif params.mode is InpaintMode.expand:
-        in_image = w.fill_masked(in_image, in_mask, "navier-stokes")
-        in_image = w.blur_masked(in_image, in_mask, 65)
-    elif params.mode is InpaintMode.add_object:
-        in_image = w.fill_masked(in_image, in_mask, "neutral", falloff=9)
-    elif params.mode is InpaintMode.remove_object:
-        lama = w.load_inpaint_model(ensure(comfy.inpaint_models["lama"]))
-        in_image = w.inpaint_image(lama, in_image, in_mask)
-    elif params.mode is InpaintMode.replace_background:
-        in_image = w.fill_masked(in_image, in_mask, "neutral")
-
     cond_base = cond.copy()
     cond_base.downscale(image.extent, extent.initial)
     if params.use_reference:
@@ -766,6 +756,20 @@ def inpaint(
         cond_base.mask = in_mask
     if params.mode is InpaintMode.remove_object and cond_base.prompt == "":
         cond_base.prompt = "background scenery"
+
+    if params.mode is InpaintMode.fill:
+        in_image = w.blur_masked(in_image, in_mask, 65, falloff=9)
+    elif params.mode is InpaintMode.expand:
+        in_image = w.fill_masked(in_image, in_mask, "navier-stokes")
+        in_image = w.blur_masked(in_image, in_mask, 65)
+    elif params.mode is InpaintMode.add_object:
+        in_image = w.fill_masked(in_image, in_mask, "neutral", falloff=9)
+    elif params.mode is InpaintMode.remove_object:
+        mat = w.load_inpaint_model(ensure(comfy.inpaint_models["mat"]))
+        in_image = w.inpaint_image(mat, in_image, in_mask)
+    elif params.mode is InpaintMode.replace_background:
+        in_image = w.fill_masked(in_image, in_mask, "neutral")
+
     model = apply_ip_adapter(w, model, cond_base.control, comfy, sd_ver)
     positive, negative = encode_text_prompt(w, cond_base, clip, style)
     positive, negative = apply_control(
