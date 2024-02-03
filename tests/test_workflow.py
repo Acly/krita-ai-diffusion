@@ -861,16 +861,15 @@ async def run_inpaint_benchmark(
     comfy, sdver: SDVersion, prompt_mode: str, scenario: str, seed: int, out_dir: Path
 ):
     mode, prompt, bounds = inpaint_benchmark[scenario]
-    image_dir = config.benchmark_dir / "input"
-    image = Image.load(image_dir / f"{scenario}-image.webp")
-    mask = Mask.load(image_dir / f"{scenario}-mask.webp")
+    image = Image.load(image_dir / "inpaint" / f"{scenario}-image.webp")
+    mask = Mask.load(image_dir / "inpaint" / f"{scenario}-mask.webp")
     if bounds:
         mask = Mask.crop(mask, bounds)
     prompt_text = prompt if prompt_mode == "prompt" else ""
     cond = Conditioning(prompt_text)
     params = InpaintParams.detect(mask, mode, sdver, cond)
     job = workflow.inpaint(comfy, default_style(comfy, sdver), image, cond, params, seed)
-    result_name = f"benchmark_inpaint_{scenario}_{sdver.name}_{prompt_mode}_{seed}.png"
+    result_name = f"benchmark_inpaint_{scenario}_{sdver.name}_{prompt_mode}_{seed}.webp"
     await run_and_save(comfy, job, result_name, image, mask, output_dir=out_dir)
 
 
