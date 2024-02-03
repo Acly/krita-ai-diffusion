@@ -32,8 +32,15 @@ class Document(QObject):
         return True, None
 
     def create_mask_from_selection(
-        self, grow: float, feather: float, padding: float, multiple=8, min_size=0, square=False
-    ) -> tuple[Mask, Bounds] | tuple[None, None]:
+        self,
+        grow: float,
+        feather: float,
+        padding: float,
+        multiple=8,
+        min_size=0,
+        square=False,
+        invert=False,
+    ) -> Mask | None:
         raise NotImplementedError
 
     def create_mask_from_layer(self, padding: float, is_inpaint: bool) -> tuple[Mask, Bounds, None]:
@@ -157,14 +164,21 @@ class KritaDocument(Document):
         return True, None
 
     def create_mask_from_selection(
-        self, grow: float, feather: float, padding: float, multiple=8, min_size=0, square=False
+        self,
+        grow: float,
+        feather: float,
+        padding: float,
+        multiple=8,
+        min_size=0,
+        square=False,
+        invert=False,
     ):
         user_selection = self._doc.selection()
         if not user_selection:
-            return None, None
+            return None
 
         if _selection_is_entire_document(user_selection, self.extent):
-            return None, None
+            return None
 
         selection = user_selection.duplicate()
         original_bounds = Bounds(
@@ -180,6 +194,8 @@ class KritaDocument(Document):
             selection.grow(grow_pixels, grow_pixels)
         if feather_radius > 0:
             selection.feather(feather_radius)
+        if invert:
+            selection.invert()
 
         bounds = _selection_bounds(selection)
         bounds = Bounds.pad(
@@ -187,7 +203,7 @@ class KritaDocument(Document):
         )
         bounds = Bounds.clamp(bounds, self.extent)
         data = selection.pixelData(*bounds)
-        return Mask(bounds, data), original_bounds
+        return Mask(bounds, data)
 
     def create_mask_from_layer(self, padding: float, is_inpaint: bool):
         image_bounds = Bounds(0, 0, *self.extent)

@@ -96,23 +96,22 @@ class Model(QObject, ObservableProperties):
         extent = self._doc.extent
 
         if self._doc.active_layer.type() == "selectionmask":
-            mask, image_bounds, selection_bounds = self._doc.create_mask_from_layer(
+            mask, image_bounds, _ = self._doc.create_mask_from_layer(
                 settings.selection_padding / 100, is_inpaint=self.strength == 1.0
             )
         else:
-            mask, selection_bounds = self._doc.create_mask_from_selection(
-                grow=settings.selection_grow / 100,
-                feather=settings.selection_feather / 100,
-                padding=settings.selection_padding / 100,
-                min_size=64,  # minimum size for area conditioning
+            grow = settings.selection_grow / 100
+            feather = settings.selection_feather / 100
+            padding = settings.selection_padding / 100
+            invert = self.inpaint_mode is InpaintMode.replace_background
+            if self.inpaint_mode is InpaintMode.replace_background:
+                grow, feather, padding = 0.01, 0.01, 0
+            mask = self._doc.create_mask_from_selection(
+                grow, feather, padding, min_size=64, invert=invert
             )
             image_bounds = workflow.compute_bounds(
                 extent, mask.bounds if mask else None, self.strength
             )
-        # TODO still need selection bounds?
-        # if selection_bounds is not None:
-        #     selection_bounds = Bounds.apply_crop(selection_bounds, image_bounds)
-        #     selection_bounds = Bounds.minimum_size(selection_bounds, 64, image_bounds.extent)
 
         control = [c.get_image(image_bounds) for c in self.control]
         prompt, loras = workflow.extract_loras(self.prompt, self._connection.client.loras)
