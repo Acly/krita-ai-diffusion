@@ -5,6 +5,7 @@ from typing import Any, NamedTuple
 from PyQt5.QtCore import QObject, pyqtSignal
 
 from . import eventloop, workflow, util
+from .util import client_logger as log
 from .settings import settings
 from .network import NetworkError
 from .image import Extent, Image, Mask, Bounds
@@ -386,8 +387,11 @@ class Model(QObject, ObservableProperties):
         # Note: for some reason Krita sometimes creates a new object for an existing document.
         # The old object is deleted and unusable. This method is used to update the object,
         # but doesn't actually change the document identity.
+        # TODO: 04/02/2024 is this still necessary? check log.
         assert doc == self._doc, "Cannot change document of model"
-        self._doc = doc
+        if self._doc is not doc:
+            log.warning(f"Document instance changed {self._doc} -> {doc}")
+            self._doc = doc
 
     @property
     def image_layers(self):

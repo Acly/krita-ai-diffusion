@@ -2,6 +2,7 @@ from __future__ import annotations
 from contextlib import nullcontext
 from pathlib import Path
 from typing import Literal, NamedTuple, cast
+from weakref import WeakValueDictionary
 import krita
 from krita import Krita
 from PyQt5.QtCore import QObject, QUuid, QByteArray, QTimer, pyqtSignal
@@ -130,6 +131,7 @@ class KritaDocument(Document):
     _id: QUuid
     _poller: QTimer
     _selection_bounds: Bounds | None = None
+    _instances: WeakValueDictionary[str, KritaDocument] = WeakValueDictionary()
 
     def __init__(self, krita_document: krita.Document):
         super().__init__()
@@ -139,11 +141,14 @@ class KritaDocument(Document):
         self._poller.setInterval(20)
         self._poller.timeout.connect(self._poll)
         self._poller.start()
+        self._instances[self._id.toString()] = self
 
-    @staticmethod
-    def active():
-        doc = Krita.instance().activeDocument()
-        return KritaDocument(doc) if doc else None
+    @classmethod
+    def active(cls):
+        if doc := Krita.instance().activeDocument():
+            id = doc.rootNode().uniqueId().toString()
+            return cls._instances.get(id) or KritaDocument(doc)
+        return None
 
     @property
     def extent(self):
