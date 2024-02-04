@@ -386,6 +386,7 @@ class GenerationWidget(QWidget):
         self.inpaint_mode_button.setMinimumHeight(self.generate_button.minimumHeight())
         self.inpaint_mode_button.clicked.connect(self.show_inpaint_menu)
         self.inpaint_menu = self._create_inpaint_menu()
+        self.refine_menu = self._create_refine_menu()
         self.update_generate_button()
 
         generate_layout = QHBoxLayout()
@@ -473,37 +474,57 @@ class GenerationWidget(QWidget):
         InpaintMode.custom: "Generate (Custom)",
     }
 
+    def _create_inpaint_action(self, mode: InpaintMode, text: str, icon: str):
+        action = QAction(text, self)
+        action.setIcon(theme.icon(icon))
+        action.setIconVisibleInMenu(True)
+        action.triggered.connect(lambda: self.change_inpaint_mode(mode))
+        return action
+
     def _create_inpaint_menu(self):
         menu = QMenu(self)
         for mode in InpaintMode:
-            action = QAction(self._inpaint_text[mode], self)
-            action.setIcon(theme.icon(f"inpaint-{mode.name}"))
-            action.setIconVisibleInMenu(True)
-            action.triggered.connect(lambda _, m=mode: self.change_inpaint_mode(m))
-            menu.addAction(action)
+            text = self._inpaint_text[mode]
+            menu.addAction(self._create_inpaint_action(mode, text, f"inpaint-{mode.name}"))
+        return menu
+
+    def _create_refine_menu(self):
+        menu = QMenu(self)
+        menu.addAction(self._create_inpaint_action(InpaintMode.automatic, "Refine", "refine"))
+        menu.addAction(
+            self._create_inpaint_action(InpaintMode.custom, "Refine (Custom)", "inpaint-custom")
+        )
         return menu
 
     def show_inpaint_menu(self):
         width = self.generate_button.width() + self.inpaint_mode_button.width()
         pos = QPoint(0, self.generate_button.height())
-        self.inpaint_menu.setFixedWidth(width)
-        self.inpaint_menu.exec_(self.generate_button.mapToGlobal(pos))
+        menu = self.inpaint_menu if self.model.strength == 1.0 else self.refine_menu
+        menu.setFixedWidth(width)
+        menu.exec_(self.generate_button.mapToGlobal(pos))
 
     def change_inpaint_mode(self, mode: InpaintMode):
         self.model.inpaint_mode = mode
 
     def update_generate_button(self):
         if self.model.document.selection_bounds is None:
-            self.generate_button.setIcon(theme.icon("workspace-generation"))
-            self.generate_button.setText("Generate" if self.model.strength == 1.0 else "Refine")
             self.inpaint_mode_button.setVisible(False)
-        elif self.model.strength == 1.0:
-            mode = self.model.resolve_inpaint_mode()
-            self.generate_button.setIcon(theme.icon(f"inpaint-{mode.name}"))
-            self.generate_button.setText(self._inpaint_text[mode])
-            self.inpaint_mode_button.setVisible(True)
+            if self.model.strength == 1.0:
+                self.generate_button.setIcon(theme.icon("workspace-generation"))
+                self.generate_button.setText("Generate")
+            else:
+                self.generate_button.setIcon(theme.icon("refine"))
+                self.generate_button.setText("Refine")
         else:
-            self.generate_button.setIcon(theme.icon("workspace-generation"))
-            self.generate_button.setText("Refine")
-            self.inpaint_mode_button.setVisible(False)
-        self.generate_button.setText("  " + self.generate_button.text())
+            self.inpaint_mode_button.setVisible(True)
+            if self.model.strength == 1.0:
+                mode = self.model.resolve_inpaint_mode()
+                self.generate_button.setIcon(theme.icon(f"inpaint-{mode.name}"))
+                self.generate_button.setText(self._inpaint_text[mode])
+            else:
+                is_custom = self.model.inpaint_mode is InpaintMode.custom
+                self.generate_button.setIcon(
+                    theme.icon("inpaint-custom" if is_custom else "refine")
+                )
+                self.generate_button.setText("Refine (Custom)" if is_custom else "Refine")
+        self.generate_button.setText(" " + self.generate_button.text())

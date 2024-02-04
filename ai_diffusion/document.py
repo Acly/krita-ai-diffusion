@@ -33,9 +33,9 @@ class Document(QObject):
 
     def create_mask_from_selection(
         self,
-        grow: float,
-        feather: float,
-        padding: float,
+        grow: float = 0.0,
+        feather: float = 0.0,
+        padding: float = 0.0,
         multiple=8,
         min_size=0,
         square=False,
@@ -136,7 +136,7 @@ class KritaDocument(Document):
         self._doc = krita_document
         self._id = krita_document.rootNode().uniqueId()
         self._poller = QTimer()
-        self._poller.setInterval(10)
+        self._poller.setInterval(20)
         self._poller.timeout.connect(self._poll)
         self._poller.start()
 
@@ -165,9 +165,9 @@ class KritaDocument(Document):
 
     def create_mask_from_selection(
         self,
-        grow: float,
-        feather: float,
-        padding: float,
+        grow: float = 0.0,
+        feather: float = 0.0,
+        padding: float = 0.0,
         multiple=8,
         min_size=0,
         square=False,

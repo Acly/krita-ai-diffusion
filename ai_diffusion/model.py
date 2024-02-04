@@ -1,7 +1,7 @@
 from __future__ import annotations
 from pathlib import Path
 from enum import Enum
-from typing import NamedTuple
+from typing import Any, NamedTuple
 from PyQt5.QtCore import QObject, pyqtSignal
 
 from . import eventloop, workflow, util
@@ -100,14 +100,8 @@ class Model(QObject, ObservableProperties):
                 settings.selection_padding / 100, is_inpaint=self.strength == 1.0
             )
         else:
-            grow = settings.selection_grow / 100
-            feather = settings.selection_feather / 100
-            padding = settings.selection_padding / 100
-            invert = self.inpaint_mode is InpaintMode.replace_background
-            if self.inpaint_mode is InpaintMode.replace_background:
-                grow, feather, padding = 0.01, 0.01, 0
             mask = self._doc.create_mask_from_selection(
-                grow, feather, padding, min_size=64, invert=invert
+                **get_selection_modifiers(self.inpaint_mode), min_size=64
             )
             image_bounds = workflow.compute_bounds(
                 extent, mask.bounds if mask else None, self.strength
@@ -197,7 +191,7 @@ class Model(QObject, ObservableProperties):
         ver = resolve_sd_version(self.style, self._connection.client)
         image = None
 
-        mask, _ = self._doc.create_mask_from_selection(
+        mask = self._doc.create_mask_from_selection(
             grow=settings.selection_feather / 200,  # don't apply grow for live mode
             feather=settings.selection_feather / 100,
             padding=settings.selection_padding / 100,
@@ -232,7 +226,7 @@ class Model(QObject, ObservableProperties):
             return
 
         image = self._doc.get_image(Bounds(0, 0, *self._doc.extent))
-        mask, _ = self.document.create_mask_from_selection(0, 0, padding=0.25, multiple=64)
+        mask = self.document.create_mask_from_selection(0, 0, padding=0.25, multiple=64)
         bounds = mask.bounds if mask else None
 
         job = self.jobs.add_control(control, Bounds(0, 0, *image.extent))
@@ -560,6 +554,27 @@ class LiveWorkspace(QObject, ObservableProperties):
         start, end = self._keyframe_start, self._keyframe_start + len(self._keyframes)
         self._model.document.active_layer.setName(f"[Rec] {start}-{end}: {self._model.prompt}")
         self._keyframes = []
+
+
+def get_selection_modifiers(inpaint_mode: InpaintMode) -> dict[str, Any]:
+    grow = settings.selection_grow / 100
+    feather = settings.selection_feather / 100
+    padding = settings.selection_padding / 100
+    invert = False
+
+    if inpaint_mode is InpaintMode.remove_object:
+        # avoid leaving any border pixels of the object to be removed within the
+        # area where the mask is 1.0, it will confuse inpainting models
+        feather = min(feather, grow * 0.5)
+
+    if inpaint_mode is InpaintMode.replace_background:
+        # only minimal grow/feather as there is often no desired transition between
+        # forground object and background (to be replaced by something else entirely)
+        grow = min(grow, 0.01)
+        feather = min(feather, 0.01)
+        invert = True
+
+    return dict(grow=grow, feather=feather, padding=padding, invert=invert)
 
 
 async def _report_errors(parent: Model, coro):

@@ -694,10 +694,35 @@ class InpaintMode(Enum):
     custom = 6
 
 
+class FillMode(Enum):
+    neutral = 0
+    blur = 1
+    border = 2
+    replace = 3
+    inpaint = 4
+
+
+def fill_masked(w: ComfyWorkflow, image: Output, mask: Output, fill: FillMode, comfy: Client):
+    if fill is FillMode.blur:
+        return w.blur_masked(image, mask, 65, falloff=9)
+    elif fill is FillMode.border:
+        image = w.fill_masked(image, mask, "navier-stokes")
+        return w.blur_masked(image, mask, 65)
+    elif fill is FillMode.neutral:
+        return w.fill_masked(image, mask, "neutral", falloff=9)
+    elif fill is FillMode.inpaint:
+        model = w.load_inpaint_model(ensure(comfy.inpaint_models["default"]))
+        return w.inpaint_image(model, image, mask)
+    elif fill is FillMode.replace:
+        return w.fill_masked(image, mask, "neutral")
+    return image
+
+
 @dataclass
 class InpaintParams:
     mask: Mask
     mode: InpaintMode
+    fill: FillMode = FillMode.neutral
     use_inpaint_model = False
     use_inpaint_control = False
     use_condition_mask = False
@@ -720,6 +745,14 @@ class InpaintParams:
 
         is_ref_mode = mode in [InpaintMode.fill, InpaintMode.expand]
         result.use_reference = is_ref_mode and cond.prompt == ""
+
+        result.fill = {
+            InpaintMode.fill: FillMode.blur,
+            InpaintMode.expand: FillMode.border,
+            InpaintMode.add_object: FillMode.neutral,
+            InpaintMode.remove_object: FillMode.inpaint,
+            InpaintMode.replace_background: FillMode.replace,
+        }[mode]
         return result
 
     @staticmethod
@@ -757,18 +790,7 @@ def inpaint(
     if params.mode is InpaintMode.remove_object and cond_base.prompt == "":
         cond_base.prompt = "background scenery"
 
-    if params.mode is InpaintMode.fill:
-        in_image = w.blur_masked(in_image, in_mask, 65, falloff=9)
-    elif params.mode is InpaintMode.expand:
-        in_image = w.fill_masked(in_image, in_mask, "navier-stokes")
-        in_image = w.blur_masked(in_image, in_mask, 65)
-    elif params.mode is InpaintMode.add_object:
-        in_image = w.fill_masked(in_image, in_mask, "neutral", falloff=9)
-    elif params.mode is InpaintMode.remove_object:
-        mat = w.load_inpaint_model(ensure(comfy.inpaint_models["default"]))
-        in_image = w.inpaint_image(mat, in_image, in_mask)
-    elif params.mode is InpaintMode.replace_background:
-        in_image = w.fill_masked(in_image, in_mask, "neutral")
+    in_image = fill_masked(w, in_image, in_mask, params.fill, comfy)
 
     model = apply_ip_adapter(w, model, cond_base.control, comfy, sd_ver)
     positive, negative = encode_text_prompt(w, cond_base, clip, style)
