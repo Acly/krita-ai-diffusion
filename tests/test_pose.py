@@ -54,14 +54,12 @@ def test_pose_from_json():
         "canvas_height": 456,
         "people": [
             {
-                "pose_keypoints_2d": [11, 12, 1, 21, 22, 1, 31, 32, 0.5, 41, 42, 0.9, 51, 52, 0] + [
-                    0 for i in range(3 * 13)
-                ]
+                "pose_keypoints_2d": [11, 12, 1, 21, 22, 1, 31, 32, 0.5, 41, 42, 0.9, 51, 52, 0]
+                + [0 for i in range(3 * 13)]
             },
             {
-                "pose_keypoints_2d": [-11, -12, 1, -21, -22, 1, -31, -32, 0.5] + [
-                    0 for i in range(3 * 15)
-                ]
+                "pose_keypoints_2d": [-11, -12, 1, -21, -22, 1, -31, -32, 0.5]
+                + [0 for i in range(3 * 15)]
             },
         ],
     }
