@@ -451,23 +451,31 @@ def test_inpaint_params():
 
     a = InpaintParams.detect(mask, InpaintMode.fill, SDVersion.sd15, cond, 1.0)
     assert (
-        a.fill is FillMode.blur and a.use_inpaint_control == True and a.use_inpaint_model == False
+        a.fill is FillMode.blur
+        and a.use_inpaint_control == True
+        and a.use_inpaint_model == False
+        and a.use_reference == True
     )
     b = InpaintParams.detect(mask, InpaintMode.add_object, SDVersion.sd15, cond, 1.0)
     assert (
         b.fill is FillMode.neutral
         and b.use_inpaint_control == True
-        and b.use_condition_mask == True
+        and b.use_condition_mask == False
     )
     c = InpaintParams.detect(mask, InpaintMode.replace_background, SDVersion.sdxl, cond, 1.0)
     assert (
         c.fill is FillMode.replace
         and c.use_inpaint_control == False
         and c.use_inpaint_model == True
+        and c.use_reference == False
     )
-    cond.control.append(Control(ControlMode.line_art, Image.create(Extent(4, 4))))
+    cond.prompt = "prompt"
     d = InpaintParams.detect(mask, InpaintMode.add_object, SDVersion.sd15, cond, 1.0)
-    assert d.use_condition_mask == False
+    assert d.use_condition_mask == True
+
+    cond.control.append(Control(ControlMode.line_art, Image.create(Extent(4, 4))))
+    e = InpaintParams.detect(mask, InpaintMode.add_object, SDVersion.sd15, cond, 1.0)
+    assert e.use_condition_mask == False
 
 
 @pytest.mark.parametrize("extent", [Extent(256, 256), Extent(800, 800), Extent(512, 1024)])
