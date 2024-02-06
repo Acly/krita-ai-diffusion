@@ -462,7 +462,7 @@ def test_inpaint(qtapp, comfy, temp_settings):
     image = Image.load(image_dir / "beach_768x512.webp")
     mask = Mask.rectangle(Bounds(40, 120, 320, 200), feather=10)
     prompt = Conditioning("beach, the sea, cliffs, palm trees")
-    params = InpaintParams.detect(mask, InpaintMode.fill, SDVersion.sd15, prompt)
+    params = InpaintParams.detect(mask, InpaintMode.fill, SDVersion.sd15, prompt, 1.0)
     style = default_style(comfy, SDVersion.sd15)
     job = workflow.inpaint(comfy, style, image, prompt, params, default_seed)
 
@@ -483,7 +483,7 @@ def test_inpaint_upscale(qtapp, comfy, temp_settings, sdver):
     image = Image.load(image_dir / "beach_1536x1024.webp")
     mask = Mask.rectangle(Bounds(300, 200, 768, 512), feather=20)
     prompt = Conditioning("ship")
-    params = InpaintParams.detect(mask, InpaintMode.add_object, sdver, prompt)
+    params = InpaintParams.detect(mask, InpaintMode.add_object, sdver, prompt, 1.0)
     style = default_style(comfy, sdver)
     job = workflow.inpaint(comfy, style, image, prompt, params, default_seed)
 
@@ -520,7 +520,7 @@ def test_inpaint_area_conditioning(qtapp, comfy, temp_settings):
     image = Image.load(image_dir / "lake_1536x1024.webp")
     mask = Mask.load(image_dir / "lake_1536x1024_mask_bottom_right.png")
     prompt = Conditioning("crocodile")
-    params = InpaintParams.detect(mask, InpaintMode.add_object, SDVersion.sd15, prompt)
+    params = InpaintParams.detect(mask, InpaintMode.add_object, SDVersion.sd15, prompt, 1.0)
     job = workflow.inpaint(comfy, default_style(comfy), image, prompt, params, default_seed)
 
     async def main():
@@ -551,16 +551,22 @@ def test_refine(qtapp, comfy, setup, temp_settings):
     qtapp.run(main())
 
 
-def test_refine_region(qtapp, comfy, temp_settings):
+@pytest.mark.parametrize(
+    "setup",
+    [(SDVersion.sd15, 0.4), (SDVersion.sd15, 0.6), (SDVersion.sdxl, 0.7)],
+    ids=["sd15_0.4", "sd15_0.6", "sdxl_0.7"],
+)
+def test_refine_region(qtapp, comfy, temp_settings, setup):
     temp_settings.batch_size = 1
+    sdver, strength = setup
     image = Image.load(image_dir / "lake_region.webp")
     mask = Mask.load(image_dir / "lake_region_mask.png")
     prompt = Conditioning("waterfall")
+    params = InpaintParams.detect(mask, InpaintMode.fill, SDVersion.sd15, prompt, strength)
+    style = default_style(comfy, sdver)
+    job = workflow.refine_region(comfy, style, image, params, prompt, strength, default_seed)
 
     async def main():
-        job = workflow.refine_region(
-            comfy, default_style(comfy), image, mask, prompt, 0.6, default_seed
-        )
         result = await run_and_save(comfy, job, "test_refine_region.png", image, mask)
         assert result.extent == mask.bounds.extent
 
@@ -588,13 +594,16 @@ def test_control_scribble(qtapp, comfy, temp_settings, op):
         job = workflow.refine(comfy, style, inpaint_image, control, 0.7, default_seed)
     elif op == "refine_region":
         cropped_image = Image.crop(inpaint_image, mask.bounds)
-        job = workflow.refine_region(comfy, style, cropped_image, mask, control, 0.7, default_seed)
+        params = InpaintParams.automatic(mask, SDVersion.sd15, control, cropped_image.extent)
+        job = workflow.refine_region(
+            comfy, style, cropped_image, params, control, 0.7, default_seed
+        )
     else:  # op == "inpaint_upscale":
         control.control[0].image = Image.scale(scribble_image, Extent(1024, 1024))
         inpaint_image = Image.scale(inpaint_image, Extent(1024, 1024))
         scaled_mask = Image.scale(Image(mask.image), Extent(512, 1024))
         mask = Mask(Bounds(512, 0, 512, 1024), scaled_mask._qimage)
-        params = InpaintParams.detect(mask, InpaintMode.fill, SDVersion.sd15, control)
+        params = InpaintParams.detect(mask, InpaintMode.fill, SDVersion.sd15, control, 1.0)
         job = workflow.inpaint(comfy, style, inpaint_image, control, params, default_seed)
 
     async def main():
@@ -696,8 +705,9 @@ def test_ip_adapter_region(qtapp, comfy, temp_settings):
     mask = Mask.load(image_dir / "flowers_mask.png")
     control_img = Image.load(image_dir / "pegonia.webp")
     control = Conditioning("potted flowers", "", [Control(ControlMode.reference, control_img, 0.7)])
+    inpaint = InpaintParams.automatic(mask, SDVersion.sd15, control, image.extent)
     job = workflow.refine_region(
-        comfy, default_style(comfy), image, mask, control, 0.6, default_seed
+        comfy, default_style(comfy), image, inpaint, control, 0.6, default_seed
     )
 
     async def main():
@@ -867,7 +877,7 @@ async def run_inpaint_benchmark(
         mask = Mask.crop(mask, bounds)
     prompt_text = prompt if prompt_mode == "prompt" else ""
     cond = Conditioning(prompt_text)
-    params = InpaintParams.detect(mask, mode, sdver, cond)
+    params = InpaintParams.detect(mask, mode, sdver, cond, 1.0)
     job = workflow.inpaint(comfy, default_style(comfy, sdver), image, cond, params, seed)
     result_name = f"benchmark_inpaint_{scenario}_{sdver.name}_{prompt_mode}_{seed}.webp"
     await run_and_save(comfy, job, result_name, image, mask, output_dir=out_dir)

@@ -729,19 +729,21 @@ class InpaintParams:
     use_reference = False
 
     @staticmethod
-    def detect(mask: Mask, mode: InpaintMode, sd_ver: SDVersion, cond: Conditioning):
+    def detect(
+        mask: Mask, mode: InpaintMode, sd_ver: SDVersion, cond: Conditioning, strength: float
+    ):
         assert mode is not InpaintMode.automatic
         result = InpaintParams(mask, mode)
 
         if sd_ver is SDVersion.sd15:
-            result.use_inpaint_control = True
+            result.use_inpaint_control = strength > 0.5
             result.use_condition_mask = (
                 mode is InpaintMode.add_object
                 and cond.prompt != ""
                 and not any(c.mode.is_structural for c in cond.control)
             )
         if sd_ver is SDVersion.sdxl:
-            result.use_inpaint_model = True
+            result.use_inpaint_model = strength > 0.5
 
         is_ref_mode = mode in [InpaintMode.fill, InpaintMode.expand]
         result.use_reference = is_ref_mode and cond.prompt == ""
@@ -758,7 +760,7 @@ class InpaintParams:
     @staticmethod
     def automatic(mask: Mask, sd_ver: SDVersion, cond: Conditioning, image_extent: Extent):
         mode = detect_inpaint_mode(image_extent, mask.bounds)
-        return InpaintParams.detect(mask, mode, sd_ver, cond)
+        return InpaintParams.detect(mask, mode, sd_ver, cond, strength=1.0)
 
 
 def inpaint(
@@ -892,7 +894,7 @@ def refine_region(
     comfy: Client,
     style: Style,
     image: Image,
-    mask: Mask,
+    params: InpaintParams,
     cond: Conditioning,
     strength: float,
     seed: int,
@@ -901,9 +903,10 @@ def refine_region(
     assert strength > 0 and strength <= 1
 
     allow_2pass = strength >= 0.7
-    use_inpainting = strength > 0.5
     sd_ver = resolve_sd_version(style, comfy)
-    extent, image, mask_image, batch = prepare_masked(image, mask, sd_ver, style, allow_2pass)
+    extent, image, mask_image, batch = prepare_masked(
+        image, params.mask, sd_ver, style, allow_2pass
+    )
     cond.downscale(image.extent, extent.desired)
     sampler_params = _sampler_params(style, strength, seed, is_live=is_live)
 
@@ -915,12 +918,12 @@ def refine_region(
     in_mask = w.load_mask(mask_image)
     in_mask = scale_to_initial(extent, w, in_mask, comfy, is_mask=True)
     prompt_pos, prompt_neg = encode_text_prompt(w, cond, clip, style)
-    if use_inpainting and sd_ver is SDVersion.sd15:
+    if params.use_inpaint_control:
         cond.control.append(Control(ControlMode.inpaint, in_image, mask=in_mask))
     positive, negative = apply_control(
         w, prompt_pos, prompt_neg, cond.control, extent.initial, comfy, sd_ver
     )
-    if sd_ver is SDVersion.sd15 or not use_inpainting:
+    if sd_ver is SDVersion.sd15 or not params.use_inpaint_model:
         latent = w.vae_encode(vae, in_image)
         latent = w.set_latent_noise_mask(latent, in_mask)
         inpaint_model = model
@@ -938,7 +941,9 @@ def refine_region(
         extent, w, style, out_latent, prompt_pos, prompt_neg, cond, seed, model, vae, comfy
     )
     out_image = scale_to_target(extent, w, out_image, comfy)
-    original_mask = w.load_mask(mask.to_image())
+    if extent.target != params.mask.bounds.extent:
+        out_image = w.crop_image(out_image, params.mask.bounds)
+    original_mask = w.load_mask(params.mask.to_image())
     out_masked = w.apply_mask(out_image, original_mask)
     w.send_image(out_masked)
     return w

@@ -155,6 +155,15 @@ class Bounds(NamedTuple):
         return Bounds(x, y, width, height)
 
     @staticmethod
+    def expand(bounds: "Bounds", include: "Bounds"):
+        """Expand bounds to include another bounds."""
+        x = min(bounds.x, include.x)
+        y = min(bounds.y, include.y)
+        width = max(bounds.x + bounds.width, include.x + include.width) - x
+        height = max(bounds.y + bounds.height, include.y + include.height) - y
+        return Bounds(x, y, width, height)
+
+    @staticmethod
     def apply_crop(bounds: "Bounds", image_bounds: "Bounds"):
         """Adjust bounds area after the image has been cropped."""
         x = bounds.x - image_bounds.x

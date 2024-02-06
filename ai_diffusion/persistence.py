@@ -58,6 +58,7 @@ class ModelSync:
         model = self._model
         state = _serialize(model)
         state["version"] = version
+        state["inpaint"] = _serialize(model.inpaint)
         state["upscale"] = _serialize(model.upscale)
         state["live"] = _serialize(model.live)
         state["control"] = [_serialize(c) for c in model.control]
@@ -69,6 +70,7 @@ class ModelSync:
     def _load(self, model: Model, state_bytes: bytes):
         state = json.loads(state_bytes.decode("utf-8"))
         _deserialize(model, state)
+        _deserialize(model.inpaint, state.get("inpaint", {}))
         _deserialize(model.upscale, state.get("upscale", {}))
         _deserialize(model.live, state.get("live", {}))
 

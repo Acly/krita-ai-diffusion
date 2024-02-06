@@ -183,6 +183,13 @@ def test_bounds_minimum_size(input, min_size, max_extent, expected):
     assert result == expected
 
 
+def test_bounds_expand():
+    bounds = Bounds(1, 2, 4, 5)
+    other = Bounds(3, 0, 4, 4)
+    result = Bounds.expand(bounds, other)
+    assert result == Bounds(1, 0, 6, 7)
+
+
 def test_mask_to_image():
     data = QByteArray(b"\x00\x01\x02\xff")
     mask = Mask(Bounds(0, 0, 2, 2), data)

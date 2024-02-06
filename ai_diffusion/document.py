@@ -44,9 +44,6 @@ class Document(QObject):
     ) -> Mask | None:
         raise NotImplementedError
 
-    def create_mask_from_layer(self, padding: float, is_inpaint: bool) -> tuple[Mask, Bounds, None]:
-        raise NotImplementedError
-
     def get_image(
         self, bounds: Bounds | None = None, exclude_layers: list[krita.Node] | None = None
     ) -> Image:
@@ -209,26 +206,6 @@ class KritaDocument(Document):
         bounds = Bounds.clamp(bounds, self.extent)
         data = selection.pixelData(*bounds)
         return Mask(bounds, data)
-
-    def create_mask_from_layer(self, padding: float, is_inpaint: bool):
-        image_bounds = Bounds(0, 0, *self.extent)
-        if context_selection := self._doc.selection():
-            image_bounds = Bounds.clamp(_selection_bounds(context_selection), self.extent)
-
-        assert self.active_layer.type() == "selectionmask"
-        layer = cast(krita.SelectionMask, self.active_layer)
-        mask_selection = layer.selection()
-        mask_bounds = image_bounds
-        if is_inpaint:
-            mask_bounds = _selection_bounds(mask_selection)
-            pad = int(mask_bounds.extent.diagonal * padding)
-            mask_bounds = Bounds.pad(mask_bounds, pad, 512, 8)
-            mask_bounds = Bounds.restrict(mask_bounds, image_bounds)
-
-        data: QByteArray = layer.projectionPixelData(*mask_bounds)
-        assert data is not None and data.size() >= mask_bounds.extent.pixel_count
-        mask = Mask(mask_bounds, data)
-        return mask, image_bounds, None
 
     def get_image(
         self, bounds: Bounds | None = None, exclude_layers: list[krita.Node] | None = None
