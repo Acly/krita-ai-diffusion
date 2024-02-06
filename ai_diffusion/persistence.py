@@ -45,7 +45,7 @@ class ModelSync:
         self._model = model
         self._history = []
         self._memory_used = {}
-        if state_bytes := model.document.find_annotation("ui"):
+        if state_bytes := _find_annotation(model.document, "ui.json"):
             try:
                 self._load(model, state_bytes.data())
             except Exception as e:
@@ -65,7 +65,7 @@ class ModelSync:
         state["history"] = [asdict(h) for h in self._history]
         state_str = json.dumps(state, indent=2)
         state_bytes = QByteArray(state_str.encode("utf-8"))
-        model.document.annotate("ui", state_bytes)
+        model.document.annotate("ui.json", state_bytes)
 
     def _load(self, model: Model, state_bytes: bytes):
         state = json.loads(state_bytes.decode("utf-8"))
@@ -80,7 +80,7 @@ class ModelSync:
 
         for result in state.get("history", []):
             item = _HistoryResult.from_dict(result)
-            if images_bytes := model.document.find_annotation(f"result{item.slot}"):
+            if images_bytes := _find_annotation(model.document, f"result{item.slot}.webp"):
                 job = model.jobs.add_job(Job(item.id, JobKind.diffusion, item.params))
                 results = _deserialize_images(images_bytes, item.offsets, item.slot)
                 model.jobs.set_results(job, results)
@@ -109,7 +109,7 @@ class ModelSync:
             slot = self._slot_index
             self._slot_index += 1
             image_data, image_offsets = _serialize_images(job.results)
-            self._model.document.annotate(f"result{slot}", image_data)
+            self._model.document.annotate(f"result{slot}.webp", image_data)
             self._history.append(_HistoryResult(job.id or "", slot, image_offsets, job.params))
             self._memory_used[slot] = image_data.size()
             self._prune()
@@ -124,7 +124,7 @@ class ModelSync:
         used = self.memory_used
         while used > limit and len(self._history) > 0:
             slot = self._history.pop(0).slot
-            self._model.document.remove_annotation(f"result{slot}")
+            self._model.document.remove_annotation(f"result{slot}.webp")
             used -= self._memory_used.pop(slot, 0)
 
 
@@ -173,3 +173,12 @@ def _deserialize_images(data: QByteArray, offsets: list[int], slot: int):
             raise Exception(f"Failed to load image {i} in slot {slot} from buffer")
     buffer.close()
     return images
+
+
+def _find_annotation(document, name: str):
+    if result := document.find_annotation(name):
+        return result
+    without_ext = name.rsplit(".", 1)[0]
+    if result := document.find_annotation(without_ext):
+        return result
+    return None
