@@ -15,6 +15,7 @@ from PyQt5.QtWidgets import (
     QSizePolicy,
     QToolButton,
     QComboBox,
+    QCheckBox,
     QMenu,
 )
 
@@ -343,33 +344,49 @@ class CustomInpaintWidget(QWidget):
         self._model = root.active_model
         self._model_bindings = []
 
+        self.use_inpaint_button = QCheckBox(self)
+        self.use_inpaint_button.setText("Seamless")
+        self.use_inpaint_button.setToolTip("Generate content which blends into the surroundings")
+
+        self.use_prompt_focus_button = QCheckBox(self)
+        self.use_prompt_focus_button.setText("Focus")
+        self.use_prompt_focus_button.setToolTip(
+            "Use the text prompt to describe the selected region rather than the context area"
+        )
+
         self.fill_mode_combo = QComboBox(self)
-        self.fill_mode_combo.addItem("Fill: Neutral", FillMode.neutral)
-        self.fill_mode_combo.addItem("Fill: Blur", FillMode.blur)
-        self.fill_mode_combo.addItem("Fill: Border", FillMode.border)
-        self.fill_mode_combo.addItem("Fill: Inpaint", FillMode.inpaint)
-        self.fill_mode_combo.addItem("Fill: Replace", FillMode.replace)
-
-        self.use_inpaint_button = QToolButton(self)
-        self.use_inpaint_button.setCheckable(True)
-        self.use_inpaint_button.setText("I")
-
-        self.use_prompt_focus_button = QToolButton(self)
-        self.use_prompt_focus_button.setCheckable(True)
-        self.use_prompt_focus_button.setText("P")
+        fill_icon = theme.icon("fill")
+        self.fill_mode_combo.addItem(theme.icon("fill-empty"), "None", FillMode.none)
+        self.fill_mode_combo.addItem(fill_icon, "Neutral", FillMode.neutral)
+        self.fill_mode_combo.addItem(fill_icon, "Blur", FillMode.blur)
+        self.fill_mode_combo.addItem(fill_icon, "Border", FillMode.border)
+        self.fill_mode_combo.addItem(fill_icon, "Inpaint", FillMode.inpaint)
+        self.fill_mode_combo.setStyleSheet(theme.flat_combo_stylesheet)
+        self.fill_mode_combo.setToolTip("Pre-fill the selected region before diffusion")
 
         self.context_combo = QComboBox(self)
-        self.context_combo.addItem("Context: Automatic", InpaintContext.automatic)
-        self.context_combo.addItem("Context: Selection Bounds", InpaintContext.mask_bounds)
-        self.context_combo.addItem("Context: Entire Image", InpaintContext.entire_image)
+        ctx_icon = lambda name: theme.icon(f"context-{name}")
+        self.context_combo.addItem(
+            ctx_icon("automatic"), "Automatic Context", InpaintContext.automatic
+        )
+        self.context_combo.addItem(ctx_icon("mask"), "Selection Bounds", InpaintContext.mask_bounds)
+        self.context_combo.addItem(ctx_icon("image"), "Entire Image", InpaintContext.entire_image)
+        self.context_combo.setStyleSheet(theme.flat_combo_stylesheet)
+        self.context_combo.setToolTip(
+            "Part of the image around the selection which is used as context."
+        )
+        self.context_combo.setMinimumContentsLength(20)
+        self.context_combo.setSizeAdjustPolicy(
+            QComboBox.SizeAdjustPolicy.AdjustToMinimumContentsLength
+        )
         self.context_combo.currentIndexChanged.connect(self.set_context)
 
         layout = QHBoxLayout(self)
         layout.setContentsMargins(0, 0, 0, 0)
-        layout.addWidget(self.fill_mode_combo)
         layout.addWidget(self.use_inpaint_button)
         layout.addWidget(self.use_prompt_focus_button)
-        layout.addWidget(self.context_combo)
+        layout.addWidget(self.fill_mode_combo)
+        layout.addWidget(self.context_combo, 1)
         self.setLayout(layout)
 
     @property
@@ -386,16 +403,22 @@ class CustomInpaintWidget(QWidget):
                 bind_toggle(model.inpaint, "use_inpaint", self.use_inpaint_button),
                 bind_toggle(model.inpaint, "use_prompt_focus", self.use_prompt_focus_button),
                 model.image_layers.changed.connect(self.update_context_layers),
+                model.strength_changed.connect(self.update_fill_enabled),
             ]
+            self.update_fill_enabled()
             self.update_context_layers()
             self.update_context()
+
+    def update_fill_enabled(self):
+        self.fill_mode_combo.setEnabled(self.model.strength == 1.0)
 
     def update_context_layers(self):
         current = self.context_combo.currentData()
         while self.context_combo.count() > 3:
             self.context_combo.removeItem(self.context_combo.count() - 1)
+        icon = theme.icon("context-layer")
         for layer in self._model.image_layers:
-            self.context_combo.addItem(f"Context: {layer.name()}", layer.uniqueId())
+            self.context_combo.addItem(icon, f"{layer.name()}", layer.uniqueId())
         self.context_combo.setCurrentIndex(self.context_combo.findData(current))
 
     def update_context(self):

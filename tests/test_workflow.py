@@ -19,6 +19,7 @@ from ai_diffusion.workflow import (
     ScaleMode,
     InpaintMode,
     InpaintParams,
+    FillMode,
 )
 from . import config
 from .config import data_dir, image_dir, result_dir, reference_dir, default_checkpoint
@@ -444,6 +445,31 @@ def test_increment_seed(ksampler_type):
     assert ksampler["inputs"][seed_name] == 9
 
 
+def test_inpaint_params():
+    mask = Mask.rectangle(Bounds(0, 0, 100, 100))
+    cond = Conditioning()
+
+    a = InpaintParams.detect(mask, InpaintMode.fill, SDVersion.sd15, cond, 1.0)
+    assert (
+        a.fill is FillMode.blur and a.use_inpaint_control == True and a.use_inpaint_model == False
+    )
+    b = InpaintParams.detect(mask, InpaintMode.add_object, SDVersion.sd15, cond, 1.0)
+    assert (
+        b.fill is FillMode.neutral
+        and b.use_inpaint_control == True
+        and b.use_condition_mask == True
+    )
+    c = InpaintParams.detect(mask, InpaintMode.replace_background, SDVersion.sdxl, cond, 1.0)
+    assert (
+        c.fill is FillMode.replace
+        and c.use_inpaint_control == False
+        and c.use_inpaint_model == True
+    )
+    cond.control.append(Control(ControlMode.line_art, Image.create(Extent(4, 4))))
+    d = InpaintParams.detect(mask, InpaintMode.add_object, SDVersion.sd15, cond, 1.0)
+    assert d.use_condition_mask == False
+
+
 @pytest.mark.parametrize("extent", [Extent(256, 256), Extent(800, 800), Extent(512, 1024)])
 def test_generate(qtapp, comfy, temp_settings, extent: Extent):
     temp_settings.batch_size = 1
@@ -519,7 +545,7 @@ def test_inpaint_area_conditioning(qtapp, comfy, temp_settings):
     temp_settings.batch_size = 1
     image = Image.load(image_dir / "lake_1536x1024.webp")
     mask = Mask.load(image_dir / "lake_1536x1024_mask_bottom_right.png")
-    prompt = Conditioning("crocodile")
+    prompt = Conditioning("(crocodile)")
     params = InpaintParams.detect(mask, InpaintMode.add_object, SDVersion.sd15, prompt, 1.0)
     job = workflow.inpaint(comfy, default_style(comfy), image, prompt, params, default_seed)
 
@@ -551,14 +577,14 @@ def test_refine(qtapp, comfy, setup, temp_settings):
     qtapp.run(main())
 
 
-@pytest.mark.parametrize(
-    "setup",
-    [(SDVersion.sd15, 0.4), (SDVersion.sd15, 0.6), (SDVersion.sdxl, 0.7)],
-    ids=["sd15_0.4", "sd15_0.6", "sdxl_0.7"],
-)
+@pytest.mark.parametrize("setup", ["sd15_0.4", "sd15_0.6", "sdxl_0.7"])
 def test_refine_region(qtapp, comfy, temp_settings, setup):
     temp_settings.batch_size = 1
-    sdver, strength = setup
+    sdver, strength = {
+        "sd15_0.4": (SDVersion.sd15, 0.4),
+        "sd15_0.6": (SDVersion.sd15, 0.6),
+        "sdxl_0.7": (SDVersion.sdxl, 0.7),
+    }[setup]
     image = Image.load(image_dir / "lake_region.webp")
     mask = Mask.load(image_dir / "lake_region_mask.png")
     prompt = Conditioning("waterfall")
@@ -567,7 +593,7 @@ def test_refine_region(qtapp, comfy, temp_settings, setup):
     job = workflow.refine_region(comfy, style, image, params, prompt, strength, default_seed)
 
     async def main():
-        result = await run_and_save(comfy, job, "test_refine_region.png", image, mask)
+        result = await run_and_save(comfy, job, f"test_refine_region_{setup}.png", image, mask)
         assert result.extent == mask.bounds.extent
 
     qtapp.run(main())

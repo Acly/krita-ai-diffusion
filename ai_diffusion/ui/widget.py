@@ -231,9 +231,7 @@ class ControlWidget(QWidget):
         self.setLayout(layout)
 
         self.mode_select = QComboBox(self)
-        self.mode_select.setStyleSheet(
-            "QComboBox { border:none; background-color:transparent; padding: 1px 12px 1px 2px;}"
-        )
+        self.mode_select.setStyleSheet(theme.flat_combo_stylesheet)
         for mode in (m for m in ControlMode if m is not ControlMode.inpaint):
             icon = theme.icon(f"control-{mode.name}")
             self.mode_select.addItem(icon, mode.text, mode)

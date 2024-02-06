@@ -695,11 +695,12 @@ class InpaintMode(Enum):
 
 
 class FillMode(Enum):
-    neutral = 0
-    blur = 1
-    border = 2
-    replace = 3
-    inpaint = 4
+    none = 0
+    neutral = 1
+    blur = 2
+    border = 3
+    replace = 4
+    inpaint = 5
 
 
 def fill_masked(w: ComfyWorkflow, image: Output, mask: Output, fill: FillMode, comfy: Client):
