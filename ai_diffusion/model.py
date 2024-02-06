@@ -305,7 +305,7 @@ class Model(QObject, ObservableProperties):
         job = self.jobs.find(job_id)
         assert job is not None, "Cannot show preview, invalid job id"
         name = f"[{name_prefix}] {job.params.prompt}"
-        if self._layer and self._layer.parentNode() is None:
+        if self._layer and self._layer not in self.layers:
             self._layer = None
         if self._layer is not None:
             self._layer.setName(name)
