@@ -414,12 +414,15 @@ class CustomInpaintWidget(QWidget):
 
     def update_context_layers(self):
         current = self.context_combo.currentData()
-        while self.context_combo.count() > 3:
-            self.context_combo.removeItem(self.context_combo.count() - 1)
-        icon = theme.icon("context-layer")
-        for layer in self._model.layers.masks:
-            self.context_combo.addItem(icon, f"{layer.name()}", layer.uniqueId())
-        self.context_combo.setCurrentIndex(self.context_combo.findData(current))
+        with theme.SignalBlocker(self.context_combo):
+            while self.context_combo.count() > 3:
+                self.context_combo.removeItem(self.context_combo.count() - 1)
+            icon = theme.icon("context-layer")
+            for layer in self._model.layers.masks:
+                self.context_combo.addItem(icon, f"{layer.name()}", layer.uniqueId())
+        current_index = self.context_combo.findData(current)
+        if current_index >= 0:
+            self.context_combo.setCurrentIndex(current_index)
 
     def update_context(self):
         if self._model.inpaint.context == InpaintContext.layer_bounds:
@@ -434,7 +437,7 @@ class CustomInpaintWidget(QWidget):
         if isinstance(data, QUuid):
             self._model.inpaint.context = InpaintContext.layer_bounds
             self._model.inpaint.context_layer_id = data
-        else:
+        elif isinstance(data, InpaintContext):
             self._model.inpaint.context = data
 
 
