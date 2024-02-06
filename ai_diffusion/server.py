@@ -628,4 +628,4 @@ async def get_python_version(python_cmd: Path, *args: str):
         python_cmd, *args, "--version", stdout=asyncio.subprocess.PIPE
     )
     out, _ = await proc.communicate()
-    return out.decode(enc).strip()
+    return out.decode(enc, errors="replace").strip()
