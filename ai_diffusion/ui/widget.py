@@ -242,7 +242,7 @@ class ControlWidget(QWidget):
             QComboBox.SizeAdjustPolicy.AdjustToMinimumContentsLength
         )
         self._update_layers()
-        self._model.image_layers.changed.connect(self._update_layers)
+        self._model.layers.changed.connect(self._update_layers)
 
         self.generate_button = QToolButton(self)
         self.generate_button.setToolButtonStyle(Qt.ToolButtonStyle.ToolButtonIconOnly)
@@ -315,7 +315,7 @@ class ControlWidget(QWidget):
         Binding.disconnect_all(self._connections)
 
     def _update_layers(self):
-        layers: reversed[krita.Node] = reversed(self._model.image_layers)
+        layers: reversed[krita.Node] = reversed(self._model.layers.images)
         with SignalBlocker(self.layer_select):
             self.layer_select.clear()
             index = -1

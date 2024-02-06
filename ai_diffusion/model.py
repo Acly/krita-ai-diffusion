@@ -36,7 +36,7 @@ class Model(QObject, ObservableProperties):
     _doc: Document
     _connection: Connection
     _layer: krita.Node | None = None
-    _image_layers: LayerObserver
+    _layers: LayerObserver
 
     workspace = Property(Workspace.generation, setter="set_workspace", persist=True)
     style = Property(Styles.list().default, persist=True)
@@ -70,7 +70,7 @@ class Model(QObject, ObservableProperties):
     def __init__(self, document: Document, connection: Connection):
         super().__init__()
         self._doc = document
-        self._image_layers = document.create_layer_observer()
+        self._layers = document.create_layer_observer()
         self._connection = connection
         self.generate_seed()
         self.jobs = JobQueue()
@@ -395,8 +395,8 @@ class Model(QObject, ObservableProperties):
             self._doc = doc
 
     @property
-    def image_layers(self):
-        return self._image_layers
+    def layers(self):
+        return self._layers
 
 
 class InpaintContext(Enum):
@@ -437,7 +437,7 @@ class CustomInpaint(QObject, ObservableProperties):
         if self.context is InpaintContext.entire_image:
             return Bounds(0, 0, *model.document.extent)
         if self.context is InpaintContext.layer_bounds:
-            if layer := model.image_layers.find(self.context_layer_id):
+            if layer := model.layers.find(self.context_layer_id):
                 layer_bounds = Bounds.from_qrect(layer.bounds())
                 return Bounds.expand(layer_bounds, include=mask.bounds)
         return None

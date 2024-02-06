@@ -402,7 +402,7 @@ class CustomInpaintWidget(QWidget):
                 bind_combo(model.inpaint, "fill", self.fill_mode_combo),
                 bind_toggle(model.inpaint, "use_inpaint", self.use_inpaint_button),
                 bind_toggle(model.inpaint, "use_prompt_focus", self.use_prompt_focus_button),
-                model.image_layers.changed.connect(self.update_context_layers),
+                model.layers.changed.connect(self.update_context_layers),
                 model.strength_changed.connect(self.update_fill_enabled),
             ]
             self.update_fill_enabled()
@@ -417,7 +417,7 @@ class CustomInpaintWidget(QWidget):
         while self.context_combo.count() > 3:
             self.context_combo.removeItem(self.context_combo.count() - 1)
         icon = theme.icon("context-layer")
-        for layer in self._model.image_layers:
+        for layer in self._model.layers.masks:
             self.context_combo.addItem(icon, f"{layer.name()}", layer.uniqueId())
         self.context_combo.setCurrentIndex(self.context_combo.findData(current))
 

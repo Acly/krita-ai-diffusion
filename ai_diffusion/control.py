@@ -57,7 +57,7 @@ class ControlLayer(QObject, ObservableProperties):
 
     @property
     def layer(self):
-        layer = self._model.image_layers.updated.find(self.layer_id)
+        layer = self._model.layers.updated().find(self.layer_id)
         assert layer is not None, "Control layer has been deleted"
         return layer
 
@@ -131,7 +131,7 @@ class ControlLayerList(QObject):
         super().__init__()
         self._model = model
         self._layers = []
-        model.image_layers.changed.connect(self._update_layer_list)
+        model.layers.changed.connect(self._update_layer_list)
 
     def add(self):
         layer = self._model.document.active_layer.uniqueId()
@@ -149,7 +149,7 @@ class ControlLayerList(QObject):
 
     def _update_layer_list(self):
         # Remove layers that have been deleted
-        layer_ids = [l.uniqueId() for l in self._model.image_layers]
+        layer_ids = [l.uniqueId() for l in self._model.layers]
         to_remove = [l for l in self._layers if l.layer_id not in layer_ids]
         for l in to_remove:
             self.remove(l)

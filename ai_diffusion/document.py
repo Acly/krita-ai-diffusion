@@ -415,7 +415,7 @@ class LayerObserver(QObject):
         name: str
         node: krita.Node
 
-    managed_layer_types = [
+    image_layer_types = [
         "paintlayer",
         "vectorlayer",
         "grouplayer",
@@ -423,6 +423,8 @@ class LayerObserver(QObject):
         "clonelayer",
         "filterlayer",
     ]
+
+    mask_layer_types = ["transparencymask", "selectionmask"]
 
     changed = pyqtSignal()
 
@@ -446,10 +448,7 @@ class LayerObserver(QObject):
         root_node = self._doc.rootNode()
         if root_node is None:
             return  # Document has been closed
-        layers = [
-            self.Desc(l.uniqueId(), l.name(), l)
-            for l in _traverse_layers(root_node, self.managed_layer_types)
-        ]
+        layers = [self.Desc(l.uniqueId(), l.name(), l) for l in _traverse_layers(root_node)]
         if len(layers) != len(self._layers) or any(
             a.id != b.id or a.name != b.name for a, b in zip(layers, self._layers)
         ):
@@ -459,19 +458,20 @@ class LayerObserver(QObject):
     def find(self, id: QUuid):
         return next((l.node for l in self._layers if l.id == id), None)
 
-    @property
     def updated(self):
         self.update()
         return self
 
+    @property
+    def images(self):
+        return [l.node for l in self._layers if l.node.type() in self.image_layer_types]
+
+    @property
+    def masks(self):
+        return [l.node for l in self._layers if l.node.type() in self.mask_layer_types]
+
     def __iter__(self):
         return (l.node for l in self._layers)
-
-    def __getitem__(self, index: int):
-        return self._layers[index].node
-
-    def __len__(self):
-        return len(self._layers)
 
 
 class PoseLayers:

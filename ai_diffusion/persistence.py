@@ -91,6 +91,7 @@ class ModelSync:
 
     def _track(self, model: Model):
         model.modified.connect(self._save)
+        model.inpaint.modified.connect(self._save)
         model.upscale.modified.connect(self._save)
         model.live.modified.connect(self._save)
         model.control.added.connect(self._track_control)
