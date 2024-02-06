@@ -426,13 +426,14 @@ class Client:
             if not self.control_model[ControlMode.blur][sdver]:
                 names = ["models/controlnet/control_lora_rank128_v11f1e_sd15_tile_fp16.safetensors"]
                 missing.append(MissingResource(ResourceKind.controlnet, names))
-        required_inpaint = ["default"]
+        if self.inpaint_models["default"] is None:
+            name = ensure(resources.search_path(ResourceKind.inpaint, SDVersion.all, "default"))[0]
+            missing.append(MissingResource(ResourceKind.inpaint, [name]))
         if sdver is SDVersion.sdxl:
-            required_inpaint += ["fooocus_head", "fooocus_patch"]
-        for id, model in self.inpaint_models.items():
-            if id in required_inpaint and model is None:
-                names = resources.search_path(ResourceKind.inpaint, sdver, id)
-                missing.append(MissingResource(ResourceKind.inpaint, names))
+            for id, model in self.inpaint_models.items():
+                if id in ["fooocus_head", "fooocus_patch"] and model is None:
+                    names = resources.search_path(ResourceKind.inpaint, sdver, id)
+                    missing.append(MissingResource(ResourceKind.inpaint, names))
         if len(missing) == 0:
             log.info(f"{sdver.value}: supported")
         else:

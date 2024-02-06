@@ -709,7 +709,6 @@ class ConnectionSettings(SettingsTab):
                 "<b>Error</b>: No checkpoints found!\nCheckpoints must be placed into"
                 " ComfyUI/models/checkpoints."
             )
-
         elif resource.kind is ResourceKind.upscaler:
             names = cast(list[str], resource.names)
             self._connection_status.setText(
@@ -717,7 +716,6 @@ class ConnectionSettings(SettingsTab):
                 f" {', '.join(names)}. Make sure to download the model and place it in the"
                 " ComfyUI/models/upscale_models folder."
             )
-
         elif resource.kind is ResourceKind.controlnet:
             names = cast(list[str], resource.names)
             self._connection_status.setText(
@@ -738,6 +736,13 @@ class ConnectionSettings(SettingsTab):
                 "<b>Error</b>: Could not find IPAdapter model"
                 f" {', '.join(names)}. Make sure to download the model and place"
                 " it in the ComfyUI/models/ipadapter folder."
+            )
+        elif resource.kind is ResourceKind.inpaint:
+            names = cast(list[str], resource.names)
+            self._connection_status.setText(
+                "<b>Error</b>: Could not find Inpaint model"
+                f" {', '.join(names)}. Make sure to download the model and place"
+                " it in the ComfyUI/models/inpaint folder."
             )
         elif resource.kind is ResourceKind.node:
             nodes = cast(list[CustomNode], resource.names)
