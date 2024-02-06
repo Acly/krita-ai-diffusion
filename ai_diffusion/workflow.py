@@ -1043,9 +1043,9 @@ def upscale_tiled(
         tile_extent = Extent(1024, 1024)
 
     w = ComfyWorkflow(comfy.nodes_inputs)
-    img = w.load_image(image)
     checkpoint, clip, vae = load_model_with_lora(w, comfy, style, cond)
     checkpoint = apply_ip_adapter(w, checkpoint, cond.control, comfy, sd_ver)
+    img = w.load_image(image)
     upscale_model = w.load_upscale_model(model)
     positive, negative = encode_text_prompt(w, cond, clip, style)
     if sd_ver.has_controlnet_blur:
