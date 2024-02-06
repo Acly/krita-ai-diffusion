@@ -32,20 +32,20 @@ def test_path_dict():
         "f1.txt",
         "f2.txxt",
         "d1/f1.txt",
-        "d2/f1.txt",
-        "d3/d4/d5/f1.txt",
+        "d2\\f1.txt",
+        "d3/d4\\d5/f1.txt",
         "d1/f2.txt",
         str(Path("w1/f1.txt")),
         str(Path("w1/noext")),
         str(Path("w1/w2/.noext")),
     ]
     expected = {
-        "f1.txt": None,
-        "f2.txxt": None,
-        "d1": {"f1.txt": None, "f2.txt": None},
-        "d2": {"f1.txt": None},
-        "d3": {"d4": {"d5": {"f1.txt": None}}},
-        "w1": {"f1.txt": None, "noext": None, "w2": {".noext": None}},
+        "f1.txt": "f1.txt",
+        "f2.txxt": "f2.txxt",
+        "d1": {"f1.txt": "d1/f1.txt", "f2.txt": "d1/f2.txt"},
+        "d2": {"f1.txt": "d2\\f1.txt"},
+        "d3": {"d4": {"d5": {"f1.txt": "d3/d4\\d5/f1.txt"}}},
+        "w1": {"f1.txt": paths[-3], "noext": paths[-2], "w2": {".noext": paths[-1]}},
     }
     assert get_path_dict(paths) == expected
 

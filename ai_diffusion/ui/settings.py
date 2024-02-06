@@ -395,17 +395,15 @@ class LoraList(QWidget):
         def remove(self):
             self.removed.emit(self)
 
-        def _build_menu(self, values, title="", path="") -> QMenu:
+        def _build_menu(self, values: dict, title="") -> QMenu:
             menu = QMenu(title, self)
             for k, v in values.items():
-                if v is None:
+                if isinstance(v, str):
                     action = QAction(k, self)
-                    action.triggered.connect(
-                        functools.partial(self._select_update, os.path.join(path, k))
-                    )
+                    action.triggered.connect(functools.partial(self._select_update, v))
                     menu.addAction(action)
                 else:
-                    menu.addMenu(self._build_menu(v, k, os.path.join(path, k)))
+                    menu.addMenu(self._build_menu(v, k))
 
             if screen := QGuiApplication.screenAt(QCursor.pos()):
                 if _menu_width(menu) > screen.availableSize().width():
