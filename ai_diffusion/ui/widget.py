@@ -117,6 +117,13 @@ class QueuePopup(QMenu):
         cancel_layout.addWidget(self._cancel_all)
         self._layout.addLayout(cancel_layout, 2, 1)
 
+        enqueue_label = QLabel("Enqueue at", self)
+        self._layout.addWidget(enqueue_label, 3, 0)
+        self._queue_front_combo = QComboBox(self)
+        self._queue_front_combo.addItem("end of the queue")
+        self._queue_front_combo.addItem("beginning of the queue")
+        self._layout.addWidget(self._queue_front_combo, 3, 1)
+
         self._model = root.active_model
 
     @property
@@ -139,6 +146,7 @@ class QueuePopup(QMenu):
             self._model.fixed_seed_changed.connect(self._seed_input.setEnabled),
             self._model.fixed_seed_changed.connect(self._randomize_seed.setEnabled),
             self._randomize_seed.clicked.connect(self._model.generate_seed),
+            bind(self._model, "queue_front", self._queue_front_combo, "currentIndex"),
             model.jobs.count_changed.connect(self._update_cancel_buttons),
         ]
 

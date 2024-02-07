@@ -47,6 +47,7 @@ class Model(QObject, ObservableProperties):
     batch_count = Property(1, persist=True)
     seed = Property(0, persist=True)
     fixed_seed = Property(False, persist=True)
+    queue_front = Property(False, persist=True)
     inpaint: CustomInpaint
     upscale: "UpscaleWorkspace"
     live: "LiveWorkspace"
@@ -62,6 +63,7 @@ class Model(QObject, ObservableProperties):
     batch_count_changed = pyqtSignal(int)
     seed_changed = pyqtSignal(int)
     fixed_seed_changed = pyqtSignal(bool)
+    queue_front_changed = pyqtSignal(bool)
     progress_changed = pyqtSignal(float)
     error_changed = pyqtSignal(str)
     has_error_changed = pyqtSignal(bool)
@@ -166,7 +168,7 @@ class Model(QObject, ObservableProperties):
         job_kind = JobKind.live_preview if is_live else JobKind.diffusion
         pos, neg = conditioning.prompt, conditioning.negative_prompt
         for i in range(count):
-            job_id = await client.enqueue(job)
+            job_id = await client.enqueue(job, self.queue_front)
             self.jobs.add(job_kind, job_id, pos, neg, bounds, strength, job.seed)
             job.seed = seed + (i + 1) * settings.batch_size
 
@@ -186,7 +188,7 @@ class Model(QObject, ObservableProperties):
             )
         else:
             work = workflow.upscale_simple(client, image, params.upscaler, params.factor)
-        job.id = await client.enqueue(work)
+        job.id = await client.enqueue(work, self.queue_front)
 
     def generate_live(self):
         ver = resolve_sd_version(self.style, self._connection.client)
@@ -242,7 +244,7 @@ class Model(QObject, ObservableProperties):
     ):
         client = self._connection.client
         work = workflow.create_control_image(client, image, mode, bounds)
-        job.id = await client.enqueue(work)
+        job.id = await client.enqueue(work, self.queue_front)
 
     def cancel(self, active=False, queued=False):
         if queued:
