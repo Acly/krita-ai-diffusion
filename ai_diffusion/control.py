@@ -95,11 +95,7 @@ class ControlLayer(QObject, ObservableProperties):
 
         self.is_supported = is_supported
         self.show_end = self.is_supported and settings.show_control_end
-        self.can_generate = is_supported and self.mode not in [
-            ControlMode.reference,
-            ControlMode.face,
-            ControlMode.stencil,
-        ]
+        self.can_generate = is_supported and self.mode.has_preprocessor
 
     def _update_is_pose_vector(self):
         self.is_pose_vector = self.mode is ControlMode.pose and self.layer.type() == "vectorlayer"
