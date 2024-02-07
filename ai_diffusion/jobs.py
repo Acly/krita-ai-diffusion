@@ -175,8 +175,9 @@ class JobQueue(QObject):
 
     @selection.setter
     def selection(self, value: Item | None):
-        self._selection = value
-        self.selection_changed.emit()
+        if self._selection != value:
+            self._selection = value
+            self.selection_changed.emit()
 
     @property
     def memory_usage(self):

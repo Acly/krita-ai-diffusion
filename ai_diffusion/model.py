@@ -308,7 +308,7 @@ class Model(QObject, ObservableProperties):
         assert job is not None, "Cannot show preview, invalid job id"
         name = f"[{name_prefix}] {job.params.prompt}"
         if self._layer and self._layer not in self.layers:
-            self._layer = None
+            self._layer = None  # layer was removed by user
         if self._layer is not None:
             self._layer.setName(name)
             self._doc.set_layer_content(self._layer, job.results[index], job.params.bounds)
