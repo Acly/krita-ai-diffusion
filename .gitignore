@@ -9,7 +9,9 @@
 .vscode
 __pycache__
 scripts/docker/downloads
-tests/.results
+tests/server
+tests/results
+tests/benchmark
 settings.json
 ai_diffusion/styles/*
 !ai_diffusion/styles/cinematic-photo*.json

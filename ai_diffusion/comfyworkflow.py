@@ -14,6 +14,7 @@ class Output(NamedTuple):
 
 Output2 = Tuple[Output, Output]
 Output3 = Tuple[Output, Output, Output]
+Output4 = Tuple[Output, Output, Output, Output]
 
 
 class ComfyWorkflow:
@@ -22,7 +23,7 @@ class ComfyWorkflow:
     node_count = 0
     sample_count = 0
 
-    _cache: dict[str, Output | Output2 | Output3]
+    _cache: dict[str, Output | Output2 | Output3 | Output4]
     _nodes_required_inputs: dict[str, dict[str, Any]]
 
     def __init__(self, node_inputs: dict | None = None) -> None:
@@ -60,6 +61,9 @@ class ComfyWorkflow:
 
     @overload
     def add(self, class_type: str, output_count: Literal[3], **inputs) -> Output3: ...
+
+    @overload
+    def add(self, class_type: str, output_count: Literal[4], **inputs) -> Output4: ...
 
     def add(self, class_type: str, output_count: int, **inputs):
         inputs = self.add_default_values(class_type, inputs)
@@ -208,6 +212,12 @@ class ComfyWorkflow:
     def load_insight_face(self):
         return self.add_cached("InsightFaceLoader", 1, provider="CPU")
 
+    def load_inpaint_model(self, model_name: str):
+        return self.add_cached("INPAINT_LoadInpaintModel", 1, model_name=model_name)
+
+    def load_fooocus_inpaint(self, head: str, patch: str):
+        return self.add_cached("INPAINT_LoadFooocusInpaint", 1, head=head, patch=patch)
+
     def empty_latent_image(self, extent: Extent, batch_size=1):
         return self.add(
             "EmptyLatentImage", 1, width=extent.width, height=extent.height, batch_size=batch_size
@@ -231,6 +241,16 @@ class ComfyWorkflow:
             strength=strength,
         )
 
+    def conditioning_set_mask(self, conditioning: Output, mask: Output, strength=1.0):
+        return self.add(
+            "ConditioningSetMask",
+            1,
+            conditioning=conditioning,
+            mask=mask,
+            strength=strength,
+            set_cond_area="default",
+        )
+
     def conditioning_combine(self, a: Output, b: Output):
         return self.add("ConditioningCombine", 1, conditioning_1=a, conditioning_2=b)
 
@@ -241,8 +261,7 @@ class ComfyWorkflow:
         controlnet: Output,
         image: Output,
         strength=1.0,
-        start_percent=0.0,
-        end_percent=1.0,
+        range: tuple[float, float] = (0.0, 1.0),
     ):
         return self.add(
             "ControlNetApplyAdvanced",
@@ -252,8 +271,8 @@ class ComfyWorkflow:
             control_net=controlnet,
             image=image,
             strength=strength,
-            start_percent=start_percent,
-            end_percent=end_percent,
+            start_percent=range[0],
+            end_percent=range[1],
         )
 
     def encode_ip_adapter(
@@ -278,8 +297,7 @@ class ComfyWorkflow:
         embeds: Output,
         model: Output,
         weight: float,
-        start_at=0.0,
-        end_at=1.0,
+        range: tuple[float, float] = (0.0, 1.0),
     ):
         return self.add(
             "IPAdapterApplyEncoded",
@@ -289,8 +307,8 @@ class ComfyWorkflow:
             model=model,
             weight=weight,
             weight_type="linear",
-            start_at=start_at,
-            end_at=end_at,
+            start_at=range[0],
+            end_at=range[1],
         )
 
     def apply_ip_adapter_face(
@@ -301,7 +319,7 @@ class ComfyWorkflow:
         model: Output,
         image: Output,
         weight=1.0,
-        end_at=1.0,
+        range: tuple[float, float] = (0.0, 1.0),
         faceid_v2=False,
     ):
         return self.add(
@@ -314,8 +332,8 @@ class ComfyWorkflow:
             model=model,
             weight=weight,
             weight_type="original",
-            start_at=0.0,
-            end_at=end_at,
+            start_at=range[0],
+            end_at=range[1],
             noise=0.0,
             faceid_v2=faceid_v2,
             weight_v2=weight,
@@ -324,6 +342,22 @@ class ComfyWorkflow:
 
     def inpaint_preprocessor(self, image: Output, mask: Output):
         return self.add("InpaintPreprocessor", 1, image=image, mask=mask)
+
+    def apply_fooocus_inpaint(self, model: Output, patch: Output, latent: Output):
+        return self.add("INPAINT_ApplyFooocusInpaint", 1, model=model, patch=patch, latent=latent)
+
+    def vae_encode_inpaint_conditioning(
+        self, vae: Output, image: Output, mask: Output, positive: Output, negative: Output
+    ):
+        return self.add(
+            "INPAINT_VAEEncodeInpaintConditioning",
+            4,
+            vae=vae,
+            pixels=image,
+            mask=mask,
+            positive=positive,
+            negative=negative,
+        )
 
     def vae_encode(self, vae: Output, image: Output):
         return self.add("VAEEncode", 1, vae=vae, pixels=image)
@@ -409,6 +443,9 @@ class ComfyWorkflow:
     def batch_image(self, batch: Output, image: Output):
         return self.add("ImageBatch", 1, image1=batch, image2=image)
 
+    def inpaint_image(self, model: Output, image: Output, mask: Output):
+        return self.add("INPAINT_InpaintWithModel", 1, inpaint_model=model, image=image, mask=mask)
+
     def crop_mask(self, mask: Output, bounds: Bounds):
         return self.add(
             "CropMask",
@@ -447,6 +484,12 @@ class ComfyWorkflow:
 
     def solid_mask(self, extent: Extent, value=1.0):
         return self.add("SolidMask", 1, width=extent.width, height=extent.height, value=value)
+
+    def fill_masked(self, image: Output, mask: Output, mode="neutral", falloff: int = 0):
+        return self.add("INPAINT_MaskedFill", 1, image=image, mask=mask, fill=mode, falloff=falloff)
+
+    def blur_masked(self, image: Output, mask: Output, blur: int, falloff: int = 0):
+        return self.add("INPAINT_MaskedBlur", 1, image=image, mask=mask, blur=blur, falloff=falloff)
 
     def apply_mask(self, image: Output, mask: Output):
         return self.add("ETN_ApplyMaskToImage", 1, image=image, mask=mask)

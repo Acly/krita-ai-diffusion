@@ -1,5 +1,6 @@
 from __future__ import annotations
 from copy import copy
+from dataclasses import dataclass
 from enum import Enum
 import math
 import random
@@ -39,7 +40,13 @@ def compute_bounds(extent: Extent, mask_bounds: Optional[Bounds], strength: floa
         return Bounds(0, 0, *extent)
 
 
-def create_inpaint_context(image: Image, area: Bounds, default: Output):
+def detect_inpaint_mode(extent: Extent, area: Bounds):
+    if area.width >= extent.width or area.height >= extent.height:
+        return InpaintMode.expand
+    return InpaintMode.fill
+
+
+def get_inpaint_reference(image: Image, area: Bounds):
     extent = image.extent
     area = Bounds.pad(area, 0, multiple=8)
     area = Bounds.clamp(area, extent)
@@ -57,7 +64,7 @@ def create_inpaint_context(image: Image, area: Bounds, default: Output):
             offset = area.height
         if area.y == 0 or area.y + area.height == extent.height:
             return Image.crop(image, Bounds(0, offset, extent.width, extent.height - area.height))
-    return default
+    return None
 
 
 def compute_batch_size(extent: Extent, min_size=512, max_batches: Optional[int] = None):
@@ -386,7 +393,7 @@ class Control:
     image: Image | Output
     mask: None | Mask | Output = None
     strength: float = 1.0
-    end: float = 1.0
+    range = (0.0, 1.0)
 
     _original_extent: Extent | None = None
 
@@ -395,14 +402,14 @@ class Control:
         mode: ControlMode,
         image: Image | Output,
         strength=1.0,
-        end=1.0,
+        range: tuple[float, float] = (0.0, 1.0),
         mask: None | Mask | Output = None,
     ):
         self.mode = mode
         self.image = image
         self.strength = strength
         self.mask = mask
-        self.end = end
+        self.range = range
 
     def load_image(self, w: ComfyWorkflow, target_extent: Extent | None = None):
         if isinstance(self.image, Image):
@@ -428,7 +435,7 @@ class Conditioning:
     prompt: str
     negative_prompt: str = ""
     control: list[Control]
-    area: Bounds | None = None
+    mask: Output | None = None
     loras: list[dict[str, Any]]
 
     def __init__(
@@ -436,22 +443,16 @@ class Conditioning:
         prompt="",
         negative_prompt="",
         control: list[Control] | None = None,
-        area: Bounds | None = None,
         loras: list[dict[str, Any]] | None = None,
     ):
         self.prompt = prompt
         self.negative_prompt = negative_prompt
         self.control = control or []
-        self.area = area
         self.loras = loras or []
 
     def copy(self):
         return Conditioning(
-            self.prompt,
-            self.negative_prompt,
-            [copy(c) for c in self.control],
-            self.area,
-            self.loras,
+            self.prompt, self.negative_prompt, [copy(c) for c in self.control], self.loras
         )
 
     def downscale(self, original: Extent, target: Extent):
@@ -482,20 +483,18 @@ def merge_prompt(prompt: str, style_prompt: str):
 
 
 def encode_text_prompt(w: ComfyWorkflow, cond: Conditioning, clip: Output, style: Style):
-    prompt = merge_prompt(cond.prompt, style.style_prompt)
-    if cond.area:
+    prompt = cond.prompt
+    if prompt != "" and cond.mask:
         prompt = merge_prompt("", style.style_prompt)
+    elif prompt != "":
+        prompt = merge_prompt(cond.prompt, style.style_prompt)
     positive = w.clip_text_encode(clip, prompt)
     negative = w.clip_text_encode(clip, merge_prompt(cond.negative_prompt, style.negative_prompt))
+    if cond.mask and cond.prompt != "":
+        masked = w.clip_text_encode(clip, cond.prompt)
+        masked = w.conditioning_set_mask(masked, cond.mask)
+        positive = w.conditioning_combine(positive, masked)
     return positive, negative
-
-
-def apply_area(w: ComfyWorkflow, positive: Output, cond: Conditioning, clip: Output):
-    if cond.area and cond.prompt != "":
-        positive_area = w.clip_text_encode(clip, cond.prompt)
-        positive_area = w.conditioning_area(positive_area, cond.area)
-        positive = w.conditioning_combine(positive, positive_area)
-    return positive
 
 
 def apply_control(
@@ -523,7 +522,7 @@ def apply_control(
             controlnet,
             image,
             strength=control.strength,
-            end_percent=control.end,
+            range=control.range,
         )
 
     return positive, negative
@@ -551,7 +550,7 @@ def apply_ip_adapter(
                     model,
                     control.load_image(w),
                     control.strength,
-                    end_at=control.end,
+                    range=control.range,
                     faceid_v2="v2" in ipadapter_model_name,
                 )
 
@@ -559,14 +558,14 @@ def apply_ip_adapter(
     if ipadapter_model_name := comfy.ip_adapter_model[ControlMode.reference][sd_version]:
         ip_images = []
         ip_weights = []
-        ip_end_at = 0.1
+        ip_range = (0.9, 0.1)
 
         for control in (c for c in control_layers if c.mode is ControlMode.reference):
             if len(ip_images) >= 4:
                 raise Exception("Too many control layers of type 'reference image' (maximum is 4)")
             ip_images.append(control.load_image(w))
             ip_weights.append(control.strength)
-            ip_end_at = max(ip_end_at, control.end)
+            ip_range = (min(ip_range[0], control.range[0]), max(ip_range[1], control.range[1]))
 
         max_weight = max(ip_weights, default=0.0)
         if len(ip_images) > 0 and max_weight > 0:
@@ -574,7 +573,7 @@ def apply_ip_adapter(
             clip_vision = w.load_clip_vision(comfy.clip_vision_model)
             ip_adapter = w.load_ip_adapter(ipadapter_model_name)
             embeds = w.encode_ip_adapter(clip_vision, ip_images, ip_weights, noise=0.2)
-            model = w.apply_ip_adapter(ip_adapter, embeds, model, max_weight, end_at=ip_end_at)
+            model = w.apply_ip_adapter(ip_adapter, embeds, model, max_weight, range=ip_range)
 
     return model
 
@@ -685,11 +684,94 @@ def generate(
     return w
 
 
-def inpaint(comfy: Client, style: Style, image: Image, mask: Mask, cond: Conditioning, seed: int):
-    target_bounds = mask.bounds
+class InpaintMode(Enum):
+    automatic = 0
+    fill = 1
+    expand = 2
+    add_object = 3
+    remove_object = 4
+    replace_background = 5
+    custom = 6
+
+
+class FillMode(Enum):
+    none = 0
+    neutral = 1
+    blur = 2
+    border = 3
+    replace = 4
+    inpaint = 5
+
+
+def fill_masked(w: ComfyWorkflow, image: Output, mask: Output, fill: FillMode, comfy: Client):
+    if fill is FillMode.blur:
+        return w.blur_masked(image, mask, 65, falloff=9)
+    elif fill is FillMode.border:
+        image = w.fill_masked(image, mask, "navier-stokes")
+        return w.blur_masked(image, mask, 65)
+    elif fill is FillMode.neutral:
+        return w.fill_masked(image, mask, "neutral", falloff=9)
+    elif fill is FillMode.inpaint:
+        model = w.load_inpaint_model(ensure(comfy.inpaint_models["default"]))
+        return w.inpaint_image(model, image, mask)
+    elif fill is FillMode.replace:
+        return w.fill_masked(image, mask, "neutral")
+    return image
+
+
+@dataclass
+class InpaintParams:
+    mask: Mask
+    mode: InpaintMode
+    fill: FillMode = FillMode.neutral
+    use_inpaint_model = False
+    use_inpaint_control = False
+    use_condition_mask = False
+    use_reference = False
+
+    @staticmethod
+    def detect(
+        mask: Mask, mode: InpaintMode, sd_ver: SDVersion, cond: Conditioning, strength: float
+    ):
+        assert mode is not InpaintMode.automatic
+        result = InpaintParams(mask, mode)
+
+        if sd_ver is SDVersion.sd15:
+            result.use_inpaint_control = strength > 0.5
+            result.use_condition_mask = (
+                mode is InpaintMode.add_object
+                and cond.prompt != ""
+                and not any(c.mode.is_structural for c in cond.control)
+            )
+        if sd_ver is SDVersion.sdxl:
+            result.use_inpaint_model = strength > 0.5
+
+        is_ref_mode = mode in [InpaintMode.fill, InpaintMode.expand]
+        result.use_reference = is_ref_mode and cond.prompt == ""
+
+        result.fill = {
+            InpaintMode.fill: FillMode.blur,
+            InpaintMode.expand: FillMode.border,
+            InpaintMode.add_object: FillMode.neutral,
+            InpaintMode.remove_object: FillMode.inpaint,
+            InpaintMode.replace_background: FillMode.replace,
+        }[mode]
+        return result
+
+    @staticmethod
+    def automatic(mask: Mask, sd_ver: SDVersion, cond: Conditioning, image_extent: Extent):
+        mode = detect_inpaint_mode(image_extent, mask.bounds)
+        return InpaintParams.detect(mask, mode, sd_ver, cond, strength=1.0)
+
+
+def inpaint(
+    comfy: Client, style: Style, image: Image, cond: Conditioning, params: InpaintParams, seed: int
+):
+    target_bounds = params.mask.bounds
     sd_ver = resolve_sd_version(style, comfy)
-    extent, scaled_image, scaled_mask, _ = prepare_masked(image, mask, sd_ver, style)
+    extent, scaled_image, scaled_mask, _ = prepare_masked(image, params.mask, sd_ver, style)
     upscale_extent, _ = prepare_extent(target_bounds.extent, sd_ver, style, downscale=False)
+    initial_bounds = extent.convert(target_bounds, "target", "initial")
 
     w = ComfyWorkflow(comfy.nodes_inputs)
     model, clip, vae = load_model_with_lora(w, comfy, style, cond)
@@ -697,59 +779,72 @@ def inpaint(comfy: Client, style: Style, image: Image, mask: Mask, cond: Conditi
     in_image = scale_to_initial(extent, w, in_image, comfy)
     in_mask = w.load_mask(scaled_mask)
     in_mask = scale_to_initial(extent, w, in_mask, comfy, is_mask=True)
-    cropped_mask = w.load_mask(mask.to_image())
+    cropped_mask = w.load_mask(params.mask.to_image())
 
     cond_base = cond.copy()
     cond_base.downscale(image.extent, extent.initial)
-    cond_base.area = extent.convert(cond.area, "target", "initial") if cond.area else None
-    image_strength = 0.5 if cond.prompt == "" else 0.3
-    image_context = create_inpaint_context(scaled_image, cond_base.area or mask.bounds, in_image)
-    cond_base.control.append(Control(ControlMode.reference, image_context, image_strength))
-    cond_base.control.append(Control(ControlMode.inpaint, in_image, mask=in_mask))
+    if params.use_reference:
+        reference = get_inpaint_reference(scaled_image, initial_bounds) or in_image
+        cond_base.control.append(Control(ControlMode.reference, reference, 0.5, (0.2, 0.8)))
+    if params.use_inpaint_control:
+        cond_base.control.append(Control(ControlMode.inpaint, in_image, mask=in_mask))
+    if params.use_condition_mask:
+        cond_base.mask = in_mask
+    if params.mode is InpaintMode.remove_object and cond_base.prompt == "":
+        cond_base.prompt = "background scenery"
+
+    in_image = fill_masked(w, in_image, in_mask, params.fill, comfy)
+
     model = apply_ip_adapter(w, model, cond_base.control, comfy, sd_ver)
-    prompt_pos, prompt_neg = encode_text_prompt(w, cond_base, clip, style)
+    positive, negative = encode_text_prompt(w, cond_base, clip, style)
     positive, negative = apply_control(
-        w, prompt_pos, prompt_neg, cond_base.control, extent.initial, comfy, sd_ver
+        w, positive, negative, cond_base.control, extent.initial, comfy, sd_ver
     )
-    positive = apply_area(w, positive, cond_base, clip)
+    if params.use_inpaint_model:
+        positive, negative, latent_inpaint, latent = w.vae_encode_inpaint_conditioning(
+            vae, in_image, in_mask, positive, negative
+        )
+        inpaint_patch = w.load_fooocus_inpaint(**comfy.fooocus_inpaint_models)
+        inpaint_model = w.apply_fooocus_inpaint(model, inpaint_patch, latent_inpaint)
+    else:
+        latent = w.vae_encode(vae, in_image)
+        latent = w.set_latent_noise_mask(latent, in_mask)
+        inpaint_model = model
 
     batch = compute_batch_size(Extent.largest(extent.initial, upscale_extent.desired))
-    latent = w.vae_encode_inpaint(vae, in_image, in_mask)
     latent = w.batch_latent(latent, batch)
-    out_latent = w.ksampler_advanced(
-        model, positive, negative, latent, **_sampler_params(style, seed=seed, clip_vision=True)
-    )
-    if extent.refinement_scaling in [ScaleMode.upscale_latent, ScaleMode.upscale_quality]:
-        initial_bounds = extent.convert(target_bounds, "target", "initial")
+    sampler_params = _sampler_params(style, seed=seed, clip_vision=params.use_reference)
+    out_latent = w.ksampler_advanced(inpaint_model, positive, negative, latent, **sampler_params)
 
-        params = _sampler_params(style, strength=0.5, seed=seed, clip_vision=True)
+    if extent.refinement_scaling in [ScaleMode.upscale_latent, ScaleMode.upscale_quality]:
+        sampler_params = _sampler_params(style, strength=0.4, seed=seed)
         upscale_model = w.load_upscale_model(comfy.default_upscaler)
         upscale = w.vae_decode(vae, out_latent)
         upscale = w.crop_image(upscale, initial_bounds)
         upscale = w.upscale_image(upscale_model, upscale)
         upscale = w.scale_image(upscale, upscale_extent.desired)
         latent = w.vae_encode(vae, upscale)
+        latent = w.set_latent_noise_mask(latent, cropped_mask)
 
         cond_upscale = cond.copy()
         cond_upscale.crop(target_bounds)
-        cond_upscale.control.append(
-            Control(ControlMode.inpaint, Image.crop(image, target_bounds), mask=cropped_mask)
-        )
+        if params.use_inpaint_control:
+            cond_upscale.control.append(
+                Control(ControlMode.inpaint, Image.crop(image, target_bounds), mask=cropped_mask)
+            )
+        positive_up, negative_up = encode_text_prompt(w, cond_upscale, clip, style)
         positive_up, negative_up = apply_control(
-            w, prompt_pos, prompt_neg, cond_upscale.control, upscale_extent.desired, comfy, sd_ver
+            w, positive_up, negative_up, cond_upscale.control, upscale_extent.desired, comfy, sd_ver
         )
-        out_latent = w.ksampler_advanced(model, positive_up, negative_up, latent, **params)
+        out_latent = w.ksampler_advanced(model, positive_up, negative_up, latent, **sampler_params)
         out_image = w.vae_decode(vae, out_latent)
         out_image = scale_to_target(upscale_extent, w, out_image, comfy)
     else:
         desired_bounds = extent.convert(target_bounds, "target", "desired")
+        desired_extent = desired_bounds.extent
         cropped_extent = ScaledExtent(
-            desired_bounds.extent,
-            desired_bounds.extent,
-            desired_bounds.extent,
-            target_bounds.extent,
+            desired_extent, desired_extent, desired_extent, target_bounds.extent
         )
-
         out_image = w.vae_decode(vae, out_latent)
         out_image = scale(
             extent.initial, extent.desired, extent.refinement_scaling, w, out_image, comfy
@@ -800,7 +895,7 @@ def refine_region(
     comfy: Client,
     style: Style,
     image: Image,
-    mask: Mask,
+    params: InpaintParams,
     cond: Conditioning,
     strength: float,
     seed: int,
@@ -810,7 +905,9 @@ def refine_region(
 
     allow_2pass = strength >= 0.7
     sd_ver = resolve_sd_version(style, comfy)
-    extent, image, mask_image, batch = prepare_masked(image, mask, sd_ver, style, allow_2pass)
+    extent, image, mask_image, batch = prepare_masked(
+        image, params.mask, sd_ver, style, allow_2pass
+    )
     cond.downscale(image.extent, extent.desired)
     sampler_params = _sampler_params(style, strength, seed, is_live=is_live)
 
@@ -821,22 +918,33 @@ def refine_region(
     in_image = scale_to_initial(extent, w, in_image, comfy)
     in_mask = w.load_mask(mask_image)
     in_mask = scale_to_initial(extent, w, in_mask, comfy, is_mask=True)
-    latent = w.vae_encode(vae, in_image)
-    latent = w.set_latent_noise_mask(latent, in_mask)
-    if batch > 1 and not is_live:
-        latent = w.batch_latent(latent, batch)
-    if not is_live:
-        cond.control.append(Control(ControlMode.inpaint, in_image, mask=in_mask))
     prompt_pos, prompt_neg = encode_text_prompt(w, cond, clip, style)
+    if params.use_inpaint_control:
+        cond.control.append(Control(ControlMode.inpaint, in_image, mask=in_mask))
     positive, negative = apply_control(
         w, prompt_pos, prompt_neg, cond.control, extent.initial, comfy, sd_ver
     )
-    out_latent = w.ksampler_advanced(model, positive, negative, latent, **sampler_params)
+    if sd_ver is SDVersion.sd15 or not params.use_inpaint_model:
+        latent = w.vae_encode(vae, in_image)
+        latent = w.set_latent_noise_mask(latent, in_mask)
+        inpaint_model = model
+    else:  # SDXL inpaint model
+        positive, negative, latent_inpaint, latent = w.vae_encode_inpaint_conditioning(
+            vae, in_image, in_mask, positive, negative
+        )
+        inpaint_patch = w.load_fooocus_inpaint(**comfy.fooocus_inpaint_models)
+        inpaint_model = w.apply_fooocus_inpaint(model, inpaint_patch, latent_inpaint)
+
+    if batch > 1 and not is_live:
+        latent = w.batch_latent(latent, batch)
+    out_latent = w.ksampler_advanced(inpaint_model, positive, negative, latent, **sampler_params)
     out_image = scale_refine_and_decode(
         extent, w, style, out_latent, prompt_pos, prompt_neg, cond, seed, model, vae, comfy
     )
     out_image = scale_to_target(extent, w, out_image, comfy)
-    original_mask = w.load_mask(mask.to_image())
+    if extent.target != params.mask.bounds.extent:
+        out_image = w.crop_image(out_image, params.mask.bounds)
+    original_mask = w.load_mask(params.mask.to_image())
     out_masked = w.apply_mask(out_image, original_mask)
     w.send_image(out_masked)
     return w
@@ -935,9 +1043,9 @@ def upscale_tiled(
         tile_extent = Extent(1024, 1024)
 
     w = ComfyWorkflow(comfy.nodes_inputs)
-    img = w.load_image(image)
     checkpoint, clip, vae = load_model_with_lora(w, comfy, style, cond)
     checkpoint = apply_ip_adapter(w, checkpoint, cond.control, comfy, sd_ver)
+    img = w.load_image(image)
     upscale_model = w.load_upscale_model(model)
     positive, negative = encode_text_prompt(w, cond, clip, style)
     if sd_ver.has_controlnet_blur:

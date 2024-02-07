@@ -5,10 +5,10 @@ from typing import NamedTuple, Sequence
 
 # Version identifier for all the resources defined here. This is used as the server version.
 # It usually follows the plugin version, but not all new plugin versions also require a server update.
-version = "1.13.0"
+version = "1.14.0"
 
 comfy_url = "https://github.com/comfyanonymous/ComfyUI"
-comfy_version = "d76a04b6ea61306349861a7c4657567507385947"
+comfy_version = "236bda26830d719843ba9b5703894297f67f6704"
 
 
 class CustomNode(NamedTuple):
@@ -24,14 +24,14 @@ required_custom_nodes = [
         "ControlNet Preprocessors",
         "comfyui_controlnet_aux",
         "https://github.com/Fannovel16/comfyui_controlnet_aux",
-        "678f2d57333777cf5d3ab2e9ae01eb350c17ab13",
+        "c24b2dcb00cd26e4515cd897e14ec21cc5ff3b2d",
         ["InpaintPreprocessor"],
     ),
     CustomNode(
         "IP-Adapter",
         "ComfyUI_IPAdapter_plus",
         "https://github.com/cubiq/ComfyUI_IPAdapter_plus",
-        "52434a9c9033006c3ca45eb2f42493384bcefc91",
+        "46241f3ba5401f076f8d90c2aa85f2194910e1a9",
         ["IPAdapterModelLoader", "IPAdapterApply"],
     ),
     CustomNode(
@@ -52,6 +52,13 @@ required_custom_nodes = [
             "ETN_SendImageWebSocket",
             "ETN_ApplyMaskToImage",
         ],
+    ),
+    CustomNode(
+        "Inpaint Nodes",
+        "comfyui-inpaint-nodes",
+        "https://github.com/Acly/comfyui-inpaint-nodes",
+        "54493635e83539bfa1caaf08564a618bc3567878",
+        ["INPAINT_LoadFooocusInpaint", "INPAINT_ApplyFooocusInpaint"],
     ),
 ]
 
@@ -109,6 +116,7 @@ class ResourceKind(Enum):
     ip_adapter = "IP-Adapter model"
     lora = "LoRA model"
     upscaler = "Upscale model"
+    inpaint = "Inpaint model"
     node = "custom node"
 
 
@@ -241,6 +249,29 @@ required_models = [
             Path(
                 "models/loras/lcm-lora-sdxl.safetensors"
             ): "https://huggingface.co/latent-consistency/lcm-lora-sdxl/resolve/main/pytorch_lora_weights.safetensors",
+        },
+    ),
+    ModelResource(
+        "Fooocus Inpaint",
+        ResourceKind.inpaint,
+        SDVersion.sdxl,
+        {
+            Path(
+                "models/inpaint/fooocus_inpaint_head.pth"
+            ): "https://huggingface.co/lllyasviel/fooocus_inpaint/resolve/main/fooocus_inpaint_head.pth",
+            Path(
+                "models/inpaint/inpaint_v26.fooocus.patch"
+            ): "https://huggingface.co/lllyasviel/fooocus_inpaint/resolve/main/inpaint_v26.fooocus.patch",
+        },
+    ),
+    ModelResource(
+        "MAT Inpaint",
+        ResourceKind.inpaint,
+        SDVersion.all,
+        {
+            Path(
+                "models/inpaint/MAT_Places512_G_fp16.safetensors"
+            ): "https://huggingface.co/Acly/MAT/resolve/main/MAT_Places512_G_fp16.safetensors",
         },
     ),
 ]
@@ -634,6 +665,9 @@ search_paths: dict[str, list[str]] = {
     resource_id(ResourceKind.upscaler, SDVersion.all, UpscalerName.fast_2x): [UpscalerName.fast_2x.value],
     resource_id(ResourceKind.upscaler, SDVersion.all, UpscalerName.fast_3x): [UpscalerName.fast_3x.value],
     resource_id(ResourceKind.upscaler, SDVersion.all, UpscalerName.fast_4x): [UpscalerName.fast_4x.value],
+    resource_id(ResourceKind.inpaint, SDVersion.sdxl, "fooocus_head"): ["fooocus_inpaint_head.pth"],
+    resource_id(ResourceKind.inpaint, SDVersion.sdxl, "fooocus_patch"): ["inpaint_v26.fooocus.patch"],
+    resource_id(ResourceKind.inpaint, SDVersion.all, "default"): ["MAT_Places512_G_fp16", "Places_512_FullData_G", "big-lama.pt"],
 }
 # fmt: on
 
@@ -649,4 +683,7 @@ required_resource_ids = set([
     resource_id(ResourceKind.upscaler, SDVersion.all, UpscalerName.fast_2x),
     resource_id(ResourceKind.upscaler, SDVersion.all, UpscalerName.fast_3x),
     resource_id(ResourceKind.upscaler, SDVersion.all, UpscalerName.fast_4x),
+    resource_id(ResourceKind.inpaint, SDVersion.sdxl, "fooocus_head"),
+    resource_id(ResourceKind.inpaint, SDVersion.sdxl, "fooocus_patch"),
+    resource_id(ResourceKind.inpaint, SDVersion.all, "default"),
 ])

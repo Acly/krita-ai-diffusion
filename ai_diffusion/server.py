@@ -49,7 +49,6 @@ class Server:
     version: Optional[str] = None
 
     _python_cmd: Optional[Path] = None
-    _pip_cmd: Optional[Path] = None
     _cache_dir: Path
     _version_file: Path
     _process: Optional[asyncio.subprocess.Process] = None
@@ -80,13 +79,9 @@ class Server:
         python_search_paths = [self.path / "python", self.path / "venv" / "bin"]
         python_path = _find_component(python_pkg, python_search_paths)
         if python_path is None:
-            self._python_cmd = _find_program("python3", "python")
-            self._pip_cmd = _find_program("pip3", "pip")
+            self._python_cmd = _find_program("python3.11", "python3.10", "python3", "python")
         else:
             self._python_cmd = python_path / f"python{_exe}"
-            self._pip_cmd = python_path / "pip"
-            if is_windows:
-                self._pip_cmd = python_path / "Scripts" / "pip.exe"
 
         if not (self.has_comfy and self.has_python):
             self.state = ServerState.not_installed
@@ -125,22 +120,19 @@ class Server:
         self._cache_dir = self.path / ".cache"
         self._cache_dir.mkdir(parents=True, exist_ok=True)
 
-        no_python = self._python_cmd is None or self._pip_cmd is None
-        if is_windows and (self.comfy_dir is None or no_python):
+        if is_windows and (self.comfy_dir is None or self._python_cmd is None):
             # On Windows install an embedded version of Python
             python_dir = self.path / "python"
             self._python_cmd = python_dir / f"python{_exe}"
-            self._pip_cmd = python_dir / "Scripts" / f"pip{_exe}"
             await install_if_missing(python_dir, self._install_python, network, cb)
-        elif not is_windows and (self.comfy_dir is None or self._pip_cmd is None):
+        elif not is_windows and (self.comfy_dir is None or not (self.path / "venv").exists()):
             # On Linux a system Python is required to create a virtual environment
             python_dir = self.path / "venv"
             await install_if_missing(python_dir, self._create_venv, cb)
             self._python_cmd = python_dir / "bin" / "python3"
-            self._pip_cmd = python_dir / "bin" / "pip3"
-        assert self._python_cmd is not None and self._pip_cmd is not None
+        assert self._python_cmd is not None
         log.info(f"Using Python: {await get_python_version(self._python_cmd)}, {self._python_cmd}")
-        log.info(f"Using pip: {await get_python_version(self._pip_cmd)}, {self._pip_cmd}")
+        log.info(f"Using pip: {await get_python_version(self._python_cmd, '-m', 'pip')}")
 
         comfy_dir = self.comfy_dir or self.path / "ComfyUI"
         if not self.has_comfy:
@@ -472,7 +464,7 @@ class Server:
 
     @property
     def has_python(self):
-        return self._python_cmd is not None and self._pip_cmd is not None
+        return self._python_cmd is not None
 
     @property
     def has_comfy(self):
@@ -630,10 +622,10 @@ def safe_remove_dir(path: Path, max_size=8 * 1024 * 1024):
         shutil.rmtree(path, ignore_errors=True)
 
 
-async def get_python_version(python_cmd: Path):
+async def get_python_version(python_cmd: Path, *args: str):
     enc = locale.getpreferredencoding(False)
     proc = await asyncio.create_subprocess_exec(
-        python_cmd, "--version", stdout=asyncio.subprocess.PIPE
+        python_cmd, *args, "--version", stdout=asyncio.subprocess.PIPE
     )
     out, _ = await proc.communicate()
-    return out.decode(enc).strip()
+    return out.decode(enc, errors="replace").strip()

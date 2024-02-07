@@ -131,6 +131,17 @@ def bind_combo(model, model_property: str, combo: QComboBox, mode=Bind.two_way):
         return Binding(model_to_widget, widget_to_model)
 
 
+def bind_toggle(model, model_property: str, widget, mode=Bind.two_way):
+    widget_setter = _setter(widget, "checked")
+    model_to_widget = _signal(model, model_property).connect(widget_setter)
+    widget_setter(getattr(model, model_property))
+    if mode is Bind.one_way:
+        return model_to_widget
+    else:
+        widget_to_model = widget.toggled.connect(_setter(model, model_property))
+        return Binding(model_to_widget, widget_to_model)
+
+
 def _signal(inst, property: str) -> pyqtBoundSignal:
     if hasattr(inst, f"{property}_changed"):
         return getattr(inst, f"{property}_changed")

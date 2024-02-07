@@ -1,7 +1,7 @@
 from __future__ import annotations
 from enum import Enum
 from math import ceil, sqrt
-from PyQt5.QtGui import QImage, QImageWriter, QPixmap, QIcon, QPainter
+from PyQt5.QtGui import QImage, QImageWriter, QPixmap, QIcon, QPainter, QColorSpace
 from PyQt5.QtGui import qRgba, qRed, qGreen, qBlue, qAlpha, qGray
 from PyQt5.QtCore import Qt, QByteArray, QBuffer, QRect, QSize
 from typing import Callable, Iterable, SupportsIndex, Tuple, NamedTuple, Union, Optional
@@ -152,6 +152,15 @@ class Bounds(NamedTuple):
         y = max(within.y, bounds.y)
         width = min(within.x + within.width, bounds.x + bounds.width) - x
         height = min(within.y + within.height, bounds.y + bounds.height) - y
+        return Bounds(x, y, width, height)
+
+    @staticmethod
+    def expand(bounds: "Bounds", include: "Bounds"):
+        """Expand bounds to include another bounds."""
+        x = min(bounds.x, include.x)
+        y = min(bounds.y, include.y)
+        width = max(bounds.x + bounds.width, include.x + include.width) - x
+        height = max(bounds.y + bounds.height, include.y + include.height) - y
         return Bounds(x, y, width, height)
 
     @staticmethod
@@ -450,8 +459,13 @@ class Mask:
         mask = QImage()
         success = mask.load(str(filepath))
         assert success, f"Failed to load mask {filepath}"
-        assert mask.format() == QImage.Format_Grayscale8
+        mask.setColorSpace(QColorSpace())
+        mask = mask.convertToFormat(QImage.Format.Format_Grayscale8)
         return Mask(Bounds(0, 0, mask.width(), mask.height()), mask)
+
+    @staticmethod
+    def crop(mask: "Mask", bounds: Bounds):
+        return Mask(bounds, mask.image.copy(*bounds))
 
     def value(self, x: int, y: int):
         if self.bounds.is_within(x, y):

@@ -57,7 +57,7 @@ class ControlLayer(QObject, ObservableProperties):
 
     @property
     def layer(self):
-        layer = self._model.image_layers.updated.find(self.layer_id)
+        layer = self._model.layers.updated().find(self.layer_id)
         assert layer is not None, "Control layer has been deleted"
         return layer
 
@@ -68,7 +68,7 @@ class ControlLayer(QObject, ObservableProperties):
         image = self._model.document.get_layer_image(layer, bounds)
         if self.mode.is_lines or self.mode is ControlMode.stencil:
             image.make_opaque(background=Qt.GlobalColor.white)
-        return Control(self.mode, image, self.strength / 100, self.end)
+        return Control(self.mode, image, self.strength / 100, (0.0, self.end))
 
     def generate(self):
         self._generate_job = self._model.generate_control_layer(self)
@@ -95,11 +95,7 @@ class ControlLayer(QObject, ObservableProperties):
 
         self.is_supported = is_supported
         self.show_end = self.is_supported and settings.show_control_end
-        self.can_generate = is_supported and self.mode not in [
-            ControlMode.reference,
-            ControlMode.face,
-            ControlMode.stencil,
-        ]
+        self.can_generate = is_supported and self.mode.has_preprocessor
 
     def _update_is_pose_vector(self):
         self.is_pose_vector = self.mode is ControlMode.pose and self.layer.type() == "vectorlayer"
@@ -131,7 +127,7 @@ class ControlLayerList(QObject):
         super().__init__()
         self._model = model
         self._layers = []
-        model.image_layers.changed.connect(self._update_layer_list)
+        model.layers.changed.connect(self._update_layer_list)
 
     def add(self):
         layer = self._model.document.active_layer.uniqueId()
@@ -149,7 +145,7 @@ class ControlLayerList(QObject):
 
     def _update_layer_list(self):
         # Remove layers that have been deleted
-        layer_ids = [l.uniqueId() for l in self._model.image_layers]
+        layer_ids = [l.uniqueId() for l in self._model.layers]
         to_remove = [l for l in self._layers if l.layer_id not in layer_ids]
         for l in to_remove:
             self.remove(l)

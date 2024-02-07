@@ -395,17 +395,15 @@ class LoraList(QWidget):
         def remove(self):
             self.removed.emit(self)
 
-        def _build_menu(self, values, title="", path="") -> QMenu:
+        def _build_menu(self, values: dict, title="") -> QMenu:
             menu = QMenu(title, self)
             for k, v in values.items():
-                if v is None:
+                if isinstance(v, str):
                     action = QAction(k, self)
-                    action.triggered.connect(
-                        functools.partial(self._select_update, os.path.join(path, k))
-                    )
+                    action.triggered.connect(functools.partial(self._select_update, v))
                     menu.addAction(action)
                 else:
-                    menu.addMenu(self._build_menu(v, k, os.path.join(path, k)))
+                    menu.addMenu(self._build_menu(v, k))
 
             if screen := QGuiApplication.screenAt(QCursor.pos()):
                 if _menu_width(menu) > screen.availableSize().width():
@@ -709,7 +707,6 @@ class ConnectionSettings(SettingsTab):
                 "<b>Error</b>: No checkpoints found!\nCheckpoints must be placed into"
                 " ComfyUI/models/checkpoints."
             )
-
         elif resource.kind is ResourceKind.upscaler:
             names = cast(list[str], resource.names)
             self._connection_status.setText(
@@ -717,7 +714,6 @@ class ConnectionSettings(SettingsTab):
                 f" {', '.join(names)}. Make sure to download the model and place it in the"
                 " ComfyUI/models/upscale_models folder."
             )
-
         elif resource.kind is ResourceKind.controlnet:
             names = cast(list[str], resource.names)
             self._connection_status.setText(
@@ -738,6 +734,13 @@ class ConnectionSettings(SettingsTab):
                 "<b>Error</b>: Could not find IPAdapter model"
                 f" {', '.join(names)}. Make sure to download the model and place"
                 " it in the ComfyUI/models/ipadapter folder."
+            )
+        elif resource.kind is ResourceKind.inpaint:
+            names = cast(list[str], resource.names)
+            self._connection_status.setText(
+                "<b>Error</b>: Could not find Inpaint model"
+                f" {', '.join(names)}. Make sure to download the model and place"
+                " it in the ComfyUI/models/inpaint folder."
             )
         elif resource.kind is ResourceKind.node:
             nodes = cast(list[CustomNode], resource.names)

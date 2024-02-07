@@ -2,6 +2,7 @@ from __future__ import annotations
 from contextlib import nullcontext
 from pathlib import Path
 from typing import Literal, NamedTuple, cast
+from weakref import WeakValueDictionary
 import krita
 from krita import Krita
 from PyQt5.QtCore import QObject, QUuid, QByteArray, QTimer, pyqtSignal
@@ -12,8 +13,13 @@ from .pose import Pose
 from . import eventloop
 
 
-class Document:
+class Document(QObject):
     """Document interface. Used as placeholder when there is no open Document in Krita."""
+
+    selection_bounds_changed = pyqtSignal()
+
+    def __init__(self):
+        super().__init__()
 
     @property
     def extent(self):
@@ -27,11 +33,15 @@ class Document:
         return True, None
 
     def create_mask_from_selection(
-        self, grow: float, feather: float, padding: float, multiple=8, min_size=0, square=False
-    ) -> tuple[Mask, Bounds] | tuple[None, None]:
-        raise NotImplementedError
-
-    def create_mask_from_layer(self, padding: float, is_inpaint: bool) -> tuple[Mask, Bounds, None]:
+        self,
+        grow: float = 0.0,
+        feather: float = 0.0,
+        padding: float = 0.0,
+        multiple=8,
+        min_size=0,
+        square=False,
+        invert=False,
+    ) -> Mask | None:
         raise NotImplementedError
 
     def get_image(
@@ -94,6 +104,10 @@ class Document:
         pass
 
     @property
+    def selection_bounds(self) -> Bounds | None:
+        return None
+
+    @property
     def resolution(self) -> float:
         return 0.0
 
@@ -112,15 +126,26 @@ class KritaDocument(Document):
 
     _doc: krita.Document
     _id: QUuid
+    _poller: QTimer
+    _selection_bounds: Bounds | None = None
+    _instances: WeakValueDictionary[str, KritaDocument] = WeakValueDictionary()
 
     def __init__(self, krita_document: krita.Document):
+        super().__init__()
         self._doc = krita_document
         self._id = krita_document.rootNode().uniqueId()
+        self._poller = QTimer()
+        self._poller.setInterval(20)
+        self._poller.timeout.connect(self._poll)
+        self._poller.start()
+        self._instances[self._id.toString()] = self
 
-    @staticmethod
-    def active():
-        doc = Krita.instance().activeDocument()
-        return KritaDocument(doc) if doc else None
+    @classmethod
+    def active(cls):
+        if doc := Krita.instance().activeDocument():
+            id = doc.rootNode().uniqueId().toString()
+            return cls._instances.get(id) or KritaDocument(doc)
+        return None
 
     @property
     def extent(self):
@@ -141,14 +166,21 @@ class KritaDocument(Document):
         return True, None
 
     def create_mask_from_selection(
-        self, grow: float, feather: float, padding: float, multiple=8, min_size=0, square=False
+        self,
+        grow: float = 0.0,
+        feather: float = 0.0,
+        padding: float = 0.0,
+        multiple=8,
+        min_size=0,
+        square=False,
+        invert=False,
     ):
         user_selection = self._doc.selection()
         if not user_selection:
-            return None, None
+            return None
 
         if _selection_is_entire_document(user_selection, self.extent):
-            return None, None
+            return None
 
         selection = user_selection.duplicate()
         original_bounds = Bounds(
@@ -164,6 +196,8 @@ class KritaDocument(Document):
             selection.grow(grow_pixels, grow_pixels)
         if feather_radius > 0:
             selection.feather(feather_radius)
+        if invert:
+            selection.invert()
 
         bounds = _selection_bounds(selection)
         bounds = Bounds.pad(
@@ -171,27 +205,7 @@ class KritaDocument(Document):
         )
         bounds = Bounds.clamp(bounds, self.extent)
         data = selection.pixelData(*bounds)
-        return Mask(bounds, data), original_bounds
-
-    def create_mask_from_layer(self, padding: float, is_inpaint: bool):
-        image_bounds = Bounds(0, 0, *self.extent)
-        if context_selection := self._doc.selection():
-            image_bounds = Bounds.clamp(_selection_bounds(context_selection), self.extent)
-
-        assert self.active_layer.type() == "selectionmask"
-        layer = cast(krita.SelectionMask, self.active_layer)
-        mask_selection = layer.selection()
-        mask_bounds = image_bounds
-        if is_inpaint:
-            mask_bounds = _selection_bounds(mask_selection)
-            pad = int(mask_bounds.extent.diagonal * padding)
-            mask_bounds = Bounds.pad(mask_bounds, pad, 512, 8)
-            mask_bounds = Bounds.restrict(mask_bounds, image_bounds)
-
-        data: QByteArray = layer.projectionPixelData(*mask_bounds)
-        assert data is not None and data.size() >= mask_bounds.extent.pixel_count
-        mask = Mask(mask_bounds, data)
-        return mask, image_bounds, None
+        return Mask(bounds, data)
 
     def get_image(
         self, bounds: Bounds | None = None, exclude_layers: list[krita.Node] | None = None
@@ -303,6 +317,10 @@ class KritaDocument(Document):
         self._doc.setActiveNode(layer)
 
     @property
+    def selection_bounds(self):
+        return self._selection_bounds
+
+    @property
     def resolution(self):
         return self._doc.resolution() / 72.0  # KisImage::xRes which is applied to vectors
 
@@ -313,6 +331,16 @@ class KritaDocument(Document):
     @property
     def is_active(self):
         return self._doc == Krita.instance().activeDocument()
+
+    def _poll(self):
+        if self.is_valid:
+            selection = self._doc.selection()
+            selection_bounds = _selection_bounds(selection) if selection else None
+            if selection_bounds != self._selection_bounds:
+                self._selection_bounds = selection_bounds
+                self.selection_bounds_changed.emit()
+        else:
+            self._poller.stop()
 
     def __eq__(self, other):
         if self is other:
@@ -387,7 +415,7 @@ class LayerObserver(QObject):
         name: str
         node: krita.Node
 
-    managed_layer_types = [
+    image_layer_types = [
         "paintlayer",
         "vectorlayer",
         "grouplayer",
@@ -395,6 +423,8 @@ class LayerObserver(QObject):
         "clonelayer",
         "filterlayer",
     ]
+
+    mask_layer_types = ["transparencymask", "selectionmask"]
 
     changed = pyqtSignal()
 
@@ -418,10 +448,7 @@ class LayerObserver(QObject):
         root_node = self._doc.rootNode()
         if root_node is None:
             return  # Document has been closed
-        layers = [
-            self.Desc(l.uniqueId(), l.name(), l)
-            for l in _traverse_layers(root_node, self.managed_layer_types)
-        ]
+        layers = [self.Desc(l.uniqueId(), l.name(), l) for l in _traverse_layers(root_node)]
         if len(layers) != len(self._layers) or any(
             a.id != b.id or a.name != b.name for a, b in zip(layers, self._layers)
         ):
@@ -431,19 +458,20 @@ class LayerObserver(QObject):
     def find(self, id: QUuid):
         return next((l.node for l in self._layers if l.id == id), None)
 
-    @property
     def updated(self):
         self.update()
         return self
 
+    @property
+    def images(self):
+        return [l.node for l in self._layers if l.node.type() in self.image_layer_types]
+
+    @property
+    def masks(self):
+        return [l.node for l in self._layers if l.node.type() in self.mask_layer_types]
+
     def __iter__(self):
         return (l.node for l in self._layers)
-
-    def __getitem__(self, index: int):
-        return self._layers[index].node
-
-    def __len__(self):
-        return len(self._layers)
 
 
 class PoseLayers:

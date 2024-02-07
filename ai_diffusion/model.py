@@ -1,10 +1,11 @@
 from __future__ import annotations
 from pathlib import Path
 from enum import Enum
-from typing import NamedTuple
-from PyQt5.QtCore import QObject, pyqtSignal
+from typing import Any, NamedTuple
+from PyQt5.QtCore import QObject, QUuid, pyqtSignal
 
 from . import eventloop, workflow, util
+from .util import client_logger as log
 from .settings import settings
 from .network import NetworkError
 from .image import Extent, Image, Mask, Bounds
@@ -12,7 +13,7 @@ from .client import ClientMessage, ClientEvent, filter_supported_styles, resolve
 from .document import Document, LayerObserver
 from .pose import Pose
 from .style import Style, Styles, SDVersion
-from .workflow import ControlMode, Conditioning
+from .workflow import ControlMode, Conditioning, InpaintMode, InpaintParams, FillMode
 from .connection import Connection
 from .properties import Property, ObservableProperties
 from .jobs import Job, JobKind, JobQueue, JobState
@@ -35,7 +36,7 @@ class Model(QObject, ObservableProperties):
     _doc: Document
     _connection: Connection
     _layer: krita.Node | None = None
-    _image_layers: LayerObserver
+    _layers: LayerObserver
 
     workspace = Property(Workspace.generation, setter="set_workspace", persist=True)
     style = Property(Styles.list().default, persist=True)
@@ -47,6 +48,7 @@ class Model(QObject, ObservableProperties):
     seed = Property(0, persist=True)
     fixed_seed = Property(False, persist=True)
     queue_front = Property(False, persist=True)
+    inpaint: CustomInpaint
     upscale: "UpscaleWorkspace"
     live: "LiveWorkspace"
     progress = Property(0.0)
@@ -70,10 +72,11 @@ class Model(QObject, ObservableProperties):
     def __init__(self, document: Document, connection: Connection):
         super().__init__()
         self._doc = document
-        self._image_layers = document.create_layer_observer()
+        self._layers = document.create_layer_observer()
         self._connection = connection
         self.generate_seed()
         self.jobs = JobQueue()
+        self.inpaint = CustomInpaint()
         self.control = ControlLayerList(self)
         self.upscale = UpscaleWorkspace(self)
         self.live = LiveWorkspace(self)
@@ -93,40 +96,33 @@ class Model(QObject, ObservableProperties):
             return
 
         image = None
+        inpaint = None
         extent = self._doc.extent
-
-        if self._doc.active_layer.type() == "selectionmask":
-            mask, image_bounds, selection_bounds = self._doc.create_mask_from_layer(
-                settings.selection_padding / 100, is_inpaint=self.strength == 1.0
-            )
-        else:
-            mask, selection_bounds = self._doc.create_mask_from_selection(
-                grow=settings.selection_grow / 100,
-                feather=settings.selection_feather / 100,
-                padding=settings.selection_padding / 100,
-                min_size=64,  # minimum size for area conditioning
-            )
-            image_bounds = workflow.compute_bounds(
-                extent, mask.bounds if mask else None, self.strength
-            )
-
-        # Use area conditioning for inpaint with large image context, but only if no other
-        # conditioning which has strong spatial influence on image composition/structure is present.
-        if self.strength < 1 or any(c.mode.is_structural for c in self.control):
-            selection_bounds = None
-        if selection_bounds is not None:
-            selection_bounds = Bounds.apply_crop(selection_bounds, image_bounds)
-            selection_bounds = Bounds.minimum_size(selection_bounds, 64, image_bounds.extent)
+        mask = self._doc.create_mask_from_selection(
+            **get_selection_modifiers(self.inpaint.mode), min_size=64
+        )
+        image_bounds = workflow.compute_bounds(extent, mask.bounds if mask else None, self.strength)
+        image_bounds = self.inpaint.get_context(self, mask) or image_bounds
 
         control = [c.get_image(image_bounds) for c in self.control]
         prompt, loras = workflow.extract_loras(self.prompt, self._connection.client.loras)
-        conditioning = Conditioning(prompt, self.negative_prompt, control, selection_bounds, loras)
+        conditioning = Conditioning(prompt, self.negative_prompt, control, loras)
+
+        if mask is not None:
+            sd_version = resolve_sd_version(self.style, self._connection.client)
+            inpaint_mode = self.resolve_inpaint_mode()
+            if inpaint_mode is InpaintMode.custom:
+                inpaint = self.inpaint.get_params(mask, sd_version)
+            else:
+                inpaint = InpaintParams.detect(
+                    mask, inpaint_mode, sd_version, conditioning, self.strength
+                )
 
         if mask is not None or self.strength < 1.0:
             image = self._get_current_image(image_bounds)
         seed = self.seed if self.fixed_seed else workflow.generate_seed()
         generator = self._generate(
-            image_bounds, conditioning, self.strength, image, mask, seed, self.batch_count
+            image_bounds, conditioning, self.strength, image, inpaint, seed, self.batch_count
         )
 
         self.clear_error()
@@ -138,7 +134,7 @@ class Model(QObject, ObservableProperties):
         conditioning: Conditioning,
         strength: float,
         image: Image | None,
-        mask: Mask | None,
+        inpaint: InpaintParams | None,
         seed: int = -1,
         count: int = 1,
         is_live=False,
@@ -148,26 +144,25 @@ class Model(QObject, ObservableProperties):
         if not self.jobs.any_executing():
             self.progress = 0.0
 
-        if mask is not None:
-            mask_bounds_rel = Bounds(  # mask bounds relative to cropped image
-                mask.bounds.x - bounds.x, mask.bounds.y - bounds.y, *mask.bounds.extent
-            )
-            bounds = mask.bounds  # absolute mask bounds, required to insert result image
-            mask.bounds = mask_bounds_rel
+        if inpaint is not None:
+            b = inpaint.mask.bounds
+            # Compute mask bounds relative to cropped image, passed to workflow
+            inpaint.mask.bounds = Bounds(b.x - bounds.x, b.y - bounds.y, *b.extent)
+            bounds = b  # Also keep absolute mask bounds, to insert result image into canvas
 
-        if image is None and mask is None:
+        if image is None and inpaint is None:
             assert strength == 1
             job = workflow.generate(client, style, bounds.extent, conditioning, seed, is_live)
-        elif mask is None and strength < 1:
+        elif inpaint is None and strength < 1:
             assert image is not None
             job = workflow.refine(client, style, image, conditioning, strength, seed, is_live)
         elif strength == 1 and not is_live:
-            assert image is not None and mask is not None
-            job = workflow.inpaint(client, style, image, mask, conditioning, seed)
+            assert image is not None and inpaint is not None
+            job = workflow.inpaint(client, style, image, conditioning, inpaint, seed)
         else:
-            assert image is not None and mask is not None
+            assert image is not None and inpaint is not None
             job = workflow.refine_region(
-                client, style, image, mask, conditioning, strength, seed, is_live
+                client, style, image, inpaint, conditioning, strength, seed, is_live
             )
 
         job_kind = JobKind.live_preview if is_live else JobKind.diffusion
@@ -199,7 +194,7 @@ class Model(QObject, ObservableProperties):
         ver = resolve_sd_version(self.style, self._connection.client)
         image = None
 
-        mask, _ = self._doc.create_mask_from_selection(
+        mask = self._doc.create_mask_from_selection(
             grow=settings.selection_feather / 200,  # don't apply grow for live mode
             feather=settings.selection_feather / 100,
             padding=settings.selection_padding / 100,
@@ -212,8 +207,9 @@ class Model(QObject, ObservableProperties):
 
         control = [c.get_image(bounds) for c in self.control]
         cond = Conditioning(self.prompt, self.negative_prompt, control)
+        inpaint = InpaintParams(mask, InpaintMode.fill) if mask else None
         generator = self._generate(
-            bounds, cond, self.live.strength, image, mask, self.seed, count=1, is_live=True
+            bounds, cond, self.live.strength, image, inpaint, self.seed, count=1, is_live=True
         )
 
         self.clear_error()
@@ -234,7 +230,7 @@ class Model(QObject, ObservableProperties):
             return
 
         image = self._doc.get_image(Bounds(0, 0, *self._doc.extent))
-        mask, _ = self.document.create_mask_from_selection(0, 0, padding=0.25, multiple=64)
+        mask = self.document.create_mask_from_selection(0, 0, padding=0.25, multiple=64)
         bounds = mask.bounds if mask else None
 
         job = self.jobs.add_control(control, Bounds(0, 0, *image.extent))
@@ -311,7 +307,7 @@ class Model(QObject, ObservableProperties):
         job = self.jobs.find(job_id)
         assert job is not None, "Cannot show preview, invalid job id"
         name = f"[{name_prefix}] {job.params.prompt}"
-        if self._layer and self._layer.parentNode() is None:
+        if self._layer and self._layer not in self.layers:
             self._layer = None
         if self._layer is not None:
             self._layer.setName(name)
@@ -370,6 +366,13 @@ class Model(QObject, ObservableProperties):
     def save_result(self, job_id: str, index: int):
         _save_job_result(self, self.jobs.find(job_id), index)
 
+    def resolve_inpaint_mode(self):
+        if self.inpaint.mode is InpaintMode.automatic:
+            if bounds := self.document.selection_bounds:
+                return workflow.detect_inpaint_mode(self.document.extent, bounds)
+            return InpaintMode.fill
+        return self.inpaint.mode
+
     @property
     def history(self):
         return (job for job in self.jobs if job.state is JobState.finished)
@@ -387,12 +390,59 @@ class Model(QObject, ObservableProperties):
         # Note: for some reason Krita sometimes creates a new object for an existing document.
         # The old object is deleted and unusable. This method is used to update the object,
         # but doesn't actually change the document identity.
+        # TODO: 04/02/2024 is this still necessary? check log.
         assert doc == self._doc, "Cannot change document of model"
-        self._doc = doc
+        if self._doc is not doc:
+            log.warning(f"Document instance changed {self._doc} -> {doc}")
+            self._doc = doc
 
     @property
-    def image_layers(self):
-        return self._image_layers
+    def layers(self):
+        return self._layers
+
+
+class InpaintContext(Enum):
+    automatic = 0
+    mask_bounds = 1
+    entire_image = 2
+    layer_bounds = 3
+
+
+class CustomInpaint(QObject, ObservableProperties):
+    mode = Property(InpaintMode.automatic, persist=True)
+    fill = Property(FillMode.neutral, persist=True)
+    use_inpaint = Property(True, persist=True)
+    use_prompt_focus = Property(False, persist=True)
+    context = Property(InpaintContext.automatic, persist=True)
+    context_layer_id = Property(QUuid(), persist=True)
+
+    mode_changed = pyqtSignal(InpaintMode)
+    fill_changed = pyqtSignal(FillMode)
+    use_inpaint_changed = pyqtSignal(bool)
+    use_prompt_focus_changed = pyqtSignal(bool)
+    context_changed = pyqtSignal(InpaintContext)
+    context_layer_id_changed = pyqtSignal(QUuid)
+    modified = pyqtSignal(QObject, str)
+
+    def get_params(self, mask: Mask, sdver: SDVersion):
+        params = InpaintParams(mask, self.mode, self.fill)
+        params.use_inpaint_control = self.use_inpaint and sdver is SDVersion.sd15
+        params.use_inpaint_model = self.use_inpaint and sdver is SDVersion.sdxl
+        params.use_condition_mask = self.use_prompt_focus
+        return params
+
+    def get_context(self, model: Model, mask: Mask | None):
+        if mask is None or self.mode is not InpaintMode.custom:
+            return None
+        if self.context is InpaintContext.mask_bounds:
+            return mask.bounds
+        if self.context is InpaintContext.entire_image:
+            return Bounds(0, 0, *model.document.extent)
+        if self.context is InpaintContext.layer_bounds:
+            if layer := model.layers.find(self.context_layer_id):
+                layer_bounds = Bounds.from_qrect(layer.bounds())
+                return Bounds.expand(layer_bounds, include=mask.bounds)
+        return None
 
 
 class UpscaleParams(NamedTuple):
@@ -555,6 +605,27 @@ class LiveWorkspace(QObject, ObservableProperties):
         start, end = self._keyframe_start, self._keyframe_start + len(self._keyframes)
         self._model.document.active_layer.setName(f"[Rec] {start}-{end}: {self._model.prompt}")
         self._keyframes = []
+
+
+def get_selection_modifiers(inpaint_mode: InpaintMode) -> dict[str, Any]:
+    grow = settings.selection_grow / 100
+    feather = settings.selection_feather / 100
+    padding = settings.selection_padding / 100
+    invert = False
+
+    if inpaint_mode is InpaintMode.remove_object:
+        # avoid leaving any border pixels of the object to be removed within the
+        # area where the mask is 1.0, it will confuse inpainting models
+        feather = min(feather, grow * 0.5)
+
+    if inpaint_mode is InpaintMode.replace_background:
+        # only minimal grow/feather as there is often no desired transition between
+        # forground object and background (to be replaced by something else entirely)
+        grow = min(grow, 0.01)
+        feather = min(feather, 0.01)
+        invert = True
+
+    return dict(grow=grow, feather=feather, padding=padding, invert=invert)
 
 
 async def _report_errors(parent: Model, coro):

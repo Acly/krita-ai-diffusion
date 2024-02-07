@@ -1,7 +1,8 @@
 from __future__ import annotations
-from PyQt5.QtCore import Qt, QMetaObject, QSize, QPoint, pyqtSignal
+from PyQt5.QtCore import Qt, QMetaObject, QSize, QPoint, QUuid, pyqtSignal
 from PyQt5.QtGui import QGuiApplication, QMouseEvent
 from PyQt5.QtWidgets import (
+    QAction,
     QWidget,
     QVBoxLayout,
     QHBoxLayout,
@@ -12,14 +13,18 @@ from PyQt5.QtWidgets import (
     QListWidgetItem,
     QListView,
     QSizePolicy,
+    QToolButton,
+    QComboBox,
+    QCheckBox,
     QMenu,
 )
 
-from ..properties import Binding, bind, Bind
+from ..properties import Binding, Bind, bind, bind_combo, bind_toggle
 from ..image import Bounds, Extent, Image
 from ..jobs import Job, JobQueue, JobState, JobKind, JobParams
-from ..model import Model
+from ..model import Model, InpaintContext
 from ..root import root
+from ..workflow import InpaintMode, FillMode
 from ..settings import settings
 from ..util import ensure
 from . import theme
@@ -330,6 +335,112 @@ class HistoryWidget(QListWidget):
             self._model.save_result(job_id, image_index)
 
 
+class CustomInpaintWidget(QWidget):
+    _model: Model
+    _model_bindings: list[QMetaObject.Connection | Binding]
+
+    def __init__(self, parent: QWidget):
+        super().__init__(parent)
+        self._model = root.active_model
+        self._model_bindings = []
+
+        self.use_inpaint_button = QCheckBox(self)
+        self.use_inpaint_button.setText("Seamless")
+        self.use_inpaint_button.setToolTip("Generate content which blends into the surroundings")
+
+        self.use_prompt_focus_button = QCheckBox(self)
+        self.use_prompt_focus_button.setText("Focus")
+        self.use_prompt_focus_button.setToolTip(
+            "Use the text prompt to describe the selected region rather than the context area"
+        )
+
+        self.fill_mode_combo = QComboBox(self)
+        fill_icon = theme.icon("fill")
+        self.fill_mode_combo.addItem(theme.icon("fill-empty"), "None", FillMode.none)
+        self.fill_mode_combo.addItem(fill_icon, "Neutral", FillMode.neutral)
+        self.fill_mode_combo.addItem(fill_icon, "Blur", FillMode.blur)
+        self.fill_mode_combo.addItem(fill_icon, "Border", FillMode.border)
+        self.fill_mode_combo.addItem(fill_icon, "Inpaint", FillMode.inpaint)
+        self.fill_mode_combo.setStyleSheet(theme.flat_combo_stylesheet)
+        self.fill_mode_combo.setToolTip("Pre-fill the selected region before diffusion")
+
+        self.context_combo = QComboBox(self)
+        ctx_icon = lambda name: theme.icon(f"context-{name}")
+        self.context_combo.addItem(
+            ctx_icon("automatic"), "Automatic Context", InpaintContext.automatic
+        )
+        self.context_combo.addItem(ctx_icon("mask"), "Selection Bounds", InpaintContext.mask_bounds)
+        self.context_combo.addItem(ctx_icon("image"), "Entire Image", InpaintContext.entire_image)
+        self.context_combo.setStyleSheet(theme.flat_combo_stylesheet)
+        self.context_combo.setToolTip(
+            "Part of the image around the selection which is used as context."
+        )
+        self.context_combo.setMinimumContentsLength(20)
+        self.context_combo.setSizeAdjustPolicy(
+            QComboBox.SizeAdjustPolicy.AdjustToMinimumContentsLength
+        )
+        self.context_combo.currentIndexChanged.connect(self.set_context)
+
+        layout = QHBoxLayout(self)
+        layout.setContentsMargins(0, 0, 0, 0)
+        layout.addWidget(self.use_inpaint_button)
+        layout.addWidget(self.use_prompt_focus_button)
+        layout.addWidget(self.fill_mode_combo)
+        layout.addWidget(self.context_combo, 1)
+        self.setLayout(layout)
+
+    @property
+    def model(self):
+        return self._model
+
+    @model.setter
+    def model(self, model: Model):
+        if self._model != model:
+            Binding.disconnect_all(self._model_bindings)
+            self._model = model
+            self._model_bindings = [
+                bind_combo(model.inpaint, "fill", self.fill_mode_combo),
+                bind_toggle(model.inpaint, "use_inpaint", self.use_inpaint_button),
+                bind_toggle(model.inpaint, "use_prompt_focus", self.use_prompt_focus_button),
+                model.layers.changed.connect(self.update_context_layers),
+                model.strength_changed.connect(self.update_fill_enabled),
+            ]
+            self.update_fill_enabled()
+            self.update_context_layers()
+            self.update_context()
+
+    def update_fill_enabled(self):
+        self.fill_mode_combo.setEnabled(self.model.strength == 1.0)
+
+    def update_context_layers(self):
+        current = self.context_combo.currentData()
+        with theme.SignalBlocker(self.context_combo):
+            while self.context_combo.count() > 3:
+                self.context_combo.removeItem(self.context_combo.count() - 1)
+            icon = theme.icon("context-layer")
+            for layer in self._model.layers.masks:
+                self.context_combo.addItem(icon, f"{layer.name()}", layer.uniqueId())
+        current_index = self.context_combo.findData(current)
+        if current_index >= 0:
+            self.context_combo.setCurrentIndex(current_index)
+
+    def update_context(self):
+        if self._model.inpaint.context == InpaintContext.layer_bounds:
+            i = self.context_combo.findData(self._model.inpaint.context_layer_id)
+            self.context_combo.setCurrentIndex(i)
+        else:
+            i = self.context_combo.findData(self._model.inpaint.context)
+            self.context_combo.setCurrentIndex(i)
+
+    def set_context(self):
+        data = self.context_combo.currentData()
+        if isinstance(data, QUuid):
+            self._model.inpaint.context = InpaintContext.layer_bounds
+            self._model.inpaint.context_layer_id = data
+        elif isinstance(data, InpaintContext):
+            self._model.inpaint.context = data
+
+
 class GenerationWidget(QWidget):
     _model: Model
     _model_bindings: list[QMetaObject.Connection | Binding]
@@ -375,12 +486,29 @@ class GenerationWidget(QWidget):
         strength_layout.addWidget(self.add_control_button)
         layout.addLayout(strength_layout)
 
-        self.generate_button = QPushButton("Generate", self)
+        self.custom_inpaint = CustomInpaintWidget(self)
+        layout.addWidget(self.custom_inpaint)
+
+        self.generate_button = QPushButton(self)
         self.generate_button.setMinimumHeight(int(self.generate_button.sizeHint().height() * 1.2))
+
+        self.inpaint_mode_button = QToolButton(self)
+        self.inpaint_mode_button.setArrowType(Qt.ArrowType.DownArrow)
+        self.inpaint_mode_button.setMinimumHeight(self.generate_button.minimumHeight())
+        self.inpaint_mode_button.clicked.connect(self.show_inpaint_menu)
+        self.inpaint_menu = self._create_inpaint_menu()
+        self.refine_menu = self._create_refine_menu()
+
+        generate_layout = QHBoxLayout()
+        generate_layout.setSpacing(0)
+        generate_layout.addWidget(self.generate_button)
+        generate_layout.addWidget(self.inpaint_mode_button)
+
         self.queue_button = QueueButton(parent=self)
         self.queue_button.setMinimumHeight(self.generate_button.minimumHeight())
+
         actions_layout = QHBoxLayout()
-        actions_layout.addWidget(self.generate_button)
+        actions_layout.addLayout(generate_layout)
         actions_layout.addWidget(self.queue_button)
         layout.addLayout(actions_layout)
 
@@ -401,6 +529,8 @@ class GenerationWidget(QWidget):
         self.history.item_activated.connect(self.apply_result)
         layout.addWidget(self.history)
 
+        self.update_generate_button()
+
     @property
     def model(self):
         return self._model
@@ -416,6 +546,9 @@ class GenerationWidget(QWidget):
                 bind(model, "prompt", self.prompt_textbox, "text"),
                 bind(model, "negative_prompt", self.negative_textbox, "text"),
                 bind(model, "strength", self.strength_slider, "value"),
+                model.inpaint.mode_changed.connect(self.update_generate_button),
+                model.strength_changed.connect(self.update_generate_button),
+                model.document.selection_bounds_changed.connect(self.update_generate_button),
                 model.progress_changed.connect(self.update_progress),
                 model.error_changed.connect(self.error_text.setText),
                 model.has_error_changed.connect(self.error_text.setVisible),
@@ -425,8 +558,10 @@ class GenerationWidget(QWidget):
                 self.generate_button.clicked.connect(model.generate),
             ]
             self.control_list.model = model
+            self.custom_inpaint.model = model
             self.queue_button.model = model
             self.history.model_ = model
+            self.update_generate_button()
 
     def update_progress(self):
         self.progress_bar.setValue(int(self.model.progress * 100))
@@ -441,3 +576,70 @@ class GenerationWidget(QWidget):
     def apply_result(self, item: QListWidgetItem):
         job_id, index = self.history.item_info(item)
         self.model.apply_result(job_id, index)
+
+    _inpaint_text = {
+        InpaintMode.automatic: "Default (Auto-detect)",
+        InpaintMode.fill: "Fill",
+        InpaintMode.expand: "Expand",
+        InpaintMode.add_object: "Add Content",
+        InpaintMode.remove_object: "Remove Content",
+        InpaintMode.replace_background: "Replace Background",
+        InpaintMode.custom: "Generate (Custom)",
+    }
+
+    def _create_inpaint_action(self, mode: InpaintMode, text: str, icon: str):
+        action = QAction(text, self)
+        action.setIcon(theme.icon(icon))
+        action.setIconVisibleInMenu(True)
+        action.triggered.connect(lambda: self.change_inpaint_mode(mode))
+        return action
+
+    def _create_inpaint_menu(self):
+        menu = QMenu(self)
+        for mode in InpaintMode:
+            text = self._inpaint_text[mode]
+            menu.addAction(self._create_inpaint_action(mode, text, f"inpaint-{mode.name}"))
+        return menu
+
+    def _create_refine_menu(self):
+        menu = QMenu(self)
+        menu.addAction(self._create_inpaint_action(InpaintMode.automatic, "Refine", "refine"))
+        menu.addAction(
+            self._create_inpaint_action(InpaintMode.custom, "Refine (Custom)", "inpaint-custom")
+        )
+        return menu
+
+    def show_inpaint_menu(self):
+        width = self.generate_button.width() + self.inpaint_mode_button.width()
+        pos = QPoint(0, self.generate_button.height())
+        menu = self.inpaint_menu if self.model.strength == 1.0 else self.refine_menu
+        menu.setFixedWidth(width)
+        menu.exec_(self.generate_button.mapToGlobal(pos))
+
+    def change_inpaint_mode(self, mode: InpaintMode):
+        self.model.inpaint.mode = mode
+
+    def update_generate_button(self):
+        if self.model.document.selection_bounds is None:
+            self.inpaint_mode_button.setVisible(False)
+            self.custom_inpaint.setVisible(False)
+            if self.model.strength == 1.0:
+                self.generate_button.setIcon(theme.icon("workspace-generation"))
+                self.generate_button.setText("Generate")
+            else:
+                self.generate_button.setIcon(theme.icon("refine"))
+                self.generate_button.setText("Refine")
+        else:
+            self.inpaint_mode_button.setVisible(True)
+            self.custom_inpaint.setVisible(self.model.inpaint.mode is InpaintMode.custom)
+            if self.model.strength == 1.0:
+                mode = self.model.resolve_inpaint_mode()
+                self.generate_button.setIcon(theme.icon(f"inpaint-{mode.name}"))
+                self.generate_button.setText(self._inpaint_text[mode])
+            else:
+                is_custom = self.model.inpaint.mode is InpaintMode.custom
+                self.generate_button.setIcon(
+                    theme.icon("inpaint-custom" if is_custom else "refine")
+                )
+                self.generate_button.setText("Refine (Custom)" if is_custom else "Refine")
+        self.generate_button.setText(" " + self.generate_button.text())
