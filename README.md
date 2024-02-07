@@ -70,7 +70,7 @@ To run locally a powerful graphics card with at least 6 GB VRAM is recommended. 
 1. In the plugin docker, click "Configure" to start server installation. _Requires 10+ GB free disk space._
 
 > [!NOTE]
-> If you encounter problems please check the [FAQ / list of common issues](doc/common-issues.md) for solutions.
+> If you encounter problems please check the [FAQ / list of common issues](https://github.com/Acly/krita-ai-diffusion/wiki/Common-Issues) for solutions.
 
 ### _Optional:_ Custom ComfyUI Server
 
@@ -78,7 +78,7 @@ The plugin uses [ComfyUI](https://github.com/comfyanonymous/ComfyUI) as backend.
 you can install it manually or use an existing installation. If the server is already running locally before starting Krita, the plugin will
 automatically try to connect. Using a remote server is also possible this way.
 
-Please check the list of [required extensions and models](doc/comfy-requirements.md) to make sure your installation is compatible.
+Please check the list of [required extensions and models](https://github.com/Acly/krita-ai-diffusion/wiki/ComfyUI-Setup) to make sure your installation is compatible.
 
 ### _Optional:_ Object selection tools (Segmentation)
 
@@ -88,7 +88,7 @@ If you're looking for a way to easily select objects in the image, there is a [s
 
 You can also rent a GPU instead of running locally. In that case, step 6 is not needed. Instead use the plugin to connect to a remote server.
 
-There is a [step by step guide](https://github.com/Acly/krita-ai-diffusion/blob/main/doc/cloud-gpu.md) on how to setup cloud GPU on [runpod.io](https://www.runpod.io) or [vast.ai](https://vast.ai).
+There is a [step by step guide](https://github.com/Acly/krita-ai-diffusion/wiki/Cloud-GPU) on how to setup cloud GPU on [runpod.io](https://www.runpod.io) or [vast.ai](https://vast.ai).
 
 
 ## <a name="screenshots"></a> Screenshots

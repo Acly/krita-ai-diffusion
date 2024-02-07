@@ -324,7 +324,7 @@ class ServerWidget(QWidget):
             ["Stable Diffusion 1.5", "Stable Diffusion XL"],
             description=(
                 "Choose one or both Stable Diffusion versions to work with. <a"
-                " href='https://github.com/Acly/krita-ai-diffusion/tree/main/doc/sd-versions.md'>Read"
+                " href='https://github.com/Acly/krita-ai-diffusion/wiki/Stable-Diffusion-Versions'>Read"
                 " more about workloads.</a>"
             ),
             is_checkable=True,
