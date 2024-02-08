@@ -14,10 +14,10 @@ package_name = f"krita_ai_diffusion-{version}"
 
 
 def convert_markdown_to_html(markdown_file: Path, html_file: Path):
-    with open(markdown_file, "r") as f:
+    with open(markdown_file, "r", encoding="utf-8") as f:
         text = f.read()
     html = markdown(text, extensions=["fenced_code", "codehilite"])
-    with open(html_file, "w") as f:
+    with open(html_file, "w", encoding="utf-8") as f:
         f.write(html)
 
 
