@@ -329,6 +329,7 @@ class Server:
                 f"Backup folder {upgrade_comfy_dir} already exists! Please make sure it does not"
                 " contain any valuable data, delete it and try again."
             )
+        upgrade_comfy_dir.parent.mkdir(exist_ok=True)
         shutil.move(comfy_dir, upgrade_comfy_dir)
         self.comfy_dir = None
         try:
