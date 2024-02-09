@@ -138,7 +138,7 @@ class SettingWidget(QWidget):
 
 
 class SpinBoxSetting(SettingWidget):
-    def __init__(self, setting: Setting, parent=None, minimum=0, maximum=100, step=0, suffix=""):
+    def __init__(self, setting: Setting, parent=None, minimum=0, maximum=100, step=1, suffix=""):
         super().__init__(setting, parent)
 
         self._spinbox = QSpinBox(self)
@@ -828,9 +828,7 @@ class StylePresets(SettingsTab):
 
         self._checkpoint_advanced_widgets = [add("vae", ComboBoxSetting(StyleSettings.vae, self))]
 
-        self._clip_skip = add(
-            "clip_skip", SpinBoxSetting(StyleSettings.clip_skip, self, 0, 12, step=1)
-        )
+        self._clip_skip = add("clip_skip", SpinBoxSetting(StyleSettings.clip_skip, self, 0, 12))
         clip_skip_check = self._clip_skip.add_checkbox("Override")
         clip_skip_check.toggled.connect(self._toggle_clip_skip)
         self._checkpoint_advanced_widgets.append(self._clip_skip)
