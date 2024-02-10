@@ -214,18 +214,15 @@ class KritaDocument(Document):
         if exclude_layers:
             for layer in filter(lambda l: l.visible(), exclude_layers):
                 layer.setVisible(False)
+                self.refresh(layer)
                 excluded.append(layer)
-        if len(excluded) > 0:
-            # This is quite slow and blocks the UI. Maybe async spinning on tryBarrierLock works?
-            self._doc.refreshProjection()
 
         bounds = bounds or Bounds(0, 0, self._doc.width(), self._doc.height())
         img = QImage(self._doc.pixelData(*bounds), *bounds.extent, QImage.Format.Format_ARGB32)
 
         for layer in excluded:
             layer.setVisible(True)
-        if len(excluded) > 0:
-            self._doc.refreshProjection()
+            self.refresh(layer)
         return Image(img)
 
     def get_layer_image(self, layer: krita.Node, bounds: Bounds | None):
@@ -247,14 +244,14 @@ class KritaDocument(Document):
             self._doc.rootNode().addChildNode(layer, _find_layer_above(self._doc, below))
             if img and bounds:
                 layer.setPixelData(img.data, *bounds)
-                self._doc.refreshProjection()
+                self.refresh(layer)
             return layer
 
     def insert_vector_layer(self, name: str, svg: str):
         layer = self._doc.createVectorLayer(name)
         self._doc.rootNode().addChildNode(layer, None)
         layer.addShapesFromSvg(svg)
-        self._doc.refreshProjection()
+        self.refresh(layer)
         return layer
 
     def set_layer_content(self, layer: krita.Node, img: Image, bounds: Bounds):
@@ -265,12 +262,12 @@ class KritaDocument(Document):
             layer.setPixelData(blank.data, *layer_bounds)
         layer.setPixelData(img.data, *bounds)
         layer.setVisible(True)
-        self._doc.refreshProjection()
+        self.refresh(layer)
         return layer
 
     def hide_layer(self, layer: krita.Node):
         layer.setVisible(False)
-        self._doc.refreshProjection()
+        self.refresh(layer)
         return layer
 
     def move_to_top(self, layer: krita.Node):
@@ -307,6 +304,10 @@ class KritaDocument(Document):
         if not success and len(files) > 0:
             folder = files[0].parent
             raise RuntimeError(f"Failed to import animation from {folder}")
+
+    def refresh(self, layer: krita.Node):
+        # Hacky way of refreshing the projection of a layer, avoids a full document refresh
+        layer.setBlendingMode(layer.blendingMode())
 
     @property
     def active_layer(self):
