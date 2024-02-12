@@ -530,12 +530,12 @@ async def _execute_process(name: str, cmd: list, cwd: Path, cb: InternalCB):
 
     async def forward(stream: asyncio.StreamReader):
         async for line in stream:
-            cb(f"Installing {name}", line.decode(enc, errors="surrogateescape").strip())
+            cb(f"Installing {name}", line.decode(enc, errors="replace").strip())
 
     async def collect(stream: asyncio.StreamReader):
         nonlocal errlog
         async for line in stream:
-            errlog += line.decode(enc, errors="surrogateescape")
+            errlog += line.decode(enc, errors="replace")
 
     assert process.stdout and process.stderr
     await asyncio.gather(forward(process.stdout), collect(process.stderr))

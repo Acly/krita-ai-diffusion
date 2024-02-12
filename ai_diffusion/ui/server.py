@@ -370,6 +370,7 @@ class ServerWidget(QWidget):
 
         package_layout.addStretch()
 
+        root.connection.state_changed.connect(self.update_ui)
         self.update_ui()
         self.update_required()
 
@@ -428,9 +429,9 @@ class ServerWidget(QWidget):
             self._status_label.setText("Server running - Connecting...")
             self._status_label.setStyleSheet(f"color:{yellow};font-weight:bold")
             await root.connection._connect(url)
-            self.update_ui()
         except Exception as e:
             self.show_error(str(e))
+        self.update_ui()
 
     async def _stop(self):
         self._launch_button.setEnabled(False)
@@ -440,9 +441,9 @@ class ServerWidget(QWidget):
             if root.connection.state is ConnectionState.connected:
                 await root.connection.disconnect()
             await self._server.stop()
-            self.update_ui()
         except Exception as e:
             self.show_error(str(e))
+        self.update_ui()
 
     async def _install(self):
         try:
@@ -462,10 +463,10 @@ class ServerWidget(QWidget):
             self.update_ui()
 
             await self._start()
-            self.update_ui()
 
         except Exception as e:
             self.show_error(str(e))
+        self.update_ui()
 
     async def _upgrade(self):
         try:
@@ -476,10 +477,10 @@ class ServerWidget(QWidget):
             await self._server.upgrade(self._handle_progress)
             self.update_ui()
             await self._start()
-            self.update_ui()
 
         except Exception as e:
             self.show_error(str(e))
+        self.update_ui()
 
     async def _prepare_for_install(self):
         if self._server.state is ServerState.running:
@@ -526,6 +527,7 @@ class ServerWidget(QWidget):
         self._progress_info.setVisible(False)
         self._backend_select.setVisible(True)
         self._launch_button.setEnabled(True)
+        self._location_edit.setEnabled(True)
 
         state = self._server.state
         if state is ServerState.not_installed:
@@ -535,6 +537,7 @@ class ServerWidget(QWidget):
             self._status_label.setText("Server is missing required components")
             self._status_label.setStyleSheet(f"color:{red};font-weight:bold")
         elif state is ServerState.installing:
+            self._location_edit.setEnabled(False)
             self._progress_bar.setVisible(True)
             self._progress_info.setVisible(True)
             self._backend_select.setVisible(False)
@@ -555,6 +558,7 @@ class ServerWidget(QWidget):
             self._status_label.setStyleSheet(f"color:{yellow};font-weight:bold")
             self._launch_button.setText("Launch")
             self._launch_button.setEnabled(False)
+            self._location_edit.setEnabled(False)
         elif state is ServerState.running:
             connection_state = root.connection.state
             if connection_state is ConnectionState.disconnected:
@@ -571,6 +575,7 @@ class ServerWidget(QWidget):
                 self._status_label.setText(f"<b>Server running - Connection error:</b> {error}")
                 self._status_label.setStyleSheet(f"color:{red}")
             self._launch_button.setText("Stop")
+            self._location_edit.setEnabled(False)
 
         if self.requires_install:
             self._launch_button.setText("Install")

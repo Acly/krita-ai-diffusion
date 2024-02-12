@@ -48,7 +48,7 @@ PROCESS_SET_QUOTA = 0x0100
 
 
 class Kernel32:
-    dll = ctypes.windll.kernel32
+    dll = ctypes.windll.kernel32  # type: ignore
 
     def _kernel32_call(self, func: str, *args):
         result = getattr(self.dll, func)(*args)
