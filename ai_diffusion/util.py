@@ -1,18 +1,21 @@
 from enum import Enum
 from itertools import islice
 from pathlib import Path
+import asyncio
 import os
+import subprocess
 import sys
 import logging
 import logging.handlers
 import statistics
 import zipfile
-from typing import Iterable, Optional, Sequence, TypeVar
+from typing import Iterable, Optional, Sequence, TypeVar, cast, no_type_check
 
 T = TypeVar("T")
 
 is_windows = sys.platform.startswith("win")
 is_macos = sys.platform == "darwin"
+is_linux = not is_windows and not is_macos
 
 
 def create_logger(name: str, path: Path):
@@ -102,6 +105,34 @@ def get_path_dict(paths: Sequence[str]) -> dict:
     for path in paths:
         _recurse(new_path_dict, Path(path).parts, path)
     return new_path_dict
+
+
+if is_linux:
+    import signal
+    import ctypes
+
+    libc = ctypes.CDLL("libc.so.6")
+
+    def set_pdeathsig():
+        return libc.prctl(1, signal.SIGTERM)
+
+
+async def create_process(program: str | Path, *args: str, cwd: Path | None = None):
+    PIPE = asyncio.subprocess.PIPE
+    platform_args = {}
+    if is_windows:
+        platform_args["creationflags"] = subprocess.CREATE_NO_WINDOW  # type: ignore
+    if is_linux:
+        platform_args["preexec_fn"] = set_pdeathsig
+
+    p = await asyncio.create_subprocess_exec(
+        program, *args, cwd=cwd, stdout=PIPE, stderr=PIPE, **platform_args
+    )
+    if is_windows:
+        from . import win32
+
+        win32.attach_process_to_job(p.pid)
+    return p
 
 
 class LongPathZipFile(zipfile.ZipFile):

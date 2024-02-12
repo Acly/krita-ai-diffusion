@@ -13,11 +13,11 @@ from .settings import settings, ServerBackend
 from . import resources
 from .resources import CustomNode, ModelResource, ModelRequirements, SDVersion
 from .network import download, DownloadProgress
-from .util import ZipFile, is_windows, client_logger as log, server_logger as server_log
+from .util import ZipFile, is_windows, create_process
+from .util import client_logger as log, server_logger as server_log
 
 
 _exe = ".exe" if is_windows else ""
-_process_flags = subprocess.CREATE_NO_WINDOW if is_windows else 0  # type: ignore
 
 
 class ServerState(Enum):
@@ -377,14 +377,7 @@ class Server:
                 args += settings.server_arguments.split(" ")
             if port is not None:
                 args += ["--port", str(port)]
-            self._process = await asyncio.create_subprocess_exec(
-                self._python_cmd,
-                *args,
-                cwd=self.comfy_dir,
-                stdout=asyncio.subprocess.PIPE,
-                stderr=asyncio.subprocess.PIPE,
-                creationflags=_process_flags,
-            )
+            self._process = await create_process(self._python_cmd, *args, cwd=self.comfy_dir)
 
             assert self._process.stdout is not None
             async for line in self._process.stdout:
@@ -528,15 +521,12 @@ async def _extract_archive(name: str, archive: Path, target: Path, cb: InternalC
 
 
 async def _execute_process(name: str, cmd: list, cwd: Path, cb: InternalCB):
-    PIPE = asyncio.subprocess.PIPE
     enc = locale.getpreferredencoding(False)
     errlog = ""
 
     cmd = [str(c) for c in cmd]
     cb(f"Installing {name}", f"Executing {' '.join(cmd)}")
-    process = await asyncio.create_subprocess_exec(
-        cmd[0], *cmd[1:], cwd=cwd, stdout=PIPE, stderr=PIPE, creationflags=_process_flags
-    )
+    process = await create_process(cmd[0], *cmd[1:], cwd=cwd)
 
     async def forward(stream: asyncio.StreamReader):
         async for line in stream:

@@ -1,8 +1,11 @@
+import asyncio
+import sys
 import pytest
 from tempfile import TemporaryDirectory
 from pathlib import Path
 from ai_diffusion import util
-from ai_diffusion.util import batched, sanitize_prompt, find_unused_path, get_path_dict, ZipFile
+from ai_diffusion.util import ZipFile
+from ai_diffusion.util import batched, ensure, sanitize_prompt, find_unused_path, get_path_dict
 
 
 def test_batched():
@@ -51,6 +54,17 @@ def test_path_dict():
         "w1": {"f1.txt": paths[-3], "noext": paths[-2], "w2": {".noext": paths[-1]}},
     }
     assert get_path_dict(paths) == expected
+
+
+def test_create_process():
+    async def main():
+        process = await util.create_process(sys.executable, "--version")
+        output = await ensure(process.stdout).read()
+        assert output.decode().startswith("Python")
+        await process.wait()
+        assert process.returncode == 0
+
+    asyncio.run(main())
 
 
 def test_long_path_zip_file():
