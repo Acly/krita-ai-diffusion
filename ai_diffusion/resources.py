@@ -671,19 +671,21 @@ search_paths: dict[str, list[str]] = {
 }
 # fmt: on
 
-required_resource_ids = set([
-    resource_id(ResourceKind.controlnet, SDVersion.sd15, ControlMode.inpaint),
-    resource_id(ResourceKind.controlnet, SDVersion.sd15, ControlMode.blur),
-    resource_id(ResourceKind.ip_adapter, SDVersion.sd15, ControlMode.reference),
-    resource_id(ResourceKind.ip_adapter, SDVersion.sdxl, ControlMode.reference),
-    resource_id(ResourceKind.clip_vision, SDVersion.all, "ip_adapter"),
-    resource_id(ResourceKind.lora, SDVersion.sd15, "lcm"),
-    resource_id(ResourceKind.lora, SDVersion.sdxl, "lcm"),
-    resource_id(ResourceKind.upscaler, SDVersion.all, UpscalerName.default),
-    resource_id(ResourceKind.upscaler, SDVersion.all, UpscalerName.fast_2x),
-    resource_id(ResourceKind.upscaler, SDVersion.all, UpscalerName.fast_3x),
-    resource_id(ResourceKind.upscaler, SDVersion.all, UpscalerName.fast_4x),
-    resource_id(ResourceKind.inpaint, SDVersion.sdxl, "fooocus_head"),
-    resource_id(ResourceKind.inpaint, SDVersion.sdxl, "fooocus_patch"),
-    resource_id(ResourceKind.inpaint, SDVersion.all, "default"),
-])
+required_resource_ids = set(
+    [
+        resource_id(ResourceKind.controlnet, SDVersion.sd15, ControlMode.inpaint),
+        resource_id(ResourceKind.controlnet, SDVersion.sd15, ControlMode.blur),
+        resource_id(ResourceKind.ip_adapter, SDVersion.sd15, ControlMode.reference),
+        resource_id(ResourceKind.ip_adapter, SDVersion.sdxl, ControlMode.reference),
+        resource_id(ResourceKind.clip_vision, SDVersion.all, "ip_adapter"),
+        resource_id(ResourceKind.lora, SDVersion.sd15, "lcm"),
+        resource_id(ResourceKind.lora, SDVersion.sdxl, "lcm"),
+        resource_id(ResourceKind.upscaler, SDVersion.all, UpscalerName.default),
+        resource_id(ResourceKind.upscaler, SDVersion.all, UpscalerName.fast_2x),
+        resource_id(ResourceKind.upscaler, SDVersion.all, UpscalerName.fast_3x),
+        resource_id(ResourceKind.upscaler, SDVersion.all, UpscalerName.fast_4x),
+        resource_id(ResourceKind.inpaint, SDVersion.sdxl, "fooocus_head"),
+        resource_id(ResourceKind.inpaint, SDVersion.sdxl, "fooocus_patch"),
+        resource_id(ResourceKind.inpaint, SDVersion.all, "default"),
+    ]
+)
