@@ -77,7 +77,7 @@ def compute_batch_size(extent: Extent, min_size=512, max_batches: Optional[int] 
 class ScaleMode(Enum):
     none = 0
     resize = 1  # downscale, or tiny upscale, use simple scaling like bilinear
-    upscale_latent = 2  # upscale by small factor, can be done in latent space
+    upscale_small = 2  # upscale by small factor (<1.5)
     upscale_fast = 3  # upscale using a fast model
     upscale_quality = 4  # upscale using a quality model
 
@@ -125,7 +125,7 @@ class ScaledExtent(NamedTuple):
         if ratio < (1 / 1.5):
             return ScaleMode.upscale_quality
         elif ratio < 1:
-            return ScaleMode.upscale_latent
+            return ScaleMode.upscale_small
         elif ratio > 1:
             return ScaleMode.resize
         else:
@@ -637,17 +637,18 @@ def scale_refine_and_decode(
         decoded = w.vae_decode(vae, latent)
         return scale(extent.initial, extent.desired, mode, w, decoded, comfy)
 
-    if mode is ScaleMode.upscale_latent:
-        upscale = w.scale_latent(latent, extent.desired)
-        params = _sampler_params(style, strength=0.5, seed=seed)
+    if mode is ScaleMode.upscale_small:
+        upscaler = ensure(comfy.upscale_models[UpscalerName.fast_2x])
     else:
         assert mode is ScaleMode.upscale_quality
-        upscale_model = w.load_upscale_model(comfy.default_upscaler)
-        decoded = w.vae_decode(vae, latent)
-        upscale = w.upscale_image(upscale_model, decoded)
-        upscale = w.scale_image(upscale, extent.desired)
-        upscale = w.vae_encode(vae, upscale)
-        params = _sampler_params(style, strength=0.4, seed=seed)
+        upscaler = comfy.default_upscaler
+
+    upscale_model = w.load_upscale_model(upscaler)
+    decoded = w.vae_decode(vae, latent)
+    upscale = w.upscale_image(upscale_model, decoded)
+    upscale = w.scale_image(upscale, extent.desired)
+    upscale = w.vae_encode(vae, upscale)
+    params = _sampler_params(style, strength=0.4, seed=seed)
 
     sd_ver = resolve_sd_version(style, comfy)
     positive, negative = apply_control(
@@ -816,9 +817,13 @@ def inpaint(
     sampler_params = _sampler_params(style, seed=seed, clip_vision=params.use_reference)
     out_latent = w.ksampler_advanced(inpaint_model, positive, negative, latent, **sampler_params)
 
-    if extent.refinement_scaling in [ScaleMode.upscale_latent, ScaleMode.upscale_quality]:
+    if extent.refinement_scaling in [ScaleMode.upscale_small, ScaleMode.upscale_quality]:
+        if extent.refinement_scaling is ScaleMode.upscale_small:
+            upscaler = ensure(comfy.upscale_models[UpscalerName.fast_2x])
+        else:
+            upscaler = comfy.default_upscaler
         sampler_params = _sampler_params(style, strength=0.4, seed=seed)
-        upscale_model = w.load_upscale_model(comfy.default_upscaler)
+        upscale_model = w.load_upscale_model(upscaler)
         upscale = w.vae_decode(vae, out_latent)
         upscale = w.crop_image(upscale, initial_bounds)
         upscale = w.upscale_image(upscale_model, upscale)

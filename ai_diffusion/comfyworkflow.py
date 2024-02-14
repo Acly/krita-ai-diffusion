@@ -385,17 +385,6 @@ class ComfyWorkflow:
             height=bounds.height,
         )
 
-    def scale_latent(self, latent: Output, extent: Extent):
-        return self.add(
-            "LatentUpscale",
-            1,
-            samples=latent,
-            width=extent.width,
-            height=extent.height,
-            upscale_method="nearest-exact",
-            crop="disabled",
-        )
-
     def empty_image(self, extent: Extent, color=0):
         return self.add(
             "EmptyImage", 1, width=extent.width, height=extent.height, color=color, batch_size=1
