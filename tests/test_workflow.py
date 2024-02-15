@@ -132,7 +132,7 @@ def test_scaled_extent_upscale():
 def test_scaled_extent_upscale_small():
     e = ScaledExtent(Extent(100, 50), Extent(100, 50), Extent(140, 70), Extent(144, 72))
     assert e.initial_scaling is ScaleMode.none
-    assert e.refinement_scaling is ScaleMode.upscale_latent
+    assert e.refinement_scaling is ScaleMode.upscale_small
     assert e.target_scaling is ScaleMode.resize
     assert e.convert(Extent(140, 70), "desired", "target") == Extent(144, 72)
     assert e.convert(Extent(140, 70), "desired", "initial") == Extent(100, 50)

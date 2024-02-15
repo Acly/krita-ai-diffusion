@@ -74,7 +74,7 @@ class Settings(QObject):
         "Server Path",
         str(Path(__file__).parent / ".server"),
         "Directory where ComfyUI will be installed. At least 10GB of free disk space is required"
-        " for a full installation.",
+        " for a minimal installation.",
     )
 
     server_url: str
@@ -94,12 +94,12 @@ class Settings(QObject):
 
     selection_grow: int
     _selection_grow = Setting(
-        "Selection Grow", 7, "Selection area is expanded by a fraction of its size"
+        "Selection Grow", 5, "Selection area is expanded by a fraction of its size"
     )
 
     selection_feather: int
     _selection_feather = Setting(
-        "Selection Feather", 7, "The border is blurred by a fraction of selection size"
+        "Selection Feather", 5, "The border is blurred by a fraction of selection size"
     )
 
     selection_padding: int
