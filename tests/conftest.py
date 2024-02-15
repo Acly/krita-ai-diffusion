@@ -1,5 +1,6 @@
 import sys
 import pytest
+import shutil
 import subprocess
 from pathlib import Path
 from PyQt5.QtCore import QCoreApplication
@@ -9,6 +10,8 @@ sys.path.append(str(root_dir))
 
 from ai_diffusion import eventloop, network
 from ai_diffusion.settings import settings
+
+from .config import result_dir
 
 
 def pytest_addoption(parser):
@@ -38,6 +41,17 @@ def qtapp():
 def temp_settings():
     yield settings
     settings.restore()
+
+
+@pytest.fixture(scope="session", autouse=True)
+def clear_results():
+    if result_dir.exists():
+        for file in result_dir.iterdir():
+            if file.is_dir():
+                shutil.rmtree(file)
+            else:
+                file.unlink()
+    result_dir.mkdir(exist_ok=True)
 
 
 @pytest.fixture()

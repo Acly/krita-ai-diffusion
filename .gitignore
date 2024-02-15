@@ -13,6 +13,7 @@ scripts/docker/downloads
 tests/server
 tests/results
 tests/benchmark
+cloud/pod/models
 krita_ai_diffusion*.zip
 TODO.md
 .idea

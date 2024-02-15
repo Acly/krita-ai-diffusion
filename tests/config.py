@@ -3,6 +3,7 @@ from ai_diffusion.resources import SDVersion, default_checkpoints
 
 
 test_dir = Path(__file__).parent
+root_dir = test_dir.parent
 server_dir = test_dir / "server"
 data_dir = test_dir / "data"
 image_dir = test_dir / "images"

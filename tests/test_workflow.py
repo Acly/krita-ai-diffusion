@@ -25,17 +25,6 @@ from . import config
 from .config import data_dir, image_dir, result_dir, reference_dir, default_checkpoint
 
 
-@pytest.fixture(scope="session", autouse=True)
-def clear_results():
-    if result_dir.exists():
-        for file in result_dir.iterdir():
-            if file.is_dir():
-                shutil.rmtree(file)
-            else:
-                file.unlink()
-    result_dir.mkdir(exist_ok=True)
-
-
 @pytest.fixture()
 def comfy(pytestconfig, qtapp):
     if pytestconfig.getoption("--ci"):
