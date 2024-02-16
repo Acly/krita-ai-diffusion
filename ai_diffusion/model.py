@@ -15,7 +15,15 @@ from .client import ClientMessage, ClientEvent, filter_supported_styles, resolve
 from .document import Document, LayerObserver
 from .pose import Pose
 from .style import Style, Styles, SDVersion
-from .workflow import ControlMode, Conditioning, InpaintMode, InpaintParams, FillMode
+from .workflow import (
+    ControlMode,
+    Conditioning,
+    InpaintMode,
+    InpaintParams,
+    FillMode,
+    WorkflowInput,
+    WorkflowKind,
+)
 from .connection import Connection
 from .properties import Property, ObservableProperties
 from .jobs import Job, JobKind, JobQueue, JobState
@@ -100,6 +108,8 @@ class Model(QObject, ObservableProperties):
             self.report_error(msg)
             return
 
+        workflow_kind = WorkflowKind.generate if self.strength == 1.0 else WorkflowKind.refine
+        client = self._connection.client
         image = None
         inpaint = None
         extent = self._doc.extent
@@ -110,97 +120,105 @@ class Model(QObject, ObservableProperties):
         image_bounds = self.inpaint.get_context(self, mask) or image_bounds
 
         control = [c.get_image(image_bounds) for c in self.control]
-        prompt, loras = workflow.extract_loras(self.prompt, self._connection.client.loras)
-        conditioning = Conditioning(prompt, self.negative_prompt, control, loras)
-
-        if mask is not None:
-            sd_version = resolve_sd_version(self.style, self._connection.client)
-            inpaint_mode = self.resolve_inpaint_mode()
-            if inpaint_mode is InpaintMode.custom:
-                inpaint = self.inpaint.get_params(mask, sd_version)
-            else:
-                inpaint = InpaintParams.detect(
-                    mask, inpaint_mode, sd_version, conditioning, self.strength
-                )
+        prompt, loras = workflow.extract_loras(self.prompt, client.loras)
+        conditioning = Conditioning(prompt, self.negative_prompt, control=control)
 
         if mask is not None or self.strength < 1.0:
             image = self._get_current_image(image_bounds)
-        seed = self.seed if self.fixed_seed else workflow.generate_seed()
-        generator = self._generate(
-            image_bounds, conditioning, self.strength, image, inpaint, seed, self.batch_count
+
+        if mask is not None:
+            if workflow_kind is WorkflowKind.generate:
+                workflow_kind = WorkflowKind.inpaint
+            elif workflow_kind is WorkflowKind.refine:
+                workflow_kind = WorkflowKind.refine_region
+
+            sd_version = resolve_sd_version(self.style, client)
+            inpaint_mode = self.resolve_inpaint_mode()
+            if inpaint_mode is InpaintMode.custom:
+                inpaint = self.inpaint.get_params(mask)
+            else:
+                inpaint = InpaintParams.detect(
+                    inpaint_mode, mask.bounds, sd_version, conditioning, self.strength
+                )
+
+        input = WorkflowInput.create(
+            workflow_kind,
+            image or extent,
+            mask,
+            self.seed if self.fixed_seed else workflow.generate_seed(),
+            self.style,
+            client,
+            loras,
+            conditioning,
+            self.strength,
+            inpaint,
         )
-
         self.clear_error()
-        eventloop.run(_report_errors(self, generator))
+        eventloop.run(_report_errors(self, self._generate(input, image_bounds, self.batch_count)))
 
-    async def _generate(
-        self,
-        bounds: Bounds,
-        conditioning: Conditioning,
-        strength: float,
-        image: Image | None,
-        inpaint: InpaintParams | None,
-        seed: int = -1,
-        count: int = 1,
-        is_live=False,
-    ):
+    async def _generate(self, input: WorkflowInput, bounds: Bounds, count: int = 1, is_live=False):
         client = self._connection.client
-        style = self.style
         if not self.jobs.any_executing():
             self.progress = 0.0
 
-        if inpaint is not None:
-            b = inpaint.mask.bounds
+        if input.inpaint is not None:
+            b = input.inpaint.target_bounds
             # Compute mask bounds relative to cropped image, passed to workflow
-            inpaint.mask.bounds = Bounds(b.x - bounds.x, b.y - bounds.y, *b.extent)
+            input.inpaint.target_bounds = Bounds(b.x - bounds.x, b.y - bounds.y, *b.extent)
             bounds = b  # Also keep absolute mask bounds, to insert result image into canvas
 
-        if image is None and inpaint is None:
-            assert strength == 1
-            job = workflow.generate(client, style, bounds.extent, conditioning, seed, is_live)
-        elif inpaint is None and strength < 1:
-            assert image is not None
-            job = workflow.refine(client, style, image, conditioning, strength, seed, is_live)
-        elif strength == 1 and not is_live:
-            assert image is not None and inpaint is not None
-            job = workflow.inpaint(client, style, image, conditioning, inpaint, seed)
-        else:
-            assert image is not None and inpaint is not None
-            job = workflow.refine_region(
-                client, style, image, inpaint, conditioning, strength, seed, is_live
-            )
-
         job_kind = JobKind.live_preview if is_live else JobKind.diffusion
-        pos, neg = conditioning.prompt, conditioning.negative_prompt
+        pos, neg = input.conditioning.prompt, input.conditioning.negative_prompt
+        assert input.sampling is not None
+
         result: list[Job] = []
         for i in range(count):
-            job_id = await client.enqueue(job, self.queue_front)
-            result.append(self.jobs.add(job_kind, job_id, pos, neg, bounds, strength, job.seed))
-            job.seed = seed + (i + 1) * settings.batch_size
+            work = workflow.generate_workflow(input, client)
+            job_id = await client.enqueue(work, self.queue_front)
+            job = self.jobs.add(
+                job_kind, job_id, pos, neg, bounds, input.sampling.strength, input.sampling.seed
+            )
+            input.sampling.seed = input.sampling.seed + (i + 1) * settings.batch_size
+            result.append(job)
         return result
 
     def upscale_image(self):
         params = self.upscale.params
         image = self._doc.get_image(Bounds(0, 0, *self._doc.extent))
-        job = self.jobs.add_upscale(Bounds(0, 0, *self.upscale.target_extent), params.seed)
-        self.clear_error()
-        eventloop.run(_report_errors(self, self._upscale_image(job, image, params)))
-
-    async def _upscale_image(self, job: Job, image: Image, params: UpscaleParams):
         client = self._connection.client
         upscaler = params.upscaler or client.default_upscaler
         if params.use_diffusion:
-            work = workflow.upscale_tiled(
-                client, image, upscaler, params.factor, self.style, params.strength, params.seed
+            inputs = WorkflowInput.create(
+                WorkflowKind.upscale_tiled,
+                image,
+                None,
+                params.seed,
+                self.style,
+                client,
+                [],
+                Conditioning("4k uhd"),
+                strength=params.strength,
+                upscale_factor=params.factor,
+                upscale_model=upscaler,
             )
         else:
-            work = workflow.upscale_simple(client, image, params.upscaler, params.factor)
+            inputs = WorkflowInput.upscale_simple(image, upscaler, params.factor)
+        job = self.jobs.add_upscale(Bounds(0, 0, *self.upscale.target_extent), params.seed)
+        self.clear_error()
+        eventloop.run(_report_errors(self, self._upscale_image(job, inputs)))
+
+    async def _upscale_image(self, job: Job, inputs: WorkflowInput):
+        client = self._connection.client
+        work = workflow.generate_workflow(inputs, client)
         job.id = await client.enqueue(work, self.queue_front)
 
     def generate_live(self):
-        ver = resolve_sd_version(self.style, self._connection.client)
-        image = None
+        strength = self.live.strength
+        workflow_kind = WorkflowKind.generate if strength == 1.0 else WorkflowKind.refine
+        client = self._connection.client
+        ver = resolve_sd_version(self.style, client)
 
+        image = None
         mask = self._doc.create_mask_from_selection(
             grow=settings.selection_feather / 200,  # don't apply grow for live mode
             feather=settings.selection_feather / 100,
@@ -208,19 +226,30 @@ class Model(QObject, ObservableProperties):
             min_size=512 if ver is SDVersion.sd15 else 1024,
             square=True,
         )
-        bounds = Bounds(0, 0, *self._doc.extent) if mask is None else mask.bounds
+        bounds = Bounds(0, 0, *self._doc.extent)
+        if mask is not None:
+            workflow_kind = WorkflowKind.refine_region
+            bounds = mask.bounds
         if mask is not None or self.live.strength < 1.0:
             image = self._get_current_image(bounds)
 
+        prompt, loras = workflow.extract_loras(self.prompt, client.loras)
         control = [c.get_image(bounds) for c in self.control]
-        cond = Conditioning(self.prompt, self.negative_prompt, control)
-        inpaint = InpaintParams(mask, InpaintMode.fill) if mask else None
-        generator = self._generate(
-            bounds, cond, self.live.strength, image, inpaint, self.seed, count=1, is_live=True
+        input = WorkflowInput.create(
+            workflow_kind,
+            image or bounds.extent,
+            mask,
+            self.seed,
+            self.style,
+            client,
+            loras,
+            Conditioning(prompt, self.negative_prompt, control=control),
+            self.live.strength,
+            InpaintParams(InpaintMode.fill, mask.bounds) if mask else None,
+            is_live=True,
         )
-
         self.clear_error()
-        eventloop.run(_report_errors(self, generator))
+        eventloop.run(_report_errors(self, self._generate(input, bounds, 1, is_live=True)))
 
     def _get_current_image(self, bounds: Bounds):
         exclude = [  # exclude control layers from projection
@@ -431,10 +460,9 @@ class CustomInpaint(QObject, ObservableProperties):
     context_layer_id_changed = pyqtSignal(QUuid)
     modified = pyqtSignal(QObject, str)
 
-    def get_params(self, mask: Mask, sdver: SDVersion):
-        params = InpaintParams(mask, self.mode, self.fill)
-        params.use_inpaint_control = self.use_inpaint and sdver is SDVersion.sd15
-        params.use_inpaint_model = self.use_inpaint and sdver is SDVersion.sdxl
+    def get_params(self, mask: Mask):
+        params = InpaintParams(self.mode, mask.bounds, self.fill)
+        params.use_inpaint_model = self.use_inpaint
         params.use_condition_mask = self.use_prompt_focus
         return params
 

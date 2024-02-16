@@ -1,13 +1,12 @@
 from __future__ import annotations
 from copy import copy
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from enum import Enum
 import math
 import random
 import re
-from itertools import chain
 from pathlib import Path
-from typing import Any, List, NamedTuple, Optional, overload
+from typing import Any, NamedTuple, Optional, overload
 
 from .image import Bounds, Extent, Image, Mask, multiple_of
 from .client import Client, resolve_sd_version
@@ -225,13 +224,13 @@ def prepare(
 
 def prepare_extent(extent: Extent, sd_ver: SDVersion, style: Style, downscale=True):
     scaled, _, _, batch = prepare(extent, None, None, sd_ver, style, downscale)
-    return scaled, batch
+    return ImageInput(scaled), batch
 
 
 def prepare_image(image: Image, sd_ver: SDVersion, style: Style, downscale=True):
     scaled, out_image, _, batch = prepare(image.extent, image, None, sd_ver, style, downscale)
     assert out_image is not None
-    return scaled, out_image, batch
+    return ImageInput(scaled, out_image), batch
 
 
 def prepare_masked(image: Image, mask: Mask, sd_ver: SDVersion, style: Style, downscale=True):
@@ -239,7 +238,7 @@ def prepare_masked(image: Image, mask: Mask, sd_ver: SDVersion, style: Style, do
         image.extent, image, mask, sd_ver, style, downscale
     )
     assert out_image and out_mask
-    return scaled, out_image, out_mask, batch
+    return ImageInput(scaled, out_image, out_mask), batch
 
 
 def _scale_images(*imgs: Image | None, target: Extent):
@@ -251,10 +250,7 @@ def generate_seed():
     return random.randint(0, 2**31 - 1)
 
 
-def _sampler_params(
-    style: Style, strength=1.0, seed=-1, clip_vision=False, advanced=True, is_live=False
-) -> dict[str, Any]:
-    config = style.get_sampler_config(is_live)
+def _sampler_params(sampling: SamplingInput, strength=0.0, clip_vision=False, advanced=True):
     sampler_name = {
         "DDIM": "ddim",
         "DPM++ 2M": "dpmpp_2m",
@@ -267,7 +263,7 @@ def _sampler_params(
         "Lightning": "euler",
         "Euler": "euler",
         "Euler a": "euler_ancestral",
-    }[config.sampler]
+    }[sampling.sampler]
     sampler_scheduler = {
         "DDIM": "ddim_uniform",
         "DPM++ 2M": "normal",
@@ -280,24 +276,25 @@ def _sampler_params(
         "Lightning": "sgm_uniform",
         "Euler": "normal",
         "Euler a": "normal",
-    }[config.sampler]
+    }[sampling.sampler]
     params: dict[str, Any] = dict(
         sampler=sampler_name,
         scheduler=sampler_scheduler,
-        steps=config.steps,
-        cfg=config.cfg,
-        seed=seed,
+        steps=sampling.steps,
+        cfg=sampling.cfg_scale,
+        seed=sampling.seed,
     )
+    strength = strength if strength > 0 else sampling.strength
     if advanced:
         if strength < 1.0:
-            min_steps = config.steps if is_live else 1
+            min_steps = sampling.steps if sampling.sampler == "LCM" else 1
             params["steps"], params["start_at_step"] = _apply_strength(
                 strength, params["steps"], min_steps
             )
         else:
             params["start_at_step"] = 0
     if clip_vision:
-        params["cfg"] = min(5, config.cfg)
+        params["cfg"] = min(5, sampling.cfg_scale)
     return params
 
 
@@ -338,50 +335,30 @@ def _apply_strength(strength: float, steps: int, min_steps: int = 0) -> tuple[in
     return steps, start_at_step
 
 
-def load_model_with_lora(
-    w: ComfyWorkflow,
-    comfy: Client,
-    style: Style,
-    cond: Conditioning,
-    is_live=False,
-):
-    checkpoint = style.sd_checkpoint
+def load_model_with_lora(w: ComfyWorkflow, models: ModelInput, comfy: Client):
+    checkpoint = models.checkpoint
     if checkpoint not in comfy.checkpoints:
         checkpoint = next(iter(comfy.checkpoints.keys()))
-        log.warning(f"Style checkpoint {style.sd_checkpoint} not found, using default {checkpoint}")
+        log.warning(f"Style checkpoint {models.checkpoint} not found, using default {checkpoint}")
     model, clip, vae = w.load_checkpoint(checkpoint)
 
-    if style.clip_skip != StyleSettings.clip_skip.default:
-        clip = w.clip_set_last_layer(clip, (style.clip_skip * -1))
+    if models.clip_skip != StyleSettings.clip_skip.default:
+        clip = w.clip_set_last_layer(clip, (models.clip_skip * -1))
 
-    if style.vae != StyleSettings.vae.default:
-        if style.vae in comfy.vae_models:
-            vae = w.load_vae(style.vae)
+    if models.vae != StyleSettings.vae.default:
+        if models.vae in comfy.vae_models:
+            vae = w.load_vae(models.vae)
         else:
-            log.warning(f"Style VAE {style.vae} not found, using default VAE from checkpoint")
+            log.warning(f"Style VAE {models.vae} not found, using default VAE from checkpoint")
 
-    for lora in chain(style.loras, cond.loras):
-        if lora["name"] not in comfy.loras:
-            log.warning(f"LoRA {lora['name']} not found, skipping")
-            continue
-        model, clip = w.load_lora(model, clip, lora["name"], lora["strength"], lora["strength"])
+    for lora in models.loras:
+        model, clip = w.load_lora(model, clip, lora.name, lora.strength, lora.strength)
 
-    sdver = resolve_sd_version(style, comfy)
-    is_lcm = style.get_sampler_config(is_live=is_live).sampler == "LCM"
-    if is_lcm:
-        if lora := comfy.lora_models["lcm"][sdver]:
-            model = w.load_lora_model(model, lora, 1.0)
-        else:
-            raise Exception(f"LCM LoRA model not found for {sdver.value}")
+    sdver = comfy.checkpoints[models.checkpoint].sd_version
+    lcm_lora = comfy.lora_models["lcm"][sdver]
+    is_lcm = any(l.name == lcm_lora for l in models.loras)
 
-    face_weight = median_or_zero(c.strength for c in cond.control if c.mode is ControlMode.face)
-    if face_weight > 0:
-        if lora := comfy.lora_models["face"][sdver]:
-            model = w.load_lora_model(model, lora, 0.65 * face_weight)
-        else:
-            raise Exception(f"IP-Adapter Face LoRA model not found for {sdver.value}")
-
-    if style.v_prediction_zsnr:
+    if models.v_prediction_zsnr:
         model = w.model_sampling_discrete(model, "v_prediction", zsnr=True)
         model = w.rescale_cfg(model, 0.7)
     elif is_lcm:
@@ -413,6 +390,10 @@ class Control:
         self.mask = mask
         self.range = range
 
+    @staticmethod
+    def from_input(i: ControlInput):
+        return Control(i.mode, i.image, i.strength, i.range)
+
     def load_image(self, w: ComfyWorkflow, target_extent: Extent | None = None):
         if isinstance(self.image, Image):
             self._original_extent = self.image.extent
@@ -433,28 +414,17 @@ class Control:
         return False
 
 
+@dataclass
 class Conditioning:
     prompt: str
     negative_prompt: str = ""
-    control: list[Control]
+    control: list[Control] = field(default_factory=list)
+    style_prompt: str = ""
     mask: Output | None = None
-    loras: list[dict[str, Any]]
-
-    def __init__(
-        self,
-        prompt="",
-        negative_prompt="",
-        control: list[Control] | None = None,
-        loras: list[dict[str, Any]] | None = None,
-    ):
-        self.prompt = prompt
-        self.negative_prompt = negative_prompt
-        self.control = control or []
-        self.loras = loras or []
 
     def copy(self):
         return Conditioning(
-            self.prompt, self.negative_prompt, [copy(c) for c in self.control], self.loras
+            self.prompt, self.negative_prompt, [copy(c) for c in self.control], self.style_prompt
         )
 
     def downscale(self, original: Extent, target: Extent):
@@ -484,14 +454,14 @@ def merge_prompt(prompt: str, style_prompt: str):
     return f"{prompt}, {style_prompt}"
 
 
-def encode_text_prompt(w: ComfyWorkflow, cond: Conditioning, clip: Output, style: Style):
+def encode_text_prompt(w: ComfyWorkflow, cond: Conditioning, clip: Output):
     prompt = cond.prompt
     if prompt != "" and cond.mask:
-        prompt = merge_prompt("", style.style_prompt)
+        prompt = merge_prompt("", cond.style_prompt)
     elif prompt != "":
-        prompt = merge_prompt(cond.prompt, style.style_prompt)
+        prompt = merge_prompt(prompt, cond.style_prompt)
     positive = w.clip_text_encode(clip, prompt)
-    negative = w.clip_text_encode(clip, merge_prompt(cond.negative_prompt, style.negative_prompt))
+    negative = w.clip_text_encode(clip, cond.negative_prompt)
     if cond.mask and cond.prompt != "":
         masked = w.clip_text_encode(clip, cond.prompt)
         masked = w.conditioning_set_mask(masked, cond.mask)
@@ -620,14 +590,14 @@ def scale_to_target(extent: ScaledExtent, w: ComfyWorkflow, image: Output, comfy
 def scale_refine_and_decode(
     extent: ScaledExtent,
     w: ComfyWorkflow,
-    style: Style,
+    cond: Conditioning,
+    sampling: SamplingInput,
     latent: Output,
     prompt_pos: Output,
     prompt_neg: Output,
-    cond: Conditioning,
-    seed: int,
     model: Output,
     vae: Output,
+    sd_ver: SDVersion,
     comfy: Client,
 ):
     """Handles scaling images from `initial` to `desired` resolution.
@@ -650,9 +620,8 @@ def scale_refine_and_decode(
     upscale = w.upscale_image(upscale_model, decoded)
     upscale = w.scale_image(upscale, extent.desired)
     upscale = w.vae_encode(vae, upscale)
-    params = _sampler_params(style, strength=0.4, seed=seed)
+    params = _sampler_params(sampling, strength=0.4)
 
-    sd_ver = resolve_sd_version(style, comfy)
     positive, negative = apply_control(
         w, prompt_pos, prompt_neg, cond.control, extent.desired, comfy, sd_ver
     )
@@ -662,25 +631,26 @@ def scale_refine_and_decode(
 
 
 def generate(
-    comfy: Client, style: Style, input_extent: Extent, cond: Conditioning, seed: int, is_live=False
+    models: ModelInput,
+    extent: ScaledExtent,
+    cond: Conditioning,
+    sampling: SamplingInput,
+    batch_count: int,
+    comfy: Client,
 ):
-    sd_ver = resolve_sd_version(style, comfy)
-    extent, batch = prepare_extent(input_extent, sd_ver, style, downscale=not is_live)
-    cond.downscale(input_extent, extent.desired)
-    sampler_params = _sampler_params(style, seed=seed, is_live=is_live)
-    batch = 1 if is_live else batch
+    sd_version = comfy.checkpoints[models.checkpoint].sd_version
 
     w = ComfyWorkflow(comfy.nodes_inputs)
-    model, clip, vae = load_model_with_lora(w, comfy, style, cond, is_live=is_live)
-    model = apply_ip_adapter(w, model, cond.control, comfy, sd_ver)
-    latent = w.empty_latent_image(extent.initial, batch)
-    prompt_pos, prompt_neg = encode_text_prompt(w, cond, clip, style)
+    model, clip, vae = load_model_with_lora(w, models, comfy)
+    model = apply_ip_adapter(w, model, cond.control, comfy, sd_version)
+    latent = w.empty_latent_image(extent.initial, batch_count)
+    prompt_pos, prompt_neg = encode_text_prompt(w, cond, clip)
     positive, negative = apply_control(
-        w, prompt_pos, prompt_neg, cond.control, extent.initial, comfy, sd_ver
+        w, prompt_pos, prompt_neg, cond.control, extent.initial, comfy, sd_version
     )
-    out_latent = w.ksampler_advanced(model, positive, negative, latent, **sampler_params)
+    out_latent = w.ksampler_advanced(model, positive, negative, latent, **_sampler_params(sampling))
     out_image = scale_refine_and_decode(
-        extent, w, style, out_latent, prompt_pos, prompt_neg, cond, seed, model, vae, comfy
+        extent, w, cond, sampling, out_latent, prompt_pos, prompt_neg, model, vae, sd_version, comfy
     )
     out_image = scale_to_target(extent, w, out_image, comfy)
     w.send_image(out_image)
@@ -724,30 +694,27 @@ def fill_masked(w: ComfyWorkflow, image: Output, mask: Output, fill: FillMode, c
 
 @dataclass
 class InpaintParams:
-    mask: Mask
     mode: InpaintMode
+    target_bounds: Bounds
     fill: FillMode = FillMode.neutral
     use_inpaint_model = False
-    use_inpaint_control = False
     use_condition_mask = False
     use_reference = False
 
     @staticmethod
     def detect(
-        mask: Mask, mode: InpaintMode, sd_ver: SDVersion, cond: Conditioning, strength: float
+        mode: InpaintMode, bounds: Bounds, sd_ver: SDVersion, cond: Conditioning, strength: float
     ):
         assert mode is not InpaintMode.automatic
-        result = InpaintParams(mask, mode)
+        result = InpaintParams(mode, bounds)
 
+        result.use_inpaint_model = strength > 0.5
         if sd_ver is SDVersion.sd15:
-            result.use_inpaint_control = strength > 0.5
             result.use_condition_mask = (
                 mode is InpaintMode.add_object
                 and cond.prompt != ""
                 and not any(c.mode.is_structural for c in cond.control)
             )
-        if sd_ver is SDVersion.sdxl:
-            result.use_inpaint_model = strength > 0.5
 
         is_ref_mode = mode in [InpaintMode.fill, InpaintMode.expand]
         result.use_reference = is_ref_mode and cond.prompt == ""
@@ -762,48 +729,55 @@ class InpaintParams:
         return result
 
     @staticmethod
-    def automatic(mask: Mask, sd_ver: SDVersion, cond: Conditioning, image_extent: Extent):
-        mode = detect_inpaint_mode(image_extent, mask.bounds)
-        return InpaintParams.detect(mask, mode, sd_ver, cond, strength=1.0)
+    def automatic(bounds: Bounds, sd_ver: SDVersion, cond: Conditioning, image_extent: Extent):
+        mode = detect_inpaint_mode(image_extent, bounds)
+        return InpaintParams.detect(mode, bounds, sd_ver, cond, strength=1.0)
 
 
 def inpaint(
-    comfy: Client, style: Style, image: Image, cond: Conditioning, params: InpaintParams, seed: int
+    images: ImageInput,
+    models: ModelInput,
+    cond: Conditioning,
+    sampling: SamplingInput,
+    params: InpaintParams,
+    crop_upscale_extent: Extent,
+    batch_count: int,
+    comfy: Client,
 ):
-    target_bounds = params.mask.bounds
-    sd_ver = resolve_sd_version(style, comfy)
-    extent, scaled_image, scaled_mask, _ = prepare_masked(image, params.mask, sd_ver, style)
-    upscale_extent, _ = prepare_extent(target_bounds.extent, sd_ver, style, downscale=False)
+    sd_version = comfy.checkpoints[models.checkpoint].sd_version
+    target_bounds = params.target_bounds
+    extent = images.extent  # for initial generation with large context
+    upscale_extent = ScaledExtent(  # after crop to the masked region
+        Extent(0, 0), Extent(0, 0), crop_upscale_extent, target_bounds.extent
+    )
     initial_bounds = extent.convert(target_bounds, "target", "initial")
 
     w = ComfyWorkflow(comfy.nodes_inputs)
-    model, clip, vae = load_model_with_lora(w, comfy, style, cond)
-    in_image = w.load_image(scaled_image)
+    model, clip, vae = load_model_with_lora(w, models, comfy)
+    in_image = w.load_image(ensure(images.initial_image))
     in_image = scale_to_initial(extent, w, in_image, comfy)
-    in_mask = w.load_mask(scaled_mask)
+    in_mask = w.load_mask(ensure(images.initial_mask))
     in_mask = scale_to_initial(extent, w, in_mask, comfy, is_mask=True)
-    cropped_mask = w.load_mask(params.mask.to_image())
+    cropped_mask = w.load_mask(ensure(images.hires_mask))
 
     cond_base = cond.copy()
-    cond_base.downscale(image.extent, extent.initial)
+    cond_base.downscale(extent.input, extent.initial)
     if params.use_reference:
-        reference = get_inpaint_reference(scaled_image, initial_bounds) or in_image
+        reference = get_inpaint_reference(ensure(images.initial_image), initial_bounds) or in_image
         cond_base.control.append(Control(ControlMode.reference, reference, 0.5, (0.2, 0.8)))
-    if params.use_inpaint_control:
+    if params.use_inpaint_model and sd_version is SDVersion.sd15:
         cond_base.control.append(Control(ControlMode.inpaint, in_image, mask=in_mask))
     if params.use_condition_mask:
         cond_base.mask = in_mask
-    if params.mode is InpaintMode.remove_object and cond_base.prompt == "":
-        cond_base.prompt = "background scenery"
 
     in_image = fill_masked(w, in_image, in_mask, params.fill, comfy)
 
-    model = apply_ip_adapter(w, model, cond_base.control, comfy, sd_ver)
-    positive, negative = encode_text_prompt(w, cond_base, clip, style)
+    model = apply_ip_adapter(w, model, cond_base.control, comfy, sd_version)
+    positive, negative = encode_text_prompt(w, cond_base, clip)
     positive, negative = apply_control(
-        w, positive, negative, cond_base.control, extent.initial, comfy, sd_ver
+        w, positive, negative, cond_base.control, extent.initial, comfy, sd_version
     )
-    if params.use_inpaint_model:
+    if params.use_inpaint_model and sd_version is SDVersion.sdxl:
         positive, negative, latent_inpaint, latent = w.vae_encode_inpaint_conditioning(
             vae, in_image, in_mask, positive, negative
         )
@@ -814,9 +788,8 @@ def inpaint(
         latent = w.set_latent_noise_mask(latent, in_mask)
         inpaint_model = model
 
-    batch = compute_batch_size(Extent.largest(extent.initial, upscale_extent.desired))
-    latent = w.batch_latent(latent, batch)
-    sampler_params = _sampler_params(style, seed=seed, clip_vision=params.use_reference)
+    latent = w.batch_latent(latent, batch_count)
+    sampler_params = _sampler_params(sampling, clip_vision=params.use_reference)
     out_latent = w.ksampler_advanced(inpaint_model, positive, negative, latent, **sampler_params)
 
     if extent.refinement_scaling in [ScaleMode.upscale_small, ScaleMode.upscale_quality]:
@@ -824,7 +797,7 @@ def inpaint(
             upscaler = ensure(comfy.upscale_models[UpscalerName.fast_2x])
         else:
             upscaler = comfy.default_upscaler
-        sampler_params = _sampler_params(style, strength=0.4, seed=seed)
+        sampler_params = _sampler_params(sampling, strength=0.4)
         upscale_model = w.load_upscale_model(upscaler)
         upscale = w.vae_decode(vae, out_latent)
         upscale = w.crop_image(upscale, initial_bounds)
@@ -835,13 +808,14 @@ def inpaint(
 
         cond_upscale = cond.copy()
         cond_upscale.crop(target_bounds)
-        if params.use_inpaint_control:
+        if params.use_inpaint_model and sd_version is SDVersion.sd15:
             cond_upscale.control.append(
-                Control(ControlMode.inpaint, Image.crop(image, target_bounds), mask=cropped_mask)
+                Control(ControlMode.inpaint, ensure(images.hires_image), mask=cropped_mask)
             )
-        positive_up, negative_up = encode_text_prompt(w, cond_upscale, clip, style)
+        res = upscale_extent.desired
+        positive_up, negative_up = encode_text_prompt(w, cond_upscale, clip)
         positive_up, negative_up = apply_control(
-            w, positive_up, negative_up, cond_upscale.control, upscale_extent.desired, comfy, sd_ver
+            w, positive_up, negative_up, cond_upscale.control, res, comfy, sd_version
         )
         out_latent = w.ksampler_advanced(model, positive_up, negative_up, latent, **sampler_params)
         out_image = w.vae_decode(vae, out_latent)
@@ -865,33 +839,29 @@ def inpaint(
 
 
 def refine(
-    comfy: Client,
-    style: Style,
     image: Image,
+    extent: ScaledExtent,
+    models: ModelInput,
     cond: Conditioning,
-    strength: float,
-    seed: int,
-    is_live=False,
+    sampling: SamplingInput,
+    batch_count: int,
+    comfy: Client,
 ):
-    assert strength > 0 and strength < 1
-    sd_ver = resolve_sd_version(style, comfy)
-    extent, image, batch = prepare_image(image, sd_ver, style, downscale=False)
-    cond.downscale(image.extent, extent.desired)
-    sampler_params = _sampler_params(style, strength, seed, is_live=is_live)
+    sd_version = comfy.checkpoints[models.checkpoint].sd_version
 
     w = ComfyWorkflow(comfy.nodes_inputs)
-    model, clip, vae = load_model_with_lora(w, comfy, style, cond, is_live=is_live)
-    model = apply_ip_adapter(w, model, cond.control, comfy, sd_ver)
+    model, clip, vae = load_model_with_lora(w, models, comfy)
+    model = apply_ip_adapter(w, model, cond.control, comfy, sd_version)
     in_image = w.load_image(image)
     in_image = scale_to_initial(extent, w, in_image, comfy)
     latent = w.vae_encode(vae, in_image)
-    if batch > 1 and not is_live:
-        latent = w.batch_latent(latent, batch)
-    positive, negative = encode_text_prompt(w, cond, clip, style)
+    if batch_count > 1:
+        latent = w.batch_latent(latent, batch_count)
+    positive, negative = encode_text_prompt(w, cond, clip)
     positive, negative = apply_control(
-        w, positive, negative, cond.control, extent.desired, comfy, sd_ver
+        w, positive, negative, cond.control, extent.desired, comfy, sd_version
     )
-    sampler = w.ksampler_advanced(model, positive, negative, latent, **sampler_params)
+    sampler = w.ksampler_advanced(model, positive, negative, latent, **_sampler_params(sampling))
     out_image = w.vae_decode(vae, sampler)
     out_image = scale_to_target(extent, w, out_image, comfy)
     w.send_image(out_image)
@@ -899,39 +869,32 @@ def refine(
 
 
 def refine_region(
-    comfy: Client,
-    style: Style,
-    image: Image,
-    params: InpaintParams,
+    images: ImageInput,
+    models: ModelInput,
     cond: Conditioning,
-    strength: float,
-    seed: int,
-    is_live=False,
+    sampling: SamplingInput,
+    inpaint: InpaintParams,
+    batch_count: int,
+    comfy: Client,
 ):
-    assert strength > 0 and strength <= 1
-
-    allow_2pass = strength >= 0.7
-    sd_ver = resolve_sd_version(style, comfy)
-    extent, image, mask_image, batch = prepare_masked(
-        image, params.mask, sd_ver, style, allow_2pass
-    )
-    cond.downscale(image.extent, extent.desired)
-    sampler_params = _sampler_params(style, strength, seed, is_live=is_live)
+    sd_version = comfy.checkpoints[models.checkpoint].sd_version
+    extent = images.extent
 
     w = ComfyWorkflow(comfy.nodes_inputs)
-    model, clip, vae = load_model_with_lora(w, comfy, style, cond, is_live=is_live)
-    model = apply_ip_adapter(w, model, cond.control, comfy, sd_ver)
-    in_image = w.load_image(image)
+    model, clip, vae = load_model_with_lora(w, models, comfy)
+    model = apply_ip_adapter(w, model, cond.control, comfy, sd_version)
+    in_image = w.load_image(ensure(images.initial_image))
     in_image = scale_to_initial(extent, w, in_image, comfy)
-    in_mask = w.load_mask(mask_image)
+    in_mask = w.load_mask(ensure(images.initial_mask))
     in_mask = scale_to_initial(extent, w, in_mask, comfy, is_mask=True)
-    prompt_pos, prompt_neg = encode_text_prompt(w, cond, clip, style)
-    if params.use_inpaint_control:
+
+    prompt_pos, prompt_neg = encode_text_prompt(w, cond, clip)
+    if inpaint.use_inpaint_model and sd_version is SDVersion.sd15:
         cond.control.append(Control(ControlMode.inpaint, in_image, mask=in_mask))
     positive, negative = apply_control(
-        w, prompt_pos, prompt_neg, cond.control, extent.initial, comfy, sd_ver
+        w, prompt_pos, prompt_neg, cond.control, extent.initial, comfy, sd_version
     )
-    if sd_ver is SDVersion.sd15 or not params.use_inpaint_model:
+    if sd_version is SDVersion.sd15 or not inpaint.use_inpaint_model:
         latent = w.vae_encode(vae, in_image)
         latent = w.set_latent_noise_mask(latent, in_mask)
         inpaint_model = model
@@ -942,16 +905,19 @@ def refine_region(
         inpaint_patch = w.load_fooocus_inpaint(**comfy.fooocus_inpaint_models)
         inpaint_model = w.apply_fooocus_inpaint(model, inpaint_patch, latent_inpaint)
 
-    if batch > 1 and not is_live:
-        latent = w.batch_latent(latent, batch)
-    out_latent = w.ksampler_advanced(inpaint_model, positive, negative, latent, **sampler_params)
+    if batch_count > 1:
+        latent = w.batch_latent(latent, batch_count)
+
+    out_latent = w.ksampler_advanced(
+        inpaint_model, positive, negative, latent, **_sampler_params(sampling)
+    )
     out_image = scale_refine_and_decode(
-        extent, w, style, out_latent, prompt_pos, prompt_neg, cond, seed, model, vae, comfy
+        extent, w, cond, sampling, out_latent, prompt_pos, prompt_neg, model, vae, sd_version, comfy
     )
     out_image = scale_to_target(extent, w, out_image, comfy)
-    if extent.target != params.mask.bounds.extent:
-        out_image = w.crop_image(out_image, params.mask.bounds)
-    original_mask = w.load_mask(params.mask.to_image())
+    if extent.target != inpaint.target_bounds.extent:
+        out_image = w.crop_image(out_image, inpaint.target_bounds)
+    original_mask = w.load_mask(ensure(images.hires_mask))
     out_masked = w.apply_mask(out_image, original_mask)
     w.send_image(out_masked)
     return w
@@ -1036,28 +1002,27 @@ def upscale_simple(comfy: Client, image: Image, model: str, factor: float):
 
 
 def upscale_tiled(
-    comfy: Client, image: Image, model: str, factor: float, style: Style, strength: float, seed: int
+    image: Image,
+    extent: ScaledExtent,
+    upscale_model_name: str,
+    models: ModelInput,
+    cond: Conditioning,
+    sampling: SamplingInput,
+    comfy: Client,
 ):
-    sd_ver = resolve_sd_version(style, comfy)
-    cond = Conditioning("4k uhd")
-    target_extent = image.extent * factor
-    if style.preferred_resolution > 0:
-        tile_extent = Extent(style.preferred_resolution, style.preferred_resolution)
-    elif sd_ver is SDVersion.sd15:
-        tile_count = target_extent.longest_side / 768
-        tile_extent = (target_extent * (1 / tile_count)).multiple_of(8)
-    else:  # SDXL
-        tile_extent = Extent(1024, 1024)
+    sd_version = comfy.checkpoints[models.checkpoint].sd_version
 
     w = ComfyWorkflow(comfy.nodes_inputs)
-    checkpoint, clip, vae = load_model_with_lora(w, comfy, style, cond)
-    checkpoint = apply_ip_adapter(w, checkpoint, cond.control, comfy, sd_ver)
+    checkpoint, clip, vae = load_model_with_lora(w, models, comfy)
+    checkpoint = apply_ip_adapter(w, checkpoint, cond.control, comfy, sd_version)
     img = w.load_image(image)
-    upscale_model = w.load_upscale_model(model)
-    positive, negative = encode_text_prompt(w, cond, clip, style)
-    if sd_ver.has_controlnet_blur:
+    upscale_model = w.load_upscale_model(upscale_model_name)
+    positive, negative = encode_text_prompt(w, cond, clip)
+    if sd_version.has_controlnet_blur:
         blur = [Control(ControlMode.blur, img)]
-        positive, negative = apply_control(w, positive, negative, blur, image.extent, comfy, sd_ver)
+        positive, negative = apply_control(
+            w, positive, negative, blur, extent.input, comfy, sd_version
+        )
     img = w.upscale_tiled(
         image=img,
         model=checkpoint,
@@ -1065,13 +1030,322 @@ def upscale_tiled(
         negative=negative,
         vae=vae,
         upscale_model=upscale_model,
-        factor=factor,
-        denoise=strength,
-        original_extent=image.extent,
-        tile_extent=tile_extent,
-        **_sampler_params(style, seed=seed, advanced=False),
+        factor=extent.target.width / extent.input.width,
+        denoise=sampling.strength,
+        original_extent=extent.input,
+        tile_extent=extent.initial,
+        **_sampler_params(sampling, advanced=False),
     )
-    if not target_extent.is_multiple_of(8):
-        img = w.scale_image(img, target_extent)
+    if not extent.target.is_multiple_of(8):
+        img = w.scale_image(img, extent.target)
     w.send_image(img)
     return w
+
+
+class WorkflowKind(Enum):
+    generate = 0
+    inpaint = 1
+    refine = 2
+    refine_region = 3
+    upscale_simple = 4
+    upscale_tiled = 5
+    control_image = 6
+
+
+@dataclass
+class ImageInput:
+    extent: ScaledExtent
+    initial_image: Image | None = None
+    initial_mask: Image | None = None
+    hires_image: Image | None = None
+    hires_mask: Image | None = None
+
+
+@dataclass
+class LoraInput:
+    name: str
+    strength: float
+
+    @staticmethod
+    def from_dict(data: dict[str, Any]):
+        return LoraInput(data["name"], data["strength"])
+
+
+@dataclass
+class ControlInput:
+    mode: ControlMode
+    image: Image
+    strength: float = 1.0
+    range: tuple[float, float] = (0.0, 1.0)
+
+    @staticmethod
+    def from_control(control: Control):
+        assert isinstance(control.image, Image)
+        return ControlInput(control.mode, control.image, control.strength, control.range)
+
+
+@dataclass
+class ModelInput:
+    checkpoint: str
+    vae: str = ""
+    loras: list[LoraInput] = field(default_factory=list)
+    clip_skip: int = 0
+    v_prediction_zsnr: bool = False
+
+    @staticmethod
+    def from_style(style: Style):
+        result = ModelInput(
+            checkpoint=style.sd_checkpoint,
+            vae=style.vae,
+            clip_skip=style.clip_skip,
+            v_prediction_zsnr=style.v_prediction_zsnr,
+        )
+        result.add_loras(style.loras)
+        return result
+
+    def add_loras(self, loras: list[dict]):
+        self.loras += [LoraInput.from_dict(l) for l in loras]
+
+    def add_sampling_lora(self, sampler: str, client: Client):
+        sd_version = client.checkpoints[self.checkpoint].sd_version
+        if sampler == "LCM":
+            if lora := client.lora_models["lcm"][sd_version]:
+                self.loras.append(LoraInput(lora, 1.0))
+            else:
+                raise Exception(f"LCM LoRA model not found for {sd_version.value}")
+
+    def add_control_lora(self, control_layers: list[Control], client: Client):
+        sd_version = client.checkpoints[self.checkpoint].sd_version
+        face_weight = median_or_zero(
+            c.strength for c in control_layers if c.mode is ControlMode.face
+        )
+        if face_weight > 0:
+            if lora := client.lora_models["face"][sd_version]:
+                self.loras.append(LoraInput(lora, 0.65 * face_weight))
+            else:
+                raise Exception(f"IP-Adapter Face LoRA model not found for {sd_version.value}")
+
+
+@dataclass
+class SamplingInput:
+    sampler: str
+    steps: int
+    cfg_scale: float
+    strength: float = 1.0
+    seed: int = 0
+
+    @staticmethod
+    def from_style(style: Style, is_live: bool):
+        config = style.get_sampler_config(is_live)
+        return SamplingInput(config.sampler, config.steps, config.cfg)
+
+
+@dataclass
+class WorkflowInput:
+    kind: WorkflowKind
+
+    images: ImageInput | None = None
+    models: ModelInput | None = None
+    sampling: SamplingInput | None = None
+
+    prompt: str = ""
+    style_prompt: str = ""
+    negative_prompt: str = ""
+    control: list[ControlInput] = field(default_factory=list)
+
+    inpaint: InpaintParams | None = None
+    crop_upscale_extent: Extent | None = None
+    upscale_model: str = ""
+    batch_count = 1
+
+    @staticmethod
+    def create(
+        kind: WorkflowKind,
+        canvas: Image | Extent,
+        mask: Mask | None,
+        seed: int,
+        style: Style,
+        client: Client,
+        loras: list[dict],
+        conditioning: Conditioning,
+        strength: float = 1.0,
+        inpaint: InpaintParams | None = None,
+        upscale_factor: float = 1.0,
+        upscale_model: str = "",
+        is_live: bool = False,
+    ):
+        sd_version = client.checkpoints[style.sd_checkpoint].sd_version
+
+        i = WorkflowInput(kind)
+        i.sampling = SamplingInput.from_style(style, is_live)
+        i.sampling.seed = seed
+        i.sampling.strength = strength
+        i.models = ModelInput.from_style(style)
+        i.models.add_loras(loras)
+        i.models.add_sampling_lora(i.sampling.sampler, client)
+        i.models.add_control_lora(conditioning.control, client)
+        i.prompt = conditioning.prompt
+        i.style_prompt = style.style_prompt
+        i.negative_prompt = merge_prompt(conditioning.negative_prompt, style.negative_prompt)
+
+        if kind is WorkflowKind.generate:
+            assert isinstance(canvas, Extent)
+            i.images, i.batch_count = prepare_extent(
+                canvas, sd_version, ensure(style), downscale=not is_live
+            )
+            conditioning.downscale(canvas, i.images.extent.desired)
+
+        elif kind is WorkflowKind.inpaint:
+            assert isinstance(canvas, Image) and mask and inpaint and style
+            i.images, _ = prepare_masked(canvas, mask, sd_version, style)
+            upscale_extent, _ = prepare_extent(
+                mask.bounds.extent, sd_version, style, downscale=False
+            )
+            i.inpaint = inpaint
+            i.crop_upscale_extent = upscale_extent.extent.desired
+            i.batch_count = compute_batch_size(
+                Extent.largest(i.images.extent.initial, upscale_extent.extent.desired)
+            )
+            i.images.hires_mask = mask.to_image()
+            scaling = i.images.extent.refinement_scaling
+            if scaling in [ScaleMode.upscale_small, ScaleMode.upscale_quality]:
+                i.images.hires_image = Image.crop(canvas, i.inpaint.target_bounds)
+            if inpaint.mode is InpaintMode.remove_object and i.prompt == "":
+                i.prompt = "background scenery"
+
+        elif kind is WorkflowKind.refine:
+            assert isinstance(canvas, Image) and style
+            i.images, i.batch_count = prepare_image(canvas, sd_version, style, downscale=False)
+            conditioning.downscale(canvas.extent, i.images.extent.desired)
+
+        elif kind is WorkflowKind.refine_region:
+            assert isinstance(canvas, Image) and mask and inpaint and style
+            allow_2pass = strength >= 0.7
+            i.images, i.batch_count = prepare_masked(
+                canvas, mask, sd_version, style, downscale=allow_2pass
+            )
+            i.images.hires_mask = mask.to_image()
+            i.inpaint = inpaint
+            conditioning.downscale(canvas.extent, i.images.extent.desired)
+
+        elif kind is WorkflowKind.upscale_tiled:
+            assert isinstance(canvas, Image) and style and upscale_model
+            i.upscale_model = upscale_model
+            target_extent = canvas.extent * upscale_factor
+            if style.preferred_resolution > 0:
+                tile_extent = Extent(style.preferred_resolution, style.preferred_resolution)
+            elif sd_version is SDVersion.sd15:
+                tile_count = target_extent.longest_side / 768
+                tile_extent = (target_extent * (1 / tile_count)).multiple_of(8)
+            else:  # SDXL
+                tile_extent = Extent(1024, 1024)
+            extent = ScaledExtent(
+                canvas.extent, tile_extent, target_extent.multiple_of(8), target_extent
+            )
+            i.images = ImageInput(extent, canvas)
+
+        else:
+            raise Exception(f"Workflow {kind.name} not supported by this constructor")
+
+        i.batch_count = 1 if is_live else i.batch_count
+        i.control = [ControlInput.from_control(c) for c in conditioning.control]
+        return i
+
+    @staticmethod
+    def upscale_simple(image: Image, model: str, factor: float):
+        target_extent = image.extent * factor
+        extent = ScaledExtent(image.extent, image.extent, target_extent, target_extent)
+        i = WorkflowInput(WorkflowKind.upscale_simple, ImageInput(extent, image))
+        i.upscale_model = model
+        return i
+
+    @staticmethod
+    def control_image(
+        image: Image, mode: ControlMode, bounds: Bounds | None = None, seed: int = -1
+    ):
+        i = WorkflowInput(WorkflowKind.control_image)
+        i.control = [ControlInput(mode, image)]
+        if bounds and seed != -1:
+            i.inpaint = InpaintParams(InpaintMode.fill, bounds)
+            i.sampling = SamplingInput("", 0, 0, seed=seed)
+        return i
+
+    @property
+    def extent(self):
+        return ensure(self.images).extent
+
+    @property
+    def image(self):
+        return ensure(ensure(self.images).initial_image)
+
+    @property
+    def conditioning(self):
+        control = [Control.from_input(c) for c in self.control]
+        return Conditioning(
+            prompt=self.prompt,
+            negative_prompt=self.negative_prompt,
+            control=control,
+            style_prompt=self.style_prompt,
+        )
+
+    @property
+    def upscale_factor(self):
+        return self.extent.target.width / self.extent.input.width
+
+
+def generate_workflow(i: WorkflowInput, client: Client):
+    if i.kind is WorkflowKind.generate:
+        return generate(
+            ensure(i.models), i.extent, i.conditioning, ensure(i.sampling), i.batch_count, client
+        )
+    elif i.kind is WorkflowKind.inpaint:
+        return inpaint(
+            ensure(i.images),
+            ensure(i.models),
+            i.conditioning,
+            ensure(i.sampling),
+            ensure(i.inpaint),
+            ensure(i.crop_upscale_extent),
+            i.batch_count,
+            client,
+        )
+    elif i.kind is WorkflowKind.refine:
+        return refine(
+            i.image,
+            i.extent,
+            ensure(i.models),
+            i.conditioning,
+            ensure(i.sampling),
+            i.batch_count,
+            client,
+        )
+    elif i.kind is WorkflowKind.refine_region:
+        return refine_region(
+            ensure(i.images),
+            ensure(i.models),
+            i.conditioning,
+            ensure(i.sampling),
+            ensure(i.inpaint),
+            i.batch_count,
+            client,
+        )
+    elif i.kind is WorkflowKind.upscale_simple:
+        return upscale_simple(client, i.image, i.upscale_model, i.upscale_factor)
+
+    elif i.kind is WorkflowKind.upscale_tiled:
+        return upscale_tiled(
+            i.image,
+            i.extent,
+            i.upscale_model,
+            ensure(i.models),
+            i.conditioning,
+            ensure(i.sampling),
+            client,
+        )
+    elif i.kind is WorkflowKind.control_image:
+        c = i.control[0]
+        seed = i.sampling.seed if i.sampling else -1
+        bounds = i.inpaint.target_bounds if i.inpaint else None
+        return create_control_image(client, c.image, c.mode, bounds, seed)
+    else:
+        raise ValueError(f"Unsupported workflow kind: {i.kind}")

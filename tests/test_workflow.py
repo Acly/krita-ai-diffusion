@@ -1,5 +1,6 @@
 import itertools
 import shutil
+from typing import Any
 import pytest
 from datetime import datetime
 from pathlib import Path
@@ -20,6 +21,9 @@ from ai_diffusion.workflow import (
     InpaintMode,
     InpaintParams,
     FillMode,
+    WorkflowInput,
+    WorkflowKind,
+    generate_workflow,
 )
 from . import config
 from .config import data_dir, image_dir, result_dir, reference_dir, default_checkpoint
@@ -47,6 +51,15 @@ def default_style(comfy, sd_ver=SDVersion.sd15):
     return style
 
 
+def create(kind: WorkflowKind, client: Client, **kwargs):
+    kwargs.setdefault("mask", None)
+    kwargs.setdefault("style", default_style(client))
+    kwargs.setdefault("seed", default_seed)
+    kwargs.setdefault("loras", [])
+    inputs = WorkflowInput.create(kind, client=client, **kwargs)
+    return generate_workflow(inputs, client)
+
+
 async def receive_images(comfy: Client, workflow: ComfyWorkflow):
     job_id = None
     async for msg in comfy.listen():
@@ -60,7 +73,8 @@ async def receive_images(comfy: Client, workflow: ComfyWorkflow):
     assert False, "Connection closed without receiving images"
 
 
-async def run_and_save(
+def run_and_save(
+    qtapp,
     comfy: Client,
     workflow: ComfyWorkflow,
     filename: str,
@@ -69,7 +83,11 @@ async def run_and_save(
     output_dir: Path = result_dir,
 ):
     workflow.dump((output_dir / "workflows" / filename).with_suffix(".json"))
-    results = await receive_images(comfy, workflow)
+
+    async def runner():
+        return await receive_images(comfy, workflow)
+
+    results = qtapp.run(runner())
     assert len(results) == 1
     if composition_image and composition_mask:
         composition_image.draw_image(results[0], composition_mask.bounds.offset)
@@ -197,14 +215,16 @@ def test_inpaint_context(area, expected_extent, expected_crop: tuple[int, int] |
 def test_prepare_highres(input, expected_initial, expected_desired):
     image = Image.create(input)
     mask = Mask.rectangle(Bounds(0, 0, input.width, input.height))
-    extent, image, mask_image, _ = workflow.prepare_masked(image, mask, SDVersion.sd15, dummy_style)
+    r, _ = workflow.prepare_masked(image, mask, SDVersion.sd15, dummy_style)
     assert (
-        extent.input == image.extent
-        and image.extent == expected_initial
-        and mask_image.extent == expected_initial
-        and extent.initial == expected_initial
-        and extent.desired == expected_desired
-        and extent.target == input
+        r.initial_image
+        and r.extent.input == r.initial_image.extent
+        and r.initial_image.extent == expected_initial
+        and r.initial_mask
+        and r.initial_mask.extent == expected_initial
+        and r.extent.initial == expected_initial
+        and r.extent.desired == expected_desired
+        and r.extent.target == input
     )
 
 
@@ -219,14 +239,15 @@ def test_prepare_highres(input, expected_initial, expected_desired):
 def test_prepare_lowres(input: Extent, expected: Extent):
     image = Image.create(input)
     mask = Mask.rectangle(Bounds(0, 0, input.width, input.height))
-    extent, image, mask_image, _ = workflow.prepare_masked(image, mask, SDVersion.sd15, dummy_style)
+    r, _ = workflow.prepare_masked(image, mask, SDVersion.sd15, dummy_style)
     assert (
-        extent.input == input
+        r.extent.input == input
         and image.extent == input
-        and mask_image.extent == input
-        and extent.target == input
-        and extent.initial == expected
-        and extent.desired == expected
+        and r.initial_mask
+        and r.initial_mask.extent == input
+        and r.extent.target == input
+        and r.extent.initial == expected
+        and r.extent.desired == expected
     )
 
 
@@ -237,14 +258,16 @@ def test_prepare_lowres(input: Extent, expected: Extent):
 def test_prepare_passthrough(input: Extent):
     image = Image.create(input)
     mask = Mask.rectangle(Bounds(0, 0, input.width, input.height))
-    extent, image, mask_image, _ = workflow.prepare_masked(image, mask, SDVersion.sd15, dummy_style)
+    r, _ = workflow.prepare_masked(image, mask, SDVersion.sd15, dummy_style)
     assert (
-        image == image
-        and mask_image.extent == input
-        and extent.input == input
-        and extent.initial == input
-        and extent.target == input
-        and extent.desired == input
+        r.initial_image
+        and r.initial_mask
+        and r.initial_image == image
+        and r.initial_mask.extent == input
+        and r.extent.input == input
+        and r.extent.initial == input
+        and r.extent.target == input
+        and r.extent.desired == input
     )
 
 
@@ -252,38 +275,44 @@ def test_prepare_passthrough(input: Extent):
     "input,expected", [(Extent(512, 513), Extent(512, 520)), (Extent(300, 1024), Extent(304, 1024))]
 )
 def test_prepare_multiple8(input: Extent, expected: Extent):
-    result, _ = workflow.prepare_extent(input, SDVersion.sd15, dummy_style)
+    r, _ = workflow.prepare_extent(input, SDVersion.sd15, dummy_style)
     assert (
-        result.input == input
-        and result.initial == expected
-        and result.target == input
-        and result.desired == input.multiple_of(8)
+        r.extent.input == input
+        and r.extent.initial == expected
+        and r.extent.target == input
+        and r.extent.desired == input.multiple_of(8)
     )
 
 
 @pytest.mark.parametrize("sdver", [SDVersion.sd15, SDVersion.sdxl])
 def test_prepare_extent(sdver: SDVersion):
     input = Extent(1024, 1536)
-    result, _ = workflow.prepare_extent(input, sdver, dummy_style)
+    r, _ = workflow.prepare_extent(input, sdver, dummy_style)
     expected = Extent(512, 768) if sdver == SDVersion.sd15 else Extent(840, 1256)
-    assert result.initial == expected and result.desired == input and result.target == input
+    assert r.extent.initial == expected and r.extent.desired == input and r.extent.target == input
 
 
 def test_prepare_no_mask():
     image = Image.create(Extent(256, 256))
-    extent, result, _ = workflow.prepare_image(image, SDVersion.sd15, dummy_style)
-    assert result == image and extent.initial == Extent(512, 512) and extent.target == image.extent
+    r, _ = workflow.prepare_image(image, SDVersion.sd15, dummy_style)
+    assert (
+        r.initial_image
+        and r.initial_image == image
+        and r.extent.initial == Extent(512, 512)
+        and r.extent.target == image.extent
+    )
 
 
 @pytest.mark.parametrize("input", [Extent(512, 512), Extent(1024, 1628), Extent(1536, 999)])
 def test_prepare_no_downscale(input: Extent):
     image = Image.create(input)
-    extent, result, _ = workflow.prepare_image(image, SDVersion.sd15, dummy_style, downscale=False)
+    r, _ = workflow.prepare_image(image, SDVersion.sd15, dummy_style, downscale=False)
     assert (
-        result == image
-        and extent.initial == input.multiple_of(8)
-        and extent.desired == input.multiple_of(8)
-        and extent.target == input
+        r.initial_image
+        and r.initial_image == image
+        and r.extent.initial == input.multiple_of(8)
+        and r.extent.desired == input.multiple_of(8)
+        and r.extent.target == input
     )
 
 
@@ -300,11 +329,11 @@ def test_prepare_no_downscale(input: Extent):
 )
 def test_prepare_max_pixel_count(input, sd_ver, expected_initial, expected_desired, temp_settings):
     temp_settings.max_pixel_count = 1  # million pixels
-    result, _ = workflow.prepare_extent(input, sd_ver, dummy_style)
+    r, _ = workflow.prepare_extent(input, sd_ver, dummy_style)
     assert (
-        result.initial == expected_initial
-        and result.desired == expected_desired
-        and result.target == input
+        r.extent.initial == expected_initial
+        and r.extent.desired == expected_desired
+        and r.extent.target == input
     )
 
 
@@ -325,11 +354,11 @@ def test_prepare_resolution_multiplier(
     input, multiplier, expected_initial, expected_desired, temp_settings
 ):
     temp_settings.resolution_multiplier = multiplier
-    result, _ = workflow.prepare_extent(input, SDVersion.sd15, dummy_style)
+    r, _ = workflow.prepare_extent(input, SDVersion.sd15, dummy_style)
     assert (
-        result.initial == expected_initial
-        and result.desired == expected_desired
-        and result.target == input
+        r.extent.initial == expected_initial
+        and r.extent.desired == expected_desired
+        and r.extent.target == input
     )
 
 
@@ -338,14 +367,16 @@ def test_prepare_resolution_multiplier_inputs(temp_settings):
     input = Extent(1024, 1024)
     image = Image.create(input)
     mask = Mask.rectangle(Bounds(0, 0, input.width, input.height))
-    extent, image, mask_image, _ = workflow.prepare_masked(image, mask, SDVersion.sd15, dummy_style)
+    r, _ = workflow.prepare_masked(image, mask, SDVersion.sd15, dummy_style)
     assert (
-        extent.input == Extent(512, 512)
-        and image.extent == Extent(512, 512)
-        and mask_image.extent == Extent(512, 512)
-        and extent.initial == Extent(512, 512)
-        and extent.desired == Extent(512, 512)
-        and extent.target == Extent(1024, 1024)
+        r.extent.input == Extent(512, 512)
+        and r.initial_image
+        and r.initial_image.extent == Extent(512, 512)
+        and r.initial_mask
+        and r.initial_mask.extent == Extent(512, 512)
+        and r.extent.initial == Extent(512, 512)
+        and r.extent.desired == Extent(512, 512)
+        and r.extent.target == Extent(1024, 1024)
     )
 
 
@@ -357,8 +388,8 @@ def test_prepare_resolution_multiplier_max(multiplier, expected, temp_settings):
     temp_settings.resolution_multiplier = multiplier
     temp_settings.max_pixel_count = 1  # million pixels
     input = Extent(2048, 2048)
-    result, _ = workflow.prepare_extent(input, SDVersion.sd15, dummy_style)
-    assert result.initial.width <= 632 and result.desired == expected
+    r, _ = workflow.prepare_extent(input, SDVersion.sd15, dummy_style)
+    assert r.extent.initial.width <= 632 and r.extent.desired == expected
 
 
 def test_merge_prompt():
@@ -435,35 +466,24 @@ def test_increment_seed(ksampler_type):
 
 
 def test_inpaint_params():
-    mask = Mask.rectangle(Bounds(0, 0, 100, 100))
-    cond = Conditioning()
+    bounds = Bounds(0, 0, 100, 100)
+    cond = Conditioning("")
 
-    a = InpaintParams.detect(mask, InpaintMode.fill, SDVersion.sd15, cond, 1.0)
-    assert (
-        a.fill is FillMode.blur
-        and a.use_inpaint_control == True
-        and a.use_inpaint_model == False
-        and a.use_reference == True
-    )
-    b = InpaintParams.detect(mask, InpaintMode.add_object, SDVersion.sd15, cond, 1.0)
-    assert (
-        b.fill is FillMode.neutral
-        and b.use_inpaint_control == True
-        and b.use_condition_mask == False
-    )
-    c = InpaintParams.detect(mask, InpaintMode.replace_background, SDVersion.sdxl, cond, 1.0)
-    assert (
-        c.fill is FillMode.replace
-        and c.use_inpaint_control == False
-        and c.use_inpaint_model == True
-        and c.use_reference == False
-    )
+    a = InpaintParams.detect(InpaintMode.fill, bounds, SDVersion.sd15, cond, 1.0)
+    assert a.fill is FillMode.blur and a.use_inpaint_model == True and a.use_reference == True
+
+    b = InpaintParams.detect(InpaintMode.add_object, bounds, SDVersion.sd15, cond, 1.0)
+    assert b.fill is FillMode.neutral and b.use_condition_mask == False
+
+    c = InpaintParams.detect(InpaintMode.replace_background, bounds, SDVersion.sdxl, cond, 1.0)
+    assert c.fill is FillMode.replace and c.use_inpaint_model == True and c.use_reference == False
+
     cond.prompt = "prompt"
-    d = InpaintParams.detect(mask, InpaintMode.add_object, SDVersion.sd15, cond, 1.0)
+    d = InpaintParams.detect(InpaintMode.add_object, bounds, SDVersion.sd15, cond, 1.0)
     assert d.use_condition_mask == True
 
     cond.control.append(Control(ControlMode.line_art, Image.create(Extent(4, 4))))
-    e = InpaintParams.detect(mask, InpaintMode.add_object, SDVersion.sd15, cond, 1.0)
+    e = InpaintParams.detect(InpaintMode.add_object, bounds, SDVersion.sd15, cond, 1.0)
     assert e.use_condition_mask == False
 
 
@@ -471,23 +491,25 @@ def test_inpaint_params():
 def test_generate(qtapp, comfy, temp_settings, extent: Extent):
     temp_settings.batch_size = 1
     prompt = Conditioning("ship")
-
-    async def main():
-        job = workflow.generate(comfy, default_style(comfy), extent, prompt, default_seed)
-        result = await run_and_save(comfy, job, f"test_generate_{extent.width}x{extent.height}.png")
-        assert result.extent == extent
-
-    qtapp.run(main())
+    job = create(WorkflowKind.generate, comfy, canvas=extent, conditioning=prompt)
+    result = run_and_save(qtapp, comfy, job, f"test_generate_{extent.width}x{extent.height}.png")
+    assert result.extent == extent
 
 
 def test_inpaint(qtapp, comfy, temp_settings):
     temp_settings.batch_size = 3  # max 3 images@512x512 -> 2 images@768x512
     image = Image.load(image_dir / "beach_768x512.webp")
     mask = Mask.rectangle(Bounds(40, 120, 320, 200), feather=10)
-    prompt = Conditioning("beach, the sea, cliffs, palm trees")
-    params = InpaintParams.detect(mask, InpaintMode.fill, SDVersion.sd15, prompt, 1.0)
-    style = default_style(comfy, SDVersion.sd15)
-    job = workflow.inpaint(comfy, style, image, prompt, params, default_seed)
+    cond = Conditioning("beach, the sea, cliffs, palm trees")
+    job = create(
+        WorkflowKind.inpaint,
+        comfy,
+        canvas=image,
+        mask=mask,
+        style=default_style(comfy, SDVersion.sd15),
+        conditioning=cond,
+        inpaint=InpaintParams.detect(InpaintMode.fill, mask.bounds, SDVersion.sd15, cond, 1.0),
+    )
 
     async def main():
         results = await receive_images(comfy, job)
@@ -506,9 +528,14 @@ def test_inpaint_upscale(qtapp, comfy, temp_settings, sdver):
     image = Image.load(image_dir / "beach_1536x1024.webp")
     mask = Mask.rectangle(Bounds(300, 200, 768, 512), feather=20)
     prompt = Conditioning("ship")
-    params = InpaintParams.detect(mask, InpaintMode.add_object, sdver, prompt, 1.0)
-    style = default_style(comfy, sdver)
-    job = workflow.inpaint(comfy, style, image, prompt, params, default_seed)
+    job = create(
+        WorkflowKind.inpaint,
+        comfy,
+        canvas=image,
+        mask=mask,
+        conditioning=prompt,
+        inpaint=InpaintParams.detect(InpaintMode.add_object, mask.bounds, sdver, prompt, 1.0),
+    )
 
     async def main():
         job.dump((result_dir / "workflows" / f"test_inpaint_upscale_{sdver.name}.json"))
@@ -527,15 +554,17 @@ def test_inpaint_odd_resolution(qtapp, comfy, temp_settings):
     image = Image.load(image_dir / "beach_768x512.webp")
     image = Image.scale(image, Extent(612, 513))
     mask = Mask.rectangle(Bounds(0, 0, 200, 513))
-    prompt = Conditioning()
-    params = InpaintParams.automatic(mask, SDVersion.sd15, prompt, image.extent)
-
-    async def main():
-        job = workflow.inpaint(comfy, default_style(comfy), image, prompt, params, default_seed)
-        result = await run_and_save(comfy, job, "test_inpaint_odd_resolution.png", image, mask)
-        assert result.extent == mask.bounds.extent
-
-    qtapp.run(main())
+    prompt = Conditioning("")
+    job = create(
+        WorkflowKind.inpaint,
+        comfy,
+        canvas=image,
+        mask=mask,
+        conditioning=prompt,
+        inpaint=InpaintParams.automatic(mask.bounds, SDVersion.sd15, prompt, image.extent),
+    )
+    result = run_and_save(qtapp, comfy, job, "test_inpaint_odd_resolution.png", image, mask)
+    assert result.extent == mask.bounds.extent
 
 
 def test_inpaint_area_conditioning(qtapp, comfy, temp_settings):
@@ -543,13 +572,17 @@ def test_inpaint_area_conditioning(qtapp, comfy, temp_settings):
     image = Image.load(image_dir / "lake_1536x1024.webp")
     mask = Mask.load(image_dir / "lake_1536x1024_mask_bottom_right.png")
     prompt = Conditioning("(crocodile)")
-    params = InpaintParams.detect(mask, InpaintMode.add_object, SDVersion.sd15, prompt, 1.0)
-    job = workflow.inpaint(comfy, default_style(comfy), image, prompt, params, default_seed)
-
-    async def main():
-        await run_and_save(comfy, job, "test_inpaint_area_conditioning.png", image, mask)
-
-    qtapp.run(main())
+    job = create(
+        WorkflowKind.inpaint,
+        comfy,
+        canvas=image,
+        mask=mask,
+        conditioning=prompt,
+        inpaint=InpaintParams.detect(
+            InpaintMode.add_object, mask.bounds, SDVersion.sd15, prompt, 1.0
+        ),
+    )
+    run_and_save(qtapp, comfy, job, "test_inpaint_area_conditioning.png", image, mask)
 
 
 @pytest.mark.parametrize("setup", ["sd15", "sdxl"])
@@ -562,16 +595,16 @@ def test_refine(qtapp, comfy, setup, temp_settings):
     }[setup]
     image = Image.load(image_dir / "beach_1536x1024.webp")
     image = Image.scale(image, extent)
-    prompt = Conditioning("painting in the style of Vincent van Gogh")
-
-    async def main():
-        job = workflow.refine(
-            comfy, default_style(comfy, sdver), image, prompt, strength, default_seed
-        )
-        result = await run_and_save(comfy, job, f"test_refine_{setup}.png")
-        assert result.extent == extent
-
-    qtapp.run(main())
+    job = create(
+        WorkflowKind.refine,
+        comfy,
+        canvas=image,
+        style=default_style(comfy, sdver),
+        conditioning=Conditioning("painting in the style of Vincent van Gogh"),
+        strength=strength,
+    )
+    result = run_and_save(qtapp, comfy, job, f"test_refine_{setup}.png")
+    assert result.extent == extent
 
 
 @pytest.mark.parametrize("setup", ["sd15_0.4", "sd15_0.6", "sdxl_0.7"])
@@ -585,15 +618,19 @@ def test_refine_region(qtapp, comfy, temp_settings, setup):
     image = Image.load(image_dir / "lake_region.webp")
     mask = Mask.load(image_dir / "lake_region_mask.png")
     prompt = Conditioning("waterfall")
-    params = InpaintParams.detect(mask, InpaintMode.fill, SDVersion.sd15, prompt, strength)
-    style = default_style(comfy, sdver)
-    job = workflow.refine_region(comfy, style, image, params, prompt, strength, default_seed)
-
-    async def main():
-        result = await run_and_save(comfy, job, f"test_refine_region_{setup}.png", image, mask)
-        assert result.extent == mask.bounds.extent
-
-    qtapp.run(main())
+    params = InpaintParams.detect(InpaintMode.fill, mask.bounds, SDVersion.sd15, prompt, strength)
+    job = create(
+        WorkflowKind.refine_region,
+        comfy,
+        canvas=image,
+        mask=mask,
+        style=default_style(comfy, sdver),
+        conditioning=prompt,
+        strength=strength,
+        inpaint=params,
+    )
+    result = run_and_save(qtapp, comfy, job, f"test_refine_region_{setup}.png", image, mask)
+    assert result.extent == mask.bounds.extent
 
 
 @pytest.mark.parametrize(
@@ -601,54 +638,46 @@ def test_refine_region(qtapp, comfy, temp_settings, setup):
 )
 def test_control_scribble(qtapp, comfy, temp_settings, op):
     temp_settings.batch_size = 1
-    style = default_style(comfy)
     scribble_image = Image.load(image_dir / "owls_scribble.webp")
     inpaint_image = Image.load(image_dir / "owls_inpaint.webp")
     mask = Mask.load(image_dir / "owls_mask.png")
     mask.bounds = Bounds(256, 0, 256, 512)
-    control = Conditioning("owls", "", [Control(ControlMode.scribble, scribble_image)])
+    control = Conditioning("owls", control=[Control(ControlMode.scribble, scribble_image)])
 
+    args: dict[str, Any]
     if op == "generate":
-        job = workflow.generate(comfy, style, Extent(512, 512), control, default_seed)
+        args = dict(kind=WorkflowKind.generate, canvas=Extent(512, 512))
     elif op == "inpaint":
-        params = InpaintParams.automatic(mask, SDVersion.sd15, control, inpaint_image.extent)
-        job = workflow.inpaint(comfy, style, inpaint_image, control, params, default_seed)
+        params = InpaintParams.automatic(mask.bounds, SDVersion.sd15, control, inpaint_image.extent)
+        args = dict(kind=WorkflowKind.inpaint, canvas=inpaint_image, mask=mask, inpaint=params)
     elif op == "refine":
-        job = workflow.refine(comfy, style, inpaint_image, control, 0.7, default_seed)
+        args = dict(kind=WorkflowKind.refine, canvas=inpaint_image, strength=0.7)
     elif op == "refine_region":
+        kind = WorkflowKind.refine_region
         cropped_image = Image.crop(inpaint_image, mask.bounds)
-        params = InpaintParams.automatic(mask, SDVersion.sd15, control, cropped_image.extent)
-        job = workflow.refine_region(
-            comfy, style, cropped_image, params, control, 0.7, default_seed
-        )
+        params = InpaintParams.automatic(mask.bounds, SDVersion.sd15, control, cropped_image.extent)
+        args = dict(kind=kind, canvas=cropped_image, mask=mask, strength=0.7, inpaint=params)
     else:  # op == "inpaint_upscale":
         control.control[0].image = Image.scale(scribble_image, Extent(1024, 1024))
         inpaint_image = Image.scale(inpaint_image, Extent(1024, 1024))
         scaled_mask = Image.scale(Image(mask.image), Extent(512, 1024))
         mask = Mask(Bounds(512, 0, 512, 1024), scaled_mask._qimage)
-        params = InpaintParams.detect(mask, InpaintMode.fill, SDVersion.sd15, control, 1.0)
-        job = workflow.inpaint(comfy, style, inpaint_image, control, params, default_seed)
+        params = InpaintParams.detect(InpaintMode.fill, mask.bounds, SDVersion.sd15, control, 1.0)
+        args = dict(kind=WorkflowKind.inpaint, canvas=inpaint_image, mask=mask, inpaint=params)
 
-    async def main():
-        if op in ["inpaint", "refine_region", "inpaint_upscale"]:
-            await run_and_save(comfy, job, f"test_control_scribble_{op}.png", inpaint_image, mask)
-        else:
-            await run_and_save(comfy, job, f"test_control_scribble_{op}.png")
-
-    qtapp.run(main())
+    job = create(client=comfy, conditioning=control, **args)
+    if op in ["inpaint", "refine_region", "inpaint_upscale"]:
+        run_and_save(qtapp, comfy, job, f"test_control_scribble_{op}.png", inpaint_image, mask)
+    else:
+        run_and_save(qtapp, comfy, job, f"test_control_scribble_{op}.png")
 
 
 def test_control_canny_downscale(qtapp, comfy, temp_settings):
     temp_settings.batch_size = 1
-    style = default_style(comfy)
     canny_image = Image.load(image_dir / "shrine_canny.webp")
-    control = Conditioning("shrine", "", [Control(ControlMode.canny_edge, canny_image, 1.0)])
-    job = workflow.generate(comfy, style, Extent(999, 999), control, default_seed)
-
-    async def main():
-        await run_and_save(comfy, job, "test_control_canny_downscale.png")
-
-    qtapp.run(main())
+    control = Conditioning("shrine", control=[Control(ControlMode.canny_edge, canny_image, 1.0)])
+    job = create(WorkflowKind.generate, comfy, canvas=Extent(999, 999), conditioning=control)
+    run_and_save(qtapp, comfy, job, "test_control_canny_downscale.png")
 
 
 @pytest.mark.parametrize("mode", [m for m in ControlMode if m.has_preprocessor])
@@ -657,13 +686,10 @@ def test_create_control_image(qtapp, comfy, mode):
     image = Image.load(image_dir / "adobe_stock.jpg")
     job = workflow.create_control_image(comfy, image, mode)
 
-    async def main():
-        result = await run_and_save(comfy, job, image_name)
-        reference = Image.load(reference_dir / image_name)
-        threshold = 0.015 if mode is ControlMode.pose else 0.002
-        assert Image.compare(result, reference) < threshold
-
-    qtapp.run(main())
+    result = run_and_save(qtapp, comfy, job, image_name)
+    reference = Image.load(reference_dir / image_name)
+    threshold = 0.015 if mode is ControlMode.pose else 0.002
+    assert Image.compare(result, reference) < threshold
 
 
 def test_create_open_pose_vector(qtapp, comfy):
@@ -698,12 +724,9 @@ def test_create_hand_refiner_image(qtapp, comfy, setup):
     }[setup]
     job = workflow.create_control_image(comfy, image, ControlMode.hands, bounds, default_seed)
 
-    async def main():
-        result = await run_and_save(comfy, job, image_name)
-        reference = Image.load(reference_dir / image_name)
-        assert Image.compare(result, reference) < 0.002
-
-    qtapp.run(main())
+    result = run_and_save(qtapp, comfy, job, image_name)
+    reference = Image.load(reference_dir / image_name)
+    assert Image.compare(result, reference) < 0.002
 
 
 @pytest.mark.parametrize("sdver", [SDVersion.sd15, SDVersion.sdxl])
@@ -711,15 +734,12 @@ def test_ip_adapter(qtapp, comfy, temp_settings, sdver):
     temp_settings.batch_size = 1
     image = Image.load(image_dir / "cat.webp")
     control = Conditioning(
-        "cat on a rooftop in paris", "", [Control(ControlMode.reference, image, 0.6)]
+        "cat on a rooftop in paris", control=[Control(ControlMode.reference, image, 0.6)]
     )
     extent = Extent(512, 512) if sdver == SDVersion.sd15 else Extent(1024, 1024)
-    job = workflow.generate(comfy, default_style(comfy, sdver), extent, control, default_seed)
-
-    async def main():
-        await run_and_save(comfy, job, f"test_ip_adapter_{sdver.name}.png")
-
-    qtapp.run(main())
+    style = default_style(comfy, sdver)
+    job = create(WorkflowKind.generate, comfy, style=style, canvas=extent, conditioning=control)
+    run_and_save(qtapp, comfy, job, f"test_ip_adapter_{sdver.name}.png")
 
 
 def test_ip_adapter_region(qtapp, comfy, temp_settings):
@@ -727,33 +747,35 @@ def test_ip_adapter_region(qtapp, comfy, temp_settings):
     image = Image.load(image_dir / "flowers.webp")
     mask = Mask.load(image_dir / "flowers_mask.png")
     control_img = Image.load(image_dir / "pegonia.webp")
-    control = Conditioning("potted flowers", "", [Control(ControlMode.reference, control_img, 0.7)])
-    inpaint = InpaintParams.automatic(mask, SDVersion.sd15, control, image.extent)
-    job = workflow.refine_region(
-        comfy, default_style(comfy), image, inpaint, control, 0.6, default_seed
+    control = Conditioning(
+        "potted flowers", control=[Control(ControlMode.reference, control_img, 0.7)]
     )
-
-    async def main():
-        await run_and_save(comfy, job, "test_ip_adapter_region.png", image, mask)
-
-    qtapp.run(main())
+    inpaint = InpaintParams.automatic(mask.bounds, SDVersion.sd15, control, image.extent)
+    job = create(
+        WorkflowKind.refine_region,
+        comfy,
+        canvas=image,
+        mask=mask,
+        inpaint=inpaint,
+        conditioning=control,
+        strength=0.6,
+    )
+    run_and_save(qtapp, comfy, job, "test_ip_adapter_region.png", image, mask)
 
 
 def test_ip_adapter_batch(qtapp, comfy, temp_settings):
     temp_settings.batch_size = 1
     image1 = Image.load(image_dir / "cat.webp")
     image2 = Image.load(image_dir / "pegonia.webp")
-    control = Conditioning(
+    cond = Conditioning(
         "",
-        "",
-        [Control(ControlMode.reference, image1, 1.0), Control(ControlMode.reference, image2, 1.0)],
+        control=[
+            Control(ControlMode.reference, image1, 1.0),
+            Control(ControlMode.reference, image2, 1.0),
+        ],
     )
-    job = workflow.generate(comfy, default_style(comfy), Extent(512, 512), control, default_seed)
-
-    async def main():
-        await run_and_save(comfy, job, "test_ip_adapter_batch.png")
-
-    qtapp.run(main())
+    job = create(WorkflowKind.generate, comfy, canvas=Extent(512, 512), conditioning=cond)
+    run_and_save(qtapp, comfy, job, "test_ip_adapter_batch.png")
 
 
 @pytest.mark.parametrize("sdver", [SDVersion.sd15, SDVersion.sdxl])
@@ -761,51 +783,43 @@ def test_ip_adapter_face(qtapp, comfy, temp_settings, sdver):
     temp_settings.batch_size = 1
     extent = Extent(650, 650) if sdver == SDVersion.sd15 else Extent(1024, 1024)
     image = Image.load(image_dir / "face.webp")
-    control = Conditioning(
-        "portrait photo of a woman at a garden party", "", [Control(ControlMode.face, image, 0.9)]
+    cond = Conditioning(
+        "portrait photo of a woman at a garden party",
+        control=[Control(ControlMode.face, image, 0.9)],
     )
-    job = workflow.generate(comfy, default_style(comfy), extent, control, default_seed)
-
-    async def main():
-        await run_and_save(comfy, job, f"test_ip_adapter_face_{sdver.name}.png")
-
-    qtapp.run(main())
+    job = create(WorkflowKind.generate, comfy, canvas=extent, conditioning=cond)
+    run_and_save(qtapp, comfy, job, f"test_ip_adapter_face_{sdver.name}.png")
 
 
 def test_upscale_simple(qtapp, comfy):
     image = Image.load(image_dir / "beach_768x512.webp")
     job = workflow.upscale_simple(comfy, image, comfy.default_upscaler, 2.0)
-
-    async def main():
-        await run_and_save(comfy, job, "test_upscale_simple.png")
-
-    qtapp.run(main())
+    run_and_save(qtapp, comfy, job, "test_upscale_simple.png")
 
 
 @pytest.mark.parametrize("sdver", [SDVersion.sd15, SDVersion.sdxl])
 def test_upscale_tiled(qtapp, comfy, sdver):
     image = Image.load(image_dir / "beach_768x512.webp")
-    job = workflow.upscale_tiled(
-        comfy, image, comfy.default_upscaler, 2.0, default_style(comfy, sdver), 0.5, default_seed
+    job = create(
+        WorkflowKind.upscale_tiled,
+        comfy,
+        canvas=image,
+        upscale_model=comfy.default_upscaler,
+        upscale_factor=2.0,
+        style=default_style(comfy, sdver),
+        conditioning=Conditioning("4k uhd"),
+        strength=0.5,
     )
-
-    async def main():
-        await run_and_save(comfy, job, f"test_upscale_tiled_{sdver.name}.png")
-
-    qtapp.run(main())
+    run_and_save(qtapp, comfy, job, f"test_upscale_tiled_{sdver.name}.png")
 
 
 def test_generate_live(qtapp, comfy):
     scribble = Image.load(image_dir / "owls_scribble.webp")
-    cond = Conditioning("owls", "", [Control(ControlMode.scribble, scribble)])
-    job = workflow.generate(
-        comfy, default_style(comfy), Extent(512, 512), cond, default_seed, is_live=True
+    cond = Conditioning("owls", control=[Control(ControlMode.scribble, scribble)])
+    job = create(
+        WorkflowKind.generate, comfy, canvas=Extent(512, 512), conditioning=cond, is_live=True
     )
-
-    async def main():
-        await run_and_save(comfy, job, "test_generate_live.png")
-
-    qtapp.run(main())
+    run_and_save(qtapp, comfy, job, "test_generate_live.png")
 
 
 @pytest.mark.parametrize("sdver", [SDVersion.sd15, SDVersion.sdxl])
@@ -813,26 +827,24 @@ def test_refine_live(qtapp, comfy, sdver):
     image = Image.load(image_dir / "pegonia.webp")
     if sdver is SDVersion.sdxl:
         image = Image.scale(image, Extent(1024, 1024))  # result will be a bit blurry
-    job = workflow.refine(
-        comfy, default_style(comfy, sdver), image, Conditioning(), 0.4, default_seed, is_live=True
+    job = create(
+        WorkflowKind.refine,
+        comfy,
+        style=default_style(comfy, sdver),
+        canvas=image,
+        conditioning=Conditioning(""),
+        strength=0.4,
+        is_live=True,
     )
-
-    async def main():
-        await run_and_save(comfy, job, f"test_refine_live_{sdver.name}.png")
-
-    qtapp.run(main())
+    run_and_save(qtapp, comfy, job, f"test_refine_live_{sdver.name}.png")
 
 
 def test_refine_max_pixels(qtapp, comfy, temp_settings):
     temp_settings.max_pixel_count = 1  # million pixels
     image = Image.load(image_dir / "lake_1536x1024.webp")
     cond = Conditioning("watercolor painting on structured paper, aquarelle, stylized")
-    job = workflow.refine(comfy, default_style(comfy), image, cond, 0.6, default_seed)
-
-    async def main():
-        await run_and_save(comfy, job, f"test_refine_max_pixels.png")
-
-    qtapp.run(main())
+    job = create(WorkflowKind.refine, comfy, canvas=image, conditioning=cond, strength=0.6)
+    run_and_save(qtapp, comfy, job, f"test_refine_max_pixels.png")
 
 
 def test_outpaint_resolution_multiplier(qtapp, comfy, temp_settings):
@@ -843,13 +855,11 @@ def test_outpaint_resolution_multiplier(qtapp, comfy, temp_settings):
     image.draw_image(beach, (512, 0))
     mask = Mask.load(image_dir / "beach_outpaint_mask.png")
     cond = Conditioning("photo of a beach and jungle, nature photography, tropical")
-    params = InpaintParams.automatic(mask, SDVersion.sd15, cond, image.extent)
-    job = workflow.inpaint(comfy, default_style(comfy), image, cond, params, default_seed)
-
-    async def main():
-        await run_and_save(comfy, job, f"test_outpaint_resolution_multiplier.png", image, mask)
-
-    qtapp.run(main())
+    params = InpaintParams.automatic(mask.bounds, SDVersion.sd15, cond, image.extent)
+    job = create(
+        WorkflowKind.inpaint, comfy, canvas=image, mask=mask, conditioning=cond, inpaint=params
+    )
+    run_and_save(qtapp, comfy, job, f"test_outpaint_resolution_multiplier.png", image, mask)
 
 
 inpaint_benchmark = {
@@ -890,20 +900,27 @@ inpaint_benchmark = {
 }
 
 
-async def run_inpaint_benchmark(
-    comfy, sdver: SDVersion, prompt_mode: str, scenario: str, seed: int, out_dir: Path
+def run_inpaint_benchmark(
+    qtapp, comfy, sdver: SDVersion, prompt_mode: str, scenario: str, seed: int, out_dir: Path
 ):
     mode, prompt, bounds = inpaint_benchmark[scenario]
     image = Image.load(image_dir / "inpaint" / f"{scenario}-image.webp")
     mask = Mask.load(image_dir / "inpaint" / f"{scenario}-mask.webp")
     if bounds:
         mask = Mask.crop(mask, bounds)
-    prompt_text = prompt if prompt_mode == "prompt" else ""
-    cond = Conditioning(prompt_text)
-    params = InpaintParams.detect(mask, mode, sdver, cond, 1.0)
-    job = workflow.inpaint(comfy, default_style(comfy, sdver), image, cond, params, seed)
+    cond = Conditioning(prompt if prompt_mode == "prompt" else "")
+    params = InpaintParams.detect(mode, mask.bounds, sdver, cond, 1.0)
+    job = create(
+        WorkflowKind.inpaint,
+        comfy,
+        style=default_style(comfy, sdver),
+        canvas=image,
+        conditioning=cond,
+        inpaint=params,
+        seed=seed,
+    )
     result_name = f"benchmark_inpaint_{scenario}_{sdver.name}_{prompt_mode}_{seed}.webp"
-    await run_and_save(comfy, job, result_name, image, mask, output_dir=out_dir)
+    run_and_save(qtapp, comfy, job, result_name, image, mask, output_dir=out_dir)
 
 
 def test_inpaint_benchmark(pytestconfig, qtapp, comfy, temp_settings):
@@ -926,4 +943,4 @@ def test_inpaint_benchmark(pytestconfig, qtapp, comfy, temp_settings):
             continue
 
         print("-", scenario, "|", sdver.name, "|", prompt_mode, "|", seed)
-        qtapp.run(run_inpaint_benchmark(comfy, sdver, prompt_mode, scenario, seed, output_dir))
+        run_inpaint_benchmark(qtapp, comfy, sdver, prompt_mode, scenario, seed, output_dir)
