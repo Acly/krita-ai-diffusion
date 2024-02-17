@@ -5,6 +5,7 @@ from pathlib import Path
 from typing import NamedTuple
 from PyQt5.QtCore import QObject, pyqtSignal
 
+from .api import ModelInput, LoraInput, SamplingInput
 from .settings import Setting
 from .resources import SDVersion
 from .util import encode_json, user_data_dir, client_logger as log
@@ -109,12 +110,6 @@ class StyleSettings:
     live_cfg_scale = Setting("Guidance Strength (CFG Scale)", 1.8, cfg_scale.desc)
 
 
-class SamplerConfig(NamedTuple):
-    sampler: str
-    steps: int
-    cfg: float
-
-
 class Style:
     filepath: Path
     version: int = StyleSettings.version.default
@@ -181,10 +176,20 @@ class Style:
             return str(self.filepath.relative_to(Styles.default_user_folder).as_posix())
         return self.filepath.name
 
-    def get_sampler_config(self, is_live=False):
+    def get_models(self):
+        result = ModelInput(
+            checkpoint=self.sd_checkpoint,
+            vae=self.vae,
+            clip_skip=self.clip_skip,
+            v_prediction_zsnr=self.v_prediction_zsnr,
+            loras=[LoraInput.from_dict(l) for l in self.loras],
+        )
+        return result
+
+    def get_sampling(self, is_live=False):
         if is_live:
-            return SamplerConfig(self.live_sampler, self.live_sampler_steps, self.live_cfg_scale)
-        return SamplerConfig(self.sampler, self.sampler_steps, self.cfg_scale)
+            return SamplingInput(self.live_sampler, self.live_sampler_steps, self.live_cfg_scale)
+        return SamplingInput(self.sampler, self.sampler_steps, self.cfg_scale)
 
 
 class Styles(QObject):

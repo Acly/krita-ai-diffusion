@@ -7,7 +7,8 @@ from PyQt5.QtGui import QImage
 import uuid
 
 from . import eventloop, workflow, util
-from .util import client_logger as log
+from .api import TextInput, WorkflowKind, WorkflowInput, InpaintMode, InpaintParams, FillMode
+from .util import ensure, client_logger as log
 from .settings import settings
 from .network import NetworkError
 from .image import Extent, Image, Mask, Bounds
@@ -15,19 +16,12 @@ from .client import ClientMessage, ClientEvent, filter_supported_styles, resolve
 from .document import Document, LayerObserver
 from .pose import Pose
 from .style import Style, Styles, SDVersion
-from .workflow import (
-    ControlMode,
-    Conditioning,
-    InpaintMode,
-    InpaintParams,
-    FillMode,
-    WorkflowInput,
-    WorkflowKind,
-)
 from .connection import Connection
 from .properties import Property, ObservableProperties
 from .jobs import Job, JobKind, JobQueue, JobState
 from .control import ControlLayer, ControlLayerList
+from .resources import ControlMode
+from .resolution import compute_bounds
 import krita
 
 
@@ -116,12 +110,10 @@ class Model(QObject, ObservableProperties):
         mask = self._doc.create_mask_from_selection(
             **get_selection_modifiers(self.inpaint.mode), min_size=64
         )
-        image_bounds = workflow.compute_bounds(extent, mask.bounds if mask else None, self.strength)
+        image_bounds = compute_bounds(extent, mask.bounds if mask else None, self.strength)
         image_bounds = self.inpaint.get_context(self, mask) or image_bounds
 
         control = [c.get_image(image_bounds) for c in self.control]
-        prompt, loras = workflow.extract_loras(self.prompt, client.loras)
-        conditioning = Conditioning(prompt, self.negative_prompt, control=control)
 
         if mask is not None or self.strength < 1.0:
             image = self._get_current_image(image_bounds)
@@ -137,30 +129,26 @@ class Model(QObject, ObservableProperties):
             if inpaint_mode is InpaintMode.custom:
                 inpaint = self.inpaint.get_params(mask)
             else:
-                inpaint = InpaintParams.detect(
-                    inpaint_mode, mask.bounds, sd_version, conditioning, self.strength
+                inpaint = workflow.detect_inpaint(
+                    inpaint_mode, mask.bounds, sd_version, self.prompt, control, self.strength
                 )
 
-        input = WorkflowInput.create(
+        input = workflow.prepare(
             workflow_kind,
             image or extent,
-            mask,
-            self.seed if self.fixed_seed else workflow.generate_seed(),
+            TextInput(self.prompt, self.negative_prompt, self.style.style_prompt),
             self.style,
+            self.seed if self.fixed_seed else workflow.generate_seed(),
             client,
-            loras,
-            conditioning,
-            self.strength,
-            inpaint,
+            mask=mask,
+            strength=self.strength,
+            control=control,
+            inpaint=inpaint,
         )
         self.clear_error()
         eventloop.run(_report_errors(self, self._generate(input, image_bounds, self.batch_count)))
 
     async def _generate(self, input: WorkflowInput, bounds: Bounds, count: int = 1, is_live=False):
-        client = self._connection.client
-        if not self.jobs.any_executing():
-            self.progress = 0.0
-
         if input.inpaint is not None:
             b = input.inpaint.target_bounds
             # Compute mask bounds relative to cropped image, passed to workflow
@@ -168,19 +156,23 @@ class Model(QObject, ObservableProperties):
             bounds = b  # Also keep absolute mask bounds, to insert result image into canvas
 
         job_kind = JobKind.live_preview if is_live else JobKind.diffusion
-        pos, neg = input.conditioning.prompt, input.conditioning.negative_prompt
-        assert input.sampling is not None
-
+        pos, neg = ensure(input.text).positive, ensure(input.text).negative
+        sampling = ensure(input.sampling)
         result: list[Job] = []
         for i in range(count):
-            work = workflow.generate_workflow(input, client)
-            job_id = await client.enqueue(work, self.queue_front)
-            job = self.jobs.add(
-                job_kind, job_id, pos, neg, bounds, input.sampling.strength, input.sampling.seed
-            )
-            input.sampling.seed = input.sampling.seed + (i + 1) * settings.batch_size
+            job = self.jobs.add(job_kind, pos, neg, bounds, sampling.strength, sampling.seed)
+            await self._enqueue_job(job, input)
+            sampling.seed = sampling.seed + (i + 1) * settings.batch_size
             result.append(job)
         return result
+
+    async def _enqueue_job(self, job: Job, inputs: WorkflowInput):
+        if not self.jobs.any_executing():
+            self.progress = 0.0
+
+        client = self._connection.client
+        work = workflow.create(inputs, client)
+        job.id = await client.enqueue(work, self.queue_front)
 
     def upscale_image(self):
         params = self.upscale.params
@@ -188,29 +180,22 @@ class Model(QObject, ObservableProperties):
         client = self._connection.client
         upscaler = params.upscaler or client.default_upscaler
         if params.use_diffusion:
-            inputs = WorkflowInput.create(
+            inputs = workflow.prepare(
                 WorkflowKind.upscale_tiled,
                 image,
-                None,
-                params.seed,
+                TextInput("4k uhd"),
                 self.style,
+                params.seed,
                 client,
-                [],
-                Conditioning("4k uhd"),
                 strength=params.strength,
                 upscale_factor=params.factor,
                 upscale_model=upscaler,
             )
         else:
-            inputs = WorkflowInput.upscale_simple(image, upscaler, params.factor)
+            inputs = workflow.prepare_upscale_simple(image, upscaler, params.factor)
         job = self.jobs.add_upscale(Bounds(0, 0, *self.upscale.target_extent), params.seed)
         self.clear_error()
-        eventloop.run(_report_errors(self, self._upscale_image(job, inputs)))
-
-    async def _upscale_image(self, job: Job, inputs: WorkflowInput):
-        client = self._connection.client
-        work = workflow.generate_workflow(inputs, client)
-        job.id = await client.enqueue(work, self.queue_front)
+        eventloop.run(_report_errors(self, self._enqueue_job(job, inputs)))
 
     def generate_live(self):
         strength = self.live.strength
@@ -233,19 +218,17 @@ class Model(QObject, ObservableProperties):
         if mask is not None or self.live.strength < 1.0:
             image = self._get_current_image(bounds)
 
-        prompt, loras = workflow.extract_loras(self.prompt, client.loras)
-        control = [c.get_image(bounds) for c in self.control]
-        input = WorkflowInput.create(
+        input = workflow.prepare(
             workflow_kind,
             image or bounds.extent,
-            mask,
-            self.seed,
+            TextInput(self.prompt, self.negative_prompt, self.style.style_prompt),
             self.style,
+            self.seed,
             client,
-            loras,
-            Conditioning(prompt, self.negative_prompt, control=control),
-            self.live.strength,
-            InpaintParams(InpaintMode.fill, mask.bounds) if mask else None,
+            mask=mask,
+            control=[c.get_image(bounds) for c in self.control],
+            strength=self.live.strength,
+            inpaint=InpaintParams(InpaintMode.fill, mask.bounds) if mask else None,
             is_live=True,
         )
         self.clear_error()
@@ -268,19 +251,12 @@ class Model(QObject, ObservableProperties):
         image = self._doc.get_image(Bounds(0, 0, *self._doc.extent))
         mask = self.document.create_mask_from_selection(0, 0, padding=0.25, multiple=64)
         bounds = mask.bounds if mask else None
+        input = workflow.prepare_create_control_image(image, control.mode, bounds)
 
         job = self.jobs.add_control(control, Bounds(0, 0, *image.extent))
-        generator = self._generate_control_layer(job, image, control.mode, bounds)
         self.clear_error()
-        eventloop.run(_report_errors(self, generator))
+        eventloop.run(_report_errors(self, self._enqueue_job(job, input)))
         return job
-
-    async def _generate_control_layer(
-        self, job: Job, image: Image, mode: ControlMode, bounds: Bounds | None
-    ):
-        client = self._connection.client
-        work = workflow.create_control_image(client, image, mode, bounds)
-        job.id = await client.enqueue(work, self.queue_front)
 
     def cancel(self, active=False, queued=False):
         if queued:

@@ -2,12 +2,12 @@ from __future__ import annotations
 from PyQt5.QtCore import QObject, pyqtSignal, QUuid, Qt
 
 from . import model, jobs, resources
+from .api import ControlInput
 from .settings import settings
 from .resources import ControlMode, ResourceKind
 from .client import resolve_sd_version
 from .properties import Property, ObservableProperties
 from .image import Bounds
-from .workflow import Control
 
 
 class ControlLayer(QObject, ObservableProperties):
@@ -68,7 +68,7 @@ class ControlLayer(QObject, ObservableProperties):
         image = self._model.document.get_layer_image(layer, bounds)
         if self.mode.is_lines or self.mode is ControlMode.stencil:
             image.make_opaque(background=Qt.GlobalColor.white)
-        return Control(self.mode, image, self.strength / 100, (0.0, self.end))
+        return ControlInput(self.mode, image, self.strength / 100, (0.0, self.end))
 
     def generate(self):
         self._generate_job = self._model.generate_control_layer(self)

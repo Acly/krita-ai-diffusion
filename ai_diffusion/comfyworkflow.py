@@ -97,23 +97,6 @@ class ComfyWorkflow:
             self._cache[key] = result
         return result
 
-    @property
-    def seed(self):
-        for node in self.root.values():
-            if node["class_type"] == "KSampler":
-                return node["inputs"]["seed"]
-            elif node["class_type"] == "KSamplerAdvanced":
-                return node["inputs"]["noise_seed"]
-        return -1
-
-    @seed.setter
-    def seed(self, value: int):
-        for node in self.root.values():
-            if node["class_type"] == "KSampler":
-                node["inputs"]["seed"] = value
-            elif node["class_type"] == "KSamplerAdvanced":
-                node["inputs"]["noise_seed"] = value
-
     def ksampler(
         self,
         model: Output,
