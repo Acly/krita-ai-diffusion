@@ -181,6 +181,10 @@ class Bounds(NamedTuple):
         )
         return Bounds.clamp(result, max_extent)
 
+    def relative_to(self, reference: "Bounds"):
+        """Return bounds relative to another bounds."""
+        return Bounds(self.x - reference.x, self.y - reference.y, self.width, self.height)
+
     @staticmethod
     def from_qrect(qrect: QRect):
         return Bounds(qrect.x(), qrect.y(), qrect.width(), qrect.height())

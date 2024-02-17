@@ -110,19 +110,23 @@ class Model(QObject, ObservableProperties):
         mask = self._doc.create_mask_from_selection(
             **get_selection_modifiers(self.inpaint.mode), min_size=64
         )
-        image_bounds = compute_bounds(extent, mask.bounds if mask else None, self.strength)
-        image_bounds = self.inpaint.get_context(self, mask) or image_bounds
+        bounds = compute_bounds(extent, mask.bounds if mask else None, self.strength)
+        bounds = self.inpaint.get_context(self, mask) or bounds
 
-        control = [c.get_image(image_bounds) for c in self.control]
+        control = [c.get_image(bounds) for c in self.control]
 
         if mask is not None or self.strength < 1.0:
-            image = self._get_current_image(image_bounds)
+            image = self._get_current_image(bounds)
 
         if mask is not None:
             if workflow_kind is WorkflowKind.generate:
                 workflow_kind = WorkflowKind.inpaint
             elif workflow_kind is WorkflowKind.refine:
                 workflow_kind = WorkflowKind.refine_region
+
+            mask_relative_to_image = mask.bounds.relative_to(bounds)
+            bounds = mask.bounds  # Image bounds inside the canvas
+            mask.bounds = mask_relative_to_image  # Mask bounds inside the image
 
             sd_version = resolve_sd_version(self.style, client)
             inpaint_mode = self.resolve_inpaint_mode()
@@ -146,15 +150,9 @@ class Model(QObject, ObservableProperties):
             inpaint=inpaint,
         )
         self.clear_error()
-        eventloop.run(_report_errors(self, self._generate(input, image_bounds, self.batch_count)))
+        eventloop.run(_report_errors(self, self._generate(input, bounds, self.batch_count)))
 
     async def _generate(self, input: WorkflowInput, bounds: Bounds, count: int = 1, is_live=False):
-        if input.inpaint is not None:
-            b = input.inpaint.target_bounds
-            # Compute mask bounds relative to cropped image, passed to workflow
-            input.inpaint.target_bounds = Bounds(b.x - bounds.x, b.y - bounds.y, *b.extent)
-            bounds = b  # Also keep absolute mask bounds, to insert result image into canvas
-
         job_kind = JobKind.live_preview if is_live else JobKind.diffusion
         pos, neg = ensure(input.text).positive, ensure(input.text).negative
         sampling = ensure(input.sampling)
