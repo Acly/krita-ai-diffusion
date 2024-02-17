@@ -214,15 +214,17 @@ class KritaDocument(Document):
         if exclude_layers:
             for layer in filter(lambda l: l.visible(), exclude_layers):
                 layer.setVisible(False)
-                self.refresh(layer)
                 excluded.append(layer)
+        if len(excluded) > 0:
+            self._doc.refreshProjection()
 
         bounds = bounds or Bounds(0, 0, self._doc.width(), self._doc.height())
         img = QImage(self._doc.pixelData(*bounds), *bounds.extent, QImage.Format.Format_ARGB32)
 
         for layer in excluded:
             layer.setVisible(True)
-            self.refresh(layer)
+        if len(excluded) > 0:
+            self._doc.refreshProjection()
         return Image(img)
 
     def get_layer_image(self, layer: krita.Node, bounds: Bounds | None):
