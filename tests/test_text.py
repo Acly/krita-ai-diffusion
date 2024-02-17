@@ -1,4 +1,52 @@
-from ai_diffusion.attention_edit import edit_attention, select_on_cursor_pos
+from ai_diffusion.text import merge_prompt, extract_loras, edit_attention, select_on_cursor_pos
+
+
+def test_merge_prompt():
+    assert merge_prompt("a", "b") == "a, b"
+    assert merge_prompt("", "b") == "b"
+    assert merge_prompt("a", "") == "a"
+    assert merge_prompt("", "") == ""
+    assert merge_prompt("a", "b {prompt} c") == "b a c"
+    assert merge_prompt("", "b {prompt} c") == "b  c"
+
+
+def test_extract_loras():
+    loras = [
+        "/path/to/Lora-One.safetensors",
+        "Lora-two.safetensors",
+    ]
+
+    assert extract_loras("a ship", loras) == ("a ship", [])
+    assert extract_loras("a ship <lora:lora-one>", loras) == (
+        "a ship",
+        [{"name": loras[0], "strength": 1.0}],
+    )
+    assert extract_loras("a ship <lora:LoRA-one>", loras) == (
+        "a ship",
+        [{"name": loras[0], "strength": 1.0}],
+    )
+    assert extract_loras("a ship <lora:lora-one:0.0>", loras) == (
+        "a ship",
+        [{"name": loras[0], "strength": 0.0}],
+    )
+    assert extract_loras("a ship <lora:lora-two:0.5>", loras) == (
+        "a ship",
+        [{"name": loras[1], "strength": 0.5}],
+    )
+    assert extract_loras("a ship <lora:lora-two:-1.0>", loras) == (
+        "a ship",
+        [{"name": loras[1], "strength": -1.0}],
+    )
+
+    try:
+        extract_loras("a ship <lora:lora-three>", loras)
+    except Exception as e:
+        assert str(e).startswith("LoRA not found")
+
+    try:
+        extract_loras("a ship <lora:lora-one:test-invalid-str>", loras)
+    except Exception as e:
+        assert str(e).startswith("Invalid LoRA strength")
 
 
 class TestEditAttention:

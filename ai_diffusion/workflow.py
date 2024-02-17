@@ -1,11 +1,9 @@
 from __future__ import annotations
 from copy import copy
 from dataclasses import dataclass, field
+from typing import Any
 import math
 import random
-import re
-from pathlib import Path
-from typing import Any
 
 from . import resolution
 from .api import ControlInput, ImageInput, ModelInput, SamplingInput, WorkflowInput, LoraInput
@@ -15,11 +13,9 @@ from .client import Client, resolve_sd_version
 from .style import Style, StyleSettings
 from .resolution import ScaledExtent, ScaleMode, get_inpaint_reference
 from .resources import ControlMode, SDVersion, UpscalerName
+from .text import merge_prompt, extract_loras
 from .comfyworkflow import ComfyWorkflow, Output
 from .util import ensure, median_or_zero, client_logger as log
-
-
-_pattern_lora = re.compile(r"\s*<lora:([^:<>]+)(?::(-?[^:<>]*))?>\s*", re.IGNORECASE)
 
 
 def detect_inpaint_mode(extent: Extent, area: Bounds):
@@ -79,33 +75,6 @@ def _sampler_params(sampling: SamplingInput, strength=0.0, clip_vision=False, ad
     if clip_vision:
         params["cfg"] = min(5, sampling.cfg_scale)
     return params
-
-
-def extract_loras(prompt: str, client_loras: list[str]):
-    loras = []
-    for match in _pattern_lora.findall(prompt):
-        lora_name = ""
-
-        for client_lora in client_loras:
-            lora_filename = Path(client_lora).stem
-            if match[0].lower() == lora_filename.lower():
-                lora_name = client_lora
-
-        if not lora_name:
-            error = f"LoRA not found : {match[0]}"
-            log.warning(error)
-            raise Exception(error)
-
-        lora_strength = match[1] if match[1] != "" else 1.0
-        try:
-            lora_strength = float(lora_strength)
-        except ValueError:
-            error = f"Invalid LoRA strength for {match[0]} : {lora_strength}"
-            log.warning(error)
-            raise Exception(error)
-
-        loras.append(dict(name=lora_name, strength=lora_strength))
-    return _pattern_lora.sub("", prompt), loras
 
 
 def _apply_strength(strength: float, steps: int, min_steps: int = 0) -> tuple[int, int]:
@@ -237,16 +206,6 @@ def downscale_control_images(
             # Only scale if control image resolution matches canvas resolution
             if control.image.extent == original and control.mode is not ControlMode.canny_edge:
                 control.image = Image.scale(control.image, target)
-
-
-def merge_prompt(prompt: str, style_prompt: str):
-    if style_prompt == "":
-        return prompt
-    elif "{prompt}" in style_prompt:
-        return style_prompt.replace("{prompt}", prompt)
-    elif prompt == "":
-        return style_prompt
-    return f"{prompt}, {style_prompt}"
 
 
 def encode_text_prompt(w: ComfyWorkflow, cond: Conditioning, clip: Output):

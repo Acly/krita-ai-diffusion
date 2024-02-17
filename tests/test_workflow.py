@@ -97,54 +97,6 @@ def automatic_inpaint(
     return detect_inpaint(mode, bounds, sd_ver, prompt, control, strength=1.0)
 
 
-def test_merge_prompt():
-    assert workflow.merge_prompt("a", "b") == "a, b"
-    assert workflow.merge_prompt("", "b") == "b"
-    assert workflow.merge_prompt("a", "") == "a"
-    assert workflow.merge_prompt("", "") == ""
-    assert workflow.merge_prompt("a", "b {prompt} c") == "b a c"
-    assert workflow.merge_prompt("", "b {prompt} c") == "b  c"
-
-
-def test_extract_loras():
-    loras = [
-        "/path/to/Lora-One.safetensors",
-        "Lora-two.safetensors",
-    ]
-
-    assert workflow.extract_loras("a ship", loras) == ("a ship", [])
-    assert workflow.extract_loras("a ship <lora:lora-one>", loras) == (
-        "a ship",
-        [{"name": loras[0], "strength": 1.0}],
-    )
-    assert workflow.extract_loras("a ship <lora:LoRA-one>", loras) == (
-        "a ship",
-        [{"name": loras[0], "strength": 1.0}],
-    )
-    assert workflow.extract_loras("a ship <lora:lora-one:0.0>", loras) == (
-        "a ship",
-        [{"name": loras[0], "strength": 0.0}],
-    )
-    assert workflow.extract_loras("a ship <lora:lora-two:0.5>", loras) == (
-        "a ship",
-        [{"name": loras[1], "strength": 0.5}],
-    )
-    assert workflow.extract_loras("a ship <lora:lora-two:-1.0>", loras) == (
-        "a ship",
-        [{"name": loras[1], "strength": -1.0}],
-    )
-
-    try:
-        workflow.extract_loras("a ship <lora:lora-three>", loras)
-    except Exception as e:
-        assert str(e).startswith("LoRA not found")
-
-    try:
-        workflow.extract_loras("a ship <lora:lora-one:test-invalid-str>", loras)
-    except Exception as e:
-        assert str(e).startswith("Invalid LoRA strength")
-
-
 def test_inpaint_params():
     bounds = Bounds(0, 0, 100, 100)
 
