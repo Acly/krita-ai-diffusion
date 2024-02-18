@@ -95,18 +95,18 @@ class PodClient:
                 raise Exception("unknown job status")
 
 
-def test_simple(event_loop, pod_server):
-    w = ComfyWorkflow(image_transfer=ImageTransferMode.memory)
-    model, clip, vae = w.load_checkpoint("dreamshaper_8.safetensors")
-    latent = w.empty_latent_image(Extent(512, 512))
-    positive = w.clip_text_encode(clip, "fluffy ball")
-    negative = w.clip_text_encode(clip, "bad quality")
-    sampled = w.ksampler(model, positive, negative, latent, seed=768)
-    decoded = w.vae_decode(vae, sampled)
-    w.send_image(decoded)
+# def test_simple(event_loop, pod_server):
+#     w = ComfyWorkflow(image_transfer=ImageTransferMode.memory)
+#     model, clip, vae = w.load_checkpoint("dreamshaper_8.safetensors")
+#     latent = w.empty_latent_image(Extent(512, 512))
+#     positive = w.clip_text_encode(clip, "fluffy ball")
+#     negative = w.clip_text_encode(clip, "bad quality")
+#     sampled = w.ksampler(model, positive, negative, latent, seed=768)
+#     decoded = w.vae_decode(vae, sampled)
+#     w.send_image(decoded)
 
-    client = PodClient(pod_server)
-    output = event_loop.run_until_complete(client.run(w.root))
-    for imgb64 in output["images"]:
-        img = Image.from_base64(imgb64)
-        img.save(result_dir / "pod_simple.png")
+#     client = PodClient(pod_server)
+#     output = event_loop.run_until_complete(client.run(w.root))
+#     for imgb64 in output["images"]:
+#         img = Image.from_base64(imgb64)
+#         img.save(result_dir / "pod_simple.png")

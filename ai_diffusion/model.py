@@ -12,7 +12,7 @@ from .util import ensure, client_logger as log
 from .settings import settings
 from .network import NetworkError
 from .image import Extent, Image, Mask, Bounds
-from .client import ClientMessage, ClientEvent, filter_supported_styles, resolve_sd_version
+from .client import ClientMessage, ClientEvent, filter_supported_styles
 from .document import Document, LayerObserver
 from .pose import Pose
 from .style import Style, Styles, SDVersion
@@ -93,7 +93,7 @@ class Model(QObject, ObservableProperties):
 
         if client := connection.client_if_connected:
             self.style = next(iter(filter_supported_styles(Styles.list(), client)), self.style)
-            self.upscale.upscaler = client.default_upscaler
+            self.upscale.upscaler = client.models.default_upscaler
 
     def generate(self):
         """Enqueue image generation for the current setup."""
@@ -128,7 +128,7 @@ class Model(QObject, ObservableProperties):
             bounds = mask.bounds  # Image bounds inside the canvas
             mask.bounds = mask_relative_to_image  # Mask bounds inside the image
 
-            sd_version = resolve_sd_version(self.style, client)
+            sd_version = client.models.version_of(self.style.sd_checkpoint)
             inpaint_mode = self.resolve_inpaint_mode()
             if inpaint_mode is InpaintMode.custom:
                 inpaint = self.inpaint.get_params(mask)
@@ -143,7 +143,7 @@ class Model(QObject, ObservableProperties):
             TextInput(self.prompt, self.negative_prompt, self.style.style_prompt),
             self.style,
             self.seed if self.fixed_seed else workflow.generate_seed(),
-            client,
+            client.models,
             mask=mask,
             strength=self.strength,
             control=control,
@@ -169,14 +169,14 @@ class Model(QObject, ObservableProperties):
             self.progress = 0.0
 
         client = self._connection.client
-        work = workflow.create(inputs, client)
+        work = workflow.create(inputs, client.models)
         job.id = await client.enqueue(work, self.queue_front)
 
     def upscale_image(self):
         params = self.upscale.params
         image = self._doc.get_image(Bounds(0, 0, *self._doc.extent))
         client = self._connection.client
-        upscaler = params.upscaler or client.default_upscaler
+        upscaler = params.upscaler or client.models.default_upscaler
         if params.use_diffusion:
             inputs = workflow.prepare(
                 WorkflowKind.upscale_tiled,
@@ -184,7 +184,7 @@ class Model(QObject, ObservableProperties):
                 TextInput("4k uhd"),
                 self.style,
                 params.seed,
-                client,
+                client.models,
                 strength=params.strength,
                 upscale_factor=params.factor,
                 upscale_model=upscaler,
@@ -199,7 +199,7 @@ class Model(QObject, ObservableProperties):
         strength = self.live.strength
         workflow_kind = WorkflowKind.generate if strength == 1.0 else WorkflowKind.refine
         client = self._connection.client
-        ver = resolve_sd_version(self.style, client)
+        ver = client.models.version_of(self.style.sd_checkpoint)
 
         image = None
         mask = self._doc.create_mask_from_selection(
@@ -222,7 +222,7 @@ class Model(QObject, ObservableProperties):
             TextInput(self.prompt, self.negative_prompt, self.style.style_prompt),
             self.style,
             self.seed,
-            client,
+            client.models,
             mask=mask,
             control=[c.get_image(bounds) for c in self.control],
             strength=self.live.strength,
@@ -488,7 +488,7 @@ class UpscaleWorkspace(QObject, ObservableProperties):
     def _init_model(self):
         if self.upscaler == "":
             if client := self._model._connection.client_if_connected:
-                self.upscaler = client.default_upscaler
+                self.upscaler = client.models.default_upscaler
 
     @property
     def target_extent(self):

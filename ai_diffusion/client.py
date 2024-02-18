@@ -2,10 +2,11 @@ from __future__ import annotations
 import asyncio
 from enum import Enum
 from collections import deque
+from itertools import product
 import json
 import struct
 import uuid
-from typing import NamedTuple, Optional, Union, Sequence, Any
+from typing import NamedTuple, Optional, Sequence
 
 from .comfyworkflow import ComfyWorkflow
 from .image import Image, ImageCollection
@@ -14,8 +15,9 @@ from .websockets.src.websockets import client as websockets_client
 from .websockets.src.websockets import exceptions as websockets_exceptions
 from .style import Style, Styles
 from .resources import ControlMode, MissingResource, ResourceKind, SDVersion, UpscalerName
+from .resources import ResourceId, resource_id
 from .settings import settings
-from .util import ensure, is_windows, client_logger as log
+from .util import client_logger as log
 from . import resources, util
 
 
@@ -107,6 +109,105 @@ class CheckpointInfo(NamedTuple):
         )
 
 
+class ClientModels:
+    """Collects names of AI models the client has access to."""
+
+    checkpoints: dict[str, CheckpointInfo]
+    vae: list[str]
+    loras: list[str]
+    upscalers: list[str]
+    resources: dict[str, str | None]
+    node_inputs: dict[str, dict[str, list[str | list | dict]]]
+
+    def resource(
+        self, kind: ResourceKind, identifier: ControlMode | UpscalerName | str, version: SDVersion
+    ):
+        id = ResourceId(kind, version, identifier)
+        model = self.resources.get(id.string)
+        if model is None:
+            raise Exception(f"{id.name} not found")
+        return model
+
+    def version_of(self, checkpoint: str):
+        return self.checkpoints[checkpoint].sd_version
+
+    def for_version(self, version: SDVersion):
+        return ModelDict(self, ResourceKind.upscaler, version)
+
+    def for_checkpoint(self, checkpoint: str):
+        return self.for_version(self.version_of(checkpoint))
+
+    @property
+    def upscale(self):
+        return ModelDict(self, ResourceKind.upscaler, SDVersion.all)
+
+    @property
+    def default_upscaler(self):
+        return self.resource(ResourceKind.upscaler, UpscalerName.default, SDVersion.all)
+
+
+class ModelDict:
+    """Provides access to filtered list of models matching a certain SD version."""
+
+    _models: ClientModels
+    kind: ResourceKind
+    version: SDVersion
+
+    def __init__(self, models: ClientModels, kind: ResourceKind, version: SDVersion):
+        self._models = models
+        self.kind = kind
+        self.version = version
+
+    def __getitem__(self, key: ControlMode | UpscalerName | str):
+        return self._models.resource(self.kind, key, self.version)
+
+    def find(self, key: ControlMode | UpscalerName | str):
+        return self._models.resources.get(resource_id(self.kind, self.version, key))
+
+    def for_version(self, version: SDVersion):
+        return ModelDict(self._models, self.kind, version)
+
+    @property
+    def clip_vision(self):
+        return self._models.resource(ResourceKind.clip_vision, "ip_adapter", SDVersion.all)
+
+    @property
+    def upscale(self):
+        return ModelDict(self._models, ResourceKind.upscaler, SDVersion.all)
+
+    @property
+    def control(self):
+        return ModelDict(self._models, ResourceKind.controlnet, self.version)
+
+    @property
+    def ip_adapter(self):
+        return ModelDict(self._models, ResourceKind.ip_adapter, self.version)
+
+    @property
+    def inpaint(self):
+        return ModelDict(self._models, ResourceKind.inpaint, SDVersion.all)
+
+    @property
+    def lora(self):
+        return ModelDict(self._models, ResourceKind.lora, self.version)
+
+    @property
+    def fooocus_inpaint(self):
+        assert self.version is SDVersion.sdxl
+        return dict(
+            head=self._models.resource(ResourceKind.inpaint, "fooocus_head", SDVersion.sdxl),
+            patch=self._models.resource(ResourceKind.inpaint, "fooocus_patch", SDVersion.sdxl),
+        )
+
+    @property
+    def all(self):
+        return self._models
+
+    @property
+    def node_inputs(self):
+        return self._models.node_inputs
+
+
 class Client:
     """HTTP/WebSocket client which sends requests to and listens to messages from a ComfyUI server."""
 
@@ -118,21 +219,9 @@ class Client:
     _active: Optional[JobInfo] = None
 
     url: str
-    # Lists of models as reported by the server
-    checkpoints: dict[str, CheckpointInfo]
-    vae_models: list[str]
-    loras: list[str]
-    upscalers: list[str]
-    # Lists of specific well-known models required by workflows
-    upscale_models: dict[UpscalerName, str | None]
-    control_model: dict[ControlMode, dict[SDVersion, str | None]]
-    ip_adapter_model: dict[ControlMode, dict[SDVersion, str | None]]
-    inpaint_models: dict[str, str | None]
-    lora_models: dict[str, dict[SDVersion, str | None]]
-    clip_vision_model: str
+    models: ClientModels
     supported_sd_versions: list[SDVersion]
     device_info: DeviceInfo
-    nodes_inputs: dict[str, dict[str, list[str | list | dict]]] = {}
 
     @staticmethod
     async def connect(url=default_url):
@@ -151,32 +240,29 @@ class Client:
         ]
         if len(missing) > 0:
             raise MissingResource(ResourceKind.node, missing)
-        client.nodes_inputs = {name: nodes[name]["input"].get("required", None) for name in nodes}
 
-        # Retrieve ControlNet models
-        client.control_model = _find_control_models(
-            nodes["ControlNetLoader"]["input"]["required"]["control_net_name"][0]
-        )
-        # Retrieve CLIPVision models
-        client.clip_vision_model = _find_clip_vision_model(
-            nodes["CLIPVisionLoader"]["input"]["required"]["clip_name"][0]
-        )
-        # Retrieve IP-Adapter model
-        client.ip_adapter_model = _find_ip_adapters(
-            nodes["IPAdapterModelLoader"]["input"]["required"]["ipadapter_file"][0]
-        )
-        # Retrieve upscale models
-        client.upscalers = nodes["UpscaleModelLoader"]["input"]["required"]["model_name"][0]
-        client.upscale_models = _find_upscalers(client.upscalers)
+        # Check for required and optional model resources
+        models = client.models
+        models.node_inputs = {name: nodes[name]["input"].get("required", None) for name in nodes}
+        available_resources = client.models.resources = {}
 
-        # Retrieve inpaint models
-        client.inpaint_models = _find_inpaint_models(
-            nodes["INPAINT_LoadInpaintModel"]["input"]["required"]["model_name"][0]
-        )
+        control_models = nodes["ControlNetLoader"]["input"]["required"]["control_net_name"][0]
+        available_resources.update(_find_control_models(control_models))
 
-        # Retrieve LoRA models
+        clip_vision_models = nodes["CLIPVisionLoader"]["input"]["required"]["clip_name"][0]
+        available_resources.update(_find_clip_vision_model(clip_vision_models))
+
+        ip_adapter_models = nodes["IPAdapterModelLoader"]["input"]["required"]["ipadapter_file"][0]
+        available_resources.update(_find_ip_adapters(ip_adapter_models))
+
+        models.upscalers = nodes["UpscaleModelLoader"]["input"]["required"]["model_name"][0]
+        available_resources.update(_find_upscalers(models.upscalers))
+
+        inpaint_models = nodes["INPAINT_LoadInpaintModel"]["input"]["required"]["model_name"][0]
+        available_resources.update(_find_inpaint_models(inpaint_models))
+
         loras = nodes["LoraLoader"]["input"]["required"]["lora_name"][0]
-        client.lora_models = _find_loras(loras)
+        available_resources.update(_find_loras(loras))
 
         # Retrieve list of checkpoints
         client._refresh_models(nodes, await client.try_inspect_checkpoints())
@@ -191,19 +277,19 @@ class Client:
         if client.device_info.type == "privateuseone":
             # OmniSR causes a crash
             for n in [2, 3, 4]:
-                client.upscale_models[UpscalerName.fast_x(n)] = client.upscale_models[
-                    UpscalerName.default
-                ]
+                id = resource_id(ResourceKind.upscaler, SDVersion.all, UpscalerName.fast_x(n))
+                available_resources[id] = models.default_upscaler
             # IP-Adapter doesn't work https://github.com/cubiq/ComfyUI_IPAdapter_plus/issues/108
-            for versions in client.ip_adapter_model.values():
-                for key in versions:
-                    versions[key] = None
+            for id in available_resources:
+                if id.startswith(ResourceKind.ip_adapter.name):
+                    available_resources[id] = None
 
         _ensure_supported_style(client)
         return client
 
     def __init__(self, url):
         self.url = url
+        self.models = ClientModels()
         self._id = str(uuid.uuid4())
         self._jobs = deque()
 
@@ -334,8 +420,9 @@ class Client:
         self._refresh_models(nodes, info)
 
     def _refresh_models(self, nodes: dict, checkpoint_info: Optional[dict]):
+        models = self.models
         if checkpoint_info:
-            self.checkpoints = {
+            models.checkpoints = {
                 filename: CheckpointInfo(
                     filename,
                     SDVersion.from_string(info["base_model"]) or SDVersion.sd15,
@@ -346,31 +433,20 @@ class Client:
                 if info["base_model"] in ["sd15", "sdxl"]
             }
         else:
-            self.checkpoints = {
+            models.checkpoints = {
                 filename: CheckpointInfo.deduce_from_filename(filename)
                 for filename in nodes["CheckpointLoaderSimple"]["input"]["required"]["ckpt_name"][0]
             }
-        self.vae_models = nodes["VAELoader"]["input"]["required"]["vae_name"][0]
-        self.loras = nodes["LoraLoader"]["input"]["required"]["lora_name"][0]
+        models.vae = nodes["VAELoader"]["input"]["required"]["vae_name"][0]
+        models.loras = nodes["LoraLoader"]["input"]["required"]["lora_name"][0]
         special_loras = [  # Filter out LCM, FaceID, etc. since they are added automatically
-            l for lora_versions in self.lora_models.values() for l in lora_versions.values()
+            res for id, res in models.resources.items() if id.startswith(ResourceKind.lora.name)
         ]
-        self.loras = [l for l in self.loras if l not in special_loras]
-
-    @property
-    def default_upscaler(self):
-        return ensure(self.upscale_models[UpscalerName.default])
+        models.loras = [l for l in models.loras if l not in special_loras]
 
     @property
     def supports_ip_adapter(self):
         return self.device_info.type != "privateuseone"
-
-    @property
-    def fooocus_inpaint_models(self):
-        return dict(
-            head=ensure(self.inpaint_models["fooocus_head"]),
-            patch=ensure(self.inpaint_models["fooocus_patch"]),
-        )
 
     def _get_active_job(self, id: str) -> Optional[JobInfo]:
         if self._active and self._active.id == id:
@@ -407,37 +483,17 @@ class Client:
         return False
 
     def _check_workload(self, sdver: SDVersion) -> list[MissingResource]:
+        models = self.models
         missing: list[MissingResource] = []
-        if not self.clip_vision_model:
-            missing.append(MissingResource(ResourceKind.clip_vision))
-        required_upscalers = [UpscalerName.default] + [UpscalerName.fast_x(n) for n in [2, 3, 4]]
-        if not all(self.upscale_models[u] for u in required_upscalers):
-            names = [u.value for u in required_upscalers if not self.upscale_models[u]]
-            missing.append(MissingResource(ResourceKind.upscaler, names))
-        if not self.ip_adapter_model[ControlMode.reference][sdver]:
-            names = resources.search_path(ResourceKind.ip_adapter, sdver, ControlMode.reference)
-            missing.append(MissingResource(ResourceKind.ip_adapter, names))
-        if not any(cp.sd_version is sdver for cp in self.checkpoints.values()):
-            missing.append(MissingResource(ResourceKind.checkpoint))
-        if sdver is SDVersion.sd15:
-            if not self.control_model[ControlMode.inpaint][sdver]:
-                names = ["models/controlnet/control_v11p_sd15_inpaint_fp16.safetensors"]
-                missing.append(MissingResource(ResourceKind.controlnet, names))
-            if not self.control_model[ControlMode.blur][sdver]:
-                names = ["models/controlnet/control_lora_rank128_v11f1e_sd15_tile_fp16.safetensors"]
-                missing.append(MissingResource(ResourceKind.controlnet, names))
-        if self.inpaint_models["default"] is None:
-            name = ensure(resources.search_path(ResourceKind.inpaint, SDVersion.all, "default"))[0]
-            missing.append(MissingResource(ResourceKind.inpaint, [name]))
-        if sdver is SDVersion.sdxl:
-            for id, model in self.inpaint_models.items():
-                if id in ["fooocus_head", "fooocus_patch"] and model is None:
-                    names = resources.search_path(ResourceKind.inpaint, sdver, id)
-                    missing.append(MissingResource(ResourceKind.inpaint, names))
+        for id in resources.required_resource_ids:
+            if id.version is not SDVersion.all and id.version is not sdver:
+                continue
+            if models.resources[id.string] is None:
+                missing.append(MissingResource(id.kind, [id.name]))
         if len(missing) == 0:
             log.info(f"{sdver.value}: supported")
         else:
-            log.info(f"{sdver.value}: missing resources {', '.join(m.kind.value for m in missing)}")
+            log.info(f"{sdver.value}: missing {len(missing)} models")
         return missing
 
 
@@ -453,21 +509,21 @@ def websocket_url(url_http: str):
     return url_http.replace("http", "ws", 1)
 
 
-def resolve_sd_version(style: Style, client: Optional[Client] = None):
+def resolve_sd_version(style: Style, client: Client | None = None):
     if style.sd_version is SDVersion.auto:
-        if client and style.sd_checkpoint in client.checkpoints:
-            return client.checkpoints[style.sd_checkpoint].sd_version
+        if client and style.sd_checkpoint in client.models.checkpoints:
+            return client.models.version_of(style.sd_checkpoint)
         return style.sd_version.resolve(style.sd_checkpoint)
     return style.sd_version
 
 
-def filter_supported_styles(styles: Styles, client: Optional[Client] = None):
+def filter_supported_styles(styles: Styles, client: Client | None = None):
     if client:
         return [
             style
             for style in styles
             if resolve_sd_version(style, client) in client.supported_sd_versions
-            and style.sd_checkpoint in client.checkpoints
+            and style.sd_checkpoint in client.models.checkpoints
         ]
     return list(styles)
 
@@ -506,24 +562,23 @@ def _find_model(
     return found
 
 
-def _find_model_versions(model_list: Sequence[str], kind: ResourceKind, mode: ControlMode | str):
-    return {
-        ver: _find_model(model_list, kind, ver, mode) for ver in [SDVersion.sd15, SDVersion.sdxl]
-    }
+_sd_versions = [SDVersion.sd15, SDVersion.sdxl]
 
 
 def _find_control_models(model_list: Sequence[str]):
+    kind = ResourceKind.controlnet
     return {
-        mode: _find_model_versions(model_list, ResourceKind.controlnet, mode)
-        for mode in ControlMode
+        resource_id(kind, ver, mode): _find_model(model_list, kind, ver, mode)
+        for mode, ver in product(ControlMode, _sd_versions)
         if mode.is_control_net
     }
 
 
 def _find_ip_adapters(model_list: Sequence[str]):
+    kind = ResourceKind.ip_adapter
     return {
-        mode: _find_model_versions(model_list, ResourceKind.ip_adapter, mode)
-        for mode in ControlMode
+        resource_id(kind, ver, mode): _find_model(model_list, kind, ver, mode)
+        for mode, ver in product(ControlMode, _sd_versions)
         if mode.is_ip_adapter
     }
 
@@ -535,34 +590,38 @@ def _find_clip_vision_model(model_list: Sequence[str]):
             ResourceKind.clip_vision,
             resources.search_path(ResourceKind.clip_vision, SDVersion.all, "ip_adapter"),
         )
-    return model
+    return {resource_id(ResourceKind.clip_vision, SDVersion.all, "ip_adapter"): model}
 
 
 def _find_upscalers(model_list: Sequence[str]):
+    kind = ResourceKind.upscaler
     models = {
-        name: _find_model(model_list, ResourceKind.upscaler, SDVersion.all, name)
+        resource_id(kind, SDVersion.all, name): _find_model(model_list, kind, SDVersion.all, name)
         for name in UpscalerName
     }
-    if models[UpscalerName.default] is None and len(model_list) > 0:
-        models[UpscalerName.default] = models[UpscalerName.fast_4x]
+    default_id = resource_id(kind, SDVersion.all, UpscalerName.default)
+    if models[default_id] is None and len(model_list) > 0:
+        models[default_id] = models[resource_id(kind, SDVersion.all, UpscalerName.fast_4x)]
     return models
 
 
 def _find_loras(model_list: Sequence[str]):
+    kind = ResourceKind.lora
     return {
-        name: _find_model_versions(model_list, ResourceKind.lora, name) for name in ["lcm", "face"]
+        resource_id(kind, ver, name): _find_model(model_list, kind, ver, name)
+        for name, ver in product(["lcm", "face"], _sd_versions)
     }
 
 
 def _find_inpaint_models(model_list: Sequence[str]):
+    kind = ResourceKind.inpaint
+    ids: list[tuple[SDVersion, str]] = [
+        (SDVersion.all, "default"),
+        (SDVersion.sdxl, "fooocus_head"),
+        (SDVersion.sdxl, "fooocus_patch"),
+    ]
     return {
-        "fooocus_head": _find_model(
-            model_list, ResourceKind.inpaint, SDVersion.sdxl, "fooocus_head"
-        ),
-        "fooocus_patch": _find_model(
-            model_list, ResourceKind.inpaint, SDVersion.sdxl, "fooocus_patch"
-        ),
-        "default": _find_model(model_list, ResourceKind.inpaint, SDVersion.all, "default"),
+        resource_id(kind, ver, name): _find_model(model_list, kind, ver, name) for ver, name in ids
     }
 
 
@@ -571,7 +630,7 @@ def _ensure_supported_style(client: Client):
     if len(styles) == 0:
         checkpoint = next(
             cp.filename
-            for cp in client.checkpoints.values()
+            for cp in client.models.checkpoints.values()
             if cp.sd_version in client.supported_sd_versions
         )
         log.info(f"No supported styles found, creating default style with checkpoint {checkpoint}")

@@ -140,7 +140,7 @@ class UpscaleWidget(QWidget):
         if client := root.connection.client_if_connected:
             with SignalBlocker(self.model_select):
                 self.model_select.clear()
-                for file in sorted(client.upscalers, key=_upscaler_order):
+                for file in sorted(client.models.upscalers, key=_upscaler_order):
                     if file == UpscalerName.default.value:
                         name = f"Default ({file.removesuffix('.pth')})"
                         self.model_select.addItem(name, file)

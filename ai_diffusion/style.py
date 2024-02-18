@@ -2,10 +2,9 @@ from __future__ import annotations
 from enum import Enum
 import json
 from pathlib import Path
-from typing import NamedTuple
 from PyQt5.QtCore import QObject, pyqtSignal
 
-from .api import ModelInput, LoraInput, SamplingInput
+from .api import CheckpointInput, LoraInput, SamplingInput
 from .settings import Setting
 from .resources import SDVersion
 from .util import encode_json, user_data_dir, client_logger as log
@@ -177,7 +176,7 @@ class Style:
         return self.filepath.name
 
     def get_models(self):
-        result = ModelInput(
+        result = CheckpointInput(
             checkpoint=self.sd_checkpoint,
             vae=self.vae,
             clip_skip=self.clip_skip,

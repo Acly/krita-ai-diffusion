@@ -30,8 +30,8 @@ def comfy(pytestconfig, qtapp):
 default_seed = 1234
 
 
-def default_style(comfy, sd_ver=SDVersion.sd15):
-    version_checkpoints = [c for c in comfy.checkpoints if sd_ver.matches(c)]
+def default_style(comfy: Client, sd_ver=SDVersion.sd15):
+    version_checkpoints = [c for c in comfy.models.checkpoints if sd_ver.matches(c)]
     checkpoint = default_checkpoint[sd_ver]
 
     style = Style(Path("default.json"))
@@ -45,8 +45,8 @@ def create(kind: WorkflowKind, client: Client, **kwargs):
     kwargs.setdefault("text", TextInput(""))
     kwargs.setdefault("style", default_style(client))
     kwargs.setdefault("seed", default_seed)
-    inputs = workflow.prepare(kind, client=client, **kwargs)
-    return workflow.create(inputs, client)
+    inputs = workflow.prepare(kind, models=client.models, **kwargs)
+    return workflow.create(inputs, client.models)
 
 
 async def receive_images(comfy: Client, workflow: ComfyWorkflow):
@@ -321,11 +321,12 @@ def test_control_canny_downscale(qtapp, comfy, temp_settings):
 
 
 @pytest.mark.parametrize("mode", [m for m in ControlMode if m.has_preprocessor])
-def test_create_control_image(qtapp, comfy, mode):
+def test_create_control_image(qtapp, comfy: Client, mode):
     image_name = f"test_create_control_image_{mode.name}.png"
     image = Image.load(image_dir / "adobe_stock.jpg")
     extent = ScaledExtent.no_scaling(image.extent)
-    job = workflow.create_control_image(comfy, image, mode, extent)
+    models = comfy.models.for_version(SDVersion.sd15)
+    job = workflow.create_control_image(models, image, mode, extent)
 
     result = run_and_save(qtapp, comfy, job, image_name)
     reference = Image.load(reference_dir / image_name)
@@ -333,11 +334,12 @@ def test_create_control_image(qtapp, comfy, mode):
     assert Image.compare(result, reference) < threshold
 
 
-def test_create_open_pose_vector(qtapp, comfy):
+def test_create_open_pose_vector(qtapp, comfy: Client):
     image_name = f"test_create_open_pose_vector.svg"
     image = Image.load(image_dir / "adobe_stock.jpg")
     extent = ScaledExtent.no_scaling(image.extent)
-    job = workflow.create_control_image(comfy, image, ControlMode.pose, extent)
+    models = comfy.models.for_version(SDVersion.sd15)
+    job = workflow.create_control_image(models, image, ControlMode.pose, extent)
 
     async def main():
         job_id = None
@@ -345,6 +347,7 @@ def test_create_open_pose_vector(qtapp, comfy):
             if not job_id:
                 job_id = await comfy.enqueue(job)
             if msg.event is ClientEvent.finished and msg.job_id == job_id:
+                assert msg.result is not None
                 result = Pose.from_open_pose_json(msg.result).to_svg()
                 (result_dir / image_name).write_text(result)
                 return
@@ -356,7 +359,7 @@ def test_create_open_pose_vector(qtapp, comfy):
 
 
 @pytest.mark.parametrize("setup", ["no_mask", "right_hand", "left_hand"])
-def test_create_hand_refiner_image(qtapp, comfy, setup):
+def test_create_hand_refiner_image(qtapp, comfy: Client, setup):
     image_name = f"test_create_hand_refiner_image_{setup}.png"
     image = Image.load(image_dir / "character.webp")
     extent = ScaledExtent.no_scaling(image.extent)
@@ -365,8 +368,9 @@ def test_create_hand_refiner_image(qtapp, comfy, setup):
         "right_hand": Bounds(102, 398, 264, 240),
         "left_hand": Bounds(541, 642, 232, 248),
     }[setup]
+    models = comfy.models.for_version(SDVersion.sd15)
     job = workflow.create_control_image(
-        comfy, image, ControlMode.hands, extent, bounds, default_seed
+        models, image, ControlMode.hands, extent, bounds, default_seed
     )
     result = run_and_save(qtapp, comfy, job, image_name)
     reference = Image.load(reference_dir / image_name)
@@ -431,20 +435,21 @@ def test_ip_adapter_face(qtapp, comfy, temp_settings, sdver):
     run_and_save(qtapp, comfy, job, f"test_ip_adapter_face_{sdver.name}.png")
 
 
-def test_upscale_simple(qtapp, comfy):
+def test_upscale_simple(qtapp, comfy: Client):
+    models = comfy.models.for_version(SDVersion.sd15)
     image = Image.load(image_dir / "beach_768x512.webp")
-    job = workflow.upscale_simple(comfy, image, comfy.default_upscaler, 2.0)
+    job = workflow.upscale_simple(image, comfy.models.default_upscaler, 2.0, models)
     run_and_save(qtapp, comfy, job, "test_upscale_simple.png")
 
 
 @pytest.mark.parametrize("sdver", [SDVersion.sd15, SDVersion.sdxl])
-def test_upscale_tiled(qtapp, comfy, sdver):
+def test_upscale_tiled(qtapp, comfy: Client, sdver):
     image = Image.load(image_dir / "beach_768x512.webp")
     job = create(
         WorkflowKind.upscale_tiled,
         comfy,
         canvas=image,
-        upscale_model=comfy.default_upscaler,
+        upscale_model=comfy.models.default_upscaler,
         upscale_factor=2.0,
         style=default_style(comfy, sdver),
         text=TextInput("4k uhd"),

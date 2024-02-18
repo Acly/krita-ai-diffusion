@@ -612,6 +612,21 @@ _control_text = {
 }
 
 
+class ResourceId(NamedTuple):
+    kind: ResourceKind
+    version: SDVersion
+    identifier: ControlMode | UpscalerName | str
+
+    @property
+    def string(self):
+        return resource_id(self.kind, self.version, self.identifier)
+
+    @property
+    def name(self):
+        ident = self.identifier.name if isinstance(self.identifier, Enum) else self.identifier
+        return f"{self.kind.value} '{ident}' for {self.version.value}"
+
+
 def resource_id(
     kind: ResourceKind, version: SDVersion, identifier: ControlMode | UpscalerName | str
 ):
@@ -629,7 +644,7 @@ def search_path(
 def is_required(
     kind: ResourceKind, version: SDVersion, identifier: ControlMode | UpscalerName | str
 ):
-    return resource_id(kind, version, identifier) in required_resource_ids
+    return ResourceId(kind, version, identifier) in required_resource_ids
 
 
 # fmt: off
@@ -673,19 +688,19 @@ search_paths: dict[str, list[str]] = {
 
 required_resource_ids = set(
     [
-        resource_id(ResourceKind.controlnet, SDVersion.sd15, ControlMode.inpaint),
-        resource_id(ResourceKind.controlnet, SDVersion.sd15, ControlMode.blur),
-        resource_id(ResourceKind.ip_adapter, SDVersion.sd15, ControlMode.reference),
-        resource_id(ResourceKind.ip_adapter, SDVersion.sdxl, ControlMode.reference),
-        resource_id(ResourceKind.clip_vision, SDVersion.all, "ip_adapter"),
-        resource_id(ResourceKind.lora, SDVersion.sd15, "lcm"),
-        resource_id(ResourceKind.lora, SDVersion.sdxl, "lcm"),
-        resource_id(ResourceKind.upscaler, SDVersion.all, UpscalerName.default),
-        resource_id(ResourceKind.upscaler, SDVersion.all, UpscalerName.fast_2x),
-        resource_id(ResourceKind.upscaler, SDVersion.all, UpscalerName.fast_3x),
-        resource_id(ResourceKind.upscaler, SDVersion.all, UpscalerName.fast_4x),
-        resource_id(ResourceKind.inpaint, SDVersion.sdxl, "fooocus_head"),
-        resource_id(ResourceKind.inpaint, SDVersion.sdxl, "fooocus_patch"),
-        resource_id(ResourceKind.inpaint, SDVersion.all, "default"),
+        ResourceId(ResourceKind.controlnet, SDVersion.sd15, ControlMode.inpaint),
+        ResourceId(ResourceKind.controlnet, SDVersion.sd15, ControlMode.blur),
+        ResourceId(ResourceKind.ip_adapter, SDVersion.sd15, ControlMode.reference),
+        ResourceId(ResourceKind.ip_adapter, SDVersion.sdxl, ControlMode.reference),
+        ResourceId(ResourceKind.clip_vision, SDVersion.all, "ip_adapter"),
+        ResourceId(ResourceKind.lora, SDVersion.sd15, "lcm"),
+        ResourceId(ResourceKind.lora, SDVersion.sdxl, "lcm"),
+        ResourceId(ResourceKind.upscaler, SDVersion.all, UpscalerName.default),
+        ResourceId(ResourceKind.upscaler, SDVersion.all, UpscalerName.fast_2x),
+        ResourceId(ResourceKind.upscaler, SDVersion.all, UpscalerName.fast_3x),
+        ResourceId(ResourceKind.upscaler, SDVersion.all, UpscalerName.fast_4x),
+        ResourceId(ResourceKind.inpaint, SDVersion.sdxl, "fooocus_head"),
+        ResourceId(ResourceKind.inpaint, SDVersion.sdxl, "fooocus_patch"),
+        ResourceId(ResourceKind.inpaint, SDVersion.all, "default"),
     ]
 )

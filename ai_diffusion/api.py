@@ -45,7 +45,7 @@ class LoraInput:
 
 
 @dataclass
-class ModelInput:
+class CheckpointInput:
     checkpoint: str
     vae: str = ""
     loras: list[LoraInput] = field(default_factory=list)
@@ -110,7 +110,7 @@ class InpaintParams:
 class WorkflowInput:
     kind: WorkflowKind
     images: ImageInput | None = None
-    models: ModelInput | None = None
+    models: CheckpointInput | None = None
     sampling: SamplingInput | None = None
     text: TextInput | None = None
     control: list[ControlInput] = field(default_factory=list)

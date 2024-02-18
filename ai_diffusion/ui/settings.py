@@ -33,10 +33,10 @@ from PyQt5.QtCore import Qt, QSize, QUrl, pyqtSignal
 from PyQt5.QtGui import QDesktopServices, QGuiApplication, QIcon, QCursor
 from krita import Krita
 
+from ..client import resolve_sd_version
 from ..resources import SDVersion, CustomNode, MissingResource, ResourceKind, required_models
 from ..settings import Setting, Settings, ServerMode, PerformancePreset, settings
 from ..server import Server
-from ..client import resolve_sd_version
 from ..style import Style, Styles, StyleSettings
 from ..root import root
 from .. import util, __version__
@@ -959,7 +959,7 @@ class StylePresets(SettingsTab):
     def _set_checkpoint_warning(self):
         self._checkpoint_warning.setVisible(False)
         if client := root.connection.client_if_connected:
-            if self.current_style.sd_checkpoint not in client.checkpoints:
+            if self.current_style.sd_checkpoint not in client.models.checkpoints:
                 self._checkpoint_warning.setText(
                     "The checkpoint used by this style is not installed."
                 )
@@ -1012,12 +1012,12 @@ class StylePresets(SettingsTab):
             default_vae = cast(str, StyleSettings.vae.default)
             checkpoints = [
                 (cp.name, cp.filename, sd_version_icon(cp.sd_version, client))
-                for cp in client.checkpoints.values()
+                for cp in client.models.checkpoints.values()
                 if not (cp.is_refiner or cp.is_inpaint)
             ]
             self._style_widgets["sd_checkpoint"].set_items(checkpoints)
-            self._style_widgets["loras"].names = client.loras
-            self._style_widgets["vae"].set_items([default_vae] + client.vae_models)
+            self._style_widgets["loras"].names = client.models.loras
+            self._style_widgets["vae"].set_items([default_vae] + client.models.vae)
         self._read_style(self.current_style)
 
     def _write(self):

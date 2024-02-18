@@ -2,7 +2,7 @@ import asyncio
 from pathlib import Path
 import pytest
 
-from ai_diffusion import eventloop
+from ai_diffusion import eventloop, resources
 from ai_diffusion.resources import ControlMode
 from ai_diffusion.comfyworkflow import ComfyWorkflow
 from ai_diffusion.network import NetworkError
@@ -139,20 +139,22 @@ def check_client_info(client: Client):
     assert client.device_info.name != ""
     assert client.device_info.vram > 0
 
-    assert len(client.checkpoints) > 0
-    for filename, cp in client.checkpoints.items():
+    assert len(client.models.checkpoints) > 0
+    for filename, cp in client.models.checkpoints.items():
         assert cp.filename == filename
         assert cp.filename.startswith(cp.name)
         assert cp.is_inpaint == ("inpaint" in cp.name.lower())
         assert cp.is_refiner == ("refiner" in cp.name.lower())
 
-    assert len(client.control_model) > 0
-    inpaint = client.control_model[ControlMode.inpaint][SDVersion.sd15]
+    assert len(client.models.resources) >= len(resources.required_resource_ids)
+    inpaint = client.models.for_version(SDVersion.sd15).control[ControlMode.inpaint]
     assert inpaint and "inpaint" in inpaint
 
 
 def check_resolve_sd_version(client: Client, sd_version: SDVersion):
-    checkpoint = next(cp for cp in client.checkpoints.values() if cp.sd_version == sd_version)
+    checkpoint = next(
+        cp for cp in client.models.checkpoints.values() if cp.sd_version == sd_version
+    )
     style = Style(Path("dummy"))
     style.sd_version = SDVersion.auto
     style.sd_checkpoint = checkpoint.filename
