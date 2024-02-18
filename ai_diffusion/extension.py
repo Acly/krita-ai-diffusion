@@ -50,11 +50,12 @@ class AIToolsExtension(Extension):
         self._create_action(window, "cancel_all", actions.cancel_all)
         self._create_action(window, "apply", actions.apply)
         self._create_action(
-            window, "set_workspace_generation", actions.set_workspace(Workspace.generation)
+            window, "switch_workspace_generation", actions.set_workspace(Workspace.generation)
         )
         self._create_action(
-            window, "set_workspace_upscaling", actions.set_workspace(Workspace.upscaling)
+            window, "switch_workspace_upscaling", actions.set_workspace(Workspace.upscaling)
         )
+        self._create_action(window, "switch_workspace_live", actions.set_workspace(Workspace.live))
         self._create_action(window, "toggle_workspace", actions.toggle_workspace)
 
 

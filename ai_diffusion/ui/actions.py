@@ -8,6 +8,8 @@ def generate():
             model.generate()
         elif model.workspace is Workspace.upscaling:
             model.upscale_image()
+        elif model.workspace is Workspace.live:
+            model.generate_live()
 
 
 def cancel_active():
