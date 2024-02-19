@@ -878,8 +878,6 @@ def prepare_create_control_image(
 
 
 def create(i: WorkflowInput, models: ClientModels):
-    model_set = models.for_checkpoint(ensure(i.models).checkpoint)
-
     if i.kind is WorkflowKind.generate:
         return generate(
             ensure(i.models),
@@ -887,7 +885,7 @@ def create(i: WorkflowInput, models: ClientModels):
             Conditioning.from_input(ensure(i.text), i.control),
             ensure(i.sampling),
             i.batch_count,
-            model_set,
+            models.for_checkpoint(ensure(i.models).checkpoint),
         )
     elif i.kind is WorkflowKind.inpaint:
         return inpaint(
@@ -898,7 +896,7 @@ def create(i: WorkflowInput, models: ClientModels):
             ensure(i.inpaint),
             ensure(i.crop_upscale_extent),
             i.batch_count,
-            model_set,
+            models.for_checkpoint(ensure(i.models).checkpoint),
         )
     elif i.kind is WorkflowKind.refine:
         return refine(
@@ -908,7 +906,7 @@ def create(i: WorkflowInput, models: ClientModels):
             Conditioning.from_input(ensure(i.text), i.control),
             ensure(i.sampling),
             i.batch_count,
-            model_set,
+            models.for_checkpoint(ensure(i.models).checkpoint),
         )
     elif i.kind is WorkflowKind.refine_region:
         return refine_region(
@@ -918,11 +916,12 @@ def create(i: WorkflowInput, models: ClientModels):
             ensure(i.sampling),
             ensure(i.inpaint),
             i.batch_count,
-            model_set,
+            models.for_checkpoint(ensure(i.models).checkpoint),
         )
     elif i.kind is WorkflowKind.upscale_simple:
-        return upscale_simple(i.image, i.upscale_model, i.upscale_factor, model_set)
-
+        return upscale_simple(
+            i.image, i.upscale_model, i.upscale_factor, models.for_version(SDVersion.all)
+        )
     elif i.kind is WorkflowKind.upscale_tiled:
         return upscale_tiled(
             i.image,
@@ -931,11 +930,11 @@ def create(i: WorkflowInput, models: ClientModels):
             ensure(i.models),
             Conditioning.from_input(ensure(i.text), i.control),
             ensure(i.sampling),
-            model_set,
+            models.for_checkpoint(ensure(i.models).checkpoint),
         )
     elif i.kind is WorkflowKind.control_image:
         return create_control_image(
-            model_set,
+            models.for_version(SDVersion.all),
             image=i.image,
             mode=i.control_mode,
             extent=ScaledExtent.from_input(i.extent),

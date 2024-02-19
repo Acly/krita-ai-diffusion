@@ -5,17 +5,17 @@ from datetime import datetime
 from pathlib import Path
 
 from ai_diffusion import workflow
-from ai_diffusion.api import WorkflowKind, ControlInput, InpaintMode, FillMode
+from ai_diffusion.api import WorkflowKind, WorkflowInput, ControlInput, InpaintMode, FillMode
 from ai_diffusion.api import TextInput
 from ai_diffusion.comfyworkflow import ComfyWorkflow
 from ai_diffusion.resources import ControlMode
 from ai_diffusion.resolution import ScaledExtent
 from ai_diffusion.image import Mask, Bounds, Extent, Image
 from ai_diffusion.client import Client, ClientEvent
+from ai_diffusion.comfyclient import ComfyClient
 from ai_diffusion.style import SDVersion, Style
 from ai_diffusion.pose import Pose
 from ai_diffusion.workflow import Control, detect_inpaint
-from ai_diffusion.util import ensure
 from . import config
 from .config import image_dir, result_dir, reference_dir, default_checkpoint
 
@@ -24,7 +24,7 @@ from .config import image_dir, result_dir, reference_dir, default_checkpoint
 def comfy(pytestconfig, qtapp):
     if pytestconfig.getoption("--ci"):
         pytest.skip("Diffusion is disabled on CI")
-    return qtapp.run(Client.connect())
+    return qtapp.run(ComfyClient.connect())
 
 
 default_seed = 1234
@@ -45,15 +45,14 @@ def create(kind: WorkflowKind, client: Client, **kwargs):
     kwargs.setdefault("text", TextInput(""))
     kwargs.setdefault("style", default_style(client))
     kwargs.setdefault("seed", default_seed)
-    inputs = workflow.prepare(kind, models=client.models, **kwargs)
-    return workflow.create(inputs, client.models)
+    return workflow.prepare(kind, models=client.models, **kwargs)
 
 
-async def receive_images(comfy: Client, workflow: ComfyWorkflow):
+async def receive_images(comfy: Client, work: WorkflowInput):
     job_id = None
     async for msg in comfy.listen():
         if not job_id:
-            job_id = await comfy.enqueue(workflow)
+            job_id = await comfy.enqueue(work)
         if msg.event is ClientEvent.finished and msg.job_id == job_id:
             assert msg.images is not None
             return msg.images
@@ -65,16 +64,16 @@ async def receive_images(comfy: Client, workflow: ComfyWorkflow):
 def run_and_save(
     qtapp,
     comfy: Client,
-    workflow: ComfyWorkflow,
+    work: WorkflowInput,
     filename: str,
     composition_image: Image | None = None,
     composition_mask: Mask | None = None,
     output_dir: Path = result_dir,
 ):
-    workflow.dump((output_dir / "workflows" / filename).with_suffix(".json"))
+    dump_workflow(work, filename, comfy)
 
     async def runner():
-        return await receive_images(comfy, workflow)
+        return await receive_images(comfy, work)
 
     results = qtapp.run(runner())
     assert len(results) == 1
@@ -84,6 +83,11 @@ def run_and_save(
     else:
         results[0].save(output_dir / filename)
     return results[0]
+
+
+def dump_workflow(work: WorkflowInput, filename: str, client: Client):
+    flow = workflow.create(work, client.models)
+    flow.dump((result_dir / "workflows" / filename).with_suffix(".json"))
 
 
 def automatic_inpaint(
@@ -172,7 +176,7 @@ def test_inpaint_upscale(qtapp, comfy, temp_settings, sdver):
     )
 
     async def main():
-        job.dump((result_dir / "workflows" / f"test_inpaint_upscale_{sdver.name}.json"))
+        dump_workflow(job, f"test_inpaint_upscale_{sdver.name}.json", comfy)
         results = await receive_images(comfy, job)
         assert len(results) == 2 if sdver == SDVersion.sd15 else 1
         for i, result in enumerate(results):
@@ -324,9 +328,7 @@ def test_control_canny_downscale(qtapp, comfy, temp_settings):
 def test_create_control_image(qtapp, comfy: Client, mode):
     image_name = f"test_create_control_image_{mode.name}.png"
     image = Image.load(image_dir / "adobe_stock.jpg")
-    extent = ScaledExtent.no_scaling(image.extent)
-    models = comfy.models.for_version(SDVersion.sd15)
-    job = workflow.create_control_image(models, image, mode, extent)
+    job = workflow.prepare_create_control_image(image, mode)
 
     result = run_and_save(qtapp, comfy, job, image_name)
     reference = Image.load(reference_dir / image_name)
@@ -337,9 +339,7 @@ def test_create_control_image(qtapp, comfy: Client, mode):
 def test_create_open_pose_vector(qtapp, comfy: Client):
     image_name = f"test_create_open_pose_vector.svg"
     image = Image.load(image_dir / "adobe_stock.jpg")
-    extent = ScaledExtent.no_scaling(image.extent)
-    models = comfy.models.for_version(SDVersion.sd15)
-    job = workflow.create_control_image(models, image, ControlMode.pose, extent)
+    job = workflow.prepare_create_control_image(image, ControlMode.pose)
 
     async def main():
         job_id = None
@@ -368,10 +368,7 @@ def test_create_hand_refiner_image(qtapp, comfy: Client, setup):
         "right_hand": Bounds(102, 398, 264, 240),
         "left_hand": Bounds(541, 642, 232, 248),
     }[setup]
-    models = comfy.models.for_version(SDVersion.sd15)
-    job = workflow.create_control_image(
-        models, image, ControlMode.hands, extent, bounds, default_seed
-    )
+    job = workflow.prepare_create_control_image(image, ControlMode.hands, bounds, default_seed)
     result = run_and_save(qtapp, comfy, job, image_name)
     reference = Image.load(reference_dir / image_name)
     assert Image.compare(result, reference) < 0.002
@@ -436,9 +433,8 @@ def test_ip_adapter_face(qtapp, comfy, temp_settings, sdver):
 
 
 def test_upscale_simple(qtapp, comfy: Client):
-    models = comfy.models.for_version(SDVersion.sd15)
     image = Image.load(image_dir / "beach_768x512.webp")
-    job = workflow.upscale_simple(image, comfy.models.default_upscaler, 2.0, models)
+    job = workflow.prepare_upscale_simple(image, comfy.models.default_upscaler, 2.0)
     run_and_save(qtapp, comfy, job, "test_upscale_simple.png")
 
 

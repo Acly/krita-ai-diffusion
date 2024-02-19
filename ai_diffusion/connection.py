@@ -1,13 +1,14 @@
 from __future__ import annotations
 from enum import Enum
-from typing import Optional
 from PyQt5.QtCore import QObject, pyqtSignal
 import asyncio
 
-from .client import Client, ClientMessage, ClientEvent, DeviceInfo, MissingResource
+from .client import Client, ClientMessage, ClientEvent, DeviceInfo
+from .comfyclient import ComfyClient
 from .network import NetworkError
 from .settings import Settings, PerformancePreset, settings
 from .properties import Property, ObservableProperties
+from .resources import MissingResource
 from . import util, eventloop
 
 
@@ -45,7 +46,7 @@ class Connection(QObject, ObservableProperties):
         self.missing_resource = None
         self.state = ConnectionState.connecting
         try:
-            self._client = await Client.connect(url)
+            self._client = await ComfyClient.connect(url)
             apply_performance_preset(settings, self._client.device_info)
             if self._task is None:
                 self._task = eventloop._loop.create_task(self._handle_messages())

@@ -164,12 +164,11 @@ class Model(QObject, ObservableProperties):
             result.append(job)
         return result
 
-    async def _enqueue_job(self, job: Job, inputs: WorkflowInput):
+    async def _enqueue_job(self, job: Job, work: WorkflowInput):
         if not self.jobs.any_executing():
             self.progress = 0.0
 
         client = self._connection.client
-        work = workflow.create(inputs, client.models)
         job.id = await client.enqueue(work, self.queue_front)
 
     def upscale_image(self):

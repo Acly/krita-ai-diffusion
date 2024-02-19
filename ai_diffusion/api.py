@@ -33,6 +33,10 @@ class ImageInput:
     hires_image: Image | None = None
     hires_mask: Image | None = None
 
+    @staticmethod
+    def from_extent(e: Extent):
+        return ImageInput(ExtentInput(e, e, e, e))
+
 
 @dataclass
 class LoraInput:

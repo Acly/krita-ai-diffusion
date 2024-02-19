@@ -966,7 +966,7 @@ class StylePresets(SettingsTab):
                 self._checkpoint_warning.setVisible(True)
             else:
                 version = resolve_sd_version(self.current_style, client)
-                if version not in client.supported_sd_versions:
+                if not client.supports_version(version):
                     self._checkpoint_warning.setText(
                         f"This is a {version.value} checkpoint, but the {version.value} workload has"
                         " not been installed."
