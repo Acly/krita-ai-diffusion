@@ -409,7 +409,8 @@ class Server:
             self.state = ServerState.stopped
             ret = self._process.returncode
             self._process = None
-            raise Exception(f"Error during server startup: {error} [{ret}]")
+            error_msg = _parse_common_errors(error, ret)
+            raise Exception(f"Error during server startup: {error_msg}")
 
         self._task = asyncio.create_task(self.run())
         assert self.url is not None
@@ -620,3 +621,23 @@ async def get_python_version(python_cmd: Path, *args: str):
     )
     out, _ = await proc.communicate()
     return out.decode(enc, errors="replace").strip()
+
+
+def _parse_common_errors(output: str, return_code: int | None):
+    if "error while attempting to bind on address" in output:
+        message_part = output.split("bind on address")[-1].strip()
+        return (
+            f"Could not bind on address {message_part}.<br>"
+            + "<a href='https://github.com/Acly/krita-ai-diffusion/wiki/Common-Issues#error-during-server-startup-could-not-bind-on-address-only-one-usage-of-each-socket-address-is-normally-permitted'>Read more...</a>"
+        )
+
+    nvidia_driver = "Found no NVIDIA driver on your system"
+    if nvidia_driver in output:
+        message_part = output.split(nvidia_driver)[-1]
+        return (
+            nvidia_driver
+            + message_part
+            + "<br>If you do not have an NVIDIA GPU, select a different backend below. Server reinstall may be required."
+        )
+
+    return f"{output} [{return_code}]"
