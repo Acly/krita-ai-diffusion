@@ -222,8 +222,9 @@ def prepare_masked(image: Image, mask: Mask, sd_ver: SDVersion, style: Style, do
 def prepare_control(image: Image):
     input = image.extent
     desired = apply_resolution_settings(input)
-    scaled = Image.scale(image, desired)
-    return ImageInput(ExtentInput(desired, desired, desired, input), scaled)
+    if input != desired:
+        image = Image.scale(image, desired)
+    return ImageInput(ExtentInput(desired, desired, desired, input), image)
 
 
 def _scale_images(*imgs: Image | None, target: Extent):

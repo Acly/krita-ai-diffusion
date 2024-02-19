@@ -638,7 +638,7 @@ def refine_region(
 
 
 def create_control_image(
-    models: ModelDict,
+    models: ClientModels,
     image: Image,
     mode: ControlMode,
     extent: ScaledExtent,
@@ -705,7 +705,7 @@ def create_control_image(
     return w
 
 
-def upscale_simple(image: Image, model: str, factor: float, models: ModelDict):
+def upscale_simple(image: Image, model: str, factor: float, models: ClientModels):
     w = ComfyWorkflow(models.node_inputs)
     upscale_model = w.load_upscale_model(model)
     img = w.load_image(image)
@@ -919,9 +919,7 @@ def create(i: WorkflowInput, models: ClientModels):
             models.for_checkpoint(ensure(i.models).checkpoint),
         )
     elif i.kind is WorkflowKind.upscale_simple:
-        return upscale_simple(
-            i.image, i.upscale_model, i.upscale_factor, models.for_version(SDVersion.all)
-        )
+        return upscale_simple(i.image, i.upscale_model, i.upscale_factor, models)
     elif i.kind is WorkflowKind.upscale_tiled:
         return upscale_tiled(
             i.image,
@@ -934,7 +932,7 @@ def create(i: WorkflowInput, models: ClientModels):
         )
     elif i.kind is WorkflowKind.control_image:
         return create_control_image(
-            models.for_version(SDVersion.all),
+            models,
             image=i.image,
             mode=i.control_mode,
             extent=ScaledExtent.from_input(i.extent),

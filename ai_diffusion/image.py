@@ -254,6 +254,7 @@ class Image:
 
     @staticmethod
     def scale(img: "Image", target: Extent):
+        assert img.extent != target
         mode = Qt.AspectRatioMode.IgnoreAspectRatio
         quality = Qt.TransformationMode.SmoothTransformation
         scaled = img._qimage.scaled(target.width, target.height, mode, quality)
