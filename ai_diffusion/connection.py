@@ -4,7 +4,7 @@ from PyQt5.QtCore import QObject, pyqtSignal
 import asyncio
 
 from .client import Client, ClientMessage, ClientEvent, DeviceInfo
-from .comfyclient import ComfyClient
+from .comfy_client import ComfyClient
 from .network import NetworkError
 from .settings import Settings, PerformancePreset, settings
 from .properties import Property, ObservableProperties

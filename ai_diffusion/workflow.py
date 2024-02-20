@@ -14,7 +14,7 @@ from .style import Style, StyleSettings
 from .resolution import ScaledExtent, ScaleMode, get_inpaint_reference
 from .resources import ControlMode, SDVersion, UpscalerName
 from .text import merge_prompt, extract_loras
-from .comfyworkflow import ComfyWorkflow, Output
+from .comfy_workflow import ComfyWorkflow, Output
 from .util import ensure, median_or_zero, client_logger as log
 
 

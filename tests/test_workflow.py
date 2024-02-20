@@ -7,12 +7,11 @@ from pathlib import Path
 from ai_diffusion import workflow
 from ai_diffusion.api import WorkflowKind, WorkflowInput, ControlInput, InpaintMode, FillMode
 from ai_diffusion.api import TextInput
-from ai_diffusion.comfyworkflow import ComfyWorkflow
+from ai_diffusion.comfy_client import ComfyClient
 from ai_diffusion.resources import ControlMode
 from ai_diffusion.resolution import ScaledExtent
 from ai_diffusion.image import Mask, Bounds, Extent, Image
 from ai_diffusion.client import Client, ClientEvent
-from ai_diffusion.comfyclient import ComfyClient
 from ai_diffusion.style import SDVersion, Style
 from ai_diffusion.pose import Pose
 from ai_diffusion.workflow import Control, detect_inpaint

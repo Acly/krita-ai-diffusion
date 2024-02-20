@@ -9,7 +9,7 @@ from ai_diffusion.resources import ControlMode
 from ai_diffusion.network import NetworkError
 from ai_diffusion.image import Extent
 from ai_diffusion.client import ClientEvent, resolve_sd_version
-from ai_diffusion.comfyclient import ComfyClient, parse_url, websocket_url
+from ai_diffusion.comfy_client import ComfyClient, parse_url, websocket_url
 from ai_diffusion.style import SDVersion, Style
 from ai_diffusion.server import Server, ServerState, ServerBackend
 from .config import server_dir, default_checkpoint
