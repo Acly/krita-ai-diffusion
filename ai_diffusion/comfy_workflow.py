@@ -7,11 +7,6 @@ from typing import NamedTuple, Tuple, Literal, overload, Any
 from .image import Bounds, Extent, Image
 
 
-class ImageTransferMode:
-    websocket = 0
-    memory = 1
-
-
 class Output(NamedTuple):
     node: int
     output: int
@@ -30,13 +25,11 @@ class ComfyWorkflow:
 
     _cache: dict[str, Output | Output2 | Output3 | Output4]
     _nodes_required_inputs: dict[str, dict[str, Any]]
-    _image_transfer = ImageTransferMode.websocket
 
-    def __init__(self, node_inputs: dict | None = None, image_transfer=ImageTransferMode.websocket):
+    def __init__(self, node_inputs: dict | None = None):
         self.root = {}
         self._cache = {}
         self._nodes_required_inputs = node_inputs or {}
-        self._image_transfer = image_transfer
 
     def add_default_values(self, node_name: str, args: dict):
         if node_inputs := self._nodes_required_inputs.get(node_name, None):
@@ -480,10 +473,7 @@ class ComfyWorkflow:
         return self.add("ETN_LoadMaskBase64", 1, mask=mask.to_base64())
 
     def send_image(self, image: Output):
-        if self._image_transfer is ImageTransferMode.websocket:
-            return self.add("ETN_SendImageWebSocket", 1, images=image)
-        else:
-            return self.add("ETN_ReturnImage", 1, images=image)
+        return self.add("ETN_SendImageWebSocket", 1, images=image)
 
     def save_image(self, image: Output, prefix: str):
         return self.add("SaveImage", 1, images=image, filename_prefix=prefix)

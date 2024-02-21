@@ -77,6 +77,14 @@ def test_image_compare():
     assert Image.compare(img1, img2) < 0.0001
 
 
+def test_image_equal():
+    red1 = Image.create(Extent(2, 2), Qt.GlobalColor.red)
+    red2 = Image.create(Extent(2, 2), Qt.GlobalColor.red)
+    green = Image.create(Extent(2, 2), Qt.GlobalColor.green)
+    assert red1 == red2
+    assert red1 != green
+
+
 def test_draw_image():
     base = Image.create(Extent(32, 32), Qt.GlobalColor.white)
     icon = Image.create(Extent(4, 4), Qt.GlobalColor.red)

@@ -269,13 +269,13 @@ class Image:
         return Image(img._qimage.copy(*bounds))
 
     @staticmethod
-    def compare(a, b):
-        assert extent_equal(a._qimage, b._qimage)
+    def compare(img_a: "Image", img_b: "Image"):
+        assert extent_equal(img_a._qimage, img_b._qimage)
         import numpy as np
 
         # Compute RMSE
-        a = a.to_array()
-        b = b.to_array()
+        a = img_a.to_array()
+        b = img_b.to_array()
         return np.sqrt(np.mean((a - b) ** 2))
 
     def pixel(self, x: int, y: int):
@@ -364,7 +364,7 @@ class Image:
             self.save(Path(settings.debug_image_folder, f"{name}.png"))
 
     def __eq__(self, other):
-        return self._qimage == other._qimage
+        return isinstance(other, Image) and self._qimage == other._qimage
 
 
 class ImageCollection:

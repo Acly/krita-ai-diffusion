@@ -76,6 +76,9 @@ class ClientModels:
     resources: dict[str, str | None]
     node_inputs: dict[str, dict[str, list[str | list | dict]]]
 
+    def __init__(self) -> None:
+        self.node_inputs = {}
+
     def resource(
         self, kind: ResourceKind, identifier: ControlMode | UpscalerName | str, version: SDVersion
     ):

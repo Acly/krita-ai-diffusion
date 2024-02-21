@@ -1,6 +1,7 @@
-from dataclasses import dataclass, field
+from dataclasses import Field, dataclass, field, is_dataclass, fields
 from enum import Enum
-from typing import Any
+from types import GenericAlias, UnionType
+from typing import Any, get_args, get_origin
 
 from .image import Bounds, Extent, Image
 from .resources import ControlMode
@@ -135,3 +136,71 @@ class WorkflowInput:
     @property
     def upscale_factor(self):
         return self.extent.target.width / self.extent.input.width
+
+    @staticmethod
+    def from_dict(data: dict[str, Any]):
+        return _deserialize_object(WorkflowInput, data)
+
+    def to_dict(self):
+        return _serialize_object(self)
+
+
+def _serialize_object(obj):
+    items = (
+        (field.name, _serialize_value(getattr(obj, field.name), field.default))
+        for field in fields(obj)
+    )
+    return {k: v for k, v in items if v is not None}
+
+
+def _serialize_value(value, default=None):
+    if value is None:
+        return None
+    if isinstance(value, Image):
+        return value.to_base64()
+    if isinstance(value, list):
+        return [_serialize_value(v) for v in value]
+    if value == default:
+        return None
+    if isinstance(value, Enum):
+        return value.name
+    if isinstance(value, tuple):
+        return list(value)
+    if is_dataclass(value):
+        return _serialize_object(value)
+    return value
+
+
+def serialize_workflow_input(work: WorkflowInput):
+    return _serialize_object(work)
+
+
+def _deserialize_object(type: type, input: dict):
+    values = (_deserialize_field(field, input.get(field.name)) for field in fields(type))
+    return type(*values)
+
+
+def _deserialize_field(field: Field, value):
+    if value is None:
+        return field.default
+    field_type = field.type
+    if isinstance(field_type, UnionType):
+        field_type = get_args(field_type)[0]
+    return _deserialize_value(field_type, value)
+
+
+def _deserialize_value(cls, value):
+    if is_dataclass(cls):
+        return _deserialize_object(cls, value)
+    elif issubclass(cls, Enum):
+        return cls[value]
+    elif issubclass(cls, Image):
+        return Image.from_base64(value)
+    elif issubclass(cls, tuple):
+        return cls(*value)
+    elif isinstance(cls, GenericAlias) and issubclass(get_origin(cls), tuple):
+        return tuple(value)
+    elif isinstance(cls, GenericAlias) and issubclass(get_origin(cls), list):
+        return [_deserialize_value(get_args(cls)[0], v) for v in value]
+    else:
+        return value
