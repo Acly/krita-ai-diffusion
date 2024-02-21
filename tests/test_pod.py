@@ -1,3 +1,4 @@
+from pathlib import Path
 import pytest
 import json
 import subprocess
@@ -6,24 +7,29 @@ import sys
 import asyncio
 import aiohttp
 
-from ai_diffusion.comfyworkflow import ComfyWorkflow, ImageTransferMode
+from ai_diffusion.api import (
+    WorkflowInput,
+    WorkflowKind,
+    ControlInput,
+    ExtentInput,
+    ImageInput,
+    CheckpointInput,
+    SamplingInput,
+    TextInput,
+)
+from ai_diffusion.client import Client, ClientMessage, ClientEvent
+from ai_diffusion.cloud_client import CloudClient
 from ai_diffusion.image import Extent, Image
+from ai_diffusion.resources import ControlMode
 from ai_diffusion.util import ensure
 from .config import root_dir, test_dir, result_dir
 
-pod_main = root_dir / "cloud" / "pod" / "pod.py"
+pod_main = root_dir / "service" / "pod" / "pod.py"
 run_dir = test_dir / "pod"
 
 
 @pytest.fixture(scope="module")
-def event_loop():
-    loop = asyncio.get_event_loop()
-    yield loop
-    loop.close()
-
-
-@pytest.fixture(scope="module")
-def pod_server(event_loop):
+def pod_server(qtapp):
     async def serve(process: asyncio.subprocess.Process):
         try:
             async for line in ensure(process.stdout):
@@ -42,7 +48,6 @@ def pod_server(event_loop):
         process = await asyncio.create_subprocess_exec(
             sys.executable,
             *args,
-            cwd=run_dir,
             env=env,
             stdout=subprocess.PIPE,
             stderr=subprocess.STDOUT,
@@ -53,60 +58,54 @@ def pod_server(event_loop):
             if "Uvicorn running" in text:
                 break
 
-        return asyncio.create_task(serve(process))
+        return process, asyncio.create_task(serve(process))
 
-    task = event_loop.run_until_complete(start())
+    async def stop(process, task):
+        process.terminate()
+        task.cancel()
+        await process.communicate()
+
+    process, task = qtapp.run(start())
     yield "http://localhost:8000"
-    task.cancel()
-    event_loop.run_until_complete(task)
+    qtapp.run(stop(process, task))
 
 
-class PodClient:
-    default_local_url = "http://localhost:8000"
-
-    def __init__(self, url):
-        self.url = url
-
-    async def run(self, prompt):
-        payload = {"input": {"prompt": prompt}}
-        async with aiohttp.ClientSession() as session:
-
-            async with session.post(f"{self.url}/runsync", json=payload) as response:
-                job = await response.json()
-            job_id = job["id"]
-            print("started job", job_id, "status", job["status"])
-
-            while job["status"] == "IN_QUEUE" or job["status"] == "IN_PROGRESS":
-                async with session.get(f"{self.url}/status/{job_id}") as response:
-                    job2 = await response.json()
-                    print(response.status, "job", job_id, "status", job2)
-                    if response.status == 200:
-                        job = job2
-                    await asyncio.sleep(1)
-            if job["status"] == "COMPLETED":
-                return job["output"]
-            elif job["status"] == "FAILED":
-                raise Exception(job["error"])
-            elif job["status"] == "CANCELLED":
-                raise Exception("job cancelled")
-            elif job["status"] == "TIMED_OUT":
-                raise Exception("job timed out")
-            else:
-                raise Exception("unknown job status")
+async def receive_images(client: Client, work: WorkflowInput):
+    job_id = None
+    job_id = await client.enqueue(work)
+    async for msg in client.listen():
+        if msg.event is ClientEvent.finished and msg.job_id == job_id:
+            assert msg.images is not None
+            return msg.images
+        if msg.event is ClientEvent.error:
+            raise Exception(msg.error)
+    assert False, "Connection closed without receiving images"
 
 
-# def test_simple(event_loop, pod_server):
-#     w = ComfyWorkflow(image_transfer=ImageTransferMode.memory)
-#     model, clip, vae = w.load_checkpoint("dreamshaper_8.safetensors")
-#     latent = w.empty_latent_image(Extent(512, 512))
-#     positive = w.clip_text_encode(clip, "fluffy ball")
-#     negative = w.clip_text_encode(clip, "bad quality")
-#     sampled = w.ksampler(model, positive, negative, latent, seed=768)
-#     decoded = w.vae_decode(vae, sampled)
-#     w.send_image(decoded)
+def run_and_save(
+    qtapp,
+    client: Client,
+    work: WorkflowInput,
+    filename: str,
+    output_dir: Path = result_dir,
+):
+    async def runner():
+        return await receive_images(client, work)
 
-#     client = PodClient(pod_server)
-#     output = event_loop.run_until_complete(client.run(w.root))
-#     for imgb64 in output["images"]:
-#         img = Image.from_base64(imgb64)
-#         img.save(result_dir / "pod_simple.png")
+    results = qtapp.run(runner())
+    assert len(results) == 1
+    results[0].save(output_dir / filename)
+    return results[0]
+
+
+def test_simple(qtapp, pod_server):
+    workflow = WorkflowInput(
+        WorkflowKind.generate,
+        images=ImageInput.from_extent(Extent(512, 512)),
+        models=CheckpointInput("dreamshaper_8.safetensors"),
+        sampling=SamplingInput("DPM++ 2M", 20, 5.0),
+        text=TextInput("fluffy ball"),
+    )
+
+    client = qtapp.run(CloudClient.connect(pod_server, dev_mode=True))
+    run_and_save(qtapp, client, workflow, "pod_simple.png")
