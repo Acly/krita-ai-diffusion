@@ -94,8 +94,8 @@ def run_and_save(
         return await receive_images(client, work)
 
     results = qtapp.run(runner())
-    assert len(results) == 1
-    results[0].save(output_dir / filename)
+    for i, img in enumerate(results):
+        img.save(output_dir / f"{filename}_{i}.png")
     return results[0]
 
 
@@ -106,7 +106,8 @@ def test_simple(qtapp, pod_server):
         models=CheckpointInput("dreamshaper_8.safetensors"),
         sampling=SamplingInput("DPM++ 2M", 20, 5.0),
         text=TextInput("fluffy ball"),
+        batch_count=2,
     )
 
-    client = qtapp.run(CloudClient.connect(pod_server, dev_mode=True))
-    run_and_save(qtapp, client, workflow, "pod_simple.png")
+    client = qtapp.run(CloudClient.connect(pod_server, access_token=""))
+    run_and_save(qtapp, client, workflow, "pod_simple")

@@ -123,7 +123,7 @@ class WorkflowInput:
     crop_upscale_extent: Extent | None = None
     upscale_model: str = ""
     control_mode: ControlMode = ControlMode.reference
-    batch_count = 1
+    batch_count: int = 1
 
     @property
     def extent(self):
