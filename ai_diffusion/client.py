@@ -89,7 +89,9 @@ class ClientModels:
         return model
 
     def version_of(self, checkpoint: str):
-        return self.checkpoints[checkpoint].sd_version
+        if info := self.checkpoints.get(checkpoint):
+            return info.sd_version
+        return SDVersion.from_checkpoint_name(checkpoint)
 
     def for_version(self, version: SDVersion):
         return ModelDict(self, ResourceKind.upscaler, version)

@@ -61,19 +61,21 @@ class RequestManager:
         self._net.finished.connect(self._finished)
         self._requests = {}
 
-    def http(self, method, url: str, data: dict | None = None):
+    def http(self, method, url: str, data: dict | None = None, bearer=""):
         self._cleanup()
 
         request = QNetworkRequest(QUrl(url))
         # request.setTransferTimeout({"GET": 30000, "POST": 0}[method]) # requires Qt 5.15 (Krita 5.2)
         request.setRawHeader(b"ngrok-skip-browser-warning", b"69420")
+        if bearer:
+            request.setRawHeader(b"Authorization", f"Bearer {bearer}".encode("utf-8"))
 
         assert method in ["GET", "POST"]
         if method == "POST":
             data = data or {}
             data_bytes = QByteArray(json.dumps(data).encode("utf-8"))
-            request.setHeader(QNetworkRequest.ContentTypeHeader, "application/json")
-            request.setHeader(QNetworkRequest.ContentLengthHeader, data_bytes.size())
+            request.setHeader(QNetworkRequest.KnownHeaders.ContentTypeHeader, "application/json")
+            request.setHeader(QNetworkRequest.KnownHeaders.ContentLengthHeader, data_bytes.size())
             reply = self._net.post(request, data_bytes)
         else:
             reply = self._net.get(request)
@@ -85,8 +87,8 @@ class RequestManager:
     def get(self, url: str):
         return self.http("GET", url)
 
-    def post(self, url: str, data: dict):
-        return self.http("POST", url, data)
+    def post(self, url: str, data: dict, bearer=""):
+        return self.http("POST", url, data, bearer=bearer)
 
     def _finished(self, reply: QNetworkReply):
         future = None

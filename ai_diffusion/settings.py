@@ -13,6 +13,7 @@ class ServerMode(Enum):
     undefined = -1
     managed = 0
     external = 1
+    cloud = 2
 
 
 class ServerBackend(Enum):
@@ -68,6 +69,9 @@ class Settings(QObject):
         ServerMode.undefined,
         "To generate images, the plugin connects to a ComfyUI server",
     )
+
+    access_token: str
+    _access_token = Setting("Cloud Access Token", "")
 
     server_path: str
     _server_path = Setting(

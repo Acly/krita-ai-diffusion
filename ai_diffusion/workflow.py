@@ -754,6 +754,9 @@ def upscale_tiled(
     return w
 
 
+###################################################################################################
+
+
 def prepare(
     kind: WorkflowKind,
     canvas: Image | Extent,
@@ -780,6 +783,7 @@ def prepare(
     i.sampling.strength = strength
     i.models = style.get_models()
     i.models.loras += extra_loras
+    _check_server_has_models(i.models, models, style.name)
 
     sd_version = models.version_of(style.sd_checkpoint)
     model_set = models.for_version(sd_version)
@@ -941,3 +945,19 @@ def create(i: WorkflowInput, models: ClientModels):
         )
     else:
         raise ValueError(f"Unsupported workflow kind: {i.kind}")
+
+
+def _check_server_has_models(input: CheckpointInput, models: ClientModels, style_name: str):
+    if input.checkpoint not in models.checkpoints:
+        raise ValueError(
+            f"The checkpoint '{input.checkpoint}' used by style '{style_name}' is not available on the server"
+        )
+    for lora in input.loras:
+        if lora.name not in models.loras:
+            raise ValueError(
+                f"The LoRA '{lora.name}' used by style '{style_name}' is not available on the server"
+            )
+    if input.vae != StyleSettings.vae.default and input.vae not in models.vae:
+        raise ValueError(
+            f"The VAE '{input.vae}' used by style '{style_name}' is not available on the server"
+        )

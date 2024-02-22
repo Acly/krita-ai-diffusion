@@ -5,8 +5,9 @@ import asyncio
 
 from .client import Client, ClientMessage, ClientEvent, DeviceInfo
 from .comfy_client import ComfyClient
+from .cloud_client import CloudClient
 from .network import NetworkError
-from .settings import Settings, PerformancePreset, settings
+from .settings import Settings, ServerMode, PerformancePreset, settings
 from .properties import Property, ObservableProperties
 from .resources import MissingResource
 from . import util, eventloop
@@ -39,14 +40,17 @@ class Connection(QObject, ObservableProperties):
         if self._task is not None:
             self._task.cancel()
 
-    async def _connect(self, url: str):
+    async def _connect(self, url: str, mode: ServerMode, access_token=""):
         if self.state is ConnectionState.connected:
             await self.disconnect()
         self.error = None
         self.missing_resource = None
         self.state = ConnectionState.connecting
         try:
-            self._client = await ComfyClient.connect(url)
+            if mode is ServerMode.cloud:
+                self._client = await CloudClient.connect(CloudClient.default_url, access_token)
+            else:
+                self._client = await ComfyClient.connect(url)
             apply_performance_preset(settings, self._client.device_info)
             if self._task is None:
                 self._task = eventloop._loop.create_task(self._handle_messages())
@@ -66,7 +70,7 @@ class Connection(QObject, ObservableProperties):
             self.state = ConnectionState.error
 
     def connect(self, url: str = settings.server_url):
-        eventloop.run(self._connect(url))
+        eventloop.run(self._connect(url, settings.server_mode, settings.access_token))
 
     async def disconnect(self):  # type: ignore (hides QObject.disconnect)
         if self._task is not None:

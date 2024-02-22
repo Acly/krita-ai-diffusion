@@ -402,7 +402,7 @@ class ComfyWorkflow:
             hint_image=image,
             image_gen_width=extent.width,
             image_gen_height=extent.height,
-            resize_method="Just Resize",
+            resize_mode="Just Resize",
         )
 
     def upscale_image(self, upscale_model: Output, image: Output):

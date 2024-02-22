@@ -19,28 +19,32 @@ class JobInfo:
 
 class CloudClient(Client):
     _requests = RequestManager()
+    _token: str
     _queue: asyncio.Queue[JobInfo]
     _current_remote_id: str | None = None
 
+    default_url = "http://localhost:8000"
+
     @staticmethod
-    async def connect(url: str, dev_mode=False):
-        client = CloudClient(url)
-        if not dev_mode:
+    async def connect(url: str, access_token: str):
+        client = CloudClient(url, access_token)
+        if "localhost" not in url:
             health = await client._get("health")
             log.info(f"Connected to {url}, health: {health}")
         return client
 
-    def __init__(self, url: str):
+    def __init__(self, url: str, token: str):
         self.url = url
-        self.models = ClientModels()
-        self.device_info = DeviceInfo("Cloud", "Remote GPU", 48 * 1024)
+        self._token = token
+        self.models = _models
+        self.device_info = DeviceInfo("Cloud", "Remote GPU", 48)
         self._queue = asyncio.Queue()
 
     async def _get(self, op: str):
         return await self._requests.get(f"{self.url}/{op}")
 
     async def _post(self, op: str, data: dict):
-        return await self._requests.post(f"{self.url}/{op}", data)
+        return await self._requests.post(f"{self.url}/{op}", data, bearer=self._token)
 
     async def enqueue(self, work: WorkflowInput, front: bool = False):
         job = JobInfo(str(uuid.uuid4()), work)
@@ -77,7 +81,7 @@ class CloudClient(Client):
             yield ClientMessage(ClientEvent.finished, job.id, 1, results)
         elif response["status"] == "FAILED":
             err_msg, err_trace = _extract_error(response, remote_id)
-            log.error(f"Job {job.id} failed: {err_msg}\n{err_trace}")
+            log.error(f"Job [id={job.id}, rp={remote_id}] failed\n{err_msg}\n{err_trace}")
             yield ClientMessage(ClientEvent.error, job.id, error=err_msg)
         elif response["status"] == "CANCELLED":
             yield ClientMessage(ClientEvent.interrupted, job.id)
@@ -130,3 +134,43 @@ _models.upscalers = [
     "OmniSR_X3_DIV2K.safetensors",
     "OmniSR_X4_DIV2K.safetensors",
 ]
+# fmt: off
+# TODO: retrieve this from server? or at least share with cloud_worker.py
+from ai_diffusion.resources import resource_id, ResourceKind, ControlMode, UpscalerName
+_models.resources = {
+    resource_id(ResourceKind.controlnet, SDVersion.sd15, ControlMode.inpaint): "control_v11p_sd15_inpaint_fp16.safetensors",
+    resource_id(ResourceKind.controlnet, SDVersion.sd15, ControlMode.scribble): "control_lora_rank128_v11p_sd15_scribble_fp16.safetensors",
+    resource_id(ResourceKind.controlnet, SDVersion.sdxl, ControlMode.scribble): None,
+    resource_id(ResourceKind.controlnet, SDVersion.sd15, ControlMode.line_art): "control_v11p_sd15_lineart_fp16.safetensors",
+    resource_id(ResourceKind.controlnet, SDVersion.sdxl, ControlMode.line_art): None,
+    resource_id(ResourceKind.controlnet, SDVersion.sd15, ControlMode.soft_edge): "control_v11p_sd15_softedge_fp16.safetensors",
+    resource_id(ResourceKind.controlnet, SDVersion.sd15, ControlMode.canny_edge): "control_v11p_sd15_canny_fp16.safetensors",
+    resource_id(ResourceKind.controlnet, SDVersion.sdxl, ControlMode.canny_edge): None,
+    resource_id(ResourceKind.controlnet, SDVersion.sd15, ControlMode.depth): "control_lora_rank128_v11f1p_sd15_depth_fp16.safetensors",
+    resource_id(ResourceKind.controlnet, SDVersion.sdxl, ControlMode.depth): None,
+    resource_id(ResourceKind.controlnet, SDVersion.sd15, ControlMode.normal): "control_lora_rank128_v11p_sd15_normalbae_fp16.safetensors",
+    resource_id(ResourceKind.controlnet, SDVersion.sd15, ControlMode.pose): "control_lora_rank128_v11p_sd15_openpose_fp16.safetensors",
+    resource_id(ResourceKind.controlnet, SDVersion.sdxl, ControlMode.pose): None,
+    resource_id(ResourceKind.controlnet, SDVersion.sd15, ControlMode.segmentation): None,
+    resource_id(ResourceKind.controlnet, SDVersion.sd15, ControlMode.blur):"control_lora_rank128_v11f1e_sd15_tile_fp16.safetensors",
+    resource_id(ResourceKind.controlnet, SDVersion.sd15, ControlMode.stencil): None,
+    resource_id(ResourceKind.controlnet, SDVersion.sd15, ControlMode.hands): None,
+    resource_id(ResourceKind.controlnet, SDVersion.sdxl, ControlMode.hands): None,
+    resource_id(ResourceKind.ip_adapter, SDVersion.sd15, ControlMode.reference):"ip-adapter_sd15.safetensors",
+    resource_id(ResourceKind.ip_adapter, SDVersion.sdxl, ControlMode.reference): None,
+    resource_id(ResourceKind.ip_adapter, SDVersion.sd15, ControlMode.face): None,
+    resource_id(ResourceKind.ip_adapter, SDVersion.sdxl, ControlMode.face): None,
+    resource_id(ResourceKind.clip_vision, SDVersion.all, "ip_adapter"):"sd1.5/model.safetensors",
+    resource_id(ResourceKind.lora, SDVersion.sd15, "lcm"): "lcm-lora-sdv1-5.safetensors",
+    resource_id(ResourceKind.lora, SDVersion.sdxl, "lcm"): None,
+    resource_id(ResourceKind.lora, SDVersion.sd15, ControlMode.face): None,
+    resource_id(ResourceKind.lora, SDVersion.sdxl, ControlMode.face): None,
+    resource_id(ResourceKind.upscaler, SDVersion.all, UpscalerName.default): UpscalerName.default.value,
+    resource_id(ResourceKind.upscaler, SDVersion.all, UpscalerName.fast_2x): UpscalerName.fast_2x.value,
+    resource_id(ResourceKind.upscaler, SDVersion.all, UpscalerName.fast_3x): UpscalerName.fast_3x.value,
+    resource_id(ResourceKind.upscaler, SDVersion.all, UpscalerName.fast_4x): UpscalerName.fast_4x.value,
+    resource_id(ResourceKind.inpaint, SDVersion.sdxl, "fooocus_head"): None,
+    resource_id(ResourceKind.inpaint, SDVersion.sdxl, "fooocus_patch"): None,
+    resource_id(ResourceKind.inpaint, SDVersion.all, "default"): "MAT_Places512_G_fp16",
+}
+# fmt: on
