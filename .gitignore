@@ -10,6 +10,7 @@
 .vscode
 __pycache__
 scripts/docker/downloads
+service
 tests/server
 tests/results
 tests/benchmark

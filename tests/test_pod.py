@@ -29,7 +29,7 @@ run_dir = test_dir / "pod"
 
 
 @pytest.fixture(scope="module")
-def pod_server(qtapp):
+def pod_server(qtapp, pytestconfig):
     async def serve(process: asyncio.subprocess.Process):
         try:
             async for line in ensure(process.stdout):
@@ -37,9 +37,6 @@ def pod_server(qtapp):
         except asyncio.CancelledError:
             process.terminate()
             await process.wait()
-
-    # to run via docker instead:
-    # docker run --gpus all -p 8000:25601 aclysia/sd-comfyui-pod:v1.14.0 python3.11 /pod.py --rp_serve_api --rp_api_port 25601 --rp_api_host 0.0.0.0
 
     async def start():
         env = os.environ.copy()
@@ -65,9 +62,13 @@ def pod_server(qtapp):
         task.cancel()
         await process.communicate()
 
-    process, task = qtapp.run(start())
-    yield "http://localhost:8000"
-    qtapp.run(stop(process, task))
+    if pytestconfig.getoption("--no-server-launch"):
+        # Expects pod server is already running, eg. via docker
+        yield "http://localhost:8000"
+    else:
+        process, task = qtapp.run(start())
+        yield "http://localhost:8000"
+        qtapp.run(stop(process, task))
 
 
 async def receive_images(client: Client, work: WorkflowInput):

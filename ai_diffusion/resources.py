@@ -8,7 +8,7 @@ from typing import NamedTuple, Sequence
 version = "1.14.0"
 
 comfy_url = "https://github.com/comfyanonymous/ComfyUI"
-comfy_version = "236bda26830d719843ba9b5703894297f67f6704"
+comfy_version = "f81dbe26e2e363c28ad043db67b59c11bb33f446"
 
 
 class CustomNode(NamedTuple):
@@ -24,14 +24,14 @@ required_custom_nodes = [
         "ControlNet Preprocessors",
         "comfyui_controlnet_aux",
         "https://github.com/Fannovel16/comfyui_controlnet_aux",
-        "c24b2dcb00cd26e4515cd897e14ec21cc5ff3b2d",
+        "09f2748c99b2b97fabc50036d8b3cb352870da40",
         ["InpaintPreprocessor"],
     ),
     CustomNode(
         "IP-Adapter",
         "ComfyUI_IPAdapter_plus",
         "https://github.com/cubiq/ComfyUI_IPAdapter_plus",
-        "46241f3ba5401f076f8d90c2aa85f2194910e1a9",
+        "6a411dcb2c6c3b91a3aac97adfb080a77ade7d38",
         ["IPAdapterModelLoader", "IPAdapterApply"],
     ),
     CustomNode(
@@ -45,7 +45,7 @@ required_custom_nodes = [
         "External Tooling Nodes",
         "comfyui-tooling-nodes",
         "https://github.com/Acly/comfyui-tooling-nodes",
-        "69143ec68fd330309703c57a0284a803f0d6bf0b",
+        "e27580efcd9ef67427c853e6f671315e91b6786b",
         [
             "ETN_LoadImageBase64",
             "ETN_LoadMaskBase64",
@@ -57,7 +57,7 @@ required_custom_nodes = [
         "Inpaint Nodes",
         "comfyui-inpaint-nodes",
         "https://github.com/Acly/comfyui-inpaint-nodes",
-        "54493635e83539bfa1caaf08564a618bc3567878",
+        "c4309946d7b422d59f768485f991bcf70b7036e5",
         ["INPAINT_LoadFooocusInpaint", "INPAINT_ApplyFooocusInpaint"],
     ),
 ]
