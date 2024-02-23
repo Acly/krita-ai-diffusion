@@ -6,7 +6,7 @@ from typing import NamedTuple, overload
 from .api import ExtentInput, ImageInput
 from .image import Bounds, Extent, Image, Mask, multiple_of
 from .resources import SDVersion
-from .settings import settings
+from .settings import ServerMode, settings
 from .style import Style
 
 
@@ -31,6 +31,8 @@ def compute_bounds(extent: Extent, mask_bounds: Bounds | None, strength: float):
 
 def compute_batch_size(extent: Extent, min_size=512, max_batches: int | None = None):
     max_batches = max_batches or settings.batch_size
+    if settings.server_mode is ServerMode.cloud:
+        max_batches = 8
     desired_pixels = min_size * min_size * max_batches
     requested_pixels = extent.width * extent.height
     return max(1, min(max_batches, desired_pixels // requested_pixels))
