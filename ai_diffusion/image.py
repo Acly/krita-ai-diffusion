@@ -391,6 +391,9 @@ class ImageCollection:
         for img in self._items:
             func(img)
 
+    def remove(self, index: int):
+        return self._items.pop(index)
+
     def save(self, filepath: Union[Path, str]):
         filepath = Path(filepath)
         suffix = filepath.suffix

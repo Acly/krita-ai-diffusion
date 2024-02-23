@@ -76,6 +76,7 @@ class JobQueue(QObject):
     job_finished = pyqtSignal(Job)
     job_discarded = pyqtSignal(Job)
     result_used = pyqtSignal(Item)
+    result_discarded = pyqtSignal(Item)
 
     _entries: Deque[Job]
     _selection: Item | None = None
@@ -148,14 +149,28 @@ class JobQueue(QObject):
         job._in_use[index] = True
         self.result_used.emit(self.Item(job_id, index))
 
-    def prune(self, keep: Job):
-        while self._memory_usage > settings.history_size and self._entries[0] != keep:
-            discarded = self._entries.popleft()
-            self._memory_usage -= discarded.results.size / (1024**2)
-            self.job_discarded.emit(discarded)
-
     def select(self, job_id: str, index: int):
         self.selection = self.Item(job_id, index)
+
+    def _discard_job(self, job: Job):
+        self._memory_usage -= job.results.size / (1024**2)
+        self.job_discarded.emit(job)
+
+    def prune(self, keep: Job):
+        while self._memory_usage > settings.history_size and self._entries[0] != keep:
+            self._discard_job(self._entries.popleft())
+
+    def discard(self, job_id: str, index: int):
+        job = ensure(self.find(job_id))
+        if len(job.results) <= 1:
+            self._entries.remove(job)
+            self._discard_job(job)
+            return
+        for i in range(index, len(job.results) - 1):
+            job._in_use[i] = job._in_use.get(i + 1, False)
+        img = job.results.remove(index)
+        self._memory_usage -= img.size / (1024**2)
+        self.result_discarded.emit(self.Item(job_id, index))
 
     def any_executing(self):
         return any(j.state is JobState.executing for j in self._entries)

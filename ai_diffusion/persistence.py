@@ -9,7 +9,7 @@ from PyQt5.QtWidgets import QMessageBox
 from .image import Bounds, Image, ImageCollection, ImageFileFormat
 from .model import Model
 from .control import ControlLayer
-from .jobs import Job, JobKind, JobParams
+from .jobs import Job, JobKind, JobParams, JobQueue
 from .style import Style, Styles
 from .properties import serialize, deserialize
 from .settings import settings
@@ -99,6 +99,8 @@ class ModelSync:
         for control in model.control:
             self._track_control(control)
         model.jobs.job_finished.connect(self._save_results)
+        model.jobs.job_discarded.connect(self._remove_results)
+        model.jobs.result_discarded.connect(self._remove_image)
 
     def _track_control(self, control: ControlLayer):
         self._save()
@@ -114,6 +116,21 @@ class ModelSync:
             self._memory_used[slot] = image_data.size()
             self._prune()
             self._save()
+
+    def _remove_results(self, job: Job):
+        index = next((i for i, h in enumerate(self._history) if h.id == job.id), None)
+        if index is not None:
+            item = self._history.pop(index)
+            self._model.document.remove_annotation(f"result{item.slot}.webp")
+            self._memory_used.pop(item.slot, None)
+
+    def _remove_image(self, item: JobQueue.Item):
+        if history := next((h for h in self._history if h.id == item.job), None):
+            if job := self._model.jobs.find(item.job):
+                image_data, history.offsets = _serialize_images(job.results)
+                self._model.document.annotate(f"result{history.slot}.webp", image_data)
+                self._memory_used[history.slot] = image_data.size()
+                self._save()
 
     @property
     def memory_used(self):
