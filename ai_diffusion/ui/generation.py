@@ -77,6 +77,7 @@ class HistoryWidget(QListWidget):
         self.setIconSize(theme.screen_scale(self, QSize(self._thumb_size, self._thumb_size)))
         self.setFrameStyle(QListWidget.NoFrame)
         self.setStyleSheet(self._list_css)
+        self.setSelectionMode(QListWidget.SelectionMode.ExtendedSelection)
         self.setDragEnabled(False)
         self.itemClicked.connect(self.handle_preview_click)
         self.itemDoubleClicked.connect(self.item_activated)
@@ -176,7 +177,7 @@ class HistoryWidget(QListWidget):
             item = self.item(current)
             while item and _item_job_id(item) == job_id:
                 _, index = self.item_info(item)
-                if image_index == -1 or image_index == index:
+                if image_index == index or (index is not None and image_index == -1):
                     item_was_selected = item_was_selected or item.isSelected()
                     self.takeItem(current)
                 else:
@@ -270,22 +271,17 @@ class HistoryWidget(QListWidget):
                 prompt = item.data(Qt.ItemDataRole.ToolTipRole)
                 clipboard.setText(prompt)
 
-    def mousePressEvent(self, e: QMouseEvent | None) -> None:
-        # make single click deselect current item (usually requires Ctrl+click)
-        if e is not None and e.button() == Qt.MouseButton.LeftButton:
-            mods = e.modifiers()
-            mods |= Qt.KeyboardModifier.ControlModifier
-            e = QMouseEvent(
-                e.type(),
-                e.localPos(),
-                e.windowPos(),
-                e.screenPos(),
-                e.button(),
-                e.buttons(),
-                mods,
-                e.source(),
-            )
-        return super().mousePressEvent(e)
+    def mousePressEvent(self, e: QMouseEvent | None):
+        if (  # make single click deselect current item (usually requires Ctrl+click)
+            e is not None
+            and e.button() == Qt.MouseButton.LeftButton
+            and e.modifiers() == Qt.KeyboardModifier.NoModifier
+        ):
+            item = self.itemAt(e.pos())
+            if item is not None and item.isSelected():
+                self.clearSelection()
+                return
+        super().mousePressEvent(e)
 
     def resizeEvent(self, e):
         super().resizeEvent(e)
