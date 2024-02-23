@@ -2,6 +2,7 @@ from enum import Enum
 from itertools import islice
 from pathlib import Path
 import asyncio
+import importlib.util
 import os
 import subprocess
 import sys
@@ -9,13 +10,51 @@ import logging
 import logging.handlers
 import statistics
 import zipfile
-from typing import Iterable, Optional, Sequence, TypeVar, cast, no_type_check
+from typing import Iterable, Optional, Sequence, TypeVar
+from PyQt5.QtCore import QStandardPaths
 
 T = TypeVar("T")
 
 is_windows = sys.platform.startswith("win")
 is_macos = sys.platform == "darwin"
 is_linux = not is_windows and not is_macos
+
+
+def _get_user_data_dir():
+    if importlib.util.find_spec("krita") is None:
+        dir = Path(__file__).parent.parent / ".appdata"
+        dir.mkdir(exist_ok=True)
+        return dir
+    try:
+        dir = Path(QStandardPaths.writableLocation(QStandardPaths.AppDataLocation))
+        if dir.exists() and "krita" in dir.name.lower():
+            dir = dir / "ai_diffusion"
+        else:
+            dir = Path(QStandardPaths.writableLocation(QStandardPaths.GenericDataLocation))
+            dir = dir / "krita-ai-diffusion"
+        dir.mkdir(exist_ok=True)
+        return dir
+    except Exception as e:
+        return Path(__file__).parent
+
+
+user_data_dir = _get_user_data_dir()
+
+
+def _get_log_dir():
+    dir = user_data_dir / "logs"
+    dir.mkdir(exist_ok=True)
+
+    legacy_dir = Path(__file__).parent / ".logs"
+    try:  # Move logs from old location (v1.14 and earlier)
+        if legacy_dir.exists():
+            for file in legacy_dir.iterdir():
+                file.rename(dir / file.name)
+            legacy_dir.rmdir()
+    except Exception:
+        print(f"Failed to move logs from {legacy_dir} to {dir}")
+
+    return dir
 
 
 def create_logger(name: str, path: Path):
@@ -29,10 +68,9 @@ def create_logger(name: str, path: Path):
     return logger
 
 
-log_path = Path(__file__).parent / ".logs"
-log_path.mkdir(exist_ok=True)
-client_logger = create_logger("krita.ai_diffusion.client", log_path / "client.log")
-server_logger = create_logger("krita.ai_diffusion.server", log_path / "server.log")
+log_dir = _get_log_dir()
+client_logger = create_logger("krita.ai_diffusion.client", log_dir / "client.log")
+server_logger = create_logger("krita.ai_diffusion.server", log_dir / "server.log")
 
 
 def log_error(error: Exception):

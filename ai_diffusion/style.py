@@ -7,7 +7,7 @@ from PyQt5.QtCore import QObject, pyqtSignal
 
 from .settings import Setting
 from .resources import SDVersion
-from .util import encode_json, client_logger as log
+from .util import encode_json, user_data_dir, client_logger as log
 
 sampler_options = [
     "DDIM",
@@ -176,6 +176,8 @@ class Style:
 
     @property
     def filename(self):
+        if self.filepath.is_relative_to(Styles.default_user_folder):
+            return str(self.filepath.relative_to(Styles.default_user_folder).as_posix())
         return self.filepath.name
 
     def get_sampler_config(self, is_live=False):
@@ -185,10 +187,13 @@ class Style:
 
 
 class Styles(QObject):
-    default_folder = Path(__file__).parent / "styles"
+    default_builtin_folder = Path(__file__).parent / "styles"
+    default_user_folder = user_data_dir / "styles"
+
     _instance = None
 
-    folder: Path
+    builtin_folder: Path
+    user_folder: Path
 
     changed = pyqtSignal()
     name_changed = pyqtSignal()
@@ -198,12 +203,14 @@ class Styles(QObject):
     @classmethod
     def list(cls):
         if cls._instance is None:
-            cls._instance = Styles()
+            cls._instance = Styles(cls.default_builtin_folder, cls.default_user_folder)
         return cls._instance
 
-    def __init__(self, folder: Path = default_folder):
+    def __init__(self, builtin_folder: Path, user_folder: Path):
         super().__init__()
-        self.folder = folder
+        self.builtin_folder = builtin_folder
+        self.user_folder = user_folder
+        self.user_folder.mkdir(exist_ok=True)
         self.reload()
 
     @property
@@ -211,14 +218,14 @@ class Styles(QObject):
         return self[0]
 
     def create(self, name: str = "style", checkpoint: str = "") -> Style:
-        if Path(self.folder / f"{name}.json").exists():
+        if Path(self.user_folder / f"{name}.json").exists():
             i = 1
             basename = name
-            while Path(self.folder / f"{basename}_{i}.json").exists():
+            while Path(self.user_folder / f"{basename}_{i}.json").exists():
                 i += 1
             name = f"{basename}_{i}"
 
-        new_style = Style(self.folder / f"{name}.json")
+        new_style = Style(self.user_folder / f"{name}.json")
         new_style.name = "New Style"
         if checkpoint:
             new_style.sd_checkpoint = checkpoint
@@ -232,8 +239,13 @@ class Styles(QObject):
         style.filepath.unlink()
         self.changed.emit()
 
+    def find_style_files(self):
+        for folder in (self.builtin_folder, self.user_folder):
+            for file in folder.rglob("*.json"):
+                yield file
+
     def reload(self):
-        styles = (Style.load(f) for f in self.folder.iterdir() if f.suffix == ".json")
+        styles = (Style.load(f) for f in self.find_style_files())
         self._list = [s for s in styles if s is not None]
         self._list.sort(key=lambda s: s.name)
         if len(self._list) == 0:

@@ -279,8 +279,8 @@ class ServerWidget(QWidget):
         self._launch_button.setMinimumHeight(35)
         self._launch_button.clicked.connect(self._launch)
 
-        open_log_button = QLabel(f"<a href='file://{util.log_path}'>View log files</a>", self)
-        open_log_button.setToolTip(str(util.log_path))
+        open_log_button = QLabel(f"<a href='file://{util.log_dir}'>View log files</a>", self)
+        open_log_button.setToolTip(str(util.log_dir))
         open_log_button.linkActivated.connect(self._open_logs)
 
         status_layout = QVBoxLayout()
@@ -406,7 +406,7 @@ class ServerWidget(QWidget):
             settings.save()
 
     def _open_logs(self):
-        QDesktopServices.openUrl(QUrl.fromLocalFile(str(util.log_path)))
+        QDesktopServices.openUrl(QUrl.fromLocalFile(str(util.log_dir)))
 
     def _launch(self):
         self._error = ""

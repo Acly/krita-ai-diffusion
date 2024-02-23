@@ -6,7 +6,7 @@ from pathlib import Path
 from typing import Optional, Any
 from PyQt5.QtCore import QObject, pyqtSignal
 
-from .util import is_macos, is_windows, encode_json, client_logger as log
+from .util import is_macos, is_windows, encode_json, user_data_dir, client_logger as log
 
 
 class ServerMode(Enum):
@@ -60,7 +60,7 @@ class Setting:
 
 
 class Settings(QObject):
-    default_path = Path(__file__).parent / "settings.json"
+    default_path = user_data_dir / "settings.json"
 
     server_mode: ServerMode
     _server_mode = Setting(
@@ -72,7 +72,7 @@ class Settings(QObject):
     server_path: str
     _server_path = Setting(
         "Server Path",
-        str(Path(__file__).parent / ".server"),
+        str(user_data_dir / "server"),
         "Directory where ComfyUI will be installed. At least 10GB of free disk space is required"
         " for a minimal installation.",
     )
@@ -230,15 +230,18 @@ class Settings(QObject):
         }
 
     def save(self, path: Optional[Path] = None):
-        path = self.default_path if path is None else path
+        path = self.default_path or path
         with open(path, "w") as file:
             file.write(json.dumps(self._values, default=encode_json, indent=4))
 
     def load(self, path: Optional[Path] = None):
-        path = self.default_path if path is None else path
+        path = self.default_path or path
+        self._migrate_legacy_settings(path)
         if not path.exists():
             self.save()  # create new file with defaults
             return
+
+        log.info(f"Loading settings from {path}")
         with open(path, "r") as file:
             contents = json.loads(file.read())
             for k, v in contents.items():
@@ -256,6 +259,16 @@ class Settings(QObject):
         if preset not in [PerformancePreset.custom, PerformancePreset.auto]:
             for k, v in self._performance_presets[preset].items():
                 self._values[k] = v
+
+    def _migrate_legacy_settings(self, path: Path):
+        if path == self.default_path:
+            legacy_path = Path(__file__).parent / "settings.json"
+            if legacy_path.exists() and not path.exists():
+                try:
+                    legacy_path.rename(path)
+                    log.info(f"Migrated settings from {legacy_path} to {path}")
+                except Exception as e:
+                    log.warning(f"Failed to migrate settings from {legacy_path} to {path}: {e}")
 
 
 settings = Settings()

@@ -215,7 +215,7 @@ class Client:
 
     async def enqueue(self, workflow: ComfyWorkflow, queue_front: bool = False):
         if settings.debug_dump_workflow:
-            workflow.dump(util.log_path)
+            workflow.dump(util.log_dir)
         data = {"prompt": workflow.root, "client_id": self._id, "front": queue_front}
         result = await self._post("prompt", data)
         job_id = result["prompt_id"]

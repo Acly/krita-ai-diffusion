@@ -1,3 +1,4 @@
+.appdata
 .coverage
 .debug
 .env
@@ -12,10 +13,6 @@ scripts/docker/downloads
 tests/server
 tests/results
 tests/benchmark
-settings.json
-ai_diffusion/styles/*
-!ai_diffusion/styles/cinematic-photo*.json
-!ai_diffusion/styles/digital-artwork*.json
 krita_ai_diffusion*.zip
 TODO.md
 .idea

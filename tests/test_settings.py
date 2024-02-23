@@ -61,29 +61,56 @@ def style_is_default(style):
     )
 
 
-def test_styles():
-    with TemporaryDirectory(dir=Path(__file__).parent) as dir:
-        style = Style(Path(dir) / "test_style.json")
-        style.name = "Test Style"
-        style.save()
+def test_styles(tmp_path_factory):
+    builtin_dir = tmp_path_factory.mktemp("builtin")
+    user_dir = tmp_path_factory.mktemp("user")
 
-        styles = Styles(Path(dir))
-        assert len(styles) == 1
-        loaded_style = styles[0]
-        assert loaded_style.filename == style.filename
-        assert loaded_style.name == "Test Style"
-        assert styles.find(style.filename) == (loaded_style, 0)
-        assert styles.find("nonexistent.json") == (None, -1)
-        assert style_is_default(loaded_style)
+    style = Style(user_dir / "test_style.json")
+    style.name = "Test Style"
+    style.save()
+
+    styles = Styles(builtin_dir, user_dir)
+    assert len(styles) == 1
+    loaded_style = styles[0]
+    assert loaded_style.filename == style.filename
+    assert loaded_style.name == "Test Style"
+    assert styles.find(style.filename) == (loaded_style, 0)
+    assert styles.find("nonexistent.json") == (None, -1)
+    assert style_is_default(loaded_style)
 
 
-def test_bad_style_file():
-    with TemporaryDirectory(dir=Path(__file__).parent) as dir:
-        path = Path(dir) / "test_style.json"
-        path.write_text("bad json")
-        styles = Styles(Path(dir))
-        assert len(styles) == 1  # no error, default style inserted
-        assert style_is_default(styles[0])
+def test_style_folders(tmp_path_factory):
+    builtin_dir = tmp_path_factory.mktemp("builtin")
+    user_dir = tmp_path_factory.mktemp("user")
+
+    builtin = Style(builtin_dir / "test_style.json")
+    builtin.name = "Built-in Style"
+    builtin.save()
+
+    user = Style(user_dir / "test_style.json")
+    user.name = "User Style"
+    user.save()
+
+    styles = Styles(builtin_dir, user_dir)
+    assert len(styles) == 2
+    for style in styles:
+        if style.filepath == builtin.filepath:
+            assert style.name == "Built-in Style"
+        elif style.filepath == user.filepath:
+            assert style.name == "User Style"
+        else:
+            assert False
+
+
+def test_bad_style_file(tmp_path_factory):
+    builtin_dir = tmp_path_factory.mktemp("builtin")
+    user_dir = tmp_path_factory.mktemp("user")
+
+    path = user_dir / "test_style.json"
+    path.write_text("bad json")
+    styles = Styles(builtin_dir, user_dir)
+    assert len(styles) == 1  # no error, default style inserted
+    assert style_is_default(styles[0])
 
 
 def test_bad_style_type():
@@ -99,8 +126,7 @@ def test_bad_style_type():
         )
 
 
-def test_default_style():
-    with TemporaryDirectory(dir=Path(__file__).parent) as dir:
-        styles = Styles(Path(dir))
-        style = styles.default
-        assert style_is_default(style)
+def test_default_style(tmp_path_factory):
+    styles = Styles(tmp_path_factory.mktemp("builtin"), tmp_path_factory.mktemp("user"))
+    style = styles.default
+    assert style_is_default(style)

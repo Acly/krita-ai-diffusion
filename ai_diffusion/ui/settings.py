@@ -627,8 +627,8 @@ class ConnectionSettings(SettingsTab):
         )
         self._connection_status.setOpenExternalLinks(True)
 
-        open_log_button = QLabel(f"<a href='file://{util.log_path}'>View log files</a>", self)
-        open_log_button.setToolTip(str(util.log_path))
+        open_log_button = QLabel(f"<a href='file://{util.log_dir}'>View log files</a>", self)
+        open_log_button.setToolTip(str(util.log_dir))
         open_log_button.linkActivated.connect(self._open_logs)
 
         status_layout = QHBoxLayout()
@@ -751,7 +751,7 @@ class ConnectionSettings(SettingsTab):
             )
 
     def _open_logs(self):
-        QDesktopServices.openUrl(QUrl.fromLocalFile(str(util.log_path)))
+        QDesktopServices.openUrl(QUrl.fromLocalFile(str(util.log_dir)))
 
 
 class StylePresets(SettingsTab):
@@ -909,9 +909,9 @@ class StylePresets(SettingsTab):
             self._read()
 
     def _create_style(self):
-        checkpoint = self._style_widgets["sd_checkpoint"].value
+        cp = self._style_widgets["sd_checkpoint"].value or StyleSettings.sd_checkpoint.default
         # make sure the new style is in the combobox before setting it as the current style
-        new_style = Styles.list().create(checkpoint=checkpoint)
+        new_style = Styles.list().create(checkpoint=cp)
         self._update_style_list()
         self.current_style = new_style
 
@@ -920,7 +920,7 @@ class StylePresets(SettingsTab):
         self._update_style_list()
 
     def _open_style_folder(self):
-        QDesktopServices.openUrl(QUrl.fromLocalFile(str(Styles.list().folder)))
+        QDesktopServices.openUrl(QUrl.fromLocalFile(str(Styles.list().user_folder)))
 
     def _populate_style_list(self):
         self._style_list.addItems([f"{style.name} ({style.filename})" for style in Styles.list()])
@@ -959,18 +959,19 @@ class StylePresets(SettingsTab):
     def _set_checkpoint_warning(self):
         self._checkpoint_warning.setVisible(False)
         if client := root.connection.client_if_connected:
-            version = resolve_sd_version(self.current_style, client)
             if self.current_style.sd_checkpoint not in client.checkpoints:
                 self._checkpoint_warning.setText(
                     "The checkpoint used by this style is not installed."
                 )
                 self._checkpoint_warning.setVisible(True)
-            elif version not in client.supported_sd_versions:
-                self._checkpoint_warning.setText(
-                    f"This is a {version.value} checkpoint, but the {version.value} workload has"
-                    " not been installed."
-                )
-                self._checkpoint_warning.setVisible(True)
+            else:
+                version = resolve_sd_version(self.current_style, client)
+                if version not in client.supported_sd_versions:
+                    self._checkpoint_warning.setText(
+                        f"This is a {version.value} checkpoint, but the {version.value} workload has"
+                        " not been installed."
+                    )
+                    self._checkpoint_warning.setVisible(True)
 
     def _toggle_preferred_resolution(self, checked: bool):
         if checked and self._resolution_spin.value == 0:
@@ -1022,7 +1023,8 @@ class StylePresets(SettingsTab):
     def _write(self):
         style = self.current_style
         for name, widget in self._style_widgets.items():
-            setattr(style, name, widget.value)
+            if widget.value is not None:
+                setattr(style, name, widget.value)
         self._set_checkpoint_warning()
         style.save()
 
