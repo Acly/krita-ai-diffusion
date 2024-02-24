@@ -84,8 +84,8 @@ class RequestManager:
         self._requests[reply] = Request(url, future)
         return future
 
-    def get(self, url: str):
-        return self.http("GET", url)
+    def get(self, url: str, bearer=""):
+        return self.http("GET", url, bearer=bearer)
 
     def post(self, url: str, data: dict, bearer=""):
         return self.http("POST", url, data, bearer=bearer)

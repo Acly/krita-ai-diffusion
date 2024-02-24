@@ -16,7 +16,7 @@ from .config import result_dir
 
 def pytest_addoption(parser):
     parser.addoption("--test-install", action="store_true")
-    parser.addoption("--no-server-launch", action="store_true")
+    parser.addoption("--endpoint-url", type=str, default="")
     parser.addoption("--ci", action="store_true")
     parser.addoption("--benchmark", action="store_true")
 

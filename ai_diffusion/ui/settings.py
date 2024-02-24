@@ -598,12 +598,21 @@ class CloudWidget(QWidget):
         self.login_button = QPushButton("Login", self)
         layout.addWidget(self.login_button)
 
+        self._connection_status = QLabel(self)
+        self._connection_status.setWordWrap(True)
+        self._connection_status.setTextFormat(Qt.TextFormat.RichText)
+        layout.addWidget(self._connection_status)
+
         layout.addStretch()
 
     def update_connection_state(self, state: ConnectionState):
-        self.token.setEnabled(state is ConnectionState.disconnected)
-        self.login_button.setEnabled(state is ConnectionState.disconnected)
-        self.login_button.setText("Login" if state is ConnectionState.disconnected else "Connected")
+        can_connect = state in [ConnectionState.disconnected, ConnectionState.error]
+        self.token.setEnabled(can_connect)
+        self.login_button.setEnabled(can_connect)
+        self.login_button.setText("Login" if can_connect else "Connected")
+        self._connection_status.setText(state.name.capitalize())
+        if state is ConnectionState.error:
+            self._connection_status.setText(f"<b>Error</b>: {root.connection.error}")
 
 
 class ConnectionSettings(SettingsTab):

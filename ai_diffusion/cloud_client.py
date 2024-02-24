@@ -23,12 +23,14 @@ class CloudClient(Client):
     _queue: asyncio.Queue[JobInfo]
     _current_remote_id: str | None = None
 
-    default_url = "http://localhost:8000"
+    default_url = "https://api.runpod.ai/v2/y7lw3xm1e2skgj"
 
     @staticmethod
     async def connect(url: str, access_token: str):
         client = CloudClient(url, access_token)
         if "localhost" not in url:
+            if not access_token:
+                raise ValueError("Authorization missing for cloud endpoint")
             health = await client._get("health")
             log.info(f"Connected to {url}, health: {health}")
         return client
@@ -41,7 +43,7 @@ class CloudClient(Client):
         self._queue = asyncio.Queue()
 
     async def _get(self, op: str):
-        return await self._requests.get(f"{self.url}/{op}")
+        return await self._requests.get(f"{self.url}/{op}", bearer=self._token)
 
     async def _post(self, op: str, data: dict):
         return await self._requests.post(f"{self.url}/{op}", data, bearer=self._token)

@@ -62,12 +62,17 @@ def pod_server(qtapp, pytestconfig):
         task.cancel()
         await process.communicate()
 
-    if pytestconfig.getoption("--no-server-launch"):
-        # Expects pod server is already running, eg. via docker
-        yield "http://localhost:8000"
+    if url := pytestconfig.getoption("--endpoint-url"):
+        with open(root_dir / ".env") as f:
+            for line in f:
+                key, value = line.strip().split("=", 1)
+                os.environ[key] = value
+        api_key = os.environ.get("RUNPOD_API_KEY", "")
+
+        yield (url, api_key)  # Local docker image or deployed serverless endpoint
     else:
         process, task = qtapp.run(start())
-        yield "http://localhost:8000"
+        yield ("http://localhost:8000", "")
         qtapp.run(stop(process, task))
 
 
@@ -109,5 +114,5 @@ def test_simple(qtapp, pod_server):
         batch_count=2,
     )
 
-    client = qtapp.run(CloudClient.connect(pod_server, access_token=""))
+    client = qtapp.run(CloudClient.connect(*pod_server))
     run_and_save(qtapp, client, workflow, "pod_simple")
