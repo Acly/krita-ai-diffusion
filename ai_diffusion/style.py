@@ -11,6 +11,8 @@ from .util import encode_json, user_data_dir, client_logger as log
 
 sampler_options = [
     "DDIM",
+    "Euler",
+    "Euler a",
     "DPM++ 2M",
     "DPM++ 2M Karras",
     "DPM++ 2M SDE",
@@ -18,8 +20,7 @@ sampler_options = [
     "DPM++ SDE Karras",
     "UniPC BH2",
     "LCM",
-    "Euler",
-    "Euler a",
+    "Lightning",
 ]
 
 
