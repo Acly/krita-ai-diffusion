@@ -69,7 +69,7 @@ class ComfyClient(Client):
     _supported_sd_versions: list[SDVersion]
 
     @staticmethod
-    async def connect(url=default_url):
+    async def connect(url=default_url, access_token=""):
         client = ComfyClient(parse_url(url))
         log.info(f"Connecting to {client.url}")
 

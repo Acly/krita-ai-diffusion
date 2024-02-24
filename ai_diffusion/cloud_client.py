@@ -1,5 +1,6 @@
 import asyncio
 import json
+import os
 import uuid
 from dataclasses import dataclass
 
@@ -23,10 +24,10 @@ class CloudClient(Client):
     _queue: asyncio.Queue[JobInfo]
     _current_remote_id: str | None = None
 
-    default_url = "https://api.runpod.ai/v2/y7lw3xm1e2skgj"
+    default_url = os.getenv("RUNPOD_ENDPOINT", "https://api.runpod.ai/v2/y7lw3xm1e2skgj")
 
     @staticmethod
-    async def connect(url: str, access_token: str):
+    async def connect(url: str, access_token=""):
         client = CloudClient(url, access_token)
         if "localhost" not in url:
             if not access_token:
@@ -73,9 +74,15 @@ class CloudClient(Client):
         }
         response: dict = await self._post("run", data)
         remote_id = self._current_remote_id = response["id"]
+        yield ClientMessage(ClientEvent.progress, job.id, 0)
 
         while response["status"] == "IN_QUEUE" or response["status"] == "IN_PROGRESS":
             response = await self._post(f"status/{remote_id}", {})
+            log.info(f"Job [id={job.id}, rp={remote_id}] status: {response}")
+            if response["status"] == "IN_PROGRESS":
+                output = response["output"]
+                if progress := output.get("progress", None):
+                    yield ClientMessage(ClientEvent.progress, job.id, progress)
             await asyncio.sleep(_poll_interval)
         if response["status"] == "COMPLETED":
             output = response["output"]
