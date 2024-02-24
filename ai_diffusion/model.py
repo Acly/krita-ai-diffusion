@@ -1,4 +1,5 @@
 from __future__ import annotations
+import asyncio
 from pathlib import Path
 from enum import Enum
 from typing import Any, NamedTuple
@@ -163,7 +164,8 @@ class Model(QObject, ObservableProperties):
         for i in range(count):
             job = self.jobs.add(job_kind, pos, neg, bounds, sampling.strength, sampling.seed)
             await self._enqueue_job(job, input)
-            sampling.seed = sampling.seed + (i + 1) * settings.batch_size
+            if count > 1:  # don't modify inputs for live, they are used to check for changes
+                sampling.seed = sampling.seed + (i + 1) * settings.batch_size
             result.append(job)
         return result
 
@@ -204,6 +206,9 @@ class Model(QObject, ObservableProperties):
         eventloop.run(_report_errors(self, self._enqueue_job(job, inputs)))
 
     def generate_live(self):
+        eventloop.run(_report_errors(self, self._generate_live()))
+
+    async def _generate_live(self, last_input: WorkflowInput | None = None):
         strength = self.live.strength
         workflow_kind = WorkflowKind.generate if strength == 1.0 else WorkflowKind.refine
         client = self._connection.client
@@ -224,25 +229,24 @@ class Model(QObject, ObservableProperties):
         if mask is not None or self.live.strength < 1.0:
             image = self._get_current_image(bounds)
 
-        try:
-            input = workflow.prepare(
-                workflow_kind,
-                image or bounds.extent,
-                TextInput(self.prompt, self.negative_prompt, self.style.style_prompt),
-                self.style,
-                self.seed,
-                client.models,
-                mask=mask,
-                control=[c.get_image(bounds) for c in self.control],
-                strength=self.live.strength,
-                inpaint=InpaintParams(InpaintMode.fill, mask.bounds) if mask else None,
-                is_live=True,
-            )
-        except Exception as e:
-            self.report_error(util.log_error(e))
-            return
-        self.clear_error()
-        eventloop.run(_report_errors(self, self._generate(input, bounds, 1, is_live=True)))
+        input = workflow.prepare(
+            workflow_kind,
+            image or bounds.extent,
+            TextInput(self.prompt, self.negative_prompt, self.style.style_prompt),
+            self.style,
+            self.seed,
+            client.models,
+            mask=mask,
+            control=[c.get_image(bounds) for c in self.control],
+            strength=self.live.strength,
+            inpaint=InpaintParams(InpaintMode.fill, mask.bounds) if mask else None,
+            is_live=True,
+        )
+        if input != last_input:
+            await self._generate(input, bounds, 1, is_live=True)
+            return input
+
+        return None
 
     def _get_current_image(self, bounds: Bounds):
         exclude = [  # exclude control layers from projection
@@ -537,12 +541,15 @@ class LiveWorkspace(QObject, ObservableProperties):
     modified = pyqtSignal(QObject, str)
 
     _model: Model
+    _last_input: WorkflowInput | None = None
     _result: Image | None = None
     _result_bounds: Bounds | None = None
     _keyframes_folder: Path | None = None
     _keyframe_start = 0
     _keyframe_index = 0
     _keyframes: list[Path]
+
+    _poll_rate = 0.1
 
     def __init__(self, model: Model):
         super().__init__()
@@ -555,7 +562,7 @@ class LiveWorkspace(QObject, ObservableProperties):
             self._is_active = active
             self.is_active_changed.emit(active)
             if active:
-                self._model.generate_live()
+                eventloop.run(_report_errors(self._model, self._continue_generating()))
             else:
                 self.is_recording = False
 
@@ -577,8 +584,16 @@ class LiveWorkspace(QObject, ObservableProperties):
             if len(job.results) > 0:
                 self.set_result(job.results[0], job.params.bounds)
             self.is_active = self._is_active and self._model.document.is_active
-            if self.is_active:
-                self._model.generate_live()
+            eventloop.run(_report_errors(self._model, self._continue_generating()))
+
+    async def _continue_generating(self):
+        while self.is_active:
+            new_input = await self._model._generate_live(self._last_input)
+            if new_input is not None:  # frame was scheduled
+                self._last_input = new_input
+                return
+            # no changes in input data
+            await asyncio.sleep(self._poll_rate)
 
     def copy_result_to_layer(self):
         assert self.result is not None and self._result_bounds is not None
