@@ -61,6 +61,7 @@ class ModelSync:
         state["inpaint"] = _serialize(model.inpaint)
         state["upscale"] = _serialize(model.upscale)
         state["live"] = _serialize(model.live)
+        state["animation"] = _serialize(model.animation)
         state["control"] = [_serialize(c) for c in model.control]
         state["history"] = [asdict(h) for h in self._history]
         state_str = json.dumps(state, indent=2)
@@ -73,6 +74,7 @@ class ModelSync:
         _deserialize(model.inpaint, state.get("inpaint", {}))
         _deserialize(model.upscale, state.get("upscale", {}))
         _deserialize(model.live, state.get("live", {}))
+        _deserialize(model.animation, state.get("animation", {}))
 
         for control_state in state.get("control", []):
             model.control.add()
@@ -94,6 +96,7 @@ class ModelSync:
         model.inpaint.modified.connect(self._save)
         model.upscale.modified.connect(self._save)
         model.live.modified.connect(self._save)
+        model.animation.modified.connect(self._save)
         model.control.added.connect(self._track_control)
         model.control.removed.connect(self._save)
         for control in model.control:

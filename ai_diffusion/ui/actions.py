@@ -10,6 +10,8 @@ def generate():
             model.upscale_image()
         elif model.workspace is Workspace.live:
             model.generate_live()
+        elif model.workspace is Workspace.animation:
+            model.animation.generate()
 
 
 def cancel_active():

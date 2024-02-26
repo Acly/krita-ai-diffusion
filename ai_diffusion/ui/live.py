@@ -182,6 +182,7 @@ class LiveWidget(QWidget):
                 model.live.result_available.connect(self.show_result),
             ]
             self.control_list.model = model
+            self.preview_area.clear()
 
     def update_settings(self, key: str, value):
         if key == "show_negative_prompt":

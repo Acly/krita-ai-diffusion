@@ -40,7 +40,7 @@ from ..root import root
 from ..client import filter_supported_styles, resolve_sd_version
 from ..properties import Binding, Bind, bind, bind_combo
 from ..jobs import JobState, JobQueue
-from ..model import Model, Workspace, ControlLayer
+from ..model import Model, Workspace, ControlLayer, SamplingQuality
 from ..attention_edit import edit_attention, select_on_cursor_pos
 from ..util import ensure
 from .settings import SettingsDialog
@@ -441,8 +441,9 @@ class StyleSelectWidget(QWidget):
     _styles: list[Style]
 
     value_changed = pyqtSignal(Style)
+    quality_changed = pyqtSignal(SamplingQuality)
 
-    def __init__(self, parent):
+    def __init__(self, parent, show_quality=False):
         super().__init__(parent)
         self._value = Styles.list().default
 
@@ -453,7 +454,14 @@ class StyleSelectWidget(QWidget):
         self._combo = QComboBox(self)
         self.update_styles()
         self._combo.currentIndexChanged.connect(self.change_style)
-        layout.addWidget(self._combo)
+        layout.addWidget(self._combo, 3)
+
+        if show_quality:
+            self._quality_combo = QComboBox(self)
+            self._quality_combo.addItem("Fast", SamplingQuality.fast.value)
+            self._quality_combo.addItem("Quality", SamplingQuality.quality.value)
+            self._quality_combo.currentIndexChanged.connect(self.change_quality)
+            layout.addWidget(self._quality_combo, 1)
 
         settings = QToolButton(self)
         settings.setIcon(theme.icon("settings"))
@@ -485,6 +493,10 @@ class StyleSelectWidget(QWidget):
         if style != self._value:
             self._value = style
             self.value_changed.emit(style)
+
+    def change_quality(self):
+        quality = SamplingQuality(self._quality_combo.currentData())
+        self.quality_changed.emit(quality)
 
     def show_settings(self):
         SettingsDialog.instance().show(self._value)
@@ -732,6 +744,7 @@ class WorkspaceSelectWidget(QToolButton):
         Workspace.generation: theme.icon("workspace-generation"),
         Workspace.upscaling: theme.icon("workspace-upscaling"),
         Workspace.live: theme.icon("workspace-live"),
+        Workspace.animation: theme.icon("workspace-animation"),
     }
 
     _value = Workspace.generation
@@ -743,11 +756,14 @@ class WorkspaceSelectWidget(QToolButton):
         menu.addAction(self._create_action("Generate", Workspace.generation))
         menu.addAction(self._create_action("Upscale", Workspace.upscaling))
         menu.addAction(self._create_action("Live", Workspace.live))
+        menu.addAction(self._create_action("Animation", Workspace.animation))
 
         self.setToolButtonStyle(Qt.ToolButtonStyle.ToolButtonIconOnly)
         self.setMenu(menu)
         self.setPopupMode(QToolButton.InstantPopup)
-        self.setToolTip("Switch between workspaces: image generation, upscaling, live preview")
+        self.setToolTip(
+            "Switch between workspaces: image generation, upscaling, live preview and animation."
+        )
         self.setMinimumWidth(int(self.sizeHint().width() * 1.6))
         self.value = Workspace.generation
 

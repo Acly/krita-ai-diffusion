@@ -3,6 +3,8 @@ from pathlib import Path
 from enum import Enum
 from typing import Any, NamedTuple
 from PyQt5.QtCore import QObject, QUuid, pyqtSignal
+from PyQt5.QtGui import QImage
+import uuid
 
 from . import eventloop, workflow, util
 from .util import client_logger as log
@@ -25,6 +27,7 @@ class Workspace(Enum):
     generation = 0
     upscaling = 1
     live = 2
+    animation = 3
 
 
 class Model(QObject, ObservableProperties):
@@ -51,6 +54,7 @@ class Model(QObject, ObservableProperties):
     inpaint: CustomInpaint
     upscale: "UpscaleWorkspace"
     live: "LiveWorkspace"
+    animation: "AnimationWorkspace"
     progress = Property(0.0)
     jobs: JobQueue
     error = Property("")
@@ -80,6 +84,7 @@ class Model(QObject, ObservableProperties):
         self.control = ControlLayerList(self)
         self.upscale = UpscaleWorkspace(self)
         self.live = LiveWorkspace(self)
+        self.animation = AnimationWorkspace(self)
 
         self.jobs.selection_changed.connect(self.update_preview)
         self.error_changed.connect(lambda: self.has_error_changed.emit(self.has_error))
@@ -167,10 +172,12 @@ class Model(QObject, ObservableProperties):
 
         job_kind = JobKind.live_preview if is_live else JobKind.diffusion
         pos, neg = conditioning.prompt, conditioning.negative_prompt
+        result: list[Job] = []
         for i in range(count):
             job_id = await client.enqueue(job, self.queue_front)
-            self.jobs.add(job_kind, job_id, pos, neg, bounds, strength, job.seed)
+            result.append(self.jobs.add(job_kind, job_id, pos, neg, bounds, strength, job.seed))
             job.seed = seed + (i + 1) * settings.batch_size
+        return result
 
     def upscale_image(self):
         params = self.upscale.params
@@ -605,6 +612,150 @@ class LiveWorkspace(QObject, ObservableProperties):
         start, end = self._keyframe_start, self._keyframe_start + len(self._keyframes)
         self._model.document.active_layer.setName(f"[Rec] {start}-{end}: {self._model.prompt}")
         self._keyframes = []
+
+
+class SamplingQuality(Enum):
+    fast = 0
+    quality = 1
+
+
+class AnimationWorkspace(QObject, ObservableProperties):
+    sampling_quality = Property(SamplingQuality.fast, persist=True)
+    target_layer = Property(QUuid(), persist=True)
+    batch_mode = Property(True, persist=True)
+
+    sampling_quality_changed = pyqtSignal(SamplingQuality)
+    target_layer_changed = pyqtSignal(QUuid)
+    batch_mode_changed = pyqtSignal(bool)
+    target_image_changed = pyqtSignal(Image)
+    modified = pyqtSignal(QObject, str)
+
+    _model: Model
+    _keyframes_folder: Path | None = None
+    _keyframes: dict[str, list[Path]]
+
+    def __init__(self, model: Model):
+        super().__init__()
+        self._model = model
+        self._keyframes = {}
+        self.target_layer_changed.connect(self._update_target_image)
+        model.document.current_time_changed.connect(self._update_target_image)
+        model.jobs.job_finished.connect(self.handle_job_finished)
+
+    def generate(self):
+        if self.batch_mode:
+            self.generate_batch()
+        else:
+            self.generate_frame()
+
+    def generate_frame(self):
+        self._model.clear_error()
+        eventloop.run(_report_errors(self._model, self._generate_frame()))
+
+    async def _generate_frame(self):
+        strength = self._model.strength
+        live = self.sampling_quality is SamplingQuality.fast
+        seed = self._model.seed if self._model.fixed_seed else workflow.generate_seed()
+        bounds = Bounds(0, 0, *self._model.document.extent)
+        image = self._model._get_current_image(bounds) if strength < 1.0 else None
+        control = [c.get_image(bounds) for c in self._model.control]
+        cond = Conditioning(self._model.prompt, self._model.negative_prompt, control)
+        job = await self._model._generate(
+            bounds, cond, strength, image, None, seed, count=1, is_live=live
+        )
+        job[0].kind = JobKind.animation_frame
+        job[0].params.frame = (self._model.document.current_time, 0, 0)
+
+    def generate_batch(self):
+        doc = self._model.document
+        if self._model.strength < 1.0 and not doc.active_layer.animated():
+            self._model.report_error("The active layer does not contain an animation.")
+            return
+
+        if doc.filename:
+            path = Path(doc.filename)
+            folder = path.parent / f"{path.with_suffix('.animation')}"
+            folder.mkdir(exist_ok=True)
+            self._keyframes_folder = folder
+        else:
+            self._model.report_error("Document must be saved before generating an animation.")
+            return
+
+        self._model.clear_error()
+        eventloop.run(_report_errors(self._model, self._generate_batch()))
+
+    async def _generate_batch(self):
+        doc = self._model.document
+        layer = doc.active_layer
+        start_frame, end_frame = doc.playback_time_range
+        extent = doc.extent
+        bounds = Bounds(0, 0, *extent)
+        strength = self._model.strength
+        live = self.sampling_quality is SamplingQuality.fast
+        seed = self._model.seed if self._model.fixed_seed else workflow.generate_seed()
+        animation_id = str(uuid.uuid4())
+
+        for frame in range(start_frame, end_frame + 1):
+            if layer.hasKeyframeAtTime(frame) or strength == 1.0:
+                image = None
+                if strength < 1.0:
+                    pixels = layer.pixelDataAtTime(0, 0, extent.width, extent.height, frame)
+                    image = Image(QImage(pixels, extent.width, extent.height, QImage.Format_ARGB32))
+
+                control = [c.get_image(bounds) for c in self._model.control]
+                cond = Conditioning(self._model.prompt, self._model.negative_prompt, control)
+                job = await self._model._generate(
+                    bounds, cond, strength, image, None, seed, count=1, is_live=live
+                )
+                job[0].kind = JobKind.animation_batch
+                job[0].params.frame = (frame, start_frame, end_frame)
+                job[0].params.animation_id = animation_id
+
+    def handle_job_finished(self, job: Job):
+        if job.kind is JobKind.animation_batch:
+            assert self._keyframes_folder is not None
+            frame, _, end = job.params.frame
+            keyframes = self._keyframes.setdefault(job.params.animation_id, [])
+            if len(job.results) > 0:
+                image = job.results[0]
+                filename = self._keyframes_folder / f"frame-{frame}.png"
+                image.save(filename)
+                keyframes.append(filename)
+                self.target_image_changed.emit(image)
+            elif len(keyframes) > 0:
+                # Execution was cached because image content is the same as previous frame
+                keyframes.append(keyframes[-1])
+            if frame == end:
+                self._import_animation(job)
+
+        elif job.kind is JobKind.animation_frame:
+            if len(job.results) > 0:
+                doc = self._model.document
+                if job.params.frame[0] != doc.current_time:
+                    self._model.report_error("Generated frame does not match current time")
+                    return
+                if layer := self._model.layers.find(self.target_layer):
+                    image = job.results[0]
+                    doc.set_layer_content(layer, image, job.params.bounds, make_visible=False)
+                    self.target_image_changed.emit(image)
+                else:
+                    self._model.report_error("Target layer not found")
+
+    def _import_animation(self, job: Job):
+        doc = self._model.document
+        keyframes = self._keyframes.pop(job.params.animation_id)
+        _, start, end = job.params.frame
+        doc.import_animation(keyframes, start)
+        doc.active_layer.setName(f"[Generated] {start}-{end}: {job.params.prompt}")
+        self.target_layer = doc.active_layer.uniqueId()
+
+    def _update_target_image(self):
+        if self.batch_mode:
+            return
+        if layer := self._model.layers.find(self.target_layer):
+            bounds = Bounds(0, 0, *self._model.document.extent)
+            image = self._model.document.get_layer_image(layer, bounds)
+            self.target_image_changed.emit(image)
 
 
 def get_selection_modifiers(inpaint_mode: InpaintMode) -> dict[str, Any]:

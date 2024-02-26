@@ -17,6 +17,7 @@ class Document(QObject):
     """Document interface. Used as placeholder when there is no open Document in Krita."""
 
     selection_bounds_changed = pyqtSignal()
+    current_time_changed = pyqtSignal()
 
     def __init__(self):
         super().__init__()
@@ -65,7 +66,7 @@ class Document(QObject):
     def insert_vector_layer(self, name: str, svg: str) -> krita.Node:
         raise NotImplementedError
 
-    def set_layer_content(self, layer: krita.Node, img: Image, bounds: Bounds):
+    def set_layer_content(self, layer: krita.Node, img: Image, bounds: Bounds, make_visible=True):
         raise NotImplementedError
 
     def hide_layer(self, layer: krita.Node):
@@ -112,6 +113,14 @@ class Document(QObject):
         return 0.0
 
     @property
+    def playback_time_range(self) -> tuple[int, int]:
+        return 0, 0
+
+    @property
+    def current_time(self) -> int:
+        return 0
+
+    @property
     def is_valid(self) -> bool:
         return True
 
@@ -128,6 +137,7 @@ class KritaDocument(Document):
     _id: QUuid
     _poller: QTimer
     _selection_bounds: Bounds | None = None
+    _current_time: int = 0
     _instances: WeakValueDictionary[str, KritaDocument] = WeakValueDictionary()
 
     def __init__(self, krita_document: krita.Document):
@@ -256,15 +266,17 @@ class KritaDocument(Document):
         self.refresh(layer)
         return layer
 
-    def set_layer_content(self, layer: krita.Node, img: Image, bounds: Bounds):
+    def set_layer_content(self, layer: krita.Node, img: Image, bounds: Bounds, make_visible=True):
         layer_bounds = Bounds.from_qrect(layer.bounds())
         if layer_bounds != bounds and not layer_bounds.is_zero:
             # layer.cropNode(*bounds)  <- more efficient, but clutters the undo stack
             blank = Image.create(layer_bounds.extent, fill=0)
             layer.setPixelData(blank.data, *layer_bounds)
         layer.setPixelData(img.data, *bounds)
-        layer.setVisible(True)
-        self.refresh(layer)
+        if make_visible:
+            layer.setVisible(True)
+        if layer.visible():
+            self.refresh(layer)
         return layer
 
     def hide_layer(self, layer: krita.Node):
@@ -328,6 +340,14 @@ class KritaDocument(Document):
         return self._doc.resolution() / 72.0  # KisImage::xRes which is applied to vectors
 
     @property
+    def playback_time_range(self):
+        return self._doc.playBackStartTime(), self._doc.playBackEndTime()
+
+    @property
+    def current_time(self):
+        return self._doc.currentTime()
+
+    @property
     def is_valid(self):
         return self._doc in Krita.instance().documents()
 
@@ -342,6 +362,11 @@ class KritaDocument(Document):
             if selection_bounds != self._selection_bounds:
                 self._selection_bounds = selection_bounds
                 self.selection_bounds_changed.emit()
+
+            current_time = self.current_time
+            if current_time != self._current_time:
+                self._current_time = current_time
+                self.current_time_changed.emit()
         else:
             self._poller.stop()
 

@@ -24,6 +24,8 @@ class JobKind(Enum):
     control_layer = 1
     upscaling = 2
     live_preview = 3
+    animation_batch = 4
+    animation_frame = 5
 
 
 @dataclass
@@ -33,6 +35,8 @@ class JobParams:
     negative_prompt: str = ""
     strength: float = 1.0
     seed: int = 0
+    frame: tuple[int, int, int] = (0, 0, 0)
+    animation_id: str = ""
 
     @classmethod
     def equal_ignore_seed(cls, a: JobParams | None, b: JobParams | None):

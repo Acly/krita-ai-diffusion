@@ -12,6 +12,7 @@ from . import theme
 from .generation import GenerationWidget
 from .upscale import UpscaleWidget
 from .live import LiveWidget
+from .animation import AnimationWidget
 
 
 class WelcomeWidget(QWidget):
@@ -95,12 +96,14 @@ class ImageDiffusionWidget(DockWidget):
         self._welcome = WelcomeWidget(root.server)
         self._generation = GenerationWidget()
         self._upscaling = UpscaleWidget()
+        self._animation = AnimationWidget()
         self._live = LiveWidget()
         self._frame = QStackedWidget(self)
         self._frame.addWidget(self._welcome)
         self._frame.addWidget(self._generation)
         self._frame.addWidget(self._upscaling)
         self._frame.addWidget(self._live)
+        self._frame.addWidget(self._animation)
         self.setWidget(self._frame)
 
         root.connection.state_changed.connect(self.update_content)
@@ -132,3 +135,6 @@ class ImageDiffusionWidget(DockWidget):
         elif model.workspace is Workspace.live:
             self._live.model = model
             self._frame.setCurrentWidget(self._live)
+        elif model.workspace is Workspace.animation:
+            self._animation.model = model
+            self._frame.setCurrentWidget(self._animation)
