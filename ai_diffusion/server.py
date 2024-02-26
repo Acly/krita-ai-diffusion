@@ -367,6 +367,7 @@ class Server:
         self.state = ServerState.starting
         try:
             args = ["-su", "-Xutf8", "main.py"]
+            env = {}
             if self.backend is ServerBackend.cpu:
                 args.append("--cpu")
             elif self.backend is ServerBackend.directml:
@@ -377,7 +378,11 @@ class Server:
                 args += settings.server_arguments.split(" ")
             if port is not None:
                 args += ["--port", str(port)]
-            self._process = await create_process(self._python_cmd, *args, cwd=self.comfy_dir)
+            if self.backend is not ServerBackend.cpu:
+                env["ONEDNN_MAX_CPU_ISA"] = "AVX2"  # workaround for #401
+            self._process = await create_process(
+                self._python_cmd, *args, cwd=self.comfy_dir, additional_env=env
+            )
 
             assert self._process.stdout is not None
             async for line in self._process.stdout:
@@ -627,8 +632,8 @@ def _parse_common_errors(output: str, return_code: int | None):
     if "error while attempting to bind on address" in output:
         message_part = output.split("bind on address")[-1].strip()
         return (
-            f"Could not bind on address {message_part}.<br>"
-            + "<a href='https://github.com/Acly/krita-ai-diffusion/wiki/Common-Issues#error-during-server-startup-could-not-bind-on-address-only-one-usage-of-each-socket-address-is-normally-permitted'>Read more...</a>"
+            f"Could not bind on address {message_part}. "
+            + "<a href='https://github.com/Acly/krita-ai-diffusion/wiki/Common-Issues#error-during-server-startup-could-not-bind-on-address-only-one-usage-of-each-socket-address-is-normally-permitted'>More information...</a>"
         )
 
     nvidia_driver = "Found no NVIDIA driver on your system"

@@ -155,7 +155,9 @@ if is_linux:
         return libc.prctl(1, signal.SIGTERM)
 
 
-async def create_process(program: str | Path, *args: str, cwd: Path | None = None):
+async def create_process(
+    program: str | Path, *args: str, cwd: Path | None = None, additional_env: dict | None = None
+):
     PIPE = asyncio.subprocess.PIPE
 
     platform_args = {}
@@ -165,6 +167,8 @@ async def create_process(program: str | Path, *args: str, cwd: Path | None = Non
         platform_args["preexec_fn"] = set_pdeathsig
 
     env = os.environ.copy()
+    if additional_env:
+        env.update(additional_env)
     if "PYTHONPATH" in env:
         del env["PYTHONPATH"]  # Krita adds its own python path, which can cause conflicts
 
