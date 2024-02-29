@@ -76,6 +76,8 @@ class WelcomeWidget(QWidget):
                     "Server is not installed or not running. Click below to start."
                 )
             self._connect_error.setVisible(True)
+        if connection.state is ConnectionState.auth_missing:
+            self._connect_status.setText("Not signed in. Click below to connect.")
         if connection.state is ConnectionState.connecting:
             self._connect_status.setText(f"Connecting to server...")
         if connection.state is ConnectionState.connected:
@@ -120,11 +122,7 @@ class ImageDiffusionWidget(DockWidget):
     def update_content(self):
         model = root.model_for_active_document()
         connection = root.connection
-        if model is None or connection.state in [
-            ConnectionState.disconnected,
-            ConnectionState.connecting,
-            ConnectionState.error,
-        ]:
+        if model is None or connection.state is not ConnectionState.connected:
             self._frame.setCurrentWidget(self._welcome)
         elif model.workspace is Workspace.generation:
             self._generation.model = model

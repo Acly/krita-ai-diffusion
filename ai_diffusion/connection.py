@@ -1,6 +1,7 @@
 from __future__ import annotations
 from enum import Enum
-from PyQt5.QtCore import QObject, pyqtSignal
+from PyQt5.QtCore import QObject, pyqtSignal, QUrl
+from PyQt5.QtGui import QDesktopServices
 import asyncio
 
 from .client import Client, ClientMessage, ClientEvent, DeviceInfo
@@ -19,6 +20,11 @@ class ConnectionState(Enum):
     connected = 2
     error = 3
 
+    auth_missing = 4
+    auth_requesting = 5
+    auth_pending = 6
+    auth_error = 7
+
 
 class Connection(QObject, ObservableProperties):
     state = Property(ConnectionState.disconnected)
@@ -35,10 +41,33 @@ class Connection(QObject, ObservableProperties):
 
     def __init__(self):
         super().__init__()
+        settings.changed.connect(self._handle_settings_changed)
+        self._update_state()
 
     def __del__(self):
         if self._task is not None:
             self._task.cancel()
+
+    async def _sign_in(self, url: str):
+        self._client = CloudClient(url)
+        self.state = ConnectionState.auth_requesting
+        try:
+            sign_in = self._client.sign_in()
+            url = await anext(sign_in)
+            self.state = ConnectionState.auth_pending
+            QDesktopServices.openUrl(QUrl(url))
+
+            settings.access_token = await anext(sign_in)
+            self.state = ConnectionState.disconnected
+            await self._connect(self._client.url, ServerMode.cloud, settings.access_token)
+            settings.save()
+
+        except Exception as e:
+            self.error = util.log_error(e)
+            self.state = ConnectionState.auth_error
+
+    def sign_in(self):
+        eventloop.run(self._sign_in(CloudClient.default_url))
 
     async def _connect(self, url: str, mode: ServerMode, access_token=""):
         if self.state is ConnectionState.connected:
@@ -48,9 +77,13 @@ class Connection(QObject, ObservableProperties):
         self.state = ConnectionState.connecting
         try:
             if mode is ServerMode.cloud:
+                if access_token == "":
+                    self.state = ConnectionState.auth_missing
+                    return
                 self._client = await CloudClient.connect(CloudClient.default_url, access_token)
             else:
                 self._client = await ComfyClient.connect(url)
+
             apply_performance_preset(settings, self._client.device_info)
             if self._task is None:
                 self._task = eventloop._loop.create_task(self._handle_messages())
@@ -132,6 +165,23 @@ class Connection(QObject, ObservableProperties):
                     self.error = f"Error handling server message: {str(e)}"
         except asyncio.CancelledError:
             pass  # shutdown
+
+    def _update_state(self):
+        if (
+            self.state in [ConnectionState.disconnected, ConnectionState.error]
+            and settings.server_mode is ServerMode.cloud
+            and settings.access_token == ""
+        ):
+            self.state = ConnectionState.auth_missing
+        elif (
+            self.state in [ConnectionState.auth_missing, ConnectionState.auth_error]
+            and settings.server_mode is not ServerMode.cloud
+        ):
+            self.state = ConnectionState.disconnected
+
+    def _handle_settings_changed(self, key: str, value: object):
+        if key == "server_mode":
+            self._update_state()
 
 
 def apply_performance_preset(settings: Settings, device: DeviceInfo):

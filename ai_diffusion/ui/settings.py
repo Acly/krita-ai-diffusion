@@ -589,14 +589,13 @@ class CloudWidget(QWidget):
     def __init__(self, parent):
         super().__init__(parent)
         layout = QVBoxLayout()
-        layout.setContentsMargins(0, 0, 0, 0)
+        layout.setContentsMargins(0, 10, 0, 0)
         self.setLayout(layout)
 
-        self.token = LineEditSetting(Settings._access_token, self)
-        layout.addWidget(self.token)
-
-        self.login_button = QPushButton("Login", self)
-        layout.addWidget(self.login_button)
+        self.connect_button = QPushButton("Login", self)
+        self.connect_button.setMinimumHeight(int(1.3 * self.connect_button.sizeHint().height()))
+        self.connect_button.clicked.connect(self._connect)
+        layout.addWidget(self.connect_button)
 
         self._connection_status = QLabel(self)
         self._connection_status.setWordWrap(True)
@@ -606,13 +605,33 @@ class CloudWidget(QWidget):
         layout.addStretch()
 
     def update_connection_state(self, state: ConnectionState):
-        can_connect = state in [ConnectionState.disconnected, ConnectionState.error]
-        self.token.setEnabled(can_connect)
-        self.login_button.setEnabled(can_connect)
-        self.login_button.setText("Login" if can_connect else "Connected")
-        self._connection_status.setText(state.name.capitalize())
-        if state is ConnectionState.error:
-            self._connection_status.setText(f"<b>Error</b>: {root.connection.error}")
+        self._connection_status.setVisible(False)
+        if state in [ConnectionState.auth_missing, ConnectionState.auth_error]:
+            self.connect_button.setText("Sign in")
+            self.connect_button.setEnabled(True)
+        elif state is ConnectionState.auth_pending:
+            self.connect_button.setText("Sign in")
+            self.connect_button.setEnabled(False)
+            self._connection_status.setText("Waiting for sign-in to complete...")
+            self._connection_status.setStyleSheet(f"color: {yellow}; font-weight:bold")
+            self._connection_status.setVisible(True)
+        else:
+            can_connect = state in [ConnectionState.disconnected, ConnectionState.error]
+            self.connect_button.setEnabled(can_connect)
+            self.connect_button.setText("Connect" if can_connect else "Connected")
+
+        if state in [ConnectionState.error, ConnectionState.auth_error]:
+            error = root.connection.error or "Unknown error"
+            self._connection_status.setText(f"<b>Error</b>: {error.removeprefix('Error: ')}")
+            self._connection_status.setStyleSheet(f"color: {red}; font-weight:bold")
+            self._connection_status.setVisible(True)
+
+    def _connect(self):
+        connection = root.connection
+        if connection.state in [ConnectionState.auth_missing, ConnectionState.auth_error]:
+            connection.sign_in()
+        else:
+            connection.connect()
 
 
 class ConnectionSettings(SettingsTab):
@@ -636,9 +655,6 @@ class ConnectionSettings(SettingsTab):
             label.setContentsMargins(20, 0, 0, 0)
 
         self._cloud_widget = CloudWidget(self)
-        self._cloud_widget.token.value_changed.connect(self.write)
-        self._cloud_widget.login_button.clicked.connect(self._connect)
-
         self._server_widget = ServerWidget(server, self)
         self._connection_widget = QWidget(self)
         self._server_stack = QStackedWidget(self)
@@ -718,12 +734,10 @@ class ConnectionSettings(SettingsTab):
 
     def _read(self):
         self.server_mode = settings.server_mode
-        self._cloud_widget.token.value = settings.access_token
         self._server_url.setText(settings.server_url)
 
     def _write(self):
         settings.server_mode = self.server_mode
-        settings.access_token = self._cloud_widget.token.value
         settings.server_url = self._server_url.text()
 
     def _change_server_mode(self, checked: bool):

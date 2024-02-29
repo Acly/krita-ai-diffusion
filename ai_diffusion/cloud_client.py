@@ -1,6 +1,8 @@
 import asyncio
+from datetime import datetime
 import json
 import os
+import platform
 import uuid
 from dataclasses import dataclass
 
@@ -20,36 +22,66 @@ class JobInfo:
 
 class CloudClient(Client):
     _requests = RequestManager()
-    _token: str
     _queue: asyncio.Queue[JobInfo]
+    _token: str = ""
     _current_remote_id: str | None = None
 
-    default_url = os.getenv("RUNPOD_ENDPOINT", "https://api.runpod.ai/v2/y7lw3xm1e2skgj")
+    default_url = os.getenv("CLOUD_ENDPOINT", "http://localhost:3000")
 
     @staticmethod
-    async def connect(url: str, access_token=""):
-        client = CloudClient(url, access_token)
-        if "localhost" not in url:
-            if not access_token:
-                raise ValueError("Authorization missing for cloud endpoint")
-            health = await client._get("health")
-            log.info(f"Connected to {url}, health: {health}")
+    async def connect(url: str, access_token: str):
+        if not access_token:
+            raise ValueError("Authorization missing for cloud endpoint")
+        client = CloudClient(url)
+        await client.authenticate(access_token)
         return client
 
-    def __init__(self, url: str, token: str):
+    def __init__(self, url: str):
         self.url = url
-        self._token = token
         self.models = _models
-        self.device_info = DeviceInfo("Cloud", "Remote GPU", 48)
+        self.device_info = DeviceInfo("Cloud", "Remote GPU", 24)
         self._queue = asyncio.Queue()
 
     async def _get(self, op: str):
-        return await self._requests.get(f"{self.url}/{op}", bearer=self._token)
+        return await self._requests.get(f"{self.url}/api/{op}", bearer=self._token)
 
     async def _post(self, op: str, data: dict):
-        return await self._requests.post(f"{self.url}/{op}", data, bearer=self._token)
+        return await self._requests.post(f"{self.url}/api/{op}", data, bearer=self._token)
+
+    async def sign_in(self):
+        client_id = str(uuid.uuid4())
+        info = f"Generative AI for Krita [Device: {platform.node()}]"
+        log.info(f"Sending authorization request for {info} to {self.url}")
+        init = await self._post("auth/initiate", dict(client_id=client_id, client_info=info))
+
+        log.info(f"Waiting for completion of authorization at {self.url}{init['url']}")
+        yield f"{self.url}{init['url']}"
+
+        auth_confirm = await self._post("auth/confirm", dict(client_id=client_id))
+        time = datetime.now()
+        while auth_confirm["status"] == "not-found":
+            if (datetime.now() - time).seconds > 300:
+                raise TimeoutError("Sign-in attempt timed out after 5 minutes")
+            await asyncio.sleep(2)
+            auth_confirm = await self._post("auth/confirm", dict(client_id=client_id))
+
+        if auth_confirm["status"] == "authorized":
+            self._token = auth_confirm["token"]
+            log.info(f"Authorization successful")
+            yield self._token
+        else:
+            error = auth_confirm.get("status", "unexpected response")
+            raise RuntimeError(f"Authorization could not be confirmed: {error}")
+
+    async def authenticate(self, token: str):
+        if not token:
+            raise ValueError("Authorization missing for cloud endpoint")
+        self._token = token
+        user = await self._get("user")
+        log.info(f"Connected to {self.url}, user: {user}")
 
     async def enqueue(self, work: WorkflowInput, front: bool = False):
+        work.batch_count = min(work.batch_count, 2)  # TODO: bigger payload
         job = JobInfo(str(uuid.uuid4()), work)
         await self._queue.put(job)
         return job.id
@@ -68,21 +100,18 @@ class CloudClient(Client):
 
     async def _process_job(self, job: JobInfo):
         inputs = job.work.to_dict()
-        data = {
-            "input": {"workflow": inputs},
-            "policy": _default_policy,
-        }
-        response: dict = await self._post("run", data)
+        data = {"input": {"workflow": inputs}}
+        response: dict = await self._post("generate", data)
         remote_id = self._current_remote_id = response["id"]
         yield ClientMessage(ClientEvent.progress, job.id, 0)
 
         while response["status"] == "IN_QUEUE" or response["status"] == "IN_PROGRESS":
             response = await self._post(f"status/{remote_id}", {})
-            log.info(f"Job [id={job.id}, rp={remote_id}] status: {response}")
+            log.info(f"Job [id={job.id}, rp={remote_id}] status: {str(response)[:100]}")
             if response["status"] == "IN_PROGRESS":
-                output = response["output"]
-                if progress := output.get("progress", None):
-                    yield ClientMessage(ClientEvent.progress, job.id, progress)
+                if output := response.get("output", None):
+                    if progress := output.get("progress", None):
+                        yield ClientMessage(ClientEvent.progress, job.id, progress)
             await asyncio.sleep(_poll_interval)
         if response["status"] == "COMPLETED":
             output = response["output"]
