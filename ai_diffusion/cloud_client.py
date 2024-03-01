@@ -16,17 +16,21 @@ from .util import client_logger as log
 
 @dataclass
 class JobInfo:
-    id: str
+    local_id: str
     work: WorkflowInput
+    remote_id: str | None = None
+
+    def __str__(self):
+        return f"Job[local={self.local_id}, remote={self.remote_id}]"
 
 
 class CloudClient(Client):
     _requests = RequestManager()
     _queue: asyncio.Queue[JobInfo]
     _token: str = ""
-    _current_remote_id: str | None = None
+    _current_job: JobInfo | None = None
 
-    default_url = os.getenv("CLOUD_ENDPOINT", "http://localhost:3000")
+    default_url = os.getenv("INTERSTICE_URL", "http://localhost:3000")
 
     @staticmethod
     async def connect(url: str, access_token: str):
@@ -84,55 +88,62 @@ class CloudClient(Client):
         work.batch_count = min(work.batch_count, 2)  # TODO: bigger payload
         job = JobInfo(str(uuid.uuid4()), work)
         await self._queue.put(job)
-        return job.id
+        return job.local_id
 
     async def listen(self):
         while True:
             try:
-                job = await self._queue.get()
-                async for msg in self._process_job(job):
+                self._current_job = await self._queue.get()
+                async for msg in self._process_job(self._current_job):
                     yield msg
             except Exception as e:
-                log.exception("Unhandled exception in while processing job")
-                yield ClientMessage(ClientEvent.error, "", error=str(e))
+                log.exception(f"Unhandled exception while processing {self._current_job}")
+                if self._current_job is not None:
+                    yield ClientMessage(ClientEvent.error, self._current_job.local_id, error=str(e))
             except asyncio.CancelledError:
                 break
+            finally:
+                self._current_job = None
 
     async def _process_job(self, job: JobInfo):
         inputs = job.work.to_dict()
         data = {"input": {"workflow": inputs}}
         response: dict = await self._post("generate", data)
-        remote_id = self._current_remote_id = response["id"]
-        yield ClientMessage(ClientEvent.progress, job.id, 0)
+        job.remote_id = response["id"]
+        yield ClientMessage(ClientEvent.progress, job.local_id, 0)
 
         while response["status"] == "IN_QUEUE" or response["status"] == "IN_PROGRESS":
-            response = await self._post(f"status/{remote_id}", {})
-            log.info(f"Job [id={job.id}, rp={remote_id}] status: {str(response)[:100]}")
-            if response["status"] == "IN_PROGRESS":
+            response = await self._post(f"status/{job.remote_id}", {})
+            log.info(f"{job} status: {str(response)[:120]}")
+
+            if response["status"] == "IN_QUEUE":
+                yield ClientMessage(ClientEvent.queued, job.local_id)
+
+            elif response["status"] == "IN_PROGRESS":
+                progress = 0.09
                 if output := response.get("output", None):
-                    if progress := output.get("progress", None):
-                        yield ClientMessage(ClientEvent.progress, job.id, progress)
+                    progress = output.get("progress", progress)
+                yield ClientMessage(ClientEvent.progress, job.local_id, progress)
             await asyncio.sleep(_poll_interval)
+
         if response["status"] == "COMPLETED":
             output = response["output"]
             results = ImageCollection(Image.from_base64(img_b64) for img_b64 in output["images"])
-            yield ClientMessage(ClientEvent.finished, job.id, 1, results)
+            yield ClientMessage(ClientEvent.finished, job.local_id, 1, results)
         elif response["status"] == "FAILED":
-            err_msg, err_trace = _extract_error(response, remote_id)
-            log.error(f"Job [id={job.id}, rp={remote_id}] failed\n{err_msg}\n{err_trace}")
-            yield ClientMessage(ClientEvent.error, job.id, error=err_msg)
+            err_msg, err_trace = _extract_error(response, job.remote_id)
+            log.error(f"{job} failed\n{err_msg}\n{err_trace}")
+            yield ClientMessage(ClientEvent.error, job.local_id, error=err_msg)
         elif response["status"] == "CANCELLED":
-            yield ClientMessage(ClientEvent.interrupted, job.id)
+            yield ClientMessage(ClientEvent.interrupted, job.local_id)
         elif response["status"] == "TIMED_OUT":
-            yield ClientMessage(ClientEvent.error, job.id, error="job timed out")
+            yield ClientMessage(ClientEvent.error, job.local_id, error="job timed out")
         else:
             log.warning(f"Got unknown job status {response['status']}")
 
-        self._current_remote_id = None
-
     async def interrupt(self):
-        if self._current_remote_id:
-            await self._post(f"cancel/{self._current_remote_id}", {})
+        if self._current_job and self._current_job.remote_id:
+            await self._post(f"cancel/{self._current_job.remote_id}", {})
 
     async def clear_queue(self):
         self._queue = asyncio.Queue()
@@ -150,11 +161,7 @@ def _extract_error(response: dict, job_id: str | None):
     return err_msg, err_trace
 
 
-_poll_interval = 0.1  # seconds
-_default_policy = {
-    "executionTimeout": 2 * 60 * 1000,  # 2 minutes
-    "ttl": 10 * 60 * 1000,  # 10 minutes
-}
+_poll_interval = 0.5  # seconds
 
 _models = ClientModels()
 _models.checkpoints = {

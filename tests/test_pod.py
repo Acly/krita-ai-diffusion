@@ -1,11 +1,9 @@
 from pathlib import Path
 import pytest
-import json
 import subprocess
 import os
 import sys
 import asyncio
-import aiohttp
 
 from ai_diffusion.api import (
     WorkflowInput,
@@ -40,7 +38,6 @@ def pod_server(qtapp, pytestconfig):
 
     async def start():
         env = os.environ.copy()
-        env["COMFYUI_DIR"] = "C:\\Dev\\ComfyUI"
         args = ["-u", "-Xutf8", str(pod_main), "--rp_serve_api"]
         process = await asyncio.create_subprocess_exec(
             sys.executable,
@@ -62,17 +59,11 @@ def pod_server(qtapp, pytestconfig):
         task.cancel()
         await process.communicate()
 
-    if url := pytestconfig.getoption("--endpoint-url"):
-        with open(root_dir / ".env") as f:
-            for line in f:
-                key, value = line.strip().split("=", 1)
-                os.environ[key] = value
-        api_key = os.environ.get("RUNPOD_API_KEY", "")
-
-        yield (url, api_key)  # Local docker image or deployed serverless endpoint
+    if pytestconfig.getoption("--no-pod-process"):
+        yield None  # For using local docker image or deployed serverless endpoint
     else:
         process, task = qtapp.run(start())
-        yield ("http://localhost:8000", "")
+        yield process
         qtapp.run(stop(process, task))
 
 
@@ -86,6 +77,18 @@ async def receive_images(client: Client, work: WorkflowInput):
         if msg.event is ClientEvent.error:
             raise Exception(msg.error)
     assert False, "Connection closed without receiving images"
+
+
+@pytest.fixture()
+def cloud_client(qtapp, pod_server):
+    with open(root_dir / "service" / ".env.local") as f:
+        for line in f:
+            split = line.strip().split("=", 1)
+            if len(split) == 2:
+                os.environ[split[0]] = split[1].strip('"')
+    url = os.environ["TEST_SERVICE_URL"]
+    token = os.environ["TEST_SERVICE_TOKEN"]
+    return qtapp.run(CloudClient.connect(url, token))
 
 
 def run_and_save(
@@ -104,7 +107,7 @@ def run_and_save(
     return results[0]
 
 
-def test_simple(qtapp, pod_server):
+def test_simple(qtapp, cloud_client):
     workflow = WorkflowInput(
         WorkflowKind.generate,
         images=ImageInput.from_extent(Extent(512, 512)),
@@ -114,5 +117,4 @@ def test_simple(qtapp, pod_server):
         batch_count=2,
     )
 
-    client = qtapp.run(CloudClient.connect(*pod_server))
-    run_and_save(qtapp, client, workflow, "pod_simple")
+    run_and_save(qtapp, cloud_client, workflow, "pod_simple")

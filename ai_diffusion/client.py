@@ -18,6 +18,7 @@ class ClientEvent(Enum):
     error = 3
     connected = 4
     disconnected = 5
+    queued = 6
 
 
 class ClientMessage(NamedTuple):

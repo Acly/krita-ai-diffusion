@@ -286,9 +286,6 @@ class Model(QObject, ObservableProperties):
         if active and self.jobs.any_executing():
             self._connection.interrupt()
 
-    def report_progress(self, value):
-        self.progress = value
-
     def report_error(self, message: str):
         self.error = message
         self.live.is_active = False
@@ -303,9 +300,13 @@ class Model(QObject, ObservableProperties):
             util.client_logger.error(f"Received message {message} for unknown job.")
             return
 
-        if message.event is ClientEvent.progress:
+        if message.event is ClientEvent.queued:
             self.jobs.notify_started(job)
-            self.report_progress(message.progress)
+            self.progress = -1
+            self.progress_changed.emit(-1)
+        elif message.event is ClientEvent.progress:
+            self.jobs.notify_started(job)
+            self.progress = message.progress
         elif message.event is ClientEvent.finished:
             if message.images:
                 self.jobs.set_results(job, message.images)
@@ -322,7 +323,7 @@ class Model(QObject, ObservableProperties):
                 self.jobs.select(job.id, 0)
         elif message.event is ClientEvent.interrupted:
             self.jobs.notify_cancelled(job)
-            self.report_progress(0)
+            self.progress = 0
         elif message.event is ClientEvent.error:
             self.jobs.notify_cancelled(job)
             self.report_error(f"Server execution error: {message.error}")

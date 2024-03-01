@@ -537,7 +537,7 @@ class GenerationWidget(QWidget):
 
         self.progress_bar = QProgressBar(self)
         self.progress_bar.setMinimum(0)
-        self.progress_bar.setMaximum(100)
+        self.progress_bar.setMaximum(1000)
         self.progress_bar.setTextVisible(False)
         self.progress_bar.setFixedHeight(6)
         layout.addWidget(self.progress_bar)
@@ -587,7 +587,13 @@ class GenerationWidget(QWidget):
             self.update_generate_button()
 
     def update_progress(self):
-        self.progress_bar.setValue(int(self.model.progress * 100))
+        print(self.model.progress, self.progress_bar.value())
+        if self.model.progress >= 0:
+            self.progress_bar.setValue(int(self.model.progress * 1000))
+        else:
+            if self.progress_bar.value() >= 100:
+                self.progress_bar.reset()
+            self.progress_bar.setValue(min(99, self.progress_bar.value() + 2))
 
     def update_settings(self, key: str, value):
         if key == "prompt_line_count":
