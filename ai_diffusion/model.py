@@ -1,5 +1,6 @@
 from __future__ import annotations
 import asyncio
+from copy import copy
 from pathlib import Path
 from enum import Enum
 from typing import Any, NamedTuple
@@ -19,7 +20,7 @@ from .pose import Pose
 from .style import Style, Styles, SDVersion
 from .connection import Connection
 from .properties import Property, ObservableProperties
-from .jobs import Job, JobKind, JobQueue, JobState
+from .jobs import Job, JobKind, JobParams, JobQueue, JobState
 from .control import ControlLayer, ControlLayerList
 from .resources import ControlMode
 from .resolution import compute_bounds
@@ -154,27 +155,30 @@ class Model(QObject, ObservableProperties):
             self.report_error(util.log_error(e))
             return
         self.clear_error()
-        eventloop.run(_report_errors(self, self._generate(input, bounds, self.batch_count)))
+        enqueue_jobs = self.enqueue_jobs(
+            input, JobKind.diffusion, JobParams(bounds), self.batch_count
+        )
+        eventloop.run(_report_errors(self, enqueue_jobs))
 
-    async def _generate(self, input: WorkflowInput, bounds: Bounds, count: int = 1, is_live=False):
-        job_kind = JobKind.live_preview if is_live else JobKind.diffusion
-        pos, neg = ensure(input.text).positive, ensure(input.text).negative
+    async def enqueue_jobs(
+        self, input: WorkflowInput, kind: JobKind, params: JobParams, count: int = 1
+    ):
         sampling = ensure(input.sampling)
-        result: list[Job] = []
-        for i in range(count):
-            job = self.jobs.add(job_kind, pos, neg, bounds, sampling.strength, sampling.seed)
-            await self._enqueue_job(job, input)
-            if count > 1:  # don't modify inputs for live, they are used to check for changes
-                sampling.seed = sampling.seed + (i + 1) * settings.batch_size
-            result.append(job)
-        return result
+        params.prompt = ensure(input.text).positive
+        params.negative_prompt = ensure(input.text).negative
+        params.strength = sampling.strength
 
-    async def _enqueue_job(self, job: Job, work: WorkflowInput):
+        for i in range(count):
+            sampling.seed = sampling.seed + i * settings.batch_size
+            params.seed = sampling.seed
+            job = self.jobs.add(kind, copy(params))
+            await self._enqueue_job(job, input)
+
+    async def _enqueue_job(self, job: Job, input: WorkflowInput):
         if not self.jobs.any_executing():
             self.progress = 0.0
-
         client = self._connection.client
-        job.id = await client.enqueue(work, self.queue_front)
+        job.id = await client.enqueue(input, self.queue_front)
 
     def upscale_image(self):
         try:
@@ -243,7 +247,7 @@ class Model(QObject, ObservableProperties):
             is_live=True,
         )
         if input != last_input:
-            await self._generate(input, bounds, 1, is_live=True)
+            await self.enqueue_jobs(input, JobKind.live_preview, JobParams(bounds))
             return input
 
         return None
@@ -686,19 +690,29 @@ class AnimationWorkspace(QObject, ObservableProperties):
         self._model.clear_error()
         eventloop.run(_report_errors(self._model, self._generate_frame()))
 
-    async def _generate_frame(self):
-        strength = self._model.strength
-        live = self.sampling_quality is SamplingQuality.fast
-        seed = self._model.seed if self._model.fixed_seed else workflow.generate_seed()
-        bounds = Bounds(0, 0, *self._model.document.extent)
-        image = self._model._get_current_image(bounds) if strength < 1.0 else None
-        control = [c.get_image(bounds) for c in self._model.control]
-        cond = Conditioning(self._model.prompt, self._model.negative_prompt, control)
-        job = await self._model._generate(
-            bounds, cond, strength, image, None, seed, count=1, is_live=live
+    def _prepare_input(self, canvas: Image | Extent, seed: int):
+        m = self._model
+        bounds = Bounds(0, 0, *m.document.extent)
+        return workflow.prepare(
+            WorkflowKind.generate if m.strength == 1.0 else WorkflowKind.refine,
+            canvas,
+            TextInput(m.prompt, m.negative_prompt, m.style.style_prompt),
+            style=m.style,
+            seed=seed,
+            models=m._connection.client.models,
+            control=[c.get_image(bounds) for c in m.control],
+            strength=m.strength,
+            is_live=self.sampling_quality is SamplingQuality.fast,
         )
-        job[0].kind = JobKind.animation_frame
-        job[0].params.frame = (self._model.document.current_time, 0, 0)
+
+    async def _generate_frame(self):
+        m = self._model
+        bounds = Bounds(0, 0, *m.document.extent)
+        canvas = m._get_current_image(bounds) if m.strength < 1.0 else bounds.extent
+        seed = m.seed if m.fixed_seed else workflow.generate_seed()
+        inputs = self._prepare_input(canvas, seed)
+        params = JobParams(bounds, frame=(m.document.current_time, 0, 0))
+        await m.enqueue_jobs(inputs, JobKind.animation_frame, params)
 
     def generate_batch(self):
         doc = self._model.document
@@ -725,25 +739,23 @@ class AnimationWorkspace(QObject, ObservableProperties):
         extent = doc.extent
         bounds = Bounds(0, 0, *extent)
         strength = self._model.strength
-        live = self.sampling_quality is SamplingQuality.fast
         seed = self._model.seed if self._model.fixed_seed else workflow.generate_seed()
         animation_id = str(uuid.uuid4())
 
         for frame in range(start_frame, end_frame + 1):
             if layer.hasKeyframeAtTime(frame) or strength == 1.0:
-                image = None
+                canvas: Image | Extent = extent
                 if strength < 1.0:
                     pixels = layer.pixelDataAtTime(0, 0, extent.width, extent.height, frame)
-                    image = Image(QImage(pixels, extent.width, extent.height, QImage.Format_ARGB32))
+                    canvas = Image(
+                        QImage(pixels, extent.width, extent.height, QImage.Format_ARGB32)
+                    )
 
-                control = [c.get_image(bounds) for c in self._model.control]
-                cond = Conditioning(self._model.prompt, self._model.negative_prompt, control)
-                job = await self._model._generate(
-                    bounds, cond, strength, image, None, seed, count=1, is_live=live
-                )
-                job[0].kind = JobKind.animation_batch
-                job[0].params.frame = (frame, start_frame, end_frame)
-                job[0].params.animation_id = animation_id
+                inputs = self._prepare_input(canvas, seed)
+                params = JobParams(bounds)
+                params.frame = (frame, start_frame, end_frame)
+                params.animation_id = animation_id
+                await self._model.enqueue_jobs(inputs, JobKind.animation_batch, params)
 
     def handle_job_finished(self, job: Job):
         if job.kind is JobKind.animation_batch:

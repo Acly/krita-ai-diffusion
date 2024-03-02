@@ -31,7 +31,7 @@ class JobKind(Enum):
 @dataclass
 class JobParams:
     bounds: Bounds
-    prompt: str
+    prompt: str = ""
     negative_prompt: str = ""
     strength: float = 1.0
     seed: int = 0
@@ -90,16 +90,8 @@ class JobQueue(QObject):
         super().__init__()
         self._entries = deque()
 
-    def add(
-        self,
-        kind: JobKind,
-        prompt: str,
-        negative: str,
-        bounds: Bounds,
-        strength: float,
-        seed: int,
-    ):
-        return self.add_job(Job(None, kind, JobParams(bounds, prompt, negative, strength, seed)))
+    def add(self, kind: JobKind, params: JobParams):
+        return self.add_job(Job(None, kind, params))
 
     def add_control(self, control: "control.ControlLayer", bounds: Bounds):
         job = Job(None, JobKind.control_layer, JobParams(bounds, f"[Control] {control.mode.text}"))
