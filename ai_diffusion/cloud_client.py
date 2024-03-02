@@ -8,6 +8,7 @@ from dataclasses import dataclass
 
 from .api import WorkflowInput
 from .client import Client, ClientEvent, ClientMessage, ClientModels, DeviceInfo, CheckpointInfo
+from .client import User
 from .image import Image, ImageCollection
 from .network import RequestManager
 from .resources import SDVersion
@@ -25,12 +26,13 @@ class JobInfo:
 
 
 class CloudClient(Client):
+    default_url = os.getenv("INTERSTICE_URL", "http://localhost:3000")
+
     _requests = RequestManager()
     _queue: asyncio.Queue[JobInfo]
     _token: str = ""
+    _user: User | None = None
     _current_job: JobInfo | None = None
-
-    default_url = os.getenv("INTERSTICE_URL", "http://localhost:3000")
 
     @staticmethod
     async def connect(url: str, access_token: str):
@@ -81,8 +83,11 @@ class CloudClient(Client):
         if not token:
             raise ValueError("Authorization missing for cloud endpoint")
         self._token = token
-        user = await self._get("user")
-        log.info(f"Connected to {self.url}, user: {user}")
+        user_data = await self._get("user")
+        self._user = User(user_data["id"], user_data["name"])
+        self._user.image_count = user_data["images_generated"]
+        log.info(f"Connected to {self.url}, user: {self._user.id}")
+        return self._user
 
     async def enqueue(self, work: WorkflowInput, front: bool = False):
         work.batch_count = min(work.batch_count, 2)  # TODO: bigger payload
@@ -147,6 +152,10 @@ class CloudClient(Client):
 
     async def clear_queue(self):
         self._queue = asyncio.Queue()
+
+    @property
+    def user(self):
+        return self._user
 
 
 def _extract_error(response: dict, job_id: str | None):

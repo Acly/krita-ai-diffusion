@@ -115,6 +115,7 @@ class Connection(QObject, ObservableProperties):
         self.error = None
         self.missing_resource = None
         self.state = ConnectionState.disconnected
+        self._update_state()
 
     def interrupt(self):
         eventloop.run(self.client.interrupt())
@@ -138,6 +139,11 @@ class Connection(QObject, ObservableProperties):
     @property
     def client_if_connected(self):
         return self._client
+
+    @property
+    def user(self):
+        if client := self.client_if_connected:
+            return client.user
 
     async def _handle_messages(self):
         client = self._client
@@ -181,6 +187,14 @@ class Connection(QObject, ObservableProperties):
 
     def _handle_settings_changed(self, key: str, value: object):
         if key == "server_mode":
+            client_is_cloud = isinstance(self._client, CloudClient)
+            mode_is_cloud = settings.server_mode is ServerMode.cloud
+            if client_is_cloud != mode_is_cloud:
+                self.error = ""
+                eventloop.run(self.disconnect())
+            self._update_state()
+
+        elif key == "access_token":
             self._update_state()
 
 

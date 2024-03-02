@@ -2,9 +2,11 @@ from __future__ import annotations
 from abc import ABC, abstractmethod
 from enum import Enum
 from typing import Any, Generator, NamedTuple
+from PyQt5.QtCore import QObject, pyqtSignal
 
 from .api import WorkflowInput
 from .image import ImageCollection
+from .properties import Property, ObservableProperties
 from .style import Style, Styles
 from .resources import ControlMode, ResourceKind, SDVersion, UpscalerName
 from .resources import ResourceId, resource_id
@@ -28,6 +30,19 @@ class ClientMessage(NamedTuple):
     images: ImageCollection | None = None
     result: dict | None = None
     error: str | None = None
+
+
+class User(QObject, ObservableProperties):
+    id: str
+    name: str
+    image_count = Property(0)
+
+    image_count_changed = pyqtSignal(int)
+
+    def __init__(self, id: str, name: str):
+        super().__init__()
+        self.id = id
+        self.name = name
 
 
 class DeviceInfo(NamedTuple):
@@ -194,6 +209,10 @@ class Client(ABC):
 
     async def refresh(self):
         pass
+
+    @property
+    def user(self) -> User | None:
+        return None
 
     def supports_version(self, version: SDVersion) -> bool:
         return True

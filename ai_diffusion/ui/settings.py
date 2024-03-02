@@ -1,10 +1,8 @@
 from __future__ import annotations
 
 import functools
-import os.path
 from enum import Enum
 from itertools import chain
-from pathlib import Path
 from typing import Any, Optional, cast
 from PyQt5.QtWidgets import (
     QVBoxLayout,
@@ -29,18 +27,20 @@ from PyQt5.QtWidgets import (
     QMenu,
     QAction,
 )
-from PyQt5.QtCore import Qt, QSize, QUrl, pyqtSignal
+from PyQt5.QtCore import Qt, QMetaObject, QSize, QUrl, pyqtSignal
 from PyQt5.QtGui import QDesktopServices, QGuiApplication, QIcon, QCursor
 from krita import Krita
 
-from ..client import resolve_sd_version
+from ..client import User, resolve_sd_version
+from ..cloud_client import CloudClient
 from ..resources import SDVersion, CustomNode, MissingResource, ResourceKind, required_models
 from ..settings import Setting, Settings, ServerMode, PerformancePreset, settings
 from ..server import Server
 from ..style import Style, Styles, StyleSettings
 from ..root import root
-from .. import util, __version__
 from ..connection import ConnectionState, apply_performance_preset
+from ..properties import Binding
+from .. import eventloop, util, __version__
 from .server import ServerWidget
 from .switch import SwitchWidget
 from .theme import add_header, icon, sd_version_icon, red, yellow, green, grey
@@ -583,38 +583,123 @@ class SettingsTab(QWidget):
             settings.save()
 
 
+class UserWidget(QFrame):
+    _user: User | None = None
+    _connections: list[QMetaObject.Connection | Binding]
+
+    def __init__(self, parent=None):
+        super().__init__(parent)
+        self._connections = []
+
+        self.setFrameStyle(QFrame.Shape.StyledPanel | QFrame.Shadow.Raised)
+        self.setLineWidth(2)
+        self.setVisible(False)
+
+        layout = QVBoxLayout()
+        self.setLayout(layout)
+
+        self._user_name = QLabel("", self)
+        self._user_name.setStyleSheet("font-weight:bold")
+        user_name_layout = QHBoxLayout()
+        user_name_layout.addWidget(QLabel("Account:", self), 0)
+        user_name_layout.addWidget(self._user_name, 1)
+        layout.addLayout(user_name_layout)
+
+        self._image_count = QLabel("", self)
+        image_count_layout = QHBoxLayout()
+        image_count_layout.addWidget(QLabel("Images generated:", self), 0)
+        image_count_layout.addWidget(self._image_count, 1)
+        layout.addLayout(image_count_layout)
+
+        self._logout_button = QPushButton("Sign out", self)
+        self._logout_button.setMinimumWidth(200)
+        self._logout_button.clicked.connect(self._logout)
+        layout.addWidget(self._logout_button)
+
+    @property
+    def user(self):
+        return self._user
+
+    @user.setter
+    def user(self, user: User | None):
+        if self._user is not user:
+            Binding.disconnect_all(self._connections)
+            self.setVisible(user is not None)
+
+            if user is not None:
+                self._user_name.setText(user.name)
+                self._image_count.setText(str(user.image_count))
+                self._connections = [
+                    user.image_count_changed.connect(lambda i: self._image_count.setText(str(i))),
+                ]
+            self._user = user
+
+    def _logout(self):
+        eventloop.run(self._disconnect_and_logout())
+
+    async def _disconnect_and_logout(self):
+        await root.connection.disconnect()
+        settings.access_token = ""
+        settings.save()
+
+
 class CloudWidget(QWidget):
     value_changed = pyqtSignal()
 
     def __init__(self, parent):
         super().__init__(parent)
         layout = QVBoxLayout()
-        layout.setContentsMargins(0, 10, 0, 0)
+        layout.setContentsMargins(0, 12, 4, 4)
         self.setLayout(layout)
 
-        self.connect_button = QPushButton("Login", self)
-        self.connect_button.setMinimumHeight(int(1.3 * self.connect_button.sizeHint().height()))
-        self.connect_button.clicked.connect(self._connect)
-        layout.addWidget(self.connect_button)
+        service_url = CloudClient.default_url
+        service_url_text = service_url.removeprefix("https://").removesuffix("/")
+        service_label = QLabel(f"<a href='{service_url}'>{service_url_text}</a>", self)
+        service_label.setStyleSheet("font-size: 12pt")
+        service_label.setTextFormat(Qt.TextFormat.RichText)
+        service_label.setOpenExternalLinks(True)
+        layout.addWidget(service_label)
 
         self._connection_status = QLabel(self)
         self._connection_status.setWordWrap(True)
         self._connection_status.setTextFormat(Qt.TextFormat.RichText)
         layout.addWidget(self._connection_status)
 
+        self.connect_button = QPushButton("Login", self)
+        self.connect_button.setMinimumWidth(200)
+        self.connect_button.setMinimumHeight(int(1.3 * self.connect_button.sizeHint().height()))
+        self.connect_button.clicked.connect(self._connect)
+
+        self._user_widget = UserWidget(self)
+
+        connect_layout = QHBoxLayout()
+        connect_layout.addWidget(self.connect_button)
+        connect_layout.addWidget(self._user_widget)
+        connect_layout.addStretch()
+        layout.addLayout(connect_layout)
+
         layout.addStretch()
 
     def update_connection_state(self, state: ConnectionState):
-        self._connection_status.setVisible(False)
+        is_connected = state == ConnectionState.connected
+        self.connect_button.setVisible(not is_connected)
+        self._user_widget.user = root.connection.user
+
         if state in [ConnectionState.auth_missing, ConnectionState.auth_error]:
             self.connect_button.setText("Sign in")
             self.connect_button.setEnabled(True)
+            self._connection_status.setText("Disconnected")
+            self._connection_status.setStyleSheet(f"color: {grey}; font-style:italic")
         elif state is ConnectionState.auth_pending:
             self.connect_button.setText("Sign in")
             self.connect_button.setEnabled(False)
             self._connection_status.setText("Waiting for sign-in to complete...")
             self._connection_status.setStyleSheet(f"color: {yellow}; font-weight:bold")
             self._connection_status.setVisible(True)
+        elif state is ConnectionState.connected:
+            self._connection_status.setText("Connected")
+            self._connection_status.setStyleSheet(f"color: {green}; font-weight:bold")
+            self._user_widget.user = root.connection.user
         else:
             can_connect = state in [ConnectionState.disconnected, ConnectionState.error]
             self.connect_button.setEnabled(can_connect)
