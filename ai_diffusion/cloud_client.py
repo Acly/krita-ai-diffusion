@@ -12,7 +12,7 @@ from .client import User
 from .image import Image, ImageCollection
 from .network import RequestManager
 from .resources import SDVersion
-from .util import client_logger as log
+from .util import ensure, client_logger as log
 
 
 @dataclass
@@ -85,7 +85,7 @@ class CloudClient(Client):
         self._token = token
         user_data = await self._get("user")
         self._user = User(user_data["id"], user_data["name"])
-        self._user.image_count = user_data["images_generated"]
+        self._user.images_generated = user_data["images_generated"]
         log.info(f"Connected to {self.url}, user: {self._user.id}")
         return self._user
 
@@ -111,10 +111,12 @@ class CloudClient(Client):
                 self._current_job = None
 
     async def _process_job(self, job: JobInfo):
+        user = ensure(self.user)
         inputs = job.work.to_dict()
         data = {"input": {"workflow": inputs}}
         response: dict = await self._post("generate", data)
         job.remote_id = response["id"]
+        user.images_generated = response.get("images_generated", user.images_generated)
         yield ClientMessage(ClientEvent.progress, job.local_id, 0)
 
         while response["status"] == "IN_QUEUE" or response["status"] == "IN_PROGRESS":

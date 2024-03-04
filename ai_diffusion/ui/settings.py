@@ -605,10 +605,10 @@ class UserWidget(QFrame):
         user_name_layout.addWidget(self._user_name, 1)
         layout.addLayout(user_name_layout)
 
-        self._image_count = QLabel("", self)
+        self._images_generated = QLabel("", self)
         image_count_layout = QHBoxLayout()
         image_count_layout.addWidget(QLabel("Images generated:", self), 0)
-        image_count_layout.addWidget(self._image_count, 1)
+        image_count_layout.addWidget(self._images_generated, 1)
         layout.addLayout(image_count_layout)
 
         self._logout_button = QPushButton("Sign out", self)
@@ -628,9 +628,11 @@ class UserWidget(QFrame):
 
             if user is not None:
                 self._user_name.setText(user.name)
-                self._image_count.setText(str(user.image_count))
+                self._images_generated.setText(str(user.images_generated))
                 self._connections = [
-                    user.image_count_changed.connect(lambda i: self._image_count.setText(str(i))),
+                    user.images_generated_changed.connect(
+                        lambda i: self._images_generated.setText(str(i))
+                    ),
                 ]
             self._user = user
 
@@ -670,10 +672,19 @@ class CloudWidget(QWidget):
         self.connect_button.setMinimumHeight(int(1.3 * self.connect_button.sizeHint().height()))
         self.connect_button.clicked.connect(self._connect)
 
+        self._sign_out_button = QPushButton("Sign out", self)
+        self._sign_out_button.setVisible(False)
+        self._sign_out_button.setMinimumWidth(200)
+        self._sign_out_button.clicked.connect(self._sign_out)
+
         self._user_widget = UserWidget(self)
 
+        buttons_layout = QVBoxLayout()
+        buttons_layout.addWidget(self.connect_button)
+        buttons_layout.addWidget(self._sign_out_button)
+
         connect_layout = QHBoxLayout()
-        connect_layout.addWidget(self.connect_button)
+        connect_layout.addLayout(buttons_layout)
         connect_layout.addWidget(self._user_widget)
         connect_layout.addStretch()
         layout.addLayout(connect_layout)
@@ -683,6 +694,7 @@ class CloudWidget(QWidget):
     def update_connection_state(self, state: ConnectionState):
         is_connected = state == ConnectionState.connected
         self.connect_button.setVisible(not is_connected)
+        self._sign_out_button.setVisible(False)
         self._user_widget.user = root.connection.user
 
         if state in [ConnectionState.auth_missing, ConnectionState.auth_error]:
@@ -710,6 +722,8 @@ class CloudWidget(QWidget):
             self._connection_status.setText(f"<b>Error</b>: {error.removeprefix('Error: ')}")
             self._connection_status.setStyleSheet(f"color: {red}; font-weight:bold")
             self._connection_status.setVisible(True)
+            if settings.access_token:
+                self._sign_out_button.setVisible(True)
 
     def _connect(self):
         connection = root.connection
@@ -718,12 +732,16 @@ class CloudWidget(QWidget):
         else:
             connection.connect()
 
+    def _sign_out(self):
+        settings.access_token = ""
+        settings.save()
+
 
 class ConnectionSettings(SettingsTab):
     def __init__(self, server: Server):
         super().__init__("Server Configuration")
 
-        self._server_cloud = QRadioButton("Online Service")
+        self._server_cloud = QRadioButton("Online Service [BETA]", self)
         self._server_managed = QRadioButton("Local Managed Server", self)
         self._server_external = QRadioButton("Custom Server (local or remote)", self)
         info_cloud = QLabel("Generate images via GPU Cloud Service", self)
@@ -779,12 +797,12 @@ class ConnectionSettings(SettingsTab):
         connection_layout.addLayout(status_layout)
         connection_layout.addStretch()
 
-        self._layout.addWidget(self._server_cloud)
-        self._layout.addWidget(info_cloud)
         self._layout.addWidget(self._server_managed)
         self._layout.addWidget(info_managed)
         self._layout.addWidget(self._server_external)
         self._layout.addWidget(info_external)
+        self._layout.addWidget(self._server_cloud)
+        self._layout.addWidget(info_cloud)
         self._layout.addWidget(self._server_stack)
 
         root.connection.state_changed.connect(self.update_server_status)

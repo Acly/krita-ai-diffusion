@@ -587,7 +587,6 @@ class GenerationWidget(QWidget):
             self.update_generate_button()
 
     def update_progress(self):
-        print(self.model.progress, self.progress_bar.value())
         if self.model.progress >= 0:
             self.progress_bar.setValue(int(self.model.progress * 1000))
         else:

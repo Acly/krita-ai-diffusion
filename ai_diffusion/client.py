@@ -35,9 +35,9 @@ class ClientMessage(NamedTuple):
 class User(QObject, ObservableProperties):
     id: str
     name: str
-    image_count = Property(0)
+    images_generated = Property(0)
 
-    image_count_changed = pyqtSignal(int)
+    images_generated_changed = pyqtSignal(int)
 
     def __init__(self, id: str, name: str):
         super().__init__()
