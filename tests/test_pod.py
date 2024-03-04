@@ -107,8 +107,8 @@ def run_and_save(
     return results[0]
 
 
-def test_simple(qtapp, cloud_client):
-    workflow = WorkflowInput(
+def create_simple_workflow():
+    return WorkflowInput(
         WorkflowKind.generate,
         images=ImageInput.from_extent(Extent(512, 512)),
         models=CheckpointInput("dreamshaper_8.safetensors"),
@@ -117,4 +117,23 @@ def test_simple(qtapp, cloud_client):
         batch_count=2,
     )
 
+
+def test_simple(qtapp, cloud_client):
+    workflow = create_simple_workflow()
     run_and_save(qtapp, cloud_client, workflow, "pod_simple")
+
+
+@pytest.mark.parametrize("scenario", ["resolution", "steps", "control"])
+def test_validation(qtapp, cloud_client: CloudClient, scenario: str):
+    workflow = create_simple_workflow()
+    if scenario == "resolution":
+        workflow.images = ImageInput.from_extent(Extent(9000, 512))
+    elif scenario == "steps":
+        ensure(workflow.sampling).steps = 200
+    elif scenario == "control":
+        img = Image.create(Extent(4, 4))
+        for i in range(7):
+            workflow.control.append(ControlInput(ControlMode.depth, img))
+
+    with pytest.raises(Exception, match="Validation error"):
+        run_and_save(qtapp, cloud_client, workflow, "pod_validation")
