@@ -12,10 +12,20 @@ from .util import client_logger as log
 
 
 class NetworkError(Exception):
-    def __init__(self, code, msg, url):
+    code: int
+    message: str
+    url: str
+    status: int | None = None
+    data: dict | None = None
+
+    def __init__(
+        self, code: int, msg: str, url: str, status: int | None = None, data: dict | None = None
+    ):
         self.code = code
         self.message = msg
         self.url = url
+        self.status = status
+        self.data = data
         super().__init__(self, msg)
 
     def __str__(self):
@@ -27,9 +37,9 @@ class NetworkError(Exception):
         url = reply.url().toString()
         try:  # extract detailed information from the payload
             data = json.loads(reply.readAll().data())
-            error = data.get("error", "")
-            if error != "":
-                return NetworkError(code, f"{error} ({reply.errorString()})", url)
+            error = data.get("error", "Network error")
+            status = reply.attribute(QNetworkRequest.Attribute.HttpStatusCodeAttribute)
+            return NetworkError(code, f"{error} ({reply.errorString()})", url, status, data)
         except:
             pass
         return NetworkError(code, reply.errorString(), url)

@@ -2,6 +2,7 @@ from dataclasses import Field, dataclass, field, is_dataclass, fields
 from enum import Enum
 from types import GenericAlias, UnionType
 from typing import Any, get_args, get_origin
+import math
 
 from .image import Bounds, Extent, Image
 from .resources import ControlMode
@@ -143,6 +144,15 @@ class WorkflowInput:
 
     def to_dict(self):
         return _serialize_object(self)
+
+    @property
+    def cost(self):
+        if self.kind in [WorkflowKind.control_image, WorkflowKind.upscale_simple]:
+            return 2
+        steps = round(ensure(self.sampling).steps * ensure(self.sampling).strength)
+        unit = 10 * 2 * Extent(1024, 1024).pixel_count * 20
+        cost = 10 * self.batch_count * self.extent.desired.pixel_count * steps
+        return math.ceil(cost / unit)
 
 
 def _serialize_object(obj):

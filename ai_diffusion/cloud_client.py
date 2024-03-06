@@ -10,7 +10,7 @@ from .api import WorkflowInput
 from .client import Client, ClientEvent, ClientMessage, ClientModels, DeviceInfo, CheckpointInfo
 from .client import User
 from .image import Image, ImageCollection
-from .network import RequestManager
+from .network import RequestManager, NetworkError
 from .resources import SDVersion
 from .util import ensure, client_logger as log
 
@@ -22,7 +22,7 @@ class JobInfo:
     remote_id: str | None = None
 
     def __str__(self):
-        return f"Job[local={self.local_id}, remote={self.remote_id}]"
+        return f"Job[{self.work.kind.name}, local={self.local_id}, remote={self.remote_id}]"
 
 
 class CloudClient(Client):
@@ -101,6 +101,12 @@ class CloudClient(Client):
                 self._current_job = await self._queue.get()
                 async for msg in self._process_job(self._current_job):
                     yield msg
+
+            except NetworkError as e:
+                msg = self._process_http_error(e)
+                log.exception(f"Network error while processing {self._current_job}: {msg}")
+                if self._current_job is not None:
+                    yield ClientMessage(ClientEvent.error, self._current_job.local_id, error=msg)
             except Exception as e:
                 log.exception(f"Unhandled exception while processing {self._current_job}")
                 if self._current_job is not None:
@@ -116,12 +122,12 @@ class CloudClient(Client):
         data = {"input": {"workflow": inputs}}
         response: dict = await self._post("generate", data)
         job.remote_id = response["id"]
-        user.images_generated = response.get("images_generated", user.images_generated)
+        cost = _update_user(user, response.get("user"))
+        log.info(f"{job} started, cost was {cost}, {user.credits} images remaining")
         yield ClientMessage(ClientEvent.progress, job.local_id, 0)
 
         while response["status"] == "IN_QUEUE" or response["status"] == "IN_PROGRESS":
             response = await self._post(f"status/{job.remote_id}", {})
-            log.info(f"{job} status: {str(response)[:120]}")
 
             if response["status"] == "IN_QUEUE":
                 yield ClientMessage(ClientEvent.queued, job.local_id)
@@ -135,6 +141,7 @@ class CloudClient(Client):
 
         if response["status"] == "COMPLETED":
             output = response["output"]
+            log.info(f"{job} completed, got {len(output['images'])} images")
             results = ImageCollection(Image.from_base64(img_b64) for img_b64 in output["images"])
             yield ClientMessage(ClientEvent.finished, job.local_id, 1, results)
         elif response["status"] == "FAILED":
@@ -142,8 +149,10 @@ class CloudClient(Client):
             log.error(f"{job} failed\n{err_msg}\n{err_trace}")
             yield ClientMessage(ClientEvent.error, job.local_id, error=err_msg)
         elif response["status"] == "CANCELLED":
+            log.info(f"{job} was cancelled")
             yield ClientMessage(ClientEvent.interrupted, job.local_id)
         elif response["status"] == "TIMED_OUT":
+            log.warning(f"{job} timed out")
             yield ClientMessage(ClientEvent.error, job.local_id, error="job timed out")
         else:
             log.warning(f"Got unknown job status {response['status']}")
@@ -159,6 +168,19 @@ class CloudClient(Client):
     def user(self):
         return self._user
 
+    def _process_http_error(self, e: NetworkError):
+        message = e.message
+        if e.status == 402 and e.data and self.user:  # 402 Payment Required
+            try:
+                self.user.credits = e.data["credits"]
+                message = (
+                    f"Insufficient funds - generation would cost {e.data['cost']} ℐ. "
+                    f"Remaining images: {self.user.credits}"
+                )
+            except:
+                log.warning(f"Could not parse 402 error: {e.data}")
+        return message
+
 
 def _extract_error(response: dict, job_id: str | None):
     error = response.get("error", f'"Job {job_id} failed (unknown error)"')
@@ -170,6 +192,17 @@ def _extract_error(response: dict, job_id: str | None):
         err_msg = str(error)
         err_trace = "No traceback"
     return err_msg, err_trace
+
+
+def _update_user(user: User, response: dict | None):
+    if response:
+        previous = user.credits
+        user.images_generated = response["images_generated"]
+        user.credits = response["credits"]
+        return max(0, previous - user.credits)
+    else:
+        log.warning("Did not receive updated user data from server")
+        return 0
 
 
 _poll_interval = 0.5  # seconds

@@ -36,8 +36,10 @@ class User(QObject, ObservableProperties):
     id: str
     name: str
     images_generated = Property(0)
+    credits = Property(0)
 
     images_generated_changed = pyqtSignal(int)
+    credits_changed = pyqtSignal(int)
 
     def __init__(self, id: str, name: str):
         super().__init__()

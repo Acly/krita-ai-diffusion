@@ -476,6 +476,9 @@ class LoraList(QWidget):
         self._item_list.setContentsMargins(0, 0, 0, 0)
         self._layout.addLayout(self._item_list)
 
+        self.setEnabled(settings.server_mode is not ServerMode.cloud)
+        settings.changed.connect(self._handle_settings_change)
+
     def _add_item(self, lora=None):
         assert self._item_list is not None
         item = self.Item(self._loras, self)
@@ -495,6 +498,10 @@ class LoraList(QWidget):
 
     def _update_item(self):
         self.value_changed.emit()
+
+    def _handle_settings_change(self, key: str, value):
+        if key == "server_mode":
+            self.setEnabled(value is not ServerMode.cloud)
 
     @property
     def names(self):
@@ -607,9 +614,16 @@ class UserWidget(QFrame):
 
         self._images_generated = QLabel("", self)
         image_count_layout = QHBoxLayout()
-        image_count_layout.addWidget(QLabel("Images generated:", self), 0)
+        image_count_layout.addWidget(QLabel("Total generated:", self), 0)
         image_count_layout.addWidget(self._images_generated, 1)
         layout.addLayout(image_count_layout)
+
+        self._tokens_remaining = QLabel("", self)
+        self._tokens_remaining.setStyleSheet("font-weight:bold")
+        image_remaining_layout = QHBoxLayout()
+        image_remaining_layout.addWidget(QLabel("Image tokens remaining:", self), 0)
+        image_remaining_layout.addWidget(self._tokens_remaining, 1)
+        layout.addLayout(image_remaining_layout)
 
         self._logout_button = QPushButton("Sign out", self)
         self._logout_button.setMinimumWidth(200)
@@ -628,13 +642,17 @@ class UserWidget(QFrame):
 
             if user is not None:
                 self._user_name.setText(user.name)
-                self._images_generated.setText(str(user.images_generated))
                 self._connections = [
-                    user.images_generated_changed.connect(
-                        lambda i: self._images_generated.setText(str(i))
-                    ),
+                    user.images_generated_changed.connect(self._update_counts),
+                    user.credits_changed.connect(self._update_counts),
                 ]
             self._user = user
+            self._update_counts()
+
+    def _update_counts(self):
+        user = util.ensure(self.user)
+        self._images_generated.setText(str(user.images_generated))
+        self._tokens_remaining.setText(str(user.credits))
 
     def _logout(self):
         eventloop.run(self._disconnect_and_logout())
