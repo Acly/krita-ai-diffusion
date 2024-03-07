@@ -5,7 +5,7 @@ import os
 from datetime import datetime
 from pathlib import Path
 from typing import NamedTuple, Callable
-from PyQt5.QtCore import QByteArray, QUrl, QFile
+from PyQt5.QtCore import QByteArray, QUrl, QFile, QBuffer
 from PyQt5.QtNetwork import QNetworkAccessManager, QNetworkRequest, QNetworkReply
 
 from .util import client_logger as log
@@ -63,13 +63,14 @@ class Disconnected(Exception):
 class Request(NamedTuple):
     url: str
     future: asyncio.Future
+    buffer: QBuffer | None = None
 
 
 class RequestManager:
     def __init__(self):
         self._net = QNetworkAccessManager()
         self._net.finished.connect(self._finished)
-        self._requests = {}
+        self._requests: dict[QNetworkReply, Request] = {}
 
     def http(self, method, url: str, data: dict | None = None, bearer=""):
         self._cleanup()
@@ -90,6 +91,7 @@ class RequestManager:
         else:
             reply = self._net.get(request)
 
+        assert reply is not None, f"Network request for {url} failed: reply is None"
         future = asyncio.get_running_loop().create_future()
         self._requests[reply] = Request(url, future)
         return future
@@ -100,20 +102,44 @@ class RequestManager:
     def post(self, url: str, data: dict, bearer=""):
         return self.http("POST", url, data, bearer=bearer)
 
+    def download(self, url: str):
+        self._cleanup()
+        request = QNetworkRequest(QUrl(url))
+        request.setAttribute(QNetworkRequest.Attribute.FollowRedirectsAttribute, True)
+        reply = self._net.get(request)
+        assert reply is not None, f"Network request for {url} failed: reply is None"
+
+        buffer = QBuffer()
+        buffer.open(QBuffer.OpenModeFlag.WriteOnly)
+
+        def write(bytes_received, bytes_total):
+            buffer.write(reply.readAll())
+
+        future = asyncio.get_running_loop().create_future()
+        tracker = Request(url, future, buffer)
+        reply.downloadProgress.connect(write)
+        self._requests[reply] = tracker
+        return future
+
     def _finished(self, reply: QNetworkReply):
         future = None
         try:
             code = reply.error()  # type: ignore (bug in PyQt5-stubs)
-            future = self._requests[reply].future
+            tracker = self._requests[reply]
+            future = tracker.future
             if future.cancelled():
                 return  # operation was cancelled, discard result
             if code == QNetworkReply.NetworkError.NoError:
-                content_type = reply.header(QNetworkRequest.ContentTypeHeader)
-                data = reply.readAll().data()
-                if "application/json" in content_type:
-                    future.set_result(json.loads(data))
+                if tracker.buffer is not None:
+                    tracker.buffer.write(reply.readAll())
+                    future.set_result(tracker.buffer.data())
                 else:
-                    future.set_result(data)
+                    content_type = reply.header(QNetworkRequest.ContentTypeHeader)
+                    data = reply.readAll().data()
+                    if "application/json" in content_type:
+                        future.set_result(json.loads(data))
+                    else:
+                        future.set_result(data)
             else:
                 future.set_exception(NetworkError.from_reply(reply))
         except Exception as e:

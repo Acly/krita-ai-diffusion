@@ -2,6 +2,7 @@ import pytest
 import numpy as np
 from PyQt5.QtGui import QImage, qRgba
 from PyQt5.QtCore import Qt, QByteArray
+from PIL import Image as PILImage
 from ai_diffusion.image import Mask, Bounds, Extent, Image, ImageCollection
 
 
@@ -75,6 +76,13 @@ def test_image_compare():
     img1 = create_test_image(2, 2)
     img2 = create_test_image(2, 2)
     assert Image.compare(img1, img2) < 0.0001
+
+
+def test_image_from_pil():
+    pil_img = PILImage.new("RGBA", (2, 2), (255, 0, 0, 255))
+    img = Image.from_pil(pil_img)
+    assert img.extent == Extent(2, 2)
+    assert img.pixel(0, 0) == (255, 0, 0, 255)
 
 
 def test_image_equal():

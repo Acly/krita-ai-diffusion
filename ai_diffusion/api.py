@@ -150,9 +150,9 @@ class WorkflowInput:
         if self.kind in [WorkflowKind.control_image, WorkflowKind.upscale_simple]:
             return 2
         steps = round(ensure(self.sampling).steps * ensure(self.sampling).strength)
-        unit = 10 * 2 * Extent(1024, 1024).pixel_count * 20
-        cost = 10 * self.batch_count * self.extent.desired.pixel_count * steps
-        return math.ceil(cost / unit)
+        unit = 2 * Extent(1024, 1024).pixel_count * 20
+        cost = self.batch_count * self.extent.desired.pixel_count * steps
+        return math.ceil((10 * cost) / unit)
 
 
 def _serialize_object(obj):

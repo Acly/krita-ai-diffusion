@@ -640,14 +640,14 @@ class UserWidget(QFrame):
             Binding.disconnect_all(self._connections)
             self.setVisible(user is not None)
 
+            self._user = user
             if user is not None:
                 self._user_name.setText(user.name)
                 self._connections = [
                     user.images_generated_changed.connect(self._update_counts),
                     user.credits_changed.connect(self._update_counts),
                 ]
-            self._user = user
-            self._update_counts()
+                self._update_counts()
 
     def _update_counts(self):
         user = util.ensure(self.user)

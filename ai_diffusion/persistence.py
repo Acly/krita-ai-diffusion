@@ -84,7 +84,7 @@ class ModelSync:
             item = _HistoryResult.from_dict(result)
             if images_bytes := _find_annotation(model.document, f"result{item.slot}.webp"):
                 job = model.jobs.add_job(Job(item.id, JobKind.diffusion, item.params))
-                results = _deserialize_images(images_bytes, item.offsets, item.slot)
+                results = ImageCollection.from_bytes(images_bytes, item.offsets)
                 model.jobs.set_results(job, results)
                 model.jobs.notify_finished(job)
                 self._history.append(item)
@@ -113,7 +113,7 @@ class ModelSync:
         if job.kind is JobKind.diffusion and len(job.results) > 0:
             slot = self._slot_index
             self._slot_index += 1
-            image_data, image_offsets = _serialize_images(job.results)
+            image_data, image_offsets = job.results.to_bytes()
             self._model.document.annotate(f"result{slot}.webp", image_data)
             self._history.append(_HistoryResult(job.id or "", slot, image_offsets, job.params))
             self._memory_used[slot] = image_data.size()
@@ -130,7 +130,7 @@ class ModelSync:
     def _remove_image(self, item: JobQueue.Item):
         if history := next((h for h in self._history if h.id == item.job), None):
             if job := self._model.jobs.find(item.job):
-                image_data, history.offsets = _serialize_images(job.results)
+                image_data, history.offsets = job.results.to_bytes()
                 self._model.document.annotate(f"result{history.slot}.webp", image_data)
                 self._memory_used[history.slot] = image_data.size()
                 self._save()
@@ -165,34 +165,6 @@ def _deserialize(obj: QObject, data: dict[str, Any]):
         return value
 
     return deserialize(obj, data, converter)
-
-
-def _serialize_images(images: ImageCollection):
-    offsets = []
-    data = QByteArray()
-    result = QBuffer(data)
-    result.open(QBuffer.OpenModeFlag.WriteOnly)
-    for img in images:
-        offsets.append(result.pos())
-        img.write(result, ImageFileFormat.webp)
-    result.close()
-    return data, offsets
-
-
-def _deserialize_images(data: QByteArray, offsets: list[int], slot: int):
-    images = ImageCollection()
-    buffer = QBuffer(data)
-    buffer.open(QBuffer.OpenModeFlag.ReadOnly)
-    for i, offset in enumerate(offsets):
-        buffer.seek(offset)
-        img = QImage()
-        if img.load(buffer, "WEBP"):
-            img.convertTo(QImage.Format.Format_ARGB32)
-            images.append(Image(img))
-        else:
-            raise Exception(f"Failed to load image {i} in slot {slot} from buffer")
-    buffer.close()
-    return images
 
 
 def _find_annotation(document, name: str):

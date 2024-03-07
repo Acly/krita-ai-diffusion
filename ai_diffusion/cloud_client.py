@@ -141,16 +141,19 @@ class CloudClient(Client):
 
         if response["status"] == "COMPLETED":
             output = response["output"]
-            log.info(f"{job} completed, got {len(output['images'])} images")
-            results = ImageCollection(Image.from_base64(img_b64) for img_b64 in output["images"])
+            results = await receive_images(output["images"], self._requests)
+            log.info(f"{job} completed, got {len(results)} images")
             yield ClientMessage(ClientEvent.finished, job.local_id, 1, results)
+
         elif response["status"] == "FAILED":
             err_msg, err_trace = _extract_error(response, job.remote_id)
             log.error(f"{job} failed\n{err_msg}\n{err_trace}")
             yield ClientMessage(ClientEvent.error, job.local_id, error=err_msg)
+
         elif response["status"] == "CANCELLED":
             log.info(f"{job} was cancelled")
             yield ClientMessage(ClientEvent.interrupted, job.local_id)
+
         elif response["status"] == "TIMED_OUT":
             log.warning(f"{job} timed out")
             yield ClientMessage(ClientEvent.error, job.local_id, error="job timed out")
@@ -203,6 +206,20 @@ def _update_user(user: User, response: dict | None):
     else:
         log.warning("Did not receive updated user data from server")
         return 0
+
+
+async def receive_images(images: dict, net: RequestManager):
+    offsets = images.get("offsets")
+    if not (isinstance(offsets, list) and len(offsets) > 0):
+        raise ValueError(f"Could not read result images, invalid offsets: {offsets}")
+    if url := images.get("url"):
+        log.info(f"Downloading result images from {url}")
+        data = await net.download(url)
+        return ImageCollection.from_bytes(data, offsets)
+    elif b64 := images.get("base64"):
+        return ImageCollection.from_base64(b64, offsets)
+    else:
+        raise ValueError(f"No result images found in server response: {str(images)[:80]}")
 
 
 _poll_interval = 0.5  # seconds

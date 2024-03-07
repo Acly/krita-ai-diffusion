@@ -253,6 +253,14 @@ class Image:
         return Image(img.convertToFormat(QImage.Format_ARGB32))
 
     @staticmethod
+    def from_pil(pil_image):
+        assert pil_image.mode == "RGBA"
+        qimage = QImage(
+            pil_image.tobytes(), pil_image.width, pil_image.height, QImage.Format.Format_RGBA8888
+        ).convertToFormat(QImage.Format.Format_ARGB32)
+        return Image(qimage)
+
+    @staticmethod
     def scale(img: "Image", target: Extent):
         assert img.extent != target
         mode = Qt.AspectRatioMode.IgnoreAspectRatio
@@ -413,6 +421,45 @@ class ImageCollection:
     @property
     def size(self):
         return sum(i.size for i in self)
+
+    def to_bytes(self):
+        offsets = []
+        data = QByteArray()
+        result = QBuffer(data)
+        result.open(QBuffer.OpenModeFlag.WriteOnly)
+        for img in self:
+            offsets.append(result.pos())
+            img.write(result, ImageFileFormat.webp)
+        result.close()
+        return data, offsets
+
+    @staticmethod
+    def from_bytes(data: QByteArray | bytes, offsets: list[int]):
+        if isinstance(data, bytes):
+            data = QByteArray(data)
+
+        images = ImageCollection()
+        buffer = QBuffer(data)
+        buffer.open(QBuffer.OpenModeFlag.ReadOnly)
+        for i, offset in enumerate(offsets):
+            buffer.seek(offset)
+            img = QImage()
+            if img.load(buffer, "WEBP"):
+                img.convertTo(QImage.Format.Format_ARGB32)
+                images.append(Image(img))
+            else:
+                raise Exception(f"Failed to load image {i} from buffer")
+        buffer.close()
+        return images
+
+    def to_base64(self):
+        bytes, offsets = self.to_bytes()
+        return bytes.toBase64().data().decode("utf-8"), offsets
+
+    @staticmethod
+    def from_base64(data: str, offsets: list[int]):
+        bytes = QByteArray.fromBase64(data.encode("utf-8"))
+        return ImageCollection.from_bytes(bytes, offsets)
 
     def __len__(self):
         return len(self._items)
