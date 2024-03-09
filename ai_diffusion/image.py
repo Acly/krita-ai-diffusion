@@ -197,9 +197,10 @@ def extent_equal(a: QImage, b: QImage):
 class ImageFileFormat(Enum):
     # Low compression rate, fast but large files. Good for local use, but maybe not optimal
     # for remote server where images are transferred via internet.
-    png = ("PNG", 85)
+    png = ("png", 85)
 
-    webp = ("WEBP", 90)
+    webp = ("webp", 80)
+    webp_lossless = ("webp", 100)
 
 
 class Image:
@@ -212,11 +213,11 @@ class Image:
         image = QImage()
         success = image.load(str(filepath))
         assert success, f"Failed to load image {filepath}"
-        return Image(image.convertToFormat(QImage.Format_ARGB32))
+        return Image(image.convertToFormat(QImage.Format.Format_ARGB32))
 
     @staticmethod
     def create(extent: Extent, fill=None):
-        img = Image(QImage(extent.width, extent.height, QImage.Format_ARGB32))
+        img = Image(QImage(extent.width, extent.height, QImage.Format.Format_ARGB32))
         if fill is not None:
             img._qimage.fill(fill)
         return img
@@ -328,12 +329,9 @@ class Image:
     def write(self, buffer: QBuffer, format=ImageFileFormat.png):
         # Compression takes time for large images and blocks the UI, might be worth to thread.
         format_str, quality = format.value
-        if format is ImageFileFormat.webp:
-            writer = QImageWriter(buffer, QByteArray(b"webp"))
-            writer.setQuality(quality)
-            writer.write(self._qimage)
-        else:
-            self._qimage.save(buffer, format_str, quality)
+        writer = QImageWriter(buffer, QByteArray(format_str.encode("utf-8")))
+        writer.setQuality(quality)
+        writer.write(self._qimage)
 
     def to_bytes(self, format=ImageFileFormat.png):
         byte_array = QByteArray()
@@ -422,14 +420,14 @@ class ImageCollection:
     def size(self):
         return sum(i.size for i in self)
 
-    def to_bytes(self):
+    def to_bytes(self, format=ImageFileFormat.webp):
         offsets = []
         data = QByteArray()
         result = QBuffer(data)
         result.open(QBuffer.OpenModeFlag.WriteOnly)
         for img in self:
             offsets.append(result.pos())
-            img.write(result, ImageFileFormat.webp)
+            img.write(result, format)
         result.close()
         return data, offsets
 

@@ -72,7 +72,7 @@ class RequestManager:
         self._net.finished.connect(self._finished)
         self._requests: dict[QNetworkReply, Request] = {}
 
-    def http(self, method, url: str, data: dict | None = None, bearer=""):
+    def http(self, method, url: str, data: dict | QByteArray | None = None, bearer=""):
         self._cleanup()
 
         request = QNetworkRequest(QUrl(url))
@@ -81,13 +81,22 @@ class RequestManager:
         if bearer:
             request.setRawHeader(b"Authorization", f"Bearer {bearer}".encode("utf-8"))
 
-        assert method in ["GET", "POST"]
+        assert method in ["GET", "POST", "PUT"]
         if method == "POST":
             data = data or {}
             data_bytes = QByteArray(json.dumps(data).encode("utf-8"))
             request.setHeader(QNetworkRequest.KnownHeaders.ContentTypeHeader, "application/json")
             request.setHeader(QNetworkRequest.KnownHeaders.ContentLengthHeader, data_bytes.size())
             reply = self._net.post(request, data_bytes)
+        elif method == "PUT":
+            if isinstance(data, bytes):
+                data = QByteArray(data)
+            assert isinstance(data, QByteArray)
+            request.setHeader(
+                QNetworkRequest.KnownHeaders.ContentTypeHeader, "application/octet-stream"
+            )
+            request.setHeader(QNetworkRequest.KnownHeaders.ContentLengthHeader, data.size())
+            reply = self._net.put(request, data)
         else:
             reply = self._net.get(request)
 
@@ -101,6 +110,9 @@ class RequestManager:
 
     def post(self, url: str, data: dict, bearer=""):
         return self.http("POST", url, data, bearer=bearer)
+
+    def put(self, url: str, data: QByteArray | bytes):
+        return self.http("PUT", url, data)
 
     def download(self, url: str):
         self._cleanup()
@@ -134,9 +146,9 @@ class RequestManager:
                     tracker.buffer.write(reply.readAll())
                     future.set_result(tracker.buffer.data())
                 else:
-                    content_type = reply.header(QNetworkRequest.ContentTypeHeader)
+                    content_type = reply.header(QNetworkRequest.KnownHeaders.ContentTypeHeader)
                     data = reply.readAll().data()
-                    if "application/json" in content_type:
+                    if content_type and ("application/json" in content_type):
                         future.set_result(json.loads(data))
                     else:
                         future.set_result(data)

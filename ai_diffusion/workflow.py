@@ -877,7 +877,7 @@ def prepare_create_control_image(
     if bounds:
         seed = generate_seed() if seed == -1 else seed
         i.inpaint = InpaintParams(InpaintMode.fill, bounds)
-        i.sampling = SamplingInput("", 0, 0, seed=seed)
+        i.sampling = SamplingInput("", 1, 1, seed=seed)
     return i
 
 

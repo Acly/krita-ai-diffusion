@@ -6,15 +6,8 @@ import sys
 import asyncio
 import dotenv
 
-from ai_diffusion.api import (
-    WorkflowInput,
-    WorkflowKind,
-    ControlInput,
-    ImageInput,
-    CheckpointInput,
-    SamplingInput,
-    TextInput,
-)
+from ai_diffusion.api import WorkflowInput, WorkflowKind, ControlInput, ImageInput, CheckpointInput
+from ai_diffusion.api import SamplingInput, TextInput, ExtentInput
 from ai_diffusion.client import Client, ClientEvent
 from ai_diffusion.cloud_client import CloudClient
 from ai_diffusion.image import Extent, Image
@@ -70,8 +63,9 @@ def pod_server(qtapp, pytestconfig):
 
 async def receive_images(client: Client, work: WorkflowInput):
     job_id = None
-    job_id = await client.enqueue(work)
     async for msg in client.listen():
+        if job_id is None:
+            job_id = await client.enqueue(work)
         if msg.event is ClientEvent.finished and msg.job_id == job_id:
             assert msg.images is not None
             return msg.images
@@ -117,6 +111,21 @@ def create_simple_workflow():
 def test_simple(qtapp, cloud_client):
     workflow = create_simple_workflow()
     run_and_save(qtapp, cloud_client, workflow, "pod_simple")
+
+
+def test_large_image(qtapp, cloud_client):
+    extent = Extent(3072, 2048)
+    input_image = Image.load(test_dir / "images" / "beach_1536x1024.webp")
+    input_image = Image.scale(input_image, extent)
+    workflow = WorkflowInput(
+        WorkflowKind.refine,
+        images=ImageInput(ExtentInput(extent, extent, extent, extent), input_image),
+        models=CheckpointInput("dreamshaper_8.safetensors"),
+        sampling=SamplingInput("DPM++ 2M", 10, 3.0, strength=0.6),
+        text=TextInput("beach, jungle"),
+        control=[ControlInput(ControlMode.blur, input_image)],
+    )
+    run_and_save(qtapp, cloud_client, workflow, "pod_large_image")
 
 
 @pytest.mark.parametrize("scenario", ["resolution", "steps", "control"])

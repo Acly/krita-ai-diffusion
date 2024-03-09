@@ -4,7 +4,7 @@ from types import GenericAlias, UnionType
 from typing import Any, get_args, get_origin
 import math
 
-from .image import Bounds, Extent, Image
+from .image import Bounds, Extent, Image, ImageCollection, ImageFileFormat
 from .resources import ControlMode
 from .util import ensure
 
@@ -107,9 +107,9 @@ class InpaintParams:
     mode: InpaintMode
     target_bounds: Bounds
     fill: FillMode = FillMode.neutral
-    use_inpaint_model = False
-    use_condition_mask = False
-    use_reference = False
+    use_inpaint_model: bool = False
+    use_condition_mask: bool = False
+    use_reference: bool = False
 
 
 @dataclass
@@ -140,10 +140,10 @@ class WorkflowInput:
 
     @staticmethod
     def from_dict(data: dict[str, Any]):
-        return _deserialize_object(WorkflowInput, data)
+        return Deserializer.run(data)
 
-    def to_dict(self):
-        return _serialize_object(self)
+    def to_dict(self, image_format=ImageFileFormat.webp):
+        return Serializer.run(self, image_format)
 
     @property
     def cost(self):
@@ -155,62 +155,87 @@ class WorkflowInput:
         return math.ceil((10 * cost) / unit)
 
 
-def _serialize_object(obj):
-    items = (
-        (field.name, _serialize_value(getattr(obj, field.name), field.default))
-        for field in fields(obj)
-    )
-    return {k: v for k, v in items if v is not None}
+class Serializer:
+    _images: ImageCollection
 
+    @staticmethod
+    def run(work: WorkflowInput, image_format=ImageFileFormat.webp):
+        serializer = Serializer()
+        result = serializer._object(work)
+        if len(serializer._images) > 0:
+            blob, offsets = serializer._images.to_bytes(image_format)
+            result["image_data"] = {"bytes": blob.data(), "offsets": offsets}
+        return result
 
-def _serialize_value(value, default=None):
-    if value is None:
-        return None
-    if isinstance(value, Image):
-        return value.to_base64()
-    if isinstance(value, list):
-        return [_serialize_value(v) for v in value]
-    if value == default:
-        return None
-    if isinstance(value, Enum):
-        return value.name
-    if isinstance(value, tuple):
-        return list(value)
-    if is_dataclass(value):
-        return _serialize_object(value)
-    return value
+    def __init__(self):
+        self._images = ImageCollection()
 
+    def _object(self, obj):
+        items = (
+            (field.name, self._value(getattr(obj, field.name), field.default))
+            for field in fields(obj)
+        )
+        return {k: v for k, v in items if v is not None}
 
-def serialize_workflow_input(work: WorkflowInput):
-    return _serialize_object(work)
-
-
-def _deserialize_object(type: type, input: dict):
-    values = (_deserialize_field(field, input.get(field.name)) for field in fields(type))
-    return type(*values)
-
-
-def _deserialize_field(field: Field, value):
-    if value is None:
-        return field.default
-    field_type = field.type
-    if isinstance(field_type, UnionType):
-        field_type = get_args(field_type)[0]
-    return _deserialize_value(field_type, value)
-
-
-def _deserialize_value(cls, value):
-    if is_dataclass(cls):
-        return _deserialize_object(cls, value)
-    elif issubclass(cls, Enum):
-        return cls[value]
-    elif issubclass(cls, Image):
-        return Image.from_base64(value)
-    elif issubclass(cls, tuple):
-        return cls(*value)
-    elif isinstance(cls, GenericAlias) and issubclass(get_origin(cls), tuple):
-        return tuple(value)
-    elif isinstance(cls, GenericAlias) and issubclass(get_origin(cls), list):
-        return [_deserialize_value(get_args(cls)[0], v) for v in value]
-    else:
+    def _value(self, value, default=None):
+        if value is None:
+            return None
+        if isinstance(value, Image):
+            self._images.append(value)
+            return len(self._images) - 1
+        if isinstance(value, list):
+            return [self._value(v) for v in value]
+        if value == default:
+            return None
+        if isinstance(value, Enum):
+            return value.name
+        if isinstance(value, tuple):
+            return list(value)
+        if is_dataclass(value):
+            return self._object(value)
         return value
+
+
+class Deserializer:
+    _images: ImageCollection
+
+    @staticmethod
+    def run(data: dict[str, Any]):
+        if image_data := data.get("image_data"):
+            blob, offsets = image_data["bytes"], image_data["offsets"]
+            images = ImageCollection.from_bytes(blob, offsets)
+        else:
+            images = ImageCollection()
+        deserializer = Deserializer(images)
+        return deserializer._object(WorkflowInput, data)
+
+    def __init__(self, images: ImageCollection):
+        self._images = images
+
+    def _object(self, type: type, input: dict):
+        values = (self._field(field, input.get(field.name)) for field in fields(type))
+        return type(*values)
+
+    def _field(self, field: Field, value):
+        if value is None:
+            return field.default
+        field_type = field.type
+        if isinstance(field_type, UnionType):
+            field_type = get_args(field_type)[0]
+        return self._value(field_type, value)
+
+    def _value(self, cls, value):
+        if is_dataclass(cls):
+            return self._object(cls, value)
+        elif issubclass(cls, Enum):
+            return cls[value]
+        elif issubclass(cls, Image):
+            return self._images[value]
+        elif issubclass(cls, tuple):
+            return cls(*value)
+        elif isinstance(cls, GenericAlias) and issubclass(get_origin(cls), tuple):
+            return tuple(value)
+        elif isinstance(cls, GenericAlias) and issubclass(get_origin(cls), list):
+            return [self._value(get_args(cls)[0], v) for v in value]
+        else:
+            return value

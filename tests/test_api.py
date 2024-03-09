@@ -8,7 +8,7 @@ from ai_diffusion.api import (
     ImageInput,
     TextInput,
 )
-from ai_diffusion.image import Extent, Image
+from ai_diffusion.image import Extent, Image, ImageFileFormat
 from ai_diffusion.resources import ControlMode
 
 
@@ -23,13 +23,17 @@ def test_defaults():
 def test_serialize():
     input = WorkflowInput(WorkflowKind.generate)
     input.images = ImageInput(ExtentInput(Extent(1, 1), Extent(2, 2), Extent(3, 3), Extent(4, 4)))
-    input.images.initial_image = Image.create(Extent(2, 2), Qt.GlobalColor.red)
+    input.images.initial_image = Image.create(Extent(2, 2), Qt.GlobalColor.green)
     input.text = TextInput("prompt")
     input.control = [
-        ControlInput(ControlMode.line_art, Image.create(Extent(2, 2)), 0.4, (0.1, 0.9)),
-        ControlInput(ControlMode.depth, Image.create(Extent(4, 2)), 0.8, (0.2, 0.5)),
+        ControlInput(
+            ControlMode.line_art, Image.create(Extent(2, 2), Qt.GlobalColor.red), 0.4, (0.1, 0.9)
+        ),
+        ControlInput(
+            ControlMode.depth, Image.create(Extent(4, 2), Qt.GlobalColor.blue), 0.8, (0.2, 0.5)
+        ),
     ]
 
-    data = input.to_dict()
+    data = input.to_dict(ImageFileFormat.webp_lossless)
     result = WorkflowInput.from_dict(data)
     assert result == input

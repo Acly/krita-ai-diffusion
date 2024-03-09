@@ -292,6 +292,7 @@ class ComfyWorkflow:
             weight_type="linear",
             start_at=range[0],
             end_at=range[1],
+            unfold_batch=False,
         )
 
     def apply_ip_adapter_face(

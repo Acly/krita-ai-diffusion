@@ -1,9 +1,11 @@
 import asyncio
-from datetime import datetime
 import json
+import math
 import os
 import platform
 import uuid
+from base64 import b64encode
+from datetime import datetime
 from dataclasses import dataclass
 
 from .api import WorkflowInput
@@ -44,7 +46,7 @@ class CloudClient(Client):
 
     def __init__(self, url: str):
         self.url = url
-        self.models = _models
+        self.models = models
         self.device_info = DeviceInfo("Cloud", "Remote GPU", 24)
         self._queue = asyncio.Queue()
 
@@ -86,6 +88,7 @@ class CloudClient(Client):
         user_data = await self._get("user")
         self._user = User(user_data["id"], user_data["name"])
         self._user.images_generated = user_data["images_generated"]
+        self._user.credits = user_data["credits"]
         log.info(f"Connected to {self.url}, user: {self._user.id}")
         return self._user
 
@@ -96,6 +99,7 @@ class CloudClient(Client):
         return job.local_id
 
     async def listen(self):
+        yield ClientMessage(ClientEvent.connected)
         while True:
             try:
                 self._current_job = await self._queue.get()
@@ -119,8 +123,10 @@ class CloudClient(Client):
     async def _process_job(self, job: JobInfo):
         user = ensure(self.user)
         inputs = job.work.to_dict()
+        await self._send_images(inputs)
         data = {"input": {"workflow": inputs}}
         response: dict = await self._post("generate", data)
+
         job.remote_id = response["id"]
         cost = _update_user(user, response.get("user"))
         log.info(f"{job} started, cost was {cost}, {user.credits} images remaining")
@@ -141,7 +147,7 @@ class CloudClient(Client):
 
         if response["status"] == "COMPLETED":
             output = response["output"]
-            results = await receive_images(output["images"], self._requests)
+            results = await self.receive_images(output["images"])
             log.info(f"{job} completed, got {len(results)} images")
             yield ClientMessage(ClientEvent.finished, job.local_id, 1, results)
 
@@ -171,14 +177,43 @@ class CloudClient(Client):
     def user(self):
         return self._user
 
+    async def _send_images(self, inputs: dict):
+        if image_data := inputs.get("image_data"):
+            blob, offsets = image_data["bytes"], image_data["offsets"]
+            if _base64_size(len(blob)) < 3_500_000:
+                encoded = b64encode(blob).decode("utf-8")
+                inputs["image_data"] = {"base64": encoded, "offsets": offsets}
+            else:
+                s3_object = await self._upload_to_s3(blob)
+                inputs["image_data"] = {"s3_object": s3_object, "offsets": offsets}
+
+    async def _upload_to_s3(self, data: bytes):
+        upload_info = await self._get("upload")
+        log.info(f"Uploading image input to temporary transfer {upload_info['url']}")
+        await self._requests.put(upload_info["url"], data)
+        return upload_info["object"]
+
+    async def receive_images(self, images: dict):
+        offsets = images.get("offsets")
+        if not (isinstance(offsets, list) and len(offsets) > 0):
+            raise ValueError(f"Could not read result images, invalid offsets: {offsets}")
+        if url := images.get("url"):
+            log.info(f"Downloading result images from temporary transfer {url}")
+            data = await self._requests.download(url)
+            return ImageCollection.from_bytes(data, offsets)
+        elif b64 := images.get("base64"):
+            return ImageCollection.from_base64(b64, offsets)
+        else:
+            raise ValueError(f"No result images found in server response: {str(images)[:80]}")
+
     def _process_http_error(self, e: NetworkError):
         message = e.message
         if e.status == 402 and e.data and self.user:  # 402 Payment Required
             try:
                 self.user.credits = e.data["credits"]
                 message = (
-                    f"Insufficient funds - generation would cost {e.data['cost']} ℐ. "
-                    f"Remaining images: {self.user.credits}"
+                    f"Insufficient funds - generation would cost {e.data['cost']} tokens. "
+                    f"Remaining tokens: {self.user.credits}"
                 )
             except:
                 log.warning(f"Could not parse 402 error: {e.data}")
@@ -199,41 +234,31 @@ def _extract_error(response: dict, job_id: str | None):
 
 def _update_user(user: User, response: dict | None):
     if response:
-        previous = user.credits
+        cost = max(0, user.credits - response["credits"])
         user.images_generated = response["images_generated"]
         user.credits = response["credits"]
-        return max(0, previous - user.credits)
+        return cost
     else:
         log.warning("Did not receive updated user data from server")
         return 0
 
 
-async def receive_images(images: dict, net: RequestManager):
-    offsets = images.get("offsets")
-    if not (isinstance(offsets, list) and len(offsets) > 0):
-        raise ValueError(f"Could not read result images, invalid offsets: {offsets}")
-    if url := images.get("url"):
-        log.info(f"Downloading result images from {url}")
-        data = await net.download(url)
-        return ImageCollection.from_bytes(data, offsets)
-    elif b64 := images.get("base64"):
-        return ImageCollection.from_base64(b64, offsets)
-    else:
-        raise ValueError(f"No result images found in server response: {str(images)[:80]}")
+def _base64_size(size: int):
+    return math.ceil(size / 3) * 4
 
 
 _poll_interval = 0.5  # seconds
 
-_models = ClientModels()
-_models.checkpoints = {
+models = ClientModels()
+models.checkpoints = {
     "dreamshaper_8.safetensors": CheckpointInfo("dreamshaper_8.safetensors", SDVersion.sd15),
     "realisticVisionV51_v51VAE.safetensors": CheckpointInfo(
         "realisticVisionV51_v51VAE.safetensors", SDVersion.sd15
     ),
 }
-_models.vae = []
-_models.loras = []
-_models.upscalers = [
+models.vae = []
+models.loras = []
+models.upscalers = [
     "4x_NMKD-Superscale-SP_178000_G.pth",
     "HAT_SRx4_ImageNet-pretrain.pth",
     "OmniSR_X2_DIV2K.safetensors",
@@ -241,9 +266,8 @@ _models.upscalers = [
     "OmniSR_X4_DIV2K.safetensors",
 ]
 # fmt: off
-# TODO: retrieve this from server? or at least share with cloud_worker.py
 from ai_diffusion.resources import resource_id, ResourceKind, ControlMode, UpscalerName
-_models.resources = {
+models.resources = {
     resource_id(ResourceKind.controlnet, SDVersion.sd15, ControlMode.inpaint): "control_v11p_sd15_inpaint_fp16.safetensors",
     resource_id(ResourceKind.controlnet, SDVersion.sd15, ControlMode.scribble): "control_lora_rank128_v11p_sd15_scribble_fp16.safetensors",
     resource_id(ResourceKind.controlnet, SDVersion.sdxl, ControlMode.scribble): None,
@@ -266,7 +290,7 @@ _models.resources = {
     resource_id(ResourceKind.ip_adapter, SDVersion.sdxl, ControlMode.reference): None,
     resource_id(ResourceKind.ip_adapter, SDVersion.sd15, ControlMode.face): None,
     resource_id(ResourceKind.ip_adapter, SDVersion.sdxl, ControlMode.face): None,
-    resource_id(ResourceKind.clip_vision, SDVersion.all, "ip_adapter"):"sd1.5/model.safetensors",
+    resource_id(ResourceKind.clip_vision, SDVersion.all, "ip_adapter"): "clip-vision_vit-h.safetensors",
     resource_id(ResourceKind.lora, SDVersion.sd15, "lcm"): "lcm-lora-sdv1-5.safetensors",
     resource_id(ResourceKind.lora, SDVersion.sdxl, "lcm"): None,
     resource_id(ResourceKind.lora, SDVersion.sd15, ControlMode.face): None,
