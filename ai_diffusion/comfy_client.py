@@ -18,7 +18,7 @@ from .websockets.src.websockets import exceptions as websockets_exceptions
 from .style import Styles
 from .resources import ControlMode, MissingResource, ResourceKind, SDVersion, UpscalerName
 from .resources import resource_id
-from .settings import settings
+from .settings import PerformanceSettings, settings
 from .util import client_logger as log
 from .workflow import create as create_workflow
 from . import resources, util
@@ -296,6 +296,14 @@ class ComfyClient(Client):
     @property
     def supports_ip_adapter(self):
         return self.device_info.type != "privateuseone"
+
+    @property
+    def performance_settings(self):
+        return PerformanceSettings(
+            batch_size=settings.batch_size,
+            resolution_multiplier=settings.resolution_multiplier,
+            max_pixel_count=settings.max_pixel_count,
+        )
 
     def _get_active_job(self, id: str) -> Optional[JobInfo]:
         if self._active and self._active.id == id:

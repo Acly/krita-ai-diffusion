@@ -7,10 +7,12 @@ from ai_diffusion.image import Bounds, Extent, Image, Mask
 from ai_diffusion.resolution import ScaledExtent, ScaleMode, CheckpointResolution
 from ai_diffusion.resources import SDVersion
 from ai_diffusion.style import Style
+from ai_diffusion.settings import PerformanceSettings
 
 from .config import data_dir
 
 dummy_style = Style(Path("dummy.json"))
+perf = PerformanceSettings()
 
 
 @pytest.mark.parametrize(
@@ -131,7 +133,7 @@ def test_inpaint_context(area, expected_extent, expected_crop: tuple[int, int] |
 def test_prepare_highres(input, expected_initial, expected_desired):
     image = Image.create(input)
     mask = Mask.rectangle(Bounds(0, 0, input.width, input.height))
-    r, _ = resolution.prepare_masked(image, mask, SDVersion.sd15, dummy_style)
+    r, _ = resolution.prepare_masked(image, mask, SDVersion.sd15, dummy_style, perf)
     assert (
         r.initial_image
         and r.extent.input == r.initial_image.extent
@@ -155,7 +157,7 @@ def test_prepare_highres(input, expected_initial, expected_desired):
 def test_prepare_lowres(input: Extent, expected: Extent):
     image = Image.create(input)
     mask = Mask.rectangle(Bounds(0, 0, input.width, input.height))
-    r, _ = resolution.prepare_masked(image, mask, SDVersion.sd15, dummy_style)
+    r, _ = resolution.prepare_masked(image, mask, SDVersion.sd15, dummy_style, perf)
     assert (
         r.extent.input == input
         and image.extent == input
@@ -174,7 +176,7 @@ def test_prepare_lowres(input: Extent, expected: Extent):
 def test_prepare_passthrough(input: Extent):
     image = Image.create(input)
     mask = Mask.rectangle(Bounds(0, 0, input.width, input.height))
-    r, _ = resolution.prepare_masked(image, mask, SDVersion.sd15, dummy_style)
+    r, _ = resolution.prepare_masked(image, mask, SDVersion.sd15, dummy_style, perf)
     assert (
         r.initial_image
         and r.initial_mask
@@ -191,7 +193,7 @@ def test_prepare_passthrough(input: Extent):
     "input,expected", [(Extent(512, 513), Extent(512, 520)), (Extent(300, 1024), Extent(304, 1024))]
 )
 def test_prepare_multiple8(input: Extent, expected: Extent):
-    r, _ = resolution.prepare_extent(input, SDVersion.sd15, dummy_style)
+    r, _ = resolution.prepare_extent(input, SDVersion.sd15, dummy_style, perf)
     assert (
         r.extent.input == input
         and r.extent.initial == expected
@@ -203,14 +205,14 @@ def test_prepare_multiple8(input: Extent, expected: Extent):
 @pytest.mark.parametrize("sdver", [SDVersion.sd15, SDVersion.sdxl])
 def test_prepare_extent(sdver: SDVersion):
     input = Extent(1024, 1536)
-    r, _ = resolution.prepare_extent(input, sdver, dummy_style)
+    r, _ = resolution.prepare_extent(input, sdver, dummy_style, perf)
     expected = Extent(512, 768) if sdver == SDVersion.sd15 else Extent(840, 1256)
     assert r.extent.initial == expected and r.extent.desired == input and r.extent.target == input
 
 
 def test_prepare_no_mask():
     image = Image.create(Extent(256, 256))
-    r, _ = resolution.prepare_image(image, SDVersion.sd15, dummy_style)
+    r, _ = resolution.prepare_image(image, SDVersion.sd15, dummy_style, perf)
     assert (
         r.initial_image
         and r.initial_image == image
@@ -222,7 +224,7 @@ def test_prepare_no_mask():
 @pytest.mark.parametrize("input", [Extent(512, 512), Extent(1024, 1628), Extent(1536, 999)])
 def test_prepare_no_downscale(input: Extent):
     image = Image.create(input)
-    r, _ = resolution.prepare_image(image, SDVersion.sd15, dummy_style, downscale=False)
+    r, _ = resolution.prepare_image(image, SDVersion.sd15, dummy_style, perf, downscale=False)
     assert (
         r.initial_image
         and r.initial_image == image
@@ -243,9 +245,9 @@ def test_prepare_no_downscale(input: Extent):
     ],
     ids=["sd15_large", "sd15_small", "sdxl_small", "sdxl_large", "sd15_odd"],
 )
-def test_prepare_max_pixel_count(input, sd_ver, expected_initial, expected_desired, temp_settings):
-    temp_settings.max_pixel_count = 1  # million pixels
-    r, _ = resolution.prepare_extent(input, sd_ver, dummy_style)
+def test_prepare_max_pixel_count(input, sd_ver, expected_initial, expected_desired):
+    perf_settings = PerformanceSettings(max_pixel_count=1)
+    r, _ = resolution.prepare_extent(input, sd_ver, dummy_style, perf_settings)
     assert (
         r.extent.initial == expected_initial
         and r.extent.desired == expected_desired
@@ -266,11 +268,9 @@ def test_prepare_max_pixel_count(input, sd_ver, expected_initial, expected_desir
     ],
     ids=["1.0", "0.5", "0.5_large", "0.4", "0.5_tall", "2.0", "1.1"],
 )
-def test_prepare_resolution_multiplier(
-    input, multiplier, expected_initial, expected_desired, temp_settings
-):
-    temp_settings.resolution_multiplier = multiplier
-    r, _ = resolution.prepare_extent(input, SDVersion.sd15, dummy_style)
+def test_prepare_resolution_multiplier(input, multiplier, expected_initial, expected_desired):
+    perf_settings = PerformanceSettings(resolution_multiplier=multiplier)
+    r, _ = resolution.prepare_extent(input, SDVersion.sd15, dummy_style, perf_settings)
     assert (
         r.extent.initial == expected_initial
         and r.extent.desired == expected_desired
@@ -278,12 +278,12 @@ def test_prepare_resolution_multiplier(
     )
 
 
-def test_prepare_resolution_multiplier_inputs(temp_settings):
-    temp_settings.resolution_multiplier = 0.5
+def test_prepare_resolution_multiplier_inputs():
+    perf_settings = PerformanceSettings(resolution_multiplier=0.5)
     input = Extent(1024, 1024)
     image = Image.create(input)
     mask = Mask.rectangle(Bounds(0, 0, input.width, input.height))
-    r, _ = resolution.prepare_masked(image, mask, SDVersion.sd15, dummy_style)
+    r, _ = resolution.prepare_masked(image, mask, SDVersion.sd15, dummy_style, perf_settings)
     assert (
         r.extent.input == Extent(512, 512)
         and r.initial_image
@@ -300,9 +300,8 @@ def test_prepare_resolution_multiplier_inputs(temp_settings):
     "multiplier,expected",
     [(0.5, Extent(1024, 1024)), (2, Extent(1000, 1000)), (0.25, Extent(512, 512))],
 )
-def test_prepare_resolution_multiplier_max(multiplier, expected, temp_settings):
-    temp_settings.resolution_multiplier = multiplier
-    temp_settings.max_pixel_count = 1  # million pixels
+def test_prepare_resolution_multiplier_max(multiplier, expected):
+    perf_settings = PerformanceSettings(resolution_multiplier=multiplier, max_pixel_count=1)
     input = Extent(2048, 2048)
-    r, _ = resolution.prepare_extent(input, SDVersion.sd15, dummy_style)
+    r, _ = resolution.prepare_extent(input, SDVersion.sd15, dummy_style, perf_settings)
     assert r.extent.initial.width <= 632 and r.extent.desired == expected

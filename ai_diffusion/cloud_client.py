@@ -14,6 +14,7 @@ from .client import User
 from .image import Image, ImageCollection
 from .network import RequestManager, NetworkError
 from .resources import SDVersion
+from .settings import PerformanceSettings
 from .util import ensure, client_logger as log
 
 
@@ -37,7 +38,7 @@ class CloudClient(Client):
     _current_job: JobInfo | None = None
 
     @staticmethod
-    async def connect(url: str, access_token: str):
+    async def connect(url: str, access_token: str = ""):
         if not access_token:
             raise ValueError("Authorization missing for cloud endpoint")
         client = CloudClient(url)
@@ -176,6 +177,10 @@ class CloudClient(Client):
     @property
     def user(self):
         return self._user
+
+    @property
+    def performance_settings(self):
+        return PerformanceSettings(batch_size=4, resolution_multiplier=1.0, max_pixel_count=8)
 
     async def _send_images(self, inputs: dict):
         if image_data := inputs.get("image_data"):

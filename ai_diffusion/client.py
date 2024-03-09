@@ -8,6 +8,7 @@ from .api import WorkflowInput
 from .image import ImageCollection
 from .properties import Property, ObservableProperties
 from .style import Style, Styles
+from .settings import PerformanceSettings
 from .resources import ControlMode, ResourceKind, SDVersion, UpscalerName
 from .resources import ResourceId, resource_id
 from .util import client_logger as log
@@ -222,6 +223,9 @@ class Client(ABC):
     @property
     def supports_ip_adapter(self) -> bool:
         return True
+
+    @property
+    def performance_settings(self) -> PerformanceSettings: ...
 
 
 def resolve_sd_version(style: Style, client: Client | None = None):

@@ -12,7 +12,7 @@ from ai_diffusion.api import TextInput
 from ai_diffusion.comfy_client import ComfyClient
 from ai_diffusion.cloud_client import CloudClient
 from ai_diffusion.resources import ControlMode
-from ai_diffusion.resolution import ScaledExtent
+from ai_diffusion.settings import PerformanceSettings
 from ai_diffusion.image import Mask, Bounds, Extent, Image
 from ai_diffusion.client import Client, ClientEvent
 from ai_diffusion.style import SDVersion, Style
@@ -36,6 +36,7 @@ def client(pytestconfig, request, qtapp):
 
 
 default_seed = 1234
+default_perf = PerformanceSettings(batch_size=1)
 
 
 def default_style(client: Client, sd_ver=SDVersion.sd15):
@@ -53,6 +54,7 @@ def create(kind: WorkflowKind, client: Client, **kwargs):
     kwargs.setdefault("text", TextInput(""))
     kwargs.setdefault("style", default_style(client))
     kwargs.setdefault("seed", default_seed)
+    kwargs.setdefault("perf", default_perf)
     return workflow.prepare(kind, models=client.models, **kwargs)
 
 
@@ -131,16 +133,14 @@ def test_inpaint_params():
 
 
 @pytest.mark.parametrize("extent", [Extent(256, 256), Extent(800, 800), Extent(512, 1024)])
-def test_generate(qtapp, client, temp_settings, extent: Extent):
-    temp_settings.batch_size = 1
+def test_generate(qtapp, client, extent: Extent):
     prompt = TextInput("ship")
     job = create(WorkflowKind.generate, client, canvas=extent, text=prompt)
     result = run_and_save(qtapp, client, job, f"test_generate_{extent.width}x{extent.height}")
     assert result.extent == extent
 
 
-def test_inpaint(qtapp, client, temp_settings):
-    temp_settings.batch_size = 3  # max 3 images@512x512 -> 2 images@768x512
+def test_inpaint(qtapp, client):
     image = Image.load(image_dir / "beach_768x512.webp")
     mask = Mask.rectangle(Bounds(40, 120, 320, 200), feather=10)
     cond = TextInput("beach, the sea, cliffs, palm trees")
@@ -151,6 +151,7 @@ def test_inpaint(qtapp, client, temp_settings):
         mask=mask,
         style=default_style(client, SDVersion.sd15),
         text=cond,
+        perf=PerformanceSettings(batch_size=3),  # max 3 images@512x512 -> 2 images@768x512
         inpaint=detect_inpaint(
             InpaintMode.fill, mask.bounds, SDVersion.sd15, cond.positive, [], 1.0
         ),
@@ -169,8 +170,7 @@ def test_inpaint(qtapp, client, temp_settings):
 
 
 @pytest.mark.parametrize("sdver", [SDVersion.sd15, SDVersion.sdxl])
-def test_inpaint_upscale(qtapp, client, temp_settings, sdver):
-    temp_settings.batch_size = 3  # 2 images for 1.5, 1 image for XL
+def test_inpaint_upscale(qtapp, client, sdver):
     image = Image.load(image_dir / "beach_1536x1024.webp")
     mask = Mask.rectangle(Bounds(300, 200, 768, 512), feather=20)
     prompt = TextInput("ship")
@@ -180,6 +180,7 @@ def test_inpaint_upscale(qtapp, client, temp_settings, sdver):
         canvas=image,
         mask=mask,
         text=prompt,
+        perf=PerformanceSettings(batch_size=3),  # 2 images for 1.5, 1 image for XL
         inpaint=detect_inpaint(
             InpaintMode.add_object, mask.bounds, sdver, prompt.positive, [], 1.0
         ),
@@ -198,8 +199,7 @@ def test_inpaint_upscale(qtapp, client, temp_settings, sdver):
     qtapp.run(main())
 
 
-def test_inpaint_odd_resolution(qtapp, client, temp_settings):
-    temp_settings.batch_size = 1
+def test_inpaint_odd_resolution(qtapp, client):
     image = Image.load(image_dir / "beach_768x512.webp")
     image = Image.scale(image, Extent(612, 513))
     mask = Mask.rectangle(Bounds(0, 0, 200, 513))
@@ -214,8 +214,7 @@ def test_inpaint_odd_resolution(qtapp, client, temp_settings):
     assert result.extent == mask.bounds.extent
 
 
-def test_inpaint_area_conditioning(qtapp, client, temp_settings):
-    temp_settings.batch_size = 1
+def test_inpaint_area_conditioning(qtapp, client):
     image = Image.load(image_dir / "lake_1536x1024.webp")
     mask = Mask.load(image_dir / "lake_1536x1024_mask_bottom_right.png")
     prompt = TextInput("(crocodile)")
@@ -233,9 +232,7 @@ def test_inpaint_area_conditioning(qtapp, client, temp_settings):
 
 
 @pytest.mark.parametrize("setup", ["sd15", "sdxl"])
-def test_refine(qtapp, client, setup, temp_settings):
-    temp_settings.batch_size = 1
-    temp_settings.max_pixel_count = 2
+def test_refine(qtapp, client, setup):
     sdver, extent, strength = {
         "sd15": (SDVersion.sd15, Extent(768, 508), 0.5),
         "sdxl": (SDVersion.sdxl, Extent(1111, 741), 0.65),
@@ -249,14 +246,14 @@ def test_refine(qtapp, client, setup, temp_settings):
         style=default_style(client, sdver),
         text=TextInput("painting in the style of Vincent van Gogh"),
         strength=strength,
+        perf=PerformanceSettings(batch_size=1, max_pixel_count=2),
     )
     result = run_and_save(qtapp, client, job, f"test_refine_{setup}")
     assert result.extent == extent
 
 
 @pytest.mark.parametrize("setup", ["sd15_0.4", "sd15_0.6", "sdxl_0.7"])
-def test_refine_region(qtapp, client, temp_settings, setup):
-    temp_settings.batch_size = 1
+def test_refine_region(qtapp, client, setup):
     sdver, strength = {
         "sd15_0.4": (SDVersion.sd15, 0.4),
         "sd15_0.6": (SDVersion.sd15, 0.6),
@@ -285,8 +282,7 @@ def test_refine_region(qtapp, client, temp_settings, setup):
 @pytest.mark.parametrize(
     "op", ["generate", "inpaint", "refine", "refine_region", "inpaint_upscale"]
 )
-def test_control_scribble(qtapp, client, temp_settings, op):
-    temp_settings.batch_size = 1
+def test_control_scribble(qtapp, client, op):
     scribble_image = Image.load(image_dir / "owls_scribble.webp")
     inpaint_image = Image.load(image_dir / "owls_inpaint.webp")
     mask = Mask.load(image_dir / "owls_mask.png")
@@ -324,8 +320,7 @@ def test_control_scribble(qtapp, client, temp_settings, op):
         run_and_save(qtapp, client, job, f"test_control_scribble_{op}")
 
 
-def test_control_canny_downscale(qtapp, client, temp_settings):
-    temp_settings.batch_size = 1
+def test_control_canny_downscale(qtapp, client):
     canny_image = Image.load(image_dir / "shrine_canny.webp")
     prompt = TextInput("shrine")
     control = [ControlInput(ControlMode.canny_edge, canny_image, 1.0)]
@@ -339,7 +334,7 @@ def test_control_canny_downscale(qtapp, client, temp_settings):
 def test_create_control_image(qtapp, client: Client, mode):
     image_name = f"test_create_control_image_{mode.name}"
     image = Image.load(image_dir / "adobe_stock.jpg")
-    job = workflow.prepare_create_control_image(image, mode)
+    job = workflow.prepare_create_control_image(image, mode, default_perf)
 
     result = run_and_save(qtapp, client, job, image_name)
     reference = Image.load(reference_dir / image_name)
@@ -350,7 +345,7 @@ def test_create_control_image(qtapp, client: Client, mode):
 def test_create_open_pose_vector(qtapp, client: Client):
     image_name = f"test_create_open_pose_vector.svg"
     image = Image.load(image_dir / "adobe_stock.jpg")
-    job = workflow.prepare_create_control_image(image, ControlMode.pose)
+    job = workflow.prepare_create_control_image(image, ControlMode.pose, default_perf)
 
     async def main():
         job_id = None
@@ -380,15 +375,16 @@ def test_create_hand_refiner_image(qtapp, client: Client, setup):
         "right_hand": Bounds(102, 398, 264, 240),
         "left_hand": Bounds(541, 642, 232, 248),
     }[setup]
-    job = workflow.prepare_create_control_image(image, ControlMode.hands, bounds, default_seed)
+    job = workflow.prepare_create_control_image(
+        image, ControlMode.hands, default_perf, bounds, default_seed
+    )
     result = run_and_save(qtapp, client, job, image_name)
     reference = Image.load(reference_dir / image_name)
     assert Image.compare(result, reference) < 0.002
 
 
 @pytest.mark.parametrize("sdver", [SDVersion.sd15, SDVersion.sdxl])
-def test_ip_adapter(qtapp, client, temp_settings, sdver):
-    temp_settings.batch_size = 1
+def test_ip_adapter(qtapp, client, sdver):
     image = Image.load(image_dir / "cat.webp")
     prompt = TextInput("cat on a rooftop in paris")
     control = [ControlInput(ControlMode.reference, image, 0.6)]
@@ -400,8 +396,7 @@ def test_ip_adapter(qtapp, client, temp_settings, sdver):
     run_and_save(qtapp, client, job, f"test_ip_adapter_{sdver.name}")
 
 
-def test_ip_adapter_region(qtapp, client, temp_settings):
-    temp_settings.batch_size = 1
+def test_ip_adapter_region(qtapp, client):
     image = Image.load(image_dir / "flowers.webp")
     mask = Mask.load(image_dir / "flowers_mask.png")
     control_img = Image.load(image_dir / "pegonia.webp")
@@ -421,8 +416,7 @@ def test_ip_adapter_region(qtapp, client, temp_settings):
     run_and_save(qtapp, client, job, "test_ip_adapter_region", image, mask)
 
 
-def test_ip_adapter_batch(qtapp, client, temp_settings):
-    temp_settings.batch_size = 1
+def test_ip_adapter_batch(qtapp, client):
     image1 = Image.load(image_dir / "cat.webp")
     image2 = Image.load(image_dir / "pegonia.webp")
     control = [
@@ -434,10 +428,9 @@ def test_ip_adapter_batch(qtapp, client, temp_settings):
 
 
 @pytest.mark.parametrize("sdver", [SDVersion.sd15, SDVersion.sdxl])
-def test_ip_adapter_face(qtapp, client, temp_settings, sdver):
+def test_ip_adapter_face(qtapp, client, sdver):
     if isinstance(client, CloudClient):
         pytest.skip("IP-adapter FaceID is not available in the cloud")
-    temp_settings.batch_size = 1
     extent = Extent(650, 650) if sdver == SDVersion.sd15 else Extent(1024, 1024)
     image = Image.load(image_dir / "face.webp")
     cond = TextInput("portrait photo of a woman at a garden party")
@@ -498,24 +491,33 @@ def test_refine_live(qtapp, client, sdver):
     run_and_save(qtapp, client, job, f"test_refine_live_{sdver.name}")
 
 
-def test_refine_max_pixels(qtapp, client, temp_settings):
-    temp_settings.max_pixel_count = 1  # million pixels
+def test_refine_max_pixels(qtapp, client):
+    perf_settings = PerformanceSettings(max_pixel_count=1)  # million pixels
     image = Image.load(image_dir / "lake_1536x1024.webp")
     cond = TextInput("watercolor painting on structured paper, aquarelle, stylized")
-    job = create(WorkflowKind.refine, client, canvas=image, text=cond, strength=0.6)
+    job = create(
+        WorkflowKind.refine, client, canvas=image, text=cond, strength=0.6, perf=perf_settings
+    )
     run_and_save(qtapp, client, job, f"test_refine_max_pixels")
 
 
-def test_outpaint_resolution_multiplier(qtapp, client, temp_settings):
-    temp_settings.batch_size = 1
-    temp_settings.resolution_multiplier = 0.8
+def test_outpaint_resolution_multiplier(qtapp, client):
+    perf_settings = PerformanceSettings(batch_size=1, resolution_multiplier=0.8)
     image = Image.create(Extent(2048, 1024))
     beach = Image.load(image_dir / "beach_1536x1024.webp")
     image.draw_image(beach, (512, 0))
     mask = Mask.load(image_dir / "beach_outpaint_mask.png")
     prompt = TextInput("photo of a beach and jungle, nature photography, tropical")
     params = automatic_inpaint(image.extent, mask.bounds, prompt=prompt.positive)
-    job = create(WorkflowKind.inpaint, client, canvas=image, mask=mask, text=prompt, inpaint=params)
+    job = create(
+        WorkflowKind.inpaint,
+        client,
+        canvas=image,
+        mask=mask,
+        text=prompt,
+        inpaint=params,
+        perf=perf_settings,
+    )
     run_and_save(qtapp, client, job, f"test_outpaint_resolution_multiplier", image, mask)
 
 
@@ -580,12 +582,11 @@ def run_inpaint_benchmark(
     run_and_save(qtapp, client, job, result_name, image, mask, output_dir=out_dir)
 
 
-def test_inpaint_benchmark(pytestconfig, qtapp, client, temp_settings):
+def test_inpaint_benchmark(pytestconfig, qtapp, client):
     if not pytestconfig.getoption("--benchmark"):
         pytest.skip("Only runs with --benchmark")
     print()
 
-    temp_settings.batch_size = 1
     output_dir = config.benchmark_dir / datetime.now().strftime("%Y%m%d-%H%M")
     seeds = [4213, 897281]
     prompt_modes = ["prompt", "noprompt"]

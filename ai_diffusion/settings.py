@@ -1,4 +1,5 @@
 from __future__ import annotations
+from dataclasses import dataclass, asdict
 import os
 import json
 from enum import Enum
@@ -41,6 +42,13 @@ class PerformancePreset(Enum):
     medium = "GPU medium (6GB to 12GB)"
     high = "GPU high (more than 12GB)"
     custom = "Custom"
+
+
+@dataclass
+class PerformanceSettings:
+    batch_size: int = 4
+    resolution_multiplier: float = 1.0
+    max_pixel_count: int = 8
 
 
 class Setting:
@@ -176,26 +184,26 @@ class Settings(QObject):
     )
 
     _performance_presets = {
-        PerformancePreset.cpu: {
-            "batch_size": 1,
-            "resolution_multiplier": 1.0,
-            "max_pixel_count": 2,
-        },
-        PerformancePreset.low: {
-            "batch_size": 2,
-            "resolution_multiplier": 1.0,
-            "max_pixel_count": 2,
-        },
-        PerformancePreset.medium: {
-            "batch_size": 4,
-            "resolution_multiplier": 1.0,
-            "max_pixel_count": 8,
-        },
-        PerformancePreset.high: {
-            "batch_size": 8,
-            "resolution_multiplier": 1.0,
-            "max_pixel_count": 12,
-        },
+        PerformancePreset.cpu: PerformanceSettings(
+            batch_size=1,
+            resolution_multiplier=1.0,
+            max_pixel_count=2,
+        ),
+        PerformancePreset.low: PerformanceSettings(
+            batch_size=2,
+            resolution_multiplier=1.0,
+            max_pixel_count=2,
+        ),
+        PerformancePreset.medium: PerformanceSettings(
+            batch_size=4,
+            resolution_multiplier=1.0,
+            max_pixel_count=8,
+        ),
+        PerformancePreset.high: PerformanceSettings(
+            batch_size=8,
+            resolution_multiplier=1.0,
+            max_pixel_count=12,
+        ),
     }
 
     debug_dump_workflow: bool
@@ -261,7 +269,7 @@ class Settings(QObject):
 
     def apply_performance_preset(self, preset: PerformancePreset):
         if preset not in [PerformancePreset.custom, PerformancePreset.auto]:
-            for k, v in self._performance_presets[preset].items():
+            for k, v in asdict(self._performance_presets[preset]).items():
                 self._values[k] = v
 
     def _migrate_legacy_settings(self, path: Path):

@@ -146,6 +146,7 @@ class Model(QObject, ObservableProperties):
                 self.style,
                 self.seed if self.fixed_seed else workflow.generate_seed(),
                 client.models,
+                client.performance_settings,
                 mask=mask,
                 strength=self.strength,
                 control=control,
@@ -195,6 +196,7 @@ class Model(QObject, ObservableProperties):
                     self.style,
                     params.seed,
                     client.models,
+                    client.performance_settings,
                     strength=params.strength,
                     upscale_factor=params.factor,
                     upscale_model=upscaler,
@@ -240,6 +242,7 @@ class Model(QObject, ObservableProperties):
             self.style,
             self.seed,
             client.models,
+            client.performance_settings,
             mask=mask,
             control=[c.get_image(bounds) for c in self.control],
             strength=self.live.strength,
@@ -270,7 +273,8 @@ class Model(QObject, ObservableProperties):
             image = self._doc.get_image(Bounds(0, 0, *self._doc.extent))
             mask = self.document.create_mask_from_selection(0, 0, padding=0.25, multiple=64)
             bounds = mask.bounds if mask else None
-            input = workflow.prepare_create_control_image(image, control.mode, bounds)
+            perf = self._connection.client.performance_settings
+            input = workflow.prepare_create_control_image(image, control.mode, perf, bounds)
             job = self.jobs.add_control(control, Bounds(0, 0, *image.extent))
         except Exception as e:
             self.report_error(util.log_error(e))
@@ -699,6 +703,7 @@ class AnimationWorkspace(QObject, ObservableProperties):
             TextInput(m.prompt, m.negative_prompt, m.style.style_prompt),
             style=m.style,
             seed=seed,
+            perf=m._connection.client.performance_settings,
             models=m._connection.client.models,
             control=[c.get_image(bounds) for c in m.control],
             strength=m.strength,

@@ -13,6 +13,7 @@ from .client import ClientModels, ModelDict
 from .style import Style, StyleSettings
 from .resolution import ScaledExtent, ScaleMode, get_inpaint_reference
 from .resources import ControlMode, SDVersion, UpscalerName
+from .settings import PerformanceSettings
 from .text import merge_prompt, extract_loras
 from .comfy_workflow import ComfyWorkflow, Output
 from .util import ensure, median_or_zero, client_logger as log
@@ -764,6 +765,7 @@ def prepare(
     style: Style,
     seed: int,
     models: ClientModels,
+    perf: PerformanceSettings,
     mask: Mask | None = None,
     control: list[ControlInput] | None = None,
     strength: float = 1.0,
@@ -771,7 +773,7 @@ def prepare(
     upscale_factor: float = 1.0,
     upscale_model: str = "",
     is_live: bool = False,
-):
+) -> WorkflowInput:
     i = WorkflowInput(kind)
     i.text = text
     i.text.positive, extra_loras = extract_loras(i.text.positive, models.loras)
@@ -797,22 +799,21 @@ def prepare(
     if kind is WorkflowKind.generate:
         assert isinstance(canvas, Extent)
         i.images, i.batch_count = resolution.prepare_extent(
-            canvas, sd_version, ensure(style), downscale=not is_live
+            canvas, sd_version, ensure(style), perf, downscale=not is_live
         )
         downscale_control_images(i.control, canvas, i.images.extent.desired)
 
     elif kind is WorkflowKind.inpaint:
         assert isinstance(canvas, Image) and mask and inpaint and style
-        i.images, _ = resolution.prepare_masked(canvas, mask, sd_version, style)
+        i.images, _ = resolution.prepare_masked(canvas, mask, sd_version, style, perf)
         upscale_extent, _ = resolution.prepare_extent(
-            mask.bounds.extent, sd_version, style, downscale=False
+            mask.bounds.extent, sd_version, style, perf, downscale=False
         )
         i.inpaint = inpaint
         i.inpaint.use_reference = inpaint.use_reference and has_ip_adapter
         i.crop_upscale_extent = upscale_extent.extent.desired
-        i.batch_count = resolution.compute_batch_size(
-            Extent.largest(i.images.extent.initial, upscale_extent.extent.desired)
-        )
+        largest_extent = Extent.largest(i.images.extent.initial, upscale_extent.extent.desired)
+        i.batch_count = resolution.compute_batch_size(largest_extent, 512, perf.batch_size)
         i.images.hires_mask = mask.to_image()
         scaling = ScaledExtent.from_input(i.images.extent).refinement_scaling
         if scaling in [ScaleMode.upscale_small, ScaleMode.upscale_quality]:
@@ -823,7 +824,7 @@ def prepare(
     elif kind is WorkflowKind.refine:
         assert isinstance(canvas, Image) and style
         i.images, i.batch_count = resolution.prepare_image(
-            canvas, sd_version, style, downscale=False
+            canvas, sd_version, style, perf, downscale=False
         )
         downscale_control_images(i.control, canvas.extent, i.images.extent.desired)
 
@@ -831,7 +832,7 @@ def prepare(
         assert isinstance(canvas, Image) and mask and inpaint and style
         allow_2pass = strength >= 0.7
         i.images, i.batch_count = resolution.prepare_masked(
-            canvas, mask, sd_version, style, downscale=allow_2pass
+            canvas, mask, sd_version, style, perf, downscale=allow_2pass
         )
         i.images.hires_mask = mask.to_image()
         i.inpaint = inpaint
@@ -869,11 +870,15 @@ def prepare_upscale_simple(image: Image, model: str, factor: float):
 
 
 def prepare_create_control_image(
-    image: Image, mode: ControlMode, bounds: Bounds | None = None, seed: int = -1
-):
+    image: Image,
+    mode: ControlMode,
+    performance_settings: PerformanceSettings,
+    bounds: Bounds | None = None,
+    seed: int = -1,
+) -> WorkflowInput:
     i = WorkflowInput(WorkflowKind.control_image)
     i.control_mode = mode
-    i.images = resolution.prepare_control(image)
+    i.images = resolution.prepare_control(image, performance_settings)
     if bounds:
         seed = generate_seed() if seed == -1 else seed
         i.inpaint = InpaintParams(InpaintMode.fill, bounds)
@@ -881,7 +886,7 @@ def prepare_create_control_image(
     return i
 
 
-def create(i: WorkflowInput, models: ClientModels):
+def create(i: WorkflowInput, models: ClientModels) -> ComfyWorkflow:
     if i.kind is WorkflowKind.generate:
         return generate(
             ensure(i.models),

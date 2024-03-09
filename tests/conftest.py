@@ -38,12 +38,6 @@ def qtapp():
     return QtTestApp()
 
 
-@pytest.fixture()
-def temp_settings():
-    yield settings
-    settings.restore()
-
-
 @pytest.fixture(scope="session", autouse=True)
 def clear_results():
     if result_dir.exists():

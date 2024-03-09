@@ -6,7 +6,7 @@ from typing import NamedTuple, overload
 from .api import ExtentInput, ImageInput
 from .image import Bounds, Extent, Image, Mask, multiple_of
 from .resources import SDVersion
-from .settings import ServerMode, settings
+from .settings import PerformanceSettings
 from .style import Style
 
 
@@ -29,10 +29,7 @@ def compute_bounds(extent: Extent, mask_bounds: Bounds | None, strength: float):
         return Bounds(0, 0, *extent)
 
 
-def compute_batch_size(extent: Extent, min_size=512, max_batches: int | None = None):
-    max_batches = max_batches or settings.batch_size
-    if settings.server_mode is ServerMode.cloud:
-        max_batches = 8
+def compute_batch_size(extent: Extent, min_size: int, max_batches: int):
     desired_pixels = min_size * min_size * max_batches
     requested_pixels = extent.width * extent.height
     return max(1, min(max_batches, desired_pixels // requested_pixels))
@@ -143,7 +140,7 @@ class CheckpointResolution(NamedTuple):
         return CheckpointResolution(min_size, max_size, min_scale, max_scale)
 
 
-def apply_resolution_settings(extent: Extent):
+def apply_resolution_settings(extent: Extent, settings: PerformanceSettings):
     result = extent * settings.resolution_multiplier
     max_pixels = settings.max_pixel_count * 10**6
     if max_pixels > 0 and result.pixel_count > int(max_pixels * 1.1):
@@ -156,13 +153,14 @@ def prepare_diffusion_input(
     image: Image | None,
     mask: Mask | None,
     sd_version: SDVersion,
-    style: Style | None = None,
+    style: Style,
+    perf: PerformanceSettings,
     downscale=True,
 ):
     mask_image = mask.to_image(extent) if mask else None
 
     # Take settings into account to compute the desired resolution for diffusion.
-    desired = apply_resolution_settings(extent)
+    desired = apply_resolution_settings(extent, perf)
 
     # The checkpoint may require a different resolution than what is requested.
     min_size, max_size, min_scale, max_scale = CheckpointResolution.compute(
@@ -196,34 +194,47 @@ def prepare_diffusion_input(
             input = desired
             image, mask_image = _scale_images(image, mask_image, target=desired)
 
-    batch = compute_batch_size(Extent.largest(initial, desired))
+    batch = compute_batch_size(Extent.largest(initial, desired), 512, perf.batch_size)
     return ScaledExtent(input, initial, desired, extent), image, mask_image, batch
 
 
-def prepare_extent(extent: Extent, sd_ver: SDVersion, style: Style, downscale=True):
-    scaled, _, _, batch = prepare_diffusion_input(extent, None, None, sd_ver, style, downscale)
+def prepare_extent(
+    extent: Extent, sd_ver: SDVersion, style: Style, perf: PerformanceSettings, downscale=True
+):
+    scaled, _, _, batch = prepare_diffusion_input(
+        extent, None, None, sd_ver, style, perf, downscale
+    )
     return ImageInput(scaled.as_input), batch
 
 
-def prepare_image(image: Image, sd_ver: SDVersion, style: Style, downscale=True):
+def prepare_image(
+    image: Image, sd_ver: SDVersion, style: Style, perf: PerformanceSettings, downscale=True
+):
     scaled, out_image, _, batch = prepare_diffusion_input(
-        image.extent, image, None, sd_ver, style, downscale
+        image.extent, image, None, sd_ver, style, perf, downscale
     )
     assert out_image is not None
     return ImageInput(scaled.as_input, out_image), batch
 
 
-def prepare_masked(image: Image, mask: Mask, sd_ver: SDVersion, style: Style, downscale=True):
+def prepare_masked(
+    image: Image,
+    mask: Mask,
+    sd_ver: SDVersion,
+    style: Style,
+    perf: PerformanceSettings,
+    downscale=True,
+):
     scaled, out_image, out_mask, batch = prepare_diffusion_input(
-        image.extent, image, mask, sd_ver, style, downscale
+        image.extent, image, mask, sd_ver, style, perf, downscale
     )
     assert out_image and out_mask
     return ImageInput(scaled.as_input, out_image, out_mask), batch
 
 
-def prepare_control(image: Image):
+def prepare_control(image: Image, settings: PerformanceSettings):
     input = image.extent
-    desired = apply_resolution_settings(input)
+    desired = apply_resolution_settings(input, settings)
     if input != desired:
         image = Image.scale(image, desired)
     return ImageInput(ExtentInput(desired, desired, desired, input), image)
