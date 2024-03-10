@@ -143,7 +143,7 @@ class CheckpointResolution(NamedTuple):
 def apply_resolution_settings(extent: Extent, settings: PerformanceSettings):
     result = extent * settings.resolution_multiplier
     max_pixels = settings.max_pixel_count * 10**6
-    if max_pixels > 0 and result.pixel_count > int(max_pixels * 1.1):
+    if max_pixels > 0 and result.pixel_count > int(max_pixels * 1.05):
         result = result.scale_to_pixel_count(max_pixels)
     return result
 

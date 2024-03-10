@@ -774,6 +774,10 @@ def prepare(
     upscale_model: str = "",
     is_live: bool = False,
 ) -> WorkflowInput:
+    """
+    Takes UI model state, prepares images, normalizes inputs, and returns a WorkflowInput object
+    which can be compared and serialized.
+    """
     i = WorkflowInput(kind)
     i.text = text
     i.text.positive, extra_loras = extract_loras(i.text.positive, models.loras)
@@ -887,6 +891,10 @@ def prepare_create_control_image(
 
 
 def create(i: WorkflowInput, models: ClientModels) -> ComfyWorkflow:
+    """
+    Takes a WorkflowInput object and creates the corresponding ComfyUI workflow prompt.
+    This should be a pure function, the workflow is entirely defined by the input.
+    """
     if i.kind is WorkflowKind.generate:
         return generate(
             ensure(i.models),
