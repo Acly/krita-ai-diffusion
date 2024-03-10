@@ -332,6 +332,10 @@ def test_control_canny_downscale(qtapp, client):
 
 @pytest.mark.parametrize("mode", [m for m in ControlMode if m.has_preprocessor])
 def test_create_control_image(qtapp, client: Client, mode):
+    skip_cloud_modes = [ControlMode.normal, ControlMode.segmentation, ControlMode.hands]
+    if isinstance(client, CloudClient) and mode in skip_cloud_modes:
+        pytest.skip("Control image preproccessor not available")
+
     image_name = f"test_create_control_image_{mode.name}"
     image = Image.load(image_dir / "adobe_stock.jpg")
     job = workflow.prepare_create_control_image(image, mode, default_perf)

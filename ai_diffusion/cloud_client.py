@@ -283,7 +283,7 @@ models.resources = {
     resource_id(ResourceKind.controlnet, SDVersion.sdxl, ControlMode.canny_edge): None,
     resource_id(ResourceKind.controlnet, SDVersion.sd15, ControlMode.depth): "control_lora_rank128_v11f1p_sd15_depth_fp16.safetensors",
     resource_id(ResourceKind.controlnet, SDVersion.sdxl, ControlMode.depth): None,
-    resource_id(ResourceKind.controlnet, SDVersion.sd15, ControlMode.normal): "control_lora_rank128_v11p_sd15_normalbae_fp16.safetensors",
+    resource_id(ResourceKind.controlnet, SDVersion.sd15, ControlMode.normal): None,
     resource_id(ResourceKind.controlnet, SDVersion.sd15, ControlMode.pose): "control_lora_rank128_v11p_sd15_openpose_fp16.safetensors",
     resource_id(ResourceKind.controlnet, SDVersion.sdxl, ControlMode.pose): None,
     resource_id(ResourceKind.controlnet, SDVersion.sd15, ControlMode.segmentation): None,

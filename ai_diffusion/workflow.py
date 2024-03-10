@@ -684,14 +684,16 @@ def create_control_image(
         elif mode is ControlMode.line_art:
             result = w.add("LineArtPreprocessor", 1, **args, coarse="disable")
         elif mode is ControlMode.soft_edge:
-            result = w.add("HEDPreprocessor", 1, **args, safe="enable")
+            result = w.add("HEDPreprocessor", 1, **args, safe="disable")
         elif mode is ControlMode.depth:
-            result = w.add("MiDaS-DepthMapPreprocessor", 1, **args, a=math.pi * 2, bg_threshold=0.1)
+            model = "depth_anything_vitb14.pth"
+            result = w.add("DepthAnythingPreprocessor", 1, **args, ckpt_name=model)
         elif mode is ControlMode.normal:
             result = w.add("BAE-NormalMapPreprocessor", 1, **args)
         elif mode is ControlMode.pose:
             feat = dict(detect_hand="enable", detect_body="enable", detect_face="enable")
-            result = w.add("DWPreprocessor", 1, **args, **feat)
+            mdls = dict(bbox_detector="yolo_nas_l_fp16.onnx", pose_estimator="dw-ll_ucoco_384.onnx")
+            result = w.add("DWPreprocessor", 1, **args, **feat, **mdls)
         elif mode is ControlMode.segmentation:
             result = w.add("OneFormer-COCO-SemSegPreprocessor", 1, **args)
 
