@@ -148,9 +148,10 @@ class CloudClient(Client):
 
         if response["status"] == "COMPLETED":
             output = response["output"]
-            results = await self.receive_images(output["images"])
-            log.info(f"{job} completed, got {len(results)} images")
-            yield ClientMessage(ClientEvent.finished, job.local_id, 1, results)
+            images = await self.receive_images(output["images"])
+            pose = output.get("pose", None)
+            log.info(f"{job} completed, got {len(images)} images")
+            yield ClientMessage(ClientEvent.finished, job.local_id, 1, images, pose)
 
         elif response["status"] == "FAILED":
             err_msg, err_trace = _extract_error(response, job.remote_id)

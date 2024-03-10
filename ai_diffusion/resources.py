@@ -610,7 +610,7 @@ prefetch_models = [
         ResourceId(ResourceKind.preprocessor, SDVersion.all, ControlMode.pose),
         {
             Path(
-                "custom_nodes/comfyui_controlnet_aux/ckpts/yzd-v/DWPose/yolo_nas_l_fp16.onnx"
+                "custom_nodes/comfyui_controlnet_aux/ckpts/hr16/yolo-nas-fp16/yolo_nas_l_fp16.onnx"
             ): "https://huggingface.co/hr16/yolo-nas-fp16/resolve/main/yolo_nas_l_fp16.onnx",
             Path(
                 "custom_nodes/comfyui_controlnet_aux/ckpts/yzd-v/DWPose/dw-ll_ucoco_384.onnx"
