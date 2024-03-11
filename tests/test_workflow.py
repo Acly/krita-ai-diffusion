@@ -17,12 +17,15 @@ from ai_diffusion.image import Mask, Bounds, Extent, Image
 from ai_diffusion.client import Client, ClientEvent
 from ai_diffusion.style import SDVersion, Style
 from ai_diffusion.pose import Pose
-from ai_diffusion.workflow import Control, detect_inpaint
+from ai_diffusion.workflow import detect_inpaint
 from . import config
 from .config import root_dir, image_dir, result_dir, reference_dir, default_checkpoint
 
+service_available = (root_dir / "service" / ".env.local").exists()
+client_params = ["local", "cloud"] if service_available else ["local"]
 
-@pytest.fixture(params=["local", "cloud"])
+
+@pytest.fixture(params=client_params, scope="module")
 def client(pytestconfig, request, qtapp):
     if pytestconfig.getoption("--ci"):
         pytest.skip("Diffusion is disabled on CI")
