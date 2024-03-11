@@ -1,10 +1,17 @@
 from __future__ import annotations
-import math
-import json
+from enum import Enum
 from pathlib import Path
 from typing import NamedTuple, Tuple, Literal, overload, Any
+from uuid import uuid4
+import math
+import json
 
 from .image import Bounds, Extent, Image
+
+
+class ComfyRunMode(Enum):
+    runtime = 0  # runs as part of same process, transfer images in memory
+    server = 1  # runs as a server, transfer images via base64 or websocket
 
 
 class Output(NamedTuple):
@@ -20,16 +27,21 @@ Output4 = Tuple[Output, Output, Output, Output]
 class ComfyWorkflow:
     """Builder for workflows which can be sent to the ComfyUI prompt API."""
 
+    root: dict[str, dict]
+    images: dict[str, Image]
     node_count = 0
     sample_count = 0
 
     _cache: dict[str, Output | Output2 | Output3 | Output4]
     _nodes_required_inputs: dict[str, dict[str, Any]]
+    _run_mode: ComfyRunMode
 
-    def __init__(self, node_inputs: dict | None = None):
+    def __init__(self, node_inputs: dict | None = None, run_mode=ComfyRunMode.server):
         self.root = {}
+        self.images = {}
         self._cache = {}
         self._nodes_required_inputs = node_inputs or {}
+        self._run_mode = run_mode
 
     def add_default_values(self, node_name: str, args: dict):
         if node_inputs := self._nodes_required_inputs.get(node_name, None):
@@ -89,6 +101,11 @@ class ComfyWorkflow:
             result = self.add(class_type, output_count, **inputs)
             self._cache[key] = result
         return result
+
+    def _add_image(self, image: Image):
+        id = str(uuid4())
+        self.images[id] = image
+        return id
 
     def ksampler(
         self,
@@ -468,12 +485,18 @@ class ComfyWorkflow:
         return self.add("ETN_ApplyMaskToImage", 1, image=image, mask=mask)
 
     def load_image(self, image: Image):
+        if self._run_mode is ComfyRunMode.runtime:
+            return self.add("ETN_InjectImage", 1, id=self._add_image(image))
         return self.add("ETN_LoadImageBase64", 1, image=image.to_base64())
 
     def load_mask(self, mask: Image):
+        if self._run_mode is ComfyRunMode.runtime:
+            return self.add("ETN_InjectMask", 1, id=self._add_image(mask))
         return self.add("ETN_LoadMaskBase64", 1, mask=mask.to_base64())
 
     def send_image(self, image: Output):
+        if self._run_mode is ComfyRunMode.runtime:
+            return self.add("ETN_ReturnImage", 1, images=image)
         return self.add("ETN_SendImageWebSocket", 1, images=image)
 
     def save_image(self, image: Output, prefix: str):

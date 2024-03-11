@@ -205,7 +205,6 @@ class ImageFileFormat(Enum):
 
 class Image:
     def __init__(self, qimage: QImage):
-        assert qimage.format() in [QImage.Format_ARGB32, QImage.Format_Grayscale8]
         self._qimage = qimage
 
     @staticmethod
@@ -213,7 +212,7 @@ class Image:
         image = QImage()
         success = image.load(str(filepath))
         assert success, f"Failed to load image {filepath}"
-        return Image(image.convertToFormat(QImage.Format.Format_ARGB32))
+        return Image(image)
 
     @staticmethod
     def create(extent: Extent, fill=None):
@@ -236,7 +235,11 @@ class Image:
 
     @property
     def is_rgba(self):
-        return self._qimage.format() == QImage.Format_ARGB32
+        return self._qimage.format() in [
+            QImage.Format.Format_ARGB32,
+            QImage.Format.Format_RGB32,
+            QImage.Format.Format_RGBA8888,
+        ]
 
     @property
     def is_mask(self):
@@ -251,14 +254,14 @@ class Image:
     def from_bytes(data: QByteArray | memoryview, format: str | None = None):
         img = QImage.fromData(data, format)
         assert img and not img.isNull(), "Failed to load image from memory"
-        return Image(img.convertToFormat(QImage.Format_ARGB32))
+        return Image(img)
 
     @staticmethod
     def from_pil(pil_image):
         assert pil_image.mode == "RGBA"
         qimage = QImage(
             pil_image.tobytes(), pil_image.width, pil_image.height, QImage.Format.Format_RGBA8888
-        ).convertToFormat(QImage.Format.Format_ARGB32)
+        )
         return Image(qimage)
 
     @staticmethod
@@ -267,7 +270,7 @@ class Image:
         mode = Qt.AspectRatioMode.IgnoreAspectRatio
         quality = Qt.TransformationMode.SmoothTransformation
         scaled = img._qimage.scaled(target.width, target.height, mode, quality)
-        return Image(scaled.convertToFormat(QImage.Format_ARGB32))
+        return Image(scaled)
 
     @staticmethod
     def scale_to_fit(img: "Image", target: Extent):
@@ -307,6 +310,7 @@ class Image:
 
     @property
     def data(self):
+        self.to_krita_format()
         ptr = self._qimage.bits()
         assert ptr is not None, "Accessing data of invalid image"
         ptr.setsize(self._qimage.byteCount())
@@ -319,11 +323,12 @@ class Image:
     def to_array(self):
         import numpy as np
 
+        self.to_numpy_format()
         w, h = self.extent
         bits = self._qimage.constBits()
         assert bits is not None, "Accessing data of invalid image"
         ptr = bits.asarray(w * h * 4)
-        array = np.frombuffer(ptr, np.uint8).reshape(w, h, 4)  # type: ignore
+        array = np.frombuffer(ptr, np.uint8).reshape(h, w, 4)  # type: ignore
         return array.astype(np.float32) / 255
 
     def write(self, buffer: QBuffer, format=ImageFileFormat.png):
@@ -346,6 +351,7 @@ class Image:
         return byte_array.toBase64().data().decode("utf-8")
 
     def to_pixmap(self):
+        self.to_krita_format()
         return QPixmap.fromImage(self._qimage)
 
     def to_icon(self):
@@ -368,6 +374,16 @@ class Image:
     def debug_save(self, name):
         if settings.debug_image_folder:
             self.save(Path(settings.debug_image_folder, f"{name}.png"))
+
+    def to_krita_format(self):
+        if self._qimage.format() != QImage.Format.Format_ARGB32:
+            self._qimage = self._qimage.convertToFormat(QImage.Format.Format_ARGB32)
+        return self
+
+    def to_numpy_format(self):
+        if self._qimage.format() != QImage.Format.Format_RGBA8888:
+            self._qimage = self._qimage.convertToFormat(QImage.Format.Format_RGBA8888)
+        return self
 
     def __eq__(self, other):
         return isinstance(other, Image) and self._qimage == other._qimage
@@ -443,7 +459,6 @@ class ImageCollection:
             buffer.seek(offset)
             img = QImage()
             if img.load(buffer, "WEBP"):
-                img.convertTo(QImage.Format.Format_ARGB32)
                 images.append(Image(img))
             else:
                 raise Exception(f"Failed to load image {i} from buffer")

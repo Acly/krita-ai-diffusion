@@ -75,7 +75,9 @@ async def receive_images(client: Client, work: WorkflowInput):
 
 
 @pytest.fixture()
-def cloud_client(qtapp, pod_server):
+def cloud_client(pytestconfig, qtapp, pod_server):
+    if pytestconfig.getoption("--ci"):
+        pytest.skip("Diffusion is disabled on CI")
     url = os.environ["TEST_SERVICE_URL"]
     token = os.environ["TEST_SERVICE_TOKEN"]
     return qtapp.run(CloudClient.connect(url, token))

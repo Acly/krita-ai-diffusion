@@ -117,7 +117,7 @@ def test_inpaint_context(area, expected_extent, expected_crop: tuple[int, int] |
     elif expected_crop:
         assert mode is InpaintMode.expand and isinstance(result, Image)
         assert result.extent == expected_extent
-        assert result.pixel(*expected_crop) == (255, 255, 255, 255)
+        assert result.to_numpy_format().pixel(*expected_crop) == (255, 255, 255, 255)
     else:
         assert mode is InpaintMode.fill and result is None
 

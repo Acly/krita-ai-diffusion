@@ -36,4 +36,10 @@ def test_serialize():
 
     data = input.to_dict(ImageFileFormat.webp_lossless)
     result = WorkflowInput.from_dict(data)
+    assert (
+        result.images.initial_image.to_numpy_format()
+        == input.images.initial_image.to_numpy_format()
+    )
+    assert result.control[0].image.to_numpy_format() == input.control[0].image.to_numpy_format()
+    assert result.control[1].image.to_numpy_format() == input.control[1].image.to_numpy_format()
     assert result == input

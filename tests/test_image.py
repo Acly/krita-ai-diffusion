@@ -66,7 +66,16 @@ def test_image_make_opaque():
 def test_image_to_array():
     img = create_test_image(2, 2)
     expected = np.array(
-        [[[0, 0, 0, 1], [0, 0, 1 / 255, 1]], [[0, 1 / 255, 0, 1], [0, 1 / 255, 1 / 255, 1]]],
+        [
+            [
+                [0, 0, 0, 1],
+                [1 / 255, 0, 0, 1],
+            ],
+            [
+                [0, 1 / 255, 0, 1],
+                [1 / 255, 1 / 255, 0, 1],
+            ],
+        ],
         np.float32,
     )
     assert np.all(np.isclose(img.to_array(), expected))

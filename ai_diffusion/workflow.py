@@ -15,7 +15,7 @@ from .resolution import ScaledExtent, ScaleMode, get_inpaint_reference
 from .resources import ControlMode, SDVersion, UpscalerName
 from .settings import PerformanceSettings
 from .text import merge_prompt, extract_loras
-from .comfy_workflow import ComfyWorkflow, Output
+from .comfy_workflow import ComfyWorkflow, ComfyRunMode, Output
 from .util import ensure, median_or_zero, client_logger as log
 
 
@@ -383,6 +383,7 @@ def scale_refine_and_decode(
 
 
 def generate(
+    w: ComfyWorkflow,
     checkpoint: CheckpointInput,
     extent: ScaledExtent,
     cond: Conditioning,
@@ -390,7 +391,6 @@ def generate(
     batch_count: int,
     models: ModelDict,
 ):
-    w = ComfyWorkflow(models.node_inputs)
     model, clip, vae = load_checkpoint_with_lora(w, checkpoint, models.all)
     model = apply_ip_adapter(w, model, cond.control, models)
     latent = w.empty_latent_image(extent.initial, batch_count)
@@ -456,6 +456,7 @@ def detect_inpaint(
 
 
 def inpaint(
+    w: ComfyWorkflow,
     images: ImageInput,
     checkpoint: CheckpointInput,
     cond: Conditioning,
@@ -472,7 +473,6 @@ def inpaint(
     )
     initial_bounds = extent.convert(target_bounds, "target", "initial")
 
-    w = ComfyWorkflow(models.node_inputs)
     model, clip, vae = load_checkpoint_with_lora(w, checkpoint, models.all)
     in_image = w.load_image(ensure(images.initial_image))
     in_image = scale_to_initial(extent, w, in_image, models)
@@ -559,6 +559,7 @@ def inpaint(
 
 
 def refine(
+    w: ComfyWorkflow,
     image: Image,
     extent: ScaledExtent,
     checkpoint: CheckpointInput,
@@ -567,7 +568,6 @@ def refine(
     batch_count: int,
     models: ModelDict,
 ):
-    w = ComfyWorkflow(models.node_inputs)
     model, clip, vae = load_checkpoint_with_lora(w, checkpoint, models.all)
     model = apply_ip_adapter(w, model, cond.control, models)
     in_image = w.load_image(image)
@@ -585,6 +585,7 @@ def refine(
 
 
 def refine_region(
+    w: ComfyWorkflow,
     images: ImageInput,
     checkpoint: CheckpointInput,
     cond: Conditioning,
@@ -595,7 +596,6 @@ def refine_region(
 ):
     extent = ScaledExtent.from_input(images.extent)
 
-    w = ComfyWorkflow(models.node_inputs)
     model, clip, vae = load_checkpoint_with_lora(w, checkpoint, models.all)
     model = apply_ip_adapter(w, model, cond.control, models)
     in_image = w.load_image(ensure(images.initial_image))
@@ -639,7 +639,7 @@ def refine_region(
 
 
 def create_control_image(
-    models: ClientModels,
+    w: ComfyWorkflow,
     image: Image,
     mode: ControlMode,
     extent: ScaledExtent,
@@ -648,7 +648,6 @@ def create_control_image(
 ):
     assert mode not in [ControlMode.reference, ControlMode.face, ControlMode.inpaint]
 
-    w = ComfyWorkflow(models.node_inputs)
     current_extent = extent.input
     input = w.load_image(image)
     result = None
@@ -708,8 +707,7 @@ def create_control_image(
     return w
 
 
-def upscale_simple(image: Image, model: str, factor: float, models: ClientModels):
-    w = ComfyWorkflow(models.node_inputs)
+def upscale_simple(w: ComfyWorkflow, image: Image, model: str, factor: float):
     upscale_model = w.load_upscale_model(model)
     img = w.load_image(image)
     img = w.upscale_image(upscale_model, img)
@@ -720,6 +718,7 @@ def upscale_simple(image: Image, model: str, factor: float, models: ClientModels
 
 
 def upscale_tiled(
+    w: ComfyWorkflow,
     image: Image,
     extent: ExtentInput,
     upscale_model_name: str,
@@ -728,7 +727,6 @@ def upscale_tiled(
     sampling: SamplingInput,
     models: ModelDict,
 ):
-    w = ComfyWorkflow(models.node_inputs)
     model, clip, vae = load_checkpoint_with_lora(w, checkpoint, models.all)
     model = apply_ip_adapter(w, model, cond.control, models)
     img = w.load_image(image)
@@ -892,13 +890,16 @@ def prepare_create_control_image(
     return i
 
 
-def create(i: WorkflowInput, models: ClientModels) -> ComfyWorkflow:
+def create(i: WorkflowInput, models: ClientModels, comfy_mode=ComfyRunMode.server) -> ComfyWorkflow:
     """
     Takes a WorkflowInput object and creates the corresponding ComfyUI workflow prompt.
     This should be a pure function, the workflow is entirely defined by the input.
     """
+    workflow = ComfyWorkflow(models.node_inputs, comfy_mode)
+
     if i.kind is WorkflowKind.generate:
         return generate(
+            workflow,
             ensure(i.models),
             ScaledExtent.from_input(i.extent),
             Conditioning.from_input(ensure(i.text), i.control),
@@ -908,6 +909,7 @@ def create(i: WorkflowInput, models: ClientModels) -> ComfyWorkflow:
         )
     elif i.kind is WorkflowKind.inpaint:
         return inpaint(
+            workflow,
             ensure(i.images),
             ensure(i.models),
             Conditioning.from_input(ensure(i.text), i.control),
@@ -919,6 +921,7 @@ def create(i: WorkflowInput, models: ClientModels) -> ComfyWorkflow:
         )
     elif i.kind is WorkflowKind.refine:
         return refine(
+            workflow,
             i.image,
             ScaledExtent.from_input(i.extent),
             ensure(i.models),
@@ -929,6 +932,7 @@ def create(i: WorkflowInput, models: ClientModels) -> ComfyWorkflow:
         )
     elif i.kind is WorkflowKind.refine_region:
         return refine_region(
+            workflow,
             ensure(i.images),
             ensure(i.models),
             Conditioning.from_input(ensure(i.text), i.control),
@@ -938,9 +942,10 @@ def create(i: WorkflowInput, models: ClientModels) -> ComfyWorkflow:
             models.for_checkpoint(ensure(i.models).checkpoint),
         )
     elif i.kind is WorkflowKind.upscale_simple:
-        return upscale_simple(i.image, i.upscale_model, i.upscale_factor, models)
+        return upscale_simple(workflow, i.image, i.upscale_model, i.upscale_factor)
     elif i.kind is WorkflowKind.upscale_tiled:
         return upscale_tiled(
+            workflow,
             i.image,
             i.extent,
             i.upscale_model,
@@ -951,7 +956,7 @@ def create(i: WorkflowInput, models: ClientModels) -> ComfyWorkflow:
         )
     elif i.kind is WorkflowKind.control_image:
         return create_control_image(
-            models,
+            workflow,
             image=i.image,
             mode=i.control_mode,
             extent=ScaledExtent.from_input(i.extent),

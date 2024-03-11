@@ -37,4 +37,4 @@ def test_send(mode: str):
 
     results = ImageCollection.from_bytes(result_bytes, transfer["offsets"])
     for result, expected in zip(results, images):
-        assert result == ImageWrapper.from_pil(expected)
+        assert result.to_numpy_format() == ImageWrapper.from_pil(expected).to_numpy_format()
