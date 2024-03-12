@@ -261,6 +261,9 @@ models.checkpoints = {
     "realisticVisionV51_v51VAE.safetensors": CheckpointInfo(
         "realisticVisionV51_v51VAE.safetensors", SDVersion.sd15
     ),
+    "flat2DAnimerge_v45Sharp.safetensors": CheckpointInfo(
+        "flat2DAnimerge_v45Sharp.safetensors", SDVersion.sd15
+    ),
 }
 models.vae = []
 models.loras = []

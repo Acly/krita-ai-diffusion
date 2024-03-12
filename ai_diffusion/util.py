@@ -60,11 +60,14 @@ def _get_log_dir():
 def create_logger(name: str, path: Path):
     logger = logging.getLogger(name)
     logger.setLevel(logging.DEBUG)
-    file_handler = logging.handlers.RotatingFileHandler(
-        path, encoding="utf-8", maxBytes=10 * 1024 * 1024, backupCount=4
-    )
-    file_handler.setFormatter(logging.Formatter("%(asctime)s %(levelname)s %(message)s"))
-    logger.addHandler(file_handler)
+    if os.environ.get("AI_DIFFUSION_ENV") == "WORKER":
+        handler = logging.StreamHandler(sys.stdout)
+    else:
+        handler = logging.handlers.RotatingFileHandler(
+            path, encoding="utf-8", maxBytes=10 * 1024 * 1024, backupCount=4
+        )
+    handler.setFormatter(logging.Formatter("%(asctime)s %(levelname)s %(message)s"))
+    logger.addHandler(handler)
     return logger
 
 
@@ -159,6 +162,7 @@ async def create_process(
     program: str | Path, *args: str, cwd: Path | None = None, additional_env: dict | None = None
 ):
     PIPE = asyncio.subprocess.PIPE
+    TO_STDOUT = asyncio.subprocess.STDOUT
 
     platform_args = {}
     if is_windows:
@@ -173,7 +177,7 @@ async def create_process(
         del env["PYTHONPATH"]  # Krita adds its own python path, which can cause conflicts
 
     p = await asyncio.create_subprocess_exec(
-        program, *args, cwd=cwd, stdout=PIPE, stderr=PIPE, env=env, **platform_args
+        program, *args, cwd=cwd, stdout=PIPE, stderr=TO_STDOUT, env=env, **platform_args
     )
     if is_windows:
         from . import win32

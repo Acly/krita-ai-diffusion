@@ -9,7 +9,7 @@ from typing import NamedTuple, Sequence
 version = "1.16.0"
 
 comfy_url = "https://github.com/comfyanonymous/ComfyUI"
-comfy_version = "f81dbe26e2e363c28ad043db67b59c11bb33f446"
+comfy_version = "2a813c3b09292c9aeab622ddf65d77e5d8171d0d"
 
 
 class CustomNode(NamedTuple):
@@ -25,7 +25,7 @@ required_custom_nodes = [
         "ControlNet Preprocessors",
         "comfyui_controlnet_aux",
         "https://github.com/Fannovel16/comfyui_controlnet_aux",
-        "09f2748c99b2b97fabc50036d8b3cb352870da40",
+        "33d6e86b65c40e5f97052262c6900f413684ccde",
         ["InpaintPreprocessor"],
     ),
     CustomNode(
@@ -46,7 +46,7 @@ required_custom_nodes = [
         "External Tooling Nodes",
         "comfyui-tooling-nodes",
         "https://github.com/Acly/comfyui-tooling-nodes",
-        "e27580efcd9ef67427c853e6f671315e91b6786b",
+        "bcb591c7b998e13f12e2d47ee08cf8af8f791e50",
         [
             "ETN_LoadImageBase64",
             "ETN_LoadMaskBase64",
@@ -58,7 +58,7 @@ required_custom_nodes = [
         "Inpaint Nodes",
         "comfyui-inpaint-nodes",
         "https://github.com/Acly/comfyui-inpaint-nodes",
-        "c4309946d7b422d59f768485f991bcf70b7036e5",
+        "ed5a8b21bb416d59506fe5e58fc9a36be48f25fb",
         ["INPAINT_LoadFooocusInpaint", "INPAINT_ApplyFooocusInpaint"],
     ),
 ]
@@ -118,6 +118,7 @@ class ResourceKind(Enum):
     lora = "LoRA model"
     upscaler = "Upscale model"
     inpaint = "Inpaint model"
+    embedding = "Textual Embedding"
     preprocessor = "Preprocessor"
     node = "custom node"
 
@@ -357,11 +358,20 @@ required_models = [
             ): "https://huggingface.co/Acly/MAT/resolve/main/MAT_Places512_G_fp16.safetensors",
         },
     ),
+    ModelResource(
+        "Easy Negative",
+        ResourceId(ResourceKind.embedding, SDVersion.sd15, "easy-negative"),
+        {
+            Path(
+                "models/embeddings/EasyNegative.safetensors"
+            ): "https://huggingface.co/embed/EasyNegative/resolve/main/EasyNegative.safetensors"
+        },
+    ),
 ]
 
 default_checkpoints = [
     ModelResource(
-        "Realistic Vision",
+        "Realistic Vision (Photography)",
         ResourceId(ResourceKind.checkpoint, SDVersion.sd15, "realistic-vision"),
         {
             Path(
@@ -370,12 +380,21 @@ default_checkpoints = [
         },
     ),
     ModelResource(
-        "DreamShaper",
+        "DreamShaper (Artwork)",
         ResourceId(ResourceKind.checkpoint, SDVersion.sd15, "dreamshaper"),
         {
             Path(
                 "models/checkpoints/dreamshaper_8.safetensors"
             ): "https://huggingface.co/Lykon/DreamShaper/resolve/main/DreamShaper_8_pruned.safetensors",
+        },
+    ),
+    ModelResource(
+        "Flat2D AniMerge (Cartoon/Anime)",
+        ResourceId(ResourceKind.checkpoint, SDVersion.sd15, "flat2d-animerge"),
+        {
+            Path(
+                "models/checkpoints/flat2DAnimerge_v45Sharp.safetensors"
+            ): "https://huggingface.co/Acly/SD-Checkpoints/resolve/main/flat2DAnimerge_v45Sharp.safetensors"
         },
     ),
     ModelResource(
