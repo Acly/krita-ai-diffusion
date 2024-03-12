@@ -6,7 +6,7 @@ black
 
 # Testing
 aiohttp
-dotenv
+python-dotenv
 markdown
 numpy
 pytest
