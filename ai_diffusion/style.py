@@ -10,17 +10,36 @@ from .resources import SDVersion
 from .util import encode_json, user_data_dir, client_logger as log
 
 sampler_options = [
-    "DDIM",
     "Euler",
-    "Euler a",
+    "Euler ancestral",
+    "Heun",
+    "Heun++2",
+    "DPM 2",
+    "DPM 2 ancestral",
+    "LMS",
+    "DPM fast",
+    "DPM adaptive",
+    "DPM++ 2S ancestral",
+    "DPM++ SDE",
+    "DPM++ SDE GPU",
     "DPM++ 2M",
-    "DPM++ 2M Karras",
     "DPM++ 2M SDE",
-    "DPM++ 2M SDE Karras",
-    "DPM++ SDE Karras",
-    "UniPC BH2",
+    "DPM++ 2M SDE GPU",
+    "DPM++ 3M SDE",
+    "DPM++ 3M SDE GPU",
+    "DDPM",
     "LCM",
-    "Lightning",
+    "DDIM",
+    "UniPC",
+    "UniPC BH2",
+]
+scheduler_options = [
+    "Normal",
+    "Karras",
+    "Exponential",
+    "Sgm_uniform",
+    "Simple",
+    "Ddim_uniform",
 ]
 
 
@@ -87,9 +106,15 @@ class StyleSettings:
 
     sampler = Setting(
         "Sampler",
-        "DPM++ 2M Karras",
-        "The sampling strategy and scheduler",
+        "DPM++ 2M SDE",
+        "The sampler",
         items=sampler_options,
+    )
+    scheduler = Setting(
+        "Scheduler",
+        "Normal",
+        "The scheduler",
+        items=scheduler_options,
     )
 
     sampler_steps = Setting(
@@ -105,12 +130,14 @@ class StyleSettings:
     )
 
     live_sampler = Setting("Sampler", "LCM", sampler.desc, items=sampler_options)
+    live_scheduler = Setting("Scheduler", "Sgm_uniform", scheduler.desc, items=scheduler_options)
     live_sampler_steps = Setting("Sampler Steps", 6, sampler_steps.desc)
     live_cfg_scale = Setting("Guidance Strength (CFG Scale)", 1.8, cfg_scale.desc)
 
 
 class SamplerConfig(NamedTuple):
     sampler: str
+    scheduler: str
     steps: int
     cfg: float
 
@@ -129,6 +156,7 @@ class Style:
     v_prediction_zsnr: bool = StyleSettings.v_prediction_zsnr.default
     preferred_resolution: int = StyleSettings.preferred_resolution.default
     sampler: str = StyleSettings.sampler.default
+    scheduler: str = StyleSettings.scheduler.default
     sampler_steps: int = StyleSettings.sampler_steps.default
     cfg_scale: float = StyleSettings.cfg_scale.default
     live_sampler: str = StyleSettings.live_sampler.default
@@ -183,8 +211,8 @@ class Style:
 
     def get_sampler_config(self, is_live=False):
         if is_live:
-            return SamplerConfig(self.live_sampler, self.live_sampler_steps, self.live_cfg_scale)
-        return SamplerConfig(self.sampler, self.sampler_steps, self.cfg_scale)
+            return SamplerConfig(self.live_sampler,self.scheduler, self.live_sampler_steps, self.live_cfg_scale)
+        return SamplerConfig(self.sampler, self.scheduler, self.sampler_steps, self.cfg_scale)
 
 
 class Styles(QObject):
