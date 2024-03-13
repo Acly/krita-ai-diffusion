@@ -53,7 +53,7 @@ def pod_server(qtapp, pytestconfig):
         task.cancel()
         await process.communicate()
 
-    if pytestconfig.getoption("--no-pod-process"):
+    if pytestconfig.getoption("--no-pod-process") or pytestconfig.getoption("--ci"):
         yield None  # For using local docker image or deployed serverless endpoint
     else:
         process, task = qtapp.run(start())

@@ -323,7 +323,7 @@ class ControlWidget(QWidget):
         Binding.disconnect_all(self._connections)
 
     def _update_layers(self):
-        layers: reversed[krita.Node] = reversed(self._model.layers.images)
+        layers = reversed(self._model.layers.images)
         with SignalBlocker(self.layer_select):
             self.layer_select.clear()
             index = -1

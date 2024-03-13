@@ -12,3 +12,4 @@ numpy
 pytest
 tqdm
 PyQt5
+Pillow

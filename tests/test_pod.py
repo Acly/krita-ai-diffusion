@@ -1,14 +1,14 @@
-from PIL import Image
 from base64 import b64decode
-import dotenv
+from PIL import Image
 import pytest
-import requests
 
 from ai_diffusion.image import ImageCollection, Image as ImageWrapper
 from .config import root_dir, test_dir
 
 if (root_dir / "service" / "pod" / "lib").exists():
     from service.pod.lib import image_transfer
+    import dotenv
+    import requests
 
     dotenv.load_dotenv(root_dir / "service" / ".env.local")
 
