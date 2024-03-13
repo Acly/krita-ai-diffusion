@@ -11,8 +11,8 @@ exclude = [
     "**/.pytest_cache",
     "**/.server",
     "tests/server",
+    "tests/test_pod.py",
     "ai_diffusion/websockets",
-    "test_pod.py",
 ]
 ignore = ["ai_diffusion/websockets", "krita.pyi"]
 extraPaths = ["scripts/typeshed"]

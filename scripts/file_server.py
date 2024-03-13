@@ -5,7 +5,6 @@
 """
 
 from aiohttp import web
-from itertools import chain
 import sys
 from pathlib import Path
 
@@ -21,13 +20,29 @@ def url_strip(url: str):
     return without_query
 
 
-models = chain(
-    resources.required_models,
-    resources.optional_models,
-    resources.default_checkpoints,
-    resources.upscale_models,
-)
-files = {url_strip(url): dir / filepath for m in models for filepath, url in m.files.items()}
+files = {
+    url_strip(url): dir / filepath
+    for m in resources.all_models()
+    for filepath, url in m.files.items()
+}
+
+
+async def file_sender(file: Path):
+    with open(file, "rb") as f:
+        chunk = f.read(2**16)
+        while chunk:
+            yield chunk
+            chunk = f.read(2**16)
+
+
+def send_file(file: Path):
+    return web.Response(
+        headers={
+            "Content-disposition": f"attachment; filename={file.name}",
+            "Content-length": f"{file.stat().st_size}",
+        },
+        body=file_sender(file),
+    )
 
 
 async def handle(request: web.Request):
@@ -36,7 +51,7 @@ async def handle(request: web.Request):
     if file and file.exists():
         print(f"Sending {file}")
         try:
-            return web.FileResponse(file)
+            return send_file(file)
         except Exception as e:
             print(f"Failed to send {file}: {e}")
             return web.Response(status=500)

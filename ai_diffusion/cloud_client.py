@@ -29,7 +29,7 @@ class JobInfo:
 
 
 class CloudClient(Client):
-    default_url = os.getenv("INTERSTICE_URL", "http://localhost:3000")
+    default_url = os.getenv("INTERSTICE_URL", "https://diffusion-service.vercel.app/")
 
     _requests = RequestManager()
     _queue: asyncio.Queue[JobInfo]

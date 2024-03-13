@@ -159,11 +159,12 @@ if is_linux:
 
 
 async def create_process(
-    program: str | Path, *args: str, cwd: Path | None = None, additional_env: dict | None = None
+    program: str | Path,
+    *args: str,
+    cwd: Path | None = None,
+    additional_env: dict | None = None,
+    pipe_stderr=False,
 ):
-    PIPE = asyncio.subprocess.PIPE
-    TO_STDOUT = asyncio.subprocess.STDOUT
-
     platform_args = {}
     if is_windows:
         platform_args["creationflags"] = subprocess.CREATE_NO_WINDOW  # type: ignore
@@ -176,8 +177,11 @@ async def create_process(
     if "PYTHONPATH" in env:
         del env["PYTHONPATH"]  # Krita adds its own python path, which can cause conflicts
 
+    out = asyncio.subprocess.PIPE
+    err = asyncio.subprocess.PIPE if pipe_stderr else asyncio.subprocess.STDOUT
+
     p = await asyncio.create_subprocess_exec(
-        program, *args, cwd=cwd, stdout=PIPE, stderr=TO_STDOUT, env=env, **platform_args
+        program, *args, cwd=cwd, stdout=out, stderr=err, env=env, **platform_args
     )
     if is_windows:
         from . import win32

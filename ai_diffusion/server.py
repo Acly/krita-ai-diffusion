@@ -529,7 +529,7 @@ async def _execute_process(name: str, cmd: list, cwd: Path, cb: InternalCB):
 
     cmd = [str(c) for c in cmd]
     cb(f"Installing {name}", f"Executing {' '.join(cmd)}")
-    process = await create_process(cmd[0], *cmd[1:], cwd=cwd)
+    process = await create_process(cmd[0], *cmd[1:], cwd=cwd, pipe_stderr=True)
 
     async def forward(stream: asyncio.StreamReader):
         async for line in stream:
