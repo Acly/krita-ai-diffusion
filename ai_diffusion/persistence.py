@@ -160,7 +160,7 @@ def _serialize(obj: QObject):
 def _deserialize(obj: QObject, data: dict[str, Any]):
     def converter(type, value):
         if type is Style:
-            style = Styles.list().find(value)[0]
+            style = Styles.list().find(value)
             return style or Styles.list().default
         return value
 

@@ -475,7 +475,7 @@ class StyleSelectWidget(QWidget):
 
     def update_styles(self):
         comfy = root.connection.client_if_connected
-        self._styles = filter_supported_styles(Styles.list(), comfy)
+        self._styles = filter_supported_styles(Styles.list().filtered(), comfy)
         with SignalBlocker(self._combo):
             self._combo.clear()
             for style in self._styles:

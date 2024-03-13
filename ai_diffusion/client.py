@@ -1,7 +1,7 @@
 from __future__ import annotations
 from abc import ABC, abstractmethod
 from enum import Enum
-from typing import Any, Generator, NamedTuple
+from typing import Any, Generator, Iterable, NamedTuple
 from PyQt5.QtCore import QObject, pyqtSignal
 
 from .api import WorkflowInput
@@ -236,7 +236,7 @@ def resolve_sd_version(style: Style, client: Client | None = None):
     return style.sd_version
 
 
-def filter_supported_styles(styles: Styles, client: Client | None = None):
+def filter_supported_styles(styles: Iterable[Style], client: Client | None = None):
     if client:
         return [
             style

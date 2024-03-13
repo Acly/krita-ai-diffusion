@@ -94,7 +94,9 @@ class Model(QObject, ObservableProperties):
         self.error_changed.connect(lambda: self.has_error_changed.emit(self.has_error))
 
         if client := connection.client_if_connected:
-            self.style = next(iter(filter_supported_styles(Styles.list(), client)), self.style)
+            self.style = next(
+                iter(filter_supported_styles(Styles.list().filtered(), client)), self.style
+            )
             self.upscale.upscaler = client.models.default_upscaler
 
     def generate(self):

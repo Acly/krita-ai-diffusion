@@ -43,7 +43,7 @@ from ..properties import Binding
 from .. import eventloop, util, __version__
 from .server import ServerWidget
 from .switch import SwitchWidget
-from .theme import add_header, icon, sd_version_icon, red, yellow, green, grey
+from .theme import SignalBlocker, add_header, icon, sd_version_icon, red, yellow, green, grey
 
 
 def _add_title(layout: QVBoxLayout, title: str):
@@ -954,41 +954,47 @@ class StylePresets(SettingsTab):
         super().__init__("Style Presets")
         self.server = server
 
-        frame = QFrame(self)
-        frame.setFrameStyle(QFrame.StyledPanel)
-        frame.setLineWidth(1)
-        frame_layout = QHBoxLayout()
-        frame.setLayout(frame_layout)
-
         self._style_list = QComboBox(self)
-        self._populate_style_list()
         self._style_list.currentIndexChanged.connect(self._change_style)
-        frame_layout.addWidget(self._style_list)
 
         self._create_style_button = QToolButton(self)
         self._create_style_button.setIcon(Krita.instance().icon("list-add"))
         self._create_style_button.setToolTip("Create a new style")
         self._create_style_button.clicked.connect(self._create_style)
-        frame_layout.addWidget(self._create_style_button)
 
         self._delete_style_button = QToolButton(self)
         self._delete_style_button.setIcon(Krita.instance().icon("deletelayer"))
         self._delete_style_button.setToolTip("Delete the current style")
         self._delete_style_button.clicked.connect(self._delete_style)
-        frame_layout.addWidget(self._delete_style_button)
 
         self._refresh_button = QToolButton(self)
         self._refresh_button.setIcon(Krita.instance().icon("reload-preset"))
         self._refresh_button.setToolTip("Look for new style files")
-        self._refresh_button.clicked.connect(self._update_style_list)
-        frame_layout.addWidget(self._refresh_button)
+        self._refresh_button.clicked.connect(Styles.list().reload)
 
         self._open_folder_button = QToolButton(self)
         self._open_folder_button.setIcon(Krita.instance().icon("document-open"))
         self._open_folder_button.setToolTip("Open folder containing style files")
         self._open_folder_button.clicked.connect(self._open_style_folder)
-        frame_layout.addWidget(self._open_folder_button)
 
+        self._show_builtin_checkbox = QCheckBox("Show pre-installed styles", self)
+        self._show_builtin_checkbox.toggled.connect(self.write)
+
+        style_control_layout = QHBoxLayout()
+        style_control_layout.setContentsMargins(0, 0, 0, 0)
+        style_control_layout.addWidget(self._style_list)
+        style_control_layout.addWidget(self._create_style_button)
+        style_control_layout.addWidget(self._delete_style_button)
+        style_control_layout.addWidget(self._refresh_button)
+        style_control_layout.addWidget(self._open_folder_button)
+        frame_layout = QVBoxLayout()
+        frame_layout.addLayout(style_control_layout)
+        frame_layout.addWidget(self._show_builtin_checkbox, alignment=Qt.AlignmentFlag.AlignRight)
+
+        frame = QFrame(self)
+        frame.setFrameStyle(QFrame.StyledPanel)
+        frame.setLineWidth(1)
+        frame.setLayout(frame_layout)
         self._layout.addWidget(frame)
 
         self._style_widgets = {}
@@ -1084,13 +1090,17 @@ class StylePresets(SettingsTab):
         if self._style_widgets["loras"].open_folder_button:
             self._style_widgets["loras"].open_folder_button.clicked.connect(self._open_lora_folder)
 
+        self._populate_style_list()
+        Styles.list().changed.connect(self._update_style_list)
+
     @property
     def current_style(self) -> Style:
-        return Styles.list()[self._style_list.currentIndex()]
+        styles = Styles.list()
+        return styles.find(self._style_list.currentData()) or styles.default
 
     @current_style.setter
     def current_style(self, style: Style):
-        index = Styles.list().find(style.filename)[1]
+        index = self._style_list.findData(style.filename)
         if index >= 0:
             self._style_list.setCurrentIndex(index)
             self._read_style(style)
@@ -1101,30 +1111,30 @@ class StylePresets(SettingsTab):
 
     def _create_style(self):
         cp = self._style_widgets["sd_checkpoint"].value or StyleSettings.sd_checkpoint.default
-        # make sure the new style is in the combobox before setting it as the current style
         new_style = Styles.list().create(checkpoint=cp)
-        self._update_style_list()
         self.current_style = new_style
 
     def _delete_style(self):
         Styles.list().delete(self.current_style)
-        self._update_style_list()
 
     def _open_style_folder(self):
         QDesktopServices.openUrl(QUrl.fromLocalFile(str(Styles.list().user_folder)))
 
     def _populate_style_list(self):
-        self._style_list.addItems([f"{style.name} ({style.filename})" for style in Styles.list()])
+        for style in Styles.list().filtered():
+            self._style_list.addItem(f"{style.name} ({style.filename})", style.filename)
 
     def _update_style_list(self):
         previous = None
-        if self._style_list.count() > 0:
-            previous = self._style_list.currentText()
-            self._style_list.clear()
-        Styles.list().reload()
-        self._populate_style_list()
-        if previous is not None:
-            self._style_list.setCurrentText(previous)
+        with SignalBlocker(self._style_list):
+            if self._style_list.count() > 0:
+                previous = self._style_list.currentData()
+                self._style_list.clear()
+            self._populate_style_list()
+            if previous is not None:
+                i = self._style_list.findData(previous)
+                self._style_list.setCurrentIndex(max(0, i))
+        self._change_style()
 
     def _update_name(self):
         index = self._style_list.currentIndex()
@@ -1199,6 +1209,7 @@ class StylePresets(SettingsTab):
         self._resolution_spin.enabled = style.preferred_resolution > 0
 
     def _read(self):
+        self._show_builtin_checkbox.setChecked(settings.show_builtin_styles)
         if client := root.connection.client_if_connected:
             default_vae = cast(str, StyleSettings.vae.default)
             checkpoints = [
@@ -1212,6 +1223,8 @@ class StylePresets(SettingsTab):
         self._read_style(self.current_style)
 
     def _write(self):
+        if settings.show_builtin_styles != self._show_builtin_checkbox.isChecked():
+            settings.show_builtin_styles = self._show_builtin_checkbox.isChecked()
         style = self.current_style
         for name, widget in self._style_widgets.items():
             if widget.value is not None:

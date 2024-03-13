@@ -5,7 +5,7 @@ from pathlib import Path
 from PyQt5.QtCore import QObject, pyqtSignal
 
 from .api import CheckpointInput, LoraInput, SamplingInput
-from .settings import Setting
+from .settings import Setting, settings
 from .resources import SDVersion
 from .util import encode_json, user_data_dir, client_logger as log
 
@@ -173,7 +173,11 @@ class Style:
     def filename(self):
         if self.filepath.is_relative_to(Styles.default_user_folder):
             return str(self.filepath.relative_to(Styles.default_user_folder).as_posix())
-        return self.filepath.name
+        return f"built-in/{self.filepath.name}"
+
+    @property
+    def is_builtin(self):
+        return self.filepath.is_relative_to(Styles.default_builtin_folder)
 
     def get_models(self):
         result = CheckpointInput(
@@ -217,6 +221,7 @@ class Styles(QObject):
         self.user_folder = user_folder
         self.user_folder.mkdir(exist_ok=True)
         self.reload()
+        settings.changed.connect(self._handle_settings_change)
 
     @property
     def default(self):
@@ -257,13 +262,18 @@ class Styles(QObject):
             self.create("default")
         else:
             self.changed.emit()
-        return self._list
 
     def find(self, filename: str):
-        return next(
-            ((style, i) for i, style in enumerate(self._list) if style.filename == filename),
-            (None, -1),
-        )
+        return next((style for style in self._list if style.filename == filename), None)
+
+    def filtered(self, show_builtin: bool | None = None):
+        if show_builtin is None:
+            show_builtin = settings.show_builtin_styles
+        return [s for s in self._list if show_builtin or not s.is_builtin]
+
+    def _handle_settings_change(self, name: str, value):
+        if name == "show_builtin_styles":
+            self.changed.emit()
 
     def __getitem__(self, index) -> Style:
         return self._list[index]

@@ -144,6 +144,9 @@ class Settings(QObject):
     show_control_end: bool
     _show_control_end = Setting("Control ending step", False, "Show control ending step ratio")
 
+    show_builtin_styles: bool
+    _show_builtin_styles = Setting("Show pre-installed styles", True)
+
     history_size: int
     _history_size = Setting(
         "Active History Size", 1000, "Main memory (RAM) used for the history of generated images"
