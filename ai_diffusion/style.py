@@ -175,10 +175,6 @@ class Style:
             return str(self.filepath.relative_to(Styles.default_user_folder).as_posix())
         return f"built-in/{self.filepath.name}"
 
-    @property
-    def is_builtin(self):
-        return self.filepath.is_relative_to(Styles.default_builtin_folder)
-
     def get_models(self):
         result = CheckpointInput(
             checkpoint=self.sd_checkpoint,
@@ -269,7 +265,10 @@ class Styles(QObject):
     def filtered(self, show_builtin: bool | None = None):
         if show_builtin is None:
             show_builtin = settings.show_builtin_styles
-        return [s for s in self._list if show_builtin or not s.is_builtin]
+        return [s for s in self._list if show_builtin or not self.is_builtin(s)]
+
+    def is_builtin(self, style: Style):
+        return style.filepath.is_relative_to(self.builtin_folder)
 
     def _handle_settings_change(self, name: str, value):
         if name == "show_builtin_styles":
