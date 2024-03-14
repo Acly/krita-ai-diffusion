@@ -211,7 +211,7 @@ class Style:
 
     def get_sampler_config(self, is_live=False):
         if is_live:
-            return SamplerConfig(self.live_sampler,self.scheduler, self.live_sampler_steps, self.live_cfg_scale)
+            return SamplerConfig(self.live_sampler, self.scheduler, self.live_sampler_steps, self.live_cfg_scale)
         return SamplerConfig(self.sampler, self.scheduler, self.sampler_steps, self.cfg_scale)
 
 
