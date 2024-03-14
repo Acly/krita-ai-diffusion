@@ -859,6 +859,7 @@ class StylePresets(SettingsTab):
         self._layout.addWidget(default_sampler_button)
         self._default_sampler_widgets = [
             add("sampler", ComboBoxSetting(StyleSettings.sampler, self)),
+            add("scheduler", ComboBoxSetting(StyleSettings.scheduler, self)),
             add("sampler_steps", SliderSetting(StyleSettings.sampler_steps, self, 1, 100)),
             add("cfg_scale", SliderSetting(StyleSettings.cfg_scale, self, 1.0, 20.0)),
         ]
@@ -870,6 +871,7 @@ class StylePresets(SettingsTab):
         self._layout.addWidget(live_sampler_button)
         self._live_sampler_widgets = [
             add("live_sampler", ComboBoxSetting(StyleSettings.live_sampler, self)),
+            add("live_scheduler", ComboBoxSetting(StyleSettings.scheduler, self)),
             add("live_sampler_steps", SliderSetting(StyleSettings.live_sampler_steps, self, 1, 50)),
             add("live_cfg_scale", SliderSetting(StyleSettings.live_cfg_scale, self, 0.1, 14.0)),
         ]
