@@ -25,6 +25,20 @@ service_available = (root_dir / "service" / ".env.local").exists()
 client_params = ["local", "cloud"] if service_available else ["local"]
 
 
+async def connect_cloud():
+    dotenv.load_dotenv(root_dir / "service" / ".env.local")
+    url = os.environ["TEST_SERVICE_URL"]
+    token = os.environ.get("TEST_SERVICE_TOKEN", "")
+    if not token:
+        client = CloudClient(url)
+        sign_in = client.sign_in()
+        auth_url = await anext(sign_in)
+        print("\nSign-in required:", auth_url)
+        token = await anext(sign_in)
+        print("\nToken received:", token, "\n")
+    return await CloudClient.connect(url, token)
+
+
 @pytest.fixture(params=client_params, scope="module")
 def client(pytestconfig, request, qtapp):
     if pytestconfig.getoption("--ci"):
@@ -32,10 +46,7 @@ def client(pytestconfig, request, qtapp):
     if request.param == "local":
         return qtapp.run(ComfyClient.connect())
     else:
-        dotenv.load_dotenv(root_dir / "service" / ".env.local")
-        url = os.environ["TEST_SERVICE_URL"]
-        token = os.environ["TEST_SERVICE_TOKEN"]
-        return qtapp.run(CloudClient.connect(url, token))
+        return qtapp.run(connect_cloud())
 
 
 default_seed = 1234
