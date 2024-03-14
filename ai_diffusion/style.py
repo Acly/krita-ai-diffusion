@@ -158,6 +158,7 @@ class Style:
     sampler_steps: int = StyleSettings.sampler_steps.default
     cfg_scale: float = StyleSettings.cfg_scale.default
     live_sampler: str = StyleSettings.live_sampler.default
+    live_scheduler: str = StyleSettings.live_scheduler.default
     live_sampler_steps: int = StyleSettings.live_sampler_steps.default
     live_cfg_scale: float = StyleSettings.live_cfg_scale.default
 
@@ -209,7 +210,7 @@ class Style:
 
     def get_sampler_config(self, is_live=False):
         if is_live:
-            return SamplerConfig(self.live_sampler, self.scheduler, self.live_sampler_steps, self.live_cfg_scale)
+            return SamplerConfig(self.live_sampler, self.live_scheduler, self.live_sampler_steps, self.live_cfg_scale)
         return SamplerConfig(self.sampler, self.scheduler, self.sampler_steps, self.cfg_scale)
 
 
