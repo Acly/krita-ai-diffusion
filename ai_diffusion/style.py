@@ -107,13 +107,11 @@ class StyleSettings:
     sampler = Setting(
         "Sampler",
         "DPM++ 2M SDE",
-        "The sampler",
         items=sampler_options,
     )
     scheduler = Setting(
         "Scheduler",
         "Normal",
-        "The scheduler",
         items=scheduler_options,
     )
 
