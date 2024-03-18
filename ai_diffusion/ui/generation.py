@@ -103,6 +103,9 @@ class HistoryWidget(QListWidget):
 
         widget_context = Qt.ShortcutContext.WidgetShortcut
         QShortcut(Qt.Key.Key_Delete, self, self._discard_image, self._discard_image, widget_context)
+        QShortcut(
+            Qt.Key.Key_Space, self, self._toggle_selection, self._toggle_selection, widget_context
+        )
 
     @property
     def model_(self):
@@ -240,6 +243,9 @@ class HistoryWidget(QListWidget):
             self._model.jobs.selection = self._item_data(items[0])
         else:
             self._model.jobs.selection = None
+
+    def _toggle_selection(self):
+        self._model.jobs.toggle_selection()
 
     def _activate_selection(self):
         items = self.selectedItems()
