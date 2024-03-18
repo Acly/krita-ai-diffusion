@@ -1454,6 +1454,12 @@ class SettingsDialog(QDialog):
         version_label = QLabel(f"Plugin version: {__version__}", self)
         version_label.setStyleSheet(f"font-style:italic; color: {grey};")
 
+        self._open_folder_link = QLabel(
+            f"<a href='file://{util.user_data_dir}'>Open Settings folder</a>", self
+        )
+        self._open_folder_link.linkActivated.connect(self._open_settings_folder)
+        self._open_folder_link.setToolTip(str(util.user_data_dir))
+
         self._close_button = QPushButton("Ok", self)
         self._close_button.clicked.connect(self._close)
 
@@ -1462,6 +1468,8 @@ class SettingsDialog(QDialog):
         button_layout.addStretch()
         button_layout.addWidget(version_label)
         button_layout.addStretch()
+        button_layout.addWidget(self._open_folder_link)
+        button_layout.addSpacing(8)
         button_layout.addWidget(self._close_button)
         inner.addLayout(button_layout)
 
@@ -1495,6 +1503,9 @@ class SettingsDialog(QDialog):
         self.connection.update_server_status()
         if root.connection.state == ConnectionState.connected:
             self.performance.update_device_info()
+
+    def _open_settings_folder(self):
+        QDesktopServices.openUrl(QUrl.fromLocalFile(str(util.user_data_dir)))
 
     def _close(self):
         _ = self.close()
