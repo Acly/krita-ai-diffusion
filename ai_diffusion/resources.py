@@ -105,10 +105,6 @@ class SDVersion(Enum):
     def has_controlnet_inpaint(self):
         return self is SDVersion.sd15
 
-    @property
-    def has_controlnet_blur(self):
-        return self is SDVersion.sd15
-
 
 class ResourceKind(Enum):
     checkpoint = "Stable Diffusion Checkpoint"
@@ -731,6 +727,7 @@ search_paths: dict[str, list[str]] = {
     resource_id(ResourceKind.controlnet, SDVersion.sdxl, ControlMode.pose): ["control-lora-openposexl2-rank", "thibaud_xl_openpose"],
     resource_id(ResourceKind.controlnet, SDVersion.sd15, ControlMode.segmentation): ["control_v11p_sd15_seg", "control_lora_rank128_v11p_sd15_seg"],
     resource_id(ResourceKind.controlnet, SDVersion.sd15, ControlMode.blur): ["control_v11f1e_sd15_tile", "control_lora_rank128_v11f1e_sd15_tile"],
+    resource_id(ResourceKind.controlnet, SDVersion.sdxl, ControlMode.blur): ["ttplanetsdxlcontrolnet", "ttplanet_sdxl_controlnet_tile_realistic"],
     resource_id(ResourceKind.controlnet, SDVersion.sd15, ControlMode.stencil): ["control_v1p_sd15_qrcode_monster"],
     resource_id(ResourceKind.controlnet, SDVersion.sd15, ControlMode.hands): ["control_sd15_inpaint_depth_hand"],
     resource_id(ResourceKind.controlnet, SDVersion.sdxl, ControlMode.hands): ["control-lora-depth-rank", "sai_xl_depth_"],

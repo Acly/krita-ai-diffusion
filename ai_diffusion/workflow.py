@@ -732,7 +732,7 @@ def upscale_tiled(
     img = w.load_image(image)
     upscale_model = w.load_upscale_model(upscale_model_name)
     positive, negative = encode_text_prompt(w, cond, clip)
-    if models.version.has_controlnet_blur:
+    if models.control.find(ControlMode.blur) is not None:
         blur = [Control(ControlMode.blur, img)]
         positive, negative = apply_control(w, positive, negative, blur, extent.input, models)
 
