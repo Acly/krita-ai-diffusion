@@ -144,7 +144,8 @@ def get_path_dict(paths: Sequence[str]) -> dict:
 
     new_path_dict = {}
     for path in paths:
-        _recurse(new_path_dict, Path(path).parts, path)
+        parts = Path(path.replace("\\", "/")).parts
+        _recurse(new_path_dict, parts, path)
     return new_path_dict
 
 
