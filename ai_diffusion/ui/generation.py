@@ -259,6 +259,7 @@ class HistoryWidget(QListWidget):
         self.clear()
         for job in filter(self.is_finished, self._model.jobs):
             self.add(job)
+        self.scrollToBottom()
 
     def item_info(self, item: QListWidgetItem) -> tuple[str, int]:  # job id, image index
         return item.data(Qt.ItemDataRole.UserRole), item.data(Qt.ItemDataRole.UserRole + 1)
