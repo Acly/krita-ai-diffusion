@@ -474,6 +474,7 @@ def inpaint(
     initial_bounds = extent.convert(target_bounds, "target", "initial")
 
     model, clip, vae = load_checkpoint_with_lora(w, checkpoint, models.all)
+    model = w.differential_diffusion(model)
     in_image = w.load_image(ensure(images.initial_image))
     in_image = scale_to_initial(extent, w, in_image, models)
     in_mask = w.load_mask(ensure(images.initial_mask))
@@ -553,7 +554,8 @@ def inpaint(
         out_image = w.crop_image(out_image, desired_bounds)
         out_image = scale_to_target(cropped_extent, w, out_image, models)
 
-    out_masked = w.apply_mask(out_image, cropped_mask)
+    compositing_mask = w.denoise_to_compositing_mask(cropped_mask)
+    out_masked = w.apply_mask(out_image, compositing_mask)
     w.send_image(out_masked)
     return w
 
@@ -597,6 +599,7 @@ def refine_region(
     extent = ScaledExtent.from_input(images.extent)
 
     model, clip, vae = load_checkpoint_with_lora(w, checkpoint, models.all)
+    model = w.differential_diffusion(model)
     model = apply_ip_adapter(w, model, cond.control, models)
     in_image = w.load_image(ensure(images.initial_image))
     in_image = scale_to_initial(extent, w, in_image, models)
@@ -633,7 +636,8 @@ def refine_region(
     if extent.target != inpaint.target_bounds.extent:
         out_image = w.crop_image(out_image, inpaint.target_bounds)
     original_mask = w.load_mask(ensure(images.hires_mask))
-    out_masked = w.apply_mask(out_image, original_mask)
+    compositing_mask = w.denoise_to_compositing_mask(original_mask)
+    out_masked = w.apply_mask(out_image, compositing_mask)
     w.send_image(out_masked)
     return w
 

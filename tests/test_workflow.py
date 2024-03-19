@@ -293,6 +293,24 @@ def test_refine_region(qtapp, client, setup):
     assert result.extent == mask.bounds.extent
 
 
+def test_differential_diffusion(qtapp, client):
+    image = Image.scale(Image.load(image_dir / "beach_1536x1024.webp"), Extent(768, 512))
+    mask = Mask.load(image_dir / "differential_diffusion_mask.webp")
+    prompt = TextInput("barren plain, volcanic wasteland, burned trees")
+    params = detect_inpaint(InpaintMode.fill, mask.bounds, SDVersion.sd15, prompt.positive, [], 0.9)
+    job = create(
+        WorkflowKind.refine_region,
+        client,
+        canvas=image,
+        mask=mask,
+        style=default_style(client, SDVersion.sd15),
+        text=prompt,
+        strength=0.9,
+        inpaint=params,
+    )
+    run_and_save(qtapp, client, job, "test_differential_diffusion", image, mask)
+
+
 @pytest.mark.parametrize(
     "op", ["generate", "inpaint", "refine", "refine_region", "inpaint_upscale"]
 )
@@ -594,20 +612,24 @@ def run_inpaint_benchmark(
         client,
         style=default_style(client, sdver),
         canvas=image,
+        mask=mask,
         text=text,
         inpaint=params,
         seed=seed,
     )
-    result_name = f"benchmark_inpaint_{scenario}_{sdver.name}_{prompt_mode}_{seed}.webp"
+    result_name = f"benchmark_inpaint_{scenario}_{sdver.name}_{prompt_mode}_{seed}"
     run_and_save(qtapp, client, job, result_name, image, mask, output_dir=out_dir)
 
 
 def test_inpaint_benchmark(pytestconfig, qtapp, client):
     if not pytestconfig.getoption("--benchmark"):
         pytest.skip("Only runs with --benchmark")
+    if isinstance(client, CloudClient):
+        pytest.skip("Inpaint benchmark runs local")
     print()
 
     output_dir = config.benchmark_dir / datetime.now().strftime("%Y%m%d-%H%M")
+    output_dir.mkdir(parents=True, exist_ok=True)
     seeds = [4213, 897281]
     prompt_modes = ["prompt", "noprompt"]
     scenarios = inpaint_benchmark.keys()

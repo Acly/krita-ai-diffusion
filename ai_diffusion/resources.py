@@ -9,7 +9,7 @@ from typing import NamedTuple, Sequence
 version = "1.16.0"
 
 comfy_url = "https://github.com/comfyanonymous/ComfyUI"
-comfy_version = "2a813c3b09292c9aeab622ddf65d77e5d8171d0d"
+comfy_version = "40e124c6be01195eada95e8c319ca6ddf4fd1a17"
 
 
 class CustomNode(NamedTuple):
@@ -58,7 +58,7 @@ required_custom_nodes = [
         "Inpaint Nodes",
         "comfyui-inpaint-nodes",
         "https://github.com/Acly/comfyui-inpaint-nodes",
-        "ed5a8b21bb416d59506fe5e58fc9a36be48f25fb",
+        "fac56ec7de904ab5926228f71dd563c34fd0d6be",
         ["INPAINT_LoadFooocusInpaint", "INPAINT_ApplyFooocusInpaint"],
     ),
 ]

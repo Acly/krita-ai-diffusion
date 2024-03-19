@@ -169,6 +169,9 @@ class ComfyWorkflow:
             return_with_leftover_noise="disable",
         )
 
+    def differential_diffusion(self, model: Output):
+        return self.add("DifferentialDiffusion", 1, model=model)
+
     def model_sampling_discrete(self, model: Output, sampling: str, zsnr=False):
         return self.add("ModelSamplingDiscrete", 1, model=model, sampling=sampling, zsnr=zsnr)
 
@@ -480,6 +483,11 @@ class ComfyWorkflow:
 
     def blur_masked(self, image: Output, mask: Output, blur: int, falloff: int = 0):
         return self.add("INPAINT_MaskedBlur", 1, image=image, mask=mask, blur=blur, falloff=falloff)
+
+    def denoise_to_compositing_mask(self, mask: Output, offset=0.15, threshold=0.25):
+        return self.add(
+            "INPAINT_DenoiseToCompositingMask", 1, mask=mask, offset=offset, threshold=threshold
+        )
 
     def apply_mask(self, image: Output, mask: Output):
         return self.add("ETN_ApplyMaskToImage", 1, image=image, mask=mask)
