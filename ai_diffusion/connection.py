@@ -98,6 +98,9 @@ class Connection(QObject, ObservableProperties):
         except NetworkError as e:
             self.error = e.message
             self.state = ConnectionState.error
+            if e.status == 401:  # Unauthorized
+                settings.access_token = ""
+                self._update_state()
         except Exception as e:
             self.error = util.log_error(e)
             self.state = ConnectionState.error

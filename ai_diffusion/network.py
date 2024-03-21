@@ -35,14 +35,14 @@ class NetworkError(Exception):
     def from_reply(reply: QNetworkReply):
         code = reply.error()  # type: ignore (bug in PyQt5-stubs)
         url = reply.url().toString()
+        status = reply.attribute(QNetworkRequest.Attribute.HttpStatusCodeAttribute)
         try:  # extract detailed information from the payload
             data = json.loads(reply.readAll().data())
             error = data.get("error", "Network error")
-            status = reply.attribute(QNetworkRequest.Attribute.HttpStatusCodeAttribute)
             return NetworkError(code, f"{error} ({reply.errorString()})", url, status, data)
         except:
             pass
-        return NetworkError(code, reply.errorString(), url)
+        return NetworkError(code, reply.errorString(), url, status)
 
 
 class OutOfMemoryError(NetworkError):
@@ -77,6 +77,7 @@ class RequestManager:
 
         request = QNetworkRequest(QUrl(url))
         # request.setTransferTimeout({"GET": 30000, "POST": 0}[method]) # requires Qt 5.15 (Krita 5.2)
+        request.setAttribute(QNetworkRequest.FollowRedirectsAttribute, True)
         request.setRawHeader(b"ngrok-skip-browser-warning", b"69420")
         if bearer:
             request.setRawHeader(b"Authorization", f"Bearer {bearer}".encode("utf-8"))

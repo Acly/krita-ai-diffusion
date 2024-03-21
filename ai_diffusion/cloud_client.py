@@ -29,7 +29,7 @@ class JobInfo:
 
 
 class CloudClient(Client):
-    default_url = os.getenv("INTERSTICE_URL", "https://diffusion-service.vercel.app/")
+    default_url = os.getenv("INTERSTICE_URL", "https://interstice.cloud")
 
     _requests = RequestManager()
     _queue: asyncio.Queue[JobInfo]
@@ -86,7 +86,14 @@ class CloudClient(Client):
         if not token:
             raise ValueError("Authorization missing for cloud endpoint")
         self._token = token
-        user_data = await self._get("user")
+        try:
+            user_data = await self._get("user")
+        except NetworkError as e:
+            log.error(f"Couldn't authenticate user account: {e.message}")
+            self._token = ""
+            if e.status == 401:
+                e.message = "The login data is incorrect, please sign in again."
+            raise e
         self._user = User(user_data["id"], user_data["name"])
         self._user.images_generated = user_data["images_generated"]
         self._user.credits = user_data["credits"]
