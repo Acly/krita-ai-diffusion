@@ -62,10 +62,19 @@ class CheckpointInput:
 @dataclass
 class SamplingInput:
     sampler: str
-    steps: int
+    scheduler: str
     cfg_scale: float
-    strength: float = 1.0
+    total_steps: int
+    start_step: int = 0
     seed: int = 0
+
+    @property
+    def actual_steps(self):
+        return self.total_steps - self.start_step
+
+    @property
+    def denoise_strength(self):
+        return self.actual_steps / self.total_steps
 
 
 @dataclass
@@ -149,7 +158,7 @@ class WorkflowInput:
     def cost(self):
         if self.kind in [WorkflowKind.control_image, WorkflowKind.upscale_simple]:
             return 2
-        steps = round(ensure(self.sampling).steps * ensure(self.sampling).strength)
+        steps = ensure(self.sampling).actual_steps
         unit = 2 * Extent(1024, 1024).pixel_count * 20
         cost = self.batch_count * self.extent.desired.pixel_count * steps
         return math.ceil((10 * cost) / unit)

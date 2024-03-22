@@ -4,7 +4,7 @@ import json
 from pathlib import Path
 from PyQt5.QtCore import QObject, pyqtSignal
 
-from .api import CheckpointInput, LoraInput, SamplingInput
+from .api import CheckpointInput, LoraInput
 from .settings import Setting, settings
 from .resources import SDVersion
 from .util import encode_json, user_data_dir, client_logger as log
@@ -184,11 +184,6 @@ class Style:
             loras=[LoraInput.from_dict(l) for l in self.loras],
         )
         return result
-
-    def get_sampling(self, is_live=False):
-        if is_live:
-            return SamplingInput(self.live_sampler, self.live_sampler_steps, self.live_cfg_scale)
-        return SamplingInput(self.sampler, self.sampler_steps, self.cfg_scale)
 
 
 class Styles(QObject):

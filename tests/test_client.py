@@ -33,7 +33,7 @@ def make_default_work(size=512, steps=20):
         models=CheckpointInput(default_checkpoint[SDVersion.sd15]),
         images=ImageInput.from_extent(Extent(size, size)),
         text=TextInput("a photo of a cat", "a photo of a dog"),
-        sampling=SamplingInput("Euler", steps, 7.0),
+        sampling=SamplingInput("euler", "normal", cfg_scale=7.0, total_steps=steps),
     )
 
 

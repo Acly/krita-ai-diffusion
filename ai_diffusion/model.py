@@ -169,7 +169,7 @@ class Model(QObject, ObservableProperties):
         sampling = ensure(input.sampling)
         params.prompt = ensure(input.text).positive
         params.negative_prompt = ensure(input.text).negative
-        params.strength = sampling.strength
+        params.strength = sampling.denoise_strength
 
         for i in range(count):
             sampling.seed = sampling.seed + i * settings.batch_size
@@ -252,6 +252,7 @@ class Model(QObject, ObservableProperties):
             is_live=True,
         )
         if input != last_input:
+            self.clear_error()
             await self.enqueue_jobs(input, JobKind.live_preview, JobParams(bounds))
             return input
 

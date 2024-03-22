@@ -30,52 +30,50 @@ def generate_seed():
     return random.randint(0, 2**31 - 1)
 
 
-def _sampler_params(sampling: SamplingInput, strength=0.0, clip_vision=False, advanced=True):
-    sampler_name = {
-        "DDIM": "ddim",
-        "DPM++ 2M": "dpmpp_2m",
-        "DPM++ 2M Karras": "dpmpp_2m",
-        "DPM++ 2M SDE": "dpmpp_2m_sde_gpu",
-        "DPM++ 2M SDE Karras": "dpmpp_2m_sde_gpu",
-        "DPM++ SDE Karras": "dpmpp_sde_gpu",
-        "UniPC BH2": "uni_pc_bh2",
-        "LCM": "lcm",
-        "Lightning": "euler",
-        "Euler": "euler",
-        "Euler a": "euler_ancestral",
-    }[sampling.sampler]
-    sampler_scheduler = {
-        "DDIM": "ddim_uniform",
-        "DPM++ 2M": "normal",
-        "DPM++ 2M Karras": "karras",
-        "DPM++ 2M SDE": "normal",
-        "DPM++ 2M SDE Karras": "karras",
-        "DPM++ SDE Karras": "karras",
-        "UniPC BH2": "ddim_uniform",
-        "LCM": "sgm_uniform",
-        "Lightning": "sgm_uniform",
-        "Euler": "normal",
-        "Euler a": "normal",
-    }[sampling.sampler]
-    params: dict[str, Any] = dict(
-        sampler=sampler_name,
-        scheduler=sampler_scheduler,
-        steps=sampling.steps,
-        cfg=sampling.cfg_scale,
-        seed=sampling.seed,
+_sampler_map = {
+    "DDIM": "ddim",
+    "DPM++ 2M": "dpmpp_2m",
+    "DPM++ 2M Karras": "dpmpp_2m",
+    "DPM++ 2M SDE": "dpmpp_2m_sde_gpu",
+    "DPM++ 2M SDE Karras": "dpmpp_2m_sde_gpu",
+    "DPM++ SDE Karras": "dpmpp_sde_gpu",
+    "UniPC BH2": "uni_pc_bh2",
+    "LCM": "lcm",
+    "Lightning": "euler",
+    "Euler": "euler",
+    "Euler a": "euler_ancestral",
+}
+_scheduler_map = {
+    "DDIM": "ddim_uniform",
+    "DPM++ 2M": "normal",
+    "DPM++ 2M Karras": "karras",
+    "DPM++ 2M SDE": "normal",
+    "DPM++ 2M SDE Karras": "karras",
+    "DPM++ SDE Karras": "karras",
+    "UniPC BH2": "ddim_uniform",
+    "LCM": "sgm_uniform",
+    "Lightning": "sgm_uniform",
+    "Euler": "normal",
+    "Euler a": "normal",
+}
+
+
+def _sampling_from_style(style: Style, strength: float, is_live: bool):
+    sampler_name = style.live_sampler if is_live else style.sampler
+    cfg = style.live_cfg_scale if is_live else style.cfg_scale
+    total_steps = style.live_sampler_steps if is_live else style.sampler_steps
+    result = SamplingInput(
+        sampler=_sampler_map[sampler_name],
+        scheduler=_scheduler_map[sampler_name],
+        cfg_scale=cfg,
+        total_steps=total_steps,
     )
-    strength = strength if strength > 0 else sampling.strength
-    if advanced:
-        if strength < 1.0:
-            min_steps = sampling.steps if sampling.sampler == "LCM" else 1
-            params["steps"], params["start_at_step"] = _apply_strength(
-                strength, params["steps"], min_steps
-            )
-        else:
-            params["start_at_step"] = 0
-    if clip_vision:
-        params["cfg"] = min(5, sampling.cfg_scale)
-    return params
+    if strength < 1.0:
+        # Unless we have something like a 1-step turbo model, ensure there are at least 4 steps
+        # even at very low strength with low total steps of 4-8 (like Lightning/LCM).
+        min_steps = min(4, total_steps)
+        result.total_steps, result.start_step = _apply_strength(strength, total_steps, min_steps)
+    return result
 
 
 def _apply_strength(strength: float, steps: int, min_steps: int = 0) -> tuple[int, int]:
@@ -86,6 +84,28 @@ def _apply_strength(strength: float, steps: int, min_steps: int = 0) -> tuple[in
         start_at_step = steps - min_steps
 
     return steps, start_at_step
+
+
+def _sampler_params(sampling: SamplingInput, strength: float | None = None, advanced=True):
+    """Assemble the parameters which are passed to ComfyUI's KSampler/KSamplerAdvanced node.
+    Optionally adjust the number of steps based on the strength parameter (for hires pass).
+    """
+    params: dict[str, Any] = dict(
+        sampler=sampling.sampler,
+        scheduler=sampling.scheduler,
+        steps=sampling.actual_steps,
+        cfg=sampling.cfg_scale,
+        seed=sampling.seed,
+    )
+    assert strength is None or advanced
+    if advanced:
+        params["steps"] = sampling.total_steps
+        params["start_at_step"] = sampling.start_step
+        if strength is not None:
+            params["steps"], params["start_at_step"] = _apply_strength(
+                strength, sampling.total_steps
+            )
+    return params
 
 
 def load_checkpoint_with_lora(w: ComfyWorkflow, checkpoint: CheckpointInput, models: ClientModels):
@@ -510,8 +530,9 @@ def inpaint(
         inpaint_model = model
 
     latent = w.batch_latent(latent, batch_count)
-    sampler_params = _sampler_params(sampling, clip_vision=params.use_reference)
-    out_latent = w.ksampler_advanced(inpaint_model, positive, negative, latent, **sampler_params)
+    out_latent = w.ksampler_advanced(
+        inpaint_model, positive, negative, latent, **_sampler_params(sampling)
+    )
 
     if extent.refinement_scaling in [ScaleMode.upscale_small, ScaleMode.upscale_quality]:
         if extent.refinement_scaling is ScaleMode.upscale_small:
@@ -748,7 +769,7 @@ def upscale_tiled(
         vae=vae,
         upscale_model=upscale_model,
         factor=extent.target.width / extent.input.width,
-        denoise=sampling.strength,
+        denoise=sampling.actual_steps / sampling.total_steps,
         original_extent=extent.input,
         tile_extent=extent.initial,
         **_sampler_params(sampling, advanced=False),
@@ -788,9 +809,8 @@ def prepare(
     i.text.negative = merge_prompt(text.negative, style.negative_prompt)
     i.text.style = style.style_prompt
     i.control = control or []
-    i.sampling = style.get_sampling(is_live)
+    i.sampling = _sampling_from_style(style, strength, is_live)
     i.sampling.seed = seed
-    i.sampling.strength = strength
     i.models = style.get_models()
     i.models.loras += extra_loras
     _check_server_has_models(i.models, models, style.name)
@@ -798,7 +818,7 @@ def prepare(
     sd_version = models.version_of(style.sd_checkpoint)
     model_set = models.for_version(sd_version)
     has_ip_adapter = model_set.ip_adapter.find(ControlMode.reference) is not None
-    if i.sampling.sampler == "LCM":
+    if i.sampling.sampler == "lcm":
         i.models.loras.append(LoraInput(model_set.lora["lcm"], 1.0))
     face_weight = median_or_zero(c.strength for c in i.control if c.mode is ControlMode.face)
     if face_weight > 0:
@@ -890,7 +910,7 @@ def prepare_create_control_image(
     if bounds:
         seed = generate_seed() if seed == -1 else seed
         i.inpaint = InpaintParams(InpaintMode.fill, bounds)
-        i.sampling = SamplingInput("", 1, 1, seed=seed)
+        i.sampling = SamplingInput("", "", 1, 1, seed=seed)  # ignored apart from seed
     return i
 
 

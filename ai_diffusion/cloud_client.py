@@ -157,7 +157,7 @@ class CloudClient(Client):
             output = response["output"]
             images = await self.receive_images(output["images"])
             pose = output.get("pose", None)
-            log.info(f"{job} completed, got {len(images)} images")
+            log.info(f"{job} completed, got {len(images)} images{', got pose' if pose else ''}")
             yield ClientMessage(ClientEvent.finished, job.local_id, 1, images, pose)
 
         elif response["status"] == "FAILED":

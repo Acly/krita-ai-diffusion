@@ -104,7 +104,7 @@ def create_simple_workflow():
         WorkflowKind.generate,
         images=ImageInput.from_extent(Extent(512, 512)),
         models=CheckpointInput("dreamshaper_8.safetensors"),
-        sampling=SamplingInput("DPM++ 2M", 20, 5.0),
+        sampling=SamplingInput("dpmpp_2m", "normal", cfg_scale=5.0, total_steps=20),
         text=TextInput("fluffy ball"),
         batch_count=2,
     )
@@ -123,7 +123,7 @@ def test_large_image(qtapp, cloud_client):
         WorkflowKind.refine,
         images=ImageInput(ExtentInput(extent, extent, extent, extent), input_image),
         models=CheckpointInput("dreamshaper_8.safetensors"),
-        sampling=SamplingInput("DPM++ 2M", 10, 3.0, strength=0.6),
+        sampling=SamplingInput("dpmpp_2m", "normal", cfg_scale=3.0, total_steps=10, start_step=4),
         text=TextInput("beach, jungle"),
         control=[ControlInput(ControlMode.blur, input_image)],
     )
@@ -136,7 +136,7 @@ def test_validation(qtapp, cloud_client: CloudClient, scenario: str):
     if scenario == "resolution":
         workflow.images = ImageInput.from_extent(Extent(9000, 512))
     elif scenario == "steps":
-        ensure(workflow.sampling).steps = 200
+        ensure(workflow.sampling).total_steps = 200
     elif scenario == "control":
         img = Image.create(Extent(4, 4))
         for i in range(7):
