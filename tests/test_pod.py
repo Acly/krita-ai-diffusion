@@ -6,11 +6,11 @@ from ai_diffusion.image import ImageCollection, Image as ImageWrapper
 from .config import root_dir, test_dir
 
 if (root_dir / "service" / "pod" / "lib").exists():
-    from service.pod.lib import image_transfer
     import dotenv
     import requests
 
     dotenv.load_dotenv(root_dir / "service" / ".env.local")
+    from service.pod.lib import image_transfer
 
     @pytest.mark.parametrize("mode", ["b64", "s3"])
     def test_send(mode: str):
