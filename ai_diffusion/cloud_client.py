@@ -101,7 +101,7 @@ class CloudClient(Client):
         return self._user
 
     async def enqueue(self, work: WorkflowInput, front: bool = False):
-        work.batch_count = min(work.batch_count, 2)  # TODO: bigger payload
+        work.batch_count = min(work.batch_count, 8)
         job = JobInfo(str(uuid.uuid4()), work)
         await self._queue.put(job)
         return job.local_id
@@ -188,7 +188,7 @@ class CloudClient(Client):
 
     @property
     def performance_settings(self):
-        return PerformanceSettings(batch_size=4, resolution_multiplier=1.0, max_pixel_count=8)
+        return PerformanceSettings(batch_size=8, resolution_multiplier=1.0, max_pixel_count=8)
 
     async def _send_images(self, inputs: dict):
         if image_data := inputs.get("image_data"):

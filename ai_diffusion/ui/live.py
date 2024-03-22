@@ -207,8 +207,12 @@ class LiveWidget(QWidget):
 
     def update_progress(self):
         if self.model.live.result is None:
-            self.progress_bar.setVisible(True)
+            if self.model.progress > 0:
+                self.progress_bar.setFormat("Loading %p%")
+            else:
+                self.progress_bar.setFormat("Initializing...")
             self.progress_bar.setValue(int(self.model.progress * 100))
+            self.progress_bar.setVisible(True)
 
     def show_result(self, image: Image):
         self.progress_bar.setVisible(False)
