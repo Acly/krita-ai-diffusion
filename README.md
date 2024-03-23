@@ -61,7 +61,7 @@ To run locally a powerful graphics card with at least 6 GB VRAM is recommended. 
 1. If you haven't yet, go and install [Krita](https://krita.org/)! _Required version: 5.2.0 or newer_
 1. [Download the plugin](https://github.com/Acly/krita-ai-diffusion/releases/latest). Unpack the archive into your `pykrita` folder.
     * _Windows:_ Usually `C:\Users\<user>\AppData\Roaming\krita\pykrita`
-    * _Linux:_ Usually `~/.local/share/krita/pykrita`
+    * _Linux:_ Usually `~/.local/share/krita/pykrita`. Flatpak `~/.var/app/org.kde.krita/data/krita/pykrita`
     * _MacOS:_ Usually `~/Library/Application Support/krita/pykrita`
     * Check [Krita's official documentation](https://docs.krita.org/en/user_manual/python_scripting/install_custom_python_plugin.html) if you have trouble locating it.
 1. Enable the plugin in Krita (Settings ‣ Configure Krita ‣ Python Plugins Manager) and restart.
