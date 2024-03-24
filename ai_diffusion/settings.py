@@ -1,4 +1,5 @@
 from __future__ import annotations
+from dataclasses import dataclass, asdict
 import os
 import json
 from enum import Enum
@@ -13,6 +14,7 @@ class ServerMode(Enum):
     undefined = -1
     managed = 0
     external = 1
+    cloud = 2
 
 
 class ServerBackend(Enum):
@@ -42,6 +44,13 @@ class PerformancePreset(Enum):
     custom = "Custom"
 
 
+@dataclass
+class PerformanceSettings:
+    batch_size: int = 4
+    resolution_multiplier: float = 1.0
+    max_pixel_count: int = 8
+
+
 class Setting:
     def __init__(self, name: str, default, desc="", help="", items=None):
         self.name = name
@@ -68,6 +77,9 @@ class Settings(QObject):
         ServerMode.undefined,
         "To generate images, the plugin connects to a ComfyUI server",
     )
+
+    access_token: str
+    _access_token = Setting("Cloud Access Token", "")
 
     server_path: str
     _server_path = Setting(
@@ -132,6 +144,9 @@ class Settings(QObject):
     show_control_end: bool
     _show_control_end = Setting("Control ending step", False, "Show control ending step ratio")
 
+    show_builtin_styles: bool
+    _show_builtin_styles = Setting("Show pre-installed styles", True)
+
     history_size: int
     _history_size = Setting(
         "Active History Size", 1000, "Main memory (RAM) used for the history of generated images"
@@ -172,26 +187,26 @@ class Settings(QObject):
     )
 
     _performance_presets = {
-        PerformancePreset.cpu: {
-            "batch_size": 1,
-            "resolution_multiplier": 1.0,
-            "max_pixel_count": 2,
-        },
-        PerformancePreset.low: {
-            "batch_size": 2,
-            "resolution_multiplier": 1.0,
-            "max_pixel_count": 2,
-        },
-        PerformancePreset.medium: {
-            "batch_size": 4,
-            "resolution_multiplier": 1.0,
-            "max_pixel_count": 8,
-        },
-        PerformancePreset.high: {
-            "batch_size": 8,
-            "resolution_multiplier": 1.0,
-            "max_pixel_count": 12,
-        },
+        PerformancePreset.cpu: PerformanceSettings(
+            batch_size=1,
+            resolution_multiplier=1.0,
+            max_pixel_count=2,
+        ),
+        PerformancePreset.low: PerformanceSettings(
+            batch_size=2,
+            resolution_multiplier=1.0,
+            max_pixel_count=2,
+        ),
+        PerformancePreset.medium: PerformanceSettings(
+            batch_size=4,
+            resolution_multiplier=1.0,
+            max_pixel_count=8,
+        ),
+        PerformancePreset.high: PerformanceSettings(
+            batch_size=8,
+            resolution_multiplier=1.0,
+            max_pixel_count=12,
+        ),
     }
 
     debug_dump_workflow: bool
@@ -257,7 +272,7 @@ class Settings(QObject):
 
     def apply_performance_preset(self, preset: PerformancePreset):
         if preset not in [PerformancePreset.custom, PerformancePreset.auto]:
-            for k, v in self._performance_presets[preset].items():
+            for k, v in asdict(self._performance_presets[preset]).items():
                 self._values[k] = v
 
     def _migrate_legacy_settings(self, path: Path):

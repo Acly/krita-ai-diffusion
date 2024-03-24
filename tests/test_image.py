@@ -2,6 +2,7 @@ import pytest
 import numpy as np
 from PyQt5.QtGui import QImage, qRgba
 from PyQt5.QtCore import Qt, QByteArray
+from PIL import Image as PILImage
 from ai_diffusion.image import Mask, Bounds, Extent, Image, ImageCollection
 
 
@@ -65,7 +66,16 @@ def test_image_make_opaque():
 def test_image_to_array():
     img = create_test_image(2, 2)
     expected = np.array(
-        [[[0, 0, 0, 1], [0, 0, 1 / 255, 1]], [[0, 1 / 255, 0, 1], [0, 1 / 255, 1 / 255, 1]]],
+        [
+            [
+                [0, 0, 0, 1],
+                [1 / 255, 0, 0, 1],
+            ],
+            [
+                [0, 1 / 255, 0, 1],
+                [1 / 255, 1 / 255, 0, 1],
+            ],
+        ],
         np.float32,
     )
     assert np.all(np.isclose(img.to_array(), expected))
@@ -75,6 +85,64 @@ def test_image_compare():
     img1 = create_test_image(2, 2)
     img2 = create_test_image(2, 2)
     assert Image.compare(img1, img2) < 0.0001
+
+
+def test_image_from_pil():
+    pil_img = PILImage.new("RGBA", (2, 2), (255, 0, 0, 255))
+    img = Image.from_pil(pil_img)
+    assert img.extent == Extent(2, 2)
+    assert img.pixel(0, 0) == (255, 0, 0, 255)
+
+
+@pytest.mark.skip("Benchmark")
+def test_image_compress_speed():
+    from PyQt5.QtGui import QImageWriter
+    from PyQt5.QtCore import QBuffer, QByteArray, QFile, QIODevice
+    from timeit import default_timer
+
+    img = Image.load("tests/images/beach_1536x1024.webp")
+
+    print("\nQImage (lossy)")
+
+    for q in range(10, 101, 10):
+        start = default_timer()
+
+        byte_array = QByteArray()
+        buffer = QBuffer(byte_array)
+        buffer.open(QBuffer.OpenModeFlag.WriteOnly)
+        writer = QImageWriter(buffer, QByteArray(b"webp"))
+        writer.setQuality(q)
+        writer.write(img._qimage)
+        buffer.close()
+
+        end = default_timer()
+        print(f"Quality {q} | Time {end - start:.3f}s | Size {len(byte_array)//1024} kB")
+
+        file = QFile(f"beach_1536x1024_q{q}.webp")
+        file.open(QIODevice.OpenModeFlag.WriteOnly)
+        file.write(byte_array)
+        file.close()
+
+    from PIL import Image as PILImage
+    from io import BytesIO
+
+    print("\nPillow (lossless)")
+
+    pil_img = PILImage.open("tests/images/beach_1536x1024.webp")
+    for q in range(10, 101, 10):
+        start = default_timer()
+        buffer = BytesIO()
+        pil_img.save(buffer, "WEBP", lossless=True, quality=q)
+        end = default_timer()
+        print(f"Compression {q} | Time {end - start:.3f}s | Size {len(buffer.getvalue())//1024} kB")
+
+
+def test_image_equal():
+    red1 = Image.create(Extent(2, 2), Qt.GlobalColor.red)
+    red2 = Image.create(Extent(2, 2), Qt.GlobalColor.red)
+    green = Image.create(Extent(2, 2), Qt.GlobalColor.green)
+    assert red1 == red2
+    assert red1 != green
 
 
 def test_draw_image():

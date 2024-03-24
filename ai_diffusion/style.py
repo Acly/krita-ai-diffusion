@@ -2,10 +2,10 @@ from __future__ import annotations
 from enum import Enum
 import json
 from pathlib import Path
-from typing import NamedTuple
 from PyQt5.QtCore import QObject, pyqtSignal
 
-from .settings import Setting
+from .api import CheckpointInput, LoraInput
+from .settings import Setting, settings
 from .resources import SDVersion
 from .util import encode_json, user_data_dir, client_logger as log
 
@@ -109,12 +109,6 @@ class StyleSettings:
     live_cfg_scale = Setting("Guidance Strength (CFG Scale)", 1.8, cfg_scale.desc)
 
 
-class SamplerConfig(NamedTuple):
-    sampler: str
-    steps: int
-    cfg: float
-
-
 class Style:
     filepath: Path
     version: int = StyleSettings.version.default
@@ -179,12 +173,17 @@ class Style:
     def filename(self):
         if self.filepath.is_relative_to(Styles.default_user_folder):
             return str(self.filepath.relative_to(Styles.default_user_folder).as_posix())
-        return self.filepath.name
+        return f"built-in/{self.filepath.name}"
 
-    def get_sampler_config(self, is_live=False):
-        if is_live:
-            return SamplerConfig(self.live_sampler, self.live_sampler_steps, self.live_cfg_scale)
-        return SamplerConfig(self.sampler, self.sampler_steps, self.cfg_scale)
+    def get_models(self):
+        result = CheckpointInput(
+            checkpoint=self.sd_checkpoint,
+            vae=self.vae,
+            clip_skip=self.clip_skip,
+            v_prediction_zsnr=self.v_prediction_zsnr,
+            loras=[LoraInput.from_dict(l) for l in self.loras],
+        )
+        return result
 
 
 class Styles(QObject):
@@ -213,6 +212,7 @@ class Styles(QObject):
         self.user_folder = user_folder
         self.user_folder.mkdir(exist_ok=True)
         self.reload()
+        settings.changed.connect(self._handle_settings_change)
 
     @property
     def default(self):
@@ -253,13 +253,21 @@ class Styles(QObject):
             self.create("default")
         else:
             self.changed.emit()
-        return self._list
 
     def find(self, filename: str):
-        return next(
-            ((style, i) for i, style in enumerate(self._list) if style.filename == filename),
-            (None, -1),
-        )
+        return next((style for style in self._list if style.filename == filename), None)
+
+    def filtered(self, show_builtin: bool | None = None):
+        if show_builtin is None:
+            show_builtin = settings.show_builtin_styles
+        return [s for s in self._list if show_builtin or not self.is_builtin(s)]
+
+    def is_builtin(self, style: Style):
+        return style.filepath.is_relative_to(self.builtin_folder)
+
+    def _handle_settings_change(self, name: str, value):
+        if name == "show_builtin_styles":
+            self.changed.emit()
 
     def __getitem__(self, index) -> Style:
         return self._list[index]

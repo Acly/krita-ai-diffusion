@@ -181,6 +181,10 @@ class Bounds(NamedTuple):
         )
         return Bounds.clamp(result, max_extent)
 
+    def relative_to(self, reference: "Bounds"):
+        """Return bounds relative to another bounds."""
+        return Bounds(self.x - reference.x, self.y - reference.y, self.width, self.height)
+
     @staticmethod
     def from_qrect(qrect: QRect):
         return Bounds(qrect.x(), qrect.y(), qrect.width(), qrect.height())
@@ -193,14 +197,14 @@ def extent_equal(a: QImage, b: QImage):
 class ImageFileFormat(Enum):
     # Low compression rate, fast but large files. Good for local use, but maybe not optimal
     # for remote server where images are transferred via internet.
-    png = ("PNG", 85)
+    png = ("png", 85)
 
-    webp = ("WEBP", 90)
+    webp = ("webp", 80)
+    webp_lossless = ("webp", 100)
 
 
 class Image:
     def __init__(self, qimage: QImage):
-        assert qimage.format() in [QImage.Format_ARGB32, QImage.Format_Grayscale8]
         self._qimage = qimage
 
     @staticmethod
@@ -208,11 +212,11 @@ class Image:
         image = QImage()
         success = image.load(str(filepath))
         assert success, f"Failed to load image {filepath}"
-        return Image(image.convertToFormat(QImage.Format_ARGB32))
+        return Image(image)
 
     @staticmethod
     def create(extent: Extent, fill=None):
-        img = Image(QImage(extent.width, extent.height, QImage.Format_ARGB32))
+        img = Image(QImage(extent.width, extent.height, QImage.Format.Format_ARGB32))
         if fill is not None:
             img._qimage.fill(fill)
         return img
@@ -231,7 +235,11 @@ class Image:
 
     @property
     def is_rgba(self):
-        return self._qimage.format() == QImage.Format_ARGB32
+        return self._qimage.format() in [
+            QImage.Format.Format_ARGB32,
+            QImage.Format.Format_RGB32,
+            QImage.Format.Format_RGBA8888,
+        ]
 
     @property
     def is_mask(self):
@@ -246,14 +254,23 @@ class Image:
     def from_bytes(data: QByteArray | memoryview, format: str | None = None):
         img = QImage.fromData(data, format)
         assert img and not img.isNull(), "Failed to load image from memory"
-        return Image(img.convertToFormat(QImage.Format_ARGB32))
+        return Image(img)
+
+    @staticmethod
+    def from_pil(pil_image):
+        assert pil_image.mode == "RGBA"
+        qimage = QImage(
+            pil_image.tobytes(), pil_image.width, pil_image.height, QImage.Format.Format_RGBA8888
+        )
+        return Image(qimage)
 
     @staticmethod
     def scale(img: "Image", target: Extent):
+        assert img.extent != target
         mode = Qt.AspectRatioMode.IgnoreAspectRatio
         quality = Qt.TransformationMode.SmoothTransformation
         scaled = img._qimage.scaled(target.width, target.height, mode, quality)
-        return Image(scaled.convertToFormat(QImage.Format_ARGB32))
+        return Image(scaled)
 
     @staticmethod
     def scale_to_fit(img: "Image", target: Extent):
@@ -264,13 +281,13 @@ class Image:
         return Image(img._qimage.copy(*bounds))
 
     @staticmethod
-    def compare(a, b):
-        assert extent_equal(a._qimage, b._qimage)
+    def compare(img_a: "Image", img_b: "Image"):
+        assert extent_equal(img_a._qimage, img_b._qimage)
         import numpy as np
 
         # Compute RMSE
-        a = a.to_array()
-        b = b.to_array()
+        a = img_a.to_array()
+        b = img_b.to_array()
         return np.sqrt(np.mean((a - b) ** 2))
 
     def pixel(self, x: int, y: int):
@@ -293,6 +310,7 @@ class Image:
 
     @property
     def data(self):
+        self.to_krita_format()
         ptr = self._qimage.bits()
         assert ptr is not None, "Accessing data of invalid image"
         ptr.setsize(self._qimage.byteCount())
@@ -305,22 +323,20 @@ class Image:
     def to_array(self):
         import numpy as np
 
+        self.to_numpy_format()
         w, h = self.extent
         bits = self._qimage.constBits()
         assert bits is not None, "Accessing data of invalid image"
         ptr = bits.asarray(w * h * 4)
-        array = np.frombuffer(ptr, np.uint8).reshape(w, h, 4)  # type: ignore
+        array = np.frombuffer(ptr, np.uint8).reshape(h, w, 4)  # type: ignore
         return array.astype(np.float32) / 255
 
     def write(self, buffer: QBuffer, format=ImageFileFormat.png):
         # Compression takes time for large images and blocks the UI, might be worth to thread.
         format_str, quality = format.value
-        if format is ImageFileFormat.webp:
-            writer = QImageWriter(buffer, QByteArray(b"webp"))
-            writer.setQuality(quality)
-            writer.write(self._qimage)
-        else:
-            self._qimage.save(buffer, format_str, quality)
+        writer = QImageWriter(buffer, QByteArray(format_str.encode("utf-8")))
+        writer.setQuality(quality)
+        writer.write(self._qimage)
 
     def to_bytes(self, format=ImageFileFormat.png):
         byte_array = QByteArray()
@@ -335,6 +351,7 @@ class Image:
         return byte_array.toBase64().data().decode("utf-8")
 
     def to_pixmap(self):
+        self.to_krita_format()
         return QPixmap.fromImage(self._qimage)
 
     def to_icon(self):
@@ -358,8 +375,18 @@ class Image:
         if settings.debug_image_folder:
             self.save(Path(settings.debug_image_folder, f"{name}.png"))
 
+    def to_krita_format(self):
+        if self._qimage.format() != QImage.Format.Format_ARGB32:
+            self._qimage = self._qimage.convertToFormat(QImage.Format.Format_ARGB32)
+        return self
+
+    def to_numpy_format(self):
+        if self._qimage.format() != QImage.Format.Format_RGBA8888:
+            self._qimage = self._qimage.convertToFormat(QImage.Format.Format_RGBA8888)
+        return self
+
     def __eq__(self, other):
-        return self._qimage == other._qimage
+        return isinstance(other, Image) and self._qimage == other._qimage
 
 
 class ImageCollection:
@@ -408,6 +435,44 @@ class ImageCollection:
     @property
     def size(self):
         return sum(i.size for i in self)
+
+    def to_bytes(self, format=ImageFileFormat.webp):
+        offsets = []
+        data = QByteArray()
+        result = QBuffer(data)
+        result.open(QBuffer.OpenModeFlag.WriteOnly)
+        for img in self:
+            offsets.append(result.pos())
+            img.write(result, format)
+        result.close()
+        return data, offsets
+
+    @staticmethod
+    def from_bytes(data: QByteArray | bytes, offsets: list[int]):
+        if isinstance(data, bytes):
+            data = QByteArray(data)
+
+        images = ImageCollection()
+        buffer = QBuffer(data)
+        buffer.open(QBuffer.OpenModeFlag.ReadOnly)
+        for i, offset in enumerate(offsets):
+            buffer.seek(offset)
+            img = QImage()
+            if img.load(buffer, "WEBP"):
+                images.append(Image(img))
+            else:
+                raise Exception(f"Failed to load image {i} from buffer")
+        buffer.close()
+        return images
+
+    def to_base64(self):
+        bytes, offsets = self.to_bytes()
+        return bytes.toBase64().data().decode("utf-8"), offsets
+
+    @staticmethod
+    def from_base64(data: str, offsets: list[int]):
+        bytes = QByteArray.fromBase64(data.encode("utf-8"))
+        return ImageCollection.from_bytes(bytes, offsets)
 
     def __len__(self):
         return len(self._items)

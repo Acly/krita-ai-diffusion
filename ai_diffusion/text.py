@@ -1,5 +1,49 @@
+from __future__ import annotations
 import re
+from pathlib import Path
 from typing import Tuple, List
+
+from .util import client_logger as log
+
+
+def merge_prompt(prompt: str, style_prompt: str):
+    if style_prompt == "":
+        return prompt
+    elif "{prompt}" in style_prompt:
+        return style_prompt.replace("{prompt}", prompt)
+    elif prompt == "":
+        return style_prompt
+    return f"{prompt}, {style_prompt}"
+
+
+_pattern_lora = re.compile(r"\s*<lora:([^:<>]+)(?::(-?[^:<>]*))?>\s*", re.IGNORECASE)
+
+
+def extract_loras(prompt: str, client_loras: list[str]):
+    loras = []
+    for match in _pattern_lora.findall(prompt):
+        lora_name = ""
+
+        for client_lora in client_loras:
+            lora_filename = Path(client_lora).stem
+            if match[0].lower() == lora_filename.lower():
+                lora_name = client_lora
+
+        if not lora_name:
+            error = f"LoRA not found : {match[0]}"
+            log.warning(error)
+            raise Exception(error)
+
+        lora_strength = match[1] if match[1] != "" else 1.0
+        try:
+            lora_strength = float(lora_strength)
+        except ValueError:
+            error = f"Invalid LoRA strength for {match[0]} : {lora_strength}"
+            log.warning(error)
+            raise Exception(error)
+
+        loras.append(dict(name=lora_name, strength=lora_strength))
+    return _pattern_lora.sub("", prompt), loras
 
 
 def select_current_parenthesis_block(

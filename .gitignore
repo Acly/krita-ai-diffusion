@@ -10,9 +10,11 @@
 .vscode
 __pycache__
 scripts/docker/downloads
+service
 tests/server
 tests/results
 tests/benchmark
+cloud/pod/models
 krita_ai_diffusion*.zip
 TODO.md
 .idea

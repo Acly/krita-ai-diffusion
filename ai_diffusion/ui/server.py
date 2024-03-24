@@ -23,7 +23,7 @@ from PyQt5.QtWidgets import (
 )
 from krita import Krita
 
-from ..settings import Settings, settings
+from ..settings import Settings, ServerMode, settings
 from ..style import SDVersion
 from ..resources import ModelResource, CustomNode
 from ..server import Server, ServerBackend, ServerState
@@ -428,7 +428,7 @@ class ServerWidget(QWidget):
             self.update_ui()
             self._status_label.setText("Server running - Connecting...")
             self._status_label.setStyleSheet(f"color:{yellow};font-weight:bold")
-            await root.connection._connect(url)
+            await root.connection._connect(url, ServerMode.managed)
         except Exception as e:
             self.show_error(str(e))
         self.update_ui()

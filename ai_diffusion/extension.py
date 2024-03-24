@@ -48,6 +48,7 @@ class AIToolsExtension(Extension):
         self._create_action(window, "cancel", actions.cancel_active)
         self._create_action(window, "cancel_queued", actions.cancel_queued)
         self._create_action(window, "cancel_all", actions.cancel_all)
+        self._create_action(window, "toggle_preview", actions.toggle_preview)
         self._create_action(window, "apply", actions.apply)
         self._create_action(
             window, "switch_workspace_generation", actions.set_workspace(Workspace.generation)

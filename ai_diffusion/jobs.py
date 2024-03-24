@@ -31,7 +31,7 @@ class JobKind(Enum):
 @dataclass
 class JobParams:
     bounds: Bounds
-    prompt: str
+    prompt: str = ""
     negative_prompt: str = ""
     strength: float = 1.0
     seed: int = 0
@@ -84,23 +84,15 @@ class JobQueue(QObject):
 
     _entries: Deque[Job]
     _selection: Item | None = None
+    _previous_selection: Item | None = None
     _memory_usage = 0  # in MB
 
     def __init__(self):
         super().__init__()
         self._entries = deque()
 
-    def add(
-        self,
-        kind: JobKind,
-        id: str,
-        prompt: str,
-        negative: str,
-        bounds: Bounds,
-        strength: float,
-        seed: int,
-    ):
-        return self.add_job(Job(id, kind, JobParams(bounds, prompt, negative, strength, seed)))
+    def add(self, kind: JobKind, params: JobParams):
+        return self.add_job(Job(None, kind, params))
 
     def add_control(self, control: "control.ControlLayer", bounds: Bounds):
         job = Job(None, JobKind.control_layer, JobParams(bounds, f"[Control] {control.mode.text}"))
@@ -129,6 +121,10 @@ class JobQueue(QObject):
     def count(self, state: JobState):
         return sum(1 for j in self._entries if j.state is state)
 
+    def has_item(self, item: Item):
+        job = self.find(item.job)
+        return job is not None and item.image < len(job.results)
+
     def set_results(self, job: Job, results: ImageCollection):
         job.results = results
         if job.kind is JobKind.diffusion:
@@ -155,6 +151,13 @@ class JobQueue(QObject):
 
     def select(self, job_id: str, index: int):
         self.selection = self.Item(job_id, index)
+
+    def toggle_selection(self):
+        if self._selection is not None:
+            self._previous_selection = self._selection
+            self.selection = None
+        elif self._previous_selection is not None and self.has_item(self._previous_selection):
+            self.selection = self._previous_selection
 
     def _discard_job(self, job: Job):
         self._memory_usage -= job.results.size / (1024**2)

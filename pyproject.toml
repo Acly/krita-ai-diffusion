@@ -1,25 +1,19 @@
 [tool.black]
-line-length=100
-preview=1
-include='(ai_diffusion|scripts|tests)/.*\.pyi?$'
-extend-exclude='websockets|krita\.pyi$'
+line-length = 100
+preview = true
+include = '(ai_diffusion|scripts|tests)/.*\.pyi?$'
+extend-exclude = 'websockets|krita\.pyi$'
 
 [tool.pyright]
-include = [
-    "ai_diffusion",
-    "scripts/*.py",
-    "tests"
-]
+include = ["ai_diffusion", "scripts/*.py", "tests"]
 exclude = [
     "**/__pycache__",
     "**/.pytest_cache",
     "**/.server",
     "tests/server",
+    "tests/test_pod.py",
     "ai_diffusion/websockets",
 ]
-ignore = [
-    "ai_diffusion/websockets",
-    "krita.pyi"
-]
+ignore = ["ai_diffusion/websockets", "krita.pyi"]
 extraPaths = ["scripts/typeshed"]
 reportMissingModuleSource = false

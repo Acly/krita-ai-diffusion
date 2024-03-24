@@ -74,8 +74,8 @@ def test_styles(tmp_path_factory):
     loaded_style = styles[0]
     assert loaded_style.filename == style.filename
     assert loaded_style.name == "Test Style"
-    assert styles.find(style.filename) == (loaded_style, 0)
-    assert styles.find("nonexistent.json") == (None, -1)
+    assert styles.find(style.filename) == loaded_style
+    assert styles.find("nonexistent.json") is None
     assert style_is_default(loaded_style)
 
 
@@ -100,6 +100,10 @@ def test_style_folders(tmp_path_factory):
             assert style.name == "User Style"
         else:
             assert False
+
+    only_user = styles.filtered(show_builtin=False)
+    assert len(only_user) == 1
+    assert only_user[0].name == "User Style"
 
 
 def test_bad_style_file(tmp_path_factory):

@@ -1,10 +1,17 @@
 from __future__ import annotations
-import math
-import json
+from enum import Enum
 from pathlib import Path
 from typing import NamedTuple, Tuple, Literal, overload, Any
+from uuid import uuid4
+import math
+import json
 
 from .image import Bounds, Extent, Image
+
+
+class ComfyRunMode(Enum):
+    runtime = 0  # runs as part of same process, transfer images in memory
+    server = 1  # runs as a server, transfer images via base64 or websocket
 
 
 class Output(NamedTuple):
@@ -20,16 +27,21 @@ Output4 = Tuple[Output, Output, Output, Output]
 class ComfyWorkflow:
     """Builder for workflows which can be sent to the ComfyUI prompt API."""
 
+    root: dict[str, dict]
+    images: dict[str, Image]
     node_count = 0
     sample_count = 0
 
     _cache: dict[str, Output | Output2 | Output3 | Output4]
     _nodes_required_inputs: dict[str, dict[str, Any]]
+    _run_mode: ComfyRunMode
 
-    def __init__(self, node_inputs: dict | None = None) -> None:
+    def __init__(self, node_inputs: dict | None = None, run_mode=ComfyRunMode.server):
         self.root = {}
+        self.images = {}
         self._cache = {}
         self._nodes_required_inputs = node_inputs or {}
+        self._run_mode = run_mode
 
     def add_default_values(self, node_name: str, args: dict):
         if node_inputs := self._nodes_required_inputs.get(node_name, None):
@@ -90,22 +102,10 @@ class ComfyWorkflow:
             self._cache[key] = result
         return result
 
-    @property
-    def seed(self):
-        for node in self.root.values():
-            if node["class_type"] == "KSampler":
-                return node["inputs"]["seed"]
-            elif node["class_type"] == "KSamplerAdvanced":
-                return node["inputs"]["noise_seed"]
-        return -1
-
-    @seed.setter
-    def seed(self, value: int):
-        for node in self.root.values():
-            if node["class_type"] == "KSampler":
-                node["inputs"]["seed"] = value
-            elif node["class_type"] == "KSamplerAdvanced":
-                node["inputs"]["noise_seed"] = value
+    def _add_image(self, image: Image):
+        id = str(uuid4())
+        self.images[id] = image
+        return id
 
     def ksampler(
         self,
@@ -118,7 +118,7 @@ class ComfyWorkflow:
         steps=20,
         cfg=7.0,
         denoise=1.0,
-        seed=-1,
+        seed=1234,
     ):
         self.sample_count += steps
         return self.add(
@@ -169,6 +169,9 @@ class ComfyWorkflow:
             return_with_leftover_noise="disable",
         )
 
+    def differential_diffusion(self, model: Output):
+        return self.add("DifferentialDiffusion", 1, model=model)
+
     def model_sampling_discrete(self, model: Output, sampling: str, zsnr=False):
         return self.add("ModelSamplingDiscrete", 1, model=model, sampling=sampling, zsnr=zsnr)
 
@@ -210,7 +213,7 @@ class ComfyWorkflow:
         )
 
     def load_insight_face(self):
-        return self.add_cached("InsightFaceLoader", 1, provider="CPU")
+        return self.add_cached("IPAdapterInsightFaceLoader", 1, provider="CPU")
 
     def load_inpaint_model(self, model_name: str):
         return self.add_cached("INPAINT_LoadInpaintModel", 1, model_name=model_name)
@@ -276,35 +279,37 @@ class ComfyWorkflow:
         )
 
     def encode_ip_adapter(
-        self, clip_vision: Output, images: list[Output], weights: list[float], noise=0.0
+        self, image: Output, weight: float, ip_adapter: Output, clip_vision: Output
     ):
-        weights += [1.0] * (4 - len(weights))
-        weight_inputs = {f"weight_{i + 1}": weight for i, weight in enumerate(weights)}
-        image_inputs = {f"image_{i + 1}": image for i, image in enumerate(images)}
         return self.add(
             "IPAdapterEncoder",
-            1,
+            2,
+            image=image,
+            weight=weight,
+            ipadapter=ip_adapter,
             clip_vision=clip_vision,
-            noise=noise,
-            ipadapter_plus=False,
-            **image_inputs,
-            **weight_inputs,
         )
+
+    def combine_ip_adapter_embeds(self, embeds: list[Output]):
+        e = {f"embed{i+1}": embed for i, embed in enumerate(embeds)}
+        return self.add("IPAdapterCombineEmbeds", 1, method="concat", **e)
 
     def apply_ip_adapter(
         self,
-        ipadapter: Output,
-        embeds: Output,
         model: Output,
+        ip_adapter: Output,
+        clip_vision: Output,
+        embeds: Output,
         weight: float,
         range: tuple[float, float] = (0.0, 1.0),
     ):
         return self.add(
-            "IPAdapterApplyEncoded",
+            "IPAdapterEmbeds",
             1,
-            ipadapter=ipadapter,
-            embeds=embeds,
             model=model,
+            ipadapter=ip_adapter,
+            pos_embed=embeds,
+            clip_vision=clip_vision,
             weight=weight,
             weight_type="linear",
             start_at=range[0],
@@ -313,31 +318,27 @@ class ComfyWorkflow:
 
     def apply_ip_adapter_face(
         self,
-        ipadapter: Output,
+        model: Output,
+        ip_adapter: Output,
         clip_vision: Output,
         insightface: Output,
-        model: Output,
         image: Output,
         weight=1.0,
         range: tuple[float, float] = (0.0, 1.0),
-        faceid_v2=False,
     ):
         return self.add(
-            "IPAdapterApplyFaceID",
+            "IPAdapterFaceID",
             1,
-            ipadapter=ipadapter,
+            model=model,
+            ipadapter=ip_adapter,
+            image=image,
             clip_vision=clip_vision,
             insightface=insightface,
-            image=image,
-            model=model,
             weight=weight,
-            weight_type="original",
+            weight_faceidv2=weight * 2,
+            weight_type="linear",
             start_at=range[0],
             end_at=range[1],
-            noise=0.0,
-            faceid_v2=faceid_v2,
-            weight_v2=weight,
-            unfold_batch=False,
         )
 
     def inpaint_preprocessor(self, image: Output, mask: Output):
@@ -372,6 +373,8 @@ class ComfyWorkflow:
         return self.add("SetLatentNoiseMask", 1, samples=latent, mask=mask)
 
     def batch_latent(self, latent: Output, batch_size: int):
+        if batch_size == 1:
+            return latent
         return self.add("RepeatLatentBatch", 1, samples=latent, amount=batch_size)
 
     def crop_latent(self, latent: Output, bounds: Bounds):
@@ -419,7 +422,7 @@ class ComfyWorkflow:
             hint_image=image,
             image_gen_width=extent.width,
             image_gen_height=extent.height,
-            resize_method="Just Resize",
+            resize_mode="Just Resize",
         )
 
     def upscale_image(self, upscale_model: Output, image: Output):
@@ -480,16 +483,27 @@ class ComfyWorkflow:
     def blur_masked(self, image: Output, mask: Output, blur: int, falloff: int = 0):
         return self.add("INPAINT_MaskedBlur", 1, image=image, mask=mask, blur=blur, falloff=falloff)
 
+    def denoise_to_compositing_mask(self, mask: Output, offset=0.15, threshold=0.25):
+        return self.add(
+            "INPAINT_DenoiseToCompositingMask", 1, mask=mask, offset=offset, threshold=threshold
+        )
+
     def apply_mask(self, image: Output, mask: Output):
         return self.add("ETN_ApplyMaskToImage", 1, image=image, mask=mask)
 
     def load_image(self, image: Image):
+        if self._run_mode is ComfyRunMode.runtime:
+            return self.add("ETN_InjectImage", 1, id=self._add_image(image))
         return self.add("ETN_LoadImageBase64", 1, image=image.to_base64())
 
     def load_mask(self, mask: Image):
+        if self._run_mode is ComfyRunMode.runtime:
+            return self.add("ETN_InjectMask", 1, id=self._add_image(mask))
         return self.add("ETN_LoadMaskBase64", 1, mask=mask.to_base64())
 
     def send_image(self, image: Output):
+        if self._run_mode is ComfyRunMode.runtime:
+            return self.add("ETN_ReturnImage", 1, images=image)
         return self.add("ETN_SendImageWebSocket", 1, images=image)
 
     def save_image(self, image: Output, prefix: str):

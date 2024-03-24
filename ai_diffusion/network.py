@@ -5,17 +5,27 @@ import os
 from datetime import datetime
 from pathlib import Path
 from typing import NamedTuple, Callable
-from PyQt5.QtCore import QByteArray, QUrl, QFile
+from PyQt5.QtCore import QByteArray, QUrl, QFile, QBuffer
 from PyQt5.QtNetwork import QNetworkAccessManager, QNetworkRequest, QNetworkReply
 
 from .util import client_logger as log
 
 
 class NetworkError(Exception):
-    def __init__(self, code, msg, url):
+    code: int
+    message: str
+    url: str
+    status: int | None = None
+    data: dict | None = None
+
+    def __init__(
+        self, code: int, msg: str, url: str, status: int | None = None, data: dict | None = None
+    ):
         self.code = code
         self.message = msg
         self.url = url
+        self.status = status
+        self.data = data
         super().__init__(self, msg)
 
     def __str__(self):
@@ -25,14 +35,14 @@ class NetworkError(Exception):
     def from_reply(reply: QNetworkReply):
         code = reply.error()  # type: ignore (bug in PyQt5-stubs)
         url = reply.url().toString()
+        status = reply.attribute(QNetworkRequest.Attribute.HttpStatusCodeAttribute)
         try:  # extract detailed information from the payload
             data = json.loads(reply.readAll().data())
-            error = data.get("error", "")
-            if error != "":
-                return NetworkError(code, f"{error} ({reply.errorString()})", url)
+            error = data.get("error", "Network error")
+            return NetworkError(code, f"{error} ({reply.errorString()})", url, status, data)
         except:
             pass
-        return NetworkError(code, reply.errorString(), url)
+        return NetworkError(code, reply.errorString(), url, status)
 
 
 class OutOfMemoryError(NetworkError):
@@ -53,55 +63,96 @@ class Disconnected(Exception):
 class Request(NamedTuple):
     url: str
     future: asyncio.Future
+    buffer: QBuffer | None = None
 
 
 class RequestManager:
     def __init__(self):
         self._net = QNetworkAccessManager()
         self._net.finished.connect(self._finished)
-        self._requests = {}
+        self._requests: dict[QNetworkReply, Request] = {}
 
-    def http(self, method, url: str, data: dict | None = None):
+    def http(self, method, url: str, data: dict | QByteArray | None = None, bearer=""):
         self._cleanup()
 
         request = QNetworkRequest(QUrl(url))
         # request.setTransferTimeout({"GET": 30000, "POST": 0}[method]) # requires Qt 5.15 (Krita 5.2)
+        request.setAttribute(QNetworkRequest.FollowRedirectsAttribute, True)
         request.setRawHeader(b"ngrok-skip-browser-warning", b"69420")
+        if bearer:
+            request.setRawHeader(b"Authorization", f"Bearer {bearer}".encode("utf-8"))
 
-        assert method in ["GET", "POST"]
+        assert method in ["GET", "POST", "PUT"]
         if method == "POST":
             data = data or {}
             data_bytes = QByteArray(json.dumps(data).encode("utf-8"))
-            request.setHeader(QNetworkRequest.ContentTypeHeader, "application/json")
-            request.setHeader(QNetworkRequest.ContentLengthHeader, data_bytes.size())
+            request.setHeader(QNetworkRequest.KnownHeaders.ContentTypeHeader, "application/json")
+            request.setHeader(QNetworkRequest.KnownHeaders.ContentLengthHeader, data_bytes.size())
             reply = self._net.post(request, data_bytes)
+        elif method == "PUT":
+            if isinstance(data, bytes):
+                data = QByteArray(data)
+            assert isinstance(data, QByteArray)
+            request.setHeader(
+                QNetworkRequest.KnownHeaders.ContentTypeHeader, "application/octet-stream"
+            )
+            request.setHeader(QNetworkRequest.KnownHeaders.ContentLengthHeader, data.size())
+            reply = self._net.put(request, data)
         else:
             reply = self._net.get(request)
 
+        assert reply is not None, f"Network request for {url} failed: reply is None"
         future = asyncio.get_running_loop().create_future()
         self._requests[reply] = Request(url, future)
         return future
 
-    def get(self, url: str):
-        return self.http("GET", url)
+    def get(self, url: str, bearer=""):
+        return self.http("GET", url, bearer=bearer)
 
-    def post(self, url: str, data: dict):
-        return self.http("POST", url, data)
+    def post(self, url: str, data: dict, bearer=""):
+        return self.http("POST", url, data, bearer=bearer)
+
+    def put(self, url: str, data: QByteArray | bytes):
+        return self.http("PUT", url, data)
+
+    def download(self, url: str):
+        self._cleanup()
+        request = QNetworkRequest(QUrl(url))
+        request.setAttribute(QNetworkRequest.Attribute.FollowRedirectsAttribute, True)
+        reply = self._net.get(request)
+        assert reply is not None, f"Network request for {url} failed: reply is None"
+
+        buffer = QBuffer()
+        buffer.open(QBuffer.OpenModeFlag.WriteOnly)
+
+        def write(bytes_received, bytes_total):
+            buffer.write(reply.readAll())
+
+        future = asyncio.get_running_loop().create_future()
+        tracker = Request(url, future, buffer)
+        reply.downloadProgress.connect(write)
+        self._requests[reply] = tracker
+        return future
 
     def _finished(self, reply: QNetworkReply):
         future = None
         try:
             code = reply.error()  # type: ignore (bug in PyQt5-stubs)
-            future = self._requests[reply].future
+            tracker = self._requests[reply]
+            future = tracker.future
             if future.cancelled():
                 return  # operation was cancelled, discard result
             if code == QNetworkReply.NetworkError.NoError:
-                content_type = reply.header(QNetworkRequest.ContentTypeHeader)
-                data = reply.readAll().data()
-                if "application/json" in content_type:
-                    future.set_result(json.loads(data))
+                if tracker.buffer is not None:
+                    tracker.buffer.write(reply.readAll())
+                    future.set_result(tracker.buffer.data())
                 else:
-                    future.set_result(data)
+                    content_type = reply.header(QNetworkRequest.KnownHeaders.ContentTypeHeader)
+                    data = reply.readAll().data()
+                    if content_type and ("application/json" in content_type):
+                        future.set_result(json.loads(data))
+                    else:
+                        future.set_result(data)
             else:
                 future.set_exception(NetworkError.from_reply(reply))
         except Exception as e:

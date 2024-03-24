@@ -2,12 +2,11 @@ from __future__ import annotations
 from PyQt5.QtCore import QObject, pyqtSignal, QUuid, Qt
 
 from . import model, jobs, resources
+from .api import ControlInput
 from .settings import settings
 from .resources import ControlMode, ResourceKind
-from .client import resolve_sd_version
 from .properties import Property, ObservableProperties
 from .image import Bounds
-from .workflow import Control
 
 
 class ControlLayer(QObject, ObservableProperties):
@@ -68,7 +67,7 @@ class ControlLayer(QObject, ObservableProperties):
         image = self._model.document.get_layer_image(layer, bounds)
         if self.mode.is_lines or self.mode is ControlMode.stencil:
             image.make_opaque(background=Qt.GlobalColor.white)
-        return Control(self.mode, image, self.strength / 100, (0.0, self.end))
+        return ControlInput(self.mode, image, self.strength / 100, (0.0, self.end))
 
     def generate(self):
         self._generate_job = self._model.generate_control_layer(self)
@@ -79,18 +78,20 @@ class ControlLayer(QObject, ObservableProperties):
 
         is_supported = True
         if client := root.connection.client_if_connected:
-            sdver = resolve_sd_version(self._model.style, client)
-            if self.mode.is_ip_adapter and client.ip_adapter_model[self.mode][sdver] is None:
+            models = client.models.for_checkpoint(self._model.style.sd_checkpoint)
+            if self.mode.is_ip_adapter and models.ip_adapter.find(self.mode) is None:
                 self.error_text = f"The server is missing the IP-Adapter {self.mode.text} model"
                 if not client.supports_ip_adapter:
                     self.error_text = f"IP-Adapter is not supported by this GPU"
                 is_supported = False
-            elif self.mode.is_control_net and client.control_model[self.mode][sdver] is None:
-                search_path = resources.search_path(ResourceKind.controlnet, sdver, self.mode)
+            elif self.mode.is_control_net and models.control.find(self.mode) is None:
+                search_path = resources.search_path(
+                    ResourceKind.controlnet, models.version, self.mode
+                )
                 if search_path:
                     self.error_text = f"The ControlNet model is not installed {search_path}"
                 else:
-                    self.error_text = f"Not supported for {sdver.value}"
+                    self.error_text = f"Not supported for {models.version.value}"
                 is_supported = False
 
         self.is_supported = is_supported

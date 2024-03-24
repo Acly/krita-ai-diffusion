@@ -103,6 +103,9 @@ class HistoryWidget(QListWidget):
 
         widget_context = Qt.ShortcutContext.WidgetShortcut
         QShortcut(Qt.Key.Key_Delete, self, self._discard_image, self._discard_image, widget_context)
+        QShortcut(
+            Qt.Key.Key_Space, self, self._toggle_selection, self._toggle_selection, widget_context
+        )
 
     @property
     def model_(self):
@@ -241,6 +244,9 @@ class HistoryWidget(QListWidget):
         else:
             self._model.jobs.selection = None
 
+    def _toggle_selection(self):
+        self._model.jobs.toggle_selection()
+
     def _activate_selection(self):
         items = self.selectedItems()
         if len(items) > 0:
@@ -253,6 +259,7 @@ class HistoryWidget(QListWidget):
         self.clear()
         for job in filter(self.is_finished, self._model.jobs):
             self.add(job)
+        self.scrollToBottom()
 
     def item_info(self, item: QListWidgetItem) -> tuple[str, int]:  # job id, image index
         return item.data(Qt.ItemDataRole.UserRole), item.data(Qt.ItemDataRole.UserRole + 1)
@@ -537,7 +544,7 @@ class GenerationWidget(QWidget):
 
         self.progress_bar = QProgressBar(self)
         self.progress_bar.setMinimum(0)
-        self.progress_bar.setMaximum(100)
+        self.progress_bar.setMaximum(1000)
         self.progress_bar.setTextVisible(False)
         self.progress_bar.setFixedHeight(6)
         layout.addWidget(self.progress_bar)
@@ -587,7 +594,12 @@ class GenerationWidget(QWidget):
             self.update_generate_button()
 
     def update_progress(self):
-        self.progress_bar.setValue(int(self.model.progress * 100))
+        if self.model.progress >= 0:
+            self.progress_bar.setValue(int(self.model.progress * 1000))
+        else:
+            if self.progress_bar.value() >= 100:
+                self.progress_bar.reset()
+            self.progress_bar.setValue(min(99, self.progress_bar.value() + 2))
 
     def update_settings(self, key: str, value):
         if key == "prompt_line_count":

@@ -372,14 +372,14 @@ class Server:
                 args.append("--cpu")
             elif self.backend is ServerBackend.directml:
                 args.append("--directml")
-            elif self.backend is ServerBackend.mps:
-                args.append("--force-fp16")
             if settings.server_arguments:
                 args += settings.server_arguments.split(" ")
             if port is not None:
                 args += ["--port", str(port)]
             if self.backend is not ServerBackend.cpu:
                 env["ONEDNN_MAX_CPU_ISA"] = "AVX2"  # workaround for #401
+
+            log.info(f"Starting server with python {' '.join(args)}")
             self._process = await create_process(
                 self._python_cmd, *args, cwd=self.comfy_dir, additional_env=env
             )
@@ -423,17 +423,12 @@ class Server:
 
     async def run(self):
         assert self.state is ServerState.running
-        assert self._process and self._process.stdout and self._process.stderr
-
-        async def forward(stream: asyncio.StreamReader):
-            async for line in stream:
-                server_log.info(_decode_utf8_log_error(line).strip())
+        assert self._process and self._process.stdout
 
         try:
-            await asyncio.gather(
-                forward(self._process.stdout),
-                forward(self._process.stderr),
-            )
+            async for line in self._process.stdout:
+                server_log.info(_decode_utf8_log_error(line).strip())
+
         except asyncio.CancelledError:
             pass
 
@@ -532,7 +527,7 @@ async def _execute_process(name: str, cmd: list, cwd: Path, cb: InternalCB):
 
     cmd = [str(c) for c in cmd]
     cb(f"Installing {name}", f"Executing {' '.join(cmd)}")
-    process = await create_process(cmd[0], *cmd[1:], cwd=cwd)
+    process = await create_process(cmd[0], *cmd[1:], cwd=cwd, pipe_stderr=True)
 
     async def forward(stream: asyncio.StreamReader):
         async for line in stream:

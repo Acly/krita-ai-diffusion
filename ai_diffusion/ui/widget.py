@@ -41,7 +41,7 @@ from ..client import filter_supported_styles, resolve_sd_version
 from ..properties import Binding, Bind, bind, bind_combo
 from ..jobs import JobState, JobQueue
 from ..model import Model, Workspace, ControlLayer, SamplingQuality
-from ..attention_edit import edit_attention, select_on_cursor_pos
+from ..text import edit_attention, select_on_cursor_pos
 from ..util import ensure
 from .settings import SettingsDialog
 from .theme import SignalBlocker
@@ -323,7 +323,7 @@ class ControlWidget(QWidget):
         Binding.disconnect_all(self._connections)
 
     def _update_layers(self):
-        layers: reversed[krita.Node] = reversed(self._model.layers.images)
+        layers = reversed(self._model.layers.images)
         with SignalBlocker(self.layer_select):
             self.layer_select.clear()
             index = -1
@@ -475,7 +475,7 @@ class StyleSelectWidget(QWidget):
 
     def update_styles(self):
         comfy = root.connection.client_if_connected
-        self._styles = filter_supported_styles(Styles.list(), comfy)
+        self._styles = filter_supported_styles(Styles.list().filtered(), comfy)
         with SignalBlocker(self._combo):
             self._combo.clear()
             for style in self._styles:

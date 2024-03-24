@@ -1,4 +1,6 @@
 from __future__ import annotations
+import asyncio
+from copy import copy
 from pathlib import Path
 from enum import Enum
 from typing import Any, NamedTuple
@@ -7,19 +9,21 @@ from PyQt5.QtGui import QImage
 import uuid
 
 from . import eventloop, workflow, util
-from .util import client_logger as log
+from .api import TextInput, WorkflowKind, WorkflowInput, InpaintMode, InpaintParams, FillMode
+from .util import ensure, client_logger as log
 from .settings import settings
 from .network import NetworkError
 from .image import Extent, Image, Mask, Bounds
-from .client import ClientMessage, ClientEvent, filter_supported_styles, resolve_sd_version
+from .client import ClientMessage, ClientEvent, filter_supported_styles
 from .document import Document, LayerObserver
 from .pose import Pose
 from .style import Style, Styles, SDVersion
-from .workflow import ControlMode, Conditioning, InpaintMode, InpaintParams, FillMode
 from .connection import Connection
 from .properties import Property, ObservableProperties
-from .jobs import Job, JobKind, JobQueue, JobState
+from .jobs import Job, JobKind, JobParams, JobQueue, JobState
 from .control import ControlLayer, ControlLayerList
+from .resources import ControlMode
+from .resolution import compute_bounds
 import krita
 
 
@@ -90,8 +94,10 @@ class Model(QObject, ObservableProperties):
         self.error_changed.connect(lambda: self.has_error_changed.emit(self.has_error))
 
         if client := connection.client_if_connected:
-            self.style = next(iter(filter_supported_styles(Styles.list(), client)), self.style)
-            self.upscale.upscaler = client.default_upscaler
+            self.style = next(
+                iter(filter_supported_styles(Styles.list().filtered(), client)), self.style
+            )
+            self.upscale.upscaler = client.models.default_upscaler
 
     def generate(self):
         """Enqueue image generation for the current setup."""
@@ -100,107 +106,123 @@ class Model(QObject, ObservableProperties):
             self.report_error(msg)
             return
 
+        workflow_kind = WorkflowKind.generate if self.strength == 1.0 else WorkflowKind.refine
+        client = self._connection.client
         image = None
         inpaint = None
         extent = self._doc.extent
         mask = self._doc.create_mask_from_selection(
             **get_selection_modifiers(self.inpaint.mode), min_size=64
         )
-        image_bounds = workflow.compute_bounds(extent, mask.bounds if mask else None, self.strength)
-        image_bounds = self.inpaint.get_context(self, mask) or image_bounds
+        bounds = compute_bounds(extent, mask.bounds if mask else None, self.strength)
+        bounds = self.inpaint.get_context(self, mask) or bounds
 
-        control = [c.get_image(image_bounds) for c in self.control]
-        prompt, loras = workflow.extract_loras(self.prompt, self._connection.client.loras)
-        conditioning = Conditioning(prompt, self.negative_prompt, control, loras)
-
-        if mask is not None:
-            sd_version = resolve_sd_version(self.style, self._connection.client)
-            inpaint_mode = self.resolve_inpaint_mode()
-            if inpaint_mode is InpaintMode.custom:
-                inpaint = self.inpaint.get_params(mask, sd_version)
-            else:
-                inpaint = InpaintParams.detect(
-                    mask, inpaint_mode, sd_version, conditioning, self.strength
-                )
+        control = [c.get_image(bounds) for c in self.control]
 
         if mask is not None or self.strength < 1.0:
-            image = self._get_current_image(image_bounds)
-        seed = self.seed if self.fixed_seed else workflow.generate_seed()
-        generator = self._generate(
-            image_bounds, conditioning, self.strength, image, inpaint, seed, self.batch_count
-        )
+            image = self._get_current_image(bounds)
 
+        if mask is not None:
+            if workflow_kind is WorkflowKind.generate:
+                workflow_kind = WorkflowKind.inpaint
+            elif workflow_kind is WorkflowKind.refine:
+                workflow_kind = WorkflowKind.refine_region
+
+            mask_relative_to_image = mask.bounds.relative_to(bounds)
+            bounds = mask.bounds  # Image bounds inside the canvas
+            mask.bounds = mask_relative_to_image  # Mask bounds inside the image
+
+            sd_version = client.models.version_of(self.style.sd_checkpoint)
+            inpaint_mode = self.resolve_inpaint_mode()
+            if inpaint_mode is InpaintMode.custom:
+                inpaint = self.inpaint.get_params(mask)
+            else:
+                inpaint = workflow.detect_inpaint(
+                    inpaint_mode, mask.bounds, sd_version, self.prompt, control, self.strength
+                )
+        try:
+            input = workflow.prepare(
+                workflow_kind,
+                image or extent,
+                TextInput(self.prompt, self.negative_prompt, self.style.style_prompt),
+                self.style,
+                self.seed if self.fixed_seed else workflow.generate_seed(),
+                client.models,
+                client.performance_settings,
+                mask=mask,
+                strength=self.strength,
+                control=control,
+                inpaint=inpaint,
+            )
+        except Exception as e:
+            self.report_error(util.log_error(e))
+            return
         self.clear_error()
-        eventloop.run(_report_errors(self, generator))
+        enqueue_jobs = self.enqueue_jobs(
+            input, JobKind.diffusion, JobParams(bounds), self.batch_count
+        )
+        eventloop.run(_report_errors(self, enqueue_jobs))
 
-    async def _generate(
-        self,
-        bounds: Bounds,
-        conditioning: Conditioning,
-        strength: float,
-        image: Image | None,
-        inpaint: InpaintParams | None,
-        seed: int = -1,
-        count: int = 1,
-        is_live=False,
+    async def enqueue_jobs(
+        self, input: WorkflowInput, kind: JobKind, params: JobParams, count: int = 1
     ):
-        client = self._connection.client
-        style = self.style
+        sampling = ensure(input.sampling)
+        params.prompt = ensure(input.text).positive
+        params.negative_prompt = ensure(input.text).negative
+        params.strength = sampling.denoise_strength
+
+        for i in range(count):
+            sampling.seed = sampling.seed + i * settings.batch_size
+            params.seed = sampling.seed
+            job = self.jobs.add(kind, copy(params))
+            await self._enqueue_job(job, input)
+
+    async def _enqueue_job(self, job: Job, input: WorkflowInput):
         if not self.jobs.any_executing():
             self.progress = 0.0
-
-        if inpaint is not None:
-            b = inpaint.mask.bounds
-            # Compute mask bounds relative to cropped image, passed to workflow
-            inpaint.mask.bounds = Bounds(b.x - bounds.x, b.y - bounds.y, *b.extent)
-            bounds = b  # Also keep absolute mask bounds, to insert result image into canvas
-
-        if image is None and inpaint is None:
-            assert strength == 1
-            job = workflow.generate(client, style, bounds.extent, conditioning, seed, is_live)
-        elif inpaint is None and strength < 1:
-            assert image is not None
-            job = workflow.refine(client, style, image, conditioning, strength, seed, is_live)
-        elif strength == 1 and not is_live:
-            assert image is not None and inpaint is not None
-            job = workflow.inpaint(client, style, image, conditioning, inpaint, seed)
-        else:
-            assert image is not None and inpaint is not None
-            job = workflow.refine_region(
-                client, style, image, inpaint, conditioning, strength, seed, is_live
-            )
-
-        job_kind = JobKind.live_preview if is_live else JobKind.diffusion
-        pos, neg = conditioning.prompt, conditioning.negative_prompt
-        result: list[Job] = []
-        for i in range(count):
-            job_id = await client.enqueue(job, self.queue_front)
-            result.append(self.jobs.add(job_kind, job_id, pos, neg, bounds, strength, job.seed))
-            job.seed = seed + (i + 1) * settings.batch_size
-        return result
+        client = self._connection.client
+        job.id = await client.enqueue(input, self.queue_front)
 
     def upscale_image(self):
-        params = self.upscale.params
-        image = self._doc.get_image(Bounds(0, 0, *self._doc.extent))
-        job = self.jobs.add_upscale(Bounds(0, 0, *self.upscale.target_extent), params.seed)
-        self.clear_error()
-        eventloop.run(_report_errors(self, self._upscale_image(job, image, params)))
+        try:
+            params = self.upscale.params
+            image = self._doc.get_image(Bounds(0, 0, *self._doc.extent))
+            client = self._connection.client
+            upscaler = params.upscaler or client.models.default_upscaler
 
-    async def _upscale_image(self, job: Job, image: Image, params: UpscaleParams):
-        client = self._connection.client
-        upscaler = params.upscaler or client.default_upscaler
-        if params.use_diffusion:
-            work = workflow.upscale_tiled(
-                client, image, upscaler, params.factor, self.style, params.strength, params.seed
-            )
-        else:
-            work = workflow.upscale_simple(client, image, params.upscaler, params.factor)
-        job.id = await client.enqueue(work, self.queue_front)
+            if params.use_diffusion:
+                inputs = workflow.prepare(
+                    WorkflowKind.upscale_tiled,
+                    image,
+                    TextInput("4k uhd"),
+                    self.style,
+                    params.seed,
+                    client.models,
+                    client.performance_settings,
+                    strength=params.strength,
+                    upscale_factor=params.factor,
+                    upscale_model=upscaler,
+                )
+            else:
+                inputs = workflow.prepare_upscale_simple(image, upscaler, params.factor)
+            job = self.jobs.add_upscale(Bounds(0, 0, *self.upscale.target_extent), params.seed)
+        except Exception as e:
+            self.report_error(util.log_error(e))
+            return
+
+        self.clear_error()
+        eventloop.run(_report_errors(self, self._enqueue_job(job, inputs)))
 
     def generate_live(self):
-        ver = resolve_sd_version(self.style, self._connection.client)
-        image = None
+        eventloop.run(_report_errors(self, self._generate_live()))
 
+    async def _generate_live(self, last_input: WorkflowInput | None = None):
+        strength = self.live.strength
+        workflow_kind = WorkflowKind.generate if strength == 1.0 else WorkflowKind.refine
+        client = self._connection.client
+        ver = client.models.version_of(self.style.sd_checkpoint)
+
+        image = None
         mask = self._doc.create_mask_from_selection(
             grow=settings.selection_feather / 200,  # don't apply grow for live mode
             feather=settings.selection_feather / 100,
@@ -208,19 +230,33 @@ class Model(QObject, ObservableProperties):
             min_size=512 if ver is SDVersion.sd15 else 1024,
             square=True,
         )
-        bounds = Bounds(0, 0, *self._doc.extent) if mask is None else mask.bounds
+        bounds = Bounds(0, 0, *self._doc.extent)
+        if mask is not None:
+            workflow_kind = WorkflowKind.refine_region
+            bounds = mask.bounds
         if mask is not None or self.live.strength < 1.0:
             image = self._get_current_image(bounds)
 
-        control = [c.get_image(bounds) for c in self.control]
-        cond = Conditioning(self.prompt, self.negative_prompt, control)
-        inpaint = InpaintParams(mask, InpaintMode.fill) if mask else None
-        generator = self._generate(
-            bounds, cond, self.live.strength, image, inpaint, self.seed, count=1, is_live=True
+        input = workflow.prepare(
+            workflow_kind,
+            image or bounds.extent,
+            TextInput(self.prompt, self.negative_prompt, self.style.style_prompt),
+            self.style,
+            self.seed,
+            client.models,
+            client.performance_settings,
+            mask=mask,
+            control=[c.get_image(bounds) for c in self.control],
+            strength=self.live.strength,
+            inpaint=InpaintParams(InpaintMode.fill, mask.bounds) if mask else None,
+            is_live=True,
         )
+        if input != last_input:
+            self.clear_error()
+            await self.enqueue_jobs(input, JobKind.live_preview, JobParams(bounds))
+            return input
 
-        self.clear_error()
-        eventloop.run(_report_errors(self, generator))
+        return None
 
     def _get_current_image(self, bounds: Bounds):
         exclude = [  # exclude control layers from projection
@@ -236,22 +272,20 @@ class Model(QObject, ObservableProperties):
             self.report_error(msg)
             return
 
-        image = self._doc.get_image(Bounds(0, 0, *self._doc.extent))
-        mask = self.document.create_mask_from_selection(0, 0, padding=0.25, multiple=64)
-        bounds = mask.bounds if mask else None
+        try:
+            image = self._doc.get_image(Bounds(0, 0, *self._doc.extent))
+            mask = self.document.create_mask_from_selection(0, 0, padding=0.25, multiple=64)
+            bounds = mask.bounds if mask else None
+            perf = self._connection.client.performance_settings
+            input = workflow.prepare_create_control_image(image, control.mode, perf, bounds)
+            job = self.jobs.add_control(control, Bounds(0, 0, *image.extent))
+        except Exception as e:
+            self.report_error(util.log_error(e))
+            return
 
-        job = self.jobs.add_control(control, Bounds(0, 0, *image.extent))
-        generator = self._generate_control_layer(job, image, control.mode, bounds)
         self.clear_error()
-        eventloop.run(_report_errors(self, generator))
+        eventloop.run(_report_errors(self, self._enqueue_job(job, input)))
         return job
-
-    async def _generate_control_layer(
-        self, job: Job, image: Image, mode: ControlMode, bounds: Bounds | None
-    ):
-        client = self._connection.client
-        work = workflow.create_control_image(client, image, mode, bounds)
-        job.id = await client.enqueue(work, self.queue_front)
 
     def cancel(self, active=False, queued=False):
         if queued:
@@ -262,9 +296,6 @@ class Model(QObject, ObservableProperties):
                     self.jobs.remove(job)
         if active and self.jobs.any_executing():
             self._connection.interrupt()
-
-    def report_progress(self, value):
-        self.progress = value
 
     def report_error(self, message: str):
         self.error = message
@@ -280,9 +311,13 @@ class Model(QObject, ObservableProperties):
             util.client_logger.error(f"Received message {message} for unknown job.")
             return
 
-        if message.event is ClientEvent.progress:
+        if message.event is ClientEvent.queued:
             self.jobs.notify_started(job)
-            self.report_progress(message.progress)
+            self.progress = -1
+            self.progress_changed.emit(-1)
+        elif message.event is ClientEvent.progress:
+            self.jobs.notify_started(job)
+            self.progress = message.progress
         elif message.event is ClientEvent.finished:
             if message.images:
                 self.jobs.set_results(job, message.images)
@@ -299,7 +334,7 @@ class Model(QObject, ObservableProperties):
                 self.jobs.select(job.id, 0)
         elif message.event is ClientEvent.interrupted:
             self.jobs.notify_cancelled(job)
-            self.report_progress(0)
+            self.progress = 0
         elif message.event is ClientEvent.error:
             self.jobs.notify_cancelled(job)
             self.report_error(f"Server execution error: {message.error}")
@@ -431,10 +466,9 @@ class CustomInpaint(QObject, ObservableProperties):
     context_layer_id_changed = pyqtSignal(QUuid)
     modified = pyqtSignal(QObject, str)
 
-    def get_params(self, mask: Mask, sdver: SDVersion):
-        params = InpaintParams(mask, self.mode, self.fill)
-        params.use_inpaint_control = self.use_inpaint and sdver is SDVersion.sd15
-        params.use_inpaint_model = self.use_inpaint and sdver is SDVersion.sdxl
+    def get_params(self, mask: Mask):
+        params = InpaintParams(self.mode, mask.bounds, self.fill)
+        params.use_inpaint_model = self.use_inpaint
         params.use_condition_mask = self.use_prompt_focus
         return params
 
@@ -486,7 +520,7 @@ class UpscaleWorkspace(QObject, ObservableProperties):
     def _init_model(self):
         if self.upscaler == "":
             if client := self._model._connection.client_if_connected:
-                self.upscaler = client.default_upscaler
+                self.upscaler = client.models.default_upscaler
 
     @property
     def target_extent(self):
@@ -519,12 +553,15 @@ class LiveWorkspace(QObject, ObservableProperties):
     modified = pyqtSignal(QObject, str)
 
     _model: Model
+    _last_input: WorkflowInput | None = None
     _result: Image | None = None
     _result_bounds: Bounds | None = None
     _keyframes_folder: Path | None = None
     _keyframe_start = 0
     _keyframe_index = 0
     _keyframes: list[Path]
+
+    _poll_rate = 0.1
 
     def __init__(self, model: Model):
         super().__init__()
@@ -537,7 +574,7 @@ class LiveWorkspace(QObject, ObservableProperties):
             self._is_active = active
             self.is_active_changed.emit(active)
             if active:
-                self._model.generate_live()
+                eventloop.run(_report_errors(self._model, self._continue_generating()))
             else:
                 self.is_recording = False
 
@@ -559,8 +596,16 @@ class LiveWorkspace(QObject, ObservableProperties):
             if len(job.results) > 0:
                 self.set_result(job.results[0], job.params.bounds)
             self.is_active = self._is_active and self._model.document.is_active
-            if self.is_active:
-                self._model.generate_live()
+            eventloop.run(_report_errors(self._model, self._continue_generating()))
+
+    async def _continue_generating(self):
+        while self.is_active:
+            new_input = await self._model._generate_live(self._last_input)
+            if new_input is not None:  # frame was scheduled
+                self._last_input = new_input
+                return
+            # no changes in input data
+            await asyncio.sleep(self._poll_rate)
 
     def copy_result_to_layer(self):
         assert self.result is not None and self._result_bounds is not None
@@ -652,19 +697,30 @@ class AnimationWorkspace(QObject, ObservableProperties):
         self._model.clear_error()
         eventloop.run(_report_errors(self._model, self._generate_frame()))
 
-    async def _generate_frame(self):
-        strength = self._model.strength
-        live = self.sampling_quality is SamplingQuality.fast
-        seed = self._model.seed if self._model.fixed_seed else workflow.generate_seed()
-        bounds = Bounds(0, 0, *self._model.document.extent)
-        image = self._model._get_current_image(bounds) if strength < 1.0 else None
-        control = [c.get_image(bounds) for c in self._model.control]
-        cond = Conditioning(self._model.prompt, self._model.negative_prompt, control)
-        job = await self._model._generate(
-            bounds, cond, strength, image, None, seed, count=1, is_live=live
+    def _prepare_input(self, canvas: Image | Extent, seed: int):
+        m = self._model
+        bounds = Bounds(0, 0, *m.document.extent)
+        return workflow.prepare(
+            WorkflowKind.generate if m.strength == 1.0 else WorkflowKind.refine,
+            canvas,
+            TextInput(m.prompt, m.negative_prompt, m.style.style_prompt),
+            style=m.style,
+            seed=seed,
+            perf=m._connection.client.performance_settings,
+            models=m._connection.client.models,
+            control=[c.get_image(bounds) for c in m.control],
+            strength=m.strength,
+            is_live=self.sampling_quality is SamplingQuality.fast,
         )
-        job[0].kind = JobKind.animation_frame
-        job[0].params.frame = (self._model.document.current_time, 0, 0)
+
+    async def _generate_frame(self):
+        m = self._model
+        bounds = Bounds(0, 0, *m.document.extent)
+        canvas = m._get_current_image(bounds) if m.strength < 1.0 else bounds.extent
+        seed = m.seed if m.fixed_seed else workflow.generate_seed()
+        inputs = self._prepare_input(canvas, seed)
+        params = JobParams(bounds, frame=(m.document.current_time, 0, 0))
+        await m.enqueue_jobs(inputs, JobKind.animation_frame, params)
 
     def generate_batch(self):
         doc = self._model.document
@@ -691,25 +747,23 @@ class AnimationWorkspace(QObject, ObservableProperties):
         extent = doc.extent
         bounds = Bounds(0, 0, *extent)
         strength = self._model.strength
-        live = self.sampling_quality is SamplingQuality.fast
         seed = self._model.seed if self._model.fixed_seed else workflow.generate_seed()
         animation_id = str(uuid.uuid4())
 
         for frame in range(start_frame, end_frame + 1):
             if layer.hasKeyframeAtTime(frame) or strength == 1.0:
-                image = None
+                canvas: Image | Extent = extent
                 if strength < 1.0:
                     pixels = layer.pixelDataAtTime(0, 0, extent.width, extent.height, frame)
-                    image = Image(QImage(pixels, extent.width, extent.height, QImage.Format_ARGB32))
+                    canvas = Image(
+                        QImage(pixels, extent.width, extent.height, QImage.Format_ARGB32)
+                    )
 
-                control = [c.get_image(bounds) for c in self._model.control]
-                cond = Conditioning(self._model.prompt, self._model.negative_prompt, control)
-                job = await self._model._generate(
-                    bounds, cond, strength, image, None, seed, count=1, is_live=live
-                )
-                job[0].kind = JobKind.animation_batch
-                job[0].params.frame = (frame, start_frame, end_frame)
-                job[0].params.animation_id = animation_id
+                inputs = self._prepare_input(canvas, seed)
+                params = JobParams(bounds)
+                params.frame = (frame, start_frame, end_frame)
+                params.animation_id = animation_id
+                await self._model.enqueue_jobs(inputs, JobKind.animation_batch, params)
 
     def handle_job_finished(self, job: Job):
         if job.kind is JobKind.animation_batch:

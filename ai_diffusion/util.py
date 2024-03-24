@@ -60,11 +60,14 @@ def _get_log_dir():
 def create_logger(name: str, path: Path):
     logger = logging.getLogger(name)
     logger.setLevel(logging.DEBUG)
-    file_handler = logging.handlers.RotatingFileHandler(
-        path, encoding="utf-8", maxBytes=10 * 1024 * 1024, backupCount=4
-    )
-    file_handler.setFormatter(logging.Formatter("%(asctime)s %(levelname)s %(message)s"))
-    logger.addHandler(file_handler)
+    if os.environ.get("AI_DIFFUSION_ENV") == "WORKER":
+        handler = logging.StreamHandler(sys.stdout)
+    else:
+        handler = logging.handlers.RotatingFileHandler(
+            path, encoding="utf-8", maxBytes=10 * 1024 * 1024, backupCount=4
+        )
+    handler.setFormatter(logging.Formatter("%(asctime)s %(levelname)s %(message)s"))
+    logger.addHandler(handler)
     return logger
 
 
@@ -141,7 +144,8 @@ def get_path_dict(paths: Sequence[str]) -> dict:
 
     new_path_dict = {}
     for path in paths:
-        _recurse(new_path_dict, Path(path).parts, path)
+        parts = Path(path.replace("\\", "/")).parts
+        _recurse(new_path_dict, parts, path)
     return new_path_dict
 
 
@@ -156,10 +160,12 @@ if is_linux:
 
 
 async def create_process(
-    program: str | Path, *args: str, cwd: Path | None = None, additional_env: dict | None = None
+    program: str | Path,
+    *args: str,
+    cwd: Path | None = None,
+    additional_env: dict | None = None,
+    pipe_stderr=False,
 ):
-    PIPE = asyncio.subprocess.PIPE
-
     platform_args = {}
     if is_windows:
         platform_args["creationflags"] = subprocess.CREATE_NO_WINDOW  # type: ignore
@@ -172,8 +178,11 @@ async def create_process(
     if "PYTHONPATH" in env:
         del env["PYTHONPATH"]  # Krita adds its own python path, which can cause conflicts
 
+    out = asyncio.subprocess.PIPE
+    err = asyncio.subprocess.PIPE if pipe_stderr else asyncio.subprocess.STDOUT
+
     p = await asyncio.create_subprocess_exec(
-        program, *args, cwd=cwd, stdout=PIPE, stderr=PIPE, env=env, **platform_args
+        program, *args, cwd=cwd, stdout=out, stderr=err, env=env, **platform_args
     )
     if is_windows:
         from . import win32

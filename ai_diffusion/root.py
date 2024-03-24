@@ -82,15 +82,19 @@ class Root(QObject):
             ):
                 url = await self._server.start()
                 signal_server_change()
-                await connection._connect(url)
+                await connection._connect(url, ServerMode.managed)
                 signal_server_change()
+            elif settings.server_mode is ServerMode.cloud:
+                await connection._connect(
+                    settings.server_url, ServerMode.cloud, settings.access_token
+                )
             elif settings.server_mode in [ServerMode.undefined, ServerMode.external]:
-                await connection._connect(settings.server_url)
+                await connection._connect(settings.server_url, ServerMode.external)
                 if settings.server_mode is ServerMode.undefined:
                     if connection.state is ConnectionState.connected:
                         settings.server_mode = ServerMode.external
                     else:
-                        settings.server_mode = ServerMode.managed
+                        settings.server_mode = ServerMode.cloud
         except Exception as e:
             log.warning(f"Failed to launch/connect server at startup: {e}")
 

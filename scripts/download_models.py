@@ -24,18 +24,9 @@ from argparse import ArgumentParser
 sys.path.append(str(Path(__file__).parent.parent))
 import ai_diffusion
 from ai_diffusion import resources
-from ai_diffusion.resources import SDVersion
+from ai_diffusion.resources import SDVersion, all_models
 
 version = f"v{ai_diffusion.__version__}"
-
-
-def all_models():
-    return chain(
-        resources.required_models,
-        resources.optional_models,
-        resources.default_checkpoints,
-        resources.upscale_models,
-    )
 
 
 def required_models():
@@ -65,7 +56,7 @@ async def download(
             print(f"Looking for {target_file}")
         if target_file.exists():
             print(f"{model.name}: found - skipping")
-            return
+            continue
         if verbose:
             print(f"Downloading {url}")
         if not dry_run:
@@ -88,6 +79,7 @@ async def main(
     no_upscalers=False,
     no_checkpoints=False,
     no_controlnet=False,
+    prefetch=False,
     minimal=False,
 ):
     print(f"Generative AI for Krita - Model download - v{ai_diffusion.__version__}")
@@ -103,6 +95,7 @@ async def main(
                 or (no_controlnet and model.kind is resources.ResourceKind.controlnet)
                 or (no_upscalers and model.kind is resources.ResourceKind.upscaler)
                 or (no_checkpoints and model.kind is resources.ResourceKind.checkpoint)
+                or (not prefetch and model.kind is resources.ResourceKind.preprocessor)
             ):
                 continue
             if verbose:
@@ -137,6 +130,7 @@ if __name__ == "__main__":
     parser.add_argument("--no-checkpoints", action="store_true", help="skip default checkpoints")
     parser.add_argument("--no-upscalers", action="store_true", help="skip upscale models")
     parser.add_argument("--no-controlnet", action="store_true", help="skip ControlNet models")
+    parser.add_argument("--prefetch", action="store_true", help="fetch models which would be automatically downloaded on first use") # fmt: skip
     parser.add_argument("-m", "--minimal", action="store_true", help="minimum viable set of models")
     args = parser.parse_args()
     args.no_sdxl = args.no_sdxl or args.minimal
@@ -150,6 +144,7 @@ if __name__ == "__main__":
             args.no_upscalers,
             args.no_checkpoints,
             args.no_controlnet,
+            args.prefetch,
             args.minimal,
         )
     )

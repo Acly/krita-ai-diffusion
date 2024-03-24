@@ -29,6 +29,11 @@ def cancel_all():
         model.cancel(active=True, queued=True)
 
 
+def toggle_preview():
+    if model := root.model_for_active_document():
+        model.jobs.toggle_selection()
+
+
 def apply():
     if model := root.model_for_active_document():
         if model.jobs.selection is not None:

@@ -39,7 +39,7 @@ def icon(name: str):
 
 
 def sd_version_icon(version: SDVersion, client: Client | None = None):
-    if client and version not in client.supported_sd_versions:
+    if client and not client.supports_version(version):
         return icon("warning")
     elif version is SDVersion.sd15:
         return icon("sd-version-15")

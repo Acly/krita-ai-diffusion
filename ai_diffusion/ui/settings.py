@@ -1,10 +1,8 @@
 from __future__ import annotations
 
 import functools
-import os.path
 from enum import Enum
 from itertools import chain
-from pathlib import Path
 from typing import Any, Optional, cast
 from PyQt5.QtWidgets import (
     QVBoxLayout,
@@ -29,21 +27,23 @@ from PyQt5.QtWidgets import (
     QMenu,
     QAction,
 )
-from PyQt5.QtCore import Qt, QSize, QUrl, pyqtSignal
+from PyQt5.QtCore import Qt, QMetaObject, QSize, QUrl, pyqtSignal
 from PyQt5.QtGui import QDesktopServices, QGuiApplication, QIcon, QCursor
 from krita import Krita
 
+from ..client import User, resolve_sd_version
+from ..cloud_client import CloudClient
 from ..resources import SDVersion, CustomNode, MissingResource, ResourceKind, required_models
 from ..settings import Setting, Settings, ServerMode, PerformancePreset, settings
 from ..server import Server
-from ..client import resolve_sd_version
 from ..style import Style, Styles, StyleSettings
 from ..root import root
-from .. import util, __version__
 from ..connection import ConnectionState, apply_performance_preset
+from ..properties import Binding
+from .. import eventloop, util, __version__
 from .server import ServerWidget
 from .switch import SwitchWidget
-from .theme import add_header, icon, sd_version_icon, red, yellow, green, grey
+from .theme import SignalBlocker, add_header, icon, sd_version_icon, red, yellow, green, grey
 
 
 def _add_title(layout: QVBoxLayout, title: str):
@@ -476,6 +476,9 @@ class LoraList(QWidget):
         self._item_list.setContentsMargins(0, 0, 0, 0)
         self._layout.addLayout(self._item_list)
 
+        self.setEnabled(settings.server_mode is not ServerMode.cloud)
+        settings.changed.connect(self._handle_settings_change)
+
     def _add_item(self, lora=None):
         assert self._item_list is not None
         item = self.Item(self._loras, self)
@@ -495,6 +498,10 @@ class LoraList(QWidget):
 
     def _update_item(self):
         self.value_changed.emit()
+
+    def _handle_settings_change(self, key: str, value):
+        if key == "server_mode":
+            self.setEnabled(value is not ServerMode.cloud)
 
     @property
     def names(self):
@@ -583,26 +590,196 @@ class SettingsTab(QWidget):
             settings.save()
 
 
+class UserWidget(QFrame):
+    _user: User | None = None
+    _connections: list[QMetaObject.Connection | Binding]
+
+    def __init__(self, parent=None):
+        super().__init__(parent)
+        self._connections = []
+
+        self.setFrameStyle(QFrame.Shape.StyledPanel | QFrame.Shadow.Raised)
+        self.setLineWidth(2)
+        self.setVisible(False)
+
+        layout = QVBoxLayout()
+        self.setLayout(layout)
+
+        self._user_name = QLabel("", self)
+        self._user_name.setStyleSheet("font-weight:bold")
+        user_name_layout = QHBoxLayout()
+        user_name_layout.addWidget(QLabel("Account:", self), 0)
+        user_name_layout.addWidget(self._user_name, 1)
+        layout.addLayout(user_name_layout)
+
+        self._images_generated = QLabel("", self)
+        image_count_layout = QHBoxLayout()
+        image_count_layout.addWidget(QLabel("Total generated:", self), 0)
+        image_count_layout.addWidget(self._images_generated, 1)
+        layout.addLayout(image_count_layout)
+
+        self._tokens_remaining = QLabel("", self)
+        self._tokens_remaining.setStyleSheet("font-weight:bold")
+        image_remaining_layout = QHBoxLayout()
+        image_remaining_layout.addWidget(QLabel("Image tokens remaining:", self), 0)
+        image_remaining_layout.addWidget(self._tokens_remaining, 1)
+        layout.addLayout(image_remaining_layout)
+
+        self._logout_button = QPushButton("Sign out", self)
+        self._logout_button.setMinimumWidth(200)
+        self._logout_button.clicked.connect(self._logout)
+        layout.addWidget(self._logout_button)
+
+    @property
+    def user(self):
+        return self._user
+
+    @user.setter
+    def user(self, user: User | None):
+        if self._user is not user:
+            Binding.disconnect_all(self._connections)
+            self.setVisible(user is not None)
+
+            self._user = user
+            if user is not None:
+                self._user_name.setText(user.name)
+                self._connections = [
+                    user.images_generated_changed.connect(self._update_counts),
+                    user.credits_changed.connect(self._update_counts),
+                ]
+                self._update_counts()
+
+    def _update_counts(self):
+        user = util.ensure(self.user)
+        self._images_generated.setText(str(user.images_generated))
+        self._tokens_remaining.setText(str(user.credits))
+
+    def _logout(self):
+        eventloop.run(self._disconnect_and_logout())
+
+    async def _disconnect_and_logout(self):
+        await root.connection.disconnect()
+        settings.access_token = ""
+        settings.save()
+
+
+class CloudWidget(QWidget):
+    value_changed = pyqtSignal()
+
+    def __init__(self, parent):
+        super().__init__(parent)
+        layout = QVBoxLayout()
+        layout.setContentsMargins(0, 12, 4, 4)
+        self.setLayout(layout)
+
+        service_url = CloudClient.default_url
+        service_url_text = service_url.removeprefix("https://").removesuffix("/")
+        service_label = QLabel(f"<a href='{service_url}'>{service_url_text}</a>", self)
+        service_label.setStyleSheet("font-size: 12pt")
+        service_label.setTextFormat(Qt.TextFormat.RichText)
+        service_label.setOpenExternalLinks(True)
+        layout.addWidget(service_label)
+
+        self._connection_status = QLabel(self)
+        self._connection_status.setWordWrap(True)
+        self._connection_status.setTextFormat(Qt.TextFormat.RichText)
+        layout.addWidget(self._connection_status)
+
+        self.connect_button = QPushButton("Login", self)
+        self.connect_button.setMinimumWidth(200)
+        self.connect_button.setMinimumHeight(int(1.3 * self.connect_button.sizeHint().height()))
+        self.connect_button.clicked.connect(self._connect)
+
+        self._sign_out_button = QPushButton("Sign out", self)
+        self._sign_out_button.setVisible(False)
+        self._sign_out_button.setMinimumWidth(200)
+        self._sign_out_button.clicked.connect(self._sign_out)
+
+        self._user_widget = UserWidget(self)
+
+        buttons_layout = QVBoxLayout()
+        buttons_layout.addWidget(self.connect_button)
+        buttons_layout.addWidget(self._sign_out_button)
+
+        connect_layout = QHBoxLayout()
+        connect_layout.addLayout(buttons_layout)
+        connect_layout.addWidget(self._user_widget)
+        connect_layout.addStretch()
+        layout.addLayout(connect_layout)
+
+        layout.addStretch()
+
+    def update_connection_state(self, state: ConnectionState):
+        is_connected = state == ConnectionState.connected
+        self.connect_button.setVisible(not is_connected)
+        self._sign_out_button.setVisible(False)
+        self._user_widget.user = root.connection.user
+
+        if state in [ConnectionState.auth_missing, ConnectionState.auth_error]:
+            self.connect_button.setText("Sign in")
+            self.connect_button.setEnabled(True)
+            self._connection_status.setText("Disconnected")
+            self._connection_status.setStyleSheet(f"color: {grey}; font-style:italic")
+        elif state is ConnectionState.auth_pending:
+            self.connect_button.setText("Sign in")
+            self.connect_button.setEnabled(False)
+            self._connection_status.setText("Waiting for sign-in to complete...")
+            self._connection_status.setStyleSheet(f"color: {yellow}; font-weight:bold")
+            self._connection_status.setVisible(True)
+        elif state is ConnectionState.connected:
+            self._connection_status.setText("Connected")
+            self._connection_status.setStyleSheet(f"color: {green}; font-weight:bold")
+            self._user_widget.user = root.connection.user
+        else:
+            can_connect = state in [ConnectionState.disconnected, ConnectionState.error]
+            self.connect_button.setEnabled(can_connect)
+            self.connect_button.setText("Connect" if can_connect else "Connected")
+
+        if state in [ConnectionState.error, ConnectionState.auth_error]:
+            error = root.connection.error or "Unknown error"
+            self._connection_status.setText(f"<b>Error</b>: {error.removeprefix('Error: ')}")
+            self._connection_status.setStyleSheet(f"color: {red}; font-weight:bold")
+            self._connection_status.setVisible(True)
+            if settings.access_token:
+                self._sign_out_button.setVisible(True)
+
+    def _connect(self):
+        connection = root.connection
+        if connection.state in [ConnectionState.auth_missing, ConnectionState.auth_error]:
+            connection.sign_in()
+        else:
+            connection.connect()
+
+    def _sign_out(self):
+        settings.access_token = ""
+        settings.save()
+
+
 class ConnectionSettings(SettingsTab):
     def __init__(self, server: Server):
         super().__init__("Server Configuration")
 
-        add_header(self._layout, Settings._server_mode)
-        self._server_managed = QRadioButton("Local server managed by Krita plugin", self)
-        self._server_external = QRadioButton("Connect to external Server (local or remote)", self)
-        self._server_managed.toggled.connect(self._change_server_mode)
+        self._server_cloud = QRadioButton("Online Service [BETA]", self)
+        self._server_managed = QRadioButton("Local Managed Server", self)
+        self._server_external = QRadioButton("Custom Server (local or remote)", self)
+        info_cloud = QLabel("Generate images via GPU Cloud Service", self)
         info_managed = QLabel(
-            "Let the Krita plugin install and manage a local server on your machine", self
+            "Let the Krita plugin install and run a local server on your machine", self
         )
-        info_external = QLabel("You are responsible to set up and start the server yourself", self)
-        for button in (self._server_managed, self._server_external):
+        info_external = QLabel(
+            "Connect to a running ComfyUI instance which you set up and maintain yourself", self
+        )
+        for button in (self._server_cloud, self._server_managed, self._server_external):
             button.setStyleSheet("font-weight:bold")
-        for label in (info_managed, info_external):
+            button.toggled.connect(self._change_server_mode)
+        for label in (info_cloud, info_managed, info_external):
             label.setContentsMargins(20, 0, 0, 0)
 
+        self._cloud_widget = CloudWidget(self)
         self._server_widget = ServerWidget(server, self)
         self._connection_widget = QWidget(self)
         self._server_stack = QStackedWidget(self)
+        self._server_stack.addWidget(self._cloud_widget)
         self._server_stack.addWidget(self._server_widget)
         self._server_stack.addWidget(self._connection_widget)
 
@@ -642,6 +819,8 @@ class ConnectionSettings(SettingsTab):
         self._layout.addWidget(info_managed)
         self._layout.addWidget(self._server_external)
         self._layout.addWidget(info_external)
+        self._layout.addWidget(self._server_cloud)
+        self._layout.addWidget(info_cloud)
         self._layout.addWidget(self._server_stack)
 
         root.connection.state_changed.connect(self.update_server_status)
@@ -649,7 +828,9 @@ class ConnectionSettings(SettingsTab):
 
     @property
     def server_mode(self):
-        if self._server_managed.isChecked():
+        if self._server_cloud.isChecked():
+            return ServerMode.cloud
+        elif self._server_managed.isChecked():
             return ServerMode.managed
         elif self._server_external.isChecked():
             return ServerMode.external
@@ -659,11 +840,15 @@ class ConnectionSettings(SettingsTab):
     @server_mode.setter
     def server_mode(self, mode: ServerMode):
         if self.server_mode != mode:
+            self._server_cloud.setChecked(mode is ServerMode.cloud)
             self._server_managed.setChecked(mode is ServerMode.managed)
             self._server_external.setChecked(mode is ServerMode.external)
-        self._server_stack.setCurrentWidget(
-            self._server_widget if mode is ServerMode.managed else self._connection_widget
-        )
+        widget = {
+            ServerMode.cloud: self._cloud_widget,
+            ServerMode.managed: self._server_widget,
+            ServerMode.external: self._connection_widget,
+        }[mode]
+        self._server_stack.setCurrentWidget(widget)
 
     def update_ui(self):
         self._server_widget.update()
@@ -677,29 +862,35 @@ class ConnectionSettings(SettingsTab):
         settings.server_url = self._server_url.text()
 
     def _change_server_mode(self, checked: bool):
-        self.server_mode = ServerMode.managed if checked else ServerMode.external
+        if self._server_cloud.isChecked():
+            self.server_mode = ServerMode.cloud
+        elif self._server_managed.isChecked():
+            self.server_mode = ServerMode.managed
+        elif self._server_external.isChecked():
+            self.server_mode = ServerMode.external
         self.write()
 
     def _connect(self):
-        root.connection.connect(settings.server_url)
+        root.connection.connect()
 
     def update_server_status(self):
-        server = root.connection
-        self._connect_button.setEnabled(server.state != ConnectionState.connecting)
-        if server.state == ConnectionState.connected:
+        connection = root.connection
+        self._cloud_widget.update_connection_state(connection.state)
+        self._connect_button.setEnabled(connection.state != ConnectionState.connecting)
+        if connection.state == ConnectionState.connected:
             self._connection_status.setText("Connected")
             self._connection_status.setStyleSheet(f"color: {green}; font-weight:bold")
-        elif server.state == ConnectionState.connecting:
+        elif connection.state == ConnectionState.connecting:
             self._connection_status.setText("Connecting")
             self._connection_status.setStyleSheet(f"color: {yellow}; font-weight:bold")
-        elif server.state == ConnectionState.disconnected:
+        elif connection.state == ConnectionState.disconnected:
             self._connection_status.setText("Disconnected")
             self._connection_status.setStyleSheet(f"color: {grey}; font-style:italic")
-        elif server.state == ConnectionState.error:
-            self._connection_status.setText(f"<b>Error</b>: {server.error}")
+        elif connection.state == ConnectionState.error:
+            self._connection_status.setText(f"<b>Error</b>: {connection.error}")
             self._connection_status.setStyleSheet(f"color: {red};")
-            if server.missing_resource is not None:
-                self._handle_missing_resource(server.missing_resource)
+            if connection.missing_resource is not None:
+                self._handle_missing_resource(connection.missing_resource)
 
     def _handle_missing_resource(self, resource: MissingResource):
         if resource.kind is ResourceKind.checkpoint:
@@ -763,41 +954,47 @@ class StylePresets(SettingsTab):
         super().__init__("Style Presets")
         self.server = server
 
-        frame = QFrame(self)
-        frame.setFrameStyle(QFrame.StyledPanel)
-        frame.setLineWidth(1)
-        frame_layout = QHBoxLayout()
-        frame.setLayout(frame_layout)
-
         self._style_list = QComboBox(self)
-        self._populate_style_list()
         self._style_list.currentIndexChanged.connect(self._change_style)
-        frame_layout.addWidget(self._style_list)
 
         self._create_style_button = QToolButton(self)
         self._create_style_button.setIcon(Krita.instance().icon("list-add"))
         self._create_style_button.setToolTip("Create a new style")
         self._create_style_button.clicked.connect(self._create_style)
-        frame_layout.addWidget(self._create_style_button)
 
         self._delete_style_button = QToolButton(self)
         self._delete_style_button.setIcon(Krita.instance().icon("deletelayer"))
         self._delete_style_button.setToolTip("Delete the current style")
         self._delete_style_button.clicked.connect(self._delete_style)
-        frame_layout.addWidget(self._delete_style_button)
 
         self._refresh_button = QToolButton(self)
         self._refresh_button.setIcon(Krita.instance().icon("reload-preset"))
         self._refresh_button.setToolTip("Look for new style files")
-        self._refresh_button.clicked.connect(self._update_style_list)
-        frame_layout.addWidget(self._refresh_button)
+        self._refresh_button.clicked.connect(Styles.list().reload)
 
         self._open_folder_button = QToolButton(self)
         self._open_folder_button.setIcon(Krita.instance().icon("document-open"))
         self._open_folder_button.setToolTip("Open folder containing style files")
         self._open_folder_button.clicked.connect(self._open_style_folder)
-        frame_layout.addWidget(self._open_folder_button)
 
+        self._show_builtin_checkbox = QCheckBox("Show pre-installed styles", self)
+        self._show_builtin_checkbox.toggled.connect(self.write)
+
+        style_control_layout = QHBoxLayout()
+        style_control_layout.setContentsMargins(0, 0, 0, 0)
+        style_control_layout.addWidget(self._style_list)
+        style_control_layout.addWidget(self._create_style_button)
+        style_control_layout.addWidget(self._delete_style_button)
+        style_control_layout.addWidget(self._refresh_button)
+        style_control_layout.addWidget(self._open_folder_button)
+        frame_layout = QVBoxLayout()
+        frame_layout.addLayout(style_control_layout)
+        frame_layout.addWidget(self._show_builtin_checkbox, alignment=Qt.AlignmentFlag.AlignRight)
+
+        frame = QFrame(self)
+        frame.setFrameStyle(QFrame.StyledPanel)
+        frame.setLineWidth(1)
+        frame.setLayout(frame_layout)
         self._layout.addWidget(frame)
 
         self._style_widgets = {}
@@ -893,13 +1090,17 @@ class StylePresets(SettingsTab):
         if self._style_widgets["loras"].open_folder_button:
             self._style_widgets["loras"].open_folder_button.clicked.connect(self._open_lora_folder)
 
+        self._populate_style_list()
+        Styles.list().changed.connect(self._update_style_list)
+
     @property
     def current_style(self) -> Style:
-        return Styles.list()[self._style_list.currentIndex()]
+        styles = Styles.list()
+        return styles.find(self._style_list.currentData()) or styles.default
 
     @current_style.setter
     def current_style(self, style: Style):
-        index = Styles.list().find(style.filename)[1]
+        index = self._style_list.findData(style.filename)
         if index >= 0:
             self._style_list.setCurrentIndex(index)
             self._read_style(style)
@@ -910,30 +1111,30 @@ class StylePresets(SettingsTab):
 
     def _create_style(self):
         cp = self._style_widgets["sd_checkpoint"].value or StyleSettings.sd_checkpoint.default
-        # make sure the new style is in the combobox before setting it as the current style
         new_style = Styles.list().create(checkpoint=cp)
-        self._update_style_list()
         self.current_style = new_style
 
     def _delete_style(self):
         Styles.list().delete(self.current_style)
-        self._update_style_list()
 
     def _open_style_folder(self):
         QDesktopServices.openUrl(QUrl.fromLocalFile(str(Styles.list().user_folder)))
 
     def _populate_style_list(self):
-        self._style_list.addItems([f"{style.name} ({style.filename})" for style in Styles.list()])
+        for style in Styles.list().filtered():
+            self._style_list.addItem(f"{style.name} ({style.filename})", style.filename)
 
     def _update_style_list(self):
         previous = None
-        if self._style_list.count() > 0:
-            previous = self._style_list.currentText()
-            self._style_list.clear()
-        Styles.list().reload()
-        self._populate_style_list()
-        if previous is not None:
-            self._style_list.setCurrentText(previous)
+        with SignalBlocker(self._style_list):
+            if self._style_list.count() > 0:
+                previous = self._style_list.currentData()
+                self._style_list.clear()
+            self._populate_style_list()
+            if previous is not None:
+                i = self._style_list.findData(previous)
+                self._style_list.setCurrentIndex(max(0, i))
+        self._change_style()
 
     def _update_name(self):
         index = self._style_list.currentIndex()
@@ -959,14 +1160,14 @@ class StylePresets(SettingsTab):
     def _set_checkpoint_warning(self):
         self._checkpoint_warning.setVisible(False)
         if client := root.connection.client_if_connected:
-            if self.current_style.sd_checkpoint not in client.checkpoints:
+            if self.current_style.sd_checkpoint not in client.models.checkpoints:
                 self._checkpoint_warning.setText(
                     "The checkpoint used by this style is not installed."
                 )
                 self._checkpoint_warning.setVisible(True)
             else:
                 version = resolve_sd_version(self.current_style, client)
-                if version not in client.supported_sd_versions:
+                if not client.supports_version(version):
                     self._checkpoint_warning.setText(
                         f"This is a {version.value} checkpoint, but the {version.value} workload has"
                         " not been installed."
@@ -1008,19 +1209,22 @@ class StylePresets(SettingsTab):
         self._resolution_spin.enabled = style.preferred_resolution > 0
 
     def _read(self):
+        self._show_builtin_checkbox.setChecked(settings.show_builtin_styles)
         if client := root.connection.client_if_connected:
             default_vae = cast(str, StyleSettings.vae.default)
             checkpoints = [
                 (cp.name, cp.filename, sd_version_icon(cp.sd_version, client))
-                for cp in client.checkpoints.values()
+                for cp in client.models.checkpoints.values()
                 if not (cp.is_refiner or cp.is_inpaint)
             ]
             self._style_widgets["sd_checkpoint"].set_items(checkpoints)
-            self._style_widgets["loras"].names = client.loras
-            self._style_widgets["vae"].set_items([default_vae] + client.vae_models)
+            self._style_widgets["loras"].names = client.models.loras
+            self._style_widgets["vae"].set_items([default_vae] + client.models.vae)
         self._read_style(self.current_style)
 
     def _write(self):
+        if settings.show_builtin_styles != self._show_builtin_checkbox.isChecked():
+            settings.show_builtin_styles = self._show_builtin_checkbox.isChecked()
         style = self.current_style
         for name, widget in self._style_widgets.items():
             if widget.value is not None:
@@ -1250,6 +1454,12 @@ class SettingsDialog(QDialog):
         version_label = QLabel(f"Plugin version: {__version__}", self)
         version_label.setStyleSheet(f"font-style:italic; color: {grey};")
 
+        self._open_folder_link = QLabel(
+            f"<a href='file://{util.user_data_dir}'>Open Settings folder</a>", self
+        )
+        self._open_folder_link.linkActivated.connect(self._open_settings_folder)
+        self._open_folder_link.setToolTip(str(util.user_data_dir))
+
         self._close_button = QPushButton("Ok", self)
         self._close_button.clicked.connect(self._close)
 
@@ -1258,6 +1468,8 @@ class SettingsDialog(QDialog):
         button_layout.addStretch()
         button_layout.addWidget(version_label)
         button_layout.addStretch()
+        button_layout.addWidget(self._open_folder_link)
+        button_layout.addSpacing(8)
         button_layout.addWidget(self._close_button)
         inner.addLayout(button_layout)
 
@@ -1291,6 +1503,9 @@ class SettingsDialog(QDialog):
         self.connection.update_server_status()
         if root.connection.state == ConnectionState.connected:
             self.performance.update_device_info()
+
+    def _open_settings_folder(self):
+        QDesktopServices.openUrl(QUrl.fromLocalFile(str(util.user_data_dir)))
 
     def _close(self):
         _ = self.close()

@@ -6,8 +6,10 @@ black
 
 # Testing
 aiohttp
+python-dotenv
 markdown
 numpy
 pytest
 tqdm
 PyQt5
+Pillow
