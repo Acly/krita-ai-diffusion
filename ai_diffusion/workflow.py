@@ -286,35 +286,31 @@ def apply_ip_adapter(
         insight_face = w.load_insight_face()
         for control in face_layers:
             model = w.apply_ip_adapter_face(
+                model,
                 ip_adapter,
                 clip_vision,
                 insight_face,
-                model,
                 control.load_image(w),
                 control.strength,
                 range=control.range,
-                faceid_v2="v2" in models[ControlMode.face],
             )
 
     # Encode images with their weights into a batch and apply IP-adapter to the model once
-    ip_images = []
-    ip_weights = []
-    ip_range = (0.99, 0.01)
-
-    for control in (c for c in control_layers if c.mode is ControlMode.reference):
-        if len(ip_images) >= 4:
-            raise Exception("Too many control layers of type 'reference image' (maximum is 4)")
-        ip_images.append(control.load_image(w))
-        ip_weights.append(control.strength)
-        ip_range = (min(ip_range[0], control.range[0]), max(ip_range[1], control.range[1]))
-
-    max_weight = max(ip_weights, default=0.0)
-    if len(ip_images) > 0 and max_weight > 0:
-        ip_weights = [w / max_weight for w in ip_weights]
+    if any(c.mode is ControlMode.reference for c in control_layers):
         clip_vision = w.load_clip_vision(models.clip_vision)
         ip_adapter = w.load_ip_adapter(models[ControlMode.reference])
-        embeds = w.encode_ip_adapter(clip_vision, ip_images, ip_weights, noise=0.2)
-        model = w.apply_ip_adapter(ip_adapter, embeds, model, max_weight, range=ip_range)
+        embeds = []
+        range = (0.99, 0.01)
+
+        for control in (c for c in control_layers if c.mode is ControlMode.reference):
+            if len(embeds) >= 5:
+                raise Exception("Too many control layers of type 'reference image' (maximum is 5)")
+            img = control.load_image(w)
+            embeds.append(w.encode_ip_adapter(img, control.strength, ip_adapter, clip_vision)[0])
+            range = (min(range[0], control.range[0]), max(range[1], control.range[1]))
+
+        combined = w.combine_ip_adapter_embeds(embeds) if len(embeds) > 1 else embeds[0]
+        model = w.apply_ip_adapter(model, ip_adapter, clip_vision, combined, 1.0, range)
 
     return model
 

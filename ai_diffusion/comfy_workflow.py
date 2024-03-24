@@ -213,7 +213,7 @@ class ComfyWorkflow:
         )
 
     def load_insight_face(self):
-        return self.add_cached("InsightFaceLoader", 1, provider="CPU")
+        return self.add_cached("IPAdapterInsightFaceLoader", 1, provider="CPU")
 
     def load_inpaint_model(self, model_name: str):
         return self.add_cached("INPAINT_LoadInpaintModel", 1, model_name=model_name)
@@ -279,69 +279,66 @@ class ComfyWorkflow:
         )
 
     def encode_ip_adapter(
-        self, clip_vision: Output, images: list[Output], weights: list[float], noise=0.0
+        self, image: Output, weight: float, ip_adapter: Output, clip_vision: Output
     ):
-        weights += [1.0] * (4 - len(weights))
-        weight_inputs = {f"weight_{i + 1}": weight for i, weight in enumerate(weights)}
-        image_inputs = {f"image_{i + 1}": image for i, image in enumerate(images)}
         return self.add(
             "IPAdapterEncoder",
-            1,
+            2,
+            image=image,
+            weight=weight,
+            ipadapter=ip_adapter,
             clip_vision=clip_vision,
-            noise=noise,
-            ipadapter_plus=False,
-            **image_inputs,
-            **weight_inputs,
         )
+
+    def combine_ip_adapter_embeds(self, embeds: list[Output]):
+        e = {f"embed{i+1}": embed for i, embed in enumerate(embeds)}
+        return self.add("IPAdapterCombineEmbeds", 1, method="concat", **e)
 
     def apply_ip_adapter(
         self,
-        ipadapter: Output,
-        embeds: Output,
         model: Output,
+        ip_adapter: Output,
+        clip_vision: Output,
+        embeds: Output,
         weight: float,
         range: tuple[float, float] = (0.0, 1.0),
     ):
         return self.add(
-            "IPAdapterApplyEncoded",
+            "IPAdapterEmbeds",
             1,
-            ipadapter=ipadapter,
-            embeds=embeds,
             model=model,
+            ipadapter=ip_adapter,
+            pos_embed=embeds,
+            clip_vision=clip_vision,
             weight=weight,
             weight_type="linear",
             start_at=range[0],
             end_at=range[1],
-            unfold_batch=False,
         )
 
     def apply_ip_adapter_face(
         self,
-        ipadapter: Output,
+        model: Output,
+        ip_adapter: Output,
         clip_vision: Output,
         insightface: Output,
-        model: Output,
         image: Output,
         weight=1.0,
         range: tuple[float, float] = (0.0, 1.0),
-        faceid_v2=False,
     ):
         return self.add(
-            "IPAdapterApplyFaceID",
+            "IPAdapterFaceID",
             1,
-            ipadapter=ipadapter,
+            model=model,
+            ipadapter=ip_adapter,
+            image=image,
             clip_vision=clip_vision,
             insightface=insightface,
-            image=image,
-            model=model,
             weight=weight,
-            weight_type="original",
+            weight_faceidv2=weight * 2,
+            weight_type="linear",
             start_at=range[0],
             end_at=range[1],
-            noise=0.0,
-            faceid_v2=faceid_v2,
-            weight_v2=weight,
-            unfold_batch=False,
         )
 
     def inpaint_preprocessor(self, image: Output, mask: Output):
@@ -376,6 +373,8 @@ class ComfyWorkflow:
         return self.add("SetLatentNoiseMask", 1, samples=latent, mask=mask)
 
     def batch_latent(self, latent: Output, batch_size: int):
+        if batch_size == 1:
+            return latent
         return self.add("RepeatLatentBatch", 1, samples=latent, amount=batch_size)
 
     def crop_latent(self, latent: Output, bounds: Bounds):

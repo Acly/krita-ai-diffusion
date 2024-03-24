@@ -84,6 +84,8 @@ class ComfyClient(Client):
             if any(node not in nodes for node in package.nodes)
         ]
         if len(missing) > 0:
+            if "IPAdapterApply" in nodes:
+                raise Exception("Custom node 'ComfyUI_IPAdapter_plus' is outdated, please update.")
             raise MissingResource(ResourceKind.node, missing)
 
         # Check for required and optional model resources
