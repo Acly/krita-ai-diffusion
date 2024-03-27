@@ -365,6 +365,7 @@ class Server:
         assert self._python_cmd
 
         self.state = ServerState.starting
+        last_line = ""
         try:
             args = ["-su", "-Xutf8", "main.py"]
             env = {}
@@ -387,6 +388,7 @@ class Server:
             assert self._process.stdout is not None
             async for line in self._process.stdout:
                 text = _decode_utf8_log_error(line).strip()
+                last_line = text
                 server_log.info(text)
                 if text.startswith("To see the GUI go to:"):
                     self.state = ServerState.running
@@ -402,9 +404,8 @@ class Server:
             error = "Process exited unexpectedly"
             try:
                 out, err = await asyncio.wait_for(self._process.communicate(), timeout=10)
-                server_log.info(_decode_utf8_log_error(out).strip())
-                error = _decode_utf8_log_error(err)
-                server_log.error(error)
+                server_log.error(_decode_utf8_log_error(out).strip())
+                error = last_line + _decode_utf8_log_error(err or out)
             except asyncio.TimeoutError:
                 self._process.kill()
             except Exception as e:
