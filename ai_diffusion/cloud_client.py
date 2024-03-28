@@ -317,6 +317,6 @@ models.resources = {
     resource_id(ResourceKind.upscaler, SDVersion.all, UpscalerName.fast_4x): UpscalerName.fast_4x.value,
     resource_id(ResourceKind.inpaint, SDVersion.sdxl, "fooocus_head"): None,
     resource_id(ResourceKind.inpaint, SDVersion.sdxl, "fooocus_patch"): None,
-    resource_id(ResourceKind.inpaint, SDVersion.all, "default"): "MAT_Places512_G_fp16",
+    resource_id(ResourceKind.inpaint, SDVersion.all, "default"): "MAT_Places512_G_fp16.safetensors",
 }
 # fmt: on

@@ -245,6 +245,22 @@ def test_inpaint_area_conditioning(qtapp, client):
     run_and_save(qtapp, client, job, "test_inpaint_area_conditioning", image, mask)
 
 
+def test_inpaint_remove_object(qtapp, client):
+    image = Image.load(image_dir / "owls_inpaint.webp")
+    mask = Mask.load(image_dir / "owls_mask_remove.webp")
+    job = create(
+        WorkflowKind.inpaint,
+        client,
+        canvas=image,
+        mask=mask,
+        text=TextInput("tree branch"),
+        inpaint=detect_inpaint(
+            InpaintMode.remove_object, mask.bounds, SDVersion.sd15, "tree", [], 1.0
+        ),
+    )
+    run_and_save(qtapp, client, job, "test_inpaint_remove_object", image, mask)
+
+
 @pytest.mark.parametrize("setup", ["sd15", "sdxl"])
 def test_refine(qtapp, client, setup):
     sdver, extent, strength = {
