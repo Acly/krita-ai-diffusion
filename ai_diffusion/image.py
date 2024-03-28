@@ -336,7 +336,11 @@ class Image:
         format_str, quality = format.value
         writer = QImageWriter(buffer, QByteArray(format_str.encode("utf-8")))
         writer.setQuality(quality)
-        writer.write(self._qimage)
+        result = writer.write(self._qimage)
+        if not result:
+            raise Exception(
+                f"Failed to write image to buffer [{self.width}x{self.height} format={self._qimage.format()}] -> {format_str}@{quality}"
+            )
 
     def to_bytes(self, format=ImageFileFormat.png):
         byte_array = QByteArray()

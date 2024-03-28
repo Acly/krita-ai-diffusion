@@ -173,6 +173,7 @@ class Serializer:
         result = serializer._object(work)
         if len(serializer._images) > 0:
             blob, offsets = serializer._images.to_bytes(image_format)
+            assert blob.size() > 0, "Image data is empty"
             result["image_data"] = {"bytes": blob.data(), "offsets": offsets}
         return result
 
