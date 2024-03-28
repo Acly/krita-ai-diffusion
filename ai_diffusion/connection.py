@@ -105,8 +105,10 @@ class Connection(QObject, ObservableProperties):
             self.error = util.log_error(e)
             self.state = ConnectionState.error
 
-    def connect(self, url: str = settings.server_url):
-        eventloop.run(self._connect(url, settings.server_mode, settings.access_token))
+    def connect(self):
+        eventloop.run(
+            self._connect(settings.server_url, settings.server_mode, settings.access_token)
+        )
 
     async def disconnect(self):  # type: ignore (hides QObject.disconnect)
         if self._task is not None:
