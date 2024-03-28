@@ -63,10 +63,11 @@ To run locally a powerful graphics card with at least 6 GB VRAM is recommended. 
 1. [Download the plugin](https://github.com/Acly/krita-ai-diffusion/releases/latest).
 2. Start Krita and install the plugin via Tools ▸ Scripts ▸ Import Python Plugin from File...
     * Point it to the ZIP archive you downloaded in the previous step.
+    * ⚠ _This will delete any previous install of the plugin._ If you are updating from 1.14 or older please read [updating to a new version](https://github.com/Acly/krita-ai-diffusion/wiki/Common-Issues#how-do-i-update-to-a-new-version-of-the-plugin).
     * Check [Krita's official documentation](https://docs.krita.org/en/user_manual/python_scripting/install_custom_python_plugin.html) for more options.
-4. Restart Krita and create a new document or open an existing image.
-5. To show the plugin docker: Settings ‣ Dockers ‣ AI Image Generation.
-6. In the plugin docker, click "Configure" to start local server installation or connect.
+3. Restart Krita and create a new document or open an existing image.
+4. To show the plugin docker: Settings ‣ Dockers ‣ AI Image Generation.
+5. In the plugin docker, click "Configure" to start local server installation or connect.
 
 > [!NOTE]
 > If you encounter problems please check the [FAQ / list of common issues](https://github.com/Acly/krita-ai-diffusion/wiki/Common-Issues) for solutions.
