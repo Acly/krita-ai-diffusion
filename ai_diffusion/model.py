@@ -112,7 +112,7 @@ class Model(QObject, ObservableProperties):
         inpaint = None
         extent = self._doc.extent
         mask = self._doc.create_mask_from_selection(
-            **get_selection_modifiers(self.inpaint.mode), min_size=64
+            **get_selection_modifiers(self.inpaint.mode, self.strength), min_size=64
         )
         bounds = compute_bounds(extent, mask.bounds if mask else None, self.strength)
         bounds = self.inpaint.get_context(self, mask) or bounds
@@ -812,18 +812,18 @@ class AnimationWorkspace(QObject, ObservableProperties):
             self.target_image_changed.emit(image)
 
 
-def get_selection_modifiers(inpaint_mode: InpaintMode) -> dict[str, Any]:
+def get_selection_modifiers(inpaint_mode: InpaintMode, strength: float) -> dict[str, Any]:
     grow = settings.selection_grow / 100
     feather = settings.selection_feather / 100
     padding = settings.selection_padding / 100
     invert = False
 
-    if inpaint_mode is InpaintMode.remove_object:
+    if inpaint_mode is InpaintMode.remove_object and strength == 1.0:
         # avoid leaving any border pixels of the object to be removed within the
         # area where the mask is 1.0, it will confuse inpainting models
         feather = min(feather, grow * 0.5)
 
-    if inpaint_mode is InpaintMode.replace_background:
+    if inpaint_mode is InpaintMode.replace_background and strength == 1.0:
         # only minimal grow/feather as there is often no desired transition between
         # forground object and background (to be replaced by something else entirely)
         grow = min(grow, 0.01)
