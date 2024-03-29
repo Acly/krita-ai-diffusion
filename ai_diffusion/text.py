@@ -3,6 +3,7 @@ import re
 from pathlib import Path
 from typing import Tuple, List
 
+from .api import LoraInput
 from .util import client_logger as log
 
 
@@ -20,7 +21,7 @@ _pattern_lora = re.compile(r"\s*<lora:([^:<>]+)(?::(-?[^:<>]*))?>\s*", re.IGNORE
 
 
 def extract_loras(prompt: str, client_loras: list[str]):
-    loras = []
+    loras: list[LoraInput] = []
     for match in _pattern_lora.findall(prompt):
         lora_name = ""
 
@@ -42,7 +43,7 @@ def extract_loras(prompt: str, client_loras: list[str]):
             log.warning(error)
             raise Exception(error)
 
-        loras.append(dict(name=lora_name, strength=lora_strength))
+        loras.append(LoraInput(lora_name, lora_strength))
     return _pattern_lora.sub("", prompt), loras
 
 

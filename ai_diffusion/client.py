@@ -97,6 +97,7 @@ class ClientModels:
 
     def __init__(self) -> None:
         self.node_inputs = {}
+        self.resources = {}
 
     def resource(
         self, kind: ResourceKind, identifier: ControlMode | UpscalerName | str, version: SDVersion

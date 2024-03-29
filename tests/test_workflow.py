@@ -7,8 +7,9 @@ from pathlib import Path
 from typing import Any
 
 from ai_diffusion import workflow
-from ai_diffusion.api import WorkflowKind, WorkflowInput, ControlInput, InpaintMode, FillMode
-from ai_diffusion.api import TextInput
+from ai_diffusion.api import LoraInput, WorkflowKind, WorkflowInput, ControlInput
+from ai_diffusion.api import InpaintMode, FillMode, TextInput
+from ai_diffusion.client import ClientModels, CheckpointInfo
 from ai_diffusion.comfy_client import ComfyClient
 from ai_diffusion.cloud_client import CloudClient
 from ai_diffusion.resources import ControlMode
@@ -144,6 +145,30 @@ def test_inpaint_params():
     control = [ControlInput(ControlMode.line_art, Image.create(Extent(4, 4)))]
     e = detect_inpaint(InpaintMode.add_object, bounds, SDVersion.sd15, "prompt", control, 1.0)
     assert e.use_condition_mask == False
+
+
+def test_prepare_lora():
+    models = ClientModels()
+    models.checkpoints = {"CP": CheckpointInfo("CP", SDVersion.sd15)}
+    models.loras = ["PINK_UNICORNS", "MOTHER_OF_PEARL"]
+    style = Style(Path("default.json"))
+    style.sd_checkpoint = "CP"
+    style.loras.append(dict(name="MOTHER_OF_PEARL", strength=0.33))
+    job = workflow.prepare(
+        WorkflowKind.generate,
+        canvas=Extent(512, 512),
+        text=TextInput("test <lora:PINK_UNICORNS:0.77>"),
+        style=style,
+        seed=29,
+        models=models,
+        perf=default_perf,
+    )
+    assert job.text and job.text.positive == "test"
+    assert (
+        job.models
+        and LoraInput("PINK_UNICORNS", 0.77) in job.models.loras
+        and LoraInput("MOTHER_OF_PEARL", 0.33) in job.models.loras
+    )
 
 
 @pytest.mark.parametrize("extent", [Extent(256, 256), Extent(800, 800), Extent(512, 1024)])
