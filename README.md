@@ -87,7 +87,7 @@ If you're looking for a way to easily select objects in the image, there is a [s
 
 You can also rent a GPU instead of running locally. In that case, step 6 is not needed. Instead use the plugin to connect to a remote server.
 
-There is a [step by step guide](https://github.com/Acly/krita-ai-diffusion/wiki/Cloud-GPU) on how to setup cloud GPU on [runpod.io](https://www.runpod.io) or [vast.ai](https://vast.ai).
+There is a [step by step guide](https://github.com/Acly/krita-ai-diffusion/wiki/Cloud-GPU) on how to setup cloud GPU on [runpod.io](https://www.runpod.io) or [vast.ai](https://vast.ai) or [sailflow.ai](https://www.sailflowai.com).
 
 
 ## <a name="screenshots"></a> Screenshots
