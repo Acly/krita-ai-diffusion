@@ -1,4 +1,5 @@
 from ai_diffusion.text import merge_prompt, extract_loras, edit_attention, select_on_cursor_pos
+from ai_diffusion.api import LoraInput
 
 
 def test_merge_prompt():
@@ -19,23 +20,23 @@ def test_extract_loras():
     assert extract_loras("a ship", loras) == ("a ship", [])
     assert extract_loras("a ship <lora:lora-one>", loras) == (
         "a ship",
-        [{"name": loras[0], "strength": 1.0}],
+        [LoraInput(loras[0], 1.0)],
     )
     assert extract_loras("a ship <lora:LoRA-one>", loras) == (
         "a ship",
-        [{"name": loras[0], "strength": 1.0}],
+        [LoraInput(loras[0], 1.0)],
     )
     assert extract_loras("a ship <lora:lora-one:0.0>", loras) == (
         "a ship",
-        [{"name": loras[0], "strength": 0.0}],
+        [LoraInput(loras[0], 0.0)],
     )
     assert extract_loras("a ship <lora:lora-two:0.5>", loras) == (
         "a ship",
-        [{"name": loras[1], "strength": 0.5}],
+        [LoraInput(loras[1], 0.5)],
     )
     assert extract_loras("a ship <lora:lora-two:-1.0>", loras) == (
         "a ship",
-        [{"name": loras[1], "strength": -1.0}],
+        [LoraInput(loras[1], -1.0)],
     )
 
     try:
