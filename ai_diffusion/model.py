@@ -599,7 +599,7 @@ class LiveWorkspace(QObject, ObservableProperties):
             eventloop.run(_report_errors(self._model, self._continue_generating()))
 
     async def _continue_generating(self):
-        while self.is_active:
+        while self.is_active and self._model.document.is_active:
             new_input = await self._model._generate_live(self._last_input)
             if new_input is not None:  # frame was scheduled
                 self._last_input = new_input

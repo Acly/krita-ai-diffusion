@@ -181,6 +181,8 @@ class LiveWidget(QWidget):
                 model.progress_changed.connect(self.update_progress),
                 model.live.result_available.connect(self.show_result),
             ]
+            self.update_is_active()
+            self.update_is_recording()
             self.control_list.model = model
             self.preview_area.clear()
 
