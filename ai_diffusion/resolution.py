@@ -11,8 +11,15 @@ from .style import Style
 
 
 def compute_bounds(extent: Extent, mask_bounds: Bounds | None, strength: float):
-    """Compute the area of the image to use as input for diffusion."""
+    """Compute the area of the image to use as input for diffusion (context area).
 
+    Canvas extent: full size of the canvas
+    Diffusion context: area of the image which is passed to diffusion initially
+    Mask bounds: area of the mask and immediate vicinity, this is also the diffusion result size
+
+    Mask bounds are contained within the diffusion context, which is contained within the canvas.
+    In many cases diffusion context and mask bounds are the same.
+    """
     if mask_bounds is not None:
         if strength == 1.0:
             # For 100% strength inpainting get additional surrounding image content for context
@@ -27,6 +34,17 @@ def compute_bounds(extent: Extent, mask_bounds: Bounds | None, strength: float):
             return mask_bounds
     else:
         return Bounds(0, 0, *extent)
+
+
+def compute_relative_bounds(image_bounds: Bounds, mask_bounds: Bounds):
+    """Transforms bounds for mask to use offsets relative to the context area.
+
+    image_bounds: Bounds of the context area passed to diffusion relative to the entire canvas
+    mask_bounds: Bounds of the mask and immediate vicinity relative to the entire canvas
+    return[0]: Bounds for inserting diffusion results into the canvas
+    return[1]: Bounds for applying the mask to the diffusion context
+    """
+    return mask_bounds, mask_bounds.relative_to(image_bounds)
 
 
 def compute_batch_size(extent: Extent, min_size: int, max_batches: int):

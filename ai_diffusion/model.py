@@ -23,7 +23,7 @@ from .properties import Property, ObservableProperties
 from .jobs import Job, JobKind, JobParams, JobQueue, JobState
 from .control import ControlLayer, ControlLayerList
 from .resources import ControlMode
-from .resolution import compute_bounds
+from .resolution import compute_bounds, compute_relative_bounds
 import krita
 
 
@@ -128,9 +128,7 @@ class Model(QObject, ObservableProperties):
             elif workflow_kind is WorkflowKind.refine:
                 workflow_kind = WorkflowKind.refine_region
 
-            mask_relative_to_image = mask.bounds.relative_to(bounds)
-            bounds = mask.bounds  # Image bounds inside the canvas
-            mask.bounds = mask_relative_to_image  # Mask bounds inside the image
+            bounds, mask.bounds = compute_relative_bounds(bounds, mask.bounds)
 
             sd_version = client.models.version_of(self.style.sd_checkpoint)
             inpaint_mode = self.resolve_inpaint_mode()
@@ -233,7 +231,7 @@ class Model(QObject, ObservableProperties):
         bounds = Bounds(0, 0, *self._doc.extent)
         if mask is not None:
             workflow_kind = WorkflowKind.refine_region
-            bounds = mask.bounds
+            bounds, mask.bounds = compute_relative_bounds(mask.bounds, mask.bounds)
         if mask is not None or self.live.strength < 1.0:
             image = self._get_current_image(bounds)
 
