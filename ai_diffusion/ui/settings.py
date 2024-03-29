@@ -871,7 +871,7 @@ class ConnectionSettings(SettingsTab):
         self.write()
 
     def _connect(self):
-        root.connection.connect()
+        root.connection.connect(settings.server_url)
 
     def update_server_status(self):
         connection = root.connection
