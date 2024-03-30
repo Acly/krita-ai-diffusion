@@ -218,6 +218,7 @@ def test_inpaint_upscale(qtapp, client, sdver):
         client,
         canvas=image,
         mask=mask,
+        style=default_style(client, sdver),
         text=prompt,
         perf=PerformanceSettings(batch_size=3),  # 2 images for 1.5, 1 image for XL
         inpaint=detect_inpaint(

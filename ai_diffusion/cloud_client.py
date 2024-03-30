@@ -23,6 +23,7 @@ class JobInfo:
     local_id: str
     work: WorkflowInput
     remote_id: str | None = None
+    worker_id: str | None = None
 
     def __str__(self):
         return f"Job[{self.work.kind.name}, local={self.local_id}, remote={self.remote_id}]"
@@ -136,12 +137,13 @@ class CloudClient(Client):
         response: dict = await self._post("generate", data)
 
         job.remote_id = response["id"]
+        job.worker_id = response["worker_id"]
         cost = _update_user(user, response.get("user"))
         log.info(f"{job} started, cost was {cost}, {user.credits} images remaining")
         yield ClientMessage(ClientEvent.progress, job.local_id, 0)
 
         while response["status"] == "IN_QUEUE" or response["status"] == "IN_PROGRESS":
-            response = await self._post(f"status/{job.remote_id}", {})
+            response = await self._post(f"status/{job.worker_id}/{job.remote_id}", {})
 
             if response["status"] == "IN_QUEUE":
                 yield ClientMessage(ClientEvent.queued, job.local_id)
@@ -271,6 +273,9 @@ models.checkpoints = {
     "flat2DAnimerge_v45Sharp.safetensors": CheckpointInfo(
         "flat2DAnimerge_v45Sharp.safetensors", SDVersion.sd15
     ),
+    "juggernautXL_version6Rundiffusion.safetensors": CheckpointInfo(
+        "juggernautXL_version6Rundiffusion.safetensors", SDVersion.sdxl
+    ),
 }
 models.vae = []
 models.loras = []
@@ -286,37 +291,37 @@ from ai_diffusion.resources import resource_id, ResourceKind, ControlMode, Upsca
 models.resources = {
     resource_id(ResourceKind.controlnet, SDVersion.sd15, ControlMode.inpaint): "control_v11p_sd15_inpaint_fp16.safetensors",
     resource_id(ResourceKind.controlnet, SDVersion.sd15, ControlMode.scribble): "control_lora_rank128_v11p_sd15_scribble_fp16.safetensors",
-    resource_id(ResourceKind.controlnet, SDVersion.sdxl, ControlMode.scribble): None,
+    resource_id(ResourceKind.controlnet, SDVersion.sdxl, ControlMode.scribble): "sai_xl_sketch_256lora.safetensors",
     resource_id(ResourceKind.controlnet, SDVersion.sd15, ControlMode.line_art): "control_v11p_sd15_lineart_fp16.safetensors",
-    resource_id(ResourceKind.controlnet, SDVersion.sdxl, ControlMode.line_art): None,
+    resource_id(ResourceKind.controlnet, SDVersion.sdxl, ControlMode.line_art): "sai_xl_sketch_256lora.safetensors",
     resource_id(ResourceKind.controlnet, SDVersion.sd15, ControlMode.soft_edge): "control_v11p_sd15_softedge_fp16.safetensors",
     resource_id(ResourceKind.controlnet, SDVersion.sd15, ControlMode.canny_edge): "control_v11p_sd15_canny_fp16.safetensors",
-    resource_id(ResourceKind.controlnet, SDVersion.sdxl, ControlMode.canny_edge): None,
+    resource_id(ResourceKind.controlnet, SDVersion.sdxl, ControlMode.canny_edge): "sai_xl_canny_256lora.safetensors",
     resource_id(ResourceKind.controlnet, SDVersion.sd15, ControlMode.depth): "control_lora_rank128_v11f1p_sd15_depth_fp16.safetensors",
-    resource_id(ResourceKind.controlnet, SDVersion.sdxl, ControlMode.depth): None,
+    resource_id(ResourceKind.controlnet, SDVersion.sdxl, ControlMode.depth): "sai_xl_depth_256lora.safetensors",
     resource_id(ResourceKind.controlnet, SDVersion.sd15, ControlMode.normal): None,
     resource_id(ResourceKind.controlnet, SDVersion.sd15, ControlMode.pose): "control_lora_rank128_v11p_sd15_openpose_fp16.safetensors",
-    resource_id(ResourceKind.controlnet, SDVersion.sdxl, ControlMode.pose): None,
+    resource_id(ResourceKind.controlnet, SDVersion.sdxl, ControlMode.pose): "thibaud_xl_openpose_256lora.safetensors",
     resource_id(ResourceKind.controlnet, SDVersion.sd15, ControlMode.segmentation): None,
     resource_id(ResourceKind.controlnet, SDVersion.sd15, ControlMode.blur):"control_lora_rank128_v11f1e_sd15_tile_fp16.safetensors",
     resource_id(ResourceKind.controlnet, SDVersion.sd15, ControlMode.stencil): None,
     resource_id(ResourceKind.controlnet, SDVersion.sd15, ControlMode.hands): None,
     resource_id(ResourceKind.controlnet, SDVersion.sdxl, ControlMode.hands): None,
-    resource_id(ResourceKind.ip_adapter, SDVersion.sd15, ControlMode.reference):"ip-adapter_sd15.safetensors",
-    resource_id(ResourceKind.ip_adapter, SDVersion.sdxl, ControlMode.reference): None,
+    resource_id(ResourceKind.ip_adapter, SDVersion.sd15, ControlMode.reference): "ip-adapter_sd15.safetensors",
+    resource_id(ResourceKind.ip_adapter, SDVersion.sdxl, ControlMode.reference): "ip-adapter_sdxl_vit-h.safetensors",
     resource_id(ResourceKind.ip_adapter, SDVersion.sd15, ControlMode.face): None,
     resource_id(ResourceKind.ip_adapter, SDVersion.sdxl, ControlMode.face): None,
     resource_id(ResourceKind.clip_vision, SDVersion.all, "ip_adapter"): "clip-vision_vit-h.safetensors",
     resource_id(ResourceKind.lora, SDVersion.sd15, "lcm"): "lcm-lora-sdv1-5.safetensors",
-    resource_id(ResourceKind.lora, SDVersion.sdxl, "lcm"): None,
+    resource_id(ResourceKind.lora, SDVersion.sdxl, "lcm"): "lcm-lora-sdxl.safetensors",
     resource_id(ResourceKind.lora, SDVersion.sd15, ControlMode.face): None,
     resource_id(ResourceKind.lora, SDVersion.sdxl, ControlMode.face): None,
     resource_id(ResourceKind.upscaler, SDVersion.all, UpscalerName.default): UpscalerName.default.value,
     resource_id(ResourceKind.upscaler, SDVersion.all, UpscalerName.fast_2x): UpscalerName.fast_2x.value,
     resource_id(ResourceKind.upscaler, SDVersion.all, UpscalerName.fast_3x): UpscalerName.fast_3x.value,
     resource_id(ResourceKind.upscaler, SDVersion.all, UpscalerName.fast_4x): UpscalerName.fast_4x.value,
-    resource_id(ResourceKind.inpaint, SDVersion.sdxl, "fooocus_head"): None,
-    resource_id(ResourceKind.inpaint, SDVersion.sdxl, "fooocus_patch"): None,
+    resource_id(ResourceKind.inpaint, SDVersion.sdxl, "fooocus_head"): "fooocus_inpaint_head.pth",
+    resource_id(ResourceKind.inpaint, SDVersion.sdxl, "fooocus_patch"): "inpaint_v26.fooocus.patch",
     resource_id(ResourceKind.inpaint, SDVersion.all, "default"): "MAT_Places512_G_fp16.safetensors",
 }
 # fmt: on

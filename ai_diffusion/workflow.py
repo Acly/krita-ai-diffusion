@@ -811,7 +811,7 @@ def prepare(
     i.models.loras += extra_loras
     _check_server_has_models(i.models, models, style.name)
 
-    sd_version = models.version_of(style.sd_checkpoint)
+    sd_version = i.models.version = models.version_of(style.sd_checkpoint)
     model_set = models.for_version(sd_version)
     has_ip_adapter = model_set.ip_adapter.find(ControlMode.reference) is not None
     if i.sampling.sampler == "lcm":

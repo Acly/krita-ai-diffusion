@@ -5,7 +5,7 @@ from typing import Any, get_args, get_origin
 import math
 
 from .image import Bounds, Extent, Image, ImageCollection, ImageFileFormat
-from .resources import ControlMode
+from .resources import ControlMode, SDVersion
 from .util import ensure
 
 
@@ -53,6 +53,7 @@ class LoraInput:
 @dataclass
 class CheckpointInput:
     checkpoint: str
+    version: SDVersion = SDVersion.sd15
     vae: str = ""
     loras: list[LoraInput] = field(default_factory=list)
     clip_skip: int = 0
