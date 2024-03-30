@@ -126,10 +126,6 @@ class ComfyClient(Client):
             for n in [2, 3, 4]:
                 id = resource_id(ResourceKind.upscaler, SDVersion.all, UpscalerName.fast_x(n))
                 available_resources[id] = models.default_upscaler
-            # IP-Adapter doesn't work https://github.com/cubiq/ComfyUI_IPAdapter_plus/issues/108
-            for id in available_resources:
-                if id.startswith(ResourceKind.ip_adapter.name):
-                    available_resources[id] = None
 
         _ensure_supported_style(client)
         return client
@@ -297,7 +293,7 @@ class ComfyClient(Client):
 
     @property
     def supports_ip_adapter(self):
-        return self.device_info.type != "privateuseone"
+        return True
 
     @property
     def performance_settings(self):
