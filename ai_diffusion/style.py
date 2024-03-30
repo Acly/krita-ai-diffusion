@@ -81,6 +81,12 @@ class StyleSettings:
         " noise schedule",
     )
 
+    self_attention_guidance = Setting(
+        "Enable SAG / Self-Attention Guidance",
+        False,
+        'Pay more attention to "difficult" parts of the image. Can improve fine details.',
+    )
+
     preferred_resolution = Setting(
         "Preferred Resolution", 0, "Image resolution the checkpoint was trained on"
     )
@@ -121,6 +127,7 @@ class Style:
     vae: str = StyleSettings.vae.default
     clip_skip: int = StyleSettings.clip_skip.default
     v_prediction_zsnr: bool = StyleSettings.v_prediction_zsnr.default
+    self_attention_guidance: bool = StyleSettings.self_attention_guidance.default
     preferred_resolution: int = StyleSettings.preferred_resolution.default
     sampler: str = StyleSettings.sampler.default
     sampler_steps: int = StyleSettings.sampler_steps.default
@@ -182,6 +189,7 @@ class Style:
             clip_skip=self.clip_skip,
             v_prediction_zsnr=self.v_prediction_zsnr,
             loras=[LoraInput.from_dict(l) for l in self.loras],
+            self_attention_guidance=self.self_attention_guidance,
         )
         return result
 

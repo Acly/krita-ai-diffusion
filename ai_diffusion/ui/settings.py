@@ -1041,6 +1041,12 @@ class StylePresets(SettingsTab):
         self._checkpoint_advanced_widgets.append(
             add("v_prediction_zsnr", SwitchSetting(StyleSettings.v_prediction_zsnr, parent=self))
         )
+        self._checkpoint_advanced_widgets.append(
+            add(
+                "self_attention_guidance",
+                SwitchSetting(StyleSettings.self_attention_guidance, parent=self),
+            )
+        )
         self._toggle_checkpoint_advanced(False)
 
         add("loras", LoraList(StyleSettings.loras, self))
