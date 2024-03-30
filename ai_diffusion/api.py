@@ -58,6 +58,7 @@ class CheckpointInput:
     loras: list[LoraInput] = field(default_factory=list)
     clip_skip: int = 0
     v_prediction_zsnr: bool = False
+    self_attention_guidance: bool = False
 
 
 @dataclass

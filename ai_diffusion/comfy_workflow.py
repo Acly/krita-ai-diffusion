@@ -341,6 +341,9 @@ class ComfyWorkflow:
             end_at=range[1],
         )
 
+    def apply_self_attention_guidance(self, model: Output):
+        return self.add("SelfAttentionGuidance", 1, model=model)
+
     def inpaint_preprocessor(self, image: Output, mask: Output):
         return self.add("InpaintPreprocessor", 1, image=image, mask=mask)
 

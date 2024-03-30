@@ -138,6 +138,9 @@ def load_checkpoint_with_lora(w: ComfyWorkflow, checkpoint: CheckpointInput, mod
     elif is_lcm:
         model = w.model_sampling_discrete(model, "lcm")
 
+    if checkpoint.self_attention_guidance:
+        model = w.apply_self_attention_guidance(model)
+
     return model, clip, vae
 
 
