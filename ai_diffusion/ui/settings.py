@@ -898,47 +898,19 @@ class ConnectionSettings(SettingsTab):
                 "<b>Error</b>: No checkpoints found!\nCheckpoints must be placed into"
                 " ComfyUI/models/checkpoints."
             )
-        elif resource.kind is ResourceKind.upscaler:
-            names = cast(list[str], resource.names)
-            self._connection_status.setText(
-                "<b>Error</b>: Could not find Upscaler model"
-                f" {', '.join(names)}. Make sure to download the model and place it in the"
-                " ComfyUI/models/upscale_models folder."
-            )
-        elif resource.kind is ResourceKind.controlnet:
-            names = cast(list[str], resource.names)
-            self._connection_status.setText(
-                f"<b>Error</b>: Could not find ControlNet model {', '.join(names)}. Make"
-                " sure to download the model and place it in the ComfyUI/models/controlnet"
-                " folder."
-            )
-        elif resource.kind is ResourceKind.clip_vision:
-            res = [r for r in required_models if r.kind is ResourceKind.clip_vision]
-            model = res[0].folder / res[0].filename
-            self._connection_status.setText(
-                f"<b>Error</b>: Could not find CLIPVision model {model.name} for SD1.5. Make sure"
-                f" to download the model and place it in ComfyUI/{model.parent.as_posix()}"
-            )
-        elif resource.kind is ResourceKind.ip_adapter:
-            names = cast(list[str], resource.names)
-            self._connection_status.setText(
-                "<b>Error</b>: Could not find IPAdapter model"
-                f" {', '.join(names)}. Make sure to download the model and place"
-                " it in the ComfyUI/models/ipadapter folder."
-            )
-        elif resource.kind is ResourceKind.inpaint:
-            names = cast(list[str], resource.names)
-            self._connection_status.setText(
-                "<b>Error</b>: Could not find Inpaint model"
-                f" {', '.join(names)}. Make sure to download the model and place"
-                " it in the ComfyUI/models/inpaint folder."
-            )
         elif resource.kind is ResourceKind.node:
             nodes = cast(list[CustomNode], resource.names)
             self._connection_status.setText(
                 "<b>Error</b>: The following ComfyUI custom nodes are missing:<ul>"
                 + "\n".join((f"<li>{p.name} <a href='{p.url}'>{p.url}</a></li>" for p in nodes))
                 + "</ul>Please install them, restart the server and try again."
+            )
+        else:
+            search_paths = resource.search_path_string.replace("\n", "<br>")
+            self._connection_status.setText(
+                f"<b>Error</b>: {str(resource)}<br>{search_paths}<br><br>"
+                "See <a href='https://github.com/Acly/krita-ai-diffusion/wiki/ComfyUI-Setup'>Custom ComfyUI Setup</a> for required models.<br>"
+                "Check the client.log file for more details."
             )
 
     def _open_logs(self):

@@ -637,16 +637,32 @@ prefetch_models = [
 
 class MissingResource(Exception):
     kind: ResourceKind
-    names: Sequence[str] | Sequence[CustomNode] | None
+    names: Sequence[str] | Sequence[ResourceId] | Sequence[CustomNode] | None
 
     def __init__(
-        self, kind: ResourceKind, names: Sequence[str] | Sequence[CustomNode] | None = None
+        self,
+        kind: ResourceKind,
+        names: Sequence[str] | Sequence[ResourceId] | Sequence[CustomNode] | None = None,
     ):
         self.kind = kind
         self.names = names
 
     def __str__(self):
-        return f"Missing {self.kind.value}: {', '.join(str(n) for n in self.names or [])}"
+        names = self.names or []
+        names = [getattr(n, "name", n) for n in names]
+        return f"Missing {self.kind.value}: {', '.join(str(n) for n in names)}"
+
+    @property
+    def search_path_string(self):
+        if names := self.names:
+            paths = (
+                search_path(n.kind, n.version, n.identifier)
+                for n in names
+                if isinstance(n, ResourceId)
+            )
+            items = (", ".join(sp) for sp in paths if sp)
+            return "Checking for files with a (partial) match:\n" + "\n".join(items)
+        return ""
 
 
 all_resources = (

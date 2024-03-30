@@ -344,7 +344,10 @@ class ComfyClient(Client):
             if id.version is not SDVersion.all and id.version is not sdver:
                 continue
             if models.resources[id.string] is None:
-                missing.append(MissingResource(id.kind, [id.name]))
+                missing.append(MissingResource(id.kind, [id]))
+        has_checkpoint = any(cp.sd_version is sdver for cp in models.checkpoints.values())
+        if not has_checkpoint:
+            missing.append(MissingResource(ResourceKind.checkpoint, [sdver.value]))
         if len(missing) == 0:
             log.info(f"{sdver.value}: supported")
         else:
