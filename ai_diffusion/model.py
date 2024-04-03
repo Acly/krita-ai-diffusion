@@ -651,6 +651,8 @@ class LiveWorkspace(QObject, ObservableProperties):
         self._keyframes.append(filename)
 
     def _import_animation(self):
+        if len(self._keyframes) == 0:
+            return  # button toggled without recording a frame in between
         self._model.document.import_animation(self._keyframes, self._keyframe_start)
         start, end = self._keyframe_start, self._keyframe_start + len(self._keyframes)
         self._model.document.active_layer.setName(f"[Rec] {start}-{end}: {self._model.prompt}")
