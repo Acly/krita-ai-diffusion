@@ -10,6 +10,7 @@
 .vscode
 __pycache__
 scripts/docker/downloads
+scripts/docker/ComfyUI
 service
 tests/server
 tests/results
