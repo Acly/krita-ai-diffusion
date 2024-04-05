@@ -19,13 +19,12 @@ def test_get_set():
 
 def test_restore():
     s = Settings()
+    assert s.server_mode == Settings._server_mode.default
+
     s.history_size = 5
     s.server_mode = ServerMode.external
     s.restore()
-    assert (
-        s.history_size == Settings._history_size.default
-        and s.server_mode == Settings._server_mode.default
-    )
+    assert s.history_size == Settings._history_size.default and s.server_mode is ServerMode.managed
 
 
 def test_save():

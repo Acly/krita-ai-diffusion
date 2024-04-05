@@ -486,7 +486,6 @@ class StyleSelectWidget(QWidget):
             elif len(self._styles) > 0:
                 self._value = self._styles[0]
                 self._combo.setCurrentIndex(0)
-                self.value_changed.emit(self._value)
 
     def change_style(self):
         style = self._styles[self._combo.currentIndex()]

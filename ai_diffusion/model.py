@@ -92,12 +92,17 @@ class Model(QObject, ObservableProperties):
 
         self.jobs.selection_changed.connect(self.update_preview)
         self.error_changed.connect(lambda: self.has_error_changed.emit(self.has_error))
+        connection.state_changed.connect(self._init_on_connect)
+        Styles.list().changed.connect(self._init_on_connect)
+        self._init_on_connect()
 
-        if client := connection.client_if_connected:
-            self.style = next(
-                iter(filter_supported_styles(Styles.list().filtered(), client)), self.style
-            )
-            self.upscale.upscaler = client.models.default_upscaler
+    def _init_on_connect(self):
+        if client := self._connection.client_if_connected:
+            styles = filter_supported_styles(Styles.list().filtered(), client)
+            if self.style not in styles and len(styles) > 0:
+                self.style = styles[0]
+            if self.upscale.upscaler == "":
+                self.upscale.upscaler = client.models.default_upscaler
 
     def generate(self):
         """Enqueue image generation for the current setup."""
