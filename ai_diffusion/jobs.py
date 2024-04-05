@@ -31,7 +31,7 @@ class JobKind(Enum):
 @dataclass
 class JobParams:
     bounds: Bounds
-    prompt: str = ""
+    prompt: str
     negative_prompt: str = ""
     strength: float = 1.0
     seed: int = 0

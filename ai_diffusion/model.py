@@ -157,7 +157,7 @@ class Model(QObject, ObservableProperties):
             return
         self.clear_error()
         enqueue_jobs = self.enqueue_jobs(
-            input, JobKind.diffusion, JobParams(bounds), self.batch_count
+            input, JobKind.diffusion, JobParams(bounds, self.prompt), self.batch_count
         )
         eventloop.run(_report_errors(self, enqueue_jobs))
 
@@ -165,7 +165,6 @@ class Model(QObject, ObservableProperties):
         self, input: WorkflowInput, kind: JobKind, params: JobParams, count: int = 1
     ):
         sampling = ensure(input.sampling)
-        params.prompt = ensure(input.text).positive
         params.negative_prompt = ensure(input.text).negative
         params.strength = sampling.denoise_strength
 
@@ -251,7 +250,7 @@ class Model(QObject, ObservableProperties):
         )
         if input != last_input:
             self.clear_error()
-            await self.enqueue_jobs(input, JobKind.live_preview, JobParams(bounds))
+            await self.enqueue_jobs(input, JobKind.live_preview, JobParams(bounds, self.prompt))
             return input
 
         return None
@@ -719,7 +718,7 @@ class AnimationWorkspace(QObject, ObservableProperties):
         canvas = m._get_current_image(bounds) if m.strength < 1.0 else bounds.extent
         seed = m.seed if m.fixed_seed else workflow.generate_seed()
         inputs = self._prepare_input(canvas, seed)
-        params = JobParams(bounds, frame=(m.document.current_time, 0, 0))
+        params = JobParams(bounds, self._model.prompt, frame=(m.document.current_time, 0, 0))
         await m.enqueue_jobs(inputs, JobKind.animation_frame, params)
 
     def generate_batch(self):
@@ -760,7 +759,7 @@ class AnimationWorkspace(QObject, ObservableProperties):
                     )
 
                 inputs = self._prepare_input(canvas, seed)
-                params = JobParams(bounds)
+                params = JobParams(bounds, self._model.prompt)
                 params.frame = (frame, start_frame, end_frame)
                 params.animation_id = animation_id
                 await self._model.enqueue_jobs(inputs, JobKind.animation_batch, params)
