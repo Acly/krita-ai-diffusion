@@ -7,7 +7,9 @@ from PyQt5.QtCore import Qt, QByteArray, QBuffer, QRect, QSize
 from typing import Callable, Iterable, SupportsIndex, Tuple, NamedTuple, Union, Optional
 from itertools import product
 from pathlib import Path
+
 from .settings import settings
+from .util import is_linux
 
 
 def multiple_of(number, multiple):
@@ -338,9 +340,10 @@ class Image:
         writer.setQuality(quality)
         result = writer.write(self._qimage)
         if not result:
-            raise Exception(
-                f"Failed to write image to buffer [{self.width}x{self.height} format={self._qimage.format()}] -> {format_str}@{quality}"
-            )
+            info = f"[{self.width}x{self.height} format={self._qimage.format()}] -> {format_str}@{quality}"
+            if is_linux and format_str == "webp":
+                info = f"To enable support for writing webp images, you may need to install the 'qt5-imageformats' package."
+            raise Exception(f"Failed to write image to buffer: {writer.errorString()} {info}")
 
     def to_bytes(self, format=ImageFileFormat.png):
         byte_array = QByteArray()
