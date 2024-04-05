@@ -223,7 +223,7 @@ class Settings(QObject):
 
     def __init__(self):
         super().__init__()
-        self.restore()
+        self.restore(init=True)
 
     def __getattr__(self, name: str):
         if name in self._values:
@@ -239,10 +239,12 @@ class Settings(QObject):
         else:
             object.__setattr__(self, name, value)
 
-    def restore(self):
+    def restore(self, init=False):
         self.__dict__["_values"] = {
             k[1:]: v.default for k, v in Settings.__dict__.items() if isinstance(v, Setting)
         }
+        if not init:
+            self.server_mode = ServerMode.managed
 
     def save(self, path: Optional[Path] = None):
         path = self.default_path or path
