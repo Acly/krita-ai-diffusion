@@ -29,14 +29,13 @@ from ..workflow import InpaintMode, FillMode
 from ..settings import settings
 from ..util import ensure
 from . import theme
+from .control import ControlLayerButton, ControlListWidget
 from .widget import (
     WorkspaceSelectWidget,
     StyleSelectWidget,
     TextPromptWidget,
     StrengthWidget,
-    ControlLayerButton,
     QueueButton,
-    ControlListWidget,
 )
 
 

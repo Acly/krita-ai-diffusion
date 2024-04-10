@@ -18,13 +18,12 @@ from ..image import Extent, Image
 from ..root import root
 from ..settings import settings
 from . import theme
+from .control import ControlLayerButton, ControlListWidget
 from .widget import (
     WorkspaceSelectWidget,
     StyleSelectWidget,
     TextPromptWidget,
     StrengthWidget,
-    ControlLayerButton,
-    ControlListWidget,
     QueueButton,
 )
 

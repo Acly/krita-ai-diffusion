@@ -16,14 +16,8 @@ from ..image import Extent, Image
 from ..model import Model
 from ..root import root
 from ..settings import settings
-from .widget import (
-    WorkspaceSelectWidget,
-    StyleSelectWidget,
-    TextPromptWidget,
-    StrengthWidget,
-    ControlLayerButton,
-    ControlListWidget,
-)
+from .control import ControlLayerButton, ControlListWidget
+from .widget import WorkspaceSelectWidget, StyleSelectWidget, TextPromptWidget, StrengthWidget
 from . import theme
 
 
