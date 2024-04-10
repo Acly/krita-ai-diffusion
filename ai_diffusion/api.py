@@ -158,12 +158,19 @@ class WorkflowInput:
 
     @property
     def cost(self):
-        if self.kind in [WorkflowKind.control_image, WorkflowKind.upscale_simple]:
+        if self.kind is WorkflowKind.control_image:
+            return 1
+        if self.kind is WorkflowKind.upscale_simple:
             return 2
+
+        def cost_factor(batch: int, extent: Extent, steps: int):
+            return batch * extent.pixel_count * math.sqrt(extent.pixel_count) * steps
+
+        base = 1 if ensure(self.models).version is SDVersion.sd15 else 2
         steps = ensure(self.sampling).actual_steps
-        unit = 2 * Extent(1024, 1024).pixel_count * 20
-        cost = self.batch_count * self.extent.desired.pixel_count * steps
-        return math.ceil((10 * cost) / unit)
+        unit = cost_factor(2, Extent(1024, 1024), 20)
+        cost = cost_factor(self.batch_count, self.extent.desired, steps)
+        return base + round((10 * cost) / unit)
 
 
 class Serializer:

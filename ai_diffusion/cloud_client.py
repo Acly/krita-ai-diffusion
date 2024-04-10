@@ -8,10 +8,10 @@ from base64 import b64encode
 from datetime import datetime
 from dataclasses import dataclass
 
-from .api import WorkflowInput
+from .api import WorkflowInput, WorkflowKind
 from .client import Client, ClientEvent, ClientMessage, ClientModels, DeviceInfo, CheckpointInfo
 from .client import User
-from .image import Image, ImageCollection
+from .image import Extent, ImageCollection
 from .network import RequestManager, NetworkError
 from .resources import SDVersion
 from .settings import PerformanceSettings
@@ -220,6 +220,13 @@ class CloudClient(Client):
             return ImageCollection.from_base64(b64, offsets)
         else:
             raise ValueError(f"No result images found in server response: {str(images)[:80]}")
+
+    async def compute_cost(
+        self, kind: WorkflowKind, sd_version: SDVersion, batch: int, extent: Extent, steps: int
+    ):
+        op = f"admin/cost/{kind.name}/{sd_version.name}/{batch}/{extent.width}/{extent.height}/{steps}"
+        response = await self._get(op)
+        return int(response.decode())
 
     def _process_http_error(self, e: NetworkError):
         message = e.message

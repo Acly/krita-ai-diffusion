@@ -11,7 +11,7 @@ from ai_diffusion.api import SamplingInput, TextInput, ExtentInput
 from ai_diffusion.client import Client, ClientEvent
 from ai_diffusion.cloud_client import CloudClient
 from ai_diffusion.image import Extent, Image
-from ai_diffusion.resources import ControlMode
+from ai_diffusion.resources import ControlMode, SDVersion
 from ai_diffusion.util import ensure
 from .config import root_dir, test_dir, result_dir
 
@@ -146,3 +146,38 @@ def test_validation(qtapp, cloud_client: CloudClient, scenario: str):
 
     with pytest.raises(Exception, match="Validation error"):
         run_and_save(qtapp, cloud_client, workflow, "pod_validation")
+
+
+cost_params = {
+    "sd15-live-512x512": (SDVersion.sd15, 1, 512, 512, 1),
+    "sd15-8x512x512": (SDVersion.sd15, 8, 512, 512, 20),
+    "sd15-2x1024x1024": (SDVersion.sd15, 2, 1024, 1024, 20),
+    "sd15-1x1024x2048": (SDVersion.sd15, 1, 1024, 2048, 20),
+    "sdxl-2x1024x1024": (SDVersion.sdxl, 2, 1024, 1024, 20),
+    "sdxl-highstep": (SDVersion.sdxl, 1, 1536, 1024, 50),
+    "sdxl-refine": (SDVersion.sdxl, 1, 1536, 1024, 20),
+}
+
+
+@pytest.mark.parametrize("params", cost_params.keys())
+def test_compute_cost(qtapp, cloud_client: CloudClient, params):
+    sdversion, batch_count, width, height, steps = cost_params[params]
+    extent = Extent(width, height)
+    input = WorkflowInput(
+        WorkflowKind.generate,
+        images=ImageInput.from_extent(extent),
+        models=CheckpointInput("ckpt", sdversion),
+        sampling=SamplingInput("dpmpp_2m", "normal", cfg_scale=5.0, total_steps=steps),
+        batch_count=batch_count,
+    )
+    if params == "sdxl-refine":
+        input.kind = WorkflowKind.refine
+        ensure(input.sampling).start_step = 16
+
+    async def check():
+        service_cost = await cloud_client.compute_cost(
+            input.kind, sdversion, batch_count, extent, ensure(input.sampling).actual_steps
+        )
+        assert service_cost == input.cost
+
+    qtapp.run(check())
