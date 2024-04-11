@@ -144,6 +144,8 @@ class ModelDict:
         return self._models.resource(self.kind, key, self.version)
 
     def find(self, key: ControlMode | UpscalerName | str):
+        if key in [ControlMode.style, ControlMode.composition]:
+            key = ControlMode.reference  # Same model with different weight types
         return self._models.resources.get(resource_id(self.kind, self.version, key))
 
     def for_version(self, version: SDVersion):

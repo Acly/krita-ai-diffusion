@@ -6,10 +6,10 @@ from typing import NamedTuple, Sequence
 
 # Version identifier for all the resources defined here. This is used as the server version.
 # It usually follows the plugin version, but not all new plugin versions also require a server update.
-version = "1.16.0"
+version = "1.17.0"  # TODO update ip-adapter
 
 comfy_url = "https://github.com/comfyanonymous/ComfyUI"
-comfy_version = "40e124c6be01195eada95e8c319ca6ddf4fd1a17"
+comfy_version = "fd7c63668080f8c2eb56edffeef028aa3932e0fe"
 
 
 class CustomNode(NamedTuple):
@@ -32,7 +32,7 @@ required_custom_nodes = [
         "IP-Adapter",
         "ComfyUI_IPAdapter_plus",
         "https://github.com/cubiq/ComfyUI_IPAdapter_plus",
-        "bf627aafd0dfcc59b945cc84d1f088d457780c4a",
+        "417d806e7a2153c98613e86407c1941b2b348e88",
         ["IPAdapterModelLoader", "IPAdapter"],
     ),
     CustomNode(
@@ -58,7 +58,7 @@ required_custom_nodes = [
         "Inpaint Nodes",
         "comfyui-inpaint-nodes",
         "https://github.com/Acly/comfyui-inpaint-nodes",
-        "fac56ec7de904ab5926228f71dd563c34fd0d6be",
+        "8469f5531116475abb6d7e9c04720d0a29485a66",
         ["INPAINT_LoadFooocusInpaint", "INPAINT_ApplyFooocusInpaint"],
     ),
 ]
@@ -134,6 +134,8 @@ class UpscalerName(Enum):
 
 class ControlMode(Enum):
     reference = 0
+    style = 14
+    composition = 15
     face = 13
     inpaint = 1
     scribble = 2
@@ -171,15 +173,20 @@ class ControlMode(Enum):
 
     @property
     def is_ip_adapter(self):
-        return self in [ControlMode.reference, ControlMode.face]
+        return self in [
+            ControlMode.reference,
+            ControlMode.face,
+            ControlMode.style,
+            ControlMode.composition,
+        ]
 
     @property
-    def is_part_of_image(self):  # not only used a guidance hint
+    def is_part_of_image(self):  # not only used as guidance hint
         return self in [ControlMode.reference, ControlMode.line_art, ControlMode.blur]
 
     @property
     def is_structural(self):  # strong impact on image composition/structure
-        return self not in [ControlMode.reference, ControlMode.face, ControlMode.inpaint]
+        return not (self.is_ip_adapter or self is ControlMode.inpaint)
 
     @property
     def text(self):
@@ -687,6 +694,8 @@ def all_models():
 _control_text = {
     ControlMode.reference: "Reference",
     ControlMode.inpaint: "Inpaint",
+    ControlMode.style: "Style",
+    ControlMode.composition: "Composition",
     ControlMode.face: "Face",
     ControlMode.scribble: "Scribble",
     ControlMode.line_art: "Line Art",

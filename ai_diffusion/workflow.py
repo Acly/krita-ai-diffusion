@@ -299,21 +299,32 @@ def apply_ip_adapter(
             )
 
     # Encode images with their weights into a batch and apply IP-adapter to the model once
-    if any(c.mode is ControlMode.reference for c in control_layers):
+    def encode_and_apply_ip_adapter(model: Output, control_layers: list[Control], weight_type: str):
         clip_vision = w.load_clip_vision(models.clip_vision)
         ip_adapter = w.load_ip_adapter(models[ControlMode.reference])
-        embeds = []
+        embeds: list[Output] = []
         range = (0.99, 0.01)
 
-        for control in (c for c in control_layers if c.mode is ControlMode.reference):
+        for control in control_layers:
             if len(embeds) >= 5:
-                raise Exception("Too many control layers of type 'reference image' (maximum is 5)")
+                raise Exception(f"Too many control layers of type '{mode.text}' (maximum is 5)")
             img = control.load_image(w)
             embeds.append(w.encode_ip_adapter(img, control.strength, ip_adapter, clip_vision)[0])
             range = (min(range[0], control.range[0]), max(range[1], control.range[1]))
 
         combined = w.combine_ip_adapter_embeds(embeds) if len(embeds) > 1 else embeds[0]
-        model = w.apply_ip_adapter(model, ip_adapter, clip_vision, combined, 1.0, range)
+        return w.apply_ip_adapter(model, ip_adapter, clip_vision, combined, 1.0, weight_type, range)
+
+    modes = [
+        (ControlMode.reference, "linear"),
+        (ControlMode.style, "style transfer"),
+        (ControlMode.composition, "composition"),
+    ]
+    # Chain together different IP-adapter weight types.
+    for mode, weight_type in modes:
+        ref_layers = [c for c in control_layers if c.mode is mode]
+        if len(ref_layers) > 0:
+            model = encode_and_apply_ip_adapter(model, ref_layers, weight_type)
 
     return model
 

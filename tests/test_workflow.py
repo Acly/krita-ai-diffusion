@@ -507,6 +507,23 @@ def test_ip_adapter_batch(qtapp, client):
     run_and_save(qtapp, client, job, "test_ip_adapter_batch")
 
 
+def test_style_composition(qtapp, client):
+    style_image = Image.load(image_dir / "watercolor.webp")
+    composition_image = Image.load(image_dir / "flowers.webp")
+    control = [
+        ControlInput(ControlMode.style, style_image, 1.0),
+        ControlInput(ControlMode.composition, composition_image, 0.8),
+    ]
+    job = create(
+        WorkflowKind.generate,
+        client,
+        canvas=Extent(1024, 1024),
+        control=control,
+        style=default_style(client, SDVersion.sdxl),
+    )
+    run_and_save(qtapp, client, job, "test_style_composition")
+
+
 @pytest.mark.parametrize("sdver", [SDVersion.sd15, SDVersion.sdxl])
 def test_ip_adapter_face(qtapp, client, sdver):
     if isinstance(client, CloudClient):
