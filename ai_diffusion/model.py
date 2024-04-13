@@ -562,6 +562,7 @@ class LiveWorkspace(QObject, ObservableProperties):
     _last_input: WorkflowInput | None = None
     _result: Image | None = None
     _result_bounds: Bounds | None = None
+    _result_seed: int | None = None
     _keyframes_folder: Path | None = None
     _keyframe_start = 0
     _keyframe_index = 0
@@ -600,7 +601,7 @@ class LiveWorkspace(QObject, ObservableProperties):
     def handle_job_finished(self, job: Job):
         if job.kind is JobKind.live_preview:
             if len(job.results) > 0:
-                self.set_result(job.results[0], job.params.bounds)
+                self.set_result(job.results[0], job.params.bounds, job.params.seed)
             self.is_active = self._is_active and self._model.document.is_active
             eventloop.run(_report_errors(self._model, self._continue_generating()))
 
@@ -616,7 +617,8 @@ class LiveWorkspace(QObject, ObservableProperties):
     def copy_result_to_layer(self):
         assert self.result is not None and self._result_bounds is not None
         doc = self._model.document
-        doc.insert_layer(f"[Live] {self._model.prompt}", self.result, self._result_bounds)
+        name = f"{self._model.prompt} ({self._result_seed})"
+        doc.insert_layer(name, self.result, self._result_bounds)
         if settings.new_seed_after_apply:
             self._model.generate_seed()
 
@@ -624,9 +626,10 @@ class LiveWorkspace(QObject, ObservableProperties):
     def result(self):
         return self._result
 
-    def set_result(self, value: Image, bounds: Bounds):
+    def set_result(self, value: Image, bounds: Bounds, seed: int):
         self._result = value
         self._result_bounds = bounds
+        self._result_seed = seed
         self.result_available.emit(value)
         self.has_result = True
 
