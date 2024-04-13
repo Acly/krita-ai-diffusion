@@ -2,14 +2,14 @@
     "default": {
         "all": [
             {
-                "strength": 0.6,
+                "strength": 0.7,
                 "start": 0.0,
                 "end": 0.5
             },
             {
                 "strength": 1.0,
                 "start": 0.0,
-                "end": 0.7
+                "end": 0.8
             },
             {
                 "strength": 1.0,
@@ -75,7 +75,43 @@
             }
         ]
     },
+    "face": {
+        "all": [
+            {
+                "strength": 0.5,
+                "start": 0.4,
+                "end": 0.9
+            },
+            {
+                "strength": 0.8,
+                "start": 0.2,
+                "end": 1.0
+            },
+            {
+                "strength": 1.2,
+                "start": 0.2,
+                "end": 1.0
+            }
+        ]
+    },
     "scribble": {
+        "sd15": [
+            {
+                "strength": 0.7,
+                "start": 0.0,
+                "end": 0.5
+            },
+            {
+                "strength": 1.0,
+                "start": 0.0,
+                "end": 0.8
+            },
+            {
+                "strength": 1.0,
+                "start": 0.0,
+                "end": 1.0
+            }
+        ],
         "sdxl": [
             {
                 "strength": 0.4,
@@ -83,7 +119,7 @@
                 "end": 0.5
             },
             {
-                "strength": 0.6,
+                "strength": 0.7,
                 "start": 0.0,
                 "end": 0.7
             },
