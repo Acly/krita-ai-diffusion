@@ -1,35 +1,44 @@
 from __future__ import annotations
 from PyQt5.QtCore import QObject, pyqtSignal, QUuid, Qt
+from typing import Any, NamedTuple
+from pathlib import Path
+import json
 
-from . import model, jobs, resources
+from . import model, jobs, resources, util
 from .api import ControlInput
-from .settings import settings
-from .resources import ControlMode, ResourceKind
+from .resources import ControlMode, ResourceKind, SDVersion
 from .properties import Property, ObservableProperties
 from .image import Bounds
 
 
 class ControlLayer(QObject, ObservableProperties):
-    mode = Property(ControlMode.reference, persist=True)
+    max_preset_value = 4
+    strength_multiplier = 50
+
+    mode = Property(ControlMode.reference, persist=True, setter="set_mode")
     layer_id = Property(QUuid(), persist=True)
-    strength = Property(100, persist=True)
+    preset_value = Property(2, persist=True, setter="set_preset_value")
+    strength = Property(50, persist=True)
+    start = Property(0.0, persist=True)
     end = Property(1.0, persist=True)
+    use_custom_strength = Property(False, persist=True, setter="set_use_custom_strength")
     is_supported = Property(True)
     is_pose_vector = Property(False)
     can_generate = Property(True)
     has_active_job = Property(False)
-    show_end = Property(False)
     error_text = Property("")
 
     mode_changed = pyqtSignal(ControlMode)
     layer_id_changed = pyqtSignal(QUuid)
+    preset_value_changed = pyqtSignal(int)
     strength_changed = pyqtSignal(int)
+    start_changed = pyqtSignal(float)
     end_changed = pyqtSignal(float)
+    use_custom_strength_changed = pyqtSignal(bool)
     is_supported_changed = pyqtSignal(bool)
     is_pose_vector_changed = pyqtSignal(bool)
     can_generate_changed = pyqtSignal(bool)
     has_active_job_changed = pyqtSignal(bool)
-    show_end_changed = pyqtSignal(bool)
     error_text_changed = pyqtSignal(str)
     modified = pyqtSignal(QObject, str)
 
@@ -41,24 +50,49 @@ class ControlLayer(QObject, ObservableProperties):
 
         super().__init__()
         self._model = model
-        self.mode = mode
         self.layer_id = layer_id
+        self.mode = mode
         self._update_is_supported()
-        self._update_is_pose_vector()
 
         self.mode_changed.connect(self._update_is_supported)
         model.style_changed.connect(self._update_is_supported)
         root.connection.state_changed.connect(self._update_is_supported)
-        self.mode_changed.connect(self._update_is_pose_vector)
         self.layer_id_changed.connect(self._update_is_pose_vector)
         model.jobs.job_finished.connect(self._update_active_job)
-        settings.changed.connect(self._handle_settings)
 
     @property
     def layer(self):
         layer = self._model.layers.updated().find(self.layer_id)
         assert layer is not None, "Control layer has been deleted"
         return layer
+
+    def set_mode(self, mode: ControlMode):
+        if mode != self.mode:
+            self._mode = mode
+            self.mode_changed.emit(mode)
+            self._update_is_pose_vector()
+            if not self.use_custom_strength:
+                self._set_values_from_preset()
+
+    def set_preset_value(self, value: int):
+        if value != self.preset_value:
+            self._preset_value = value
+            self.preset_value_changed.emit(value)
+            self._set_values_from_preset()
+
+    def _set_values_from_preset(self):
+        params = ControlPresets.instance().interpolate(
+            self.mode, self._model.sd_version, self.preset_value / self.max_preset_value
+        )
+        self.strength = int(params.strength * self.strength_multiplier)
+        self.start, self.end = params.range
+
+    def set_use_custom_strength(self, value: bool):
+        if value != self.use_custom_strength:
+            self._use_custom_strength = value
+            self.use_custom_strength_changed.emit(value)
+            if not value:
+                self._set_values_from_preset()
 
     def get_image(self, bounds: Bounds | None = None):
         layer = self.layer
@@ -67,7 +101,8 @@ class ControlLayer(QObject, ObservableProperties):
         image = self._model.document.get_layer_image(layer, bounds)
         if self.mode.is_lines or self.mode is ControlMode.stencil:
             image.make_opaque(background=Qt.GlobalColor.white)
-        return ControlInput(self.mode, image, self.strength / 100, (0.0, self.end))
+        strength = self.strength / self.strength_multiplier
+        return ControlInput(self.mode, image, strength, (self.start, self.end))
 
     def generate(self):
         self._generate_job = self._model.generate_control_layer(self)
@@ -95,7 +130,6 @@ class ControlLayer(QObject, ObservableProperties):
                 is_supported = False
 
         self.is_supported = is_supported
-        self.show_end = self.is_supported and settings.show_control_end
         self.can_generate = is_supported and self.mode.has_preprocessor
 
     def _update_is_pose_vector(self):
@@ -108,10 +142,6 @@ class ControlLayer(QObject, ObservableProperties):
         if self.has_active_job and not active:
             self._job = None  # job done
         self.has_active_job = active
-
-    def _handle_settings(self, name: str, value: object):
-        if name == "show_control_end":
-            self.show_end = self.is_supported and settings.show_control_end
 
 
 class ControlLayerList(QObject):
@@ -159,3 +189,80 @@ class ControlLayerList(QObject):
 
     def __iter__(self):
         return iter(self._layers)
+
+
+class ControlParams(NamedTuple):
+    strength: float
+    range: tuple[float, float]
+
+    @staticmethod
+    def from_dict(data: dict[str, Any]):
+        return ControlParams(data["strength"], (data["start"], data["end"]))
+
+
+class ControlPresets:
+    _path: Path
+    _user_path: Path
+    _presets: dict[str, dict[str, list[dict[str, Any]]]]
+
+    _instance: ControlPresets | None = None
+
+    @classmethod
+    def instance(cls) -> ControlPresets:
+        if cls._instance is None:
+            cls._instance = ControlPresets()
+        return cls._instance
+
+    def __init__(self):
+        self._path = util.plugin_dir / "presets" / "control.json"
+        self._user_path = util.user_data_dir / "presets" / "control.json"
+        self._read()
+
+    def get(self, mode: ControlMode, version: SDVersion):
+        default = self._presets["default"]
+        versions = self._presets.get(mode.name, default)
+        all = versions.get("all", None)
+        presets = versions.get(version.name, all)
+        if presets is None:
+            raise KeyError(f"No control strength presets found for {mode} and {version}")
+        return [ControlParams.from_dict(p) for p in presets]
+
+    def interpolate(self, mode: ControlMode, version: SDVersion, value: float):
+        assert value >= 0 and value <= 1, f"Interpolate value out of range: {value}"
+        presets = self.get(mode, version)
+        if len(presets) == 1 or value <= 0:
+            return presets[0]
+        if value == 1:
+            return presets[-1]
+        value = value * (len(presets) - 1)
+        for i, p0 in enumerate(presets):
+            if value < i + 1:
+                p1 = presets[i + 1]
+                t = value - i
+                return ControlParams(
+                    _lerp(p0.strength, p1.strength, t),
+                    (_lerp(p0.range[0], p1.range[0], t), _lerp(p0.range[1], p1.range[1], t)),
+                )
+        assert False, f"Interpolation failed: {mode}, {version}, value={value}, presets={presets}"
+
+    def _read(self):
+        self._presets = self._read_file(self._path)
+        if self._user_path.exists():
+            user = self._read_file(self._user_path)
+            _recursive_update(self._presets, user)
+
+    def _read_file(self, path: Path):
+        return json.load(path.open("r"))
+
+
+def _lerp(a: float, b: float, t: float) -> float:
+    return a + t * (b - a)
+
+
+def _recursive_update(a: dict[str, Any], b: dict[str, Any]):
+    for k, v in b.items():
+        if isinstance(v, dict):
+            a[k] = _recursive_update(a.get(k, {}), v)
+        else:
+            a[k] = v
+    return a

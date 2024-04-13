@@ -14,7 +14,7 @@ from .util import ensure, client_logger as log
 from .settings import settings
 from .network import NetworkError
 from .image import Extent, Image, Mask, Bounds
-from .client import ClientMessage, ClientEvent, filter_supported_styles
+from .client import ClientMessage, ClientEvent, filter_supported_styles, resolve_sd_version
 from .document import Document, LayerObserver
 from .pose import Pose
 from .style import Style, Styles, SDVersion
@@ -416,6 +416,10 @@ class Model(QObject, ObservableProperties):
                 return workflow.detect_inpaint_mode(self.document.extent, bounds)
             return InpaintMode.fill
         return self.inpaint.mode
+
+    @property
+    def sd_version(self):
+        return resolve_sd_version(self.style, self._connection.client_if_connected)
 
     @property
     def history(self):

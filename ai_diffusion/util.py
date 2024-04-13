@@ -19,10 +19,12 @@ is_windows = sys.platform.startswith("win")
 is_macos = sys.platform == "darwin"
 is_linux = not is_windows and not is_macos
 
+plugin_dir = dir = Path(__file__).parent
+
 
 def _get_user_data_dir():
     if importlib.util.find_spec("krita") is None:
-        dir = Path(__file__).parent.parent / ".appdata"
+        dir = plugin_dir.parent / ".appdata"
         dir.mkdir(exist_ok=True)
         return dir
     try:
@@ -45,7 +47,7 @@ def _get_log_dir():
     dir = user_data_dir / "logs"
     dir.mkdir(exist_ok=True)
 
-    legacy_dir = Path(__file__).parent / ".logs"
+    legacy_dir = plugin_dir / ".logs"
     try:  # Move logs from old location (v1.14 and earlier)
         if legacy_dir.exists():
             for file in legacy_dir.iterdir():

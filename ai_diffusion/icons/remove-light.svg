@@ -7,9 +7,9 @@
    xmlns="http://www.w3.org/2000/svg"
    xmlns:sodipodi="http://sodipodi.sourceforge.net/DTD/sodipodi-0.dtd"
    xmlns:inkscape="http://www.inkscape.org/namespaces/inkscape"
-   width="1000"
-   height="800"
-   viewBox="0 0 264.58333 211.66667"
+   width="512"
+   height="512"
+   viewBox="0 0 135.46666 135.46667"
    version="1.1"
    id="svg1446"
    inkscape:version="1.0.2-2 (e86c870879, 2021-01-15)"
@@ -23,9 +23,9 @@
      borderopacity="1.0"
      inkscape:pageopacity="0.0"
      inkscape:pageshadow="2"
-     inkscape:zoom="0.98994949"
-     inkscape:cx="447.24274"
-     inkscape:cy="398.13333"
+     inkscape:zoom="0.7"
+     inkscape:cx="358.64563"
+     inkscape:cy="441.25592"
      inkscape:document-units="mm"
      inkscape:current-layer="layer1"
      inkscape:document-rotation="0"
@@ -33,7 +33,7 @@
      units="px"
      inkscape:window-width="1920"
      inkscape:window-height="1009"
-     inkscape:window-x="-8"
+     inkscape:window-x="1912"
      inkscape:window-y="-8"
      inkscape:window-maximized="1" />
   <metadata
@@ -53,12 +53,12 @@
      inkscape:groupmode="layer"
      id="layer1">
     <path
-       style="fill:none;stroke:#3d3d3d;stroke-width:13.7465;stroke-linecap:round;stroke-linejoin:miter;stroke-miterlimit:4;stroke-dasharray:none;stroke-opacity:1"
-       d="m 80.59897,54.62686 109.18031,109.1803"
+       style="fill:none;stroke:#3d3d3d;stroke-width:13.22916667;stroke-linecap:round;stroke-linejoin:miter;stroke-miterlimit:4;stroke-dasharray:none;stroke-opacity:1"
+       d="M 35.241826,31.948288 106.24653,102.953"
        id="path2009" />
     <path
-       style="fill:none;stroke:#3d3d3d;stroke-width:13.7465;stroke-linecap:round;stroke-linejoin:miter;stroke-miterlimit:4;stroke-dasharray:none;stroke-opacity:1"
-       d="M 80.954608,162.74026 189.06801,54.62686"
+       style="fill:none;stroke:#3d3d3d;stroke-width:13.22916667;stroke-linecap:round;stroke-linejoin:miter;stroke-miterlimit:4;stroke-dasharray:none;stroke-opacity:1"
+       d="M 35.473113,102.25915 105.78396,31.948288"
        id="path2011" />
   </g>
 </svg>

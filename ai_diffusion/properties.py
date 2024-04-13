@@ -163,6 +163,7 @@ def _setter(inst, property: str):
 def is_persistent(obj: QObject, name: str):
     if prop := obj.__class__.__dict__.get(name, None):
         return isinstance(prop, PropertyImpl) and prop.persist
+    return False
 
 
 def _default_serializer(value):
