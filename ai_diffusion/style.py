@@ -297,6 +297,8 @@ class SamplerPresets:
     default_preset_file = plugin_dir / "presets" / "samplers.json"
     default_user_preset_file = user_data_dir / "presets" / "samplers.json"
 
+    _preset_file: Path
+    _user_preset_file: Path
     _presets: dict[str, SamplerPreset]
 
     _instance: SamplerPresets | None = None
@@ -308,15 +310,17 @@ class SamplerPresets:
         return cls._instance
 
     def __init__(self, preset_file: Path | None = None, user_preset_file: Path | None = None):
-        preset_file = preset_file or self.default_preset_file
-        user_preset_file = user_preset_file or self.default_user_preset_file
+        self._preset_file = preset_file or self.default_preset_file
+        self._user_preset_file = user_preset_file or self.default_user_preset_file
         self._presets = {}
-        self.load(preset_file)
-        if user_preset_file.exists():
-            self.load(user_preset_file)
+        self.load(self._preset_file)
+        if self._user_preset_file.exists():
+            self.load(self._user_preset_file)
 
         if len(self._presets) == 0:
-            log.warning(f"No sampler presets found in {preset_file} or {user_preset_file}")
+            log.warning(
+                f"No sampler presets found in {self._preset_file} or {self._user_preset_file}"
+            )
             self._presets["Default"] = SamplerPreset("dpmpp_2m", "karras", 20, 7.0)
 
     def load(self, file: Path):
@@ -341,6 +345,12 @@ class SamplerPresets:
             )
             return name
         return None
+
+    def write_stub(self):
+        if not self._user_preset_file.exists():
+            self._user_preset_file.parent.mkdir(parents=True, exist_ok=True)
+            self._user_preset_file.write_text(json.dumps(_sampler_presets_stub, indent=4))
+        return self._user_preset_file
 
     def __len__(self):
         return len(self._presets)
@@ -392,4 +402,12 @@ _scheduler_map = {
     "Lightning": "sgm_uniform",
     "Euler": "normal",
     "Euler a": "normal",
+}
+_sampler_presets_stub = {
+    "DPM++ 3M (Example custom sampler)": {
+        "sampler": "dpmpp_3m_sde",
+        "scheduler": "exponential",
+        "steps": 30,
+        "cfg": 7.0,
+    }
 }

@@ -2,7 +2,6 @@ from __future__ import annotations
 
 import functools
 from enum import Enum
-from itertools import chain
 from typing import Any, Optional, cast
 from PyQt5.QtWidgets import (
     QVBoxLayout,
@@ -928,7 +927,6 @@ class SamplerWidget(QWidget):
         self.prefix = prefix
 
         expander = ExpanderButton(title, self)
-        expander.toggled.connect(self._toggle_expand)
 
         self._preset = QComboBox(self)
         self._preset.addItems(SamplerPresets.instance().names())
@@ -940,32 +938,57 @@ class SamplerWidget(QWidget):
         header_layout.addStretch()
         header_layout.addWidget(self._preset)
 
+        self._user_presets_link = QLabel("<a href='samplers.json'>Edit custom presets</a>", self)
+        self._user_presets_link.linkActivated.connect(self._open_user_presets)
+
+        self._sampler_info = QLabel("", self)
+
+        info_layout = QHBoxLayout()
+        info_layout.addWidget(self._sampler_info)
+        info_layout.addStretch()
+        info_layout.addWidget(self._user_presets_link)
+
         self._steps = SliderSetting(StyleSettings.sampler_steps, self, 1, 100)
-        self._steps.indent = 1
         self._steps.value_changed.connect(self.notify_changed)
 
         self._cfg = SliderSetting(StyleSettings.cfg_scale, self, 1.0, 20.0)
-        self._cfg.indent = 1
         self._cfg.value_changed.connect(self.notify_changed)
+
+        extended_layout = QVBoxLayout()
+        extended_layout.setContentsMargins(16, 2, 0, 2)
+        extended_layout.addLayout(info_layout)
+        extended_layout.addWidget(self._steps)
+        extended_layout.addWidget(self._cfg)
+
+        self._extended = QWidget(self)
+        self._extended.setLayout(extended_layout)
+        self._extended.setVisible(False)
+        expander.toggled.connect(self._extended.setVisible)
 
         layout = QVBoxLayout()
         layout.setContentsMargins(0, 4, 0, 0)
         layout.addLayout(header_layout)
-        layout.addWidget(self._steps)
-        layout.addWidget(self._cfg)
+        layout.addWidget(self._extended)
         self.setLayout(layout)
 
-        self._toggle_expand(False)
-
-    def _toggle_expand(self, expanded: bool):
-        self._steps.setVisible(expanded)
-        self._cfg.setVisible(expanded)
+    @property
+    def preset(self):
+        name = self._preset.currentText()
+        return SamplerPresets.instance()[name]
 
     def _select_preset(self, index: int):
-        name = self._preset.currentText()
-        preset = SamplerPresets.instance()[name]
+        preset = self.preset
         self._steps.value = preset.steps
         self._cfg.value = preset.cfg
+        self._update_info()
+
+    def _update_info(self):
+        preset = self.preset
+        self._sampler_info.setText(f"<b>Sampler:</b> {preset.sampler} / {preset.scheduler}")
+
+    def _open_user_presets(self):
+        path = SamplerPresets.instance().write_stub()
+        QDesktopServices.openUrl(QUrl.fromLocalFile(str(path)))
 
     def notify_changed(self):
         self.value_changed.emit()
@@ -974,6 +997,7 @@ class SamplerWidget(QWidget):
         self._preset.setCurrentText(getattr(style, f"{self.prefix}sampler"))
         self._steps.value = getattr(style, f"{self.prefix}sampler_steps")
         self._cfg.value = getattr(style, f"{self.prefix}cfg_scale")
+        self._update_info()
 
     def write(self, style: Style):
         setattr(style, f"{self.prefix}sampler", self._preset.currentText())
