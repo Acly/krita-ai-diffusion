@@ -1,0 +1,40 @@
+{
+    "Default": {
+        "sampler": "dpmpp_2m",
+        "scheduler": "karras",
+        "steps": 20,
+        "cfg": 7.0
+    },
+    "Creative": {
+        "sampler": "dpmpp_2m_sde_gpu",
+        "scheduler": "karras",
+        "steps": 20,
+        "cfg": 6.0
+    },
+    "Fast": {
+        "sampler": "uni_pc_bh2",
+        "scheduler": "ddim_uniform",
+        "steps": 12,
+        "cfg": 4.0
+    },
+    "Turbo/Lightning Merge": {
+        "sampler": "dpmpp_sde_gpu",
+        "scheduler": "karras",
+        "steps": 6,
+        "cfg": 2.0
+    },
+    "Realtime LCM": {
+        "sampler": "lcm",
+        "scheduler": "sgm_uniform",
+        "lora": "lcm",
+        "steps": 6,
+        "cfg": 1.8
+    },
+    "Realtime Lightning": {
+        "sampler": "euler",
+        "scheduler": "sgm_uniform",
+        "lora": "lightning",
+        "steps": 8,
+        "cfg": 1.5
+    }
+}

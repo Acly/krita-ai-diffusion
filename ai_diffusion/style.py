@@ -1,5 +1,6 @@
 from __future__ import annotations
 from enum import Enum
+from typing import NamedTuple
 import json
 from pathlib import Path
 from PyQt5.QtCore import QObject, pyqtSignal
@@ -7,21 +8,7 @@ from PyQt5.QtCore import QObject, pyqtSignal
 from .api import CheckpointInput, LoraInput
 from .settings import Setting, settings
 from .resources import SDVersion
-from .util import encode_json, user_data_dir, client_logger as log
-
-sampler_options = [
-    "DDIM",
-    "Euler",
-    "Euler a",
-    "DPM++ 2M",
-    "DPM++ 2M Karras",
-    "DPM++ 2M SDE",
-    "DPM++ 2M SDE Karras",
-    "DPM++ SDE Karras",
-    "UniPC BH2",
-    "LCM",
-    "Lightning",
-]
+from .util import encode_json, plugin_dir, user_data_dir, client_logger as log
 
 
 class StyleSettings:
@@ -91,12 +78,7 @@ class StyleSettings:
         "Preferred Resolution", 0, "Image resolution the checkpoint was trained on"
     )
 
-    sampler = Setting(
-        "Sampler",
-        "DPM++ 2M Karras",
-        "The sampling strategy and scheduler",
-        items=sampler_options,
-    )
+    sampler = Setting("Sampler", "Default", "The sampling strategy and scheduler")
 
     sampler_steps = Setting(
         "Sampler Steps",
@@ -110,7 +92,7 @@ class StyleSettings:
         "Value which indicates how closely image generation follows the text prompt",
     )
 
-    live_sampler = Setting("Sampler", "LCM", sampler.desc, items=sampler_options)
+    live_sampler = Setting("Sampler", "Realtime LCM", sampler.desc)
     live_sampler_steps = Setting("Sampler Steps", 6, sampler_steps.desc)
     live_cfg_scale = Setting("Guidance Strength (CFG Scale)", 1.8, cfg_scale.desc)
 
@@ -163,6 +145,13 @@ class Style:
                         log.warning(f"Style {filepath} has invalid value for {name}: {value}")
                         value = setting.default
                     setattr(style, name, value)
+
+            style.sampler = _map_sampler_preset(
+                filepath, style.sampler, style.sampler_steps, style.cfg_scale
+            )
+            style.live_sampler = _map_sampler_preset(
+                filepath, style.live_sampler, style.live_sampler_steps, style.live_cfg_scale
+            )
             return style
         except json.JSONDecodeError as e:
             log.warning(f"Failed to load style {filepath}: {e}")
@@ -192,6 +181,15 @@ class Style:
             self_attention_guidance=self.self_attention_guidance,
         )
         return result
+
+
+def _map_sampler_preset(filepath: str | Path, name: str, steps: int, cfg: float):
+    sampler_preset = SamplerPresets.instance().add_missing(name, steps, cfg)
+    if sampler_preset is not None:
+        return sampler_preset
+    else:
+        log.warning(f"Style {filepath} has invalid sampler preset {name}")
+        return StyleSettings.sampler.default
 
 
 class Styles(QObject):
@@ -285,3 +283,113 @@ class Styles(QObject):
 
     def __iter__(self):
         return iter(self._list)
+
+
+class SamplerPreset(NamedTuple):
+    sampler: str
+    scheduler: str
+    steps: int
+    cfg: float
+    lora: str | None = None
+
+
+class SamplerPresets:
+    default_preset_file = plugin_dir / "presets" / "samplers.json"
+    default_user_preset_file = user_data_dir / "presets" / "samplers.json"
+
+    _presets: dict[str, SamplerPreset]
+
+    _instance: SamplerPresets | None = None
+
+    @classmethod
+    def instance(cls):
+        if cls._instance is None:
+            cls._instance = SamplerPresets()
+        return cls._instance
+
+    def __init__(self, preset_file: Path | None = None, user_preset_file: Path | None = None):
+        preset_file = preset_file or self.default_preset_file
+        user_preset_file = user_preset_file or self.default_user_preset_file
+        self._presets = {}
+        self.load(preset_file)
+        if user_preset_file.exists():
+            self.load(user_preset_file)
+
+        if len(self._presets) == 0:
+            log.warning(f"No sampler presets found in {preset_file} or {user_preset_file}")
+            self._presets["Default"] = SamplerPreset("dpmpp_2m", "karras", 20, 7.0)
+
+    def load(self, file: Path):
+        try:
+            presets = json.loads(file.read_text())
+            presets = {name: SamplerPreset(**preset) for name, preset in presets.items()}
+            self._presets.update(presets)
+        except Exception as e:
+            log.error(f"Failed to load sampler presets from {file}: {e}")
+
+    def add_missing(self, name: str, steps: int, cfg_scale: float):
+        if name in self._presets:
+            return name
+        if name in _legacy_map:
+            return _legacy_map[name]
+        if name in _sampler_map:
+            self._presets[name] = SamplerPreset(
+                sampler=_sampler_map[name],
+                scheduler=_scheduler_map[name],
+                steps=steps,
+                cfg=cfg_scale,
+            )
+            return name
+        return None
+
+    def __len__(self):
+        return len(self._presets)
+
+    def __getitem__(self, name: str) -> SamplerPreset:
+        if result := self._presets.get(name, None):
+            return result
+        if name in _legacy_map:
+            return self[_legacy_map[name]]
+        raise KeyError(f"Sampler preset {name} not found")
+
+    def items(self):
+        return self._presets.items()
+
+    def names(self):
+        return self._presets.keys()
+
+
+_legacy_map = {
+    "DPM++ 2M Karras": "Default",
+    "DPM++ 2M SDE Karras": "Creative",
+    "DPM++ SDE Karras": "Turbo/Lightning Merge",
+    "UniPC BH2": "Fast",
+    "LCM": "Realtime LCM",
+    "Lightning": "Realtime Lightning",
+}
+_sampler_map = {
+    "DDIM": "ddim",
+    "DPM++ 2M": "dpmpp_2m",
+    "DPM++ 2M Karras": "dpmpp_2m",
+    "DPM++ 2M SDE": "dpmpp_2m_sde_gpu",
+    "DPM++ 2M SDE Karras": "dpmpp_2m_sde_gpu",
+    "DPM++ SDE Karras": "dpmpp_sde_gpu",
+    "UniPC BH2": "uni_pc_bh2",
+    "LCM": "lcm",
+    "Lightning": "euler",
+    "Euler": "euler",
+    "Euler a": "euler_ancestral",
+}
+_scheduler_map = {
+    "DDIM": "ddim_uniform",
+    "DPM++ 2M": "normal",
+    "DPM++ 2M Karras": "karras",
+    "DPM++ 2M SDE": "normal",
+    "DPM++ 2M SDE Karras": "karras",
+    "DPM++ SDE Karras": "karras",
+    "UniPC BH2": "ddim_uniform",
+    "LCM": "sgm_uniform",
+    "Lightning": "sgm_uniform",
+    "Euler": "normal",
+    "Euler a": "normal",
+}

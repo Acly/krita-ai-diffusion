@@ -3,7 +3,7 @@ from tempfile import TemporaryDirectory
 from pathlib import Path
 
 from ai_diffusion.settings import PerformancePreset, Settings, Setting, ServerMode
-from ai_diffusion.style import Style, Styles, StyleSettings
+from ai_diffusion.style import Style, Styles, StyleSettings, SamplerPreset, SamplerPresets
 
 
 def test_get_set():
@@ -133,3 +133,38 @@ def test_default_style(tmp_path_factory):
     styles = Styles(tmp_path_factory.mktemp("builtin"), tmp_path_factory.mktemp("user"))
     style = styles.default
     assert style_is_default(style)
+
+
+def test_sampler_presets(tmp_path_factory):
+    dir = tmp_path_factory.mktemp("presets")
+
+    builtin_file = dir / "builtin.json"
+    builtin_file.write_text(
+        json.dumps(
+            {
+                "Builtin": {"sampler": "dpmpp_2m", "scheduler": "normal", "steps": 42, "cfg": 7.0},
+            }
+        )
+    )
+
+    user_file = dir / "user.json"
+    user_file.write_text(
+        json.dumps(
+            {
+                "User": {"sampler": "user_sampler", "scheduler": "normal", "steps": 13, "cfg": 1.0},
+            }
+        )
+    )
+
+    presets = SamplerPresets(builtin_file, user_file)
+    assert len(presets) == 2
+
+    builtin = presets["Builtin"]
+    assert builtin == SamplerPreset("dpmpp_2m", "normal", 42, 7.0)
+
+    user = presets["User"]
+    assert user == SamplerPreset("user_sampler", "normal", 13, 1.0)
+
+    presets.add_missing("Euler a", 99, 2.3)
+    assert len(presets) == 3
+    assert presets["Euler a"] == SamplerPreset("euler_ancestral", "normal", 99, 2.3)

@@ -10,7 +10,7 @@ from .api import ControlInput, ImageInput, CheckpointInput, SamplingInput, Workf
 from .api import ExtentInput, InpaintMode, InpaintParams, FillMode, TextInput, WorkflowKind
 from .image import Bounds, Extent, Image, Mask
 from .client import ClientModels, ModelDict
-from .style import Style, StyleSettings
+from .style import Style, StyleSettings, SamplerPresets
 from .resolution import ScaledExtent, ScaleMode, get_inpaint_reference
 from .resources import ControlMode, SDVersion, UpscalerName
 from .settings import PerformanceSettings
@@ -30,43 +30,16 @@ def generate_seed():
     return random.randint(0, 2**31 - 1)
 
 
-_sampler_map = {
-    "DDIM": "ddim",
-    "DPM++ 2M": "dpmpp_2m",
-    "DPM++ 2M Karras": "dpmpp_2m",
-    "DPM++ 2M SDE": "dpmpp_2m_sde_gpu",
-    "DPM++ 2M SDE Karras": "dpmpp_2m_sde_gpu",
-    "DPM++ SDE Karras": "dpmpp_sde_gpu",
-    "UniPC BH2": "uni_pc_bh2",
-    "LCM": "lcm",
-    "Lightning": "euler",
-    "Euler": "euler",
-    "Euler a": "euler_ancestral",
-}
-_scheduler_map = {
-    "DDIM": "ddim_uniform",
-    "DPM++ 2M": "normal",
-    "DPM++ 2M Karras": "karras",
-    "DPM++ 2M SDE": "normal",
-    "DPM++ 2M SDE Karras": "karras",
-    "DPM++ SDE Karras": "karras",
-    "UniPC BH2": "ddim_uniform",
-    "LCM": "sgm_uniform",
-    "Lightning": "sgm_uniform",
-    "Euler": "normal",
-    "Euler a": "normal",
-}
-
-
 def _sampling_from_style(style: Style, strength: float, is_live: bool):
     sampler_name = style.live_sampler if is_live else style.sampler
     cfg = style.live_cfg_scale if is_live else style.cfg_scale
     total_steps = style.live_sampler_steps if is_live else style.sampler_steps
+    preset = SamplerPresets.instance()[sampler_name]
     result = SamplingInput(
-        sampler=_sampler_map[sampler_name],
-        scheduler=_scheduler_map[sampler_name],
-        cfg_scale=cfg,
-        total_steps=total_steps,
+        sampler=preset.sampler,
+        scheduler=preset.scheduler,
+        cfg_scale=cfg or preset.cfg,
+        total_steps=total_steps or preset.steps,
     )
     if strength < 1.0:
         # Unless we have something like a 1-step turbo model, ensure there are at least 4 steps
@@ -828,8 +801,7 @@ def prepare(
     sd_version = i.models.version = models.version_of(style.sd_checkpoint)
     model_set = models.for_version(sd_version)
     has_ip_adapter = model_set.ip_adapter.find(ControlMode.reference) is not None
-    if i.sampling.sampler == "lcm":
-        i.models.loras.append(LoraInput(model_set.lora["lcm"], 1.0))
+    i.models.loras += _get_sampling_lora(style, is_live, model_set, models)
     face_weight = median_or_zero(c.strength for c in i.control if c.mode is ControlMode.face)
     if face_weight > 0:
         i.models.loras.append(LoraInput(model_set.lora["face"], 0.65 * face_weight))
@@ -999,6 +971,19 @@ def create(i: WorkflowInput, models: ClientModels, comfy_mode=ComfyRunMode.serve
         )
     else:
         raise ValueError(f"Unsupported workflow kind: {i.kind}")
+
+
+def _get_sampling_lora(style: Style, is_live: bool, model_set: ModelDict, models: ClientModels):
+    sampler_name = style.live_sampler if is_live else style.sampler
+    preset = SamplerPresets.instance()[sampler_name]
+    if preset.lora:
+        file = model_set.lora.find(preset.lora)
+        if file is None and not preset.lora in models.loras:
+            raise ValueError(
+                f"Could not find LoRA '{preset.lora}' used by sampler preset '{sampler_name}'"
+            )
+        return [LoraInput(file or preset.lora, 1.0)]
+    return []
 
 
 def _check_server_has_models(input: CheckpointInput, models: ClientModels, style_name: str):

@@ -5,7 +5,7 @@ import struct
 import uuid
 from enum import Enum
 from collections import deque
-from itertools import product
+from itertools import chain, product
 from typing import NamedTuple, Optional, Sequence
 
 from .api import WorkflowInput
@@ -446,9 +446,11 @@ def _find_upscalers(model_list: Sequence[str]):
 
 def _find_loras(model_list: Sequence[str]):
     kind = ResourceKind.lora
+    common_loras = list(product(["lcm", "face"], _sd_versions))
+    sdxl_loras = [("lightning", SDVersion.sdxl)]
     return {
         resource_id(kind, ver, name): _find_model(model_list, kind, ver, name)
-        for name, ver in product(["lcm", "face"], _sd_versions)
+        for name, ver in chain(common_loras, sdxl_loras)
     }
 
 

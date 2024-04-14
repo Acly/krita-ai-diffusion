@@ -763,6 +763,7 @@ search_paths: dict[str, list[str]] = {
     resource_id(ResourceKind.clip_vision, SDVersion.all, "ip_adapter"): ["sd1.5/pytorch_model.bin", "sd1.5/model.safetensors", "clip-vision_vit-h.safetensors", "clip-vit-h-14-laion2b-s32b-b79k"],
     resource_id(ResourceKind.lora, SDVersion.sd15, "lcm"): ["lcm-lora-sdv1-5.safetensors", "lcm/sd1.5/pytorch_lora_weights.safetensors"],
     resource_id(ResourceKind.lora, SDVersion.sdxl, "lcm"): ["lcm-lora-sdxl.safetensors", "lcm/sdxl/pytorch_lora_weights.safetensors"],
+    resource_id(ResourceKind.lora, SDVersion.sdxl, "lightning"): ["sdxl_lightning_8step_lora"],
     resource_id(ResourceKind.lora, SDVersion.sd15, ControlMode.face): ["ip-adapter-faceid-plusv2_sd15_lora", "ip-adapter-faceid-plus_sd15_lora"],
     resource_id(ResourceKind.lora, SDVersion.sdxl, ControlMode.face): ["ip-adapter-faceid-plusv2_sdxl_lora", "ip-adapter-faceid_sdxl_lora"],
     resource_id(ResourceKind.upscaler, SDVersion.all, UpscalerName.default): [UpscalerName.default.value],

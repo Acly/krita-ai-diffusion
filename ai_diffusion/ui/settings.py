@@ -36,7 +36,7 @@ from ..cloud_client import CloudClient
 from ..resources import SDVersion, CustomNode, MissingResource, ResourceKind, required_models
 from ..settings import Setting, Settings, ServerMode, PerformancePreset, settings
 from ..server import Server
-from ..style import Style, Styles, StyleSettings
+from ..style import Style, Styles, StyleSettings, SamplerPresets
 from ..root import root
 from ..connection import ConnectionState, apply_performance_preset
 from ..properties import Binding
@@ -917,6 +917,70 @@ class ConnectionSettings(SettingsTab):
         QDesktopServices.openUrl(QUrl.fromLocalFile(str(util.log_dir)))
 
 
+class SamplerWidget(QWidget):
+
+    prefix: str
+
+    value_changed = pyqtSignal()
+
+    def __init__(self, prefix: str, title: str, parent):
+        super().__init__(parent)
+        self.prefix = prefix
+
+        expander = ExpanderButton(title, self)
+        expander.toggled.connect(self._toggle_expand)
+
+        self._preset = QComboBox(self)
+        self._preset.addItems(SamplerPresets.instance().names())
+        self._preset.setMinimumWidth(230)
+        self._preset.currentIndexChanged.connect(self._select_preset)
+
+        header_layout = QHBoxLayout()
+        header_layout.addWidget(expander)
+        header_layout.addStretch()
+        header_layout.addWidget(self._preset)
+
+        self._steps = SliderSetting(StyleSettings.sampler_steps, self, 1, 100)
+        self._steps.indent = 1
+        self._steps.value_changed.connect(self.notify_changed)
+
+        self._cfg = SliderSetting(StyleSettings.cfg_scale, self, 1.0, 20.0)
+        self._cfg.indent = 1
+        self._cfg.value_changed.connect(self.notify_changed)
+
+        layout = QVBoxLayout()
+        layout.setContentsMargins(0, 4, 0, 0)
+        layout.addLayout(header_layout)
+        layout.addWidget(self._steps)
+        layout.addWidget(self._cfg)
+        self.setLayout(layout)
+
+        self._toggle_expand(False)
+
+    def _toggle_expand(self, expanded: bool):
+        self._steps.setVisible(expanded)
+        self._cfg.setVisible(expanded)
+
+    def _select_preset(self, index: int):
+        name = self._preset.currentText()
+        preset = SamplerPresets.instance()[name]
+        self._steps.value = preset.steps
+        self._cfg.value = preset.cfg
+
+    def notify_changed(self):
+        self.value_changed.emit()
+
+    def read(self, style: Style):
+        self._preset.setCurrentText(getattr(style, f"{self.prefix}sampler"))
+        self._steps.value = getattr(style, f"{self.prefix}sampler_steps")
+        self._cfg.value = getattr(style, f"{self.prefix}cfg_scale")
+
+    def write(self, style: Style):
+        setattr(style, f"{self.prefix}sampler", self._preset.currentText())
+        setattr(style, f"{self.prefix}sampler_steps", self._steps.value)
+        setattr(style, f"{self.prefix}cfg_scale", self._cfg.value)
+
+
 class StylePresets(SettingsTab):
     _checkpoint_advanced_widgets: list[SettingWidget]
     _default_sampler_widgets: list[SettingWidget]
@@ -1028,34 +1092,13 @@ class StylePresets(SettingsTab):
         sdesc = "Configure sampler type, steps and CFG to tweak the quality of generated images."
         add_header(self._layout, Setting("Sampler Settings", "", sdesc))
 
-        default_sampler_button = ExpanderButton("Quality Preset (generate and upscale)", self)
-        default_sampler_button.toggled.connect(self._toggle_default_sampler)
-        self._layout.addSpacing(4)
-        self._layout.addWidget(default_sampler_button)
-        self._default_sampler_widgets = [
-            add("sampler", ComboBoxSetting(StyleSettings.sampler, self)),
-            add("sampler_steps", SliderSetting(StyleSettings.sampler_steps, self, 1, 100)),
-            add("cfg_scale", SliderSetting(StyleSettings.cfg_scale, self, 1.0, 20.0)),
-        ]
-        self._toggle_default_sampler(False)
+        self._default_sampler = SamplerWidget("", "Quality Preset (generate and upscale)", self)
+        self._default_sampler.value_changed.connect(self.write)
+        self._layout.addWidget(self._default_sampler)
 
-        live_sampler_button = ExpanderButton("Performance Preset (live mode)", self)
-        live_sampler_button.toggled.connect(self._toggle_live_sampler)
-        self._layout.addSpacing(4)
-        self._layout.addWidget(live_sampler_button)
-        self._live_sampler_widgets = [
-            add("live_sampler", ComboBoxSetting(StyleSettings.live_sampler, self)),
-            add("live_sampler_steps", SliderSetting(StyleSettings.live_sampler_steps, self, 1, 50)),
-            add("live_cfg_scale", SliderSetting(StyleSettings.live_cfg_scale, self, 0.1, 14.0)),
-        ]
-        self._toggle_live_sampler(False)
-
-        for widget in chain(
-            self._checkpoint_advanced_widgets,
-            self._default_sampler_widgets,
-            self._live_sampler_widgets,
-        ):
-            widget.indent = 1
+        self._live_sampler = SamplerWidget("live_", "Performance Preset (live mode)", self)
+        self._live_sampler.value_changed.connect(self.write)
+        self._layout.addWidget(self._live_sampler)
 
         self._layout.addStretch()
 
@@ -1170,18 +1213,12 @@ class StylePresets(SettingsTab):
         for widget in self._checkpoint_advanced_widgets:
             widget.visible = checked
 
-    def _toggle_default_sampler(self, checked: bool):
-        for widget in self._default_sampler_widgets:
-            widget.visible = checked
-
-    def _toggle_live_sampler(self, checked: bool):
-        for widget in self._live_sampler_widgets:
-            widget.visible = checked
-
     def _read_style(self, style: Style):
         with self._write_guard:
             for name, widget in self._style_widgets.items():
                 widget.value = getattr(style, name)
+            self._default_sampler.read(style)
+            self._live_sampler.read(style)
         self._set_checkpoint_warning()
         self._clip_skip.enabled = style.clip_skip > 0
         self._resolution_spin.enabled = style.preferred_resolution > 0
@@ -1207,6 +1244,8 @@ class StylePresets(SettingsTab):
         for name, widget in self._style_widgets.items():
             if widget.value is not None:
                 setattr(style, name, widget.value)
+        self._default_sampler.write(style)
+        self._live_sampler.write(style)
         self._set_checkpoint_warning()
         style.save()
 
