@@ -129,5 +129,41 @@
                 "end": 0.8
             }
         ]
+    },
+    "hands": {
+        "sd15": [
+            {
+                "strength": 0.4,
+                "start": 0.0,
+                "end": 0.8
+            },
+            {
+                "strength": 0.6,
+                "start": 0.0,
+                "end": 1.0
+            },
+            {
+                "strength": 1.0,
+                "start": 0.0,
+                "end": 1.0
+            }
+        ],
+        "sdxl": [
+            {
+                "strength": 0.7,
+                "start": 0.0,
+                "end": 0.8
+            },
+            {
+                "strength": 1.0,
+                "start": 0.0,
+                "end": 1.0
+            },
+            {
+                "strength": 1.2,
+                "start": 0.0,
+                "end": 1.0
+            }
+        ]
     }
 }

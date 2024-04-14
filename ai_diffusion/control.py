@@ -9,6 +9,7 @@ from .api import ControlInput
 from .resources import ControlMode, ResourceKind, SDVersion
 from .properties import Property, ObservableProperties
 from .image import Bounds
+from .util import client_logger as log
 
 
 class ControlLayer(QObject, ObservableProperties):
@@ -247,12 +248,57 @@ class ControlPresets:
 
     def _read(self):
         self._presets = self._read_file(self._path)
+        _validate_presets(self._path, self._presets)
         if self._user_path.exists():
             user = self._read_file(self._user_path)
-            _recursive_update(self._presets, user)
+            if _validate_presets(self._user_path, user):
+                _recursive_update(self._presets, user)
+        else:
+            self._user_path.parent.mkdir(parents=True, exist_ok=True)
+            self._user_path.write_text(json.dumps({}, indent=4))
 
     def _read_file(self, path: Path):
-        return json.load(path.open("r"))
+        try:
+            return json.load(path.open("r"))
+        except Exception as e:
+            raise ValueError(f"Failed to read control layer presets file {path}: {e}") from e
+
+
+def _validate_presets(filepath: Path, data: dict[str, Any]) -> bool:
+    control_modes = ["default"] + list(ControlMode.__members__.keys())
+    sd_versions = list(SDVersion.__members__.keys())
+
+    for mode, versions in data.items():
+        if mode not in control_modes:
+            log.error(
+                f"Invalid control mode '{mode}' in presets file {filepath}."
+                f" Valid modes are: {', '.join(control_modes)}"
+            )
+            return False
+        if not isinstance(versions, dict):
+            log.error(f"Invalid presets for mode '{mode}' in presets file {filepath}.")
+            return False
+        for version, presets in versions.items():
+            if version not in sd_versions:
+                log.error(
+                    f"Invalid SD version '{version}' for mode '{mode}' in presets file {filepath}."
+                    f" Valid versions are: {', '.join(sd_versions)}"
+                )
+                return False
+            if not isinstance(presets, list):
+                log.error(
+                    f"Invalid presets for '{mode}/{version}' in presets file {filepath}."
+                    f" Expected a list, got {presets}"
+                )
+                return False
+            for p in presets:
+                if not isinstance(p, dict) or not all(k in p for k in ("strength", "start", "end")):
+                    log.error(
+                        f"Invalid preset for '{mode}/{version}' in presets file {filepath}."
+                        f" Expected a {{strength, start, end}}, got {p}"
+                    )
+                    return False
+    return True
 
 
 def _lerp(a: float, b: float, t: float) -> float:
