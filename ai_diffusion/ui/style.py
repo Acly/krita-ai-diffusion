@@ -1,0 +1,571 @@
+from __future__ import annotations
+
+import functools
+from typing import Optional, cast
+from PyQt5.QtWidgets import (
+    QVBoxLayout,
+    QHBoxLayout,
+    QPushButton,
+    QCheckBox,
+    QFrame,
+    QLabel,
+    QSpinBox,
+    QToolButton,
+    QComboBox,
+    QWidget,
+    QMenu,
+    QAction,
+)
+from PyQt5.QtCore import Qt, QUrl, pyqtSignal
+from PyQt5.QtGui import QDesktopServices, QGuiApplication, QCursor
+from krita import Krita
+
+from ..client import resolve_sd_version
+from ..resources import SDVersion
+from ..settings import Setting, ServerMode, settings
+from ..server import Server
+from ..style import Style, Styles, StyleSettings, SamplerPresets
+from ..root import root
+from .. import util
+from .settings_widgets import ExpanderButton, SpinBoxSetting, SliderSetting, SwitchSetting
+from .settings_widgets import ComboBoxSetting, TextSetting, LineEditSetting, SettingWidget
+from .settings_widgets import SettingsTab
+from .theme import SignalBlocker, add_header, icon, sd_version_icon, yellow
+
+
+def _menu_width(menu: QMenu) -> int:
+    if not menu.isEmpty():
+        last_action = menu.actions()[-1]
+        action_rect = menu.actionGeometry(last_action)
+        return action_rect.right()
+    else:
+        return 0
+
+
+class LoraList(QWidget):
+    class Item(QWidget):
+        changed = pyqtSignal()
+        removed = pyqtSignal(QWidget)
+
+        def __init__(self, lora_names, parent=None):
+            super().__init__(parent)
+            self.setContentsMargins(0, 0, 0, 0)
+
+            layout = QHBoxLayout()
+            layout.setContentsMargins(0, 0, 0, 0)
+            self.setLayout(layout)
+
+            self._select_value = ""
+            self._select = QPushButton(self)
+            self._select.setStyleSheet("QPushButton {text-align: left; padding: 0.2em 0.4em;}")
+            self._select.setMenu(self._build_menu(util.get_path_dict(lora_names)))
+
+            self._strength = QSpinBox(self)
+            self._strength.setMinimum(-400)
+            self._strength.setMaximum(400)
+            self._strength.setSingleStep(5)
+            self._strength.setValue(100)
+            self._strength.setPrefix("Strength: ")
+            self._strength.setSuffix("%")
+            self._strength.valueChanged.connect(self._update)
+
+            self._remove = QToolButton(self)
+            self._remove.setIcon(icon("discard"))
+            self._remove.clicked.connect(self.remove)
+
+            layout.addWidget(self._select, 3)
+            layout.addWidget(self._strength, 1)
+            layout.addWidget(self._remove)
+
+        def _update(self):
+            self.changed.emit()
+
+        def remove(self):
+            self.removed.emit(self)
+
+        def _build_menu(self, values: dict, title="") -> QMenu:
+            menu = QMenu(title, self)
+            for k, v in values.items():
+                if isinstance(v, str):
+                    action = QAction(k, self)
+                    action.triggered.connect(functools.partial(self._select_update, v))
+                    menu.addAction(action)
+                else:
+                    menu.addMenu(self._build_menu(v, k))
+
+            if screen := QGuiApplication.screenAt(QCursor.pos()):
+                if _menu_width(menu) > screen.availableSize().width():
+                    menu.setStyleSheet("QMenu{menu-scrollable: 1;}")
+
+            return menu
+
+        def _select_update(self, text):
+            self._select_value = text
+            self._select.setText(text)
+            self._update()
+
+        @property
+        def value(self):
+            return dict(name=self._select_value, strength=self._strength.value() / 100)
+
+        @value.setter
+        def value(self, v):
+            self._select_value = v["name"]
+            self._select.setText(v["name"])
+            self._strength.setValue(int(v["strength"] * 100))
+
+    value_changed = pyqtSignal()
+
+    open_folder_button: Optional[QToolButton] = None
+
+    _loras: list[str]
+    _items: list[Item]
+
+    def __init__(self, setting: Setting, parent=None):
+        super().__init__(parent)
+        self._loras = []
+        self._items = []
+
+        self._layout = QVBoxLayout()
+        self._layout.setContentsMargins(0, 0, 0, 0)
+        self.setLayout(self._layout)
+
+        header_layout = QHBoxLayout()
+        header_layout.setContentsMargins(0, 0, 0, 0)
+        header_text_layout = QVBoxLayout()
+        add_header(header_text_layout, setting)
+        header_layout.addLayout(header_text_layout, 3)
+
+        self._add_button = QPushButton("Add", self)
+        self._add_button.setMinimumWidth(100)
+        self._add_button.clicked.connect(self._add_item)
+        align_right_center = Qt.AlignmentFlag(
+            Qt.AlignmentFlag.AlignRight | Qt.AlignmentFlag.AlignVCenter
+        )
+        header_layout.addWidget(self._add_button, 1, align_right_center)
+
+        self._refresh_button = QToolButton(self)
+        self._refresh_button.setToolButtonStyle(Qt.ToolButtonStyle.ToolButtonIconOnly)
+        self._refresh_button.setIcon(Krita.instance().icon("reload-preset"))
+        self._refresh_button.setToolTip("Look for new LoRA files")
+        self._refresh_button.clicked.connect(root.connection.refresh)
+        header_layout.addWidget(self._refresh_button, 0, align_right_center)
+
+        if settings.server_mode is ServerMode.managed:
+            self.open_folder_button = QToolButton(self)
+            self.open_folder_button.setToolButtonStyle(Qt.ToolButtonStyle.ToolButtonIconOnly)
+            self.open_folder_button.setIcon(Krita.instance().icon("document-open"))
+            self.open_folder_button.setToolTip("Open folder containing LoRA files")
+            header_layout.addWidget(self.open_folder_button, 0, align_right_center)
+
+        self._layout.addLayout(header_layout)
+
+        self._item_list = QVBoxLayout()
+        self._item_list.setContentsMargins(0, 0, 0, 0)
+        self._layout.addLayout(self._item_list)
+
+        self.setEnabled(settings.server_mode is not ServerMode.cloud)
+        settings.changed.connect(self._handle_settings_change)
+
+    def _add_item(self, lora=None):
+        assert self._item_list is not None
+        item = self.Item(self._loras, self)
+        if isinstance(lora, dict):
+            item.value = lora
+        item.changed.connect(self._update_item)
+        item.removed.connect(self._remove_item)
+        self._items.append(item)
+        self._item_list.addWidget(item)
+        self.value_changed.emit()
+
+    def _remove_item(self, item: QWidget):
+        self._items.remove(item)
+        self._item_list.removeWidget(item)
+        item.deleteLater()
+        self.value_changed.emit()
+
+    def _update_item(self):
+        self.value_changed.emit()
+
+    def _handle_settings_change(self, key: str, value):
+        if key == "server_mode":
+            self.setEnabled(value is not ServerMode.cloud)
+
+    @property
+    def names(self):
+        return self._loras
+
+    @names.setter
+    def names(self, v):
+        self._loras = v
+        for item in self._items:
+            item._select.setMenu(item._build_menu(util.get_path_dict(self._loras)))
+
+    @property
+    def value(self):
+        return [item.value for item in self._items]
+
+    @value.setter
+    def value(self, v):
+        while not len(self._items) == 0:
+            self._remove_item(self._items[-1])
+        for lora in v:
+            self._add_item(lora)
+
+
+class SamplerWidget(QWidget):
+
+    prefix: str
+
+    value_changed = pyqtSignal()
+
+    def __init__(self, prefix: str, title: str, parent):
+        super().__init__(parent)
+        self.prefix = prefix
+
+        expander = ExpanderButton(title, self)
+
+        self._preset = QComboBox(self)
+        self._preset.addItems(SamplerPresets.instance().names())
+        self._preset.setMinimumWidth(230)
+        self._preset.currentIndexChanged.connect(self._select_preset)
+
+        header_layout = QHBoxLayout()
+        header_layout.addWidget(expander)
+        header_layout.addStretch()
+        header_layout.addWidget(self._preset)
+
+        self._user_presets_link = QLabel("<a href='samplers.json'>Edit custom presets</a>", self)
+        self._user_presets_link.linkActivated.connect(self._open_user_presets)
+
+        self._sampler_info = QLabel("", self)
+
+        info_layout = QHBoxLayout()
+        info_layout.addWidget(self._sampler_info)
+        info_layout.addStretch()
+        info_layout.addWidget(self._user_presets_link)
+
+        self._steps = SliderSetting(StyleSettings.sampler_steps, self, 1, 100)
+        self._steps.value_changed.connect(self.notify_changed)
+
+        self._cfg = SliderSetting(StyleSettings.cfg_scale, self, 1.0, 20.0)
+        self._cfg.value_changed.connect(self.notify_changed)
+
+        extended_layout = QVBoxLayout()
+        extended_layout.setContentsMargins(16, 2, 0, 2)
+        extended_layout.addLayout(info_layout)
+        extended_layout.addWidget(self._steps)
+        extended_layout.addWidget(self._cfg)
+
+        self._extended = QWidget(self)
+        self._extended.setLayout(extended_layout)
+        self._extended.setVisible(False)
+        expander.toggled.connect(self._extended.setVisible)
+
+        layout = QVBoxLayout()
+        layout.setContentsMargins(0, 4, 0, 0)
+        layout.addLayout(header_layout)
+        layout.addWidget(self._extended)
+        self.setLayout(layout)
+
+    @property
+    def preset(self):
+        name = self._preset.currentText()
+        return SamplerPresets.instance()[name]
+
+    def _select_preset(self, index: int):
+        preset = self.preset
+        self._steps.value = preset.steps
+        self._cfg.value = preset.cfg
+        self._update_info()
+
+    def _update_info(self):
+        preset = self.preset
+        self._sampler_info.setText(f"<b>Sampler:</b> {preset.sampler} / {preset.scheduler}")
+
+    def _open_user_presets(self):
+        path = SamplerPresets.instance().write_stub()
+        QDesktopServices.openUrl(QUrl.fromLocalFile(str(path)))
+
+    def notify_changed(self):
+        self.value_changed.emit()
+
+    def read(self, style: Style):
+        self._preset.setCurrentText(getattr(style, f"{self.prefix}sampler"))
+        self._steps.value = getattr(style, f"{self.prefix}sampler_steps")
+        self._cfg.value = getattr(style, f"{self.prefix}cfg_scale")
+        self._update_info()
+
+    def write(self, style: Style):
+        setattr(style, f"{self.prefix}sampler", self._preset.currentText())
+        setattr(style, f"{self.prefix}sampler_steps", self._steps.value)
+        setattr(style, f"{self.prefix}cfg_scale", self._cfg.value)
+
+
+class StylePresets(SettingsTab):
+    _checkpoint_advanced_widgets: list[SettingWidget]
+    _default_sampler_widgets: list[SettingWidget]
+    _live_sampler_widgets: list[SettingWidget]
+
+    def __init__(self, server: Server):
+        super().__init__("Style Presets")
+        self.server = server
+
+        self._style_list = QComboBox(self)
+        self._style_list.currentIndexChanged.connect(self._change_style)
+
+        self._create_style_button = QToolButton(self)
+        self._create_style_button.setIcon(Krita.instance().icon("list-add"))
+        self._create_style_button.setToolTip("Create a new style")
+        self._create_style_button.clicked.connect(self._create_style)
+
+        self._delete_style_button = QToolButton(self)
+        self._delete_style_button.setIcon(Krita.instance().icon("deletelayer"))
+        self._delete_style_button.setToolTip("Delete the current style")
+        self._delete_style_button.clicked.connect(self._delete_style)
+
+        self._refresh_button = QToolButton(self)
+        self._refresh_button.setIcon(Krita.instance().icon("reload-preset"))
+        self._refresh_button.setToolTip("Look for new style files")
+        self._refresh_button.clicked.connect(Styles.list().reload)
+
+        self._open_folder_button = QToolButton(self)
+        self._open_folder_button.setIcon(Krita.instance().icon("document-open"))
+        self._open_folder_button.setToolTip("Open folder containing style files")
+        self._open_folder_button.clicked.connect(self._open_style_folder)
+
+        self._show_builtin_checkbox = QCheckBox("Show pre-installed styles", self)
+        self._show_builtin_checkbox.toggled.connect(self.write)
+
+        style_control_layout = QHBoxLayout()
+        style_control_layout.setContentsMargins(0, 0, 0, 0)
+        style_control_layout.addWidget(self._style_list)
+        style_control_layout.addWidget(self._create_style_button)
+        style_control_layout.addWidget(self._delete_style_button)
+        style_control_layout.addWidget(self._refresh_button)
+        style_control_layout.addWidget(self._open_folder_button)
+        frame_layout = QVBoxLayout()
+        frame_layout.addLayout(style_control_layout)
+        frame_layout.addWidget(self._show_builtin_checkbox, alignment=Qt.AlignmentFlag.AlignRight)
+
+        frame = QFrame(self)
+        frame.setFrameStyle(QFrame.StyledPanel)
+        frame.setLineWidth(1)
+        frame.setLayout(frame_layout)
+        self._layout.addWidget(frame)
+
+        self._style_widgets = {}
+
+        def add(name: str, widget: SettingWidget):
+            self._style_widgets[name] = widget
+            self._layout.addWidget(widget)
+            widget.value_changed.connect(self.write)
+            return widget
+
+        add("name", TextSetting(StyleSettings.name, self))
+        self._style_widgets["name"].value_changed.connect(self._update_name)
+
+        add("sd_checkpoint", ComboBoxSetting(StyleSettings.sd_checkpoint, self))
+        self._style_widgets["sd_checkpoint"].add_button(
+            Krita.instance().icon("reload-preset"),
+            "Look for new checkpoint files",
+            root.connection.refresh,
+        )
+        self._checkpoint_warning = QLabel(self)
+        self._checkpoint_warning.setStyleSheet(f"font-style: italic; color: {yellow};")
+        self._checkpoint_warning.setVisible(False)
+        self._layout.addWidget(self._checkpoint_warning, alignment=Qt.AlignmentFlag.AlignRight)
+
+        checkpoint_advanced = ExpanderButton("Checkpoint configuration (advanced)", self)
+        checkpoint_advanced.toggled.connect(self._toggle_checkpoint_advanced)
+        self._layout.addWidget(checkpoint_advanced)
+
+        self._checkpoint_advanced_widgets = [add("vae", ComboBoxSetting(StyleSettings.vae, self))]
+
+        self._clip_skip = add("clip_skip", SpinBoxSetting(StyleSettings.clip_skip, self, 0, 12))
+        clip_skip_check = self._clip_skip.add_checkbox("Override")
+        clip_skip_check.toggled.connect(self._toggle_clip_skip)
+        self._checkpoint_advanced_widgets.append(self._clip_skip)
+
+        self._resolution_spin = add(
+            "preferred_resolution",
+            SpinBoxSetting(StyleSettings.preferred_resolution, self, 0, 2048, step=8),
+        )
+        resolution_check = self._resolution_spin.add_checkbox("Override")
+        resolution_check.toggled.connect(self._toggle_preferred_resolution)
+        self._checkpoint_advanced_widgets.append(self._resolution_spin)
+
+        self._checkpoint_advanced_widgets.append(
+            add("v_prediction_zsnr", SwitchSetting(StyleSettings.v_prediction_zsnr, parent=self))
+        )
+        self._checkpoint_advanced_widgets.append(
+            add(
+                "self_attention_guidance",
+                SwitchSetting(StyleSettings.self_attention_guidance, parent=self),
+            )
+        )
+        self._toggle_checkpoint_advanced(False)
+
+        add("loras", LoraList(StyleSettings.loras, self))
+        add("style_prompt", LineEditSetting(StyleSettings.style_prompt, self))
+        add("negative_prompt", LineEditSetting(StyleSettings.negative_prompt, self))
+
+        sdesc = "Configure sampler type, steps and CFG to tweak the quality of generated images."
+        add_header(self._layout, Setting("Sampler Settings", "", sdesc))
+
+        self._default_sampler = SamplerWidget("", "Quality Preset (generate and upscale)", self)
+        self._default_sampler.value_changed.connect(self.write)
+        self._layout.addWidget(self._default_sampler)
+
+        self._live_sampler = SamplerWidget("live_", "Performance Preset (live mode)", self)
+        self._live_sampler.value_changed.connect(self.write)
+        self._layout.addWidget(self._live_sampler)
+
+        self._layout.addStretch()
+
+        if settings.server_mode is ServerMode.managed:
+            self._style_widgets["sd_checkpoint"].add_button(
+                Krita.instance().icon("document-open"),
+                "Open the folder where checkpoints are stored",
+                self._open_checkpoints_folder,
+            )
+        if self._style_widgets["loras"].open_folder_button:
+            self._style_widgets["loras"].open_folder_button.clicked.connect(self._open_lora_folder)
+
+        self._populate_style_list()
+        Styles.list().changed.connect(self._update_style_list)
+
+    @property
+    def current_style(self) -> Style:
+        styles = Styles.list()
+        return styles.find(self._style_list.currentData()) or styles.default
+
+    @current_style.setter
+    def current_style(self, style: Style):
+        index = self._style_list.findData(style.filename)
+        if index >= 0:
+            self._style_list.setCurrentIndex(index)
+            self._read_style(style)
+
+    def update_model_lists(self):
+        with self._write_guard:
+            self._read()
+
+    def _create_style(self):
+        cp = self._style_widgets["sd_checkpoint"].value or StyleSettings.sd_checkpoint.default
+        new_style = Styles.list().create(checkpoint=cp)
+        self.current_style = new_style
+
+    def _delete_style(self):
+        Styles.list().delete(self.current_style)
+
+    def _open_style_folder(self):
+        QDesktopServices.openUrl(QUrl.fromLocalFile(str(Styles.list().user_folder)))
+
+    def _populate_style_list(self):
+        for style in Styles.list().filtered():
+            self._style_list.addItem(f"{style.name} ({style.filename})", style.filename)
+
+    def _update_style_list(self):
+        previous = None
+        with SignalBlocker(self._style_list):
+            if self._style_list.count() > 0:
+                previous = self._style_list.currentData()
+                self._style_list.clear()
+            self._populate_style_list()
+            if previous is not None:
+                i = self._style_list.findData(previous)
+                self._style_list.setCurrentIndex(max(0, i))
+        self._change_style()
+
+    def _update_name(self):
+        index = self._style_list.currentIndex()
+        style = self.current_style
+        self._style_list.setItemText(index, f"{style.name} ({style.filename})")
+        Styles.list().name_changed.emit()
+
+    def _change_style(self):
+        self._read_style(self.current_style)
+
+    def _open_checkpoints_folder(self):
+        if self.server.comfy_dir is not None:
+            QDesktopServices.openUrl(
+                QUrl.fromLocalFile(str(self.server.comfy_dir / "models" / "checkpoints"))
+            )
+
+    def _open_lora_folder(self):
+        if self.server.comfy_dir is not None:
+            QDesktopServices.openUrl(
+                QUrl.fromLocalFile(str(self.server.comfy_dir / "models" / "loras"))
+            )
+
+    def _set_checkpoint_warning(self):
+        self._checkpoint_warning.setVisible(False)
+        if client := root.connection.client_if_connected:
+            if self.current_style.sd_checkpoint not in client.models.checkpoints:
+                self._checkpoint_warning.setText(
+                    "The checkpoint used by this style is not installed."
+                )
+                self._checkpoint_warning.setVisible(True)
+            else:
+                version = resolve_sd_version(self.current_style, client)
+                if not client.supports_version(version):
+                    self._checkpoint_warning.setText(
+                        f"This is a {version.value} checkpoint, but the {version.value} workload has"
+                        " not been installed."
+                    )
+                    self._checkpoint_warning.setVisible(True)
+
+    def _toggle_preferred_resolution(self, checked: bool):
+        if checked and self._resolution_spin.value == 0:
+            sd_ver = resolve_sd_version(self.current_style, root.connection.client_if_connected)
+            self._resolution_spin.value = 640 if sd_ver is SDVersion.sd15 else 1024
+        elif not checked and self._resolution_spin.value > 0:
+            self._resolution_spin.value = 0
+
+    def _toggle_clip_skip(self, checked: bool):
+        if checked and self._clip_skip.value == 0:
+            sd_ver = resolve_sd_version(self.current_style, root.connection.client_if_connected)
+            self._clip_skip.value = 1 if sd_ver is SDVersion.sd15 else 2
+        elif not checked and self._clip_skip.value > 0:
+            self._clip_skip.value = 0
+
+    def _toggle_checkpoint_advanced(self, checked: bool):
+        for widget in self._checkpoint_advanced_widgets:
+            widget.visible = checked
+
+    def _read_style(self, style: Style):
+        with self._write_guard:
+            for name, widget in self._style_widgets.items():
+                widget.value = getattr(style, name)
+            self._default_sampler.read(style)
+            self._live_sampler.read(style)
+        self._set_checkpoint_warning()
+        self._clip_skip.enabled = style.clip_skip > 0
+        self._resolution_spin.enabled = style.preferred_resolution > 0
+
+    def _read(self):
+        self._show_builtin_checkbox.setChecked(settings.show_builtin_styles)
+        if client := root.connection.client_if_connected:
+            default_vae = cast(str, StyleSettings.vae.default)
+            checkpoints = [
+                (cp.name, cp.filename, sd_version_icon(cp.sd_version, client))
+                for cp in client.models.checkpoints.values()
+                if not (cp.is_refiner or cp.is_inpaint)
+            ]
+            self._style_widgets["sd_checkpoint"].set_items(checkpoints)
+            self._style_widgets["loras"].names = client.models.loras
+            self._style_widgets["vae"].set_items([default_vae] + client.models.vae)
+        self._read_style(self.current_style)
+
+    def _write(self):
+        if settings.show_builtin_styles != self._show_builtin_checkbox.isChecked():
+            settings.show_builtin_styles = self._show_builtin_checkbox.isChecked()
+        style = self.current_style
+        for name, widget in self._style_widgets.items():
+            if widget.value is not None:
+                setattr(style, name, widget.value)
+        self._default_sampler.write(style)
+        self._live_sampler.write(style)
+        self._set_checkpoint_warning()
+        style.save()
