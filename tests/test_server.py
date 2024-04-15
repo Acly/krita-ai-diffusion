@@ -1,6 +1,7 @@
 from pathlib import Path
 from tempfile import TemporaryDirectory
 from PyQt5.QtNetwork import QNetworkAccessManager
+import asyncio
 import pytest
 import shutil
 
@@ -185,7 +186,7 @@ def test_rename_extracted_folder(scenario):
             (target / "file").touch()
 
         try:
-            server.rename_extracted_folder("Test", target, "sffx")
+            asyncio.run(server.rename_extracted_folder("Test", target, "sffx"))
             assert not source.exists()
             assert (target / "file").exists()
         except Exception as e:

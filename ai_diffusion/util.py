@@ -187,9 +187,12 @@ async def create_process(
         program, *args, cwd=cwd, stdout=out, stderr=err, env=env, **platform_args
     )
     if is_windows:
-        from . import win32
+        try:
+            from . import win32
 
-        win32.attach_process_to_job(p.pid)
+            win32.attach_process_to_job(p.pid)
+        except Exception as e:
+            client_logger.error(f"Failed to attach process to job: {e}")
     return p
 
 
