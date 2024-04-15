@@ -199,7 +199,7 @@ class Server:
             # for some reason this must come AFTER ComfyUI requirements
             await _execute_process("PyTorch", self._pip_install("torch-directml"), self.path, cb)
 
-        rename_extracted_folder("ComfyUI", comfy_dir, resources.comfy_version)
+        await rename_extracted_folder("ComfyUI", comfy_dir, resources.comfy_version)
         self.comfy_dir = comfy_dir
         cb("Installing ComfyUI", "Finished installing ComfyUI")
 
@@ -214,7 +214,7 @@ class Server:
         resource_zip_path = self._cache_dir / f"{pkg.folder}-{pkg.version}.zip"
         await _download_cached(pkg.name, network, resource_url, resource_zip_path, cb)
         await _extract_archive(pkg.name, resource_zip_path, folder.parent, cb)
-        rename_extracted_folder(pkg.name, folder, pkg.version)
+        await rename_extracted_folder(pkg.name, folder, pkg.version)
 
         requirements_txt = folder / "requirements.txt"
         if requirements_txt.exists():
@@ -590,7 +590,7 @@ def find_missing(folder: Path, resources: list[ModelResource], ver: SDVersion | 
     ]
 
 
-def rename_extracted_folder(name: str, path: Path, suffix: str):
+async def rename_extracted_folder(name: str, path: Path, suffix: str):
     if path.exists() and path.is_dir() and not any(path.iterdir()):
         path.rmdir()
     elif path.exists():
@@ -601,6 +601,13 @@ def rename_extracted_folder(name: str, path: Path, suffix: str):
         raise Exception(
             f"Error during {name} installation: folder {extracted_folder} does not exist"
         )
+    for tries in range(3):  # Because Windows, or virus scanners, or something #515
+        try:
+            extracted_folder.rename(path)
+            return
+        except Exception as e:
+            log.warning(f"Rename failed during {name} installation: {str(e)} - retrying...")
+            await asyncio.sleep(0.3)
     extracted_folder.rename(path)
 
 
