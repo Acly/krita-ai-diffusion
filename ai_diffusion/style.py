@@ -84,6 +84,12 @@ class StyleSettings:
         _("Pay more attention to difficult parts of the image. Can improve fine details."),
     )
 
+    perturbed_attention_guidance = Setting(
+        "Enable PAG / Perturbed-Attention Guidance",
+        False,
+        'Deliberately introduce errors in "difficult" parts to steer away from. Can improve coherence.',
+    )
+
     preferred_resolution = Setting(
         _("Preferred Resolution"), 0, _("Image resolution the checkpoint was trained on")
     )
@@ -121,6 +127,7 @@ class Style:
     v_prediction_zsnr: bool = StyleSettings.v_prediction_zsnr.default
     rescale_cfg: float = StyleSettings.rescale_cfg.default
     self_attention_guidance: bool = StyleSettings.self_attention_guidance.default
+    perturbed_attention_guidance: bool = StyleSettings.perturbed_attention_guidance.default
     preferred_resolution: int = StyleSettings.preferred_resolution.default
     sampler: str = StyleSettings.sampler.default
     sampler_steps: int = StyleSettings.sampler_steps.default
@@ -199,6 +206,7 @@ class Style:
             rescale_cfg=self.rescale_cfg,
             loras=[LoraInput.from_dict(l) for l in self.loras if l.get("enabled", True)],
             self_attention_guidance=self.self_attention_guidance,
+            perturbed_attention_guidance=self.perturbed_attention_guidance,
         )
         return result
 
