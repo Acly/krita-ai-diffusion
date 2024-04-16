@@ -385,14 +385,19 @@ class ServerWidget(QWidget):
 
     def _select_location(self):
         path = self._server.path
-        if not self._server.path.exists():
+        if not path.exists():
+            path = path.parent
+        if not path.exists():
             path = Path(Settings._server_path.default)
             path.mkdir(parents=True, exist_ok=True)
         path = QFileDialog.getExistingDirectory(
             self, "Select Directory", str(path), QFileDialog.ShowDirsOnly
         )
         if path:
-            self._location_edit.setText(path)
+            path = Path(path)
+            if path != Path(Settings._server_path.default):
+                path = path / "ComfyUI"
+            self._location_edit.setText(str(path))
 
     def _change_backend(self):
         backends = ServerBackend.supported()
