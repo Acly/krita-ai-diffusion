@@ -30,7 +30,8 @@ class JobInfo:
 
 
 class CloudClient(Client):
-    default_url = os.getenv("INTERSTICE_URL", "https://interstice.cloud")
+    default_api_url = os.getenv("INTERSTICE_URL", "https://interstice-api.aclysia.workers.dev")
+    default_web_url = os.getenv("INTERSTICE_WEB_URL", "https://www.interstice.cloud")
 
     _requests = RequestManager()
     _queue: asyncio.Queue[JobInfo]
@@ -53,10 +54,10 @@ class CloudClient(Client):
         self._queue = asyncio.Queue()
 
     async def _get(self, op: str):
-        return await self._requests.get(f"{self.url}/api/{op}", bearer=self._token)
+        return await self._requests.get(f"{self.url}/{op}", bearer=self._token)
 
     async def _post(self, op: str, data: dict):
-        return await self._requests.post(f"{self.url}/api/{op}", data, bearer=self._token)
+        return await self._requests.post(f"{self.url}/{op}", data, bearer=self._token)
 
     async def sign_in(self):
         client_id = str(uuid.uuid4())
@@ -64,8 +65,9 @@ class CloudClient(Client):
         log.info(f"Sending authorization request for {info} to {self.url}")
         init = await self._post("auth/initiate", dict(client_id=client_id, client_info=info))
 
-        log.info(f"Waiting for completion of authorization at {self.url}{init['url']}")
-        yield f"{self.url}{init['url']}"
+        sign_in_url = f"{self.default_web_url}{init['url']}"
+        log.info(f"Waiting for completion of authorization at {sign_in_url}")
+        yield sign_in_url
 
         auth_confirm = await self._post("auth/confirm", dict(client_id=client_id))
         time = datetime.now()

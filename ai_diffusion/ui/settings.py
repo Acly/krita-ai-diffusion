@@ -119,7 +119,7 @@ class CloudWidget(QWidget):
         layout.setContentsMargins(0, 12, 4, 4)
         self.setLayout(layout)
 
-        service_url = CloudClient.default_url
+        service_url = CloudClient.default_api_url
         service_url_text = service_url.removeprefix("https://").removesuffix("/")
         service_label = QLabel(f"<a href='{service_url}'>{service_url_text}</a>", self)
         service_label.setStyleSheet("font-size: 12pt")

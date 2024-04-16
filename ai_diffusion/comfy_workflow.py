@@ -313,6 +313,7 @@ class ComfyWorkflow:
             clip_vision=clip_vision,
             weight=weight,
             weight_type=weight_type,
+            embeds_scaling="V only",
             start_at=range[0],
             end_at=range[1],
         )
