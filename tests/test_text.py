@@ -15,6 +15,7 @@ def test_extract_loras():
     loras = [
         "/path/to/Lora-One.safetensors",
         "Lora-two.safetensors",
+        "folder\\lora-three.safetensors",
     ]
 
     assert extract_loras("a ship", loras) == ("a ship", [])
@@ -37,6 +38,10 @@ def test_extract_loras():
     assert extract_loras("a ship <lora:lora-two:-1.0>", loras) == (
         "a ship",
         [LoraInput(loras[1], -1.0)],
+    )
+    assert extract_loras("banana <lora:folder/lora-three:0.5>", loras) == (
+        "banana",
+        [LoraInput(loras[2], 0.5)],
     )
 
     try:

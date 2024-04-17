@@ -1,10 +1,21 @@
 from __future__ import annotations
 import re
 from pathlib import Path
-from typing import Tuple, List
+from typing import Tuple, List, NamedTuple
 
 from .api import LoraInput
 from .util import client_logger as log
+
+
+class LoraId(NamedTuple):
+    file: str
+    name: str
+
+    @staticmethod
+    def normalize(original: str | None):
+        if original is None:
+            return LoraId("", "<Invalid LoRA>")
+        return LoraId(original, original.replace("\\", "/").removesuffix(".safetensors"))
 
 
 def merge_prompt(prompt: str, style_prompt: str):
@@ -26,8 +37,10 @@ def extract_loras(prompt: str, client_loras: list[str]):
         lora_name = ""
 
         for client_lora in client_loras:
-            lora_filename = Path(client_lora).stem
-            if match[0].lower() == lora_filename.lower():
+            lora_filename = Path(client_lora).stem.lower()
+            lora_normalized = LoraId.normalize(client_lora).name.lower()
+            input = match[0].lower()
+            if input == lora_filename or input == lora_normalized:
                 lora_name = client_lora
 
         if not lora_name:

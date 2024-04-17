@@ -20,6 +20,8 @@ from PyQt5.QtWidgets import (
     QWidgetAction,
     QCheckBox,
     QGridLayout,
+    QCompleter,
+    QAbstractItemView,
 )
 from PyQt5.QtGui import (
     QColor,
@@ -30,7 +32,7 @@ from PyQt5.QtGui import (
     QTextCursor,
     QPainter,
 )
-from PyQt5.QtCore import Qt, QMetaObject, QSize, pyqtSignal
+from PyQt5.QtCore import Qt, QMetaObject, QSize, QStringListModel, pyqtSignal
 
 from ..style import Style, Styles
 from ..root import root
@@ -38,7 +40,7 @@ from ..client import filter_supported_styles, resolve_sd_version
 from ..properties import Binding, Bind, bind, bind_combo
 from ..jobs import JobState
 from ..model import Model, Workspace, SamplingQuality
-from ..text import edit_attention, select_on_cursor_pos
+from ..text import LoraId, edit_attention, select_on_cursor_pos
 from ..util import ensure
 from .settings import SettingsDialog
 from .theme import SignalBlocker
@@ -320,6 +322,72 @@ def handle_weight_adjustment(
             self.setCursorPosition(start + len(text_after_edit) - 2)
 
 
+class PromptAutoComplete:
+    # _widget: QLineEdit
+    _completer: QCompleter
+    # _popup: QAbstractItemView
+
+    def __init__(self, widget: QLineEdit):
+        self._widget = widget
+        self._completer = QCompleter()
+        self._completer.activated.connect(self._insert_completion)
+        self._completer.setCompletionMode(QCompleter.CompletionMode.PopupCompletion)
+        self._completer.setFilterMode(Qt.MatchFlag.MatchContains)
+        self._completer.setCaseSensitivity(Qt.CaseSensitivity.CaseInsensitive)
+        self._completer.setWidget(widget)
+        self._popup = ensure(self._completer.popup())
+
+        self._refresh_loras()
+        root.connection.state_changed.connect(self._refresh_loras)
+
+    def _refresh_loras(self):
+        if client := root.connection.client_if_connected:
+            loras = [LoraId.normalize(lora).name for lora in client.models.loras]
+            self._completer.setModel(QStringListModel(loras))
+
+    def _current_text(self) -> str:
+        text = self._widget.text()
+        start = pos = self._widget.cursorPosition()
+        while pos > 0 and text[pos - 1] not in " >":
+            pos -= 1
+        return text[pos:start]
+
+    def check_completion(self):
+        prefix = self._current_text()
+        name = prefix.removeprefix("<lora:")
+        if len(prefix) == len(name):
+            self._popup.hide()
+            return
+
+        self._completer.setCompletionPrefix(name)
+        rect = self._widget.cursorRect()
+        self._popup.setCurrentIndex(ensure(self._completer.completionModel()).index(0, 0))
+        scrollbar = ensure(self._popup.verticalScrollBar())
+        rect.setWidth(self._popup.sizeHintForColumn(0) + scrollbar.sizeHint().width())
+        self._completer.complete(rect)
+
+    def _insert_completion(self, completion):
+        text = self._widget.text()
+        pos = self._widget.cursorPosition()
+        prefix_len = len(self._completer.completionPrefix())
+        text = text[: pos - prefix_len] + completion + ">" + text[pos:]
+        self._widget.setText(text)
+        self._widget.setCursorPosition(pos - prefix_len + len(completion) + 1)
+
+    @property
+    def is_active(self):
+        return self._popup.isVisible()
+
+    action_keys = [
+        Qt.Key.Key_Enter,
+        Qt.Key.Key_Return,
+        Qt.Key.Key_Up,
+        Qt.Key.Key_Down,
+        Qt.Key.Key_Tab,
+        Qt.Key.Key_Backtab,
+    ]
+
+
 class MultiLineTextPromptWidget(QPlainTextEdit):
     activated = pyqtSignal()
 
@@ -333,8 +401,15 @@ class MultiLineTextPromptWidget(QPlainTextEdit):
         self.line_count = 2
         self.is_negative = False
 
+        self._completer = PromptAutoComplete(self)
+        self.textChanged.connect(self._completer.check_completion)
+
     def keyPressEvent(self, e: QKeyEvent | None):
         assert e is not None
+        if self._completer.is_active and e.key() in PromptAutoComplete.action_keys:
+            e.ignore()
+            return
+
         handle_weight_adjustment(self, e)
 
         if e.key() == Qt.Key.Key_Return and e.modifiers() == Qt.KeyboardModifier.ShiftModifier:
@@ -364,6 +439,11 @@ class MultiLineTextPromptWidget(QPlainTextEdit):
     def cursorPosition(self) -> int:
         return self.textCursor().position()
 
+    def setCursorPosition(self, pos: int):
+        cursor = self.textCursor()
+        cursor.setPosition(pos)
+        self.setTextCursor(cursor)
+
     def text(self) -> str:
         return self.toPlainText()
 
@@ -372,12 +452,20 @@ class MultiLineTextPromptWidget(QPlainTextEdit):
 
     def setSelection(self, start: int, end: int):
         new_cursor = self.textCursor()
-        new_cursor.setPosition(min(end, len(self.toPlainText())))
-        new_cursor.setPosition(min(start, len(self.toPlainText())), QTextCursor.KeepAnchor)
+        new_cursor.setPosition(min(end, len(self.text())))
+        new_cursor.setPosition(min(start, len(self.text())), QTextCursor.KeepAnchor)
         self.setTextCursor(new_cursor)
 
 
 class SingleLineTextPromptWidget(QLineEdit):
+
+    _completer: PromptAutoComplete
+
+    def __init__(self, parent: QWidget):
+        super().__init__(parent)
+        self._completer = PromptAutoComplete(self)
+        self.textChanged.connect(self._completer.check_completion)
+
     def keyPressEvent(self, a0: QKeyEvent | None):
         assert a0 is not None
         handle_weight_adjustment(self, a0)
@@ -433,7 +521,7 @@ class TextPromptWidget(QWidget):
 
     @property
     def text(self):
-        return self._multi.toPlainText() if self._line_count > 1 else self._single.text()
+        return self._multi.text() if self._line_count > 1 else self._single.text()
 
     @text.setter
     def text(self, value: str):

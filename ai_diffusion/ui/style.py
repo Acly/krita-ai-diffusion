@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from typing import NamedTuple, Optional, cast
+from typing import Optional, cast
 from pathlib import Path
 from PyQt5.QtWidgets import (
     QVBoxLayout,
@@ -23,23 +23,13 @@ from ..client import resolve_sd_version
 from ..resources import SDVersion
 from ..settings import Setting, ServerMode, settings
 from ..server import Server
+from ..text import LoraId
 from ..style import Style, Styles, StyleSettings, SamplerPresets
 from ..root import root
 from .settings_widgets import ExpanderButton, SpinBoxSetting, SliderSetting, SwitchSetting
 from .settings_widgets import ComboBoxSetting, TextSetting, LineEditSetting, SettingWidget
 from .settings_widgets import SettingsTab
 from .theme import SignalBlocker, add_header, icon, sd_version_icon, yellow
-
-
-class LoraId(NamedTuple):
-    file: str
-    name: str
-
-    @staticmethod
-    def normalize(original: str | None):
-        if original is None:
-            return LoraId("", "<Invalid LoRA>")
-        return LoraId(original, original.replace("\\", "/").removesuffix(".safetensors"))
 
 
 class LoraList(QWidget):
