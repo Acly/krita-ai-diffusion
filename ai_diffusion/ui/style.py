@@ -1,7 +1,7 @@
 from __future__ import annotations
 
-import functools
-from typing import Optional, cast
+from typing import NamedTuple, Optional, cast
+from pathlib import Path
 from PyQt5.QtWidgets import (
     QVBoxLayout,
     QHBoxLayout,
@@ -13,11 +13,10 @@ from PyQt5.QtWidgets import (
     QToolButton,
     QComboBox,
     QWidget,
-    QMenu,
-    QAction,
+    QCompleter,
 )
-from PyQt5.QtCore import Qt, QUrl, pyqtSignal
-from PyQt5.QtGui import QDesktopServices, QGuiApplication, QCursor
+from PyQt5.QtCore import Qt, QUrl, QStringListModel, QSortFilterProxyModel, pyqtSignal
+from PyQt5.QtGui import QDesktopServices
 from krita import Krita
 
 from ..client import resolve_sd_version
@@ -26,28 +25,33 @@ from ..settings import Setting, ServerMode, settings
 from ..server import Server
 from ..style import Style, Styles, StyleSettings, SamplerPresets
 from ..root import root
-from .. import util
 from .settings_widgets import ExpanderButton, SpinBoxSetting, SliderSetting, SwitchSetting
 from .settings_widgets import ComboBoxSetting, TextSetting, LineEditSetting, SettingWidget
 from .settings_widgets import SettingsTab
 from .theme import SignalBlocker, add_header, icon, sd_version_icon, yellow
 
 
-def _menu_width(menu: QMenu) -> int:
-    if not menu.isEmpty():
-        last_action = menu.actions()[-1]
-        action_rect = menu.actionGeometry(last_action)
-        return action_rect.right()
-    else:
-        return 0
+class LoraId(NamedTuple):
+    file: str
+    name: str
+
+    @staticmethod
+    def normalize(original: str | None):
+        if original is None:
+            return LoraId("", "<Invalid LoRA>")
+        return LoraId(original, original.replace("\\", "/").removesuffix(".safetensors"))
 
 
 class LoraList(QWidget):
+
     class Item(QWidget):
         changed = pyqtSignal()
         removed = pyqtSignal(QWidget)
 
-        def __init__(self, lora_names, parent=None):
+        _loras: list[LoraId]
+        _current = LoraId("", "")
+
+        def __init__(self, loras: list[LoraId], filter: str, parent=None):
             super().__init__(parent)
             self.setContentsMargins(0, 0, 0, 0)
 
@@ -55,10 +59,11 @@ class LoraList(QWidget):
             layout.setContentsMargins(0, 0, 0, 0)
             self.setLayout(layout)
 
-            self._select_value = ""
-            self._select = QPushButton(self)
-            self._select.setStyleSheet("QPushButton {text-align: left; padding: 0.2em 0.4em;}")
-            self._select.setMenu(self._build_menu(util.get_path_dict(lora_names)))
+            self._select = QComboBox(self)
+            self._select.setEditable(True)
+            self._select.setMaxVisibleItems(20)
+            self.set_names(loras, filter)
+            self._select.currentIndexChanged.connect(self._select_lora)
 
             self._strength = QSpinBox(self)
             self._strength.setMinimum(-400)
@@ -80,45 +85,55 @@ class LoraList(QWidget):
         def _update(self):
             self.changed.emit()
 
+        def _select_lora(self):
+            name = self._select.currentText()
+            id = next((l for l in self._loras if l.name == name), LoraId("", ""))
+            if id.file and id != self._current:
+                self._current = id
+                self._update()
+
+        def set_names(self, loras: list[LoraId], filter: str):
+            self._loras = loras
+
+            with SignalBlocker(self._select):
+                model = QStringListModel([l.name for l in loras])
+                sorted = QSortFilterProxyModel()
+                sorted.setSourceModel(model)
+                sorted.setFilterCaseSensitivity(Qt.CaseSensitivity.CaseInsensitive)
+                if filter != "All":
+                    sorted.setFilterFixedString(f"{filter}/")
+
+                completer = QCompleter(sorted)
+                completer.setCaseSensitivity(Qt.CaseSensitivity.CaseInsensitive)
+                completer.setFilterMode(Qt.MatchFlag.MatchContains)
+
+                self._select.setModel(sorted)
+                self._select.setCompleter(completer)
+
+                if not self._current.name:
+                    self._select_lora()
+                else:
+                    self._select.setEditText(self._current.name)
+
         def remove(self):
             self.removed.emit(self)
 
-        def _build_menu(self, values: dict, title="") -> QMenu:
-            menu = QMenu(title, self)
-            for k, v in values.items():
-                if isinstance(v, str):
-                    action = QAction(k, self)
-                    action.triggered.connect(functools.partial(self._select_update, v))
-                    menu.addAction(action)
-                else:
-                    menu.addMenu(self._build_menu(v, k))
-
-            if screen := QGuiApplication.screenAt(QCursor.pos()):
-                if _menu_width(menu) > screen.availableSize().width():
-                    menu.setStyleSheet("QMenu{menu-scrollable: 1;}")
-
-            return menu
-
-        def _select_update(self, text):
-            self._select_value = text
-            self._select.setText(text)
-            self._update()
-
         @property
         def value(self):
-            return dict(name=self._select_value, strength=self._strength.value() / 100)
+            return dict(name=self._current.file, strength=self._strength.value() / 100)
 
         @value.setter
         def value(self, v):
-            self._select_value = v["name"]
-            self._select.setText(v["name"])
+            self._current = LoraId.normalize(v["name"])
+            self._select.setEditText(self._current.name)
             self._strength.setValue(int(v["strength"] * 100))
 
     value_changed = pyqtSignal()
 
     open_folder_button: Optional[QToolButton] = None
+    last_filter = "All"
 
-    _loras: list[str]
+    _loras: list[LoraId]
     _items: list[Item]
 
     def __init__(self, setting: Setting, parent=None):
@@ -134,29 +149,30 @@ class LoraList(QWidget):
         header_layout.setContentsMargins(0, 0, 0, 0)
         header_text_layout = QVBoxLayout()
         add_header(header_text_layout, setting)
-        header_layout.addLayout(header_text_layout, 3)
+        header_layout.addLayout(header_text_layout, 5)
 
         self._add_button = QPushButton("Add", self)
         self._add_button.setMinimumWidth(100)
         self._add_button.clicked.connect(self._add_item)
-        align_right_center = Qt.AlignmentFlag(
-            Qt.AlignmentFlag.AlignRight | Qt.AlignmentFlag.AlignVCenter
-        )
-        header_layout.addWidget(self._add_button, 1, align_right_center)
+        header_layout.addWidget(self._add_button, 1)
+
+        self._filter_combo = QComboBox(self)
+        self._filter_combo.currentIndexChanged.connect(self._set_filtered_names)
+        header_layout.addWidget(self._filter_combo, 2)
 
         self._refresh_button = QToolButton(self)
         self._refresh_button.setToolButtonStyle(Qt.ToolButtonStyle.ToolButtonIconOnly)
         self._refresh_button.setIcon(Krita.instance().icon("reload-preset"))
         self._refresh_button.setToolTip("Look for new LoRA files")
         self._refresh_button.clicked.connect(root.connection.refresh)
-        header_layout.addWidget(self._refresh_button, 0, align_right_center)
+        header_layout.addWidget(self._refresh_button, 0)
 
         if settings.server_mode is ServerMode.managed:
             self.open_folder_button = QToolButton(self)
             self.open_folder_button.setToolButtonStyle(Qt.ToolButtonStyle.ToolButtonIconOnly)
             self.open_folder_button.setIcon(Krita.instance().icon("document-open"))
             self.open_folder_button.setToolTip("Open folder containing LoRA files")
-            header_layout.addWidget(self.open_folder_button, 0, align_right_center)
+            header_layout.addWidget(self.open_folder_button, 0)
 
         self._layout.addLayout(header_layout)
 
@@ -169,7 +185,7 @@ class LoraList(QWidget):
 
     def _add_item(self, lora=None):
         assert self._item_list is not None
-        item = self.Item(self._loras, self)
+        item = self.Item(self._loras, self.filter, self)
         if isinstance(lora, dict):
             item.value = lora
         item.changed.connect(self._update_item)
@@ -187,19 +203,42 @@ class LoraList(QWidget):
     def _update_item(self):
         self.value_changed.emit()
 
+    def _collect_filters(self, names: list[str]):
+        with SignalBlocker(self._filter_combo):
+            self._filter_combo.clear()
+            self._filter_combo.addItem(icon("filter"), "All")
+            folders = set()
+            for name in names:
+                parts = Path(name).parts
+                for i in range(1, len(parts)):
+                    folders.add("/".join(parts[:i]))
+            folder_icon = Krita.instance().icon("document-open")
+            for folder in sorted(folders, key=lambda x: x.lower()):
+                self._filter_combo.addItem(folder_icon, folder)
+        self._filter_combo.setCurrentText(LoraList.last_filter)
+
+    def _set_filtered_names(self):
+        LoraList.last_filter = self.filter
+        for item in self._items:
+            item.set_names(self._loras, self.filter)
+
     def _handle_settings_change(self, key: str, value):
         if key == "server_mode":
             self.setEnabled(value is not ServerMode.cloud)
+
+    @property
+    def filter(self):
+        return self._filter_combo.currentText()
 
     @property
     def names(self):
         return self._loras
 
     @names.setter
-    def names(self, v):
-        self._loras = v
-        for item in self._items:
-            item._select.setMenu(item._build_menu(util.get_path_dict(self._loras)))
+    def names(self, v: list[str]):
+        self._loras = [LoraId.normalize(name) for name in v]
+        self._collect_filters(v)
+        self._set_filtered_names()
 
     @property
     def value(self):

@@ -130,27 +130,6 @@ def find_unused_path(path: Path):
     return new_path
 
 
-def get_path_dict(paths: Sequence[str]) -> dict:
-    """Builds a tree like structure out of a list of paths. The leaf nodes point to the original
-    path string. It's important the string remains unchanged, see #307"""
-
-    def _recurse(dic: dict, chain: tuple[str, ...] | list[str], full_path: str):
-        if len(chain) == 0:
-            return
-        if len(chain) == 1:
-            dic[chain[0]] = full_path
-            return
-        key, *new_chain = chain
-        _recurse(dic.setdefault(key, {}), new_chain, full_path)
-        return
-
-    new_path_dict = {}
-    for path in paths:
-        parts = Path(path.replace("\\", "/")).parts
-        _recurse(new_path_dict, parts, path)
-    return new_path_dict
-
-
 if is_linux:
     import signal
     import ctypes
