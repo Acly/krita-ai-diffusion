@@ -6,10 +6,10 @@ from typing import NamedTuple, Sequence
 
 # Version identifier for all the resources defined here. This is used as the server version.
 # It usually follows the plugin version, but not all new plugin versions also require a server update.
-version = "1.17.0"  # TODO update ip-adapter
+version = "1.17.0"
 
 comfy_url = "https://github.com/comfyanonymous/ComfyUI"
-comfy_version = "fd7c63668080f8c2eb56edffeef028aa3932e0fe"
+comfy_version = "45ec1cbe963055798765645c4f727122a7d3e35e"
 
 
 class CustomNode(NamedTuple):
@@ -32,7 +32,7 @@ required_custom_nodes = [
         "IP-Adapter",
         "ComfyUI_IPAdapter_plus",
         "https://github.com/cubiq/ComfyUI_IPAdapter_plus",
-        "417d806e7a2153c98613e86407c1941b2b348e88",
+        "0d0a7b3693baf8903fe2028ff218b557d619a93d",
         ["IPAdapterModelLoader", "IPAdapter"],
     ),
     CustomNode(
