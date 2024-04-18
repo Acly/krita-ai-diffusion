@@ -3,13 +3,13 @@ from enum import Enum
 from math import ceil, sqrt
 from PyQt5.QtGui import QImage, QImageWriter, QPixmap, QIcon, QPainter, QColorSpace
 from PyQt5.QtGui import qRgba, qRed, qGreen, qBlue, qAlpha, qGray
-from PyQt5.QtCore import Qt, QByteArray, QBuffer, QRect, QSize
+from PyQt5.QtCore import Qt, QByteArray, QBuffer, QRect, QSize, QFile, QIODevice
 from typing import Callable, Iterable, SupportsIndex, Tuple, NamedTuple, Union, Optional
 from itertools import product
 from pathlib import Path
 
 from .settings import settings
-from .util import is_linux
+from .util import is_linux, client_logger as log
 
 
 def multiple_of(number, multiple):
@@ -197,15 +197,36 @@ def extent_equal(a: QImage, b: QImage):
 
 
 class ImageFileFormat(Enum):
-    # Low compression rate, fast but large files. Good for local use, but maybe not optimal
-    # for remote server where images are transferred via internet.
-    png = ("png", 85)
-
+    png = ("png", 85)  # fast, large files
+    png_small = ("png", 50)  # slow, smaller files
     webp = ("webp", 80)
     webp_lossless = ("webp", 100)
+    jpeg = ("jpeg", 85)
+
+    @staticmethod
+    def from_extension(filepath: str | Path):
+        extension = Path(filepath).suffix.lower()
+        if extension == ".png":
+            return ImageFileFormat.png_small
+        if extension == ".webp":
+            return ImageFileFormat.webp
+        if extension == ".jpg":
+            return ImageFileFormat.jpeg
+        raise Exception(f"Unsupported image extension: {extension}")
+
+    @property
+    def no_webp_fallback(self):
+        if self is ImageFileFormat.webp_lossless:
+            return ImageFileFormat.png
+        if self is ImageFileFormat.webp:
+            return ImageFileFormat.jpeg
+        return self
 
 
 class Image:
+
+    _qt_supports_webp = True
+
     def __init__(self, qimage: QImage):
         self._qimage = qimage
 
@@ -332,8 +353,10 @@ class Image:
         array = np.frombuffer(ptr, np.uint8).reshape(h, w, 4)  # type: ignore
         return array.astype(np.float32) / 255
 
-    def write(self, buffer: QBuffer, format=ImageFileFormat.png):
+    def write(self, buffer: QIODevice, format=ImageFileFormat.png):
         # Compression takes time for large images and blocks the UI, might be worth to thread.
+        if not self._qt_supports_webp:
+            format = format.no_webp_fallback
         format_str, quality = format.value
         writer = QImageWriter(buffer, QByteArray(format_str.encode("utf-8")))
         writer.setQuality(quality)
@@ -341,7 +364,11 @@ class Image:
         if not result:
             info = f"[{self.width}x{self.height} format={self._qimage.format()}] -> {format_str}@{quality}"
             if is_linux and format_str == "webp":
-                info = f"To enable support for writing webp images, you may need to install the 'qt5-imageformats' package."
+                log.warning(
+                    "To enable support for writing webp images, you may need to install the 'qt5-imageformats' package."
+                )
+                Image._qt_supports_webp = False
+                self.write(buffer, format.no_webp_fallback)
             raise Exception(f"Failed to write image to buffer: {writer.errorString()} {info}")
 
     def to_bytes(self, format=ImageFileFormat.png):
@@ -374,8 +401,14 @@ class Image:
         painter.end()
 
     def save(self, filepath: Union[str, Path]):
-        success = self._qimage.save(str(filepath))
-        assert success, f"Failed to save image to {filepath}"
+        fmt = ImageFileFormat.from_extension(filepath)
+        file = QFile(str(filepath))
+        if not file.open(QFile.OpenModeFlag.WriteOnly):
+            raise Exception(f"Failed to open {filepath} for writing: {file.errorString()}")
+        try:
+            self.write(file, fmt)
+        finally:
+            file.close()
 
     def debug_save(self, name):
         if settings.debug_image_folder:
