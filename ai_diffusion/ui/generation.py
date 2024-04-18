@@ -353,8 +353,8 @@ class HistoryWidget(QListWidget):
 
     def _save_image(self):
         items = self.selectedItems()
-        if len(items) > 0:
-            job_id, image_index = self.item_info(items[0])
+        for item in items:
+            job_id, image_index = self.item_info(item)
             self._model.save_result(job_id, image_index)
 
     def _discard_image(self):
