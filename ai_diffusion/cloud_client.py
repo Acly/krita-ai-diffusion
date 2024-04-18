@@ -30,7 +30,7 @@ class JobInfo:
 
 
 class CloudClient(Client):
-    default_api_url = os.getenv("INTERSTICE_URL", "https://interstice-api.aclysia.workers.dev")
+    default_api_url = os.getenv("INTERSTICE_URL", "https://api.interstice.cloud")
     default_web_url = os.getenv("INTERSTICE_WEB_URL", "https://www.interstice.cloud")
 
     _requests = RequestManager()
