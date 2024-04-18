@@ -16,7 +16,7 @@ from .config import result_dir
 
 def pytest_addoption(parser):
     parser.addoption("--test-install", action="store_true")
-    parser.addoption("--no-pod-process", action="store_true")
+    parser.addoption("--pod-process", action="store_true")
     parser.addoption("--ci", action="store_true")
     parser.addoption("--benchmark", action="store_true")
 
