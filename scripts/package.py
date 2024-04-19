@@ -30,13 +30,7 @@ def build_package():
     plugin_dst = package_dir / "ai_diffusion"
 
     def ignore(path, names):
-        filtered = ignore_patterns(".*", "*.json", "*.pyc", "__pycache__")(path, names)
-        if path.endswith("styles"):
-            filtered.remove("cinematic-photo.json")
-            filtered.remove("digital-artwork.json")
-            filtered.remove("cinematic-photo-xl.json")
-            filtered.remove("digital-artwork-xl.json")
-        return filtered
+        return ignore_patterns(".*", "*.pyc", "__pycache__")(path, names)
 
     copytree(plugin_src, plugin_dst, ignore=ignore)
     copy(root / "scripts" / "download_models.py", plugin_dst)
