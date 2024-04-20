@@ -257,6 +257,39 @@ class ComfyWorkflow:
     def conditioning_combine(self, a: Output, b: Output):
         return self.add("ConditioningCombine", 1, conditioning_1=a, conditioning_2=b)
 
+    def attention_mask(self, image: Output):
+        return self.add(
+            "ImageToMask",
+            1,
+            image=image,
+            channel="red"
+        )
+
+    def attention_mask_composite(self, destination: Output, source:Output, operation: str):
+        return self.add(
+            "MaskComposite",
+            1,
+            destination=destination,
+            source=source,
+            x=0,
+            y=0,
+            operation=operation
+        )
+
+    def apply_attention_couple(self, model: Output, base_mask: Output, conds: [Output], masks: [Output]):
+        kwargs = {}
+        for i in range(len(conds)):
+            kwargs[f'cond_{i+1}'] = conds[i]
+            kwargs[f'mask_{i+1}'] = masks[i]
+
+        return self.add(
+            "AttentionCouple|cgem156",
+            1,
+            model=model,
+            base_mask=base_mask,
+            **kwargs
+        )
+
     def apply_controlnet(
         self,
         positive: Output,
@@ -437,6 +470,9 @@ class ComfyWorkflow:
     def invert_image(self, image: Output):
         return self.add("ImageInvert", 1, image=image)
 
+    def invert_mask(self, mask: Output):
+        return self.add("InvertMask", 1, mask=mask)
+
     def batch_image(self, batch: Output, image: Output):
         return self.add("ImageBatch", 1, image1=batch, image2=image)
 
@@ -502,6 +538,17 @@ class ComfyWorkflow:
         if self._run_mode is ComfyRunMode.runtime:
             return self.add("ETN_InjectImage", 1, id=self._add_image(image))
         return self.add("ETN_LoadImageBase64", 1, image=image.to_base64())
+
+    def load_image_mask(self, image: Image):
+        if self._run_mode is ComfyRunMode.runtime:
+            mask = self.add("ETN_InjectImage", 2, id=self._add_image(image))[1]
+        else:
+            mask = self.add("ETN_LoadImageBase64", 2, image=image.to_base64())[1]
+
+        mask = self.invert_mask(mask)
+        image = self.add("MaskToImage", 1, mask=mask)
+        mask = self.add("ImageToMask", 1, image=image, channel="red")
+        return mask
 
     def load_mask(self, mask: Image):
         if self._run_mode is ComfyRunMode.runtime:
