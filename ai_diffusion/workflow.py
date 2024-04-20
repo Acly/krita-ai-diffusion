@@ -1,4 +1,6 @@
 from __future__ import annotations
+
+import re
 from copy import copy
 from dataclasses import dataclass, field
 from typing import Any
@@ -221,6 +223,79 @@ def encode_text_prompt(w: ComfyWorkflow, cond: Conditioning, clip: Output):
     return positive, negative
 
 
+regex_attention_line = re.compile(r"^((?:PROMPT|ZONE|ATT|BREAK)\s*\d* )(.*)$")
+
+
+def attention_cond_prompt(cond: Conditioning, index: int):
+    if not cond.prompt:
+        return cond, cond
+
+    updated_prompt_lines = []
+    att_prompts_lines = []
+    i = 0
+    for line in cond.prompt.splitlines():
+        match = regex_attention_line.match(line)
+        if not match:
+            att_prompts_lines.append(line)
+            updated_prompt_lines.append(line)
+        else:
+            if i == index:
+                att_prompts_lines.append(match.group(2))
+                updated_prompt_lines.append(match.group(1))
+            else:
+                updated_prompt_lines.append(line)
+
+            i += 1
+
+    att_cond = copy(cond)
+    att_cond.prompt = "\n".join(att_prompts_lines)
+    cond.prompt = "\n".join(updated_prompt_lines)
+
+    return att_cond, cond
+
+
+def apply_attention(
+    w: ComfyWorkflow,
+    model: Output,
+    cond: Conditioning,
+    clip: Output,
+    extent: Extent,
+):
+    control_layers = cond.control
+    controls = [c for c in control_layers if c.mode is ControlMode.attention]
+    if not len(controls):
+        return model, cond
+
+    prompt = cond.prompt
+    base_mask = w.solid_mask(extent, 1.0)
+    conds = []
+    masks = []
+    mask_sum = None
+    for i in range(len(controls)):
+        control = controls[i]
+        mask = w.load_image_mask(control.image)
+        control_cond, cond = attention_cond_prompt(cond, i)
+
+        if mask_sum is None:
+            mask_sum = mask
+        else:
+            mask_sum = w.attention_mask_composite(mask, mask_sum, "or")
+
+        conds.append(encode_text_prompt(w, control_cond, clip)[0])
+        masks.append(mask)
+
+    base_mask = w.attention_mask_composite(base_mask, mask_sum, "subtract")
+    cond, _ = attention_cond_prompt(cond, len(controls))
+    model = w.apply_attention_couple(
+        model,
+        base_mask,
+        conds,
+        masks
+    )
+
+    return model, cond
+
+
 def apply_control(
     w: ComfyWorkflow,
     positive: Output,
@@ -396,6 +471,7 @@ def generate(
 ):
     model, clip, vae = load_checkpoint_with_lora(w, checkpoint, models.all)
     model = apply_ip_adapter(w, model, cond.control, models)
+    model, cond = apply_attention(w, model, cond, clip, extent.initial)
     latent = w.empty_latent_image(extent.initial, batch_count)
     prompt_pos, prompt_neg = encode_text_prompt(w, cond, clip)
     positive, negative = apply_control(
