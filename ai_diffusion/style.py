@@ -8,7 +8,8 @@ from PyQt5.QtCore import QObject, pyqtSignal
 from .api import CheckpointInput, LoraInput
 from .settings import Setting, settings
 from .resources import SDVersion
-from .util import encode_json, plugin_dir, user_data_dir, client_logger as log
+from .util import encode_json, read_json_with_comments
+from .util import plugin_dir, user_data_dir, client_logger as log
 
 
 class StyleSettings:
@@ -325,7 +326,7 @@ class SamplerPresets:
 
     def load(self, file: Path):
         try:
-            presets = json.loads(file.read_text())
+            presets = read_json_with_comments(file)
             presets = {name: SamplerPreset(**preset) for name, preset in presets.items()}
             self._presets.update(presets)
             log.info(f"Loaded {len(presets)} sampler presets from {file}")
@@ -350,7 +351,7 @@ class SamplerPresets:
     def write_stub(self):
         if not self._user_preset_file.exists():
             self._user_preset_file.parent.mkdir(parents=True, exist_ok=True)
-            self._user_preset_file.write_text(json.dumps(_sampler_presets_stub, indent=4))
+            self._user_preset_file.write_text(_sampler_presets_stub)
         return self._user_preset_file
 
     def __len__(self):
@@ -411,11 +412,16 @@ _scheduler_map = {
     "Euler": "normal",
     "Euler a": "normal",
 }
-_sampler_presets_stub = {
-    "DPM++ 3M (Example custom sampler)": {
+_sampler_presets_stub = """// Custom sampler presets - add your own sampler presets here!
+// https://github.com/Acly/krita-ai-diffusion/wiki/Samplers
+//
+// *** You have to restart Krita for the changes to take effect! ***
+{
+    "My Custom Sampler - DPM++ 3M": {
         "sampler": "dpmpp_3m_sde",
         "scheduler": "exponential",
-        "steps": 30,
-        "cfg": 7.0,
+        "steps": 20,
+        "cfg": 7.0
     }
 }
+"""

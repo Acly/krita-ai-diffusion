@@ -314,7 +314,9 @@ class SamplerWidget(QWidget):
 
     def _open_user_presets(self):
         path = SamplerPresets.instance().write_stub()
-        QDesktopServices.openUrl(QUrl.fromLocalFile(str(path)))
+        if not QDesktopServices.openUrl(QUrl.fromLocalFile(str(path))):
+            # No associated application, open the folder instead
+            QDesktopServices.openUrl(QUrl.fromLocalFile(str(path.parent)))
 
     def notify_changed(self):
         self.value_changed.emit()

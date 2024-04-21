@@ -6,6 +6,7 @@ import importlib.util
 import os
 import subprocess
 import sys
+import json
 import logging
 import logging.handlers
 import statistics
@@ -109,6 +110,11 @@ def encode_json(obj):
     if isinstance(obj, Enum):
         return obj.name
     raise TypeError(f"Object of type {obj.__class__.__name__} is not JSON serializable")
+
+
+def read_json_with_comments(path: Path):
+    lines = path.read_text().splitlines()
+    return json.loads("\n".join("" if line.strip().startswith("//") else line for line in lines))
 
 
 def sanitize_prompt(prompt: str):
