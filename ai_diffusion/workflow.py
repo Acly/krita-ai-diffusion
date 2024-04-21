@@ -286,12 +286,7 @@ def apply_attention(
 
     base_mask = w.attention_mask_composite(base_mask, mask_sum, "subtract")
     cond, _ = attention_cond_prompt(cond, len(controls))
-    model = w.apply_attention_couple(
-        model,
-        base_mask,
-        conds,
-        masks
-    )
+    model = w.apply_attention_couple(model, base_mask, conds, masks)
 
     return model, cond
 
