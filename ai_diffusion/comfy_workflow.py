@@ -269,7 +269,7 @@ class ComfyWorkflow:
             source=source,
             x=0,
             y=0,
-            operation=operation
+            operation=operation,
         )
 
     def apply_attention_couple(
@@ -277,8 +277,8 @@ class ComfyWorkflow:
     ):
         kwargs = {}
         for i in range(len(conds)):
-            kwargs[f'cond_{i+1}'] = conds[i]
-            kwargs[f'mask_{i+1}'] = masks[i]
+            kwargs[f"cond_{i+1}"] = conds[i]
+            kwargs[f"mask_{i+1}"] = masks[i]
 
         return self.add("AttentionCouple|cgem156", 1, model=model, base_mask=base_mask, **kwargs)
 
