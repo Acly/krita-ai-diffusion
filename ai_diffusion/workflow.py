@@ -306,9 +306,9 @@ def apply_attention(
 
     prompt = cond.prompt
     base_mask = w.solid_mask(extent, 1.0)
-    conds = []
-    masks = []
-    mask_sum = None
+    conds: list[Output] = []
+    masks: list[Output] = []
+    mask_sum: Output = None
     for i in range(len(controls)):
         control = controls[i]
         mask = w.load_image_mask(control.image)
