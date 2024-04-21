@@ -571,8 +571,8 @@ class ComfyWorkflow:
             mask = self.add("ETN_LoadImageBase64", 2, image=image.to_base64())[1]
 
         mask = self.invert_mask(mask)
-        image = self.add("MaskToImage", 1, mask=mask)
-        mask = self.add("ImageToMask", 1, image=image, channel="red")
+        img = self.add("MaskToImage", 1, mask=mask)
+        mask = self.add("ImageToMask", 1, image=img, channel="red")
         return mask
 
     def load_image_mask(self, image: Image):
