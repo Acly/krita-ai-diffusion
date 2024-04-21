@@ -1,36 +1,42 @@
 {
-    "Default": {
+    "Default - DPM++ 2M": {
         "sampler": "dpmpp_2m",
         "scheduler": "karras",
         "steps": 20,
         "cfg": 7.0
     },
-    "Creative": {
+    "Alternative - Euler A": {
+        "sampler": "euler_ancestral",
+        "scheduler": "normal",
+        "steps": 20,
+        "cfg": 6.0
+    },
+    "Creative - DPM++ 2M SDE": {
         "sampler": "dpmpp_2m_sde_gpu",
         "scheduler": "karras",
         "steps": 20,
         "cfg": 6.0
     },
-    "Fast": {
+    "Fast - UniPC BH2": {
         "sampler": "uni_pc_bh2",
         "scheduler": "ddim_uniform",
         "steps": 12,
         "cfg": 4.0
     },
-    "Turbo/Lightning Merge": {
+    "Turbo/Lightning Merge - DPM++ SDE": {
         "sampler": "dpmpp_sde_gpu",
         "scheduler": "karras",
         "steps": 6,
         "cfg": 2.0
     },
-    "Realtime LCM": {
+    "Realtime - LCM": {
         "sampler": "lcm",
         "scheduler": "sgm_uniform",
         "lora": "lcm",
         "steps": 6,
         "cfg": 1.8
     },
-    "Realtime Lightning": {
+    "Realtime - Lightning": {
         "sampler": "euler",
         "scheduler": "sgm_uniform",
         "lora": "lightning",

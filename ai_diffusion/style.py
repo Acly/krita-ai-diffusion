@@ -328,6 +328,7 @@ class SamplerPresets:
             presets = json.loads(file.read_text())
             presets = {name: SamplerPreset(**preset) for name, preset in presets.items()}
             self._presets.update(presets)
+            log.info(f"Loaded {len(presets)} sampler presets from {file}")
         except Exception as e:
             log.error(f"Failed to load sampler presets from {file}: {e}")
 
@@ -370,12 +371,19 @@ class SamplerPresets:
 
 
 _legacy_map = {
-    "DPM++ 2M Karras": "Default",
-    "DPM++ 2M SDE Karras": "Creative",
-    "DPM++ SDE Karras": "Turbo/Lightning Merge",
-    "UniPC BH2": "Fast",
-    "LCM": "Realtime LCM",
-    "Lightning": "Realtime Lightning",
+    "DPM++ 2M Karras": "Default - DPM++ 2M",
+    "DPM++ 2M SDE Karras": "Creative - DPM++ 2M SDE",
+    "Euler a": "Alternative - Euler A",
+    "DPM++ SDE Karras": "Turbo/Lightning Checkpoint - DPM++ SDE",
+    "UniPC BH2": "Fast - UniPC BH2",
+    "LCM": "Realtime - LCM",
+    "Lightning": "Realtime - Lightning",
+    "Default": "Default - DPM++ 2M",
+    "Creative": "Creative - DPM++ 2M SDE",
+    "Turbo/Lightning Merge": "Turbo/Lightning Merge - DPM++ SDE",
+    "Fast": "Fast - UniPC BH2",
+    "Realtime LCM": "Realtime - LCM",
+    "Realtime Lightning": "Realtime - Lightning",
 }
 _sampler_map = {
     "DDIM": "ddim",
