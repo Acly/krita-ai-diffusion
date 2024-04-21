@@ -686,6 +686,7 @@ def refine(
 ):
     model, clip, vae = load_checkpoint_with_lora(w, checkpoint, models.all)
     model = apply_ip_adapter(w, model, cond.control, models)
+    model, cond = apply_attention(w, model, cond, clip, extent.initial)
     in_image = w.load_image(image)
     in_image = scale_to_initial(extent, w, in_image, models)
     latent = w.vae_encode(vae, in_image)
