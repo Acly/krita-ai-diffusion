@@ -259,12 +259,7 @@ class ComfyWorkflow:
         return self.add("ConditioningCombine", 1, conditioning_1=a, conditioning_2=b)
 
     def attention_mask(self, image: Output):
-        return self.add(
-            "ImageToMask",
-            1,
-            image=image,
-            channel="red"
-        )
+        return self.add("ImageToMask", 1, image=image, channel="red")
 
     def attention_mask_composite(self, destination: Output, source: Output, operation: str):
         return self.add(
@@ -277,19 +272,15 @@ class ComfyWorkflow:
             operation=operation
         )
 
-    def apply_attention_couple(self, model: Output, base_mask: Output, conds: list[Output], masks: list[Output]):
+    def apply_attention_couple(
+        self, model: Output, base_mask: Output, conds: list[Output], masks: list[Output]
+    ):
         kwargs = {}
         for i in range(len(conds)):
             kwargs[f'cond_{i+1}'] = conds[i]
             kwargs[f'mask_{i+1}'] = masks[i]
 
-        return self.add(
-            "AttentionCouple|cgem156",
-            1,
-            model=model,
-            base_mask=base_mask,
-            **kwargs
-        )
+        return self.add("AttentionCouple|cgem156", 1, model=model, base_mask=base_mask, **kwargs)
 
     def attention_mask(self, image: Output):
         return self.add("ImageToMask", 1, image=image, channel="red")
