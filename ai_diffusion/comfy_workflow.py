@@ -564,7 +564,7 @@ class ComfyWorkflow:
             return self.add("ETN_InjectImage", 1, id=self._add_image(image))
         return self.add("ETN_LoadImageBase64", 1, image=image.to_base64())
 
-    def load_image_mask(self, image: Image | Output):
+    def load_image_mask(self, image: Image):
         if self._run_mode is ComfyRunMode.runtime:
             mask = self.add("ETN_InjectImage", 2, id=self._add_image(image))[1]
         else:
