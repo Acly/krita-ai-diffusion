@@ -270,7 +270,7 @@ def apply_attention(
     base_mask = w.solid_mask(extent, 1.0)
     conds: list[Output] = []
     masks: list[Output] = []
-    mask_sum: Output = None
+    mask_sum: Output | None = None
     for i in range(len(controls)):
         control = controls[i]
         mask = w.load_image_mask(control.image)
