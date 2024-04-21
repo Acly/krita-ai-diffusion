@@ -276,7 +276,7 @@ class ComfyWorkflow:
             operation=operation
         )
 
-    def apply_attention_couple(self, model: Output, base_mask: Output, conds: [Output], masks: [Output]):
+    def apply_attention_couple(self, model: Output, base_mask: Output, conds: (Output,), masks: (Output,)):
         kwargs = {}
         for i in range(len(conds)):
             kwargs[f'cond_{i+1}'] = conds[i]
