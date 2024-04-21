@@ -79,7 +79,7 @@ class StyleSettings:
         "Preferred Resolution", 0, "Image resolution the checkpoint was trained on"
     )
 
-    sampler = Setting("Sampler", "Default", "The sampling strategy and scheduler")
+    sampler = Setting("Sampler", "Default - DPM++ 2M", "The sampling strategy and scheduler")
 
     sampler_steps = Setting(
         "Sampler Steps",
@@ -93,7 +93,7 @@ class StyleSettings:
         "Value which indicates how closely image generation follows the text prompt",
     )
 
-    live_sampler = Setting("Sampler", "Realtime LCM", sampler.desc)
+    live_sampler = Setting("Sampler", "Realtime - LCM", sampler.desc)
     live_sampler_steps = Setting("Sampler Steps", 6, sampler_steps.desc)
     live_cfg_scale = Setting("Guidance Strength (CFG Scale)", 1.8, cfg_scale.desc)
 

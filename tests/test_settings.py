@@ -165,6 +165,6 @@ def test_sampler_presets(tmp_path_factory):
     user = presets["User"]
     assert user == SamplerPreset("user_sampler", "normal", 13, 1.0)
 
-    presets.add_missing("Euler a", 99, 2.3)
+    presets.add_missing("DDIM", 99, 2.3)
     assert len(presets) == 3
-    assert presets["Euler a"] == SamplerPreset("euler_ancestral", "normal", 99, 2.3)
+    assert presets["DDIM"] == SamplerPreset("ddim", "ddim_uniform", 99, 2.3)
