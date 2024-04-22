@@ -17,7 +17,7 @@ from .resolution import ScaledExtent, ScaleMode, get_inpaint_reference
 from .resources import ControlMode, SDVersion, UpscalerName, ResourceKind
 from .settings import PerformanceSettings
 from .text import merge_prompt, extract_loras
-from .comfy_workflow import ComfyWorkflow, ComfyRunMode, Output
+from .comfy_workflow import ComfyWorkflow, ComfyRunMode, Output, OutputNull
 from .util import ensure, median_or_zero, client_logger as log
 
 
@@ -266,23 +266,31 @@ def apply_attention(
     if not len(controls):
         return model, cond
 
-    prompt = cond.prompt
     base_mask = w.solid_mask(extent, 1.0)
     conds: list[Output] = []
     masks: list[Output] = []
-    mask_sum: Output | None = None
+    mask_sum: Output = OutputNull
+
+    # load masks, compute sum of all masks
     for i in range(len(controls)):
         control = controls[i]
         mask = w.load_image_mask(control.image)
         control_cond, cond = attention_cond_prompt(cond, i)
 
-        if mask_sum is None:
-            mask_sum = mask
-        else:
-            mask_sum = w.attention_mask_composite(mask, mask_sum, "or")
-
+        mask_sum = mask if mask_sum == OutputNull else w.attention_mask_composite(mask, mask_sum, "or")
         conds.append(encode_text_prompt(w, control_cond, clip)[0])
         masks.append(mask)
+
+    # subtract lower masks for each mask
+    for i in range(len(masks)):
+        sub_mask_sum: Output = OutputNull
+        for j in range(len(masks)):
+            if i > j:
+                sub_mask_sum = masks[j] if sub_mask_sum == OutputNull else \
+                               w.attention_mask_composite(masks[j], sub_mask_sum, "or")
+
+        if sub_mask_sum != OutputNull:
+            masks[i] = w.attention_mask_composite(masks[i], sub_mask_sum, "subtract")
 
     base_mask = w.attention_mask_composite(base_mask, mask_sum, "subtract")
     cond, _ = attention_cond_prompt(cond, len(controls))
