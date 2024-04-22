@@ -22,6 +22,7 @@ class Output(NamedTuple):
 Output2 = Tuple[Output, Output]
 Output3 = Tuple[Output, Output, Output]
 Output4 = Tuple[Output, Output, Output, Output]
+OutputNull = Output(-1, -1)
 
 
 class ComfyWorkflow:
