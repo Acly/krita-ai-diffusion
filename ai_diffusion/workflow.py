@@ -315,7 +315,9 @@ def apply_attention(
         mask = w.load_image_mask(control.image)
         control_cond, cond = attention_cond_prompt(cond, i)
 
-        mask_sum = mask if mask_sum == OutputNull else w.attention_mask_composite(mask, mask_sum, "or")
+        mask_sum = (
+            mask if mask_sum == OutputNull else w.attention_mask_composite(mask, mask_sum, "or")
+        )
         conds.append(encode_text_prompt(w, control_cond, clip)[0])
         masks.append(mask)
 
@@ -324,8 +326,11 @@ def apply_attention(
         sub_mask_sum: Output = OutputNull
         for j in range(len(masks)):
             if i > j:
-                sub_mask_sum = masks[j] if sub_mask_sum == OutputNull else \
-                               w.attention_mask_composite(masks[j], sub_mask_sum, "or")
+                sub_mask_sum = (
+                    masks[j]
+                    if sub_mask_sum == OutputNull
+                    else w.attention_mask_composite(masks[j], sub_mask_sum, "or")
+                )
 
         if sub_mask_sum != OutputNull:
             masks[i] = w.attention_mask_composite(masks[i], sub_mask_sum, "subtract")
