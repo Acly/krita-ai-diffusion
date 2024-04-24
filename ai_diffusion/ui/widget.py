@@ -39,10 +39,10 @@ from ..root import root
 from ..client import filter_supported_styles, resolve_sd_version
 from ..properties import Binding, Bind, bind, bind_combo
 from ..jobs import JobState
-from ..model import Model, Workspace, SamplingQuality
+from ..model import Model, Workspace, SamplingQuality, Region, RegionTree
 from ..text import LoraId, edit_attention, select_on_cursor_pos
 from ..util import ensure
-from .settings import SettingsDialog
+from .settings import SettingsDialog, settings
 from .theme import SignalBlocker
 from . import actions, theme
 
@@ -564,6 +564,72 @@ class TextPromptWidget(QWidget):
                 color = QColor(color.red(), color.green() - o, color.blue() - o)
             palette.setColor(QPalette.ColorRole.Base, color)
             w.setPalette(palette)
+
+
+class RegionPromptWidget(QWidget):
+    _regions: RegionTree
+    _bindings: list[QMetaObject.Connection]
+    _positive: TextPromptWidget
+    _negative: TextPromptWidget
+
+    activated = pyqtSignal()
+
+    def __init__(self, parent=None):
+        super().__init__(parent)
+        self._regions = root.active_model.regions
+        self._bindings = []
+
+        self._positive = TextPromptWidget(parent=self)
+        self._positive.line_count = settings.prompt_line_count
+        self._positive.activated.connect(self.activated)
+
+        self._parent_prompt = QLabel(self)
+        self._parent_prompt.setVisible(False)
+
+        self._negative = TextPromptWidget(line_count=1, is_negative=True, parent=self)
+        self._negative.setVisible(settings.show_negative_prompt)
+        self._negative.activated.connect(self.activated)
+
+        layout = QVBoxLayout()
+        layout.setContentsMargins(0, 0, 0, 0)
+        layout.setSpacing(2)
+        layout.addWidget(self._positive)
+        layout.addWidget(self._parent_prompt)
+        layout.addWidget(self._negative)
+        self.setLayout(layout)
+
+        self._setup_bindings()
+        settings.changed.connect(self.update_settings)
+
+    @property
+    def regions(self):
+        return self._regions
+
+    @regions.setter
+    def regions(self, regions: RegionTree):
+        if regions == self._regions:
+            return
+        self._regions = regions
+        self._setup_bindings()
+        regions.active_changed.connect(self._setup_bindings)
+
+    def _setup_bindings(self):
+        Binding.disconnect_all(self._bindings)
+        region = self._regions.active
+        self._bindings = [
+            bind(region, "prompt", self._positive, "text"),
+            bind(region, "negative_prompt", self._negative, "text"),
+        ]
+        parent = region.parent_region
+        self._parent_prompt.setText(parent.prompt if parent else "")
+        self._parent_prompt.setVisible(parent is not None)
+
+    def update_settings(self, key: str, value):
+        if key == "prompt_line_count":
+            self._positive.line_count = value
+        elif key == "show_negative_prompt":
+            self._negative.text = ""
+            self._negative.setVisible(value)
 
 
 class StrengthWidget(QWidget):

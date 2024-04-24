@@ -62,6 +62,8 @@ class ModelSync:
         state["upscale"] = _serialize(model.upscale)
         state["live"] = _serialize(model.live)
         state["animation"] = _serialize(model.animation)
+        state["root"] = _serialize(model.regions.root)
+        state["regions"] = [_serialize(r) for r in model.regions]
         state["control"] = [_serialize(c) for c in model.control]
         state["history"] = [asdict(h) for h in self._history]
         state_str = json.dumps(state, indent=2)
@@ -75,6 +77,10 @@ class ModelSync:
         _deserialize(model.upscale, state.get("upscale", {}))
         _deserialize(model.live, state.get("live", {}))
         _deserialize(model.animation, state.get("animation", {}))
+
+        _deserialize(model.regions.root, state.get("root", {}))
+        for region_state in state.get("regions", []):
+            _deserialize(model.regions.emplace(), region_state)
 
         for control_state in state.get("control", []):
             model.control.add()

@@ -88,8 +88,8 @@ def log_error(error: Exception):
     return message
 
 
-def ensure(value: Optional[T]) -> T:
-    assert value is not None
+def ensure(value: Optional[T], msg="") -> T:
+    assert value is not None, msg or "a value is required"
     return value
 
 

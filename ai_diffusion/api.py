@@ -80,18 +80,28 @@ class SamplingInput:
 
 
 @dataclass
-class TextInput:
-    positive: str
-    negative: str = ""
-    style: str = ""
-
-
-@dataclass
 class ControlInput:
     mode: ControlMode
     image: Image
     strength: float = 1.0
     range: tuple[float, float] = (0.0, 1.0)
+
+
+@dataclass
+class RegionInput:
+    mask: Image
+    positive: str
+    negative: str = ""
+    control: list[ControlInput] = field(default_factory=list)
+
+
+@dataclass
+class ConditioningInput:
+    positive: str
+    negative: str = ""
+    style: str = ""
+    control: list[ControlInput] = field(default_factory=list)
+    regions: list[RegionInput] = field(default_factory=list)
 
 
 class InpaintMode(Enum):
@@ -129,8 +139,7 @@ class WorkflowInput:
     images: ImageInput | None = None
     models: CheckpointInput | None = None
     sampling: SamplingInput | None = None
-    text: TextInput | None = None
-    control: list[ControlInput] = field(default_factory=list)
+    conditioning: ConditioningInput | None = None
     inpaint: InpaintParams | None = None
     crop_upscale_extent: Extent | None = None
     upscale_model: str = ""

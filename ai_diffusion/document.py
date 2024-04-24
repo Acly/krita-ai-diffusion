@@ -56,6 +56,9 @@ class Document(QObject):
     def get_layer_image(self, layer: krita.Node, bounds: Bounds | None) -> Image:
         raise NotImplementedError
 
+    def get_layer_mask(self, layer: krita.Node, bounds: Bounds | None) -> Image:
+        raise NotImplementedError
+
     def insert_layer(
         self,
         name: str,
@@ -254,6 +257,16 @@ class KritaDocument(Document):
         data: QByteArray = layer.projectionPixelData(*bounds)
         assert data is not None and data.size() >= bounds.extent.pixel_count * 4
         return Image(QImage(data, *bounds.extent, QImage.Format.Format_ARGB32))
+
+    def get_layer_mask(self, layer: krita.Node, bounds: Bounds | None):
+        bounds = bounds or Bounds.from_qrect(layer.bounds())
+        if layer.type() in ["transparencymask", "selectionmask"]:
+            data: QByteArray = layer.pixelData(*bounds)
+            assert data is not None and data.size() >= bounds.extent.pixel_count
+            return Image(QImage(data, *bounds.extent, QImage.Format.Format_Grayscale8))
+        else:
+            img = self.get_layer_image(layer, bounds)
+            return Image(img._qimage.convertToFormat(QImage.Format.Format_Grayscale8))
 
     def insert_layer(
         self,
@@ -467,9 +480,11 @@ class LayerObserver(QObject):
     mask_layer_types = ["transparencymask", "selectionmask"]
 
     changed = pyqtSignal()
+    active_changed = pyqtSignal()
 
     _doc: krita.Document | None
     _layers: list[Desc]
+    _active: QUuid | None
     _timer: QTimer
 
     def __init__(self, doc: krita.Document | None):
@@ -477,6 +492,7 @@ class LayerObserver(QObject):
         self._doc = doc
         self._layers = []
         if doc is not None:
+            self._active = doc.activeNode().uniqueId()
             self.update()
             self._timer = QTimer()
             self._timer.setInterval(500)
@@ -488,6 +504,15 @@ class LayerObserver(QObject):
         root_node = self._doc.rootNode()
         if root_node is None:
             return  # Document has been closed
+
+        active = self._doc.activeNode()
+        if active is None:
+            return
+
+        if active.uniqueId() != self._active:
+            self._active = active.uniqueId()
+            self.active_changed.emit()
+
         layers = [self.Desc(l.uniqueId(), l.name(), l) for l in _traverse_layers(root_node)]
         if len(layers) != len(self._layers) or any(
             a.id != b.id or a.name != b.name for a, b in zip(layers, self._layers)
