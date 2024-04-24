@@ -1,13 +1,15 @@
 from __future__ import annotations
 from copy import copy
 from dataclasses import dataclass, field
+from itertools import chain
 from typing import Any
 import math
 import random
 
 from . import resolution, resources
 from .api import ControlInput, ImageInput, CheckpointInput, SamplingInput, WorkflowInput, LoraInput
-from .api import ExtentInput, InpaintMode, InpaintParams, FillMode, TextInput, WorkflowKind
+from .api import ExtentInput, InpaintMode, InpaintParams, FillMode, ConditioningInput, WorkflowKind
+from .api import RegionInput
 from .image import Bounds, Extent, Image, Mask
 from .client import ClientModels, ModelDict
 from .style import Style, StyleSettings, SamplerPresets
@@ -163,32 +165,63 @@ class Control:
 
 
 @dataclass
-class Conditioning:
-    prompt: str
-    negative_prompt: str = ""
+class Region:
+    mask: Image
+    positive: str
+    negative: str = ""
     control: list[Control] = field(default_factory=list)
-    style_prompt: str = ""
-    mask: Output | None = None
 
     @staticmethod
-    def from_input(i: TextInput, control: list[ControlInput]):
+    def from_input(i: RegionInput):
+        return Region(i.mask, i.positive, i.negative, [Control.from_input(c) for c in i.control])
+
+    def copy(self):
+        return Region(self.mask, self.positive, self.negative, [copy(c) for c in self.control])
+
+
+@dataclass
+class Conditioning:
+    positive: str
+    negative: str = ""
+    control: list[Control] = field(default_factory=list)
+    regions: list[Region] = field(default_factory=list)
+    style_prompt: str = ""
+
+    @staticmethod
+    def from_input(i: ConditioningInput):
         return Conditioning(
-            i.positive, i.negative, [Control.from_input(c) for c in control], i.style
+            i.positive,
+            i.negative,
+            [Control.from_input(c) for c in i.control],
+            [Region.from_input(r) for r in i.regions],
+            i.style,
         )
 
     def copy(self):
         return Conditioning(
-            self.prompt, self.negative_prompt, [copy(c) for c in self.control], self.style_prompt
+            self.positive,
+            self.negative,
+            [copy(c) for c in self.control],
+            [copy(r) for r in self.regions],
+            self.style_prompt,
         )
 
     def downscale(self, original: Extent, target: Extent):
-        return downscale_control_images(self.control, original, target)
+        downscale_control_images(self._all_control_layers, original, target)
 
     def crop(self, bounds: Bounds):
         # Meant to be called during preperation, before adding inpaint layer.
-        for control in self.control:
+        for control in self._all_control_layers:
             assert isinstance(control.image, Image) and control.mask is None
             control.image = Image.crop(control.image, bounds)
+
+    @property
+    def positive_merged(self):
+        return "\n".join(chain((r.positive for r in self.regions), [self.positive]))
+
+    @property
+    def _all_control_layers(self):
+        return self.control + [c for r in self.regions for c in r.control]
 
 
 def downscale_control_images(
@@ -204,18 +237,29 @@ def downscale_control_images(
                 control.image = Image.scale(control.image, target)
 
 
+def downscale_all_control_images(cond: ConditioningInput, original: Extent, target: Extent):
+    downscale_control_images(cond.control, original, target)
+    for region in cond.regions:
+        downscale_control_images(region.control, original, target)
+
+
 def encode_text_prompt(w: ComfyWorkflow, cond: Conditioning, clip: Output):
-    prompt = cond.prompt
-    if prompt != "" and cond.mask:
-        prompt = merge_prompt("", cond.style_prompt)
-    elif prompt != "":
+    prompt = cond.positive_merged
+
+    # TODO: represent inpaint condition mask via regions
+    # if prompt != "" and cond.mask:
+    #     prompt = merge_prompt("", cond.style_prompt)
+
+    if prompt != "":
         prompt = merge_prompt(prompt, cond.style_prompt)
     positive = w.clip_text_encode(clip, prompt)
-    negative = w.clip_text_encode(clip, cond.negative_prompt)
-    if cond.mask and cond.prompt != "":
-        masked = w.clip_text_encode(clip, cond.prompt)
-        masked = w.conditioning_set_mask(masked, cond.mask)
-        positive = w.conditioning_combine(positive, masked)
+    negative = w.clip_text_encode(clip, cond.negative)
+
+    # if cond.mask and cond.prompt != "":
+    #     masked = w.clip_text_encode(clip, cond.prompt)
+    #     masked = w.conditioning_set_mask(masked, cond.mask)
+    #     positive = w.conditioning_combine(positive, masked)
+
     return positive, negative
 
 
@@ -489,8 +533,10 @@ def inpaint(
         cond_base.control.append(Control(ControlMode.reference, reference, 0.5, (0.2, 0.8)))
     if params.use_inpaint_model and models.version is SDVersion.sd15:
         cond_base.control.append(Control(ControlMode.inpaint, in_image, mask=in_mask))
-    if params.use_condition_mask:
-        cond_base.mask = in_mask
+
+    # TODO: represent inpaint condition mask via region
+    # if params.use_condition_mask:
+    #     cond_base.mask = in_mask
 
     in_image = fill_masked(w, in_image, in_mask, params.fill, models)
 
@@ -765,13 +811,12 @@ def upscale_tiled(
 def prepare(
     kind: WorkflowKind,
     canvas: Image | Extent,
-    text: TextInput,
+    cond: ConditioningInput,
     style: Style,
     seed: int,
     models: ClientModels,
     perf: PerformanceSettings,
     mask: Mask | None = None,
-    control: list[ControlInput] | None = None,
     strength: float = 1.0,
     inpaint: InpaintParams | None = None,
     upscale_factor: float = 1.0,
@@ -783,11 +828,13 @@ def prepare(
     which can be compared and serialized.
     """
     i = WorkflowInput(kind)
-    i.text = text
-    i.text.positive, extra_loras = extract_loras(i.text.positive, models.loras)
-    i.text.negative = merge_prompt(text.negative, style.negative_prompt)
-    i.text.style = style.style_prompt
-    i.control = control or []
+    i.conditioning = cond
+    i.conditioning.positive, extra_loras = extract_loras(i.conditioning.positive, models.loras)
+    i.conditioning.negative = merge_prompt(cond.negative, style.negative_prompt)
+    i.conditioning.style = style.style_prompt
+    for region in i.conditioning.regions:
+        region.positive, region_loras = extract_loras(region.positive, models.loras)
+        extra_loras += region_loras
     i.sampling = _sampling_from_style(style, strength, is_live)
     i.sampling.seed = seed
     i.models = style.get_models()
@@ -798,7 +845,8 @@ def prepare(
     model_set = models.for_version(sd_version)
     has_ip_adapter = model_set.ip_adapter.find(ControlMode.reference) is not None
     i.models.loras += _get_sampling_lora(style, is_live, model_set, models)
-    face_weight = median_or_zero(c.strength for c in i.control if c.mode is ControlMode.face)
+    all_control = cond.control + [c for r in cond.regions for c in r.control]
+    face_weight = median_or_zero(c.strength for c in all_control if c.mode is ControlMode.face)
     if face_weight > 0:
         i.models.loras.append(LoraInput(model_set.lora["face"], 0.65 * face_weight))
 
@@ -807,7 +855,7 @@ def prepare(
         i.images, i.batch_count = resolution.prepare_extent(
             canvas, sd_version, ensure(style), perf, downscale=not is_live
         )
-        downscale_control_images(i.control, canvas, i.images.extent.desired)
+        downscale_all_control_images(i.conditioning, canvas, i.images.extent.desired)
 
     elif kind is WorkflowKind.inpaint:
         assert isinstance(canvas, Image) and mask and inpaint and style
@@ -824,15 +872,15 @@ def prepare(
         scaling = ScaledExtent.from_input(i.images.extent).refinement_scaling
         if scaling in [ScaleMode.upscale_small, ScaleMode.upscale_quality]:
             i.images.hires_image = Image.crop(canvas, i.inpaint.target_bounds)
-        if inpaint.mode is InpaintMode.remove_object and i.text.positive == "":
-            i.text.positive = "background scenery"
+        if inpaint.mode is InpaintMode.remove_object and i.conditioning.positive == "":
+            i.conditioning.positive = "background scenery"
 
     elif kind is WorkflowKind.refine:
         assert isinstance(canvas, Image) and style
         i.images, i.batch_count = resolution.prepare_image(
             canvas, sd_version, style, perf, downscale=False
         )
-        downscale_control_images(i.control, canvas.extent, i.images.extent.desired)
+        downscale_all_control_images(i.conditioning, canvas.extent, i.images.extent.desired)
 
     elif kind is WorkflowKind.refine_region:
         assert isinstance(canvas, Image) and mask and inpaint and style
@@ -842,7 +890,7 @@ def prepare(
         )
         i.images.hires_mask = mask.to_image()
         i.inpaint = inpaint
-        downscale_control_images(i.control, canvas.extent, i.images.extent.desired)
+        downscale_all_control_images(i.conditioning, canvas.extent, i.images.extent.desired)
 
     elif kind is WorkflowKind.upscale_tiled:
         assert isinstance(canvas, Image) and style and upscale_model
@@ -904,7 +952,7 @@ def create(i: WorkflowInput, models: ClientModels, comfy_mode=ComfyRunMode.serve
             workflow,
             ensure(i.models),
             ScaledExtent.from_input(i.extent),
-            Conditioning.from_input(ensure(i.text), i.control),
+            Conditioning.from_input(ensure(i.conditioning)),
             ensure(i.sampling),
             i.batch_count,
             models.for_checkpoint(ensure(i.models).checkpoint),
@@ -914,7 +962,7 @@ def create(i: WorkflowInput, models: ClientModels, comfy_mode=ComfyRunMode.serve
             workflow,
             ensure(i.images),
             ensure(i.models),
-            Conditioning.from_input(ensure(i.text), i.control),
+            Conditioning.from_input(ensure(i.conditioning)),
             ensure(i.sampling),
             ensure(i.inpaint),
             ensure(i.crop_upscale_extent),
@@ -927,7 +975,7 @@ def create(i: WorkflowInput, models: ClientModels, comfy_mode=ComfyRunMode.serve
             i.image,
             ScaledExtent.from_input(i.extent),
             ensure(i.models),
-            Conditioning.from_input(ensure(i.text), i.control),
+            Conditioning.from_input(ensure(i.conditioning)),
             ensure(i.sampling),
             i.batch_count,
             models.for_checkpoint(ensure(i.models).checkpoint),
@@ -937,7 +985,7 @@ def create(i: WorkflowInput, models: ClientModels, comfy_mode=ComfyRunMode.serve
             workflow,
             ensure(i.images),
             ensure(i.models),
-            Conditioning.from_input(ensure(i.text), i.control),
+            Conditioning.from_input(ensure(i.conditioning)),
             ensure(i.sampling),
             ensure(i.inpaint),
             i.batch_count,
@@ -952,7 +1000,7 @@ def create(i: WorkflowInput, models: ClientModels, comfy_mode=ComfyRunMode.serve
             i.extent,
             i.upscale_model,
             ensure(i.models),
-            Conditioning.from_input(ensure(i.text), i.control),
+            Conditioning.from_input(ensure(i.conditioning)),
             ensure(i.sampling),
             models.for_checkpoint(ensure(i.models).checkpoint),
         )

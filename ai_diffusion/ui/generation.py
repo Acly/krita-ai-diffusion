@@ -33,10 +33,10 @@ from .control import ControlLayerButton, ControlListWidget
 from .widget import (
     WorkspaceSelectWidget,
     StyleSelectWidget,
-    TextPromptWidget,
     StrengthWidget,
     QueueButton,
     GenerateButton,
+    RegionPromptWidget,
 )
 
 
@@ -340,8 +340,8 @@ class HistoryWidget(QListWidget):
 
     def _copy_prompt(self):
         if job := self.selected_job:
-            self._model.prompt = job.params.prompt
-            self._model.negative_prompt = job.params.negative_prompt
+            self._model.regions.active.prompt = job.params.prompt
+            self._model.regions.active.negative_prompt = job.params.negative_prompt
 
     def _copy_strength(self):
         if job := self.selected_job:
@@ -479,7 +479,6 @@ class GenerationWidget(QWidget):
         super().__init__()
         self._model = root.active_model
         self._model_bindings = []
-        settings.changed.connect(self.update_settings)
 
         layout = QVBoxLayout(self)
         layout.setContentsMargins(0, 2, 2, 0)
@@ -493,18 +492,8 @@ class GenerationWidget(QWidget):
         style_layout.addWidget(self.style_select)
         layout.addLayout(style_layout)
 
-        self.prompt_textbox = TextPromptWidget(parent=self)
-        self.prompt_textbox.line_count = settings.prompt_line_count
-
-        self.negative_textbox = TextPromptWidget(line_count=1, is_negative=True, parent=self)
-        self.negative_textbox.setVisible(settings.show_negative_prompt)
-
-        prompt_layout = QVBoxLayout()
-        prompt_layout.setContentsMargins(0, 0, 0, 0)
-        prompt_layout.setSpacing(2)
-        prompt_layout.addWidget(self.prompt_textbox)
-        prompt_layout.addWidget(self.negative_textbox)
-        layout.addLayout(prompt_layout)
+        self.region_prompt = RegionPromptWidget(self)
+        layout.addWidget(self.region_prompt)
 
         self.control_list = ControlListWidget(self)
         layout.addWidget(self.control_list)
@@ -572,8 +561,6 @@ class GenerationWidget(QWidget):
             self._model_bindings = [
                 bind(model, "workspace", self.workspace_select, "value", Bind.one_way),
                 bind(model, "style", self.style_select, "value"),
-                bind(model, "prompt", self.prompt_textbox, "text"),
-                bind(model, "negative_prompt", self.negative_textbox, "text"),
                 bind(model, "strength", self.strength_slider, "value"),
                 model.inpaint.mode_changed.connect(self.update_generate_button),
                 model.strength_changed.connect(self.update_generate_button),
@@ -582,10 +569,10 @@ class GenerationWidget(QWidget):
                 model.error_changed.connect(self.error_text.setText),
                 model.has_error_changed.connect(self.error_text.setVisible),
                 self.add_control_button.clicked.connect(model.control.add),
-                self.prompt_textbox.activated.connect(model.generate),
-                self.negative_textbox.activated.connect(model.generate),
+                self.region_prompt.activated.connect(model.generate),
                 self.generate_button.clicked.connect(model.generate),
             ]
+            self.region_prompt.regions = model.regions
             self.control_list.model = model
             self.custom_inpaint.model = model
             self.generate_button.model = model
@@ -600,13 +587,6 @@ class GenerationWidget(QWidget):
             if self.progress_bar.value() >= 100:
                 self.progress_bar.reset()
             self.progress_bar.setValue(min(99, self.progress_bar.value() + 2))
-
-    def update_settings(self, key: str, value):
-        if key == "prompt_line_count":
-            self.prompt_textbox.line_count = value
-        elif key == "show_negative_prompt":
-            self.negative_textbox.text = ""
-            self.negative_textbox.setVisible(value)
 
     def apply_result(self, item: QListWidgetItem):
         job_id, index = self.history.item_info(item)

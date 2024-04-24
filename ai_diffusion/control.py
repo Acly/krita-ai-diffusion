@@ -95,7 +95,7 @@ class ControlLayer(QObject, ObservableProperties):
             if not value:
                 self._set_values_from_preset()
 
-    def get_image(self, bounds: Bounds | None = None):
+    def to_api(self, bounds: Bounds | None = None):
         layer = self.layer
         if self.mode.is_ip_adapter and not layer.bounds().isEmpty():
             bounds = None  # ignore mask bounds, use layer bounds
