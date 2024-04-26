@@ -307,6 +307,7 @@ class SamplerWidget(QWidget):
         self._steps.value = preset.steps
         self._cfg.value = preset.cfg
         self._update_info()
+        self.notify_changed()
 
     def _update_info(self):
         preset = self.preset
