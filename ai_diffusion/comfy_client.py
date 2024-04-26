@@ -283,10 +283,6 @@ class ComfyClient(Client):
             }
         models.vae = nodes["VAELoader"]["input"]["required"]["vae_name"][0]
         models.loras = nodes["LoraLoader"]["input"]["required"]["lora_name"][0]
-        special_loras = [  # Filter out LCM, FaceID, etc. since they are added automatically
-            res for id, res in models.resources.items() if id.startswith(ResourceKind.lora.name)
-        ]
-        models.loras = [l for l in models.loras if l not in special_loras]
 
     def supports_version(self, version: SDVersion):
         return version in self._supported_sd_versions

@@ -52,8 +52,13 @@ class LoraList(QWidget):
             self._select = QComboBox(self)
             self._select.setEditable(True)
             self._select.setMaxVisibleItems(20)
-            self.set_names(loras, filter)
             self._select.currentIndexChanged.connect(self._select_lora)
+
+            font_height = int(1.2 * self._select.fontMetrics().height())
+            warning_icon = icon("warning").pixmap(font_height, font_height)
+            self._warning_icon = QLabel(self)
+            self._warning_icon.setPixmap(warning_icon)
+            self._warning_icon.setVisible(False)
 
             self._strength = QSpinBox(self)
             self._strength.setMinimum(-400)
@@ -70,7 +75,10 @@ class LoraList(QWidget):
 
             layout.addWidget(self._select, 3)
             layout.addWidget(self._strength, 1)
+            layout.addWidget(self._warning_icon)
             layout.addWidget(self._remove)
+
+            self.set_names(loras, filter)
 
         def _update(self):
             self.changed.emit()
@@ -81,6 +89,7 @@ class LoraList(QWidget):
             if id.file and id != self._current:
                 self._current = id
                 self._update()
+                self._show_lora_warnings(id)
 
         def set_names(self, loras: list[LoraId], filter: str):
             self._loras = loras
@@ -114,9 +123,35 @@ class LoraList(QWidget):
 
         @value.setter
         def value(self, v):
-            self._current = LoraId.normalize(v["name"])
-            self._select.setEditText(self._current.name)
-            self._strength.setValue(int(v["strength"] * 100))
+            new_value = LoraId.normalize(v["name"])
+            if new_value.file != self._current.file:
+                self._current = new_value
+                if self._select.findText(new_value.name) >= 0:
+                    self._select.setCurrentText(self._current.name)
+                else:
+                    self._select.setEditText(self._current.name)
+                self._strength.setValue(int(v["strength"] * 100))
+                self._show_lora_warnings(new_value)
+
+        def _show_lora_warnings(self, id: LoraId):
+            if client := root.connection.client_if_connected:
+                special_loras = [
+                    file
+                    for res, file in client.models.resources.items()
+                    if file is not None and res.startswith("lora-")
+                ]
+                if id.file not in client.models.loras:
+                    self._warning_icon.setToolTip("The LoRA file is not installed on the server.")
+                    self._warning_icon.setVisible(True)
+                elif id.file in special_loras:
+                    print(id.file, special_loras)
+                    self._warning_icon.setToolTip(
+                        "This LoRA is usually added automatically by a Sampler or Control Layer when needed.\n"
+                        "It is not required to add it manually here."
+                    )
+                    self._warning_icon.setVisible(True)
+                else:
+                    self._warning_icon.setVisible(False)
 
     value_changed = pyqtSignal()
 
