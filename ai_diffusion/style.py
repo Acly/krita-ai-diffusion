@@ -336,8 +336,8 @@ class SamplerPresets:
     def add_missing(self, name: str, steps: int, cfg_scale: float):
         if name in self._presets:
             return name
-        if name in _legacy_map:
-            return _legacy_map[name]
+        if name in legacy_map:
+            return legacy_map[name]
         if name in _sampler_map:
             self._presets[name] = SamplerPreset(
                 sampler=_sampler_map[name],
@@ -360,8 +360,8 @@ class SamplerPresets:
     def __getitem__(self, name: str) -> SamplerPreset:
         if result := self._presets.get(name, None):
             return result
-        if name in _legacy_map:
-            return self[_legacy_map[name]]
+        if name in legacy_map:
+            return self[legacy_map[name]]
         raise KeyError(f"Sampler preset {name} not found")
 
     def items(self):
@@ -371,11 +371,12 @@ class SamplerPresets:
         return self._presets.keys()
 
 
-_legacy_map = {
+legacy_map = {
     "DPM++ 2M Karras": "Default - DPM++ 2M",
     "DPM++ 2M SDE Karras": "Creative - DPM++ 2M SDE",
     "Euler a": "Alternative - Euler A",
-    "DPM++ SDE Karras": "Turbo/Lightning Checkpoint - DPM++ SDE",
+    "DPM++ SDE Karras": "Turbo/Lightning Merge - DPM++ SDE",
+    "Lightning": "Lightning Merge - Euler A Uniform",
     "UniPC BH2": "Fast - UniPC BH2",
     "LCM": "Realtime - LCM",
     "Default": "Default - DPM++ 2M",

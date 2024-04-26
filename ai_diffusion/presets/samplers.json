@@ -29,6 +29,12 @@
         "steps": 6,
         "cfg": 2.0
     },
+    "Lightning Merge - Euler A Uniform": {
+        "sampler": "euler_ancestral",
+        "scheduler": "sgm_uniform",
+        "steps": 8,
+        "cfg": 1.5
+    },
     "Realtime - LCM": {
         "sampler": "lcm",
         "scheduler": "sgm_uniform",
