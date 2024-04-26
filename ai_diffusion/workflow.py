@@ -5,14 +5,14 @@ from typing import Any
 import math
 import random
 
-from . import resolution
+from . import resolution, resources
 from .api import ControlInput, ImageInput, CheckpointInput, SamplingInput, WorkflowInput, LoraInput
 from .api import ExtentInput, InpaintMode, InpaintParams, FillMode, TextInput, WorkflowKind
 from .image import Bounds, Extent, Image, Mask
 from .client import ClientModels, ModelDict
 from .style import Style, StyleSettings, SamplerPresets
 from .resolution import ScaledExtent, ScaleMode, get_inpaint_reference
-from .resources import ControlMode, SDVersion, UpscalerName
+from .resources import ControlMode, SDVersion, UpscalerName, ResourceKind
 from .settings import PerformanceSettings
 from .text import merge_prompt, extract_loras
 from .comfy_workflow import ComfyWorkflow, ComfyRunMode, Output
@@ -979,9 +979,21 @@ def _get_sampling_lora(style: Style, is_live: bool, model_set: ModelDict, models
     if preset.lora:
         file = model_set.lora.find(preset.lora)
         if file is None and not preset.lora in models.loras:
-            raise ValueError(
-                f"Could not find LoRA '{preset.lora}' used by sampler preset '{sampler_name}'"
-            )
+            res = resources.search_path(ResourceKind.lora, model_set.version, preset.lora)
+            if res is None and preset.lora == "lightning":
+                raise ValueError(
+                    f"The chosen sampler preset '{sampler_name}' requires LoRA "
+                    f"'{preset.lora}', which is not supported by {model_set.version.value}."
+                    " Please choose a different sampler."
+                )
+            elif res is None:
+                raise ValueError(
+                    f"Could not find LoRA '{preset.lora}' used by sampler preset '{sampler_name}'"
+                )
+            else:
+                raise ValueError(
+                    f"Could not find LoRA '{preset.lora}' ({', '.join(res)}) used by sampler preset '{sampler_name}'"
+                )
         return [LoraInput(file or preset.lora, 1.0)]
     return []
 

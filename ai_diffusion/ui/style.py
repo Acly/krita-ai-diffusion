@@ -32,6 +32,22 @@ from .settings_widgets import SettingsTab
 from .theme import SignalBlocker, add_header, icon, sd_version_icon, yellow
 
 
+class WarningIcon(QLabel):
+    def __init__(self, parent=None):
+        super().__init__(parent)
+        font_height = int(1.2 * self.fontMetrics().height())
+        warning_icon = icon("warning").pixmap(font_height, font_height)
+        self.setPixmap(warning_icon)
+        self.setVisible(False)
+
+    def show_message(self, text: str):
+        self.setToolTip(text)
+        self.setVisible(True)
+
+    def hide(self):
+        self.setVisible(False)
+
+
 class LoraList(QWidget):
 
     class Item(QWidget):
@@ -54,11 +70,7 @@ class LoraList(QWidget):
             self._select.setMaxVisibleItems(20)
             self._select.currentIndexChanged.connect(self._select_lora)
 
-            font_height = int(1.2 * self._select.fontMetrics().height())
-            warning_icon = icon("warning").pixmap(font_height, font_height)
-            self._warning_icon = QLabel(self)
-            self._warning_icon.setPixmap(warning_icon)
-            self._warning_icon.setVisible(False)
+            self._warning_icon = WarningIcon(self)
 
             self._strength = QSpinBox(self)
             self._strength.setMinimum(-400)
@@ -141,17 +153,15 @@ class LoraList(QWidget):
                     if file is not None and res.startswith("lora-")
                 ]
                 if id.file not in client.models.loras:
-                    self._warning_icon.setToolTip("The LoRA file is not installed on the server.")
-                    self._warning_icon.setVisible(True)
+                    self._warning_icon.show_message("The LoRA file is not installed on the server.")
                 elif id.file in special_loras:
                     print(id.file, special_loras)
-                    self._warning_icon.setToolTip(
+                    self._warning_icon.show_message(
                         "This LoRA is usually added automatically by a Sampler or Control Layer when needed.\n"
                         "It is not required to add it manually here."
                     )
-                    self._warning_icon.setVisible(True)
                 else:
-                    self._warning_icon.setVisible(False)
+                    self._warning_icon.hide()
 
     value_changed = pyqtSignal()
 
@@ -346,7 +356,10 @@ class SamplerWidget(QWidget):
 
     def _update_info(self):
         preset = self.preset
-        self._sampler_info.setText(f"<b>Sampler:</b> {preset.sampler} / {preset.scheduler}")
+        text = f"<b>Sampler:</b> {preset.sampler} / {preset.scheduler}"
+        if preset.lora:
+            text += f" +LoRA '{preset.lora}'"
+        self._sampler_info.setText(text)
 
     def _open_user_presets(self):
         path = SamplerPresets.instance().write_stub()
