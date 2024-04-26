@@ -378,7 +378,6 @@ _legacy_map = {
     "DPM++ SDE Karras": "Turbo/Lightning Checkpoint - DPM++ SDE",
     "UniPC BH2": "Fast - UniPC BH2",
     "LCM": "Realtime - LCM",
-    "Lightning": "Realtime - Lightning",
     "Default": "Default - DPM++ 2M",
     "Creative": "Creative - DPM++ 2M SDE",
     "Turbo/Lightning Merge": "Turbo/Lightning Merge - DPM++ SDE",
