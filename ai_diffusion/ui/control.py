@@ -260,12 +260,13 @@ class ControlWidget(QWidget):
         self.range_slider.setEnabled(self._control.use_custom_strength)
 
     def _update_pose_utils(self):
-        self.add_pose_button.setEnabled(self._control.is_pose_vector)
-        self.add_pose_button.setToolTip(
-            "Add new character pose to selected layer"
-            if self._control.is_pose_vector
-            else "Disabled: selected layer must be a vector layer to add a pose"
-        )
+        for button in (self.add_pose_button, self.add_pose_tool_button):
+            button.setEnabled(self._control.is_pose_vector)
+            button.setToolTip(
+                "Add new character pose to selected layer"
+                if self._control.is_pose_vector
+                else "Disabled: selected layer must be a vector layer to add a pose"
+            )
 
     def _toggle_extended(self):
         self.extended_widget.setVisible(self.expand_button.isChecked())
