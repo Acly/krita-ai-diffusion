@@ -698,9 +698,7 @@ def create_control_image(
         elif mode is ControlMode.normal:
             result = w.add("BAE-NormalMapPreprocessor", 1, **args)
         elif mode is ControlMode.pose:
-            feat = dict(detect_hand="enable", detect_body="enable", detect_face="enable")
-            mdls = dict(bbox_detector="yolo_nas_l_fp16.onnx", pose_estimator="dw-ll_ucoco_384.onnx")
-            result = w.add("DWPreprocessor", 1, **args, **feat, **mdls)
+            result = w.estimate_pose(**args)
         elif mode is ControlMode.segmentation:
             result = w.add("OneFormer-COCO-SemSegPreprocessor", 1, **args)
 

@@ -516,6 +516,14 @@ class ComfyWorkflow:
     def save_image(self, image: Output, prefix: str):
         return self.add("SaveImage", 1, images=image, filename_prefix=prefix)
 
+    def estimate_pose(self, image: Output, resolution: int):
+        feat = dict(detect_hand="enable", detect_body="enable", detect_face="enable")
+        mdls = dict(bbox_detector="yolox_l.onnx", pose_estimator="dw-ll_ucoco_384.onnx")
+        if self._run_mode is ComfyRunMode.runtime:
+            # use smaller model, but it requires onnxruntime, see #630
+            mdls["bbox_detector"] = "yolo_nas_l_fp16.onnx"
+        return self.add("DWPreprocessor", 1, image=image, resolution=resolution, **feat, **mdls)
+
     def upscale_tiled(
         self,
         image: Output,
