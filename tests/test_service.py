@@ -15,7 +15,7 @@ from ai_diffusion.resources import ControlMode, SDVersion
 from ai_diffusion.util import ensure
 from .config import root_dir, test_dir, result_dir
 
-dotenv.load_dotenv(root_dir / "service" / ".env.local")
+dotenv.load_dotenv(root_dir / "service" / "web" / ".env.local")
 pod_main = root_dir / "service" / "pod" / "pod.py"
 run_dir = test_dir / "pod"
 

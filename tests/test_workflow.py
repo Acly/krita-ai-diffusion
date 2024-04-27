@@ -22,12 +22,12 @@ from ai_diffusion.workflow import detect_inpaint
 from . import config
 from .config import root_dir, image_dir, result_dir, reference_dir, default_checkpoint
 
-service_available = (root_dir / "service" / ".env.local").exists()
+service_available = (root_dir / "service" / "web" / ".env.local").exists()
 client_params = ["local", "cloud"] if service_available else ["local"]
 
 
 async def connect_cloud():
-    dotenv.load_dotenv(root_dir / "service" / ".env.local")
+    dotenv.load_dotenv(root_dir / "service" / "web" / ".env.local")
     url = os.environ["TEST_SERVICE_URL"]
     token = os.environ.get("TEST_SERVICE_TOKEN", "")
     if not token:

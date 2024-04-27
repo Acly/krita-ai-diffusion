@@ -9,7 +9,7 @@ if (root_dir / "service" / "pod" / "lib").exists():
     import dotenv
     import requests
 
-    dotenv.load_dotenv(root_dir / "service" / ".env.local")
+    dotenv.load_dotenv(root_dir / "service" / "web" / ".env.local")
     from service.pod.lib import image_transfer
 
     @pytest.mark.parametrize("mode", ["b64", "s3"])
