@@ -98,6 +98,8 @@ class RegionTree(QObject):
     _active: Region | None
 
     active_changed = pyqtSignal(Region)
+    added = pyqtSignal(Region)
+    removed = pyqtSignal(Region)
 
     def __init__(self, model: Model):
         super().__init__()
@@ -106,6 +108,7 @@ class RegionTree(QObject):
         self._regions = []
         self._active = None
         model.layers.active_changed.connect(self._update_active)
+        model.layers.changed.connect(self._update_layers)
 
     @property
     def root(self):
@@ -115,8 +118,7 @@ class RegionTree(QObject):
         layer_id_str = _layer_id_str(layer_id)
         region = next((r for r in self._regions if r.layer_id == layer_id_str), None)
         if region is None:
-            region = Region(self, self._model, layer_id)
-            self._regions.append(region)
+            region = self._add(layer_id)
         return region
 
     def emplace(self):
@@ -132,6 +134,16 @@ class RegionTree(QObject):
             print(e)
         return self._active or Region(self, self._model)
 
+    @active.setter
+    def active(self, region: Region):
+        if self._active != region:
+            self._active = region
+            if layer := region.layer:
+                self._model.document.active_layer = layer.childNodes()[-1]
+            else:
+                self._model.document.active_layer = self._model.layers[0]
+            self.active_changed.emit(region)
+
     def add_control(self):
         self.active.control.add()
 
@@ -142,6 +154,12 @@ class RegionTree(QObject):
             control=[c.to_api(bounds) for c in self.root.control],
             regions=[r.to_api(bounds) for r in self._regions],
         )
+
+    def _update_layers(self):
+        self._prune()
+        for layer in self._model.layers:
+            if layer.type() == "grouplayer":
+                self._lookup_region(layer.uniqueId())
 
     def _update_active(self):
         if not isinstance(self._model.document, KritaDocument):
@@ -157,11 +175,23 @@ class RegionTree(QObject):
             self._active = region
             self.active_changed.emit(region)
 
+    def _add(self, layer_id: str):
+        region = Region(self, self._model, layer_id)
+        self._regions.append(region)
+        self.added.emit(region)
+        return region
+
     def _prune(self):
         layers = self._model.layers
-        self._regions = [
-            r for r in self._regions if r.layer_id == "" or layers.find(QUuid(r.layer_id))
-        ]
+        new_regions, removed = [], []
+        for region in self._regions:
+            if region.layer_id == "" or layers.find(QUuid(region.layer_id)):
+                new_regions.append(region)
+            else:
+                removed.append(region)
+        self._regions = new_regions
+        for region in removed:
+            self.removed.emit(region)
 
     def __len__(self):
         self._prune()

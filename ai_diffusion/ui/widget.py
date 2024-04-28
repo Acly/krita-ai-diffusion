@@ -22,6 +22,7 @@ from PyQt5.QtWidgets import (
     QGridLayout,
     QCompleter,
     QPushButton,
+    QFrame,
 )
 from PyQt5.QtGui import (
     QColor,
@@ -571,12 +572,24 @@ class TextPromptWidget(QWidget):
             w.setPalette(palette)
 
 
-class InactiveRegionWidget(QWidget):
+class InactiveRegionWidget(QFrame):
+    activated = pyqtSignal(Region)
+
+    region: Region
+
     def __init__(self, region: Region, parent: QWidget):
         super().__init__(parent)
+        self.region = region
 
-        icon_size = int(1.2 * self.fontMetrics().height())
+        palette = self.palette()
+        self.setObjectName("InactiveRegionWidget")
+        self.setFrameStyle(QFrame.Shape.StyledPanel)
+        self.setStyleSheet(
+            f"QFrame#InactiveRegionWidget {{ "
+            f"background-color: {palette.color(QPalette.ColorRole.Base).name()} }}"
+        )
 
+        icon_size = int(1.6 * self.fontMetrics().height())
         if layer := region.layer:
             icon_image = layer.thumbnail(icon_size, icon_size)
             icon_text = layer.name()
@@ -589,21 +602,26 @@ class InactiveRegionWidget(QWidget):
         icon.setPixmap(QPixmap.fromImage(icon_image))
         icon.setToolTip(icon_text)
 
-        prompt = QLineEdit(self)
-        prompt.setReadOnly(True)
+        prompt = QLabel(self)
         prompt.setText(region.prompt)
+        prompt.setCursor(Qt.CursorShape.IBeamCursor)
 
         layout = QHBoxLayout()
-        layout.setContentsMargins(0, 0, 0, 0)
+        layout.setContentsMargins(2, 2, 2, 2)
         layout.addWidget(icon)
         layout.addWidget(prompt, 1)
         self.setLayout(layout)
 
+        icon_size = int(1.2 * self.fontMetrics().height())
         for c in region.control:
             icon = theme.icon(f"control-{c.mode.name}")
             label = QLabel(self)
             label.setPixmap(icon.pixmap(icon_size, icon_size))
             layout.addWidget(label)
+
+    def mousePressEvent(self, a0: QMouseEvent | None) -> None:
+        self.activated.emit(self.region)
+        return super().mousePressEvent(a0)
 
 
 class RegionPromptWidget(QWidget):
@@ -614,6 +632,7 @@ class RegionPromptWidget(QWidget):
     _control: ControlListWidget
     _regions_above: QVBoxLayout
     _regions_below: QVBoxLayout
+    _inactive_regions: list[InactiveRegionWidget]
 
     activated = pyqtSignal()
 
@@ -621,6 +640,7 @@ class RegionPromptWidget(QWidget):
         super().__init__(parent)
         self._regions = root.active_model.regions
         self._bindings = []
+        self._inactive_regions = []
 
         self._positive = TextPromptWidget(parent=self)
         self._positive.line_count = settings.prompt_line_count
@@ -641,11 +661,12 @@ class RegionPromptWidget(QWidget):
         layout.addLayout(self._regions_above)
         layout.addWidget(self._positive)
         layout.addWidget(self._negative)
-        layout.addWidget(self._control)
         layout.addLayout(self._regions_below)
+        layout.addSpacing(4)
+        layout.addWidget(self._control)
         self.setLayout(layout)
 
-        self._setup_bindings()
+        self._update_active()
         settings.changed.connect(self.update_settings)
 
     @property
@@ -657,12 +678,16 @@ class RegionPromptWidget(QWidget):
         if regions == self._regions:
             return
         self._regions = regions
-        self._setup_bindings()
+        self._update_active()
         regions.active_changed.connect(self._setup_bindings)
+        regions.added.connect(self._show_inactive_regions)
+        regions.removed.connect(self._show_inactive_regions)
 
-    def _setup_bindings(self):
+    def _update_active(self):
+        self._setup_bindings(self._regions.active)
+
+    def _setup_bindings(self, region: Region):
         Binding.disconnect_all(self._bindings)
-        region = self._regions.active
         self._bindings = [
             bind(region, "prompt", self._positive, "text"),
             bind(region, "negative_prompt", self._negative, "text"),
@@ -670,11 +695,16 @@ class RegionPromptWidget(QWidget):
         self._control.model = region.control
         self._show_inactive_regions()
 
+    def _add_inactive_region(self, region: Region, layout: QVBoxLayout):
+        widget = InactiveRegionWidget(region, self)
+        widget.activated.connect(self._activate_region)
+        self._inactive_regions.append(widget)
+        layout.addWidget(widget)
+
     def _show_inactive_regions(self):
-        for i in range(self._regions_above.count()):
-            ensure(ensure(self._regions_above.itemAt(i)).widget()).deleteLater()
-        for i in range(self._regions_below.count()):
-            ensure(ensure(self._regions_below.itemAt(i)).widget()).deleteLater()
+        for widget in self._inactive_regions:
+            widget.deleteLater()
+        self._inactive_regions.clear()
 
         active = self._regions.active
         layout = self._regions_above
@@ -682,9 +712,12 @@ class RegionPromptWidget(QWidget):
             if region is active:
                 layout = self._regions_below
             else:
-                layout.addWidget(InactiveRegionWidget(region, self))
+                self._add_inactive_region(region, layout)
         if active is not self._regions.root:
-            layout.addWidget(InactiveRegionWidget(self._regions.root, self))
+            self._add_inactive_region(self._regions.root, layout)
+
+    def _activate_region(self, region: Region):
+        self._regions.active = region
 
     def update_settings(self, key: str, value):
         if key == "prompt_line_count":
