@@ -538,6 +538,9 @@ class LayerObserver(QObject):
     def __iter__(self):
         return (l.node for l in self._layers)
 
+    def __getitem__(self, index: int):
+        return self._layers[index].node
+
 
 class PoseLayers:
     _layers: dict[str, Pose] = {}
