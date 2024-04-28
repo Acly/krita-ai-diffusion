@@ -21,7 +21,6 @@ from PyQt5.QtWidgets import (
     QCheckBox,
     QGridLayout,
     QCompleter,
-    QAbstractItemView,
 )
 from PyQt5.QtGui import (
     QColor,
@@ -31,6 +30,8 @@ from PyQt5.QtGui import (
     QPalette,
     QTextCursor,
     QPainter,
+    QImage,
+    QPixmap,
 )
 from PyQt5.QtCore import Qt, QMetaObject, QSize, QStringListModel, pyqtSignal
 
@@ -42,6 +43,7 @@ from ..jobs import JobState
 from ..model import Model, Workspace, SamplingQuality, Region, RegionTree
 from ..text import LoraId, edit_attention, select_on_cursor_pos
 from ..util import ensure
+from .control import ControlListWidget
 from .settings import SettingsDialog, settings
 from .theme import SignalBlocker
 from . import actions, theme
@@ -566,11 +568,49 @@ class TextPromptWidget(QWidget):
             w.setPalette(palette)
 
 
+class InactiveRegionWidget(QWidget):
+    def __init__(self, region: Region, parent: QWidget):
+        super().__init__(parent)
+
+        icon_size = int(1.2 * self.fontMetrics().height())
+
+        if layer := region.layer:
+            icon_image = layer.thumbnail(icon_size, icon_size)
+            icon_text = layer.name()
+        else:
+            icon_image = QImage(icon_size, icon_size, QImage.Format.Format_ARGB32)
+            icon_image.fill(Qt.GlobalColor.white)
+            icon_text = "Background"
+
+        icon = QLabel(self)
+        icon.setPixmap(QPixmap.fromImage(icon_image))
+        icon.setToolTip(icon_text)
+
+        prompt = QLineEdit(self)
+        prompt.setReadOnly(True)
+        prompt.setText(region.prompt)
+
+        layout = QHBoxLayout()
+        layout.setContentsMargins(0, 0, 0, 0)
+        layout.addWidget(icon)
+        layout.addWidget(prompt, 1)
+        self.setLayout(layout)
+
+        for c in region.control:
+            icon = theme.icon(f"control-{c.mode.name}")
+            label = QLabel(self)
+            label.setPixmap(icon.pixmap(icon_size, icon_size))
+            layout.addWidget(label)
+
+
 class RegionPromptWidget(QWidget):
     _regions: RegionTree
     _bindings: list[QMetaObject.Connection]
     _positive: TextPromptWidget
     _negative: TextPromptWidget
+    _control: ControlListWidget
+    _regions_above: QVBoxLayout
+    _regions_below: QVBoxLayout
 
     activated = pyqtSignal()
 
@@ -583,19 +623,23 @@ class RegionPromptWidget(QWidget):
         self._positive.line_count = settings.prompt_line_count
         self._positive.activated.connect(self.activated)
 
-        self._parent_prompt = QLabel(self)
-        self._parent_prompt.setVisible(False)
-
         self._negative = TextPromptWidget(line_count=1, is_negative=True, parent=self)
         self._negative.setVisible(settings.show_negative_prompt)
         self._negative.activated.connect(self.activated)
 
+        self._control = ControlListWidget(self._regions.active.control, parent=self)
+
+        self._regions_above = QVBoxLayout()
+        self._regions_below = QVBoxLayout()
+
         layout = QVBoxLayout()
         layout.setContentsMargins(0, 0, 0, 0)
         layout.setSpacing(2)
+        layout.addLayout(self._regions_above)
         layout.addWidget(self._positive)
-        layout.addWidget(self._parent_prompt)
         layout.addWidget(self._negative)
+        layout.addWidget(self._control)
+        layout.addLayout(self._regions_below)
         self.setLayout(layout)
 
         self._setup_bindings()
@@ -620,9 +664,24 @@ class RegionPromptWidget(QWidget):
             bind(region, "prompt", self._positive, "text"),
             bind(region, "negative_prompt", self._negative, "text"),
         ]
-        parent = region.parent_region
-        self._parent_prompt.setText(parent.prompt if parent else "")
-        self._parent_prompt.setVisible(parent is not None)
+        self._control.model = region.control
+        self._show_inactive_regions()
+
+    def _show_inactive_regions(self):
+        for i in range(self._regions_above.count()):
+            ensure(ensure(self._regions_above.itemAt(i)).widget()).deleteLater()
+        for i in range(self._regions_below.count()):
+            ensure(ensure(self._regions_below.itemAt(i)).widget()).deleteLater()
+
+        active = self._regions.active
+        layout = self._regions_above
+        for region in self._regions:
+            if region is active:
+                layout = self._regions_below
+            else:
+                layout.addWidget(InactiveRegionWidget(region, self))
+        if active is not self._regions.root:
+            layout.addWidget(InactiveRegionWidget(self._regions.root, self))
 
     def update_settings(self, key: str, value):
         if key == "prompt_line_count":

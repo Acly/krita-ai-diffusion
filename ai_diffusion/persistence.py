@@ -63,9 +63,11 @@ class ModelSync:
         state["live"] = _serialize(model.live)
         state["animation"] = _serialize(model.animation)
         state["root"] = _serialize(model.regions.root)
-        state["regions"] = [_serialize(r) for r in model.regions]
-        state["control"] = [_serialize(c) for c in model.control]
         state["history"] = [asdict(h) for h in self._history]
+        state["regions"] = []
+        for region in model.regions:
+            state["regions"].append(_serialize(region))
+            state["regions"][-1]["control"] = [_serialize(c) for c in region.control]
         state_str = json.dumps(state, indent=2)
         state_bytes = QByteArray(state_str.encode("utf-8"))
         model.document.annotate("ui.json", state_bytes)
@@ -80,11 +82,10 @@ class ModelSync:
 
         _deserialize(model.regions.root, state.get("root", {}))
         for region_state in state.get("regions", []):
-            _deserialize(model.regions.emplace(), region_state)
-
-        for control_state in state.get("control", []):
-            model.control.add()
-            _deserialize(model.control[-1], control_state)
+            region = model.regions.emplace()
+            _deserialize(region, region_state)
+            for control_state in region_state.get("control", []):
+                _deserialize(region.control.emplace(), control_state)
 
         for result in state.get("history", []):
             item = _HistoryResult.from_dict(result)
@@ -103,10 +104,12 @@ class ModelSync:
         model.upscale.modified.connect(self._save)
         model.live.modified.connect(self._save)
         model.animation.modified.connect(self._save)
-        model.control.added.connect(self._track_control)
-        model.control.removed.connect(self._save)
-        for control in model.control:
-            self._track_control(control)
+
+        # TODO track regions and controls
+        # model.control.added.connect(self._track_control)
+        # model.control.removed.connect(self._save)
+        # for control in model.control:
+        #     self._track_control(control)
         model.jobs.job_finished.connect(self._save_results)
         model.jobs.job_discarded.connect(self._remove_results)
         model.jobs.result_discarded.connect(self._remove_image)

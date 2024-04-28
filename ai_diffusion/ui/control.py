@@ -7,21 +7,23 @@ from PyQt5.QtCore import Qt, QMetaObject, QSize, pyqtSignal
 
 from ..resources import ControlMode
 from ..properties import Binding, bind, bind_combo, bind_toggle
-from ..control import ControlLayer
-from ..model import Model
+from ..control import ControlLayer, ControlLayerList
+from ..root import root
 from .interval_slider import IntervalSlider
 from .theme import SignalBlocker
 from . import theme
 
 
 class ControlWidget(QWidget):
-    _model: Model
+    _control_list: ControlLayerList
     _control: ControlLayer
     _connections: list[QMetaObject.Connection | Binding]
 
-    def __init__(self, model: Model, control: ControlLayer, parent: ControlListWidget):
+    def __init__(
+        self, control_list: ControlLayerList, control: ControlLayer, parent: ControlListWidget
+    ):
         super().__init__(parent)
-        self._model = model
+        self._control_list = control_list
         self._control = control
 
         layout = QVBoxLayout(self)
@@ -40,7 +42,7 @@ class ControlWidget(QWidget):
             QComboBox.SizeAdjustPolicy.AdjustToMinimumContentsLength
         )
         self._update_layers()
-        self._model.layers.changed.connect(self._update_layers)
+        root.active_model.layers.changed.connect(self._update_layers)
 
         self.preset_slider = QSlider(self)
         self.preset_slider.setOrientation(Qt.Orientation.Horizontal)
@@ -187,7 +189,7 @@ class ControlWidget(QWidget):
         Binding.disconnect_all(self._connections)
 
     def _update_layers(self):
-        layers = reversed(self._model.layers.images)
+        layers = reversed(root.active_model.layers.images)
         with SignalBlocker(self.layer_select):
             self.layer_select.clear()
             index = -1
@@ -195,20 +197,20 @@ class ControlWidget(QWidget):
                 self.layer_select.addItem(layer.name(), layer.uniqueId())
                 if layer.uniqueId() == self._control.layer_id:
                     index = self.layer_select.count() - 1
-            if index == -1 and self._control in self._model.control:
+            if index == -1 and self._control in self._control_list:
                 self.remove()
             else:
                 self.layer_select.setCurrentIndex(index)
 
     def remove(self):
-        self._model.control.remove(self._control)
+        self._control_list.remove(self._control)
 
     def resizeEvent(self, a0: QResizeEvent | None):
         super().resizeEvent(a0)
         self._update_visibility()
 
     def _add_pose_character(self):
-        self._model.document.add_pose_character(self._control.layer)
+        root.active_model.document.add_pose_character(self._control.layer)
 
     def _update_visibility(self):
         is_small = self.width() < 450
@@ -296,16 +298,16 @@ def _create_add_pose_button(parent, style: Qt.ToolButtonStyle):
 
 
 class ControlListWidget(QWidget):
-    _controls: list[ControlWidget]
-    _model: Model
+    _widgets: list[ControlWidget]
+    _model: ControlLayerList
     _model_connections: list[QMetaObject.Connection]
 
     changed = pyqtSignal()
 
-    def __init__(self, model: Model, parent=None):
+    def __init__(self, model: ControlLayerList, parent=None):
         super().__init__(parent)
         self._model = model
-        self._controls = []
+        self._widgets = []
         self._model_connections = []
 
         self._layout = QVBoxLayout(self)
@@ -317,28 +319,28 @@ class ControlListWidget(QWidget):
         return self._model
 
     @model.setter
-    def model(self, model: Model):
+    def model(self, model: ControlLayerList):
         if self._model != model:
             Binding.disconnect_all(self._model_connections)
             self._model = model
-            while len(self._controls) > 0:
-                self._remove_widget(self._controls[0])
-            for control in self._model.control:
+            while len(self._widgets) > 0:
+                self._remove_widget(self._widgets[0])
+            for control in self._model:
                 self._add_widget(control)
             self._model_connections = [
-                model.control.added.connect(self._add_widget),
-                model.control.removed.connect(self._remove_widget),
+                model.added.connect(self._add_widget),
+                model.removed.connect(self._remove_widget),
             ]
 
     def _add_widget(self, control: ControlLayer):
         widget = ControlWidget(self._model, control, self)
-        self._controls.append(widget)
+        self._widgets.append(widget)
         self._layout.addWidget(widget)
 
     def _remove_widget(self, widget: ControlWidget | ControlLayer):
         if isinstance(widget, ControlLayer):
-            widget = next(w for w in self._controls if w._control == widget)
-        self._controls.remove(widget)
+            widget = next(w for w in self._widgets if w._control == widget)
+        self._widgets.remove(widget)
         widget.disconnect_all()
         widget.deleteLater()
 

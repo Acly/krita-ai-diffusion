@@ -494,9 +494,6 @@ class GenerationWidget(QWidget):
         self.region_prompt = RegionPromptWidget(self)
         layout.addWidget(self.region_prompt)
 
-        self.control_list = ControlListWidget(self)
-        layout.addWidget(self.control_list)
-
         self.strength_slider = StrengthWidget(parent=self)
         self.add_control_button = ControlLayerButton(self)
         strength_layout = QHBoxLayout()
@@ -568,12 +565,11 @@ class GenerationWidget(QWidget):
                 model.progress_changed.connect(self.update_progress),
                 model.error_changed.connect(self.error_text.setText),
                 model.has_error_changed.connect(self.error_text.setVisible),
-                self.add_control_button.clicked.connect(model.control.add),
+                self.add_control_button.clicked.connect(model.regions.add_control),
                 self.region_prompt.activated.connect(model.generate),
                 self.generate_button.clicked.connect(model.generate),
             ]
             self.region_prompt.regions = model.regions
-            self.control_list.model = model
             self.custom_inpaint.model = model
             self.queue_button.model = model
             self.history.model_ = model

@@ -168,6 +168,10 @@ class ControlLayerList(QObject):
         self._layers.append(control)
         self.added.emit(control)
 
+    def emplace(self):
+        self.add()
+        return self[-1]
+
     def remove(self, control: ControlLayer):
         self._layers.remove(control)
         self.removed.emit(control)

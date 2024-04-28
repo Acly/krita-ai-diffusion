@@ -131,6 +131,9 @@ class RegionTree(QObject):
         except Exception as e:
             print(e)
         return self._active or Region(self, self._model)
+    
+    def add_control(self):
+        self.active.control.add()
 
     def to_api(self, bounds: Bounds | None = None):
         return ConditioningInput(
@@ -225,7 +228,6 @@ class Model(QObject, ObservableProperties):
         self.jobs = JobQueue()
         self.regions = RegionTree(self)
         self.inpaint = CustomInpaint()
-        self.control = ControlLayerList(self)
         self.upscale = UpscaleWorkspace(self)
         self.live = LiveWorkspace(self)
         self.animation = AnimationWorkspace(self)
@@ -266,7 +268,7 @@ class Model(QObject, ObservableProperties):
         conditioning = self.regions.to_api(bounds)
 
         if mask is not None or self.strength < 1.0:
-            image = self._get_current_image(bounds)
+            image = self._get_current_image(region, bounds)
 
         if mask is not None:
             if workflow_kind is WorkflowKind.generate:
@@ -379,7 +381,7 @@ class Model(QObject, ObservableProperties):
             workflow_kind = WorkflowKind.refine_region
             bounds, mask.bounds = compute_relative_bounds(mask.bounds, mask.bounds)
         if mask is not None or self.live.strength < 1.0:
-            image = self._get_current_image(bounds)
+            image = self._get_current_image(region, bounds)
 
         input = workflow.prepare(
             workflow_kind,
@@ -401,9 +403,9 @@ class Model(QObject, ObservableProperties):
 
         return None
 
-    def _get_current_image(self, bounds: Bounds):
+    def _get_current_image(self, region: Region, bounds: Bounds):
         exclude = [  # exclude control layers from projection
-            c.layer for c in self.control if not c.mode.is_part_of_image
+            c.layer for c in region.control if not c.mode.is_part_of_image
         ]
         if self._layer:  # exclude preview layer
             exclude.append(self._layer)
@@ -869,7 +871,7 @@ class AnimationWorkspace(QObject, ObservableProperties):
         m = self._model
         region = m.regions.root
         bounds = Bounds(0, 0, *m.document.extent)
-        canvas = m._get_current_image(bounds) if m.strength < 1.0 else bounds.extent
+        canvas = m._get_current_image(region, bounds) if m.strength < 1.0 else bounds.extent
         seed = m.seed if m.fixed_seed else workflow.generate_seed()
         inputs = self._prepare_input(canvas, seed)
         params = JobParams(bounds, region.prompt, frame=(m.document.current_time, 0, 0))
@@ -1004,7 +1006,7 @@ def _save_job_result(model: Model, job: Job | None, index: int):
     path = Path(model.document.filename)
     path = path.parent / f"{path.stem}-generated-{timestamp}-{index}-{prompt}.png"
     path = util.find_unused_path(path)
-    base_image = model._get_current_image(Bounds(0, 0, *model.document.extent))
+    base_image = model._get_current_image(model.regions.root, Bounds(0, 0, *model.document.extent))
     result_image = job.results[index]
     base_image.draw_image(result_image, job.params.bounds.offset)
     base_image.save(path)
