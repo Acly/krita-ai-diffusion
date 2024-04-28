@@ -7,7 +7,8 @@ from pathlib import Path
 from typing import Optional, Any
 from PyQt5.QtCore import QObject, pyqtSignal
 
-from .util import is_macos, is_windows, encode_json, user_data_dir, client_logger as log
+from .util import is_macos, is_windows, user_data_dir, client_logger as log
+from .util import encode_json, read_json_with_comments
 
 
 class ServerMode(Enum):
@@ -259,8 +260,8 @@ class Settings(QObject):
             return
 
         log.info(f"Loading settings from {path}")
-        with open(path, "r") as file:
-            contents = json.loads(file.read())
+        try:
+            contents = read_json_with_comments(path)
             for k, v in contents.items():
                 setting = getattr(Settings, f"_{k}", None)
                 if setting is not None:
@@ -271,6 +272,8 @@ class Settings(QObject):
                     else:
                         log.error(f"{path}: {v} is not a valid value for '{k}'")
                         self._values[k] = setting.default
+        except Exception as e:
+            log.error(f"Failed to load settings: {e}")
 
     def apply_performance_preset(self, preset: PerformancePreset):
         if preset not in [PerformancePreset.custom, PerformancePreset.auto]:
