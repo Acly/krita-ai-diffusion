@@ -266,7 +266,9 @@ class KritaDocument(Document):
             return Image(QImage(data, *bounds.extent, QImage.Format.Format_Grayscale8))
         else:
             img = self.get_layer_image(layer, bounds)
-            return Image(img._qimage.convertToFormat(QImage.Format.Format_Grayscale8))
+            alpha = img._qimage.convertToFormat(QImage.Format.Format_Alpha8)
+            alpha.reinterpretAsFormat(QImage.Format.Format_Grayscale8)
+            return Image(alpha)
 
     def insert_layer(
         self,
