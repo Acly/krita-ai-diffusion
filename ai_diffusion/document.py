@@ -502,7 +502,8 @@ class LayerObserver(QObject):
             self._timer.start()
 
     def update(self):
-        assert self._doc is not None
+        if self._doc is None:
+            return
         root_node = self._doc.rootNode()
         if root_node is None:
             return  # Document has been closed
