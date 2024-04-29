@@ -497,7 +497,7 @@ class ImageCollection:
         for i, offset in enumerate(offsets):
             buffer.seek(offset)
             img = QImage()
-            if img.load(buffer, "WEBP"):
+            if img.load(buffer, None):
                 images.append(Image(img))
             else:
                 raise Exception(f"Failed to load image {i} from buffer")
