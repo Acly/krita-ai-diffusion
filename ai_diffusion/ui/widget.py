@@ -699,11 +699,12 @@ class RegionPromptWidget(QWidget):
         layout.addWidget(widget)
 
     def _show_inactive_regions(self):
+        active = self._regions.active
+
         for widget in self._inactive_regions:
             widget.deleteLater()
         self._inactive_regions.clear()
 
-        active = self._regions.active
         layout = self._regions_above
         for region in self._regions:
             if region is active:

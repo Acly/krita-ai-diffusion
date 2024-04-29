@@ -80,6 +80,12 @@ class Region(QObject, ObservableProperties):
                     return self._tree._lookup_region(parent.uniqueId())
         return None
 
+    @property
+    def name(self):
+        if layer := self.layer:
+            return layer.name()
+        return "Root"
+
     def to_api(self, bounds: Bounds | None = None):
         doc = self._tree._model.document
         layer = ensure(self.layer, "Non-root region required")
@@ -128,10 +134,7 @@ class RegionTree(QObject):
 
     @property
     def active(self):
-        try:
-            self._update_active()
-        except Exception as e:
-            print(e)
+        self._update_active()
         return self._active or Region(self, self._model)
 
     @active.setter
@@ -139,7 +142,9 @@ class RegionTree(QObject):
         if self._active != region:
             self._active = region
             if layer := region.layer:
-                self._model.document.active_layer = layer.childNodes()[-1]
+                non_group = (l for l in reversed(layer.childNodes()) if l.type() != "grouplayer")
+                top_non_group = next(non_group, None)
+                self._model.document.active_layer = top_non_group or layer
             else:
                 self._model.document.active_layer = self._model.layers[0]
             self.active_changed.emit(region)
@@ -182,7 +187,7 @@ class RegionTree(QObject):
         return region
 
     def _prune(self):
-        layers = self._model.layers
+        layers = self._model.layers.updated()
         new_regions, removed = [], []
         for region in self._regions:
             if region.layer_id == "" or layers.find(QUuid(region.layer_id)):
