@@ -203,11 +203,11 @@ class LoraList(QWidget):
         header_layout.addWidget(self._refresh_button, 0)
 
         if settings.server_mode is ServerMode.managed:
-            self.open_folder_button = QToolButton(self)
-            self.open_folder_button.setToolButtonStyle(Qt.ToolButtonStyle.ToolButtonIconOnly)
-            self.open_folder_button.setIcon(Krita.instance().icon("document-open"))
-            self.open_folder_button.setToolTip("Open folder containing LoRA files")
-            header_layout.addWidget(self.open_folder_button, 0)
+            open_folder = self.open_folder_button = QToolButton(self)
+            open_folder.setToolButtonStyle(Qt.ToolButtonStyle.ToolButtonIconOnly)
+            open_folder.setIcon(Krita.instance().icon("document-open"))
+            open_folder.setToolTip("Open folder containing LoRA files")
+            header_layout.addWidget(open_folder, 0)
 
         self._layout.addLayout(header_layout)
 

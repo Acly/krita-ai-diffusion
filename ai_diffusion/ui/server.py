@@ -88,13 +88,13 @@ class PackageGroupWidget(QWidget):
         self._layout.addWidget(self._status, 0, 1)
 
         if description:
-            self._desc = QLabel(self)
-            self._desc.setText(description)
-            self._desc.setContentsMargins(20, 0, 0, 0)
-            self._desc.setWordWrap(True)
-            self._desc.setTextFormat(Qt.TextFormat.RichText)
-            self._desc.setOpenExternalLinks(True)
-            self._layout.addWidget(self._desc, 1, 0, 1, 2)
+            desc = self._desc = QLabel(self)
+            desc.setText(description)
+            desc.setContentsMargins(20, 0, 0, 0)
+            desc.setWordWrap(True)
+            desc.setTextFormat(Qt.TextFormat.RichText)
+            desc.setOpenExternalLinks(True)
+            self._layout.addWidget(desc, 1, 0, 1, 2)
 
         self._is_checkable = is_checkable
         self._items = [self.add_item(p, initial) for p in packages]

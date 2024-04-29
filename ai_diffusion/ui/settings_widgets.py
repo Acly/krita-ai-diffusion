@@ -72,12 +72,12 @@ class SettingWidget(QWidget):
         self._layout.addWidget(button)
 
     def add_checkbox(self, text: str):
-        self._checkbox = QCheckBox(text, self)
-        self._checkbox.toggled.connect(lambda v: self._widget.setEnabled(v))
+        checkbox = self._checkbox = QCheckBox(text, self)
+        checkbox.toggled.connect(lambda v: self._widget.setEnabled(v))
         self._layout.removeWidget(self._widget)
-        self._layout.addWidget(self._checkbox)
+        self._layout.addWidget(checkbox)
         self._layout.addWidget(self._widget)
-        return self._checkbox
+        return checkbox
 
     @property
     def visible(self):

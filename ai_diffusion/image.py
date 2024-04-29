@@ -537,11 +537,11 @@ class Mask:
             assert len(data) == bounds.width * bounds.height
             self._data = data
             self.image = QImage(
-                self._data.data(),
+                data.data(),
                 bounds.width,
                 bounds.height,
                 bounds.width,
-                QImage.Format_Grayscale8,
+                QImage.Format.Format_Grayscale8,
             )
             assert not self.image.isNull()
 
