@@ -45,6 +45,9 @@ class Document(QObject):
     ) -> Mask | None:
         raise NotImplementedError
 
+    def get_mask_bounds(self, layer: krita.Node) -> Bounds:
+        raise NotImplementedError
+
     def get_image(
         self, bounds: Bounds | None = None, exclude_layers: list[krita.Node] | None = None
     ) -> Image:
@@ -216,6 +219,15 @@ class KritaDocument(Document):
         bounds = Bounds.clamp(bounds, self.extent)
         data = selection.pixelData(*bounds)
         return Mask(bounds, data)
+
+    def get_mask_bounds(self, layer: krita.Node):
+        assert layer.type() in ["transparencymask", "selectionmask"]
+        b = layer.bounds()  # Unfortunately layer.bounds() returns the whole image
+        # Use a selection to get just the bounds that contain pixels > 0
+        s = krita.Selection()
+        data = layer.pixelData(b.x(), b.y(), b.width(), b.height())
+        s.setPixelData(data, b.x(), b.y(), b.width(), b.height())
+        return Bounds(s.x(), s.y(), s.width(), s.height())
 
     def get_image(
         self, bounds: Bounds | None = None, exclude_layers: list[krita.Node] | None = None

@@ -487,7 +487,7 @@ class CustomInpaint(QObject, ObservableProperties):
             return Bounds(0, 0, *model.document.extent)
         if self.context is InpaintContext.layer_bounds:
             if layer := model.layers.find(self.context_layer_id):
-                layer_bounds = Bounds.from_qrect(layer.bounds())
+                layer_bounds = model.document.get_mask_bounds(layer)
                 return Bounds.expand(layer_bounds, include=mask.bounds)
         return None
 
