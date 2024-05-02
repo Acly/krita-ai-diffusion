@@ -29,12 +29,13 @@ from PyQt5.QtGui import (
     QKeyEvent,
     QMouseEvent,
     QPalette,
+    QResizeEvent,
     QTextCursor,
     QPainter,
     QImage,
     QPixmap,
 )
-from PyQt5.QtCore import Qt, QMetaObject, QSize, QStringListModel, pyqtSignal
+from PyQt5.QtCore import QObject, QEvent, Qt, QMetaObject, QSize, QStringListModel, pyqtSignal
 
 from ..style import Style, Styles
 from ..root import root
@@ -326,9 +327,7 @@ def handle_weight_adjustment(
 
 
 class PromptAutoComplete:
-    # _widget: QLineEdit
     _completer: QCompleter
-    # _popup: QAbstractItemView
 
     def __init__(self, widget: QLineEdit):
         self._widget = widget
@@ -401,8 +400,8 @@ class MultiLineTextPromptWidget(QPlainTextEdit):
         self.setHorizontalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAlwaysOff)
         self.setVerticalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAlwaysOff)
         self.setTabChangesFocus(True)
+        self.setFrameStyle(QFrame.Shape.NoFrame)
         self.line_count = 2
-        self.is_negative = False
 
         self._completer = PromptAutoComplete(self)
         self.textChanged.connect(self._completer.check_completion)
@@ -428,7 +427,7 @@ class MultiLineTextPromptWidget(QPlainTextEdit):
     def line_count(self, value: int):
         self._line_count = value
         fm = QFontMetrics(ensure(self.document()).defaultFont())
-        self.setFixedHeight(fm.lineSpacing() * value + 6)
+        self.setFixedHeight(fm.lineSpacing() * value + 8)
 
     def hasSelectedText(self) -> bool:
         return self.textCursor().hasSelection()
@@ -468,6 +467,8 @@ class SingleLineTextPromptWidget(QLineEdit):
         super().__init__(parent)
         self._completer = PromptAutoComplete(self)
         self.textChanged.connect(self._completer.check_completion)
+        self.setFrame(False)
+        self.setStyleSheet(f"QLineEdit {{ background: transparent; }}")
 
     def keyPressEvent(self, a0: QKeyEvent | None):
         assert a0 is not None
@@ -475,7 +476,7 @@ class SingleLineTextPromptWidget(QLineEdit):
         super().keyPressEvent(a0)
 
 
-class TextPromptWidget(QWidget):
+class TextPromptWidget(QFrame):
     """Wraps a single or multi-line text widget, with ability to switch between them.
     Using QPlainTextEdit set to a single line doesn't work properly because it still
     scrolls to the next line when eg. selecting and then looks like it's empty."""
@@ -483,11 +484,8 @@ class TextPromptWidget(QWidget):
     activated = pyqtSignal()
     text_changed = pyqtSignal(str)
 
-    _multi: MultiLineTextPromptWidget
-    _single: QLineEdit
     _line_count = 2
     _is_negative = False
-    _base_color: QColor
 
     def __init__(self, line_count=2, is_negative=False, parent=None):
         super().__init__(parent)
@@ -496,7 +494,7 @@ class TextPromptWidget(QWidget):
         self._layout = QVBoxLayout()
         self._layout.setContentsMargins(0, 0, 0, 0)
         self.setLayout(self._layout)
-        self.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Fixed)
+        self.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Fixed)
 
         self._multi = MultiLineTextPromptWidget(self)
         self._multi.line_count = self._line_count
@@ -556,17 +554,51 @@ class TextPromptWidget(QWidget):
     @is_negative.setter
     def is_negative(self, value: bool):
         self._is_negative = value
-        for w in [self._multi, self._single]:
-            palette: QPalette = w.palette()
-            color = self._base_color
+        for w in (self._multi, self._single):
             if not value:
                 w.setPlaceholderText("Describe the content you want to see, or leave empty.")
             else:
                 w.setPlaceholderText("Describe content you want to avoid.")
-                o = 8 if theme.is_dark else 16
-                color = QColor(color.red(), color.green() - o, color.blue() - o)
-            palette.setColor(QPalette.ColorRole.Base, color)
-            w.setPalette(palette)
+
+        if value:
+            self.setContentsMargins(0, 2, 0, 2)
+            self.setFrameStyle(QFrame.Shape.StyledPanel)
+            self.setStyleSheet(f"QFrame {{ background: rgba(255, 0, 0, 15); }}")
+        else:
+            self.setFrameStyle(QFrame.Shape.NoFrame)
+
+    def install_event_filter(self, obj: QObject):
+        self._multi.installEventFilter(obj)
+        self._single.installEventFilter(obj)
+
+    def move_cursor_to_end(self):
+        if self._line_count > 1:
+            cursor = self._multi.textCursor()
+            cursor.movePosition(QTextCursor.MoveOperation.End)
+            self._multi.setTextCursor(cursor)
+        else:
+            self._single.setCursorPosition(len(self._single.text()))
+
+
+class RegionThumbnailWidget(QLabel):
+    _scale: float = 1.0
+
+    def __init__(self, region: Region, parent: QWidget, scale=1.0):
+        super().__init__(parent)
+        self._scale = scale
+        self.set_region(region)
+
+    def set_region(self, region: Region):
+        icon_size = int(self._scale * self.fontMetrics().height())
+        if layer := region.layer:
+            icon_image = QPixmap.fromImage(layer.thumbnail(icon_size, icon_size))
+            icon_text = f"Text for region {layer.name()}"
+        else:
+            icon_image = theme.icon("root").pixmap(icon_size, icon_size)
+            icon_text = "Text which is common to all regions."
+
+        self.setPixmap(icon_image)
+        self.setToolTip(icon_text)
 
 
 class InactiveRegionWidget(QFrame):
@@ -574,39 +606,33 @@ class InactiveRegionWidget(QFrame):
 
     region: Region
 
+    _text: str
+
     def __init__(self, region: Region, parent: QWidget):
         super().__init__(parent)
         self.region = region
+        self._text = self.region.prompt.replace("\n", " ")
 
-        palette = self.palette()
         self.setObjectName("InactiveRegionWidget")
         self.setFrameStyle(QFrame.Shape.StyledPanel)
-        self.setStyleSheet(
-            f"QFrame#InactiveRegionWidget {{ "
-            f"background-color: {palette.color(QPalette.ColorRole.Base).name()} }}"
-        )
+        self.setStyleSheet(f"QFrame#InactiveRegionWidget {{ background-color: {theme.base} }}")
 
-        icon_size = int(1.6 * self.fontMetrics().height())
-        if layer := region.layer:
-            icon_image = layer.thumbnail(icon_size, icon_size)
-            icon_text = layer.name()
-        else:
-            icon_image = QImage(icon_size, icon_size, QImage.Format.Format_ARGB32)
-            icon_image.fill(Qt.GlobalColor.white)
-            icon_text = "Background"
+        scale = 1.2 if region.is_root else 1.5
+        icon = RegionThumbnailWidget(region, self, scale=scale)
 
-        icon = QLabel(self)
-        icon.setPixmap(QPixmap.fromImage(icon_image))
-        icon.setToolTip(icon_text)
-
-        prompt = QLabel(self)
-        prompt.setText(region.prompt)
-        prompt.setCursor(Qt.CursorShape.IBeamCursor)
+        self._prompt = QLabel(self)
+        self._prompt.setCursor(Qt.CursorShape.IBeamCursor)
+        if self._text == "":
+            if layer := region.layer:
+                self._prompt.setText(f"{layer.name()} - click to add regional text")
+            else:
+                self._prompt.setText("Common text prompt - click to add content")
+            self._prompt.setStyleSheet(f"QLabel {{ font-style: italic; color: {theme.grey}; }}")
 
         layout = QHBoxLayout()
         layout.setContentsMargins(2, 2, 2, 2)
         layout.addWidget(icon)
-        layout.addWidget(prompt, 1)
+        layout.addWidget(self._prompt, 1)
         self.setLayout(layout)
 
         icon_size = int(1.2 * self.fontMetrics().height())
@@ -620,15 +646,88 @@ class InactiveRegionWidget(QFrame):
         self.activated.emit(self.region)
         return super().mousePressEvent(a0)
 
+    def resizeEvent(self, a0: QResizeEvent | None) -> None:
+        if self._text != "":
+            theme.set_text_clipped(self._prompt, self.region.prompt.replace("\n", " "))
+        return super().resizeEvent(a0)
+
+
+class ActiveRegionWidget(QFrame):
+    _style_base = f"QFrame#ActiveRegionWidget {{ background-color: {theme.base}; border: 1px solid {theme.line_base}; }}"
+    _style_focus = f"QFrame#ActiveRegionWidget {{ background-color: {theme.base}; border: 1px solid {theme.active}; }}"
+
+    def __init__(self, region: Region, parent: QWidget):
+        super().__init__(parent)
+
+        self.setObjectName("ActiveRegionWidget")
+        self.setFrameStyle(QFrame.Shape.StyledPanel)
+        self.setStyleSheet(self._style_base)
+
+        self._header_icon = RegionThumbnailWidget(region, self, scale=1.2)
+        self._header_label = QLabel(self)
+        self._header_label.setStyleSheet(f"font-style: italic; color: {theme.grey};")
+
+        header_layout = QHBoxLayout()
+        header_layout.setContentsMargins(2, 2, 2, 0)
+        header_layout.addWidget(self._header_icon)
+        header_layout.addWidget(self._header_label, 1)
+
+        self._header = QWidget(self)
+        self._header.setLayout(header_layout)
+
+        self.positive = TextPromptWidget(parent=self)
+        self.positive.line_count = settings.prompt_line_count
+        self.positive.install_event_filter(self)
+
+        self.negative = TextPromptWidget(line_count=1, is_negative=True, parent=self)
+        self.negative.setVisible(settings.show_negative_prompt)
+        self.negative.install_event_filter(self)
+
+        layout = QVBoxLayout()
+        layout.setContentsMargins(0, 0, 0, 0)
+        layout.setSpacing(0)
+        layout.addWidget(self._header)
+        layout.addWidget(self.positive)
+        layout.addWidget(self.negative)
+        self.setLayout(layout)
+
+        self.set_region(region)
+        settings.changed.connect(self.update_settings)
+
+    def set_region(self, region: Region):
+        self._header_icon.set_region(region)
+        if layer := region.layer:
+            self._header_label.setText(f"{layer.name()} - Regional text prompt")
+        else:
+            self._header_label.setText("Text prompt common to all regions")
+        self.positive.move_cursor_to_end()
+
+    @property
+    def has_header(self):
+        return self._header.isVisible()
+
+    @has_header.setter
+    def has_header(self, value: bool):
+        self._header.setVisible(value)
+
+    def update_settings(self, key: str, value):
+        if key == "prompt_line_count":
+            self.positive.line_count = value
+        elif key == "show_negative_prompt":
+            self.negative.text = ""
+            self.negative.setVisible(value)
+
+    def eventFilter(self, a0: QObject | None, a1: QEvent | None) -> bool:
+        if a1 and a1.type() == QEvent.Type.FocusIn:
+            self.setStyleSheet(self._style_focus)
+        elif a1 and a1.type() == QEvent.Type.FocusOut:
+            self.setStyleSheet(self._style_base)
+        return False
+
 
 class RegionPromptWidget(QWidget):
     _regions: RegionTree
     _bindings: list[QMetaObject.Connection]
-    _positive: TextPromptWidget
-    _negative: TextPromptWidget
-    _control: ControlListWidget
-    _regions_above: QVBoxLayout
-    _regions_below: QVBoxLayout
     _inactive_regions: list[InactiveRegionWidget]
 
     activated = pyqtSignal()
@@ -639,16 +738,12 @@ class RegionPromptWidget(QWidget):
         self._bindings = []
         self._inactive_regions = []
 
-        self._positive = TextPromptWidget(parent=self)
-        self._positive.line_count = settings.prompt_line_count
-        self._positive.activated.connect(self.activated)
-
-        self._negative = TextPromptWidget(line_count=1, is_negative=True, parent=self)
-        self._negative.setVisible(settings.show_negative_prompt)
-        self._negative.activated.connect(self.activated)
+        self._prompt = ActiveRegionWidget(self._regions.active, self)
+        self._prompt.positive.activated.connect(self.activated)
+        self._prompt.negative.activated.connect(self.activated)
+        self._prompt.has_header = False
 
         self._control = ControlListWidget(self._regions.active.control, parent=self)
-
         self._regions_above = QVBoxLayout()
         self._regions_below = QVBoxLayout()
 
@@ -656,15 +751,13 @@ class RegionPromptWidget(QWidget):
         layout.setContentsMargins(0, 0, 0, 0)
         layout.setSpacing(2)
         layout.addLayout(self._regions_above)
-        layout.addWidget(self._positive)
-        layout.addWidget(self._negative)
+        layout.addWidget(self._prompt)
         layout.addLayout(self._regions_below)
         layout.addSpacing(4)
         layout.addWidget(self._control)
         self.setLayout(layout)
 
         self._update_active()
-        settings.changed.connect(self.update_settings)
 
     @property
     def regions(self):
@@ -686,10 +779,12 @@ class RegionPromptWidget(QWidget):
     def _setup_bindings(self, region: Region):
         Binding.disconnect_all(self._bindings)
         self._bindings = [
-            bind(region, "prompt", self._positive, "text"),
-            bind(region, "negative_prompt", self._negative, "text"),
+            bind(region, "prompt", self._prompt.positive, "text"),
+            bind(region, "negative_prompt", self._prompt.negative, "text"),
         ]
         self._control.model = region.control
+        self._prompt.has_header = len(self._regions) > 0
+        self._prompt.set_region(region)
         self._show_inactive_regions()
 
     def _add_inactive_region(self, region: Region, layout: QVBoxLayout):
@@ -716,13 +811,6 @@ class RegionPromptWidget(QWidget):
 
     def _activate_region(self, region: Region):
         self._regions.active = region
-
-    def update_settings(self, key: str, value):
-        if key == "prompt_line_count":
-            self._positive.line_count = value
-        elif key == "show_negative_prompt":
-            self._negative.text = ""
-            self._negative.setVisible(value)
 
 
 class StrengthWidget(QWidget):
