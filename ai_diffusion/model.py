@@ -63,22 +63,15 @@ class Region(QObject, ObservableProperties):
 
     @property
     def layer(self):
-        if self.layer_id != "":
+        if not self.is_root:
             layer = self._tree._model.layers.updated().find(QUuid(self.layer_id))
             assert layer is not None, f"Region layer not found ({self.layer_id} {self.prompt})"
             return layer
         return None  # root region, no group layer
 
     @property
-    def parent_region(self):
-        if layer := self.layer:
-            if parent := layer.parentNode():
-                assert parent.type() == "grouplayer"
-                if parent.parentNode() is None:
-                    return self._tree.root
-                else:
-                    return self._tree._lookup_region(parent.uniqueId())
-        return None
+    def is_root(self):
+        return self.layer_id == ""
 
     @property
     def name(self):
@@ -101,7 +94,8 @@ class RegionTree(QObject):
     _model: "Model"
     _root: Region
     _regions: list[Region]
-    _active: Region | None
+    _active: Region | None = None
+    _active_layer: QUuid | None = None
 
     active_changed = pyqtSignal(Region)
     added = pyqtSignal(Region)
@@ -112,7 +106,6 @@ class RegionTree(QObject):
         self._model = model
         self._root = Region(self, model)
         self._regions = []
-        self._active = None
         model.layers.active_changed.connect(self._update_active)
         model.layers.changed.connect(self._update_layers)
 
@@ -145,8 +138,6 @@ class RegionTree(QObject):
                 non_group = (l for l in reversed(layer.childNodes()) if l.type() != "grouplayer")
                 top_non_group = next(non_group, None)
                 self._model.document.active_layer = top_non_group or layer
-            else:
-                self._model.document.active_layer = self._model.layers[0]
             self.active_changed.emit(region)
 
     def add_control(self):
@@ -170,6 +161,10 @@ class RegionTree(QObject):
         if not isinstance(self._model.document, KritaDocument):
             return
         layer = self._model.document.active_layer
+        if layer.uniqueId() == self._active_layer:
+            return
+        self._active_layer = layer.uniqueId()
+
         region = self.root
         while layer is not None and layer.type() != "grouplayer":
             layer = layer.parentNode()

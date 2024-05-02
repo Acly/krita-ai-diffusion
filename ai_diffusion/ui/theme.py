@@ -9,16 +9,18 @@ from ..style import SDVersion
 from ..client import Client
 from ..util import is_windows, client_logger as log
 
-is_dark = QGuiApplication.palette().color(QPalette.Window).lightness() < 128
+_palette = QGuiApplication.palette()
+is_dark = _palette.color(QPalette.ColorRole.Window).lightness() < 128
 
+base = _palette.color(QPalette.ColorRole.Base).name()
 green = "#3b3" if is_dark else "#292"
 yellow = "#cc3" if is_dark else "#762"
 red = "#c33"
-grey = "#888" if is_dark else "#555"
+grey = "#888" if is_dark else "#606060"
 highlight = "#8df" if is_dark else "#357"
-line = QGuiApplication.palette().color(QPalette.ColorRole.Background).darker(120).name()
-background_inactive = "#606060"
-background_active = QGuiApplication.palette().highlight().color().name()
+active = _palette.color(QPalette.ColorRole.Highlight).name()
+line = _palette.color(QPalette.ColorRole.Background).darker(120).name()
+line_base = _palette.color(QPalette.ColorRole.Base).darker(120).name()
 
 flat_combo_stylesheet = f"""
     QComboBox {{ border: none; background-color: transparent; padding: 1px 12px 1px 2px; }}
