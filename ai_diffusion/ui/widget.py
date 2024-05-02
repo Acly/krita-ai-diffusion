@@ -348,7 +348,7 @@ class PromptAutoComplete:
     def _current_text(self) -> str:
         text = self._widget.text()
         start = pos = self._widget.cursorPosition()
-        while pos > 0 and text[pos - 1] not in " >":
+        while pos > 0 and text[pos - 1] not in " >\n":
             pos -= 1
         return text[pos:start]
 
