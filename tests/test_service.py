@@ -7,7 +7,7 @@ import asyncio
 import dotenv
 
 from ai_diffusion.api import WorkflowInput, WorkflowKind, ControlInput, ImageInput, CheckpointInput
-from ai_diffusion.api import SamplingInput, TextInput, ExtentInput
+from ai_diffusion.api import SamplingInput, ConditioningInput, ExtentInput
 from ai_diffusion.client import Client, ClientEvent
 from ai_diffusion.cloud_client import CloudClient
 from ai_diffusion.image import Extent, Image
@@ -105,7 +105,7 @@ def create_simple_workflow():
         images=ImageInput.from_extent(Extent(512, 512)),
         models=CheckpointInput("dreamshaper_8.safetensors"),
         sampling=SamplingInput("dpmpp_2m", "normal", cfg_scale=5.0, total_steps=20),
-        text=TextInput("fluffy ball"),
+        conditioning=ConditioningInput("fluffy ball"),
         batch_count=2,
     )
 
@@ -124,8 +124,9 @@ def test_large_image(qtapp, cloud_client):
         images=ImageInput(ExtentInput(extent, extent, extent, extent), input_image),
         models=CheckpointInput("dreamshaper_8.safetensors"),
         sampling=SamplingInput("dpmpp_2m", "normal", cfg_scale=3.0, total_steps=10, start_step=4),
-        text=TextInput("beach, jungle"),
-        control=[ControlInput(ControlMode.blur, input_image)],
+        conditioning=ConditioningInput(
+            "beach, jungle", control=[ControlInput(ControlMode.blur, input_image)]
+        ),
     )
     run_and_save(qtapp, cloud_client, workflow, "pod_large_image")
 
@@ -139,8 +140,9 @@ def test_validation(qtapp, cloud_client: CloudClient, scenario: str):
         ensure(workflow.sampling).total_steps = 200
     elif scenario == "control":
         img = Image.create(Extent(4, 4))
+        control = ensure(workflow.conditioning).control
         for i in range(7):
-            workflow.control.append(ControlInput(ControlMode.depth, img))
+            control.append(ControlInput(ControlMode.depth, img))
     elif scenario == "max_pixels":
         workflow.images = ImageInput.from_extent(Extent(3840, 2168))  # > 4k
 

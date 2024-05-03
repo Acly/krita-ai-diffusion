@@ -228,7 +228,7 @@ class Deserializer:
     _images: ImageCollection
 
     @staticmethod
-    def run(data: dict[str, Any]):
+    def run(data: dict[str, Any]) -> WorkflowInput:
         if image_data := data.get("image_data"):
             blob, offsets = image_data["bytes"], image_data["offsets"]
             images = ImageCollection.from_bytes(blob, offsets)

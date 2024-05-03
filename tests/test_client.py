@@ -4,7 +4,7 @@ import pytest
 
 from ai_diffusion import eventloop, resources
 from ai_diffusion.api import WorkflowInput, WorkflowKind
-from ai_diffusion.api import CheckpointInput, ImageInput, SamplingInput, TextInput
+from ai_diffusion.api import CheckpointInput, ImageInput, SamplingInput, ConditioningInput
 from ai_diffusion.resources import ControlMode
 from ai_diffusion.network import NetworkError
 from ai_diffusion.image import Extent
@@ -32,7 +32,7 @@ def make_default_work(size=512, steps=20):
         WorkflowKind.generate,
         models=CheckpointInput(default_checkpoint[SDVersion.sd15]),
         images=ImageInput.from_extent(Extent(size, size)),
-        text=TextInput("a photo of a cat", "a photo of a dog"),
+        conditioning=ConditioningInput("a photo of a cat", "a photo of a dog"),
         sampling=SamplingInput("euler", "normal", cfg_scale=7.0, total_steps=steps),
     )
 
