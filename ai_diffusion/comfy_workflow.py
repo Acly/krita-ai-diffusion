@@ -440,9 +440,11 @@ class ComfyWorkflow:
     def batch_image(self, batch: Output, image: Output):
         return self.add("ImageBatch", 1, image1=batch, image2=image)
 
-    def inpaint_image(self, model: Output, image: Output, mask: Output):
+    def inpaint_image(self, model: Output, image: Output, mask: Output, seed: int = None):
+        if seed is None:
+            seed = 834729
         return self.add(
-            "INPAINT_InpaintWithModel", 1, inpaint_model=model, image=image, mask=mask, seed=834729
+            "INPAINT_InpaintWithModel", 1, inpaint_model=model, image=image, mask=mask, seed=seed
         )
 
     def crop_mask(self, mask: Output, bounds: Bounds):
@@ -483,6 +485,9 @@ class ComfyWorkflow:
 
     def solid_mask(self, extent: Extent, value=1.0):
         return self.add("SolidMask", 1, width=extent.width, height=extent.height, value=value)
+
+    def grow_mask(self, mask: Output, expand: int):
+        return self.add("GrowMask", 1, mask=mask, expand=expand)
 
     def fill_masked(self, image: Output, mask: Output, mode="neutral", falloff: int = 0):
         return self.add("INPAINT_MaskedFill", 1, image=image, mask=mask, fill=mode, falloff=falloff)
