@@ -70,6 +70,10 @@ class Region(QObject, ObservableProperties):
         return None  # root region, no group layer
 
     @property
+    def siblings(self):
+        return self._tree.siblings(self)
+
+    @property
     def is_root(self):
         return self.layer_id == ""
 
@@ -150,6 +154,13 @@ class RegionTree(QObject):
             control=[c.to_api(bounds) for c in self.root.control],
             regions=[r.to_api(bounds) for r in self._regions],
         )
+
+    def siblings(self, region: Region):
+        def get_regions(layers: list[krita.Node]):
+            return [self._lookup_region(l.uniqueId()) for l in layers]
+
+        below, above = self._model.layers.siblings(region.layer, "grouplayer")
+        return get_regions(below), get_regions(above)
 
     def _update_layers(self):
         self._prune()

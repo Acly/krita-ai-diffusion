@@ -530,6 +530,26 @@ class LayerObserver(QObject):
         self.update()
         return self
 
+    def siblings(self, node: krita.Node | None, filter_type: str | None = None):
+        below: list[krita.Node] = []
+        above: list[krita.Node] = []
+        if self._doc is None:
+            return below, above
+
+        if node is not None:
+            parent = node.parentNode()
+            current = below
+        else:
+            parent = self._doc.rootNode()
+            current = above
+        for l in self._layers:
+            if l.node.parentNode() == parent and (not filter_type or l.node.type() == filter_type):
+                if l.node == node:
+                    current = above
+                else:
+                    current.append(l.node)
+        return below, above
+
     @property
     def images(self):
         return [l.node for l in self._layers if l.node.type() in self.image_layer_types]

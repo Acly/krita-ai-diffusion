@@ -803,14 +803,13 @@ class RegionPromptWidget(QWidget):
             widget.deleteLater()
         self._inactive_regions.clear()
 
-        layout = self._regions_above
-        for region in self._regions:
-            if region is active:
-                layout = self._regions_below
-            else:
-                self._add_inactive_region(region, layout)
+        below, above = active.siblings  # sorted from bottom to top
+        for region in reversed(above):
+            self._add_inactive_region(region, self._regions_above)
+        for region in reversed(below):
+            self._add_inactive_region(region, self._regions_below)
         if active is not self._regions.root:
-            self._add_inactive_region(self._regions.root, layout)
+            self._add_inactive_region(self._regions.root, self._regions_below)
 
     def _activate_region(self, region: Region):
         self._regions.active = region
