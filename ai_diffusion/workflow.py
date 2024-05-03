@@ -166,7 +166,7 @@ class Control:
 
 @dataclass
 class Region:
-    mask: Image
+    mask: Image | Output
     positive: str
     negative: str = ""
     control: list[Control] = field(default_factory=list)
@@ -177,6 +177,11 @@ class Region:
 
     def copy(self):
         return Region(self.mask, self.positive, self.negative, [copy(c) for c in self.control])
+
+    def load_mask(self, w: ComfyWorkflow):
+        if isinstance(self.mask, Image):
+            self.mask = w.load_mask(self.mask)
+        return self.mask
 
 
 @dataclass
@@ -202,7 +207,7 @@ class Conditioning:
             self.positive,
             self.negative,
             [copy(c) for c in self.control],
-            [copy(r) for r in self.regions],
+            [r.copy() for r in self.regions],
             self.style_prompt,
         )
 
@@ -245,21 +250,10 @@ def downscale_all_control_images(cond: ConditioningInput, original: Extent, targ
 
 def encode_text_prompt(w: ComfyWorkflow, cond: Conditioning, clip: Output):
     prompt = cond.positive_merged
-
-    # TODO: represent inpaint condition mask via regions
-    # if prompt != "" and cond.mask:
-    #     prompt = merge_prompt("", cond.style_prompt)
-
     if prompt != "":
         prompt = merge_prompt(prompt, cond.style_prompt)
     positive = w.clip_text_encode(clip, prompt)
     negative = w.clip_text_encode(clip, cond.negative)
-
-    # if cond.mask and cond.prompt != "":
-    #     masked = w.clip_text_encode(clip, cond.prompt)
-    #     masked = w.conditioning_set_mask(masked, cond.mask)
-    #     positive = w.conditioning_combine(positive, masked)
-
     return positive, negative
 
 
@@ -533,11 +527,10 @@ def inpaint(
         cond_base.control.append(Control(ControlMode.reference, reference, 0.5, (0.2, 0.8)))
     if params.use_inpaint_model and models.version is SDVersion.sd15:
         cond_base.control.append(Control(ControlMode.inpaint, in_image, mask=in_mask))
-
-    # TODO: represent inpaint condition mask via region
-    # if params.use_condition_mask:
-    #     cond_base.mask = in_mask
-
+    if params.use_condition_mask and len(cond_base.regions) == 0:
+        cond_base.regions.append(Region(in_mask, cond_base.positive, "", cond_base.control))
+        cond_base.positive = "."  # + style prompt
+        cond_base.control = []
     in_image = fill_masked(w, in_image, in_mask, params.fill, models)
 
     model = apply_ip_adapter(w, model, cond_base.control, models)
