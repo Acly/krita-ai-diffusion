@@ -570,6 +570,18 @@ class TextPromptWidget(QFrame):
         else:
             self.setFrameStyle(QFrame.Shape.NoFrame)
 
+    @property
+    def has_focus(self):
+        return self._multi.hasFocus() or self._single.hasFocus()
+
+    @has_focus.setter
+    def has_focus(self, value: bool):
+        if value:
+            if self._line_count > 1:
+                self._multi.setFocus()
+            else:
+                self._single.setFocus()
+
     def install_event_filter(self, obj: QObject):
         self._multi.installEventFilter(obj)
         self._single.installEventFilter(obj)
@@ -705,6 +717,10 @@ class ActiveRegionWidget(QFrame):
             self._header_label.setText("Text prompt common to all regions")
         self.positive.move_cursor_to_end()
 
+    def focus(self):
+        if not (self.positive.has_focus or self.negative.has_focus):
+            self.positive.has_focus = True
+
     @property
     def has_header(self):
         return self._header.isVisible()
@@ -813,6 +829,7 @@ class RegionPromptWidget(QWidget):
 
     def _activate_region(self, region: Region):
         self._regions.active = region
+        self._prompt.focus()
 
 
 class StrengthWidget(QWidget):

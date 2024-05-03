@@ -190,6 +190,11 @@ class RegionTree(QObject):
         region = Region(self, self._model, layer_id)
         self._regions.append(region)
         self.added.emit(region)
+        # handle new group for active layer
+        if layer := region.layer:
+            if layer.type() == "grouplayer":
+                self._active_layer = None  # force check for new region
+                self._update_active()
         return region
 
     def _prune(self):
