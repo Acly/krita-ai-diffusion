@@ -23,9 +23,9 @@
      borderopacity="1.0"
      inkscape:pageopacity="0.0"
      inkscape:pageshadow="2"
-     inkscape:zoom="0.45254834"
-     inkscape:cx="-430.46594"
-     inkscape:cy="199.00122"
+     inkscape:zoom="1.28"
+     inkscape:cx="231.21677"
+     inkscape:cy="205.65276"
      inkscape:document-units="mm"
      inkscape:current-layer="text842"
      inkscape:document-rotation="0"
@@ -61,48 +61,21 @@
        aria-label="*"
        id="text842"
        style="font-size:205.024px;line-height:1.25;font-family:sans-serif;stroke-width:0.265;stroke-miterlimit:4;stroke-dasharray:none">
-      <rect
-         style="fill:none;fill-opacity:1;stroke:#c8c8c8;stroke-width:4.23333;stroke-linecap:round;stroke-linejoin:miter;stroke-miterlimit:4;stroke-dasharray:none;stroke-dashoffset:0;stroke-opacity:1"
-         id="rect840"
-         width="114.3"
-         height="16.933332"
-         x="10.583333"
-         y="6.3499999" />
-      <rect
-         style="font-size:205.024px;line-height:1.25;font-family:sans-serif;fill:#c8c8c8;fill-opacity:1;stroke:none;stroke-width:8.46667;stroke-linecap:round;stroke-linejoin:round;stroke-miterlimit:4;stroke-dasharray:none"
-         id="rect840-3"
-         width="118.53333"
-         height="12.700002"
-         x="8.4666662"
-         y="25.4" />
-      <rect
-         style="font-size:205.024px;line-height:1.25;font-family:sans-serif;fill:#c8c8c8;fill-opacity:1;stroke:none;stroke-width:8.46668;stroke-linecap:round;stroke-linejoin:round;stroke-miterlimit:4;stroke-dasharray:none"
-         id="rect840-3-8"
-         width="118.53333"
-         height="13.229157"
-         x="8.4666662"
-         y="71.966667" />
-      <rect
-         style="font-size:205.024px;line-height:1.25;font-family:sans-serif;fill:#c8c8c8;fill-opacity:1;stroke:none;stroke-width:8.46668;stroke-linecap:round;stroke-linejoin:round;stroke-miterlimit:4;stroke-dasharray:none"
+      <path
          id="rect840-3-2"
-         width="118.53333"
-         height="13.229157"
-         x="8.4666662"
-         y="116.41667" />
-      <rect
-         style="font-size:205.024px;line-height:1.25;font-family:sans-serif;fill:none;fill-opacity:1;stroke:#c8c8c8;stroke-width:4.23333;stroke-linecap:round;stroke-linejoin:miter;stroke-miterlimit:4;stroke-dasharray:none;stroke-dashoffset:0;stroke-opacity:1"
-         id="rect840-9"
-         width="114.3"
-         height="16.933332"
-         x="10.583333"
-         y="52.916672" />
-      <rect
-         style="font-size:205.024px;line-height:1.25;font-family:sans-serif;fill:none;fill-opacity:1;stroke:#c8c8c8;stroke-width:4.23333;stroke-linecap:round;stroke-linejoin:miter;stroke-miterlimit:4;stroke-dasharray:none;stroke-dashoffset:0;stroke-opacity:1"
-         id="rect840-7"
-         width="114.3"
-         height="19.050003"
-         x="10.583333"
-         y="97.366669" />
+         style="font-size:205.024px;line-height:1.25;font-family:sans-serif;fill:#c8c8c8;fill-opacity:1;stroke:none;stroke-width:8.46667;stroke-linecap:round;stroke-linejoin:round;stroke-miterlimit:4;stroke-dasharray:none"
+         d="M 31.750001,61.383333 V 91.016666 H 103.71667 V 61.383333 Z M 40.216667,69.85 H 95.25 v 12.7 H 40.216667 Z"
+         sodipodi:nodetypes="cccccccccc" />
+      <path
+         style="fill:#c8c8c8;fill-opacity:1;stroke:none;stroke-width:0.265;stroke-linecap:butt;stroke-linejoin:miter;stroke-miterlimit:4;stroke-dasharray:none;stroke-opacity:1"
+         d="M 103.71667,107.95 H 33.866666 l -12.7,-12.699998 0,-86.7833354 H 8.4666665 L 8.4666666,122.76667 12.7,127 H 122.76667 L 127,122.76667 127,8.4666667 h -12.7 l 0,86.7833363 z"
+         id="path847"
+         sodipodi:nodetypes="ccccccccccccc" />
+      <path
+         id="rect840-3-2-2"
+         style="font-size:205.024px;line-height:1.25;font-family:sans-serif;fill:#c8c8c8;fill-opacity:1;stroke:none;stroke-width:8.46667;stroke-linecap:round;stroke-linejoin:round;stroke-miterlimit:4;stroke-dasharray:none"
+         d="M 31.750001,21.166666 V 50.799999 H 103.71667 V 21.166666 Z m 8.466666,8.466667 H 95.25 v 12.7 H 40.216667 Z"
+         sodipodi:nodetypes="cccccccccc" />
     </g>
   </g>
 </svg>
