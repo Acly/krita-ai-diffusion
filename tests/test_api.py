@@ -16,7 +16,7 @@ from ai_diffusion.util import ensure
 def test_defaults():
     input = WorkflowInput(WorkflowKind.refine)
     data = input.to_dict()
-    assert data == {"kind": "refine", "control": []}
+    assert data == {"kind": "refine"}
     result = WorkflowInput.from_dict(data)
     assert result == input
 
