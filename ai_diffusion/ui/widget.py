@@ -569,7 +569,7 @@ class TextPromptWidget(QWidget):
 class StrengthWidget(QWidget):
     value_changed = pyqtSignal(float)
 
-    def __init__(self, slider_range: tuple[int, int] = (1, 100), parent=None):
+    def __init__(self, slider_range: tuple[int, int] = (0, 100), parent=None):
         super().__init__(parent)
         self._layout = QHBoxLayout()
         self._layout.setContentsMargins(0, 0, 0, 0)
@@ -582,7 +582,7 @@ class StrengthWidget(QWidget):
         self._slider.valueChanged.connect(self.notify_changed)
 
         self._input = QSpinBox(self)
-        self._input.setMinimum(1)
+        self._input.setMinimum(0)
         self._input.setMaximum(100)
         self._input.setSingleStep(5)
         self._input.setPrefix("Strength: ")
