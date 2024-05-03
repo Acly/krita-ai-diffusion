@@ -52,7 +52,7 @@ def _sampling_from_style(style: Style, strength: float, is_live: bool):
 def _apply_strength(strength: float, steps: int, min_steps: int = 0) -> tuple[int, int]:
     start_at_step = round(steps * (1 - strength))
 
-    if min_steps and steps - start_at_step < min_steps:
+    if min_steps and steps - start_at_step < min_steps and strength > 0.0:
         steps = math.floor(min_steps * 1 / strength)
         start_at_step = steps - min_steps
 
@@ -410,7 +410,7 @@ def generate(
     return w
 
 
-def fill_masked(w: ComfyWorkflow, image: Output, mask: Output, fill: FillMode, models: ModelDict):
+def fill_masked(w: ComfyWorkflow, image: Output, mask: Output, fill: FillMode, models: ModelDict, sampling: SamplingInput = None):
     if fill is FillMode.blur:
         return w.blur_masked(image, mask, 65, falloff=9)
     elif fill is FillMode.border:
@@ -420,7 +420,7 @@ def fill_masked(w: ComfyWorkflow, image: Output, mask: Output, fill: FillMode, m
         return w.fill_masked(image, mask, "neutral", falloff=9)
     elif fill is FillMode.inpaint:
         model = w.load_inpaint_model(models.inpaint["default"])
-        return w.inpaint_image(model, image, mask)
+        return w.inpaint_image(model, image, mask, sampling.seed if sampling else None)
     elif fill is FillMode.replace:
         return w.fill_masked(image, mask, "neutral")
     return image
@@ -454,6 +454,7 @@ def detect_inpaint(
         InpaintMode.add_object: FillMode.neutral,
         InpaintMode.remove_object: FillMode.inpaint,
         InpaintMode.replace_background: FillMode.replace,
+        InpaintMode.pre_fill: FillMode.inpaint,
     }[mode]
     return result
 
@@ -610,32 +611,37 @@ def refine_region(
     in_mask = w.load_mask(ensure(images.initial_mask))
     in_mask = scale_to_initial(extent, w, in_mask, models, is_mask=True)
 
-    prompt_pos, prompt_neg = encode_text_prompt(w, cond, clip)
-    if inpaint.use_inpaint_model and models.version is SDVersion.sd15:
-        cond.control.append(Control(ControlMode.inpaint, in_image, mask=in_mask))
-    positive, negative = apply_control(
-        w, prompt_pos, prompt_neg, cond.control, extent.initial, models
-    )
-    if models.version is SDVersion.sd15 or not inpaint.use_inpaint_model:
-        latent = w.vae_encode(vae, in_image)
-        latent = w.set_latent_noise_mask(latent, in_mask)
-        inpaint_model = model
-    else:  # SDXL inpaint model
-        positive, negative, latent_inpaint, latent = w.vae_encode_inpaint_conditioning(
-            vae, in_image, in_mask, positive, negative
+    if sampling.actual_steps == 0:
+        in_mask = w.grow_mask(in_mask, 4)
+        out_image = fill_masked(w, in_image, in_mask, FillMode.inpaint, models, sampling)
+    else:
+        prompt_pos, prompt_neg = encode_text_prompt(w, cond, clip)
+        if inpaint.use_inpaint_model and models.version is SDVersion.sd15:
+            cond.control.append(Control(ControlMode.inpaint, in_image, mask=in_mask))
+        positive, negative = apply_control(
+            w, prompt_pos, prompt_neg, cond.control, extent.initial, models
         )
-        inpaint_patch = w.load_fooocus_inpaint(**models.fooocus_inpaint)
-        inpaint_model = w.apply_fooocus_inpaint(model, inpaint_patch, latent_inpaint)
+        if models.version is SDVersion.sd15 or not inpaint.use_inpaint_model:
+            latent = w.vae_encode(vae, in_image)
+            latent = w.set_latent_noise_mask(latent, in_mask)
+            inpaint_model = model
+        else:  # SDXL inpaint model
+            positive, negative, latent_inpaint, latent = w.vae_encode_inpaint_conditioning(
+                vae, in_image, in_mask, positive, negative
+            )
+            inpaint_patch = w.load_fooocus_inpaint(**models.fooocus_inpaint)
+            inpaint_model = w.apply_fooocus_inpaint(model, inpaint_patch, latent_inpaint)
 
-    if batch_count > 1:
-        latent = w.batch_latent(latent, batch_count)
+        if batch_count > 1:
+            latent = w.batch_latent(latent, batch_count)
 
-    out_latent = w.ksampler_advanced(
-        inpaint_model, positive, negative, latent, **_sampler_params(sampling)
-    )
-    out_image = scale_refine_and_decode(
-        extent, w, cond, sampling, out_latent, prompt_pos, prompt_neg, model, vae, models
-    )
+        out_latent = w.ksampler_advanced(
+            inpaint_model, positive, negative, latent, **_sampler_params(sampling)
+        )
+        out_image = scale_refine_and_decode(
+            extent, w, cond, sampling, out_latent, prompt_pos, prompt_neg, model, vae, models
+        )
+
     out_image = scale_to_target(extent, w, out_image, models)
     if extent.target != inpaint.target_bounds.extent:
         out_image = w.crop_image(out_image, inpaint.target_bounds)
