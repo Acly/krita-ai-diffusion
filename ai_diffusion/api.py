@@ -102,6 +102,7 @@ class InpaintMode(Enum):
     remove_object = 4
     replace_background = 5
     custom = 6
+    pre_fill = 7
 
 
 class FillMode(Enum):

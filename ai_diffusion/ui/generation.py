@@ -439,7 +439,7 @@ class CustomInpaintWidget(QWidget):
             self.update_context()
 
     def update_fill_enabled(self):
-        self.fill_mode_combo.setEnabled(self.model.strength == 1.0)
+        self.fill_mode_combo.setEnabled(self.model.strength in (1.0, 0.0))
 
     def update_context_layers(self):
         current = self.context_combo.currentData()
@@ -527,6 +527,7 @@ class GenerationWidget(QWidget):
         self.inpaint_mode_button.clicked.connect(self.show_inpaint_menu)
         self.inpaint_menu = self._create_inpaint_menu()
         self.refine_menu = self._create_refine_menu()
+        self.prefill_menu = self._create_prefill_menu()
 
         generate_layout = QHBoxLayout()
         generate_layout.setSpacing(0)
@@ -619,6 +620,7 @@ class GenerationWidget(QWidget):
         InpaintMode.remove_object: "Remove Content",
         InpaintMode.replace_background: "Replace Background",
         InpaintMode.custom: "Generate (Custom)",
+        InpaintMode.pre_fill: "Pre-fill",
     }
 
     def _create_inpaint_action(self, mode: InpaintMode, text: str, icon: str):
@@ -643,10 +645,20 @@ class GenerationWidget(QWidget):
         )
         return menu
 
+    def _create_prefill_menu(self):
+        menu = QMenu(self)
+        menu.addAction(self._create_inpaint_action(InpaintMode.pre_fill, "Prefill", "fill"))
+        return menu
+
     def show_inpaint_menu(self):
         width = self.generate_button.width() + self.inpaint_mode_button.width()
         pos = QPoint(0, self.generate_button.height())
-        menu = self.inpaint_menu if self.model.strength == 1.0 else self.refine_menu
+        if self.model.strength == 1.0:
+            menu = self.inpaint_menu
+        elif self.model.strength == 0.0:
+            menu = self.prefill_menu
+        else:
+            menu = self.refine_menu
         menu.setFixedWidth(width)
         menu.exec_(self.generate_button.mapToGlobal(pos))
 
@@ -670,6 +682,9 @@ class GenerationWidget(QWidget):
                 mode = self.model.resolve_inpaint_mode()
                 self.generate_button.setIcon(theme.icon(f"inpaint-{mode.name}"))
                 self.generate_button.setText(self._inpaint_text[mode])
+            elif self.model.strength == 0.0:
+                self.generate_button.setIcon(theme.icon(f"inpaint-fill"))
+                self.generate_button.setText("Pre-fill")
             else:
                 is_custom = self.model.inpaint.mode is InpaintMode.custom
                 self.generate_button.setIcon(
