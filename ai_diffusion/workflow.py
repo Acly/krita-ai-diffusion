@@ -265,13 +265,13 @@ regex_attention_line = re.compile(r"^((?:PROMPT|ZONE|ATT|BREAK)\s*\d* )(.*)$")
 
 
 def attention_cond_prompt(cond: Conditioning, index: int):
-    if not cond.prompt:
+    if not cond.positive:
         return cond, cond
 
     updated_prompt_lines = []
     att_prompts_lines = []
     i = 0
-    for line in cond.prompt.splitlines():
+    for line in cond.positive.splitlines():
         match = regex_attention_line.match(line)
         if not match:
             att_prompts_lines.append(line)
@@ -287,7 +287,7 @@ def attention_cond_prompt(cond: Conditioning, index: int):
 
     att_cond = copy(cond)
     att_cond.prompt = "\n".join(att_prompts_lines)
-    cond.prompt = "\n".join(updated_prompt_lines)
+    cond.positive = "\n".join(updated_prompt_lines)
 
     return att_cond, cond
 
