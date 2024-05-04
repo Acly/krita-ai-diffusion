@@ -265,87 +265,6 @@ regex_attention_line = re.compile(r"^((?:PROMPT|ZONE|ATT|BREAK)\s*\d* )(.*)$")
 
 
 def attention_cond_prompt(cond: Conditioning, index: int):
-    if not cond.prompt:
-        return cond, cond
-
-    updated_prompt_lines = []
-    att_prompts_lines = []
-    i = 0
-    for line in cond.prompt.splitlines():
-        match = regex_attention_line.match(line)
-        if not match:
-            att_prompts_lines.append(line)
-            updated_prompt_lines.append(line)
-        else:
-            if i == index:
-                att_prompts_lines.append(match.group(2))
-                updated_prompt_lines.append(match.group(1))
-            else:
-                updated_prompt_lines.append(line)
-
-            i += 1
-
-    att_cond = copy(cond)
-    att_cond.prompt = "\n".join(att_prompts_lines)
-    cond.prompt = "\n".join(updated_prompt_lines)
-
-    return att_cond, cond
-
-
-def apply_attention(
-    w: ComfyWorkflow,
-    model: Output,
-    cond: Conditioning,
-    clip: Output,
-    extent: Extent,
-):
-    control_layers = cond.control
-    controls = [c for c in control_layers if c.mode is ControlMode.attention]
-    if not len(controls):
-        return model, cond
-
-    base_mask = w.solid_mask(extent, 1.0)
-    conds: list[Output] = []
-    masks: list[Output] = []
-    mask_sum: Output = OutputNull
-
-    # load masks, compute sum of all masks
-    for i in range(len(controls)):
-        control = controls[i]
-        mask = w.load_image_mask(control.image)
-        control_cond, cond = attention_cond_prompt(cond, i)
-
-        mask_sum = (
-            mask if mask_sum == OutputNull else w.attention_mask_composite(mask, mask_sum, "or")
-        )
-        conds.append(encode_text_prompt(w, control_cond, clip)[0])
-        masks.append(mask)
-
-    # subtract lower masks for each mask
-    for i in range(len(masks)):
-        sub_mask_sum: Output = OutputNull
-        for j in range(len(masks)):
-            if i > j:
-                sub_mask_sum = (
-                    masks[j]
-                    if sub_mask_sum == OutputNull
-                    else w.attention_mask_composite(masks[j], sub_mask_sum, "or")
-                )
-
-        if sub_mask_sum != OutputNull:
-            masks[i] = w.attention_mask_composite(masks[i], sub_mask_sum, "subtract")
-
-    base_mask = w.attention_mask_composite(base_mask, mask_sum, "subtract")
-    cond, _ = attention_cond_prompt(cond, len(controls))
-    model = w.apply_attention_couple(model, base_mask, conds, masks)
-
-    return model, cond
-
-
-regex_attention_line = re.compile(r"^((?:PROMPT|ZONE|ATT|BREAK)\s*\d* )(.*)$")
-
-
-def attention_cond_prompt(cond: Conditioning, index: int):
     if not cond.positive:
         return cond, cond
 
@@ -367,7 +286,7 @@ def attention_cond_prompt(cond: Conditioning, index: int):
             i += 1
 
     att_cond = copy(cond)
-    att_cond.prompt = "\n".join(att_prompts_lines)
+    att_cond.positive = "\n".join(att_prompts_lines)
     cond.positive = "\n".join(updated_prompt_lines)
 
     return att_cond, cond
