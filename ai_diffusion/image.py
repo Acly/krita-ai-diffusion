@@ -355,6 +355,9 @@ class Image:
         painter.fillRect(self._qimage.rect(), background)
         painter.end()
 
+    def invert(self):
+        self._qimage.invertPixels()
+
     @property
     def data(self):
         self.to_krita_format()

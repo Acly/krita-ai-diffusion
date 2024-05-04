@@ -169,6 +169,14 @@ class RegionTree(QObject):
                 region.mask = Image.mask_subtract(region.mask, accumulated_mask)
                 accumulated_mask = Image.mask_add(accumulated_mask, current)
 
+        # If the regions don't cover the entire image, add a final region for the remaining area.
+        if accumulated_mask is not None:
+            average = Image.scale(accumulated_mask, Extent(1, 1)).pixel(0, 0)
+            fully_covered = isinstance(average, tuple) and average[0] >= 254
+            if not fully_covered:
+                accumulated_mask.invert()
+                api_regions.append(RegionInput(accumulated_mask, self.root.prompt))
+
         return ConditioningInput(
             positive=self.root.prompt,
             negative=self.root.negative_prompt,
