@@ -551,6 +551,11 @@ class LayerObserver(QObject):
         return below, above
 
     @property
+    def root(self):
+        assert self._doc is not None
+        return self._doc.rootNode()
+
+    @property
     def images(self):
         return [l.node for l in self._layers if l.node.type() in self.image_layer_types]
 

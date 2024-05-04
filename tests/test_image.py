@@ -4,6 +4,7 @@ from PyQt5.QtGui import QImage, qRgba
 from PyQt5.QtCore import Qt, QByteArray
 from PIL import Image as PILImage
 from ai_diffusion.image import Mask, Bounds, Extent, Image, ImageCollection
+from .config import image_dir, result_dir, reference_dir
 
 
 def test_extent_compare():
@@ -155,6 +156,24 @@ def test_draw_image():
                 assert base.pixel(x, y) == (255, 0, 0, 255)
             else:
                 assert base.pixel(x, y) == (255, 255, 255, 255)
+
+
+def test_mask_subtract():
+    lhs = Mask.load(image_dir / "mask_op_left.webp").to_image()
+    rhs = Mask.load(image_dir / "mask_op_right.webp").to_image()
+    result = Image.mask_subtract(lhs, rhs)
+    result.save(result_dir / "mask_op_subtract.png")
+    reference = Mask.load(reference_dir / "mask_op_subtract.png").to_image()
+    assert Image.compare(result, reference) < 0.0001
+
+
+def test_mask_add():
+    lhs = Mask.load(image_dir / "mask_op_left.webp").to_image()
+    rhs = Mask.load(image_dir / "mask_op_right.webp").to_image()
+    result = Image.mask_add(lhs, rhs)
+    result.save(result_dir / "mask_op_add.png")
+    reference = Mask.load(reference_dir / "mask_op_add.png").to_image()
+    assert Image.compare(result, reference) < 0.0001
 
 
 def test_image_collection_each():
