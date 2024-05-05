@@ -244,6 +244,10 @@ class Image:
             img._qimage.fill(fill)
         return img
 
+    @staticmethod
+    def copy(image: "Image"):
+        return Image(QImage(image._qimage))
+
     @property
     def width(self):
         return self._qimage.width()
@@ -443,12 +447,12 @@ class Image:
             self.save(Path(settings.debug_image_folder, f"{name}.png"))
 
     def to_krita_format(self):
-        if self._qimage.format() != QImage.Format.Format_ARGB32:
+        if self.is_rgba and self._qimage.format() != QImage.Format.Format_ARGB32:
             self._qimage = self._qimage.convertToFormat(QImage.Format.Format_ARGB32)
         return self
 
     def to_numpy_format(self):
-        if self._qimage.format() != QImage.Format.Format_RGBA8888:
+        if self.is_rgba and self._qimage.format() != QImage.Format.Format_RGBA8888:
             self._qimage = self._qimage.convertToFormat(QImage.Format.Format_RGBA8888)
         return self
 
