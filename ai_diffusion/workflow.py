@@ -261,6 +261,14 @@ def encode_text_prompt(w: ComfyWorkflow, cond: Conditioning, clip: Output):
     return positive, negative
 
 
+def encode_attention_text_prompt(w: ComfyWorkflow, cond: Conditioning, positive: str, negative: str, clip: Output):
+    if positive != "":
+        positive = merge_prompt(positive, cond.style_prompt)
+    positive = w.clip_text_encode(clip, positive)
+    negative = w.clip_text_encode(clip, negative)
+    return positive, negative
+
+
 regex_attention_line = re.compile(r"^((?:PROMPT|ZONE|ATT|BREAK)\s*\d* )(.*)$")
 
 
@@ -299,46 +307,33 @@ def apply_attention(
     clip: Output,
     extent: Extent,
 ):
-    control_layers = cond.control
-    controls = [c for c in control_layers if c.mode is ControlMode.attention]
-    if not len(controls):
+    if not cond.regions:
         return model, cond
 
-    base_mask = w.solid_mask(extent, 1.0)
+    regions = cond.regions
+    regions.reverse()
+
+    base_mask = w.solid_mask(extent, 0.0)
     conds: list[Output] = []
     masks: list[Output] = []
-    mask_sum: Output = OutputNull
 
-    # load masks, compute sum of all masks
-    for i in range(len(controls)):
-        control = controls[i]
-        mask = w.load_image_mask(control.image)
-        control_cond, cond = attention_cond_prompt(cond, i)
-
-        mask_sum = (
-            mask if mask_sum == OutputNull else w.attention_mask_composite(mask, mask_sum, "or")
-        )
-        conds.append(encode_text_prompt(w, control_cond, clip)[0])
+    for region in regions:
+        mask = w.image_to_mask(w.mask_to_image(region.load_mask(w)))
         masks.append(mask)
+        if region.positive == cond.positive:
+            positive = region.positive.replace("{prompt}", "")
+        else:
+            positive = merge_prompt(region.positive, cond.positive)
 
-    # subtract lower masks for each mask
-    for i in range(len(masks)):
-        sub_mask_sum: Output = OutputNull
-        for j in range(len(masks)):
-            if i > j:
-                sub_mask_sum = (
-                    masks[j]
-                    if sub_mask_sum == OutputNull
-                    else w.attention_mask_composite(masks[j], sub_mask_sum, "or")
-                )
+        region.positive = ""  # remove the region prompt from the combined prompt
 
-        if sub_mask_sum != OutputNull:
-            masks[i] = w.attention_mask_composite(masks[i], sub_mask_sum, "subtract")
+        negative = merge_prompt(region.negative, cond.negative)
+        region.negative = ""
 
-    base_mask = w.attention_mask_composite(base_mask, mask_sum, "subtract")
-    cond, _ = attention_cond_prompt(cond, len(controls))
+        conds.append(encode_attention_text_prompt(w, cond, positive, negative, clip)[0])
+
     model = w.apply_attention_couple(model, base_mask, conds, masks)
-
+    cond.positive = cond.positive.replace("{prompt}", "")
     return model, cond
 
 
