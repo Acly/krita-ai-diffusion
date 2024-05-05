@@ -163,7 +163,7 @@ class RegionTree(QObject):
         accumulated_mask = None
         for region in reversed(api_regions):
             if accumulated_mask is None:
-                accumulated_mask = region.mask
+                accumulated_mask = Image.mask_add(region.mask, region.mask)
             else:
                 current = region.mask
                 region.mask = Image.mask_subtract(region.mask, accumulated_mask)
