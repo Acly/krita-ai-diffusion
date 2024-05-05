@@ -1,6 +1,6 @@
 from __future__ import annotations
 from collections import deque
-from dataclasses import dataclass, fields
+from dataclasses import dataclass, fields, field
 from datetime import datetime
 from enum import Enum, Flag
 from typing import Deque, NamedTuple
@@ -29,10 +29,17 @@ class JobKind(Enum):
 
 
 @dataclass
+class JobRegion:
+    layer_id: str
+    prompt: str
+
+
+@dataclass
 class JobParams:
     bounds: Bounds
     prompt: str
     negative_prompt: str = ""
+    regions: list[JobRegion] = field(default_factory=list)
     strength: float = 1.0
     seed: int = 0
     frame: tuple[int, int, int] = (0, 0, 0)

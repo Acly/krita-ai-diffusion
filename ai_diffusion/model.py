@@ -28,7 +28,7 @@ from .pose import Pose
 from .style import Style, Styles, SDVersion
 from .connection import Connection
 from .properties import Property, ObservableProperties
-from .jobs import Job, JobKind, JobParams, JobQueue, JobState
+from .jobs import Job, JobKind, JobParams, JobQueue, JobState, JobRegion
 from .control import ControlLayer, ControlLayerList
 from .resources import ControlMode
 from .resolution import compute_bounds, compute_relative_bounds
@@ -157,11 +157,13 @@ class RegionTree(QObject):
         layers = self._model.layers
         parent_layer = layers.find(parent_layer_id) if parent_layer_id else layers.root
         api_regions: list[RegionInput] = []
+        job_regions: list[JobRegion] = []
         for layer in layers:
             if layer.type() == "grouplayer" and layer.parentNode() == parent_layer:
                 region = self._lookup_region(layer.uniqueId())
                 if region.prompt != "" or len(region.control) > 0:
                     api_regions.append(region.to_api(bounds))
+                    job_regions.append(JobRegion(region.layer_id, region.prompt))
 
         # Remove from each region mask any overlapping areas from regions above it.
         accumulated_mask = None
@@ -181,11 +183,14 @@ class RegionTree(QObject):
                 accumulated_mask.invert()
                 api_regions.append(RegionInput(accumulated_mask, self.root.prompt))
 
-        return ConditioningInput(
-            positive=self.root.prompt,
-            negative=self.root.negative_prompt,
-            control=[c.to_api(bounds) for c in self.root.control],
-            regions=api_regions,
+        return (
+            ConditioningInput(
+                positive=self.root.prompt,
+                negative=self.root.negative_prompt,
+                control=[c.to_api(bounds) for c in self.root.control],
+                regions=api_regions,
+            ),
+            job_regions,
         )
 
     def siblings(self, region: Region):
@@ -344,7 +349,7 @@ class Model(QObject, ObservableProperties):
         bounds = compute_bounds(extent, mask.bounds if mask else None, self.strength)
         bounds = self.inpaint.get_context(self, mask) or bounds
 
-        conditioning = self.regions.to_api(None, bounds)
+        conditioning, job_regions = self.regions.to_api(None, bounds)
 
         if mask is not None or self.strength < 1.0:
             image = self._get_current_image(region, bounds)
@@ -383,9 +388,8 @@ class Model(QObject, ObservableProperties):
             self.report_error(util.log_error(e))
             return
         self.clear_error()
-        enqueue_jobs = self.enqueue_jobs(
-            input, JobKind.diffusion, JobParams(bounds, region.prompt), self.batch_count
-        )
+        job_params = JobParams(bounds, self.regions.root.prompt, regions=job_regions)
+        enqueue_jobs = self.enqueue_jobs(input, JobKind.diffusion, job_params, self.batch_count)
         eventloop.run(_report_errors(self, enqueue_jobs))
 
     async def enqueue_jobs(
@@ -462,10 +466,11 @@ class Model(QObject, ObservableProperties):
         if mask is not None or self.live.strength < 1.0:
             image = self._get_current_image(region, bounds)
 
+        control = region.to_api(bounds).control
         input = workflow.prepare(
             workflow_kind,
             image or bounds.extent,
-            self.regions.to_api(None, mask.bounds if mask else None),
+            ConditioningInput(region.prompt, region.negative_prompt, control=control),
             self.style,
             self.seed,
             client.models,
@@ -590,12 +595,29 @@ class Model(QObject, ObservableProperties):
             self._doc.hide_layer(self._layer)
 
     def apply_result(self, job_id: str, index: int):
-        self.jobs.select(job_id, index)
-        assert self._layer is not None
-        self._layer.setLocked(False)
-        self._layer.setName(self._layer.name().replace("[Preview]", "[Generated]"))
-        self._doc.active_layer = self._layer
-        self._layer = None
+        job = self.jobs.find(job_id)
+        assert job is not None, "Cannot apply result, invalid job id"
+        if len(job.params.regions) == 0:
+            self._doc.insert_layer(
+                f"[Generated] {job.params.prompt}", job.results[index], job.params.bounds
+            )
+        else:
+            img = job.results[index]
+            for region in job.params.regions:
+                if region_layer := self.layers.find(QUuid(region.layer_id)):
+                    if not any(l.parentNode() == region_layer for l in self.layers.masks):
+                        mask = self._doc.get_layer_mask(region_layer, job.params.bounds)
+                        self._doc.insert_mask_layer(
+                            "Transparency Mask", mask, job.params.bounds, region_layer
+                        )
+
+                    self._doc.insert_layer(
+                        f"[Generated] {region.prompt}", img, job.params.bounds, parent=region_layer
+                    )
+
+        if self._layer:
+            self._layer.remove()
+            self._layer = None
         self.jobs.selection = None
         self.jobs.notify_used(job_id, index)
 
@@ -934,10 +956,11 @@ class AnimationWorkspace(QObject, ObservableProperties):
     def _prepare_input(self, canvas: Image | Extent, seed: int):
         m = self._model
         bounds = Bounds(0, 0, *m.document.extent)
+        conditioning, job_regions = m.regions.to_api(None, bounds)
         return workflow.prepare(
             WorkflowKind.generate if m.strength == 1.0 else WorkflowKind.refine,
             canvas,
-            m.regions.to_api(None, bounds),
+            conditioning,
             style=m.style,
             seed=seed,
             perf=m._connection.client.performance_settings,

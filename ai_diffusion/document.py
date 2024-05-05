@@ -66,10 +66,16 @@ class Document(QObject):
         bounds: Bounds | None = None,
         make_active=True,
         below: krita.Node | None = None,
+        parent: krita.Node | None = None,
     ) -> krita.Node:
         raise NotImplementedError
 
     def insert_vector_layer(self, name: str, svg: str) -> krita.Node:
+        raise NotImplementedError
+
+    def insert_mask_layer(
+        self, name: str, img: Image, bounds: Bounds, parent: krita.Node
+    ) -> krita.Node:
         raise NotImplementedError
 
     def set_layer_content(self, layer: krita.Node, img: Image, bounds: Bounds, make_visible=True):
@@ -280,10 +286,12 @@ class KritaDocument(Document):
         bounds: Bounds | None = None,
         make_active=True,
         below: krita.Node | None = None,
+        parent: krita.Node | None = None,
     ):
+        parent = parent or self._doc.rootNode()
         with RestoreActiveLayer(self) if not make_active else nullcontext():
             layer = self._doc.createNode(name, "paintlayer")
-            self._doc.rootNode().addChildNode(layer, _find_layer_above(self._doc, below))
+            parent.addChildNode(layer, _find_layer_above(self._doc, below))
             if img and bounds:
                 layer.setPixelData(img.data, *bounds)
                 self.refresh(layer)
@@ -294,6 +302,13 @@ class KritaDocument(Document):
         self._doc.rootNode().addChildNode(layer, None)
         layer.addShapesFromSvg(svg)
         self.refresh(layer)
+        return layer
+
+    def insert_mask_layer(self, name: str, img: Image, bounds: Bounds, parent: krita.Node):
+        assert img.is_mask
+        layer = self._doc.createTransparencyMask(name)
+        parent.addChildNode(layer, None)
+        layer.setPixelData(img.data, *bounds)
         return layer
 
     def set_layer_content(self, layer: krita.Node, img: Image, bounds: Bounds, make_visible=True):
