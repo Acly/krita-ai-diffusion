@@ -18,13 +18,14 @@ from ..image import Extent, Image
 from ..root import root
 from ..settings import settings
 from . import theme
-from .control import ControlLayerButton, ControlListWidget
+from .control import ControlListWidget
 from .widget import (
     WorkspaceSelectWidget,
     StyleSelectWidget,
     TextPromptWidget,
     StrengthWidget,
     QueueButton,
+    create_wide_tool_button,
 )
 
 
@@ -65,7 +66,7 @@ class AnimationWidget(QWidget):
         layout.addLayout(prompt_layout)
 
         self.strength_slider = StrengthWidget(parent=self)
-        self.add_control_button = ControlLayerButton(self)
+        self.add_control_button = create_wide_tool_button("control-add", "Add Control Layer", self)
         strength_layout = QHBoxLayout()
         strength_layout.addWidget(self.strength_slider)
         strength_layout.addWidget(self.add_control_button)
@@ -127,8 +128,8 @@ class AnimationWidget(QWidget):
                 bind(model, "workspace", self.workspace_select, "value", Bind.one_way),
                 bind(model, "style", self.style_select, "value"),
                 bind(model.animation, "sampling_quality", self.style_select, "quality"),
-                bind(model, "prompt", self.prompt_textbox, "text"),
-                bind(model, "negative_prompt", self.negative_textbox, "text"),
+                bind(model.regions.active, "prompt", self.prompt_textbox, "text"),
+                bind(model.regions.active, "negative_prompt", self.negative_textbox, "text"),
                 bind(model, "strength", self.strength_slider, "value"),
                 bind_toggle(model.animation, "batch_mode", self.batch_mode_button),
                 bind_combo(model.animation, "target_layer", self.target_layer),

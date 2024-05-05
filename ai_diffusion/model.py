@@ -147,6 +147,10 @@ class RegionTree(QObject):
     def add_control(self):
         self.active.control.add()
 
+    def create_region(self):
+        doc = self._model.document
+        doc.create_group_layer(f"Region {len(self)}")
+
     def to_api(self, parent_layer_id: QUuid | None, bounds: Bounds | None = None):
         # Assemble all regions by finding group layers which are direct children of the parent layer.
         # Ignore regions with no prompt or control layers.

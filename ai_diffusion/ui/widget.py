@@ -668,6 +668,8 @@ class ActiveRegionWidget(QFrame):
     _style_base = f"QFrame#ActiveRegionWidget {{ background-color: {theme.base}; border: 1px solid {theme.line_base}; }}"
     _style_focus = f"QFrame#ActiveRegionWidget {{ background-color: {theme.base}; border: 1px solid {theme.active}; }}"
 
+    _region: Region
+
     def __init__(self, region: Region, parent: QWidget):
         super().__init__(parent)
 
@@ -692,7 +694,6 @@ class ActiveRegionWidget(QFrame):
         self.positive.install_event_filter(self)
 
         self.negative = TextPromptWidget(line_count=1, is_negative=True, parent=self)
-        self.negative.setVisible(settings.show_negative_prompt)
         self.negative.install_event_filter(self)
 
         layout = QVBoxLayout()
@@ -707,12 +708,14 @@ class ActiveRegionWidget(QFrame):
         settings.changed.connect(self.update_settings)
 
     def set_region(self, region: Region):
+        self._region = region
         self._header_icon.set_region(region)
         if layer := region.layer:
             self._header_label.setText(f"{layer.name()} - Regional text prompt")
         else:
             self._header_label.setText("Text prompt common to all regions")
         self.positive.move_cursor_to_end()
+        self.negative.setVisible(region.is_root and settings.show_negative_prompt)
 
     def focus(self):
         if not (self.positive.has_focus or self.negative.has_focus):
@@ -731,7 +734,7 @@ class ActiveRegionWidget(QFrame):
             self.positive.line_count = value
         elif key == "show_negative_prompt":
             self.negative.text = ""
-            self.negative.setVisible(value)
+            self.negative.setVisible(value and self._region.is_root)
 
     def eventFilter(self, a0: QObject | None, a1: QEvent | None) -> bool:
         if a1 and a1.type() == QEvent.Type.FocusIn:
@@ -920,6 +923,17 @@ class WorkspaceSelectWidget(QToolButton):
         action.setIconVisibleInMenu(True)
         action.triggered.connect(actions.set_workspace(workspace))
         return action
+
+
+def create_wide_tool_button(icon_name: str, text: str, parent=None):
+    button = QToolButton(parent)
+    button.setToolButtonStyle(Qt.ToolButtonStyle.ToolButtonIconOnly)
+    button.setIcon(theme.icon(icon_name))
+    button.setToolTip(text)
+    button.setAutoRaise(True)
+    icon_height = button.iconSize().height()
+    button.setIconSize(QSize(int(icon_height * 1.25), icon_height))
+    return button
 
 
 def _paint_tool_drop_down(widget: QToolButton, text: str | None = None):

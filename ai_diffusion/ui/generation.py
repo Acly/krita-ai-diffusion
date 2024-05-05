@@ -29,13 +29,14 @@ from ..workflow import InpaintMode, FillMode
 from ..settings import settings
 from ..util import ensure
 from . import theme
-from .control import ControlLayerButton, ControlListWidget
+from .control import ControlListWidget
 from .widget import (
     WorkspaceSelectWidget,
     StyleSelectWidget,
     StrengthWidget,
     QueueButton,
     RegionPromptWidget,
+    create_wide_tool_button,
 )
 
 
@@ -495,10 +496,12 @@ class GenerationWidget(QWidget):
         layout.addWidget(self.region_prompt)
 
         self.strength_slider = StrengthWidget(parent=self)
-        self.add_control_button = ControlLayerButton(self)
+        self.add_region_button = create_wide_tool_button("region-add", "Add Region", self)
+        self.add_control_button = create_wide_tool_button("control-add", "Add Control Layer", self)
         strength_layout = QHBoxLayout()
         strength_layout.addWidget(self.strength_slider)
         strength_layout.addWidget(self.add_control_button)
+        strength_layout.addWidget(self.add_region_button)
         layout.addLayout(strength_layout)
 
         self.custom_inpaint = CustomInpaintWidget(self)
@@ -566,6 +569,7 @@ class GenerationWidget(QWidget):
                 model.error_changed.connect(self.error_text.setText),
                 model.has_error_changed.connect(self.error_text.setVisible),
                 self.add_control_button.clicked.connect(model.regions.add_control),
+                self.add_region_button.clicked.connect(model.regions.create_region),
                 self.region_prompt.activated.connect(model.generate),
                 self.generate_button.clicked.connect(model.generate),
             ]
