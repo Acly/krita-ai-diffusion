@@ -16,8 +16,9 @@ from ..image import Extent, Image
 from ..model import Model
 from ..root import root
 from ..settings import settings
-from .control import ControlLayerButton, ControlListWidget
+from .control import ControlListWidget
 from .widget import WorkspaceSelectWidget, StyleSelectWidget, TextPromptWidget, StrengthWidget
+from .widget import create_wide_tool_button
 from . import theme
 
 
@@ -102,7 +103,7 @@ class LiveWidget(QWidget):
         layout.addLayout(params_layout)
 
         self.control_list = ControlListWidget(self)
-        self.add_control_button = ControlLayerButton(self)
+        self.add_control_button = create_wide_tool_button("control-add", "Add Control Layer", self)
         self.prompt_textbox = TextPromptWidget(line_count=1, parent=self)
         self.negative_textbox = TextPromptWidget(line_count=1, is_negative=True, parent=self)
         self.negative_textbox.setVisible(settings.show_negative_prompt)
