@@ -318,7 +318,7 @@ def apply_attention(
     masks: list[Output] = []
 
     for region in regions:
-        mask = w.image_to_mask(w.mask_to_image(region.load_mask(w)))
+        mask = w.scale_mask(region.load_mask(w), extent)
         masks.append(mask)
         if region.positive == cond.positive:
             positive = region.positive.replace("{prompt}", "")
@@ -468,8 +468,10 @@ def scale_refine_and_decode(
     prompt_pos: Output,
     prompt_neg: Output,
     model: Output,
+    clip: Output,
     vae: Output,
     models: ModelDict,
+    use_attention: bool = False,
 ):
     """Handles scaling images from `initial` to `desired` resolution.
     If it is a substantial upscale, runs a high-res SD refinement pass.
@@ -493,6 +495,9 @@ def scale_refine_and_decode(
     upscale = w.vae_encode(vae, upscale)
     params = _sampler_params(sampling, strength=0.4)
 
+    if use_attention:
+        model, cond = apply_attention(w, model, cond, clip, extent.desired)
+
     positive, negative = apply_control(
         w, prompt_pos, prompt_neg, cond.control, extent.desired, models
     )
@@ -512,6 +517,7 @@ def generate(
 ):
     model, clip, vae = load_checkpoint_with_lora(w, checkpoint, models.all)
     model = apply_ip_adapter(w, model, cond.control, models)
+    model_orig = copy(model)
     model, cond = apply_attention(w, model, cond, clip, extent.initial)
     latent = w.empty_latent_image(extent.initial, batch_count)
     prompt_pos, prompt_neg = encode_text_prompt(w, cond, clip)
@@ -520,7 +526,7 @@ def generate(
     )
     out_latent = w.ksampler_advanced(model, positive, negative, latent, **_sampler_params(sampling))
     out_image = scale_refine_and_decode(
-        extent, w, cond, sampling, out_latent, prompt_pos, prompt_neg, model, vae, models
+        extent, w, cond, sampling, out_latent, prompt_pos, prompt_neg, model_orig, clip, vae, models, True
     )
     out_image = scale_to_target(extent, w, out_image, models)
     w.send_image(out_image)
@@ -753,7 +759,7 @@ def refine_region(
         inpaint_model, positive, negative, latent, **_sampler_params(sampling)
     )
     out_image = scale_refine_and_decode(
-        extent, w, cond, sampling, out_latent, prompt_pos, prompt_neg, model, vae, models
+        extent, w, cond, sampling, out_latent, prompt_pos, prompt_neg, model, clip, vae, models, False
     )
     out_image = scale_to_target(extent, w, out_image, models)
     if extent.target != inpaint.target_bounds.extent:
