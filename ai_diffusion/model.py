@@ -147,12 +147,41 @@ class RegionTree(QObject):
     def add_control(self):
         self.active.control.add()
 
-    def to_api(self, bounds: Bounds | None = None):
+    def to_api(self, parent_layer_id: QUuid | None, bounds: Bounds | None = None):
+        # Assemble all regions by finding group layers which are direct children of the parent layer.
+        # Ignore regions with no prompt or control layers.
+        layers = self._model.layers
+        parent_layer = layers.find(parent_layer_id) if parent_layer_id else layers.root
+        api_regions: list[RegionInput] = []
+        for layer in layers:
+            if layer.type() == "grouplayer" and layer.parentNode() == parent_layer:
+                region = self._lookup_region(layer.uniqueId())
+                if region.prompt != "" or len(region.control) > 0:
+                    api_regions.append(region.to_api(bounds))
+
+        # Remove from each region mask any overlapping areas from regions above it.
+        accumulated_mask = None
+        for region in reversed(api_regions):
+            if accumulated_mask is None:
+                accumulated_mask = region.mask
+            else:
+                current = region.mask
+                region.mask = Image.mask_subtract(region.mask, accumulated_mask)
+                accumulated_mask = Image.mask_add(accumulated_mask, current)
+
+        # If the regions don't cover the entire image, add a final region for the remaining area.
+        if accumulated_mask is not None:
+            average = Image.scale(accumulated_mask, Extent(1, 1)).pixel(0, 0)
+            fully_covered = isinstance(average, tuple) and average[0] >= 254
+            if not fully_covered:
+                accumulated_mask.invert()
+                api_regions.append(RegionInput(accumulated_mask, self.root.prompt))
+
         return ConditioningInput(
             positive=self.root.prompt,
             negative=self.root.negative_prompt,
             control=[c.to_api(bounds) for c in self.root.control],
-            regions=[r.to_api(bounds) for r in self._regions],
+            regions=api_regions,
         )
 
     def siblings(self, region: Region):
@@ -311,7 +340,7 @@ class Model(QObject, ObservableProperties):
         bounds = compute_bounds(extent, mask.bounds if mask else None, self.strength)
         bounds = self.inpaint.get_context(self, mask) or bounds
 
-        conditioning = self.regions.to_api(bounds)
+        conditioning = self.regions.to_api(None, bounds)
 
         if mask is not None or self.strength < 1.0:
             image = self._get_current_image(region, bounds)
@@ -432,7 +461,7 @@ class Model(QObject, ObservableProperties):
         input = workflow.prepare(
             workflow_kind,
             image or bounds.extent,
-            self.regions.to_api(mask.bounds if mask else None),
+            self.regions.to_api(None, mask.bounds if mask else None),
             self.style,
             self.seed,
             client.models,
@@ -904,7 +933,7 @@ class AnimationWorkspace(QObject, ObservableProperties):
         return workflow.prepare(
             WorkflowKind.generate if m.strength == 1.0 else WorkflowKind.refine,
             canvas,
-            m.regions.to_api(bounds),
+            m.regions.to_api(None, bounds),
             style=m.style,
             seed=seed,
             perf=m._connection.client.performance_settings,

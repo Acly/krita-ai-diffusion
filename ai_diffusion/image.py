@@ -266,7 +266,7 @@ class Image:
 
     @property
     def is_mask(self):
-        return self._qimage.format() == QImage.Format_Grayscale8
+        return self._qimage.format() == QImage.Format.Format_Grayscale8
 
     @staticmethod
     def from_base64(data: str):
@@ -303,6 +303,29 @@ class Image:
         return Image(img._qimage.copy(*bounds))
 
     @staticmethod
+    def _mask_op(lhs: "Image", rhs: "Image", mode: QPainter.CompositionMode):
+        assert extent_equal(lhs._qimage, rhs._qimage)
+        assert lhs.is_mask and rhs.is_mask
+        result = lhs._qimage.copy()
+        result.reinterpretAsFormat(QImage.Format.Format_Alpha8)
+        rhs._qimage.reinterpretAsFormat(QImage.Format.Format_Alpha8)
+        painter = QPainter(result)
+        painter.setCompositionMode(mode)
+        painter.drawImage(0, 0, rhs._qimage)
+        painter.end()
+        rhs._qimage.reinterpretAsFormat(QImage.Format.Format_Grayscale8)
+        result.reinterpretAsFormat(QImage.Format.Format_Grayscale8)
+        return Image(result)
+
+    @classmethod
+    def mask_subtract(cls, lhs: "Image", rhs: "Image"):
+        return cls._mask_op(rhs, lhs, QPainter.CompositionMode.CompositionMode_SourceOut)
+
+    @classmethod
+    def mask_add(cls, lhs: "Image", rhs: "Image"):
+        return cls._mask_op(lhs, rhs, QPainter.CompositionMode.CompositionMode_SourceOver)
+
+    @staticmethod
     def compare(img_a: "Image", img_b: "Image"):
         assert extent_equal(img_a._qimage, img_b._qimage)
         import numpy as np
@@ -329,6 +352,9 @@ class Image:
         painter.setCompositionMode(QPainter.CompositionMode.CompositionMode_DestinationOver)
         painter.fillRect(self._qimage.rect(), background)
         painter.end()
+
+    def invert(self):
+        self._qimage.invertPixels()
 
     @property
     def data(self):
