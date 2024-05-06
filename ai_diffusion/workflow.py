@@ -706,6 +706,9 @@ def find_region_prompts(
                 "score": average[0],
             })
 
+    if not prompts:
+        return cond.positive_merged, cond.negative
+
     prompts.sort(key=lambda x: x.get("score"), reverse=True)
 
     # positive = "\n".join(map(lambda x: x.get("positive"), prompts))
@@ -917,11 +920,15 @@ def prepare(
     i.conditioning.style = style.style_prompt
     for region in i.conditioning.regions:
         region.positive, region_loras = extract_loras(region.positive, models.loras)
-        extra_loras += region_loras
+        extra_loras += [
+            region_lora for region_lora in region_loras if region_lora.name not in map(lambda x: x.name, extra_loras)
+        ]
     i.sampling = _sampling_from_style(style, strength, is_live)
     i.sampling.seed = seed
     i.models = style.get_models()
-    i.models.loras += extra_loras
+    i.models.loras += [
+        extra_lora for extra_lora in extra_loras if extra_lora.name not in map(lambda x: x.name, i.models.loras)
+    ]
     _check_server_has_models(i.models, models, style.name)
 
     sd_version = i.models.version = models.version_of(style.sd_checkpoint)
