@@ -697,7 +697,6 @@ def find_region_prompts(
         average = Image.scale(region.mask, Extent(1, 1)).pixel(0, 0)
         covering = isinstance(average, tuple) and average[0] >= 10
         if not covering:
-            log.debug(f"removing prompt: {region.positive}")
             region.positive = ""
             region.negative = ""
         else:
@@ -709,11 +708,12 @@ def find_region_prompts(
 
     prompts.sort(key=lambda x: x.get("score"), reverse=True)
 
-    positive = "\n".join(map(lambda x: x.get("positive"), prompts))
-    positive = merge_prompt(positive, cond.positive)
-    negative = "\n".join(chain(map(lambda x: x.get("negative"), prompts), [cond.negative]))
+    # positive = "\n".join(map(lambda x: x.get("positive"), prompts))
+    # negative = "\n".join(map(lambda x: x.get("negative"), prompts))
+    positive = prompts[0].get("positive")
+    negative = prompts[0].get("negative")
 
-    return positive, negative
+    return merge_prompt(positive, cond.positive), f"{negative}\n{cond.negative}"
 
 
 def refine_region(
