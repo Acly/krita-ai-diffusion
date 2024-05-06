@@ -310,14 +310,11 @@ def apply_attention(
     if not cond.regions:
         return model, cond
 
-    regions = cond.regions
-    regions.reverse()
-
     base_mask = w.solid_mask(extent, 0.0)
     conds: list[Output] = []
     masks: list[Output] = []
 
-    for region in regions:
+    for region in reversed(cond.regions):
         mask = w.scale_mask(region.load_mask(w), extent)
         masks.append(mask)
         if region.positive == cond.positive:
@@ -621,7 +618,8 @@ def inpaint(
     in_image = fill_masked(w, in_image, in_mask, params.fill, models)
 
     model = apply_ip_adapter(w, model, cond_base.control, models)
-    positive, negative = encode_text_prompt(w, cond_base, clip)
+    region_pos, region_neg = find_region_prompts(cond, images.initial_mask)
+    positive, negative = encode_attention_text_prompt(w, cond_base, region_pos, region_neg, clip)
     positive, negative = apply_control(
         w, positive, negative, cond_base.control, extent.initial, models
     )
@@ -715,6 +713,40 @@ def refine(
     return w
 
 
+def find_region_prompts(
+    cond: Conditioning,
+    mask: Image,
+):
+    prompts = []
+
+    for region in reversed(cond.regions):
+        if region.positive == cond.positive:
+            region.positive = ""  # skip prompt already covered in global prompt
+            continue
+
+        mask_diff = Image.mask_subtract(region.mask, mask)
+        average = Image.scale(region.mask, Extent(1, 1)).pixel(0, 0)
+        covering = isinstance(average, tuple) and average[0] >= 10
+        if not covering:
+            log.debug(f"removing prompt: {region.positive}")
+            region.positive = ""
+            region.negative = ""
+        else:
+            prompts.append({
+                "positive": region.positive,
+                "negative": region.negative,
+                "score": average[0],
+            })
+
+    prompts.sort(key=lambda x: x.get("score"), reverse=True)
+
+    positive = "\n".join(map(lambda x: x.get("positive"), prompts))
+    positive = merge_prompt(positive, cond.positive)
+    negative = "\n".join(chain(map(lambda x: x.get("negative"), prompts), [cond.negative]))
+
+    return positive, negative
+
+
 def refine_region(
     w: ComfyWorkflow,
     images: ImageInput,
@@ -735,7 +767,8 @@ def refine_region(
     in_mask = w.load_mask(ensure(images.initial_mask))
     in_mask = scale_to_initial(extent, w, in_mask, models, is_mask=True)
 
-    prompt_pos, prompt_neg = encode_text_prompt(w, cond, clip)
+    region_pos, region_neg = find_region_prompts(cond, images.initial_mask)
+    prompt_pos, prompt_neg = encode_attention_text_prompt(w, cond, region_pos, region_neg, clip)
     if inpaint.use_inpaint_model and models.version is SDVersion.sd15:
         cond.control.append(Control(ControlMode.inpaint, in_image, mask=in_mask))
     positive, negative = apply_control(
