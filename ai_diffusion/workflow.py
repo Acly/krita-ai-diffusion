@@ -269,37 +269,6 @@ def encode_attention_text_prompt(w: ComfyWorkflow, cond: Conditioning, positive:
     return positive, negative
 
 
-regex_attention_line = re.compile(r"^((?:PROMPT|ZONE|ATT|BREAK)\s*\d* )(.*)$")
-
-
-def attention_cond_prompt(cond: Conditioning, index: int):
-    if not cond.positive:
-        return cond, cond
-
-    updated_prompt_lines = []
-    att_prompts_lines = []
-    i = 0
-    for line in cond.positive.splitlines():
-        match = regex_attention_line.match(line)
-        if not match:
-            att_prompts_lines.append(line)
-            updated_prompt_lines.append(line)
-        else:
-            if i == index:
-                att_prompts_lines.append(match.group(2))
-                updated_prompt_lines.append(match.group(1))
-            else:
-                updated_prompt_lines.append(line)
-
-            i += 1
-
-    att_cond = copy(cond)
-    att_cond.positive = "\n".join(att_prompts_lines)
-    cond.positive = "\n".join(updated_prompt_lines)
-
-    return att_cond, cond
-
-
 def apply_attention(
     w: ComfyWorkflow,
     model: Output,
