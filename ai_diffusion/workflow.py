@@ -576,8 +576,10 @@ def inpaint(
     model, clip, vae = load_checkpoint_with_lora(w, checkpoint, models.all)
     model = w.differential_diffusion(model)
     model_orig = copy(model)
-    cond_orig = copy(cond)
-    model, cond, extent, applied_attention = apply_attention(w, model, cond, clip, extent)
+    cond_orig = cond.copy()
+
+    if not params.use_single_region:
+        model, cond, extent, applied_attention = apply_attention(w, model, cond, clip, extent)
 
     upscale_extent = ScaledExtent(  # after crop to the masked region
         Extent(0, 0), Extent(0, 0), crop_upscale_extent, target_bounds.extent
@@ -604,9 +606,12 @@ def inpaint(
     in_image = fill_masked(w, in_image, in_mask, params.fill, models)
 
     model = apply_ip_adapter(w, model, cond_base.control, models)
-    # region_pos, region_neg = find_region_prompts(cond, images.initial_mask)
-    # positive, negative = encode_attention_text_prompt(w, cond_base, region_pos, region_neg, clip)
-    positive, negative = encode_text_prompt(w, cond, clip)
+    if params.use_single_region:
+        region_pos, region_neg = find_region_prompts(cond, images.initial_mask)
+        positive, negative = encode_attention_text_prompt(w, cond_base, region_pos, region_neg, clip)
+    else:
+        positive, negative = encode_text_prompt(w, cond, clip)
+
     positive, negative = apply_control(
         w, positive, negative, cond_base.control, extent.initial, models
     )
@@ -753,16 +758,17 @@ def refine_region(
     model = w.differential_diffusion(model)
     model = apply_ip_adapter(w, model, cond.control, models)
 
-    model, cond, extent, applied_attention = apply_attention(w, model, cond, clip, extent)
-    prompt_pos, prompt_neg = encode_text_prompt(w, cond, clip)
+    if inpaint.use_single_region:
+        region_pos, region_neg = find_region_prompts(cond, images.initial_mask)
+        prompt_pos, prompt_neg = encode_attention_text_prompt(w, cond, region_pos, region_neg, clip)
+    else:
+        model, cond, extent, applied_attention = apply_attention(w, model, cond, clip, extent)
+        prompt_pos, prompt_neg = encode_text_prompt(w, cond, clip)
 
     in_image = w.load_image(ensure(images.initial_image))
     in_image = scale_to_initial(extent, w, in_image, models)
     in_mask = w.load_mask(ensure(images.initial_mask))
     in_mask = scale_to_initial(extent, w, in_mask, models, is_mask=True)
-
-    # region_pos, region_neg = find_region_prompts(cond, images.initial_mask)
-    # prompt_pos, prompt_neg = encode_attention_text_prompt(w, cond, region_pos, region_neg, clip)
 
     if inpaint.use_inpaint_model and models.version is SDVersion.sd15:
         cond.control.append(Control(ControlMode.inpaint, in_image, mask=in_mask))

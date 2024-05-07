@@ -380,7 +380,7 @@ class CustomInpaintWidget(QWidget):
         self.use_prompt_focus_button = QCheckBox(self)
         self.use_prompt_focus_button.setText("Focus")
         self.use_prompt_focus_button.setToolTip(
-            "Use the text prompt to describe the selected region rather than the context area"
+            "Use the text prompt to describe the selected region rather than the context area / Use only one regional prompt"
         )
 
         self.fill_mode_combo = QComboBox(self)
