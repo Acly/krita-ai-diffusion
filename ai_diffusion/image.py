@@ -17,6 +17,16 @@ def multiple_of(number, multiple):
     return ((number + multiple - 1) // multiple) * multiple
 
 
+def closest_multiple_of(number, multiple):
+    """Round up to the nearest multiple of a number."""
+    num1 = ((number + multiple - 1) // multiple) * multiple
+    num2 = ((number - multiple - 1) // multiple) * multiple
+    if abs(number - num1) < abs(number - num2):
+        return num1
+    else:
+        return num2
+
+
 class Extent(NamedTuple):
     width: int
     height: int
@@ -31,6 +41,9 @@ class Extent(NamedTuple):
 
     def multiple_of(self, multiple: int):
         return Extent(multiple_of(self.width, multiple), multiple_of(self.height, multiple))
+
+    def closest_multiple_of(self, multiple: int):
+        return Extent(closest_multiple_of(self.width, multiple), closest_multiple_of(self.height, multiple))
 
     def is_multiple_of(self, multiple: int):
         return self.width % multiple == 0 and self.height % multiple == 0
