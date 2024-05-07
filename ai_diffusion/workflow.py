@@ -633,6 +633,13 @@ def inpaint(
     )
 
     if extent.refinement_scaling in [ScaleMode.upscale_small, ScaleMode.upscale_quality]:
+        if params.use_single_region:
+            region_pos, region_neg = find_region_prompts(cond_orig, images.initial_mask)
+            positive_up, negative_up = encode_attention_text_prompt(w, cond_orig, region_pos, region_neg, clip)
+        else:
+            model_orig, cond_orig, upscale_extent, applied_attention = apply_attention(w, model_orig, cond_orig, clip, upscale_extent, "desired")
+            positive_up, negative_up = encode_text_prompt(w, cond_orig, clip)
+
         if extent.refinement_scaling is ScaleMode.upscale_small:
             upscaler = models.upscale[UpscalerName.fast_2x]
         else:
@@ -652,8 +659,8 @@ def inpaint(
             cond_upscale.control.append(
                 Control(ControlMode.inpaint, ensure(images.hires_image), mask=cropped_mask)
             )
+
         res = upscale_extent.desired
-        positive_up, negative_up = encode_text_prompt(w, cond_upscale, clip)
         positive_up, negative_up = apply_control(
             w, positive_up, negative_up, cond_upscale.control, res, models
         )
@@ -717,7 +724,6 @@ def find_region_prompts(
             region.positive = ""  # skip prompt already covered in global prompt
             continue
 
-        mask_diff = Image.mask_subtract(region.mask, mask)
         average = Image.scale(region.mask, Extent(1, 1)).pixel(0, 0)
         covering = isinstance(average, tuple) and average[0] >= 10
         if not covering:
