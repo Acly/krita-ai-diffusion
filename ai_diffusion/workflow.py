@@ -496,6 +496,7 @@ def generate(
     model, clip, vae = load_checkpoint_with_lora(w, checkpoint, models.all)
     model = apply_ip_adapter(w, model, cond.control, models)
     model_orig = copy(model)
+    cond_orig = cond.copy()
     model, cond, extent, applied_attention = apply_attention(w, model, cond, clip, extent)
     latent = w.empty_latent_image(extent.initial, batch_count)
     prompt_pos, prompt_neg = encode_text_prompt(w, cond, clip)
@@ -504,7 +505,7 @@ def generate(
     )
     out_latent = w.ksampler_advanced(model, positive, negative, latent, **_sampler_params(sampling))
     out_image = scale_refine_and_decode(
-        extent, w, cond, sampling, out_latent, prompt_pos, prompt_neg, model_orig, clip, vae, models, True
+        extent, w, cond_orig, sampling, out_latent, prompt_pos, prompt_neg, model_orig, clip, vae, models, True
     )
     out_image = scale_to_target(extent, w, out_image, models)
     w.send_image(out_image)
@@ -758,9 +759,13 @@ def refine_region(
     model = w.differential_diffusion(model)
     model = apply_ip_adapter(w, model, cond.control, models)
 
+    model_orig = copy(model)
+    cond_orig = cond.copy()
+
     if inpaint.use_single_region:
         region_pos, region_neg = find_region_prompts(cond, images.initial_mask)
         prompt_pos, prompt_neg = encode_attention_text_prompt(w, cond, region_pos, region_neg, clip)
+        applied_attention = False
     else:
         model, cond, extent, applied_attention = apply_attention(w, model, cond, clip, extent)
         prompt_pos, prompt_neg = encode_text_prompt(w, cond, clip)
@@ -793,7 +798,7 @@ def refine_region(
         inpaint_model, positive, negative, latent, **_sampler_params(sampling)
     )
     out_image = scale_refine_and_decode(
-        extent, w, cond, sampling, out_latent, prompt_pos, prompt_neg, model, clip, vae, models, False
+        extent, w, cond_orig, sampling, out_latent, prompt_pos, prompt_neg, model_orig, clip, vae, models, applied_attention
     )
     out_image = scale_to_target(extent, w, out_image, models)
     if extent.target != inpaint.target_bounds.extent:
