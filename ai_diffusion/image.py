@@ -183,6 +183,18 @@ class Bounds(NamedTuple):
         )
         return Bounds.clamp(result, max_extent)
 
+    @staticmethod
+    def intersection(a: "Bounds", b: "Bounds"):
+        x = max(a.x, b.x)
+        y = max(a.y, b.y)
+        width = min(a.x + a.width, b.x + b.width) - x
+        height = min(a.y + a.height, b.y + b.height) - y
+        return Bounds(x, y, max(0, width), max(0, height))
+
+    @property
+    def area(self):
+        return self.width * self.height
+
     def relative_to(self, reference: "Bounds"):
         """Return bounds relative to another bounds."""
         return Bounds(self.x - reference.x, self.y - reference.y, self.width, self.height)
@@ -361,6 +373,12 @@ class Image:
 
     def invert(self):
         self._qimage.invertPixels()
+
+    def average(self):
+        assert self.is_mask
+        avg = Image.scale(self, Extent(1, 1)).pixel(0, 0)
+        avg = avg[0] if isinstance(avg, tuple) else avg
+        return avg / 255
 
     @property
     def data(self):
