@@ -81,7 +81,7 @@ class Document(QObject):
     def set_layer_content(self, layer: krita.Node, img: Image, bounds: Bounds, make_visible=True):
         raise NotImplementedError
 
-    def create_group_layer(self, name: str):
+    def create_group_layer(self, name: str, parent: krita.Node | None = None) -> krita.Node:
         raise NotImplementedError
 
     def hide_layer(self, layer: krita.Node):
@@ -324,16 +324,27 @@ class KritaDocument(Document):
             self.refresh(layer)
         return layer
 
-    def create_group_layer(self, name: str):
+    def create_group_layer(self, name: str, parent: krita.Node | None = None):
+        create_paint_layer = parent is None
         group = self._doc.createGroupLayer(name)
-        active = self._doc.activeNode()
-        parent = active.parentNode()
-        if active.type() != "grouplayer" and parent.parentNode() is not None:
-            active = parent
-            parent = parent.parentNode()
+        if parent is None:
+            active = self._doc.activeNode()
+            parent = active.parentNode()
+            if active.type() != "grouplayer" and parent.parentNode() is not None:
+                active = parent
+                parent = parent.parentNode()
+        else:
+            children = parent.childNodes()
+            active = None if not children else children[0]
+            for child in children:
+                if child.type() == "grouplayer":
+                    break
+                active = child
         parent.addChildNode(group, active)
-        paint = self._doc.createNode("Paint Layer", "paintlayer")
-        group.addChildNode(paint, None)
+        if create_paint_layer:
+            paint = self._doc.createNode("Paint Layer", "paintlayer")
+            group.addChildNode(paint, None)
+        return group
 
     def hide_layer(self, layer: krita.Node):
         layer.setVisible(False)
@@ -443,10 +454,11 @@ def _traverse_layers(node: krita.Node, type_filter=None):
 
 def _find_layer_above(doc: krita.Document, layer_below: krita.Node | None):
     if layer_below:
-        nodes = doc.rootNode().childNodes()
+        nodes = layer_below.parentNode().childNodes()
         index = nodes.index(layer_below)
         if index >= 1:
             return nodes[index - 1]
+        return layer_below
     return None
 
 
@@ -553,7 +565,12 @@ class LayerObserver(QObject):
             self.changed.emit()
 
     def find(self, id: QUuid):
-        return next((l.node for l in self._layers if l.id == id), None)
+        if self._doc is None:
+            return None
+        root = self._doc.rootNode()
+        if root.uniqueId() == id:
+            return root
+        return next((l for l in _traverse_layers(root) if l.uniqueId() == id), None)
 
     def updated(self):
         self.update()

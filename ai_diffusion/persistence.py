@@ -28,8 +28,7 @@ class _HistoryResult:
 
     @staticmethod
     def from_dict(data: dict[str, Any]):
-        data["params"]["bounds"] = Bounds(*data["params"]["bounds"])
-        data["params"] = JobParams(**data["params"])
+        data["params"] = JobParams.from_dict(data["params"])
         return _HistoryResult(**data)
 
 
