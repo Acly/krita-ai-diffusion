@@ -514,8 +514,10 @@ class GenerationWidget(QWidget):
         self.inpaint_mode_button.setArrowType(Qt.ArrowType.DownArrow)
         self.inpaint_mode_button.setMinimumHeight(self.generate_button.minimumHeight())
         self.inpaint_mode_button.clicked.connect(self.show_inpaint_menu)
+        self.generate_menu = self._create_generate_menu("generate")
+        self.refine_menu = self._create_generate_menu("refine")
         self.inpaint_menu = self._create_inpaint_menu()
-        self.refine_menu = self._create_refine_menu()
+        self.refine_region_menu = self._create_refine_region_menu()
 
         generate_layout = QHBoxLayout()
         generate_layout.setSpacing(0)
@@ -565,6 +567,8 @@ class GenerationWidget(QWidget):
                 model.inpaint.mode_changed.connect(self.update_generate_button),
                 model.strength_changed.connect(self.update_generate_button),
                 model.document.selection_bounds_changed.connect(self.update_generate_button),
+                model.regions.active_changed.connect(self.update_generate_button),
+                model.region_only_changed.connect(self.update_generate_button),
                 model.progress_changed.connect(self.update_progress),
                 model.error_changed.connect(self.error_text.setText),
                 model.has_error_changed.connect(self.error_text.setVisible),
@@ -591,6 +595,21 @@ class GenerationWidget(QWidget):
         job_id, index = self.history.item_info(item)
         self.model.apply_result(job_id, index)
 
+    def _create_generate_action(self, text: str, icon: str, region_only: bool):
+        action = QAction(text, self)
+        action.setIcon(theme.icon(icon))
+        action.setIconVisibleInMenu(True)
+        action.triggered.connect(lambda: self.toggle_region_only(region_only))
+        return action
+
+    def _create_generate_menu(self, action: str):
+        menu = QMenu(self)
+        menu.addAction(self._create_generate_action(action.capitalize(), action, False))
+        menu.addAction(
+            self._create_generate_action(f"{action.capitalize()} Region", f"{action}-region", True)
+        )
+        return menu
+
     _inpaint_text = {
         InpaintMode.automatic: "Default (Auto-detect)",
         InpaintMode.fill: "Fill",
@@ -615,7 +634,7 @@ class GenerationWidget(QWidget):
             menu.addAction(self._create_inpaint_action(mode, text, f"inpaint-{mode.name}"))
         return menu
 
-    def _create_refine_menu(self):
+    def _create_refine_region_menu(self):
         menu = QMenu(self)
         menu.addAction(self._create_inpaint_action(InpaintMode.automatic, "Refine", "refine"))
         menu.addAction(
@@ -626,23 +645,48 @@ class GenerationWidget(QWidget):
     def show_inpaint_menu(self):
         width = self.generate_button.width() + self.inpaint_mode_button.width()
         pos = QPoint(0, self.generate_button.height())
-        menu = self.inpaint_menu if self.model.strength == 1.0 else self.refine_menu
+        if self.model.document.selection_bounds is None:
+            menu = self.generate_menu if self.model.strength == 1.0 else self.refine_menu
+        else:
+            menu = self.inpaint_menu if self.model.strength == 1.0 else self.refine_region_menu
         menu.setFixedWidth(width)
         menu.exec_(self.generate_button.mapToGlobal(pos))
 
     def change_inpaint_mode(self, mode: InpaintMode):
         self.model.inpaint.mode = mode
 
+    def toggle_region_only(self, checked: bool):
+        self.model.region_only = checked
+
     def update_generate_button(self):
         if self.model.document.selection_bounds is None:
-            self.inpaint_mode_button.setVisible(False)
+            has_regions = len(self.model.regions) > 0
+            has_active_region = not self.model.regions.active.is_root
+            show_region_menu = has_regions and has_active_region
+            self.inpaint_mode_button.setVisible(show_region_menu)
             self.custom_inpaint.setVisible(False)
-            if self.model.strength == 1.0:
-                self.generate_button.setIcon(theme.icon("workspace-generation"))
-                self.generate_button.setText("Generate")
+            if show_region_menu:
+                if self.model.strength == 1.0:
+                    if self.model.region_only:
+                        self.generate_button.setIcon(theme.icon("generate-region"))
+                        self.generate_button.setText("Generate Region")
+                    else:
+                        self.generate_button.setIcon(theme.icon("workspace-generation"))
+                        self.generate_button.setText("Generate")
+                else:
+                    if self.model.region_only:
+                        self.generate_button.setIcon(theme.icon("refine-region"))
+                        self.generate_button.setText("Refine Region")
+                    else:
+                        self.generate_button.setIcon(theme.icon("refine"))
+                        self.generate_button.setText("Refine")
             else:
-                self.generate_button.setIcon(theme.icon("refine"))
-                self.generate_button.setText("Refine")
+                if self.model.strength == 1.0:
+                    self.generate_button.setIcon(theme.icon("workspace-generation"))
+                    self.generate_button.setText("Generate")
+                else:
+                    self.generate_button.setIcon(theme.icon("refine"))
+                    self.generate_button.setText("Refine")
         else:
             self.inpaint_mode_button.setVisible(True)
             self.custom_inpaint.setVisible(self.model.inpaint.mode is InpaintMode.custom)
