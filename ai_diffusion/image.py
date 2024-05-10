@@ -275,6 +275,7 @@ class Image:
     @property
     def is_rgba(self):
         return self._qimage.format() in [
+            QImage.Format.Format_Indexed8,
             QImage.Format.Format_ARGB32,
             QImage.Format.Format_RGB32,
             QImage.Format.Format_RGBA8888,
@@ -397,10 +398,11 @@ class Image:
 
         self.to_numpy_format()
         w, h = self.extent
+        c = 4 if self.is_rgba else 1
         bits = self._qimage.constBits()
         assert bits is not None, "Accessing data of invalid image"
-        ptr = bits.asarray(w * h * 4)
-        array = np.frombuffer(ptr, np.uint8).reshape(h, w, 4)  # type: ignore
+        ptr = bits.asarray(w * h * c)
+        array = np.frombuffer(ptr, np.uint8).reshape(h, w, c)  # type: ignore
         return array.astype(np.float32) / 255
 
     def write(self, buffer: QIODevice, format=ImageFileFormat.png):
