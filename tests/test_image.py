@@ -163,7 +163,7 @@ def test_mask_subtract():
     rhs = Mask.load(image_dir / "mask_op_right.webp").to_image()
     result = Image.mask_subtract(lhs, rhs)
     result.save(result_dir / "mask_op_subtract.png")
-    reference = Mask.load(reference_dir / "mask_op_subtract.png").to_image()
+    reference = Mask.load(reference_dir / "mask" / "mask_op_subtract.png").to_image()
     assert Image.compare(result, reference) < 0.0001
 
 
@@ -172,7 +172,7 @@ def test_mask_add():
     rhs = Mask.load(image_dir / "mask_op_right.webp").to_image()
     result = Image.mask_add(lhs, rhs)
     result.save(result_dir / "mask_op_add.png")
-    reference = Mask.load(reference_dir / "mask_op_add.png").to_image()
+    reference = Mask.load(reference_dir / "mask" / "mask_op_add.png").to_image()
     assert Image.compare(result, reference) < 0.0001
 
 
