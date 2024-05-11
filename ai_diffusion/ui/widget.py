@@ -669,9 +669,12 @@ class ActiveRegionWidget(QFrame):
     _style_focus = f"QFrame#ActiveRegionWidget {{ background-color: {theme.base}; border: 1px solid {theme.active}; }}"
 
     _region: Region
+    _bindings: list[QMetaObject.Connection]
 
     def __init__(self, region: Region, parent: QWidget):
         super().__init__(parent)
+        self._region = region
+        self._bindings = []
 
         self.setObjectName("ActiveRegionWidget")
         self.setFrameStyle(QFrame.Shape.StyledPanel)
@@ -704,11 +707,25 @@ class ActiveRegionWidget(QFrame):
         layout.addWidget(self.negative)
         self.setLayout(layout)
 
-        self.set_region(region)
+        self._setup_bindings(region)
         settings.changed.connect(self.update_settings)
 
-    def set_region(self, region: Region):
-        self._region = region
+    @property
+    def region(self):
+        return self._region
+
+    @region.setter
+    def region(self, region: Region):
+        if region != self._region:
+            self._region = region
+            self._setup_bindings(region)
+
+    def _setup_bindings(self, region: Region):
+        Binding.disconnect_all(self._bindings)
+        self._bindings = [
+            bind(region, "prompt", self.positive, "text"),
+            bind(region, "negative_prompt", self.negative, "text"),
+        ]
         self._header_icon.set_region(region)
         if layer := region.layer:
             self._header_label.setText(f"{layer.name()} - Regional text prompt")
@@ -746,7 +763,6 @@ class ActiveRegionWidget(QFrame):
 
 class RegionPromptWidget(QWidget):
     _regions: RegionTree
-    _bindings: list[QMetaObject.Connection]
     _inactive_regions: list[InactiveRegionWidget]
 
     activated = pyqtSignal()
@@ -754,7 +770,6 @@ class RegionPromptWidget(QWidget):
     def __init__(self, parent=None):
         super().__init__(parent)
         self._regions = root.active_model.regions
-        self._bindings = []
         self._inactive_regions = []
 
         self._prompt = ActiveRegionWidget(self._regions.active, self)
@@ -796,14 +811,9 @@ class RegionPromptWidget(QWidget):
         self._setup_bindings(self._regions.active)
 
     def _setup_bindings(self, region: Region):
-        Binding.disconnect_all(self._bindings)
-        self._bindings = [
-            bind(region, "prompt", self._prompt.positive, "text"),
-            bind(region, "negative_prompt", self._prompt.negative, "text"),
-        ]
-        self._control.model = region.control
+        self._prompt.region = region
         self._prompt.has_header = len(self._regions) > 0
-        self._prompt.set_region(region)
+        self._control.model = region.control
         self._show_inactive_regions()
 
     def _add_inactive_region(self, region: Region, layout: QVBoxLayout):

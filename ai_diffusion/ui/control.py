@@ -343,14 +343,3 @@ class ControlListWidget(QWidget):
         self._widgets.remove(widget)
         widget.disconnect_all()
         widget.deleteLater()
-
-
-class ControlLayerButton(QToolButton):
-    def __init__(self, parent=None):
-        super().__init__(parent)
-        self.setToolButtonStyle(Qt.ToolButtonStyle.ToolButtonIconOnly)
-        self.setIcon(theme.icon("control-add"))
-        self.setToolTip("Add control layer")
-        self.setAutoRaise(True)
-        icon_height = self.iconSize().height()
-        self.setIconSize(QSize(int(icon_height * 1.25), icon_height))
