@@ -5,7 +5,7 @@ from pathlib import Path
 from enum import Enum
 from typing import Any, NamedTuple
 from PyQt5.QtCore import QObject, QUuid, pyqtSignal
-from PyQt5.QtGui import QImage
+from PyQt5.QtGui import QImage, QPainter
 import uuid
 
 from . import eventloop, workflow, util
@@ -565,7 +565,8 @@ class Model(QObject, ObservableProperties):
         workflow_kind = WorkflowKind.generate if strength == 1.0 else WorkflowKind.refine
         client = self._connection.client
         ver = client.models.version_of(self.style.sd_checkpoint)
-        region = self.regions.root
+        extent = self._doc.extent
+        region = self.regions.active
 
         image = None
         mask = self._doc.create_mask_from_selection(
@@ -575,6 +576,15 @@ class Model(QObject, ObservableProperties):
             min_size=512 if ver is SDVersion.sd15 else 1024,
             square=True,
         )
+        if mask is None and region.layer is not None:
+            bounds = _region_layer_bounds(region.layer)
+            bounds = Bounds.pad(
+                bounds, settings.selection_padding, multiple=64, min_size=512, square=True
+            )
+            bounds = Bounds.clamp(bounds, extent)
+            mask_image = self._doc.get_layer_mask(region.layer, bounds)
+            mask = Mask(bounds, mask_image._qimage)
+
         bounds = Bounds(0, 0, *self._doc.extent)
         if mask is not None:
             workflow_kind = WorkflowKind.refine_region
@@ -582,7 +592,7 @@ class Model(QObject, ObservableProperties):
         if mask is not None or self.live.strength < 1.0:
             image = self._get_current_image(region, bounds)
 
-        control = region.to_api(bounds).control
+        control = [c.to_api(bounds) for c in region.control]
         input = workflow.prepare(
             workflow_kind,
             image or bounds.extent,
@@ -943,6 +953,7 @@ class LiveWorkspace(QObject, ObservableProperties):
     _model: Model
     _last_input: WorkflowInput | None = None
     _result: Image | None = None
+    _result_composition: Image | None = None
     _result_bounds: Bounds | None = None
     _result_seed: int | None = None
     _keyframes_folder: Path | None = None
@@ -1008,11 +1019,21 @@ class LiveWorkspace(QObject, ObservableProperties):
     def result(self):
         return self._result
 
+    @property
+    def result_composition(self):
+        return self._result_composition
+
     def set_result(self, value: Image, bounds: Bounds, seed: int):
+        canvas = self._model._get_current_image(self._model.regions.root, bounds)
+        painter = QPainter(canvas._qimage)
+        painter.setCompositionMode(QPainter.CompositionMode.CompositionMode_SourceOver)
+        painter.drawImage(0, 0, value._qimage)
+        painter.end()
         self._result = value
+        self._result_composition = canvas
         self._result_bounds = bounds
         self._result_seed = seed
-        self.result_available.emit(value)
+        self.result_available.emit(canvas)
         self.has_result = True
 
         if self.is_recording:

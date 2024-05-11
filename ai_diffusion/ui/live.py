@@ -17,7 +17,7 @@ from ..model import Model
 from ..root import root
 from ..settings import settings
 from .control import ControlListWidget
-from .widget import WorkspaceSelectWidget, StyleSelectWidget, TextPromptWidget, StrengthWidget
+from .widget import WorkspaceSelectWidget, StyleSelectWidget, ActiveRegionWidget, StrengthWidget
 from .widget import create_wide_tool_button
 from . import theme
 
@@ -36,7 +36,6 @@ class LiveWidget(QWidget):
         super().__init__()
         self._model = root.active_model
         self._model_bindings = []
-        settings.changed.connect(self.update_settings)
 
         layout = QVBoxLayout(self)
         layout.setContentsMargins(0, 2, 4, 0)
@@ -104,17 +103,12 @@ class LiveWidget(QWidget):
 
         self.control_list = ControlListWidget(self)
         self.add_control_button = create_wide_tool_button("control-add", "Add Control Layer", self)
-        self.prompt_textbox = TextPromptWidget(line_count=1, parent=self)
-        self.negative_textbox = TextPromptWidget(line_count=1, is_negative=True, parent=self)
-        self.negative_textbox.setVisible(settings.show_negative_prompt)
 
-        prompt_layout = QVBoxLayout()
-        prompt_layout.setContentsMargins(0, 0, 0, 0)
-        prompt_layout.setSpacing(2)
-        prompt_layout.addWidget(self.prompt_textbox)
-        prompt_layout.addWidget(self.negative_textbox)
+        self.prompt_widget = ActiveRegionWidget(self._model.regions.active, self)
+        self.prompt_widget.has_header = False
+
         cond_layout = QHBoxLayout()
-        cond_layout.addLayout(prompt_layout)
+        cond_layout.addWidget(self.prompt_widget)
         cond_layout.addWidget(self.add_control_button)
         layout.addLayout(cond_layout)
         layout.addWidget(self.control_list)
@@ -163,8 +157,6 @@ class LiveWidget(QWidget):
                 bind(model, "style", self.style_select, "value"),
                 bind(model.live, "strength", self.strength_slider, "value"),
                 bind(model, "seed", self.seed_input, "value"),
-                bind(model.regions.active, "prompt", self.prompt_textbox, "text"),
-                bind(model.regions.active, "negative_prompt", self.negative_textbox, "text"),
                 model.live.is_active_changed.connect(self.update_is_active),
                 model.live.is_recording_changed.connect(self.update_is_recording),
                 model.live.has_result_changed.connect(self.apply_button.setEnabled),
@@ -175,15 +167,11 @@ class LiveWidget(QWidget):
                 model.has_error_changed.connect(self.error_text.setVisible),
                 model.progress_changed.connect(self.update_progress),
                 model.live.result_available.connect(self.show_result),
+                model.regions.active_changed.connect(self.update_region),
             ]
             self.update_is_active()
             self.update_is_recording()
             self.preview_area.clear()
-
-    def update_settings(self, key: str, value):
-        if key == "show_negative_prompt":
-            self.negative_textbox.text = ""
-            self.negative_textbox.setVisible(value)
 
     def toggle_active(self):
         self.model.live.is_active = not self.model.live.is_active
@@ -195,6 +183,9 @@ class LiveWidget(QWidget):
         self.active_button.setIcon(
             self._pause_icon if self.model.live.is_active else self._play_icon
         )
+
+    def update_region(self):
+        self.prompt_widget.region = self.model.regions.active
 
     def update_is_recording(self):
         self.record_button.setIcon(
