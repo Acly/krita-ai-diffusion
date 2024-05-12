@@ -544,6 +544,7 @@ class Model(QObject, ObservableProperties):
         ver = client.models.version_of(self.style.sd_checkpoint)
         extent = self._doc.extent
         region = self.regions.active
+        job_regions: list[JobRegion] = []
 
         image = None
         mask = self._doc.create_mask_from_selection(
@@ -561,6 +562,7 @@ class Model(QObject, ObservableProperties):
             bounds = Bounds.clamp(bounds, extent)
             mask_image = self._doc.get_layer_mask(region.layer, bounds)
             mask = Mask(bounds, mask_image._qimage)
+            job_regions.append(JobRegion(region.layer_id, region.prompt))
 
         bounds = Bounds(0, 0, *self._doc.extent)
         if mask is not None:
@@ -585,7 +587,8 @@ class Model(QObject, ObservableProperties):
         )
         if input != last_input:
             self.clear_error()
-            await self.enqueue_jobs(input, JobKind.live_preview, JobParams(bounds, region.prompt))
+            params = JobParams(bounds, region.prompt, regions=job_regions)
+            await self.enqueue_jobs(input, JobKind.live_preview, params)
             return input
 
         return None
@@ -921,8 +924,7 @@ class LiveWorkspace(QObject, ObservableProperties):
     _last_input: WorkflowInput | None = None
     _result: Image | None = None
     _result_composition: Image | None = None
-    _result_bounds: Bounds | None = None
-    _result_seed: int | None = None
+    _result_params: JobParams | None = None
     _keyframes_folder: Path | None = None
     _keyframe_start = 0
     _keyframe_index = 0
@@ -961,7 +963,7 @@ class LiveWorkspace(QObject, ObservableProperties):
     def handle_job_finished(self, job: Job):
         if job.kind is JobKind.live_preview:
             if len(job.results) > 0:
-                self.set_result(job.results[0], job.params.bounds, job.params.seed)
+                self.set_result(job.results[0], job.params)
             self.is_active = self._is_active and self._model.document.is_active
             eventloop.run(_report_errors(self._model, self._continue_generating()))
 
@@ -975,10 +977,24 @@ class LiveWorkspace(QObject, ObservableProperties):
             await asyncio.sleep(self._poll_rate)
 
     def copy_result_to_layer(self):
-        assert self.result is not None and self._result_bounds is not None
+        assert self.result is not None and self._result_params is not None
         doc = self._model.document
-        name = f"{self._model.regions.active.prompt} ({self._result_seed})"
-        doc.insert_layer(name, self.result, self._result_bounds)
+        name = f"{self._result_params.prompt} ({self._result_params.seed})"
+
+        below = None
+        parent = None
+        if len(self._result_params.regions) > 0:
+            region = self._result_params.regions[0]
+            region_layer = self._model.layers.find(QUuid(region.layer_id))
+            if region_layer is not None:
+                parent = region_layer
+        elif len(self._model.regions) > 0:
+            for node in self._model.layers.root.childNodes():
+                if node.type() == "grouplayer":
+                    below = node
+                    break
+
+        doc.insert_layer(name, self.result, self._result_params.bounds, below=below, parent=parent)
         if settings.new_seed_after_apply:
             self._model.generate_seed()
 
@@ -990,21 +1006,20 @@ class LiveWorkspace(QObject, ObservableProperties):
     def result_composition(self):
         return self._result_composition
 
-    def set_result(self, value: Image, bounds: Bounds, seed: int):
-        canvas = self._model._get_current_image(self._model.regions.root, bounds)
+    def set_result(self, value: Image, params: JobParams):
+        canvas = self._model._get_current_image(self._model.regions.root, params.bounds)
         painter = QPainter(canvas._qimage)
         painter.setCompositionMode(QPainter.CompositionMode.CompositionMode_SourceOver)
         painter.drawImage(0, 0, value._qimage)
         painter.end()
         self._result = value
         self._result_composition = canvas
-        self._result_bounds = bounds
-        self._result_seed = seed
+        self._result_params = params
         self.result_available.emit(canvas)
         self.has_result = True
 
         if self.is_recording:
-            self._save_frame(value, bounds)
+            self._save_frame(value, params.bounds)
 
     def _start_recording(self):
         doc_filename = self._model.document.filename
