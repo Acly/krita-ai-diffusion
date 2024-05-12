@@ -196,6 +196,18 @@ class Bounds(NamedTuple):
         )
         return Bounds.clamp(result, max_extent)
 
+    @staticmethod
+    def intersection(a: "Bounds", b: "Bounds"):
+        x = max(a.x, b.x)
+        y = max(a.y, b.y)
+        width = min(a.x + a.width, b.x + b.width) - x
+        height = min(a.y + a.height, b.y + b.height) - y
+        return Bounds(x, y, max(0, width), max(0, height))
+
+    @property
+    def area(self):
+        return self.width * self.height
+
     def relative_to(self, reference: "Bounds"):
         """Return bounds relative to another bounds."""
         return Bounds(self.x - reference.x, self.y - reference.y, self.width, self.height)
@@ -257,6 +269,10 @@ class Image:
             img._qimage.fill(fill)
         return img
 
+    @staticmethod
+    def copy(image: "Image"):
+        return Image(QImage(image._qimage))
+
     @property
     def width(self):
         return self._qimage.width()
@@ -272,6 +288,7 @@ class Image:
     @property
     def is_rgba(self):
         return self._qimage.format() in [
+            QImage.Format.Format_Indexed8,
             QImage.Format.Format_ARGB32,
             QImage.Format.Format_RGB32,
             QImage.Format.Format_RGBA8888,
@@ -369,6 +386,12 @@ class Image:
     def invert(self):
         self._qimage.invertPixels()
 
+    def average(self):
+        assert self.is_mask
+        avg = Image.scale(self, Extent(1, 1)).pixel(0, 0)
+        avg = avg[0] if isinstance(avg, tuple) else avg
+        return avg / 255
+
     @property
     def data(self):
         self.to_krita_format()
@@ -386,10 +409,11 @@ class Image:
 
         self.to_numpy_format()
         w, h = self.extent
+        c = 4 if self.is_rgba else 1
         bits = self._qimage.constBits()
         assert bits is not None, "Accessing data of invalid image"
-        ptr = bits.asarray(w * h * 4)
-        array = np.frombuffer(ptr, np.uint8).reshape(h, w, 4)  # type: ignore
+        ptr = bits.asarray(w * h * c)
+        array = np.frombuffer(ptr, np.uint8).reshape(h, w, c)  # type: ignore
         return array.astype(np.float32) / 255
 
     def write(self, buffer: QIODevice, format=ImageFileFormat.png):
@@ -454,12 +478,12 @@ class Image:
             self.save(Path(settings.debug_image_folder, f"{name}.png"))
 
     def to_krita_format(self):
-        if self._qimage.format() != QImage.Format.Format_ARGB32:
+        if self.is_rgba and self._qimage.format() != QImage.Format.Format_ARGB32:
             self._qimage = self._qimage.convertToFormat(QImage.Format.Format_ARGB32)
         return self
 
     def to_numpy_format(self):
-        if self._qimage.format() != QImage.Format.Format_RGBA8888:
+        if self.is_rgba and self._qimage.format() != QImage.Format.Format_RGBA8888:
             self._qimage = self._qimage.convertToFormat(QImage.Format.Format_RGBA8888)
         return self
 

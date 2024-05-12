@@ -28,7 +28,7 @@ from .pose import Pose
 from .style import Style, Styles, SDVersion
 from .connection import Connection
 from .properties import Property, ObservableProperties
-from .jobs import Job, JobKind, JobParams, JobQueue, JobState
+from .jobs import Job, JobKind, JobParams, JobQueue, JobState, JobRegion
 from .control import ControlLayer, ControlLayerList
 from .resources import ControlMode
 from .resolution import compute_bounds, compute_relative_bounds
@@ -70,8 +70,20 @@ class Region(QObject, ObservableProperties):
         return None  # root region, no group layer
 
     @property
+    def parent_region(self):
+        if layer := self.layer:
+            parent = layer.parentNode()
+            if parent.parentNode() is not None:
+                return self._tree._lookup_region(parent.uniqueId())
+        return None
+
+    @property
     def siblings(self):
         return self._tree.siblings(self)
+
+    @property
+    def sub_regions(self):
+        return self._tree.sub_regions(self)
 
     @property
     def is_root(self):
@@ -147,42 +159,96 @@ class RegionTree(QObject):
     def add_control(self):
         self.active.control.add()
 
-    def to_api(self, parent_layer_id: QUuid | None, bounds: Bounds | None = None):
+    def create_region(self):
+        doc = self._model.document
+        doc.create_group_layer(f"Region {len(self)}")
+
+    def to_api(self, bounds: Bounds, parent: Region | None = None):
+        parent = parent or self.root
+        parent_job_region: list[JobRegion] = []
+        if not parent.is_root:
+            parent_job_region = [JobRegion(parent.layer_id, parent.prompt)]
+
+        result = ConditioningInput(
+            positive=workflow.merge_prompt("", parent.prompt),
+            negative=self.root.negative_prompt,
+            control=[c.to_api(bounds) for c in parent.control],
+        )
+        regions = parent.sub_regions
+        if len(regions) == 0:
+            return result, parent_job_region
+
         # Assemble all regions by finding group layers which are direct children of the parent layer.
-        # Ignore regions with no prompt or control layers.
-        layers = self._model.layers
-        parent_layer = layers.find(parent_layer_id) if parent_layer_id else layers.root
+        # Filter out regions with:
+        # * no content (empty mask)
+        # * no prompt or control layers
+        # * less than 10% overlap (esimate based on bounding box)
         api_regions: list[RegionInput] = []
-        for layer in layers:
-            if layer.type() == "grouplayer" and layer.parentNode() == parent_layer:
-                region = self._lookup_region(layer.uniqueId())
-                if region.prompt != "" or len(region.control) > 0:
-                    api_regions.append(region.to_api(bounds))
+        job_regions: list[JobRegion] = []
+        for region in regions:
+            layer = ensure(region.layer)
+            layer_bounds = _region_layer_bounds(layer)
+            if layer_bounds.area == 0:
+                print(f"Skipping empty region {layer.name()}")
+                continue
+
+            region = self._lookup_region(layer.uniqueId())
+            if region.prompt == "" and len(region.control) == 0:
+                continue
+
+            overlap_rough = Bounds.intersection(bounds, layer_bounds).area / bounds.area
+            if overlap_rough < 0.1:
+                print(f"Skipping region {region.prompt[:10]}: overlap is {overlap_rough}")
+                continue
+
+            api_regions.append(region.to_api(bounds))
+            job_regions.append(JobRegion(region.layer_id, region.prompt))
 
         # Remove from each region mask any overlapping areas from regions above it.
         accumulated_mask = None
-        for region in reversed(api_regions):
+        for i in range(len(api_regions) - 1, -1, -1):
+            region = api_regions[i]
+            mask = region.mask
             if accumulated_mask is None:
-                accumulated_mask = Image.mask_add(region.mask, region.mask)
+                accumulated_mask = Image.copy(region.mask)
             else:
-                current = region.mask
-                region.mask = Image.mask_subtract(region.mask, accumulated_mask)
-                accumulated_mask = Image.mask_add(accumulated_mask, current)
+                mask = Image.mask_subtract(mask, accumulated_mask)
 
-        # If the regions don't cover the entire image, add a final region for the remaining area.
-        if accumulated_mask is not None:
-            average = Image.scale(accumulated_mask, Extent(1, 1)).pixel(0, 0)
-            fully_covered = isinstance(average, tuple) and average[0] >= 254
-            if not fully_covered:
-                accumulated_mask.invert()
-                api_regions.append(RegionInput(accumulated_mask, self.root.prompt))
+            coverage = mask.average()
+            if coverage > 0.9:
+                # Single region covers (almost) entire image, don't use regional conditioning.
+                print(f"Using single region {region.positive[:10]}: coverage is {coverage}")
+                result.positive = workflow.merge_prompt(region.positive, result.positive)
+                result.control += region.control
+                return result, [job_regions[i]]
+            elif coverage < 0.1:
+                # Region has less than 10% coverage, remove it.
+                print(f"Skipping region {region.positive[:10]}: coverage is {coverage}")
+                api_regions.pop(i)
+                job_regions.pop(i)
+            else:
+                # Accumulate mask for next region, and store modified mask.
+                accumulated_mask = Image.mask_add(accumulated_mask, region.mask)
+                region.mask = mask
 
-        return ConditioningInput(
-            positive=self.root.prompt,
-            negative=self.root.negative_prompt,
-            control=[c.to_api(bounds) for c in self.root.control],
-            regions=api_regions,
-        )
+        # If there are no regions left, don't use regional conditioning.
+        if len(api_regions) == 0:
+            return result, parent_job_region
+
+        # If the region(s) don't cover the entire image, add a final region for the remaining area.
+        assert accumulated_mask is not None, "Expecting at least one region mask"
+        total_coverage = accumulated_mask.average()
+        if total_coverage < 1:
+            print(f"Adding background region: total coverage is {total_coverage}")
+            accumulated_mask.invert()
+            parent_layer = parent.layer or self._model.layers.root
+            api_regions.append(RegionInput(accumulated_mask, "background"))
+            job_regions.append(
+                JobRegion(parent_layer.uniqueId().toString(), "background", is_background=True)
+            )
+
+        result.regions = api_regions
+        return result, job_regions
 
     def siblings(self, region: Region):
         def get_regions(layers: list[krita.Node]):
@@ -190,6 +256,11 @@ class RegionTree(QObject):
 
         below, above = self._model.layers.siblings(region.layer, "grouplayer")
         return get_regions(below), get_regions(above)
+
+    def sub_regions(self, region: Region):
+        region_layer = region.layer or self._model.layers.root
+        children = region_layer.childNodes()
+        return [self._lookup_region(l.uniqueId()) for l in children if l.type() == "grouplayer"]
 
     def _update_layers(self):
         self._prune()
@@ -255,6 +326,21 @@ def _layer_id_str(a: QUuid | str | None):
     return a
 
 
+def _region_layer_bounds(layer: krita.Node):
+    layer_bounds = Bounds.from_qrect(layer.bounds())
+    for child in layer.childNodes():
+        if child.type() == "transparencymask":
+            mask_sel = krita.Selection()
+            data = child.pixelData(*layer_bounds)
+            mask_sel.setPixelData(data, *layer_bounds)
+            mask_sel_bounds = Bounds(
+                mask_sel.x(), mask_sel.y(), mask_sel.width(), mask_sel.height()
+            )
+            return mask_sel_bounds
+
+    return layer_bounds
+
+
 class Model(QObject, ObservableProperties):
     """Represents diffusion workflows for a specific Krita document. Stores all inputs related to
     image generation. Launches generation jobs. Listens to server messages and keeps a
@@ -270,6 +356,7 @@ class Model(QObject, ObservableProperties):
     regions: "RegionTree"
     style = Property(Styles.list().default, persist=True)
     strength = Property(1.0, persist=True)
+    region_only = Property(False, persist=True)
     batch_count = Property(1, persist=True)
     seed = Property(0, persist=True)
     fixed_seed = Property(False, persist=True)
@@ -285,6 +372,7 @@ class Model(QObject, ObservableProperties):
     workspace_changed = pyqtSignal(Workspace)
     style_changed = pyqtSignal(Style)
     strength_changed = pyqtSignal(float)
+    region_only_changed = pyqtSignal(bool)
     batch_count_changed = pyqtSignal(int)
     seed_changed = pyqtSignal(int)
     fixed_seed_changed = pyqtSignal(bool)
@@ -337,10 +425,25 @@ class Model(QObject, ObservableProperties):
         mask = self._doc.create_mask_from_selection(
             **get_selection_modifiers(self.inpaint.mode, self.strength), min_size=64
         )
-        bounds = compute_bounds(extent, mask.bounds if mask else None, self.strength)
-        bounds = self.inpaint.get_context(self, mask) or bounds
+        bounds = Bounds(0, 0, *extent)
+        if mask is None:
+            # Check for region inpaint
+            region = self.regions.active
+            inpaint_mode = InpaintMode.add_object
+            if not (self.region_only or region.is_root):
+                region = region.parent_region or self.regions.root
+            if region_layer := region.layer:
+                img_bounds = Bounds(0, 0, *extent)
+                mask_img = self._doc.get_layer_mask(region_layer, img_bounds)
+                mask = Mask(img_bounds, mask_img._qimage)
+                bounds = mask.bounds
+        else:
+            # Selection inpaint
+            bounds = compute_bounds(extent, mask.bounds if mask else None, self.strength)
+            bounds = self.inpaint.get_context(self, mask) or bounds
+            inpaint_mode = self.resolve_inpaint_mode()
 
-        conditioning = self.regions.to_api(None, bounds)
+        conditioning, job_regions = self.regions.to_api(bounds, region)
 
         if mask is not None or self.strength < 1.0:
             image = self._get_current_image(region, bounds)
@@ -354,7 +457,6 @@ class Model(QObject, ObservableProperties):
             bounds, mask.bounds = compute_relative_bounds(bounds, mask.bounds)
 
             sd_version = client.models.version_of(self.style.sd_checkpoint)
-            inpaint_mode = self.resolve_inpaint_mode()
             if inpaint_mode is InpaintMode.custom:
                 inpaint = self.inpaint.get_params(mask)
             else:
@@ -379,9 +481,8 @@ class Model(QObject, ObservableProperties):
             self.report_error(util.log_error(e))
             return
         self.clear_error()
-        enqueue_jobs = self.enqueue_jobs(
-            input, JobKind.diffusion, JobParams(bounds, region.prompt), self.batch_count
-        )
+        job_params = JobParams(bounds, self.regions.root.prompt, regions=job_regions)
+        enqueue_jobs = self.enqueue_jobs(input, JobKind.diffusion, job_params, self.batch_count)
         eventloop.run(_report_errors(self, enqueue_jobs))
 
     async def enqueue_jobs(
@@ -458,10 +559,11 @@ class Model(QObject, ObservableProperties):
         if mask is not None or self.live.strength < 1.0:
             image = self._get_current_image(region, bounds)
 
+        control = region.to_api(bounds).control
         input = workflow.prepare(
             workflow_kind,
             image or bounds.extent,
-            self.regions.to_api(None, mask.bounds if mask else None),
+            ConditioningInput(region.prompt, region.negative_prompt, control=control),
             self.style,
             self.seed,
             client.models,
@@ -586,12 +688,41 @@ class Model(QObject, ObservableProperties):
             self._doc.hide_layer(self._layer)
 
     def apply_result(self, job_id: str, index: int):
-        self.jobs.select(job_id, index)
-        assert self._layer is not None
-        self._layer.setLocked(False)
-        self._layer.setName(self._layer.name().replace("[Preview]", "[Generated]"))
-        self._doc.active_layer = self._layer
-        self._layer = None
+        job = self.jobs.find(job_id)
+        assert job is not None, "Cannot apply result, invalid job id"
+        if len(job.params.regions) == 0:
+            self._doc.insert_layer(
+                f"[Generated] {job.params.prompt}", job.results[index], job.params.bounds
+            )
+        else:
+            img = job.results[index]
+            for region in job.params.regions:
+                region_layer = self.layers.find(QUuid(region.layer_id)) or self.layers.root
+                has_layers = len(region_layer.childNodes()) > 0
+                has_mask = any(l.parentNode() == region_layer for l in self.layers.masks)
+                if has_layers and not has_mask:
+                    mask = self._doc.get_layer_mask(region_layer, job.params.bounds)
+                    self._doc.insert_mask_layer(
+                        "Transparency Mask", mask, job.params.bounds, region_layer
+                    )
+
+                below = None
+                if region.is_background:
+                    for node in region_layer.childNodes():
+                        if node.type() == "grouplayer":
+                            below = node
+                            break
+                self._doc.insert_layer(
+                    f"[Generated] {region.prompt}",
+                    img,
+                    job.params.bounds,
+                    below=below,
+                    parent=region_layer,
+                )
+
+        if self._layer:
+            self._layer.remove()
+            self._layer = None
         self.jobs.selection = None
         self.jobs.notify_used(job_id, index)
 
@@ -931,10 +1062,11 @@ class AnimationWorkspace(QObject, ObservableProperties):
     def _prepare_input(self, canvas: Image | Extent, seed: int):
         m = self._model
         bounds = Bounds(0, 0, *m.document.extent)
+        conditioning, job_regions = m.regions.to_api(bounds)
         return workflow.prepare(
             WorkflowKind.generate if m.strength == 1.0 else WorkflowKind.refine,
             canvas,
-            m.regions.to_api(None, bounds),
+            conditioning,
             style=m.style,
             seed=seed,
             perf=m._connection.client.performance_settings,
