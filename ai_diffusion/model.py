@@ -170,7 +170,7 @@ class RegionTree(QObject):
             parent_job_region = [JobRegion(parent.layer_id, parent.prompt)]
 
         result = ConditioningInput(
-            positive=workflow.merge_prompt("", parent.prompt),
+            positive=parent.prompt,
             negative=self.root.negative_prompt,
             control=[c.to_api(bounds) for c in parent.control],
         )
