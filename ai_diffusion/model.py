@@ -242,9 +242,9 @@ class RegionTree(QObject):
             print(f"Adding background region: total coverage is {total_coverage}")
             accumulated_mask.invert()
             parent_layer = parent.layer or self._model.layers.root
-            api_regions.append(RegionInput(accumulated_mask, "background"))
+            api_regions.append(RegionInput(accumulated_mask, ""))
             job_regions.append(
-                JobRegion(parent_layer.uniqueId().toString(), "background", is_background=True)
+                JobRegion(parent_layer.uniqueId().toString(), "", is_background=True)
             )
 
         result.regions = api_regions
