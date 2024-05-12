@@ -15,7 +15,6 @@ from ..properties import Binding, bind, Bind
 from ..image import Extent, Image
 from ..model import Model
 from ..root import root
-from ..settings import settings
 from .control import ControlListWidget
 from .widget import WorkspaceSelectWidget, StyleSelectWidget, ActiveRegionWidget, StrengthWidget
 from .widget import create_wide_tool_button
@@ -103,13 +102,18 @@ class LiveWidget(QWidget):
 
         self.control_list = ControlListWidget(self)
         self.add_control_button = create_wide_tool_button("control-add", "Add Control Layer", self)
+        self.add_region_button = create_wide_tool_button("region-add", "Add Region", self)
+        prompt_buttons_layout = QVBoxLayout()
+        prompt_buttons_layout.setSpacing(2)
+        prompt_buttons_layout.addWidget(self.add_region_button)
+        prompt_buttons_layout.addWidget(self.add_control_button)
 
-        self.prompt_widget = ActiveRegionWidget(self._model.regions.active, self)
+        self.prompt_widget = ActiveRegionWidget(self._model.regions.active, self, max_lines=2)
         self.prompt_widget.has_header = False
 
         cond_layout = QHBoxLayout()
         cond_layout.addWidget(self.prompt_widget)
-        cond_layout.addWidget(self.add_control_button)
+        cond_layout.addLayout(prompt_buttons_layout)
         layout.addLayout(cond_layout)
         layout.addWidget(self.control_list)
 
@@ -161,6 +165,7 @@ class LiveWidget(QWidget):
                 model.live.is_recording_changed.connect(self.update_is_recording),
                 model.live.has_result_changed.connect(self.apply_button.setEnabled),
                 self.apply_button.clicked.connect(model.live.copy_result_to_layer),
+                self.add_region_button.clicked.connect(model.regions.create_region),
                 self.add_control_button.clicked.connect(model.regions.add_control),
                 self.random_seed_button.clicked.connect(model.generate_seed),
                 model.error_changed.connect(self.error_text.setText),
@@ -186,6 +191,7 @@ class LiveWidget(QWidget):
 
     def update_region(self):
         self.prompt_widget.region = self.model.regions.active
+        self.control_list.model = self.model.regions.active.control
 
     def update_is_recording(self):
         self.record_button.setIcon(

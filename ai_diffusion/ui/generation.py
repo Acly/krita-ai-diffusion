@@ -29,7 +29,6 @@ from ..workflow import InpaintMode, FillMode
 from ..settings import settings
 from ..util import ensure
 from . import theme
-from .control import ControlListWidget
 from .widget import (
     WorkspaceSelectWidget,
     StyleSelectWidget,

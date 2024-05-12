@@ -673,11 +673,13 @@ class ActiveRegionWidget(QFrame):
 
     _region: Region
     _bindings: list[QMetaObject.Connection]
+    _max_lines: int
 
-    def __init__(self, region: Region, parent: QWidget):
+    def __init__(self, region: Region, parent: QWidget, max_lines=99):
         super().__init__(parent)
         self._region = region
         self._bindings = []
+        self._max_lines = max_lines
 
         self.setObjectName("ActiveRegionWidget")
         self.setFrameStyle(QFrame.Shape.StyledPanel)
@@ -696,7 +698,7 @@ class ActiveRegionWidget(QFrame):
         self._header.setLayout(header_layout)
 
         self.positive = TextPromptWidget(parent=self)
-        self.positive.line_count = settings.prompt_line_count
+        self.positive.line_count = min(settings.prompt_line_count, self._max_lines)
         self.positive.install_event_filter(self)
 
         self.negative = TextPromptWidget(line_count=1, is_negative=True, parent=self)
@@ -751,7 +753,7 @@ class ActiveRegionWidget(QFrame):
 
     def update_settings(self, key: str, value):
         if key == "prompt_line_count":
-            self.positive.line_count = value
+            self.positive.line_count = min(value, self._max_lines)
         elif key == "show_negative_prompt":
             self.negative.text = ""
             self.negative.setVisible(value and self._region.is_root)
