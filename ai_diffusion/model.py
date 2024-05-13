@@ -170,7 +170,7 @@ class RegionTree(QObject):
             parent_job_region = [JobRegion(parent.layer_id, parent.prompt)]
 
         result = ConditioningInput(
-            positive=parent.prompt,
+            positive=workflow.merge_prompt("", parent.prompt),
             negative=self.root.negative_prompt,
             control=[c.to_api(bounds) for c in parent.control],
         )
@@ -182,7 +182,7 @@ class RegionTree(QObject):
         # Filter out regions with:
         # * no content (empty mask)
         # * no prompt or control layers
-        # * less than 10% overlap (esimate based on bounding box)
+        # * less than 10% overlap (estimate based on bounding box)
         api_regions: list[RegionInput] = []
         job_regions: list[JobRegion] = []
         for region in regions:
@@ -201,8 +201,10 @@ class RegionTree(QObject):
                 print(f"Skipping region {region.prompt[:10]}: overlap is {overlap_rough}")
                 continue
 
-            api_regions.append(region.to_api(bounds))
-            job_regions.append(JobRegion(region.layer_id, region.prompt))
+            api_region = region.to_api(bounds)
+            api_region.positive = workflow.merge_prompt(api_region.positive, self.root.prompt)
+            api_regions.append(api_region)
+            job_regions.append(JobRegion(region.layer_id, workflow.merge_prompt(region.prompt, self.root.prompt)))
 
         # Remove from each region mask any overlapping areas from regions above it.
         accumulated_mask = None
@@ -242,9 +244,9 @@ class RegionTree(QObject):
             print(f"Adding background region: total coverage is {total_coverage}")
             accumulated_mask.invert()
             parent_layer = parent.layer or self._model.layers.root
-            api_regions.append(RegionInput(accumulated_mask, ""))
+            api_regions.append(RegionInput(accumulated_mask, workflow.merge_prompt("", self.root.prompt)))
             job_regions.append(
-                JobRegion(parent_layer.uniqueId().toString(), "", is_background=True)
+                JobRegion(parent_layer.uniqueId().toString(), workflow.merge_prompt("", self.root.prompt), is_background=True)
             )
 
         result.regions = api_regions
