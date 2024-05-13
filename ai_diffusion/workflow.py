@@ -309,7 +309,7 @@ def scale(
     models: ModelDict,
 ):
     """Handles scaling images from `extent` to `target` resolution.
-    Uses either simple bilinear scaling or a fast upscaling model."""
+    Uses either lanczos or a fast upscaling model."""
 
     if mode is ScaleMode.none:
         return image

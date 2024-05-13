@@ -409,14 +409,14 @@ class ComfyWorkflow:
             height=bounds.height,
         )
 
-    def scale_image(self, image: Output, extent: Extent):
+    def scale_image(self, image: Output, extent: Extent, method="lanczos"):
         return self.add(
             "ImageScale",
             1,
             image=image,
             width=extent.width,
             height=extent.height,
-            upscale_method="bilinear",
+            upscale_method=method,
             crop="disabled",
         )
 
@@ -458,7 +458,7 @@ class ComfyWorkflow:
 
     def scale_mask(self, mask: Output, extent: Extent):
         img = self.mask_to_image(mask)
-        scaled = self.scale_image(img, extent)
+        scaled = self.scale_image(img, extent, method="bilinear")
         return self.image_to_mask(scaled)
 
     def image_to_mask(self, image: Output):
