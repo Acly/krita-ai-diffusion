@@ -42,9 +42,7 @@ def _sampling_from_style(style: Style, strength: float, is_live: bool):
         total_steps=total_steps or preset.steps,
     )
     if strength < 1.0:
-        # Unless we have something like a 1-step turbo model, ensure there are at least 4 steps
-        # even at very low strength with low total steps of 4-8 (like Lightning/LCM).
-        min_steps = min(4, total_steps)
+        min_steps = min(preset.minimum_steps, total_steps)
         result.total_steps, result.start_step = _apply_strength(strength, total_steps, min_steps)
     return result
 
@@ -53,7 +51,7 @@ def _apply_strength(strength: float, steps: int, min_steps: int = 0) -> tuple[in
     start_at_step = round(steps * (1 - strength))
 
     if min_steps and steps - start_at_step < min_steps:
-        steps = math.floor(min_steps * 1 / strength)
+        steps = math.floor(min_steps / strength)
         start_at_step = steps - min_steps
 
     return steps, start_at_step

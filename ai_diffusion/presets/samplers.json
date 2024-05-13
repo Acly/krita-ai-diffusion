@@ -3,36 +3,42 @@
         "sampler": "dpmpp_2m",
         "scheduler": "karras",
         "steps": 20,
+        "minimum_steps": 4,
         "cfg": 7.0
     },
     "Alternative - Euler A": {
         "sampler": "euler_ancestral",
         "scheduler": "normal",
         "steps": 20,
+        "minimum_steps": 4,
         "cfg": 6.0
     },
     "Creative - DPM++ 2M SDE": {
         "sampler": "dpmpp_2m_sde_gpu",
         "scheduler": "karras",
         "steps": 20,
+        "minimum_steps": 4,
         "cfg": 6.0
     },
     "Fast - UniPC BH2": {
         "sampler": "uni_pc_bh2",
         "scheduler": "ddim_uniform",
         "steps": 12,
+        "minimum_steps": 4,
         "cfg": 4.0
     },
     "Turbo/Lightning Merge - DPM++ SDE": {
         "sampler": "dpmpp_sde_gpu",
         "scheduler": "karras",
         "steps": 6,
+        "minimum_steps": 4,
         "cfg": 2.0
     },
     "Lightning Merge - Euler A Uniform": {
         "sampler": "euler_ancestral",
         "scheduler": "sgm_uniform",
         "steps": 8,
+        "minimum_steps": 4,
         "cfg": 1.5
     },
     "Realtime - LCM": {
@@ -40,6 +46,7 @@
         "scheduler": "sgm_uniform",
         "lora": "lcm",
         "steps": 6,
+        "minimum_steps": 4,
         "cfg": 1.8
     },
     "Realtime - Lightning": {
@@ -47,6 +54,7 @@
         "scheduler": "sgm_uniform",
         "lora": "lightning",
         "steps": 8,
+        "minimum_steps": 4,
         "cfg": 1.5
     }
 }

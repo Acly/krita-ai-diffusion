@@ -292,6 +292,7 @@ class SamplerPreset(NamedTuple):
     steps: int
     cfg: float
     lora: str | None = None
+    minimum_steps: int = 4
 
 
 class SamplerPresets:
@@ -421,6 +422,7 @@ _sampler_presets_stub = """// Custom sampler presets - add your own sampler pres
         "sampler": "dpmpp_3m_sde",
         "scheduler": "exponential",
         "steps": 20,
+        "minimum_steps": 4,
         "cfg": 7.0
     }
 }
