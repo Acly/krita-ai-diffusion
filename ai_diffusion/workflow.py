@@ -261,11 +261,12 @@ def encode_text_prompt(w: ComfyWorkflow, cond: Conditioning, clip: Output):
     return positive, negative
 
 
-def encode_attention_text_prompt(w: ComfyWorkflow, cond: Conditioning, positive: str, negative: str, clip: Output):
+def encode_attention_text_prompt(w: ComfyWorkflow, cond: Conditioning, positive: str, negative: str | None, clip: Output):
     if positive != "":
         positive = merge_prompt(positive, cond.style_prompt)
     positive = w.clip_text_encode(clip, positive)
-    negative = w.clip_text_encode(clip, negative)
+    if negative is not None:
+        negative = w.clip_text_encode(clip, negative)
     return positive, negative
 
 
@@ -288,17 +289,8 @@ def apply_attention(
     for region in reversed(cond.regions):
         mask = w.scale_mask(region.load_mask(w), getattr(extent, extent_name))
         masks.append(mask)
-        if region.positive == cond.positive:
-            positive = region.positive.replace("{prompt}", "")
-        else:
-            positive = merge_prompt(region.positive, cond.positive)
 
-        region.positive = ""  # remove the region prompt from the combined prompt
-
-        negative = merge_prompt(region.negative, cond.negative)
-        region.negative = ""
-
-        conds.append(encode_attention_text_prompt(w, cond, positive, negative, clip)[0])
+        conds.append(encode_attention_text_prompt(w, cond, region.positive, None, clip)[0])
 
     model = w.apply_attention_couple(model, base_mask, conds, masks)
     cond.positive = cond.positive.replace("{prompt}", "")
