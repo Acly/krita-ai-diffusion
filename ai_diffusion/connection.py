@@ -207,6 +207,8 @@ def apply_performance_preset(settings: Settings, device: DeviceInfo):
     if settings.performance_preset is PerformancePreset.auto:
         if device.type == "cpu":
             settings.apply_performance_preset(PerformancePreset.cpu)
+        elif device.type.lower() == "cloud":
+            settings.apply_performance_preset(PerformancePreset.cloud)
         elif device.vram <= 6:
             settings.apply_performance_preset(PerformancePreset.low)
         elif device.vram <= 12:

@@ -14,7 +14,7 @@ from .client import User
 from .image import Extent, ImageCollection
 from .network import RequestManager, NetworkError
 from .resources import SDVersion
-from .settings import PerformanceSettings
+from .settings import PerformanceSettings, settings
 from .util import ensure, client_logger as log
 
 
@@ -194,7 +194,11 @@ class CloudClient(Client):
 
     @property
     def performance_settings(self):
-        return PerformanceSettings(batch_size=8, resolution_multiplier=1.0, max_pixel_count=8)
+        return PerformanceSettings(
+            batch_size=min(4, max(8, settings.batch_size)),
+            resolution_multiplier=settings.resolution_multiplier,
+            max_pixel_count=min(8, settings.max_pixel_count),
+        )
 
     async def _send_images(self, inputs: dict):
         if image_data := inputs.get("image_data"):

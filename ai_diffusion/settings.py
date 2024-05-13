@@ -42,6 +42,7 @@ class PerformancePreset(Enum):
     low = "GPU low (up to 6GB)"
     medium = "GPU medium (6GB to 12GB)"
     high = "GPU high (more than 12GB)"
+    cloud = "Cloud"
     custom = "Custom"
 
 
@@ -49,7 +50,7 @@ class PerformancePreset(Enum):
 class PerformanceSettings:
     batch_size: int = 4
     resolution_multiplier: float = 1.0
-    max_pixel_count: int = 8
+    max_pixel_count: int = 6
 
 
 class Setting:
@@ -183,7 +184,7 @@ class Settings(QObject):
     max_pixel_count: int
     _max_pixel_count = Setting(
         "Maximum Pixel Count",
-        8,
+        6,
         "Maximum resolution to generate images at, in megapixels (FullHD ~ 2MP, 4k ~ 8MP).",
     )
 
@@ -201,12 +202,17 @@ class Settings(QObject):
         PerformancePreset.medium: PerformanceSettings(
             batch_size=4,
             resolution_multiplier=1.0,
-            max_pixel_count=8,
+            max_pixel_count=6,
         ),
         PerformancePreset.high: PerformanceSettings(
+            batch_size=6,
+            resolution_multiplier=1.0,
+            max_pixel_count=8,
+        ),
+        PerformancePreset.cloud: PerformanceSettings(
             batch_size=8,
             resolution_multiplier=1.0,
-            max_pixel_count=12,
+            max_pixel_count=6,
         ),
     }
 
