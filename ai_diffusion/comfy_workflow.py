@@ -490,7 +490,7 @@ class ComfyWorkflow:
     def blur_masked(self, image: Output, mask: Output, blur: int, falloff: int = 0):
         return self.add("INPAINT_MaskedBlur", 1, image=image, mask=mask, blur=blur, falloff=falloff)
 
-    def denoise_to_compositing_mask(self, mask: Output, offset=0.15, threshold=0.25):
+    def denoise_to_compositing_mask(self, mask: Output, offset=0.05, threshold=0.35):
         return self.add(
             "INPAINT_DenoiseToCompositingMask", 1, mask=mask, offset=offset, threshold=threshold
         )
