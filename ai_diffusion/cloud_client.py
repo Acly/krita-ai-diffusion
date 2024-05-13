@@ -105,6 +105,8 @@ class CloudClient(Client):
 
     async def enqueue(self, work: WorkflowInput, front: bool = False):
         work.batch_count = min(work.batch_count, 8)
+        if work.models:
+            work.models.self_attention_guidance = False
         job = JobInfo(str(uuid.uuid4()), work)
         await self._queue.put(job)
         return job.local_id
