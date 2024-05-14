@@ -12,6 +12,6 @@ reference_dir = test_dir / "references"
 benchmark_dir = test_dir / "benchmark"
 
 default_checkpoint = {
-    SDVersion.sd15: next(iter(default_checkpoints[0].files)).name,
-    SDVersion.sdxl: next(iter(default_checkpoints[2].files)).name,
+    SDVersion.sd15: "realisticVisionV51_v51VAE.safetensors",
+    SDVersion.sdxl: "juggernautXL_version6Rundiffusion.safetensors",
 }
