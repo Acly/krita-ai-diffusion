@@ -279,7 +279,7 @@ def apply_attention(
     extent_name: str = "initial"
 ):
     if not cond.regions:
-        return model, cond, extent, False
+        return model, extent, False
 
     extent = attention_extent(extent)
     base_mask = w.solid_mask(getattr(extent, extent_name), 0.0)
