@@ -15,7 +15,7 @@ from .image import Extent, ImageCollection
 from .network import RequestManager, NetworkError
 from .resources import SDVersion
 from .settings import PerformanceSettings, settings
-from .util import ensure, client_logger as log
+from .util import clamp, ensure, client_logger as log
 
 
 @dataclass
@@ -104,7 +104,6 @@ class CloudClient(Client):
         return self._user
 
     async def enqueue(self, work: WorkflowInput, front: bool = False):
-        work.batch_count = min(work.batch_count, 8)
         if work.models:
             work.models.self_attention_guidance = False
         job = JobInfo(str(uuid.uuid4()), work)
@@ -143,7 +142,7 @@ class CloudClient(Client):
         job.remote_id = response["id"]
         job.worker_id = response["worker_id"]
         cost = _update_user(user, response.get("user"))
-        log.info(f"{job} started, cost was {cost}, {user.credits} images remaining")
+        log.info(f"{job} started, cost was {cost}, {user.credits} tokens remaining")
         yield ClientMessage(ClientEvent.progress, job.local_id, 0)
 
         while response["status"] == "IN_QUEUE" or response["status"] == "IN_PROGRESS":
@@ -195,9 +194,9 @@ class CloudClient(Client):
     @property
     def performance_settings(self):
         return PerformanceSettings(
-            batch_size=min(4, max(8, settings.batch_size)),
+            batch_size=clamp(settings.batch_size, 4, 8),
             resolution_multiplier=settings.resolution_multiplier,
-            max_pixel_count=min(8, settings.max_pixel_count),
+            max_pixel_count=clamp(settings.max_pixel_count, 1, 8),
         )
 
     async def _send_images(self, inputs: dict):
@@ -229,11 +228,8 @@ class CloudClient(Client):
         else:
             raise ValueError(f"No result images found in server response: {str(images)[:80]}")
 
-    async def compute_cost(
-        self, kind: WorkflowKind, sd_version: SDVersion, batch: int, extent: Extent, steps: int
-    ):
-        op = f"admin/cost/{kind.name}/{sd_version.name}/{batch}/{extent.width}/{extent.height}/{steps}"
-        response = await self._get(op)
+    async def compute_cost(self, input: WorkflowInput):
+        response = await self._post("admin/cost", input.to_dict())
         return int(response.decode())
 
     def _process_http_error(self, e: NetworkError):

@@ -21,7 +21,7 @@ from PyQt5.QtWidgets import (
     QCheckBox,
     QGridLayout,
     QCompleter,
-    QAbstractItemView,
+    QPushButton,
 )
 from PyQt5.QtGui import (
     QColor,
@@ -31,14 +31,16 @@ from PyQt5.QtGui import (
     QPalette,
     QTextCursor,
     QPainter,
+    QIcon,
+    QPaintEvent,
 )
-from PyQt5.QtCore import Qt, QMetaObject, QSize, QStringListModel, pyqtSignal
+from PyQt5.QtCore import Qt, QMetaObject, QEvent, QSize, QStringListModel, pyqtSignal
 
 from ..style import Style, Styles
 from ..root import root
 from ..client import filter_supported_styles, resolve_sd_version
 from ..properties import Binding, Bind, bind, bind_combo
-from ..jobs import JobState
+from ..jobs import JobState, JobKind
 from ..model import Model, Workspace, SamplingQuality
 from ..text import LoraId, edit_attention, select_on_cursor_pos
 from ..util import ensure
@@ -657,6 +659,66 @@ class WorkspaceSelectWidget(QToolButton):
         action.setIconVisibleInMenu(True)
         action.triggered.connect(actions.set_workspace(workspace))
         return action
+
+
+class GenerateButton(QPushButton):
+    model: Model
+    operation: str
+    _kind: JobKind
+    _cost: int = 0
+    _cost_icon: QIcon
+
+    def __init__(self, kind: JobKind, parent: QWidget):
+        super().__init__(parent)
+        self.model = root.active_model
+        self.operation = "Generate"
+        self._kind = kind
+        self._cost_icon = theme.icon("interstice")
+        self.setAttribute(Qt.WidgetAttribute.WA_Hover)
+
+    def minimumSizeHint(self):
+        fm = self.fontMetrics()
+        return QSize(fm.width(self.operation) + 40, 12 + int(1.3 * fm.height()))
+
+    def enterEvent(self, a0: QEvent | None):
+        if client := root.connection.client_if_connected:
+            if client.user:
+                self._cost = self.model.estimate_cost(self._kind)
+
+    def leaveEvent(self, a0: QEvent | None):
+        self._cost = 0
+
+    def paintEvent(self, a0: QPaintEvent | None) -> None:
+        opt = QStyleOption()
+        opt.initFrom(self)
+        painter = QPainter(self)
+        fm = self.fontMetrics()
+        style = ensure(self.style())
+        rect = self.rect()
+        pixmap = self.icon().pixmap(int(fm.height() * 1.3))
+        is_hover = int(opt.state) & QStyle.StateFlag.State_MouseOver
+        element = QStyle.PrimitiveElement.PE_PanelButtonCommand
+        vcenter = Qt.AlignmentFlag.AlignVCenter
+        content_width = fm.width(self.operation) + 5 + pixmap.width()
+        content_rect = rect.adjusted(int(0.5 * (rect.width() - content_width)), 0, 0, 0)
+        style.drawPrimitive(element, opt, painter, self)
+        style.drawItemPixmap(painter, content_rect, vcenter, pixmap)
+        content_rect = content_rect.adjusted(pixmap.width() + 5, 0, 0, 0)
+        style.drawItemText(painter, content_rect, vcenter, self.palette(), True, self.operation)
+
+        if is_hover and self._cost > 0:
+            cost_width = fm.width(str(self._cost))
+            pixmap = self._cost_icon.pixmap(fm.height())
+            cost_rect = rect.adjusted(rect.width() - pixmap.width() - cost_width - 16, 0, 0, 0)
+            painter.setOpacity(0.3)
+            painter.drawLine(
+                cost_rect.left(), cost_rect.top() + 6, cost_rect.left(), cost_rect.bottom() - 6
+            )
+            painter.setOpacity(0.7)
+            cost_rect = cost_rect.adjusted(6, 0, 0, 0)
+            style.drawItemText(painter, cost_rect, vcenter, self.palette(), True, str(self._cost))
+            cost_rect = cost_rect.adjusted(cost_width + 4, 0, 0, 0)
+            style.drawItemPixmap(painter, cost_rect, vcenter, pixmap)
 
 
 def _paint_tool_drop_down(widget: QToolButton, text: str | None = None):

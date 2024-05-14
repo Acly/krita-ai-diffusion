@@ -99,6 +99,10 @@ def batched(iterable, n):
         yield batch
 
 
+def clamp(value: int, min_value: int, max_value: int):
+    return max(min(value, max_value), min_value)
+
+
 def median_or_zero(values: Iterable[float]) -> float:
     try:
         return statistics.median(values)

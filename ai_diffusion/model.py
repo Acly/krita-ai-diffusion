@@ -13,7 +13,7 @@ from .api import TextInput, WorkflowKind, WorkflowInput, InpaintMode, InpaintPar
 from .util import ensure, client_logger as log
 from .settings import settings
 from .network import NetworkError
-from .image import Extent, Image, Mask, Bounds
+from .image import Extent, Image, Mask, Bounds, DummyImage
 from .client import ClientMessage, ClientEvent, filter_supported_styles, resolve_sd_version
 from .document import Document, LayerObserver
 from .pose import Pose
@@ -46,7 +46,7 @@ class Model(QObject, ObservableProperties):
     _layers: LayerObserver
 
     workspace = Property(Workspace.generation, setter="set_workspace", persist=True)
-    style = Property(Styles.list().default, persist=True)
+    style = Property(Styles.list().default, setter="set_style", persist=True)
     prompt = Property("", persist=True)
     negative_prompt = Property("", persist=True)
     control: ControlLayerList
@@ -111,6 +111,16 @@ class Model(QObject, ObservableProperties):
             self.report_error(msg)
             return
 
+        try:
+            input, job_params = self._prepare_workflow()
+        except Exception as e:
+            self.report_error(util.log_error(e))
+            return
+        self.clear_error()
+        jobs = self.enqueue_jobs(input, JobKind.diffusion, job_params, self.batch_count)
+        eventloop.run(_report_errors(self, jobs))
+
+    def _prepare_workflow(self, with_images=True):
         workflow_kind = WorkflowKind.generate if self.strength == 1.0 else WorkflowKind.refine
         client = self._connection.client
         image = None
@@ -122,10 +132,12 @@ class Model(QObject, ObservableProperties):
         bounds = compute_bounds(extent, mask.bounds if mask else None, self.strength)
         bounds = self.inpaint.get_context(self, mask) or bounds
 
-        control = [c.get_image(bounds) for c in self.control]
+        control = []
+        if with_images:
+            control = [c.get_image(bounds) for c in self.control]
 
         if mask is not None or self.strength < 1.0:
-            image = self._get_current_image(bounds)
+            image = self._get_current_image(bounds) if with_images else DummyImage(extent)
 
         if mask is not None:
             if workflow_kind is WorkflowKind.generate:
@@ -143,28 +155,22 @@ class Model(QObject, ObservableProperties):
                 inpaint = workflow.detect_inpaint(
                     inpaint_mode, mask.bounds, sd_version, self.prompt, control, self.strength
                 )
-        try:
-            input = workflow.prepare(
-                workflow_kind,
-                image or extent,
-                TextInput(self.prompt, self.negative_prompt, self.style.style_prompt),
-                self.style,
-                self.seed if self.fixed_seed else workflow.generate_seed(),
-                client.models,
-                client.performance_settings,
-                mask=mask,
-                strength=self.strength,
-                control=control,
-                inpaint=inpaint,
-            )
-        except Exception as e:
-            self.report_error(util.log_error(e))
-            return
-        self.clear_error()
-        enqueue_jobs = self.enqueue_jobs(
-            input, JobKind.diffusion, JobParams(bounds, self.prompt), self.batch_count
+
+        job_params = JobParams(bounds, self.prompt)
+        input = workflow.prepare(
+            workflow_kind,
+            image or extent,
+            TextInput(self.prompt, self.negative_prompt, self.style.style_prompt),
+            self.style,
+            self.seed if self.fixed_seed else workflow.generate_seed(),
+            client.models,
+            client.performance_settings,
+            mask=mask,
+            strength=self.strength,
+            control=control,
+            inpaint=inpaint,
         )
-        eventloop.run(_report_errors(self, enqueue_jobs))
+        return input, job_params
 
     async def enqueue_jobs(
         self, input: WorkflowInput, kind: JobKind, params: JobParams, count: int = 1
@@ -185,35 +191,53 @@ class Model(QObject, ObservableProperties):
         client = self._connection.client
         job.id = await client.enqueue(input, self.queue_front)
 
+    def _prepare_upscale_image(self, with_images=True):
+        extent = self._doc.extent
+        image = self._doc.get_image(Bounds(0, 0, *extent)) if with_images else DummyImage(extent)
+        params = self.upscale.params
+        client = self._connection.client
+        upscaler = params.upscaler or client.models.default_upscaler
+
+        if params.use_diffusion:
+            return workflow.prepare(
+                WorkflowKind.upscale_tiled,
+                image,
+                TextInput("4k uhd"),
+                self.style,
+                params.seed,
+                client.models,
+                client.performance_settings,
+                strength=params.strength,
+                upscale_factor=params.factor,
+                upscale_model=upscaler,
+            )
+        else:
+            return workflow.prepare_upscale_simple(image, upscaler, params.factor)
+
     def upscale_image(self):
         try:
-            params = self.upscale.params
-            image = self._doc.get_image(Bounds(0, 0, *self._doc.extent))
-            client = self._connection.client
-            upscaler = params.upscaler or client.models.default_upscaler
-
-            if params.use_diffusion:
-                inputs = workflow.prepare(
-                    WorkflowKind.upscale_tiled,
-                    image,
-                    TextInput("4k uhd"),
-                    self.style,
-                    params.seed,
-                    client.models,
-                    client.performance_settings,
-                    strength=params.strength,
-                    upscale_factor=params.factor,
-                    upscale_model=upscaler,
-                )
-            else:
-                inputs = workflow.prepare_upscale_simple(image, upscaler, params.factor)
-            job = self.jobs.add_upscale(Bounds(0, 0, *self.upscale.target_extent), params.seed)
+            inputs = self._prepare_upscale_image()
+            seed = inputs.sampling.seed if inputs.sampling else 0
+            job = self.jobs.add_upscale(Bounds(0, 0, *self.upscale.target_extent), seed)
         except Exception as e:
             self.report_error(util.log_error(e))
             return
 
         self.clear_error()
         eventloop.run(_report_errors(self, self._enqueue_job(job, inputs)))
+
+    def estimate_cost(self, kind=JobKind.diffusion):
+        try:
+            if kind is JobKind.diffusion:
+                input, _ = self._prepare_workflow(with_images=False)
+            elif kind is JobKind.upscaling:
+                input = self._prepare_upscale_image(with_images=False)
+            else:
+                return 0
+            return input.cost
+        except Exception as e:
+            util.client_logger.warning(f"Failed to estimate workflow cost: {type(e)} {str(e)}")
+            return 0
 
     def generate_live(self):
         eventloop.run(_report_errors(self, self._generate_live()))
@@ -403,6 +427,16 @@ class Model(QObject, ObservableProperties):
         self._workspace = workspace
         self.workspace_changed.emit(workspace)
         self.modified.emit(self, "workspace")
+
+    def set_style(self, style: Style):
+        if style is not self._style:
+            if client := self._connection.client_if_connected:
+                styles = filter_supported_styles(Styles.list().filtered(), client)
+                if style not in styles:
+                    return
+            self._style = style
+            self.style_changed.emit(style)
+            self.modified.emit(self, "style")
 
     def generate_seed(self):
         self.seed = workflow.generate_seed()

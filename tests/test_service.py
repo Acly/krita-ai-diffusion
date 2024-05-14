@@ -156,6 +156,8 @@ cost_params = {
     "sdxl-2x1024x1024": (SDVersion.sdxl, 2, 1024, 1024, 20),
     "sdxl-highstep": (SDVersion.sdxl, 1, 1536, 1024, 50),
     "sdxl-refine": (SDVersion.sdxl, 1, 1536, 1024, 20),
+    "inpaint-initial": (SDVersion.sdxl, 2, 1024, 1024, 24),
+    "inpaint-crop": (SDVersion.sd15, 2, 512, 512, 24),
 }
 
 
@@ -173,11 +175,15 @@ def test_compute_cost(qtapp, cloud_client: CloudClient, params):
     if params == "sdxl-refine":
         input.kind = WorkflowKind.refine
         ensure(input.sampling).start_step = 16
+    elif params == "inpaint-initial":
+        input.kind = WorkflowKind.inpaint
+        input.crop_upscale_extent = Extent(640, 768)
+    elif params == "inpaint-crop":
+        input.kind = WorkflowKind.inpaint
+        input.crop_upscale_extent = Extent(1024, 768)
 
     async def check():
-        service_cost = await cloud_client.compute_cost(
-            input.kind, sdversion, batch_count, extent, ensure(input.sampling).actual_steps
-        )
+        service_cost = await cloud_client.compute_cost(input)
         assert service_cost == input.cost
 
     qtapp.run(check())

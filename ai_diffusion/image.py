@@ -68,7 +68,7 @@ class Extent(NamedTuple):
         return Extent(qsize.width(), qsize.height())
 
     @staticmethod
-    def largest(a, b):
+    def largest(a: "Extent", b: "Extent"):
         return a if a.width * a.height > b.width * b.height else b
 
     @staticmethod
@@ -289,6 +289,8 @@ class Image:
 
     @staticmethod
     def scale(img: "Image", target: Extent):
+        if isinstance(img, DummyImage):
+            return DummyImage(target)
         mode = Qt.AspectRatioMode.IgnoreAspectRatio
         quality = Qt.TransformationMode.SmoothTransformation
         scaled = img._qimage.scaled(target.width, target.height, mode, quality)
@@ -426,6 +428,28 @@ class Image:
 
     def __eq__(self, other):
         return isinstance(other, Image) and self._qimage == other._qimage
+
+
+class DummyImage(Image):
+    _extent: Extent
+
+    def __init__(self, extent: Extent):
+        super().__init__(QImage())
+        self._extent = extent
+
+    @property
+    def width(self):
+        return self._extent.width
+
+    @property
+    def height(self):
+        return self._extent.height
+
+    def __eq__(self, other):
+        return isinstance(other, DummyImage) and self.extent == other.extent
+
+    def __hash__(self):
+        return hash(self.extent)
 
 
 class ImageCollection:

@@ -15,9 +15,11 @@ from PyQt5.QtWidgets import (
 from ..properties import Binding, bind, bind_combo, Bind
 from ..resources import UpscalerName
 from ..model import Model
+from ..jobs import JobKind
 from ..root import root
 from .theme import SignalBlocker
 from .widget import WorkspaceSelectWidget, StyleSelectWidget, StrengthWidget, QueueButton
+from .widget import GenerateButton
 
 
 class UpscaleWidget(QWidget):
@@ -80,12 +82,12 @@ class UpscaleWidget(QWidget):
         layout.addWidget(self.refinement_checkbox)
         self.factor_input.setMinimumWidth(self.strength_slider._input.width() + 10)
 
-        self.upscale_button = QPushButton("Upscale", self)
-        self.upscale_button.setMinimumHeight(int(self.upscale_button.sizeHint().height() * 1.2))
+        self.upscale_button = GenerateButton(JobKind.upscaling, self)
+        self.upscale_button.operation = "Upscale"
         self.upscale_button.clicked.connect(self.upscale)
 
         self.queue_button = QueueButton(supports_batch=False, parent=self)
-        self.queue_button.setMinimumHeight(self.upscale_button.minimumHeight())
+        self.queue_button.setFixedHeight(self.upscale_button.height() - 2)
 
         actions_layout = QHBoxLayout()
         actions_layout.addWidget(self.upscale_button)
@@ -131,6 +133,7 @@ class UpscaleWidget(QWidget):
                 model.error_changed.connect(self.error_text.setText),
                 model.has_error_changed.connect(self.error_text.setVisible),
             ]
+            self.upscale_button.model = model
             self.queue_button.model = model
             self.update_factor(model.upscale.factor)
             self.update_target_extent()
