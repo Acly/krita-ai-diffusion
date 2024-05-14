@@ -16,6 +16,7 @@ from .network import RequestManager, NetworkError
 from .resources import SDVersion
 from .settings import PerformanceSettings, settings
 from .util import clamp, ensure, client_logger as log
+from . import __version__ as plugin_version
 
 
 @dataclass
@@ -90,7 +91,7 @@ class CloudClient(Client):
             raise ValueError("Authorization missing for cloud endpoint")
         self._token = token
         try:
-            user_data = await self._get("user")
+            user_data = await self._get(f"user?plugin_version={plugin_version}")
         except NetworkError as e:
             log.error(f"Couldn't authenticate user account: {e.message}")
             self._token = ""
