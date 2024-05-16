@@ -360,7 +360,10 @@ def parse_url(url: str):
 
 
 def websocket_url(url_http: str):
-    return url_http.replace("http", "ws", 1)
+    if url_http.startswith("https"):
+        return url_http.replace("https", "ws", 1)
+    else:
+        return url_http.replace("http", "ws", 1)
 
 
 def _find_model(
