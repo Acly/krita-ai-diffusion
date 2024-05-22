@@ -445,7 +445,7 @@ class KritaDocument(Document):
         return False
 
 
-def _traverse_layers(node: krita.Node, type_filter=None):
+def _traverse_layers(node: krita.Node, type_filter: list[str] | None = None):
     for child in node.childNodes():
         yield from _traverse_layers(child, type_filter)
         if not type_filter or child.type() in type_filter:
@@ -564,7 +564,7 @@ class LayerObserver(QObject):
             self._layers = layers
             self.changed.emit()
 
-    def find(self, id: QUuid):
+    def find(self, id: QUuid) -> krita.Node | None:
         if self._doc is None:
             return None
         root = self._doc.rootNode()
