@@ -615,6 +615,9 @@ class LayerObserver(QObject):
     def __getitem__(self, index: int):
         return self._layers[index].node
 
+    def __bool__(self):
+        return self._doc is not None
+
 
 class PoseLayers:
     _layers: dict[str, Pose] = {}
