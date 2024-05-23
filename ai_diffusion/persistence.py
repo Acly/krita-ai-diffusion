@@ -61,7 +61,7 @@ class ModelSync:
         state["upscale"] = _serialize(model.upscale)
         state["live"] = _serialize(model.live)
         state["animation"] = _serialize(model.animation)
-        state["root"] = _serialize(model.regions.root)
+        state["root"] = _serialize(model.regions)
         state["history"] = [asdict(h) for h in self._history]
         state["regions"] = []
         for region in model.regions:
@@ -79,7 +79,7 @@ class ModelSync:
         _deserialize(model.live, state.get("live", {}))
         _deserialize(model.animation, state.get("animation", {}))
 
-        _deserialize(model.regions.root, state.get("root", {}))
+        _deserialize(model.regions, state.get("root", {}))
         for region_state in state.get("regions", []):
             region = model.regions.emplace()
             _deserialize(region, region_state)
