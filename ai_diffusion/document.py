@@ -84,9 +84,7 @@ class Document(QObject):
     def group_layer(self, layer: krita.Node) -> krita.Node:
         raise NotImplementedError
 
-    def create_group_layer(
-        self, name: str, parent: krita.Node | None = None, above: krita.Node | None = None
-    ) -> krita.Node:
+    def create_group_layer(self, name: str, parent: krita.Node | None = None) -> krita.Node:
         raise NotImplementedError
 
     def hide_layer(self, layer: krita.Node):
