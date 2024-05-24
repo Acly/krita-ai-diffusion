@@ -382,6 +382,8 @@ class RootRegion(QObject, ObservableProperties):
         if layer and changed:
             if region := self.find_linked(layer):
                 self.active = region
+            elif self._model.workspace is Workspace.live:
+                self.active = None  # root region
 
     def _add(self, layer_id: krita.Node):
         region = Region(self, self._model)
@@ -687,7 +689,7 @@ class Model(QObject, ObservableProperties):
                 bounds = Bounds.clamp(bounds, extent)
                 mask_image = self._doc.get_layer_mask(region_layer, bounds)
                 mask = Mask(bounds, mask_image._qimage)
-                job_regions.append(JobRegion(str(region_layer.uniqueId()), region.positive))
+                job_regions = [JobRegion(region_layer.uniqueId().toString(), region.positive)]
 
         bounds = Bounds(0, 0, *self._doc.extent)
         if mask is not None:
@@ -830,38 +832,59 @@ class Model(QObject, ObservableProperties):
         if self._layer is not None:
             self._doc.hide_layer(self._layer)
 
-    def apply_result(self, job_id: str, index: int):
-        job = self.jobs.find(job_id)
-        assert job is not None, "Cannot apply result, invalid job id"
-        if len(job.params.regions) == 0:
-            self._doc.insert_layer(
-                f"[Generated] {job.params.prompt}", job.results[index], job.params.bounds
-            )
+    def write_result(self, image: Image, params: JobParams):
+        """Write the generated image to the document, replace original content of the layer."""
+        if len(params.regions) == 0:
+            self._doc.set_layer_content(self._doc.active_layer, image, params.bounds)
         else:
-            img = job.results[index]
-            for region in job.params.regions:
-                region_layer = self.layers.find(QUuid(region.layer_id)) or self.layers.root
+            for job_region in params.regions:
+                if region_layer := self.layers.find(QUuid(job_region.layer_id)):
+                    if region_layer.type() == "grouplayer":
+                        self.create_result_layer(image, params)
+                    else:
+                        self._doc.set_layer_content(region_layer, image, params.bounds)
+
+    def create_result_layer(self, image: Image, params: JobParams, prefix=""):
+        """Insert generated image as a new layer in the document (non-destructive apply)."""
+        name = f"{prefix}{params.prompt} ({params.seed})"
+        if len(params.regions) == 0:
+            self._doc.insert_layer(name, image, params.bounds)
+        else:
+            for job_region in params.regions:
+                region_layer = self.layers.find(QUuid(job_region.layer_id)) or self.layers.root
+
+                # Promote layer to group if needed
+                if region_layer.type() != "grouplayer":
+                    paint_layer = region_layer
+                    region_layer = self._doc.group_layer(paint_layer)
+                    if region := self.regions.find_linked(paint_layer, RegionLink.direct):
+                        region.unlink(paint_layer)
+                        region.link(region_layer)
+
+                # Create transparency mask to correctly blend the generated image
                 has_layers = len(region_layer.childNodes()) > 0
                 has_mask = any(l.parentNode() == region_layer for l in self.layers.masks)
                 if has_layers and not has_mask:
-                    mask = self._doc.get_layer_mask(region_layer, job.params.bounds)
+                    mask = self._doc.get_layer_mask(region_layer, params.bounds)
                     self._doc.insert_mask_layer(
-                        "Transparency Mask", mask, job.params.bounds, region_layer
+                        "Transparency Mask", mask, params.bounds, region_layer
                     )
 
+                # Handle auto-generated background region (not linked to any layers)
                 below = None
-                if region.is_background:
+                if job_region.is_background:
                     for node in region_layer.childNodes():
                         if node.type() == "grouplayer":
                             below = node
                             break
-                self._doc.insert_layer(
-                    f"[Generated] {region.prompt}",
-                    img,
-                    job.params.bounds,
-                    below=below,
-                    parent=region_layer,
-                )
+
+                self._doc.insert_layer(name, image, params.bounds, below=below, parent=region_layer)
+
+    def apply_result(self, job_id: str, index: int):
+        job = self.jobs.find(job_id)
+        assert job is not None, "Cannot apply result, invalid job id"
+
+        self.create_result_layer(job.results[index], job.params, "[Generated] ")
 
         if self._layer:
             self._layer.remove()
@@ -1116,25 +1139,14 @@ class LiveWorkspace(QObject, ObservableProperties):
             # no changes in input data
             await asyncio.sleep(self._poll_rate)
 
-    def copy_result_to_layer(self):
+    def write_result(self):
         assert self.result is not None and self._result_params is not None
-        doc = self._model.document
-        name = f"{self._result_params.prompt} ({self._result_params.seed})"
+        self._model.write_result(self.result, self._result_params)
 
-        below = None
-        parent = None
-        if len(self._result_params.regions) > 0:
-            region = self._result_params.regions[0]
-            region_layer = self._model.layers.find(QUuid(region.layer_id))
-            if region_layer is not None:
-                parent = region_layer
-        elif len(self._model.regions) > 0:
-            for node in self._model.layers.root.childNodes():
-                if node.type() == "grouplayer":
-                    below = node
-                    break
+    def create_result_layer(self):
+        assert self.result is not None and self._result_params is not None
+        self._model.create_result_layer(self.result, self._result_params)
 
-        doc.insert_layer(name, self.result, self._result_params.bounds, below=below, parent=parent)
         if settings.new_seed_after_apply:
             self._model.generate_seed()
 
