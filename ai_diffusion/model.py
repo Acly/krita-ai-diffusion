@@ -42,6 +42,12 @@ class Workspace(Enum):
     animation = 3
 
 
+class RegionLink(Enum):
+    direct = 0  # layer is directly linked to a region
+    indirect = 1  # layer is in a group which is linked to a region
+    any = 3  # either direct or indirect link
+
+
 class Region(QObject, ObservableProperties):
     _parent: "RootRegion"
     _layers: list[QUuid]
@@ -104,13 +110,14 @@ class Region(QObject, ObservableProperties):
         if id in self._layers:
             self._set_layers([l for l in self._layers if l != id])
 
-    def is_directly_linked(self, layer: krita.Node):
-        return _layer_id(layer) in self._layers
-
-    def is_linked(self, layer: krita.Node):
-        target = _region_link_target(layer)
-        if target is layer:
-            return self.is_directly_linked(layer)
+    def is_linked(self, layer: krita.Node, mode=RegionLink.any):
+        target = layer
+        if mode is not RegionLink.direct:
+            target = _region_link_target(layer)
+        if mode is RegionLink.indirect and target is layer:
+            return False
+        if mode is RegionLink.direct or target is layer:
+            return _layer_id(layer) in self._layers
         return self.root.find_linked(target) is self
 
     def link_active(self):
@@ -179,7 +186,7 @@ class RootRegion(QObject, ObservableProperties):
         model.layers.active_changed.connect(self._update_active)
 
     def _find_region(self, layer: krita.Node):
-        return next((r for r in self._regions if r.is_directly_linked(layer)), None)
+        return next((r for r in self._regions if r.is_linked(layer, RegionLink.direct)), None)
 
     def emplace(self):
         region = Region(self, self._model)
@@ -208,12 +215,11 @@ class RootRegion(QObject, ObservableProperties):
     def add_control(self):
         self.active_or_root.control.add()
 
-    def is_linked(self, layer: krita.Node):
-        return any(r.is_linked(layer) for r in self._regions)
+    def is_linked(self, layer: krita.Node, mode=RegionLink.any):
+        return any(r.is_linked(layer, mode) for r in self._regions)
 
-    def find_linked(self, layer: krita.Node):
-        target = _region_link_target(layer)
-        return next((r for r in self._regions if r.is_linked(target)), None)
+    def find_linked(self, layer: krita.Node, mode=RegionLink.any):
+        return next((r for r in self._regions if r.is_linked(layer, mode)), None)
 
     @property
     def can_link_active(self):
@@ -257,7 +263,7 @@ class RootRegion(QObject, ObservableProperties):
         job_info = []
         if parent_layer and parent_region:
             parent_prompt = parent_region.positive
-            job_info = [JobRegion(_layer_id_str(parent_layer), parent_region.positive)]
+            job_info = [JobRegion(_layer_id_str(parent_layer), parent_prompt)]
         result = ConditioningInput(
             positive=workflow.merge_prompt(parent_prompt, self.positive),
             negative=self.negative,
@@ -266,7 +272,8 @@ class RootRegion(QObject, ObservableProperties):
 
         # Check for regions linked to any child layers of the parent layer.
         parent_layer = parent_layer or self._model.layers.root
-        layer_regions = ((l, self.find_linked(l)) for l in parent_layer.childNodes())
+        child_layers = parent_layer.childNodes()
+        layer_regions = ((l, self.find_linked(l, RegionLink.direct)) for l in child_layers)
         layer_regions = [(l, r) for l, r in layer_regions if r is not None]
         if len(layer_regions) == 0:
             return result, job_info
@@ -530,10 +537,11 @@ class Model(QObject, ObservableProperties):
                 if not (self.region_only or region_layer.parentNode() is None):
                     region_layer = region_layer.parentNode()
                 if region_layer.parentNode() is not None:  # not root -> use mask
-                    img_bounds = Bounds(0, 0, *extent)
-                    mask_img = self._doc.get_layer_mask(region_layer, img_bounds)
-                    mask = Mask(img_bounds, mask_img._qimage)
-                    bounds = mask.bounds
+                    bounds = _region_layer_bounds(region_layer)
+                    bounds = Bounds.pad(bounds, settings.selection_padding, multiple=64)
+                    bounds = Bounds.clamp(bounds, extent)
+                    mask_img = self._doc.get_layer_mask(region_layer, bounds)
+                    mask = Mask(bounds, mask_img._qimage)
         else:
             # Selection inpaint
             bounds = compute_bounds(extent, mask.bounds if mask else None, self.strength)

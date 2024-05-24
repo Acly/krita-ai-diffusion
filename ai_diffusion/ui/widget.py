@@ -45,7 +45,7 @@ from ..root import root
 from ..client import filter_supported_styles, resolve_sd_version
 from ..properties import Binding, Bind, bind, bind_combo
 from ..jobs import JobState, JobKind
-from ..model import Model, Workspace, SamplingQuality, Region, RootRegion
+from ..model import Model, Workspace, SamplingQuality, Region, RootRegion, RegionLink
 from ..text import LoraId, edit_attention, select_on_cursor_pos
 from ..util import ensure
 from .control import ControlListWidget
@@ -784,7 +784,7 @@ class ActiveRegionWidget(QFrame):
             )
             active_layer = self.root.active_layer
             link_enabled = False
-            if self._region.is_directly_linked(active_layer):
+            if self._region.is_linked(active_layer, RegionLink.direct):
                 icon = "link-active"
                 desc = "Active layer is linked to this region - click to unlink"
                 link_enabled = True
