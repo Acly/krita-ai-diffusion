@@ -81,7 +81,12 @@ class Document(QObject):
     def set_layer_content(self, layer: krita.Node, img: Image, bounds: Bounds, make_visible=True):
         raise NotImplementedError
 
-    def create_group_layer(self, name: str, parent: krita.Node | None = None) -> krita.Node:
+    def group_layer(self, layer: krita.Node) -> krita.Node:
+        raise NotImplementedError
+
+    def create_group_layer(
+        self, name: str, parent: krita.Node | None = None, above: krita.Node | None = None
+    ) -> krita.Node:
         raise NotImplementedError
 
     def hide_layer(self, layer: krita.Node):
@@ -323,6 +328,14 @@ class KritaDocument(Document):
         if layer.visible():
             self.refresh(layer)
         return layer
+
+    def group_layer(self, layer: krita.Node):
+        group = self._doc.createGroupLayer(f"{layer.name()} Group")
+        parent = layer.parentNode()
+        parent.addChildNode(group, layer)
+        parent.removeChildNode(layer)
+        group.addChildNode(layer, None)
+        return group
 
     def create_group_layer(self, name: str, parent: krita.Node | None = None):
         create_paint_layer = parent is None
