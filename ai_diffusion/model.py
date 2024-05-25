@@ -113,7 +113,7 @@ class Region(QObject, ObservableProperties):
     def is_linked(self, layer: krita.Node, mode=RegionLink.any):
         target = layer
         if mode is not RegionLink.direct:
-            target = _region_link_target(layer)
+            target = Region.link_target(layer)
         if mode is RegionLink.indirect and target is layer:
             return False
         if mode is RegionLink.direct or target is layer:
@@ -151,14 +151,14 @@ class Region(QObject, ObservableProperties):
     def siblings(self):
         return self._parent.find_siblings(self)
 
-
-def _region_link_target(layer: krita.Node):
-    if layer.type() == "grouplayer":
+    @staticmethod
+    def link_target(layer: krita.Node):
+        if layer.type() == "grouplayer":
+            return layer
+        if parent := layer.parentNode():
+            if parent.parentNode() is not None and parent.type() == "grouplayer":
+                return parent
         return layer
-    if parent := layer.parentNode():
-        if parent.parentNode() is not None and parent.type() == "grouplayer":
-            return parent
-    return layer
 
 
 class RootRegion(QObject, ObservableProperties):
@@ -221,13 +221,6 @@ class RootRegion(QObject, ObservableProperties):
     def find_linked(self, layer: krita.Node, mode=RegionLink.any):
         return next((r for r in self._regions if r.is_linked(layer, mode)), None)
 
-    @property
-    def can_link_active(self):
-        return self.can_link(self._model.document.active_layer) if self._active_layer else False
-
-    def can_link(self, layer: krita.Node):
-        return _region_link_target(layer) is layer and not self.is_linked(layer)
-
     def create_region_layer(self):
         self.create_region(group=False)
 
@@ -235,10 +228,16 @@ class RootRegion(QObject, ObservableProperties):
         self.create_region(group=True)
 
     def create_region(self, group=True):
+        """Create a new region. This action depends on context:
+        If the active layer can be linked to a group and isn't the only layer in the document,
+        it will be used as the initial link target for the new group. Otherwise, a new layer
+        is inserted (or a group if group==True) and that will be linked instead.
+        """
         doc = self._model.document
         layers = self._model.layers
-        target = _region_link_target(doc.active_layer)
-        if not self.is_linked(target) and len(layers.images) > 1:
+        target = Region.link_target(doc.active_layer)
+        can_link = target.type() in ["paintlayer", "grouplayer"] and not self.is_linked(target)
+        if can_link and len(layers.images) > 1:
             layer = target
         elif group:
             layer = doc.create_group_layer(f"Region {len(self)}")
@@ -361,7 +360,7 @@ class RootRegion(QObject, ObservableProperties):
         if self._model.layers:
             layer = self._model.layers.root
             if active_layer := self._get_active_layer()[0]:
-                active_layer = _region_link_target(active_layer)
+                active_layer = Region.link_target(active_layer)
                 if self.is_linked(active_layer):
                     layer = active_layer.parentNode()
             return [], self._get_regions(layer.childNodes())
@@ -521,7 +520,7 @@ class Model(QObject, ObservableProperties):
         bounds = Bounds(0, 0, *extent)
         if mask is None:
             # Check for region inpaint
-            target = _region_link_target(self._doc.active_layer)
+            target = Region.link_target(self._doc.active_layer)
             if self.regions.is_linked(target):
                 region_layer = target
             if region_layer:
