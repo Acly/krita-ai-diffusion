@@ -788,20 +788,22 @@ class ActiveRegionWidget(QFrame):
                 icon = "link-active"
                 desc = "Active layer is linked to this region - click to unlink"
                 link_enabled = True
-            elif self._region.is_linked(active_layer):
+            elif self.root.is_linked(active_layer, RegionLink.indirect):
                 icon = "link"
                 desc = "Active layer is linked to this region via a group layer"
-            elif self.root.is_linked(active_layer):
+            elif active_layer.type() not in ["paintlayer", "grouplayer"]:
+                icon = "link-disabled"
+                desc = "Only paint layers and groups and be linked to regions"
+            elif self.root.is_linked(active_layer, RegionLink.direct):
                 icon = "link-disabled"
                 desc = "Active layer is already linked to another region"
+            elif Region.link_target(active_layer) is not active_layer:
+                icon = "link-disabled"
+                desc = "Active layer is part of a group - select the group layer to link it"
             else:
-                if self.root.can_link(active_layer):
-                    icon = "link-off"
-                    desc = "Active layer is not linked - click to link it to this region"
-                    link_enabled = True
-                else:
-                    icon = "link-disabled"
-                    desc = "Active layer is part of a group - select the group layer to link it"
+                icon = "link-off"
+                desc = "Active layer is not linked - click to link it to this region"
+                link_enabled = True
             self._link_button.setIcon(theme.icon(icon))
             self._link_button.setEnabled(link_enabled)
             self._link_button.setToolTip(desc)
