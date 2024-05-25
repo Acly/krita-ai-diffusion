@@ -1,5 +1,6 @@
 from __future__ import annotations
 from contextlib import nullcontext
+from enum import Enum
 from pathlib import Path
 from typing import Literal, NamedTuple, cast
 from weakref import WeakValueDictionary
@@ -10,6 +11,7 @@ from PyQt5.QtGui import QImage
 
 from .image import Extent, Bounds, Mask, Image
 from .pose import Pose
+from .util import ensure
 from . import eventloop
 
 
@@ -19,8 +21,11 @@ class Document(QObject):
     selection_bounds_changed = pyqtSignal()
     current_time_changed = pyqtSignal()
 
+    _layers: LayerObserver
+
     def __init__(self):
         super().__init__()
+        self._layers = LayerObserver(None)
 
     @property
     def extent(self):
@@ -45,52 +50,9 @@ class Document(QObject):
     ) -> Mask | None:
         raise NotImplementedError
 
-    def get_mask_bounds(self, layer: krita.Node) -> Bounds:
-        raise NotImplementedError
-
     def get_image(
-        self, bounds: Bounds | None = None, exclude_layers: list[krita.Node] | None = None
+        self, bounds: Bounds | None = None, exclude_layers: list[Layer] | None = None
     ) -> Image:
-        raise NotImplementedError
-
-    def get_layer_image(self, layer: krita.Node, bounds: Bounds | None) -> Image:
-        raise NotImplementedError
-
-    def get_layer_mask(self, layer: krita.Node, bounds: Bounds | None) -> Image:
-        raise NotImplementedError
-
-    def insert_layer(
-        self,
-        name: str,
-        img: Image | None = None,
-        bounds: Bounds | None = None,
-        make_active=True,
-        below: krita.Node | None = None,
-        parent: krita.Node | None = None,
-    ) -> krita.Node:
-        raise NotImplementedError
-
-    def insert_vector_layer(self, name: str, svg: str) -> krita.Node:
-        raise NotImplementedError
-
-    def insert_mask_layer(
-        self, name: str, img: Image, bounds: Bounds, parent: krita.Node
-    ) -> krita.Node:
-        raise NotImplementedError
-
-    def set_layer_content(self, layer: krita.Node, img: Image, bounds: Bounds, make_visible=True):
-        raise NotImplementedError
-
-    def group_layer(self, layer: krita.Node) -> krita.Node:
-        raise NotImplementedError
-
-    def create_group_layer(self, name: str, parent: krita.Node | None = None) -> krita.Node:
-        raise NotImplementedError
-
-    def hide_layer(self, layer: krita.Node):
-        raise NotImplementedError
-
-    def move_to_top(self, layer: krita.Node):
         raise NotImplementedError
 
     def resize(self, extent: Extent):
@@ -105,22 +67,15 @@ class Document(QObject):
     def remove_annotation(self, key: str):
         pass
 
-    def add_pose_character(self, layer: krita.Node):
+    def add_pose_character(self, layer: Layer):
         raise NotImplementedError
-
-    def create_layer_observer(self) -> LayerObserver:
-        return LayerObserver(None)
 
     def import_animation(self, files: list[Path], offset: int = 0):
         raise NotImplementedError
 
     @property
-    def active_layer(self) -> krita.Node:
-        raise NotImplementedError
-
-    @active_layer.setter
-    def active_layer(self, layer: krita.Node):
-        pass
+    def layers(self) -> LayerObserver:
+        return self._layers
 
     @property
     def selection_bounds(self) -> Bounds | None:
@@ -153,6 +108,7 @@ class KritaDocument(Document):
 
     _doc: krita.Document
     _id: QUuid
+    _layers: LayerObserver
     _poller: QTimer
     _selection_bounds: Bounds | None = None
     _current_time: int = 0
@@ -167,6 +123,7 @@ class KritaDocument(Document):
         self._poller.timeout.connect(self._poll)
         self._poller.start()
         self._instances[self._id.toString()] = self
+        self._layers = LayerObserver(krita_document)
 
     @classmethod
     def active(cls):
@@ -182,6 +139,10 @@ class KritaDocument(Document):
     @property
     def filename(self):
         return self._doc.fileName()
+
+    @property
+    def layers(self):
+        return self._layers
 
     def check_color_mode(self):
         model = self._doc.colorModel()
@@ -235,22 +196,11 @@ class KritaDocument(Document):
         data = selection.pixelData(*bounds)
         return Mask(bounds, data)
 
-    def get_mask_bounds(self, layer: krita.Node):
-        assert layer.type() in ["transparencymask", "selectionmask"]
-        b = layer.bounds()  # Unfortunately layer.bounds() returns the whole image
-        # Use a selection to get just the bounds that contain pixels > 0
-        s = krita.Selection()
-        data = layer.pixelData(b.x(), b.y(), b.width(), b.height())
-        s.setPixelData(data, b.x(), b.y(), b.width(), b.height())
-        return Bounds(s.x(), s.y(), s.width(), s.height())
-
-    def get_image(
-        self, bounds: Bounds | None = None, exclude_layers: list[krita.Node] | None = None
-    ):
-        excluded: list[krita.Node] = []
+    def get_image(self, bounds: Bounds | None = None, exclude_layers: list[Layer] | None = None):
+        excluded: list[Layer] = []
         if exclude_layers:
-            for layer in filter(lambda l: l.visible(), exclude_layers):
-                layer.setVisible(False)
+            for layer in filter(lambda l: l.is_visible, exclude_layers):
+                layer.hide()
                 excluded.append(layer)
         if len(excluded) > 0:
             self._doc.refreshProjection()
@@ -259,116 +209,10 @@ class KritaDocument(Document):
         img = QImage(self._doc.pixelData(*bounds), *bounds.extent, QImage.Format.Format_ARGB32)
 
         for layer in excluded:
-            layer.setVisible(True)
+            layer.show()
         if len(excluded) > 0:
             self._doc.refreshProjection()
         return Image(img)
-
-    def get_layer_image(self, layer: krita.Node, bounds: Bounds | None):
-        bounds = bounds or Bounds.from_qrect(layer.bounds())
-        data: QByteArray = layer.projectionPixelData(*bounds)
-        assert data is not None and data.size() >= bounds.extent.pixel_count * 4
-        return Image(QImage(data, *bounds.extent, QImage.Format.Format_ARGB32))
-
-    def get_layer_mask(self, layer: krita.Node, bounds: Bounds | None):
-        bounds = bounds or Bounds.from_qrect(layer.bounds())
-        if layer.type() in ["transparencymask", "selectionmask"]:
-            data: QByteArray = layer.pixelData(*bounds)
-            assert data is not None and data.size() >= bounds.extent.pixel_count
-            return Image(QImage(data, *bounds.extent, QImage.Format.Format_Grayscale8))
-        else:
-            img = self.get_layer_image(layer, bounds)
-            alpha = img._qimage.convertToFormat(QImage.Format.Format_Alpha8)
-            alpha.reinterpretAsFormat(QImage.Format.Format_Grayscale8)
-            return Image(alpha)
-
-    def insert_layer(
-        self,
-        name: str,
-        img: Image | None = None,
-        bounds: Bounds | None = None,
-        make_active=True,
-        below: krita.Node | None = None,
-        parent: krita.Node | None = None,
-    ):
-        parent = parent or self._doc.rootNode()
-        with RestoreActiveLayer(self) if not make_active else nullcontext():
-            layer = self._doc.createNode(name, "paintlayer")
-            parent.addChildNode(layer, _find_layer_above(self._doc, below))
-            if img and bounds:
-                layer.setPixelData(img.data, *bounds)
-                self.refresh(layer)
-            return layer
-
-    def insert_vector_layer(self, name: str, svg: str):
-        layer = self._doc.createVectorLayer(name)
-        self._doc.rootNode().addChildNode(layer, None)
-        layer.addShapesFromSvg(svg)
-        self.refresh(layer)
-        return layer
-
-    def insert_mask_layer(self, name: str, img: Image, bounds: Bounds, parent: krita.Node):
-        assert img.is_mask
-        layer = self._doc.createTransparencyMask(name)
-        parent.addChildNode(layer, None)
-        layer.setPixelData(img.data, *bounds)
-        return layer
-
-    def set_layer_content(self, layer: krita.Node, img: Image, bounds: Bounds, make_visible=True):
-        layer_bounds = Bounds.from_qrect(layer.bounds())
-        if layer_bounds != bounds and not layer_bounds.is_zero:
-            # layer.cropNode(*bounds)  <- more efficient, but clutters the undo stack
-            blank = Image.create(layer_bounds.extent, fill=0)
-            layer.setPixelData(blank.data, *layer_bounds)
-        layer.setPixelData(img.data, *bounds)
-        if make_visible:
-            layer.setVisible(True)
-        if layer.visible():
-            self.refresh(layer)
-        return layer
-
-    def group_layer(self, layer: krita.Node):
-        group = self._doc.createGroupLayer(f"{layer.name()} Group")
-        parent = layer.parentNode()
-        parent.addChildNode(group, layer)
-        parent.removeChildNode(layer)
-        group.addChildNode(layer, None)
-        return group
-
-    def create_group_layer(self, name: str, parent: krita.Node | None = None):
-        create_paint_layer = parent is None
-        group = self._doc.createGroupLayer(name)
-        if parent is None:
-            active = self._doc.activeNode()
-            parent = active.parentNode()
-            if active.type() != "grouplayer" and parent.parentNode() is not None:
-                active = parent
-                parent = parent.parentNode()
-        else:
-            children = parent.childNodes()
-            active = None if not children else children[0]
-            for child in children:
-                if child.type() == "grouplayer":
-                    break
-                active = child
-        parent.addChildNode(group, active)
-        if create_paint_layer:
-            paint = self._doc.createNode("Paint Layer", "paintlayer")
-            group.addChildNode(paint, None)
-        return group
-
-    def hide_layer(self, layer: krita.Node):
-        layer.setVisible(False)
-        self.refresh(layer)
-        return layer
-
-    def move_to_top(self, layer: krita.Node):
-        parent = layer.parentNode()
-        if parent.childNodes()[-1] == layer:
-            return  # already top-most layer
-        with RestoreActiveLayer(self):
-            parent.removeChildNode(layer)
-            parent.addChildNode(layer, None)
 
     def resize(self, extent: Extent):
         res = self._doc.resolution()
@@ -384,30 +228,15 @@ class KritaDocument(Document):
     def remove_annotation(self, key: str):
         self._doc.removeAnnotation(f"ai_diffusion/{key}")
 
-    def add_pose_character(self, layer: krita.Node):
-        assert layer.type() == "vectorlayer"
-        _pose_layers.add_character(cast(krita.VectorLayer, layer))
-
-    def create_layer_observer(self):
-        return LayerObserver(self._doc)
+    def add_pose_character(self, layer: Layer):
+        assert layer.type is LayerType.vector
+        _pose_layers.add_character(cast(krita.VectorLayer, layer.node))
 
     def import_animation(self, files: list[Path], offset: int = 0):
         success = self._doc.importAnimation([str(f) for f in files], offset, 1)
         if not success and len(files) > 0:
             folder = files[0].parent
             raise RuntimeError(f"Failed to import animation from {folder}")
-
-    def refresh(self, layer: krita.Node):
-        # Hacky way of refreshing the projection of a layer, avoids a full document refresh
-        layer.setBlendingMode(layer.blendingMode())
-
-    @property
-    def active_layer(self):
-        return self._doc.activeNode()
-
-    @active_layer.setter
-    def active_layer(self, layer: krita.Node):
-        self._doc.setActiveNode(layer)
 
     @property
     def selection_bounds(self):
@@ -463,16 +292,6 @@ def _traverse_layers(node: krita.Node, type_filter: list[str] | None = None):
             yield child
 
 
-def _find_layer_above(doc: krita.Document, layer_below: krita.Node | None):
-    if layer_below:
-        nodes = layer_below.parentNode().childNodes()
-        index = nodes.index(layer_below)
-        if index >= 1:
-            return nodes[index - 1]
-        return layer_below
-    return None
-
-
 def _selection_bounds(selection: krita.Selection):
     return Bounds(selection.x(), selection.y(), selection.width(), selection.height())
 
@@ -489,13 +308,13 @@ def _selection_is_entire_document(selection: krita.Selection, extent: Extent):
 
 
 class RestoreActiveLayer:
-    layer: krita.Node | None = None
+    layer: Layer | None = None
 
-    def __init__(self, document: Document):
-        self.document = document
+    def __init__(self, layers: LayerObserver):
+        self._observer = layers
 
     def __enter__(self):
-        self.layer = self.document.active_layer
+        self.layer = self._observer.active
 
     def __exit__(self, exc_type, exc_value, traceback):
         # Some operations like inserting a new layer change the active layer as a side effect.
@@ -504,12 +323,228 @@ class RestoreActiveLayer:
 
     async def _restore(self):
         if self.layer:
-            if self.layer == self.document.active_layer:
+            if self.layer.is_active:
                 # Maybe whatever event we expected to change the active layer hasn't happened yet.
                 await eventloop.wait_until(
-                    lambda: self.document.active_layer != self.layer, no_error=True
+                    lambda: self.layer is not None and not self.layer.is_active, no_error=True
                 )
-            self.document.active_layer = self.layer
+            self._observer.active = self.layer
+
+
+class LayerType(Enum):
+    paint = "paintlayer"
+    vector = "vectorlayer"
+    group = "grouplayer"
+    file = "filelayer"
+    clone = "clonelayer"
+    filter = "filterlayer"
+    transparency = "transparencymask"
+    selection = "selectionmask"
+
+    @property
+    def is_image(self):
+        return not self.is_mask
+
+    @property
+    def is_mask(self):
+        return self in [LayerType.transparency, LayerType.selection]
+
+
+class Layer(QObject):
+    """Wrapper around a Krita Node. Provides convenience methods and polling-based events."""
+
+    _observer: LayerObserver
+    _node: krita.Node
+    _name: str
+
+    renamed = pyqtSignal(str)
+    removed = pyqtSignal()
+
+    def __init__(self, observer: LayerObserver, node: krita.Node):
+        super().__init__()
+        self._observer = observer
+        self._node = node
+        self._name = node.name()
+
+    @property
+    def id(self):
+        return self._node.uniqueId()
+
+    @property
+    def id_string(self):
+        return self._node.uniqueId().toString()
+
+    @property
+    def name(self):
+        return self._name
+
+    @name.setter
+    def name(self, value):
+        if self._name == value:
+            return
+        self._name = value
+        self._node.setName(value)
+        self.renamed.emit(value)
+
+    @property
+    def type(self):
+        return LayerType(self._node.type())
+
+    @property
+    def was_removed(self):
+        return self._observer.updated().find(self.id) is None
+
+    @property
+    def is_visible(self):
+        return self._node.visible()
+
+    @is_visible.setter
+    def is_visible(self, value):
+        self._node.setVisible(value)
+
+    def hide(self):
+        self._node.setVisible(False)
+
+    def show(self):
+        self._node.setVisible(True)
+
+    @property
+    def is_active(self):
+        return self is self._observer.active
+
+    @property
+    def is_locked(self):
+        return self._node.locked()
+
+    @is_locked.setter
+    def is_locked(self, value):
+        self._node.setLocked(value)
+
+    @property
+    def bounds(self):
+        return Bounds.from_qrect(self._node.bounds())
+
+    @property
+    def parent_layer(self):
+        if parent := self._node.parentNode():
+            return self._observer.wrap(parent)
+        return None
+
+    @property
+    def child_layers(self):
+        return [self._observer.wrap(child) for child in self._node.childNodes()]
+
+    @property
+    def is_root(self):
+        return self._node.parentNode() is None
+
+    def get_pixels(self, bounds: Bounds | None = None, time: int | None = None):
+        bounds = bounds or self.bounds
+        if time is None:
+            data: QByteArray = self._node.projectionPixelData(*bounds)
+        else:
+            data: QByteArray = self._node.pixelDataAtTime(time, *bounds)
+        assert data is not None and data.size() >= bounds.extent.pixel_count * 4
+        return Image(QImage(data, *bounds.extent, QImage.Format.Format_ARGB32))
+
+    def write_pixels(self, img: Image, bounds: Bounds | None = None, make_visible=True):
+        layer_bounds = self.bounds
+        bounds = bounds or layer_bounds
+        if layer_bounds != bounds and not layer_bounds.is_zero:
+            # layer.cropNode(*bounds)  <- more efficient, but clutters the undo stack
+            blank = Image.create(layer_bounds.extent, fill=0)
+            self._node.setPixelData(blank.data, *layer_bounds)
+        self._node.setPixelData(img.data, *bounds)
+        if make_visible:
+            self.show()
+        if self.is_visible:
+            self.refresh()
+
+    def get_mask(self, bounds: Bounds | None):
+        bounds = bounds or self.bounds
+        if self.type.is_mask:
+            data: QByteArray = self._node.pixelData(*bounds)
+            assert data is not None and data.size() >= bounds.extent.pixel_count
+            return Image(QImage(data, *bounds.extent, QImage.Format.Format_Grayscale8))
+        else:
+            img = self.get_pixels(bounds)
+            alpha = img._qimage.convertToFormat(QImage.Format.Format_Alpha8)
+            alpha.reinterpretAsFormat(QImage.Format.Format_Grayscale8)
+            return Image(alpha)
+
+    def move_to_top(self):
+        parent = self._node.parentNode()
+        if parent.childNodes()[-1] == self._node:
+            return  # already top-most layer
+        with RestoreActiveLayer(self._observer):
+            parent.removeChildNode(self.node)
+            parent.addChildNode(self.node, None)
+
+    def refresh(self):
+        # Hacky way of refreshing the projection of a layer, avoids a full document refresh
+        self._node.setBlendingMode(self._node.blendingMode())
+
+    def thumbnail(self, size: Extent):
+        return self.node.thumbnail(*size)
+
+    def remove(self):
+        self._node.remove()
+        self._observer.update()
+
+    def compute_bounds(self):
+        bounds = self.bounds
+        if self.type.is_mask:
+            # Unfortunately node.bounds() returns the whole image
+            # Use a selection to get just the bounds that contain pixels > 0
+            s = krita.Selection()
+            data = self.node.pixelData(*bounds)
+            s.setPixelData(data, *bounds)
+            return Bounds(s.x(), s.y(), s.width(), s.height())
+        elif self.type is LayerType.group:
+            for child in self.child_layers:
+                if child.type is LayerType.transparency:
+                    bounds = child.compute_bounds()
+        return bounds
+
+    @property
+    def siblings(self):
+        below: list[Layer] = []
+        above: list[Layer] = []
+        parent = self.parent_layer
+
+        if parent is None:
+            return below, above
+
+        current = below
+        for l in parent.child_layers:
+            if l == self:
+                current = above
+            else:
+                current.append(l)
+        return below, above
+
+    @property
+    def sibling_above(self):
+        nodes = ensure(self.parent_layer).child_layers
+        index = nodes.index(self)
+        if index >= 1:
+            return nodes[index - 1]
+        return self
+
+    @property
+    def is_animated(self):
+        return self._node.animated()
+
+    @property
+    def node(self):
+        return self._node
+
+    def __eq__(self, other):
+        if self is other:
+            return True
+        if isinstance(other, Layer):
+            return self.id == other.id
+        return False
 
 
 class LayerObserver(QObject):
@@ -517,41 +552,32 @@ class LayerObserver(QObject):
     Python events for these kinds of changes, so we have to poll and compare.
     """
 
-    class Desc(NamedTuple):
-        id: QUuid
-        name: str
-        node: krita.Node
-
-    image_layer_types = [
-        "paintlayer",
-        "vectorlayer",
-        "grouplayer",
-        "filelayer",
-        "clonelayer",
-        "filterlayer",
-    ]
-
-    mask_layer_types = ["transparencymask", "selectionmask"]
-
     changed = pyqtSignal()
     active_changed = pyqtSignal()
 
     _doc: krita.Document | None
-    _layers: list[Desc]
-    _active: QUuid | None
+    _root: Layer | None
+    _layers: dict[QUuid, Layer]
+    _active: QUuid
     _timer: QTimer
 
     def __init__(self, doc: krita.Document | None):
         super().__init__()
         self._doc = doc
-        self._layers = []
+        self._layers = {}
         if doc is not None:
+            root = doc.rootNode()
+            self._root = Layer(self, root)
+            self._layers = {self._root.id: self._root}
             self._active = doc.activeNode().uniqueId()
             self.update()
             self._timer = QTimer()
             self._timer.setInterval(500)
             self._timer.timeout.connect(self.update)
             self._timer.start()
+        else:
+            self._root = None
+            self._active = QUuid()
 
     def update(self):
         if self._doc is None:
@@ -568,63 +594,137 @@ class LayerObserver(QObject):
             self._active = active.uniqueId()
             self.active_changed.emit()
 
-        layers = [self.Desc(l.uniqueId(), l.name(), l) for l in _traverse_layers(root_node)]
-        if len(layers) != len(self._layers) or any(
-            a.id != b.id or a.name != b.name for a, b in zip(layers, self._layers)
-        ):
-            self._layers = layers
+        removals = set(self._layers.keys())
+        changes = False
+        for n in _traverse_layers(root_node):
+            id = n.uniqueId()
+            if id in self._layers:
+                removals.remove(id)
+                layer = self._layers[id]
+                if layer.name != n.name():
+                    layer.name = n.name()
+                    changes = True
+            else:
+                self._layers[id] = Layer(self, n)
+                changes = True
+
+        removals.remove(self.root.id)
+        for id in removals:
+            self._layers[id].removed.emit()
+            del self._layers[id]
+
+        if removals or changes:
             self.changed.emit()
 
-    def find(self, id: QUuid) -> krita.Node | None:
+    def wrap(self, node: krita.Node) -> Layer:
+        layer = self.find(node.uniqueId())
+        if layer is None:
+            layer = self.updated()._layers[node.uniqueId()]
+        return layer
+
+    def find(self, id: QUuid) -> Layer | None:
         if self._doc is None:
             return None
-        root = self._doc.rootNode()
-        if root.uniqueId() == id:
-            return root
-        return next((l for l in _traverse_layers(root) if l.uniqueId() == id), None)
+        return self._layers.get(id)
 
     def updated(self):
         self.update()
         return self
 
-    def siblings(self, node: krita.Node | None, filter_type: str | None = None):
-        below: list[krita.Node] = []
-        above: list[krita.Node] = []
-        if self._doc is None:
-            return below, above
-
-        if node is not None:
-            parent = node.parentNode()
-            current = below
-        else:
-            parent = self._doc.rootNode()
-            current = above
-        for l in self._layers:
-            if l.node.parentNode() == parent and (not filter_type or l.node.type() == filter_type):
-                if l.node == node:
-                    current = above
-                else:
-                    current.append(l.node)
-        return below, above
-
     @property
     def root(self):
+        assert self._root is not None
+        return self._root
+
+    @property
+    def active(self):
         assert self._doc is not None
-        return self._doc.rootNode()
+        layer = self.find(self._doc.activeNode().uniqueId())
+        if layer is None:
+            layer = self.updated()._layers[self._active]
+        return layer
+
+    @active.setter
+    def active(self, layer: Layer):
+        if self._doc is not None:
+            self._doc.setActiveNode(layer.node)
+            self.update()
+
+    def create(
+        self,
+        name: str,
+        img: Image | None = None,
+        bounds: Bounds | None = None,
+        make_active=True,
+        parent: Layer | None = None,
+        above: Layer | None = None,
+    ):
+        doc = ensure(self._doc)
+        node = doc.createNode(name, "paintlayer")
+        layer = self._insert(node, parent, above, make_active)
+        if img and bounds:
+            layer.node.setPixelData(img.data, *bounds)
+            layer.refresh()
+        return layer
+
+    def _insert(
+        self,
+        node: krita.Node,
+        parent: Layer | None = None,
+        above: Layer | None = None,
+        make_active=True,
+    ):
+        if above is not None:
+            parent = parent or above.parent_layer
+        parent = parent or self.root
+        with RestoreActiveLayer(self) if not make_active else nullcontext():
+            parent.node.addChildNode(node, above.node if above else None)
+            return self.updated().wrap(node)
+
+    def create_vector(self, name: str, svg: str):
+        doc = ensure(self._doc)
+        node = doc.createVectorLayer(name)
+        doc.rootNode().addChildNode(node, None)
+        node.addShapesFromSvg(svg)
+        layer = self.updated().wrap(node)
+        layer.refresh()
+        return layer
+
+    def create_mask(self, name: str, img: Image, bounds: Bounds, parent: Layer | None = None):
+        assert img.is_mask
+        doc = ensure(self._doc)
+        node = doc.createTransparencyMask(name)
+        node.setPixelData(img.data, *bounds)
+        return self._insert(node, parent=parent)
+
+    def create_group(self, name: str, above: Layer | None = None):
+        doc = ensure(self._doc)
+        node = doc.createGroupLayer(name)
+        return self._insert(node, above)
+
+    def create_group_for(self, layer: Layer):
+        doc = ensure(self._doc)
+        group = self.wrap(doc.createGroupLayer(f"{layer.name} Group"))
+        parent = ensure(layer.parent_layer, "Cannot group root layer")
+        parent.node.addChildNode(group.node, layer.node)
+        parent.node.removeChildNode(layer.node)
+        group.node.addChildNode(layer.node, None)
+        return group
+
+    _image_types = [t.value for t in LayerType if t.is_image]
+    _mask_types = [t.value for t in LayerType if t.is_mask]
 
     @property
     def images(self):
-        return [l.node for l in self._layers if l.node.type() in self.image_layer_types]
+        if self._doc is None:
+            return []
+        return [self.wrap(n) for n in _traverse_layers(self._doc.rootNode(), self._image_types)]
 
     @property
     def masks(self):
-        return [l.node for l in self._layers if l.node.type() in self.mask_layer_types]
-
-    def __iter__(self):
-        return (l.node for l in self._layers)
-
-    def __getitem__(self, index: int):
-        return self._layers[index].node
+        if self._doc is None:
+            return []
+        return [self.wrap(n) for n in _traverse_layers(self._doc.rootNode(), self._mask_types)]
 
     def __bool__(self):
         return self._doc is not None
@@ -643,11 +743,11 @@ class PoseLayers:
         doc = KritaDocument.active()
         if not doc:
             return
-        layer = doc.active_layer
-        if not layer or layer.type() != "vectorlayer":
+        layer = doc.layers.active
+        if not layer or layer.type is not LayerType.vector:
             return
 
-        layer = cast(krita.VectorLayer, layer)
+        layer = cast(krita.VectorLayer, layer.node)
         pose = self._layers.setdefault(layer.uniqueId(), Pose(doc.extent))
         self._update(layer, layer.shapes(), pose, doc.resolution)
 

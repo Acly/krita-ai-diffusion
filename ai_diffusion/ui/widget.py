@@ -43,8 +43,10 @@ from PyQt5.QtCore import QObject, QEvent, Qt, QMetaObject, QSize, QStringListMod
 from ..style import Style, Styles
 from ..root import root
 from ..client import filter_supported_styles, resolve_sd_version
+from ..image import Extent
 from ..properties import Binding, Bind, bind, bind_combo
 from ..jobs import JobState, JobKind
+from ..document import LayerType
 from ..model import Model, Workspace, SamplingQuality, Region, RootRegion, RegionLink
 from ..text import LoraId, edit_attention, select_on_cursor_pos
 from ..util import ensure
@@ -607,7 +609,7 @@ class RegionThumbnailWidget(QLabel):
         icon_size = int(self._scale * self.fontMetrics().height())
         if isinstance(region, Region):
             if layer := region.first_layer:
-                icon_image = QPixmap.fromImage(layer.thumbnail(icon_size, icon_size))
+                icon_image = QPixmap.fromImage(layer.thumbnail(Extent(icon_size, icon_size)))
             else:
                 icon_image = theme.icon("region-prompt").pixmap(icon_size, icon_size)
         else:
@@ -782,7 +784,7 @@ class ActiveRegionWidget(QFrame):
             theme.set_text_clipped(
                 self._header_label, f"{self._region.name} - Regional text prompt"
             )
-            active_layer = self.root.active_layer
+            active_layer = self.root.layers.active
             link_enabled = False
             if self._region.is_linked(active_layer, RegionLink.direct):
                 icon = "link-active"
@@ -791,7 +793,7 @@ class ActiveRegionWidget(QFrame):
             elif self.root.is_linked(active_layer, RegionLink.indirect):
                 icon = "link"
                 desc = "Active layer is linked to this region via a group layer"
-            elif active_layer.type() not in ["paintlayer", "grouplayer"]:
+            elif active_layer.type not in [LayerType.paint, LayerType.group]:
                 icon = "link-disabled"
                 desc = "Only paint layers and groups and be linked to regions"
             elif self.root.is_linked(active_layer, RegionLink.direct):
