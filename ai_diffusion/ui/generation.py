@@ -450,7 +450,7 @@ class CustomInpaintWidget(QWidget):
                 self.context_combo.removeItem(self.context_combo.count() - 1)
             icon = theme.icon("context-layer")
             for layer in self._model.layers.masks:
-                self.context_combo.addItem(icon, f"{layer.name()}", layer.uniqueId())
+                self.context_combo.addItem(icon, f"{layer.name}", layer.id)
         current_index = self.context_combo.findData(current)
         if current_index >= 0:
             self.context_combo.setCurrentIndex(current_index)
