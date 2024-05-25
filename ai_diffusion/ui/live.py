@@ -64,6 +64,7 @@ class LiveWidget(QWidget):
         self.apply_button.setAutoRaise(True)
         self.apply_button.setEnabled(False)
         self.apply_button.setToolTip("Copy the current result to the image as a new layer")
+        self.apply_button.clicked.connect(self.apply_result)
 
         self.style_select = StyleSelectWidget(self)
 
@@ -108,7 +109,7 @@ class LiveWidget(QWidget):
         prompt_buttons_layout.addWidget(self.add_region_button)
         prompt_buttons_layout.addWidget(self.add_control_button)
 
-        self.prompt_widget = ActiveRegionWidget(self._model.regions.active, self, max_lines=2)
+        self.prompt_widget = ActiveRegionWidget(self._model.regions, self, max_lines=2)
         self.prompt_widget.has_header = False
 
         cond_layout = QHBoxLayout()
@@ -164,8 +165,7 @@ class LiveWidget(QWidget):
                 model.live.is_active_changed.connect(self.update_is_active),
                 model.live.is_recording_changed.connect(self.update_is_recording),
                 model.live.has_result_changed.connect(self.apply_button.setEnabled),
-                self.apply_button.clicked.connect(model.live.copy_result_to_layer),
-                self.add_region_button.clicked.connect(model.regions.create_region),
+                self.add_region_button.clicked.connect(model.regions.create_region_layer),
                 self.add_control_button.clicked.connect(model.regions.add_control),
                 self.random_seed_button.clicked.connect(model.generate_seed),
                 model.error_changed.connect(self.error_text.setText),
@@ -174,6 +174,7 @@ class LiveWidget(QWidget):
                 model.live.result_available.connect(self.show_result),
                 model.regions.active_changed.connect(self.update_region),
             ]
+            self.update_region()
             self.update_is_active()
             self.update_is_recording()
             self.preview_area.clear()
@@ -190,8 +191,8 @@ class LiveWidget(QWidget):
         )
 
     def update_region(self):
-        self.prompt_widget.region = self.model.regions.active
-        self.control_list.model = self.model.regions.active.control
+        self.prompt_widget.region = self.model.regions.active_or_root
+        self.control_list.model = self.model.regions.active_or_root.control
 
     def update_is_recording(self):
         self.record_button.setIcon(
@@ -213,3 +214,7 @@ class LiveWidget(QWidget):
         img = Image.scale_to_fit(image, target)
         self.preview_area.setPixmap(img.to_pixmap())
         self.preview_area.setMinimumSize(256, 256)
+
+    def apply_result(self):
+        self.model.live.write_result()
+        # self.model.live.create_result_layer()

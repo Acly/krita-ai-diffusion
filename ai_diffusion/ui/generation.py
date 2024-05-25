@@ -23,7 +23,7 @@ from PyQt5.QtWidgets import (
 from ..properties import Binding, Bind, bind, bind_combo, bind_toggle
 from ..image import Bounds, Extent, Image
 from ..jobs import Job, JobQueue, JobState, JobKind, JobParams
-from ..model import Model, InpaintContext
+from ..model import Model, InpaintContext, RootRegion
 from ..root import root
 from ..workflow import InpaintMode, FillMode
 from ..settings import settings
@@ -339,8 +339,10 @@ class HistoryWidget(QListWidget):
 
     def _copy_prompt(self):
         if job := self.selected_job:
-            self._model.regions.active.prompt = job.params.prompt
-            self._model.regions.active.negative_prompt = job.params.negative_prompt
+            active = self._model.regions.active_or_root
+            active.positive = job.params.prompt
+            if isinstance(active, RootRegion):
+                active.negative = job.params.negative_prompt
 
     def _copy_strength(self):
         if job := self.selected_job:
@@ -572,7 +574,7 @@ class GenerationWidget(QWidget):
                 model.error_changed.connect(self.error_text.setText),
                 model.has_error_changed.connect(self.error_text.setVisible),
                 self.add_control_button.clicked.connect(model.regions.add_control),
-                self.add_region_button.clicked.connect(model.regions.create_region),
+                self.add_region_button.clicked.connect(model.regions.create_region_group),
                 self.region_prompt.activated.connect(model.generate),
                 self.generate_button.clicked.connect(model.generate),
             ]
@@ -660,7 +662,7 @@ class GenerationWidget(QWidget):
     def update_generate_button(self):
         if self.model.document.selection_bounds is None:
             has_regions = len(self.model.regions) > 0
-            has_active_region = not self.model.regions.active.is_root
+            has_active_region = self.model.regions.active is not None
             show_region_menu = has_regions and has_active_region
             self.inpaint_mode_button.setVisible(show_region_menu)
             self.custom_inpaint.setVisible(False)

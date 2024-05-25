@@ -81,6 +81,9 @@ class Document(QObject):
     def set_layer_content(self, layer: krita.Node, img: Image, bounds: Bounds, make_visible=True):
         raise NotImplementedError
 
+    def group_layer(self, layer: krita.Node) -> krita.Node:
+        raise NotImplementedError
+
     def create_group_layer(self, name: str, parent: krita.Node | None = None) -> krita.Node:
         raise NotImplementedError
 
@@ -324,6 +327,14 @@ class KritaDocument(Document):
             self.refresh(layer)
         return layer
 
+    def group_layer(self, layer: krita.Node):
+        group = self._doc.createGroupLayer(f"{layer.name()} Group")
+        parent = layer.parentNode()
+        parent.addChildNode(group, layer)
+        parent.removeChildNode(layer)
+        group.addChildNode(layer, None)
+        return group
+
     def create_group_layer(self, name: str, parent: krita.Node | None = None):
         create_paint_layer = parent is None
         group = self._doc.createGroupLayer(name)
@@ -445,7 +456,7 @@ class KritaDocument(Document):
         return False
 
 
-def _traverse_layers(node: krita.Node, type_filter=None):
+def _traverse_layers(node: krita.Node, type_filter: list[str] | None = None):
     for child in node.childNodes():
         yield from _traverse_layers(child, type_filter)
         if not type_filter or child.type() in type_filter:
@@ -564,7 +575,7 @@ class LayerObserver(QObject):
             self._layers = layers
             self.changed.emit()
 
-    def find(self, id: QUuid):
+    def find(self, id: QUuid) -> krita.Node | None:
         if self._doc is None:
             return None
         root = self._doc.rootNode()
@@ -614,6 +625,9 @@ class LayerObserver(QObject):
 
     def __getitem__(self, index: int):
         return self._layers[index].node
+
+    def __bool__(self):
+        return self._doc is not None
 
 
 class PoseLayers:
