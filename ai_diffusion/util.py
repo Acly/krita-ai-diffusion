@@ -11,10 +11,11 @@ import logging
 import logging.handlers
 import statistics
 import zipfile
-from typing import Iterable, Optional, Sequence, TypeVar
+from typing import Callable, Iterable, Optional, Sequence, TypeVar
 from PyQt5.QtCore import QStandardPaths
 
 T = TypeVar("T")
+R = TypeVar("R")
 
 is_windows = sys.platform.startswith("win")
 is_macos = sys.platform == "darwin"
@@ -91,6 +92,12 @@ def log_error(error: Exception):
 def ensure(value: Optional[T], msg="") -> T:
     assert value is not None, msg or "a value is required"
     return value
+
+
+def maybe(func: Callable[[T], R], value: Optional[T]) -> Optional[R]:
+    if value is not None:
+        return func(value)
+    return None
 
 
 def batched(iterable, n):
