@@ -1,10 +1,10 @@
 from __future__ import annotations
 from PyQt5.QtWidgets import QWidget, QLabel, QToolButton, QHBoxLayout, QVBoxLayout, QFrame
-from PyQt5.QtGui import QMouseEvent, QResizeEvent, QPixmap
+from PyQt5.QtGui import QMouseEvent, QResizeEvent, QPixmap, QImage, QPainter, QIcon
 from PyQt5.QtCore import QObject, QEvent, Qt, QMetaObject, pyqtSignal
 
 from ..root import root
-from ..image import Extent
+from ..image import Extent, Bounds
 from ..properties import Binding, bind
 from ..document import LayerType
 from ..model import Region, RootRegion, RegionLink
@@ -12,26 +12,6 @@ from .control import ControlListWidget
 from .widget import TextPromptWidget
 from .settings import settings
 from . import theme
-
-
-class RegionThumbnailWidget(QLabel):
-    _scale: float = 1.0
-
-    def __init__(self, region: RootRegion | Region, parent: QWidget, scale=1.0):
-        super().__init__(parent)
-        self._scale = scale
-        self.set_region(region)
-
-    def set_region(self, region: RootRegion | Region):
-        icon_size = int(self._scale * self.fontMetrics().height())
-        if isinstance(region, Region):
-            if layer := region.first_layer:
-                icon_image = QPixmap.fromImage(layer.thumbnail(Extent(icon_size, icon_size)))
-            else:
-                icon_image = theme.icon("region-prompt").pixmap(icon_size, icon_size)
-        else:
-            icon_image = theme.icon("root").pixmap(icon_size, icon_size)
-        self.setPixmap(icon_image)
 
 
 class InactiveRegionWidget(QFrame):
@@ -50,15 +30,14 @@ class InactiveRegionWidget(QFrame):
         self.setFrameStyle(QFrame.Shape.StyledPanel)
         self.setStyleSheet(f"QFrame#InactiveRegionWidget {{ background-color: {theme.base} }}")
 
-        scale = 1.2 if isinstance(region, RootRegion) else 1.5
-        icon = RegionThumbnailWidget(region, self, scale=scale)
+        thumbnail = RegionThumbnailWidget(region, self)
 
         self._prompt = QLabel(self)
         self._prompt.setCursor(Qt.CursorShape.IBeamCursor)
 
         layout = QHBoxLayout()
-        layout.setContentsMargins(2, 2, 2, 2)
-        layout.addWidget(icon)
+        layout.setContentsMargins(0, 0, 5, 0)
+        layout.addWidget(thumbnail)
         layout.addWidget(self._prompt, 1)
         self.setLayout(layout)
 
@@ -103,7 +82,7 @@ class ActiveRegionWidget(QFrame):
         self.setFrameStyle(QFrame.Shape.StyledPanel)
         self.setStyleSheet(self._style_base)
 
-        self._header_icon = RegionThumbnailWidget(self._region, self, scale=1.2)
+        self._header_icon = RegionThumbnailWidget(self._region, self)
         self._header_label = QLabel(self)
         self._header_label.setStyleSheet(f"font-style: italic; color: {theme.grey};")
 
@@ -117,7 +96,7 @@ class ActiveRegionWidget(QFrame):
         self._remove_button.setToolTip("Remove this region")
 
         header_layout = QHBoxLayout()
-        header_layout.setContentsMargins(2, 2, 2, 0)
+        header_layout.setContentsMargins(0, 0, 2, 0)
         header_layout.setSpacing(0)
         header_layout.addWidget(self._header_icon)
         header_layout.addSpacing(5)
@@ -197,6 +176,7 @@ class ActiveRegionWidget(QFrame):
     def _update_links(self):
         if isinstance(self._region, RootRegion):
             self._header_label.setText("Text prompt common to all regions")
+            self._header_icon.set_region(self._region)
         else:
             theme.set_text_clipped(
                 self._header_label, f"{self._region.name} - Regional text prompt"
@@ -226,8 +206,7 @@ class ActiveRegionWidget(QFrame):
             self._link_button.setIcon(theme.icon(icon))
             self._link_button.setEnabled(link_enabled)
             self._link_button.setToolTip(desc)
-
-        self._header_icon.set_region(self._region)
+            self._header_icon.set_region(self._region)
 
     def update_settings(self, key: str, value):
         if key == "prompt_line_count":
@@ -335,3 +314,46 @@ class RegionPromptWidget(QWidget):
     def _activate_region(self, region: Region):
         self._regions.active = region
         self._prompt.focus()
+
+
+class RegionThumbnailWidget(QLabel):
+
+    def __init__(self, region: RootRegion | Region, parent: QWidget):
+        super().__init__(parent)
+        self.set_region(region)
+
+    def set_region(self, region: RootRegion | Region):
+        font_height = self.fontMetrics().height()
+        icon_size = int(1.5 * font_height + 6)
+        if isinstance(region, Region):
+            if layer := region.first_layer:
+                parent_bounds = layer.parent_layer.bounds if layer.parent_layer else layer.bounds
+                layer_bounds = layer.bounds.relative_to(parent_bounds)
+                scale = icon_size / parent_bounds.height
+                canvas_extent = parent_bounds.extent * scale
+                thumb_bounds = Bounds.scale(layer_bounds, scale)
+                thumb_bounds = Bounds.minimum_size(thumb_bounds, 4, canvas_extent)
+                thumb_bounds = thumb_bounds or Bounds(0, 0, *canvas_extent)
+                thumb = layer.thumbnail(thumb_bounds.extent)
+                image = QImage(*canvas_extent, QImage.Format.Format_ARGB32)
+                painter = QPainter(image)
+                painter.setCompositionMode(QPainter.CompositionMode.CompositionMode_Source)
+                painter.fillRect(image.rect(), Qt.GlobalColor.transparent)
+                painter.drawImage(*thumb_bounds.offset, thumb)
+                painter.end()
+                icon_image = QPixmap.fromImage(image)
+            else:
+                icon_image = theme.icon("region-prompt")
+        else:
+            icon_image = theme.icon("root")
+        if isinstance(icon_image, QIcon):
+            size = int(1.2 * font_height)
+            offset = (icon_size - size) // 2
+            image = QImage(icon_size, icon_size, QImage.Format.Format_ARGB32)
+            painter = QPainter(image)
+            painter.setCompositionMode(QPainter.CompositionMode.CompositionMode_Source)
+            painter.fillRect(image.rect(), Qt.GlobalColor.transparent)
+            painter.drawPixmap(offset, offset, icon_image.pixmap(size, size))
+            painter.end()
+            icon_image = QPixmap.fromImage(image)
+        self.setPixmap(icon_image)
