@@ -26,17 +26,11 @@ from ..jobs import Job, JobQueue, JobState, JobKind, JobParams
 from ..model import Model, InpaintContext, RootRegion
 from ..root import root
 from ..workflow import InpaintMode, FillMode
-from ..settings import settings
 from ..util import ensure
+from .widget import WorkspaceSelectWidget, StyleSelectWidget, StrengthWidget, QueueButton
+from .widget import create_wide_tool_button
+from .region import RegionPromptWidget
 from . import theme
-from .widget import (
-    WorkspaceSelectWidget,
-    StyleSelectWidget,
-    StrengthWidget,
-    QueueButton,
-    RegionPromptWidget,
-    create_wide_tool_button,
-)
 
 
 class HistoryWidget(QListWidget):
