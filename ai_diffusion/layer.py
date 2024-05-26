@@ -86,9 +86,11 @@ class Layer(QObject):
 
     def hide(self):
         self._node.setVisible(False)
+        self.refresh()
 
     def show(self):
         self._node.setVisible(True)
+        self.refresh()
 
     @property
     def is_active(self):
