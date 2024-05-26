@@ -71,6 +71,8 @@ class Region(QObject, ObservableProperties):
 
     @property
     def name(self):
+        if len(self._layers) == 0:
+            return "No layers linked"
         return ", ".join(l.name for l in self.layers)
 
     def link(self, layer: Layer):
