@@ -296,7 +296,7 @@ def process_regions(root: RootRegion, bounds: Bounds, parent_layer: Layer | None
     job_info = []
     if parent_layer and parent_region:
         parent_prompt = parent_region.positive
-        job_info = [JobRegion(parent_layer.id_string, parent_prompt)]
+        job_info = [JobRegion(parent_layer.id_string, parent_prompt, bounds)]
     result = ConditioningInput(
         positive=workflow.merge_prompt(parent_prompt, root.positive),
         negative=root.negative,
@@ -331,7 +331,8 @@ def process_regions(root: RootRegion, bounds: Bounds, parent_layer: Layer | None
             workflow.merge_prompt(region.positive, root.positive),
             control=[c.to_api(bounds) for c in region.control],
         )
-        result_regions.append((region_result, JobRegion(layer.id_string, region.positive)))
+        job_params = JobRegion(layer.id_string, region.positive, layer_bounds)
+        result_regions.append((region_result, job_params))
 
     # Remove from each region mask any overlapping areas from regions above it.
     accumulated_mask = None
@@ -369,7 +370,7 @@ def process_regions(root: RootRegion, bounds: Bounds, parent_layer: Layer | None
         print(f"Adding background region: total coverage is {total_coverage}")
         accumulated_mask.invert()
         input = RegionInput(accumulated_mask, result.positive)
-        job = JobRegion(parent_layer.id_string, "background", is_background=True)
+        job = JobRegion(parent_layer.id_string, "background", bounds, is_background=True)
         result_regions.append((input, job))
 
     result.regions = [r for r, _ in result_regions]
