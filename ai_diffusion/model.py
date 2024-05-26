@@ -273,7 +273,7 @@ class Model(QObject, ObservableProperties):
                 bounds = Bounds.clamp(bounds, extent)
                 mask_image = region_layer.get_mask(bounds)
                 mask = Mask(bounds, mask_image._qimage)
-                job_regions = [JobRegion(region_layer.id_string, region.positive)]
+                job_regions = [JobRegion(region_layer.id_string, region.positive, bounds)]
 
         bounds = Bounds(0, 0, *self._doc.extent)
         if mask is not None:
@@ -460,8 +460,17 @@ class Model(QObject, ObservableProperties):
                             break
                         insert_pos = node
 
+                # Crop the full image to the region bounds (+ padding for some flexibility)
+                region_image = image
+                region_bounds = params.bounds
+                if job_region.bounds != params.bounds:
+                    padding = int(0.1 * job_region.bounds.extent.average_side)
+                    region_bounds = Bounds.pad(job_region.bounds, padding)
+                    region_bounds = Bounds.clamp(region_bounds, params.bounds.extent)
+                    region_image = Image.crop(image, region_bounds)
+
                 self.layers.create(
-                    name, image, params.bounds, parent=region_layer, above=insert_pos
+                    name, region_image, region_bounds, parent=region_layer, above=insert_pos
                 )
 
     def apply_result(self, job_id: str, index: int):
