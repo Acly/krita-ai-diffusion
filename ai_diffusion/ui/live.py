@@ -16,7 +16,8 @@ from ..image import Extent, Image
 from ..model import Model
 from ..root import root
 from .control import ControlListWidget
-from .widget import WorkspaceSelectWidget, StyleSelectWidget, ActiveRegionWidget, StrengthWidget
+from .region import ActiveRegionWidget
+from .widget import WorkspaceSelectWidget, StyleSelectWidget, StrengthWidget
 from .widget import create_wide_tool_button
 from . import theme
 
