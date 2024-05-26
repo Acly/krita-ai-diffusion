@@ -101,14 +101,12 @@ class Region(QObject, ObservableProperties):
         return ", ".join(l.name for l in self.layers)
 
     def link(self, layer: Layer):
-        id = _layer_id(layer)
-        if id not in self._layers:
-            self._set_layers(self._layers + [id])
+        if layer.id not in self._layers:
+            self._set_layers(self._layers + [layer.id])
 
     def unlink(self, layer: Layer):
-        id = _layer_id(layer)
-        if id in self._layers:
-            self._set_layers([l for l in self._layers if l != id])
+        if layer.id in self._layers:
+            self._set_layers([l for l in self._layers if l != layer.id])
 
     def is_linked(self, layer: Layer, mode=RegionLink.any):
         target = layer
@@ -117,7 +115,7 @@ class Region(QObject, ObservableProperties):
         if mode is RegionLink.indirect and target is layer:
             return False
         if mode is RegionLink.direct or target is layer:
-            return _layer_id(layer) in self._layers
+            return layer.id in self._layers
         return self.root.find_linked(target) is self
 
     def link_active(self):
@@ -229,7 +227,6 @@ class RootRegion(QObject, ObservableProperties):
         it will be used as the initial link target for the new group. Otherwise, a new layer
         is inserted (or a group if group==True) and that will be linked instead.
         """
-        doc = self._model.document
         layers = self._model.layers
         target = Region.link_target(layers.active)
         can_link = target.type in [LayerType.paint, LayerType.group] and not self.is_linked(target)
@@ -250,7 +247,6 @@ class RootRegion(QObject, ObservableProperties):
             self.removed.emit(region)
 
     def to_api(self, bounds: Bounds, parent_layer: Layer | None = None):
-        doc = self._model.document
         parent_region = None
         if parent_layer is not None:
             parent_region = self.find_linked(parent_layer)
@@ -259,7 +255,7 @@ class RootRegion(QObject, ObservableProperties):
         job_info = []
         if parent_layer and parent_region:
             parent_prompt = parent_region.positive
-            job_info = [JobRegion(_layer_id_str(parent_layer), parent_prompt)]
+            job_info = [JobRegion(parent_layer.id_string, parent_prompt)]
         result = ConditioningInput(
             positive=workflow.merge_prompt(parent_prompt, self.positive),
             negative=self.negative,
@@ -294,7 +290,7 @@ class RootRegion(QObject, ObservableProperties):
                 workflow.merge_prompt(region.positive, self.positive),
                 control=[c.to_api(bounds) for c in region.control],
             )
-            result_regions.append((region_result, JobRegion(_layer_id_str(layer), region.positive)))
+            result_regions.append((region_result, JobRegion(layer.id_string, region.positive)))
 
         # Remove from each region mask any overlapping areas from regions above it.
         accumulated_mask = None
@@ -398,24 +394,6 @@ class RootRegion(QObject, ObservableProperties):
 
     def __iter__(self):
         return iter(self._regions)
-
-
-def _layer_id(a: Layer | QUuid | str | None):
-    if isinstance(a, Layer):
-        a = a.id
-    if isinstance(a, str):
-        a = QUuid(a)
-    return a
-
-
-def _layer_id_str(a: Layer | QUuid | str | None):
-    if isinstance(a, Layer):
-        a = a.id
-    if isinstance(a, QUuid):
-        a = a.toString()
-    if a is None:
-        return ""
-    return a
 
 
 class Model(QObject, ObservableProperties):
