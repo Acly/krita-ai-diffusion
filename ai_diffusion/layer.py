@@ -6,7 +6,7 @@ from PyQt5.QtCore import QObject, QUuid, QByteArray, QTimer, pyqtSignal
 from PyQt5.QtGui import QImage
 
 from .image import Extent, Bounds, Image
-from .util import ensure
+from .util import ensure, maybe
 from . import eventloop
 
 
@@ -35,18 +35,19 @@ class Layer(QObject):
     Layer objects are cached, there is a guarantee only one instance exists per layer node.
     """
 
-    _observer: LayerManager
+    _manager: LayerManager
     _node: krita.Node
     _name: str
+    _parent: QUuid | None
 
-    renamed = pyqtSignal(str)
     removed = pyqtSignal()
 
-    def __init__(self, observer: LayerManager, node: krita.Node):
+    def __init__(self, manager: LayerManager, node: krita.Node):
         super().__init__()
-        self._observer = observer
+        self._manager = manager
         self._node = node
         self._name = node.name()
+        self._parent = maybe(krita.Node.uniqueId, node.parentNode())
 
     @property
     def id(self):
@@ -66,7 +67,6 @@ class Layer(QObject):
             return
         self._name = value
         self._node.setName(value)
-        self.renamed.emit(value)
 
     @property
     def type(self):
@@ -74,7 +74,7 @@ class Layer(QObject):
 
     @property
     def was_removed(self):
-        return self._observer.updated().find(self.id) is None
+        return self._manager.updated().find(self.id) is None
 
     @property
     def is_visible(self):
@@ -94,7 +94,7 @@ class Layer(QObject):
 
     @property
     def is_active(self):
-        return self is self._observer.active
+        return self is self._manager.active
 
     @property
     def is_locked(self):
@@ -110,13 +110,11 @@ class Layer(QObject):
 
     @property
     def parent_layer(self):
-        if parent := self._node.parentNode():
-            return self._observer.wrap(parent)
-        return None
+        return maybe(self._manager.find, self._parent)
 
     @property
     def child_layers(self):
-        return [self._observer.wrap(child) for child in self._node.childNodes()]
+        return [self._manager.wrap(child) for child in self._node.childNodes()]
 
     @property
     def is_root(self):
@@ -160,7 +158,7 @@ class Layer(QObject):
         parent = self._node.parentNode()
         if parent.childNodes()[-1] == self._node:
             return  # already top-most layer
-        with RestoreActiveLayer(self._observer):
+        with RestoreActiveLayer(self._manager):
             parent.removeChildNode(self.node)
             parent.addChildNode(self.node, None)
 
@@ -173,7 +171,7 @@ class Layer(QObject):
 
     def remove(self):
         self._node.remove()
-        self._observer.update()
+        self._manager.update()
 
     def compute_bounds(self):
         bounds = self.bounds
@@ -223,6 +221,20 @@ class Layer(QObject):
     def node(self):
         return self._node
 
+    def poll(self):
+        changed = False
+        if self._name != self._node.name():
+            self._name = self._node.name()
+            changed = True
+
+        new_parent = maybe(krita.Node.uniqueId, self._node.parentNode())
+        if self._parent != new_parent:
+            self._parent = new_parent
+            self._manager.parent_changed.emit(self)
+            changed = True
+
+        return changed
+
     def __eq__(self, other):
         if self is other:
             return True
@@ -263,6 +275,7 @@ class LayerManager(QObject):
 
     changed = pyqtSignal()
     active_changed = pyqtSignal()
+    parent_changed = pyqtSignal(Layer)
 
     _doc: krita.Document | None
     _root: Layer | None
@@ -288,6 +301,10 @@ class LayerManager(QObject):
             self._root = None
             self._active = QUuid()
 
+    def __del__(self):
+        if self._doc is not None:
+            self._timer.stop()
+
     def update(self):
         if self._doc is None:
             return
@@ -310,9 +327,7 @@ class LayerManager(QObject):
             if id in self._layers:
                 removals.remove(id)
                 layer = self._layers[id]
-                if layer.name != n.name():
-                    layer.name = n.name()
-                    changes = True
+                changes = layer.poll() or changes
             else:
                 self._layers[id] = Layer(self, n)
                 changes = True
@@ -441,6 +456,6 @@ class LayerManager(QObject):
 
 def traverse_layers(node: krita.Node, type_filter: list[str] | None = None):
     for child in node.childNodes():
-        yield from traverse_layers(child, type_filter)
         if not type_filter or child.type() in type_filter:
             yield child
+        yield from traverse_layers(child, type_filter)

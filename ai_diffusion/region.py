@@ -163,6 +163,7 @@ class RootRegion(QObject, ObservableProperties):
         self._regions = []
         self.control = ControlLayerList(model)
         model.layers.active_changed.connect(self._update_active)
+        model.layers.parent_changed.connect(self._update_group)
 
     def _find_region(self, layer: Layer):
         return next((r for r in self._regions if r.is_linked(layer, RegionLink.direct)), None)
@@ -269,6 +270,15 @@ class RootRegion(QObject, ObservableProperties):
                 self.active = region
             elif self._model.workspace is model.Workspace.live:
                 self.active = None  # root region
+
+    def _update_group(self, layer: Layer):
+        """If a layer is moved into a group, promote the region to non-destructive apply workflow."""
+        if layer.type is not LayerType.group:
+            if region := self.find_linked(layer, RegionLink.direct):
+                if parent := layer.parent_layer:
+                    if not parent.is_root:
+                        region.unlink(layer)
+                        region.link(parent)
 
     def _add(self, layer: Layer):
         region = Region(self, self._model)
