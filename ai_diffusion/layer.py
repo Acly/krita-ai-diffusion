@@ -428,12 +428,12 @@ class LayerManager(QObject):
 
     def create_group_for(self, layer: Layer):
         doc = ensure(self._doc)
-        group = self.wrap(doc.createGroupLayer(f"{layer.name} Group"))
+        group_node = doc.createGroupLayer(f"{layer.name} Group")
         parent = ensure(layer.parent_layer, "Cannot group root layer")
-        parent.node.addChildNode(group.node, layer.node)
+        parent.node.addChildNode(group_node, layer.node)
         parent.node.removeChildNode(layer.node)
-        group.node.addChildNode(layer.node, None)
-        return group
+        group_node.addChildNode(layer.node, None)
+        return self.wrap(group_node)
 
     _image_types = [t.value for t in LayerType if t.is_image]
     _mask_types = [t.value for t in LayerType if t.is_mask]
