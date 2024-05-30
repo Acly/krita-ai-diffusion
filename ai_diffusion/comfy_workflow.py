@@ -273,14 +273,13 @@ class ComfyWorkflow:
         )
 
     def apply_attention_couple(
-        self, model: Output, base_mask: Output, conds: list[Output], masks: list[Output]
+        self, model: Output, conds: list[Output], masks: list[Output]
     ):
-        kwargs = {}
+        regions_list = None
         for i in range(len(conds)):
-            kwargs[f"cond_{i+1}"] = conds[i]
-            kwargs[f"mask_{i+1}"] = masks[i]
+            regions_list = self.add("ETN_ListAppend", output_count=1, list=regions_list, image=None, mask=masks[i], conditioning=conds[i])
 
-        return self.add("AttentionCouple|cgem156", 1, model=model, base_mask=base_mask, **kwargs)
+        return self.add("ETN_AttentionCouple", 1, model=model, regions=regions_list)
 
     def apply_controlnet(
         self,
