@@ -599,7 +599,7 @@ def inpaint(
 
     model = apply_ip_adapter(w, model, cond_base.control, models)
     if params.use_single_region:
-        region_pos, region_neg = find_region_prompts(cond, images.initial_mask)
+        region_pos, region_neg = find_region_prompts(cond)
         positive, negative = encode_attention_text_prompt(
             w, cond_base, region_pos, region_neg, clip
         )
@@ -627,7 +627,7 @@ def inpaint(
 
     if extent.refinement_scaling in [ScaleMode.upscale_small, ScaleMode.upscale_quality]:
         if params.use_single_region:
-            region_pos, region_neg = find_region_prompts(cond, images.initial_mask)
+            region_pos, region_neg = find_region_prompts(cond)
             positive_up, negative_up = encode_attention_text_prompt(
                 w, cond, region_pos, region_neg, clip
             )
@@ -712,10 +712,7 @@ def refine(
     return w
 
 
-def find_region_prompts(
-    cond: Conditioning,
-    mask: Image,
-):
+def find_region_prompts(cond: Conditioning):
     prompts = []
 
     for region in reversed(cond.regions):
@@ -742,8 +739,6 @@ def find_region_prompts(
 
     prompts.sort(key=lambda x: x.get("score"), reverse=True)
 
-    # positive = "\n".join(map(lambda x: x.get("positive"), prompts))
-    # negative = "\n".join(map(lambda x: x.get("negative"), prompts))
     positive = prompts[0].get("positive")
     negative = prompts[0].get("negative")
 
@@ -769,7 +764,7 @@ def refine_region(
     model_orig = copy(model)
 
     if inpaint.use_single_region:
-        region_pos, region_neg = find_region_prompts(cond, images.initial_mask)
+        region_pos, region_neg = find_region_prompts(cond)
         prompt_pos, prompt_neg = encode_attention_text_prompt(w, cond, region_pos, region_neg, clip)
         applied_attention = False
     else:
