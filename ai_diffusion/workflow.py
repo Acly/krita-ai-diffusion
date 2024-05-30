@@ -266,10 +266,11 @@ def encode_attention_text_prompt(
 ):
     if positive != "":
         positive = merge_prompt(positive, cond.style_prompt)
-    positive = w.clip_text_encode(clip, positive)
+    positive_cond = w.clip_text_encode(clip, positive)
+    negative_cond = OutputNull
     if negative is not None:
-        negative = w.clip_text_encode(clip, negative)
-    return positive, negative
+        negative_cond = w.clip_text_encode(clip, negative)
+    return positive_cond, negative_cond
 
 
 def apply_attention(
