@@ -261,7 +261,9 @@ def encode_text_prompt(w: ComfyWorkflow, cond: Conditioning, clip: Output):
     return positive, negative
 
 
-def encode_attention_text_prompt(w: ComfyWorkflow, cond: Conditioning, positive: str, negative: str | None, clip: Output):
+def encode_attention_text_prompt(
+        w: ComfyWorkflow, cond: Conditioning, positive: str, negative: str | None, clip: Output
+):
     if positive != "":
         positive = merge_prompt(positive, cond.style_prompt)
     positive = w.clip_text_encode(clip, positive)
@@ -276,7 +278,7 @@ def apply_attention(
     cond: Conditioning,
     clip: Output,
     extent: ScaledExtent,
-    extent_name: str = "initial"
+    extent_name: str = "initial",
 ):
     if not cond.regions:
         return model, False
@@ -483,7 +485,18 @@ def generate(
     )
     out_latent = w.ksampler_advanced(model, positive, negative, latent, **_sampler_params(sampling))
     out_image = scale_refine_and_decode(
-        extent, w, cond, sampling, out_latent, prompt_pos, prompt_neg, model_orig, clip, vae, models, True
+        extent,
+        w,
+        cond,
+        sampling,
+        out_latent,
+        prompt_pos,
+        prompt_neg,
+        model_orig,
+        clip,
+        vae,
+        models,
+        True,
     )
     out_image = scale_to_target(extent, w, out_image, models)
     w.send_image(out_image)
@@ -586,7 +599,9 @@ def inpaint(
     model = apply_ip_adapter(w, model, cond_base.control, models)
     if params.use_single_region:
         region_pos, region_neg = find_region_prompts(cond, images.initial_mask)
-        positive, negative = encode_attention_text_prompt(w, cond_base, region_pos, region_neg, clip)
+        positive, negative = encode_attention_text_prompt(
+            w, cond_base, region_pos, region_neg, clip
+        )
     else:
         positive, negative = encode_text_prompt(w, cond, clip)
 
@@ -612,9 +627,13 @@ def inpaint(
     if extent.refinement_scaling in [ScaleMode.upscale_small, ScaleMode.upscale_quality]:
         if params.use_single_region:
             region_pos, region_neg = find_region_prompts(cond, images.initial_mask)
-            positive_up, negative_up = encode_attention_text_prompt(w, cond, region_pos, region_neg, clip)
+            positive_up, negative_up = encode_attention_text_prompt(
+                w, cond, region_pos, region_neg, clip
+            )
         else:
-            model_orig, applied_attention = apply_attention(w, model_orig, cond, clip, upscale_extent, "desired")
+            model_orig, applied_attention = apply_attention(
+                w, model_orig, cond, clip, upscale_extent, "desired"
+            )
             positive_up, negative_up = encode_text_prompt(w, cond, clip)
 
         if extent.refinement_scaling is ScaleMode.upscale_small:
@@ -641,7 +660,9 @@ def inpaint(
         positive_up, negative_up = apply_control(
             w, positive_up, negative_up, cond_upscale.control, res, models
         )
-        out_latent = w.ksampler_advanced(model_orig, positive_up, negative_up, latent, **sampler_params)
+        out_latent = w.ksampler_advanced(
+            model_orig, positive_up, negative_up, latent, **sampler_params
+        )
         out_image = w.vae_decode(vae, out_latent)
         out_image = scale_to_target(upscale_extent, w, out_image, models)
     else:
@@ -707,11 +728,13 @@ def find_region_prompts(
             region.positive = ""
             region.negative = ""
         else:
-            prompts.append({
-                "positive": region.positive,
-                "negative": region.negative,
-                "score": average[0],
-            })
+            prompts.append(
+                {
+                    "positive": region.positive,
+                    "negative": region.negative,
+                    "score": average[0],
+                }
+            )
 
     if not prompts:
         return cond.positive_merged, cond.negative
@@ -780,7 +803,18 @@ def refine_region(
         inpaint_model, positive, negative, latent, **_sampler_params(sampling)
     )
     out_image = scale_refine_and_decode(
-        extent, w, cond, sampling, out_latent, prompt_pos, prompt_neg, model_orig, clip, vae, models, applied_attention
+        extent,
+        w,
+        cond,
+        sampling,
+        out_latent,
+        prompt_pos,
+        prompt_neg,
+        model_orig,
+        clip,
+        vae,
+        models,
+        applied_attention,
     )
     out_image = scale_to_target(extent, w, out_image, models)
     if extent.target != inpaint.target_bounds.extent:
@@ -937,13 +971,17 @@ def prepare(
     for region in i.conditioning.regions:
         region.positive, region_loras = extract_loras(region.positive, models.loras)
         extra_loras += [
-            region_lora for region_lora in region_loras if region_lora.name not in map(lambda x: x.name, extra_loras)
+            region_lora
+            for region_lora in region_loras
+            if region_lora.name not in map(lambda x: x.name, extra_loras)
         ]
     i.sampling = _sampling_from_style(style, strength, is_live)
     i.sampling.seed = seed
     i.models = style.get_models()
     i.models.loras += [
-        extra_lora for extra_lora in extra_loras if extra_lora.name not in map(lambda x: x.name, i.models.loras)
+        extra_lora
+        for extra_lora in extra_loras
+        if extra_lora.name not in map(lambda x: x.name, i.models.loras)
     ]
     _check_server_has_models(i.models, models, style.name)
 

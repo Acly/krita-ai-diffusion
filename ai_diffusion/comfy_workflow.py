@@ -272,12 +272,17 @@ class ComfyWorkflow:
             operation=operation,
         )
 
-    def apply_attention_couple(
-        self, model: Output, conds: list[Output], masks: list[Output]
-    ):
+    def apply_attention_couple(self, model: Output, conds: list[Output], masks: list[Output]):
         regions_list = None
         for i in range(len(conds)):
-            regions_list = self.add("ETN_ListAppend", output_count=1, list=regions_list, image=None, mask=masks[i], conditioning=conds[i])
+            regions_list = self.add(
+                "ETN_ListAppend",
+                output_count=1,
+                list=regions_list,
+                image=None,
+                mask=masks[i],
+                conditioning=conds[i],
+            )
 
         return self.add("ETN_AttentionCouple", 1, model=model, regions=regions_list)
 
