@@ -149,7 +149,6 @@ class ControlMode(Enum):
     blur = 10
     stencil = 11
     hands = 12
-    attention = 16
 
     @property
     def is_lines(self):
@@ -170,9 +169,7 @@ class ControlMode(Enum):
 
     @property
     def is_control_net(self):
-        return not self.is_ip_adapter and not self in [
-            ControlMode.attention,
-        ]
+        return not self.is_ip_adapter
 
     @property
     def is_ip_adapter(self):
@@ -711,7 +708,6 @@ _control_text = {
     ControlMode.blur: "Blur",
     ControlMode.stencil: "Stencil",
     ControlMode.hands: "Hands",
-    ControlMode.attention: "Attention",
 }
 
 
