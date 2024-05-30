@@ -26,17 +26,11 @@ from ..jobs import Job, JobQueue, JobState, JobKind, JobParams
 from ..model import Model, InpaintContext, RootRegion
 from ..root import root
 from ..workflow import InpaintMode, FillMode
-from ..settings import settings
 from ..util import ensure
+from .widget import WorkspaceSelectWidget, StyleSelectWidget, StrengthWidget, QueueButton
+from .widget import create_wide_tool_button
+from .region import RegionPromptWidget
 from . import theme
-from .widget import (
-    WorkspaceSelectWidget,
-    StyleSelectWidget,
-    StrengthWidget,
-    QueueButton,
-    RegionPromptWidget,
-    create_wide_tool_button,
-)
 
 
 class HistoryWidget(QListWidget):
@@ -450,7 +444,7 @@ class CustomInpaintWidget(QWidget):
                 self.context_combo.removeItem(self.context_combo.count() - 1)
             icon = theme.icon("context-layer")
             for layer in self._model.layers.masks:
-                self.context_combo.addItem(icon, f"{layer.name()}", layer.uniqueId())
+                self.context_combo.addItem(icon, f"{layer.name}", layer.id)
         current_index = self.context_combo.findData(current)
         if current_index >= 0:
             self.context_combo.setCurrentIndex(current_index)

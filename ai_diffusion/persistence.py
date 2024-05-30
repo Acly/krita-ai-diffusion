@@ -8,7 +8,8 @@ from PyQt5.QtWidgets import QMessageBox
 
 from .image import Bounds, Image, ImageCollection, ImageFileFormat
 from .model import Model
-from .control import ControlLayer
+from .control import ControlLayer, ControlLayerList
+from .region import RootRegion, Region
 from .jobs import Job, JobKind, JobParams, JobQueue
 from .style import Style, Styles
 from .properties import serialize, deserialize
@@ -103,19 +104,32 @@ class ModelSync:
         model.upscale.modified.connect(self._save)
         model.live.modified.connect(self._save)
         model.animation.modified.connect(self._save)
-
-        # TODO track regions and controls
-        # model.control.added.connect(self._track_control)
-        # model.control.removed.connect(self._save)
-        # for control in model.control:
-        #     self._track_control(control)
         model.jobs.job_finished.connect(self._save_results)
         model.jobs.job_discarded.connect(self._remove_results)
         model.jobs.result_discarded.connect(self._remove_image)
+        self._track_regions(model.regions)
 
     def _track_control(self, control: ControlLayer):
         self._save()
         control.modified.connect(self._save)
+
+    def _track_control_layers(self, control_layers: ControlLayerList):
+        control_layers.added.connect(self._track_control)
+        control_layers.removed.connect(self._save)
+        for control in control_layers:
+            self._track_control(control)
+
+    def _track_region(self, region: Region):
+        region.modified.connect(self._save)
+        self._track_control_layers(region.control)
+
+    def _track_regions(self, root_region: RootRegion):
+        root_region.added.connect(self._track_region)
+        root_region.removed.connect(self._save)
+        root_region.modified.connect(self._save)
+        self._track_control_layers(root_region.control)
+        for region in root_region:
+            self._track_region(region)
 
     def _save_results(self, job: Job):
         if job.kind is JobKind.diffusion and len(job.results) > 0:

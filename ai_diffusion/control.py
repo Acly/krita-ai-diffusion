@@ -6,6 +6,7 @@ import json
 
 from . import model, jobs, resources, util
 from .api import ControlInput
+from .document import LayerType
 from .resources import ControlMode, ResourceKind, SDVersion
 from .properties import Property, ObservableProperties
 from .image import Bounds
@@ -97,9 +98,9 @@ class ControlLayer(QObject, ObservableProperties):
 
     def to_api(self, bounds: Bounds | None = None):
         layer = self.layer
-        if self.mode.is_ip_adapter and not layer.bounds().isEmpty():
+        if self.mode.is_ip_adapter and not layer.bounds.is_zero:
             bounds = None  # ignore mask bounds, use layer bounds
-        image = self._model.document.get_layer_image(layer, bounds)
+        image = layer.get_pixels(bounds)
         if self.mode.is_lines or self.mode is ControlMode.stencil:
             image.make_opaque(background=Qt.GlobalColor.white)
         strength = self.strength / self.strength_multiplier
@@ -134,7 +135,7 @@ class ControlLayer(QObject, ObservableProperties):
         self.can_generate = is_supported and self.mode.has_preprocessor
 
     def _update_is_pose_vector(self):
-        self.is_pose_vector = self.mode is ControlMode.pose and self.layer.type() == "vectorlayer"
+        self.is_pose_vector = self.mode is ControlMode.pose and self.layer.type is LayerType.vector
 
     def _update_active_job(self):
         from .jobs import JobState
@@ -159,12 +160,12 @@ class ControlLayerList(QObject):
         super().__init__()
         self._model = model
         self._layers = []
-        model.layers.changed.connect(self._update_layer_list)
 
     def add(self):
-        layer = self._model.document.active_layer.uniqueId()
-        control = ControlLayer(self._model, self._last_mode, layer)
+        layer = self._model.layers.active
+        control = ControlLayer(self._model, self._last_mode, layer.id)
         control.mode_changed.connect(self._update_last_mode)
+        layer.removed.connect(lambda: self.remove(control))
         self._layers.append(control)
         self.added.emit(control)
 
@@ -178,13 +179,6 @@ class ControlLayerList(QObject):
 
     def _update_last_mode(self, mode: ControlMode):
         self._last_mode = mode
-
-    def _update_layer_list(self):
-        # Remove layers that have been deleted
-        layer_ids = [l.uniqueId() for l in self._model.layers]
-        to_remove = [l for l in self._layers if l.layer_id not in layer_ids]
-        for l in to_remove:
-            self.remove(l)
 
     def __len__(self):
         return len(self._layers)

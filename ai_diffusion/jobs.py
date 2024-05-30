@@ -32,7 +32,13 @@ class JobKind(Enum):
 class JobRegion:
     layer_id: str
     prompt: str
+    bounds: Bounds
     is_background: bool = False
+
+    @staticmethod
+    def from_dict(data: dict[str, Any]):
+        data["bounds"] = Bounds(*data["bounds"])
+        return JobRegion(**data)
 
 
 @dataclass
@@ -49,7 +55,7 @@ class JobParams:
     @staticmethod
     def from_dict(data: dict[str, Any]):
         data["bounds"] = Bounds(*data["bounds"])
-        data["regions"] = [JobRegion(**r) for r in data.get("regions", [])]
+        data["regions"] = [JobRegion.from_dict(r) for r in data.get("regions", [])]
         return JobParams(**data)
 
     @classmethod

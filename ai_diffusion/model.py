@@ -23,16 +23,16 @@ from .settings import settings
 from .network import NetworkError
 from .image import Extent, Image, Mask, Bounds
 from .client import ClientMessage, ClientEvent, filter_supported_styles, resolve_sd_version
-from .document import Document, LayerObserver, KritaDocument
+from .document import Document, Layer, LayerType
 from .pose import Pose
 from .style import Style, Styles, SDVersion
 from .connection import Connection
 from .properties import Property, ObservableProperties
 from .jobs import Job, JobKind, JobParams, JobQueue, JobState, JobRegion
 from .control import ControlLayer, ControlLayerList
+from .region import Region, RegionLink, RootRegion, process_regions
 from .resources import ControlMode
 from .resolution import compute_bounds, compute_relative_bounds
-import krita
 
 
 class Workspace(Enum):
@@ -40,397 +40,6 @@ class Workspace(Enum):
     upscaling = 1
     live = 2
     animation = 3
-
-
-class RegionLink(Enum):
-    direct = 0  # layer is directly linked to a region
-    indirect = 1  # layer is in a group which is linked to a region
-    any = 3  # either direct or indirect link
-
-
-class Region(QObject, ObservableProperties):
-    _parent: "RootRegion"
-    _layers: list[QUuid]
-
-    layer_ids = Property("", persist=True, setter="_set_layer_ids")
-    positive = Property("", persist=True)
-    control: ControlLayerList
-
-    layer_ids_changed = pyqtSignal(str)
-    positive_changed = pyqtSignal(str)
-    modified = pyqtSignal(QObject, str)  # TODO: hook this up
-
-    def __init__(self, parent: "RootRegion", model: "Model"):
-        super().__init__()
-        self._parent = parent
-        self._layers = []
-        self.control = ControlLayerList(model)
-
-    def _get_layers(self):
-        col = self._parent._model.layers.updated()
-        all = (col.find(id) for id in self._layers)
-        pruned = [l for l in all if l is not None]
-        self._set_layers([l.uniqueId() for l in pruned])
-        return pruned
-
-    def _set_layers(self, ids: list[QUuid]):
-        self._layers = ids
-        new_ids_string = ",".join(id.toString() for id in ids)
-        if self.layer_ids != new_ids_string:
-            self._layer_ids = new_ids_string
-            self.layer_ids_changed.emit(self._layer_ids)
-
-    def _set_layer_ids(self, ids: str):
-        if self._layer_ids == ids:
-            return
-        self._layer_ids = ids
-        self._layers = [QUuid(id) for id in ids.split(",") if id]
-        self.layer_ids_changed.emit(ids)
-
-    @property
-    def layers(self):
-        return self._get_layers()
-
-    @property
-    def first_layer(self):
-        layers = self.layers
-        return layers[0] if len(layers) > 0 else None
-
-    @property
-    def name(self):
-        return ", ".join(l.name() for l in self.layers)
-
-    def link(self, layer: krita.Node):
-        id = _layer_id(layer)
-        if id not in self._layers:
-            self._set_layers(self._layers + [id])
-
-    def unlink(self, layer: krita.Node):
-        id = _layer_id(layer)
-        if id in self._layers:
-            self._set_layers([l for l in self._layers if l != id])
-
-    def is_linked(self, layer: krita.Node, mode=RegionLink.any):
-        target = layer
-        if mode is not RegionLink.direct:
-            target = _region_link_target(layer)
-        if mode is RegionLink.indirect and target is layer:
-            return False
-        if mode is RegionLink.direct or target is layer:
-            return _layer_id(layer) in self._layers
-        return self.root.find_linked(target) is self
-
-    def link_active(self):
-        self.link(self._parent._model.document.active_layer)
-
-    def unlink_active(self):
-        self.unlink(self._parent._model.document.active_layer)
-
-    def toggle_active_link(self):
-        if self.is_active_linked:
-            self.unlink_active()
-        else:
-            self.link_active()
-
-    @property
-    def has_links(self):
-        return len(self._layers) > 0
-
-    @property
-    def is_active_linked(self):
-        return self.is_linked(self._parent._model.document.active_layer)
-
-    def remove(self):
-        self._parent.remove(self)
-
-    @property
-    def root(self):
-        return self._parent
-
-    @property
-    def siblings(self):
-        return self._parent.find_siblings(self)
-
-
-def _region_link_target(layer: krita.Node):
-    if layer.type() == "grouplayer":
-        return layer
-    if parent := layer.parentNode():
-        if parent.parentNode() is not None and parent.type() == "grouplayer":
-            return parent
-    return layer
-
-
-class RootRegion(QObject, ObservableProperties):
-    _model: "Model"
-    _regions: list[Region]
-    _active: Region | None = None
-    _active_layer: QUuid | None = None
-
-    positive = Property("", persist=True)
-    negative = Property("", persist=True)
-    control: ControlLayerList
-
-    positive_changed = pyqtSignal(str)
-    negative_changed = pyqtSignal(str)
-    active_changed = pyqtSignal(Region)
-    active_layer_changed = pyqtSignal()
-    added = pyqtSignal(Region)
-    removed = pyqtSignal(Region)
-
-    def __init__(self, model: Model):
-        super().__init__()
-        self._model = model
-        self._regions = []
-        self.control = ControlLayerList(model)
-        model.layers.active_changed.connect(self._update_active)
-
-    def _find_region(self, layer: krita.Node):
-        return next((r for r in self._regions if r.is_linked(layer, RegionLink.direct)), None)
-
-    def emplace(self):
-        region = Region(self, self._model)
-        self._regions.append(region)
-        return region
-
-    @property
-    def active(self):
-        self._update_active()
-        return self._active
-
-    @active.setter
-    def active(self, region: Region | None):
-        if self._active != region:
-            self._active = region
-            self.active_changed.emit(region)
-
-    @property
-    def active_or_root(self):
-        return self.active or self
-
-    @property
-    def active_layer(self):
-        return self._model.document.active_layer
-
-    def add_control(self):
-        self.active_or_root.control.add()
-
-    def is_linked(self, layer: krita.Node, mode=RegionLink.any):
-        return any(r.is_linked(layer, mode) for r in self._regions)
-
-    def find_linked(self, layer: krita.Node, mode=RegionLink.any):
-        return next((r for r in self._regions if r.is_linked(layer, mode)), None)
-
-    @property
-    def can_link_active(self):
-        return self.can_link(self._model.document.active_layer) if self._active_layer else False
-
-    def can_link(self, layer: krita.Node):
-        return _region_link_target(layer) is layer and not self.is_linked(layer)
-
-    def create_region_layer(self):
-        self.create_region(group=False)
-
-    def create_region_group(self):
-        self.create_region(group=True)
-
-    def create_region(self, group=True):
-        doc = self._model.document
-        layers = self._model.layers
-        target = _region_link_target(doc.active_layer)
-        if not self.is_linked(target) and len(layers.images) > 1:
-            layer = target
-        elif group:
-            layer = doc.create_group_layer(f"Region {len(self)}")
-        else:
-            layer = doc.insert_layer(f"Region {len(self)}")
-        return self._add(layer)
-
-    def remove(self, region: Region):
-        if region in self._regions:
-            if self.active == region:
-                self.active = None
-            self._regions.remove(region)
-            self.removed.emit(region)
-
-    def to_api(self, bounds: Bounds, parent_layer: krita.Node | None = None):
-        doc = self._model.document
-        parent_region = None
-        if parent_layer is not None:
-            parent_region = self.find_linked(parent_layer)
-
-        parent_prompt = ""
-        job_info = []
-        if parent_layer and parent_region:
-            parent_prompt = parent_region.positive
-            job_info = [JobRegion(_layer_id_str(parent_layer), parent_prompt)]
-        result = ConditioningInput(
-            positive=workflow.merge_prompt(parent_prompt, self.positive),
-            negative=self.negative,
-            control=[c.to_api(bounds) for c in self.control],
-        )
-
-        # Check for regions linked to any child layers of the parent layer.
-        parent_layer = parent_layer or self._model.layers.root
-        child_layers = parent_layer.childNodes()
-        layer_regions = ((l, self.find_linked(l, RegionLink.direct)) for l in child_layers)
-        layer_regions = [(l, r) for l, r in layer_regions if r is not None]
-        if len(layer_regions) == 0:
-            return result, job_info
-
-        # Get region masks. Filter out regions with:
-        # * no content (empty mask)
-        # * less than 10% overlap (esimate based on bounding box)
-        result_regions: list[tuple[RegionInput, JobRegion]] = []
-        for layer, region in layer_regions:
-            layer_bounds = _region_layer_bounds(layer)
-            if layer_bounds.area == 0:
-                print(f"Skipping empty region {layer.name()}")
-                continue
-
-            overlap_rough = Bounds.intersection(bounds, layer_bounds).area / bounds.area
-            if overlap_rough < 0.1:
-                print(f"Skipping region {region.positive[:10]}: overlap is {overlap_rough}")
-                continue
-
-            region_result = RegionInput(
-                doc.get_layer_mask(layer, bounds),
-                workflow.merge_prompt(region.positive, self.positive),
-                control=[c.to_api(bounds) for c in region.control],
-            )
-            result_regions.append((region_result, JobRegion(_layer_id_str(layer), region.positive)))
-
-        # Remove from each region mask any overlapping areas from regions above it.
-        accumulated_mask = None
-        for i in range(len(result_regions) - 1, -1, -1):
-            region, job_region = result_regions[i]
-            mask = region.mask
-            if accumulated_mask is None:
-                accumulated_mask = Image.copy(region.mask)
-            else:
-                mask = Image.mask_subtract(mask, accumulated_mask)
-
-            coverage = mask.average()
-            if coverage > 0.9:
-                # Single region covers (almost) entire image, don't use regional conditioning.
-                print(f"Using single region {region.positive[:10]}: coverage is {coverage}")
-                result.control += region.control
-                return result, [job_region]
-            elif coverage < 0.1:
-                # Region has less than 10% coverage, remove it.
-                print(f"Skipping region {region.positive[:10]}: coverage is {coverage}")
-                result_regions.pop(i)
-            else:
-                # Accumulate mask for next region, and store modified mask.
-                accumulated_mask = Image.mask_add(accumulated_mask, region.mask)
-                region.mask = mask
-
-        # If there are no regions left, don't use regional conditioning.
-        if len(result_regions) == 0:
-            return result, job_info
-
-        # If the region(s) don't cover the entire image, add a final region for the remaining area.
-        assert accumulated_mask is not None, "Expecting at least one region mask"
-        total_coverage = accumulated_mask.average()
-        if total_coverage < 1:
-            print(f"Adding background region: total coverage is {total_coverage}")
-            accumulated_mask.invert()
-            input = RegionInput(accumulated_mask, result.positive)
-            job = JobRegion(parent_layer.uniqueId().toString(), "background", is_background=True)
-            result_regions.append((input, job))
-
-        result.regions = [r for r, _ in result_regions]
-        return result, [j for _, j in result_regions]
-
-    def _get_regions(self, layers: list[krita.Node], exclude: Region | None = None):
-        regions = []
-        for l in layers:
-            r = self._find_region(l)
-            if r is not None and r is not exclude and not r in regions:
-                regions.append(r)
-        return regions
-
-    def find_siblings(self, region: Region):
-        if layer := region.first_layer:
-            below, above = self._model.layers.siblings(layer)
-            return self._get_regions(below, region), self._get_regions(above, region)
-        return [], []
-
-    @property
-    def siblings(self):
-        if self._model.layers:
-            layer = self._model.layers.root
-            if active_layer := self._get_active_layer()[0]:
-                active_layer = _region_link_target(active_layer)
-                if self.is_linked(active_layer):
-                    layer = active_layer.parentNode()
-            return [], self._get_regions(layer.childNodes())
-        return [], []
-
-    def _get_active_layer(self):
-        if not isinstance(self._model.document, KritaDocument):
-            return None, False
-        layer = self._model.document.active_layer
-        if layer.uniqueId() == self._active_layer:
-            return layer, False
-        self._active_layer = layer.uniqueId()
-        self.active_layer_changed.emit()
-        return layer, True
-
-    def _update_active(self):
-        layer, changed = self._get_active_layer()
-        if layer and changed:
-            if region := self.find_linked(layer):
-                self.active = region
-            elif self._model.workspace is Workspace.live:
-                self.active = None  # root region
-
-    def _add(self, layer_id: krita.Node):
-        region = Region(self, self._model)
-        region.link(layer_id)
-        self._regions.append(region)
-        self.added.emit(region)
-        self.active = region
-        return region
-
-    def __len__(self):
-        return len(self._regions)
-
-    def __iter__(self):
-        return iter(self._regions)
-
-
-def _layer_id(a: krita.Node | QUuid | str | None):
-    if isinstance(a, krita.Node):
-        a = a.uniqueId()
-    if isinstance(a, str):
-        a = QUuid(a)
-    return a
-
-
-def _layer_id_str(a: krita.Node | QUuid | str | None):
-    if isinstance(a, krita.Node):
-        a = a.uniqueId()
-    if isinstance(a, QUuid):
-        a = a.toString()
-    if a is None:
-        return ""
-    return a
-
-
-def _region_layer_bounds(layer: krita.Node):
-    layer_bounds = Bounds.from_qrect(layer.bounds())
-    for child in layer.childNodes():
-        if child.type() == "transparencymask":
-            mask_sel = krita.Selection()
-            data = child.pixelData(*layer_bounds)
-            mask_sel.setPixelData(data, *layer_bounds)
-            mask_sel_bounds = Bounds(
-                mask_sel.x(), mask_sel.y(), mask_sel.width(), mask_sel.height()
-            )
-            return mask_sel_bounds
-
-    return layer_bounds
 
 
 class Model(QObject, ObservableProperties):
@@ -441,8 +50,7 @@ class Model(QObject, ObservableProperties):
 
     _doc: Document
     _connection: Connection
-    _layer: krita.Node | None = None
-    _layers: LayerObserver
+    _layer: Layer | None = None
 
     workspace = Property(Workspace.generation, setter="set_workspace", persist=True)
     regions: "RootRegion"
@@ -477,7 +85,6 @@ class Model(QObject, ObservableProperties):
     def __init__(self, document: Document, connection: Connection):
         super().__init__()
         self._doc = document
-        self._layers = document.create_layer_observer()
         self._connection = connection
         self.generate_seed()
         self.jobs = JobQueue()
@@ -521,18 +128,18 @@ class Model(QObject, ObservableProperties):
         bounds = Bounds(0, 0, *extent)
         if mask is None:
             # Check for region inpaint
-            target = _region_link_target(self._doc.active_layer)
+            target = Region.link_target(self.layers.active)
             if self.regions.is_linked(target):
                 region_layer = target
             if region_layer:
                 inpaint_mode = InpaintMode.add_object
-                if not (self.region_only or region_layer.parentNode() is None):
-                    region_layer = region_layer.parentNode()
-                if region_layer.parentNode() is not None:  # not root -> use mask
-                    bounds = _region_layer_bounds(region_layer)
+                if not (self.region_only or region_layer.parent_layer is None):
+                    region_layer = region_layer.parent_layer
+                if not region_layer.is_root:
+                    bounds = region_layer.compute_bounds()
                     bounds = Bounds.pad(bounds, settings.selection_padding, multiple=64)
                     bounds = Bounds.clamp(bounds, extent)
-                    mask_img = self._doc.get_layer_mask(region_layer, bounds)
+                    mask_img = region_layer.get_mask(bounds)
                     mask = Mask(bounds, mask_img._qimage)
         else:
             # Selection inpaint
@@ -540,7 +147,7 @@ class Model(QObject, ObservableProperties):
             bounds = self.inpaint.get_context(self, mask) or bounds
             inpaint_mode = self.resolve_inpaint_mode()
 
-        conditioning, job_regions = self.regions.to_api(bounds, region_layer)
+        conditioning, job_regions = process_regions(self.regions, bounds, region_layer)
 
         if mask is not None or self.strength < 1.0:
             image = self._get_current_image(bounds)
@@ -645,7 +252,7 @@ class Model(QObject, ObservableProperties):
         ver = client.models.version_of(self.style.sd_checkpoint)
         extent = self._doc.extent
         region = None
-        region_layer = self._doc.active_layer
+        region_layer = self.layers.active
         job_regions: list[JobRegion] = []
 
         image = None
@@ -659,14 +266,14 @@ class Model(QObject, ObservableProperties):
         if mask is None:
             region = self.regions.find_linked(region_layer)
             if region is not None:
-                bounds = _region_layer_bounds(region_layer)
+                bounds = region_layer.compute_bounds()
                 bounds = Bounds.pad(
                     bounds, settings.selection_padding, multiple=64, min_size=512, square=True
                 )
                 bounds = Bounds.clamp(bounds, extent)
-                mask_image = self._doc.get_layer_mask(region_layer, bounds)
+                mask_image = region_layer.get_mask(bounds)
                 mask = Mask(bounds, mask_image._qimage)
-                job_regions = [JobRegion(region_layer.uniqueId().toString(), region.positive)]
+                job_regions = [JobRegion(region_layer.id_string, region.positive, bounds)]
 
         bounds = Bounds(0, 0, *self._doc.extent)
         if mask is not None:
@@ -767,7 +374,7 @@ class Model(QObject, ObservableProperties):
                 self.jobs.set_results(job, message.images)
             if job.kind is JobKind.control_layer:
                 assert job.control is not None
-                job.control.layer_id = self.add_control_layer(job, message.result).uniqueId()
+                job.control.layer_id = self.add_control_layer(job, message.result).id
             elif job.kind is JobKind.upscaling:
                 self.add_upscale_layer(job)
             self.progress = 1
@@ -793,69 +400,78 @@ class Model(QObject, ObservableProperties):
         job = self.jobs.find(job_id)
         assert job is not None, "Cannot show preview, invalid job id"
         name = f"[{name_prefix}] {job.params.prompt}"
-        if self._layer and self._layer not in self.layers:
+        if self._layer and self._layer.was_removed:
             self._layer = None  # layer was removed by user
         if self._layer is not None:
-            self._layer.setName(name)
-            self._doc.set_layer_content(self._layer, job.results[index], job.params.bounds)
-            self._doc.move_to_top(self._layer)
+            self._layer.name = name
+            self._layer.write_pixels(job.results[index], job.params.bounds)
+            self._layer.move_to_top()
         else:
-            self._layer = self._doc.insert_layer(
+            self._layer = self.layers.create(
                 name, job.results[index], job.params.bounds, make_active=False
             )
-            self._layer.setLocked(True)
+            self._layer.is_locked = True
 
     def hide_preview(self):
         if self._layer is not None:
-            self._doc.hide_layer(self._layer)
+            self._layer.hide()
 
     def write_result(self, image: Image, params: JobParams):
         """Write the generated image to the document, replace original content of the layer."""
         if len(params.regions) == 0:
-            self._doc.set_layer_content(self._doc.active_layer, image, params.bounds)
+            self.layers.active.write_pixels(image, params.bounds)
         else:
             for job_region in params.regions:
                 if region_layer := self.layers.find(QUuid(job_region.layer_id)):
-                    if region_layer.type() == "grouplayer":
+                    if region_layer.type is LayerType.group:
                         self.create_result_layer(image, params)
                     else:
-                        self._doc.set_layer_content(region_layer, image, params.bounds)
+                        region_layer.write_pixels(image, params.bounds)
 
     def create_result_layer(self, image: Image, params: JobParams, prefix=""):
         """Insert generated image as a new layer in the document (non-destructive apply)."""
         name = f"{prefix}{params.prompt} ({params.seed})"
         if len(params.regions) == 0:
-            self._doc.insert_layer(name, image, params.bounds)
+            self.layers.create(name, image, params.bounds)
         else:
             for job_region in params.regions:
                 region_layer = self.layers.find(QUuid(job_region.layer_id)) or self.layers.root
 
                 # Promote layer to group if needed
-                if region_layer.type() != "grouplayer":
+                if region_layer.type is not LayerType.group:
                     paint_layer = region_layer
-                    region_layer = self._doc.group_layer(paint_layer)
+                    region_layer = self.layers.create_group_for(paint_layer)
                     if region := self.regions.find_linked(paint_layer, RegionLink.direct):
                         region.unlink(paint_layer)
                         region.link(region_layer)
 
                 # Create transparency mask to correctly blend the generated image
-                has_layers = len(region_layer.childNodes()) > 0
-                has_mask = any(l.parentNode() == region_layer for l in self.layers.masks)
-                if has_layers and not has_mask:
-                    mask = self._doc.get_layer_mask(region_layer, params.bounds)
-                    self._doc.insert_mask_layer(
-                        "Transparency Mask", mask, params.bounds, region_layer
-                    )
+                has_layers = len(region_layer.child_layers) > 0
+                has_mask = any(l.type.is_mask for l in region_layer.child_layers)
+                if not region_layer.is_root and has_layers and not has_mask:
+                    mask = region_layer.get_mask(params.bounds)
+                    self.layers.create_mask("Transparency Mask", mask, params.bounds, region_layer)
 
                 # Handle auto-generated background region (not linked to any layers)
-                below = None
+                insert_pos = None
                 if job_region.is_background:
-                    for node in region_layer.childNodes():
-                        if node.type() == "grouplayer":
-                            below = node
+                    for node in region_layer.child_layers:
+                        if node.type is LayerType.group:
                             break
+                        insert_pos = node
 
-                self._doc.insert_layer(name, image, params.bounds, below=below, parent=region_layer)
+                # Crop the full image to the region bounds (+ padding for some flexibility)
+                region_image = image
+                region_bounds = params.bounds
+                if job_region.bounds != params.bounds:
+                    padding = int(0.1 * job_region.bounds.extent.average_side)
+                    region_bounds = Bounds.pad(job_region.bounds, padding)
+                    region_bounds = Bounds.clamp(region_bounds, params.bounds.extent)
+                    region_image = Image.crop(image, region_bounds)
+
+                self.layers.create(
+                    name, region_image, region_bounds, parent=region_layer, above=insert_pos
+                )
 
     def apply_result(self, job_id: str, index: int):
         job = self.jobs.find(job_id)
@@ -874,10 +490,10 @@ class Model(QObject, ObservableProperties):
         if job.control.mode is ControlMode.pose and result is not None:
             pose = Pose.from_open_pose_json(result)
             pose.scale(job.params.bounds.extent)
-            return self._doc.insert_vector_layer(job.params.prompt, pose.to_svg())
+            return self.layers.create_vector(job.params.prompt, pose.to_svg())
         elif len(job.results) > 0:
-            return self._doc.insert_layer(job.params.prompt, job.results[0], job.params.bounds)
-        return self.document.active_layer  # Execution was cached and no image was produced
+            return self.layers.create(job.params.prompt, job.results[0], job.params.bounds)
+        return self.layers.active  # Execution was cached and no image was produced
 
     def add_upscale_layer(self, job: Job):
         assert job.kind is JobKind.upscaling
@@ -887,7 +503,7 @@ class Model(QObject, ObservableProperties):
             self._layer = None
         self._doc.resize(job.params.bounds.extent)
         self.upscale.target_extent_changed.emit(self.upscale.target_extent)
-        self._doc.insert_layer(job.params.prompt, job.results[0], job.params.bounds)
+        self.layers.create(job.params.prompt, job.results[0], job.params.bounds)
 
     def set_workspace(self, workspace: Workspace):
         if self.workspace is Workspace.live:
@@ -938,7 +554,7 @@ class Model(QObject, ObservableProperties):
 
     @property
     def layers(self):
-        return self._layers
+        return self._doc.layers
 
 
 class InpaintContext(Enum):
@@ -980,7 +596,7 @@ class CustomInpaint(QObject, ObservableProperties):
             return Bounds(0, 0, *model.document.extent)
         if self.context is InpaintContext.layer_bounds:
             if layer := model.layers.find(self.context_layer_id):
-                layer_bounds = model.document.get_mask_bounds(layer)
+                layer_bounds = layer.compute_bounds()
                 return Bounds.expand(layer_bounds, include=mask.bounds)
         return None
 
@@ -1172,7 +788,7 @@ class LiveWorkspace(QObject, ObservableProperties):
         self._model.document.import_animation(self._keyframes, self._keyframe_start)
         start, end = self._keyframe_start, self._keyframe_start + len(self._keyframes)
         prompt = self._model.regions.active_or_root.positive
-        self._model.document.active_layer.setName(f"[Rec] {start}-{end}: {prompt}")
+        self._model.layers.active.name = f"[Rec] {start}-{end}: {prompt}"
         self._keyframes = []
 
 
@@ -1217,7 +833,7 @@ class AnimationWorkspace(QObject, ObservableProperties):
     def _prepare_input(self, canvas: Image | Extent, seed: int):
         m = self._model
         bounds = Bounds(0, 0, *m.document.extent)
-        conditioning, job_regions = m.regions.to_api(bounds)
+        conditioning, job_regions = process_regions(m.regions, bounds)
         return workflow.prepare(
             WorkflowKind.generate if m.strength == 1.0 else WorkflowKind.refine,
             canvas,
@@ -1241,7 +857,7 @@ class AnimationWorkspace(QObject, ObservableProperties):
 
     def generate_batch(self):
         doc = self._model.document
-        if self._model.strength < 1.0 and not doc.active_layer.animated():
+        if self._model.strength < 1.0 and not self._model.layers.active.is_animated:
             self._model.report_error("The active layer does not contain an animation.")
             return
 
@@ -1259,7 +875,7 @@ class AnimationWorkspace(QObject, ObservableProperties):
 
     async def _generate_batch(self):
         doc = self._model.document
-        layer = doc.active_layer
+        layer = self._model.layers.active
         start_frame, end_frame = doc.playback_time_range
         extent = doc.extent
         bounds = Bounds(0, 0, *extent)
@@ -1268,13 +884,10 @@ class AnimationWorkspace(QObject, ObservableProperties):
         animation_id = str(uuid.uuid4())
 
         for frame in range(start_frame, end_frame + 1):
-            if layer.hasKeyframeAtTime(frame) or strength == 1.0:
+            if layer.node.hasKeyframeAtTime(frame) or strength == 1.0:
                 canvas: Image | Extent = extent
                 if strength < 1.0:
-                    pixels = layer.pixelDataAtTime(0, 0, extent.width, extent.height, frame)
-                    canvas = Image(
-                        QImage(pixels, extent.width, extent.height, QImage.Format_ARGB32)
-                    )
+                    canvas = layer.get_pixels(time=frame)
 
                 inputs = self._prepare_input(canvas, seed)
                 params = JobParams(bounds, self._model.regions.active_or_root.positive)
@@ -1307,7 +920,7 @@ class AnimationWorkspace(QObject, ObservableProperties):
                     return
                 if layer := self._model.layers.find(self.target_layer):
                     image = job.results[0]
-                    doc.set_layer_content(layer, image, job.params.bounds, make_visible=False)
+                    layer.write_pixels(image, job.params.bounds, make_visible=False)
                     self.target_image_changed.emit(image)
                 else:
                     self._model.report_error("Target layer not found")
@@ -1317,15 +930,15 @@ class AnimationWorkspace(QObject, ObservableProperties):
         keyframes = self._keyframes.pop(job.params.animation_id)
         _, start, end = job.params.frame
         doc.import_animation(keyframes, start)
-        doc.active_layer.setName(f"[Generated] {start}-{end}: {job.params.prompt}")
-        self.target_layer = doc.active_layer.uniqueId()
+        doc.layers.active.name = f"[Generated] {start}-{end}: {job.params.prompt}"
+        self.target_layer = doc.layers.active.id
 
     def _update_target_image(self):
         if self.batch_mode:
             return
         if layer := self._model.layers.find(self.target_layer):
             bounds = Bounds(0, 0, *self._model.document.extent)
-            image = self._model.document.get_layer_image(layer, bounds)
+            image = layer.get_pixels(bounds)
             self.target_image_changed.emit(image)
 
 

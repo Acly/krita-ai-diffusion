@@ -194,8 +194,8 @@ class ControlWidget(QWidget):
             self.layer_select.clear()
             index = -1
             for layer in layers:
-                self.layer_select.addItem(layer.name(), layer.uniqueId())
-                if layer.uniqueId() == self._control.layer_id:
+                self.layer_select.addItem(layer.name, layer.id)
+                if layer.id == self._control.layer_id:
                     index = self.layer_select.count() - 1
             if index == -1 and self._control in self._control_list:
                 self.remove()

@@ -178,7 +178,7 @@ class AnimationWidget(QWidget):
         with theme.SignalBlocker(self.target_layer):
             self.target_layer.clear()
             for layer in self._model.layers.images:
-                self.target_layer.addItem(f"Target layer: {layer.name()}", layer.uniqueId())
+                self.target_layer.addItem(f"Target layer: {layer.name}", layer.id)
         if self.model.animation.target_layer.isNull():
             self.model.animation.target_layer = self.target_layer.currentData()
         else:
