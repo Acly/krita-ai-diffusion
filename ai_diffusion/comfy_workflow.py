@@ -258,9 +258,6 @@ class ComfyWorkflow:
     def conditioning_combine(self, a: Output, b: Output):
         return self.add("ConditioningCombine", 1, conditioning_1=a, conditioning_2=b)
 
-    def attention_mask(self, image: Output):
-        return self.add("ImageToMask", 1, image=image, channel="red")
-
     def attention_mask_composite(self, destination: Output, source: Output, operation: str):
         return self.add(
             "MaskComposite",
