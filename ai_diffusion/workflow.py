@@ -720,7 +720,11 @@ def find_region_prompts(cond: Conditioning):
             region.positive = ""  # skip prompt already covered in global prompt
             continue
 
-        average = Image.scale(region.mask, Extent(1, 1)).pixel(0, 0)
+        if isinstance(region.mask, Image):
+            average = Image.scale(region.mask, Extent(1, 1)).pixel(0, 0)
+        else:
+            average = (0, 0, 0, 0)
+
         covering = isinstance(average, tuple) and average[0] >= 10
         if not covering:
             region.positive = ""
@@ -730,7 +734,7 @@ def find_region_prompts(cond: Conditioning):
                 {
                     "positive": region.positive,
                     "negative": region.negative,
-                    "score": average[0],
+                    "score": average[0] if isinstance(average, tuple) else average,
                 }
             )
 
