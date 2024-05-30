@@ -262,7 +262,7 @@ def encode_text_prompt(w: ComfyWorkflow, cond: Conditioning, clip: Output):
 
 
 def encode_attention_text_prompt(
-        w: ComfyWorkflow, cond: Conditioning, positive: str, negative: str | None, clip: Output
+    w: ComfyWorkflow, cond: Conditioning, positive: str, negative: str | None, clip: Output
 ):
     if positive != "":
         positive = merge_prompt(positive, cond.style_prompt)
