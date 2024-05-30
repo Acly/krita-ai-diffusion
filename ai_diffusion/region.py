@@ -325,7 +325,7 @@ def process_regions(root: RootRegion, bounds: Bounds, parent_layer: Layer | None
 
     # Get region masks. Filter out regions with:
     # * no content (empty mask)
-    # * less than 10% overlap (esimate based on bounding box)
+    # * less than 10% overlap (estimate based on bounding box)
     result_regions: list[tuple[RegionInput, JobRegion]] = []
     for layer, region in layer_regions:
         layer_bounds = layer.compute_bounds()
@@ -351,9 +351,7 @@ def process_regions(root: RootRegion, bounds: Bounds, parent_layer: Layer | None
     for i in range(len(result_regions) - 1, -1, -1):
         region, job_region = result_regions[i]
         mask = region.mask
-        if accumulated_mask is None:
-            accumulated_mask = Image.copy(region.mask)
-        else:
+        if accumulated_mask is not None:
             mask = Image.mask_subtract(mask, accumulated_mask)
 
         coverage = mask.average()
@@ -367,6 +365,10 @@ def process_regions(root: RootRegion, bounds: Bounds, parent_layer: Layer | None
             print(f"Skipping region {region.positive[:10]}: coverage is {coverage}")
             result_regions.pop(i)
         else:
+            # Initialize accumulated_mask if needed
+            if accumulated_mask is None:
+                accumulated_mask = Image.copy(region.mask)
+
             # Accumulate mask for next region, and store modified mask.
             accumulated_mask = Image.mask_add(accumulated_mask, region.mask)
             region.mask = mask
