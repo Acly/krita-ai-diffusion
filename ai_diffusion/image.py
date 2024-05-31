@@ -31,11 +31,6 @@ class Extent(NamedTuple):
     width: int
     height: int
 
-    def __mul__(self, scale: float | SupportsIndex):
-        if isinstance(scale, (float, int)):
-            return Extent(round(self.width * scale), round(self.height * scale))
-        raise NotImplementedError()
-
     def at_least(self, min_size: int):
         return Extent(max(self.width, min_size), max(self.height, min_size))
 
@@ -89,6 +84,14 @@ class Extent(NamedTuple):
     @staticmethod
     def ratio(a: "Extent", b: "Extent"):
         return sqrt(a.pixel_count / b.pixel_count)
+
+    def __mul__(self, scale: float | SupportsIndex):
+        if isinstance(scale, (float, int)):
+            return Extent(round(self.width * scale), round(self.height * scale))
+        raise NotImplementedError()
+
+    def __floordiv__(self, div: int):
+        return Extent(self.width // div, self.height // div)
 
 
 class Bounds(NamedTuple):

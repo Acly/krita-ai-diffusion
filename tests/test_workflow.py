@@ -14,7 +14,7 @@ from ai_diffusion.comfy_client import ComfyClient
 from ai_diffusion.cloud_client import CloudClient
 from ai_diffusion.resources import ControlMode
 from ai_diffusion.settings import PerformanceSettings
-from ai_diffusion.image import Mask, Bounds, Extent, Image
+from ai_diffusion.image import Mask, Bounds, Extent, Image, ImageCollection
 from ai_diffusion.client import Client, ClientEvent
 from ai_diffusion.style import SDVersion, Style
 from ai_diffusion.pose import Pose
@@ -100,7 +100,7 @@ def run_and_save(
     async def runner():
         return await receive_images(client, work)
 
-    results = qtapp.run(runner())
+    results: ImageCollection = qtapp.run(runner())
     assert len(results) == 1
     client_name = "local" if isinstance(client, ComfyClient) else "cloud"
     if composition_image and composition_mask:
@@ -611,6 +611,36 @@ def test_outpaint_resolution_multiplier(qtapp, client):
         perf=perf_settings,
     )
     run_and_save(qtapp, client, job, f"test_outpaint_resolution_multiplier", image, mask)
+
+
+def test_refine_tiled(qtapp, client: Client):
+    image = Image.load(image_dir / "character.webp")
+    job = create(
+        WorkflowKind.refine_tiled,
+        client,
+        canvas=image,
+        upscale_model=client.models.default_upscaler,
+        style=default_style(client, SDVersion.sd15),
+        cond=ConditioningInput("4k uhd"),
+        upscale_factor=2.5,
+        strength=0.5,
+    )
+    run_and_save(qtapp, client, job, "test_refine_tiled")
+
+
+def test_refine_tiled_compare(qtapp, client: Client):
+    image = Image.load(image_dir / "character.webp")
+    job = create(
+        WorkflowKind.upscale_tiled,
+        client,
+        canvas=image,
+        upscale_model=client.models.default_upscaler,
+        upscale_factor=2,
+        style=default_style(client),
+        cond=ConditioningInput("4k uhd"),
+        strength=0.5,
+    )
+    run_and_save(qtapp, client, job, f"test_upscale_tiled_c")
 
 
 inpaint_benchmark = {

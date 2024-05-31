@@ -542,6 +542,25 @@ class ComfyWorkflow:
     def save_image(self, image: Output, prefix: str):
         return self.add("SaveImage", 1, images=image, filename_prefix=prefix)
 
+    def create_tile_layout(self, image: Output, tile_size: int, overlap: int, blending: int):
+        return self.add(
+            "ETN_TileLayout",
+            1,
+            image=image,
+            min_tile_size=tile_size,
+            overlap=overlap,
+            blending=blending,
+        )
+
+    def extract_image_tile(self, image: Output, layout: Output, index: int):
+        return self.add("ETN_ExtractImageTile", 1, image=image, layout=layout, index=index)
+
+    def merge_image_tile(self, image: Output, layout: Output, index: int, tile: Output):
+        return self.add("ETN_MergeImageTile", 1, layout=layout, index=index, tile=tile, image=image)
+
+    def generate_tile_mask(self, layout: Output, index: int):
+        return self.add("ETN_GenerateTileMask", 1, layout=layout, index=index)
+
     def estimate_pose(self, image: Output, resolution: int):
         feat = dict(detect_hand="enable", detect_body="enable", detect_face="enable")
         mdls = dict(bbox_detector="yolox_l.onnx", pose_estimator="dw-ll_ucoco_384.onnx")
