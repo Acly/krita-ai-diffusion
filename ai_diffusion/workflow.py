@@ -10,7 +10,7 @@ from . import resolution, resources
 from .api import ControlInput, ImageInput, CheckpointInput, SamplingInput, WorkflowInput, LoraInput
 from .api import ExtentInput, InpaintMode, InpaintParams, FillMode, ConditioningInput, WorkflowKind
 from .api import RegionInput
-from .image import Bounds, Extent, Image, Mask
+from .image import Bounds, Extent, Image, Mask, multiple_of
 from .client import ClientModels, ModelDict
 from .style import Style, StyleSettings, SamplerPresets
 from .resolution import ScaledExtent, ScaleMode, get_inpaint_reference
@@ -121,17 +121,19 @@ def load_checkpoint_with_lora(w: ComfyWorkflow, checkpoint: CheckpointInput, mod
 
 class Control:
     mode: ControlMode
-    image: Image | Output
-    mask: None | Mask | Output = None
+    image: Image | Output | None
+    mask: Mask | Output | None = None
     strength: float = 1.0
     range = (0.0, 1.0)
 
     _original_extent: Extent | None = None
+    _scaled_extent: Extent | None = None
+    _scaled: Output | None = None
 
     def __init__(
         self,
         mode: ControlMode,
-        image: Image | Output,
+        image: Image | Output | None,
         strength=1.0,
         range: tuple[float, float] = (0.0, 1.0),
         mask: None | Mask | Output = None,
@@ -146,12 +148,22 @@ class Control:
     def from_input(i: ControlInput):
         return Control(i.mode, i.image, i.strength, i.range)
 
-    def load_image(self, w: ComfyWorkflow, target_extent: Extent | None = None):
+    def load_image(
+        self,
+        w: ComfyWorkflow,
+        target_extent: Extent | None = None,
+        default_image: Output | None = None,
+    ):
+        self.image = self.image or default_image
+        assert self.image is not None
         if isinstance(self.image, Image):
             self._original_extent = self.image.extent
             self.image = w.load_image(self.image)
         if target_extent and self._original_extent != target_extent:
-            return w.scale_control_image(self.image, target_extent)
+            if not self._scaled or self._scaled_extent != target_extent:
+                self._scaled = w.scale_control_image(self.image, target_extent)
+                self._scaled_extent = target_extent
+            return self._scaled
         return self.image
 
     def load_mask(self, w: ComfyWorkflow):
@@ -264,7 +276,7 @@ def apply_control(
     positive: Output,
     negative: Output,
     control_layers: list[Control],
-    extent: Extent,
+    extent: Extent | None,
     models: ModelDict,
 ):
     models = models.control
@@ -412,13 +424,13 @@ def scale_refine_and_decode(
     decoded = w.vae_decode(vae, latent)
     upscale = w.upscale_image(upscale_model, decoded)
     upscale = w.scale_image(upscale, extent.desired)
-    upscale = w.vae_encode(vae, upscale)
+    latent = w.vae_encode(vae, upscale)
     params = _sampler_params(sampling, strength=0.4)
 
     positive, negative = apply_control(
         w, prompt_pos, prompt_neg, cond.control, extent.desired, models
     )
-    result = w.ksampler_advanced(model, positive, negative, upscale, **params)
+    result = w.ksampler_advanced(model, positive, negative, latent, **params)
     image = w.vae_decode(vae, result)
     return image
 
@@ -800,6 +812,63 @@ def upscale_tiled(
     return w
 
 
+def refine_tiled(
+    w: ComfyWorkflow,
+    image: Image,
+    extent: ExtentInput,
+    checkpoint: CheckpointInput,
+    cond: Conditioning,
+    sampling: SamplingInput,
+    upscale_model_name: str,
+    models: ModelDict,
+):
+    overlap = 48
+    blending = 8
+    tile_size = extent.desired.width
+    tile_count = extent.initial // (tile_size - overlap)
+    total_tiles = tile_count.width * tile_count.height
+
+    model, clip, vae = load_checkpoint_with_lora(w, checkpoint, models.all)
+    model = apply_ip_adapter(w, model, cond.control, models)
+    positive, negative = encode_text_prompt(w, cond, clip)
+
+    in_image = w.load_image(image)
+    if upscale_model_name:
+        upscale_model = w.load_upscale_model(upscale_model_name)
+        upscaled = w.upscale_image(upscale_model, in_image)
+    else:
+        upscaled = in_image
+    if extent.input != extent.initial:
+        upscaled = w.scale_image(upscaled, extent.initial)
+    tile_layout = w.create_tile_layout(upscaled, tile_size, overlap, blending)
+
+    cond.control.append(Control(ControlMode.blur, in_image))
+
+    def tiled_control(control: Control, index: int):
+        img = control.load_image(w, extent.initial, default_image=in_image)
+        img = w.extract_image_tile(img, tile_layout, index)
+        return Control(control.mode, img, control.strength, control.range)
+
+    out_image = upscaled
+    for i in range(total_tiles):
+        tile_image = w.extract_image_tile(upscaled, tile_layout, i)
+        tile_mask = w.generate_tile_mask(tile_layout, i)
+        latent = w.vae_encode(vae, tile_image)
+        latent = w.set_latent_noise_mask(latent, tile_mask)
+        control = [tiled_control(c, i) for c in cond.control]
+        tile_pos, tile_neg = apply_control(w, positive, negative, control, None, models)
+        sampler = w.ksampler_advanced(
+            model, tile_pos, tile_neg, latent, **_sampler_params(sampling)
+        )
+        tile_result = w.vae_decode(vae, sampler)
+        out_image = w.merge_image_tile(out_image, tile_layout, i, tile_result)
+
+    if extent.initial != extent.target:
+        out_image = scale(extent.initial, extent.target, ScaleMode.resize, w, out_image, models)
+    w.send_image(out_image)
+    return w
+
+
 ###################################################################################################
 
 
@@ -886,6 +955,22 @@ def prepare(
         i.images.hires_mask = mask.to_image()
         i.inpaint = inpaint
         downscale_all_control_images(i.conditioning, canvas.extent, i.images.extent.desired)
+
+    elif kind is WorkflowKind.refine_tiled:
+        assert isinstance(canvas, Image) and style
+        if style.preferred_resolution > 0:
+            tile_size = style.preferred_resolution
+        else:
+            tile_size = 1024 if sd_version is SDVersion.sdxl else 768
+        tile_size = int(multiple_of(tile_size * 3 / 4, 8))
+        tile_size = 640
+        target_extent = canvas.extent * upscale_factor
+        extent = ExtentInput(
+            canvas.extent, target_extent.multiple_of(8), Extent(tile_size, tile_size), target_extent
+        )
+        i.images = ImageInput(extent, canvas)
+        i.upscale_model = upscale_model
+        i.batch_count = 1
 
     elif kind is WorkflowKind.upscale_tiled:
         assert isinstance(canvas, Image) and style and upscale_model
@@ -984,6 +1069,17 @@ def create(i: WorkflowInput, models: ClientModels, comfy_mode=ComfyRunMode.serve
             ensure(i.sampling),
             ensure(i.inpaint),
             i.batch_count,
+            models.for_checkpoint(ensure(i.models).checkpoint),
+        )
+    elif i.kind is WorkflowKind.refine_tiled:
+        return refine_tiled(
+            workflow,
+            i.image,
+            i.extent,
+            ensure(i.models),
+            Conditioning.from_input(ensure(i.conditioning)),
+            ensure(i.sampling),
+            i.upscale_model,
             models.for_checkpoint(ensure(i.models).checkpoint),
         )
     elif i.kind is WorkflowKind.upscale_simple:
