@@ -10,13 +10,14 @@ from PyQt5.QtWidgets import (
     QSlider,
     QDoubleSpinBox,
     QGroupBox,
+    QCheckBox,
 )
 
-from ..properties import Binding, bind, bind_combo, Bind
+from ..properties import Binding, Bind, bind, bind_combo, bind_toggle
 from ..resources import UpscalerName
 from ..model import Model
 from ..root import root
-from .theme import SignalBlocker
+from .theme import SignalBlocker, set_text_clipped
 from .widget import WorkspaceSelectWidget, StyleSelectWidget, StrengthWidget, QueueButton
 
 
@@ -73,9 +74,19 @@ class UpscaleWidget(QWidget):
 
         self.style_select = StyleSelectWidget(self)
         self.strength_slider = StrengthWidget(slider_range=(20, 50), parent=self)
+
+        self.unblur_checkbox = QCheckBox("Use input as guidance ", self)
+
+        self.use_prompt = QCheckBox("Use prompt", self)
+        self.prompt_label = QLabel(self)
+        self.use_prompt.toggled.connect(self.prompt_label.setEnabled)
+
         group_layout = QVBoxLayout(self.refinement_checkbox)
         group_layout.addWidget(self.style_select)
         group_layout.addWidget(self.strength_slider)
+        group_layout.addWidget(self.unblur_checkbox)
+        group_layout.addWidget(self.use_prompt)
+        group_layout.addWidget(self.prompt_label)
         self.refinement_checkbox.setLayout(group_layout)
         layout.addWidget(self.refinement_checkbox)
         self.factor_input.setMinimumWidth(self.strength_slider._input.width() + 10)
@@ -121,12 +132,12 @@ class UpscaleWidget(QWidget):
                 bind_combo(model.upscale, "upscaler", self.model_select),
                 model.upscale.factor_changed.connect(self.update_factor),
                 model.upscale.target_extent_changed.connect(self.update_target_extent),
-                model.upscale.use_diffusion_changed.connect(self.refinement_checkbox.setChecked),
-                self.refinement_checkbox.toggled.connect(
-                    lambda x: setattr(model.upscale, "use_diffusion", x)
-                ),
+                bind_toggle(model.upscale, "use_diffusion", self.refinement_checkbox),
                 bind(model, "style", self.style_select, "value"),
                 bind(model.upscale, "strength", self.strength_slider, "value"),
+                bind_toggle(model.upscale, "use_unblur", self.unblur_checkbox),
+                bind_toggle(model.upscale, "use_prompt", self.use_prompt),
+                model.regions.modified.connect(self._update_prompt),
                 model.progress_changed.connect(self.update_progress),
                 model.error_changed.connect(self.error_text.setText),
                 model.has_error_changed.connect(self.error_text.setVisible),
@@ -184,6 +195,12 @@ class UpscaleWidget(QWidget):
     def update_target_extent(self):
         e = self.model.upscale.target_extent
         self.target_label.setText(f"Target size: {e.width} x {e.height}")
+
+    def _update_prompt(self):
+        text = self.model.regions.positive
+        if len(self.model.regions) > 0:
+            text = f"<b>{len(self.model.regions)} Regions</b> | {text}"
+        set_text_clipped(self.prompt_label, text)
 
 
 def _upscaler_order(filename: str):

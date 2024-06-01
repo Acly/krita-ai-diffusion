@@ -36,13 +36,6 @@ required_custom_nodes = [
         ["IPAdapterModelLoader", "IPAdapter"],
     ),
     CustomNode(
-        "Ultimate SD Upscale",
-        "ComfyUI_UltimateSDUpscale",
-        "https://github.com/Acly/krita-ai-diffusion/releases/download/v0.1.0/ComfyUI_UltimateSDUpscale-6ea48202a76ccf5904ddfa85f826efa80dd50520-repack.zip",
-        "6ea48202a76ccf5904ddfa85f826efa80dd50520",
-        ["UltimateSDUpscale"],
-    ),
-    CustomNode(
         "External Tooling Nodes",
         "comfyui-tooling-nodes",
         "https://github.com/Acly/comfyui-tooling-nodes",

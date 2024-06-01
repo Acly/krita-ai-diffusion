@@ -9,15 +9,8 @@ from PyQt5.QtGui import QImage, QPainter
 import uuid
 
 from . import eventloop, workflow, util
-from .api import (
-    ConditioningInput,
-    RegionInput,
-    WorkflowKind,
-    WorkflowInput,
-    InpaintMode,
-    InpaintParams,
-    FillMode,
-)
+from .api import ConditioningInput, ControlInput, WorkflowKind, WorkflowInput
+from .api import InpaintMode, InpaintParams, FillMode
 from .util import ensure, client_logger as log
 from .settings import settings
 from .network import NetworkError
@@ -120,7 +113,7 @@ class Model(QObject, ObservableProperties):
         image = None
         inpaint_mode = InpaintMode.fill
         inpaint = None
-        region_layer = None
+        region_layer = self.layers.root
         extent = self._doc.extent
         mask = self._doc.create_mask_from_selection(
             **get_selection_modifiers(self.inpaint.mode, self.strength), min_size=64
@@ -131,7 +124,7 @@ class Model(QObject, ObservableProperties):
             target = Region.link_target(self.layers.active)
             if self.regions.is_linked(target):
                 region_layer = target
-            if region_layer:
+            if not region_layer.is_root:
                 inpaint_mode = InpaintMode.add_object
                 if not (self.region_only or region_layer.parent_layer is None):
                     region_layer = region_layer.parent_layer
@@ -215,15 +208,22 @@ class Model(QObject, ObservableProperties):
     def upscale_image(self):
         try:
             params = self.upscale.params
-            image = self._doc.get_image(Bounds(0, 0, *self._doc.extent))
+            bounds = Bounds(0, 0, *self._doc.extent)
+            image = self._doc.get_image()
             client = self._connection.client
             upscaler = params.upscaler or client.models.default_upscaler
+            if params.use_prompt:
+                conditioning, _ = process_regions(self.regions, bounds, None)
+            else:
+                conditioning = ConditioningInput("4k uhd")
+            if params.use_unblur:
+                conditioning.control.append(ControlInput(ControlMode.blur, None))
 
             if params.use_diffusion:
                 inputs = workflow.prepare(
                     WorkflowKind.upscale_tiled,
                     image,
-                    ConditioningInput("4k uhd"),
+                    conditioning,
                     self.style,
                     params.seed,
                     client.models,
@@ -604,6 +604,8 @@ class UpscaleParams(NamedTuple):
     upscaler: str
     factor: float
     use_diffusion: bool
+    use_unblur: bool
+    use_prompt: bool
     strength: float
     target_extent: Extent
     seed: int
@@ -613,11 +615,15 @@ class UpscaleWorkspace(QObject, ObservableProperties):
     upscaler = Property("", persist=True)
     factor = Property(2.0, persist=True)
     use_diffusion = Property(True, persist=True)
+    use_unblur = Property(False, persist=True)
+    use_prompt = Property(False, persist=True)
     strength = Property(0.3, persist=True)
 
     upscaler_changed = pyqtSignal(str)
     factor_changed = pyqtSignal(float)
     use_diffusion_changed = pyqtSignal(bool)
+    use_unblur_changed = pyqtSignal(bool)
+    use_prompt_changed = pyqtSignal(bool)
     strength_changed = pyqtSignal(float)
     target_extent_changed = pyqtSignal(Extent)
     modified = pyqtSignal(QObject, str)
@@ -646,6 +652,8 @@ class UpscaleWorkspace(QObject, ObservableProperties):
             upscaler=self.upscaler,
             factor=self.factor,
             use_diffusion=self.use_diffusion,
+            use_unblur=self.use_unblur,
+            use_prompt=self.use_prompt,
             strength=self.strength,
             target_extent=self.target_extent,
             seed=self._model.seed if self._model.fixed_seed else workflow.generate_seed(),
@@ -832,7 +840,7 @@ class AnimationWorkspace(QObject, ObservableProperties):
     def _prepare_input(self, canvas: Image | Extent, seed: int):
         m = self._model
         bounds = Bounds(0, 0, *m.document.extent)
-        conditioning, job_regions = process_regions(m.regions, bounds)
+        conditioning, _ = process_regions(m.regions, bounds, self._model.layers.root)
         return workflow.prepare(
             WorkflowKind.generate if m.strength == 1.0 else WorkflowKind.refine,
             canvas,

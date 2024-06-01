@@ -21,6 +21,10 @@ def test_defaults():
     assert result == input
 
 
+def _ensure_cmp(img: Image | None):
+    return ensure(img).to_numpy_format()
+
+
 def test_serialize():
     input = WorkflowInput(WorkflowKind.generate)
     input.images = ImageInput(ExtentInput(Extent(1, 1), Extent(2, 2), Extent(3, 3), Extent(4, 4)))
@@ -49,6 +53,6 @@ def test_serialize():
     )
     input_control = ensure(input.conditioning).control
     result_control = ensure(result.conditioning).control
-    assert result_control[0].image.to_numpy_format() == input_control[0].image.to_numpy_format()
-    assert result_control[1].image.to_numpy_format() == input_control[1].image.to_numpy_format()
+    assert _ensure_cmp(result_control[0].image) == _ensure_cmp(input_control[0].image)
+    assert _ensure_cmp(result_control[1].image) == _ensure_cmp(input_control[1].image)
     assert result == input

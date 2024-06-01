@@ -439,6 +439,12 @@ class LayerManager(QObject):
     _mask_types = [t.value for t in LayerType if t.is_mask]
 
     @property
+    def all(self):
+        if self._doc is None:
+            return []
+        return [self.wrap(n) for n in traverse_layers(self._doc.rootNode())]
+
+    @property
     def images(self):
         if self._doc is None:
             return []

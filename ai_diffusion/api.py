@@ -14,7 +14,6 @@ class WorkflowKind(Enum):
     inpaint = 1
     refine = 2
     refine_region = 3
-    refine_tiled = 7
     upscale_simple = 4
     upscale_tiled = 5
     control_image = 6
@@ -83,7 +82,7 @@ class SamplingInput:
 @dataclass
 class ControlInput:
     mode: ControlMode
-    image: Image
+    image: Image | None
     strength: float = 1.0
     range: tuple[float, float] = (0.0, 1.0)
 
