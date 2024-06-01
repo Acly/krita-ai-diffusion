@@ -917,54 +917,16 @@ def upscale_tiled(
     w: ComfyWorkflow,
     image: Image,
     extent: ExtentInput,
-    upscale_model_name: str,
-    checkpoint: CheckpointInput,
-    cond: Conditioning,
-    sampling: SamplingInput,
-    models: ModelDict,
-):
-    model, clip, vae = load_checkpoint_with_lora(w, checkpoint, models.all)
-    model = apply_ip_adapter(w, model, cond.control, models)
-    img = w.load_image(image)
-    upscale_model = w.load_upscale_model(upscale_model_name)
-    positive, negative = encode_text_prompt(w, cond, clip)
-    if models.control.find(ControlMode.blur) is not None:
-        blur = [Control(ControlMode.blur, img)]
-        positive, negative = apply_control(w, positive, negative, blur, extent.input, models)
-
-    img = w.upscale_tiled(
-        image=img,
-        model=model,
-        positive=positive,
-        negative=negative,
-        vae=vae,
-        upscale_model=upscale_model,
-        factor=extent.target.width / extent.input.width,
-        denoise=sampling.actual_steps / sampling.total_steps,
-        original_extent=extent.input,
-        tile_extent=extent.initial,
-        **_sampler_params(sampling, advanced=False),
-    )
-    if not extent.target.is_multiple_of(8):
-        img = w.scale_image(img, extent.target)
-    w.send_image(img)
-    return w
-
-
-def refine_tiled(
-    w: ComfyWorkflow,
-    image: Image,
-    extent: ExtentInput,
     checkpoint: CheckpointInput,
     cond: Conditioning,
     sampling: SamplingInput,
     upscale_model_name: str,
     models: ModelDict,
 ):
-    overlap = 48
-    blending = 8
+    padding = 48
+    blending = 16
     tile_size = extent.desired.width
-    tile_count = extent.initial // (tile_size - overlap)
+    tile_count = extent.initial // (tile_size - 2 * padding)
     total_tiles = tile_count.width * tile_count.height
 
     model, clip, vae = load_checkpoint_with_lora(w, checkpoint, models.all)
@@ -979,9 +941,7 @@ def refine_tiled(
         upscaled = in_image
     if extent.input != extent.initial:
         upscaled = w.scale_image(upscaled, extent.initial)
-    tile_layout = w.create_tile_layout(upscaled, tile_size, overlap, blending)
-
-    cond.control.append(Control(ControlMode.blur, in_image))
+    tile_layout = w.create_tile_layout(upscaled, tile_size, padding, blending)
 
     def tiled_control(control: Control, index: int):
         img = control.load_image(w, extent.initial, default_image=in_image)
@@ -1103,37 +1063,19 @@ def prepare(
         i.inpaint = inpaint
         downscale_all_control_images(i.conditioning, canvas.extent, i.images.extent.desired)
 
-    elif kind is WorkflowKind.refine_tiled:
+    elif kind is WorkflowKind.upscale_tiled:
         assert isinstance(canvas, Image) and style
         if style.preferred_resolution > 0:
             tile_size = style.preferred_resolution
         else:
-            tile_size = 1024 if sd_version is SDVersion.sdxl else 768
-        tile_size = int(multiple_of(tile_size * 3 / 4, 8))
-        tile_size = 640
+            tile_size = 1024 if sd_version is SDVersion.sdxl else 800
+        tile_size = multiple_of(tile_size - 128, 8)
+        tile_size = Extent(tile_size, tile_size)
         target_extent = canvas.extent * upscale_factor
-        extent = ExtentInput(
-            canvas.extent, target_extent.multiple_of(8), Extent(tile_size, tile_size), target_extent
-        )
+        extent = ExtentInput(canvas.extent, target_extent.multiple_of(8), tile_size, target_extent)
         i.images = ImageInput(extent, canvas)
-        i.upscale_model = upscale_model
+        i.upscale_model = upscale_model if upscale_factor > 1 else ""
         i.batch_count = 1
-
-    elif kind is WorkflowKind.upscale_tiled:
-        assert isinstance(canvas, Image) and style and upscale_model
-        i.upscale_model = upscale_model
-        target_extent = canvas.extent * upscale_factor
-        if style.preferred_resolution > 0:
-            tile_extent = Extent(style.preferred_resolution, style.preferred_resolution)
-        elif sd_version is SDVersion.sd15:
-            tile_count = target_extent.longest_side / 768
-            tile_extent = (target_extent * (1 / tile_count)).multiple_of(8)
-        else:  # SDXL
-            tile_extent = Extent(1024, 1024)
-        extent = ExtentInput(
-            canvas.extent, tile_extent, target_extent.multiple_of(8), target_extent
-        )
-        i.images = ImageInput(extent, canvas)
 
     else:
         raise Exception(f"Workflow {kind.name} not supported by this constructor")
@@ -1218,17 +1160,6 @@ def create(i: WorkflowInput, models: ClientModels, comfy_mode=ComfyRunMode.serve
             i.batch_count,
             models.for_checkpoint(ensure(i.models).checkpoint),
         )
-    elif i.kind is WorkflowKind.refine_tiled:
-        return refine_tiled(
-            workflow,
-            i.image,
-            i.extent,
-            ensure(i.models),
-            Conditioning.from_input(ensure(i.conditioning)),
-            ensure(i.sampling),
-            i.upscale_model,
-            models.for_checkpoint(ensure(i.models).checkpoint),
-        )
     elif i.kind is WorkflowKind.upscale_simple:
         return upscale_simple(workflow, i.image, i.upscale_model, i.upscale_factor)
     elif i.kind is WorkflowKind.upscale_tiled:
@@ -1236,10 +1167,10 @@ def create(i: WorkflowInput, models: ClientModels, comfy_mode=ComfyRunMode.serve
             workflow,
             i.image,
             i.extent,
-            i.upscale_model,
             ensure(i.models),
             Conditioning.from_input(ensure(i.conditioning)),
             ensure(i.sampling),
+            i.upscale_model,
             models.for_checkpoint(ensure(i.models).checkpoint),
         )
     elif i.kind is WorkflowKind.control_image:

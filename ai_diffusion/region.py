@@ -300,8 +300,9 @@ class RootRegion(QObject, ObservableProperties):
 
 
 def process_regions(root: RootRegion, bounds: Bounds, parent_layer: Layer | None = None):
+    use_all_regions = parent_layer is None  # eg. for tiled upscaling
     parent_region = None
-    if parent_layer is not None:
+    if parent_layer and not parent_layer.is_root:
         parent_region = root.find_linked(parent_layer)
 
     parent_prompt = ""
@@ -316,8 +317,11 @@ def process_regions(root: RootRegion, bounds: Bounds, parent_layer: Layer | None
     )
 
     # Check for regions linked to any child layers of the parent layer.
-    parent_layer = parent_layer or root.layers.root
-    child_layers = parent_layer.child_layers
+    if parent_layer is not None:
+        child_layers = parent_layer.child_layers
+    else:
+        child_layers = root.layers.all
+        parent_layer = root.layers.root
     layer_regions = ((l, root.find_linked(l, RegionLink.direct)) for l in child_layers)
     layer_regions = [(l, r) for l, r in layer_regions if r is not None]
     if len(layer_regions) == 0:
@@ -334,7 +338,7 @@ def process_regions(root: RootRegion, bounds: Bounds, parent_layer: Layer | None
             continue
 
         overlap_rough = Bounds.intersection(bounds, layer_bounds).area / bounds.area
-        if overlap_rough < 0.1:
+        if overlap_rough < 0.1 and not use_all_regions:
             print(f"Skipping region {region.positive[:10]}: overlap is {overlap_rough}")
             continue
 
@@ -355,12 +359,12 @@ def process_regions(root: RootRegion, bounds: Bounds, parent_layer: Layer | None
             mask = Image.mask_subtract(mask, accumulated_mask)
 
         coverage = mask.average()
-        if coverage > 0.9:
+        if coverage > 0.9 and not use_all_regions:
             # Single region covers (almost) entire image, don't use regional conditioning.
             print(f"Using single region {region.positive[:10]}: coverage is {coverage}")
             result.control += region.control
             return result, [job_region]
-        elif coverage < 0.1:
+        elif coverage < 0.1 and not use_all_regions:
             # Region has less than 10% coverage, remove it.
             print(f"Skipping region {region.positive[:10]}: coverage is {coverage}")
             result_regions.pop(i)
