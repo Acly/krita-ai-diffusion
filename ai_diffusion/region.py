@@ -188,6 +188,16 @@ class RootRegion(QObject, ObservableProperties):
     def active_or_root(self):
         return self.active or self
 
+    def get_active_region_layer(self, use_parent: bool):
+        result = self.layers.root
+        target = Region.link_target(self.layers.active)
+        if self.is_linked(target):
+            return target
+        if not result.is_root:
+            if use_parent and result.parent_layer is not None:
+                result = result.parent_layer
+        return result
+
     def add_control(self):
         self.active_or_root.control.add()
 

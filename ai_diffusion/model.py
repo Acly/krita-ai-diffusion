@@ -123,29 +123,24 @@ class Model(QObject, ObservableProperties):
         image = None
         inpaint_mode = InpaintMode.fill
         inpaint = None
-        region_layer = self.layers.root
         extent = self._doc.extent
+
+        region_layer = self.regions.get_active_region_layer(use_parent=not self.region_only)
+        if not region_layer.is_root:
+            inpaint_mode = InpaintMode.add_object
+
         mask = self._doc.create_mask_from_selection(
             **get_selection_modifiers(self.inpaint.mode, self.strength), min_size=64
         )
         bounds = Bounds(0, 0, *extent)
-        if mask is None:
-            # Check for region inpaint
-            target = Region.link_target(self.layers.active)
-            if self.regions.is_linked(target):
-                region_layer = target
+        if mask is None:  # Check for region inpaint
             if not region_layer.is_root:
-                inpaint_mode = InpaintMode.add_object
-                if not (self.region_only or region_layer.parent_layer is None):
-                    region_layer = region_layer.parent_layer
-                if not region_layer.is_root:
-                    bounds = region_layer.compute_bounds()
-                    bounds = Bounds.pad(bounds, settings.selection_padding, multiple=64)
-                    bounds = Bounds.clamp(bounds, extent)
-                    mask_img = region_layer.get_mask(bounds)
-                    mask = Mask(bounds, mask_img._qimage)
-        else:
-            # Selection inpaint
+                bounds = region_layer.compute_bounds()
+                bounds = Bounds.pad(bounds, settings.selection_padding, multiple=64)
+                bounds = Bounds.clamp(bounds, extent)
+                mask_img = region_layer.get_mask(bounds)
+                mask = Mask(bounds, mask_img._qimage)
+        else:  # Selection inpaint
             bounds = compute_bounds(extent, mask.bounds if mask else None, self.strength)
             bounds = self.inpaint.get_context(self, mask) or bounds
             inpaint_mode = self.resolve_inpaint_mode()
@@ -167,13 +162,9 @@ class Model(QObject, ObservableProperties):
             if inpaint_mode is InpaintMode.custom:
                 inpaint = self.inpaint.get_params(mask)
             else:
+                pos, ctrl = conditioning.positive, conditioning.control
                 inpaint = workflow.detect_inpaint(
-                    inpaint_mode,
-                    mask.bounds,
-                    sd_version,
-                    conditioning.positive,
-                    conditioning.control,
-                    self.strength,
+                    inpaint_mode, mask.bounds, sd_version, pos, ctrl, self.strength
                 )
 
         input = workflow.prepare(
@@ -620,7 +611,6 @@ class CustomInpaint(QObject, ObservableProperties):
         params = InpaintParams(self.mode, mask.bounds, self.fill)
         params.use_inpaint_model = self.use_inpaint
         params.use_condition_mask = self.use_prompt_focus
-        params.use_single_region = self.use_prompt_focus
         return params
 
     def get_context(self, model: Model, mask: Mask | None):
