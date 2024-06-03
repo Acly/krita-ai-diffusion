@@ -8,7 +8,7 @@ from typing import Any
 
 from ai_diffusion import workflow
 from ai_diffusion.api import LoraInput, WorkflowKind, WorkflowInput, ControlInput
-from ai_diffusion.api import InpaintMode, FillMode, ConditioningInput
+from ai_diffusion.api import InpaintMode, FillMode, ConditioningInput, RegionInput
 from ai_diffusion.client import ClientModels, CheckpointInfo
 from ai_diffusion.comfy_client import ComfyClient
 from ai_diffusion.cloud_client import CloudClient
@@ -351,6 +351,48 @@ def test_differential_diffusion(qtapp, client):
         inpaint=params,
     )
     run_and_save(qtapp, client, job, "test_differential_diffusion", image, mask)
+
+
+def region_prompt():
+    background_text = "a workbench made of wood, sturdy and well-used"
+    region1_text = "a chemical bottle, something pink oozing out, flask"
+    region2_text = "a miniature model of a sailing boat made out of light wood, with red sails"
+    region3_text = "a gramophone with a large horn, made of brass"
+    root_text = "a collection of objects on a wooden workbench, evening light, dust motes"
+    prompt = ConditioningInput(root_text)
+    prompt.regions = [
+        RegionInput(Mask.load(image_dir / "region_mask_bg.png").to_image(), background_text),
+        RegionInput(Mask.load(image_dir / "region_mask_1.png").to_image(), region1_text),
+        RegionInput(Mask.load(image_dir / "region_mask_2.png").to_image(), region2_text),
+        RegionInput(Mask.load(image_dir / "region_mask_3.png").to_image(), region3_text),
+    ]
+    for region in prompt.regions:
+        region.positive += " " + root_text
+    return prompt
+
+
+@pytest.mark.parametrize("sdver", [SDVersion.sd15, SDVersion.sdxl])
+def test_regions(qtapp, client, sdver: SDVersion):
+    style = default_style(client, sdver)
+    job = create(
+        WorkflowKind.generate, client, canvas=Extent(1024, 1024), cond=region_prompt(), style=style
+    )
+    run_and_save(qtapp, client, job, f"test_regions_{sdver.name}")
+
+
+@pytest.mark.parametrize("kind", [WorkflowKind.inpaint, WorkflowKind.refine_region])
+def test_regions_inpaint(qtapp, client, kind: WorkflowKind):
+    image = Image.load(image_dir / "workbench.webp")
+    mask = Mask.load(image_dir / "region_mask_inpaint.png")
+    prompt = region_prompt()
+    prompt.regions = prompt.regions[:2] + prompt.regions[3:]
+    prompt.regions[0].mask = Mask.load(image_dir / "region_mask_bg2.png").to_image()
+    params = detect_inpaint(InpaintMode.fill, mask.bounds, SDVersion.sd15, prompt.positive, [], 1.0)
+    strength = 0.7 if kind is WorkflowKind.refine_region else 1.0
+    job = create(
+        kind, client, canvas=image, mask=mask, cond=prompt, inpaint=params, strength=strength
+    )
+    run_and_save(qtapp, client, job, f"test_regions_{kind.name}", image, mask)
 
 
 @pytest.mark.parametrize(
