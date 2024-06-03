@@ -76,6 +76,15 @@ class ComfyClient(Client):
         # Retrieve system info
         client.device_info = DeviceInfo.parse(await client._get("system_stats"))
 
+        # Try to establish websockets connection
+        try:
+            wsurl = websocket_url(url)
+            async with websockets_client.connect(f"{wsurl}/ws?clientId={client._id}"):
+                pass
+        except Exception as e:
+            msg = f"Could not establish websocket connection at {wsurl}: {str(e)}"
+            raise Exception(msg)
+
         # Check custom nodes
         nodes = await client._get("object_info")
         missing = [
