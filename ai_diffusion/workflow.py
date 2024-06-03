@@ -283,7 +283,7 @@ def encode_attention_text_prompt(
     return positive_cond, negative_cond
 
 
-def apply_attention(
+def apply_attention_mask(
     w: ComfyWorkflow,
     model: Output,
     cond: Conditioning,
@@ -296,14 +296,15 @@ def apply_attention(
 
     conds: list[Output] = []
     masks: list[Output] = []
+    mask_extent = getattr(extent, extent_name)
 
     for region in reversed(cond.regions):
-        mask = w.scale_mask(region.load_mask(w), getattr(extent, extent_name))
+        mask = w.scale_mask(region.load_mask(w), mask_extent)
         masks.append(mask)
 
         conds.append(encode_attention_text_prompt(w, cond, region.positive, None, clip)[0])
 
-    model = w.apply_attention_couple(model, conds, masks)
+    model = w.apply_attention_mask(model, conds, masks)
     return model, True
 
 
@@ -453,7 +454,7 @@ def scale_refine_and_decode(
         return scale(extent.initial, extent.desired, mode, w, decoded, models)
 
     if use_attention:
-        model, applied_attention = apply_attention(w, model, cond, clip, extent, "desired")
+        model, applied_attention = apply_attention_mask(w, model, cond, clip, extent, "desired")
 
     if mode is ScaleMode.upscale_small:
         upscaler = models.upscale[UpscalerName.fast_2x]
@@ -488,7 +489,7 @@ def generate(
     model, clip, vae = load_checkpoint_with_lora(w, checkpoint, models.all)
     model = apply_ip_adapter(w, model, cond.control, models)
     model_orig = copy(model)
-    model, applied_attention = apply_attention(w, model, cond, clip, extent)
+    model, applied_attention = apply_attention_mask(w, model, cond, clip, extent)
     latent = w.empty_latent_image(extent.initial, batch_count)
     prompt_pos, prompt_neg = encode_text_prompt(w, cond, clip)
     positive, negative = apply_control(
@@ -581,7 +582,7 @@ def inpaint(
     model_orig = copy(model)
 
     if not params.use_single_region:
-        model, applied_attention = apply_attention(w, model, cond, clip, extent)
+        model, applied_attention = apply_attention_mask(w, model, cond, clip, extent)
 
     upscale_extent = ScaledExtent(  # after crop to the masked region
         Extent(0, 0), Extent(0, 0), crop_upscale_extent, target_bounds.extent
@@ -642,7 +643,7 @@ def inpaint(
                 w, cond, region_pos, region_neg, clip
             )
         else:
-            model_orig, applied_attention = apply_attention(
+            model_orig, applied_attention = apply_attention_mask(
                 w, model_orig, cond, clip, upscale_extent, "desired"
             )
             positive_up, negative_up = encode_text_prompt(w, cond, clip)
@@ -707,7 +708,7 @@ def refine(
 ):
     model, clip, vae = load_checkpoint_with_lora(w, checkpoint, models.all)
     model = apply_ip_adapter(w, model, cond.control, models)
-    model, applied_attention = apply_attention(w, model, cond, clip, extent)
+    model, applied_attention = apply_attention_mask(w, model, cond, clip, extent)
     in_image = w.load_image(image)
     in_image = scale_to_initial(extent, w, in_image, models)
     latent = w.vae_encode(vae, in_image)
@@ -782,7 +783,7 @@ def refine_region(
         prompt_pos, prompt_neg = encode_attention_text_prompt(w, cond, region_pos, region_neg, clip)
         applied_attention = False
     else:
-        model, applied_attention = apply_attention(w, model, cond, clip, extent)
+        model, applied_attention = apply_attention_mask(w, model, cond, clip, extent)
         prompt_pos, prompt_neg = encode_text_prompt(w, cond, clip)
 
     in_image = w.load_image(ensure(images.initial_image))

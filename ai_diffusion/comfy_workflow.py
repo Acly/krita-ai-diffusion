@@ -258,30 +258,13 @@ class ComfyWorkflow:
     def conditioning_combine(self, a: Output, b: Output):
         return self.add("ConditioningCombine", 1, conditioning_1=a, conditioning_2=b)
 
-    def attention_mask_composite(self, destination: Output, source: Output, operation: str):
-        return self.add(
-            "MaskComposite",
-            1,
-            destination=destination,
-            source=source,
-            x=0,
-            y=0,
-            operation=operation,
-        )
-
-    def apply_attention_couple(self, model: Output, conds: list[Output], masks: list[Output]):
+    def apply_attention_mask(self, model: Output, conds: list[Output], masks: list[Output]):
         regions_list = None
-        for i in range(len(conds)):
+        for mask, cond in zip(masks, conds):
             regions_list = self.add(
-                "ETN_ListAppend",
-                output_count=1,
-                list=regions_list,
-                image=None,
-                mask=masks[i],
-                conditioning=conds[i],
+                "ETN_DefineRegion", 1, regions=regions_list, mask=mask, conditioning=cond
             )
-
-        return self.add("ETN_AttentionCouple", 1, model=model, regions=regions_list)
+        return self.add("ETN_AttentionMask", 1, model=model, regions=regions_list)
 
     def apply_controlnet(
         self,
