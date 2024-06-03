@@ -28,24 +28,8 @@ from ..style import Style, Styles, StyleSettings, SamplerPresets
 from ..root import root
 from .settings_widgets import ExpanderButton, SpinBoxSetting, SliderSetting, SwitchSetting
 from .settings_widgets import ComboBoxSetting, TextSetting, LineEditSetting, SettingWidget
-from .settings_widgets import SettingsTab
+from .settings_widgets import SettingsTab, WarningIcon
 from .theme import SignalBlocker, add_header, icon, sd_version_icon, yellow
-
-
-class WarningIcon(QLabel):
-    def __init__(self, parent=None):
-        super().__init__(parent)
-        font_height = int(1.2 * self.fontMetrics().height())
-        warning_icon = icon("warning").pixmap(font_height, font_height)
-        self.setPixmap(warning_icon)
-        self.setVisible(False)
-
-    def show_message(self, text: str):
-        self.setToolTip(text)
-        self.setVisible(True)
-
-    def hide(self):
-        self.setVisible(False)
 
 
 class LoraList(QWidget):

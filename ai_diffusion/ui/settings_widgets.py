@@ -22,7 +22,7 @@ from PyQt5.QtGui import QIcon
 
 from ..settings import Setting, settings
 from .switch import SwitchWidget
-from .theme import add_header
+from .theme import add_header, icon
 
 
 class ExpanderButton(QToolButton):
@@ -38,6 +38,22 @@ class ExpanderButton(QToolButton):
 
     def _toggle(self, value: bool):
         self.setArrowType(Qt.ArrowType.DownArrow if value else Qt.ArrowType.RightArrow)
+
+
+class WarningIcon(QLabel):
+    def __init__(self, parent=None):
+        super().__init__(parent)
+        font_height = int(1.2 * self.fontMetrics().height())
+        warning_icon = icon("warning").pixmap(font_height, font_height)
+        self.setPixmap(warning_icon)
+        self.setVisible(False)
+
+    def show_message(self, text: str):
+        self.setToolTip(text)
+        self.setVisible(True)
+
+    def hide(self):
+        self.setVisible(False)
 
 
 class SettingWidget(QWidget):

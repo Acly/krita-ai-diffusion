@@ -923,8 +923,9 @@ def upscale_tiled(
     upscale_model_name: str,
     models: ModelDict,
 ):
-    padding = 48
-    blending = 16
+    strength = sampling.actual_steps / sampling.total_steps
+    padding = round((16 + 64 * strength) / 8) * 8
+    blending = max(1, padding // 16) * 8
     tile_size = extent.desired.width
     tile_count = extent.initial // (tile_size - 2 * padding)
     total_tiles = tile_count.width * tile_count.height

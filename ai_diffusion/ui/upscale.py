@@ -10,17 +10,19 @@ from PyQt5.QtWidgets import (
     QSlider,
     QDoubleSpinBox,
     QGroupBox,
-    QCheckBox,
+    QSpinBox,
 )
 
 from ..properties import Binding, Bind, bind, bind_combo, bind_toggle
-from ..resources import UpscalerName
+from ..resources import ControlMode, UpscalerName
 from ..model import Model
 from ..jobs import JobKind
 from ..root import root
 from .theme import SignalBlocker, set_text_clipped
 from .widget import WorkspaceSelectWidget, StyleSelectWidget, StrengthWidget, QueueButton
 from .widget import GenerateButton
+from .settings_widgets import WarningIcon
+from .switch import SwitchWidget
 
 
 class UpscaleWidget(QWidget):
@@ -77,18 +79,33 @@ class UpscaleWidget(QWidget):
         self.style_select = StyleSelectWidget(self)
         self.strength_slider = StrengthWidget(slider_range=(20, 50), parent=self)
 
-        self.unblur_checkbox = QCheckBox("Use input as guidance ", self)
+        self.unblur_combo = QComboBox(self)
+        self.unblur_combo.addItem("Off", 0)
+        self.unblur_combo.addItem("Unblur - Medium", 1)
+        self.unblur_combo.addItem("Unblur - Strong", 2)
+        unblur_layout = QHBoxLayout()
+        unblur_layout.addWidget(QLabel("Image guidance", self), 2)
+        unblur_layout.addWidget(self.unblur_combo, 1)
+        root.connection.models_changed.connect(self._update_unblur_enabled)
 
-        self.use_prompt = QCheckBox("Use prompt", self)
+        self.use_prompt_switch = SwitchWidget(self)
+        self.use_prompt_switch.toggled.connect(self._update_prompt)
+        self.use_prompt_value = QLabel("Off", self)
+        self.prompt_warning = WarningIcon(self)
         self.prompt_label = QLabel(self)
-        self.use_prompt.toggled.connect(self.prompt_label.setEnabled)
+        self.prompt_label.setEnabled(False)
+        prompt_layout = QHBoxLayout()
+        prompt_layout.addWidget(QLabel("Use Prompt", self))
+        prompt_layout.addWidget(self.prompt_label, 1)
+        prompt_layout.addWidget(self.prompt_warning)
+        prompt_layout.addWidget(self.use_prompt_value)
+        prompt_layout.addWidget(self.use_prompt_switch)
 
         group_layout = QVBoxLayout(self.refinement_checkbox)
         group_layout.addWidget(self.style_select)
         group_layout.addWidget(self.strength_slider)
-        group_layout.addWidget(self.unblur_checkbox)
-        group_layout.addWidget(self.use_prompt)
-        group_layout.addWidget(self.prompt_label)
+        group_layout.addLayout(unblur_layout)
+        group_layout.addLayout(prompt_layout)
         self.refinement_checkbox.setLayout(group_layout)
         layout.addWidget(self.refinement_checkbox)
         self.factor_input.setMinimumWidth(self.strength_slider._input.width() + 10)
@@ -137,17 +154,23 @@ class UpscaleWidget(QWidget):
                 bind_toggle(model.upscale, "use_diffusion", self.refinement_checkbox),
                 bind(model, "style", self.style_select, "value"),
                 bind(model.upscale, "strength", self.strength_slider, "value"),
-                bind_toggle(model.upscale, "use_unblur", self.unblur_checkbox),
-                bind_toggle(model.upscale, "use_prompt", self.use_prompt),
+                bind_combo(model.upscale, "unblur_strength", self.unblur_combo),
+                bind_toggle(model.upscale, "use_prompt", self.use_prompt_switch),
+                model.upscale.use_prompt_changed.connect(self._update_prompt),
                 model.regions.modified.connect(self._update_prompt),
+                model.regions.added.connect(self._update_prompt),
+                model.regions.removed.connect(self._update_prompt),
                 model.progress_changed.connect(self.update_progress),
                 model.error_changed.connect(self.error_text.setText),
                 model.has_error_changed.connect(self.error_text.setVisible),
+                model.style_changed.connect(self._update_unblur_enabled),
             ]
             self.upscale_button.model = model
             self.queue_button.model = model
             self.update_factor(model.upscale.factor)
             self.update_target_extent()
+            self._update_prompt()
+            self._update_unblur_enabled()
             self.update_progress()
 
     def update_models(self):
@@ -199,11 +222,35 @@ class UpscaleWidget(QWidget):
         e = self.model.upscale.target_extent
         self.target_label.setText(f"Target size: {e.width} x {e.height}")
 
+    def _update_unblur_enabled(self):
+        has_unblur = False
+        if client := root.connection.client_if_connected:
+            models = client.models.for_checkpoint(self.model.style.sd_checkpoint)
+            has_unblur = models.control.find(ControlMode.blur) is not None
+        self.unblur_combo.setEnabled(has_unblur)
+        if not has_unblur:
+            self.unblur_combo.setToolTip("The tile/unblur control model is not intalled.")
+        else:
+            self.unblur_combo.setToolTip(
+                "When enabled, the low resolution image is used as guidance for refining "
+                "the upscaled image.\nThis produces results which are closer to the original "
+                "while enhancing local details."
+            )
+
     def _update_prompt(self):
+        self.use_prompt_value.setText("On" if self.model.upscale.use_prompt else "Off")
         text = self.model.regions.positive
         if len(self.model.regions) > 0:
             text = f"<b>{len(self.model.regions)} Regions</b> | {text}"
-        set_text_clipped(self.prompt_label, text)
+        if self.model.upscale.use_prompt and len(self.model.regions) == 0:
+            self.prompt_warning.show_message(
+                "Text prompt regions have not been set up.\n"
+                "It is not recommended to use a single text description for tiled upscale,\n"
+                "unless it can be generally applied to all parts of the image."
+            )
+        else:
+            self.prompt_warning.hide()
+        set_text_clipped(self.prompt_label, text, padding=12)
 
 
 def _upscaler_order(filename: str):

@@ -221,8 +221,11 @@ class Model(QObject, ObservableProperties):
             conditioning, _ = process_regions(self.regions, bounds, None)
         else:
             conditioning = ConditioningInput("4k uhd")
-        if params.use_unblur:
-            conditioning.control.append(ControlInput(ControlMode.blur, None))
+        models = client.models.for_checkpoint(self.style.sd_checkpoint)
+        has_unblur = models.control.find(ControlMode.blur) is not None
+        if has_unblur and params.unblur_strength > 0.0:
+            control = ControlInput(ControlMode.blur, None, params.unblur_strength)
+            conditioning.control.append(control)
 
         if params.use_diffusion:
             return workflow.prepare(
@@ -638,7 +641,7 @@ class UpscaleParams(NamedTuple):
     upscaler: str
     factor: float
     use_diffusion: bool
-    use_unblur: bool
+    unblur_strength: float
     use_prompt: bool
     strength: float
     target_extent: Extent
@@ -649,16 +652,16 @@ class UpscaleWorkspace(QObject, ObservableProperties):
     upscaler = Property("", persist=True)
     factor = Property(2.0, persist=True)
     use_diffusion = Property(True, persist=True)
-    use_unblur = Property(False, persist=True)
-    use_prompt = Property(False, persist=True)
     strength = Property(0.3, persist=True)
+    unblur_strength = Property(1, persist=True)
+    use_prompt = Property(False, persist=True)
 
     upscaler_changed = pyqtSignal(str)
     factor_changed = pyqtSignal(float)
     use_diffusion_changed = pyqtSignal(bool)
-    use_unblur_changed = pyqtSignal(bool)
-    use_prompt_changed = pyqtSignal(bool)
     strength_changed = pyqtSignal(float)
+    unblur_strength_changed = pyqtSignal(int)
+    use_prompt_changed = pyqtSignal(bool)
     target_extent_changed = pyqtSignal(Extent)
     modified = pyqtSignal(QObject, str)
 
@@ -686,12 +689,14 @@ class UpscaleWorkspace(QObject, ObservableProperties):
             upscaler=self.upscaler,
             factor=self.factor,
             use_diffusion=self.use_diffusion,
-            use_unblur=self.use_unblur,
+            unblur_strength=self._unblur_strength_map[self.unblur_strength],
             use_prompt=self.use_prompt,
             strength=self.strength,
             target_extent=self.target_extent,
             seed=self._model.seed if self._model.fixed_seed else workflow.generate_seed(),
         )
+
+    _unblur_strength_map = {0: 0.0, 1: 0.5, 2: 1.0}
 
 
 class LiveWorkspace(QObject, ObservableProperties):

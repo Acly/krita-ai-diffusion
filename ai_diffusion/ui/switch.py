@@ -8,13 +8,13 @@ from PyQt5.QtWidgets import QAbstractButton, QSizePolicy
 
 
 class SwitchWidget(QAbstractButton):
-    def __init__(self, parent=None, track_radius=10, thumb_radius=8):
+    def __init__(self, parent=None):
         super().__init__(parent=parent)
         self.setCheckable(True)
         self.setSizePolicy(QSizePolicy.Fixed, QSizePolicy.Fixed)
 
-        self._track_radius = track_radius
-        self._thumb_radius = thumb_radius
+        self._thumb_radius = self.fontMetrics().height() // 2
+        self._track_radius = self._thumb_radius + 2
 
         self._margin = max(0, self._thumb_radius - self._track_radius)
         self._base_offset = max(self._thumb_radius, self._track_radius)
