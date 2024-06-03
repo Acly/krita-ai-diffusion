@@ -130,6 +130,7 @@ class InpaintParams:
     fill: FillMode = FillMode.neutral
     use_inpaint_model: bool = False
     use_condition_mask: bool = False
+    use_single_region: bool = False
     use_reference: bool = False
 
 
