@@ -6,7 +6,7 @@ from datetime import datetime
 from pathlib import Path
 from typing import NamedTuple, Callable
 from PyQt5.QtCore import QByteArray, QUrl, QFile, QBuffer
-from PyQt5.QtNetwork import QNetworkAccessManager, QNetworkRequest, QNetworkReply
+from PyQt5.QtNetwork import QNetworkAccessManager, QNetworkRequest, QNetworkReply, QSslError
 
 from .util import client_logger as log
 
@@ -70,6 +70,7 @@ class RequestManager:
     def __init__(self):
         self._net = QNetworkAccessManager()
         self._net.finished.connect(self._finished)
+        self._net.sslErrors.connect(self._handle_ssl_errors)
         self._requests: dict[QNetworkReply, Request] = {}
 
     def http(self, method, url: str, data: dict | QByteArray | None = None, bearer=""):
@@ -163,6 +164,10 @@ class RequestManager:
         self._requests = {
             reply: request for reply, request in self._requests.items() if not reply.isFinished()
         }
+
+    def _handle_ssl_errors(self, reply: QNetworkReply, errors: list[QSslError]):
+        for error in errors:
+            log.warning(f"SSL error: {error.errorString()} [{error.error()}]")
 
 
 class DownloadProgress(NamedTuple):
