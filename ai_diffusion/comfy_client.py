@@ -77,8 +77,8 @@ class ComfyClient(Client):
         client.device_info = DeviceInfo.parse(await client._get("system_stats"))
 
         # Try to establish websockets connection
+        wsurl = websocket_url(url)
         try:
-            wsurl = websocket_url(url)
             async with websockets_client.connect(f"{wsurl}/ws?clientId={client._id}"):
                 pass
         except Exception as e:

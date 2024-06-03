@@ -334,7 +334,8 @@ class ConnectionSettings(SettingsTab):
             self._connection_status.setText("Disconnected")
             self._connection_status.setStyleSheet(f"color: {grey}; font-style:italic")
         elif connection.state == ConnectionState.error:
-            self._connection_status.setText(f"<b>Error</b>: {connection.error}")
+            msg = connection.error.removeprefix("Error: ") if connection.error else "Unknown error"
+            self._connection_status.setText(f"<b>Error</b>: {msg}")
             self._connection_status.setStyleSheet(f"color: {red};")
             if connection.missing_resource is not None:
                 self._handle_missing_resource(connection.missing_resource)

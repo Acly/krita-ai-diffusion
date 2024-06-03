@@ -81,10 +81,11 @@ server_logger = create_logger("krita.ai_diffusion.server", log_dir / "server.log
 
 
 def log_error(error: Exception):
+    message = str(error)
     if isinstance(error, AssertionError):
         message = f"Error: Internal assertion failed [{error}]"
-    else:
-        message = f"Error: {error}"
+    elif not message.startswith("Error:"):
+        message = f"Error: {message}"
     client_logger.exception(message)
     return message
 
