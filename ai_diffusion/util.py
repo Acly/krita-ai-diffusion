@@ -118,6 +118,11 @@ def median_or_zero(values: Iterable[float]) -> float:
         return 0
 
 
+def unique(seq: Sequence[T], key) -> list[T]:
+    seen = set()
+    return [x for x in seq if (k := key(x)) not in seen and not seen.add(k)]
+
+
 def encode_json(obj):
     if isinstance(obj, Enum):
         return obj.name

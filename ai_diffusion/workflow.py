@@ -18,7 +18,7 @@ from .resources import ControlMode, SDVersion, UpscalerName, ResourceKind
 from .settings import PerformanceSettings
 from .text import merge_prompt, extract_loras
 from .comfy_workflow import ComfyWorkflow, ComfyRunMode, Output
-from .util import ensure, median_or_zero, client_logger as log
+from .util import ensure, median_or_zero, unique, client_logger as log
 
 
 def detect_inpaint_mode(extent: Extent, area: Bounds):
@@ -118,8 +118,8 @@ def load_checkpoint_with_lora(w: ComfyWorkflow, checkpoint: CheckpointInput, mod
 
 
 class ImageOutput:
-    image: Image | None
-    is_mask: bool
+    image: Image | None = None
+    is_mask: bool = False
     _output: Output | None = None
     _scaled: Output | None = None
     _scale: Extent | None = None
@@ -137,19 +137,16 @@ class ImageOutput:
         target_extent: Extent | None = None,
         default_image: Output | None = None,
     ):
-        if self._output and target_extent is None:
-            return self._output
-        if self.image is None:
-            return ensure(default_image)
-        if self._scaled and self._scale == target_extent:
-            return self._scaled
-
         if self._output is None:
-            if self.is_mask:
+            if self.image is None:
+                self._output = ensure(default_image)
+                if target_extent is not None:
+                    self._output = w.scale_image(self._output, target_extent)
+            elif self.is_mask:
                 self._output = w.load_mask(self.image)
             else:
                 self._output = w.load_image(self.image)
-        if target_extent is None or self.image.extent == target_extent:
+        if target_extent is None or self.image is None or self.image.extent == target_extent:
             return self._output
 
         if self._scaled is None or self._scale != target_extent:
@@ -995,21 +992,14 @@ def prepare(
     i.conditioning.positive, extra_loras = extract_loras(i.conditioning.positive, models.loras)
     i.conditioning.negative = merge_prompt(cond.negative, style.negative_prompt)
     i.conditioning.style = style.style_prompt
-    for region in i.conditioning.regions:
+    for idx, region in enumerate(i.conditioning.regions):
+        assert region.mask or idx == 0, "Only the first/bottom region can be without a mask"
         region.positive, region_loras = extract_loras(region.positive, models.loras)
-        extra_loras += [
-            region_lora
-            for region_lora in region_loras
-            if region_lora.name not in map(lambda x: x.name, extra_loras)
-        ]
+        extra_loras += region_loras
     i.sampling = _sampling_from_style(style, strength, is_live)
     i.sampling.seed = seed
     i.models = style.get_models()
-    i.models.loras += [
-        extra_lora
-        for extra_lora in extra_loras
-        if extra_lora.name not in map(lambda x: x.name, i.models.loras)
-    ]
+    i.models.loras = unique(i.models.loras + extra_loras, key=lambda l: l.name)
     _check_server_has_models(i.models, models, style.name)
 
     sd_version = i.models.version = models.version_of(style.sd_checkpoint)
