@@ -3,14 +3,12 @@ from PyQt5.QtWidgets import (
     QWidget,
     QVBoxLayout,
     QHBoxLayout,
-    QPushButton,
     QProgressBar,
     QLabel,
     QComboBox,
     QSlider,
     QDoubleSpinBox,
     QGroupBox,
-    QSpinBox,
 )
 
 from ..properties import Binding, Bind, bind, bind_combo, bind_toggle

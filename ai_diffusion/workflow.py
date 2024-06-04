@@ -179,7 +179,7 @@ class Control:
 @dataclass
 class Region:
     mask: Image | Output
-    positive: str
+    positive: str | Output
     negative: str = ""
     control: list[Control] = field(default_factory=list)
 
@@ -204,6 +204,14 @@ class Region:
                 self._scaled_extent = target_extent
             return self._scaled_mask
         return self.mask
+
+    def encode_text_prompt(self, w: ComfyWorkflow, clip: Output, style_prompt: str):
+        if isinstance(self.positive, str):
+            prompt = self.positive
+            if prompt != "":
+                prompt = merge_prompt(prompt, style_prompt)
+            self.positive = w.clip_text_encode(clip, prompt)
+        return self.positive
 
 
 @dataclass
@@ -286,18 +294,11 @@ def apply_attention_mask(
 
     conds: list[Output] = []
     masks: list[Output] = []
-
     for region in reversed(cond.regions):
         masks.append(region.load_mask(w, target_extent))
+        conds.append(region.encode_text_prompt(w, clip, cond.style_prompt))
 
-        prompt = region.positive
-        if prompt != "":
-            prompt = merge_prompt(prompt, cond.style_prompt)
-        region_cond = w.clip_text_encode(clip, prompt)
-        conds.append(region_cond)
-
-    model = w.apply_attention_mask(model, conds, masks)
-    return model
+    return w.apply_attention_mask(model, conds, masks)
 
 
 def apply_control(
