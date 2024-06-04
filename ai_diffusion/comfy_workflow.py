@@ -257,13 +257,16 @@ class ComfyWorkflow:
     def conditioning_combine(self, a: Output, b: Output):
         return self.add("ConditioningCombine", 1, conditioning_1=a, conditioning_2=b)
 
-    def apply_attention_mask(self, model: Output, conds: list[Output], masks: list[Output]):
-        regions_list = None
-        for mask, cond in zip(masks, conds):
-            regions_list = self.add(
-                "ETN_DefineRegion", 1, regions=regions_list, mask=mask, conditioning=cond
-            )
-        return self.add("ETN_AttentionMask", 1, model=model, regions=regions_list)
+    def background_region(self, conditioning: Output):
+        return self.add("ETN_BackgroundRegion", 1, conditioning=conditioning)
+
+    def define_region(self, regions: Output, mask: Output, conditioning: Output):
+        return self.add(
+            "ETN_DefineRegion", 1, regions=regions, mask=mask, conditioning=conditioning
+        )
+
+    def attention_mask(self, model: Output, regions: Output):
+        return self.add("ETN_AttentionMask", 1, model=model, regions=regions)
 
     def apply_controlnet(
         self,
@@ -536,6 +539,9 @@ class ComfyWorkflow:
 
     def extract_image_tile(self, image: Output, layout: Output, index: int):
         return self.add("ETN_ExtractImageTile", 1, image=image, layout=layout, index=index)
+
+    def extract_mask_tile(self, mask: Output, layout: Output, index: int):
+        return self.add("ETN_ExtractMaskTile", 1, mask=mask, layout=layout, index=index)
 
     def merge_image_tile(self, image: Output, layout: Output, index: int, tile: Output):
         return self.add("ETN_MergeImageTile", 1, layout=layout, index=index, tile=tile, image=image)

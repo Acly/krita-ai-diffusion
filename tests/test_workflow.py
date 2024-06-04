@@ -354,17 +354,29 @@ def test_differential_diffusion(qtapp, client):
 
 
 def region_prompt():
-    background_text = "a workbench made of wood, sturdy and well-used"
-    region1_text = "a chemical bottle, something pink oozing out, flask"
-    region2_text = "a miniature model of a sailing boat made out of light wood, with red sails"
-    region3_text = "a gramophone with a large horn, made of brass"
     root_text = "a collection of objects on a wooden workbench, evening light, dust motes"
     prompt = ConditioningInput(root_text)
     prompt.regions = [
-        RegionInput(Mask.load(image_dir / "region_mask_bg.png").to_image(), background_text),
-        RegionInput(Mask.load(image_dir / "region_mask_1.png").to_image(), region1_text),
-        RegionInput(Mask.load(image_dir / "region_mask_2.png").to_image(), region2_text),
-        RegionInput(Mask.load(image_dir / "region_mask_3.png").to_image(), region3_text),
+        RegionInput(
+            None,
+            Bounds(0, 0, 1024, 1024),
+            "a workbench made of wood, sturdy and well-used",
+        ),
+        RegionInput(
+            Mask.load(image_dir / "region_mask_1.png").to_image(),
+            Bounds(320, 220, 350, 580),
+            "a chemical bottle, something pink oozing out, flask",
+        ),
+        RegionInput(
+            Mask.load(image_dir / "region_mask_2.png").to_image(),
+            Bounds(600, 150, 424, 600),
+            "a miniature model of a sailing boat made out of light wood, with red sails",
+        ),
+        RegionInput(
+            Mask.load(image_dir / "region_mask_3.png").to_image(),
+            Bounds(0, 250, 355, 700),
+            "a gramophone with a large horn, made of brass",
+        ),
     ]
     for region in prompt.regions:
         region.positive += " " + root_text
@@ -382,7 +394,7 @@ def test_regions(qtapp, client, sdver: SDVersion):
 
 @pytest.mark.parametrize("kind", [WorkflowKind.inpaint, WorkflowKind.refine_region])
 def test_regions_inpaint(qtapp, client, kind: WorkflowKind):
-    image = Image.load(image_dir / "workbench.webp")
+    image = Image.load(image_dir / "regions_inpaint.webp")
     mask = Mask.load(image_dir / "region_mask_inpaint.png")
     prompt = region_prompt()
     prompt.regions = prompt.regions[:2] + prompt.regions[3:]
@@ -393,6 +405,19 @@ def test_regions_inpaint(qtapp, client, kind: WorkflowKind):
         kind, client, canvas=image, mask=mask, cond=prompt, inpaint=params, strength=strength
     )
     run_and_save(qtapp, client, job, f"test_regions_{kind.name}", image, mask)
+
+
+def test_regions_upscale(qtapp, client: Client):
+    job = create(
+        WorkflowKind.upscale_tiled,
+        client,
+        canvas=Image.load(image_dir / "regions_base.webp"),
+        cond=region_prompt(),
+        strength=0.8,
+        upscale_model=client.models.default_upscaler,
+        upscale_factor=2,
+    )
+    run_and_save(qtapp, client, job, f"test_regions_upscale")
 
 
 @pytest.mark.parametrize(

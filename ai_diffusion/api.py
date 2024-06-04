@@ -89,7 +89,8 @@ class ControlInput:
 
 @dataclass
 class RegionInput:
-    mask: Image
+    mask: Image | None
+    bounds: Bounds
     positive: str
     negative: str = ""
     control: list[ControlInput] = field(default_factory=list)

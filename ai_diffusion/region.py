@@ -354,6 +354,7 @@ def process_regions(root: RootRegion, bounds: Bounds, parent_layer: Layer | None
 
         region_result = RegionInput(
             layer.get_mask(bounds),
+            layer_bounds,
             workflow.merge_prompt(region.positive, root.positive),
             control=[c.to_api(bounds) for c in region.control],
         )
@@ -364,6 +365,7 @@ def process_regions(root: RootRegion, bounds: Bounds, parent_layer: Layer | None
     accumulated_mask = None
     for i in range(len(result_regions) - 1, -1, -1):
         region, job_region = result_regions[i]
+        assert region.mask is not None
         mask = region.mask
         if accumulated_mask is not None:
             mask = Image.mask_subtract(mask, accumulated_mask)
@@ -379,11 +381,9 @@ def process_regions(root: RootRegion, bounds: Bounds, parent_layer: Layer | None
             print(f"Skipping region {region.positive[:10]}: coverage is {coverage}")
             result_regions.pop(i)
         else:
-            # Initialize accumulated_mask if needed
+            # Accumulate mask for next region, and store modified mask.
             if accumulated_mask is None:
                 accumulated_mask = Image.copy(region.mask)
-
-            # Accumulate mask for next region, and store modified mask.
             accumulated_mask = Image.mask_add(accumulated_mask, region.mask)
             region.mask = mask
 
@@ -397,7 +397,7 @@ def process_regions(root: RootRegion, bounds: Bounds, parent_layer: Layer | None
     if total_coverage < 1:
         print(f"Adding background region: total coverage is {total_coverage}")
         accumulated_mask.invert()
-        input = RegionInput(accumulated_mask, result.positive)
+        input = RegionInput(accumulated_mask, bounds, result.positive)
         job = JobRegion(parent_layer.id_string, "background", bounds, is_background=True)
         result_regions.append((input, job))
 
