@@ -311,7 +311,7 @@ class RegionPromptWidget(QWidget):
         if not isinstance(active, RootRegion):
             self._add_inactive_region(self._regions, self._regions_below)
 
-    def _activate_region(self, region: Region):
+    def _activate_region(self, region: RootRegion | Region):
         self._regions.active = region
         self._prompt.focus()
 

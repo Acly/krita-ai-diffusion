@@ -179,10 +179,13 @@ class RootRegion(QObject, ObservableProperties):
         return self._active
 
     @active.setter
-    def active(self, region: Region | None):
+    def active(self, region: RootRegion | Region | None):
+        if isinstance(region, RootRegion):
+            region = None
         if self._active != region:
             self._active = region
             self.active_changed.emit(region)
+            self._track_layer(region)
 
     @property
     def active_or_root(self):
@@ -280,6 +283,15 @@ class RootRegion(QObject, ObservableProperties):
             elif self._model.workspace is model.Workspace.live:
                 self.active = None  # root region
 
+    def _track_layer(self, region: Region | None):
+        if region and region.first_layer:
+            layer, changed = self._get_active_layer()
+            if layer and not changed and not region.is_linked(layer):
+                target = region.first_layer
+                if target.type is LayerType.group:
+                    target = target.child_layers[-1]
+                self.layers.active = target
+
     def _update_group(self, layer: Layer):
         """If a layer is moved into a group, promote the region to non-destructive apply workflow."""
         if layer.type is not LayerType.group:
@@ -309,7 +321,7 @@ class RootRegion(QObject, ObservableProperties):
 
 
 def process_regions(
-    root: RootRegion, bounds: Bounds, parent_layer: Layer | None = None, min_coverage=0.06
+    root: RootRegion, bounds: Bounds, parent_layer: Layer | None = None, min_coverage=0.08
 ):
     parent_region = None
     if parent_layer and not parent_layer.is_root:
