@@ -308,8 +308,9 @@ class RootRegion(QObject, ObservableProperties):
         return iter(self._regions)
 
 
-def process_regions(root: RootRegion, bounds: Bounds, parent_layer: Layer | None = None):
-    use_all_regions = parent_layer is None  # eg. for tiled upscaling
+def process_regions(
+    root: RootRegion, bounds: Bounds, parent_layer: Layer | None = None, min_coverage=0.06
+):
     parent_region = None
     if parent_layer and not parent_layer.is_root:
         parent_region = root.find_linked(parent_layer)
@@ -325,7 +326,7 @@ def process_regions(root: RootRegion, bounds: Bounds, parent_layer: Layer | None
         control=[c.to_api(bounds) for c in root.control],
     )
 
-    # Check for regions linked to any child layers of the parent layer.
+    # Collect layers with linked regions. Optionally restrict to to child layers of a region.
     if parent_layer is not None:
         child_layers = parent_layer.child_layers
     else:
@@ -338,17 +339,15 @@ def process_regions(root: RootRegion, bounds: Bounds, parent_layer: Layer | None
 
     # Get region masks. Filter out regions with:
     # * no content (empty mask)
-    # * less than 10% overlap (estimate based on bounding box)
+    # * less than minimum overlap (estimate based on bounding box)
     result_regions: list[tuple[RegionInput, JobRegion]] = []
     for layer, region in layer_regions:
         layer_bounds = layer.compute_bounds()
         if layer_bounds.area == 0:
-            print(f"Skipping empty region {layer.name}")
             continue
 
-        overlap_rough = Bounds.intersection(bounds, layer_bounds).area / bounds.area
-        if overlap_rough < 0.1 and not use_all_regions:
-            print(f"Skipping region {region.positive[:10]}: overlap is {overlap_rough}")
+        coverage_rough = Bounds.intersection(bounds, layer_bounds).area / bounds.area
+        if coverage_rough < 1.5 * min_coverage:
             continue
 
         region_result = RegionInput(
@@ -370,15 +369,13 @@ def process_regions(root: RootRegion, bounds: Bounds, parent_layer: Layer | None
             mask = Image.mask_subtract(mask, accumulated_mask)
 
         coverage = mask.average()
-        if coverage > 0.9 and not use_all_regions:
+        if coverage > 0.9 and min_coverage > 0:
             # Single region covers (almost) entire image, don't use regional conditioning.
-            print(f"Using single region {region.positive[:10]}: coverage is {coverage}")
             result.positive = workflow.merge_prompt(region.positive, root.positive)
             result.control += region.control
             return result, [job_region]
-        elif coverage < 0.05 and not use_all_regions:
-            # Region has less than 5% coverage, remove it.
-            print(f"Skipping region {region.positive[:10]}: coverage is {coverage}")
+        elif coverage < min_coverage:
+            # Region has less than minimum coverage, remove it.
             result_regions.pop(i)
         else:
             # Accumulate mask for next region, and store modified mask.

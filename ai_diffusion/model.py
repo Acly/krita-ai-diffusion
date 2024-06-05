@@ -117,38 +117,40 @@ class Model(QObject, ObservableProperties):
         jobs = self.enqueue_jobs(input, JobKind.diffusion, job_params, self.batch_count)
         eventloop.run(_report_errors(self, jobs))
 
-    def _prepare_workflow(self, with_images=True):
+    def _prepare_workflow(self, dryrun=False):
         workflow_kind = WorkflowKind.generate if self.strength == 1.0 else WorkflowKind.refine
         client = self._connection.client
         image = None
         inpaint_mode = InpaintMode.fill
         inpaint = None
         extent = self._doc.extent
-
-        region_layer = self.regions.get_active_region_layer(use_parent=not self.region_only)
-        if not region_layer.is_root:
-            inpaint_mode = InpaintMode.add_object
+        region_layer = None
 
         mask = self._doc.create_mask_from_selection(
             **get_selection_modifiers(self.inpaint.mode, self.strength), min_size=64
         )
         bounds = Bounds(0, 0, *extent)
         if mask is None:  # Check for region inpaint
+            region_layer = self.regions.get_active_region_layer(use_parent=not self.region_only)
             if not region_layer.is_root:
                 bounds = region_layer.compute_bounds()
                 bounds = Bounds.pad(bounds, settings.selection_padding, multiple=64)
                 bounds = Bounds.clamp(bounds, extent)
                 mask_img = region_layer.get_mask(bounds)
                 mask = Mask(bounds, mask_img._qimage)
+                inpaint_mode = InpaintMode.add_object
         else:  # Selection inpaint
             bounds = compute_bounds(extent, mask.bounds if mask else None, self.strength)
             bounds = self.inpaint.get_context(self, mask) or bounds
             inpaint_mode = self.resolve_inpaint_mode()
 
-        conditioning, job_regions = process_regions(self.regions, bounds, region_layer)
+        if not dryrun:
+            conditioning, job_regions = process_regions(self.regions, bounds, region_layer)
+        else:
+            conditioning, job_regions = ConditioningInput("", ""), []
 
         if mask is not None or self.strength < 1.0:
-            image = self._get_current_image(bounds) if with_images else DummyImage(extent)
+            image = self._get_current_image(bounds) if not dryrun else DummyImage(extent)
 
         if mask is not None:
             if workflow_kind is WorkflowKind.generate:
@@ -201,14 +203,14 @@ class Model(QObject, ObservableProperties):
         client = self._connection.client
         job.id = await client.enqueue(input, self.queue_front)
 
-    def _prepare_upscale_image(self, with_images=True):
+    def _prepare_upscale_image(self, dryrun=False):
         extent = self._doc.extent
-        image = self._doc.get_image(Bounds(0, 0, *extent)) if with_images else DummyImage(extent)
+        image = self._doc.get_image(Bounds(0, 0, *extent)) if not dryrun else DummyImage(extent)
         params = self.upscale.params
         bounds = Bounds(0, 0, *self._doc.extent)
         client = self._connection.client
         upscaler = params.upscaler or client.models.default_upscaler
-        if params.use_prompt:
+        if params.use_prompt and not dryrun:
             conditioning, _ = process_regions(self.regions, bounds, None)
         else:
             conditioning = ConditioningInput("4k uhd")
@@ -249,9 +251,9 @@ class Model(QObject, ObservableProperties):
     def estimate_cost(self, kind=JobKind.diffusion):
         try:
             if kind is JobKind.diffusion:
-                input, _ = self._prepare_workflow(with_images=False)
+                input, _ = self._prepare_workflow(dryrun=True)
             elif kind is JobKind.upscaling:
-                input = self._prepare_upscale_image(with_images=False)
+                input = self._prepare_upscale_image(dryrun=True)
             else:
                 return 0
             return input.cost
@@ -483,8 +485,8 @@ class Model(QObject, ObservableProperties):
                 if job_region.bounds != params.bounds:
                     padding = int(0.1 * job_region.bounds.extent.average_side)
                     region_bounds = Bounds.pad(job_region.bounds, padding)
-                    region_bounds = Bounds.clamp(region_bounds, params.bounds.extent)
-                    region_image = Image.crop(image, region_bounds)
+                    region_bounds = Bounds.intersection(region_bounds, params.bounds)
+                    region_image = Image.crop(image, region_bounds.relative_to(params.bounds))
 
                 self.layers.create(
                     name, region_image, region_bounds, parent=region_layer, above=insert_pos
