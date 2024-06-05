@@ -61,10 +61,10 @@ class LiveWidget(QWidget):
 
         self.apply_button = QToolButton(self)
         self.apply_button.setToolButtonStyle(Qt.ToolButtonStyle.ToolButtonIconOnly)
-        self.apply_button.setIcon(theme.icon("copy-image"))
+        self.apply_button.setIcon(theme.icon("apply"))
         self.apply_button.setAutoRaise(True)
         self.apply_button.setEnabled(False)
-        self.apply_button.setToolTip("Copy the current result to the image as a new layer")
+        self.apply_button.setToolTip("Copy the current result to the active layer")
         self.apply_button.clicked.connect(self.apply_result)
 
         self.style_select = StyleSelectWidget(self)

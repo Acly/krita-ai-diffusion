@@ -313,7 +313,10 @@ class PoseLayers:
         doc = KritaDocument.active()
         if not doc:
             return
-        layer = doc.layers.active
+        try:
+            layer = doc.layers.active
+        except Exception:
+            return
         if not layer or layer.type is not LayerType.vector:
             return
 

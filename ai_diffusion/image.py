@@ -74,7 +74,7 @@ class Extent(NamedTuple):
     def ratio(a: "Extent", b: "Extent"):
         return sqrt(a.pixel_count / b.pixel_count)
 
-    def __add__(self, other: "Extent"):
+    def __add__(self, other):
         return Extent(self.width + other.width, self.height + other.height)
 
     def __sub__(self, other: "Extent"):
@@ -93,16 +93,17 @@ class Point(NamedTuple):
     x: int
     y: int
 
-    def __add__(self, other: "Point | Extent"):
-        if isinstance(other, Extent):
-            other = Point(other.width, other.height)
-        return Point(self.x + other.x, self.y + other.y)
+    def __add__(self, other):
+        x, y = other[0], other[1]
+        return Point(self.x + x, self.y + y)
 
     def __sub__(self, other: "Point"):
         return Point(self.x - other.x, self.y - other.y)
 
-    def __mul__(self, other: "Point"):
-        return Point(self.x * other.x, self.y * other.y)
+    def __mul__(self, other):
+        if isinstance(other, Point):
+            return Point(self.x * other.x, self.y * other.y)
+        return Point(self.x * other, self.y * other)
 
     def __floordiv__(self, div: int):
         return Point(self.x // div, self.y // div)
@@ -171,9 +172,9 @@ class Bounds(NamedTuple):
 
         pad_x, pad_y = padding, padding
         if square and bounds.width > bounds.height:
-            pad_x = max(0, pad_x - (bounds.width - bounds.height) // 2)
+            pad_x = max(pad_x // 2, pad_x - (bounds.width - bounds.height) // 2)
         elif square and bounds.height > bounds.width:
-            pad_y = max(0, pad_y - (bounds.height - bounds.width) // 2)
+            pad_y = max(pad_y // 2, pad_y - (bounds.height - bounds.width) // 2)
 
         new_x, new_width = pad_scalar(bounds.x, bounds.width, pad_x)
         new_y, new_height = pad_scalar(bounds.y, bounds.height, pad_y)
@@ -491,13 +492,20 @@ class Image:
     def to_icon(self):
         return QIcon(self.to_pixmap())
 
-    def draw_image(self, image: "Image", offset: tuple[int, int] = (0, 0)):
+    def to_mask(self, bounds: Bounds | None = None):
+        assert self.is_mask
+        return Mask(bounds or Bounds(0, 0, *self.extent), self._qimage)
+
+    def draw_image(self, image: "Image", offset: tuple[int, int] = (0, 0), keep_alpha=False):
         w, h = self.extent
         x, y = offset[0] if offset[0] >= 0 else w + offset[0], (
             offset[1] if offset[1] >= 0 else h + offset[1]
         )
+        mode = QPainter.CompositionMode.CompositionMode_SourceOver
+        if keep_alpha:
+            mode = QPainter.CompositionMode.CompositionMode_SourceAtop
         painter = QPainter(self._qimage)
-        painter.setCompositionMode(QPainter.CompositionMode.CompositionMode_SourceOver)
+        painter.setCompositionMode(mode)
         painter.drawImage(x, y, image._qimage)
         painter.end()
 

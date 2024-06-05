@@ -4,14 +4,14 @@ from copy import copy
 from pathlib import Path
 from enum import Enum
 from typing import Any, NamedTuple
-from PyQt5.QtCore import QObject, QUuid, pyqtSignal
-from PyQt5.QtGui import QImage, QPainter
+from PyQt5.QtCore import QObject, QUuid, pyqtSignal, Qt
+from PyQt5.QtGui import QImage, QPainter, QColor, QBrush
 import uuid
 
 from . import eventloop, workflow, util
 from .api import ConditioningInput, ControlInput, WorkflowKind, WorkflowInput
 from .api import InpaintMode, InpaintParams, FillMode
-from .util import ensure, client_logger as log
+from .util import clamp, ensure, client_logger as log
 from .settings import settings
 from .network import NetworkError
 from .image import Extent, Image, Mask, Bounds, DummyImage
@@ -136,8 +136,7 @@ class Model(QObject, ObservableProperties):
                 bounds = region_layer.compute_bounds()
                 bounds = Bounds.pad(bounds, settings.selection_padding, multiple=64)
                 bounds = Bounds.clamp(bounds, extent)
-                mask_img = region_layer.get_mask(bounds)
-                mask = Mask(bounds, mask_img._qimage)
+                mask = region_layer.get_mask(bounds).to_mask()
                 inpaint_mode = InpaintMode.add_object
         else:  # Selection inpaint
             bounds = compute_bounds(extent, mask.bounds if mask else None, self.strength)
@@ -275,9 +274,9 @@ class Model(QObject, ObservableProperties):
         workflow_kind = WorkflowKind.generate if strength == 1.0 else WorkflowKind.refine
         client = self._connection.client
         ver = client.models.version_of(self.style.sd_checkpoint)
+        min_mask_size = 512 if ver is SDVersion.sd15 else 800
         extent = self._doc.extent
-        region = None
-        region_layer = self.layers.active
+        region_layer = None
         job_regions: list[JobRegion] = []
 
         image = None
@@ -285,38 +284,32 @@ class Model(QObject, ObservableProperties):
             grow=settings.selection_feather / 200,  # don't apply grow for live mode
             feather=settings.selection_feather / 100,
             padding=settings.selection_padding / 100,
-            min_size=512 if ver is SDVersion.sd15 else 1024,
+            min_size=min_mask_size,
             square=True,
         )
-        if mask is None:
-            region = self.regions.find_linked(region_layer)
-            if region is not None:
-                bounds = region_layer.compute_bounds()
-                bounds = Bounds.pad(
-                    bounds, settings.selection_padding, multiple=64, min_size=512, square=True
-                )
-                bounds = Bounds.clamp(bounds, extent)
-                mask_image = region_layer.get_mask(bounds)
-                mask = Mask(bounds, mask_image._qimage)
-                job_regions = [JobRegion(region_layer.id_string, region.positive, bounds)]
-
         bounds = Bounds(0, 0, *self._doc.extent)
+        region_layer = self.regions.get_active_region_layer(use_parent=False)
+        if mask is None and region_layer.bounds != bounds:
+            region_bounds = region_layer.compute_bounds()
+            padding = int((settings.selection_padding / 100) * region_bounds.extent.average_side)
+            bounds = Bounds.pad(region_bounds, padding, min_size=min_mask_size, square=True)
+            bounds = Bounds.clamp(bounds, extent)
+            feather = clamp((bounds.extent - region_bounds.extent).shortest_side // 2, 8, 128)
+            mask_image = region_layer.get_mask(bounds, grow=feather, feather=feather // 2)
+            mask = mask_image.to_mask(bounds)
+
         if mask is not None:
             workflow_kind = WorkflowKind.refine_region
             bounds, mask.bounds = compute_relative_bounds(mask.bounds, mask.bounds)
         if mask is not None or self.live.strength < 1.0:
             image = self._get_current_image(bounds)
 
-        positive = workflow.merge_prompt("", self.regions.positive)
-        control = [c.to_api(bounds) for c in self.regions.control]
-        if region is not None:
-            positive = workflow.merge_prompt(region.positive, self.regions.positive)
-            control += [c.to_api(bounds) for c in region.control]
+        cond, job_regions = process_regions(self.regions, bounds)
 
         input = workflow.prepare(
             workflow_kind,
             image or bounds.extent,
-            ConditioningInput(positive, self.regions.negative, control=control),
+            cond,
             self.style,
             self.seed,
             client.models,
@@ -328,7 +321,7 @@ class Model(QObject, ObservableProperties):
         )
         if input != last_input:
             self.clear_error()
-            params = JobParams(bounds, positive, regions=job_regions)
+            params = JobParams(bounds, cond.positive, regions=job_regions)
             await self.enqueue_jobs(input, JobKind.live_preview, params)
             return input
 
@@ -448,61 +441,70 @@ class Model(QObject, ObservableProperties):
         else:
             for job_region in params.regions:
                 if region_layer := self.layers.find(QUuid(job_region.layer_id)):
-                    if region_layer.type is LayerType.group:
-                        self.create_result_layer(image, params)
+                    if region_layer.is_root:
+                        name = f"{params.prompt} ({params.seed})"
+                        insert_pos = self.regions.last_unlinked_layer(region_layer)
+                        self.layers.create(name, image, params.bounds, above=insert_pos)
+                    elif region_layer.type is LayerType.group:
+                        self.create_result_layer(image, params, job_region)
                     else:
-                        region_layer.write_pixels(image, params.bounds)
+                        new_layer = region_layer.clone()
+                        new_layer.write_pixels(image, params.bounds, keep_alpha=True, silent=True)
+                        if region := self.regions.find_linked(region_layer):
+                            region.link(new_layer)
+                        region_layer.remove()
 
-    def create_result_layer(self, image: Image, params: JobParams, prefix=""):
+    def create_result_layers(self, image: Image, params: JobParams, prefix=""):
         """Insert generated image as a new layer in the document (non-destructive apply)."""
         name = f"{prefix}{params.prompt} ({params.seed})"
         if len(params.regions) == 0:
             self.layers.create(name, image, params.bounds)
         else:
             for job_region in params.regions:
-                region_layer = self.layers.find(QUuid(job_region.layer_id)) or self.layers.root
+                self.create_result_layer(image, params, job_region, prefix)
 
-                # Promote layer to group if needed
-                if region_layer.type is not LayerType.group:
-                    paint_layer = region_layer
-                    region_layer = self.layers.create_group_for(paint_layer)
-                    if region := self.regions.find_linked(paint_layer, RegionLink.direct):
-                        region.unlink(paint_layer)
-                        region.link(region_layer)
+    def create_result_layer(
+        self, image: Image, params: JobParams, job_region: JobRegion, prefix=""
+    ):
+        name = f"{prefix}{job_region.prompt} ({params.seed})"
+        region_layer = self.layers.find(QUuid(job_region.layer_id)) or self.layers.root
 
-                # Create transparency mask to correctly blend the generated image
-                has_layers = len(region_layer.child_layers) > 0
-                has_mask = any(l.type.is_mask for l in region_layer.child_layers)
-                if not region_layer.is_root and has_layers and not has_mask:
-                    mask = region_layer.get_mask(params.bounds)
-                    self.layers.create_mask("Transparency Mask", mask, params.bounds, region_layer)
+        # Promote layer to group if needed
+        if region_layer.type is not LayerType.group:
+            paint_layer = region_layer
+            region_layer = self.layers.create_group_for(paint_layer)
+            if region := self.regions.find_linked(paint_layer, RegionLink.direct):
+                region.unlink(paint_layer)
+                region.link(region_layer)
 
-                # Handle auto-generated background region (not linked to any layers)
-                insert_pos = None
-                if job_region.is_background:
-                    for node in region_layer.child_layers:
-                        if node.type is LayerType.group:
-                            break
-                        insert_pos = node
+        # Create transparency mask to correctly blend the generated image
+        has_layers = len(region_layer.child_layers) > 0
+        has_mask = any(l.type.is_mask for l in region_layer.child_layers)
+        if not region_layer.is_root and has_layers and not has_mask:
+            mask = region_layer.get_mask(params.bounds)
+            self.layers.create_mask("Transparency Mask", mask, params.bounds, region_layer)
 
-                # Crop the full image to the region bounds (+ padding for some flexibility)
-                region_image = image
-                region_bounds = params.bounds
-                if job_region.bounds != params.bounds:
-                    padding = int(0.1 * job_region.bounds.extent.average_side)
-                    region_bounds = Bounds.pad(job_region.bounds, padding)
-                    region_bounds = Bounds.intersection(region_bounds, params.bounds)
-                    region_image = Image.crop(image, region_bounds.relative_to(params.bounds))
+        # Handle auto-generated background region (not linked to any layers)
+        insert_pos = None
+        if job_region.is_background:
+            insert_pos = self.regions.last_unlinked_layer(region_layer)
 
-                self.layers.create(
-                    name, region_image, region_bounds, parent=region_layer, above=insert_pos
-                )
+        # Crop the full image to the region bounds (+ padding for some flexibility)
+        region_image = image
+        region_bounds = params.bounds
+        if job_region.bounds != params.bounds:
+            padding = int(0.1 * job_region.bounds.extent.average_side)
+            region_bounds = Bounds.pad(job_region.bounds, padding)
+            region_bounds = Bounds.intersection(region_bounds, params.bounds)
+            region_image = Image.crop(image, region_bounds.relative_to(params.bounds))
+
+        self.layers.create(name, region_image, region_bounds, parent=region_layer, above=insert_pos)
 
     def apply_result(self, job_id: str, index: int):
         job = self.jobs.find(job_id)
         assert job is not None, "Cannot apply result, invalid job id"
 
-        self.create_result_layer(job.results[index], job.params, "[Generated] ")
+        self.create_result_layers(job.results[index], job.params, "[Generated] ")
 
         if self._layer:
             self._layer.remove()
@@ -528,7 +530,7 @@ class Model(QObject, ObservableProperties):
             self._layer = None
         self._doc.resize(job.params.bounds.extent)
         self.upscale.target_extent_changed.emit(self.upscale.target_extent)
-        self.create_result_layer(job.results[0], job.params)
+        self.create_result_layers(job.results[0], job.params)
 
     def set_workspace(self, workspace: Workspace):
         if self.workspace is Workspace.live:
@@ -773,7 +775,7 @@ class LiveWorkspace(QObject, ObservableProperties):
 
     def create_result_layer(self):
         assert self.result is not None and self._result_params is not None
-        self._model.create_result_layer(self.result, self._result_params)
+        self._model.create_result_layers(self.result, self._result_params)
 
         if settings.new_seed_after_apply:
             self._model.generate_seed()
@@ -789,6 +791,9 @@ class LiveWorkspace(QObject, ObservableProperties):
     def set_result(self, value: Image, params: JobParams):
         canvas = self._model._get_current_image(params.bounds)
         painter = QPainter(canvas._qimage)
+        painter.setCompositionMode(QPainter.CompositionMode.CompositionMode_Multiply)
+        painter.setBrush(QBrush(QColor(0, 0, 96, 192), Qt.BrushStyle.DiagCrossPattern))
+        painter.drawRect(0, 0, canvas.width, canvas.height)
         painter.setCompositionMode(QPainter.CompositionMode.CompositionMode_SourceOver)
         painter.drawImage(0, 0, value._qimage)
         painter.end()

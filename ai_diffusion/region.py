@@ -265,6 +265,14 @@ class RootRegion(QObject, ObservableProperties):
             return [], self._get_regions(layer.child_layers)
         return [], []
 
+    def last_unlinked_layer(self, parent: Layer):
+        result = None
+        for node in parent.child_layers:
+            if self.is_linked(node):
+                break
+            result = node
+        return result
+
     def _get_active_layer(self):
         if not self.layers:
             return None, False
@@ -407,7 +415,6 @@ def process_regions(
         # Almost fully covered, use the bottom region as the background.
         result_regions[0][0].mask = None  # Region without mask fills remaining space
     else:
-        print(f"Adding background region: total coverage is {total_coverage}")
         input = RegionInput(None, bounds, result.positive)
         job = JobRegion(parent_layer.id_string, "background", bounds, is_background=True)
         result_regions.insert(0, (input, job))

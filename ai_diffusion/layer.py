@@ -129,28 +129,44 @@ class Layer(QObject):
         assert data is not None and data.size() >= bounds.extent.pixel_count * 4
         return Image(QImage(data, *bounds.extent, QImage.Format.Format_ARGB32))
 
-    def write_pixels(self, img: Image, bounds: Bounds | None = None, make_visible=True):
+    def write_pixels(
+        self,
+        img: Image,
+        bounds: Bounds | None = None,
+        make_visible=True,
+        keep_alpha=False,
+        silent=False,
+    ):
         layer_bounds = self.bounds
         bounds = bounds or layer_bounds
-        if layer_bounds != bounds and not layer_bounds.is_zero:
+        if keep_alpha:
+            composite = self.get_pixels(bounds)
+            composite.draw_image(img, keep_alpha=True)
+            img = composite
+        elif layer_bounds != bounds and not layer_bounds.is_zero:
             # layer.cropNode(*bounds)  <- more efficient, but clutters the undo stack
             blank = Image.create(layer_bounds.extent, fill=0)
             self._node.setPixelData(blank.data, *layer_bounds)
         self._node.setPixelData(img.data, *bounds)
         if make_visible:
             self.show()
-        if self.is_visible:
+        if not silent and self.is_visible:
             self.refresh()
 
-    def get_mask(self, bounds: Bounds | None):
+    def get_mask(self, bounds: Bounds | None, grow=0, feather=0):
         bounds = bounds or self.bounds
         if self.type.is_mask:
             data: QByteArray = self._node.pixelData(*bounds)
             assert data is not None and data.size() >= bounds.extent.pixel_count
+            if grow or feather:
+                data = _grow_feather(data, bounds, grow, feather)
             return Image(QImage(data, *bounds.extent, QImage.Format.Format_Grayscale8))
         else:
             img = self.get_pixels(bounds)
             alpha = img._qimage.convertToFormat(QImage.Format.Format_Alpha8)
+            if grow or feather:
+                data = _grow_feather(Image(alpha).data, bounds, grow, feather)
+                return Image(QImage(data, *bounds.extent, QImage.Format.Format_Grayscale8))
             alpha.reinterpretAsFormat(QImage.Format.Format_Grayscale8)
             return Image(alpha)
 
@@ -173,8 +189,15 @@ class Layer(QObject):
         self._node.remove()
         self._manager.update()
 
+    def clone(self):
+        clone = self._node.clone()
+        self._node.parentNode().addChildNode(clone, self._node)
+        return self._manager.wrap(clone)
+
     def compute_bounds(self):
         bounds = self.bounds
+        if bounds.is_zero:
+            return bounds
         if self.type.is_mask:
             # Unfortunately node.bounds() returns the whole image
             # Use a selection to get just the bounds that contain pixels > 0
@@ -385,10 +408,9 @@ class LayerManager(QObject):
     ):
         doc = ensure(self._doc)
         node = doc.createNode(name, "paintlayer")
-        layer = self._insert(node, parent, above, make_active)
         if img and bounds:
-            layer.node.setPixelData(img.data, *bounds)
-            layer.refresh()
+            node.setPixelData(img.data, *bounds)
+        layer = self._insert(node, parent, above, make_active)
         return layer
 
     def _insert(
@@ -465,3 +487,11 @@ def traverse_layers(node: krita.Node, type_filter: list[str] | None = None):
         if not type_filter or child.type() in type_filter:
             yield child
         yield from traverse_layers(child, type_filter)
+
+
+def _grow_feather(mask_bytes: QByteArray, bounds: Bounds, grow: int, feather: int):
+    s = krita.Selection()
+    s.setPixelData(mask_bytes, *bounds)
+    s.grow(grow, grow)
+    s.feather(feather)
+    return s.pixelData(*bounds)
