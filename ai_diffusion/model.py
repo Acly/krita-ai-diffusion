@@ -211,9 +211,11 @@ class Model(QObject, ObservableProperties):
         client = self._connection.client
         upscaler = params.upscaler or client.models.default_upscaler
         if params.use_prompt and not dryrun:
-            conditioning, _ = process_regions(self.regions, bounds, None)
+            conditioning, job_regions = process_regions(self.regions, bounds, min_coverage=0)
+            for region in job_regions:
+                region.bounds = Bounds.scale(region.bounds, params.factor)
         else:
-            conditioning = ConditioningInput("4k uhd")
+            conditioning, job_regions = ConditioningInput("4k uhd"), []
         models = client.models.for_checkpoint(self.style.sd_checkpoint)
         has_unblur = models.control.find(ControlMode.blur) is not None
         if has_unblur and params.unblur_strength > 0.0:
@@ -221,7 +223,7 @@ class Model(QObject, ObservableProperties):
             conditioning.control.append(control)
 
         if params.use_diffusion:
-            return workflow.prepare(
+            input = workflow.prepare(
                 WorkflowKind.upscale_tiled,
                 image,
                 conditioning,
@@ -234,13 +236,17 @@ class Model(QObject, ObservableProperties):
                 upscale_model=upscaler,
             )
         else:
-            return workflow.prepare_upscale_simple(image, upscaler, params.factor)
+            input = workflow.prepare_upscale_simple(image, upscaler, params.factor)
+
+        target_bounds = Bounds(0, 0, *params.target_extent)
+        name = f"[Upscale] {target_bounds.width}x{target_bounds.height}"
+        job_params = JobParams(target_bounds, name, seed=params.seed, regions=job_regions)
+        return input, job_params
 
     def upscale_image(self):
         try:
-            inputs = self._prepare_upscale_image()
-            seed = inputs.sampling.seed if inputs.sampling else 0
-            job = self.jobs.add_upscale(Bounds(0, 0, *self.upscale.target_extent), seed)
+            inputs, job_params = self._prepare_upscale_image()
+            job = self.jobs.add(JobKind.upscaling, job_params)
         except Exception as e:
             self.report_error(util.log_error(e))
             return
@@ -253,7 +259,7 @@ class Model(QObject, ObservableProperties):
             if kind is JobKind.diffusion:
                 input, _ = self._prepare_workflow(dryrun=True)
             elif kind is JobKind.upscaling:
-                input = self._prepare_upscale_image(dryrun=True)
+                input, _ = self._prepare_upscale_image(dryrun=True)
             else:
                 return 0
             return input.cost
@@ -522,7 +528,7 @@ class Model(QObject, ObservableProperties):
             self._layer = None
         self._doc.resize(job.params.bounds.extent)
         self.upscale.target_extent_changed.emit(self.upscale.target_extent)
-        self.layers.create(job.params.prompt, job.results[0], job.params.bounds)
+        self.create_result_layer(job.results[0], job.params)
 
     def set_workspace(self, workspace: Workspace):
         if self.workspace is Workspace.live:

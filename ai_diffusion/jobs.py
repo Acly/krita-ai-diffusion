@@ -119,11 +119,6 @@ class JobQueue(QObject):
         job.control = control
         return self.add_job(job)
 
-    def add_upscale(self, bounds: Bounds, seed: int):
-        name = f"[Upscale] {bounds.width}x{bounds.height}"
-        job = Job(None, JobKind.upscaling, JobParams(bounds, name, seed=seed))
-        return self.add_job(job)
-
     def add_job(self, job: Job):
         self._entries.append(job)
         self.count_changed.emit()
