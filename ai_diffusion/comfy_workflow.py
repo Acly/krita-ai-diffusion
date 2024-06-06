@@ -314,6 +314,7 @@ class ComfyWorkflow:
         weight: float,
         weight_type: str = "linear",
         range: tuple[float, float] = (0.0, 1.0),
+        mask: Output | None = None,
     ):
         return self.add(
             "IPAdapterEmbeds",
@@ -327,6 +328,7 @@ class ComfyWorkflow:
             embeds_scaling="V only",
             start_at=range[0],
             end_at=range[1],
+            attn_mask=mask,
         )
 
     def apply_ip_adapter_face(
@@ -338,6 +340,7 @@ class ComfyWorkflow:
         image: Output,
         weight=1.0,
         range: tuple[float, float] = (0.0, 1.0),
+        mask: Output | None = None,
     ):
         return self.add(
             "IPAdapterFaceID",
@@ -352,6 +355,7 @@ class ComfyWorkflow:
             weight_type="linear",
             start_at=range[0],
             end_at=range[1],
+            attn_mask=mask,
         )
 
     def apply_self_attention_guidance(self, model: Output):

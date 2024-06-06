@@ -425,11 +425,9 @@ def process_regions(
     # If the region(s) don't cover the entire image, add a final region for the remaining area.
     assert accumulated_mask is not None, "Expecting at least one region mask"
     total_coverage = accumulated_mask.average()
-    if total_coverage > 0.95:
-        # Almost fully covered, use the bottom region as the background.
-        result_regions[0][0].mask = None  # Region without mask fills remaining space
-    else:
-        input = RegionInput(None, bounds, result.positive)
+    if total_coverage < 0.95:
+        accumulated_mask.invert()
+        input = RegionInput(accumulated_mask, bounds, result.positive)
         job = JobRegion(parent_layer.id_string, "background", bounds, is_background=True)
         result_regions.insert(0, (input, job))
 
