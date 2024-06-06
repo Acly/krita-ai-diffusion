@@ -106,7 +106,10 @@ class Layer(QObject):
 
     @property
     def bounds(self):
-        return Bounds.from_qrect(self._node.bounds())
+        # In Krita layer bounds can be larger than the image - this property clamps them
+        bounds = Bounds.from_qrect(self._node.bounds())
+        bounds = Bounds.restrict(bounds, Bounds(0, 0, *self._manager.image_extent))
+        return bounds
 
     @property
     def parent_layer(self):
@@ -153,7 +156,7 @@ class Layer(QObject):
         if not silent and self.is_visible:
             self.refresh()
 
-    def get_mask(self, bounds: Bounds | None, grow=0, feather=0):
+    def get_mask(self, bounds: Bounds | None = None, grow=0, feather=0):
         bounds = bounds or self.bounds
         if self.type.is_mask:
             data: QByteArray = self._node.pixelData(*bounds)
@@ -477,6 +480,12 @@ class LayerManager(QObject):
         if self._doc is None:
             return []
         return [self.wrap(n) for n in traverse_layers(self._doc.rootNode(), self._mask_types)]
+
+    @property
+    def image_extent(self):
+        if doc := self._doc:
+            return Extent(doc.width(), doc.height())
+        return Extent(1, 1)
 
     def __bool__(self):
         return self._doc is not None

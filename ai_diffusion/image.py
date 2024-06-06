@@ -9,7 +9,7 @@ from itertools import product
 from pathlib import Path
 
 from .settings import settings
-from .util import clamp, is_linux, client_logger as log
+from .util import clamp, ensure, is_linux, client_logger as log
 
 
 def multiple_of(number, multiple):
@@ -434,10 +434,16 @@ class Image:
     @property
     def data(self):
         self.to_krita_format()
-        ptr = self._qimage.bits()
-        assert ptr is not None, "Accessing data of invalid image"
-        ptr.setsize(self._qimage.byteCount())
-        return QByteArray(ptr.asstring())
+        if self._qimage.bytesPerLine() != self._qimage.width() * (self._qimage.depth() // 8):
+            # QImage scanlines are padded to 32-bit, which can be a problem with mask formats
+            buffer = QByteArray()
+            for i in range(self._qimage.height()):
+                ptr = ensure(self._qimage.scanLine(i), "Accessing data of invalid image")
+                buffer.append(ptr.asstring(self._qimage.width() * (self._qimage.depth() // 8)))
+            return buffer
+        else:
+            ptr = ensure(self._qimage.constBits(), "Accessing data of invalid image")
+            return QByteArray(ptr.asstring(self._qimage.byteCount()))
 
     @property
     def size(self):  # in bytes

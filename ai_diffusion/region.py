@@ -4,11 +4,13 @@ from PyQt5.QtCore import QObject, QUuid, pyqtSignal
 
 from . import model, workflow
 from .api import ConditioningInput, RegionInput
-from .image import Image, Bounds
+from .image import Image, Bounds, Extent
 from .document import Layer, LayerType
 from .properties import Property, ObservableProperties
 from .jobs import JobRegion
 from .control import ControlLayerList
+from .util import clamp
+from .settings import settings
 
 
 class RegionLink(Enum):
@@ -326,6 +328,18 @@ class RootRegion(QObject, ObservableProperties):
 
     def __iter__(self):
         return iter(self._regions)
+
+
+def get_region_inpaint_mask(region_layer: Layer, max_extent: Extent, min_size=0, expand_mask=False):
+    region_bounds = region_layer.compute_bounds()
+    padding = int((settings.selection_padding / 100) * region_bounds.extent.average_side)
+    bounds = Bounds.pad(region_bounds, padding, min_size=min_size, square=min_size > 0)
+    bounds = Bounds.clamp(bounds, max_extent)
+    feather = 0
+    if expand_mask:
+        feather = clamp((bounds.extent - region_bounds.extent).shortest_side // 2, 8, 128)
+    mask_image = region_layer.get_mask(bounds, grow=feather, feather=feather // 2)
+    return mask_image.to_mask(bounds)
 
 
 def process_regions(

@@ -23,7 +23,7 @@ from .connection import Connection
 from .properties import Property, ObservableProperties
 from .jobs import Job, JobKind, JobParams, JobQueue, JobState, JobRegion
 from .control import ControlLayer, ControlLayerList
-from .region import Region, RegionLink, RootRegion, process_regions
+from .region import Region, RegionLink, RootRegion, process_regions, get_region_inpaint_mask
 from .resources import ControlMode
 from .resolution import compute_bounds, compute_relative_bounds
 
@@ -133,10 +133,8 @@ class Model(QObject, ObservableProperties):
         if mask is None:  # Check for region inpaint
             region_layer = self.regions.get_active_region_layer(use_parent=not self.region_only)
             if not region_layer.is_root:
-                bounds = region_layer.compute_bounds()
-                bounds = Bounds.pad(bounds, settings.selection_padding, multiple=64)
-                bounds = Bounds.clamp(bounds, extent)
-                mask = region_layer.get_mask(bounds).to_mask()
+                mask = get_region_inpaint_mask(region_layer, extent)
+                bounds = mask.bounds
                 inpaint_mode = InpaintMode.add_object
         else:  # Selection inpaint
             bounds = compute_bounds(extent, mask.bounds if mask else None, self.strength)
@@ -290,14 +288,9 @@ class Model(QObject, ObservableProperties):
         bounds = Bounds(0, 0, *self._doc.extent)
         region_layer = self.regions.get_active_region_layer(use_parent=False)
         if mask is None and region_layer.bounds != bounds:
-            region_bounds = region_layer.compute_bounds()
-            padding = int((settings.selection_padding / 100) * region_bounds.extent.average_side)
-            bounds = Bounds.pad(region_bounds, padding, min_size=min_mask_size, square=True)
-            bounds = Bounds.clamp(bounds, extent)
-            feather = clamp((bounds.extent - region_bounds.extent).shortest_side // 2, 8, 128)
-            mask_image = region_layer.get_mask(bounds, grow=feather, feather=feather // 2)
-            mask = mask_image.to_mask(bounds)
-
+            mask = get_region_inpaint_mask(
+                region_layer, extent, min_size=min_mask_size, expand_mask=True
+            )
         if mask is not None:
             workflow_kind = WorkflowKind.refine_region
             bounds, mask.bounds = compute_relative_bounds(mask.bounds, mask.bounds)
@@ -481,8 +474,9 @@ class Model(QObject, ObservableProperties):
         has_layers = len(region_layer.child_layers) > 0
         has_mask = any(l.type.is_mask for l in region_layer.child_layers)
         if not region_layer.is_root and has_layers and not has_mask:
-            mask = region_layer.get_mask(params.bounds)
-            self.layers.create_mask("Transparency Mask", mask, params.bounds, region_layer)
+            layer_bounds = region_layer.bounds
+            mask = region_layer.get_mask(layer_bounds)
+            self.layers.create_mask("Transparency Mask", mask, layer_bounds, region_layer)
 
         # Handle auto-generated background region (not linked to any layers)
         insert_pos = None
