@@ -217,14 +217,14 @@ class RootRegion(QObject, ObservableProperties):
 
     def create_region(self, group=True):
         """Create a new region. This action depends on context:
-        If the active layer can be linked to a group and isn't the only layer in the document,
-        it will be used as the initial link target for the new group. Otherwise, a new layer
-        is inserted (or a group if group==True) and that will be linked instead.
+        If the active layer can be linked to a group it will be used as the initial link
+        target for the new group. Otherwise, a new layer is inserted (or a group if group==True)
+        and that will be linked instead.
         """
         layers = self._model.layers
         target = Region.link_target(layers.active)
         can_link = target.type in [LayerType.paint, LayerType.group] and not self.is_linked(target)
-        if can_link and len(layers.images) > 1:
+        if can_link:
             layer = target
         elif group:
             layer = layers.create_group(f"Region {len(self)}")

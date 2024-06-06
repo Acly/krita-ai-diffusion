@@ -16,7 +16,7 @@ from ..image import Extent, Image
 from ..model import Model
 from ..root import root
 from .control import ControlListWidget
-from .region import ActiveRegionWidget
+from .region import ActiveRegionWidget, PromptHeader
 from .widget import WorkspaceSelectWidget, StyleSelectWidget, StrengthWidget
 from .widget import create_wide_tool_button
 from . import theme
@@ -110,11 +110,16 @@ class LiveWidget(QWidget):
         prompt_buttons_layout.addWidget(self.add_region_button)
         prompt_buttons_layout.addWidget(self.add_control_button)
 
-        self.prompt_widget = ActiveRegionWidget(self._model.regions, self, max_lines=2)
-        self.prompt_widget.has_header = False
+        self.region_widget = ActiveRegionWidget(self._model.regions, self, header=PromptHeader.icon)
+        self.prompt_widget = ActiveRegionWidget(self._model.regions, self, header=PromptHeader.icon)
+
+        prompt_text_layout = QVBoxLayout()
+        prompt_text_layout.setSpacing(2)
+        prompt_text_layout.addWidget(self.region_widget)
+        prompt_text_layout.addWidget(self.prompt_widget)
 
         cond_layout = QHBoxLayout()
-        cond_layout.addWidget(self.prompt_widget)
+        cond_layout.addLayout(prompt_text_layout)
         cond_layout.addLayout(prompt_buttons_layout)
         layout.addLayout(cond_layout)
         layout.addWidget(self.control_list)
@@ -175,6 +180,8 @@ class LiveWidget(QWidget):
                 model.live.result_available.connect(self.show_result),
                 model.regions.active_changed.connect(self.update_region),
             ]
+            self.prompt_widget.region = model.regions
+            self.region_widget.root = model.regions
             self.update_region()
             self.update_is_active()
             self.update_is_recording()
@@ -192,8 +199,14 @@ class LiveWidget(QWidget):
         )
 
     def update_region(self):
-        self.prompt_widget.region = self.model.regions.active_or_root
-        self.control_list.model = self.model.regions.active_or_root.control
+        has_regions = len(self.model.regions) > 0
+        max_lines = 1 if has_regions else 2
+        self.region_widget.setVisible(has_regions)
+        self.region_widget.region = self.model.regions.active
+        self.prompt_widget.header_style = PromptHeader.icon if has_regions else PromptHeader.none
+        self.region_widget.max_lines = max_lines
+        self.prompt_widget.max_lines = max_lines
+        self.control_list.model = self.model.regions.control
 
     def update_is_recording(self):
         self.record_button.setIcon(

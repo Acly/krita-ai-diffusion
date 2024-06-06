@@ -1,5 +1,6 @@
 from __future__ import annotations
-from PyQt5.QtWidgets import QWidget, QLabel, QToolButton, QHBoxLayout, QVBoxLayout, QFrame
+from enum import Enum
+from PyQt5.QtWidgets import QWidget, QLabel, QToolButton, QHBoxLayout, QVBoxLayout, QFrame, QMenu
 from PyQt5.QtGui import QMouseEvent, QResizeEvent, QPixmap, QImage, QPainter, QIcon
 from PyQt5.QtCore import QObject, QEvent, Qt, QMetaObject, pyqtSignal
 
@@ -11,6 +12,7 @@ from ..model import Region, RootRegion, RegionLink
 from .control import ControlListWidget
 from .widget import TextPromptWidget
 from .settings import settings
+from ..util import ensure
 from . import theme
 
 
@@ -64,19 +66,28 @@ class InactiveRegionWidget(QFrame):
         return super().resizeEvent(a0)
 
 
+class PromptHeader(Enum):
+    none = 0
+    icon = 1
+    full = 2
+
+
 class ActiveRegionWidget(QFrame):
     _style_base = f"QFrame#ActiveRegionWidget {{ background-color: {theme.base}; border: 1px solid {theme.line_base}; }}"
     _style_focus = f"QFrame#ActiveRegionWidget {{ background-color: {theme.base}; border: 1px solid {theme.active}; }}"
 
-    _region: RootRegion | Region
+    _root: RootRegion
+    _region: RootRegion | Region | None
     _bindings: list[QMetaObject.Connection]
-    _max_lines: int
+    _header_style: PromptHeader
+    _max_lines: int = 99
 
-    def __init__(self, root: RootRegion, parent: QWidget, max_lines=99):
+    def __init__(self, root: RootRegion, parent: QWidget, header=PromptHeader.full):
         super().__init__(parent)
+        self._root = root
         self._region = root
         self._bindings = []
-        self._max_lines = max_lines
+        self._header_style = header
 
         self.setObjectName("ActiveRegionWidget")
         self.setFrameStyle(QFrame.Shape.StyledPanel)
@@ -114,86 +125,141 @@ class ActiveRegionWidget(QFrame):
         self.negative = TextPromptWidget(line_count=1, is_negative=True, parent=self)
         self.negative.install_event_filter(self)
 
+        self._no_region = QWidget(self)
+        self._no_region.setVisible(False)
+
+        self._no_region_label = QLabel("Active layer is not linked to a region", self._no_region)
+        self._no_region_label.setStyleSheet(f"font-style: italic; color: {theme.grey};")
+
+        self._new_region_button = QToolButton(self._no_region)
+        self._new_region_button.setToolButtonStyle(Qt.ToolButtonStyle.ToolButtonTextBesideIcon)
+        self._new_region_button.setIcon(theme.icon("region-add"))
+        self._new_region_button.setText("New region")
+
+        self._link_region_button = QToolButton(self._no_region)
+        self._link_region_button.setToolButtonStyle(Qt.ToolButtonStyle.ToolButtonTextBesideIcon)
+        self._link_region_button.setIcon(theme.icon("link"))
+        self._link_region_button.setText("Link region")
+        self._link_region_button.clicked.connect(self._show_link_menu)
+
+        no_region_layout = QHBoxLayout()
+        no_region_layout.setContentsMargins(4, 1, 4, 1)
+        no_region_layout.addWidget(self._no_region_label, 1)
+        no_region_layout.addWidget(self._new_region_button)
+        no_region_layout.addWidget(self._link_region_button)
+        self._no_region.setLayout(no_region_layout)
+
         layout = QVBoxLayout()
         layout.setContentsMargins(0, 0, 0, 0)
         layout.setSpacing(0)
-        layout.addWidget(self._header)
-        layout.addWidget(self.positive)
+        if header is PromptHeader.icon:
+            self._header.setVisible(False)
+            positive_layout = QHBoxLayout()
+            positive_layout.addWidget(self._header_icon)
+            positive_layout.addWidget(self.positive, 1)
+            layout.addLayout(positive_layout)
+        else:
+            layout.addWidget(self._header)
+            layout.addWidget(self.positive)
         layout.addWidget(self.negative)
+        layout.addWidget(self._no_region)
         self.setLayout(layout)
 
         self._setup_bindings(self._region)
         settings.changed.connect(self.update_settings)
 
     @property
+    def root(self):
+        return self._root
+
+    @root.setter
+    def root(self, root: RootRegion):
+        self._root = root
+
+    @property
     def region(self):
         return self._region
 
     @region.setter
-    def region(self, region: RootRegion | Region):
+    def region(self, region: RootRegion | Region | None):
         if region != self._region:
             self._region = region
             self._setup_bindings(region)
 
-    @property
-    def root(self):
-        return self._region.root if isinstance(self._region, Region) else self._region
-
-    def _setup_bindings(self, region: RootRegion | Region):
+    def _setup_bindings(self, region: RootRegion | Region | None):
         Binding.disconnect_all(self._bindings)
         is_root_region = isinstance(region, RootRegion)
         if is_root_region:
+            self._root = region
             self._bindings = [
                 bind(region, "positive", self.positive, "text"),
                 bind(region, "negative", self.negative, "text"),
             ]
-        else:
+        elif isinstance(region, Region):
+            self._root = region.root
             self._bindings = [
                 bind(region, "positive", self.positive, "text"),
                 region.layer_ids_changed.connect(self._update_links),
                 self._link_button.clicked.connect(region.toggle_active_link),
                 self._remove_button.clicked.connect(region.remove),
             ]
-        self._bindings.append(self.root.active_layer_changed.connect(self._update_links))
+        else:  # Active layer is not linked to a region
+            self._bindings = [self._root.layers.active_changed.connect(self._update_actions)]
+            self._update_actions()
+        self._bindings += [
+            self._root.active_layer_changed.connect(self._update_links),
+            self._new_region_button.clicked.connect(self._root.create_region_layer),
+        ]
+        self._update_header()
         self._update_links()
         self.positive.move_cursor_to_end()
         self.negative.setVisible(is_root_region and settings.show_negative_prompt)
         self._link_button.setVisible(not is_root_region)
         self._remove_button.setVisible(not is_root_region)
+        self.positive.setVisible(region is not None)
+        self._no_region.setVisible(region is None)
 
     def focus(self):
         if not (self.positive.has_focus or self.negative.has_focus):
             self.positive.has_focus = True
 
     @property
-    def has_header(self):
-        return self._header.isVisible()
+    def header_style(self):
+        return self._header_style
 
-    @has_header.setter
-    def has_header(self, value: bool):
-        self._header.setVisible(value)
+    @header_style.setter
+    def header_style(self, value: PromptHeader):
+        if value is self._header_style:
+            return
+        self._header_style = value
+        self._update_header()
+
+    def _update_header(self):
+        style = self._header_style
+        self._header.setVisible(len(self._root) > 0 and style is PromptHeader.full)
+        self._header_icon.setVisible(self.region is not None and style is not PromptHeader.none)
 
     def _update_links(self):
         if isinstance(self._region, RootRegion):
             self._header_label.setText("Text prompt common to all regions")
             self._header_icon.set_region(self._region)
-        else:
+        elif isinstance(self._region, Region):
             theme.set_text_clipped(
                 self._header_label, f"{self._region.name} - Regional text prompt"
             )
-            active_layer = self.root.layers.active
+            active_layer = self._root.layers.active
             link_enabled = False
             if self._region.is_linked(active_layer, RegionLink.direct):
                 icon = "link-active"
                 desc = "Active layer is linked to this region - click to unlink"
                 link_enabled = True
-            elif self.root.is_linked(active_layer, RegionLink.indirect):
+            elif self._root.is_linked(active_layer, RegionLink.indirect):
                 icon = "link"
                 desc = "Active layer is linked to this region via a group layer"
             elif active_layer.type not in [LayerType.paint, LayerType.group]:
                 icon = "link-disabled"
                 desc = "Only paint layers and groups and be linked to regions"
-            elif self.root.is_linked(active_layer, RegionLink.direct):
+            elif self._root.is_linked(active_layer, RegionLink.direct):
                 icon = "link-disabled"
                 desc = "Active layer is already linked to another region"
             elif Region.link_target(active_layer) is not active_layer:
@@ -207,6 +273,48 @@ class ActiveRegionWidget(QFrame):
             self._link_button.setEnabled(link_enabled)
             self._link_button.setToolTip(desc)
             self._header_icon.set_region(self._region)
+
+    def _update_actions(self):
+        active_layer = self._root.layers.active
+        can_link = active_layer.type in [LayerType.paint, LayerType.group]
+        self._new_region_button.setEnabled(can_link)
+        self._link_region_button.setEnabled(can_link)
+        if can_link:
+            self._no_region_label.setText("Active layer is not linked to a region")
+        else:
+            self._no_region_label.setText("Active layer cannot be linked to a region")
+
+    def _show_link_menu(self):
+        active_layer = self._root.layers.active
+        menu = QMenu()
+        for region in self._root:
+            if region is not self._region:
+                name = region.positive.replace("\n", " ")
+                if name == "":
+                    name = "<No text prompt>"
+                if len(name) > 20:
+                    name = name[:17] + "..."
+
+                def link():
+                    region.link(active_layer)
+                    self.region = region
+
+                action = ensure(menu.addAction(name))
+                action.triggered.connect(link)
+
+        pos = self._link_region_button.rect().bottomLeft()
+        menu.exec_(self._link_region_button.mapToGlobal(pos))
+
+    @property
+    def max_lines(self):
+        return self._max_lines
+
+    @max_lines.setter
+    def max_lines(self, value: int):
+        if value == self._max_lines:
+            return
+        self._max_lines = value
+        self.positive.line_count = min(settings.prompt_line_count, self._max_lines)
 
     def update_settings(self, key: str, value):
         if key == "prompt_line_count":
@@ -284,7 +392,6 @@ class RegionPromptWidget(QWidget):
     def _setup_region_bindings(self, region: RootRegion | Region | None):
         region = region or self._regions
         self._prompt.region = region
-        self._prompt.has_header = len(self._regions) > 0
         self._control.model = region.control
         self._show_inactive_regions()
 
@@ -344,8 +451,10 @@ class RegionThumbnailWidget(QLabel):
                 icon_image = QPixmap.fromImage(image)
             else:
                 icon_image = theme.icon("region-prompt")
+            self.setToolTip(f"Text prompt for region {region.name}")
         else:
             icon_image = theme.icon("root")
+            self.setToolTip(f"Text which is common to all regions")
         if isinstance(icon_image, QIcon):
             size = int(1.2 * font_height)
             offset = (icon_size - size) // 2
