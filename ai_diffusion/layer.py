@@ -128,7 +128,7 @@ class Layer(QObject):
         if time is None:
             data: QByteArray = self._node.projectionPixelData(*bounds)
         else:
-            data: QByteArray = self._node.pixelDataAtTime(time, *bounds)
+            data: QByteArray = self._node.pixelDataAtTime(*bounds, time)
         assert data is not None and data.size() >= bounds.extent.pixel_count * 4
         return Image(QImage(data, *bounds.extent, QImage.Format.Format_ARGB32))
 
