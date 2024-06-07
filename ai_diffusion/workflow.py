@@ -248,10 +248,9 @@ class Conditioning:
     def crop(self, bounds: Bounds):
         # Meant to be called during preperation, before adding inpaint layer.
         for control in self._all_control_layers:
-            assert isinstance(control.image, Image) and not control.mask
+            assert control.mask is None
             control.image.crop(bounds)
         for region in self.regions:
-            assert isinstance(region.mask, Image)
             region.mask.crop(bounds)
 
     @property
@@ -407,7 +406,7 @@ def apply_ip_adapter(
 def apply_regional_ip_adapter(
     w: ComfyWorkflow, model: Output, regions: list[Region], extent: Extent | None, models: ModelDict
 ):
-    for region in regions:
+    for region in (r for r in regions if r.mask):
         model = apply_ip_adapter(w, model, region.control, models, region.mask.load(w, extent))
     return model
 

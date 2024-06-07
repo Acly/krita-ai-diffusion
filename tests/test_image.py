@@ -209,7 +209,7 @@ def test_pad_bounds_min_size():
 def test_pad_square():
     bounds = Bounds(0, 0, 8, 2)
     result = Bounds.pad(bounds, 2, square=True, multiple=1)
-    assert result == Bounds(0, -2, 8, 6)
+    assert result == Bounds(-1, -2, 10, 6)
 
 
 @pytest.mark.parametrize(

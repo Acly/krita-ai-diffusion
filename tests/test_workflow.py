@@ -358,7 +358,7 @@ def region_prompt():
     prompt = ConditioningInput(root_text)
     prompt.regions = [
         RegionInput(
-            None,
+            Mask.load(image_dir / "region_mask_bg.png").to_image(),
             Bounds(0, 0, 1024, 1024),
             "a workbench made of wood, sturdy and well-used",
         ),
@@ -413,11 +413,23 @@ def test_regions_upscale(qtapp, client: Client):
         client,
         canvas=Image.load(image_dir / "regions_base.webp"),
         cond=region_prompt(),
-        strength=0.8,
+        strength=0.5,
         upscale_model=client.models.default_upscaler,
         upscale_factor=2,
     )
     run_and_save(qtapp, client, job, f"test_regions_upscale")
+
+
+def test_regions_ip_adapter(qtapp, client: Client):
+    cat = Image.load(image_dir / "cat.webp")
+    flowers = Image.load(image_dir / "flowers.webp")
+    prompt = region_prompt()
+    prompt.regions[2].positive = ""
+    prompt.regions[2].control.append(ControlInput(ControlMode.reference, flowers))
+    prompt.regions[3].positive = ""
+    prompt.regions[3].control.append(ControlInput(ControlMode.reference, cat))
+    job = create(WorkflowKind.generate, client, canvas=Extent(1024, 1024), cond=prompt)
+    run_and_save(qtapp, client, job, f"test_regions_ip_adapter")
 
 
 @pytest.mark.parametrize(
