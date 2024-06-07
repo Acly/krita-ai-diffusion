@@ -6,7 +6,7 @@ from PyQt5.QtCore import QObject, QUuid, QByteArray, QTimer, pyqtSignal
 from PyQt5.QtGui import QImage
 
 from .image import Extent, Bounds, Image
-from .util import ensure, maybe
+from .util import ensure, maybe, client_logger as log
 from . import eventloop
 
 
@@ -306,7 +306,8 @@ class LayerManager(QObject):
     _doc: krita.Document | None
     _root: Layer | None
     _layers: dict[QUuid, Layer]
-    _active: QUuid
+    _active_id: QUuid
+    _last_active: Layer | None = None
     _timer: QTimer
 
     def __init__(self, doc: krita.Document | None):
@@ -317,7 +318,7 @@ class LayerManager(QObject):
             root = doc.rootNode()
             self._root = Layer(self, root)
             self._layers = {self._root.id: self._root}
-            self._active = doc.activeNode().uniqueId()
+            self._active_id = doc.activeNode().uniqueId()
             self.update()
             self._timer = QTimer()
             self._timer.setInterval(500)
@@ -325,7 +326,7 @@ class LayerManager(QObject):
             self._timer.start()
         else:
             self._root = None
-            self._active = QUuid()
+            self._active_id = QUuid()
 
     def __del__(self):
         if self._doc is not None:
@@ -342,8 +343,8 @@ class LayerManager(QObject):
         if active is None:
             return
 
-        if active.uniqueId() != self._active:
-            self._active = active.uniqueId()
+        if active.uniqueId() != self._active_id:
+            self._active_id = active.uniqueId()
             self.active_changed.emit()
 
         removals = set(self._layers.keys())
@@ -391,8 +392,13 @@ class LayerManager(QObject):
         assert self._doc is not None
         layer = self.find(self._doc.activeNode().uniqueId())
         if layer is None:
-            layer = self.updated()._layers[self._active]
-        return layer
+            layer = self.updated()._layers.get(self._active_id)
+        if layer is None:
+            log.warning("Active layer not found in layer tree")
+            layer = self._last_active
+        else:
+            self._last_active = layer
+        return ensure(layer, "Active layer not found in layer tree (no fallback)")
 
     @active.setter
     def active(self, layer: Layer):
