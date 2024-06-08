@@ -185,8 +185,10 @@ class Model(QObject, ObservableProperties):
         self, input: WorkflowInput, kind: JobKind, params: JobParams, count: int = 1
     ):
         sampling = ensure(input.sampling)
-        params.negative_prompt = ensure(input.conditioning).negative
+        params.negative_prompt = self.regions.negative
         params.strength = sampling.denoise_strength
+        if len(params.regions) == 1:
+            params.prompt = params.regions[0].prompt
 
         for i in range(count):
             sampling.seed = sampling.seed + i * settings.batch_size
