@@ -8,7 +8,7 @@ from .image import Image, Bounds, Extent
 from .document import Layer, LayerType
 from .properties import Property, ObservableProperties
 from .jobs import JobRegion
-from .control import ControlLayerList
+from .control import ControlLayer, ControlLayerList
 from .util import clamp
 from .settings import settings
 
@@ -350,14 +350,16 @@ def process_regions(
         parent_region = root.find_linked(parent_layer)
 
     parent_prompt = ""
+    parent_control: list[ControlLayer] = []
     job_info = []
     if parent_layer and parent_region:
         parent_prompt = parent_region.positive
+        parent_control = list(parent_region.control)
         job_info = [JobRegion(parent_layer.id_string, parent_prompt, bounds)]
     result = ConditioningInput(
         positive=workflow.merge_prompt(parent_prompt, root.positive),
         negative=root.negative,
-        control=[c.to_api(bounds) for c in root.control],
+        control=[c.to_api(bounds) for c in list(root.control) + parent_control],
     )
 
     # Collect layers with linked regions. Optionally restrict to to child layers of a region.

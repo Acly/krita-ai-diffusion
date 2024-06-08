@@ -243,18 +243,18 @@ class Conditioning:
         )
 
     def downscale(self, original: Extent, target: Extent):
-        downscale_control_images(self._all_control_layers, original, target)
+        downscale_control_images(self.all_control, original, target)
 
     def crop(self, bounds: Bounds):
         # Meant to be called during preperation, before adding inpaint layer.
-        for control in self._all_control_layers:
+        for control in self.all_control:
             assert control.mask is None
             control.image.crop(bounds)
         for region in self.regions:
             region.mask.crop(bounds)
 
     @property
-    def _all_control_layers(self):
+    def all_control(self):
         return self.control + [c for r in self.regions for c in r.control]
 
 
@@ -491,7 +491,7 @@ def scale_refine_and_decode(
     params = _sampler_params(sampling, strength=0.4)
 
     positive, negative = apply_control(
-        w, prompt_pos, prompt_neg, cond.control, extent.desired, models
+        w, prompt_pos, prompt_neg, cond.all_control, extent.desired, models
     )
     result = w.ksampler_advanced(model, positive, negative, latent, **params)
     image = w.vae_decode(vae, result)
@@ -515,7 +515,7 @@ def generate(
     latent = w.empty_latent_image(extent.initial, batch_count)
     prompt_pos, prompt_neg = encode_text_prompt(w, cond, clip)
     positive, negative = apply_control(
-        w, prompt_pos, prompt_neg, cond.control, extent.initial, models
+        w, prompt_pos, prompt_neg, cond.all_control, extent.initial, models
     )
     out_latent = w.ksampler_advanced(model, positive, negative, latent, **_sampler_params(sampling))
     out_image = scale_refine_and_decode(
@@ -629,7 +629,7 @@ def inpaint(
     model = apply_regional_ip_adapter(w, model, cond_base.regions, extent.initial, models)
     positive, negative = encode_text_prompt(w, cond, clip)
     positive, negative = apply_control(
-        w, positive, negative, cond_base.control, extent.initial, models
+        w, positive, negative, cond_base.all_control, extent.initial, models
     )
     if params.use_inpaint_model and models.version is SDVersion.sdxl:
         positive, negative, latent_inpaint, latent = w.vae_encode_inpaint_conditioning(
@@ -675,7 +675,7 @@ def inpaint(
             hires_mask = ImageOutput(cropped_mask, is_mask=True)
             cond_upscale.control.append(Control(ControlMode.inpaint, hires_image, hires_mask))
         positive_up, negative_up = apply_control(
-            w, positive_up, negative_up, cond_upscale.control, res, models
+            w, positive_up, negative_up, cond_upscale.all_control, res, models
         )
         out_latent = w.ksampler_advanced(model, positive_up, negative_up, latent, **sampler_params)
         out_image = w.vae_decode(vae, out_latent)
@@ -719,7 +719,9 @@ def refine(
     if batch_count > 1:
         latent = w.batch_latent(latent, batch_count)
     positive, negative = encode_text_prompt(w, cond, clip)
-    positive, negative = apply_control(w, positive, negative, cond.control, extent.desired, models)
+    positive, negative = apply_control(
+        w, positive, negative, cond.all_control, extent.desired, models
+    )
     sampler = w.ksampler_advanced(model, positive, negative, latent, **_sampler_params(sampling))
     out_image = w.vae_decode(vae, sampler)
     out_image = scale_to_target(extent, w, out_image, models)
@@ -756,7 +758,7 @@ def refine_region(
         c_mask = ImageOutput(in_mask, is_mask=True)
         cond.control.append(Control(ControlMode.inpaint, ImageOutput(in_image), c_mask))
     positive, negative = apply_control(
-        w, prompt_pos, prompt_neg, cond.control, extent.initial, models
+        w, prompt_pos, prompt_neg, cond.all_control, extent.initial, models
     )
     if models.version is SDVersion.sd15 or not inpaint.use_inpaint_model:
         latent = w.vae_encode(vae, in_image)
@@ -966,7 +968,7 @@ def upscale_tiled(
         tile_model = apply_attention_mask(w, model, tile_cond, clip, None)
         tile_model = apply_regional_ip_adapter(w, tile_model, tile_cond.regions, None, models)
 
-        control = [tiled_control(c, i) for c in cond.control]
+        control = [tiled_control(c, i) for c in tile_cond.all_control]
         tile_pos, tile_neg = apply_control(w, positive, negative, control, None, models)
 
         latent = w.vae_encode(vae, tile_image)
