@@ -12,7 +12,7 @@ from . import eventloop, workflow, util
 from .api import ConditioningInput, ControlInput, WorkflowKind, WorkflowInput
 from .api import InpaintMode, InpaintParams, FillMode
 from .util import clamp, ensure, client_logger as log
-from .settings import settings
+from .settings import ApplyBehavior, settings
 from .network import NetworkError
 from .image import Extent, Image, Mask, Bounds, DummyImage
 from .client import ClientMessage, ClientEvent, filter_supported_styles, resolve_sd_version
@@ -439,7 +439,7 @@ class Model(QObject, ObservableProperties):
                         insert_pos = self.regions.last_unlinked_layer(region_layer)
                         self.layers.create(name, image, params.bounds, above=insert_pos)
                     elif region_layer.type is LayerType.group:
-                        self.create_result_layer(image, params, job_region)
+                        self.create_result_layer(image, params, job_region, ApplyBehavior.layer)
                     else:
                         new_layer = region_layer.clone()
                         new_layer.write_pixels(image, params.bounds, keep_alpha=True, silent=True)
@@ -447,17 +447,24 @@ class Model(QObject, ObservableProperties):
                             region.link(new_layer)
                         region_layer.remove()
 
-    def create_result_layers(self, image: Image, params: JobParams, prefix=""):
+    def create_result_layers(
+        self, image: Image, params: JobParams, behavior: ApplyBehavior, prefix=""
+    ):
         """Insert generated image as a new layer in the document (non-destructive apply)."""
         name = f"{prefix}{params.prompt} ({params.seed})"
         if len(params.regions) == 0:
             self.layers.create(name, image, params.bounds)
         else:
             for job_region in params.regions:
-                self.create_result_layer(image, params, job_region, prefix)
+                self.create_result_layer(image, params, job_region, behavior, prefix)
 
     def create_result_layer(
-        self, image: Image, params: JobParams, job_region: JobRegion, prefix=""
+        self,
+        image: Image,
+        params: JobParams,
+        job_region: JobRegion,
+        behavior: ApplyBehavior,
+        prefix="",
     ):
         name = f"{prefix}{job_region.prompt} ({params.seed})"
         region_layer = self.layers.find(QUuid(job_region.layer_id)) or self.layers.root
@@ -470,19 +477,6 @@ class Model(QObject, ObservableProperties):
                 region.unlink(paint_layer)
                 region.link(region_layer)
 
-        # Create transparency mask to correctly blend the generated image
-        has_layers = len(region_layer.child_layers) > 0
-        has_mask = any(l.type.is_mask for l in region_layer.child_layers)
-        if not region_layer.is_root and has_layers and not has_mask:
-            layer_bounds = region_layer.bounds
-            mask = region_layer.get_mask(layer_bounds)
-            self.layers.create_mask("Transparency Mask", mask, layer_bounds, region_layer)
-
-        # Handle auto-generated background region (not linked to any layers)
-        insert_pos = None
-        if job_region.is_background:
-            insert_pos = self.regions.last_unlinked_layer(region_layer)
-
         # Crop the full image to the region bounds (+ padding for some flexibility)
         region_image = image
         region_bounds = params.bounds
@@ -492,13 +486,36 @@ class Model(QObject, ObservableProperties):
             region_bounds = Bounds.intersection(region_bounds, params.bounds)
             region_image = Image.crop(image, region_bounds.relative_to(params.bounds))
 
+        # Restrict the image to the alpha mask of the region layer
+        has_layers = len(region_layer.child_layers) > 0
+        has_mask = any(l.type.is_mask for l in region_layer.child_layers)
+        if not region_layer.is_root and has_layers and not has_mask:
+            layer_bounds = region_layer.bounds
+            if behavior is ApplyBehavior.transparency_mask:
+                mask = region_layer.get_mask(layer_bounds)
+                self.layers.create_mask("Transparency Mask", mask, layer_bounds, region_layer)
+            else:
+                layer_image = region_layer.get_pixels(region_bounds)
+                layer_image.draw_image(region_image, keep_alpha=True)
+                region_image = layer_image
+                if behavior is ApplyBehavior.layer_hide_below:
+                    for layer in region_layer.child_layers:
+                        layer.is_visible = False
+
+        # Handle auto-generated background region (not linked to any layers)
+        insert_pos = None
+        if job_region.is_background:
+            insert_pos = self.regions.last_unlinked_layer(region_layer)
+
         self.layers.create(name, region_image, region_bounds, parent=region_layer, above=insert_pos)
 
     def apply_result(self, job_id: str, index: int):
         job = self.jobs.find(job_id)
         assert job is not None, "Cannot apply result, invalid job id"
 
-        self.create_result_layers(job.results[index], job.params, "[Generated] ")
+        self.create_result_layers(
+            job.results[index], job.params, settings.apply_behavior, "[Generated] "
+        )
 
         if self._layer:
             self._layer.remove()
@@ -524,7 +541,7 @@ class Model(QObject, ObservableProperties):
             self._layer = None
         self._doc.resize(job.params.bounds.extent)
         self.upscale.target_extent_changed.emit(self.upscale.target_extent)
-        self.create_result_layers(job.results[0], job.params)
+        self.create_result_layers(job.results[0], job.params, settings.apply_behavior)
 
     def set_workspace(self, workspace: Workspace):
         if self.workspace is Workspace.live:
@@ -763,13 +780,13 @@ class LiveWorkspace(QObject, ObservableProperties):
             # no changes in input data
             await asyncio.sleep(self._poll_rate)
 
-    def write_result(self):
+    def apply_result(self):
         assert self.result is not None and self._result_params is not None
-        self._model.write_result(self.result, self._result_params)
-
-    def create_result_layer(self):
-        assert self.result is not None and self._result_params is not None
-        self._model.create_result_layers(self.result, self._result_params)
+        behavior = settings.apply_behavior_live
+        if behavior is ApplyBehavior.replace:
+            self._model.write_result(self.result, self._result_params)
+        else:
+            self._model.create_result_layers(self.result, self._result_params, behavior)
 
         if settings.new_seed_after_apply:
             self._model.generate_seed()

@@ -230,5 +230,4 @@ class LiveWidget(QWidget):
         self.preview_area.setMinimumSize(256, 256)
 
     def apply_result(self):
-        self.model.live.write_result()
-        # self.model.live.create_result_layer()
+        self.model.live.apply_result()

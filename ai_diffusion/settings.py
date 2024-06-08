@@ -36,6 +36,13 @@ class ServerBackend(Enum):
             return ServerBackend.cuda
 
 
+class ApplyBehavior(Enum):
+    replace = 0
+    layer = 1
+    layer_hide_below = 2
+    transparency_mask = 3
+
+
 class PerformancePreset(Enum):
     auto = "Automatic"
     cpu = "CPU"
@@ -143,8 +150,19 @@ class Settings(QObject):
         "Auto Preview", True, "Automatically preview the first generated result on the canvas"
     )
 
-    show_control_end: bool
-    _show_control_end = Setting("Control ending step", False, "Show control ending step ratio")
+    apply_behavior: ApplyBehavior
+    _apply_behavior = Setting(
+        "Apply Behavior",
+        ApplyBehavior.layer_hide_below,
+        "Choose how result images are applied to the canvas (generation workspaces)",
+    )
+
+    apply_behavior_live: ApplyBehavior
+    _apply_behavior_live = Setting(
+        "Apply Behavior (Live)",
+        ApplyBehavior.replace,
+        "Choose how result images are applied to the canvas in Live mode",
+    )
 
     show_builtin_styles: bool
     _show_builtin_styles = Setting("Show pre-installed styles", True)
