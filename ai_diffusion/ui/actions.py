@@ -40,6 +40,11 @@ def apply():
             model.apply_result(*model.jobs.selection)
 
 
+def create_region():
+    if model := root.model_for_active_document():
+        model.regions.create_region(group=model.workspace is not Workspace.live)
+
+
 def set_workspace(workspace: Workspace):
     def action():
         if model := root.model_for_active_document():
