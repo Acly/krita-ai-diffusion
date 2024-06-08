@@ -82,7 +82,7 @@ class SamplingInput:
 @dataclass
 class ControlInput:
     mode: ControlMode
-    image: Image | None
+    image: Image | None = None
     strength: float = 1.0
     range: tuple[float, float] = (0.0, 1.0)
 

@@ -41,6 +41,7 @@ def test_serialize():
             ControlInput(
                 ControlMode.depth, Image.create(Extent(4, 2), Qt.GlobalColor.blue), 0.8, (0.2, 0.5)
             ),
+            ControlInput(ControlMode.blur, None, 0.5),
         ],
     )
 
@@ -55,4 +56,5 @@ def test_serialize():
     result_control = ensure(result.conditioning).control
     assert _ensure_cmp(result_control[0].image) == _ensure_cmp(input_control[0].image)
     assert _ensure_cmp(result_control[1].image) == _ensure_cmp(input_control[1].image)
+    assert result_control[2].image is None
     assert result == input
