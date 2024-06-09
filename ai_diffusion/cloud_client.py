@@ -316,6 +316,7 @@ models.resources = {
     resource_id(ResourceKind.controlnet, SDVersion.sdxl, ControlMode.pose): "thibaud_xl_openpose_256lora.safetensors",
     resource_id(ResourceKind.controlnet, SDVersion.sd15, ControlMode.segmentation): None,
     resource_id(ResourceKind.controlnet, SDVersion.sd15, ControlMode.blur):"control_lora_rank128_v11f1e_sd15_tile_fp16.safetensors",
+    resource_id(ResourceKind.controlnet, SDVersion.sdxl, ControlMode.blur):"TTPLANET_Controlnet_Tile_realistic_v2_fp16.safetensors",
     resource_id(ResourceKind.controlnet, SDVersion.sd15, ControlMode.stencil): None,
     resource_id(ResourceKind.controlnet, SDVersion.sd15, ControlMode.hands): None,
     resource_id(ResourceKind.controlnet, SDVersion.sdxl, ControlMode.hands): None,

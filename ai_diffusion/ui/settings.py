@@ -206,7 +206,7 @@ class ConnectionSettings(SettingsTab):
     def __init__(self, server: Server):
         super().__init__("Server Configuration")
 
-        self._server_cloud = QRadioButton("Online Service [BETA]", self)
+        self._server_cloud = QRadioButton("Online Service", self)
         self._server_managed = QRadioButton("Local Managed Server", self)
         self._server_external = QRadioButton("Custom Server (local or remote)", self)
         info_cloud = QLabel("Generate images via GPU Cloud Service", self)
