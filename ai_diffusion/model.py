@@ -238,7 +238,7 @@ class Model(QObject, ObservableProperties):
             input = workflow.prepare_upscale_simple(image, upscaler, params.factor)
 
         target_bounds = Bounds(0, 0, *params.target_extent)
-        name = f"[Upscale] {target_bounds.width}x{target_bounds.height}"
+        name = f"{target_bounds.width}x{target_bounds.height}"
         job_params = JobParams(target_bounds, name, seed=params.seed, regions=job_regions)
         return input, job_params
 
@@ -252,6 +252,9 @@ class Model(QObject, ObservableProperties):
 
         self.clear_error()
         eventloop.run(_report_errors(self, self._enqueue_job(job, inputs)))
+
+        self._doc.resize(job.params.bounds.extent)
+        self.upscale.target_extent_changed.emit(self.upscale.target_extent)
 
     def estimate_cost(self, kind=JobKind.diffusion):
         try:
@@ -541,9 +544,7 @@ class Model(QObject, ObservableProperties):
         if self._layer:
             self._layer.remove()
             self._layer = None
-        self._doc.resize(job.params.bounds.extent)
-        self.upscale.target_extent_changed.emit(self.upscale.target_extent)
-        self.create_result_layers(job.results[0], job.params, settings.apply_behavior)
+        self.create_result_layers(job.results[0], job.params, settings.apply_behavior, "[Upscale] ")
 
     def set_workspace(self, workspace: Workspace):
         if self.workspace is Workspace.live:
