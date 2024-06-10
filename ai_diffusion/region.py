@@ -343,7 +343,7 @@ def get_region_inpaint_mask(region_layer: Layer, max_extent: Extent, min_size=0,
 
 
 def process_regions(
-    root: RootRegion, bounds: Bounds, parent_layer: Layer | None = None, min_coverage=0.08
+    root: RootRegion, bounds: Bounds, parent_layer: Layer | None = None, min_coverage=0.02
 ):
     parent_region = None
     if parent_layer and not parent_layer.is_root:
@@ -383,7 +383,7 @@ def process_regions(
             continue
 
         coverage_rough = Bounds.intersection(bounds, layer_bounds).area / bounds.area
-        if coverage_rough < 1.5 * min_coverage:
+        if coverage_rough < 2 * min_coverage:
             continue
 
         region_result = RegionInput(
