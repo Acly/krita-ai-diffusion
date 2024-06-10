@@ -49,6 +49,7 @@ class JobParams:
     regions: list[JobRegion] = field(default_factory=list)
     strength: float = 1.0
     seed: int = 0
+    has_mask: bool = False
     frame: tuple[int, int, int] = (0, 0, 0)
     animation_id: str = ""
 

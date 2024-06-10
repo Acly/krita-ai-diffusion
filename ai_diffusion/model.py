@@ -187,6 +187,7 @@ class Model(QObject, ObservableProperties):
         sampling = ensure(input.sampling)
         params.negative_prompt = self.regions.negative
         params.strength = sampling.denoise_strength
+        params.has_mask = input.images is not None and input.images.initial_mask is not None
         if len(params.regions) == 1:
             params.prompt = params.regions[0].prompt
 
@@ -503,7 +504,7 @@ class Model(QObject, ObservableProperties):
                 layer_image = region_layer.get_pixels(region_bounds)
                 layer_image.draw_image(region_image, keep_alpha=True)
                 region_image = layer_image
-                if behavior is ApplyBehavior.layer_hide_below:
+                if behavior is ApplyBehavior.layer_hide_below and not params.has_mask:
                     for layer in region_layer.child_layers:
                         layer.is_visible = False
 
