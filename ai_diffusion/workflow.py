@@ -90,6 +90,11 @@ def load_checkpoint_with_lora(w: ComfyWorkflow, checkpoint: CheckpointInput, mod
         )
     model, clip, vae = w.load_checkpoint(checkpoint_model)
 
+    if checkpoint.version is SDVersion.sd3:
+        clip_models = models.for_version(checkpoint.version).clip
+        model = w.model_sampling_sd3(model)
+        clip = w.load_dual_clip(clip_models["clip_g"], clip_models["clip_l"], type="sd3")
+
     if checkpoint.clip_skip != StyleSettings.clip_skip.default:
         clip = w.clip_set_last_layer(clip, (checkpoint.clip_skip * -1))
 
@@ -102,14 +107,14 @@ def load_checkpoint_with_lora(w: ComfyWorkflow, checkpoint: CheckpointInput, mod
     for lora in checkpoint.loras:
         model, clip = w.load_lora(model, clip, lora.name, lora.strength, lora.strength)
 
-    lcm_lora = models.for_checkpoint(checkpoint_model).lora["lcm"]
-    is_lcm = any(l.name == lcm_lora for l in checkpoint.loras)
-
     if checkpoint.v_prediction_zsnr:
         model = w.model_sampling_discrete(model, "v_prediction", zsnr=True)
         model = w.rescale_cfg(model, 0.7)
-    elif is_lcm:
-        model = w.model_sampling_discrete(model, "lcm")
+
+    if checkpoint.version.supports_lcm:
+        lcm_lora = models.for_checkpoint(checkpoint_model).lora["lcm"]
+        if any(l.name == lcm_lora for l in checkpoint.loras):
+            model = w.model_sampling_discrete(model, "lcm")
 
     if checkpoint.self_attention_guidance:
         model = w.apply_self_attention_guidance(model)
@@ -512,7 +517,7 @@ def generate(
     model_orig = copy(model)
     model = apply_attention_mask(w, model, cond, clip, extent.initial)
     model = apply_regional_ip_adapter(w, model, cond.regions, extent.initial, models)
-    latent = w.empty_latent_image(extent.initial, batch_count)
+    latent = w.empty_latent_image(extent.initial, models.version, batch_count)
     prompt_pos, prompt_neg = encode_text_prompt(w, cond, clip)
     positive, negative = apply_control(
         w, prompt_pos, prompt_neg, cond.all_control, extent.initial, models

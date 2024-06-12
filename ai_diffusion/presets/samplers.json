@@ -6,6 +6,13 @@
         "minimum_steps": 4,
         "cfg": 7.0
     },
+    "Default SD3 - DPM++ 2M": {
+        "sampler": "dpmpp_2m",
+        "scheduler": "sgm_uniform",
+        "steps": 24,
+        "minimum_steps": 4,
+        "cfg": 5.0
+    },
     "Alternative - Euler A": {
         "sampler": "euler_ancestral",
         "scheduler": "normal",

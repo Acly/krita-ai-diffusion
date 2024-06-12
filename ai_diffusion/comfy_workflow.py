@@ -7,6 +7,7 @@ import math
 import json
 
 from .image import Bounds, Extent, Image
+from .resources import SDVersion
 
 
 class ComfyRunMode(Enum):
@@ -175,11 +176,19 @@ class ComfyWorkflow:
     def model_sampling_discrete(self, model: Output, sampling: str, zsnr=False):
         return self.add("ModelSamplingDiscrete", 1, model=model, sampling=sampling, zsnr=zsnr)
 
+    def model_sampling_sd3(self, model: Output, shift=3.0):
+        return self.add("ModelSamplingSD3", 1, model=model, shift=shift)
+
     def rescale_cfg(self, model: Output, multiplier=0.7):
         return self.add("RescaleCFG", 1, model=model, multiplier=multiplier)
 
     def load_checkpoint(self, checkpoint: str):
         return self.add_cached("CheckpointLoaderSimple", 3, ckpt_name=checkpoint)
+
+    def load_dual_clip(self, clip_name1: str, clip_name2: str, type="sd3"):
+        return self.add_cached(
+            "DualCLIPLoader", 1, clip_name1=clip_name1, clip_name2=clip_name2, type=type
+        )
 
     def load_vae(self, vae_name: str):
         return self.add_cached("VAELoader", 1, vae_name=vae_name)
@@ -221,10 +230,11 @@ class ComfyWorkflow:
     def load_fooocus_inpaint(self, head: str, patch: str):
         return self.add_cached("INPAINT_LoadFooocusInpaint", 1, head=head, patch=patch)
 
-    def empty_latent_image(self, extent: Extent, batch_size=1):
-        return self.add(
-            "EmptyLatentImage", 1, width=extent.width, height=extent.height, batch_size=batch_size
-        )
+    def empty_latent_image(self, extent: Extent, version: SDVersion, batch_size=1):
+        w, h = extent.width, extent.height
+        if version is SDVersion.sd3:
+            return self.add("EmptySD3LatentImage", 1, width=w, height=h, batch_size=batch_size)
+        return self.add("EmptyLatentImage", 1, width=w, height=h, batch_size=batch_size)
 
     def clip_set_last_layer(self, clip: Output, clip_layer: int):
         return self.add("CLIPSetLastLayer", 1, clip=clip, stop_at_clip_layer=clip_layer)

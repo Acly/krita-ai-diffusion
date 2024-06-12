@@ -147,7 +147,7 @@ class CheckpointResolution(NamedTuple):
             min_size, max_size, min_pixel_count, max_pixel_count = {
                 SDVersion.sd15: (512, 768, 512**2, 512 * 768),
                 SDVersion.sdxl: (896, 1280, 1024**2, 1024**2),
-                SDVersion.sd3: (512, 768, 512**2, 512 * 768),  # TODO SD3 validate
+                SDVersion.sd3: (896, 1280, 1024**2, 1024**2),
             }[sd_ver]
         else:
             range_offset = multiple_of(round(0.2 * style.preferred_resolution), 8)
@@ -182,6 +182,7 @@ def prepare_diffusion_input(
     desired = apply_resolution_settings(extent, perf)
 
     # The checkpoint may require a different resolution than what is requested.
+    mult = 64 if sd_version is SDVersion.sd3 else 8
     min_size, max_size, min_scale, max_scale = CheckpointResolution.compute(
         desired, sd_version, style
     )
@@ -189,8 +190,8 @@ def prepare_diffusion_input(
     if downscale and max_scale < 1 and any(x > max_size for x in desired):
         # Desired resolution is larger than the maximum size. Do 2 passes:
         # first pass at checkpoint resolution, then upscale to desired resolution and refine.
-        input = initial = (desired * max_scale).multiple_of(8)
-        desired = desired.multiple_of(8)
+        input = initial = (desired * max_scale).multiple_of(mult)
+        desired = desired.multiple_of(mult)
         # Input images are scaled down here for the initial pass directly to avoid encoding
         # and processing large images in subsequent steps.
         image, mask_image = _scale_images(image, mask_image, target=initial)
@@ -201,13 +202,13 @@ def prepare_diffusion_input(
         scaled = desired * min_scale
         # Avoid unnecessary scaling if too small resolution is caused by resolution multiplier
         if all(x >= min_size and x <= max_size for x in extent):
-            initial = desired = extent.multiple_of(8)
+            initial = desired = extent.multiple_of(mult)
         else:
-            initial = desired = scaled.multiple_of(8)
+            initial = desired = scaled.multiple_of(mult)
 
     else:  # Desired resolution is in acceptable range. Do 1 pass at desired resolution.
         input = extent
-        initial = desired = desired.multiple_of(8)
+        initial = desired = desired.multiple_of(mult)
         # Scale down input images if needed due to resolution_multiplier or max_pixel_count
         if extent.pixel_count > desired.pixel_count:
             input = desired
