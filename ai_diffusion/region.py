@@ -193,6 +193,11 @@ class RootRegion(QObject, ObservableProperties):
     def active_or_root(self):
         return self.active or self
 
+    @property
+    def region_for_active_layer(self):
+        if layer := self._get_active_layer()[0]:
+            return self._find_region(layer)
+
     def get_active_region_layer(self, use_parent: bool):
         result = self.layers.root
         target = Region.link_target(self.layers.active)
@@ -290,8 +295,6 @@ class RootRegion(QObject, ObservableProperties):
         if layer and changed:
             if region := self.find_linked(layer):
                 self.active = region
-            elif self._model.workspace is model.Workspace.live:
-                self.active = None  # root region
 
     def _track_layer(self, region: Region | None):
         if region and region.first_layer:

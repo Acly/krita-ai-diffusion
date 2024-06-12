@@ -76,6 +76,8 @@ class ActiveRegionWidget(QFrame):
     _style_base = f"QFrame#ActiveRegionWidget {{ background-color: {theme.base}; border: 1px solid {theme.line_base}; }}"
     _style_focus = f"QFrame#ActiveRegionWidget {{ background-color: {theme.base}; border: 1px solid {theme.active}; }}"
 
+    focused = pyqtSignal()
+
     _root: RootRegion
     _region: RootRegion | Region | None
     _bindings: list[QMetaObject.Connection]
@@ -326,6 +328,7 @@ class ActiveRegionWidget(QFrame):
     def eventFilter(self, a0: QObject | None, a1: QEvent | None) -> bool:
         if a1 and a1.type() == QEvent.Type.FocusIn:
             self.setStyleSheet(self._style_focus)
+            self.focused.emit()
         elif a1 and a1.type() == QEvent.Type.FocusOut:
             self.setStyleSheet(self._style_base)
         return False
@@ -347,7 +350,6 @@ class RegionPromptWidget(QWidget):
         self._prompt = ActiveRegionWidget(self._regions, self)
         self._prompt.positive.activated.connect(self.activated)
         self._prompt.negative.activated.connect(self.activated)
-        self._prompt.has_header = False
 
         self._control = ControlListWidget(self._regions.active_or_root.control, parent=self)
         self._regions_above = QVBoxLayout()

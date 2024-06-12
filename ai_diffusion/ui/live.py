@@ -111,7 +111,10 @@ class LiveWidget(QWidget):
         prompt_buttons_layout.addWidget(self.add_control_button)
 
         self.region_widget = ActiveRegionWidget(self._model.regions, self, header=PromptHeader.icon)
+        self.region_widget.focused.connect(self.focus_active_region)
+
         self.prompt_widget = ActiveRegionWidget(self._model.regions, self, header=PromptHeader.icon)
+        self.prompt_widget.focused.connect(self.focus_root_region)
 
         prompt_text_layout = QVBoxLayout()
         prompt_text_layout.setSpacing(2)
@@ -179,6 +182,7 @@ class LiveWidget(QWidget):
                 model.progress_changed.connect(self.update_progress),
                 model.live.result_available.connect(self.show_result),
                 model.regions.active_changed.connect(self.update_region),
+                model.layers.active_changed.connect(self.update_region),
             ]
             self.prompt_widget.region = model.regions
             self.region_widget.root = model.regions
@@ -202,11 +206,18 @@ class LiveWidget(QWidget):
         has_regions = len(self.model.regions) > 0
         max_lines = 1 if has_regions else 2
         self.region_widget.setVisible(has_regions)
-        self.region_widget.region = self.model.regions.active
+        self.region_widget.region = self.model.regions.region_for_active_layer
         self.prompt_widget.header_style = PromptHeader.icon if has_regions else PromptHeader.none
         self.region_widget.max_lines = max_lines
         self.prompt_widget.max_lines = max_lines
         self.control_list.model = self.model.regions.active_or_root.control
+
+    def focus_root_region(self):
+        if len(self.model.regions) > 0:
+            self.model.regions.active = self.model.regions
+
+    def focus_active_region(self):
+        self.model.regions.active = self.model.regions.region_for_active_layer
 
     def update_is_recording(self):
         self.record_button.setIcon(
