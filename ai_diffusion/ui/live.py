@@ -206,7 +206,7 @@ class LiveWidget(QWidget):
         self.prompt_widget.header_style = PromptHeader.icon if has_regions else PromptHeader.none
         self.region_widget.max_lines = max_lines
         self.prompt_widget.max_lines = max_lines
-        self.control_list.model = self.model.regions.control
+        self.control_list.model = self.model.regions.active_or_root.control
 
     def update_is_recording(self):
         self.record_button.setIcon(
