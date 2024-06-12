@@ -19,6 +19,9 @@ class LayerType(Enum):
     filter = "filterlayer"
     transparency = "transparencymask"
     selection = "selectionmask"
+    filtermask = "filtermask"
+    transform = "transformmask"
+    colorize = "colorizemask"
 
     @property
     def is_image(self):
