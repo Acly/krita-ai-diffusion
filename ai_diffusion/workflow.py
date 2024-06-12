@@ -13,7 +13,7 @@ from .api import RegionInput
 from .image import Bounds, Extent, Image, Mask, Point, multiple_of
 from .client import ClientModels, ModelDict
 from .style import Style, StyleSettings, SamplerPresets
-from .resolution import ScaledExtent, ScaleMode, get_inpaint_reference
+from .resolution import ScaledExtent, ScaleMode, TileLayout, get_inpaint_reference
 from .resources import ControlMode, SDVersion, UpscalerName, ResourceKind
 from .settings import PerformanceSettings
 from .text import merge_prompt, extract_loras
@@ -867,52 +867,6 @@ def upscale_simple(w: ComfyWorkflow, image: Image, model: str, factor: float):
     return w
 
 
-class TileLayout:
-    image_extent: Extent
-    tile_extent: Extent
-    min_size: int
-    padding: int
-    blending: int
-    tile_count: Extent
-
-    def __init__(self, extent: Extent, min_tile_size: int, strength: float):
-        self.image_extent = extent
-        self.min_size = min_tile_size
-        self.padding = round((16 + 64 * strength) / 8) * 8
-        self.blending = max(1, self.padding // 16) * 8
-        self.tile_count = self.image_extent // (min_tile_size - 2 * self.padding)
-
-        padded = extent + (self.tile_count - Extent(1, 1)) * 2 * self.padding
-        tile_extent = Extent(
-            math.ceil(padded.width / self.tile_count.width),
-            math.ceil(padded.height / self.tile_count.height),
-        )
-        self.tile_extent = tile_extent.multiple_of(8)
-
-    @property
-    def total_tiles(self):
-        return self.tile_count.width * self.tile_count.height
-
-    def start(self, coord: Point):
-        return Point(
-            coord.x * (self.tile_extent.width - self.padding),
-            coord.y * (self.tile_extent.height - self.padding),
-        )
-
-    def end(self, coord: Point):
-        end = self.start(coord) + self.tile_extent
-        return end.clamp(Bounds.from_extent(self.image_extent))
-
-    def coord(self, index: int):
-        # Note: this appears flipped compared to tile layout in tooling nodes, but
-        # that's because torch tensor uses [H x W] layout
-        return Point(index // self.tile_count.width, index % self.tile_count.height)
-
-    def bounds(self, index: int):
-        coord = self.coord(index)
-        return Bounds.from_points(self.start(coord), self.end(coord))
-
-
 def upscale_tiled(
     w: ComfyWorkflow,
     image: Image,
@@ -924,7 +878,9 @@ def upscale_tiled(
     models: ModelDict,
 ):
     upscale_factor = extent.initial.width / extent.input.width
-    layout = TileLayout(extent.initial, extent.desired.width, sampling.denoise_strength)
+    layout = TileLayout.from_denoise_strength(
+        extent.initial, extent.desired.width, sampling.denoise_strength
+    )
 
     model, clip, vae = load_checkpoint_with_lora(w, checkpoint, models.all)
     model = apply_ip_adapter(w, model, cond.control, models)

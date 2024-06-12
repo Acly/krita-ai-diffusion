@@ -4,7 +4,7 @@ from enum import Enum
 from typing import NamedTuple, overload
 
 from .api import ExtentInput, ImageInput
-from .image import Bounds, Extent, Image, Mask, multiple_of
+from .image import Bounds, Extent, Image, Mask, Point, multiple_of
 from .resources import SDVersion
 from .settings import PerformanceSettings
 from .style import Style
@@ -281,3 +281,54 @@ def get_inpaint_reference(image: Image, area: Bounds):
         if area.y == 0 or area.y + area.height == extent.height:
             return Image.crop(image, Bounds(0, offset, extent.width, extent.height - area.height))
     return None
+
+
+class TileLayout:
+    image_extent: Extent
+    tile_extent: Extent
+    min_size: int
+    padding: int
+    blending: int
+    tile_count: Extent
+
+    def __init__(self, extent: Extent, min_tile_size: int, padding: int):
+        self.image_extent = extent
+        self.min_size = min_tile_size
+        self.padding = padding
+        self.blending = max(1, self.padding // 16) * 8
+        self.tile_count = self.image_extent // (min_tile_size - 2 * self.padding)
+
+        padded = extent + (self.tile_count - Extent(1, 1)) * 2 * self.padding
+        tile_extent = Extent(
+            math.ceil(padded.width / self.tile_count.width),
+            math.ceil(padded.height / self.tile_count.height),
+        )
+        self.tile_extent = tile_extent.multiple_of(8)
+
+    @staticmethod
+    def from_denoise_strength(extent: Extent, min_tile_size: int, strength: float):
+        padding = round((16 + 64 * strength) / 8) * 8
+        return TileLayout(extent, min_tile_size, padding)
+
+    @property
+    def total_tiles(self):
+        return self.tile_count.width * self.tile_count.height
+
+    def start(self, coord: Point):
+        return Point(
+            coord.x * (self.tile_extent.width - 2 * self.padding),
+            coord.y * (self.tile_extent.height - 2 * self.padding),
+        )
+
+    def end(self, coord: Point):
+        end = self.start(coord) + self.tile_extent
+        return end.clamp(Bounds.from_extent(self.image_extent))
+
+    def coord(self, index: int):
+        # Note: this appears flipped compared to tile layout in tooling nodes, but
+        # that's because torch tensor uses [H x W] layout
+        return Point(index // self.tile_count.height, index % self.tile_count.height)
+
+    def bounds(self, index: int):
+        coord = self.coord(index)
+        return Bounds.from_points(self.start(coord), self.end(coord))
