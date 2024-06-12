@@ -124,7 +124,7 @@ class ComfyClient(Client):
         client._refresh_models(nodes, await client.try_inspect_checkpoints())
 
         # Check supported SD versions and make sure there is at least one
-        missing = {ver: client._check_workload(ver) for ver in [SDVersion.sd15, SDVersion.sdxl]}
+        missing = {ver: client._check_workload(ver) for ver in SDVersion.list()}
         client._supported_sd_versions = [ver for ver, miss in missing.items() if len(miss) == 0]
         if len(client._supported_sd_versions) == 0:
             raise missing[SDVersion.sd15][0]
@@ -406,14 +406,11 @@ def _find_model(
     return found
 
 
-_sd_versions = [SDVersion.sd15, SDVersion.sdxl]
-
-
 def _find_control_models(model_list: Sequence[str]):
     kind = ResourceKind.controlnet
     return {
         resource_id(kind, ver, mode): _find_model(model_list, kind, ver, mode)
-        for mode, ver in product(ControlMode, _sd_versions)
+        for mode, ver in product(ControlMode, SDVersion.list())
         if mode.is_control_net
     }
 
@@ -422,7 +419,7 @@ def _find_ip_adapters(model_list: Sequence[str]):
     kind = ResourceKind.ip_adapter
     return {
         resource_id(kind, ver, mode): _find_model(model_list, kind, ver, mode)
-        for mode, ver in product(ControlMode, _sd_versions)
+        for mode, ver in product(ControlMode, SDVersion.list())
         if mode.is_ip_adapter
     }
 
@@ -451,7 +448,7 @@ def _find_upscalers(model_list: Sequence[str]):
 
 def _find_loras(model_list: Sequence[str]):
     kind = ResourceKind.lora
-    common_loras = list(product(["lcm", "face"], _sd_versions))
+    common_loras = list(product(["lcm", "face"], [SDVersion.sd15, SDVersion.sdxl]))
     sdxl_loras = [("lightning", SDVersion.sdxl)]
     return {
         resource_id(kind, ver, name): _find_model(model_list, kind, ver, name)

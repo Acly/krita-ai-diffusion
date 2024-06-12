@@ -583,7 +583,7 @@ class StylePresets(SettingsTab):
     def _toggle_preferred_resolution(self, checked: bool):
         if checked and self._resolution_spin.value == 0:
             sd_ver = resolve_sd_version(self.current_style, root.connection.client_if_connected)
-            self._resolution_spin.value = 640 if sd_ver is SDVersion.sd15 else 1024
+            self._resolution_spin.value = 1024 if sd_ver is SDVersion.sdxl else 640  # TODO SD3
         elif not checked and self._resolution_spin.value > 0:
             self._resolution_spin.value = 0
 
