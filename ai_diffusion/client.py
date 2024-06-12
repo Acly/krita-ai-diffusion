@@ -152,6 +152,10 @@ class ModelDict:
         return ModelDict(self._models, self.kind, version)
 
     @property
+    def clip(self):
+        return ModelDict(self._models, ResourceKind.clip, self.version)
+
+    @property
     def clip_vision(self):
         return self._models.resource(ResourceKind.clip_vision, "ip_adapter", SDVersion.all)
 

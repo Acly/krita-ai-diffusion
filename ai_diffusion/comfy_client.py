@@ -102,6 +102,9 @@ class ComfyClient(Client):
         models.node_inputs = {name: nodes[name]["input"].get("required", None) for name in nodes}
         available_resources = client.models.resources = {}
 
+        clip_models = nodes["DualCLIPLoader"]["input"]["required"]["clip_name1"][0]
+        available_resources.update(_find_clip_models(clip_models))
+
         control_models = nodes["ControlNetLoader"]["input"]["required"]["control_net_name"][0]
         available_resources.update(_find_control_models(control_models))
 
@@ -283,7 +286,7 @@ class ComfyClient(Client):
                     info.get("is_refiner", False),
                 )
                 for filename, info in checkpoint_info.items()
-                if info["base_model"] in ["sd15", "sdxl"]
+                if info["base_model"] in ["sd15", "sd3", "sdxl"]
             }
         else:
             models.checkpoints = {
@@ -404,6 +407,14 @@ def _find_model(
     else:
         log.info(f"Found {model_name} for {sdver.value}: {found}")
     return found
+
+
+def _find_clip_models(model_list: Sequence[str], ver=SDVersion.sd3):
+    kind = ResourceKind.clip
+    return {
+        resource_id(kind, ver, name): _find_model(model_list, kind, ver, name)
+        for name in ["clip_g", "clip_l"]
+    }
 
 
 def _find_control_models(model_list: Sequence[str]):
