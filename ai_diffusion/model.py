@@ -327,11 +327,13 @@ class Model(QObject, ObservableProperties):
         return None
 
     def _get_current_image(self, bounds: Bounds):
-        exclude = [  # exclude control layers from projection
-            c.layer for c in self.regions.control if not c.mode.is_part_of_image
-        ]
-        if self._layer:  # exclude preview layer
-            exclude.append(self._layer)
+        exclude = None
+        if self.workspace is not Workspace.live:
+            exclude = [  # exclude control layers from projection
+                c.layer for c in self.regions.control if not c.mode.is_part_of_image
+            ]
+            if self._layer:  # exclude preview layer
+                exclude.append(self._layer)
         return self._doc.get_image(bounds, exclude_layers=exclude)
 
     def generate_control_layer(self, control: ControlLayer):
