@@ -60,6 +60,7 @@ required_custom_nodes = [
 class SDVersion(Enum):
     sd15 = "SD 1.5"
     sdxl = "SD XL"
+    sd3 = "SD 3"
 
     auto = "Automatic"
     all = "All"
@@ -70,6 +71,8 @@ class SDVersion(Enum):
             return SDVersion.sd15
         if string == "sdxl":
             return SDVersion.sdxl
+        if string == "sd3":
+            return SDVersion.sd3
         return None
 
     @staticmethod
@@ -97,6 +100,10 @@ class SDVersion(Enum):
     @property
     def has_controlnet_inpaint(self):
         return self is SDVersion.sd15
+
+    @staticmethod
+    def list():
+        return [SDVersion.sd15, SDVersion.sdxl, SDVersion.sd3]
 
 
 class ResourceKind(Enum):

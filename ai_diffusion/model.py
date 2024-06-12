@@ -279,7 +279,7 @@ class Model(QObject, ObservableProperties):
         workflow_kind = WorkflowKind.generate if strength == 1.0 else WorkflowKind.refine
         client = self._connection.client
         ver = client.models.version_of(self.style.sd_checkpoint)
-        min_mask_size = 512 if ver is SDVersion.sd15 else 800
+        min_mask_size = 800 if ver is SDVersion.sdxl else 512
         extent = self._doc.extent
         region_layer = None
         job_regions: list[JobRegion] = []

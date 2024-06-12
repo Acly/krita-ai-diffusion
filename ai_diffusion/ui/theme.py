@@ -48,6 +48,8 @@ def sd_version_icon(version: SDVersion, client: Client | None = None):
         return icon("sd-version-15")
     elif version is SDVersion.sdxl:
         return icon("sd-version-xl")
+    elif version is SDVersion.sd3:
+        return icon("sd-version-3")
     else:
         log.warning(f"Unresolved SD version {version}, cannot fetch icon")
         return icon("warning")
