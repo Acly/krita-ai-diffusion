@@ -553,13 +553,15 @@ def detect_inpaint(
     assert mode is not InpaintMode.automatic
     result = InpaintParams(mode, bounds)
 
-    result.use_inpaint_model = strength > 0.5
     if sd_ver is SDVersion.sd15:
+        result.use_inpaint_model = strength > 0.5
         result.use_condition_mask = (
             mode is InpaintMode.add_object
             and prompt != ""
             and not any(c.mode.is_structural for c in control)
         )
+    elif sd_ver is SDVersion.sdxl:
+        result.use_inpaint_model = strength > 0.8
 
     is_ref_mode = mode in [InpaintMode.fill, InpaintMode.expand]
     result.use_reference = is_ref_mode and prompt == ""
