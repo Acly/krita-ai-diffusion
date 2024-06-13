@@ -228,7 +228,7 @@ class LoraList(QWidget):
             self._filter_combo.addItem(icon("filter"), "All")
             folders = set()
             for name in names:
-                parts = Path(name).parts
+                parts = Path(name.replace("\\", "/")).parts
                 for i in range(1, len(parts)):
                     folders.add("/".join(parts[:i]))
             folder_icon = Krita.instance().icon("document-open")
