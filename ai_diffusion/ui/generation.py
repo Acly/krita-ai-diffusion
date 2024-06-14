@@ -588,7 +588,7 @@ class GenerationWidget(QWidget):
 
     def apply_result(self, item: QListWidgetItem):
         job_id, index = self.history.item_info(item)
-        self.model.apply_result(job_id, index)
+        self.model.apply_generated_result(job_id, index)
 
     def _create_generate_action(self, text: str, icon: str, region_only: bool):
         action = QAction(text, self)

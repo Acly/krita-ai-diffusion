@@ -36,8 +36,10 @@ def toggle_preview():
 
 def apply():
     if model := root.model_for_active_document():
-        if model.jobs.selection is not None:
-            model.apply_result(*model.jobs.selection)
+        if model.workspace is Workspace.generation and model.jobs.selection is not None:
+            model.apply_generated_result(*model.jobs.selection)
+        elif model.workspace is Workspace.live:
+            model.live.apply_result()
 
 
 def create_region():

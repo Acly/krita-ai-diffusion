@@ -194,6 +194,8 @@ class LiveWidget(QWidget):
                 model.regions.active_changed.connect(self.update_region),
                 model.layers.active_changed.connect(self.update_region),
             ]
+            self.apply_button.setEnabled(model.live.has_result)
+            self.apply_layer_button.setEnabled(model.live.has_result)
             self.prompt_widget.region = model.regions
             self.region_widget.root = model.regions
             self.update_region()

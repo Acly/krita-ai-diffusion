@@ -16,7 +16,8 @@ from .settings import ApplyBehavior, settings
 from .network import NetworkError
 from .image import Extent, Image, Mask, Bounds, DummyImage
 from .client import ClientMessage, ClientEvent, filter_supported_styles, resolve_sd_version
-from .document import Document, Layer, LayerType
+from .document import Document, LayerType
+from .layer import Layer, RestoreActiveLayer
 from .pose import Pose
 from .style import Style, Styles, SDVersion
 from .connection import Connection
@@ -435,40 +436,19 @@ class Model(QObject, ObservableProperties):
         if self._layer is not None:
             self._layer.hide()
 
-    def write_result(self, image: Image, params: JobParams):
-        """Write the generated image to the document, replace original content of the layer."""
-        if len(params.regions) == 0:
-            new_layer = self.layers.active.clone()
-            new_layer.write_pixels(image, params.bounds, silent=True)
-            self.layers.active.remove()
-        else:
-            for job_region in params.regions:
-                if region_layer := self.layers.find(QUuid(job_region.layer_id)):
-                    if region_layer.is_root:
-                        name = f"{params.prompt} ({params.seed})"
-                        insert_pos = self.regions.last_unlinked_layer(region_layer)
-                        self.layers.create(name, image, params.bounds, above=insert_pos)
-                    elif region_layer.type is LayerType.group:
-                        self.create_result_layer(
-                            image, params, job_region, ApplyBehavior.layer_group
-                        )
-                    else:
-                        new_layer = region_layer.clone()
-                        new_layer.write_pixels(image, params.bounds, keep_alpha=True, silent=True)
-                        if region := self.regions.find_linked(region_layer):
-                            region.link(new_layer)
-                        region_layer.remove()
-
-    def create_result_layers(
-        self, image: Image, params: JobParams, behavior: ApplyBehavior, prefix=""
-    ):
-        """Insert generated image as a new layer in the document (non-destructive apply)."""
+    def apply_result(self, image: Image, params: JobParams, behavior: ApplyBehavior, prefix=""):
         name = f"{prefix}{params.prompt} ({params.seed})"
         if len(params.regions) == 0 or behavior is ApplyBehavior.layer:
+            if behavior is ApplyBehavior.replace:
+                self.layers.active.remove()
             self.layers.create(name, image, params.bounds)
         else:
-            for job_region in params.regions:
-                self.create_result_layer(image, params, job_region, behavior, prefix)
+            with RestoreActiveLayer(self.layers) as restore:
+                active_id = Region.link_target(self.layers.active).id_string
+                for job_region in params.regions:
+                    result = self.create_result_layer(image, params, job_region, behavior, prefix)
+                    if job_region.layer_id == active_id:
+                        restore.target = result
 
     def create_result_layer(
         self,
@@ -480,6 +460,15 @@ class Model(QObject, ObservableProperties):
     ):
         name = f"{prefix}{job_region.prompt} ({params.seed})"
         region_layer = self.layers.find(QUuid(job_region.layer_id)) or self.layers.root
+
+        # Replace content if requested and not a group layer
+        if behavior is ApplyBehavior.replace and region_layer.type is not LayerType.group:
+            new_layer = region_layer.clone()
+            new_layer.write_pixels(image, params.bounds, keep_alpha=True, silent=True)
+            if region := self.regions.find_linked(region_layer):
+                region.link(new_layer)
+            region_layer.remove()
+            return new_layer
 
         # Promote layer to group if needed
         if region_layer.type is not LayerType.group:
@@ -519,15 +508,15 @@ class Model(QObject, ObservableProperties):
         if job_region.is_background:
             insert_pos = self.regions.last_unlinked_layer(region_layer)
 
-        self.layers.create(name, region_image, region_bounds, parent=region_layer, above=insert_pos)
+        return self.layers.create(
+            name, region_image, region_bounds, parent=region_layer, above=insert_pos
+        )
 
-    def apply_result(self, job_id: str, index: int):
+    def apply_generated_result(self, job_id: str, index: int):
         job = self.jobs.find(job_id)
         assert job is not None, "Cannot apply result, invalid job id"
 
-        self.create_result_layers(
-            job.results[index], job.params, settings.apply_behavior, "[Generated] "
-        )
+        self.apply_result(job.results[index], job.params, settings.apply_behavior, "[Generated] ")
 
         if self._layer:
             self._layer.remove()
@@ -551,7 +540,7 @@ class Model(QObject, ObservableProperties):
         if self._layer:
             self._layer.remove()
             self._layer = None
-        self.create_result_layers(job.results[0], job.params, settings.apply_behavior, "[Upscale] ")
+        self.apply_result(job.results[0], job.params, settings.apply_behavior, "[Upscale] ")
 
     def set_workspace(self, workspace: Workspace):
         if self.workspace is Workspace.live:
@@ -792,16 +781,14 @@ class LiveWorkspace(QObject, ObservableProperties):
 
     def apply_result(self, layer_only=False):
         assert self.result is not None and self._result_params is not None
-        behavior = settings.apply_behavior_live
-        if not layer_only and behavior is ApplyBehavior.replace:
-            self._model.write_result(self.result, self._result_params)
-        else:
-            params = copy(self._result_params)
-            if layer_only and len(self._result_params.regions) > 0:
-                active = self._model.layers.active.id_string
-                if region := next((r for r in params.regions if r.layer_id == active), None):
-                    params.regions = [region]
-            self._model.create_result_layers(self.result, params, behavior)
+        params = copy(self._result_params)
+        if layer_only and len(self._result_params.regions) > 0:
+            active = Region.link_target(self._model.layers.active).id_string
+            if region := next((r for r in params.regions if r.layer_id == active), None):
+                params.regions = [region]
+
+        behavior = ApplyBehavior.layer_group if layer_only else settings.apply_behavior_live
+        self._model.apply_result(self.result, params, behavior)
 
         if settings.new_seed_after_apply:
             self._model.generate_seed()

@@ -273,13 +273,16 @@ class Layer(QObject):
 
 
 class RestoreActiveLayer:
-    layer: Layer | None = None
+    previous: Layer | None = None
+    target: Layer | None = None
 
     def __init__(self, layers: LayerManager):
         self._observer = layers
 
     def __enter__(self):
-        self.layer = self._observer.active
+        self.previous = self._observer.active
+        self.target = self.previous
+        return self
 
     def __exit__(self, exc_type, exc_value, traceback):
         # Some operations like inserting a new layer change the active layer as a side effect.
@@ -287,13 +290,13 @@ class RestoreActiveLayer:
         eventloop.run(self._restore())
 
     async def _restore(self):
-        if self.layer:
-            if self.layer.is_active:
+        if self.previous and self.target:
+            if self.previous.is_active:
                 # Maybe whatever event we expected to change the active layer hasn't happened yet.
                 await eventloop.wait_until(
-                    lambda: self.layer is not None and not self.layer.is_active, no_error=True
+                    lambda: self.previous is not None and not self.previous.is_active, no_error=True
                 )
-            self._observer.active = self.layer
+            self._observer.active = self.target
 
 
 class LayerManager(QObject):
