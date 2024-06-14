@@ -48,14 +48,15 @@ A concise (more technical) version is below:
 
 #### Hardware support
 
-To run locally a powerful graphics card with at least 6 GB VRAM is recommended. Otherwise generating images will take very long!
+To run locally a powerful graphics card with at least 6 GB VRAM (NVIDIA) is recommended. Otherwise generating images will take very long or may fail due to insufficient memory!
 
 <table>
 <tr><td>NVIDIA GPU</td><td>supported via CUDA</td></tr>
-<tr><td>AMD GPU</td><td>supported via DirectML on Windows, ROCm on Linux (only custom server)</td></tr>
-<tr><td>Apple M1/M2</td><td>supported via MPS on macOS</td></tr>
+<tr><td>AMD GPU</td><td>limited support, DirectML on Windows, ROCm on Linux (custom install)</td></tr>
+<tr><td>Apple Silicon</td><td>community support, MPS on macOS</td></tr>
 <tr><td>CPU</td><td>supported, but very slow</td></tr>
 </table>
+
 
 ### Installation
 
