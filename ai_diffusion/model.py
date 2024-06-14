@@ -16,8 +16,8 @@ from .settings import ApplyBehavior, settings
 from .network import NetworkError
 from .image import Extent, Image, Mask, Bounds, DummyImage
 from .client import ClientMessage, ClientEvent, filter_supported_styles, resolve_sd_version
-from .document import Document, LayerType
-from .layer import Layer, RestoreActiveLayer
+from .document import Document, KritaDocument
+from .layer import Layer, LayerType, RestoreActiveLayer
 from .pose import Pose
 from .style import Style, Styles, SDVersion
 from .connection import Connection
@@ -583,6 +583,10 @@ class Model(QObject, ObservableProperties):
     @property
     def has_error(self):
         return self.error != ""
+
+    @property
+    def has_document(self):
+        return isinstance(self._doc, KritaDocument)
 
     @property
     def document(self):
