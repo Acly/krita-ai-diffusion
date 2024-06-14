@@ -123,6 +123,12 @@ def unique(seq: Sequence[T], key) -> list[T]:
     return [x for x in seq if (k := key(x)) not in seen and not seen.add(k)]
 
 
+def trim_text(text: str, max_length: int) -> str:
+    if len(text) > max_length:
+        return text[: max_length - 3] + "..."
+    return text
+
+
 def encode_json(obj):
     if isinstance(obj, Enum):
         return obj.name

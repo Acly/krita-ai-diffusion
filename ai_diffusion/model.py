@@ -11,7 +11,7 @@ import uuid
 from . import eventloop, workflow, util
 from .api import ConditioningInput, ControlInput, WorkflowKind, WorkflowInput
 from .api import InpaintMode, InpaintParams, FillMode
-from .util import clamp, ensure, client_logger as log
+from .util import ensure, trim_text, client_logger as log
 from .settings import ApplyBehavior, settings
 from .network import NetworkError
 from .image import Extent, Image, Mask, Bounds, DummyImage
@@ -419,7 +419,7 @@ class Model(QObject, ObservableProperties):
     def show_preview(self, job_id: str, index: int, name_prefix="Preview"):
         job = self.jobs.find(job_id)
         assert job is not None, "Cannot show preview, invalid job id"
-        name = f"[{name_prefix}] {job.params.prompt}"
+        name = f"[{name_prefix}] {trim_text(job.params.prompt, 77)}"
         if self._layer and self._layer.was_removed:
             self._layer = None  # layer was removed by user
         if self._layer is not None:
@@ -437,7 +437,7 @@ class Model(QObject, ObservableProperties):
             self._layer.hide()
 
     def apply_result(self, image: Image, params: JobParams, behavior: ApplyBehavior, prefix=""):
-        name = f"{prefix}{params.prompt} ({params.seed})"
+        name = f"{prefix}{trim_text(params.prompt, 200)} ({params.seed})"
         if len(params.regions) == 0 or behavior is ApplyBehavior.layer:
             if behavior is ApplyBehavior.replace:
                 self.layers.active.remove()
