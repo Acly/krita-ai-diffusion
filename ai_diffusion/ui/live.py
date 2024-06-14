@@ -67,6 +67,14 @@ class LiveWidget(QWidget):
         self.apply_button.setToolTip("Copy the current result to the active layer")
         self.apply_button.clicked.connect(self.apply_result)
 
+        self.apply_layer_button = QToolButton(self)
+        self.apply_layer_button.setToolButtonStyle(Qt.ToolButtonStyle.ToolButtonIconOnly)
+        self.apply_layer_button.setIcon(theme.icon("apply-layer"))
+        self.apply_layer_button.setAutoRaise(True)
+        self.apply_layer_button.setEnabled(False)
+        self.apply_layer_button.setToolTip("Create a new layer with the current result")
+        self.apply_layer_button.clicked.connect(self.apply_result_layer)
+
         self.style_select = StyleSelectWidget(self)
 
         controls_layout = QHBoxLayout()
@@ -74,6 +82,7 @@ class LiveWidget(QWidget):
         controls_layout.addWidget(self.active_button)
         controls_layout.addWidget(self.record_button)
         controls_layout.addWidget(self.apply_button)
+        controls_layout.addWidget(self.apply_layer_button)
         controls_layout.addWidget(self.style_select)
         layout.addLayout(controls_layout)
 
@@ -174,6 +183,7 @@ class LiveWidget(QWidget):
                 model.live.is_active_changed.connect(self.update_is_active),
                 model.live.is_recording_changed.connect(self.update_is_recording),
                 model.live.has_result_changed.connect(self.apply_button.setEnabled),
+                model.live.has_result_changed.connect(self.apply_layer_button.setEnabled),
                 self.add_region_button.clicked.connect(model.regions.create_region_layer),
                 self.add_control_button.clicked.connect(model.regions.add_control),
                 self.random_seed_button.clicked.connect(model.generate_seed),
@@ -242,3 +252,6 @@ class LiveWidget(QWidget):
 
     def apply_result(self):
         self.model.live.apply_result()
+
+    def apply_result_layer(self):
+        self.model.live.apply_result(layer_only=True)

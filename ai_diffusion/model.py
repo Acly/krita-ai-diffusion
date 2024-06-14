@@ -438,7 +438,9 @@ class Model(QObject, ObservableProperties):
     def write_result(self, image: Image, params: JobParams):
         """Write the generated image to the document, replace original content of the layer."""
         if len(params.regions) == 0:
-            self.layers.active.write_pixels(image, params.bounds)
+            new_layer = self.layers.active.clone()
+            new_layer.write_pixels(image, params.bounds, silent=True)
+            self.layers.active.remove()
         else:
             for job_region in params.regions:
                 if region_layer := self.layers.find(QUuid(job_region.layer_id)):
@@ -447,7 +449,9 @@ class Model(QObject, ObservableProperties):
                         insert_pos = self.regions.last_unlinked_layer(region_layer)
                         self.layers.create(name, image, params.bounds, above=insert_pos)
                     elif region_layer.type is LayerType.group:
-                        self.create_result_layer(image, params, job_region, ApplyBehavior.layer)
+                        self.create_result_layer(
+                            image, params, job_region, ApplyBehavior.layer_group
+                        )
                     else:
                         new_layer = region_layer.clone()
                         new_layer.write_pixels(image, params.bounds, keep_alpha=True, silent=True)
@@ -460,7 +464,7 @@ class Model(QObject, ObservableProperties):
     ):
         """Insert generated image as a new layer in the document (non-destructive apply)."""
         name = f"{prefix}{params.prompt} ({params.seed})"
-        if len(params.regions) == 0:
+        if len(params.regions) == 0 or behavior is ApplyBehavior.layer:
             self.layers.create(name, image, params.bounds)
         else:
             for job_region in params.regions:
@@ -786,13 +790,18 @@ class LiveWorkspace(QObject, ObservableProperties):
             # no changes in input data
             await asyncio.sleep(self._poll_rate)
 
-    def apply_result(self):
+    def apply_result(self, layer_only=False):
         assert self.result is not None and self._result_params is not None
         behavior = settings.apply_behavior_live
-        if behavior is ApplyBehavior.replace:
+        if not layer_only and behavior is ApplyBehavior.replace:
             self._model.write_result(self.result, self._result_params)
         else:
-            self._model.create_result_layers(self.result, self._result_params, behavior)
+            params = copy(self._result_params)
+            if layer_only and len(self._result_params.regions) > 0:
+                active = self._model.layers.active.id_string
+                if region := next((r for r in params.regions if r.layer_id == active), None):
+                    params.regions = [region]
+            self._model.create_result_layers(self.result, params, behavior)
 
         if settings.new_seed_after_apply:
             self._model.generate_seed()

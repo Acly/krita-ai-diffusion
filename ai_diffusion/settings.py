@@ -39,8 +39,9 @@ class ServerBackend(Enum):
 class ApplyBehavior(Enum):
     replace = 0
     layer = 1
-    layer_hide_below = 2
-    transparency_mask = 3
+    layer_group = 2
+    layer_hide_below = 3
+    transparency_mask = 4
 
 
 class PerformancePreset(Enum):

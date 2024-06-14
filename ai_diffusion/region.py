@@ -196,7 +196,7 @@ class RootRegion(QObject, ObservableProperties):
     @property
     def region_for_active_layer(self):
         if layer := self._get_active_layer()[0]:
-            return self._find_region(layer)
+            return self.find_linked(layer)
 
     def get_active_region_layer(self, use_parent: bool):
         result = self.layers.root
