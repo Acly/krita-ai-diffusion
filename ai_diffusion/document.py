@@ -126,7 +126,7 @@ class KritaDocument(Document):
     @classmethod
     def active(cls):
         if doc := Krita.instance().activeDocument():
-            if doc not in Krita.instance().documents():
+            if doc not in Krita.instance().documents() or doc.activeNode() is None:
                 return None
             id = doc.rootNode().uniqueId().toString()
             return cls._instances.get(id) or KritaDocument(doc)
