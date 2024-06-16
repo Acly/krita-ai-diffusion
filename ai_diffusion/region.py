@@ -61,6 +61,7 @@ class Region(QObject, ObservableProperties):
         self._layer_ids = ids
         self._layers = [QUuid(id) for id in ids.split(",") if id]
         self.layer_ids_changed.emit(ids)
+        self.modified.emit(self, "layer_ids")
 
     @property
     def layers(self):
