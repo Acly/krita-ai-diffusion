@@ -460,6 +460,8 @@ class Model(QObject, ObservableProperties):
     ):
         name = f"{prefix}{job_region.prompt} ({params.seed})"
         region_layer = self.layers.find(QUuid(job_region.layer_id)) or self.layers.root
+         # a previous apply from the same batch my have already created groups and re-linked
+        region_layer = Region.link_target(region_layer)
 
         # Replace content if requested and not a group layer
         if behavior is ApplyBehavior.replace and region_layer.type is not LayerType.group:
