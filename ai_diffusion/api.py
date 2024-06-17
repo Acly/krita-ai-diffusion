@@ -166,6 +166,20 @@ class WorkflowInput:
         return Serializer.run(self, image_format)
 
     @property
+    def diffusion_extent(self):
+        if self.crop_upscale_extent:
+            return Extent.largest(self.extent.initial, self.crop_upscale_extent)
+        return self.extent.desired
+
+    @property
+    def passes_count(self):
+        if self.kind is WorkflowKind.upscale_tiled:
+            tile_count_w = math.ceil(self.extent.target.width / self.extent.desired.width)
+            tile_count_h = math.ceil(self.extent.target.height / self.extent.desired.height)
+            return 2 * max(1, tile_count_w * tile_count_h)
+        return self.batch_count
+
+    @property
     def cost(self):
         if self.kind is WorkflowKind.control_image:
             return 1
@@ -176,12 +190,9 @@ class WorkflowInput:
             return batch * extent.pixel_count * math.sqrt(extent.pixel_count) * steps
 
         base = 1 if ensure(self.models).version is SDVersion.sd15 else 2
-        extent = self.extent.desired
-        if crop_extent := self.crop_upscale_extent:
-            extent = Extent.largest(self.extent.initial, crop_extent)
         steps = max(8, ensure(self.sampling).actual_steps)
         unit = cost_factor(2, Extent(1024, 1024), 24)
-        cost = cost_factor(self.batch_count, extent, steps)
+        cost = cost_factor(self.passes_count, self.diffusion_extent, steps)
         return base + round((10 * cost) / unit)
 
 
