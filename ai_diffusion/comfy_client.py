@@ -68,14 +68,14 @@ class ComfyClient(Client):
     _active: Optional[JobInfo] = None
     _supported_sd_versions: list[SDVersion]
 
-    try:
-        if util.is_macos:
+    if util.is_macos:
+        try:
             import certifi
             import os
 
             os.environ["SSL_CERT_FILE"] = certifi.where()
-    except Exception as e:
-        log.error(f"Error setting SSL_CERT_FILE on MacOS: {e}")
+        except Exception as e:
+            log.error(f"Error setting SSL_CERT_FILE on MacOS: {e}")
 
     @staticmethod
     async def connect(url=default_url, access_token=""):
