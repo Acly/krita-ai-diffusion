@@ -1,5 +1,5 @@
 from __future__ import annotations
-from contextlib import nullcontext
+from contextlib import contextmanager, nullcontext
 from enum import Enum
 import krita
 from PyQt5.QtCore import QObject, QUuid, QByteArray, QTimer, pyqtSignal
@@ -42,8 +42,6 @@ class Layer(QObject):
     _node: krita.Node
     _name: str
     _parent: QUuid | None
-
-    removed = pyqtSignal()
 
     def __init__(self, manager: LayerManager, node: krita.Node):
         super().__init__()
@@ -308,6 +306,7 @@ class LayerManager(QObject):
     changed = pyqtSignal()
     active_changed = pyqtSignal()
     parent_changed = pyqtSignal(Layer)
+    removed = pyqtSignal(Layer)
 
     _doc: krita.Document | None
     _root: Layer | None
@@ -315,6 +314,7 @@ class LayerManager(QObject):
     _active_id: QUuid
     _last_active: Layer | None = None
     _timer: QTimer
+    _is_updating: bool = False
 
     def __init__(self, doc: krita.Document | None):
         super().__init__()
@@ -338,8 +338,18 @@ class LayerManager(QObject):
         if self._doc is not None:
             self._timer.stop()
 
+    @contextmanager
+    def _update_guard(self):
+        self._is_updating = True
+        try:
+            yield
+        finally:
+            self._is_updating = False
+
     def update(self):
         if self._doc is None:
+            return
+        if self._is_updating:
             return
         root_node = self._doc.rootNode()
         if root_node is None:
@@ -349,29 +359,30 @@ class LayerManager(QObject):
         if active is None:
             return
 
-        if active.uniqueId() != self._active_id:
-            self._active_id = active.uniqueId()
-            self.active_changed.emit()
+        with self._update_guard():
+            if active.uniqueId() != self._active_id:
+                self._active_id = active.uniqueId()
+                self.active_changed.emit()
 
-        removals = set(self._layers.keys())
-        changes = False
-        for n in traverse_layers(root_node):
-            id = n.uniqueId()
-            if id in self._layers:
-                removals.remove(id)
-                layer = self._layers[id]
-                changes = layer.poll() or changes
-            else:
-                self._layers[id] = Layer(self, n)
-                changes = True
+            removals = set(self._layers.keys())
+            changes = False
+            for n in traverse_layers(root_node):
+                id = n.uniqueId()
+                if id in self._layers:
+                    removals.remove(id)
+                    layer = self._layers[id]
+                    changes = layer.poll() or changes
+                else:
+                    self._layers[id] = Layer(self, n)
+                    changes = True
 
-        removals.remove(self.root.id)
-        for id in removals:
-            self._layers[id].removed.emit()
-            del self._layers[id]
+            removals.remove(self.root.id)
+            for id in removals:
+                self.removed.emit(self._layers[id])
+                del self._layers[id]
 
-        if removals or changes:
-            self.changed.emit()
+            if removals or changes:
+                self.changed.emit()
 
     def wrap(self, node: krita.Node) -> Layer:
         layer = self.find(node.uniqueId())

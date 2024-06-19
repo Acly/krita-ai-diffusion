@@ -6,7 +6,7 @@ import json
 
 from . import model, jobs, resources, util
 from .api import ControlInput
-from .document import LayerType
+from .layer import Layer, LayerType
 from .resources import ControlMode, ResourceKind, SDVersion
 from .properties import Property, ObservableProperties
 from .image import Bounds
@@ -160,12 +160,12 @@ class ControlLayerList(QObject):
         super().__init__()
         self._model = model
         self._layers = []
+        self._model.layers.removed.connect(self._remove_layer)
 
     def add(self):
         layer = self._model.layers.active
         control = ControlLayer(self._model, self._last_mode, layer.id)
         control.mode_changed.connect(self._update_last_mode)
-        layer.removed.connect(lambda: self.remove(control))
         self._layers.append(control)
         self.added.emit(control)
 
@@ -179,6 +179,10 @@ class ControlLayerList(QObject):
 
     def _update_last_mode(self, mode: ControlMode):
         self._last_mode = mode
+
+    def _remove_layer(self, layer: Layer):
+        if control := next((c for c in self._layers if c.layer_id == layer.id), None):
+            self.remove(control)
 
     def __len__(self):
         return len(self._layers)
