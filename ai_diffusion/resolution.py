@@ -147,7 +147,7 @@ class CheckpointResolution(NamedTuple):
             min_size, max_size, min_pixel_count, max_pixel_count = {
                 SDVersion.sd15: (512, 768, 512**2, 512 * 768),
                 SDVersion.sdxl: (896, 1280, 1024**2, 1024**2),
-                SDVersion.sd3: (896, 1280, 1024**2, 1024**2),
+                SDVersion.sd3: (512, 1536, 512**2, 1536**2),
             }[sd_ver]
         else:
             range_offset = multiple_of(round(0.2 * style.preferred_resolution), 8)
