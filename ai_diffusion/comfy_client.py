@@ -1,4 +1,6 @@
 from __future__ import annotations
+import certifi # Fixes MacOS SSL verfication failure, issue #840
+import os # Fixes MacOS SSL verfication failure, issue #840
 import asyncio
 import json
 import struct
@@ -59,6 +61,8 @@ class Progress:
 
 class ComfyClient(Client):
     """HTTP/WebSocket client which sends requests to and listens to messages from a ComfyUI server."""
+
+    os.environ["SSL_CERT_FILE"] = certifi.where() # Fixes MacOS SSL verfication failure, issue #840
 
     default_url = "http://127.0.0.1:8188"
 
