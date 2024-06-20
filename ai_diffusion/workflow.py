@@ -811,10 +811,7 @@ def create_control_image(
     input = w.load_image(image)
     result = None
 
-    if mode is ControlMode.canny_edge:
-        result = w.add("Canny", 1, image=input, low_threshold=0.4, high_threshold=0.8)
-
-    elif mode is ControlMode.hands:
+    if mode is ControlMode.hands:
         if bounds is None:
             current_extent = current_extent.multiple_of(64)
             resolution = current_extent.shortest_side
@@ -842,10 +839,17 @@ def create_control_image(
         elif mode is ControlMode.line_art:
             result = w.add("LineArtPreprocessor", 1, **args, coarse="disable")
         elif mode is ControlMode.soft_edge:
-            result = w.add("HEDPreprocessor", 1, **args, safe="disable")
+            args["merge_with_lineart"] = "lineart_standard"
+            args["lineart_lower_bound"] = 0.0
+            args["lineart_upper_bound"] = 1.0
+            args["object_min_size"] = 36
+            args["object_connectivity"] = 1
+            result = w.add("AnyLineArtPreprocessor_aux", 1, **args)
+        elif mode is ControlMode.canny_edge:
+            result = w.add("CannyEdgePreprocessor", 1, **args, low_threshold=80, high_threshold=200)
         elif mode is ControlMode.depth:
-            model = "depth_anything_vitb14.pth"
-            result = w.add("DepthAnythingPreprocessor", 1, **args, ckpt_name=model)
+            model = "depth_anything_v2_vitb.pth"
+            result = w.add("DepthAnythingV2Preprocessor", 1, **args, ckpt_name=model)
         elif mode is ControlMode.normal:
             result = w.add("BAE-NormalMapPreprocessor", 1, **args)
         elif mode is ControlMode.pose:

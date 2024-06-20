@@ -628,8 +628,8 @@ prefetch_models = [
         ResourceId(ResourceKind.preprocessor, SDVersion.all, ControlMode.soft_edge),
         {
             Path(
-                "custom_nodes/comfyui_controlnet_aux/ckpts/lllyasviel/Annotators/ControlNetHED.pth"
-            ): "https://huggingface.co/lllyasviel/Annotators/resolve/main/ControlNetHED.pth"
+                "custom_nodes/comfyui_controlnet_aux/ckpts/TheMistoAI/MistoLine/Anyline/MTEED.pth"
+            ): "https://huggingface.co/TheMistoAI/MistoLine/resolve/main/Anyline/MTEED.pth"
         },
     ),
     ModelResource(
@@ -637,8 +637,8 @@ prefetch_models = [
         ResourceId(ResourceKind.preprocessor, SDVersion.all, ControlMode.depth),
         {
             Path(
-                "custom_nodes/comfyui_controlnet_aux/ckpts/LiheYoung/Depth-Anything/checkpoints/depth_anything_vitb14.pth"
-            ): "https://huggingface.co/spaces/LiheYoung/Depth-Anything/resolve/main/checkpoints/depth_anything_vitb14.pth"
+                "custom_nodes/comfyui_controlnet_aux/ckpts/depth-anything/Depth-Anything-V2-Base/depth_anything_v2_vitb.pth"
+            ): "https://huggingface.co/depth-anything/Depth-Anything-V2-Base/resolve/main/depth_anything_v2_vitb.pth"
         },
     ),
     ModelResource(
