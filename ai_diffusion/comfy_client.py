@@ -25,7 +25,7 @@ from . import resources, util
 
 if util.is_macos:
     try:
-        import certifi
+        import certifi # type: ignore
         import os
 
         os.environ["SSL_CERT_FILE"] = certifi.where()
