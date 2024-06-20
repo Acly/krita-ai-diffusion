@@ -42,13 +42,15 @@ class Layer(QObject):
     _node: krita.Node
     _name: str
     _parent: QUuid | None
+    _is_confirmed: bool
 
-    def __init__(self, manager: LayerManager, node: krita.Node):
+    def __init__(self, manager: LayerManager, node: krita.Node, is_confirmed=True):
         super().__init__()
         self._manager = manager
         self._node = node
         self._name = node.name()
         self._parent = maybe(krita.Node.uniqueId, node.parentNode())
+        self._is_confirmed = is_confirmed
 
     @property
     def id(self):
@@ -72,6 +74,10 @@ class Layer(QObject):
     @property
     def type(self):
         return LayerType(self._node.type())
+
+    @property
+    def is_confirmed(self):
+        return self._is_confirmed
 
     @property
     def was_removed(self):
@@ -249,6 +255,7 @@ class Layer(QObject):
         return self._node
 
     def poll(self):
+        self._is_confirmed = True
         changed = False
         if self._name != self._node.name():
             self._name = self._node.name()
@@ -378,8 +385,9 @@ class LayerManager(QObject):
 
             removals.remove(self.root.id)
             for id in removals:
-                self.removed.emit(self._layers[id])
-                del self._layers[id]
+                if self._layers[id].is_confirmed:
+                    self.removed.emit(self._layers[id])
+                    del self._layers[id]
 
             if removals or changes:
                 self.changed.emit()
@@ -387,7 +395,8 @@ class LayerManager(QObject):
     def wrap(self, node: krita.Node) -> Layer:
         layer = self.find(node.uniqueId())
         if layer is None:
-            layer = self.updated()._layers[node.uniqueId()]
+            layer = Layer(self, node, is_confirmed=False)
+            self._layers[node.uniqueId()] = layer
         return layer
 
     def find(self, id: QUuid) -> Layer | None:
