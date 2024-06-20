@@ -336,6 +336,14 @@ tile_layouts = {
             {"start": Point(1856, 1072), "end": Point(2880, 2240)},
         ],
     },
+    "single-tile": {
+        "extent": Extent(800, 800),
+        "min_tile_size": 896,
+        "padding": 32,
+        "tile_count": (1, 1),
+        "tile_size": (800, 800),
+        "tiles": [{"start": Point(0, 0), "end": Point(800, 800)}],
+    },
 }
 
 
