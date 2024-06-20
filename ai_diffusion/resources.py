@@ -6,7 +6,7 @@ from typing import NamedTuple, Sequence
 
 # Version identifier for all the resources defined here. This is used as the server version.
 # It usually follows the plugin version, but not all new plugin versions also require a server update.
-version = "1.18.0"
+version = "1.19.0"
 
 comfy_url = "https://github.com/comfyanonymous/ComfyUI"
 comfy_version = "56333d48508f95bdef23870cad3239ba0ebdb8a9"
@@ -546,8 +546,8 @@ optional_models = [
         ResourceId(ResourceKind.controlnet, SDVersion.sdxl, ControlMode.line_art),
         {
             Path(
-                "models/controlnet/sai_xl_sketch_256lora.safetensors"
-            ): "https://huggingface.co/lllyasviel/sd_control_collection/resolve/main/sai_xl_sketch_256lora.safetensors",
+                "models/controlnet/mistoLine_rank256.safetensors"
+            ): "https://huggingface.co/TheMistoAI/MistoLine/resolve/main/mistoLine_rank256.safetensors",
         },
     ),
     ModelResource(
@@ -573,8 +573,8 @@ optional_models = [
         ResourceId(ResourceKind.controlnet, SDVersion.sdxl, ControlMode.pose),
         {
             Path(
-                "models/controlnet/thibaud_xl_openpose_256lora.safetensors"
-            ): "https://huggingface.co/lllyasviel/sd_control_collection/resolve/main/thibaud_xl_openpose_256lora.safetensors",
+                "models/controlnet/controlnetxlCNXL_xinsirOpenpose.safetensors"
+            ): "https://huggingface.co/xinsir/controlnet-openpose-sdxl-1.0/resolve/main/diffusion_pytorch_model.safetensors",
         },
     ),
     ModelResource(
@@ -755,17 +755,18 @@ search_paths: dict[str, list[str]] = {
     resource_id(ResourceKind.clip, SDVersion.sd3, "clip_g") : ["clip_g"],
     resource_id(ResourceKind.controlnet, SDVersion.sd15, ControlMode.inpaint):  ["control_v11p_sd15_inpaint"],
     resource_id(ResourceKind.controlnet, SDVersion.sd15, ControlMode.scribble): ["control_v11p_sd15_scribble", "control_lora_rank128_v11p_sd15_scribble"],
-    resource_id(ResourceKind.controlnet, SDVersion.sdxl, ControlMode.scribble): ["control-lora-sketch-rank", "sai_xl_sketch_"],
+    resource_id(ResourceKind.controlnet, SDVersion.sdxl, ControlMode.scribble): ["xinsirscribble", "mistoline", "control-lora-sketch-rank", "sai_xl_sketch_"],
     resource_id(ResourceKind.controlnet, SDVersion.sd15, ControlMode.line_art): ["control_v11p_sd15_lineart", "control_lora_rank128_v11p_sd15_lineart"],
-    resource_id(ResourceKind.controlnet, SDVersion.sdxl, ControlMode.line_art): ["control-lora-sketch-rank", "sai_xl_sketch_"],
+    resource_id(ResourceKind.controlnet, SDVersion.sdxl, ControlMode.line_art): ["xinsirscribble", "mistoline", "control-lora-sketch-rank", "sai_xl_sketch_"],
     resource_id(ResourceKind.controlnet, SDVersion.sd15, ControlMode.soft_edge): ["control_v11p_sd15_softedge", "control_lora_rank128_v11p_sd15_softedge"],
+    resource_id(ResourceKind.controlnet, SDVersion.sdxl, ControlMode.soft_edge): ["mistoline", "xinsirscribble"],
     resource_id(ResourceKind.controlnet, SDVersion.sd15, ControlMode.canny_edge): ["control_v11p_sd15_canny", "control_lora_rank128_v11p_sd15_canny"],
-    resource_id(ResourceKind.controlnet, SDVersion.sdxl, ControlMode.canny_edge): ["control-lora-canny-rank", "sai_xl_canny_"],
+    resource_id(ResourceKind.controlnet, SDVersion.sdxl, ControlMode.canny_edge): ["xinsircanny", "control-lora-canny-rank", "sai_xl_canny_", "mistoline"],
     resource_id(ResourceKind.controlnet, SDVersion.sd15, ControlMode.depth): ["control_sd15_depth_anything", "control_v11f1p_sd15_depth", "control_lora_rank128_v11f1p_sd15_depth"],
     resource_id(ResourceKind.controlnet, SDVersion.sdxl, ControlMode.depth): ["control-lora-depth-rank", "sai_xl_depth_"],
     resource_id(ResourceKind.controlnet, SDVersion.sd15, ControlMode.normal): ["control_v11p_sd15_normalbae", "control_lora_rank128_v11p_sd15_normalbae"],
     resource_id(ResourceKind.controlnet, SDVersion.sd15, ControlMode.pose): ["control_v11p_sd15_openpose", "control_lora_rank128_v11p_sd15_openpose"],
-    resource_id(ResourceKind.controlnet, SDVersion.sdxl, ControlMode.pose): ["control-lora-openposexl2-rank", "thibaud_xl_openpose"],
+    resource_id(ResourceKind.controlnet, SDVersion.sdxl, ControlMode.pose): ["xinsiropenpose", "control-lora-openposexl2-rank", "thibaud_xl_openpose"],
     resource_id(ResourceKind.controlnet, SDVersion.sd15, ControlMode.segmentation): ["control_v11p_sd15_seg", "control_lora_rank128_v11p_sd15_seg"],
     resource_id(ResourceKind.controlnet, SDVersion.sd15, ControlMode.blur): ["control_v11f1e_sd15_tile", "control_lora_rank128_v11f1e_sd15_tile"],
     resource_id(ResourceKind.controlnet, SDVersion.sdxl, ControlMode.blur): ["ttplanetsdxlcontrolnet", "ttplanet_sdxl_controlnet_tile_realistic", "ttplanet_controlnet_tile_realistic"],
