@@ -167,6 +167,7 @@ class Model(QObject, ObservableProperties):
                     inpaint_mode, mask.bounds, sd_version, pos, ctrl, self.strength
                 )
 
+        prompt = conditioning.positive  # modified in workflow.prepare
         input = workflow.prepare(
             workflow_kind,
             image or extent,
@@ -179,7 +180,7 @@ class Model(QObject, ObservableProperties):
             strength=self.strength,
             inpaint=inpaint,
         )
-        job_params = JobParams(bounds, conditioning.positive, regions=job_regions)
+        job_params = JobParams(bounds, prompt, regions=job_regions)
         return input, job_params
 
     async def enqueue_jobs(
