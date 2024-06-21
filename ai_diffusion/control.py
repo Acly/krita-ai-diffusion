@@ -164,6 +164,13 @@ class ControlLayerList(QObject):
 
     def add(self):
         layer = self._model.layers.active
+        if layer.type.is_filter and layer.parent_layer and not layer.parent_layer.is_root:
+            layer = layer.parent_layer
+        if not layer.type.is_image:
+            layer = next(iter(self._model.layers.images), None)
+        if layer is None:  # shouldn't be possible, Krita doesn't allow removing all non-mask layers
+            log.warning("Trying to add control layer, but document has no suitable layer")
+            return
         control = ControlLayer(self._model, self._last_mode, layer.id)
         control.mode_changed.connect(self._update_last_mode)
         self._layers.append(control)

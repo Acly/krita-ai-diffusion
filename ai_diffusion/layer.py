@@ -25,11 +25,28 @@ class LayerType(Enum):
 
     @property
     def is_image(self):
-        return not self.is_mask
+        return self in [  # Layers that contain color pixel data
+            LayerType.paint,
+            LayerType.vector,
+            LayerType.group,
+            LayerType.file,
+            LayerType.clone,
+            LayerType.filter,
+        ]
 
     @property
-    def is_mask(self):
+    def is_mask(self):  # Layers that contain alpha pixel data
         return self in [LayerType.transparency, LayerType.selection]
+
+    @property
+    def is_filter(self):
+        return self in [  # Layers which modify their parent layer
+            LayerType.transparency,
+            LayerType.selection,
+            LayerType.filtermask,
+            LayerType.transform,
+            LayerType.colorize,
+        ]
 
 
 class Layer(QObject):
