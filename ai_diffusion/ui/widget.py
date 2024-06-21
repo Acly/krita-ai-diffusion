@@ -44,7 +44,8 @@ from ..jobs import JobState, JobKind
 from ..model import Model, Workspace, SamplingQuality
 from ..text import LoraId, edit_attention, select_on_cursor_pos
 from ..util import ensure
-from .settings import SettingsDialog
+from ..workflow import apply_strength, snap_to_percent
+from .settings import SettingsDialog, settings
 from .theme import SignalBlocker
 from . import actions, theme
 
@@ -590,7 +591,65 @@ class TextPromptWidget(QFrame):
             self._single.setCursorPosition(len(self._single.text()))
 
 
+class StrengthSnapping:
+    model: Model
+
+    def __init__(self, model: Model):
+        self.model = model
+
+    def get_steps(self) -> tuple[int, int]:
+        if self.model.workspace is Workspace.generation:
+            is_live = False
+        elif self.model.workspace is Workspace.upscaling:
+            assert False
+        elif self.model.workspace is Workspace.live:
+            is_live = True
+        elif self.model.workspace is Workspace.animation:
+            is_live = self.model.animation.sampling_quality is SamplingQuality.fast
+        else:
+            assert False, "unknown type of workspace"
+        return self.model.style.get_steps(is_live=is_live)
+
+    def nearest_percent(self, value: int) -> int | None:
+        _, max_steps = self.get_steps()
+        steps, start_at_step = self.apply_strength(value)
+        return snap_to_percent(steps, start_at_step, max_steps=max_steps)
+
+    def apply_strength(self, value: int) -> tuple[int, int]:
+        min_steps, max_steps = self.get_steps()
+        strength = value / 100
+        return apply_strength(strength, steps=max_steps, min_steps=min_steps)
+
+
+# SpinBox variant that allows manually entering strength values,
+# but snaps to model_steps on step actions (scrolling, arrows, arrow keys).
+class StrengthSpinBox(QSpinBox):
+    snapping: StrengthSnapping | None
+
+    def __init__(self, parent=None):
+        super().__init__(parent)
+        self.snapping = None
+        # for manual input
+        self.setMinimum(1)
+        self.setMaximum(100)
+
+    def stepBy(self, steps):
+        value = max(self.minimum(), min(self.maximum(), self.value() + steps))
+        if self.snapping is not None:
+            # keep going until we hit a new snap point
+            current_point = self.nearest_snap_point(self.value())
+            while self.nearest_snap_point(value) == current_point and value > 1:
+                value += 1 if steps > 0 else -1
+            value = self.nearest_snap_point(value)
+        self.setValue(value)
+
+    def nearest_snap_point(self, value: int) -> int:
+        assert self.snapping
+        return self.snapping.nearest_percent(value) or (int(value / 5) * 5)
+
+
 class StrengthWidget(QWidget):
+    _model: Model | None
     value_changed = pyqtSignal(float)
 
     def __init__(self, slider_range: tuple[int, int] = (1, 100), parent=None):
@@ -599,29 +658,51 @@ class StrengthWidget(QWidget):
         self._layout.setContentsMargins(0, 0, 0, 0)
         self.setLayout(self._layout)
 
+        self._model = None
+
         self._slider = QSlider(Qt.Orientation.Horizontal, self)
         self._slider.setMinimum(slider_range[0])
         self._slider.setMaximum(slider_range[1])
         self._slider.setSingleStep(5)
-        self._slider.valueChanged.connect(self.notify_changed)
+        self._slider.valueChanged.connect(self.slider_changed)
 
-        self._input = QSpinBox(self)
-        self._input.setMinimum(1)
-        self._input.setMaximum(100)
-        self._input.setSingleStep(5)
+        self._input = StrengthSpinBox(self)
         self._input.setPrefix("Strength: ")
         self._input.setSuffix("%")
         self._input.valueChanged.connect(self.notify_changed)
 
+        settings.changed.connect(self.update_suffix)
+
         self._layout.addWidget(self._slider)
         self._layout.addWidget(self._input)
 
+    def slider_changed(self, value: int):
+        if self._input.snapping is not None:
+            value = self._input.snapping.nearest_percent(value) or value
+        self.notify_changed(value)
+
     def notify_changed(self, value: int):
+        self.update_suffix()
         if self._slider.value() != value:
             self._slider.setValue(value)
         if self._input.value() != value:
             self._input.setValue(value)
         self.value_changed.emit(self.value)
+
+    @property
+    def model(self):
+        return self._model
+
+    @model.setter
+    def model(self, model: Model):
+        if self._model:
+            self._model.style_changed.disconnect(self.update_suffix)
+            self._model.animation.sampling_quality_changed.disconnect(self.update_suffix)
+        self._model = model
+        self._model.style_changed.connect(self.update_suffix)
+        self._model.animation.sampling_quality_changed.connect(self.update_suffix)
+        self._input.snapping = StrengthSnapping(self._model)
+        self.update_suffix()
 
     @property
     def value(self):
@@ -631,8 +712,17 @@ class StrengthWidget(QWidget):
     def value(self, value: float):
         if value == self.value:
             return
-        self._slider.setValue(int(value * 100))
-        self._input.setValue(int(value * 100))
+        self._slider.setValue(round(value * 100))
+        self._input.setValue(round(value * 100))
+        self.update_suffix()
+
+    def update_suffix(self):
+        if not self._input.snapping or not settings.show_steps:
+            self._input.setSuffix("%")
+            return
+
+        steps, start_at_step = self._input.snapping.apply_strength(self._input.value())
+        self._input.setSuffix(f"% ({steps - start_at_step}/{steps})")
 
 
 class WorkspaceSelectWidget(QToolButton):

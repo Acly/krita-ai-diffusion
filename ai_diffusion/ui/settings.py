@@ -387,6 +387,7 @@ class InterfaceSettings(SettingsTab):
             "show_negative_prompt", SwitchSetting(S._show_negative_prompt, ("Show", "Hide"), self)
         )
         self.add("auto_preview", SwitchSetting(S._auto_preview, parent=self))
+        self.add("show_steps", SwitchSetting(S._show_steps, parent=self))
         self.add("new_seed_after_apply", SwitchSetting(S._new_seed_after_apply, parent=self))
         self.add("debug_dump_workflow", SwitchSetting(S._debug_dump_workflow, parent=self))
 

@@ -151,6 +151,11 @@ class Settings(QObject):
         "Auto Preview", True, "Automatically preview the first generated result on the canvas"
     )
 
+    show_steps: bool
+    _show_steps = Setting(
+        "Show Steps", False, "Display the number of steps to be evaluated in the weights box."
+    )
+
     apply_behavior: ApplyBehavior
     _apply_behavior = Setting(
         "Apply Behavior",
