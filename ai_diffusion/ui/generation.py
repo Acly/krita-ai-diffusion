@@ -586,6 +586,7 @@ class GenerationWidget(QWidget):
             self.custom_inpaint.model = model
             self.generate_button.model = model
             self.queue_button.model = model
+            self.strength_slider.model = model
             self.history.model_ = model
             self.update_generate_button()
 

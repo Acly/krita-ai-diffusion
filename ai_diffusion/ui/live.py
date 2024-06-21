@@ -198,6 +198,7 @@ class LiveWidget(QWidget):
             self.apply_layer_button.setEnabled(model.live.has_result)
             self.prompt_widget.region = model.regions
             self.region_widget.root = model.regions
+            self.strength_slider.model = model
             self.update_region()
             self.update_is_active()
             self.update_is_recording()

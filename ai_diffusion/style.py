@@ -183,6 +183,14 @@ class Style:
         )
         return result
 
+    def get_steps(self, is_live: bool) -> tuple[int, int]:
+        sampler_name = self.live_sampler if is_live else self.sampler
+        preset = SamplerPresets.instance()[sampler_name]
+        max_steps = self.live_sampler_steps if is_live else self.sampler_steps
+        max_steps = max_steps or preset.steps
+        min_steps = min(preset.minimum_steps, max_steps)
+        return min_steps, max_steps
+
 
 def _map_sampler_preset(filepath: str | Path, name: str, steps: int, cfg: float):
     sampler_preset = SamplerPresets.instance().add_missing(name, steps, cfg)

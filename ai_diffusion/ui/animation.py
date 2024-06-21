@@ -145,6 +145,7 @@ class AnimationWidget(QWidget):
                 self.generate_button.clicked.connect(model.animation.generate),
             ]
             self.queue_button.model = model
+            self.strength_slider.model = model
             self.update_mode()
             self.update_target_layers()
             self.preview_area.clear()

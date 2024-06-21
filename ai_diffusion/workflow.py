@@ -35,21 +35,20 @@ def generate_seed():
 def _sampling_from_style(style: Style, strength: float, is_live: bool):
     sampler_name = style.live_sampler if is_live else style.sampler
     cfg = style.live_cfg_scale if is_live else style.cfg_scale
-    total_steps = style.live_sampler_steps if is_live else style.sampler_steps
+    min_steps, max_steps = style.get_steps(is_live=is_live)
     preset = SamplerPresets.instance()[sampler_name]
     result = SamplingInput(
         sampler=preset.sampler,
         scheduler=preset.scheduler,
         cfg_scale=cfg or preset.cfg,
-        total_steps=total_steps or preset.steps,
+        total_steps=max_steps,
     )
     if strength < 1.0:
-        min_steps = min(preset.minimum_steps, total_steps)
-        result.total_steps, result.start_step = _apply_strength(strength, total_steps, min_steps)
+        result.total_steps, result.start_step = apply_strength(strength, max_steps, min_steps)
     return result
 
 
-def _apply_strength(strength: float, steps: int, min_steps: int = 0) -> tuple[int, int]:
+def apply_strength(strength: float, steps: int, min_steps: int = 0) -> tuple[int, int]:
     start_at_step = round(steps * (1 - strength))
 
     if min_steps and steps - start_at_step < min_steps:
@@ -57,6 +56,18 @@ def _apply_strength(strength: float, steps: int, min_steps: int = 0) -> tuple[in
         start_at_step = steps - min_steps
 
     return steps, start_at_step
+
+
+# Given the pair we got from `apply_strength`, reconstruct a weight (in percent).
+# representing a natural midpoint of the range.
+# For example, if the pair is 4/8, return 50.
+# This is used for snapping the strength widget.
+# If the resulting step-count is adjusted upward as per above, no such
+# midpoint can be reliably determined. In that case, we return None.
+def snap_to_percent(steps: int, start_at_step: int, max_steps: int) -> int | None:
+    if steps != max_steps:
+        return None
+    return round((steps - start_at_step) * 100 / steps)
 
 
 def _sampler_params(sampling: SamplingInput, strength: float | None = None):
@@ -69,7 +80,7 @@ def _sampler_params(sampling: SamplingInput, strength: float | None = None):
         seed=sampling.seed,
     )
     if strength is not None:
-        params["steps"], params["start_at_step"] = _apply_strength(strength, sampling.total_steps)
+        params["steps"], params["start_at_step"] = apply_strength(strength, sampling.total_steps)
     return params
 
 
