@@ -503,16 +503,12 @@ class Image:
         return Mask(bounds or Bounds(0, 0, *self.extent), self._qimage)
 
     def draw_image(self, image: "Image", offset: tuple[int, int] = (0, 0), keep_alpha=False):
-        w, h = self.extent
-        x, y = offset[0] if offset[0] >= 0 else w + offset[0], (
-            offset[1] if offset[1] >= 0 else h + offset[1]
-        )
         mode = QPainter.CompositionMode.CompositionMode_SourceOver
         if keep_alpha:
             mode = QPainter.CompositionMode.CompositionMode_SourceAtop
         painter = QPainter(self._qimage)
         painter.setCompositionMode(mode)
-        painter.drawImage(x, y, image._qimage)
+        painter.drawImage(*offset, image._qimage)
         painter.end()
 
     def save(self, filepath: Union[str, Path]):

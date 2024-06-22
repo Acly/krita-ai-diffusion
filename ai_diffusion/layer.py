@@ -176,7 +176,7 @@ class Layer(QObject):
             self._node.setPixelData(blank.data, *layer_bounds)
         self._node.setPixelData(img.data, *bounds)
         if make_visible:
-            self.show()
+            self.is_visible = True
         if not silent and self.is_visible:
             self.refresh()
 
@@ -215,11 +215,6 @@ class Layer(QObject):
     def remove(self):
         self._node.remove()
         self._manager.update()
-
-    def clone(self):
-        clone = self._node.clone()
-        self._node.parentNode().addChildNode(clone, self._node)
-        return self._manager.wrap(clone)
 
     def compute_bounds(self):
         bounds = self.bounds

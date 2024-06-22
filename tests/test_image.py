@@ -149,7 +149,7 @@ def test_image_equal():
 def test_draw_image():
     base = Image.create(Extent(32, 32), Qt.GlobalColor.white)
     icon = Image.create(Extent(4, 4), Qt.GlobalColor.red)
-    base.draw_image(icon, offset=(7, -9))
+    base.draw_image(icon, offset=(7, 23))
     for y in range(32):
         for x in range(32):
             if 7 <= x < 11 and 23 <= y < 27:

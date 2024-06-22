@@ -304,7 +304,7 @@ class HistoryWidget(QListWidget):
         if thumb.extent.height < min_height:
             thumb = Image.crop(thumb, Bounds(0, 0, thumb.extent.width, min_height))
         if job.result_was_used(index):  # add tiny star icon to mark used results
-            thumb.draw_image(self._applied_icon, offset=(-28, 4))
+            thumb.draw_image(self._applied_icon, offset=(thumb.extent.width - 28, 4))
         return thumb.to_icon()
 
     def _show_context_menu(self, pos: QPoint):

@@ -466,8 +466,12 @@ class Model(QObject, ObservableProperties):
 
         # Replace content if requested and not a group layer
         if behavior is ApplyBehavior.replace and region_layer.type is not LayerType.group:
-            new_layer = region_layer.clone()
-            new_layer.write_pixels(image, params.bounds, keep_alpha=True, silent=True)
+            img = region_layer.get_pixels()
+            draw_bounds = params.bounds.relative_to(region_layer.bounds)
+            img.draw_image(image, draw_bounds.offset, keep_alpha=True)
+            new_layer = self.layers.create(
+                region_layer.name, img, region_layer.bounds, above=region_layer
+            )
             if region := self.regions.find_linked(region_layer):
                 region.link(new_layer)
             region_layer.remove()

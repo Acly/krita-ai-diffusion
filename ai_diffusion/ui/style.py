@@ -139,7 +139,6 @@ class LoraList(QWidget):
                 if id.file not in client.models.loras:
                     self._warning_icon.show_message("The LoRA file is not installed on the server.")
                 elif id.file in special_loras:
-                    print(id.file, special_loras)
                     self._warning_icon.show_message(
                         "This LoRA is usually added automatically by a Sampler or Control Layer when needed.\n"
                         "It is not required to add it manually here."

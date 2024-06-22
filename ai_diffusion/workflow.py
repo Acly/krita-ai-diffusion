@@ -59,25 +59,17 @@ def _apply_strength(strength: float, steps: int, min_steps: int = 0) -> tuple[in
     return steps, start_at_step
 
 
-def _sampler_params(sampling: SamplingInput, strength: float | None = None, advanced=True):
-    """Assemble the parameters which are passed to ComfyUI's KSampler/KSamplerAdvanced node.
-    Optionally adjust the number of steps based on the strength parameter (for hires pass).
-    """
+def _sampler_params(sampling: SamplingInput, strength: float | None = None):
     params: dict[str, Any] = dict(
         sampler=sampling.sampler,
         scheduler=sampling.scheduler,
-        steps=sampling.actual_steps,
+        steps=sampling.total_steps,
+        start_at_step=sampling.start_step,
         cfg=sampling.cfg_scale,
         seed=sampling.seed,
     )
-    assert strength is None or advanced
-    if advanced:
-        params["steps"] = sampling.total_steps
-        params["start_at_step"] = sampling.start_step
-        if strength is not None:
-            params["steps"], params["start_at_step"] = _apply_strength(
-                strength, sampling.total_steps
-            )
+    if strength is not None:
+        params["steps"], params["start_at_step"] = _apply_strength(strength, sampling.total_steps)
     return params
 
 
