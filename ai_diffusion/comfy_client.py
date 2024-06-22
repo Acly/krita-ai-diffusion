@@ -468,7 +468,7 @@ def _find_upscalers(model_list: Sequence[str]):
 
 def _find_loras(model_list: Sequence[str]):
     kind = ResourceKind.lora
-    common_loras = list(product(["lcm", "face"], [SDVersion.sd15, SDVersion.sdxl]))
+    common_loras = list(product(["hyper", "lcm", "face"], [SDVersion.sd15, SDVersion.sdxl]))
     sdxl_loras = [("lightning", SDVersion.sdxl)]
     return {
         resource_id(kind, ver, name): _find_model(model_list, kind, ver, name)

@@ -328,21 +328,21 @@ required_models = [
         },
     ),
     ModelResource(
-        "LCM-LoRA (SD1.5)",
-        ResourceId(ResourceKind.lora, SDVersion.sd15, "lcm"),
+        "Hyper-SD LoRA (SD1.5)",
+        ResourceId(ResourceKind.lora, SDVersion.sd15, "hyper"),
         {
             Path(
-                "models/loras/lcm-lora-sdv1-5.safetensors"
-            ): "https://huggingface.co/latent-consistency/lcm-lora-sdv1-5/resolve/main/pytorch_lora_weights.safetensors",
+                "models/loras/Hyper-SD15-8steps-CFG-lora.safetensors"
+            ): "https://huggingface.co/ByteDance/Hyper-SD/resolve/main/Hyper-SD15-8steps-CFG-lora.safetensors",
         },
     ),
     ModelResource(
-        "LCM-LoRA (SDXL)",
-        ResourceId(ResourceKind.lora, SDVersion.sdxl, "lcm"),
+        "Hyper-SD LoRA (SDXL)",
+        ResourceId(ResourceKind.lora, SDVersion.sdxl, "hyper"),
         {
             Path(
-                "models/loras/lcm-lora-sdxl.safetensors"
-            ): "https://huggingface.co/latent-consistency/lcm-lora-sdxl/resolve/main/pytorch_lora_weights.safetensors",
+                "models/loras/Hyper-SDXL-8steps-CFG-lora.safetensors"
+            ): "https://huggingface.co/ByteDance/Hyper-SD/resolve/main/Hyper-SDXL-8steps-CFG-lora.safetensors",
         },
     ),
     ModelResource(
@@ -783,6 +783,8 @@ search_paths: dict[str, list[str]] = {
     resource_id(ResourceKind.lora, SDVersion.sd15, "lcm"): ["lcm-lora-sdv1-5.safetensors", "lcm/sd1.5/pytorch_lora_weights.safetensors"],
     resource_id(ResourceKind.lora, SDVersion.sdxl, "lcm"): ["lcm-lora-sdxl.safetensors", "lcm/sdxl/pytorch_lora_weights.safetensors"],
     resource_id(ResourceKind.lora, SDVersion.sdxl, "lightning"): ["sdxl_lightning_8step_lora"],
+    resource_id(ResourceKind.lora, SDVersion.sd15, "hyper"): ["Hyper-SD15-8steps-CFG-lora"],
+    resource_id(ResourceKind.lora, SDVersion.sdxl, "hyper"): ["Hyper-SDXL-8steps-CFG-lora"],
     resource_id(ResourceKind.lora, SDVersion.sd15, ControlMode.face): ["ip-adapter-faceid-plusv2_sd15_lora", "ip-adapter-faceid-plus_sd15_lora"],
     resource_id(ResourceKind.lora, SDVersion.sdxl, ControlMode.face): ["ip-adapter-faceid-plusv2_sdxl_lora", "ip-adapter-faceid_sdxl_lora"],
     resource_id(ResourceKind.upscaler, SDVersion.all, UpscalerName.default): [UpscalerName.default.value],

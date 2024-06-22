@@ -48,6 +48,14 @@
         "minimum_steps": 4,
         "cfg": 1.5
     },
+    "Realtime - Hyper": {
+        "sampler": "euler",
+        "scheduler": "sgm_uniform",
+        "lora": "hyper",
+        "steps": 8,
+        "minimum_steps": 3,
+        "cfg": 5.0
+    },
     "Realtime - LCM": {
         "sampler": "lcm",
         "scheduler": "sgm_uniform",
