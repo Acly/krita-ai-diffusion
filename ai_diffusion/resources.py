@@ -9,7 +9,7 @@ from typing import NamedTuple, Sequence
 version = "1.19.0"
 
 comfy_url = "https://github.com/comfyanonymous/ComfyUI"
-comfy_version = "56333d48508f95bdef23870cad3239ba0ebdb8a9"
+comfy_version = "887a6341ed14c9904230cf55a0eabe95cd0218d3"
 
 
 class CustomNode(NamedTuple):
@@ -25,7 +25,7 @@ required_custom_nodes = [
         "ControlNet Preprocessors",
         "comfyui_controlnet_aux",
         "https://github.com/Fannovel16/comfyui_controlnet_aux",
-        "8e51eb352411212bcdda0bba8ddf69f889e6c23c",
+        "589af18adae7ff50009a0e021781dd1aa39c32e3",
         ["InpaintPreprocessor"],
     ),
     CustomNode(
@@ -39,7 +39,7 @@ required_custom_nodes = [
         "External Tooling Nodes",
         "comfyui-tooling-nodes",
         "https://github.com/Acly/comfyui-tooling-nodes",
-        "c324f6741dc9f2be794e6f121a113d03e06169a3",
+        "aff32e8da6db5db73bc6f84b30c87862e211544c",
         [
             "ETN_LoadImageBase64",
             "ETN_LoadMaskBase64",
@@ -51,7 +51,7 @@ required_custom_nodes = [
         "Inpaint Nodes",
         "comfyui-inpaint-nodes",
         "https://github.com/Acly/comfyui-inpaint-nodes",
-        "8b800e41bd86ce8f47ec077c839f8b11e52872b2",
+        "9927f44cb4a9878f1737cbabf8a29d2fc8182d0f",
         ["INPAINT_LoadFooocusInpaint", "INPAINT_ApplyFooocusInpaint"],
     ),
 ]
@@ -412,6 +412,15 @@ default_checkpoints = [
             Path(
                 "models/checkpoints/juggernautXL_version6Rundiffusion.safetensors"
             ): "https://huggingface.co/lllyasviel/fav_models/resolve/main/fav/juggernautXL_version6Rundiffusion.safetensors"
+        },
+    ),
+    ModelResource(
+        "ZavyChroma XL",
+        ResourceId(ResourceKind.checkpoint, SDVersion.sdxl, "zavychroma"),
+        {
+            Path(
+                "models/checkpoints/zavychromaxl_v80.safetensors"
+            ): "https://huggingface.co/misri/zavychromaxl_v80/resolve/main/zavychromaxl_v80.safetensors"
         },
     ),
 ]
