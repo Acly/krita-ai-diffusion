@@ -664,6 +664,27 @@ prefetch_models = [
     ),
 ]
 
+deprecated_models = [
+    ModelResource(
+        "LCM-LoRA (SD1.5)",
+        ResourceId(ResourceKind.lora, SDVersion.sd15, "lcm"),
+        {
+            Path(
+                "models/loras/lcm-lora-sdv1-5.safetensors"
+            ): "https://huggingface.co/latent-consistency/lcm-lora-sdv1-5/resolve/main/pytorch_lora_weights.safetensors",
+        },
+    ),
+    ModelResource(
+        "LCM-LoRA (SDXL)",
+        ResourceId(ResourceKind.lora, SDVersion.sdxl, "lcm"),
+        {
+            Path(
+                "models/loras/lcm-lora-sdxl.safetensors"
+            ): "https://huggingface.co/latent-consistency/lcm-lora-sdxl/resolve/main/pytorch_lora_weights.safetensors",
+        },
+    ),
+]
+
 
 class MissingResource(Exception):
     kind: ResourceKind
@@ -704,14 +725,17 @@ all_resources = (
 )
 
 
-def all_models():
-    return chain(
+def all_models(include_deprecated=False):
+    result = chain(
         required_models,
         optional_models,
         default_checkpoints,
         upscale_models,
         prefetch_models,
     )
+    if include_deprecated:
+        result = chain(result, deprecated_models)
+    return result
 
 
 _control_text = {
@@ -742,8 +766,8 @@ def resource_id(
     return f"{kind.name}-{identifier}-{version.name}"
 
 
-def find_resource(id: ResourceId):
-    return next((m for m in all_models() if m.id == id), None)
+def find_resource(id: ResourceId, include_deprecated=False):
+    return next((m for m in all_models(include_deprecated) if m.id == id), None)
 
 
 def search_path(

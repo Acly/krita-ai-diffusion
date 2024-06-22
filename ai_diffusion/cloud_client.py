@@ -288,6 +288,7 @@ models.checkpoints = {
     "juggernautXL_version6Rundiffusion.safetensors": CheckpointInfo(
         "juggernautXL_version6Rundiffusion.safetensors", SDVersion.sdxl
     ),
+    "zavychromaxl_v80.safetensors": CheckpointInfo("zavychromaxl_v80.safetensors", SDVersion.sdxl),
 }
 models.vae = []
 models.loras = []
@@ -303,17 +304,18 @@ from ai_diffusion.resources import resource_id, ResourceKind, ControlMode, Upsca
 models.resources = {
     resource_id(ResourceKind.controlnet, SDVersion.sd15, ControlMode.inpaint): "control_v11p_sd15_inpaint_fp16.safetensors",
     resource_id(ResourceKind.controlnet, SDVersion.sd15, ControlMode.scribble): "control_lora_rank128_v11p_sd15_scribble_fp16.safetensors",
-    resource_id(ResourceKind.controlnet, SDVersion.sdxl, ControlMode.scribble): "sai_xl_sketch_256lora.safetensors",
+    resource_id(ResourceKind.controlnet, SDVersion.sdxl, ControlMode.scribble): "mistoLine_rank256.safetensors",
     resource_id(ResourceKind.controlnet, SDVersion.sd15, ControlMode.line_art): "control_v11p_sd15_lineart_fp16.safetensors",
-    resource_id(ResourceKind.controlnet, SDVersion.sdxl, ControlMode.line_art): "sai_xl_sketch_256lora.safetensors",
+    resource_id(ResourceKind.controlnet, SDVersion.sdxl, ControlMode.line_art): "mistoLine_rank256.safetensors",
     resource_id(ResourceKind.controlnet, SDVersion.sd15, ControlMode.soft_edge): "control_v11p_sd15_softedge_fp16.safetensors",
+    resource_id(ResourceKind.controlnet, SDVersion.sdxl, ControlMode.soft_edge): "mistoLine_rank256.safetensors",
     resource_id(ResourceKind.controlnet, SDVersion.sd15, ControlMode.canny_edge): "control_v11p_sd15_canny_fp16.safetensors",
     resource_id(ResourceKind.controlnet, SDVersion.sdxl, ControlMode.canny_edge): "sai_xl_canny_256lora.safetensors",
     resource_id(ResourceKind.controlnet, SDVersion.sd15, ControlMode.depth): "control_lora_rank128_v11f1p_sd15_depth_fp16.safetensors",
     resource_id(ResourceKind.controlnet, SDVersion.sdxl, ControlMode.depth): "sai_xl_depth_256lora.safetensors",
     resource_id(ResourceKind.controlnet, SDVersion.sd15, ControlMode.normal): None,
     resource_id(ResourceKind.controlnet, SDVersion.sd15, ControlMode.pose): "control_lora_rank128_v11p_sd15_openpose_fp16.safetensors",
-    resource_id(ResourceKind.controlnet, SDVersion.sdxl, ControlMode.pose): "thibaud_xl_openpose_256lora.safetensors",
+    resource_id(ResourceKind.controlnet, SDVersion.sdxl, ControlMode.pose): "controlnetxlCNXL_xinsirOpenpose.safetensors",
     resource_id(ResourceKind.controlnet, SDVersion.sd15, ControlMode.segmentation): None,
     resource_id(ResourceKind.controlnet, SDVersion.sd15, ControlMode.blur):"control_lora_rank128_v11f1e_sd15_tile_fp16.safetensors",
     resource_id(ResourceKind.controlnet, SDVersion.sdxl, ControlMode.blur):"TTPLANET_Controlnet_Tile_realistic_v2_fp16.safetensors",
@@ -327,6 +329,8 @@ models.resources = {
     resource_id(ResourceKind.clip_vision, SDVersion.all, "ip_adapter"): "clip-vision_vit-h.safetensors",
     resource_id(ResourceKind.lora, SDVersion.sd15, "lcm"): "lcm-lora-sdv1-5.safetensors",
     resource_id(ResourceKind.lora, SDVersion.sdxl, "lcm"): "lcm-lora-sdxl.safetensors",
+    resource_id(ResourceKind.lora, SDVersion.sd15, "hyper"): "Hyper-SD15-8steps-CFG-lora.safetensors",
+    resource_id(ResourceKind.lora, SDVersion.sdxl, "hyper"): "Hyper-SDXL-8steps-CFG-lora.safetensors",
     resource_id(ResourceKind.lora, SDVersion.sd15, ControlMode.face): None,
     resource_id(ResourceKind.lora, SDVersion.sdxl, ControlMode.face): None,
     resource_id(ResourceKind.upscaler, SDVersion.all, UpscalerName.default): UpscalerName.default.value,
