@@ -323,7 +323,7 @@ class ActiveRegionWidget(QFrame):
             self.positive.line_count = min(value, self._max_lines)
         elif key == "show_negative_prompt":
             self.negative.text = ""
-            self.negative.setVisible(value and self._region is None)
+            self.negative.setVisible(value and isinstance(self._region, RootRegion))
 
     def eventFilter(self, a0: QObject | None, a1: QEvent | None) -> bool:
         if a1 and a1.type() == QEvent.Type.FocusIn:
