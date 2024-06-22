@@ -2,7 +2,7 @@
     "name": "Digital Artwork (XL)",
     "version": 1,
     "sd_version": "auto",
-    "sd_checkpoint": "juggernautXL_version6Rundiffusion.safetensors",
+    "sd_checkpoint": "zavychromaxl_v80.safetensors",
     "loras": [],
     "style_prompt": "concept art {prompt} . digital artwork, illustrative, matte painting",
     "negative_prompt": "photo, photorealistic",

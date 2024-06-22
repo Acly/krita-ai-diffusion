@@ -143,7 +143,7 @@ class ModelDict:
     def __getitem__(self, key: ControlMode | UpscalerName | str):
         return self._models.resource(self.kind, key, self.version)
 
-    def find(self, key: ControlMode | UpscalerName | str):
+    def find(self, key: ControlMode | UpscalerName | str) -> str | None:
         if key in [ControlMode.style, ControlMode.composition]:
             key = ControlMode.reference  # Same model with different weight types
         return self._models.resources.get(resource_id(self.kind, self.version, key))

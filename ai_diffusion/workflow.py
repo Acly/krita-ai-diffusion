@@ -104,8 +104,8 @@ def load_checkpoint_with_lora(w: ComfyWorkflow, checkpoint: CheckpointInput, mod
         model = w.rescale_cfg(model, 0.7)
 
     if checkpoint.version.supports_lcm:
-        lcm_lora = models.for_checkpoint(checkpoint_model).lora["lcm"]
-        if any(l.name == lcm_lora for l in checkpoint.loras):
+        lcm_lora = models.for_checkpoint(checkpoint_model).lora.find("lcm")
+        if lcm_lora and any(l.name == lcm_lora for l in checkpoint.loras):
             model = w.model_sampling_discrete(model, "lcm")
 
     if checkpoint.self_attention_guidance:
