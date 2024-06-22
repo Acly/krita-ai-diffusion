@@ -395,7 +395,7 @@ class ServerWidget(QWidget):
         )
         if path:
             path = Path(path)
-            if path != Path(Settings._server_path.default):
+            if path != Path(Settings._server_path.default) and not (path / "ComfyUI").exists():
                 path = path / "ComfyUI"
             self._location_edit.setText(str(path))
 
