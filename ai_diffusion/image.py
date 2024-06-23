@@ -366,6 +366,8 @@ class Image:
     def scale(img: "Image", target: Extent):
         if isinstance(img, DummyImage):
             return DummyImage(target)
+        if img.extent == target:
+            return img
         mode = Qt.AspectRatioMode.IgnoreAspectRatio
         quality = Qt.TransformationMode.SmoothTransformation
         scaled = img._qimage.scaled(target.width, target.height, mode, quality)
