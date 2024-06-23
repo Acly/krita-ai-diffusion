@@ -54,7 +54,7 @@
         "lora": "hyper",
         "steps": 8,
         "minimum_steps": 3,
-        "cfg": 5.0
+        "cfg": 3.5
     },
     "Realtime - LCM": {
         "sampler": "lcm",

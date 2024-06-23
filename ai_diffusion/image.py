@@ -241,6 +241,14 @@ class Bounds(NamedTuple):
         height = min(a.y + a.height, b.y + b.height) - y
         return Bounds(x, y, max(0, width), max(0, height))
 
+    @staticmethod
+    def union(a: "Bounds", b: "Bounds"):
+        x = min(a.x, b.x)
+        y = min(a.y, b.y)
+        width = max(a.x + a.width, b.x + b.width) - x
+        height = max(a.y + a.height, b.y + b.height) - y
+        return Bounds(x, y, width, height)
+
     @property
     def area(self):
         return self.width * self.height

@@ -504,6 +504,17 @@ class LayerManager(QObject):
         group_node.addChildNode(layer.node, None)
         return self.wrap(group_node)
 
+    def update_layer_image(self, layer: Layer, image: Image, bounds: Bounds, keep_alpha=False):
+        """Update layer pixel data by creating a new layer to allow undo."""
+        layer_bounds = layer.bounds
+        if not keep_alpha:
+            layer_bounds = Bounds.union(layer_bounds, bounds)
+        content = layer.get_pixels(layer_bounds)
+        content.draw_image(image, bounds.relative_to(layer_bounds).offset, keep_alpha=keep_alpha)
+        replacement = self.create(layer.name, content, layer_bounds, above=layer)
+        layer.remove()
+        return replacement
+
     _image_types = [t.value for t in LayerType if t.is_image]
     _mask_types = [t.value for t in LayerType if t.is_mask]
 

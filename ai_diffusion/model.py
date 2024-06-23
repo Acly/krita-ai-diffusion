@@ -438,12 +438,13 @@ class Model(QObject, ObservableProperties):
             self._layer.hide()
 
     def apply_result(self, image: Image, params: JobParams, behavior: ApplyBehavior, prefix=""):
-        name = f"{prefix}{trim_text(params.prompt, 200)} ({params.seed})"
-        if len(params.regions) == 0 or behavior is ApplyBehavior.layer:
+        if len(params.regions) == 0:
             if behavior is ApplyBehavior.replace:
-                self.layers.active.remove()
-            self.layers.create(name, image, params.bounds)
-        else:
+                self.layers.update_layer_image(self.layers.active, image, params.bounds)
+            else:
+                name = f"{prefix}{trim_text(params.prompt, 200)} ({params.seed})"
+                self.layers.create(name, image, params.bounds)
+        else:  # apply to regions
             with RestoreActiveLayer(self.layers) as restore:
                 active_id = Region.link_target(self.layers.active).id_string
                 for job_region in params.regions:
@@ -466,15 +467,10 @@ class Model(QObject, ObservableProperties):
 
         # Replace content if requested and not a group layer
         if behavior is ApplyBehavior.replace and region_layer.type is not LayerType.group:
-            img = region_layer.get_pixels()
-            draw_bounds = params.bounds.relative_to(region_layer.bounds)
-            img.draw_image(image, draw_bounds.offset, keep_alpha=True)
-            new_layer = self.layers.create(
-                region_layer.name, img, region_layer.bounds, above=region_layer
-            )
-            if region := self.regions.find_linked(region_layer):
+            region = self.regions.find_linked(region_layer)
+            new_layer = self.layers.update_layer_image(region_layer, image, params.bounds)
+            if region is not None:
                 region.link(new_layer)
-            region_layer.remove()
             return new_layer
 
         # Promote layer to group if needed
