@@ -42,7 +42,7 @@ jobs:
         uses: actions/cache@v3
         with:
           path: scripts/docker/downloads
-          key: models-v3
+          key: models-v4
       - name: Download models
         run: python scripts/download_models.py --minimal scripts/docker/downloads
       - name: Test installer
