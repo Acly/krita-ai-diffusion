@@ -823,7 +823,7 @@ def create_control_image(
             empty = w.empty_image(current_extent)
             result = w.composite_image_masked(result, empty, None, bounds.x, bounds.y)
     else:
-        current_extent = current_extent.multiple_of(64)
+        current_extent = current_extent.multiple_of(64).at_least(512)
         args = {"image": input, "resolution": current_extent.shortest_side}
         if mode is ControlMode.scribble:
             result = w.add("PiDiNetPreprocessor", 1, **args, safe="enable")

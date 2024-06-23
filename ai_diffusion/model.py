@@ -148,7 +148,7 @@ class Model(QObject, ObservableProperties):
             conditioning, job_regions = ConditioningInput("", ""), []
 
         if mask is not None or self.strength < 1.0:
-            image = self._get_current_image(bounds) if not dryrun else DummyImage(extent)
+            image = self._get_current_image(bounds) if not dryrun else DummyImage(bounds.extent)
 
         if mask is not None:
             if workflow_kind is WorkflowKind.generate:
@@ -468,7 +468,9 @@ class Model(QObject, ObservableProperties):
         # Replace content if requested and not a group layer
         if behavior is ApplyBehavior.replace and region_layer.type is not LayerType.group:
             region = self.regions.find_linked(region_layer)
-            new_layer = self.layers.update_layer_image(region_layer, image, params.bounds)
+            new_layer = self.layers.update_layer_image(
+                region_layer, image, params.bounds, keep_alpha=True
+            )
             if region is not None:
                 region.link(new_layer)
             return new_layer
