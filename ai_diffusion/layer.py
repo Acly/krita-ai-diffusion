@@ -180,20 +180,15 @@ class Layer(QObject):
         if not silent and self.is_visible:
             self.refresh()
 
-    def get_mask(self, bounds: Bounds | None = None, grow=0, feather=0):
+    def get_mask(self, bounds: Bounds | None = None):
         bounds = bounds or self.bounds
         if self.type.is_mask:
             data: QByteArray = self._node.pixelData(*bounds)
             assert data is not None and data.size() >= bounds.extent.pixel_count
-            if grow or feather:
-                data = _grow_feather(data, bounds, grow, feather)
             return Image(QImage(data, *bounds.extent, QImage.Format.Format_Grayscale8))
         else:
             img = self.get_pixels(bounds)
             alpha = img._qimage.convertToFormat(QImage.Format.Format_Alpha8)
-            if grow or feather:
-                data = _grow_feather(Image(alpha).data, bounds, grow, feather)
-                return Image(QImage(data, *bounds.extent, QImage.Format.Format_Grayscale8))
             alpha.reinterpretAsFormat(QImage.Format.Format_Grayscale8)
             return Image(alpha)
 
@@ -551,11 +546,3 @@ def traverse_layers(node: krita.Node, type_filter: list[str] | None = None):
         if not type_filter or child.type() in type_filter:
             yield child
         yield from traverse_layers(child, type_filter)
-
-
-def _grow_feather(mask_bytes: QByteArray, bounds: Bounds, grow: int, feather: int):
-    s = krita.Selection()
-    s.setPixelData(mask_bytes, *bounds)
-    s.grow(grow, grow)
-    s.feather(feather)
-    return s.pixelData(*bounds)

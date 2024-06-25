@@ -11,7 +11,7 @@ import uuid
 from . import eventloop, workflow, util
 from .api import ConditioningInput, ControlInput, WorkflowKind, WorkflowInput
 from .api import InpaintMode, InpaintParams, FillMode
-from .util import ensure, trim_text, client_logger as log
+from .util import clamp, ensure, trim_text, client_logger as log
 from .settings import ApplyBehavior, settings
 from .network import NetworkError
 from .image import Extent, Image, Mask, Bounds, DummyImage
@@ -127,8 +127,9 @@ class Model(QObject, ObservableProperties):
         extent = self._doc.extent
         region_layer = None
 
-        mask = self._doc.create_mask_from_selection(
-            **get_selection_modifiers(self.inpaint.mode, self.strength), min_size=64
+        selection_mod = get_selection_modifiers(self.inpaint.mode, self.strength)
+        mask, selection_bounds = self._doc.create_mask_from_selection(
+            selection_mod.padding, invert=selection_mod.invert, min_size=64
         )
         bounds = Bounds(0, 0, *extent)
         if mask is None:  # Check for region inpaint
@@ -166,6 +167,7 @@ class Model(QObject, ObservableProperties):
                 inpaint = workflow.detect_inpaint(
                     inpaint_mode, mask.bounds, sd_version, pos, ctrl, self.strength
                 )
+            inpaint.grow, inpaint.feather = selection_mod.apply(selection_bounds)
 
         prompt = conditioning.positive  # modified in workflow.prepare
         input = workflow.prepare(
@@ -189,7 +191,7 @@ class Model(QObject, ObservableProperties):
         sampling = ensure(input.sampling)
         params.negative_prompt = self.regions.negative
         params.strength = sampling.denoise_strength
-        params.has_mask = input.images is not None and input.images.initial_mask is not None
+        params.has_mask = input.images is not None and input.images.hires_mask is not None
         if len(params.regions) == 1:
             params.prompt = params.regions[0].prompt
 
@@ -280,25 +282,27 @@ class Model(QObject, ObservableProperties):
         workflow_kind = WorkflowKind.generate if strength == 1.0 else WorkflowKind.refine
         client = self._connection.client
         ver = client.models.version_of(self.style.sd_checkpoint)
-        min_mask_size = 800 if ver is SDVersion.sdxl else 512
+        min_mask_size = 512 if ver is SDVersion.sd15 else 800
         extent = self._doc.extent
         region_layer = None
         job_regions: list[JobRegion] = []
+        inpaint = InpaintParams(InpaintMode.fill, Bounds(0, 0, *extent))
 
         image = None
-        mask = self._doc.create_mask_from_selection(
-            grow=settings.selection_feather / 200,  # don't apply grow for live mode
-            feather=settings.selection_feather / 100,
-            padding=settings.selection_padding / 100,
-            min_size=min_mask_size,
-            square=True,
+        selection_mod = get_selection_modifiers(inpaint.mode, strength, is_live=True)
+        mask, selection_bounds = self._doc.create_mask_from_selection(
+            selection_mod.padding, min_size=min_mask_size, square=True
         )
+        inpaint.grow, inpaint.feather = selection_mod.apply(selection_bounds)
+
         bounds = Bounds(0, 0, *self._doc.extent)
         region_layer = self.regions.get_active_region_layer(use_parent=False)
         if mask is None and region_layer.bounds != bounds:
-            mask = get_region_inpaint_mask(
-                region_layer, extent, min_size=min_mask_size, expand_mask=True
-            )
+            mask = get_region_inpaint_mask(region_layer, extent, min_size=min_mask_size)
+            free_space = mask.bounds.extent - region_layer.compute_bounds().extent
+            inpaint.grow = clamp(free_space.shortest_side // 2, 8, 128)
+            inpaint.feather = inpaint.grow // 2
+
         if mask is not None:
             workflow_kind = WorkflowKind.refine_region
             bounds, mask.bounds = compute_relative_bounds(mask.bounds, mask.bounds)
@@ -317,7 +321,7 @@ class Model(QObject, ObservableProperties):
             client.performance_settings,
             mask=mask,
             strength=self.live.strength,
-            inpaint=InpaintParams(InpaintMode.fill, mask.bounds) if mask else None,
+            inpaint=inpaint if mask else None,
             is_live=True,
         )
         if input != last_input:
@@ -346,7 +350,7 @@ class Model(QObject, ObservableProperties):
 
         try:
             image = self._doc.get_image(Bounds(0, 0, *self._doc.extent))
-            mask = self.document.create_mask_from_selection(0, 0, padding=0.25, multiple=64)
+            mask, _ = self.document.create_mask_from_selection(padding=0.25, multiple=64)
             bounds = mask.bounds if mask else None
             perf = self._connection.client.performance_settings
             input = workflow.prepare_create_control_image(image, control.mode, perf, bounds)
@@ -1013,8 +1017,21 @@ class AnimationWorkspace(QObject, ObservableProperties):
             self.target_image_changed.emit(image)
 
 
-def get_selection_modifiers(inpaint_mode: InpaintMode, strength: float) -> dict[str, Any]:
-    grow = settings.selection_grow / 100
+class SelectionModifiers(NamedTuple):
+    grow: float
+    feather: float
+    padding: float
+    invert: bool
+
+    def apply(self, selection_bounds: Bounds | None):
+        if selection_bounds is None:
+            return 0, 0
+        size_factor = selection_bounds.extent.diagonal
+        return int(self.grow * size_factor), int(self.feather * size_factor)
+
+
+def get_selection_modifiers(inpaint_mode: InpaintMode, strength: float, is_live=False):
+    grow = settings.selection_grow / 100 if not is_live else settings.selection_feather / 200
     feather = settings.selection_feather / 100
     padding = settings.selection_padding / 100
     invert = False
@@ -1031,7 +1048,8 @@ def get_selection_modifiers(inpaint_mode: InpaintMode, strength: float) -> dict[
         feather = min(feather, 0.01)
         invert = True
 
-    return dict(grow=grow, feather=feather, padding=padding, invert=invert)
+    padding = padding + grow + 0.5 * feather
+    return SelectionModifiers(grow, feather, padding, invert)
 
 
 async def _report_errors(parent: Model, coro):

@@ -132,7 +132,6 @@ def test_inpaint_context(area, expected_extent, expected_crop: tuple[int, int] |
 )
 def test_prepare_highres(input, expected_initial, expected_desired):
     image = Image.create(input)
-    mask = Mask.rectangle(Bounds(0, 0, input.width, input.height))
     r, _ = resolution.prepare_image(image, SDVersion.sd15, dummy_style, perf)
     assert (
         r.initial_image
@@ -154,7 +153,6 @@ def test_prepare_highres(input, expected_initial, expected_desired):
 )
 def test_prepare_lowres(input: Extent, expected: Extent):
     image = Image.create(input)
-    mask = Mask.rectangle(Bounds(0, 0, input.width, input.height))
     r, _ = resolution.prepare_image(image, SDVersion.sd15, dummy_style, perf)
     assert (
         r.extent.input == input
@@ -171,7 +169,6 @@ def test_prepare_lowres(input: Extent, expected: Extent):
 )
 def test_prepare_passthrough(input: Extent):
     image = Image.create(input)
-    mask = Mask.rectangle(Bounds(0, 0, input.width, input.height))
     r, _ = resolution.prepare_image(image, SDVersion.sd15, dummy_style, perf)
     assert (
         r.initial_image
