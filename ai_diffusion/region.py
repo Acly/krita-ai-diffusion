@@ -334,15 +334,12 @@ class RootRegion(QObject, ObservableProperties):
         return iter(self._regions)
 
 
-def get_region_inpaint_mask(region_layer: Layer, max_extent: Extent, min_size=0, expand_mask=False):
+def get_region_inpaint_mask(region_layer: Layer, max_extent: Extent, min_size=0):
     region_bounds = region_layer.compute_bounds()
     padding = int((settings.selection_padding / 100) * region_bounds.extent.average_side)
     bounds = Bounds.pad(region_bounds, padding, min_size=min_size, square=min_size > 0)
     bounds = Bounds.clamp(bounds, max_extent)
-    feather = 0
-    if expand_mask:
-        feather = clamp((bounds.extent - region_bounds.extent).shortest_side // 2, 8, 128)
-    mask_image = region_layer.get_mask(bounds, grow=feather, feather=feather // 2)
+    mask_image = region_layer.get_mask(bounds)
     return mask_image.to_mask(bounds)
 
 

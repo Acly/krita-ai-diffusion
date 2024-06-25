@@ -36,15 +36,8 @@ class Document(QObject):
         return True, None
 
     def create_mask_from_selection(
-        self,
-        grow: float = 0.0,
-        feather: float = 0.0,
-        padding: float = 0.0,
-        multiple=8,
-        min_size=0,
-        square=False,
-        invert=False,
-    ) -> Mask | None:
+        self, padding: float = 0.0, multiple=8, min_size=0, square=False, invert=False
+    ) -> tuple[Mask, Bounds] | tuple[None, None]:
         raise NotImplementedError
 
     def get_image(
@@ -155,21 +148,14 @@ class KritaDocument(Document):
         return True, None
 
     def create_mask_from_selection(
-        self,
-        grow: float = 0.0,
-        feather: float = 0.0,
-        padding: float = 0.0,
-        multiple=8,
-        min_size=0,
-        square=False,
-        invert=False,
+        self, padding: float = 0.0, multiple=8, min_size=0, square=False, invert=False
     ):
         user_selection = self._doc.selection()
         if not user_selection:
-            return None
+            return None, None
 
         if _selection_is_entire_document(user_selection, self.extent):
-            return None
+            return None, None
 
         selection = user_selection.duplicate()
         original_bounds = Bounds(
@@ -177,14 +163,8 @@ class KritaDocument(Document):
         )
         original_bounds = Bounds.clamp(original_bounds, self.extent)
         size_factor = original_bounds.extent.diagonal
-        grow_pixels = int(grow * size_factor)
-        feather_radius = int(feather * size_factor)
         padding_pixels = int(padding * size_factor)
 
-        if grow_pixels > 0:
-            selection.grow(grow_pixels, grow_pixels)
-        if feather_radius > 0:
-            selection.feather(feather_radius)
         if invert:
             selection.invert()
 
@@ -194,7 +174,7 @@ class KritaDocument(Document):
         )
         bounds = Bounds.clamp(bounds, self.extent)
         data = selection.pixelData(*bounds)
-        return Mask(bounds, data)
+        return Mask(bounds, data), original_bounds
 
     def get_image(self, bounds: Bounds | None = None, exclude_layers: list[Layer] | None = None):
         excluded: list[Layer] = []

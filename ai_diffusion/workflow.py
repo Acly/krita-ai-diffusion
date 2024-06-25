@@ -552,6 +552,12 @@ def fill_masked(w: ComfyWorkflow, image: Output, mask: Output, fill: FillMode, m
     return image
 
 
+def apply_grow_feather(w: ComfyWorkflow, mask: Output, inpaint: InpaintParams):
+    if inpaint.grow or inpaint.feather:
+        mask = w.expand_mask(mask, inpaint.grow, inpaint.feather)
+    return mask
+
+
 def detect_inpaint(
     mode: InpaintMode,
     bounds: Bounds,
@@ -612,6 +618,7 @@ def inpaint(
     in_image = w.load_image(ensure(images.initial_image))
     in_image = scale_to_initial(extent, w, in_image, models)
     in_mask = w.load_mask(ensure(images.hires_mask))
+    in_mask = apply_grow_feather(w, in_mask, params)
     initial_mask = scale_to_initial(extent, w, in_mask, models, is_mask=True)
     cropped_mask = w.crop_mask(in_mask, target_bounds)
 
@@ -766,6 +773,7 @@ def refine_region(
     in_image = w.load_image(ensure(images.initial_image))
     in_image = scale_to_initial(extent, w, in_image, models)
     in_mask = w.load_mask(ensure(images.hires_mask))
+    in_mask = apply_grow_feather(w, in_mask, inpaint)
     initial_mask = scale_to_initial(extent, w, in_mask, models, is_mask=True)
 
     if inpaint.use_inpaint_model and models.version is SDVersion.sd15:
