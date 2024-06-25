@@ -31,7 +31,6 @@ class ExtentInput:
 class ImageInput:
     extent: ExtentInput
     initial_image: Image | None = None
-    initial_mask: Image | None = None
     hires_image: Image | None = None
     hires_mask: Image | None = None
 

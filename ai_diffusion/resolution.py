@@ -170,14 +170,11 @@ def apply_resolution_settings(extent: Extent, settings: PerformanceSettings):
 def prepare_diffusion_input(
     extent: Extent,
     image: Image | None,
-    mask: Mask | None,
     sd_version: SDVersion,
     style: Style,
     perf: PerformanceSettings,
     downscale=True,
 ):
-    mask_image = mask.to_image(extent) if mask else None
-
     # Take settings into account to compute the desired resolution for diffusion.
     desired = apply_resolution_settings(extent, perf)
 
@@ -194,7 +191,7 @@ def prepare_diffusion_input(
         desired = desired.multiple_of(mult)
         # Input images are scaled down here for the initial pass directly to avoid encoding
         # and processing large images in subsequent steps.
-        image, mask_image = _scale_images(image, mask_image, target=initial)
+        image = Image.scale(image, initial) if image else None
 
     elif min_scale > 1 and all(x < min_size for x in desired):
         # Desired resolution is smaller than the minimum size. Do 1 pass at checkpoint resolution.
@@ -212,44 +209,27 @@ def prepare_diffusion_input(
         # Scale down input images if needed due to resolution_multiplier or max_pixel_count
         if extent.pixel_count > desired.pixel_count:
             input = desired
-            image, mask_image = _scale_images(image, mask_image, target=desired)
+            image = Image.scale(image, desired) if image else None
 
     batch = compute_batch_size(Extent.largest(initial, desired), 512, perf.batch_size)
-    return ScaledExtent(input, initial, desired, extent), image, mask_image, batch
+    return ScaledExtent(input, initial, desired, extent), image, batch
 
 
 def prepare_extent(
     extent: Extent, sd_ver: SDVersion, style: Style, perf: PerformanceSettings, downscale=True
 ):
-    scaled, _, _, batch = prepare_diffusion_input(
-        extent, None, None, sd_ver, style, perf, downscale
-    )
+    scaled, _, batch = prepare_diffusion_input(extent, None, sd_ver, style, perf, downscale)
     return ImageInput(scaled.as_input), batch
 
 
 def prepare_image(
     image: Image, sd_ver: SDVersion, style: Style, perf: PerformanceSettings, downscale=True
 ):
-    scaled, out_image, _, batch = prepare_diffusion_input(
-        image.extent, image, None, sd_ver, style, perf, downscale
+    scaled, out_image, batch = prepare_diffusion_input(
+        image.extent, image, sd_ver, style, perf, downscale
     )
     assert out_image is not None
     return ImageInput(scaled.as_input, out_image), batch
-
-
-def prepare_masked(
-    image: Image,
-    mask: Mask,
-    sd_ver: SDVersion,
-    style: Style,
-    perf: PerformanceSettings,
-    downscale=True,
-):
-    scaled, out_image, out_mask, batch = prepare_diffusion_input(
-        image.extent, image, mask, sd_ver, style, perf, downscale
-    )
-    assert out_image and out_mask
-    return ImageInput(scaled.as_input, out_image, out_mask), batch
 
 
 def prepare_control(image: Image, settings: PerformanceSettings):
@@ -258,10 +238,6 @@ def prepare_control(image: Image, settings: PerformanceSettings):
     if input != desired:
         image = Image.scale(image, desired)
     return ImageInput(ExtentInput(desired, desired, desired, input), image)
-
-
-def _scale_images(*imgs: Image | None, target: Extent):
-    return [Image.scale(img, target) if img else None for img in imgs]
 
 
 def get_inpaint_reference(image: Image, area: Bounds):
