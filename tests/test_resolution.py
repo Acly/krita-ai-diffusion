@@ -133,13 +133,11 @@ def test_inpaint_context(area, expected_extent, expected_crop: tuple[int, int] |
 def test_prepare_highres(input, expected_initial, expected_desired):
     image = Image.create(input)
     mask = Mask.rectangle(Bounds(0, 0, input.width, input.height))
-    r, _ = resolution.prepare_masked(image, mask, SDVersion.sd15, dummy_style, perf)
+    r, _ = resolution.prepare_image(image, SDVersion.sd15, dummy_style, perf)
     assert (
         r.initial_image
         and r.extent.input == r.initial_image.extent
         and r.initial_image.extent == expected_initial
-        and r.initial_mask
-        and r.initial_mask.extent == expected_initial
         and r.extent.initial == expected_initial
         and r.extent.desired == expected_desired
         and r.extent.target == input
@@ -157,12 +155,10 @@ def test_prepare_highres(input, expected_initial, expected_desired):
 def test_prepare_lowres(input: Extent, expected: Extent):
     image = Image.create(input)
     mask = Mask.rectangle(Bounds(0, 0, input.width, input.height))
-    r, _ = resolution.prepare_masked(image, mask, SDVersion.sd15, dummy_style, perf)
+    r, _ = resolution.prepare_image(image, SDVersion.sd15, dummy_style, perf)
     assert (
         r.extent.input == input
         and image.extent == input
-        and r.initial_mask
-        and r.initial_mask.extent == input
         and r.extent.target == input
         and r.extent.initial == expected
         and r.extent.desired == expected
@@ -176,12 +172,10 @@ def test_prepare_lowres(input: Extent, expected: Extent):
 def test_prepare_passthrough(input: Extent):
     image = Image.create(input)
     mask = Mask.rectangle(Bounds(0, 0, input.width, input.height))
-    r, _ = resolution.prepare_masked(image, mask, SDVersion.sd15, dummy_style, perf)
+    r, _ = resolution.prepare_image(image, SDVersion.sd15, dummy_style, perf)
     assert (
         r.initial_image
-        and r.initial_mask
         and r.initial_image == image
-        and r.initial_mask.extent == input
         and r.extent.input == input
         and r.extent.initial == input
         and r.extent.target == input
@@ -283,13 +277,11 @@ def test_prepare_resolution_multiplier_inputs():
     input = Extent(1024, 1024)
     image = Image.create(input)
     mask = Mask.rectangle(Bounds(0, 0, input.width, input.height))
-    r, _ = resolution.prepare_masked(image, mask, SDVersion.sd15, dummy_style, perf_settings)
+    r, _ = resolution.prepare_image(image, SDVersion.sd15, dummy_style, perf_settings)
     assert (
         r.extent.input == Extent(512, 512)
         and r.initial_image
         and r.initial_image.extent == Extent(512, 512)
-        and r.initial_mask
-        and r.initial_mask.extent == Extent(512, 512)
         and r.extent.initial == Extent(512, 512)
         and r.extent.desired == Extent(512, 512)
         and r.extent.target == Extent(1024, 1024)

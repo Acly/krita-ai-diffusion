@@ -447,7 +447,7 @@ def scale(
 def scale_to_initial(
     extent: ScaledExtent, w: ComfyWorkflow, image: Output, models: ModelDict, is_mask=False
 ):
-    if is_mask and extent.initial_scaling is ScaleMode.resize:
+    if is_mask and extent.target != extent.initial:
         return w.scale_mask(image, extent.initial)
     elif not is_mask:
         return scale(extent.input, extent.initial, extent.initial_scaling, w, image, models)
@@ -611,9 +611,9 @@ def inpaint(
 
     in_image = w.load_image(ensure(images.initial_image))
     in_image = scale_to_initial(extent, w, in_image, models)
-    in_mask = w.load_mask(ensure(images.initial_mask))
-    in_mask = scale_to_initial(extent, w, in_mask, models, is_mask=True)
-    cropped_mask = w.load_mask(ensure(images.hires_mask))
+    in_mask = w.load_mask(ensure(images.hires_mask))
+    initial_mask = scale_to_initial(extent, w, in_mask, models, is_mask=True)
+    cropped_mask = w.crop_mask(in_mask, target_bounds)
 
     cond_base = cond.copy()
     cond_base.downscale(extent.input, extent.initial)
@@ -624,18 +624,16 @@ def inpaint(
         cond_base.control.append(
             Control(ControlMode.reference, ImageOutput(reference), None, 0.5, (0.2, 0.8))
         )
+    inpaint_mask = ImageOutput(initial_mask, is_mask=True)
     if params.use_inpaint_model and models.version is SDVersion.sd15:
-        cond_base.control.append(
-            Control(ControlMode.inpaint, ImageOutput(in_image), ImageOutput(in_mask, is_mask=True))
-        )
+        cond_base.control.append(Control(ControlMode.inpaint, ImageOutput(in_image), inpaint_mask))
     if params.use_condition_mask and len(cond_base.regions) == 0:
-        focus_mask = ImageOutput(in_mask, is_mask=True)
         base_prompt = TextPrompt(merge_prompt("", cond_base.style_prompt))
         cond_base.regions = [
             Region(ImageOutput(None), Bounds(0, 0, *extent.initial), base_prompt, []),
-            Region(focus_mask, initial_bounds, cond_base.positive, []),
+            Region(inpaint_mask, initial_bounds, cond_base.positive, []),
         ]
-    in_image = fill_masked(w, in_image, in_mask, params.fill, models)
+    in_image = fill_masked(w, in_image, initial_mask, params.fill, models)
 
     model = apply_ip_adapter(w, model, cond_base.control, models)
     model = apply_regional_ip_adapter(w, model, cond_base.regions, extent.initial, models)
@@ -645,13 +643,13 @@ def inpaint(
     )
     if params.use_inpaint_model and models.version is SDVersion.sdxl:
         positive, negative, latent_inpaint, latent = w.vae_encode_inpaint_conditioning(
-            vae, in_image, in_mask, positive, negative
+            vae, in_image, initial_mask, positive, negative
         )
         inpaint_patch = w.load_fooocus_inpaint(**models.fooocus_inpaint)
         inpaint_model = w.apply_fooocus_inpaint(model, inpaint_patch, latent_inpaint)
     else:
         latent = w.vae_encode(vae, in_image)
-        latent = w.set_latent_noise_mask(latent, in_mask)
+        latent = w.set_latent_noise_mask(latent, initial_mask)
         inpaint_model = model
 
     latent = w.batch_latent(latent, batch_count)
@@ -767,22 +765,22 @@ def refine_region(
 
     in_image = w.load_image(ensure(images.initial_image))
     in_image = scale_to_initial(extent, w, in_image, models)
-    in_mask = w.load_mask(ensure(images.initial_mask))
-    in_mask = scale_to_initial(extent, w, in_mask, models, is_mask=True)
+    in_mask = w.load_mask(ensure(images.hires_mask))
+    initial_mask = scale_to_initial(extent, w, in_mask, models, is_mask=True)
 
     if inpaint.use_inpaint_model and models.version is SDVersion.sd15:
-        c_mask = ImageOutput(in_mask, is_mask=True)
+        c_mask = ImageOutput(initial_mask, is_mask=True)
         cond.control.append(Control(ControlMode.inpaint, ImageOutput(in_image), c_mask))
     positive, negative = apply_control(
         w, prompt_pos, prompt_neg, cond.all_control, extent.initial, models
     )
     if models.version is SDVersion.sd15 or not inpaint.use_inpaint_model:
         latent = w.vae_encode(vae, in_image)
-        latent = w.set_latent_noise_mask(latent, in_mask)
+        latent = w.set_latent_noise_mask(latent, initial_mask)
         inpaint_model = model
     else:  # SDXL inpaint model
         positive, negative, latent_inpaint, latent = w.vae_encode_inpaint_conditioning(
-            vae, in_image, in_mask, positive, negative
+            vae, in_image, initial_mask, positive, negative
         )
         inpaint_patch = w.load_fooocus_inpaint(**models.fooocus_inpaint)
         inpaint_model = w.apply_fooocus_inpaint(model, inpaint_patch, latent_inpaint)
@@ -799,8 +797,8 @@ def refine_region(
     out_image = scale_to_target(extent, w, out_image, models)
     if extent.target != inpaint.target_bounds.extent:
         out_image = w.crop_image(out_image, inpaint.target_bounds)
-    original_mask = w.load_mask(ensure(images.hires_mask))
-    compositing_mask = w.denoise_to_compositing_mask(original_mask)
+        in_mask = w.crop_mask(in_mask, inpaint.target_bounds)
+    compositing_mask = w.denoise_to_compositing_mask(in_mask)
     out_masked = w.apply_mask(out_image, compositing_mask)
     w.send_image(out_masked)
     return w
@@ -1016,7 +1014,8 @@ def prepare(
 
     elif kind is WorkflowKind.inpaint:
         assert isinstance(canvas, Image) and mask and inpaint and style
-        i.images, _ = resolution.prepare_masked(canvas, mask, sd_version, style, perf)
+        i.images, _ = resolution.prepare_image(canvas, sd_version, style, perf)
+        i.images.hires_mask = mask.to_image(canvas.extent)
         upscale_extent, _ = resolution.prepare_extent(
             mask.bounds.extent, sd_version, style, perf, downscale=False
         )
@@ -1025,7 +1024,6 @@ def prepare(
         i.crop_upscale_extent = upscale_extent.extent.desired
         largest_extent = Extent.largest(i.images.extent.initial, upscale_extent.extent.desired)
         i.batch_count = resolution.compute_batch_size(largest_extent, 512, perf.batch_size)
-        i.images.hires_mask = mask.to_image()
         scaling = ScaledExtent.from_input(i.images.extent).refinement_scaling
         if scaling in [ScaleMode.upscale_small, ScaleMode.upscale_quality]:
             i.images.hires_image = Image.crop(canvas, i.inpaint.target_bounds)
@@ -1042,10 +1040,10 @@ def prepare(
     elif kind is WorkflowKind.refine_region:
         assert isinstance(canvas, Image) and mask and inpaint and style
         allow_2pass = strength >= 0.7
-        i.images, i.batch_count = resolution.prepare_masked(
-            canvas, mask, sd_version, style, perf, downscale=allow_2pass
+        i.images, i.batch_count = resolution.prepare_image(
+            canvas, sd_version, style, perf, downscale=allow_2pass
         )
-        i.images.hires_mask = mask.to_image()
+        i.images.hires_mask = mask.to_image(canvas.extent)
         i.inpaint = inpaint
         downscale_all_control_images(i.conditioning, canvas.extent, i.images.extent.desired)
 
