@@ -195,6 +195,11 @@ class JobQueue(QObject):
         self._memory_usage -= img.size / (1024**2)
         self.result_discarded.emit(self.Item(job_id, index))
 
+    def clear(self):
+        for job in self._entries:
+            if job.kind is JobKind.diffusion and job.state is JobState.finished:
+                self._discard_job(job)
+
     def any_executing(self):
         return any(j.state is JobState.executing for j in self._entries)
 
