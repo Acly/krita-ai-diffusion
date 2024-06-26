@@ -137,7 +137,7 @@ class ComfyWorkflow:
             denoise=denoise,
         )
 
-    def _ksampler_advanced_deprecated(
+    def ksampler_advanced(
         self,
         model: Output,
         positive: Output,
@@ -170,42 +170,6 @@ class ComfyWorkflow:
             return_with_leftover_noise="disable",
         )
 
-    def ksampler_advanced(
-        self,
-        model: Output,
-        positive: Output,
-        negative: Output,
-        latent_image: Output,
-        sampler="dpmpp_2m_sde_gpu",
-        scheduler="normal",
-        steps=20,
-        start_at_step=0,
-        cfg=7.0,
-        seed=-1,
-    ):
-        return self.sampler_custom_advanced(
-            model, positive, negative, latent_image, sampler, scheduler, steps, start_at_step, cfg, seed
-        )
-
-    def scheduler_sigmas(self, model: Output, scheduler: str, steps=20):
-        if scheduler == "align_your_steps":
-            return self.add(
-                "AlignYourStepsScheduler",
-                output_count=1,
-                steps=steps,
-                model_type="SDXL",
-                denoise=1.0,
-            )
-        else:
-            return  self.add(
-                "BasicScheduler",
-                output_count=1,
-                model=model,
-                scheduler=scheduler,
-                steps=steps,
-                denoise=1.0,
-            )
-
     def sampler_custom_advanced(
         self,
         model: Output,
@@ -221,16 +185,45 @@ class ComfyWorkflow:
     ):
         self.sample_count += steps - start_at_step
 
-        sigmas = self.scheduler_sigmas(model, scheduler, steps)
+        return self.add(
+            "SamplerCustomAdvanced",
+            output_count=2,
+            noise=self.random_noise(seed),
+            guider=self.cfg_guider(model, positive, negative, cfg),
+            sampler=self.ksampler_select(sampler),
+            sigmas=self.split_sigmas(self.scheduler_sigmas(model, scheduler, steps), start_at_step)[1],
+            latent_image=latent_image,
+        )[1]
 
-        high_sigmas, low_sigmas = self.add(
+    def scheduler_sigmas(self, model: Output, scheduler="normal", steps=20):
+        if scheduler == "align_your_steps":
+            return self.add(
+                "AlignYourStepsScheduler",
+                output_count=1,
+                steps=steps,
+                model_type="SDXL",
+                denoise=1.0,
+            )
+        else:
+            return self.add(
+                "BasicScheduler",
+                output_count=1,
+                model=model,
+                scheduler=scheduler,
+                steps=steps,
+                denoise=1.0,
+            )
+
+    def split_sigmas(self, sigmas: Output, step=0):
+        return self.add(
             "SplitSigmas",
             output_count=2,
             sigmas=sigmas,
-            step=start_at_step,
+            step=step,
         )
 
-        guider = self.add(
+    def cfg_guider(self, model: Output, positive: Output, negative: Output, cfg=7.0):
+        return self.add(
             "CFGGuider",
             output_count=1,
             model=model,
@@ -239,45 +232,19 @@ class ComfyWorkflow:
             cfg=cfg,
         )
 
-        noise = self.add(
+    def random_noise(self, noise_seed=-1):
+        return self.add(
             "RandomNoise",
             output_count=1,
-            noise_seed=seed,
+            noise_seed=noise_seed,
         )
 
-        ksampler = self.add(
+    def ksampler_select(self, sampler_name="dpmpp_2m_sde_gpu"):
+        return self.add(
             "KSamplerSelect",
             output_count=1,
-            sampler_name=sampler,
+            sampler_name=sampler_name,
         )
-
-        return self.add(
-            "SamplerCustomAdvanced",
-            output_count=1,
-            noise=noise,
-            guider=guider,
-            sampler=ksampler,
-            sigmas=low_sigmas,
-            latent_image=latent_image,
-        )
-
-        # return self.add(
-        #     "KSamplerAdvanced",
-        #     1,
-        #     noise_seed=seed,
-        #     sampler_name=sampler,
-        #     scheduler=scheduler,
-        #     model=model,
-        #     positive=positive,
-        #     negative=negative,
-        #     latent_image=latent_image,
-        #     steps=steps,
-        #     start_at_step=start_at_step,
-        #     end_at_step=steps,
-        #     cfg=cfg,
-        #     add_noise="enable",
-        #     return_with_leftover_noise="disable",
-        # )
 
     def differential_diffusion(self, model: Output):
         return self.add("DifferentialDiffusion", 1, model=model)
