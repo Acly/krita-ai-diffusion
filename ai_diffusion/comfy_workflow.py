@@ -197,7 +197,7 @@ class ComfyWorkflow:
         )[1]
 
     def scheduler_sigmas(self, model: Output, scheduler="normal", steps=20, model_version=SDVersion.sdxl):
-        if scheduler == "align_your_steps":
+        if scheduler in ("align_your_steps", "ays"):
             assert model_version in (SDVersion.sd15, SDVersion.sdxl)
 
             if model_version == SDVersion.sd15:
@@ -211,6 +211,23 @@ class ComfyWorkflow:
                 steps=steps,
                 model_type=model_type,
                 denoise=1.0,
+            )
+        elif scheduler == "gits":
+            return self.add(
+                "GITSScheduler",
+                output_count=1,
+                steps=steps,
+                coeff=1.2,
+                denoise=1.0,
+            )
+        elif scheduler in ("polyexponential", "poly_exponential"):
+            return self.add(
+                "PolyexponentialScheduler",
+                output_count=1,
+                steps=steps,
+                sigma_max=14.61,
+                sigma_min=0.03,
+                rho=1.0,
             )
         else:
             return self.add(
