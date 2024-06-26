@@ -192,11 +192,15 @@ class ComfyWorkflow:
             noise=self.random_noise(seed),
             guider=self.cfg_guider(model, positive, negative, cfg),
             sampler=self.ksampler_select(sampler),
-            sigmas=self.split_sigmas(self.scheduler_sigmas(model, scheduler, steps, model_version), start_at_step)[1],
+            sigmas=self.split_sigmas(
+                self.scheduler_sigmas(model, scheduler, steps, model_version), start_at_step
+            )[1],
             latent_image=latent_image,
         )[1]
 
-    def scheduler_sigmas(self, model: Output, scheduler="normal", steps=20, model_version=SDVersion.sdxl):
+    def scheduler_sigmas(
+        self, model: Output, scheduler="normal", steps=20, model_version=SDVersion.sdxl
+    ):
         if scheduler in ("align_your_steps", "ays"):
             assert model_version in (SDVersion.sd15, SDVersion.sdxl)
 

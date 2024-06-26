@@ -514,7 +514,9 @@ def generate(
     positive, negative = apply_control(
         w, prompt_pos, prompt_neg, cond.all_control, extent.initial, models
     )
-    out_latent = w.sampler_custom_advanced(model, positive, negative, latent, models.version, **_sampler_params(sampling))
+    out_latent = w.sampler_custom_advanced(
+        model, positive, negative, latent, models.version, **_sampler_params(sampling)
+    )
     out_image = scale_refine_and_decode(
         extent, w, cond, sampling, out_latent, prompt_pos, prompt_neg, model_orig, clip, vae, models
     )
@@ -676,7 +678,9 @@ def inpaint(
         positive_up, negative_up = apply_control(
             w, positive_up, negative_up, cond_upscale.all_control, res, models
         )
-        out_latent = w.sampler_custom_advanced(model, positive_up, negative_up, latent, models.version, **sampler_params)
+        out_latent = w.sampler_custom_advanced(
+            model, positive_up, negative_up, latent, models.version, **sampler_params
+        )
         out_image = w.vae_decode(vae, out_latent)
         out_image = scale_to_target(upscale_extent, w, out_image, models)
     else:
@@ -721,7 +725,9 @@ def refine(
     positive, negative = apply_control(
         w, positive, negative, cond.all_control, extent.desired, models
     )
-    sampler = w.sampler_custom_advanced(model, positive, negative, latent, models.version, **_sampler_params(sampling))
+    sampler = w.sampler_custom_advanced(
+        model, positive, negative, latent, models.version, **_sampler_params(sampling)
+    )
     out_image = w.vae_decode(vae, sampler)
     out_image = scale_to_target(extent, w, out_image, models)
     w.send_image(out_image)
