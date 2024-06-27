@@ -191,7 +191,7 @@ class ComfyWorkflow:
             output_count=2,
             noise=self.random_noise(seed),
             guider=self.cfg_guider(model, positive, negative, cfg),
-            sampler=self.ksampler_select(sampler),
+            sampler=self.sampler_select(sampler),
             sigmas=self.split_sigmas(
                 self.scheduler_sigmas(model, scheduler, steps, model_version), start_at_step
             )[1],
@@ -268,12 +268,19 @@ class ComfyWorkflow:
             noise_seed=noise_seed,
         )
 
-    def ksampler_select(self, sampler_name="dpmpp_2m_sde_gpu"):
-        return self.add(
-            "KSamplerSelect",
-            output_count=1,
-            sampler_name=sampler_name,
-        )
+    def sampler_select(self, sampler_name="dpmpp_2m_sde_gpu"):
+        if sampler_name == 'euler_cfgpp':
+            return self.add(
+                "SamplerEulerCFGpp",
+                output_count=1,
+                version="regular",
+            )
+        else:
+            return self.add(
+                "KSamplerSelect",
+                output_count=1,
+                sampler_name=sampler_name,
+            )
 
     def differential_diffusion(self, model: Output):
         return self.add("DifferentialDiffusion", 1, model=model)
