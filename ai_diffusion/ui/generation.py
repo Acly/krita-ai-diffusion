@@ -164,16 +164,16 @@ class HistoryWidget(QListWidget):
         self._remove_items(id.job, id.image)
 
     def _remove_items(self, job_id: str, image_index: int = -1):
-        def _item_job_id(item: QListWidgetItem | None):
+        def _job_id(item: QListWidgetItem | None):
             return item.data(Qt.ItemDataRole.UserRole) if item else None
 
         item_was_selected = False
         with theme.SignalBlocker(self):
             # Remove all the job's items before triggering potential selection changes
-            job_items = (i for i in range(self.count()) if _item_job_id(self.item(i)) == job_id)
-            if current := next(job_items, None):
+            current = next((i for i in range(self.count()) if _job_id(self.item(i)) == job_id), -1)
+            if current >= 0:
                 item = self.item(current)
-                while item and _item_job_id(item) == job_id:
+                while item and _job_id(item) == job_id:
                     _, index = self.item_info(item)
                     if image_index == index or (index is not None and image_index == -1):
                         item_was_selected = item_was_selected or item.isSelected()
