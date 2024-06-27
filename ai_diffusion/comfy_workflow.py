@@ -269,7 +269,7 @@ class ComfyWorkflow:
         )
 
     def sampler_select(self, sampler_name="dpmpp_2m_sde_gpu"):
-        if sampler_name == 'euler_cfgpp':
+        if sampler_name == "euler_cfgpp":
             return self.add(
                 "SamplerEulerCFGpp",
                 output_count=1,
