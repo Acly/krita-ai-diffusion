@@ -170,6 +170,118 @@ class ComfyWorkflow:
             return_with_leftover_noise="disable",
         )
 
+    def sampler_custom_advanced(
+        self,
+        model: Output,
+        positive: Output,
+        negative: Output,
+        latent_image: Output,
+        model_version: SDVersion,
+        sampler="dpmpp_2m_sde_gpu",
+        scheduler="normal",
+        steps=20,
+        start_at_step=0,
+        cfg=7.0,
+        seed=-1,
+    ):
+        self.sample_count += steps - start_at_step
+
+        return self.add(
+            "SamplerCustomAdvanced",
+            output_count=2,
+            noise=self.random_noise(seed),
+            guider=self.cfg_guider(model, positive, negative, cfg),
+            sampler=self.sampler_select(sampler),
+            sigmas=self.split_sigmas(
+                self.scheduler_sigmas(model, scheduler, steps, model_version), start_at_step
+            )[1],
+            latent_image=latent_image,
+        )[1]
+
+    def scheduler_sigmas(
+        self, model: Output, scheduler="normal", steps=20, model_version=SDVersion.sdxl
+    ):
+        if scheduler in ("align_your_steps", "ays"):
+            assert model_version in (SDVersion.sd15, SDVersion.sdxl)
+
+            if model_version == SDVersion.sd15:
+                model_type = "SD1"
+            else:
+                model_type = "SDXL"
+
+            return self.add(
+                "AlignYourStepsScheduler",
+                output_count=1,
+                steps=steps,
+                model_type=model_type,
+                denoise=1.0,
+            )
+        elif scheduler == "gits":
+            return self.add(
+                "GITSScheduler",
+                output_count=1,
+                steps=steps,
+                coeff=1.2,
+                denoise=1.0,
+            )
+        elif scheduler in ("polyexponential", "poly_exponential"):
+            return self.add(
+                "PolyexponentialScheduler",
+                output_count=1,
+                steps=steps,
+                sigma_max=14.61,
+                sigma_min=0.03,
+                rho=1.0,
+            )
+        else:
+            return self.add(
+                "BasicScheduler",
+                output_count=1,
+                model=model,
+                scheduler=scheduler,
+                steps=steps,
+                denoise=1.0,
+            )
+
+    def split_sigmas(self, sigmas: Output, step=0):
+        return self.add(
+            "SplitSigmas",
+            output_count=2,
+            sigmas=sigmas,
+            step=step,
+        )
+
+    def cfg_guider(self, model: Output, positive: Output, negative: Output, cfg=7.0):
+        return self.add(
+            "CFGGuider",
+            output_count=1,
+            model=model,
+            positive=positive,
+            negative=negative,
+            cfg=cfg,
+        )
+
+    def random_noise(self, noise_seed=-1):
+        return self.add(
+            "RandomNoise",
+            output_count=1,
+            noise_seed=noise_seed,
+        )
+
+    def sampler_select(self, sampler_name="dpmpp_2m_sde_gpu"):
+        if sampler_name == "euler_cfgpp":
+            return self.add(
+                "SamplerEulerCFGpp",
+                output_count=1,
+                version="regular",
+            )
+        else:
+            return self.add(
+                "KSamplerSelect",
+                output_count=1,
+                sampler_name=sampler_name,
+            )
+
     def differential_diffusion(self, model: Output):
         return self.add("DifferentialDiffusion", 1, model=model)
 
