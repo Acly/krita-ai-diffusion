@@ -22,7 +22,7 @@
     },
     "Fast - UniPC BH2": {
         "sampler": "uni_pc_bh2",
-        "scheduler": "ddim_uniform",
+        "scheduler": "gits",
         "steps": 12,
         "minimum_steps": 4,
         "cfg": 4.0
