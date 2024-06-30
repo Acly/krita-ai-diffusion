@@ -3,7 +3,7 @@ import json
 from dataclasses import dataclass, asdict
 from typing import Any
 from PyQt5.QtCore import QObject, QByteArray, QBuffer
-from PyQt5.QtGui import QImage
+from PyQt5.QtGui import QImageReader
 from PyQt5.QtWidgets import QMessageBox
 
 from .image import Bounds, Image, ImageCollection, ImageFileFormat
@@ -198,3 +198,41 @@ def _find_annotation(document, name: str):
     if result := document.find_annotation(without_ext):
         return result
     return None
+
+
+def import_prompt_from_file(model: Model):
+    exts = (".png", ".jpg", ".jpeg", ".webp")
+    filename = model.document.filename
+    if model.regions.positive == "" and model.regions.negative == "" and filename.endswith(exts):
+        try:
+            reader = QImageReader(filename)
+            # A1111
+            if text := reader.text("parameters"):
+                if "Negative prompt:" in text:
+                    positive, negative = text.split("Negative prompt:", 1)
+                    model.regions.positive = positive.strip()
+                    model.regions.negative = negative.split("Steps:", 1)[0].strip()
+            # ComfyUI
+            elif text := reader.text("prompt"):
+                prompt: dict[str, dict] = json.loads(text)
+                for node in prompt.values():
+                    if node["class_type"] in _comfy_sampler_types:
+                        inputs = node["inputs"]
+                        model.regions.positive = _find_text_prompt(prompt, inputs["positive"][0])
+                        model.regions.negative = _find_text_prompt(prompt, inputs["negative"][0])
+
+        except Exception as e:
+            log.warning(f"Failed to read PNG metadata from {filename}: {e}")
+
+
+_comfy_sampler_types = ["KSampler", "KSamplerAdvanced", "SamplerCustom", "SamplerCustomAdvanced"]
+
+
+def _find_text_prompt(workflow: dict[str, dict], node_key: str):
+    if node := workflow.get(node_key):
+        if node["class_type"] == "CLIPTextEncode":
+            return node.get("inputs", {}).get("text", "")
+        for input in node.get("inputs", {}).values():
+            if isinstance(input, list):
+                return _find_text_prompt(workflow, input[0])
+    return ""

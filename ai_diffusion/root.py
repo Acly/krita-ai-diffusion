@@ -7,7 +7,7 @@ from .client import ClientMessage
 from .server import Server, ServerState
 from .document import Document, KritaDocument
 from .model import Model
-from .persistence import ModelSync
+from .persistence import ModelSync, import_prompt_from_file
 from .settings import ServerMode, settings
 from .util import client_logger as log
 
@@ -42,6 +42,7 @@ class Root(QObject):
     def create_model(self, doc: KritaDocument):
         model = Model(doc, self._connection)
         persistence_sync = ModelSync(model)
+        import_prompt_from_file(model)
         self._models.append(Root.PerDocument(model, persistence_sync))
         self.model_created.emit(model)
         self.prune_models()
