@@ -803,6 +803,7 @@ class GenerateButton(QPushButton):
     def paintEvent(self, a0: QPaintEvent | None) -> None:
         opt = QStyleOption()
         opt.initFrom(self)
+        opt.state |= QStyle.StateFlag.State_Sunken if self.isDown() else 0
         painter = QPainter(self)
         fm = self.fontMetrics()
         style = ensure(self.style())
