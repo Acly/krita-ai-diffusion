@@ -30,6 +30,7 @@ class RecentlyUsedSync:
     """
 
     style: str = ""
+    batch_count: int = 1
     inpaint_mode: str = "automatic"
     inpaint_fill: str = "neutral"
     inpaint_use_model: bool = True
@@ -49,6 +50,7 @@ class RecentlyUsedSync:
         try:
             if _find_annotation(model.document, "ui.json") is None:
                 model.style = Styles.list().find(self.style) or Styles.list().default
+                model.batch_count = self.batch_count
                 model.inpaint.mode = InpaintMode[self.inpaint_mode]
                 model.inpaint.fill = FillMode[self.inpaint_fill]
                 model.inpaint.use_inpaint = self.inpaint_use_model
@@ -59,6 +61,7 @@ class RecentlyUsedSync:
             log.warning(f"Failed to apply default settings to new document: {type(e)} {e}")
 
         model.style_changed.connect(self._set("style"))
+        model.batch_count_changed.connect(self._set("batch_count"))
         model.inpaint.mode_changed.connect(self._set("inpaint_mode"))
         model.inpaint.fill_changed.connect(self._set("inpaint_fill"))
         model.inpaint.use_inpaint_changed.connect(self._set("inpaint_use_model"))
