@@ -40,13 +40,13 @@ class StyleSettings:
     style_prompt = Setting(
         "Style Prompt",
         "best quality, highres",
-        "Keywords which are appended to all prompts. Can be used to influence style and quality.",
+        "Text which is appended to all prompts. The {prompt} placeholder can be used to wrap prompts.",
     )
 
     negative_prompt = Setting(
         "Negative Prompt",
         "bad quality, low resolution, blurry",
-        "Textual description of things to avoid in generated images",
+        "Textual description of things to avoid in generated images.",
     )
 
     vae = Setting(
