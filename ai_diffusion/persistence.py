@@ -1,13 +1,15 @@
 from __future__ import annotations
 import json
 from dataclasses import dataclass, asdict
+from enum import Enum
 from typing import Any
 from PyQt5.QtCore import QObject, QByteArray, QBuffer
 from PyQt5.QtGui import QImageReader
 from PyQt5.QtWidgets import QMessageBox
 
+from .api import InpaintMode, FillMode
 from .image import Bounds, Image, ImageCollection, ImageFileFormat
-from .model import Model
+from .model import Model, InpaintContext
 from .control import ControlLayer, ControlLayerList
 from .region import RootRegion, Region
 from .jobs import Job, JobKind, JobParams, JobQueue
@@ -18,6 +20,66 @@ from .util import client_logger as log
 
 # Version of the persistence format, increment when there are breaking changes
 version = 1
+
+
+@dataclass
+class RecentlyUsedSync:
+    """Stores the most recently used parameters for various settings across all models.
+    This is used to initialize new models with the last used parameters if they are
+    created from scratch (not opening an existing .kra with stored settings).
+    """
+
+    style: str = ""
+    inpaint_mode: str = "automatic"
+    inpaint_fill: str = "neutral"
+    inpaint_use_model: bool = True
+    inpaint_use_prompt_focus: bool = False
+    inpaint_context: str = "automatic"
+    upscale_model: str = ""
+
+    @staticmethod
+    def from_settings():
+        try:
+            return RecentlyUsedSync(**settings.document_defaults)
+        except Exception as e:
+            log.warning(f"Failed to load default document settings: {type(e)} {e}")
+            return RecentlyUsedSync()
+
+    def track(self, model: Model):
+        try:
+            if _find_annotation(model.document, "ui.json") is None:
+                model.style = Styles.list().find(self.style) or Styles.list().default
+                model.inpaint.mode = InpaintMode[self.inpaint_mode]
+                model.inpaint.fill = FillMode[self.inpaint_fill]
+                model.inpaint.use_inpaint = self.inpaint_use_model
+                model.inpaint.use_prompt_focus = self.inpaint_use_prompt_focus
+                model.inpaint.context = InpaintContext[self.inpaint_context]
+                model.upscale.upscaler = self.upscale_model
+        except Exception as e:
+            log.warning(f"Failed to apply default settings to new document: {type(e)} {e}")
+
+        model.style_changed.connect(self._set("style"))
+        model.inpaint.mode_changed.connect(self._set("inpaint_mode"))
+        model.inpaint.fill_changed.connect(self._set("inpaint_fill"))
+        model.inpaint.use_inpaint_changed.connect(self._set("inpaint_use_model"))
+        model.inpaint.use_prompt_focus_changed.connect(self._set("inpaint_use_prompt_focus"))
+        model.inpaint.context_changed.connect(self._set("inpaint_context"))
+        model.upscale.upscaler_changed.connect(self._set("upscale_model"))
+
+    def _set(self, key):
+        def setter(value):
+            if isinstance(value, Style):
+                value = value.filename
+            if isinstance(value, Enum):
+                value = value.name
+            setattr(self, key, value)
+            self._save()
+
+        return setter
+
+    def _save(self):
+        settings.document_defaults = asdict(self)
+        settings.save()
 
 
 @dataclass

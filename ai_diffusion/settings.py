@@ -245,6 +245,9 @@ class Settings(QObject):
         "Dump Workflow", False, "Write latest ComfyUI prompt to the log folder for test & debug"
     )
 
+    document_defaults: dict[str, Any]
+    _document_defaults = Setting("Document Defaults", {}, "Recently used document settings")
+
     # Folder where intermediate images are stored for debug purposes (default: None)
     debug_image_folder = os.environ.get("KRITA_AI_DIFFUSION_DEBUG_IMAGE")
 
@@ -293,7 +296,7 @@ class Settings(QObject):
         try:
             contents = read_json_with_comments(path)
             for k, v in contents.items():
-                setting = getattr(Settings, f"_{k}", None)
+                setting: Setting | None = getattr(Settings, f"_{k}", None)
                 if setting is not None:
                     if isinstance(setting.default, Enum):
                         self._values[k] = setting.str_to_enum(v)
