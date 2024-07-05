@@ -6,10 +6,10 @@ from typing import NamedTuple, Sequence
 
 # Version identifier for all the resources defined here. This is used as the server version.
 # It usually follows the plugin version, but not all new plugin versions also require a server update.
-version = "1.19.0"
+version = "1.20.0"
 
 comfy_url = "https://github.com/comfyanonymous/ComfyUI"
-comfy_version = "887a6341ed14c9904230cf55a0eabe95cd0218d3"
+comfy_version = "1dc87df4c5f4925f8eb286236e71c9dd38941dd6"
 
 
 class CustomNode(NamedTuple):
@@ -25,21 +25,21 @@ required_custom_nodes = [
         "ControlNet Preprocessors",
         "comfyui_controlnet_aux",
         "https://github.com/Fannovel16/comfyui_controlnet_aux",
-        "589af18adae7ff50009a0e021781dd1aa39c32e3",
+        "6f1ba1c10df84af6d356119ccf4ebcf796a10e1c",
         ["InpaintPreprocessor"],
     ),
     CustomNode(
         "IP-Adapter",
         "ComfyUI_IPAdapter_plus",
         "https://github.com/cubiq/ComfyUI_IPAdapter_plus",
-        "f904b4c3c3adbda990f32b90eb52e1924467c9ef",
+        "8208e27bf10e9b5b36546dd64c4b820b168c2724",
         ["IPAdapterModelLoader", "IPAdapter"],
     ),
     CustomNode(
         "External Tooling Nodes",
         "comfyui-tooling-nodes",
         "https://github.com/Acly/comfyui-tooling-nodes",
-        "aff32e8da6db5db73bc6f84b30c87862e211544c",
+        "9d533984c2b44bc0519fde2875b976493c6e90a0",
         [
             "ETN_LoadImageBase64",
             "ETN_LoadMaskBase64",
@@ -51,7 +51,7 @@ required_custom_nodes = [
         "Inpaint Nodes",
         "comfyui-inpaint-nodes",
         "https://github.com/Acly/comfyui-inpaint-nodes",
-        "9927f44cb4a9878f1737cbabf8a29d2fc8182d0f",
+        "717cb7717daf9f10979940163f708e35ee8eda05",
         ["INPAINT_LoadFooocusInpaint", "INPAINT_ApplyFooocusInpaint"],
     ),
 ]
@@ -301,7 +301,7 @@ required_models = [
         },
     ),
     ModelResource(
-        "ControlNet Tile",
+        "ControlNet Unblur",
         ResourceId(ResourceKind.controlnet, SDVersion.sd15, ControlMode.blur),
         {
             Path(
@@ -591,8 +591,8 @@ optional_models = [
         ResourceId(ResourceKind.controlnet, SDVersion.sdxl, ControlMode.blur),
         {
             Path(
-                "models/controlnet/TTPLANET_Controlnet_Tile_realistic_v2_fp16.safetensors"
-            ): "https://huggingface.co/TTPlanet/TTPLanet_SDXL_Controlnet_Tile_Realistic/resolve/main/TTPLANET_Controlnet_Tile_realistic_v2_fp16.safetensors",
+                "models/controlnet/xinsir-controlnet-tile-sdxl-1.0.safetensors"
+            ): "https://huggingface.co/xinsir/controlnet-tile-sdxl-1.0/resolve/main/diffusion_pytorch_model.safetensors",
         },
     ),
     ModelResource(
