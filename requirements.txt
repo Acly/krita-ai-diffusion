@@ -3,6 +3,7 @@
 
 # Development
 black
+requests
 
 # Testing
 aiohttp
