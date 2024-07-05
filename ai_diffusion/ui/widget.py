@@ -649,7 +649,9 @@ class StrengthSpinBox(QSpinBox):
 
 
 class StrengthWidget(QWidget):
-    _model: Model | None
+    _model: Model | None = None
+    _value: int = 100
+
     value_changed = pyqtSignal(float)
 
     def __init__(self, slider_range: tuple[int, int] = (1, 100), parent=None):
@@ -658,15 +660,15 @@ class StrengthWidget(QWidget):
         self._layout.setContentsMargins(0, 0, 0, 0)
         self.setLayout(self._layout)
 
-        self._model = None
-
         self._slider = QSlider(Qt.Orientation.Horizontal, self)
         self._slider.setMinimum(slider_range[0])
         self._slider.setMaximum(slider_range[1])
+        self._slider.setValue(self._value)
         self._slider.setSingleStep(5)
         self._slider.valueChanged.connect(self.slider_changed)
 
         self._input = StrengthSpinBox(self)
+        self._input.setValue(self._value)
         self._input.setPrefix("Strength: ")
         self._input.setSuffix("%")
         self._input.valueChanged.connect(self.notify_changed)
@@ -682,12 +684,18 @@ class StrengthWidget(QWidget):
         self.notify_changed(value)
 
     def notify_changed(self, value: int):
-        self.update_suffix()
-        if self._slider.value() != value:
+        if self._update_value(value):
+            self.value_changed.emit(self.value)
+
+    def _update_value(self, value: int):
+        with SignalBlocker(self._slider), SignalBlocker(self._input):
             self._slider.setValue(value)
-        if self._input.value() != value:
             self._input.setValue(value)
-        self.value_changed.emit(self.value)
+        if value != self._value:
+            self._value = value
+            self.update_suffix()
+            return True
+        return False
 
     @property
     def model(self):
@@ -706,22 +714,20 @@ class StrengthWidget(QWidget):
 
     @property
     def value(self):
-        return self._slider.value() / 100
+        return self._value / 100
 
     @value.setter
     def value(self, value: float):
         if value == self.value:
             return
-        self._slider.setValue(round(value * 100))
-        self._input.setValue(round(value * 100))
-        self.update_suffix()
+        self._update_value(round(value * 100))
 
     def update_suffix(self):
         if not self._input.snapping or not settings.show_steps:
             self._input.setSuffix("%")
             return
 
-        steps, start_at_step = self._input.snapping.apply_strength(self._input.value())
+        steps, start_at_step = self._input.snapping.apply_strength(self._value)
         self._input.setSuffix(f"% ({steps - start_at_step}/{steps})")
 
 
