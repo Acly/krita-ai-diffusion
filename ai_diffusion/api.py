@@ -1,4 +1,5 @@
 from dataclasses import Field, dataclass, field, is_dataclass, fields
+from copy import copy
 from enum import Enum
 from types import GenericAlias, UnionType
 from typing import Any, get_args, get_origin
@@ -6,7 +7,7 @@ import math
 
 from .image import Bounds, Extent, Image, ImageCollection, ImageFileFormat
 from .resources import ControlMode, SDVersion
-from .util import ensure
+from .util import ensure, clamp
 
 
 class WorkflowKind(Enum):
@@ -132,6 +133,12 @@ class InpaintParams:
     use_inpaint_model: bool = False
     use_condition_mask: bool = False
     use_reference: bool = False
+
+    def clamped(self):
+        params = copy(self)
+        params.grow = clamp(params.grow, 0, 499)
+        params.feather = clamp(params.feather, 0, 499)
+        return params
 
 
 @dataclass
