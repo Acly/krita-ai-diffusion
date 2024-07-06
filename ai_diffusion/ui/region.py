@@ -437,6 +437,7 @@ class RegionThumbnailWidget(QLabel):
         if isinstance(region, Region):
             if layer := region.first_layer:
                 parent_bounds = layer.parent_layer.bounds if layer.parent_layer else layer.bounds
+                parent_bounds = Bounds.at_least(parent_bounds, icon_size)
                 layer_bounds = layer.bounds.relative_to(parent_bounds)
                 scale = icon_size / parent_bounds.height
                 canvas_extent = parent_bounds.extent * scale

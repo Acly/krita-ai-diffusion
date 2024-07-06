@@ -224,14 +224,16 @@ class Bounds(NamedTuple):
         return Bounds.clamp(result, image_bounds.extent)
 
     @staticmethod
+    def at_least(bounds: "Bounds", min_size: int):
+        """Return bounds with width and height being at least `min_size`."""
+        return Bounds(bounds.x, bounds.y, max(bounds.width, min_size), max(bounds.height, min_size))
+
+    @staticmethod
     def minimum_size(bounds: "Bounds", min_size: int, max_extent: Extent):
         """Return bounds extended to a minimum size if they still fit."""
         if any(x < min_size for x in max_extent):
             return None  # doesn't fit, image too small
-        result = Bounds(
-            bounds.x, bounds.y, max(bounds.width, min_size), max(bounds.height, min_size)
-        )
-        return Bounds.clamp(result, max_extent)
+        return Bounds.clamp(Bounds.at_least(bounds, min_size), max_extent)
 
     @staticmethod
     def intersection(a: "Bounds", b: "Bounds"):
