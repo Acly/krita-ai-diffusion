@@ -1,5 +1,4 @@
 import asyncio
-import time
 from typing import Callable
 from PyQt5.QtCore import QTimer
 
@@ -8,8 +7,9 @@ _timer = QTimer()
 
 
 def process_python_events():
-    _loop.call_soon(lambda: _loop.stop())
-    _loop.run_forever()
+    if not _loop.is_running():
+        _loop.call_soon(lambda: _loop.stop())
+        _loop.run_forever()
 
 
 def setup():
