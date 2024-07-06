@@ -422,16 +422,20 @@ class LayerManager(QObject):
 
     @property
     def active(self):
-        assert self._doc is not None
-        layer = self.find(self._doc.activeNode().uniqueId())
-        if layer is None:
-            layer = self.updated()._layers.get(self._active_id)
-        if layer is None:
-            log.warning("Active layer not found in layer tree")
-            layer = self._last_active
-        else:
-            self._last_active = layer
-        return ensure(layer, "Active layer not found in layer tree (no fallback)")
+        try:
+            assert self._doc is not None
+            layer = self.find(self._doc.activeNode().uniqueId())
+            if layer is None:
+                layer = self.updated()._layers.get(self._active_id)
+            if layer is None:
+                log.warning("Active layer not found in layer tree")
+                layer = self._last_active
+            else:
+                self._last_active = layer
+            return ensure(layer, "Active layer not found in layer tree (no fallback)")
+        except Exception as e:
+            log.error(f"Error getting active layer: {e}")
+            return self.root
 
     @active.setter
     def active(self, layer: Layer):
