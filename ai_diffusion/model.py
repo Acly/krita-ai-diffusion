@@ -698,8 +698,8 @@ class UpscaleWorkspace(QObject, ObservableProperties):
         model._connection.models_changed.connect(self._init_model)
 
     def _init_model(self):
-        if self.upscaler == "":
-            if client := self._model._connection.client_if_connected:
+        if client := self._model._connection.client_if_connected:
+            if self.upscaler not in client.models.upscalers:
                 self.upscaler = client.models.default_upscaler
 
     @property
