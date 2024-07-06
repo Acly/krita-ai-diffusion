@@ -598,16 +598,9 @@ class StrengthSnapping:
         self.model = model
 
     def get_steps(self) -> tuple[int, int]:
-        if self.model.workspace is Workspace.generation:
-            is_live = False
-        elif self.model.workspace is Workspace.upscaling:
-            assert False
-        elif self.model.workspace is Workspace.live:
-            is_live = True
-        elif self.model.workspace is Workspace.animation:
+        is_live = False
+        if self.model.workspace is Workspace.animation:
             is_live = self.model.animation.sampling_quality is SamplingQuality.fast
-        else:
-            assert False, "unknown type of workspace"
         return self.model.style.get_steps(is_live=is_live)
 
     def nearest_percent(self, value: int) -> int | None:
