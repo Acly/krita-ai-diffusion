@@ -33,6 +33,7 @@ from PyQt5.QtGui import (
     QPainter,
     QIcon,
     QPaintEvent,
+    QKeySequence,
 )
 from PyQt5.QtCore import QObject, Qt, QMetaObject, QSize, QStringListModel, pyqtSignal, QEvent
 
@@ -404,6 +405,15 @@ class MultiLineTextPromptWidget(QPlainTextEdit):
 
         self._completer = PromptAutoComplete(self)
         self.textChanged.connect(self._completer.check_completion)
+
+    def event(self, e: QEvent | None):
+        assert e is not None
+        # Ctrl+Backspace should be handled by QPlainTextEdit, not Krita.
+        if e.type() == QEvent.Type.ShortcutOverride:
+            assert isinstance(e, QKeyEvent)
+            if e.matches(QKeySequence.DeleteStartOfWord):
+                e.accept()
+        return super().event(e)
 
     def keyPressEvent(self, e: QKeyEvent | None):
         assert e is not None
