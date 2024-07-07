@@ -211,6 +211,12 @@ class Layer(QObject):
         self._node.remove()
         self._manager.update()
 
+    def remove_later(self):
+        eventloop.run(self._remove_later)
+
+    async def _remove_later(self):
+        self.remove()
+
     def compute_bounds(self):
         bounds = self.bounds
         if bounds.is_zero:
@@ -428,7 +434,8 @@ class LayerManager(QObject):
             if layer is None:
                 layer = self.updated()._layers.get(self._active_id)
             if layer is None:
-                log.warning("Active layer not found in layer tree")
+                # Active layer is not in the layer tree yet, can happen immediately after creating
+                # a new layer or merging existing layers.
                 layer = self._last_active
             else:
                 self._last_active = layer
@@ -511,7 +518,7 @@ class LayerManager(QObject):
         content = layer.get_pixels(layer_bounds)
         content.draw_image(image, bounds.relative_to(layer_bounds).offset, keep_alpha=keep_alpha)
         replacement = self.create(layer.name, content, layer_bounds, above=layer)
-        layer.remove()
+        layer.remove_later()
         return replacement
 
     _image_types = [t.value for t in LayerType if t.is_image]
