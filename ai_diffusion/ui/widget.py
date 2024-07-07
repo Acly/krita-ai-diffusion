@@ -598,7 +598,7 @@ class StrengthSnapping:
         self.model = model
 
     def get_steps(self) -> tuple[int, int]:
-        is_live = False
+        is_live = self.model.workspace is Workspace.live
         if self.model.workspace is Workspace.animation:
             is_live = self.model.animation.sampling_quality is SamplingQuality.fast
         return self.model.style.get_steps(is_live=is_live)
