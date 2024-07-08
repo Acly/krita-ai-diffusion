@@ -212,7 +212,7 @@ class Layer(QObject):
         self._manager.update()
 
     def remove_later(self):
-        eventloop.run(self._remove_later)
+        eventloop.run(self._remove_later())
 
     async def _remove_later(self):
         self.remove()
