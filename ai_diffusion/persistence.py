@@ -296,7 +296,8 @@ _comfy_sampler_types = ["KSampler", "KSamplerAdvanced", "SamplerCustom", "Sample
 def _find_text_prompt(workflow: dict[str, dict], node_key: str):
     if node := workflow.get(node_key):
         if node["class_type"] == "CLIPTextEncode":
-            return node.get("inputs", {}).get("text", "")
+            text = node.get("inputs", {}).get("text", "")
+            return text if isinstance(text, str) else ""
         for input in node.get("inputs", {}).values():
             if isinstance(input, list):
                 return _find_text_prompt(workflow, input[0])
