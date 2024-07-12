@@ -331,7 +331,6 @@ class LayerManager(QObject):
     removed = pyqtSignal(Layer)
 
     _doc: krita.Document | None
-    _root: Layer | None
     _layers: dict[QUuid, Layer]
     _active_id: QUuid
     _last_active: Layer | None = None
@@ -344,8 +343,7 @@ class LayerManager(QObject):
         self._layers = {}
         if doc is not None:
             root = doc.rootNode()
-            self._root = Layer(self, root)
-            self._layers = {self._root.id: self._root}
+            self._layers = {root.uniqueId(): Layer(self, root)}
             self._active_id = doc.activeNode().uniqueId()
             self.update()
             self._timer = QTimer()
@@ -353,7 +351,6 @@ class LayerManager(QObject):
             self._timer.timeout.connect(self.update)
             self._timer.start()
         else:
-            self._root = None
             self._active_id = QUuid()
 
     def __del__(self):
@@ -398,7 +395,7 @@ class LayerManager(QObject):
                     self._layers[id] = Layer(self, n)
                     changes = True
 
-            removals.remove(self.root.id)
+            removals.discard(root_node.uniqueId())
             for id in removals:
                 if self._layers[id].is_confirmed:
                     self.removed.emit(self._layers[id])
@@ -425,8 +422,9 @@ class LayerManager(QObject):
 
     @property
     def root(self):
-        assert self._root is not None
-        return self._root
+        assert self._doc is not None
+        root = ensure(self._doc.rootNode(), "Document root node was None")
+        return self.wrap(root)
 
     @property
     def active(self):
