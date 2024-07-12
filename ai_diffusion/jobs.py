@@ -154,10 +154,12 @@ class JobQueue(QObject):
     def notify_finished(self, job: Job):
         job.state = JobState.finished
         self.job_finished.emit(job)
+        self._cancel_earlier_jobs(job)
         self.count_changed.emit()
 
     def notify_cancelled(self, job: Job):
         job.state = JobState.cancelled
+        self._cancel_earlier_jobs(job)
         self.count_changed.emit()
 
     def notify_used(self, job_id: str, index: int):
@@ -225,3 +227,12 @@ class JobQueue(QObject):
     @property
     def memory_usage(self):
         return self._memory_usage
+
+    def _cancel_earlier_jobs(self, job: Job):
+        # Clear jobs that should have been completed before, but may not have completed
+        # (still queued or executing state) due to sporadic server disconnect
+        for j in self._entries:
+            if j is job:
+                break
+            if j.state in [JobState.queued, JobState.executing]:
+                j.state = JobState.cancelled
