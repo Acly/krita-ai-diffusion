@@ -16,6 +16,7 @@ class LayerType(Enum):
     group = "grouplayer"
     file = "filelayer"
     clone = "clonelayer"
+    fill = "filllayer"
     filter = "filterlayer"
     transparency = "transparencymask"
     selection = "selectionmask"
@@ -32,6 +33,7 @@ class LayerType(Enum):
             LayerType.file,
             LayerType.clone,
             LayerType.filter,
+            LayerType.fill,
         ]
 
     @property
@@ -141,7 +143,7 @@ class Layer(QObject):
 
     @property
     def child_layers(self):
-        return [self._manager.wrap(child) for child in self._node.childNodes()]
+        return [self._manager.wrap(child) for child in self._node.childNodes() if _is_real(child)]
 
     @property
     def is_root(self):
@@ -554,6 +556,15 @@ class LayerManager(QObject):
 
 def traverse_layers(node: krita.Node, type_filter: list[str] | None = None):
     for child in node.childNodes():
-        if not type_filter or child.type() in type_filter:
+        type = child.type()
+        if _is_real(type) and (not type_filter or type in type_filter):
             yield child
         yield from traverse_layers(child, type_filter)
+
+
+def _is_real(node_type: krita.Node | str):
+    # Krita sometimes inserts "fake" nodes for processing, like decorations-wrapper-layer
+    # They don't have a layer type and we want to ignore them
+    if isinstance(node_type, krita.Node):
+        node_type = node_type.type()
+    return node_type != ""
