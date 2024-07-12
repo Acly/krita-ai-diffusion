@@ -1,37 +1,37 @@
 <h1><img width="64px" src="ai_diffusion/icons/logo-128.png"> Generative AI <i>for Krita</i></h1>
 
-✨[Features](#features) | ⭳ [Download](https://github.com/Acly/krita-ai-diffusion/releases/latest) | 🛠️[Installation](https://www.interstice.cloud/plugin) | 🎞️ [Video](https://youtu.be/Ly6USRwTHe0) | 🖼️[Screenshots](#screenshots) | 📖[Wiki](https://github.com/Acly/krita-ai-diffusion/wiki) | 💬[Discussion](https://github.com/Acly/krita-ai-diffusion/discussions)
+✨[Features](#features) | ⭳ [Download](https://github.com/Acly/krita-ai-diffusion/releases/latest) | 🛠️[Installation](https://www.interstice.cloud/plugin) | 🎞️ [Video](https://youtu.be/Ly6USRwTHe0) | 🖼️[Screenshots](#gallery) | 📖[Wiki](https://github.com/Acly/krita-ai-diffusion/wiki) | 💬[Discussion](https://github.com/Acly/krita-ai-diffusion/discussions)
 
-Generate images from within Krita with minimal fuss: Select an area, push a button,
-and new content that matches your image will be generated. Or expand your canvas and
-fill new areas with generated content that blends right in. Text prompts are optional.
-No tweaking required!
+This is a plugin to use generative AI in image painting and editing workflows from within Krita. For a more visual introduction, see [**www.interstice.cloud**](https://www.interstice.cloud)
 
-This plugin seeks to provide what "Generative Fill/Expand" do in Photoshop - and go beyond.
-Adjust strength to refine existing content _(img2img)_ or generate images from scratch.
-Powerful customization is available for advanced users.
-
-_Local. Open source. Free._
+The main goals of this project are:
+* **Precision and Control.** Creating entire images from text can be unpredictable.
+  To get the result you envision, you can restrict generation to selections,
+  refine existing content with a variable degree of strength, focus text on image
+  regions, and guide generation with reference images, sketches, line art,
+  depth maps, and more.
+* **Workflow Integration.** Most image generation tools focus heavily on AI parameters.
+  This project aims to be an unobtrusive tool that integrates and synergizes
+  with image editing workflows in Krita. Draw, paint, edit and generate seamlessly without worrying about resolution and technical details.
+* **Local, Open, Free.** We are committed to open source models. Customize presets, bring your
+  own models, and run everything local on your hardware. Cloud generation is also available
+  to get started quickly without heavy investment.  
 
 [![Watch video demo](media/screenshot-video-preview.webp)](https://youtu.be/Ly6USRwTHe0 "Watch video demo")
 
 ## <a name="features"></a> Features
 
-Features are designed to fit an interactive workflow where AI generation is used as just another
-tool while painting. They are meant to synergize with traditional tools and the layer stack.
-
-* **Inpaint**: Use Krita's selection tools to mark an area and remove or replace existing content in the image. Simple text prompts can be used to steer generation.
-* **Outpaint**: Extend your canvas, select a blank area and automatically fill it with content that seamlessly blends into the existing image.
-* **Generate**: Create new images from scratch by decribing them with words or existing images. Supports SD1.5 and SDXL.
-* **Refine**: Use the strength slider to refine existing image content instead of replacing it entirely. This also works great for adding new things to an image by painting a (crude) approximation and refining at high strength!
+* **Inpainting**: Use selections for generative fill, expand, to add or remove objects
 * **Live Painting**: Let AI interpret your canvas in real time for immediate feedback. [Watch Video](https://youtu.be/AF2VyqSApjA?si=Ve5uQJWcNOATtABU)
-* **Control**: Guide image creation directly with sketches or line art. Use depth or normal maps from existing images or 3D scenes. Transfer character pose from snapshots. Control composition with segmentation maps.
-* **Resolutions**: Work efficiently at any resolution. The plugin will automatically use resolutions appropriate for the AI model, and scale them to fit your image region.
 * **Upscaling**: Upscale and enrich images to 4k, 8k and beyond without running out of memory.
-* **Job Queue**: Depending on hardware, image generation can take some time. The plugin allows you to queue and cancel jobs while working on your image.
-* **History**: Not every image will turn out a masterpiece. Preview results and browse previous generations and prompts at any time.
-* **Strong Defaults**: Versatile default style presets allow for a simple UI which covers many scenarios.
-* **Customization**: Create your own presets - select a Stable Diffusion checkpoint, add LoRA, tweak samplers and more.
+* **Stable Diffusion**: Supports Stable Diffusion 1.5, and XL. Partial support for SD3.
+* **ControlNet**: Scribble, Line art, Canny edge, Pose, Depth, Normals, Segmentation, +more
+* **IP-Adapter**: Reference images, Style and composition transfer, Face swap
+* **Regions**: Assign individual text descriptions to image areas defined by layers.
+* **Job Queue**: Queue and cancel generation jobs while working on your image.
+* **History**: Preview results and browse previous generations and prompts at any time.
+* **Strong Defaults**: Versatile default style presets allow for a streamlined UI.
+* **Customization**: Create your own presets - custom checkpoints, LoRA, samplers and more.
 
 ## <a name="installation"></a> Getting Started
 
@@ -85,14 +85,15 @@ Please check the list of [required extensions and models](https://github.com/Acl
 
 If you're looking for a way to easily select objects in the image, there is a [separate plugin](https://github.com/Acly/krita-ai-tools) which adds AI segmentation tools.
 
-### GPU Cloud
 
-You can also rent a GPU instead of running locally. In that case, step 6 is not needed. Instead use the plugin to connect to a remote server.
+## Contributing
 
-There is a [step by step guide](https://github.com/Acly/krita-ai-diffusion/wiki/Cloud-GPU) on how to setup cloud GPU on [runpod.io](https://www.runpod.io) or [vast.ai](https://vast.ai) or [sailflow.ai](https://www.sailflowai.com).
+Contributions are very welcome! Check the [contributing guide](CONTRIBUTING.md) to get started.
 
+## <a name="gallery"></a> Gallery
 
-## <a name="screenshots"></a> Screenshots
+_Live painting with regions (Click for video)_
+[![Watch video demo](media/screenshot-regions.png)](https://youtu.be/PPxOE9YH57E "Watch video demo")
 
 _Inpainting on a photo using a realistic model_
 <img src="media/screenshot-2.png">
@@ -103,24 +104,14 @@ _Reworking and adding content to an AI generated image_
 _Adding detail and iteratively refining small parts of the image_
 <img src="media/screenshot-3.png">
 
-_Using ControlNet to guide image generation with a crude scribble_
-<img src="media/screenshot-4.png">
-
 _Modifying the pose vector layer to control character stances (Click for video)_
 [![Watch video demo](media/screenshot-5.png)](https://youtu.be/-QDPEcVmdLI "Watch video demo")
 
-_Upscaling to improve image quality and add details_
-<img src="media/screenshot-6.png">
-
-_Server installation_
-<img src="media/screenshot-installation.png">
-
-_Style preset configuration_
-<img src="media/screenshot-style.png">
-
-## Contributing
-
-Contributions are very welcome! Check the [contributing guide](CONTRIBUTING.md) to get started.
+_Control layers: Scribble, Line art, Depth map, Pose_
+![Scribble control layer](media/control-scribble-screen.png)
+![Line art control layer](media/control-line-screen.png)
+![Depth map control layer](media/control-depth-screen.png)
+![Pose control layer](media/control-pose-screen.png)
 
 ## Technology
 
