@@ -122,7 +122,7 @@ class ControlLayer(QObject, ObservableProperties):
                     self.error_text = f"IP-Adapter is not supported by this GPU"
                 is_supported = False
             elif self.mode.is_control_net:
-                if models.control.find(self.mode, allow_union=True) is None:
+                if models.control.find(self.mode, allow_universal=True) is None:
                     search_path = resources.search_path(
                         ResourceKind.controlnet, models.version, self.mode
                     )

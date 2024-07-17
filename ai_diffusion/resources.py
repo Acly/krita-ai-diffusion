@@ -6,10 +6,10 @@ from typing import NamedTuple, Sequence
 
 # Version identifier for all the resources defined here. This is used as the server version.
 # It usually follows the plugin version, but not all new plugin versions also require a server update.
-version = "1.20.0"
+version = "1.21.0"
 
 comfy_url = "https://github.com/comfyanonymous/ComfyUI"
-comfy_version = "1dc87df4c5f4925f8eb286236e71c9dd38941dd6"
+comfy_version = "374e093e09c94b528d7c9dfc337c65cc5c433ee3"
 
 
 class CustomNode(NamedTuple):
@@ -143,7 +143,7 @@ class ControlMode(Enum):
     composition = 15
     face = 13
     inpaint = 1
-    union = 16
+    universal = 16
     scribble = 2
     line_art = 3
     soft_edge = 4
@@ -171,7 +171,7 @@ class ControlMode(Enum):
             ControlMode.inpaint,
             ControlMode.blur,
             ControlMode.stencil,
-            ControlMode.union,
+            ControlMode.universal,
         ]
 
     @property
@@ -189,7 +189,7 @@ class ControlMode(Enum):
 
     @property
     def is_internal(self):  # don't show in control layer mode dropdown
-        return self in [ControlMode.inpaint, ControlMode.union]
+        return self in [ControlMode.inpaint, ControlMode.universal]
 
     @property
     def is_part_of_image(self):  # not only used as guidance hint
@@ -557,48 +557,12 @@ optional_models = [
         requirements=ModelRequirements.insightface,
     ),
     ModelResource(
-        "ControlNet Line Art (XL)",
-        ResourceId(ResourceKind.controlnet, SDVersion.sdxl, ControlMode.line_art),
+        "ControlNet Universal (XL)",
+        ResourceId(ResourceKind.controlnet, SDVersion.sdxl, ControlMode.universal),
         {
             Path(
-                "models/controlnet/mistoLine_rank256.safetensors"
-            ): "https://huggingface.co/TheMistoAI/MistoLine/resolve/main/mistoLine_rank256.safetensors",
-        },
-    ),
-    ModelResource(
-        "ControlNet Canny Edge (XL)",
-        ResourceId(ResourceKind.controlnet, SDVersion.sdxl, ControlMode.canny_edge),
-        {
-            Path(
-                "models/controlnet/sai_xl_canny_256lora.safetensors"
-            ): "https://huggingface.co/lllyasviel/sd_control_collection/resolve/main/sai_xl_canny_256lora.safetensors",
-        },
-    ),
-    ModelResource(
-        "ControlNet Depth (XL)",
-        ResourceId(ResourceKind.controlnet, SDVersion.sdxl, ControlMode.depth),
-        {
-            Path(
-                "models/controlnet/sai_xl_depth_256lora.safetensors"
-            ): "https://huggingface.co/lllyasviel/sd_control_collection/resolve/main/sai_xl_depth_256lora.safetensors",
-        },
-    ),
-    ModelResource(
-        "ControlNet Pose (XL)",
-        ResourceId(ResourceKind.controlnet, SDVersion.sdxl, ControlMode.pose),
-        {
-            Path(
-                "models/controlnet/controlnetxlCNXL_xinsirOpenpose.safetensors"
-            ): "https://huggingface.co/xinsir/controlnet-openpose-sdxl-1.0/resolve/main/diffusion_pytorch_model.safetensors",
-        },
-    ),
-    ModelResource(
-        "ControlNet Unblur (XL)",
-        ResourceId(ResourceKind.controlnet, SDVersion.sdxl, ControlMode.blur),
-        {
-            Path(
-                "models/controlnet/xinsir-controlnet-tile-sdxl-1.0.safetensors"
-            ): "https://huggingface.co/xinsir/controlnet-tile-sdxl-1.0/resolve/main/diffusion_pytorch_model.safetensors",
+                "models/controlnet/xinsir-controlnet-union-sdxl-1.0-promax.safetensors"
+            ): "https://huggingface.co/xinsir/controlnet-union-sdxl-1.0/resolve/main/diffusion_pytorch_model_promax.safetensors",
         },
     ),
     ModelResource(
@@ -750,7 +714,7 @@ _control_text = {
     ControlMode.style: "Style",
     ControlMode.composition: "Composition",
     ControlMode.face: "Face",
-    ControlMode.union: "Auto",
+    ControlMode.universal: "Universal",
     ControlMode.scribble: "Scribble",
     ControlMode.line_art: "Line Art",
     ControlMode.soft_edge: "Soft Edge",
@@ -794,7 +758,7 @@ search_paths: dict[str, list[str]] = {
     resource_id(ResourceKind.clip, SDVersion.sd3, "clip_l") : ["clip_l"],
     resource_id(ResourceKind.clip, SDVersion.sd3, "clip_g") : ["clip_g"],
     resource_id(ResourceKind.controlnet, SDVersion.sd15, ControlMode.inpaint):  ["control_v11p_sd15_inpaint"],
-    resource_id(ResourceKind.controlnet, SDVersion.sdxl, ControlMode.union):  ["union-sdxl", "xinsirunion"],
+    resource_id(ResourceKind.controlnet, SDVersion.sdxl, ControlMode.universal):  ["union-sdxl", "xinsirunion"],
     resource_id(ResourceKind.controlnet, SDVersion.sd15, ControlMode.scribble): ["control_v11p_sd15_scribble", "control_lora_rank128_v11p_sd15_scribble"],
     resource_id(ResourceKind.controlnet, SDVersion.sdxl, ControlMode.scribble): ["xinsirscribble", "scribble-sdxl", "mistoline", "control-lora-sketch-rank", "sai_xl_sketch_"],
     resource_id(ResourceKind.controlnet, SDVersion.sd15, ControlMode.line_art): ["control_v11p_sd15_lineart", "control_lora_rank128_v11p_sd15_lineart"],

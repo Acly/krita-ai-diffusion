@@ -143,12 +143,12 @@ class ModelDict:
     def __getitem__(self, key: ControlMode | UpscalerName | str):
         return self._models.resource(self.kind, key, self.version)
 
-    def find(self, key: ControlMode | UpscalerName | str, allow_union=False) -> str | None:
+    def find(self, key: ControlMode | UpscalerName | str, allow_universal=False) -> str | None:
         if key in [ControlMode.style, ControlMode.composition]:
             key = ControlMode.reference  # Same model with different weight types
         result = self._models.resources.get(resource_id(self.kind, self.version, key))
-        if result is None and allow_union and isinstance(key, ControlMode):
-            result = self.find(ControlMode.union)
+        if result is None and allow_universal and isinstance(key, ControlMode):
+            result = self.find(ControlMode.universal)
         return result
 
     def for_version(self, version: SDVersion):

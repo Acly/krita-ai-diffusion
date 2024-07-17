@@ -224,7 +224,7 @@ class UpscaleWidget(QWidget):
         has_unblur = False
         if client := root.connection.client_if_connected:
             models = client.models.for_checkpoint(self.model.style.sd_checkpoint)
-            has_unblur = models.control.find(ControlMode.blur, allow_union=True) is not None
+            has_unblur = models.control.find(ControlMode.blur, allow_universal=True) is not None
         self.unblur_combo.setEnabled(has_unblur)
         if not has_unblur:
             self.unblur_combo.setToolTip("The tile/unblur control model is not intalled.")

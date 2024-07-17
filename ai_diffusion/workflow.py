@@ -340,7 +340,7 @@ def apply_control(
             image = w.invert_image(image)
         if model := models.find(control.mode):
             controlnet = w.load_controlnet(model)
-        elif model := models.find(ControlMode.union):
+        elif model := models.find(ControlMode.universal):
             controlnet = w.load_controlnet(model)
             controlnet = w.set_controlnet_type(controlnet, control.mode)
         else:
