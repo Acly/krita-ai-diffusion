@@ -143,6 +143,7 @@ class ControlMode(Enum):
     composition = 15
     face = 13
     inpaint = 1
+    union = 16
     scribble = 2
     line_art = 3
     soft_edge = 4
@@ -170,6 +171,7 @@ class ControlMode(Enum):
             ControlMode.inpaint,
             ControlMode.blur,
             ControlMode.stencil,
+            ControlMode.union,
         ]
 
     @property
@@ -184,6 +186,10 @@ class ControlMode(Enum):
             ControlMode.style,
             ControlMode.composition,
         ]
+
+    @property
+    def is_internal(self):  # don't show in control layer mode dropdown
+        return self in [ControlMode.inpaint, ControlMode.union]
 
     @property
     def is_part_of_image(self):  # not only used as guidance hint
@@ -744,6 +750,7 @@ _control_text = {
     ControlMode.style: "Style",
     ControlMode.composition: "Composition",
     ControlMode.face: "Face",
+    ControlMode.union: "Auto",
     ControlMode.scribble: "Scribble",
     ControlMode.line_art: "Line Art",
     ControlMode.soft_edge: "Soft Edge",
@@ -787,6 +794,7 @@ search_paths: dict[str, list[str]] = {
     resource_id(ResourceKind.clip, SDVersion.sd3, "clip_l") : ["clip_l"],
     resource_id(ResourceKind.clip, SDVersion.sd3, "clip_g") : ["clip_g"],
     resource_id(ResourceKind.controlnet, SDVersion.sd15, ControlMode.inpaint):  ["control_v11p_sd15_inpaint"],
+    resource_id(ResourceKind.controlnet, SDVersion.sdxl, ControlMode.union):  ["union-sdxl", "xinsirunion"],
     resource_id(ResourceKind.controlnet, SDVersion.sd15, ControlMode.scribble): ["control_v11p_sd15_scribble", "control_lora_rank128_v11p_sd15_scribble"],
     resource_id(ResourceKind.controlnet, SDVersion.sdxl, ControlMode.scribble): ["xinsirscribble", "scribble-sdxl", "mistoline", "control-lora-sketch-rank", "sai_xl_sketch_"],
     resource_id(ResourceKind.controlnet, SDVersion.sd15, ControlMode.line_art): ["control_v11p_sd15_lineart", "control_lora_rank128_v11p_sd15_lineart"],

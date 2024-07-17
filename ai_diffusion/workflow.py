@@ -338,7 +338,13 @@ def apply_control(
             image = w.inpaint_preprocessor(image, control.mask.load(w))
         if control.mode.is_lines:  # ControlNet expects white lines on black background
             image = w.invert_image(image)
-        controlnet = w.load_controlnet(models[control.mode])
+        if model := models.find(control.mode):
+            controlnet = w.load_controlnet(model)
+        elif model := models.find(ControlMode.union):
+            controlnet = w.load_controlnet(model)
+            controlnet = w.set_controlnet_type(controlnet, control.mode)
+        else:
+            raise Exception(f"ControlNet model not found for mode {control.mode}")
         positive, negative = w.apply_controlnet(
             positive,
             negative,

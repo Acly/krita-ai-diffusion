@@ -121,15 +121,17 @@ class ControlLayer(QObject, ObservableProperties):
                 if not client.supports_ip_adapter:
                     self.error_text = f"IP-Adapter is not supported by this GPU"
                 is_supported = False
-            elif self.mode.is_control_net and models.control.find(self.mode) is None:
-                search_path = resources.search_path(
-                    ResourceKind.controlnet, models.version, self.mode
-                )
-                if search_path:
-                    self.error_text = f"The ControlNet model is not installed {search_path}"
-                else:
-                    self.error_text = f"Not supported for {models.version.value}"
-                is_supported = False
+            elif self.mode.is_control_net:
+                cns = models.control
+                if cns.find(self.mode) is None and cns.find(ControlMode.union) is None:
+                    search_path = resources.search_path(
+                        ResourceKind.controlnet, models.version, self.mode
+                    )
+                    if search_path:
+                        self.error_text = f"The ControlNet model is not installed {search_path}"
+                    else:
+                        self.error_text = f"Not supported for {models.version.value}"
+                    is_supported = False
 
         self.is_supported = is_supported
         self.can_generate = is_supported and self.mode.has_preprocessor

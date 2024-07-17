@@ -3,11 +3,10 @@ from enum import Enum
 from pathlib import Path
 from typing import NamedTuple, Tuple, Literal, overload, Any
 from uuid import uuid4
-import math
 import json
 
 from .image import Bounds, Extent, Image
-from .resources import SDVersion
+from .resources import SDVersion, ControlMode
 
 
 class ComfyRunMode(Enum):
@@ -410,6 +409,26 @@ class ComfyWorkflow:
             start_percent=range[0],
             end_percent=range[1],
         )
+
+    def set_controlnet_type(self, controlnet: Output, mode: ControlMode):
+        match mode:
+            case ControlMode.pose:
+                type = "openpose"
+            case ControlMode.depth | ControlMode.hands:
+                type = "depth"
+            case ControlMode.scribble | ControlMode.soft_edge:
+                type = "hed/pidi/scribble/ted"
+            case ControlMode.line_art | ControlMode.canny_edge:
+                type = "canny/lineart/anime_lineart/mlsd"
+            case ControlMode.normal:
+                type = "normal"
+            case ControlMode.segmentation:
+                type = "segment"
+            case ControlMode.blur:
+                type = "tile"
+            case _:
+                type = "auto"
+        return self.add("SetUnionControlNetType", 1, control_net=controlnet, type=type)
 
     def encode_ip_adapter(
         self, image: Output, weight: float, ip_adapter: Output, clip_vision: Output

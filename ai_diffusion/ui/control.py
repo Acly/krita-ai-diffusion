@@ -32,7 +32,7 @@ class ControlWidget(QWidget):
 
         self.mode_select = QComboBox(self)
         self.mode_select.setStyleSheet(theme.flat_combo_stylesheet)
-        for mode in (m for m in ControlMode if m is not ControlMode.inpaint):
+        for mode in (m for m in ControlMode if not m.is_internal):
             icon = theme.icon(f"control-{mode.name}")
             self.mode_select.addItem(icon, mode.text, mode)
 
