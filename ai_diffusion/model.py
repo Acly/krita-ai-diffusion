@@ -221,7 +221,7 @@ class Model(QObject, ObservableProperties):
         else:
             conditioning, job_regions = ConditioningInput("4k uhd"), []
         models = client.models.for_checkpoint(self.style.sd_checkpoint)
-        has_unblur = models.control.find(ControlMode.blur) is not None
+        has_unblur = models.control.find(ControlMode.blur, allow_union=True) is not None
         if has_unblur and params.unblur_strength > 0.0:
             control = ControlInput(ControlMode.blur, None, params.unblur_strength)
             conditioning.control.append(control)
