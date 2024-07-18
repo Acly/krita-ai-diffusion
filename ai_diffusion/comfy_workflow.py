@@ -261,7 +261,7 @@ class ComfyWorkflow:
         )
 
     def random_noise(self, noise_seed=-1):
-        return self.add(
+        return self.add_cached(
             "RandomNoise",
             output_count=1,
             noise_seed=noise_seed,
@@ -269,13 +269,13 @@ class ComfyWorkflow:
 
     def sampler_select(self, sampler_name="dpmpp_2m_sde_gpu"):
         if sampler_name == "euler_cfgpp":
-            return self.add(
+            return self.add_cached(
                 "SamplerEulerCFGpp",
                 output_count=1,
                 version="regular",
             )
         else:
-            return self.add(
+            return self.add_cached(
                 "KSamplerSelect",
                 output_count=1,
                 sampler_name=sampler_name,
