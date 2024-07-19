@@ -9,6 +9,7 @@ from ..resources import ControlMode
 from ..properties import Binding, bind, bind_combo, bind_toggle
 from ..control import ControlLayer, ControlLayerList
 from ..root import root
+from ..localization import translate as _
 from .interval_slider import IntervalSlider
 from .theme import SignalBlocker
 from . import theme
@@ -53,7 +54,7 @@ class ControlWidget(QWidget):
         self.preset_slider.setPageStep(2)
         self.preset_slider.setTickInterval(2)
         self.preset_slider.setTickPosition(QSlider.TickPosition.TicksBothSides)
-        self.preset_slider.setToolTip("Control strength: how much the layer affects the image")
+        self.preset_slider.setToolTip(_("Control strength: how much the layer affects the image"))
 
         self.error_text = QLabel(self)
         self.error_text.setStyleSheet(f"color: {theme.red};")
@@ -73,7 +74,7 @@ class ControlWidget(QWidget):
         self.expand_button = QToolButton(self)
         self.expand_button.setToolButtonStyle(Qt.ToolButtonStyle.ToolButtonIconOnly)
         self.expand_button.setIcon(theme.icon("more"))
-        self.expand_button.setToolTip("Show/hide advanced settings")
+        self.expand_button.setToolTip(_("Show/hide advanced settings"))
         self.expand_button.setAutoRaise(True)
         self.expand_button.setCheckable(True)
         self.expand_button.setChecked(False)
@@ -82,7 +83,7 @@ class ControlWidget(QWidget):
         self.remove_button = QToolButton(self)
         self.remove_button.setToolButtonStyle(Qt.ToolButtonStyle.ToolButtonIconOnly)
         self.remove_button.setIcon(theme.icon("remove"))
-        self.remove_button.setToolTip("Remove control layer")
+        self.remove_button.setToolTip(_("Remove control layer"))
         self.remove_button.setAutoRaise(True)
         self.remove_button.clicked.connect(self.remove)
 
@@ -126,7 +127,7 @@ class ControlWidget(QWidget):
         self.add_pose_button.clicked.connect(self._add_pose_character)
 
         self.custom_checkbox = QCheckBox(self.extended_widget)
-        self.custom_checkbox.setText("Use custom values")
+        self.custom_checkbox.setText(_("Use custom values"))
         self.custom_checkbox.setChecked(control.use_custom_strength)
 
         actions_layout = QHBoxLayout()
@@ -152,10 +153,10 @@ class ControlWidget(QWidget):
 
         slider_layout = QGridLayout()
         slider_layout.setSpacing(8)
-        slider_layout.addWidget(QLabel("Strength:"), 0, 0)
+        slider_layout.addWidget(QLabel(_("Strength") + ":"), 0, 0)
         slider_layout.addWidget(self.strength_slider, 0, 2)
         slider_layout.addWidget(self.strength_label, 0, 3)
-        slider_layout.addWidget(QLabel("Range:"), 1, 0)
+        slider_layout.addWidget(QLabel(_("Range") + ":"), 1, 0)
         slider_layout.addWidget(self.range_start_label, 1, 1)
         slider_layout.addWidget(self.range_slider, 1, 2)
         slider_layout.addWidget(self.range_end_label, 1, 3)
@@ -265,9 +266,9 @@ class ControlWidget(QWidget):
         for button in (self.add_pose_button, self.add_pose_tool_button):
             button.setEnabled(self._control.is_pose_vector)
             button.setToolTip(
-                "Add new character pose to selected layer"
+                _("Add new character pose to selected layer")
                 if self._control.is_pose_vector
-                else "Disabled: selected layer must be a vector layer to add a pose"
+                else _("Disabled: selected layer must be a vector layer to add a pose")
             )
 
     def _toggle_extended(self):
@@ -277,22 +278,24 @@ class ControlWidget(QWidget):
         parts = error.split("[", 2)
         self.error_text.setText(parts[0])
         if len(parts) > 1:
-            self.error_text.setToolTip(f"Missing one of the following models: {parts[1][:-1]}")
+            self.error_text.setToolTip(
+                _("Missing one of the following models") + f": {parts[1][:-1]}"
+            )
 
 
 def _create_generate_button(parent, style: Qt.ToolButtonStyle):
     button = QToolButton(parent)
     button.setToolButtonStyle(style)
-    button.setText("From Image")
+    button.setText(_("From Image"))
     button.setIcon(theme.icon("control-generate"))
-    button.setToolTip("Generate control layer from current image")
+    button.setToolTip(_("Generate control layer from current image"))
     return button
 
 
 def _create_add_pose_button(parent, style: Qt.ToolButtonStyle):
     button = QToolButton(parent)
     button.setToolButtonStyle(style)
-    button.setText("Add Skeleton")
+    button.setText(_("Add Skeleton"))
     button.setIcon(theme.icon("add-pose"))
     return button
 

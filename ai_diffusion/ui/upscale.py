@@ -15,6 +15,7 @@ from ..properties import Binding, Bind, bind, bind_combo, bind_toggle
 from ..resources import ControlMode, UpscalerName
 from ..model import Model
 from ..jobs import JobKind
+from ..localization import translate as _
 from ..root import root
 from .theme import SignalBlocker, set_text_clipped
 from .widget import WorkspaceSelectWidget, StyleSelectWidget, StrengthWidget, QueueButton
@@ -57,7 +58,7 @@ class UpscaleWidget(QWidget):
         self.factor_input.setMinimum(1.0)
         self.factor_input.setMaximum(4.0)
         self.factor_input.setSingleStep(0.5)
-        self.factor_input.setPrefix("Scale: ")
+        self.factor_input.setPrefix(_("Scale") + ": ")
         self.factor_input.setSuffix("x")
         self.factor_input.setDecimals(2)
         self.factor_input.valueChanged.connect(self.change_factor)
@@ -67,33 +68,33 @@ class UpscaleWidget(QWidget):
         factor_layout.addWidget(self.factor_input)
         layout.addLayout(factor_layout)
 
-        self.target_label = QLabel("Target size:", self)
+        self.target_label = QLabel(_("Target size") + ":", self)
         layout.addWidget(self.target_label, alignment=Qt.AlignmentFlag.AlignRight)
         layout.addSpacing(6)
 
-        self.refinement_checkbox = QGroupBox("Refine upscaled image", self)
+        self.refinement_checkbox = QGroupBox(_("Refine upscaled image"), self)
         self.refinement_checkbox.setCheckable(True)
 
         self.style_select = StyleSelectWidget(self)
         self.strength_slider = StrengthWidget(slider_range=(20, 50), parent=self)
 
         self.unblur_combo = QComboBox(self)
-        self.unblur_combo.addItem("Off", 0)
-        self.unblur_combo.addItem("Unblur - Medium", 1)
-        self.unblur_combo.addItem("Unblur - Strong", 2)
+        self.unblur_combo.addItem(_("Off"), 0)
+        self.unblur_combo.addItem(_("Unblur - Medium"), 1)
+        self.unblur_combo.addItem(_("Unblur - Strong"), 2)
         unblur_layout = QHBoxLayout()
-        unblur_layout.addWidget(QLabel("Image guidance", self), 2)
+        unblur_layout.addWidget(QLabel(_("Image guidance"), self), 2)
         unblur_layout.addWidget(self.unblur_combo, 1)
         root.connection.models_changed.connect(self._update_unblur_enabled)
 
         self.use_prompt_switch = SwitchWidget(self)
         self.use_prompt_switch.toggled.connect(self._update_prompt)
-        self.use_prompt_value = QLabel("Off", self)
+        self.use_prompt_value = QLabel(_("Off"), self)
         self.prompt_warning = WarningIcon(self)
         self.prompt_label = QLabel(self)
         self.prompt_label.setEnabled(False)
         prompt_layout = QHBoxLayout()
-        prompt_layout.addWidget(QLabel("Use Prompt", self))
+        prompt_layout.addWidget(QLabel(_("Use Prompt"), self))
         prompt_layout.addWidget(self.prompt_label, 1)
         prompt_layout.addWidget(self.prompt_warning)
         prompt_layout.addWidget(self.use_prompt_value)
@@ -109,7 +110,7 @@ class UpscaleWidget(QWidget):
         self.factor_input.setMinimumWidth(self.strength_slider._input.width() + 10)
 
         self.upscale_button = GenerateButton(JobKind.upscaling, self)
-        self.upscale_button.operation = "Upscale"
+        self.upscale_button.operation = _("Upscale")
         self.upscale_button.clicked.connect(self.upscale)
 
         self.queue_button = QueueButton(supports_batch=False, parent=self)
@@ -218,7 +219,7 @@ class UpscaleWidget(QWidget):
 
     def update_target_extent(self):
         e = self.model.upscale.target_extent
-        self.target_label.setText(f"Target size: {e.width} x {e.height}")
+        self.target_label.setText(_("Target size") + f": {e.width} x {e.height}")
 
     def _update_unblur_enabled(self):
         has_unblur = False
@@ -227,24 +228,24 @@ class UpscaleWidget(QWidget):
             has_unblur = models.control.find(ControlMode.blur, allow_universal=True) is not None
         self.unblur_combo.setEnabled(has_unblur)
         if not has_unblur:
-            self.unblur_combo.setToolTip("The tile/unblur control model is not intalled.")
+            self.unblur_combo.setToolTip(_("The tile/unblur control model is not intalled."))
         else:
             self.unblur_combo.setToolTip(
-                "When enabled, the low resolution image is used as guidance for refining "
-                "the upscaled image.\nThis produces results which are closer to the original "
-                "while enhancing local details."
+                _(
+                    "When enabled, the low resolution image is used as guidance for refining the upscaled image.\nThis produces results which are closer to the original while enhancing local details."
+                )
             )
 
     def _update_prompt(self):
-        self.use_prompt_value.setText("On" if self.model.upscale.use_prompt else "Off")
+        self.use_prompt_value.setText(_("On") if self.model.upscale.use_prompt else _("Off"))
         text = self.model.regions.positive
         if len(self.model.regions) > 0:
-            text = f"<b>{len(self.model.regions)} Regions</b> | {text}"
+            text = f"<b>{len(self.model.regions)} " + _("Regions") + f"</b> | {text}"
         if self.model.upscale.use_prompt and len(self.model.regions) == 0:
             self.prompt_warning.show_message(
-                "Text prompt regions have not been set up.\n"
-                "It is not recommended to use a single text description for tiled upscale,\n"
-                "unless it can be generally applied to all parts of the image."
+                _(
+                    "Text prompt regions have not been set up.\nIt is not recommended to use a single text description for tiled upscale,\nunless it can be generally applied to all parts of the image."
+                )
             )
         else:
             self.prompt_warning.hide()

@@ -13,6 +13,7 @@ from .settings import settings, ServerBackend
 from . import resources
 from .resources import CustomNode, ModelResource, ModelRequirements, SDVersion
 from .network import download, DownloadProgress
+from .localization import translate as _
 from .util import ZipFile, is_windows, create_process
 from .util import client_logger as log, server_logger as server_log
 
@@ -244,8 +245,9 @@ class Server:
         )
         if not is_windows and self._python_cmd is None:
             raise Exception(
-                "Python not found. Please install python3, python3-venv via your package manager"
-                " and restart."
+                _(
+                    "Python not found. Please install python3, python3-venv via your package manager and restart."
+                )
             )
 
         def cb(stage: str, message: str | DownloadProgress):
@@ -326,8 +328,10 @@ class Server:
         info(f"Backing up {comfy_dir} to {upgrade_comfy_dir}")
         if upgrade_comfy_dir.exists():
             raise Exception(
-                f"Backup folder {upgrade_comfy_dir} already exists! Please make sure it does not"
-                " contain any valuable data, delete it and try again."
+                _(
+                    "Backup folder {dir} already exists! Please make sure it does not contain any valuable data, delete it and try again.",
+                    dir=upgrade_comfy_dir,
+                )
             )
         upgrade_comfy_dir.parent.mkdir(exist_ok=True)
         shutil.move(comfy_dir, upgrade_comfy_dir)
@@ -357,7 +361,10 @@ class Server:
         except Exception as e:
             log.error(f"Error during upgrade: {str(e)}")
             raise Exception(
-                f"Error during model migration: {str(e)}\nSome models remain in {upgrade_comfy_dir}"
+                _("Error during model migration")
+                + f": {str(e)}\n"
+                + _("Some models remain in")
+                + f" {upgrade_comfy_dir}"
             )
 
     async def start(self, port: int | None = None):
@@ -416,7 +423,7 @@ class Server:
             ret = self._process.returncode
             self._process = None
             error_msg = _parse_common_errors(error, ret)
-            raise Exception(f"Error during server startup: {error_msg}")
+            raise Exception(_("Error during server startup") + f": {error_msg}")
 
         self._task = asyncio.create_task(self.run())
         assert self.url is not None
@@ -545,7 +552,7 @@ async def _execute_process(name: str, cmd: list, cwd: Path, cb: InternalCB):
     if process.returncode != 0:
         if errlog == "":
             errlog = f"Process exited with code {process.returncode}"
-        raise Exception(f"Error during installation: {errlog}")
+        raise Exception(_("Error during installation") + f": {errlog}")
 
 
 async def try_install(path: Path, installer, *args):
@@ -635,17 +642,16 @@ def _parse_common_errors(output: str, return_code: int | None):
     if "error while attempting to bind on address" in output:
         message_part = output.split("bind on address")[-1].strip()
         return (
-            f"Could not bind on address {message_part}. "
+            _("Could not bind on address")
+            + f" {message_part}. "
             + "<a href='https://github.com/Acly/krita-ai-diffusion/wiki/Common-Issues#error-during-server-startup-could-not-bind-on-address-only-one-usage-of-each-socket-address-is-normally-permitted'>More information...</a>"
         )
 
-    nvidia_driver = "Found no NVIDIA driver on your system"
+    nvidia_driver = _("Found no NVIDIA driver on your system")
     if nvidia_driver in output:
         message_part = output.split(nvidia_driver)[-1]
-        return (
-            nvidia_driver
-            + message_part
-            + "<br>If you do not have an NVIDIA GPU, select a different backend below. Server reinstall may be required."
+        return f"{nvidia_driver} {message_part}<br>" + _(
+            "If you do not have an NVIDIA GPU, select a different backend below. Server reinstall may be required."
         )
 
     return f"{output} [{return_code}]"

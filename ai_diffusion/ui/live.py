@@ -14,6 +14,7 @@ from PyQt5.QtWidgets import (
 from ..properties import Binding, bind, Bind
 from ..image import Extent, Image
 from ..model import Model
+from ..localization import translate as _
 from ..root import root
 from .control import ControlListWidget
 from .region import ActiveRegionWidget, PromptHeader
@@ -47,7 +48,7 @@ class LiveWidget(QWidget):
         self.active_button.setToolButtonStyle(Qt.ToolButtonStyle.ToolButtonIconOnly)
         self.active_button.setIcon(self._play_icon)
         self.active_button.setAutoRaise(True)
-        self.active_button.setToolTip("Start/stop live preview")
+        self.active_button.setToolTip(_("Start/stop live preview"))
         self.active_button.clicked.connect(self.toggle_active)
 
         self.record_button = QToolButton(self)
@@ -55,7 +56,7 @@ class LiveWidget(QWidget):
         self.record_button.setIcon(self._record_icon)
         self.record_button.setAutoRaise(True)
         self.record_button.setToolTip(
-            "Start live generation and insert images as keyframes into an animation"
+            _("Start live generation and insert images as keyframes into an animation")
         )
         self.record_button.clicked.connect(self.toggle_record)
 
@@ -64,7 +65,7 @@ class LiveWidget(QWidget):
         self.apply_button.setIcon(theme.icon("apply"))
         self.apply_button.setAutoRaise(True)
         self.apply_button.setEnabled(False)
-        self.apply_button.setToolTip("Copy the current result to the active layer")
+        self.apply_button.setToolTip(_("Copy the current result to the active layer"))
         self.apply_button.clicked.connect(self.apply_result)
 
         self.apply_layer_button = QToolButton(self)
@@ -72,7 +73,7 @@ class LiveWidget(QWidget):
         self.apply_layer_button.setIcon(theme.icon("apply-layer"))
         self.apply_layer_button.setAutoRaise(True)
         self.apply_layer_button.setEnabled(False)
-        self.apply_layer_button.setToolTip("Create a new layer with the current result")
+        self.apply_layer_button.setToolTip(_("Create a new layer with the current result"))
         self.apply_layer_button.clicked.connect(self.apply_result_layer)
 
         self.style_select = StyleSelectWidget(self)
@@ -91,10 +92,11 @@ class LiveWidget(QWidget):
         self.seed_input = QSpinBox(self)
         self.seed_input.setMinimum(0)
         self.seed_input.setMaximum(2**31 - 1)
-        self.seed_input.setPrefix("Seed: ")
+        self.seed_input.setPrefix(_("Seed") + ": ")
         self.seed_input.setToolTip(
-            "The seed controls the random part of the output. The same seed value will always"
-            " produce the same result."
+            _(
+                "The seed controls the random part of the output. The same seed value will always produce the same result."
+            )
         )
 
         self.random_seed_button = QToolButton(self)
@@ -102,7 +104,7 @@ class LiveWidget(QWidget):
         self.random_seed_button.setIcon(theme.icon("random"))
         self.random_seed_button.setAutoRaise(True)
         self.random_seed_button.setToolTip(
-            "Generate a random seed value to get a variation of the image."
+            _("Generate a random seed value to get a variation of the image.")
         )
 
         params_layout = QHBoxLayout()
@@ -112,8 +114,10 @@ class LiveWidget(QWidget):
         layout.addLayout(params_layout)
 
         self.control_list = ControlListWidget(self)
-        self.add_control_button = create_wide_tool_button("control-add", "Add Control Layer", self)
-        self.add_region_button = create_wide_tool_button("region-add", "Add Region", self)
+        self.add_control_button = create_wide_tool_button(
+            "control-add", _("Add Control Layer"), self
+        )
+        self.add_region_button = create_wide_tool_button("region-add", _("Add Region"), self)
         prompt_buttons_layout = QVBoxLayout()
         prompt_buttons_layout.setSpacing(2)
         prompt_buttons_layout.addWidget(self.add_region_button)

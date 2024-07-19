@@ -15,6 +15,7 @@ from .image import Extent, ImageCollection
 from .network import RequestManager, NetworkError
 from .resources import SDVersion
 from .settings import PerformanceSettings, settings
+from .localization import translate as _
 from .util import clamp, ensure, client_logger as log
 from . import __version__ as plugin_version
 
@@ -74,7 +75,7 @@ class CloudClient(Client):
         time = datetime.now()
         while auth_confirm["status"] == "not-found":
             if (datetime.now() - time).seconds > 300:
-                raise TimeoutError("Sign-in attempt timed out after 5 minutes")
+                raise TimeoutError(_("Sign-in attempt timed out after 5 minutes"))
             await asyncio.sleep(2)
             auth_confirm = await self._post("auth/confirm", dict(client_id=client_id))
 
@@ -84,7 +85,7 @@ class CloudClient(Client):
             yield self._token
         else:
             error = auth_confirm.get("status", "unexpected response")
-            raise RuntimeError(f"Authorization could not be confirmed: {error}")
+            raise RuntimeError(_("Authorization could not be confirmed: ") + error)
 
     async def authenticate(self, token: str):
         if not token:
@@ -96,7 +97,7 @@ class CloudClient(Client):
             log.error(f"Couldn't authenticate user account: {e.message}")
             self._token = ""
             if e.status == 401:
-                e.message = "The login data is incorrect, please sign in again."
+                e.message = _("The login data is incorrect, please sign in again.")
             raise e
         self._user = User(user_data["id"], user_data["name"])
         self._user.images_generated = user_data["images_generated"]
@@ -238,9 +239,10 @@ class CloudClient(Client):
         if e.status == 402 and e.data and self.user:  # 402 Payment Required
             try:
                 self.user.credits = e.data["credits"]
-                message = (
-                    f"Insufficient funds - generation would cost {e.data['cost']} tokens. "
-                    f"Remaining tokens: {self.user.credits}"
+                message = _(
+                    "Insufficient funds - generation would cost {cost} tokens. Remaining tokens: {tokens}",
+                    cost=e.data["cost"],
+                    tokens=self.user.credits,
                 )
             except:
                 log.warning(f"Could not parse 402 error: {e.data}")

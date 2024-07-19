@@ -11,6 +11,7 @@ from .network import NetworkError
 from .settings import Settings, ServerMode, PerformancePreset, settings
 from .properties import Property, ObservableProperties
 from .resources import MissingResource
+from .localization import translate as _
 from . import util, eventloop
 
 
@@ -91,7 +92,7 @@ class Connection(QObject, ObservableProperties):
             self.models_changed.emit()
         except MissingResource as e:
             self.error = (
-                f"Connection established, but the server is missing one or more {e.kind.value}s."
+                _("Connection established, but the server is missing one or more ") + e.kind.value
             )
             self.missing_resource = e
             self.state = ConnectionState.error
@@ -159,10 +160,10 @@ class Connection(QObject, ObservableProperties):
             async for msg in client.listen():
                 try:
                     if msg.event is ClientEvent.error and not msg.job_id:
-                        self.error = f"Error communicating with server: {msg.error}"
+                        self.error = _("Error communicating with server: ") + str(msg.error)
                     elif msg.event is ClientEvent.disconnected:
                         temporary_disconnect = True
-                        self.error = "Disconnected from server, trying to reconnect..."
+                        self.error = _("Disconnected from server, trying to reconnect...")
                     elif msg.event is ClientEvent.connected:
                         if temporary_disconnect:
                             temporary_disconnect = False
@@ -173,7 +174,7 @@ class Connection(QObject, ObservableProperties):
                     break
                 except Exception as e:
                     util.client_logger.exception(e)
-                    self.error = f"Error handling server message: {str(e)}"
+                    self.error = _("Error handling server message: ") + str(e)
         except asyncio.CancelledError:
             pass  # shutdown
 

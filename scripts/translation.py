@@ -1,0 +1,41 @@
+import argparse
+import regex as re
+import json
+from pathlib import Path
+
+source_dir = Path(__file__).parent.parent / "ai_diffusion"
+excluded_dirs = [".pytest_cache", "__pycache__", "icons", "websockets"]
+expression = re.compile(r'_\(\s*"(.+?)"\s*\)')
+
+
+def extract_source_strings(filepath: Path):
+    text = filepath.read_text(encoding="utf-8")
+    return set(expression.findall(text))
+
+
+def parse_source(dir: Path):
+    result = set()
+    for file in dir.iterdir():
+        if file.is_dir() and not file.name in excluded_dirs:
+            result |= parse_source(file)
+        elif file.suffix == ".py":
+            result |= extract_source_strings(file)
+    return result
+
+
+def write_language_file(strings: set[str], id: str, name: str, target_file: Path):
+    defs = {"id": id, "name": name, "translations": {s: None for s in sorted(strings)}}
+    with target_file.open("w", encoding="utf-8") as f:
+        json.dump(defs, f, ensure_ascii=False, indent=2)
+
+
+if __name__ == "__main__":
+    cmd = argparse.ArgumentParser()
+    cmd.add_argument("lang", type=str, help="Language identifier (en, es, de, ...)")
+    cmd.add_argument("--name", "-n", type=str, help="Language name for the UI")
+    cmd.add_argument("--outdir", "-o", type=str, default=source_dir / "language")
+
+    args = cmd.parse_args()
+    strings = parse_source(source_dir)
+    outfile = Path(args.outdir) / f"{args.lang}.json"
+    write_language_file(strings, args.lang, args.name, outfile)

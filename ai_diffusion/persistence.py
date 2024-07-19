@@ -16,6 +16,7 @@ from .jobs import Job, JobKind, JobParams, JobQueue
 from .style import Style, Styles
 from .properties import serialize, deserialize
 from .settings import settings
+from .localization import translate as _
 from .util import client_logger as log
 
 # Version of the persistence format, increment when there are breaking changes
@@ -114,7 +115,7 @@ class ModelSync:
             try:
                 self._load(model, state_bytes.data())
             except Exception as e:
-                msg = f"Failed to load state from {model.document.filename}: {e}"
+                msg = _("Failed to load state from") + f" {model.document.filename}: {e}"
                 log.exception(msg)
                 QMessageBox.warning(None, "AI Diffusion Plugin", msg)
         self._track(model)

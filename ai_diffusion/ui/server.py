@@ -2,7 +2,6 @@ from __future__ import annotations
 from enum import Enum
 from pathlib import Path
 from typing import Optional
-from itertools import accumulate
 from PyQt5.QtCore import Qt, QUrl, pyqtSignal
 from PyQt5.QtGui import QDesktopServices
 from PyQt5.QtWidgets import (
@@ -29,6 +28,7 @@ from ..resources import ModelResource, CustomNode
 from ..server import Server, ServerBackend, ServerState
 from ..connection import ConnectionState
 from ..root import root
+from ..localization import translate as _
 from .. import eventloop, resources, server, util
 from .theme import add_header, set_text_clipped, green, grey, red, yellow, highlight
 
@@ -117,7 +117,7 @@ class PackageGroupWidget(QWidget):
         item.label = QLabel(self._package_name(package), self)
         item.label.setContentsMargins(20, 0, 0, 0)
         if self.is_checkable:
-            item.status = QCheckBox("Install", self)
+            item.status = QCheckBox(_("Install"), self)
             item.status.setChecked(initial in [PackageState.selected, PackageState.installed])
             item.status.toggled.connect(self._handle_checkbox_toggle)
         else:
@@ -143,18 +143,18 @@ class PackageGroupWidget(QWidget):
     def _update(self):
         for item in self._items:
             if item.state is PackageState.installed:
-                item.status.setText("Installed")
+                item.status.setText(_("Installed"))
                 item.status.setStyleSheet(f"color:{green}")
             elif item.state is PackageState.available:
-                item.status.setText("Not installed")
+                item.status.setText(_("Not installed"))
                 item.status.setStyleSheet("")
             if self.is_checkable:
                 self._update_workload(item)
                 if item.state is PackageState.selected:
-                    item.status.setText("Not installed")
+                    item.status.setText(_("Not installed"))
                     item.status.setStyleSheet("")
                 elif item.state is PackageState.disabled:
-                    item.status.setText("Workload not selected")
+                    item.status.setText(_("Workload not selected"))
                     item.status.setStyleSheet(f"color:{grey}")
                 item.status.setChecked(
                     item.state in [PackageState.selected, PackageState.installed]
@@ -203,18 +203,20 @@ class PackageGroupWidget(QWidget):
     def _update_status(self):
         available = sum(item.state is PackageState.available for item in self._items)
         if all(item.state is PackageState.installed for item in self._items):
-            self._status.setText("All installed")
+            self._status.setText(_("All installed"))
             self._status.setStyleSheet(f"color:{green}")
         elif self.is_checkable:
             selected = sum(item.state is PackageState.selected for item in self._items)
             if selected > 0:
-                self._status.setText(f"{selected} of {selected + available} packages selected")
+                self._status.setText(
+                    f"{selected} of {selected + available} " + _("packages selected")
+                )
                 self._status.setStyleSheet(f"color:{yellow}")
             else:
-                self._status.setText(f"{available} packages available")
+                self._status.setText(f"{available} " + _("packages available"))
                 self._status.setStyleSheet(f"color:{grey}")
         else:
-            self._status.setText(f"{available} packages require installation")
+            self._status.setText(f"{available} " + _("packages require installation"))
             self._status.setStyleSheet(f"color:{yellow}")
 
     def _handle_checkbox_toggle(self):
@@ -279,7 +281,8 @@ class ServerWidget(QWidget):
         self._launch_button.setMinimumHeight(35)
         self._launch_button.clicked.connect(self._launch)
 
-        open_log_button = QLabel(f"<a href='file://{util.log_dir}'>View log files</a>", self)
+        anchor = _("View log files")
+        open_log_button = QLabel(f"<a href='file://{util.log_dir}'>{anchor}</a>", self)
         open_log_button.setToolTip(str(util.log_dir))
         open_log_button.linkActivated.connect(self._open_logs)
 
@@ -312,20 +315,21 @@ class ServerWidget(QWidget):
         layout.addWidget(scroll, 1)
 
         self._required_group = PackageGroupWidget(
-            "Core components",
-            ["Python", "ComfyUI", "Custom nodes", "Required models"],
+            _("Core components"),
+            ["Python", "ComfyUI", _("Custom nodes"), _("Required models")],
             is_expanded=False,
             parent=self,
         )
         package_layout.addWidget(self._required_group)
 
         self._workload_group = PackageGroupWidget(
-            "Workloads",
-            ["Stable Diffusion 1.5", "Stable Diffusion XL"],
+            _("Workloads"),
+            [_("Stable Diffusion 1.5"), _("Stable Diffusion XL")],
             description=(
-                "Choose one or both Stable Diffusion versions to work with. <a"
-                " href='https://github.com/Acly/krita-ai-diffusion/wiki/Stable-Diffusion-Versions'>Read"
-                " more about workloads.</a>"
+                _("Choose one or both Stable Diffusion versions to work with.")
+                + " <a href='https://github.com/Acly/krita-ai-diffusion/wiki/Stable-Diffusion-Versions'>"
+                + _("Read more about workloads.")
+                + "</a>"
             ),
             is_checkable=True,
             parent=self,
@@ -335,30 +339,31 @@ class ServerWidget(QWidget):
 
         self._packages = {
             "checkpoints": PackageGroupWidget(
-                "Recommended checkpoints",
+                _("Recommended checkpoints"),
                 resources.default_checkpoints,
                 description=(
-                    "At least one Stable Diffusion checkpoint is required. Below are some popular"
-                    " choices, more can be found online."
+                    _(
+                        "At least one Stable Diffusion checkpoint is required. Below are some popular choices, more can be found online."
+                    )
                 ),
                 is_checkable=True,
                 initial=PackageState.available if self._server.has_comfy else PackageState.selected,
                 parent=self,
             ),
             "upscalers": PackageGroupWidget(
-                "Upscalers (super-resolution)",
+                _("Upscalers (super-resolution)"),
                 resources.upscale_models,
                 is_checkable=True,
                 parent=self,
             ),
             "control_sd15": PackageGroupWidget(
-                "Control extensions for SD 1.5",
+                _("Control extensions for SD 1.5"),
                 [m for m in resources.optional_models if m.sd_version is SDVersion.sd15],
                 is_checkable=True,
                 parent=self,
             ),
             "control_sdxl": PackageGroupWidget(
-                "Control extensions for SD XL",
+                _("Control extensions for SD XL"),
                 [m for m in resources.optional_models if m.sd_version is SDVersion.sdxl],
                 is_checkable=True,
                 parent=self,
@@ -391,7 +396,7 @@ class ServerWidget(QWidget):
             path = Path(Settings._server_path.default)
             path.mkdir(parents=True, exist_ok=True)
         path = QFileDialog.getExistingDirectory(
-            self, "Select Directory", str(path), QFileDialog.ShowDirsOnly
+            self, _("Select Directory"), str(path), QFileDialog.ShowDirsOnly
         )
         if path:
             path = Path(path)
@@ -426,12 +431,12 @@ class ServerWidget(QWidget):
 
     async def _start(self):
         self._launch_button.setEnabled(False)
-        self._status_label.setText("Starting server...")
+        self._status_label.setText(_("Starting server..."))
         self._status_label.setStyleSheet("color:orange;font-weight:bold")
         try:
             url = await self._server.start()
             self.update_ui()
-            self._status_label.setText("Server running - Connecting...")
+            self._status_label.setText(_("Server running - Connecting..."))
             self._status_label.setStyleSheet(f"color:{yellow};font-weight:bold")
             await root.connection._connect(url, ServerMode.managed)
         except Exception as e:
@@ -440,7 +445,7 @@ class ServerWidget(QWidget):
 
     async def _stop(self):
         self._launch_button.setEnabled(False)
-        self._status_label.setText("Stopping server...")
+        self._status_label.setText(_("Stopping server..."))
         self._status_label.setStyleSheet(f"color:{yellow};font-weight:bold")
         try:
             if root.connection.state is ConnectionState.connected:
@@ -536,10 +541,10 @@ class ServerWidget(QWidget):
 
         state = self._server.state
         if state is ServerState.not_installed:
-            self._status_label.setText("Server is not installed")
+            self._status_label.setText(_("Server is not installed"))
             self._status_label.setStyleSheet(f"color:{red};font-weight:bold")
         elif state is ServerState.missing_resources:
-            self._status_label.setText("Server is missing required components")
+            self._status_label.setText(_("Server is missing required components"))
             self._status_label.setStyleSheet(f"color:{red};font-weight:bold")
         elif state is ServerState.installing:
             self._location_edit.setEnabled(False)
@@ -549,45 +554,47 @@ class ServerWidget(QWidget):
             self._launch_button.setEnabled(False)
         elif self._server.upgrade_required:
             self._status_label.setText(
-                f"Upgrade required: v{self._server.version} -> v{resources.version}"
+                _("Upgrade required") + f": v{self._server.version} -> v{resources.version}"
             )
             self._status_label.setStyleSheet(f"color:{yellow};font-weight:bold")
-            self._launch_button.setText("Upgrade")
+            self._launch_button.setText(_("Upgrade"))
             self._launch_button.setEnabled(True)
         elif state is ServerState.stopped:
-            self._status_label.setText("Server stopped")
+            self._status_label.setText(_("Server stopped"))
             self._status_label.setStyleSheet(f"color:{red};font-weight:bold")
-            self._launch_button.setText("Launch")
+            self._launch_button.setText(_("Launch"))
         elif state is ServerState.starting:
-            self._status_label.setText("Starting server...")
+            self._status_label.setText(_("Starting server..."))
             self._status_label.setStyleSheet(f"color:{yellow};font-weight:bold")
-            self._launch_button.setText("Launch")
+            self._launch_button.setText(_("Launch"))
             self._launch_button.setEnabled(False)
             self._location_edit.setEnabled(False)
         elif state is ServerState.running:
             connection_state = root.connection.state
             if connection_state is ConnectionState.disconnected:
-                self._status_label.setText("Server running - Disconnected")
+                self._status_label.setText(_("Server running - Disconnected"))
                 self._status_label.setStyleSheet(f"color:{grey};font-weight:bold")
             elif connection_state is ConnectionState.connecting:
-                self._status_label.setText("Server running - Connecting...")
+                self._status_label.setText(_("Server running - Connecting..."))
                 self._status_label.setStyleSheet(f"color:{yellow};font-weight:bold")
             elif connection_state is ConnectionState.connected:
-                self._status_label.setText("Server running - Connected")
+                self._status_label.setText(_("Server running - Connected"))
                 self._status_label.setStyleSheet(f"color:{green};font-weight:bold")
             elif connection_state is ConnectionState.error:
+                text = _("Server running - Connection error")
                 error = root.connection.error or "Unknown error"
-                self._status_label.setText(f"<b>Server running - Connection error:</b> {error}")
+                self._status_label.setText(f"<b>{text}:</b> {error}")
                 self._status_label.setStyleSheet(f"color:{red}")
-            self._launch_button.setText("Stop")
+            self._launch_button.setText(_("Stop"))
             self._location_edit.setEnabled(False)
 
         if self.requires_install:
-            self._launch_button.setText("Install")
+            self._launch_button.setText(_("Install"))
             if not self._server.version and not self._server.can_install:
                 self._status_label.setText(
-                    "Invalid location: directory is not empty, but no previous installation was"
-                    " found"
+                    _(
+                        "Invalid location: directory is not empty, but no previous installation was found"
+                    )
                 )
                 self._status_label.setStyleSheet(f"color:{red};font-weight:bold")
                 self._launch_button.setEnabled(False)

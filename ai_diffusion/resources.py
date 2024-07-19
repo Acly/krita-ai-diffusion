@@ -201,7 +201,9 @@ class ControlMode(Enum):
 
     @property
     def text(self):
-        return _control_text[self]
+        from . import control
+
+        return control.control_mode_text[self]
 
 
 class ResourceId(NamedTuple):
@@ -706,27 +708,6 @@ def all_models(include_deprecated=False):
     if include_deprecated:
         result = chain(result, deprecated_models)
     return result
-
-
-_control_text = {
-    ControlMode.reference: "Reference",
-    ControlMode.inpaint: "Inpaint",
-    ControlMode.style: "Style",
-    ControlMode.composition: "Composition",
-    ControlMode.face: "Face",
-    ControlMode.universal: "Universal",
-    ControlMode.scribble: "Scribble",
-    ControlMode.line_art: "Line Art",
-    ControlMode.soft_edge: "Soft Edge",
-    ControlMode.canny_edge: "Canny Edge",
-    ControlMode.depth: "Depth",
-    ControlMode.normal: "Normal",
-    ControlMode.pose: "Pose",
-    ControlMode.segmentation: "Segment",
-    ControlMode.blur: "Unblur",
-    ControlMode.stencil: "Stencil",
-    ControlMode.hands: "Hands",
-}
 
 
 def resource_id(

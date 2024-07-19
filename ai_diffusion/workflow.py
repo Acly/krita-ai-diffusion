@@ -18,6 +18,7 @@ from .resources import ControlMode, SDVersion, UpscalerName, ResourceKind
 from .settings import PerformanceSettings
 from .text import merge_prompt, extract_loras
 from .comfy_workflow import ComfyWorkflow, ComfyRunMode, Output
+from .localization import translate as _
 from .util import ensure, median_or_zero, unique, client_logger as log
 
 
@@ -393,7 +394,7 @@ def apply_ip_adapter(
 
         for control in control_layers:
             if len(embeds) >= 5:
-                raise Exception(f"Too many control layers of type '{mode.text}' (maximum is 5)")
+                raise Exception(_("Too many control layers of type") + f" '{mode.text}' (max 5)")
             img = control.image.load(w)
             embeds.append(w.encode_ip_adapter(img, control.strength, ip_adapter, clip_vision)[0])
             range = (min(range[0], control.range[0]), max(range[1], control.range[1]))
@@ -1205,11 +1206,20 @@ def _get_sampling_lora(style: Style, is_live: bool, model_set: ModelDict, models
                 )
             elif res is None:
                 raise ValueError(
-                    f"Could not find LoRA '{preset.lora}' used by sampler preset '{sampler_name}'"
+                    _(
+                        "Could not find LoRA '{lora}' used by sampler preset '{name}'",
+                        lora=preset.lora,
+                        name=sampler_name,
+                    )
                 )
             else:
                 raise ValueError(
-                    f"Could not find LoRA '{preset.lora}' ({', '.join(res)}) used by sampler preset '{sampler_name}'"
+                    _(
+                        "Could not find LoRA '{lora}' ({models}) used by sampler preset '{name}'",
+                        lora=preset.lora,
+                        name=sampler_name,
+                        models=", ".join(res),
+                    )
                 )
         return [LoraInput(file or preset.lora, 1.0)]
     return []
@@ -1218,14 +1228,26 @@ def _get_sampling_lora(style: Style, is_live: bool, model_set: ModelDict, models
 def _check_server_has_models(input: CheckpointInput, models: ClientModels, style_name: str):
     if input.checkpoint not in models.checkpoints:
         raise ValueError(
-            f"The checkpoint '{input.checkpoint}' used by style '{style_name}' is not available on the server"
+            _(
+                "The checkpoint '{checkpoint}' used by style '{style}' is not available on the server",
+                checkpoint=input.checkpoint,
+                style=style_name,
+            )
         )
     for lora in input.loras:
         if lora.name not in models.loras:
             raise ValueError(
-                f"The LoRA '{lora.name}' used by style '{style_name}' is not available on the server"
+                _(
+                    "The LoRA '{lora}' used by style '{style}' is not available on the server",
+                    lora=lora.name,
+                    style=style_name,
+                )
             )
     if input.vae != StyleSettings.vae.default and input.vae not in models.vae:
         raise ValueError(
-            f"The VAE '{input.vae}' used by style '{style_name}' is not available on the server"
+            _(
+                "The VAE '{vae}' used by style '{style}' is not available on the server",
+                vae=input.vae,
+                style=style_name,
+            )
         )

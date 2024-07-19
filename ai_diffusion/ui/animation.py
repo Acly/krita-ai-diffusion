@@ -17,16 +17,10 @@ from ..model import Model
 from ..image import Extent, Image
 from ..root import root
 from ..settings import settings
+from ..localization import translate as _
 from . import theme
-from .control import ControlListWidget
-from .widget import (
-    WorkspaceSelectWidget,
-    StyleSelectWidget,
-    TextPromptWidget,
-    StrengthWidget,
-    QueueButton,
-    create_wide_tool_button,
-)
+from .widget import WorkspaceSelectWidget, StyleSelectWidget, TextPromptWidget, StrengthWidget
+from .widget import QueueButton, create_wide_tool_button
 
 
 class AnimationWidget(QWidget):
@@ -66,15 +60,17 @@ class AnimationWidget(QWidget):
         layout.addLayout(prompt_layout)
 
         self.strength_slider = StrengthWidget(parent=self)
-        self.add_control_button = create_wide_tool_button("control-add", "Add Control Layer", self)
+        self.add_control_button = create_wide_tool_button(
+            "control-add", _("Add Control Layer"), self
+        )
         strength_layout = QHBoxLayout()
         strength_layout.addWidget(self.strength_slider)
         strength_layout.addWidget(self.add_control_button)
         layout.addLayout(strength_layout)
 
         mode_layout = QHBoxLayout()
-        self.batch_mode_button = QRadioButton("Full Animation", self)
-        self.frame_mode_button = QRadioButton("Single Frame", self)
+        self.batch_mode_button = QRadioButton(_("Full Animation"), self)
+        self.frame_mode_button = QRadioButton(_("Single Frame"), self)
         mode_layout.addWidget(self.batch_mode_button)
         mode_layout.addWidget(self.frame_mode_button)
         layout.addLayout(mode_layout)
@@ -164,22 +160,25 @@ class AnimationWidget(QWidget):
         self.target_layer.setVisible(not self.model.animation.batch_mode)
         if self.model.animation.batch_mode:
             self.preview_area.clear()
-            self.generate_button.setText("Generate Animation")
+            self.generate_button.setText(_("Generate Animation"))
             self.generate_button.setToolTip(
-                "Generate images from the active layer for all keyframes within start and end time."
-                " The active layer must contain an animation!"
+                _(
+                    "Generate images from the active layer for all keyframes within start and end time. The active layer must contain an animation!"
+                )
             )
         else:
-            self.generate_button.setText("Generate Frame")
+            self.generate_button.setText(_("Generate Frame"))
             self.generate_button.setToolTip(
-                "Generate a single frame from the current canvas and insert it into the target layer."
+                _(
+                    "Generate a single frame from the current canvas and insert it into the target layer."
+                )
             )
 
     def update_target_layers(self):
         with theme.SignalBlocker(self.target_layer):
             self.target_layer.clear()
             for layer in self._model.layers.images:
-                self.target_layer.addItem(f"Target layer: {layer.name}", layer.id)
+                self.target_layer.addItem(_("Target layer") + f": {layer.name}", layer.id)
         if self.model.animation.target_layer.isNull():
             self.model.animation.target_layer = self.target_layer.currentData()
         else:

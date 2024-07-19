@@ -10,6 +10,7 @@ from .layer import Layer, LayerType
 from .resources import ControlMode, ResourceKind, SDVersion
 from .properties import Property, ObservableProperties
 from .image import Bounds
+from .localization import translate as _
 from .util import client_logger as log
 
 
@@ -117,9 +118,11 @@ class ControlLayer(QObject, ObservableProperties):
         if client := root.connection.client_if_connected:
             models = client.models.for_checkpoint(self._model.style.sd_checkpoint)
             if self.mode.is_ip_adapter and models.ip_adapter.find(self.mode) is None:
-                self.error_text = f"The server is missing the IP-Adapter {self.mode.text} model"
+                self.error_text = (
+                    _("The server is missing the IP-Adapter model") + f" {self.mode.text}"
+                )
                 if not client.supports_ip_adapter:
-                    self.error_text = f"IP-Adapter is not supported by this GPU"
+                    self.error_text = _("IP-Adapter is not supported by this GPU")
                 is_supported = False
             elif self.mode.is_control_net:
                 if models.control.find(self.mode, allow_universal=True) is None:
@@ -127,9 +130,11 @@ class ControlLayer(QObject, ObservableProperties):
                         ResourceKind.controlnet, models.version, self.mode
                     )
                     if search_path:
-                        self.error_text = f"The ControlNet model is not installed {search_path}"
+                        self.error_text = (
+                            _("The ControlNet model is not installed") + f" {search_path}"
+                        )
                     else:
-                        self.error_text = f"Not supported for {models.version.value}"
+                        self.error_text = _("Not supported for") + f" {models.version.value}"
                     is_supported = False
 
         self.is_supported = is_supported
@@ -309,6 +314,27 @@ def _validate_presets(filepath: Path, data: dict[str, Any]) -> bool:
                     )
                     return False
     return True
+
+
+control_mode_text = {
+    ControlMode.reference: _("Reference"),
+    ControlMode.inpaint: _("Inpaint"),
+    ControlMode.style: _("Style"),
+    ControlMode.composition: _("Composition"),
+    ControlMode.face: _("Face"),
+    ControlMode.universal: _("Universal"),
+    ControlMode.scribble: _("Scribble"),
+    ControlMode.line_art: _("Line Art"),
+    ControlMode.soft_edge: _("Soft Edge"),
+    ControlMode.canny_edge: _("Canny Edge"),
+    ControlMode.depth: _("Depth"),
+    ControlMode.normal: _("Normal"),
+    ControlMode.pose: _("Pose"),
+    ControlMode.segmentation: _("Segment"),
+    ControlMode.blur: _("Unblur"),
+    ControlMode.stencil: _("Stencil"),
+    ControlMode.hands: _("Hands"),
+}
 
 
 def _lerp(a: float, b: float, t: float) -> float:

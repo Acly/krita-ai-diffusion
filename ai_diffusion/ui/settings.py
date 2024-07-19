@@ -29,10 +29,11 @@ from ..style import Style
 from ..root import root
 from ..connection import ConnectionState, apply_performance_preset
 from ..properties import Binding
+from ..localization import Localization, translate as _
 from .. import eventloop, util, __version__
 from .server import ServerWidget
 from .settings_widgets import SpinBoxSetting, SliderSetting, SwitchSetting
-from .settings_widgets import SettingsTab
+from .settings_widgets import SettingsTab, ComboBoxSetting
 from .style import StylePresets
 from .theme import add_header, red, yellow, green, grey
 
@@ -55,24 +56,24 @@ class UserWidget(QFrame):
         self._user_name = QLabel("", self)
         self._user_name.setStyleSheet("font-weight:bold")
         user_name_layout = QHBoxLayout()
-        user_name_layout.addWidget(QLabel("Account:", self), 0)
+        user_name_layout.addWidget(QLabel(_("Account:"), self), 0)
         user_name_layout.addWidget(self._user_name, 1)
         layout.addLayout(user_name_layout)
 
         self._images_generated = QLabel("", self)
         image_count_layout = QHBoxLayout()
-        image_count_layout.addWidget(QLabel("Total generated:", self), 0)
+        image_count_layout.addWidget(QLabel(_("Total generated:"), self), 0)
         image_count_layout.addWidget(self._images_generated, 1)
         layout.addLayout(image_count_layout)
 
         self._tokens_remaining = QLabel("", self)
         self._tokens_remaining.setStyleSheet("font-weight:bold")
         image_remaining_layout = QHBoxLayout()
-        image_remaining_layout.addWidget(QLabel("Image tokens remaining:", self), 0)
+        image_remaining_layout.addWidget(QLabel(_("Image tokens remaining:"), self), 0)
         image_remaining_layout.addWidget(self._tokens_remaining, 1)
         layout.addLayout(image_remaining_layout)
 
-        self._logout_button = QPushButton("Sign out", self)
+        self._logout_button = QPushButton(_("Sign out"), self)
         self._logout_button.setMinimumWidth(200)
         self._logout_button.clicked.connect(self._logout)
         layout.addWidget(self._logout_button)
@@ -132,12 +133,12 @@ class CloudWidget(QWidget):
         self._connection_status.setTextFormat(Qt.TextFormat.RichText)
         layout.addWidget(self._connection_status)
 
-        self.connect_button = QPushButton("Login", self)
+        self.connect_button = QPushButton(_("Login"), self)
         self.connect_button.setMinimumWidth(200)
         self.connect_button.setMinimumHeight(int(1.3 * self.connect_button.sizeHint().height()))
         self.connect_button.clicked.connect(self._connect)
 
-        self._sign_out_button = QPushButton("Sign out", self)
+        self._sign_out_button = QPushButton(_("Sign out"), self)
         self._sign_out_button.setVisible(False)
         self._sign_out_button.setMinimumWidth(200)
         self._sign_out_button.clicked.connect(self._sign_out)
@@ -163,24 +164,24 @@ class CloudWidget(QWidget):
         self._user_widget.user = root.connection.user
 
         if state in [ConnectionState.auth_missing, ConnectionState.auth_error]:
-            self.connect_button.setText("Sign in")
+            self.connect_button.setText(_("Sign in"))
             self.connect_button.setEnabled(True)
-            self._connection_status.setText("Disconnected")
+            self._connection_status.setText(_("Disconnected"))
             self._connection_status.setStyleSheet(f"color: {grey}; font-style:italic")
         elif state is ConnectionState.auth_pending:
-            self.connect_button.setText("Sign in")
+            self.connect_button.setText(_("Sign in"))
             self.connect_button.setEnabled(False)
-            self._connection_status.setText("Waiting for sign-in to complete...")
+            self._connection_status.setText(_("Waiting for sign-in to complete..."))
             self._connection_status.setStyleSheet(f"color: {yellow}; font-weight:bold")
             self._connection_status.setVisible(True)
         elif state is ConnectionState.connected:
-            self._connection_status.setText("Connected")
+            self._connection_status.setText(_("Connected"))
             self._connection_status.setStyleSheet(f"color: {green}; font-weight:bold")
             self._user_widget.user = root.connection.user
         else:
             can_connect = state in [ConnectionState.disconnected, ConnectionState.error]
             self.connect_button.setEnabled(can_connect)
-            self.connect_button.setText("Connect" if can_connect else "Connected")
+            self.connect_button.setText(_("Connect") if can_connect else _("Connected"))
 
         if state in [ConnectionState.error, ConnectionState.auth_error]:
             error = root.connection.error or "Unknown error"
@@ -204,17 +205,17 @@ class CloudWidget(QWidget):
 
 class ConnectionSettings(SettingsTab):
     def __init__(self, server: Server):
-        super().__init__("Server Configuration")
+        super().__init__(_("Server Configuration"))
 
-        self._server_cloud = QRadioButton("Online Service", self)
-        self._server_managed = QRadioButton("Local Managed Server", self)
-        self._server_external = QRadioButton("Custom Server (local or remote)", self)
-        info_cloud = QLabel("Generate images via GPU Cloud Service", self)
+        self._server_cloud = QRadioButton(_("Online Service"), self)
+        self._server_managed = QRadioButton(_("Local Managed Server"), self)
+        self._server_external = QRadioButton(_("Custom Server (local or remote)"), self)
+        info_cloud = QLabel(_("Generate images via GPU Cloud Service"), self)
         info_managed = QLabel(
-            "Let the Krita plugin install and run a local server on your machine", self
+            _("Let the Krita plugin install and run a local server on your machine"), self
         )
         info_external = QLabel(
-            "Connect to a running ComfyUI instance which you set up and maintain yourself", self
+            _("Connect to a running ComfyUI instance which you set up and maintain yourself"), self
         )
         for button in (self._server_cloud, self._server_managed, self._server_external):
             button.setStyleSheet("font-weight:bold")
@@ -238,7 +239,7 @@ class ConnectionSettings(SettingsTab):
         self._server_url = QLineEdit(self._connection_widget)
         self._server_url.textChanged.connect(self.write)
         server_layout.addWidget(self._server_url)
-        self._connect_button = QPushButton("Connect", self._connection_widget)
+        self._connect_button = QPushButton(_("Connect"), self._connection_widget)
         self._connect_button.clicked.connect(self._connect)
         server_layout.addWidget(self._connect_button)
         connection_layout.addLayout(server_layout)
@@ -251,7 +252,8 @@ class ConnectionSettings(SettingsTab):
         )
         self._connection_status.setOpenExternalLinks(True)
 
-        open_log_button = QLabel(f"<a href='file://{util.log_dir}'>View log files</a>", self)
+        anchor = _("View log files")
+        open_log_button = QLabel(f"<a href='file://{util.log_dir}'>{anchor}</a>", self)
         open_log_button.setToolTip(str(util.log_dir))
         open_log_button.linkActivated.connect(self._open_logs)
 
@@ -325,40 +327,47 @@ class ConnectionSettings(SettingsTab):
         self._cloud_widget.update_connection_state(connection.state)
         self._connect_button.setEnabled(connection.state != ConnectionState.connecting)
         if connection.state == ConnectionState.connected:
-            self._connection_status.setText("Connected")
+            self._connection_status.setText(_("Connected"))
             self._connection_status.setStyleSheet(f"color: {green}; font-weight:bold")
         elif connection.state == ConnectionState.connecting:
-            self._connection_status.setText("Connecting")
+            self._connection_status.setText(_("Connecting"))
             self._connection_status.setStyleSheet(f"color: {yellow}; font-weight:bold")
         elif connection.state == ConnectionState.disconnected:
-            self._connection_status.setText("Disconnected")
+            self._connection_status.setText(_("Disconnected"))
             self._connection_status.setStyleSheet(f"color: {grey}; font-style:italic")
         elif connection.state == ConnectionState.error:
             msg = connection.error.removeprefix("Error: ") if connection.error else "Unknown error"
-            self._connection_status.setText(f"<b>Error</b>: {msg}")
+            self._connection_status.setText("<b>" + _("Error") + f"</b>: {msg}")
             self._connection_status.setStyleSheet(f"color: {red};")
             if connection.missing_resource is not None:
                 self._handle_missing_resource(connection.missing_resource)
 
     def _handle_missing_resource(self, resource: MissingResource):
+        err = "<b>" + _("Error") + "</b>: "
         if resource.kind is ResourceKind.checkpoint:
-            self._connection_status.setText(
-                "<b>Error</b>: No checkpoints found!\nCheckpoints must be placed into"
-                " ComfyUI/models/checkpoints."
+            detail = _(
+                "No checkpoints found!\nCheckpoints must be placed into ComfyUI/models/checkpoints."
             )
+            self._connection_status.setText(err + detail)
         elif resource.kind is ResourceKind.node:
             nodes = cast(list[CustomNode], resource.names)
             self._connection_status.setText(
-                "<b>Error</b>: The following ComfyUI custom nodes are missing:<ul>"
+                err
+                + _("The following ComfyUI custom nodes are missing")
+                + ":<ul>"
                 + "\n".join((f"<li>{p.name} <a href='{p.url}'>{p.url}</a></li>" for p in nodes))
-                + "</ul>Please install them, restart the server and try again."
+                + "</ul>"
+                + _("Please install them, restart the server and try again.")
             )
         else:
             search_paths = resource.search_path_string.replace("\n", "<br>")
+            link = "<a href='https://github.com/Acly/krita-ai-diffusion/wiki/ComfyUI-Setup'>Custom ComfyUI Setup</a>"
             self._connection_status.setText(
-                f"<b>Error</b>: {str(resource)}<br>{search_paths}<br><br>"
-                "See <a href='https://github.com/Acly/krita-ai-diffusion/wiki/ComfyUI-Setup'>Custom ComfyUI Setup</a> for required models.<br>"
-                "Check the client.log file for more details."
+                f"{err}{str(resource)}<br>{search_paths}<br><br>"
+                + _(
+                    "See {link} for required models.<br>Check the client.log file for more details.",
+                    link=link,
+                )
             )
 
     def _open_logs(self):
@@ -367,7 +376,7 @@ class ConnectionSettings(SettingsTab):
 
 class DiffusionSettings(SettingsTab):
     def __init__(self):
-        super().__init__("Diffusion Settings")
+        super().__init__(_("Diffusion Settings"))
 
         S = Settings
         self.add("selection_grow", SliderSetting(S._selection_grow, self, 0, 25, "{} %"))
@@ -379,17 +388,22 @@ class DiffusionSettings(SettingsTab):
 
 class InterfaceSettings(SettingsTab):
     def __init__(self):
-        super().__init__("Interface Settings")
+        super().__init__(_("Interface Settings"))
 
         S = Settings
+        self.add("language", ComboBoxSetting(S._language, self))
         self.add("prompt_line_count", SpinBoxSetting(S._prompt_line_count, self, 1, 10))
         self.add(
-            "show_negative_prompt", SwitchSetting(S._show_negative_prompt, ("Show", "Hide"), self)
+            "show_negative_prompt",
+            SwitchSetting(S._show_negative_prompt, (_("Show"), _("Hide")), self),
         )
         self.add("auto_preview", SwitchSetting(S._auto_preview, parent=self))
         self.add("show_steps", SwitchSetting(S._show_steps, parent=self))
         self.add("new_seed_after_apply", SwitchSetting(S._new_seed_after_apply, parent=self))
         self.add("debug_dump_workflow", SwitchSetting(S._debug_dump_workflow, parent=self))
+
+        languages = [(lang.name, lang.id) for lang in Localization.available]
+        self._widgets["language"].set_items(languages)
 
         self._layout.addStretch()
 
@@ -428,12 +442,12 @@ class HistorySizeWidget(QWidget):
         self._history_size.setValue(v)
 
     def update_usage(self, usage: float):
-        self._history_usage.setText(f"Currently using {usage:.1f} MB")
+        self._history_usage.setText(_("Currently using") + f" {usage:.1f} MB")
 
 
 class PerformanceSettings(SettingsTab):
     def __init__(self):
-        super().__init__("Performance Settings")
+        super().__init__(_("Performance Settings"))
 
         add_header(self._layout, Settings._history_size)
         self._history_size = HistorySizeWidget(maximum=10000, step=100, parent=self)
@@ -497,8 +511,8 @@ class PerformanceSettings(SettingsTab):
         if root.connection.state is ConnectionState.connected:
             client = root.connection.client
             self._device_info.setText(
-                f"Device: [{client.device_info.type.upper()}] {client.device_info.name} ("
-                f"{client.device_info.vram} GB)"
+                _("Device")
+                + f": [{client.device_info.type.upper()}] {client.device_info.name} ({client.device_info.vram} GB)"
             )
 
     def _read(self):
@@ -541,7 +555,7 @@ class SettingsDialog(QDialog):
         super().__init__()
         type(self)._instance = self
 
-        self.setWindowTitle("Configure Image Diffusion")
+        self.setWindowTitle(_("Configure Image Diffusion"))
         self.setMinimumSize(QSize(840, 480))
         if screen := QGuiApplication.screenAt(QCursor.pos()):
             size = screen.availableSize()
@@ -565,11 +579,11 @@ class SettingsDialog(QDialog):
             item.setSizeHint(QSize(112, 24))
             self._stack.addWidget(widget)
 
-        create_list_item("Connection", self.connection)
-        create_list_item("Styles", self.styles)
-        create_list_item("Diffusion", self.diffusion)
-        create_list_item("Interface", self.interface)
-        create_list_item("Performance", self.performance)
+        create_list_item(_("Connection"), self.connection)
+        create_list_item(_("Styles"), self.styles)
+        create_list_item(_("Diffusion"), self.diffusion)
+        create_list_item(_("Interface"), self.interface)
+        create_list_item(_("Performance"), self.performance)
 
         self._list.setCurrentRow(0)
         self._list.currentRowChanged.connect(self._change_page)
@@ -580,19 +594,18 @@ class SettingsDialog(QDialog):
         inner.addWidget(self._stack)
         inner.addSpacing(6)
 
-        self._restore_button = QPushButton("Restore Defaults", self)
+        self._restore_button = QPushButton(_("Restore Defaults"), self)
         self._restore_button.clicked.connect(self.restore_defaults)
 
-        version_label = QLabel(f"Plugin version: {__version__}", self)
+        version_label = QLabel(_("Plugin version") + f": {__version__}", self)
         version_label.setStyleSheet(f"font-style:italic; color: {grey};")
 
-        self._open_folder_link = QLabel(
-            f"<a href='file://{util.user_data_dir}'>Open Settings folder</a>", self
-        )
+        anchor = _("Open Settings folder")
+        self._open_folder_link = QLabel(f"<a href='file://{util.user_data_dir}'>{anchor}</a>", self)
         self._open_folder_link.linkActivated.connect(self._open_settings_folder)
         self._open_folder_link.setToolTip(str(util.user_data_dir))
 
-        self._close_button = QPushButton("Ok", self)
+        self._close_button = QPushButton(_("Ok"), self)
         self._close_button.clicked.connect(self._close)
 
         button_layout = QHBoxLayout()

@@ -8,6 +8,7 @@ from typing import NamedTuple, Callable
 from PyQt5.QtCore import QByteArray, QUrl, QFile, QBuffer
 from PyQt5.QtNetwork import QNetworkAccessManager, QNetworkRequest, QNetworkReply, QSslError
 
+from .localization import translate as _
 from .util import client_logger as log
 
 
@@ -212,7 +213,7 @@ class DownloadHelper:
 async def _try_download(network: QNetworkAccessManager, url: str, path: Path):
     out_file = QFile(str(path) + ".part")
     if not out_file.open(QFile.ReadWrite | QFile.Append):  # type: ignore
-        raise Exception(f"Error during download: could not open {path} for writing")
+        raise Exception(_("Error during download: could not open {path} for writing", path=path))
 
     request = QNetworkRequest(QUrl(_map_host(url)))
     request.setAttribute(QNetworkRequest.FollowRedirectsAttribute, True)
@@ -281,9 +282,9 @@ async def download(network: QNetworkAccessManager, url: str, path: Path):
                     raise e
                 await asyncio.sleep(1)
             else:
-                raise NetworkError(e.code, f"Failed to download {url}: {e.message}", url)
+                raise NetworkError(e.code, _("Failed to download") + f" {url}: {e.message}", url)
         except Exception as e:
-            raise Exception(f"Failed to download {url}: {e}") from e
+            raise Exception(_("Failed to download") + f" {url}: {e}") from e
 
         log.info(f"Retrying download of {url}, {retry - 1} attempts left")
 

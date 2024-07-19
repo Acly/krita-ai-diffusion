@@ -4,6 +4,7 @@ from pathlib import Path
 from typing import Tuple, List, NamedTuple
 
 from .api import LoraInput
+from .localization import translate as _
 from .util import client_logger as log
 
 
@@ -44,7 +45,7 @@ def extract_loras(prompt: str, client_loras: list[str]):
                 lora_name = client_lora
 
         if not lora_name:
-            error = f"LoRA not found : {match[0]}"
+            error = _("LoRA not found") + f": {match[0]}"
             log.warning(error)
             raise Exception(error)
 
@@ -52,7 +53,7 @@ def extract_loras(prompt: str, client_loras: list[str]):
         try:
             lora_strength = float(lora_strength)
         except ValueError:
-            error = f"Invalid LoRA strength for {match[0]} : {lora_strength}"
+            error = _("Invalid LoRA strength for") + f" {match[0]}: {lora_strength}"
             log.warning(error)
             raise Exception(error)
 

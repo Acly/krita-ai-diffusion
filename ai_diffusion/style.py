@@ -8,94 +8,99 @@ from PyQt5.QtCore import QObject, pyqtSignal
 from .api import CheckpointInput, LoraInput
 from .settings import Setting, settings
 from .resources import SDVersion
+from .localization import translate as _
 from .util import encode_json, read_json_with_comments
 from .util import plugin_dir, user_data_dir, client_logger as log
 
 
 class StyleSettings:
-    name = Setting("Name", "Default Style")
+    name = Setting(_("Name"), _("Default Style"))
     version = Setting("Version", 1)
 
     sd_version = Setting(
-        "Stable Diffusion Version",
+        _("Stable Diffusion Version"),
         SDVersion.auto,
-        "The base architecture must match checkpoint and LoRA",
+        _("The base architecture must match checkpoint and LoRA"),
     )
 
     sd_checkpoint = Setting(
-        "Model Checkpoint",
+        _("Model Checkpoint"),
         "<no checkpoint set>",
-        "The Stable Diffusion checkpoint file",
-        "This has a large impact on which kind of content will"
-        " be generated. To install additional checkpoints, place them into"
-        " [ComfyUI]/models/checkpoints.",
+        _("The Stable Diffusion checkpoint file"),
+        _(
+            "This has a large impact on which kind of content will be generated. To install additional checkpoints, place them into [ComfyUI]/models/checkpoints."
+        ),
     )
 
     loras = Setting(
-        "LoRA",
+        _("LoRA"),
         [],
-        "Extensions to the checkpoint which expand its range based on additional training",
+        _("Extensions to the checkpoint which expand its range based on additional training"),
     )
 
     style_prompt = Setting(
-        "Style Prompt",
+        _("Style Prompt"),
         "best quality, highres",
-        "Text which is appended to all prompts. The {prompt} placeholder can be used to wrap prompts.",
+        _(
+            "Text which is appended to all prompts. The {prompt} placeholder can be used to wrap prompts."
+        ),
     )
 
     negative_prompt = Setting(
-        "Negative Prompt",
+        _("Negative Prompt"),
         "bad quality, low resolution, blurry",
-        "Textual description of things to avoid in generated images.",
+        _("Textual description of things to avoid in generated images."),
     )
 
     vae = Setting(
-        "VAE",
+        _("VAE"),
         "Checkpoint Default",
-        "Model to encode and decode images. Commonly affects saturation and sharpness.",
+        _("Model to encode and decode images. Commonly affects saturation and sharpness."),
     )
 
     clip_skip = Setting(
-        "Clip Skip",
+        _("Clip Skip"),
         0,
-        "Clip layers to omit at the end. Some checkpoints prefer a different value than the"
-        " default.",
+        _(
+            "Clip layers to omit at the end. Some checkpoints prefer a different value than the default."
+        ),
     )
 
     v_prediction_zsnr = Setting(
-        "V-Prediction / Zero Terminal SNR",
+        _("V-Prediction / Zero Terminal SNR"),
         False,
-        "Enable this if the checkpoint is a v-prediction model which requires zero terminal SNR"
-        " noise schedule",
+        _(
+            "Enable this if the checkpoint is a v-prediction model which requires zero terminal SNR noise schedule"
+        ),
     )
 
     self_attention_guidance = Setting(
-        "Enable SAG / Self-Attention Guidance",
+        _("Enable SAG / Self-Attention Guidance"),
         False,
-        'Pay more attention to "difficult" parts of the image. Can improve fine details.',
+        _("Pay more attention to difficult parts of the image. Can improve fine details."),
     )
 
     preferred_resolution = Setting(
-        "Preferred Resolution", 0, "Image resolution the checkpoint was trained on"
+        _("Preferred Resolution"), 0, _("Image resolution the checkpoint was trained on")
     )
 
-    sampler = Setting("Sampler", "Default - DPM++ 2M", "The sampling strategy and scheduler")
+    sampler = Setting(_("Sampler"), "Default - DPM++ 2M", _("The sampling strategy and scheduler"))
 
     sampler_steps = Setting(
-        "Sampler Steps",
+        _("Sampler Steps"),
         20,
-        "Higher values can produce more refined results but take longer",
+        _("Higher values can produce more refined results but take longer"),
     )
 
     cfg_scale = Setting(
-        "Guidance Strength (CFG Scale)",
+        _("Guidance Strength (CFG Scale)"),
         7.0,
-        "Value which indicates how closely image generation follows the text prompt",
+        _("Value which indicates how closely image generation follows the text prompt"),
     )
 
-    live_sampler = Setting("Sampler", "Realtime - Hyper", sampler.desc)
-    live_sampler_steps = Setting("Sampler Steps", 6, sampler_steps.desc)
-    live_cfg_scale = Setting("Guidance Strength (CFG Scale)", 1.8, cfg_scale.desc)
+    live_sampler = Setting(_("Sampler"), "Realtime - Hyper", sampler.desc)
+    live_sampler_steps = Setting(_("Sampler Steps"), 6, sampler_steps.desc)
+    live_cfg_scale = Setting(_("Guidance Strength (CFG Scale)"), 1.8, cfg_scale.desc)
 
 
 class Style:
@@ -242,7 +247,7 @@ class Styles(QObject):
             name = f"{basename}_{i}"
 
         new_style = Style(self.user_folder / f"{name}.json")
-        new_style.name = "New Style"
+        new_style.name = _("New Style")
         if checkpoint:
             new_style.sd_checkpoint = checkpoint
         self._list.append(new_style)

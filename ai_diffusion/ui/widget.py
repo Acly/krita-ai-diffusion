@@ -44,6 +44,7 @@ from ..properties import Binding, Bind, bind, bind_combo
 from ..jobs import JobState, JobKind
 from ..model import Model, Workspace, SamplingQuality
 from ..text import LoraId, edit_attention, select_on_cursor_pos
+from ..localization import translate as _
 from ..util import ensure
 from ..workflow import apply_strength, snap_to_percent
 from .settings import SettingsDialog, settings
@@ -82,24 +83,25 @@ class QueuePopup(QMenu):
         self._batch_slider.setSingleStep(1)
         self._batch_slider.setPageStep(1)
         self._batch_slider.setVisible(supports_batch)
-        self._batch_slider.setToolTip("Number of jobs to enqueue at once")
+        self._batch_slider.setToolTip(_("Number of jobs to enqueue at once"))
         self._batch_label = QLabel("1", self)
         self._batch_label.setVisible(supports_batch)
         batch_layout.addWidget(self._batch_slider)
         batch_layout.addWidget(self._batch_label)
         self._layout.addLayout(batch_layout, 0, 1)
 
-        self._seed_label = QLabel("Seed", self)
+        self._seed_label = QLabel(_("Seed"), self)
         self._layout.addWidget(self._seed_label, 1, 0)
         self._seed_input = QSpinBox(self)
         self._seed_check = QCheckBox(self)
-        self._seed_check.setText("Fixed")
+        self._seed_check.setText(_("Fixed"))
         self._seed_input.setMinimum(0)
         self._seed_input.setMaximum(2**31 - 1)
         self._seed_input.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Preferred)
         self._seed_input.setToolTip(
-            "The seed controls the random part of the output. A fixed seed value will always"
-            " produce the same result for the same inputs."
+            _(
+                "The seed controls the random part of the output. A fixed seed value will always produce the same result for the same inputs."
+            )
         )
         self._randomize_seed = QToolButton(self)
         self._randomize_seed.setIcon(theme.icon("random"))
@@ -109,18 +111,18 @@ class QueuePopup(QMenu):
         seed_layout.addWidget(self._randomize_seed)
         self._layout.addLayout(seed_layout, 1, 1)
 
-        enqueue_label = QLabel("Enqueue", self)
+        enqueue_label = QLabel(_("Enqueue"), self)
         self._queue_front_combo = QComboBox(self)
-        self._queue_front_combo.addItem("in Front (new jobs first)", True)
-        self._queue_front_combo.addItem("at the Back", False)
+        self._queue_front_combo.addItem(_("in Front (new jobs first)"), True)
+        self._queue_front_combo.addItem(_("at the Back"), False)
         self._layout.addWidget(enqueue_label, 2, 0)
         self._layout.addWidget(self._queue_front_combo, 2, 1)
 
-        cancel_label = QLabel("Cancel", self)
+        cancel_label = QLabel(_("Cancel"), self)
         self._layout.addWidget(cancel_label, 3, 0)
-        self._cancel_active = self._create_cancel_button("Active", actions.cancel_active)
-        self._cancel_queued = self._create_cancel_button("Queued", actions.cancel_queued)
-        self._cancel_all = self._create_cancel_button("All", actions.cancel_all)
+        self._cancel_active = self._create_cancel_button(_("Active"), actions.cancel_active)
+        self._cancel_queued = self._create_cancel_button(_("Queued"), actions.cancel_queued)
+        self._cancel_all = self._create_cancel_button(_("All"), actions.cancel_all)
         cancel_layout = QHBoxLayout()
         cancel_layout.addWidget(self._cancel_active)
         cancel_layout.addWidget(self._cancel_queued)
@@ -209,13 +211,15 @@ class QueueButton(QToolButton):
         if self._model.jobs.any_executing():
             self.setIcon(theme.icon("queue-active"))
             if count > 0:
-                self.setToolTip(f"Generating image. {count} jobs queued - click to cancel.")
+                self.setToolTip(
+                    _("Generating image. {count} jobs queued - click to cancel.", count=count)
+                )
             else:
-                self.setToolTip(f"Generating image. Click to cancel.")
+                self.setToolTip(_("Generating image. Click to cancel."))
             count += 1
         else:
             self.setIcon(theme.icon("queue-inactive"))
-            self.setToolTip("Idle.")
+            self.setToolTip(_("Idle."))
         self.setText(f"{count} ")
 
     def sizeHint(self) -> QSize:
@@ -249,8 +253,8 @@ class StyleSelectWidget(QWidget):
 
         if show_quality:
             self._quality_combo = QComboBox(self)
-            self._quality_combo.addItem("Fast", SamplingQuality.fast.value)
-            self._quality_combo.addItem("Quality", SamplingQuality.quality.value)
+            self._quality_combo.addItem(_("Fast"), SamplingQuality.fast.value)
+            self._quality_combo.addItem(_("Quality"), SamplingQuality.quality.value)
             self._quality_combo.currentIndexChanged.connect(self.change_quality)
             layout.addWidget(self._quality_combo, 1)
 
@@ -565,9 +569,9 @@ class TextPromptWidget(QFrame):
         self._is_negative = value
         for w in (self._multi, self._single):
             if not value:
-                w.setPlaceholderText("Describe the content you want to see, or leave empty.")
+                w.setPlaceholderText(_("Describe the content you want to see, or leave empty."))
             else:
-                w.setPlaceholderText("Describe content you want to avoid.")
+                w.setPlaceholderText(_("Describe content you want to avoid."))
 
         if value:
             self.setContentsMargins(0, 2, 0, 2)
@@ -672,7 +676,7 @@ class StrengthWidget(QWidget):
 
         self._input = StrengthSpinBox(self)
         self._input.setValue(self._value)
-        self._input.setPrefix("Strength: ")
+        self._input.setPrefix(_("Strength") + ": ")
         self._input.setSuffix("%")
         self._input.valueChanged.connect(self.notify_changed)
 
@@ -748,16 +752,16 @@ class WorkspaceSelectWidget(QToolButton):
         super().__init__(parent)
 
         menu = QMenu(self)
-        menu.addAction(self._create_action("Generate", Workspace.generation))
-        menu.addAction(self._create_action("Upscale", Workspace.upscaling))
-        menu.addAction(self._create_action("Live", Workspace.live))
-        menu.addAction(self._create_action("Animation", Workspace.animation))
+        menu.addAction(self._create_action(_("Generate"), Workspace.generation))
+        menu.addAction(self._create_action(_("Upscale"), Workspace.upscaling))
+        menu.addAction(self._create_action(_("Live"), Workspace.live))
+        menu.addAction(self._create_action(_("Animation"), Workspace.animation))
 
         self.setToolButtonStyle(Qt.ToolButtonStyle.ToolButtonIconOnly)
         self.setMenu(menu)
         self.setPopupMode(QToolButton.InstantPopup)
         self.setToolTip(
-            "Switch between workspaces: image generation, upscaling, live preview and animation."
+            _("Switch between workspaces: image generation, upscaling, live preview and animation.")
         )
         self.setMinimumWidth(int(self.sizeHint().width() * 1.6))
         self.value = Workspace.generation
@@ -792,7 +796,7 @@ class GenerateButton(QPushButton):
     def __init__(self, kind: JobKind, parent: QWidget):
         super().__init__(parent)
         self.model = root.active_model
-        self.operation = "Generate"
+        self.operation = _("Generate")
         self._kind = kind
         self._cost_icon = theme.icon("interstice")
         self.setAttribute(Qt.WidgetAttribute.WA_Hover)

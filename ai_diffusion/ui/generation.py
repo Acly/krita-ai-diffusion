@@ -27,6 +27,7 @@ from ..jobs import Job, JobQueue, JobState, JobKind, JobParams
 from ..model import Model, InpaintContext, RootRegion
 from ..root import root
 from ..workflow import InpaintMode, FillMode
+from ..localization import translate as _
 from ..util import ensure
 from .widget import WorkspaceSelectWidget, StyleSelectWidget, StrengthWidget, QueueButton
 from .widget import GenerateButton, create_wide_tool_button
@@ -76,7 +77,7 @@ class HistoryWidget(QListWidget):
         self.itemClicked.connect(self.handle_preview_click)
         self.itemDoubleClicked.connect(self.item_activated)
 
-        self._apply_button = QPushButton(theme.icon("apply"), "Apply", self)
+        self._apply_button = QPushButton(theme.icon("apply"), _("Apply"), self)
         self._apply_button.setStyleSheet(self._button_css)
         self._apply_button.setVisible(False)
         self._apply_button.clicked.connect(self._activate_selection)
@@ -150,7 +151,7 @@ class HistoryWidget(QListWidget):
             item.setData(
                 Qt.ItemDataRole.ToolTipRole,
                 f"{prompt} @ {job.params.strength*100:.0f}% strength\n"
-                "Click to toggle preview, double-click to apply.",
+                + _("Click to toggle preview, double-click to apply."),
             )
             self.addItem(item)
 
@@ -205,7 +206,7 @@ class HistoryWidget(QListWidget):
             rect = self.visualItemRect(selected[0])
             font = self._apply_button.fontMetrics()
             context_visible = rect.width() >= 0.6 * self.iconSize().width()
-            apply_text_visible = font.width("Apply") < 0.35 * rect.width()
+            apply_text_visible = font.width(_("Apply")) < 0.35 * rect.width()
             apply_pos = QPoint(rect.left() + 3, rect.bottom() - self._apply_button.height() - 2)
             if context_visible:
                 cw = self._context_button.width()
@@ -218,7 +219,7 @@ class HistoryWidget(QListWidget):
             self._apply_button.setVisible(True)
             self._apply_button.move(apply_pos)
             self._apply_button.resize(apply_size)
-            self._apply_button.setText("Apply" if apply_text_visible else "")
+            self._apply_button.setText(_("Apply") if apply_text_visible else "")
             self._context_button.setVisible(context_visible)
             if context_visible:
                 self._context_button.move(context_pos)
@@ -313,21 +314,22 @@ class HistoryWidget(QListWidget):
         item = self.itemAt(pos)
         if item is not None:
             menu = QMenu(self)
-            menu.addAction("Copy Prompt", self._copy_prompt)
-            menu.addAction("Copy Strength", self._copy_strength)
-            menu.addAction("Copy Seed", self._copy_seed)
+            menu.addAction(_("Copy Prompt"), self._copy_prompt)
+            menu.addAction(_("Copy Strength"), self._copy_strength)
+            menu.addAction(_("Copy Seed"), self._copy_seed)
             menu.addSeparator()
-            save_action = ensure(menu.addAction("Save Image", self._save_image))
+            save_action = ensure(menu.addAction(_("Save Image"), self._save_image))
             if self._model.document.filename == "":
                 save_action.setEnabled(False)
                 save_action.setToolTip(
-                    "Save as separate image to the same folder as the document.\nMust save the"
-                    " document first!"
+                    _(
+                        "Save as separate image to the same folder as the document.\nMust save the document first!"
+                    )
                 )
                 menu.setToolTipsVisible(True)
-            menu.addAction("Discard Image", self._discard_image)
+            menu.addAction(_("Discard Image"), self._discard_image)
             menu.addSeparator()
-            menu.addAction("Clear History", self._clear_all)
+            menu.addAction(_("Clear History"), self._clear_all)
             menu.exec(self.mapToGlobal(pos))
 
     def _show_context_menu_dropdown(self):
@@ -366,8 +368,8 @@ class HistoryWidget(QListWidget):
     def _clear_all(self):
         reply = QMessageBox.warning(
             self,
-            "Clear History",
-            "Are you sure you want to discard all generated images?",
+            _("Clear History"),
+            _("Are you sure you want to discard all generated images?"),
             QMessageBox.Yes | QMessageBox.No,
             QMessageBox.No,
         )
@@ -386,35 +388,41 @@ class CustomInpaintWidget(QWidget):
         self._model_bindings = []
 
         self.use_inpaint_button = QCheckBox(self)
-        self.use_inpaint_button.setText("Seamless")
-        self.use_inpaint_button.setToolTip("Generate content which blends into the surroundings")
+        self.use_inpaint_button.setText(_("Seamless"))
+        self.use_inpaint_button.setToolTip(_("Generate content which blends into the surroundings"))
 
         self.use_prompt_focus_button = QCheckBox(self)
-        self.use_prompt_focus_button.setText("Focus")
+        self.use_prompt_focus_button.setText(_("Focus"))
         self.use_prompt_focus_button.setToolTip(
-            "Use the text prompt to describe the selected region rather than the context area / Use only one regional prompt"
+            _(
+                "Use the text prompt to describe the selected region rather than the context area / Use only one regional prompt"
+            )
         )
 
         self.fill_mode_combo = QComboBox(self)
         fill_icon = theme.icon("fill")
         self.fill_mode_combo.addItem(theme.icon("fill-empty"), "None", FillMode.none)
-        self.fill_mode_combo.addItem(fill_icon, "Neutral", FillMode.neutral)
-        self.fill_mode_combo.addItem(fill_icon, "Blur", FillMode.blur)
-        self.fill_mode_combo.addItem(fill_icon, "Border", FillMode.border)
-        self.fill_mode_combo.addItem(fill_icon, "Inpaint", FillMode.inpaint)
+        self.fill_mode_combo.addItem(fill_icon, _("Neutral"), FillMode.neutral)
+        self.fill_mode_combo.addItem(fill_icon, _("Blur"), FillMode.blur)
+        self.fill_mode_combo.addItem(fill_icon, _("Border"), FillMode.border)
+        self.fill_mode_combo.addItem(fill_icon, _("Inpaint"), FillMode.inpaint)
         self.fill_mode_combo.setStyleSheet(theme.flat_combo_stylesheet)
-        self.fill_mode_combo.setToolTip("Pre-fill the selected region before diffusion")
+        self.fill_mode_combo.setToolTip(_("Pre-fill the selected region before diffusion"))
 
         self.context_combo = QComboBox(self)
         ctx_icon = lambda name: theme.icon(f"context-{name}")
         self.context_combo.addItem(
-            ctx_icon("automatic"), "Automatic Context", InpaintContext.automatic
+            ctx_icon("automatic"), _("Automatic Context"), InpaintContext.automatic
         )
-        self.context_combo.addItem(ctx_icon("mask"), "Selection Bounds", InpaintContext.mask_bounds)
-        self.context_combo.addItem(ctx_icon("image"), "Entire Image", InpaintContext.entire_image)
+        self.context_combo.addItem(
+            ctx_icon("mask"), _("Selection Bounds"), InpaintContext.mask_bounds
+        )
+        self.context_combo.addItem(
+            ctx_icon("image"), _("Entire Image"), InpaintContext.entire_image
+        )
         self.context_combo.setStyleSheet(theme.flat_combo_stylesheet)
         self.context_combo.setToolTip(
-            "Part of the image around the selection which is used as context."
+            _("Part of the image around the selection which is used as context.")
         )
         self.context_combo.setMinimumContentsLength(20)
         self.context_combo.setSizeAdjustPolicy(
@@ -507,8 +515,10 @@ class GenerationWidget(QWidget):
         layout.addWidget(self.region_prompt)
 
         self.strength_slider = StrengthWidget(parent=self)
-        self.add_region_button = create_wide_tool_button("region-add", "Add Region", self)
-        self.add_control_button = create_wide_tool_button("control-add", "Add Control Layer", self)
+        self.add_region_button = create_wide_tool_button("region-add", _("Add Region"), self)
+        self.add_control_button = create_wide_tool_button(
+            "control-add", _("Add Control Layer"), self
+        )
         strength_layout = QHBoxLayout()
         strength_layout.addWidget(self.strength_slider)
         strength_layout.addWidget(self.add_control_button)
@@ -534,7 +544,7 @@ class GenerationWidget(QWidget):
         self.region_mask_button.setCheckable(True)
         self.region_mask_button.setFixedHeight(self.generate_button.height() - 2)
         self.region_mask_button.setToolTip(
-            "Generate the active layer region only (use layer transparency as mask)"
+            _("Generate the active layer region only (use layer transparency as mask)")
         )
 
         generate_layout = QHBoxLayout()
@@ -619,13 +629,13 @@ class GenerationWidget(QWidget):
         self.model.apply_generated_result(job_id, index)
 
     _inpaint_text = {
-        InpaintMode.automatic: "Default (Auto-detect)",
-        InpaintMode.fill: "Fill",
-        InpaintMode.expand: "Expand",
-        InpaintMode.add_object: "Add Content",
-        InpaintMode.remove_object: "Remove Content",
-        InpaintMode.replace_background: "Replace Background",
-        InpaintMode.custom: "Generate (Custom)",
+        InpaintMode.automatic: _("Default (Auto-detect)"),
+        InpaintMode.fill: _("Fill"),
+        InpaintMode.expand: _("Expand"),
+        InpaintMode.add_object: _("Add Content"),
+        InpaintMode.remove_object: _("Remove Content"),
+        InpaintMode.replace_background: _("Replace Background"),
+        InpaintMode.custom: _("Generate (Custom)"),
     }
 
     def _mk_action(self, mode: InpaintMode, text: str, icon: str):
@@ -644,23 +654,25 @@ class GenerationWidget(QWidget):
 
     def _create_generate_region_menu(self):
         menu = QMenu(self)
-        menu.addAction(self._mk_action(InpaintMode.automatic, "Generate Region", "generate-region"))
         menu.addAction(
-            self._mk_action(InpaintMode.custom, "Generate Region (Custom)", "inpaint-custom")
+            self._mk_action(InpaintMode.automatic, _("Generate Region"), "generate-region")
+        )
+        menu.addAction(
+            self._mk_action(InpaintMode.custom, _("Generate Region (Custom)"), "inpaint-custom")
         )
         return menu
 
     def _create_refine_menu(self):
         menu = QMenu(self)
-        menu.addAction(self._mk_action(InpaintMode.automatic, "Refine", "refine"))
-        menu.addAction(self._mk_action(InpaintMode.custom, "Refine (Custom)", "inpaint-custom"))
+        menu.addAction(self._mk_action(InpaintMode.automatic, _("Refine"), "refine"))
+        menu.addAction(self._mk_action(InpaintMode.custom, _("Refine (Custom)"), "inpaint-custom"))
         return menu
 
     def _create_refine_region_menu(self):
         menu = QMenu(self)
-        menu.addAction(self._mk_action(InpaintMode.automatic, "Refine Region", "refine-region"))
+        menu.addAction(self._mk_action(InpaintMode.automatic, _("Refine Region"), "refine-region"))
         menu.addAction(
-            self._mk_action(InpaintMode.custom, "Refine Region (Custom)", "inpaint-custom")
+            self._mk_action(InpaintMode.custom, _("Refine Region (Custom)"), "inpaint-custom")
         )
         return menu
 
@@ -701,21 +713,21 @@ class GenerationWidget(QWidget):
             self.custom_inpaint.setVisible(False)
             if self.model.strength == 1.0:
                 icon = "workspace-generation"
-                text = "Generate"
+                text = _("Generate")
             else:
                 icon = "refine"
-                text = "Refine"
+                text = _("Refine")
         else:
             self.inpaint_mode_button.setVisible(True)
             self.custom_inpaint.setVisible(self.model.inpaint.mode is InpaintMode.custom)
             mode = self.model.resolve_inpaint_mode()
-            text = "Generate"
+            text = _("Generate")
             if self.model.strength < 1:
-                text = "Refine"
+                text = _("Refine")
             if is_region_only:
-                text += " Region"
+                text += " " + _("Region")
             if mode is InpaintMode.custom:
-                text += " (Custom)"
+                text += " " + _("(Custom)")
             if self.model.strength == 1.0:
                 if mode is InpaintMode.custom:
                     icon = "inpaint-custom"

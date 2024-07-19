@@ -8,6 +8,7 @@ from ..server import Server
 from ..connection import ConnectionState
 from ..settings import ServerMode, settings
 from ..root import root
+from ..localization import translate as _
 from . import theme
 from .generation import GenerationWidget
 from .upscale import UpscaleWidget
@@ -36,7 +37,7 @@ class WelcomeWidget(QWidget):
         layout.addLayout(header_layout)
         layout.addSpacing(12)
 
-        self._connect_status = QLabel("Not connected to server.", self)
+        self._connect_status = QLabel(_("Not connected to server."), self)
         layout.addWidget(self._connect_status)
         layout.addSpacing(6)
 
@@ -46,7 +47,7 @@ class WelcomeWidget(QWidget):
         self._connect_error.setStyleSheet(f"color: {theme.yellow};")
         layout.addWidget(self._connect_error)
 
-        self._settings_button = QPushButton(theme.icon("settings"), "Configure", self)
+        self._settings_button = QPushButton(theme.icon("settings"), _("Configure"), self)
         self._settings_button.setMinimumHeight(32)
         self._settings_button.clicked.connect(self.show_settings)
         layout.addWidget(self._settings_button)
@@ -59,10 +60,10 @@ class WelcomeWidget(QWidget):
     def update_content(self):
         connection = root.connection
         if connection.state in [ConnectionState.disconnected, ConnectionState.error]:
-            self._connect_status.setText("Not connected to server.")
+            self._connect_status.setText(_("Not connected to server."))
         if connection.state is ConnectionState.error:
             self._connect_error.setText(
-                "Connection attempt failed! Click below to configure and reconnect."
+                _("Connection attempt failed! Click below to configure and reconnect.")
             )
             self._connect_error.setVisible(True)
         if (
@@ -70,20 +71,24 @@ class WelcomeWidget(QWidget):
             and settings.server_mode is ServerMode.managed
         ):
             if self._server.upgrade_required:
-                self._connect_error.setText("Server version is outdated. Click below to upgrade.")
+                self._connect_error.setText(
+                    _("Server version is outdated. Click below to upgrade.")
+                )
             else:
                 self._connect_error.setText(
-                    "Server is not installed or not running. Click below to start."
+                    _("Server is not installed or not running. Click below to start.")
                 )
             self._connect_error.setVisible(True)
         if connection.state is ConnectionState.auth_missing:
-            self._connect_status.setText("Not signed in. Click below to connect.")
+            self._connect_status.setText(_("Not signed in. Click below to connect."))
         if connection.state is ConnectionState.connecting:
-            self._connect_status.setText(f"Connecting to server...")
+            self._connect_status.setText(_("Connecting to server..."))
         if connection.state is ConnectionState.connected:
             self._connect_status.setText(
-                f"Connected to server at {connection.client.url}.\n\nCreate"
-                " a new document or open an existing image to start!"
+                _(
+                    "Connected to server at {url}.\n\nCreate a new document or open an existing image to start!",
+                    url=connection.client.url,
+                )
             )
             self._connect_error.setVisible(False)
 

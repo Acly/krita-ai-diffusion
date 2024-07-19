@@ -25,6 +25,7 @@ from ..settings import Setting, ServerMode, settings
 from ..server import Server
 from ..text import LoraId
 from ..style import Style, Styles, StyleSettings, SamplerPresets
+from ..localization import translate as _
 from ..root import root
 from .settings_widgets import ExpanderButton, SpinBoxSetting, SliderSetting, SwitchSetting
 from .settings_widgets import ComboBoxSetting, TextSetting, LineEditSetting, SettingWidget
@@ -61,7 +62,7 @@ class LoraList(QWidget):
             self._strength.setMaximum(400)
             self._strength.setSingleStep(5)
             self._strength.setValue(100)
-            self._strength.setPrefix("Strength: ")
+            self._strength.setPrefix(_("Strength") + ": ")
             self._strength.setSuffix("%")
             self._strength.valueChanged.connect(self._update)
 
@@ -137,11 +138,14 @@ class LoraList(QWidget):
                     if file is not None and res.startswith("lora-")
                 ]
                 if id.file not in client.models.loras:
-                    self._warning_icon.show_message("The LoRA file is not installed on the server.")
+                    self._warning_icon.show_message(
+                        _("The LoRA file is not installed on the server.")
+                    )
                 elif id.file in special_loras:
                     self._warning_icon.show_message(
-                        "This LoRA is usually added automatically by a Sampler or Control Layer when needed.\n"
-                        "It is not required to add it manually here."
+                        _(
+                            "This LoRA is usually added automatically by a Sampler or Control Layer when needed.\nIt is not required to add it manually here."
+                        )
                     )
                 else:
                     self._warning_icon.hide()
@@ -169,7 +173,7 @@ class LoraList(QWidget):
         add_header(header_text_layout, setting)
         header_layout.addLayout(header_text_layout, 5)
 
-        self._add_button = QPushButton("Add", self)
+        self._add_button = QPushButton(_("Add"), self)
         self._add_button.setMinimumWidth(100)
         self._add_button.clicked.connect(self._add_item)
         header_layout.addWidget(self._add_button, 1)
@@ -181,7 +185,7 @@ class LoraList(QWidget):
         self._refresh_button = QToolButton(self)
         self._refresh_button.setToolButtonStyle(Qt.ToolButtonStyle.ToolButtonIconOnly)
         self._refresh_button.setIcon(Krita.instance().icon("reload-preset"))
-        self._refresh_button.setToolTip("Look for new LoRA files")
+        self._refresh_button.setToolTip(_("Look for new LoRA files"))
         self._refresh_button.clicked.connect(root.connection.refresh)
         header_layout.addWidget(self._refresh_button, 0)
 
@@ -189,7 +193,7 @@ class LoraList(QWidget):
             open_folder = self.open_folder_button = QToolButton(self)
             open_folder.setToolButtonStyle(Qt.ToolButtonStyle.ToolButtonIconOnly)
             open_folder.setIcon(Krita.instance().icon("document-open"))
-            open_folder.setToolTip("Open folder containing LoRA files")
+            open_folder.setToolTip(_("Open folder containing LoRA files"))
             header_layout.addWidget(open_folder, 0)
 
         self._layout.addLayout(header_layout)
@@ -292,7 +296,8 @@ class SamplerWidget(QWidget):
         header_layout.addStretch()
         header_layout.addWidget(self._preset)
 
-        self._user_presets_link = QLabel("<a href='samplers.json'>Edit custom presets</a>", self)
+        anchor = _("Edit custom presets")
+        self._user_presets_link = QLabel(f"<a href='samplers.json'>{anchor}</a>", self)
         self._user_presets_link.linkActivated.connect(self._open_user_presets)
 
         self._sampler_info = QLabel("", self)
@@ -339,7 +344,7 @@ class SamplerWidget(QWidget):
 
     def _update_info(self):
         preset = self.preset
-        text = f"<b>Sampler:</b> {preset.sampler} / {preset.scheduler}"
+        text = "<b>" + _("Sampler") + f":</b> {preset.sampler} / {preset.scheduler}"
         if preset.lora:
             text += f" +LoRA '{preset.lora}'"
         self._sampler_info.setText(text)
@@ -371,7 +376,7 @@ class StylePresets(SettingsTab):
     _live_sampler_widgets: list[SettingWidget]
 
     def __init__(self, server: Server):
-        super().__init__("Style Presets")
+        super().__init__(_("Style Presets"))
         self.server = server
 
         self._style_list = QComboBox(self)
@@ -379,25 +384,25 @@ class StylePresets(SettingsTab):
 
         self._create_style_button = QToolButton(self)
         self._create_style_button.setIcon(Krita.instance().icon("list-add"))
-        self._create_style_button.setToolTip("Create a new style")
+        self._create_style_button.setToolTip(_("Create a new style"))
         self._create_style_button.clicked.connect(self._create_style)
 
         self._delete_style_button = QToolButton(self)
         self._delete_style_button.setIcon(Krita.instance().icon("deletelayer"))
-        self._delete_style_button.setToolTip("Delete the current style")
+        self._delete_style_button.setToolTip(_("Delete the current style"))
         self._delete_style_button.clicked.connect(self._delete_style)
 
         self._refresh_button = QToolButton(self)
         self._refresh_button.setIcon(Krita.instance().icon("reload-preset"))
-        self._refresh_button.setToolTip("Look for new style files")
+        self._refresh_button.setToolTip(_("Look for new style files"))
         self._refresh_button.clicked.connect(Styles.list().reload)
 
         self._open_folder_button = QToolButton(self)
         self._open_folder_button.setIcon(Krita.instance().icon("document-open"))
-        self._open_folder_button.setToolTip("Open folder containing style files")
+        self._open_folder_button.setToolTip(_("Open folder containing style files"))
         self._open_folder_button.clicked.connect(self._open_style_folder)
 
-        self._show_builtin_checkbox = QCheckBox("Show pre-installed styles", self)
+        self._show_builtin_checkbox = QCheckBox(_("Show pre-installed styles"), self)
         self._show_builtin_checkbox.toggled.connect(self.write)
 
         style_control_layout = QHBoxLayout()
@@ -431,7 +436,7 @@ class StylePresets(SettingsTab):
         add("sd_checkpoint", ComboBoxSetting(StyleSettings.sd_checkpoint, self))
         self._style_widgets["sd_checkpoint"].add_button(
             Krita.instance().icon("reload-preset"),
-            "Look for new checkpoint files",
+            _("Look for new checkpoint files"),
             root.connection.refresh,
         )
         self._checkpoint_warning = QLabel(self)
@@ -439,14 +444,14 @@ class StylePresets(SettingsTab):
         self._checkpoint_warning.setVisible(False)
         self._layout.addWidget(self._checkpoint_warning, alignment=Qt.AlignmentFlag.AlignRight)
 
-        checkpoint_advanced = ExpanderButton("Checkpoint configuration (advanced)", self)
+        checkpoint_advanced = ExpanderButton(_("Checkpoint configuration (advanced)"), self)
         checkpoint_advanced.toggled.connect(self._toggle_checkpoint_advanced)
         self._layout.addWidget(checkpoint_advanced)
 
         self._checkpoint_advanced_widgets = [add("vae", ComboBoxSetting(StyleSettings.vae, self))]
 
         self._clip_skip = add("clip_skip", SpinBoxSetting(StyleSettings.clip_skip, self, 0, 12))
-        clip_skip_check = self._clip_skip.add_checkbox("Override")
+        clip_skip_check = self._clip_skip.add_checkbox(_("Override"))
         clip_skip_check.toggled.connect(self._toggle_clip_skip)
         self._checkpoint_advanced_widgets.append(self._clip_skip)
 
@@ -454,7 +459,7 @@ class StylePresets(SettingsTab):
             "preferred_resolution",
             SpinBoxSetting(StyleSettings.preferred_resolution, self, 0, 2048, step=8),
         )
-        resolution_check = self._resolution_spin.add_checkbox("Override")
+        resolution_check = self._resolution_spin.add_checkbox(_("Override"))
         resolution_check.toggled.connect(self._toggle_preferred_resolution)
         self._checkpoint_advanced_widgets.append(self._resolution_spin)
 
@@ -473,14 +478,14 @@ class StylePresets(SettingsTab):
         add("style_prompt", LineEditSetting(StyleSettings.style_prompt, self))
         add("negative_prompt", LineEditSetting(StyleSettings.negative_prompt, self))
 
-        sdesc = "Configure sampler type, steps and CFG to tweak the quality of generated images."
-        add_header(self._layout, Setting("Sampler Settings", "", sdesc))
+        sdesc = _("Configure sampler type, steps and CFG to tweak the quality of generated images.")
+        add_header(self._layout, Setting(_("Sampler Settings"), "", sdesc))
 
-        self._default_sampler = SamplerWidget("", "Quality Preset (generate and upscale)", self)
+        self._default_sampler = SamplerWidget("", _("Quality Preset (generate and upscale)"), self)
         self._default_sampler.value_changed.connect(self.write)
         self._layout.addWidget(self._default_sampler)
 
-        self._live_sampler = SamplerWidget("live_", "Performance Preset (live mode)", self)
+        self._live_sampler = SamplerWidget("live_", _("Performance Preset (live mode)"), self)
         self._live_sampler.value_changed.connect(self.write)
         self._layout.addWidget(self._live_sampler)
 
@@ -489,7 +494,7 @@ class StylePresets(SettingsTab):
         if settings.server_mode is ServerMode.managed:
             self._style_widgets["sd_checkpoint"].add_button(
                 Krita.instance().icon("document-open"),
-                "Open the folder where checkpoints are stored",
+                _("Open the folder where checkpoints are stored"),
                 self._open_checkpoints_folder,
             )
         if self._style_widgets["loras"].open_folder_button:
@@ -567,15 +572,17 @@ class StylePresets(SettingsTab):
         if client := root.connection.client_if_connected:
             if self.current_style.sd_checkpoint not in client.models.checkpoints:
                 self._checkpoint_warning.setText(
-                    "The checkpoint used by this style is not installed."
+                    _("The checkpoint used by this style is not installed.")
                 )
                 self._checkpoint_warning.setVisible(True)
             else:
                 version = resolve_sd_version(self.current_style, client)
                 if not client.supports_version(version):
                     self._checkpoint_warning.setText(
-                        f"This is a {version.value} checkpoint, but the {version.value} workload has"
-                        " not been installed."
+                        _(
+                            "This is a {version} checkpoint, but the {version} workload has not been installed.",
+                            version=version.value,
+                        )
                     )
                     self._checkpoint_warning.setVisible(True)
 

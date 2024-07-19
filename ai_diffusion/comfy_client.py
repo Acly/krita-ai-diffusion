@@ -19,6 +19,7 @@ from .style import Styles
 from .resources import ControlMode, MissingResource, ResourceKind, SDVersion, UpscalerName
 from .resources import resource_id
 from .settings import PerformanceSettings, settings
+from .localization import translate as _
 from .util import client_logger as log
 from .workflow import create as create_workflow
 from . import resources, util
@@ -91,7 +92,7 @@ class ComfyClient(Client):
             async with websockets_client.connect(f"{wsurl}/ws?clientId={client._id}"):
                 pass
         except Exception as e:
-            msg = f"Could not establish websocket connection at {wsurl}: {str(e)}"
+            msg = _("Could not establish websocket connection at") + f" {wsurl}: {str(e)}"
             raise Exception(msg)
 
         # Check custom nodes
@@ -185,7 +186,7 @@ class ComfyClient(Client):
                 log.warning(f"Websocket connection closed: {str(e)}")
                 yield ClientMessage(ClientEvent.disconnected)
             except OSError as e:
-                msg = f"Could not connect to websocket server at {url}: {str(e)}"
+                msg = _("Could not connect to websocket server at") + f"{url}: {str(e)}"
                 yield ClientMessage(ClientEvent.error, error=msg)
             except asyncio.CancelledError:
                 await websocket.close()

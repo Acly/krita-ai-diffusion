@@ -10,6 +10,7 @@ from PyQt5.QtGui import QImage
 from .image import Extent, Bounds, Mask, Image
 from .layer import Layer, LayerManager, LayerType
 from .pose import Pose
+from .localization import translate as _
 
 
 class Document(QObject):
@@ -139,7 +140,7 @@ class KritaDocument(Document):
 
     def check_color_mode(self):
         model = self._doc.colorModel()
-        msg_fmt = "Incompatible document: Color {0} must be {1} (current {0}: {2})"
+        msg_fmt = _("Incompatible document: Color {0} must be {1} (current {0}: {2})")
         if model != "RGBA":
             return False, msg_fmt.format("model", "RGB/Alpha", model)
         depth = self._doc.colorDepth()
