@@ -10,6 +10,37 @@ Having a look at the log files can provide additional information for troublesho
 
 When you open a new issue, please attach the log files. Other useful information to include: OS (Windows/Linux/Mac), Krita version, Plugin version, GPU vendor.
 
+## Translations (Localization)
+
+You can create or improve a translation for the plugin interface into your language.
+Language files are stored in the `ai_diffusion/langauge` folder. Each translation has its own
+file, typically named using a language code (eg. `en.json` for English).
+If no file for your language exists, you can use the `new_language.json.template` file and
+rename it. It will show up in the plugin's language settings after a restart.
+
+To edit a localization file, open the file in a text editor and provide translations for
+each of the english text strings. For example, to provide a German translation, it could look
+like this:
+```json
+{
+  "id": "de",
+  "name": "Deutsch",
+  "translations": {
+    "(Custom)": "(Benutzerdefiniert)",
+    "<No text prompt>": "<Keine Text-Eingabe>",
+    "Active": "Aktiv",
+    "Add Content": "Inhalte hinzufügen",
+    "Could not find LoRA '{lora}' used by sampler preset '{name}'": "LoRA '{lora}' konnte nicht gefunden werden, wird aber von Sampler '{name}' benutzt",
+    ...
+  }
+}
+```
+
+**Important:** `{placeholders}` must be left unmodified! They will be replaced with actual content during runtime.
+
+To update an existing translation (eg. after the plugin has been updated and new text was added)
+simply search for entries which are `null`. These are valid, but not not translated yet.
+
 ## Contributing code
 
 For bigger changes, it makes sense to create an issue first to discuss a proposal before time is comitted.
