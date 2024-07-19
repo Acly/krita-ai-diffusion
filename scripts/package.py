@@ -9,6 +9,9 @@ package_dir = root / "scripts" / ".package"
 sys.path.append(str(root))
 import ai_diffusion
 
+sys.path.append(str(Path(__file__).parent))
+import translation
+
 version = ai_diffusion.__version__
 package_name = f"krita_ai_diffusion-{version}"
 
@@ -22,6 +25,8 @@ def convert_markdown_to_html(markdown_file: Path, html_file: Path):
 
 
 def build_package():
+    translation.update_template()
+
     rmtree(package_dir, ignore_errors=True)
     package_dir.mkdir()
     copy(root / "ai_diffusion.desktop", package_dir)

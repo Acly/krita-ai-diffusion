@@ -29,6 +29,12 @@ def write_language_file(strings: set[str], id: str, name: str, target_file: Path
         json.dump(defs, f, ensure_ascii=False, indent=2)
 
 
+def update_template():
+    template_file = source_dir / "language" / "new_language.json.template"
+    strings = parse_source(source_dir)
+    write_language_file(strings, "ex", "Example Language", template_file)
+
+
 if __name__ == "__main__":
     cmd = argparse.ArgumentParser()
     cmd.add_argument("lang", type=str, help="Language identifier (en, es, de, ...)")
