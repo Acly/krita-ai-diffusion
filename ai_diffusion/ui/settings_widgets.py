@@ -8,6 +8,8 @@ from PyQt5.QtWidgets import (
     QCheckBox,
     QLabel,
     QLineEdit,
+    QListWidget,
+    QListWidgetItem,
     QSizePolicy,
     QSpinBox,
     QToolButton,
@@ -22,6 +24,7 @@ from PyQt5.QtGui import QIcon
 
 from ..localization import translate as _
 from ..settings import Setting, settings
+from ..util import ensure
 from .switch import SwitchWidget
 from .theme import add_header, icon
 
@@ -124,6 +127,46 @@ class SettingWidget(QWidget):
 
     def _notify_value_changed(self):
         self.value_changed.emit()
+
+
+class FileListSetting(SettingWidget):
+    _list_widget: QListWidget
+    _files: list[str]
+
+    def __init__(self, setting: Setting, files: list[str], parent=None):
+        super().__init__(setting, parent)
+        self._list_items: list[tuple[str, QCheckBox]] = []
+        self._list_layout = QHBoxLayout()
+        self._list_widget = QWidget(self)
+        self._list_widget.setLayout(self._list_layout)
+        self._layout.addWidget(self._list_widget)
+        self._widget = self._list_widget
+
+        self._set_files(files)
+
+    def reset_files(self, files: list[str]):
+        old_value = self.value
+        self._set_files(files)
+        self.value = old_value
+
+    def _set_files(self, files: list[str]):
+        self._files = files
+        self._list_widget.children().clear()
+        self._list_items.clear()
+        for file_ in self._files:
+            checkbox = QCheckBox(file_, self)
+            checkbox.toggled.connect(self._notify_value_changed)
+            self._list_layout.addWidget(checkbox)
+            self._list_items.append((file_, checkbox))
+
+    @property
+    def value(self):
+        return [file for file, checkbox in self._list_items if checkbox.isChecked()]
+
+    @value.setter
+    def value(self, v):
+        for file, checkbox in self._list_items:
+            checkbox.setChecked(file in v)
 
 
 class SpinBoxSetting(SettingWidget):
