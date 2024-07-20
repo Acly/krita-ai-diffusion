@@ -1,4 +1,5 @@
 from __future__ import annotations
+from krita import Krita
 
 from typing import Optional, cast
 from PyQt5.QtWidgets import (
@@ -34,7 +35,7 @@ from ..localization import Localization, translate as _
 from .. import eventloop, util, __version__
 from .server import ServerWidget
 from .settings_widgets import SpinBoxSetting, SliderSetting, SwitchSetting
-from .settings_widgets import SettingsTab, ComboBoxSetting
+from .settings_widgets import SettingsTab, ComboBoxSetting, FileListSetting
 from .style import StylePresets
 from .theme import add_header, red, yellow, green, grey
 
@@ -424,11 +425,32 @@ class InterfaceSettings(SettingsTab):
         self.add("new_seed_after_apply", SwitchSetting(S._new_seed_after_apply, parent=self))
         self.add("debug_dump_workflow", SwitchSetting(S._debug_dump_workflow, parent=self))
 
+        self.add("tag_files", FileListSetting(S._tag_files, files=self._tag_files(), parent=self))
+        self._widgets["tag_files"].add_button(
+            Krita.instance().icon("reload-preset"),
+            _("Look for new tag files"),
+            self._update_tag_files,
+        )
+
         languages = [(lang.name, lang.id) for lang in Localization.available]
         self._widgets["language"].set_items(languages)
         self.update_translation(root.connection.client_if_connected)
 
         self._layout.addStretch()
+
+    def _tag_files(self) -> list[str]:
+        plugin_tags_path = util.plugin_dir / "tags"
+        user_tags_path = util.user_data_dir / "tags"
+        files = set()
+        for path in plugin_tags_path.glob("*.csv"):
+            files.add(path.stem)
+        for path in user_tags_path.glob("*.csv"):
+            files.add(path.stem)
+
+        return list(files)
+
+    def _update_tag_files(self):
+        self._widgets["tag_files"].reset_files(self._tag_files())
 
     def update_translation(self, client: Client | None):
         translation: ComboBoxSetting = self._widgets["prompt_translation"]

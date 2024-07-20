@@ -20,7 +20,6 @@ from PyQt5.QtWidgets import (
     QWidgetAction,
     QCheckBox,
     QGridLayout,
-    QCompleter,
     QPushButton,
     QFrame,
 )
@@ -35,7 +34,7 @@ from PyQt5.QtGui import (
     QPaintEvent,
     QKeySequence,
 )
-from PyQt5.QtCore import QObject, Qt, QMetaObject, QSize, QStringListModel, pyqtSignal, QEvent
+from PyQt5.QtCore import QObject, Qt, QMetaObject, QSize, pyqtSignal, QEvent
 
 from ..style import Style, Styles
 from ..root import root
@@ -43,10 +42,11 @@ from ..client import filter_supported_styles, resolve_sd_version
 from ..properties import Binding, Bind, bind, bind_combo
 from ..jobs import JobState, JobKind
 from ..model import Model, Workspace, SamplingQuality
-from ..text import LoraId, edit_attention, select_on_cursor_pos
+from ..text import edit_attention, select_on_cursor_pos
 from ..localization import translate as _
 from ..util import ensure
 from ..workflow import apply_strength, snap_to_percent
+from .autocomplete import PromptAutoComplete
 from .settings import SettingsDialog, settings
 from .theme import SignalBlocker
 from . import actions, theme
@@ -328,70 +328,6 @@ def handle_weight_adjustment(
             # that the end range will be set to end of text. So set cursor instead
             # as compromise.
             self.setCursorPosition(start + len(text_after_edit) - 2)
-
-
-class PromptAutoComplete:
-    _completer: QCompleter
-
-    def __init__(self, widget: QLineEdit):
-        self._widget = widget
-        self._completer = QCompleter()
-        self._completer.activated.connect(self._insert_completion)
-        self._completer.setCompletionMode(QCompleter.CompletionMode.PopupCompletion)
-        self._completer.setFilterMode(Qt.MatchFlag.MatchContains)
-        self._completer.setCaseSensitivity(Qt.CaseSensitivity.CaseInsensitive)
-        self._completer.setWidget(widget)
-        self._popup = ensure(self._completer.popup())
-
-        self._refresh_loras()
-        root.connection.state_changed.connect(self._refresh_loras)
-
-    def _refresh_loras(self):
-        if client := root.connection.client_if_connected:
-            loras = [LoraId.normalize(lora).name for lora in client.models.loras]
-            self._completer.setModel(QStringListModel(loras))
-
-    def _current_text(self) -> str:
-        text = self._widget.text()
-        start = pos = self._widget.cursorPosition()
-        while pos > 0 and text[pos - 1] not in " >\n":
-            pos -= 1
-        return text[pos:start]
-
-    def check_completion(self):
-        prefix = self._current_text()
-        name = prefix.removeprefix("<lora:")
-        if len(prefix) == len(name):
-            self._popup.hide()
-            return
-
-        self._completer.setCompletionPrefix(name)
-        rect = self._widget.cursorRect()
-        self._popup.setCurrentIndex(ensure(self._completer.completionModel()).index(0, 0))
-        scrollbar = ensure(self._popup.verticalScrollBar())
-        rect.setWidth(self._popup.sizeHintForColumn(0) + scrollbar.sizeHint().width())
-        self._completer.complete(rect)
-
-    def _insert_completion(self, completion):
-        text = self._widget.text()
-        pos = self._widget.cursorPosition()
-        prefix_len = len(self._completer.completionPrefix())
-        text = text[: pos - prefix_len] + completion + ">" + text[pos:]
-        self._widget.setText(text)
-        self._widget.setCursorPosition(pos - prefix_len + len(completion) + 1)
-
-    @property
-    def is_active(self):
-        return self._popup.isVisible()
-
-    action_keys = [
-        Qt.Key.Key_Enter,
-        Qt.Key.Key_Return,
-        Qt.Key.Key_Up,
-        Qt.Key.Key_Down,
-        Qt.Key.Key_Tab,
-        Qt.Key.Key_Backtab,
-    ]
 
 
 class MultiLineTextPromptWidget(QPlainTextEdit):
