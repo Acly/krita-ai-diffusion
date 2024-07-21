@@ -154,6 +154,7 @@ class WorkflowInput:
     upscale_model: str = ""
     control_mode: ControlMode = ControlMode.reference
     batch_count: int = 1
+    nsfw_filter: float = 0.0
 
     @property
     def extent(self):

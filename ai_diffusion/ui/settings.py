@@ -382,6 +382,10 @@ class DiffusionSettings(SettingsTab):
         self.add("selection_grow", SliderSetting(S._selection_grow, self, 0, 25, "{} %"))
         self.add("selection_feather", SliderSetting(S._selection_feather, self, 0, 25, "{} %"))
         self.add("selection_padding", SliderSetting(S._selection_padding, self, 0, 25, "{} %"))
+        self.add("nsfw_filter", ComboBoxSetting(S._nsfw_filter, self))
+
+        nsfw_settings = [("Disabled", 0.0), ("Basic", 0.65), ("Strict", 0.8)]
+        self._widgets["nsfw_filter"].set_items(nsfw_settings)
 
         self._layout.addStretch()
 

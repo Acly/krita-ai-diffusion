@@ -657,6 +657,11 @@ class ComfyWorkflow:
     def apply_mask(self, image: Output, mask: Output):
         return self.add("ETN_ApplyMaskToImage", 1, image=image, mask=mask)
 
+    def nsfw_filter(self, image: Output, sensitivity: float):
+        if sensitivity > 0:
+            return self.add("ETN_NSFWFilter", 1, image=image, sensitivity=sensitivity)
+        return image
+
     def load_image(self, image: Image):
         if self._run_mode is ComfyRunMode.runtime:
             return self.add("ETN_InjectImage", 1, id=self._add_image(image))

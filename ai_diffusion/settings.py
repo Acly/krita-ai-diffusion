@@ -138,6 +138,11 @@ class Settings(QObject):
         _("Selection Padding"), 7, _("Minimum additional padding around the selection area")
     )
 
+    nsfw_filter: float
+    _nsfw_filter = Setting(
+        _("NSFW Filter"), 0.0, _("Attempt to filter out images with explicit content")
+    )
+
     new_seed_after_apply: bool
     _new_seed_after_apply = Setting(
         _("Live: New Seed after Apply"),

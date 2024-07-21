@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from copy import copy
 from dataclasses import dataclass, field
-from typing import Any
+from typing import Any, NamedTuple
 import math
 import random
 
@@ -19,6 +19,7 @@ from .settings import PerformanceSettings
 from .text import merge_prompt, extract_loras
 from .comfy_workflow import ComfyWorkflow, ComfyRunMode, Output
 from .localization import translate as _
+from .settings import settings
 from .util import ensure, median_or_zero, unique, client_logger as log
 
 
@@ -513,13 +514,18 @@ def scale_refine_and_decode(
     return image
 
 
+class MiscParams(NamedTuple):
+    batch_count: int
+    nsfw_filter: float
+
+
 def generate(
     w: ComfyWorkflow,
     checkpoint: CheckpointInput,
     extent: ScaledExtent,
     cond: Conditioning,
     sampling: SamplingInput,
-    batch_count: int,
+    misc: MiscParams,
     models: ModelDict,
 ):
     model, clip, vae = load_checkpoint_with_lora(w, checkpoint, models.all)
@@ -527,7 +533,7 @@ def generate(
     model_orig = copy(model)
     model = apply_attention_mask(w, model, cond, clip, extent.initial)
     model = apply_regional_ip_adapter(w, model, cond.regions, extent.initial, models)
-    latent = w.empty_latent_image(extent.initial, models.version, batch_count)
+    latent = w.empty_latent_image(extent.initial, models.version, misc.batch_count)
     prompt_pos, prompt_neg = encode_text_prompt(w, cond, clip)
     positive, negative = apply_control(
         w, prompt_pos, prompt_neg, cond.all_control, extent.initial, models
@@ -538,6 +544,7 @@ def generate(
     out_image = scale_refine_and_decode(
         extent, w, cond, sampling, out_latent, prompt_pos, prompt_neg, model_orig, clip, vae, models
     )
+    out_image = w.nsfw_filter(out_image, sensitivity=misc.nsfw_filter)
     out_image = scale_to_target(extent, w, out_image, models)
     w.send_image(out_image)
     return w
@@ -607,7 +614,7 @@ def inpaint(
     sampling: SamplingInput,
     params: InpaintParams,
     crop_upscale_extent: Extent,
-    batch_count: int,
+    misc: MiscParams,
     models: ModelDict,
 ):
     target_bounds = params.target_bounds
@@ -672,7 +679,7 @@ def inpaint(
         latent = w.set_latent_noise_mask(latent, initial_mask)
         inpaint_model = model
 
-    latent = w.batch_latent(latent, batch_count)
+    latent = w.batch_latent(latent, misc.batch_count)
     out_latent = w.sampler_custom_advanced(
         inpaint_model, positive, negative, latent, models.version, **_sampler_params(sampling)
     )
@@ -725,6 +732,7 @@ def inpaint(
         out_image = w.crop_image(out_image, desired_bounds)
         out_image = scale_to_target(cropped_extent, w, out_image, models)
 
+    out_image = w.nsfw_filter(out_image, sensitivity=misc.nsfw_filter)
     compositing_mask = w.denoise_to_compositing_mask(cropped_mask)
     out_masked = w.apply_mask(out_image, compositing_mask)
     w.send_image(out_masked)
@@ -738,7 +746,7 @@ def refine(
     checkpoint: CheckpointInput,
     cond: Conditioning,
     sampling: SamplingInput,
-    batch_count: int,
+    misc: MiscParams,
     models: ModelDict,
 ):
     model, clip, vae = load_checkpoint_with_lora(w, checkpoint, models.all)
@@ -748,8 +756,7 @@ def refine(
     in_image = w.load_image(image)
     in_image = scale_to_initial(extent, w, in_image, models)
     latent = w.vae_encode(vae, in_image)
-    if batch_count > 1:
-        latent = w.batch_latent(latent, batch_count)
+    latent = w.batch_latent(latent, misc.batch_count)
     positive, negative = encode_text_prompt(w, cond, clip)
     positive, negative = apply_control(
         w, positive, negative, cond.all_control, extent.desired, models
@@ -758,6 +765,7 @@ def refine(
         model, positive, negative, latent, models.version, **_sampler_params(sampling)
     )
     out_image = w.vae_decode(vae, sampler)
+    out_image = w.nsfw_filter(out_image, sensitivity=misc.nsfw_filter)
     out_image = scale_to_target(extent, w, out_image, models)
     w.send_image(out_image)
     return w
@@ -770,7 +778,7 @@ def refine_region(
     cond: Conditioning,
     sampling: SamplingInput,
     inpaint: InpaintParams,
-    batch_count: int,
+    misc: MiscParams,
     models: ModelDict,
 ):
     extent = ScaledExtent.from_input(images.extent)
@@ -806,15 +814,14 @@ def refine_region(
         inpaint_patch = w.load_fooocus_inpaint(**models.fooocus_inpaint)
         inpaint_model = w.apply_fooocus_inpaint(model, inpaint_patch, latent_inpaint)
 
-    if batch_count > 1:
-        latent = w.batch_latent(latent, batch_count)
-
+    latent = w.batch_latent(latent, misc.batch_count)
     out_latent = w.sampler_custom_advanced(
         inpaint_model, positive, negative, latent, models.version, **_sampler_params(sampling)
     )
     out_image = scale_refine_and_decode(
         extent, w, cond, sampling, out_latent, prompt_pos, prompt_neg, model_orig, clip, vae, models
     )
+    out_image = w.nsfw_filter(out_image, sensitivity=misc.nsfw_filter)
     out_image = scale_to_target(extent, w, out_image, models)
     if extent.target != inpaint.target_bounds.extent:
         out_image = w.crop_image(out_image, inpaint.target_bounds)
@@ -914,6 +921,7 @@ def upscale_tiled(
     cond: Conditioning,
     sampling: SamplingInput,
     upscale_model_name: str,
+    misc: MiscParams,
     models: ModelDict,
 ):
     upscale_factor = extent.initial.width / extent.input.width
@@ -974,6 +982,7 @@ def upscale_tiled(
         tile_result = w.vae_decode(vae, sampler)
         out_image = w.merge_image_tile(out_image, tile_layout, i, tile_result)
 
+    out_image = w.nsfw_filter(out_image, sensitivity=misc.nsfw_filter)
     if extent.initial != extent.target:
         out_image = scale(extent.initial, extent.target, ScaleMode.resize, w, out_image, models)
     w.send_image(out_image)
@@ -1086,6 +1095,7 @@ def prepare(
         raise Exception(f"Workflow {kind.name} not supported by this constructor")
 
     i.batch_count = 1 if is_live else i.batch_count
+    i.nsfw_filter = settings.nsfw_filter
     return i
 
 
@@ -1120,6 +1130,7 @@ def create(i: WorkflowInput, models: ClientModels, comfy_mode=ComfyRunMode.serve
     This should be a pure function, the workflow is entirely defined by the input.
     """
     workflow = ComfyWorkflow(models.node_inputs, comfy_mode)
+    misc = MiscParams(i.batch_count, i.nsfw_filter)
 
     if i.kind is WorkflowKind.generate:
         return generate(
@@ -1128,7 +1139,7 @@ def create(i: WorkflowInput, models: ClientModels, comfy_mode=ComfyRunMode.serve
             ScaledExtent.from_input(i.extent),
             Conditioning.from_input(ensure(i.conditioning)),
             ensure(i.sampling),
-            i.batch_count,
+            misc,
             models.for_checkpoint(ensure(i.models).checkpoint),
         )
     elif i.kind is WorkflowKind.inpaint:
@@ -1140,7 +1151,7 @@ def create(i: WorkflowInput, models: ClientModels, comfy_mode=ComfyRunMode.serve
             ensure(i.sampling),
             ensure(i.inpaint),
             ensure(i.crop_upscale_extent),
-            i.batch_count,
+            misc,
             models.for_checkpoint(ensure(i.models).checkpoint),
         )
     elif i.kind is WorkflowKind.refine:
@@ -1151,7 +1162,7 @@ def create(i: WorkflowInput, models: ClientModels, comfy_mode=ComfyRunMode.serve
             ensure(i.models),
             Conditioning.from_input(ensure(i.conditioning)),
             ensure(i.sampling),
-            i.batch_count,
+            misc,
             models.for_checkpoint(ensure(i.models).checkpoint),
         )
     elif i.kind is WorkflowKind.refine_region:
@@ -1162,7 +1173,7 @@ def create(i: WorkflowInput, models: ClientModels, comfy_mode=ComfyRunMode.serve
             Conditioning.from_input(ensure(i.conditioning)),
             ensure(i.sampling),
             ensure(i.inpaint),
-            i.batch_count,
+            misc,
             models.for_checkpoint(ensure(i.models).checkpoint),
         )
     elif i.kind is WorkflowKind.upscale_simple:
@@ -1176,6 +1187,7 @@ def create(i: WorkflowInput, models: ClientModels, comfy_mode=ComfyRunMode.serve
             Conditioning.from_input(ensure(i.conditioning)),
             ensure(i.sampling),
             i.upscale_model,
+            misc,
             models.for_checkpoint(ensure(i.models).checkpoint),
         )
     elif i.kind is WorkflowKind.control_image:
