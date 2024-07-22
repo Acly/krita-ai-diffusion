@@ -273,7 +273,6 @@ def test_prepare_resolution_multiplier_inputs():
     perf_settings = PerformanceSettings(resolution_multiplier=0.5)
     input = Extent(1024, 1024)
     image = Image.create(input)
-    mask = Mask.rectangle(Bounds(0, 0, input.width, input.height))
     r, _ = resolution.prepare_image(image, SDVersion.sd15, dummy_style, perf_settings)
     assert (
         r.extent.input == Extent(512, 512)

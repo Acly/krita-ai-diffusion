@@ -692,6 +692,19 @@ def test_outpaint_resolution_multiplier(qtapp, client):
     run_and_save(qtapp, client, job, f"test_outpaint_resolution_multiplier", image, mask)
 
 
+def test_nsfw_filter(qtapp, client):
+    params = dict(cond=ConditioningInput("nude"))
+    job = create(WorkflowKind.generate, client, canvas=Extent(512, 512), **params)
+    job.nsfw_filter = 0.8
+    run_and_save(qtapp, client, job, "test_nsfw_filter")
+
+
+def test_translation(qtapp, client):
+    cond = ConditioningInput("rote (kerze) auf einer fensterbank", style="photo", language="de")
+    job = create(WorkflowKind.generate, client, canvas=Extent(512, 512), cond=cond)
+    run_and_save(qtapp, client, job, "test_translation")
+
+
 inpaint_benchmark = {
     "tori": (InpaintMode.fill, "photo of tori, japanese garden", None),
     "bruges": (InpaintMode.fill, "photo of a canal in bruges, belgium", None),

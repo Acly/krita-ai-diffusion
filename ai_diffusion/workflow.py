@@ -1025,7 +1025,7 @@ def prepare(
     i.conditioning.positive, extra_loras = extract_loras(i.conditioning.positive, models.loras)
     i.conditioning.negative = merge_prompt(cond.negative, style.negative_prompt)
     i.conditioning.style = style.style_prompt
-    i.conditioning.language = settings.prompt_translation
+    i.conditioning.language = i.conditioning.language or settings.prompt_translation
     for idx, region in enumerate(i.conditioning.regions):
         assert region.mask or idx == 0, "Only the first/bottom region can be without a mask"
         region.positive, region_loras = extract_loras(region.positive, models.loras)
