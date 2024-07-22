@@ -201,6 +201,9 @@ class SliderSetting(SettingWidget):
         self._slider.setValue(x)
 
 
+ComboItemList = list[str] | list[tuple[str, Any]] | list[tuple[str, Any, QIcon]] | type[Enum]
+
+
 class ComboBoxSetting(SettingWidget):
     _suppress_change = False
     _enum_type = None
@@ -220,7 +223,7 @@ class ComboBoxSetting(SettingWidget):
         self.set_widget(self._combo)
         self._original_text = self._key_label.text()
 
-    def set_items(self, items: list[str] | type[Enum] | list[tuple[str, Any, QIcon]]):
+    def set_items(self, items: ComboItemList):
         self._suppress_change = True
         self._combo.clear()
         if isinstance(items, type):
@@ -335,7 +338,7 @@ class SwitchSetting(SettingWidget):
 
 class SettingsTab(QWidget):
     _write_guard: SettingsWriteGuard
-    _widgets: dict
+    _widgets: dict[str, SettingWidget]
     _layout: QVBoxLayout
 
     def __init__(self, title: str):
@@ -378,7 +381,8 @@ class SettingsTab(QWidget):
     def write(self, *ignored):
         if not self._write_guard:
             for name, widget in self._widgets.items():
-                setattr(settings, name, widget.value)
+                if widget.enabled:
+                    setattr(settings, name, widget.value)
             self._write()
             settings.save()
 

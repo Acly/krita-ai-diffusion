@@ -192,16 +192,19 @@ class Control:
 
 class TextPrompt:
     text: str
+    language: str
     _output: Output | None = None
 
-    def __init__(self, text: str):
+    def __init__(self, text: str, language: str):
         self.text = text
+        self.language = language
 
     def encode(self, w: ComfyWorkflow, clip: Output, style_prompt: str | None = None):
         text = self.text
         if text != "" and style_prompt:
             text = merge_prompt(text, style_prompt)
         if self._output is None:
+            text = w.translate(text, self.language)
             self._output = w.clip_text_encode(clip, text)
         return self._output
 
@@ -215,10 +218,12 @@ class Region:
     is_background: bool = False
 
     @staticmethod
-    def from_input(i: RegionInput, index: int):
+    def from_input(i: RegionInput, index: int, language: str):
         control = [Control.from_input(c) for c in i.control]
         mask = ImageOutput(i.mask, is_mask=True)
-        return Region(mask, i.bounds, TextPrompt(i.positive), control, is_background=index == 0)
+        return Region(
+            mask, i.bounds, TextPrompt(i.positive, language), control, is_background=index == 0
+        )
 
     def copy(self):
         control = [copy(c) for c in self.control]
@@ -236,10 +241,10 @@ class Conditioning:
     @staticmethod
     def from_input(i: ConditioningInput):
         return Conditioning(
-            TextPrompt(i.positive),
-            TextPrompt(i.negative),
+            TextPrompt(i.positive, i.language),
+            TextPrompt(i.negative, i.language),
             [Control.from_input(c) for c in i.control],
-            [Region.from_input(r, i) for i, r in enumerate(i.regions)],
+            [Region.from_input(r, idx, i.language) for idx, r in enumerate(i.regions)],
             i.style,
         )
 
@@ -266,6 +271,10 @@ class Conditioning:
     @property
     def all_control(self):
         return self.control + [c for r in self.regions for c in r.control]
+
+    @property
+    def language(self):
+        return self.positive.language
 
 
 def downscale_control_images(
@@ -655,7 +664,7 @@ def inpaint(
     if params.use_inpaint_model and models.version is SDVersion.sd15:
         cond_base.control.append(Control(ControlMode.inpaint, ImageOutput(in_image), inpaint_mask))
     if params.use_condition_mask and len(cond_base.regions) == 0:
-        base_prompt = TextPrompt(merge_prompt("", cond_base.style_prompt))
+        base_prompt = TextPrompt(merge_prompt("", cond_base.style_prompt), cond.language)
         cond_base.regions = [
             Region(ImageOutput(None), Bounds(0, 0, *extent.initial), base_prompt, []),
             Region(inpaint_mask, initial_bounds, cond_base.positive, []),
@@ -1016,6 +1025,7 @@ def prepare(
     i.conditioning.positive, extra_loras = extract_loras(i.conditioning.positive, models.loras)
     i.conditioning.negative = merge_prompt(cond.negative, style.negative_prompt)
     i.conditioning.style = style.style_prompt
+    i.conditioning.language = settings.prompt_translation
     for idx, region in enumerate(i.conditioning.regions):
         assert region.mask or idx == 0, "Only the first/bottom region can be without a mask"
         region.positive, region_loras = extract_loras(region.positive, models.loras)

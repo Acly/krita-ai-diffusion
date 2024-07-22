@@ -103,6 +103,7 @@ class ConditioningInput:
     style: str = ""
     control: list[ControlInput] = field(default_factory=list)
     regions: list[RegionInput] = field(default_factory=list)
+    language: str = ""
 
 
 class InpaintMode(Enum):

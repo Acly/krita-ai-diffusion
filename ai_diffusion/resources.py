@@ -26,7 +26,7 @@ required_custom_nodes = [
         "comfyui_controlnet_aux",
         "https://github.com/Fannovel16/comfyui_controlnet_aux",
         "6f1ba1c10df84af6d356119ccf4ebcf796a10e1c",
-        ["InpaintPreprocessor"],
+        ["InpaintPreprocessor", "DepthAnythingV2Preprocessor"],
     ),
     CustomNode(
         "IP-Adapter",
@@ -40,19 +40,14 @@ required_custom_nodes = [
         "comfyui-tooling-nodes",
         "https://github.com/Acly/comfyui-tooling-nodes",
         "9d533984c2b44bc0519fde2875b976493c6e90a0",
-        [
-            "ETN_LoadImageBase64",
-            "ETN_LoadMaskBase64",
-            "ETN_SendImageWebSocket",
-            "ETN_ApplyMaskToImage",
-        ],
+        ["ETN_LoadImageBase64", "ETN_LoadMaskBase64", "ETN_SendImageWebSocket", "ETN_Translate"],
     ),
     CustomNode(
         "Inpaint Nodes",
         "comfyui-inpaint-nodes",
         "https://github.com/Acly/comfyui-inpaint-nodes",
         "717cb7717daf9f10979940163f708e35ee8eda05",
-        ["INPAINT_LoadFooocusInpaint", "INPAINT_ApplyFooocusInpaint"],
+        ["INPAINT_LoadFooocusInpaint", "INPAINT_ApplyFooocusInpaint", "INPAINT_ExpandMask"],
     ),
 ]
 

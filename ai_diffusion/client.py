@@ -199,6 +199,19 @@ class ModelDict:
         return self._models.node_inputs
 
 
+class TranslationPackage(NamedTuple):
+    code: str
+    name: str
+
+    @staticmethod
+    def from_dict(data: dict):
+        return TranslationPackage(data["code"], data["name"])
+
+    @staticmethod
+    def from_list(data: list):
+        return [TranslationPackage.from_dict(item) for item in data]
+
+
 class Client(ABC):
     url: str
     models: ClientModels
@@ -223,6 +236,9 @@ class Client(ABC):
     async def refresh(self):
         pass
 
+    async def translate(self, lang: str, text: str) -> str:
+        return text
+
     @property
     def user(self) -> User | None:
         return None
@@ -233,6 +249,14 @@ class Client(ABC):
     @property
     def supports_ip_adapter(self) -> bool:
         return True
+
+    @property
+    def supports_translation(self) -> bool:
+        return False
+
+    @property
+    def supported_languages(self) -> list[TranslationPackage]:
+        return []
 
     @property
     def performance_settings(self) -> PerformanceSettings: ...

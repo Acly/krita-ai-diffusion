@@ -150,6 +150,13 @@ class Settings(QObject):
         _("Pick a new seed after copying the result to the canvas in Live mode"),
     )
 
+    prompt_translation: str
+    _prompt_translation = Setting(
+        _("Prompt Translation"),
+        "",
+        _("Translate text prompts from the selected language to English"),
+    )
+
     prompt_line_count: int
     _prompt_line_count = Setting(
         _("Prompt Line Count"), 2, _("Size of the text editor for image descriptions")

@@ -20,7 +20,7 @@ from PyQt5.QtWidgets import (
 from PyQt5.QtCore import Qt, QMetaObject, QSize, QUrl, pyqtSignal
 from PyQt5.QtGui import QDesktopServices, QGuiApplication, QCursor
 
-from ..client import User
+from ..client import Client, User
 from ..cloud_client import CloudClient
 from ..resources import CustomNode, MissingResource, ResourceKind
 from ..settings import Settings, ServerMode, PerformancePreset, settings
@@ -357,7 +357,9 @@ class ConnectionSettings(SettingsTab):
                 + ":<ul>"
                 + "\n".join((f"<li>{p.name} <a href='{p.url}'>{p.url}</a></li>" for p in nodes))
                 + "</ul>"
-                + _("Please install them, restart the server and try again.")
+                + _(
+                    "Please install or update the custom node package, then restart the server and try again."
+                )
             )
         else:
             search_paths = resource.search_path_string.replace("\n", "<br>")
@@ -396,6 +398,7 @@ class InterfaceSettings(SettingsTab):
 
         S = Settings
         self.add("language", ComboBoxSetting(S._language, self))
+        self.add("prompt_translation", ComboBoxSetting(S._prompt_translation, self))
         self.add("prompt_line_count", SpinBoxSetting(S._prompt_line_count, self, 1, 10))
         self.add(
             "show_negative_prompt",
@@ -408,8 +411,19 @@ class InterfaceSettings(SettingsTab):
 
         languages = [(lang.name, lang.id) for lang in Localization.available]
         self._widgets["language"].set_items(languages)
+        self.update_translation(root.connection.client_if_connected)
 
         self._layout.addStretch()
+
+    def update_translation(self, client: Client | None):
+        translation: ComboBoxSetting = self._widgets["prompt_translation"]
+        translation.enabled = client is not None and client.supports_translation
+        if client and translation.enabled:
+            languages = [("Disabled", "")]
+            languages += [(lang.name, lang.code) for lang in client.supported_languages]
+            translation.enabled = True
+            translation.set_items(languages)
+            self.read()
 
 
 class HistorySizeWidget(QWidget):
@@ -544,10 +558,6 @@ class PerformanceSettings(SettingsTab):
 
 
 class SettingsDialog(QDialog):
-    connection: ConnectionSettings
-    styles: StylePresets
-    performance: PerformanceSettings
-
     _instance = None
 
     @classmethod
@@ -651,6 +661,7 @@ class SettingsDialog(QDialog):
     def _update_connection(self):
         self.connection.update_server_status()
         if root.connection.state == ConnectionState.connected:
+            self.interface.update_translation(root.connection.client)
             self.performance.update_device_info()
 
     def _open_settings_folder(self):
