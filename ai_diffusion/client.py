@@ -236,7 +236,7 @@ class Client(ABC):
     async def refresh(self):
         pass
 
-    async def translate(self, lang: str, text: str) -> str:
+    async def translate(self, text: str, lang: str) -> str:
         return text
 
     @property

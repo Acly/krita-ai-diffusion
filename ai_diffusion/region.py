@@ -2,14 +2,14 @@ from __future__ import annotations
 from enum import Enum
 from PyQt5.QtCore import QObject, QUuid, pyqtSignal
 
-from . import model, workflow
+from . import eventloop, model, workflow
 from .api import ConditioningInput, RegionInput
+from .client import Client
 from .image import Image, Bounds, Extent
 from .document import Layer, LayerType
 from .properties import Property, ObservableProperties
 from .jobs import JobRegion
 from .control import ControlLayer, ControlLayerList
-from .util import clamp
 from .settings import settings
 
 
@@ -135,6 +135,12 @@ class Region(QObject, ObservableProperties):
             if not parent.is_root and parent.type is LayerType.group:
                 return parent
         return layer
+
+    async def translate_prompt(self, client: Client):
+        if positive := self.positive:
+            translated = await client.translate(positive, settings.prompt_translation)
+            if positive == self.positive:
+                self.positive = translated
 
 
 class RootRegion(QObject, ObservableProperties):
@@ -327,11 +333,30 @@ class RootRegion(QObject, ObservableProperties):
     def layers(self):
         return self._model.layers
 
+    async def translate_prompt(self, client: Client):
+        if positive := self.positive:
+            translated = await client.translate(positive, settings.prompt_translation)
+            if positive == self.positive:
+                self.positive = translated
+        if self.negative:
+            negative = self.negative
+            translated = await client.translate(negative, settings.prompt_translation)
+            if negative == self.negative:
+                self.negative = translated
+
     def __len__(self):
         return len(self._regions)
 
     def __iter__(self):
         return iter(self._regions)
+
+
+def translate_prompt(region: Region | RootRegion):
+    from .root import root
+
+    if client := root.connection.client_if_connected:
+        if settings.prompt_translation and client.supports_translation:
+            eventloop.run(region.translate_prompt(client))
 
 
 def get_region_inpaint_mask(region_layer: Layer, max_extent: Extent, min_size=0):

@@ -1,19 +1,21 @@
 from __future__ import annotations
 from enum import Enum
 from PyQt5.QtWidgets import QWidget, QLabel, QToolButton, QHBoxLayout, QVBoxLayout, QFrame, QMenu
-from PyQt5.QtGui import QMouseEvent, QResizeEvent, QPixmap, QImage, QPainter, QIcon
+from PyQt5.QtGui import QGuiApplication, QMouseEvent, QResizeEvent, QPixmap, QImage, QPainter, QIcon
 from PyQt5.QtCore import QObject, QEvent, Qt, QMetaObject, QSize, pyqtSignal
 
 from ..root import root
+from ..client import Client
 from ..image import Extent, Bounds
 from ..properties import Binding, bind
 from ..document import LayerType
-from ..model import Region, RootRegion, RegionLink
+from ..region import Region, RootRegion, RegionLink, translate_prompt
 from ..localization import translate as _
+from ..util import ensure
+from .. import eventloop
 from .control import ControlListWidget
 from .widget import TextPromptWidget
 from .settings import settings
-from ..util import ensure
 from . import theme
 
 
@@ -344,8 +346,34 @@ class ActiveRegionWidget(QFrame):
         elif key == "prompt_translation":
             self._update_language()
 
+    async def _replace_with_translation(self, client: Client):
+        region = self.region
+        if region is None:
+            return
+        if positive := region.positive:
+            translated = await client.translate(positive, settings.prompt_translation)
+            if self.region is region and positive == region.positive:
+                region.positive = translated
+        if isinstance(region, RootRegion) and region.negative:
+            negative = region.negative
+            translated = await client.translate(negative, settings.prompt_translation)
+            if self.region is region and negative == region.negative:
+                region.negative = translated
+
     def _toggle_translation_enabled(self):
-        self._root._model.translation_enabled = not self._root._model.translation_enabled
+        model = self._root._model
+        ctrl_down = QGuiApplication.keyboardModifiers() & Qt.KeyboardModifier.ControlModifier
+        if model.translation_enabled and bool(ctrl_down) and self.region is not None:
+            translate_prompt(self.region)
+        model.translation_enabled = not model.translation_enabled
+
+    _lang_help_enabled = _(
+        "Prompt translation is active! Click to disable and switch to original input."
+    )
+    _lang_help_disabled = _(
+        "Translation is disabled. Click to enable prompt translation from your language to English"
+    )
+    _lang_help_translate = _("Use Ctrl+Click to replace the text with a translation immediately.")
 
     def _update_language(self):
         self._language_button.setVisible(settings.prompt_translation != "")
@@ -354,13 +382,12 @@ class ActiveRegionWidget(QFrame):
             lang = settings.prompt_translation if enabled else "en"
             self._language_button.setText(lang.upper())
             if enabled:
-                text = _(
-                    "Prompt translation is active! Click to disable and switch to original input"
-                )
+                text = self._lang_help_enabled
+                if client := root.connection.client_if_connected:
+                    if client.supports_translation:
+                        text += "\n" + self._lang_help_translate
             else:
-                text = _(
-                    "Translation is disabled. Click to enable prompt translation from your language to English"
-                )
+                text = self._lang_help_disabled
             self._language_button.setToolTip(text)
 
     def _layout_language_button(self):

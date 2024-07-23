@@ -306,7 +306,7 @@ class ComfyClient(Client):
         models.vae = nodes["VAELoader"]["input"]["required"]["vae_name"][0]
         models.loras = nodes["LoraLoader"]["input"]["required"]["lora_name"][0]
 
-    async def translate(self, lang: str, text: str):
+    async def translate(self, text: str, lang: str):
         try:
             return await self._get(f"api/etn/translate/{lang}/{text}")
         except NetworkError as e:
