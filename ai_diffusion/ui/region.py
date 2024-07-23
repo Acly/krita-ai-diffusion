@@ -2,7 +2,7 @@ from __future__ import annotations
 from enum import Enum
 from PyQt5.QtWidgets import QWidget, QLabel, QToolButton, QHBoxLayout, QVBoxLayout, QFrame, QMenu
 from PyQt5.QtGui import QMouseEvent, QResizeEvent, QPixmap, QImage, QPainter, QIcon
-from PyQt5.QtCore import QObject, QEvent, Qt, QMetaObject, pyqtSignal
+from PyQt5.QtCore import QObject, QEvent, Qt, QMetaObject, QSize, pyqtSignal
 
 from ..root import root
 from ..image import Extent, Bounds
@@ -84,6 +84,7 @@ class ActiveRegionWidget(QFrame):
     _bindings: list[QMetaObject.Connection]
     _header_style: PromptHeader
     _max_lines: int = 99
+    _translation_enabled: bool = True
 
     def __init__(self, root: RootRegion, parent: QWidget, header=PromptHeader.full):
         super().__init__(parent)
@@ -168,6 +169,17 @@ class ActiveRegionWidget(QFrame):
         layout.addWidget(self._no_region)
         self.setLayout(layout)
 
+        font_size = self.font().pointSize()
+        self._language_button = QToolButton(self)
+        self._language_button.setToolButtonStyle(Qt.ToolButtonStyle.ToolButtonTextOnly)
+        self._language_button.setText(settings.prompt_translation.upper())
+        self._language_button.setStyleSheet(
+            f"QToolButton {{ font-size: {max(6, font_size-2)}pt; background: #40808080;"
+            " border: 1px solid #60808080; border-radius: 2px; }"
+        )
+        self._language_button.clicked.connect(self._toggle_translation_enabled)
+        self._layout_language_button()
+
         self._setup_bindings(self._region)
         settings.changed.connect(self.update_settings)
 
@@ -212,9 +224,11 @@ class ActiveRegionWidget(QFrame):
         self._bindings += [
             self._root.active_layer_changed.connect(self._update_links),
             self._new_region_button.clicked.connect(self._root.create_region_layer),
+            self._root._model.translation_enabled_changed.connect(self._update_language),
         ]
         self._update_header()
         self._update_links()
+        self._update_language()
         self.positive.move_cursor_to_end()
         self.negative.setVisible(is_root_region and settings.show_negative_prompt)
         self._link_button.setVisible(not is_root_region)
@@ -322,9 +336,45 @@ class ActiveRegionWidget(QFrame):
     def update_settings(self, key: str, value):
         if key == "prompt_line_count":
             self.positive.line_count = min(value, self._max_lines)
+            self._layout_language_button()
         elif key == "show_negative_prompt":
             self.negative.text = ""
             self.negative.setVisible(value and isinstance(self._region, RootRegion))
+            self._layout_language_button()
+        elif key == "prompt_translation":
+            self._update_language()
+
+    def _toggle_translation_enabled(self):
+        self._root._model.translation_enabled = not self._root._model.translation_enabled
+
+    def _update_language(self):
+        self._language_button.setVisible(settings.prompt_translation != "")
+        if settings.prompt_translation != "":
+            enabled = self._root._model.translation_enabled
+            lang = settings.prompt_translation if enabled else "en"
+            self._language_button.setText(lang.upper())
+            if enabled:
+                text = _(
+                    "Prompt translation is active! Click to disable and switch to original input"
+                )
+            else:
+                text = _(
+                    "Translation is disabled. Click to enable prompt translation from your language to English"
+                )
+            self._language_button.setToolTip(text)
+
+    def _layout_language_button(self):
+        if settings.prompt_translation != "":
+            pos = self.positive.geometry().bottomRight()
+            if self.negative.isVisible():
+                pos = self.negative.geometry().bottomRight()
+            s = QSize(self.fontMetrics().width("EN"), self.fontMetrics().height())
+            self._language_button.move(pos.x() - s.width() - 2, pos.y() - s.height() - 2)
+            self._language_button.resize(s)
+
+    def resizeEvent(self, event):
+        super().resizeEvent(event)
+        self._layout_language_button()
 
     def eventFilter(self, a0: QObject | None, a1: QEvent | None) -> bool:
         if a1 and a1.type() == QEvent.Type.FocusIn:

@@ -56,6 +56,7 @@ class Model(QObject, ObservableProperties):
     seed = Property(0, persist=True)
     fixed_seed = Property(False, persist=True)
     queue_front = Property(False, persist=True)
+    translation_enabled = Property(True, persist=True)
     inpaint: CustomInpaint
     upscale: "UpscaleWorkspace"
     live: "LiveWorkspace"
@@ -72,6 +73,7 @@ class Model(QObject, ObservableProperties):
     seed_changed = pyqtSignal(int)
     fixed_seed_changed = pyqtSignal(bool)
     queue_front_changed = pyqtSignal(bool)
+    translation_enabled_changed = pyqtSignal(bool)
     progress_changed = pyqtSignal(float)
     error_changed = pyqtSignal(str)
     has_error_changed = pyqtSignal(bool)
@@ -146,6 +148,7 @@ class Model(QObject, ObservableProperties):
 
         if not dryrun:
             conditioning, job_regions = process_regions(self.regions, bounds, region_layer)
+            conditioning.language = self.prompt_translation_language
         else:
             conditioning, job_regions = ConditioningInput("", ""), []
 
@@ -217,6 +220,7 @@ class Model(QObject, ObservableProperties):
         upscaler = params.upscaler or client.models.default_upscaler
         if params.use_prompt and not dryrun:
             conditioning, job_regions = process_regions(self.regions, bounds, min_coverage=0)
+            conditioning.language = self.prompt_translation_language
             for region in job_regions:
                 region.bounds = Bounds.scale(region.bounds, params.factor)
         else:
@@ -310,12 +314,13 @@ class Model(QObject, ObservableProperties):
         if mask is not None or self.live.strength < 1.0:
             image = self._get_current_image(bounds)
 
-        cond, job_regions = process_regions(self.regions, bounds)
+        conditioning, job_regions = process_regions(self.regions, bounds)
+        conditioning.language = self.prompt_translation_language
 
         input = workflow.prepare(
             workflow_kind,
             image or bounds.extent,
-            cond,
+            conditioning,
             self.style,
             self.seed,
             client.models,
@@ -327,7 +332,7 @@ class Model(QObject, ObservableProperties):
         )
         if input != last_input:
             self.clear_error()
-            params = JobParams(bounds, cond.positive, regions=job_regions)
+            params = JobParams(bounds, conditioning.positive, regions=job_regions)
             await self.enqueue_jobs(input, JobKind.live_preview, params)
             return input
 
@@ -581,6 +586,10 @@ class Model(QObject, ObservableProperties):
                 return workflow.detect_inpaint_mode(self.document.extent, bounds)
             return InpaintMode.fill
         return self.inpaint.mode
+
+    @property
+    def prompt_translation_language(self):
+        return settings.prompt_translation if self.translation_enabled else ""
 
     @property
     def sd_version(self):
@@ -910,6 +919,7 @@ class AnimationWorkspace(QObject, ObservableProperties):
         m = self._model
         bounds = Bounds(0, 0, *m.document.extent)
         conditioning, _ = process_regions(m.regions, bounds, self._model.layers.root)
+        conditioning.language = m.prompt_translation_language
         return workflow.prepare(
             WorkflowKind.generate if m.strength == 1.0 else WorkflowKind.refine,
             canvas,
