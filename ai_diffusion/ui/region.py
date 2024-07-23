@@ -399,8 +399,8 @@ class ActiveRegionWidget(QFrame):
             self._language_button.move(pos.x() - s.width() - 2, pos.y() - s.height() - 2)
             self._language_button.resize(s)
 
-    def resizeEvent(self, event):
-        super().resizeEvent(event)
+    def resizeEvent(self, a0):
+        super().resizeEvent(a0)
         self._layout_language_button()
 
     def eventFilter(self, a0: QObject | None, a1: QEvent | None) -> bool:
