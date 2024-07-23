@@ -9,7 +9,7 @@ from typing import NamedTuple, Sequence
 version = "1.21.0"
 
 comfy_url = "https://github.com/comfyanonymous/ComfyUI"
-comfy_version = "374e093e09c94b528d7c9dfc337c65cc5c433ee3"
+comfy_version = "14764aa2e2e2b282c4a4dffbfab4c01d3e46e8a7"
 
 
 class CustomNode(NamedTuple):
@@ -32,14 +32,14 @@ required_custom_nodes = [
         "IP-Adapter",
         "ComfyUI_IPAdapter_plus",
         "https://github.com/cubiq/ComfyUI_IPAdapter_plus",
-        "8208e27bf10e9b5b36546dd64c4b820b168c2724",
+        "78ac59c61c8caf33e3419d2c8f70838b2da0fb04",
         ["IPAdapterModelLoader", "IPAdapter"],
     ),
     CustomNode(
         "External Tooling Nodes",
         "comfyui-tooling-nodes",
         "https://github.com/Acly/comfyui-tooling-nodes",
-        "9d533984c2b44bc0519fde2875b976493c6e90a0",
+        "f42c0f29b6cc7cf92039d22f84c78422699930c2",
         ["ETN_LoadImageBase64", "ETN_LoadMaskBase64", "ETN_SendImageWebSocket", "ETN_Translate"],
     ),
     CustomNode(
@@ -627,6 +627,15 @@ prefetch_models = [
             Path(
                 "custom_nodes/comfyui_controlnet_aux/ckpts/yzd-v/DWPose/dw-ll_ucoco_384.onnx"
             ): "https://huggingface.co/yzd-v/DWPose/resolve/main/dw-ll_ucoco_384.onnx",
+        },
+    ),
+    ModelResource(
+        "NSFW Filter",
+        ResourceId(ResourceKind.preprocessor, SDVersion.all, "safetychecker"),
+        {
+            Path(
+                "custom_nodes/comfyui-tooling-nodes/safetychecker/model.safetensors"
+            ): "https://huggingface.co/CompVis/stable-diffusion-safety-checker/resolve/refs%2Fpr%2F41/model.safetensors"
         },
     ),
 ]
