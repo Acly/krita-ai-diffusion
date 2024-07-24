@@ -417,8 +417,7 @@ class InterfaceSettings(SettingsTab):
 
     def update_translation(self, client: Client | None):
         translation: ComboBoxSetting = self._widgets["prompt_translation"]
-        translation.enabled = client is not None and client.supports_translation
-        if client and translation.enabled:
+        if client:
             languages = [("Disabled", "")]
             languages += [(lang.name, lang.code) for lang in client.supported_languages]
             translation.enabled = True

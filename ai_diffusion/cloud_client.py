@@ -10,7 +10,7 @@ from dataclasses import dataclass
 
 from .api import WorkflowInput, WorkflowKind
 from .client import Client, ClientEvent, ClientMessage, ClientModels, DeviceInfo, CheckpointInfo
-from .client import User
+from .client import TranslationPackage, User
 from .image import Extent, ImageCollection
 from .network import RequestManager, NetworkError
 from .resources import SDVersion
@@ -200,6 +200,16 @@ class CloudClient(Client):
             resolution_multiplier=settings.resolution_multiplier,
             max_pixel_count=clamp(settings.max_pixel_count, 1, 8),
         )
+
+    @property
+    def supported_languages(self):
+        return [
+            TranslationPackage("zh", "Chinese"),
+            TranslationPackage("fr", "French"),
+            TranslationPackage("de", "German"),
+            TranslationPackage("ru", "Russian"),
+            TranslationPackage("es", "Spanish"),
+        ]
 
     async def _send_images(self, inputs: dict):
         if image_data := inputs.get("image_data"):

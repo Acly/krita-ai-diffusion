@@ -19,7 +19,9 @@ class LoraId(NamedTuple):
         return LoraId(original, original.replace("\\", "/").removesuffix(".safetensors"))
 
 
-def merge_prompt(prompt: str, style_prompt: str):
+def merge_prompt(prompt: str, style_prompt: str, language: str = ""):
+    if language:
+        prompt = f"lang:{language} {prompt} lang:en "
     if style_prompt == "":
         return prompt
     elif "{prompt}" in style_prompt:

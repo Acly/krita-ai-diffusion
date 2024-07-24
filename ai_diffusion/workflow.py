@@ -202,9 +202,10 @@ class TextPrompt:
     def encode(self, w: ComfyWorkflow, clip: Output, style_prompt: str | None = None):
         text = self.text
         if text != "" and style_prompt:
-            text = merge_prompt(text, style_prompt)
+            text = merge_prompt(text, style_prompt, self.language)
         if self._output is None:
-            text = w.translate(text, self.language)
+            if text and self.language:
+                text = w.translate(text)
             self._output = w.clip_text_encode(clip, text)
         return self._output
 
@@ -1023,7 +1024,7 @@ def prepare(
     i = WorkflowInput(kind)
     i.conditioning = cond
     i.conditioning.positive, extra_loras = extract_loras(i.conditioning.positive, models.loras)
-    i.conditioning.negative = merge_prompt(cond.negative, style.negative_prompt)
+    i.conditioning.negative = merge_prompt(cond.negative, style.negative_prompt, cond.language)
     i.conditioning.style = style.style_prompt
     for idx, region in enumerate(i.conditioning.regions):
         assert region.mask or idx == 0, "Only the first/bottom region can be without a mask"
