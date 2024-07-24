@@ -11,6 +11,23 @@ def test_merge_prompt():
     assert merge_prompt("", "b {prompt} c") == "b  c"
 
 
+def test_language_directives():
+    assert merge_prompt("a", "b", "zh") == "lang:zh a lang:en , b"
+    assert merge_prompt("", "b", "zh") == "b"
+    assert merge_prompt("a", "", "zh") == "lang:zh a lang:en "
+    assert merge_prompt("", "", "zh") == ""
+    assert merge_prompt("a", "b {prompt} c", "zh") == "b lang:zh a lang:en  c"
+    assert merge_prompt("", "b {prompt} c", "zh") == "b  c"
+    assert (
+        merge_prompt("lang:de x lang:en y", "a {prompt} b", "zh")
+        == "a lang:zh lang:de x lang:en y lang:en  b"
+    )
+    assert (
+        merge_prompt("x lang:en y", "lang:de a {prompt} lang:en b", "zh")
+        == "lang:de a lang:zh x lang:en y lang:en  lang:en b"
+    )
+
+
 def test_extract_loras():
     loras = [
         "/path/to/Lora-One.safetensors",

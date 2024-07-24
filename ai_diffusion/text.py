@@ -20,7 +20,7 @@ class LoraId(NamedTuple):
 
 
 def merge_prompt(prompt: str, style_prompt: str, language: str = ""):
-    if language:
+    if language and prompt:
         prompt = f"lang:{language} {prompt} lang:en "
     if style_prompt == "":
         return prompt
