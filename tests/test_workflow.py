@@ -582,7 +582,7 @@ def test_ip_adapter_batch(qtapp, client):
     run_and_save(qtapp, client, job, "test_ip_adapter_batch")
 
 
-def test_style_composition(qtapp, client):
+def test_style_composition_sdxl(qtapp, client):
     style_image = Image.load(image_dir / "watercolor.webp")
     composition_image = Image.load(image_dir / "flowers.webp")
     control = [
