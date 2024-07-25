@@ -16,6 +16,7 @@ from PyQt5.QtWidgets import (
     QRadioButton,
     QComboBox,
     QWidget,
+    QMessageBox,
 )
 from PyQt5.QtCore import Qt, QMetaObject, QSize, QUrl, pyqtSignal
 from PyQt5.QtGui import QDesktopServices, QGuiApplication, QCursor
@@ -388,8 +389,22 @@ class DiffusionSettings(SettingsTab):
 
         nsfw_settings = [("Disabled", 0.0), ("Basic", 0.65), ("Strict", 0.8)]
         self._widgets["nsfw_filter"].set_items(nsfw_settings)
+        DiffusionSettings._warning_shown = self._warning_shown or settings.nsfw_filter > 0
 
         self._layout.addStretch()
+
+    _warning_shown = False
+
+    def _write(self):
+        if self._widgets["nsfw_filter"].value > 0 and not self._warning_shown:
+            DiffusionSettings._warning_shown = True
+            QMessageBox.warning(
+                self,
+                _("NSFW Filter Warning"),
+                _(
+                    "The NSFW filter is a basic tool to exclude explicit content from generated images. It is NOT a guarantee and may not catch all inappropriate content. Please use responsibly and always review the generated images."
+                ),
+            )
 
 
 class InterfaceSettings(SettingsTab):
