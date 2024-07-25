@@ -42,6 +42,14 @@ def apply():
             model.live.apply_result()
 
 
+def apply_alternative():
+    if model := root.model_for_active_document():
+        if model.workspace is Workspace.live:
+            model.live.apply_result(layer_only=True)
+        else:
+            apply()
+
+
 def create_region():
     if model := root.model_for_active_document():
         model.regions.create_region(group=model.workspace is not Workspace.live)
