@@ -401,7 +401,7 @@ class CustomInpaintWidget(QWidget):
 
         self.fill_mode_combo = QComboBox(self)
         fill_icon = theme.icon("fill")
-        self.fill_mode_combo.addItem(theme.icon("fill-empty"), "None", FillMode.none)
+        self.fill_mode_combo.addItem(theme.icon("fill-empty"), _("None"), FillMode.none)
         self.fill_mode_combo.addItem(fill_icon, _("Neutral"), FillMode.neutral)
         self.fill_mode_combo.addItem(fill_icon, _("Blur"), FillMode.blur)
         self.fill_mode_combo.addItem(fill_icon, _("Border"), FillMode.border)

@@ -26,6 +26,7 @@ def convert_markdown_to_html(markdown_file: Path, html_file: Path):
 
 def build_package():
     translation.update_template()
+    translation.update_all()
 
     rmtree(package_dir, ignore_errors=True)
     package_dir.mkdir()

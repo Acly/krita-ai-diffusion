@@ -35,13 +35,32 @@ def update_template():
     write_language_file(strings, "ex", "Example Language", template_file)
 
 
+def update_all():
+    strings = parse_source(source_dir)
+    base = {s: None for s in sorted(strings)}
+    for lang_file in (source_dir / "language").iterdir():
+        if lang_file.name != "en.json" and lang_file.suffix == ".json":
+            existing = json.loads(lang_file.read_text(encoding="utf-8"))
+            translations = base.copy()
+            translations.update(existing["translations"])
+            existing["translations"] = translations
+            with lang_file.open("w", encoding="utf-8") as f:
+                json.dump(existing, f, ensure_ascii=False, indent=2)
+
+
 if __name__ == "__main__":
+    cmd_desc = "'template', 'update' or a language identifier (en, es, de, ...)"
     cmd = argparse.ArgumentParser()
-    cmd.add_argument("lang", type=str, help="Language identifier (en, es, de, ...)")
+    cmd.add_argument("command", type=str, help=cmd_desc)
     cmd.add_argument("--name", "-n", type=str, help="Language name for the UI")
     cmd.add_argument("--outdir", "-o", type=str, default=source_dir / "language")
 
     args = cmd.parse_args()
-    strings = parse_source(source_dir)
-    outfile = Path(args.outdir) / f"{args.lang}.json"
-    write_language_file(strings, args.lang, args.name, outfile)
+    if args.command == "template":
+        update_template()
+    elif args.command == "update":
+        update_all()
+    else:
+        strings = parse_source(source_dir)
+        outfile = Path(args.outdir) / f"{args.lang}.json"
+        write_language_file(strings, args.lang, args.name, outfile)

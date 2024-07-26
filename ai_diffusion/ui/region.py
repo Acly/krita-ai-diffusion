@@ -264,7 +264,7 @@ class ActiveRegionWidget(QFrame):
             self._header_icon.set_region(self._region)
         elif isinstance(self._region, Region):
             theme.set_text_clipped(
-                self._header_label, f"{self._region.name} - Regional text prompt"
+                self._header_label, f"{self._region.name} - " + _("Regional text prompt")
             )
             active_layer = self._root.layers.active
             link_enabled = False
