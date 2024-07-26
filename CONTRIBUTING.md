@@ -18,6 +18,8 @@ file, typically named using a language code (eg. `en.json` for English).
 If no file for your language exists, you can use the `new_language.json.template` file and
 rename it. It will show up in the plugin's language settings after a restart.
 
+You can check [existing translations here](https://github.com/Acly/krita-ai-diffusion/tree/main/ai_diffusion/language) - this might be more up-to-date than your local installation!
+
 To edit a localization file, open the file in a text editor and provide translations for
 each of the english text strings. For example, to provide a German translation, it could look
 like this:
@@ -39,7 +41,7 @@ like this:
 **Important:** `{placeholders}` must be left unmodified! They will be replaced with actual content during runtime.
 
 To update an existing translation (eg. after the plugin has been updated and new text was added)
-simply search for entries which are `null`. These are valid, but not not translated yet.
+simply search for entries which are `null`. These are valid, but not translated yet.
 
 ## Contributing code
 

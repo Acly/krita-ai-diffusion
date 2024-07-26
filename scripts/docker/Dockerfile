@@ -58,6 +58,7 @@ COPY ComfyUI /ComfyUI
 # Install ComfyUI & custom node dependencies
 RUN pip3 install -r /ComfyUI/requirements.txt && \
     pip3 install -r /ComfyUI/custom_nodes/comfyui_controlnet_aux/requirements.txt && \
+    pip3 install -r /ComfyUI/custom_nodes/comfyui-tooling-nodes/requirements.txt && \
     pip3 install insightface onnxruntime && \
     pip3 cache purge 
 
