@@ -1,6 +1,6 @@
 {
   "id": "es",
-  "name": "español",
+  "name": "Español",
   "translations": {
     "(Custom)": "(Personalizado)",
     "<No text prompt>": "<Sin texto de prompt>",
@@ -347,7 +347,7 @@
     "Unblur - Medium": "Enfoque - Medio",
     "Unblur - Strong": "Enfoque - Fuerte",
     "Universal": "Universal",
-    "Upgrade": "null",
+    "Upgrade": "Actualizar",
     "Upgrade required": "Necesita Actualización",
     "Upscale": "Ampliar",
     "Upscalers (super-resolution)": "Ampliadores",
