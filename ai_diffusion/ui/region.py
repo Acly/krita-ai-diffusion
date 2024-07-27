@@ -376,8 +376,8 @@ class ActiveRegionWidget(QFrame):
     _lang_help_translate = _("Use Ctrl+Click to replace the text with a translation immediately.")
 
     def _update_language(self):
-        self._language_button.setVisible(settings.prompt_translation != "")
-        if settings.prompt_translation != "":
+        self._language_button.setVisible(bool(settings.prompt_translation))
+        if settings.prompt_translation:
             enabled = self._root._model.translation_enabled
             lang = settings.prompt_translation if enabled else "en"
             self._language_button.setText(lang.upper())
@@ -391,7 +391,7 @@ class ActiveRegionWidget(QFrame):
             self._language_button.setToolTip(text)
 
     def _layout_language_button(self):
-        if settings.prompt_translation != "":
+        if settings.prompt_translation:
             pos = self.positive.geometry().bottomRight()
             if self.negative.isVisible():
                 pos = self.negative.geometry().bottomRight()

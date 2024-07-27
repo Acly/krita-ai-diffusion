@@ -432,12 +432,12 @@ class InterfaceSettings(SettingsTab):
 
     def update_translation(self, client: Client | None):
         translation: ComboBoxSetting = self._widgets["prompt_translation"]
+        languages = [("Disabled", "")]
         if client:
-            languages = [("Disabled", "")]
             languages += [(lang.name, lang.code) for lang in client.supported_languages]
-            translation.enabled = True
-            translation.set_items(languages)
-            self.read()
+        translation.enabled = client is not None
+        translation.set_items(languages)
+        self.read()
 
 
 class HistorySizeWidget(QWidget):
