@@ -20,6 +20,7 @@ from PyQt5.QtWidgets import (
 from PyQt5.QtCore import Qt, QSize, pyqtSignal
 from PyQt5.QtGui import QIcon
 
+from ..localization import translate as _
 from ..settings import Setting, settings
 from .switch import SwitchWidget
 from .theme import add_header, icon
@@ -309,7 +310,7 @@ class LineEditSetting(QWidget):
 class SwitchSetting(SettingWidget):
     _text: tuple[str, str]
 
-    def __init__(self, setting: Setting, text=("On", "Off"), parent=None):
+    def __init__(self, setting: Setting, text=(_("On"), _("Off")), parent=None):
         super().__init__(setting, parent)
         self._text = text
 

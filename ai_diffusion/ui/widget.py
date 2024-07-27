@@ -73,7 +73,7 @@ class QueuePopup(QMenu):
         self._layout = QGridLayout()
         self.setLayout(self._layout)
 
-        batch_label = QLabel("Batches", self)
+        batch_label = QLabel(_("Batches"), self)
         batch_label.setVisible(supports_batch)
         self._layout.addWidget(batch_label, 0, 0)
         batch_layout = QHBoxLayout()
