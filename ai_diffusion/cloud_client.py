@@ -137,7 +137,7 @@ class CloudClient(Client):
     async def _process_job(self, job: JobInfo):
         user = ensure(self.user)
         inputs = job.work.to_dict()
-        await self._send_images(inputs)
+        await self.send_images(inputs)
         data = {"input": {"workflow": inputs}}
         response: dict = await self._post("generate", data)
 
@@ -211,10 +211,10 @@ class CloudClient(Client):
             TranslationPackage("es", "Spanish"),
         ]
 
-    async def _send_images(self, inputs: dict):
+    async def send_images(self, inputs: dict, max_inline_size=3_500_000):
         if image_data := inputs.get("image_data"):
             blob, offsets = image_data["bytes"], image_data["offsets"]
-            if _base64_size(len(blob)) < 3_500_000:
+            if _base64_size(len(blob)) < max_inline_size:
                 encoded = b64encode(blob).decode("utf-8")
                 inputs["image_data"] = {"base64": encoded, "offsets": offsets}
             else:
