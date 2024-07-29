@@ -72,6 +72,9 @@ To run locally a powerful graphics card with at least 6 GB VRAM (NVIDIA) is reco
 
 > [!NOTE]
 > If you encounter problems please check the [FAQ / list of common issues](https://github.com/Acly/krita-ai-diffusion/wiki/Common-Issues) for solutions.
+>
+> Reach out via [discussions](https://github.com/Acly/krita-ai-diffusion/discussions), or report [an issue here](https://github.com/Acly/krita-ai-diffusion/issues). Please note that official Krita channels are **not** the right place to seek help with
+> issues related to this extension!
 
 ### _Optional:_ Custom ComfyUI Server
 
