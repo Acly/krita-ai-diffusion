@@ -20,3 +20,6 @@ TODO.md
 .idea
 venv
 .DS_Store
+bin
+lib
+pyvenv.cfg
