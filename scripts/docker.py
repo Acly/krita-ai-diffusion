@@ -58,7 +58,7 @@ async def main():
     await download_models(download_folder)
 
     print("Preparation complete.\n\nTo build run:")
-    print(f"  docker build -t aclysia/sd-comfyui-krita:{version} scripts/docker")
+    print(f"  docker build -t aclysia/sd-comfyui-krita:{version} . -f scripts/docker/Dockerfile")
     print("\nTo test the image:")
     print(f"  docker run --gpus all -p 3001:3000 -p 8888:8888 aclysia/sd-comfyui-krita:{version}")
 
