@@ -65,7 +65,7 @@ RUN mkdir -p models
 COPY ./scripts/download_models.py /scripts/
 COPY ./ai_diffusion/ /scripts/ai_diffusion/
 RUN pip3 install --no-cache-dir aiohttp tqdm
-RUN python /scripts/download_models.py --minimal --no-checkpoints /models/
+RUN python /scripts/download_models.py --minimal --no-checkpoints /
 COPY ./scripts/docker/extra_model_paths.yaml /ComfyUI/
 
 # Install Jupyter
