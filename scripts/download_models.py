@@ -78,6 +78,7 @@ async def main(
     no_sdxl=False,
     no_upscalers=False,
     no_checkpoints=False,
+    default_checkpoints=[],
     no_controlnet=False,
     prefetch=False,
     minimal=False,
@@ -95,6 +96,11 @@ async def main(
                 or (no_controlnet and model.kind is resources.ResourceKind.controlnet)
                 or (no_upscalers and model.kind is resources.ResourceKind.upscaler)
                 or (no_checkpoints and model.kind is resources.ResourceKind.checkpoint)
+                or (
+                    default_checkpoints
+                    and model.kind is resources.ResourceKind.checkpoint
+                    and model.id.identifier not in default_checkpoints
+                )
                 or (not prefetch and model.kind is resources.ResourceKind.preprocessor)
             ):
                 continue
@@ -128,6 +134,7 @@ if __name__ == "__main__":
     parser.add_argument("--no-sd15", action="store_true", help="skip SD1.5 models")
     parser.add_argument("--no-sdxl", action="store_true", help="skip SDXL models")
     parser.add_argument("--no-checkpoints", action="store_true", help="skip default checkpoints")
+    parser.add_argument("--checkpoint", action="append", dest="default_checkpoints", help="the identifier of the default checkpoint to download") # fmt: skip
     parser.add_argument("--no-upscalers", action="store_true", help="skip upscale models")
     parser.add_argument("--no-controlnet", action="store_true", help="skip ControlNet models")
     parser.add_argument("--prefetch", action="store_true", help="fetch models which would be automatically downloaded on first use") # fmt: skip
@@ -143,6 +150,7 @@ if __name__ == "__main__":
             args.no_sdxl,
             args.no_upscalers,
             args.no_checkpoints,
+            args.default_checkpoints,
             args.no_controlnet,
             args.prefetch,
             args.minimal,
