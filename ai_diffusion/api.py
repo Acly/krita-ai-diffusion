@@ -173,7 +173,7 @@ class WorkflowInput:
     def from_dict(data: dict[str, Any]):
         return Deserializer.run(data)
 
-    def to_dict(self, image_format=ImageFileFormat.webp):
+    def to_dict(self, image_format: ImageFileFormat | None = ImageFileFormat.webp):
         return Serializer.run(self, image_format)
 
     @property
@@ -221,10 +221,10 @@ class Serializer:
     _images: ImageCollection
 
     @staticmethod
-    def run(work: WorkflowInput, image_format=ImageFileFormat.webp):
+    def run(work: WorkflowInput, image_format: ImageFileFormat | None = ImageFileFormat.webp):
         serializer = Serializer()
         result = serializer._object(work)
-        if len(serializer._images) > 0:
+        if image_format and len(serializer._images) > 0:
             blob, offsets = serializer._images.to_bytes(image_format)
             assert blob.size() > 0, "Image data is empty"
             result["image_data"] = {"bytes": blob.data(), "offsets": offsets}
@@ -233,7 +233,7 @@ class Serializer:
     def __init__(self):
         self._images = ImageCollection()
 
-    def _object(self, obj):
+    def _object(self, obj) -> dict[str, Any]:
         items = (
             (field.name, self._value(getattr(obj, field.name), field.default))
             for field in fields(obj)
