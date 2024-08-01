@@ -29,6 +29,7 @@ def copy_ai_diffusion_modules():
     websockets_dir.mkdir(parents=True, exist_ok=True)
     shutil.copy(scripts_dir / "download_models.py", docker_dir / "scripts" / "download_models.py")
 
+
 def download_repository(url: str, target: Path, revision):
     if not target.exists():
         archive = target.parent / f"{target.name}.zip"
