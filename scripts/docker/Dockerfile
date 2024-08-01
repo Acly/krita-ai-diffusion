@@ -61,11 +61,12 @@ RUN pip3 install -r /ComfyUI/requirements.txt && \
     pip3 cache purge 
 
 # Download required models
-RUN mkdir -p models
+RUN mkdir -p /models && \
+   ln -s /workspace/models /models
 COPY ./scripts/download_models.py /scripts/
 COPY ./ai_diffusion/ /scripts/ai_diffusion/
 RUN pip3 install --no-cache-dir aiohttp tqdm
-RUN python /scripts/download_models.py --no-sd15 --no-sdxl --no-checkpoints --no-upscalers --no-controlnet /
+RUN python /scripts/download_models.py --no-sd15 --no-sdxl --no-checkpoints --no-upscalers --no-controlnet /workspace/
 COPY ./scripts/docker/extra_model_paths.yaml /ComfyUI/
 
 # Install Jupyter
