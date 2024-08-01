@@ -52,7 +52,7 @@ ENV PATH="/venv/bin:$PATH"
 RUN pip3 install --no-cache-dir torch torchvision torchaudio --index-url https://download.pytorch.org/whl/cu121
 
 # Copy ComfyUI
-COPY ./scripts/docker/ComfyUI /ComfyUI
+COPY ./ComfyUI /ComfyUI
 
 # Install ComfyUI & custom node dependencies
 RUN pip3 install -r /ComfyUI/requirements.txt && \
@@ -63,11 +63,10 @@ RUN pip3 install -r /ComfyUI/requirements.txt && \
 # Download required models
 RUN mkdir -p /models && \
    ln -s /workspace/models /models
-COPY ./scripts/download_models.py /scripts/
-COPY ./ai_diffusion/ /scripts/ai_diffusion/
+COPY ./scripts/ /scripts/
 RUN pip3 install --no-cache-dir aiohttp tqdm
 RUN python /scripts/download_models.py --no-sd15 --no-sdxl --no-checkpoints --no-upscalers --no-controlnet /workspace/
-COPY ./scripts/docker/extra_model_paths.yaml /ComfyUI/
+COPY ./extra_model_paths.yaml /ComfyUI/
 
 # Install Jupyter
 RUN pip3 install -U --no-cache-dir jupyterlab \
@@ -80,12 +79,12 @@ RUN pip3 install -U --no-cache-dir jupyterlab \
 RUN curl https://rclone.org/install.sh | bash
 
 # NGINX Proxy
-COPY ./scripts/docker/nginx/nginx.conf /etc/nginx/nginx.conf
-COPY ./scripts/docker/nginx/502.html /usr/share/nginx/html/502.html
-COPY ./scripts/docker/nginx/README.md /usr/share/nginx/html/README.md
+COPY ./nginx/nginx.conf /etc/nginx/nginx.conf
+COPY ./nginx/502.html /usr/share/nginx/html/502.html
+COPY ./nginx/README.md /usr/share/nginx/html/README.md
 
 # Copy the scripts and create workspace
-COPY --chmod=755 ./scripts/docker/pre_start.sh ./scripts/docker/start.sh ./
+COPY --chmod=755 ./pre_start.sh ./start.sh ./
 RUN mkdir -p workspace/logs
 
 # Start the container

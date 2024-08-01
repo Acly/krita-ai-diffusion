@@ -11,13 +11,23 @@ from pathlib import Path
 sys.path.append(str(Path(__file__).parent.parent))
 import ai_diffusion
 from ai_diffusion import resources
-from scripts.download_models import all_models, main as download_models
 
 version = f"v{ai_diffusion.__version__}"
-docker_root = Path(__file__).parent / "docker"
-download_folder = docker_root / "downloads"
-comfy_dir = docker_root / "ComfyUI"
+root_dir = Path(__file__).parent.parent
+scripts_dir = root_dir / "scripts"
+docker_dir = scripts_dir / "docker"
+comfy_dir = docker_dir / "ComfyUI"
 
+
+def copy_ai_diffusion_modules():
+    plugin_dir = root_dir / "ai_diffusion"
+    target_dir = docker_dir / "scripts" / "ai_diffusion"
+    target_dir.mkdir(parents=True, exist_ok=True)
+    for src in plugin_dir.glob("*.py"):
+        shutil.copy(src, target_dir)
+    websockets_dir = target_dir / "websockets" / "src"
+    websockets_dir.mkdir(parents=True, exist_ok=True)
+    shutil.copy(scripts_dir / "download_models.py", docker_dir / "scripts" / "download_models.py")
 
 def download_repository(url: str, target: Path, revision):
     if not target.exists():
@@ -39,26 +49,15 @@ def download_repositories():
         download_repository(repo.url, custom_nodes_dir / repo.folder, repo.version)
 
 
-def clean(models):
-    expected = set(filepath for m in models for filepath in m.files.keys())
-    for path in (download_folder).glob("**/*"):
-        if path.is_file() and path.relative_to(download_folder) not in expected:
-            print(f"- Deleting {path}")
-            path.unlink()
-
-
 async def main():
     print("Downloading repositories")
     download_repositories()
 
-    print("Cleaning up cached models")
-    clean(all_models())
-
-    print("Downloading new models")
-    await download_models(download_folder)
+    print("Copying AI Diffusion modules")
+    copy_ai_diffusion_modules()
 
     print("Preparation complete.\n\nTo build run:")
-    print(f"  docker build -t aclysia/sd-comfyui-krita:{version} . -f scripts/docker/Dockerfile")
+    print(f"  docker build -t aclysia/sd-comfyui-krita:{version} scripts/docker/")
     print("\nTo test the image:")
     print(f"  docker run --gpus all -p 3001:3000 -p 8888:8888 aclysia/sd-comfyui-krita:{version}")
 

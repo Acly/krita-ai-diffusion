@@ -9,6 +9,7 @@
 .server
 .vscode
 __pycache__
+scripts/docker/scripts
 scripts/docker/downloads
 scripts/docker/ComfyUI
 service
