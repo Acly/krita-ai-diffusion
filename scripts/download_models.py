@@ -63,11 +63,12 @@ async def download(
             target_file.parent.mkdir(exist_ok=True, parents=True)
             async with client.get(url) as resp:
                 resp.raise_for_status()
-                with open(target_file, "wb") as fd:
+                with open(target_file.with_suffix(".part"), "wb") as fd:
                     with _progress(model.name, resp.content_length) as pbar:
                         async for chunk, is_end in resp.content.iter_chunks():
                             fd.write(chunk)
                             pbar.update(len(chunk))
+                target_file.with_suffix(".part").rename(target_file)
 
 
 async def main(
