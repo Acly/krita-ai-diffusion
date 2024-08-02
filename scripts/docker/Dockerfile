@@ -60,12 +60,11 @@ RUN pip3 install -r /ComfyUI/requirements.txt && \
     pip3 install insightface onnxruntime && \
     pip3 cache purge 
 
-# Download required models
+# Prepare scripts and folders for models (download is eventually done at container startup via pre_start.sh)
 RUN mkdir -p /models && \
    ln -s /workspace/models /models
 COPY ./scripts/ /scripts/
 RUN pip3 install --no-cache-dir aiohttp tqdm
-RUN python /scripts/download_models.py --no-sd15 --no-sdxl --no-checkpoints --no-upscalers --no-controlnet /workspace/
 COPY ./extra_model_paths.yaml /ComfyUI/
 
 # Install Jupyter
