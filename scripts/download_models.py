@@ -88,6 +88,10 @@ async def main(
     verbose = verbose or dry_run
     models = required_models() if minimal else all_models()
 
+    for checkpoint in default_checkpoints or []:
+        if checkpoint not in [model.id.identifier for model in models]:
+            raise ValueError(f"Invalid checkpoint identifier: {checkpoint}")
+
     timeout = aiohttp.ClientTimeout(total=None, sock_connect=10, sock_read=60)
     async with aiohttp.ClientSession(timeout=timeout) as client:
         for model in models:
