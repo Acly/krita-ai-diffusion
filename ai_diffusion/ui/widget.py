@@ -477,10 +477,9 @@ class TextPromptWidget(QFrame):
     def text(self, value: str):
         if value == self.text:
             return
-        if self._line_count > 1:
-            self._multi.setPlainText(value)
-        else:
-            self._single.setText(value)
+        widget = self._multi if self._line_count > 1 else self._single
+        with SignalBlocker(widget):  # avoid auto-completion on non-user input
+            widget.setText(value)
 
     @property
     def line_count(self):

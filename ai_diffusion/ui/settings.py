@@ -420,10 +420,6 @@ class InterfaceSettings(SettingsTab):
             "show_negative_prompt",
             SwitchSetting(S._show_negative_prompt, (_("Show"), _("Hide")), self),
         )
-        self.add("auto_preview", SwitchSetting(S._auto_preview, parent=self))
-        self.add("show_steps", SwitchSetting(S._show_steps, parent=self))
-        self.add("new_seed_after_apply", SwitchSetting(S._new_seed_after_apply, parent=self))
-        self.add("debug_dump_workflow", SwitchSetting(S._debug_dump_workflow, parent=self))
 
         self.add("tag_files", FileListSetting(S._tag_files, files=self._tag_files(), parent=self))
         self._widgets["tag_files"].add_button(
@@ -431,6 +427,11 @@ class InterfaceSettings(SettingsTab):
             _("Look for new tag files"),
             self._update_tag_files,
         )
+
+        self.add("auto_preview", SwitchSetting(S._auto_preview, parent=self))
+        self.add("show_steps", SwitchSetting(S._show_steps, parent=self))
+        self.add("new_seed_after_apply", SwitchSetting(S._new_seed_after_apply, parent=self))
+        self.add("debug_dump_workflow", SwitchSetting(S._debug_dump_workflow, parent=self))
 
         languages = [(lang.name, lang.id) for lang in Localization.available]
         self._widgets["language"].set_items(languages)

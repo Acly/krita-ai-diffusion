@@ -179,9 +179,9 @@ class Settings(QObject):
 
     tag_files: list[str]
     _tag_files = Setting(
-        _("Enable Tag Completions"),
+        _("Tag Auto-Completion"),
         list(),
-        _("Tag files to use for tag completion"),
+        _("Enable text completion for tags from the selected files"),
     )
 
     apply_behavior: ApplyBehavior
