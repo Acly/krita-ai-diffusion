@@ -43,6 +43,28 @@ def _progress(name: str, size: int | None):
     )
 
 
+async def download_with_retry(
+    client: aiohttp.ClientSession,
+    model: resources.ModelResource,
+    destination: Path,
+    verbose=False,
+    dry_run=False,
+    retry_attempts=5,
+    continue_on_error=False,
+):
+    for attempt in range(retry_attempts):
+        try:
+            await download(client, model, destination, verbose, dry_run)
+            break
+        except Exception as e:
+            print(f"Error downloading {model.name} (attempt {attempt}): {e}")
+            if not continue_on_error:
+                raise
+    else:
+        if not continue_on_error:
+            raise RuntimeError(f"Failed to download {model.name} after {retry_attempts} attempts")
+
+
 async def download(
     client: aiohttp.ClientSession,
     model: resources.ModelResource,
@@ -84,6 +106,8 @@ async def main(
     no_inpaint=False,
     prefetch=False,
     minimal=False,
+    retry_attempts=5,
+    continue_on_error=False,
 ):
     print(f"Generative AI for Krita - Model download - v{ai_diffusion.__version__}")
     verbose = verbose or dry_run
@@ -113,7 +137,9 @@ async def main(
                 continue
             if verbose:
                 print(f"\n{model.name}")
-            await download(client, model, destination, verbose, dry_run)
+            await download_with_retry(
+                client, model, destination, verbose, dry_run, retry_attempts, continue_on_error
+            )
 
 
 if __name__ == "__main__":
@@ -147,6 +173,8 @@ if __name__ == "__main__":
     parser.add_argument("--no-inpaint", action="store_true", help="skip inpaint models")
     parser.add_argument("--prefetch", action="store_true", help="fetch models which would be automatically downloaded on first use") # fmt: skip
     parser.add_argument("-m", "--minimal", action="store_true", help="minimum viable set of models")
+    parser.add_argument("--retry-attempts", type=int, default=5, help="number of retry attempts for downloading a model") # fmt: skip
+    parser.add_argument("--continue-on-error", action="store_true", help="continue downloading models even if an error occurs") # fmt: skip
     args = parser.parse_args()
     args.no_sdxl = args.no_sdxl or args.minimal
     asyncio.run(
@@ -163,5 +191,7 @@ if __name__ == "__main__":
             args.no_inpaint,
             args.prefetch,
             args.minimal,
+            args.retry_attempts,
+            args.continue_on_error,
         )
     )
