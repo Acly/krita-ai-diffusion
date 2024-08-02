@@ -81,6 +81,7 @@ async def main(
     no_checkpoints=False,
     default_checkpoints=[],
     no_controlnet=False,
+    no_inpaint=False,
     prefetch=False,
     minimal=False,
 ):
@@ -106,6 +107,7 @@ async def main(
                     and model.kind is resources.ResourceKind.checkpoint
                     and model.id.identifier not in default_checkpoints
                 )
+                or (no_inpaint and model.kind is resources.ResourceKind.inpaint)
                 or (not prefetch and model.kind is resources.ResourceKind.preprocessor)
             ):
                 continue
@@ -142,6 +144,7 @@ if __name__ == "__main__":
     parser.add_argument("--checkpoint", action="append", dest="default_checkpoints", help="the identifier of the default checkpoint to download") # fmt: skip
     parser.add_argument("--no-upscalers", action="store_true", help="skip upscale models")
     parser.add_argument("--no-controlnet", action="store_true", help="skip ControlNet models")
+    parser.add_argument("--no-inpaint", action="store_true", help="skip inpaint models")
     parser.add_argument("--prefetch", action="store_true", help="fetch models which would be automatically downloaded on first use") # fmt: skip
     parser.add_argument("-m", "--minimal", action="store_true", help="minimum viable set of models")
     args = parser.parse_args()
@@ -157,6 +160,7 @@ if __name__ == "__main__":
             args.no_checkpoints,
             args.default_checkpoints,
             args.no_controlnet,
+            args.no_inpaint,
             args.prefetch,
             args.minimal,
         )
