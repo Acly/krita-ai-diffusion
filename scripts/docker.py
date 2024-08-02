@@ -19,7 +19,7 @@ docker_dir = scripts_dir / "docker"
 comfy_dir = docker_dir / "ComfyUI"
 
 
-def copy_ai_diffusion_modules():
+def copy_scripts():
     plugin_dir = root_dir / "ai_diffusion"
     target_dir = docker_dir / "scripts" / "ai_diffusion"
     target_dir.mkdir(parents=True, exist_ok=True)
@@ -54,8 +54,8 @@ async def main():
     print("Downloading repositories")
     download_repositories()
 
-    print("Copying AI Diffusion modules")
-    copy_ai_diffusion_modules()
+    print("Copying scripts")
+    copy_scripts()
 
     print("Preparation complete.\n\nTo build run:")
     print(f"  docker build -t aclysia/sd-comfyui-krita:{version} scripts/docker/")
