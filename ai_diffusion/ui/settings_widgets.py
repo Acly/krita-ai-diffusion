@@ -130,14 +130,13 @@ class SettingWidget(QWidget):
 
 
 class FileListSetting(SettingWidget):
-    _list_widget: QListWidget
     _files: list[str]
 
     def __init__(self, setting: Setting, files: list[str], parent=None):
         super().__init__(setting, parent)
         self._list_items: list[tuple[str, QCheckBox]] = []
-        self._list_layout = QHBoxLayout()
         self._list_widget = QWidget(self)
+        self._list_layout = QHBoxLayout()
         self._list_widget.setLayout(self._list_layout)
         self._layout.addWidget(self._list_widget)
         self._widget = self._list_widget
@@ -151,10 +150,11 @@ class FileListSetting(SettingWidget):
 
     def _set_files(self, files: list[str]):
         self._files = files
-        self._list_widget.children().clear()
+        for _, w in self._list_items:
+            self._list_layout.removeWidget(w)
         self._list_items.clear()
         for file_ in self._files:
-            checkbox = QCheckBox(file_, self)
+            checkbox = QCheckBox(file_)
             checkbox.toggled.connect(self._notify_value_changed)
             self._list_layout.addWidget(checkbox)
             self._list_items.append((file_, checkbox))

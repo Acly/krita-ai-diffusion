@@ -427,6 +427,11 @@ class InterfaceSettings(SettingsTab):
             _("Look for new tag files"),
             self._update_tag_files,
         )
+        self._widgets["tag_files"].add_button(
+            Krita.instance().icon("document-open"),
+            _("Open folder where custom tag files can be placed"),
+            self._open_tag_folder,
+        )
 
         self.add("auto_preview", SwitchSetting(S._auto_preview, parent=self))
         self.add("show_steps", SwitchSetting(S._show_steps, parent=self))
@@ -452,6 +457,11 @@ class InterfaceSettings(SettingsTab):
 
     def _update_tag_files(self):
         self._widgets["tag_files"].reset_files(self._tag_files())
+
+    def _open_tag_folder(self):
+        user_tag_folder = util.user_data_dir / "tags"
+        user_tag_folder.mkdir(exist_ok=True)
+        QDesktopServices.openUrl(QUrl.fromLocalFile(str(user_tag_folder)))
 
     def update_translation(self, client: Client | None):
         translation: ComboBoxSetting = self._widgets["prompt_translation"]
