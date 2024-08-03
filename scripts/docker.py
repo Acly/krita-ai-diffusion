@@ -14,20 +14,17 @@ from ai_diffusion import resources
 
 version = f"v{ai_diffusion.__version__}"
 root_dir = Path(__file__).parent.parent
-scripts_dir = root_dir / "scripts"
-docker_dir = scripts_dir / "docker"
+docker_dir = root_dir / "scripts" / "docker"
 comfy_dir = docker_dir / "ComfyUI"
 
 
 def copy_scripts():
-    plugin_dir = root_dir / "ai_diffusion"
-    target_dir = docker_dir / "scripts" / "ai_diffusion"
-    target_dir.mkdir(parents=True, exist_ok=True)
-    for src in plugin_dir.glob("*.py"):
-        shutil.copy(src, target_dir)
-    websockets_dir = target_dir / "websockets" / "src"
-    websockets_dir.mkdir(parents=True, exist_ok=True)
-    shutil.copy(scripts_dir / "download_models.py", docker_dir / "scripts" / "download_models.py")
+    for source_file, target_dir in [
+        (root_dir / "ai_diffusion" / "resources.py", docker_dir / "scripts" / "ai_diffusion"),
+        (root_dir / "scripts" / "download_models.py", docker_dir / "scripts"),
+    ]:
+        target_dir.mkdir(parents=True, exist_ok=True)
+        shutil.copy(source_file, target_dir)
 
 
 def download_repository(url: str, target: Path, revision):
