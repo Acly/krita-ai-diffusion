@@ -22,11 +22,8 @@ from tqdm import tqdm
 from argparse import ArgumentParser
 
 sys.path.append(str(Path(__file__).parent.parent))
-import ai_diffusion
 from ai_diffusion import resources
 from ai_diffusion.resources import SDVersion, all_models
-
-version = f"v{ai_diffusion.__version__}"
 
 
 def required_models():
@@ -109,7 +106,7 @@ async def main(
     retry_attempts=5,
     continue_on_error=False,
 ):
-    print(f"Generative AI for Krita - Model download - v{ai_diffusion.__version__}")
+    print(f"Generative AI for Krita - Model download - v{resources.version}")
     verbose = verbose or dry_run
     models = required_models() if minimal else all_models()
 
@@ -161,9 +158,7 @@ if __name__ == "__main__":
         ),
     )
     parser.add_argument("-v", "--verbose", action="store_true", help="print URLs and filepaths")
-    parser.add_argument(
-        "-d", "--dry-run", action="store_true", help="don't actually download anything (but create directories)"
-    )
+    parser.add_argument("-d", "--dry-run", action="store_true", help="don't actually download anything (but create directories)") # fmt: skip
     parser.add_argument("--no-sd15", action="store_true", help="skip SD1.5 models")
     parser.add_argument("--no-sdxl", action="store_true", help="skip SDXL models")
     parser.add_argument("--no-checkpoints", action="store_true", help="skip default checkpoints")
