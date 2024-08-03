@@ -61,11 +61,11 @@ RUN pip3 install -r /ComfyUI/requirements.txt && \
     pip3 cache purge 
 
 # Prepare scripts and folders for models (download is eventually done at container startup via pre_start.sh)
-RUN mkdir -p /models && \
-   ln -s /workspace/models /models
 COPY ./scripts/ /scripts/
-RUN pip3 install --no-cache-dir aiohttp tqdm
 COPY ./extra_model_paths.yaml /ComfyUI/
+RUN pip3 install --no-cache-dir aiohttp tqdm && \
+    python /scripts/download_models.py --dry-run /workspace/
+RUN ln -s /workspace/models /models
 
 # Install Jupyter
 RUN pip3 install -U --no-cache-dir jupyterlab \

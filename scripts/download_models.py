@@ -81,8 +81,8 @@ async def download(
             continue
         if verbose:
             print(f"Downloading {url}")
+        target_file.parent.mkdir(exist_ok=True, parents=True)
         if not dry_run:
-            target_file.parent.mkdir(exist_ok=True, parents=True)
             async with client.get(url) as resp:
                 resp.raise_for_status()
                 with open(target_file.with_suffix(".part"), "wb") as fd:
@@ -162,7 +162,7 @@ if __name__ == "__main__":
     )
     parser.add_argument("-v", "--verbose", action="store_true", help="print URLs and filepaths")
     parser.add_argument(
-        "-d", "--dry-run", action="store_true", help="don't actually download anything"
+        "-d", "--dry-run", action="store_true", help="don't actually download anything (but create directories)"
     )
     parser.add_argument("--no-sd15", action="store_true", help="skip SD1.5 models")
     parser.add_argument("--no-sdxl", action="store_true", help="skip SDXL models")
