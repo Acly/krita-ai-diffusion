@@ -148,6 +148,7 @@ class CheckpointResolution(NamedTuple):
                 SDVersion.sd15: (512, 768, 512**2, 512 * 768),
                 SDVersion.sdxl: (896, 1280, 1024**2, 1024**2),
                 SDVersion.sd3: (512, 1536, 512**2, 1536**2),
+                SDVersion.flux: (256, 2048, 512**2, 2048**2),
             }[sd_ver]
         else:
             range_offset = multiple_of(round(0.2 * style.preferred_resolution), 8)
@@ -179,7 +180,11 @@ def prepare_diffusion_input(
     desired = apply_resolution_settings(extent, perf)
 
     # The checkpoint may require a different resolution than what is requested.
-    mult = 64 if sd_version is SDVersion.sd3 else 8
+    mult = 8
+    if sd_version is SDVersion.flux:
+        mult = 16
+    if SDVersion is SDVersion.sd3:
+        mult = 64
     min_size, max_size, min_scale, max_scale = CheckpointResolution.compute(
         desired, sd_version, style
     )

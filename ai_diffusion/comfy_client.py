@@ -296,7 +296,7 @@ class ComfyClient(Client):
                     info.get("is_refiner", False),
                 )
                 for filename, info in checkpoint_info.items()
-                if info["base_model"] in ["sd15", "sd3", "sdxl"]
+                if info["base_model"] in SDVersion.list_strings()
             }
         else:
             models.checkpoints = {

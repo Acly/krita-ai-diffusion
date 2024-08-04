@@ -56,6 +56,7 @@ class SDVersion(Enum):
     sd15 = "SD 1.5"
     sdxl = "SD XL"
     sd3 = "SD 3"
+    flux = "Flux"
 
     auto = "Automatic"
     all = "All"
@@ -68,6 +69,8 @@ class SDVersion(Enum):
             return SDVersion.sdxl
         if string == "sd3":
             return SDVersion.sd3
+        if string == "flux" or string == "flux-schnell":
+            return SDVersion.flux
         return None
 
     @staticmethod
@@ -102,11 +105,15 @@ class SDVersion(Enum):
 
     @staticmethod
     def list():
-        return [SDVersion.sd15, SDVersion.sdxl, SDVersion.sd3]
+        return [SDVersion.sd15, SDVersion.sdxl, SDVersion.sd3, SDVersion.flux]
+
+    @staticmethod
+    def list_strings():
+        return ["sd15", "sdxl", "sd3", "flux", "flux-schnell"]
 
 
 class ResourceKind(Enum):
-    checkpoint = "Stable Diffusion Checkpoint"
+    checkpoint = "Diffusion Checkpoint"
     clip = "CLIP model"
     controlnet = "ControlNet model"
     clip_vision = "CLIP Vision model"

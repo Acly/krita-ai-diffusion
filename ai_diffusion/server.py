@@ -186,7 +186,10 @@ class Server:
         await _extract_archive("ComfyUI", archive_path, comfy_dir.parent, cb)
         temp_comfy_dir = comfy_dir.parent / f"ComfyUI-{resources.comfy_version}"
 
-        await _execute_process("matplotlib", self._pip_install("matplotlib==3.9.0"), self.path, cb)
+        if is_windows:  # workaround for #1031
+            await _execute_process(
+                "matplotlib", self._pip_install("matplotlib==3.9.0"), self.path, cb
+            )
 
         torch_args = ["torch==2.3.1", "torchvision==0.18.1", "torchaudio==2.3.1"]
         if self.backend is ServerBackend.cpu or self.backend is ServerBackend.mps:

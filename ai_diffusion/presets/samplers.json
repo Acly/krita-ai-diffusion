@@ -71,5 +71,12 @@
         "steps": 24,
         "minimum_steps": 4,
         "cfg": 5.0
+    },
+    "Flux - Euler simple": {
+        "sampler": "euler",
+        "scheduler": "simple",
+        "steps": 20,
+        "minimum_steps": 4,
+        "cfg": 1.0
     }
 }

@@ -50,6 +50,8 @@ def sd_version_icon(version: SDVersion, client: Client | None = None):
         return icon("sd-version-xl")
     elif version is SDVersion.sd3:
         return icon("sd-version-3")
+    elif version is SDVersion.flux:
+        return icon("sd-version-flux")
     else:
         log.warning(f"Unresolved SD version {version}, cannot fetch icon")
         return icon("warning")

@@ -343,7 +343,7 @@ class ComfyWorkflow:
 
     def empty_latent_image(self, extent: Extent, version: SDVersion, batch_size=1):
         w, h = extent.width, extent.height
-        if version is SDVersion.sd3:
+        if version in [SDVersion.sd3, SDVersion.flux]:
             return self.add("EmptySD3LatentImage", 1, width=w, height=h, batch_size=batch_size)
         return self.add("EmptyLatentImage", 1, width=w, height=h, batch_size=batch_size)
 
