@@ -49,7 +49,7 @@ def test_install_and_run(qtapp, pytestconfig, local_download_server):
     """Test installing and running ComfyUI server from scratch.
     * Takes a while, only runs with --test-install
     * Starts and downloads from local file server instead of huggingface/civitai
-      * Required to run `scripts/download_models.py -m scripts/docker/downloads` to download models once
+      * Required to run `scripts/download_models.py -m scripts/downloads` to download models once
       * Remove `local_download_server` fixture to download from original urls
     * Also tests upgrading server from "previous" version
       * In this case it's the same version, but it removes & re-installs anyway

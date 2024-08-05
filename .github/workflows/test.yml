@@ -41,10 +41,10 @@ jobs:
       - name: Cache models
         uses: actions/cache@v3
         with:
-          path: scripts/docker/downloads
+          path: scripts/downloads
           key: models-v4
       - name: Download models
-        run: python scripts/download_models.py --minimal scripts/docker/downloads
+        run: python scripts/download_models.py --minimal scripts/downloads
       - name: Test installer
         run: python -m pytest tests/test_server.py -vs --test-install
       - name: Test

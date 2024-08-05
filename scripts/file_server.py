@@ -11,7 +11,7 @@ from pathlib import Path
 sys.path.append(str(Path(__file__).parent.parent))
 from ai_diffusion import resources
 
-dir = Path(__file__).parent / "docker" / "downloads"
+dir = Path(__file__).parent / "downloads"
 
 
 def url_strip(url: str):

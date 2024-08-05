@@ -112,9 +112,9 @@ Everything else has tests. Mostly. If effort is reasonable, tests are expected. 
 
 Testing changes to the installer is annoying because of the file sizes involved. There are some things that help. You can preload model files with the following script:
 ```
-python scripts/download_models.py --minimal scripts/docker/downloads
+python scripts/download_models.py --minimal scripts/downloads
 ```
-This will download the minimum required models and store them in `scripts/docker/downloads` (used as default location because that way the docker build script can use them too).
+This will download the minimum required models and store them in `scripts/downloads`.
 
 The following command does some automated testing for installation and upgrade. It starts a local file server which pulls preloaded models, so it's reasonably fast and doesn't download the entire internet.
 ```
