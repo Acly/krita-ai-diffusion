@@ -262,6 +262,9 @@ class ModelResource(NamedTuple):
     def sd_version(self):
         return self.id.version
 
+    def __hash__(self):
+        return hash(self.id)
+
 
 required_models = [
     ModelResource(

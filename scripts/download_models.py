@@ -23,11 +23,8 @@ from argparse import ArgumentParser
 
 sys.path.append(str(Path(__file__).parent.parent))
 from ai_diffusion import resources
-from ai_diffusion.resources import SDVersion, all_models
-
-
-def required_models():
-    return chain(resources.required_models, islice(resources.default_checkpoints, 1))
+from ai_diffusion.resources import SDVersion, ResourceKind
+from ai_diffusion.resources import required_models, default_checkpoints, optional_models
 
 
 def _progress(name: str, size: int | None):
@@ -94,44 +91,55 @@ async def main(
     destination: Path,
     verbose=False,
     dry_run=False,
-    no_sd15=False,
-    no_sdxl=False,
-    no_upscalers=False,
-    no_checkpoints=False,
-    default_checkpoints=[],
-    no_controlnet=False,
-    no_inpaint=False,
+    sd15=False,
+    sdxl=False,
+    upscalers=False,
+    checkpoints=[],
+    controlnet=False,
     prefetch=False,
     minimal=False,
+    recommended=False,
+    all=False,
     retry_attempts=5,
     continue_on_error=False,
 ):
     print(f"Generative AI for Krita - Model download - v{resources.version}")
     verbose = verbose or dry_run
-    models = required_models() if minimal else all_models()
+    assert (
+        sum([minimal, recommended, all]) <= 1
+    ), "Only one of --minimal, --recommended, --all can be specified"
 
-    for checkpoint in default_checkpoints or []:
-        if checkpoint not in [model.id.identifier for model in models]:
-            raise ValueError(f"Invalid checkpoint identifier: {checkpoint}")
+    versions = [SDVersion.all]
+    if sd15 or minimal or all:
+        versions.append(SDVersion.sd15)
+    if sdxl or recommended or all:
+        versions.append(SDVersion.sdxl)
 
     timeout = aiohttp.ClientTimeout(total=None, sock_connect=10, sock_read=60)
     async with aiohttp.ClientSession(timeout=timeout) as client:
-        for model in models:
-            if (
-                (no_sd15 and model.sd_version is SDVersion.sd15)
-                or (no_sdxl and model.sd_version is SDVersion.sdxl)
-                or (no_controlnet and model.kind is resources.ResourceKind.controlnet)
-                or (no_upscalers and model.kind is resources.ResourceKind.upscaler)
-                or (no_checkpoints and model.kind is resources.ResourceKind.checkpoint)
-                or (
-                    default_checkpoints
-                    and model.kind is resources.ResourceKind.checkpoint
-                    and model.id.identifier not in default_checkpoints
-                )
-                or (no_inpaint and model.kind is resources.ResourceKind.inpaint)
-                or (not prefetch and model.kind is resources.ResourceKind.preprocessor)
-            ):
-                continue
+        models = set()
+        models.update([m for m in default_checkpoints if all or (m.id.identifier in checkpoints)])
+        if minimal or recommended or all or sd15 or sdxl:
+            models.update([m for m in required_models if m.sd_version in versions])
+        if minimal:
+            models.add(default_checkpoints[0])
+        if recommended:
+            models.update([m for m in default_checkpoints if m.sd_version is SDVersion.sdxl])
+        if upscalers or recommended or all:
+            models.update([m for m in required_models if m.kind is ResourceKind.upscaler])
+            models.update(resources.upscale_models)
+        if controlnet or all:
+            kinds = [ResourceKind.controlnet, ResourceKind.ip_adapter]
+            models.update(
+                [m for m in optional_models if m.kind in kinds and m.sd_version in versions]
+            )
+        if prefetch or all:
+            models.update(resources.prefetch_models)
+
+        if len(models) == 0:
+            print("\nNo models selected for download.")
+
+        for model in sorted(models, key=lambda m: m.name):
             if verbose:
                 print(f"\n{model.name}")
             await download_with_retry(
@@ -142,6 +150,7 @@ async def main(
 if __name__ == "__main__":
     parser = ArgumentParser(
         prog="download_models.py",
+        usage="%(prog)s [options] destination",
         description=(
             "Script which downloads required & optional models to run a ComfyUI"
             " server for the Krita Generative AI plugin."
@@ -157,36 +166,48 @@ if __name__ == "__main__":
             " files manually."
         ),
     )
+    checkpoint_names = [m.id.identifier for m in resources.default_checkpoints]
+    # fmt: off
     parser.add_argument("-v", "--verbose", action="store_true", help="print URLs and filepaths")
-    parser.add_argument("-d", "--dry-run", action="store_true", help="don't actually download anything (but create directories)") # fmt: skip
-    parser.add_argument("--no-sd15", action="store_true", help="skip SD1.5 models")
-    parser.add_argument("--no-sdxl", action="store_true", help="skip SDXL models")
-    parser.add_argument("--no-checkpoints", action="store_true", help="skip default checkpoints")
-    parser.add_argument("--checkpoint", action="append", dest="default_checkpoints", help="the identifier of the default checkpoint to download") # fmt: skip
-    parser.add_argument("--no-upscalers", action="store_true", help="skip upscale models")
-    parser.add_argument("--no-controlnet", action="store_true", help="skip ControlNet models")
-    parser.add_argument("--no-inpaint", action="store_true", help="skip inpaint models")
-    parser.add_argument("--prefetch", action="store_true", help="fetch models which would be automatically downloaded on first use") # fmt: skip
-    parser.add_argument("-m", "--minimal", action="store_true", help="minimum viable set of models")
-    parser.add_argument("--retry-attempts", type=int, default=5, help="number of retry attempts for downloading a model") # fmt: skip
-    parser.add_argument("--continue-on-error", action="store_true", help="continue downloading models even if an error occurs") # fmt: skip
+    parser.add_argument("-d", "--dry-run", action="store_true", help="don't actually download anything (but create directories)")
+    parser.add_argument("-m", "--minimal", action="store_true", help="download the minimum viable set of models")
+    parser.add_argument("-r", "--recommended", action="store_true", help="download a recommended set of models")
+    parser.add_argument("-a", "--all", action="store_true", help="download ALL models")
+    parser.add_argument("--sd15", action="store_true", help="[Workload] everything needed to run SD 1.5 (no checkpoints)")
+    parser.add_argument("--sdxl", action="store_true", help="[Workload] everything needed to run SDXL (no checkpoints)")
+    parser.add_argument("--checkpoints", action="store_true", dest="checkpoints", help="download all checkpoints for selected workloads")
+    parser.add_argument("--controlnet", action="store_true", help="download ControlNet models for selected workloads")
+    parser.add_argument("--checkpoint", action="append", choices=checkpoint_names, dest="checkpoint_list", help="download a specific checkpoint (can specify multiple times)")
+    parser.add_argument("--upscalers", action="store_true", help="download additional upscale models")
+    parser.add_argument("--prefetch", action="store_true", help="download models which would be automatically downloaded on first use")
+    parser.add_argument("--retry-attempts", type=int, default=5, metavar="N", help="number of retry attempts for downloading a model")
+    parser.add_argument("--continue-on-error", action="store_true", help="continue downloading models even if an error occurs")
+    # fmt: on
     args = parser.parse_args()
-    args.no_sdxl = args.no_sdxl or args.minimal
+    checkpoints = args.checkpoint_list or []
+    if args.checkpoints and args.sd15:
+        checkpoints += [
+            m.id.identifier for m in default_checkpoints if m.sd_version is SDVersion.sd15
+        ]
+    if args.checkpoints and args.sdxl:
+        checkpoints += [
+            m.id.identifier for m in default_checkpoints if m.sd_version is SDVersion.sdxl
+        ]
     asyncio.run(
         main(
-            args.destination,
-            args.verbose,
-            args.dry_run,
-            args.no_sd15,
-            args.no_sdxl,
-            args.no_upscalers,
-            args.no_checkpoints,
-            args.default_checkpoints,
-            args.no_controlnet,
-            args.no_inpaint,
-            args.prefetch,
-            args.minimal,
-            args.retry_attempts,
-            args.continue_on_error,
+            destination=args.destination,
+            verbose=args.verbose,
+            dry_run=args.dry_run,
+            sd15=args.sd15,
+            sdxl=args.sdxl,
+            upscalers=args.upscalers,
+            checkpoints=checkpoints,
+            controlnet=args.controlnet,
+            prefetch=args.prefetch,
+            minimal=args.minimal,
+            recommended=args.recommended,
+            all=args.all,
+            retry_attempts=args.retry_attempts,
+            continue_on_error=args.continue_on_error,
         )
     )
