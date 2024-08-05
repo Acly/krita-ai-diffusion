@@ -6,10 +6,10 @@ from typing import NamedTuple, Sequence
 
 # Version identifier for all the resources defined here. This is used as the server version.
 # It usually follows the plugin version, but not all new plugin versions also require a server update.
-version = "1.21.0"
+version = "1.22.0"
 
 comfy_url = "https://github.com/comfyanonymous/ComfyUI"
-comfy_version = "14764aa2e2e2b282c4a4dffbfab4c01d3e46e8a7"
+comfy_version = "a178e25912b01abf436eba1cfaab316ba02d272d"
 
 
 class CustomNode(NamedTuple):
@@ -39,7 +39,7 @@ required_custom_nodes = [
         "External Tooling Nodes",
         "comfyui-tooling-nodes",
         "https://github.com/Acly/comfyui-tooling-nodes",
-        "5bad00f72f13e6a18ccbf882a660800bc3897aee",
+        "b5fec4a0625e47586b7b28585ce27d4ecdd3b18a",
         ["ETN_LoadImageBase64", "ETN_LoadMaskBase64", "ETN_SendImageWebSocket", "ETN_Translate"],
     ),
     CustomNode(
@@ -431,6 +431,15 @@ default_checkpoints = [
             Path(
                 "models/checkpoints/zavychromaxl_v80.safetensors"
             ): "https://huggingface.co/misri/zavychromaxl_v80/resolve/main/zavychromaxl_v80.safetensors"
+        },
+    ),
+    ModelResource(
+        "Flux [schnell]",
+        ResourceId(ResourceKind.checkpoint, SDVersion.flux, "flux-schnell"),
+        {
+            Path(
+                "models/checkpoints/flux1-schnell-fp8.safetensors"
+            ): "https://huggingface.co/Comfy-Org/flux1-schnell/resolve/main/flux1-schnell-fp8.safetensors"
         },
     ),
 ]

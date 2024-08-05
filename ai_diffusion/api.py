@@ -200,11 +200,21 @@ class WorkflowInput:
         def cost_factor(batch: int, extent: Extent, steps: int):
             return batch * extent.pixel_count * math.sqrt(extent.pixel_count) * steps
 
-        base = 1 if ensure(self.models).version is SDVersion.sd15 else 2
+        base = _base_cost(ensure(self.models).version)
         steps = max(8, ensure(self.sampling).actual_steps)
         unit = cost_factor(2, Extent(1024, 1024), 24)
         cost = cost_factor(self.passes_count, self.diffusion_extent, steps)
         return base + round((10 * cost) / unit)
+
+
+def _base_cost(version: SDVersion):
+    if version is SDVersion.sd15:
+        return 1
+    if version is SDVersion.sdxl:
+        return 2
+    if version is SDVersion.flux:
+        return 4
+    return 1
 
 
 class Serializer:

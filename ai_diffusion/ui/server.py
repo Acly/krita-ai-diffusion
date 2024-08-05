@@ -340,7 +340,7 @@ class ServerWidget(QWidget):
         self._packages = {
             "checkpoints": PackageGroupWidget(
                 _("Recommended checkpoints"),
-                resources.default_checkpoints,
+                [c for c in resources.default_checkpoints if c.sd_version is not SDVersion.flux],
                 description=(
                     _(
                         "At least one Stable Diffusion checkpoint is required. Below are some popular choices, more can be found online."

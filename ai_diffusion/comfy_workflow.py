@@ -185,11 +185,16 @@ class ComfyWorkflow:
     ):
         self.sample_count += steps - start_at_step
 
+        if model_version is SDVersion.flux:
+            guider = self.basic_guider(model, positive)
+        else:
+            guider = self.cfg_guider(model, positive, negative, cfg)
+
         return self.add(
             "SamplerCustomAdvanced",
             output_count=2,
             noise=self.random_noise(seed),
-            guider=self.cfg_guider(model, positive, negative, cfg),
+            guider=guider,
             sampler=self.sampler_select(sampler),
             sigmas=self.split_sigmas(
                 self.scheduler_sigmas(model, scheduler, steps, model_version), start_at_step
@@ -249,6 +254,9 @@ class ComfyWorkflow:
             sigmas=sigmas,
             step=step,
         )
+
+    def basic_guider(self, model: Output, positive: Output):
+        return self.add("BasicGuider", 1, model=model, conditioning=positive)
 
     def cfg_guider(self, model: Output, positive: Output, negative: Output, cfg=7.0):
         return self.add(

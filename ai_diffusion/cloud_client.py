@@ -301,6 +301,9 @@ models.checkpoints = {
         "juggernautXL_version6Rundiffusion.safetensors", SDVersion.sdxl
     ),
     "zavychromaxl_v80.safetensors": CheckpointInfo("zavychromaxl_v80.safetensors", SDVersion.sdxl),
+    "flux1-schnell-fp8.safetensors": CheckpointInfo(
+        "flux1-schnell-fp8.safetensors", SDVersion.flux
+    ),
 }
 models.vae = []
 models.loras = []
