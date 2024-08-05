@@ -1,5 +1,5 @@
 runpod:
-    base_path: /models
+    base_path: /workspace/models
 
     checkpoints: checkpoints
     clip_vision: clip_vision

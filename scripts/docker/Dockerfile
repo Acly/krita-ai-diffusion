@@ -1,5 +1,4 @@
-# Stage 1: Base
-FROM nvidia/cuda:12.0.1-base-ubuntu22.04 as base
+FROM nvidia/cuda:12.0.1-base-ubuntu22.04
 
 SHELL ["/bin/bash", "-o", "pipefail", "-c"]
 ENV DEBIAN_FRONTEND=noninteractive \
@@ -53,7 +52,7 @@ ENV PATH="/venv/bin:$PATH"
 RUN pip3 install --no-cache-dir torch torchvision torchaudio --index-url https://download.pytorch.org/whl/cu121
 
 # Copy ComfyUI
-COPY ComfyUI /ComfyUI
+COPY ./ComfyUI /ComfyUI
 
 # Install ComfyUI & custom node dependencies
 RUN pip3 install -r /ComfyUI/requirements.txt && \
@@ -62,10 +61,12 @@ RUN pip3 install -r /ComfyUI/requirements.txt && \
     pip3 install insightface onnxruntime && \
     pip3 cache purge 
 
-# Copy models
-RUN mkdir -p models
-COPY downloads/models/ /models/
-COPY extra_model_paths.yaml /ComfyUI/
+# Prepare scripts and folders for models (download is eventually done at container startup via pre_start.sh)
+COPY ./scripts/ /scripts/
+COPY ./extra_model_paths.yaml /ComfyUI/
+RUN pip3 install --no-cache-dir aiohttp tqdm && \
+    python /scripts/download_models.py --dry-run /workspace/
+RUN ln -s /workspace/models /models
 
 # Install Jupyter
 RUN pip3 install -U --no-cache-dir jupyterlab \
@@ -78,12 +79,12 @@ RUN pip3 install -U --no-cache-dir jupyterlab \
 RUN curl https://rclone.org/install.sh | bash
 
 # NGINX Proxy
-COPY nginx/nginx.conf /etc/nginx/nginx.conf
-COPY nginx/502.html /usr/share/nginx/html/502.html
-COPY nginx/README.md /usr/share/nginx/html/README.md
+COPY ./nginx/nginx.conf /etc/nginx/nginx.conf
+COPY ./nginx/502.html /usr/share/nginx/html/502.html
+COPY ./nginx/README.md /usr/share/nginx/html/README.md
 
 # Copy the scripts and create workspace
-COPY --chmod=755 pre_start.sh start.sh ./
+COPY --chmod=755 ./pre_start.sh ./start.sh ./
 RUN mkdir -p workspace/logs
 
 # Start the container

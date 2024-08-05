@@ -11,12 +11,20 @@ from pathlib import Path
 sys.path.append(str(Path(__file__).parent.parent))
 import ai_diffusion
 from ai_diffusion import resources
-from scripts.download_models import all_models, main as download_models
 
 version = f"v{ai_diffusion.__version__}"
-docker_root = Path(__file__).parent / "docker"
-download_folder = docker_root / "downloads"
-comfy_dir = docker_root / "ComfyUI"
+root_dir = Path(__file__).parent.parent
+docker_dir = root_dir / "scripts" / "docker"
+comfy_dir = docker_dir / "ComfyUI"
+
+
+def copy_scripts():
+    for source_file, target_dir in [
+        (root_dir / "ai_diffusion" / "resources.py", docker_dir / "scripts" / "ai_diffusion"),
+        (root_dir / "scripts" / "download_models.py", docker_dir / "scripts"),
+    ]:
+        target_dir.mkdir(parents=True, exist_ok=True)
+        shutil.copy(source_file, target_dir)
 
 
 def download_repository(url: str, target: Path, revision):
@@ -39,26 +47,15 @@ def download_repositories():
         download_repository(repo.url, custom_nodes_dir / repo.folder, repo.version)
 
 
-def clean(models):
-    expected = set(filepath for m in models for filepath in m.files.keys())
-    for path in (download_folder).glob("**/*"):
-        if path.is_file() and path.relative_to(download_folder) not in expected:
-            print(f"- Deleting {path}")
-            path.unlink()
-
-
 async def main():
     print("Downloading repositories")
     download_repositories()
 
-    print("Cleaning up cached models")
-    clean(all_models())
-
-    print("Downloading new models")
-    await download_models(download_folder)
+    print("Copying scripts")
+    copy_scripts()
 
     print("Preparation complete.\n\nTo build run:")
-    print(f"  docker build -t aclysia/sd-comfyui-krita:{version} scripts/docker")
+    print(f"  docker build -t aclysia/sd-comfyui-krita:{version} scripts/docker/")
     print("\nTo test the image:")
     print(f"  docker run --gpus all -p 3001:3000 -p 8888:8888 aclysia/sd-comfyui-krita:{version}")
 

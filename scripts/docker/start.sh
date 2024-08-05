@@ -15,9 +15,10 @@ start_nginx() {
 execute_script() {
     local script_path=$1
     local script_msg=$2
+    local script_args=${@:3}
     if [[ -f ${script_path} ]]; then
         echo "${script_msg}"
-        bash ${script_path}
+        bash ${script_path} ${script_args}
     fi
 }
 
@@ -64,7 +65,7 @@ start_jupyter() {
 
 start_nginx
 
-execute_script "/pre_start.sh" "Running pre-start script..."
+execute_script "./pre_start.sh" "Running pre-start script..." "${@}"
 
 echo "Pod Started"
 
@@ -72,7 +73,7 @@ setup_ssh
 start_jupyter
 export_env_vars
 
-execute_script "/post_start.sh" "Running post-start script..."
+execute_script "/post_start.sh" "Running post-start script..." "${@}"
 
 echo "Container is READY!"
 
