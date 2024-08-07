@@ -72,8 +72,12 @@ RUN apt install -y --no-install-recommends \
     apt-transport-https && \    
     apt clean
 
+# ComfyUI Manager dependencies
+RUN python3 -m pip install --no-cache-dir \
+    -r /ComfyUI/custom_nodes/ComfyUI-Manager/requirements.txt
+
 # Install Jupyter
-RUN pip3 install -U --no-cache-dir jupyterlab \
+RUN python3 -m pip install -U --no-cache-dir jupyterlab \
     jupyterlab_widgets \
     ipykernel \
     ipywidgets \

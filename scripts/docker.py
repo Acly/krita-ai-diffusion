@@ -42,8 +42,11 @@ def download_repository(url: str, target: Path, revision):
 
 
 def download_repositories():
-    download_repository(resources.comfy_url, comfy_dir, resources.comfy_version)
     custom_nodes_dir = comfy_dir / "custom_nodes"
+    manager_url = "https://github.com/ltdrdata/ComfyUI-Manager"
+
+    download_repository(resources.comfy_url, comfy_dir, resources.comfy_version)
+    download_repository(manager_url, custom_nodes_dir / "ComfyUI-Manager", "main")
     for repo in resources.required_custom_nodes:
         download_repository(repo.url, custom_nodes_dir / repo.folder, repo.version)
 
