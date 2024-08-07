@@ -14,8 +14,8 @@ Usage:
 """
 
 import asyncio
-from itertools import chain, islice
 import aiohttp
+import os
 import sys
 from pathlib import Path
 from tqdm import tqdm
@@ -35,6 +35,12 @@ def _progress(name: str, size: int | None):
         unit_divisor=1024,
         desc=name,
     )
+
+
+def _map_url(url: str):
+    if replace_host := os.environ.get("AI_DIFFUSION_DOWNLOAD_URL"):
+        url = url.replace("/".join(url.split("/")[:3]), replace_host)
+    return url
 
 
 async def download_with_retry(
@@ -68,6 +74,7 @@ async def download(
 ):
     for filepath, url in model.files.items():
         target_file = destination / filepath
+        url = _map_url(url)
         if verbose:
             print(f"Looking for {target_file}")
         if target_file.exists():
@@ -128,7 +135,7 @@ async def main(
         if upscalers or recommended or all:
             models.update([m for m in required_models if m.kind is ResourceKind.upscaler])
             models.update(resources.upscale_models)
-        if controlnet or all:
+        if controlnet or recommended or all:
             kinds = [ResourceKind.controlnet, ResourceKind.ip_adapter]
             models.update(
                 [m for m in optional_models if m.kind in kinds and m.sd_version in versions]

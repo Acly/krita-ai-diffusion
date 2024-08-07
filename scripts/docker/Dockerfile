@@ -1,11 +1,11 @@
-FROM nvidia/cuda:12.0.1-base-ubuntu22.04
+FROM nvidia/cuda:12.0.1-base-ubuntu22.04 AS base
 
 SHELL ["/bin/bash", "-o", "pipefail", "-c"]
 ENV DEBIAN_FRONTEND=noninteractive \
     PYTHONUNBUFFERED=1 \
     SHELL=/bin/bash
 
-# Install Ubuntu packages
+# Minimal system dependencies
 RUN apt update && \
     apt -y upgrade && \
     apt install -y --no-install-recommends \
@@ -16,15 +16,50 @@ RUN apt update && \
     bash \
     git \
     git-lfs \
-    nginx \
-    net-tools \
-    inetutils-ping \
-    openssh-server \
     libglib2.0-0 \
     libsm6 \
     libgl1 \
     libxrender1 \
     libxext6 \
+    pkg-config \
+    libtcmalloc-minimal4 \
+    ca-certificates && \
+    update-ca-certificates && \
+    apt clean && \
+    echo "en_US.UTF-8 UTF-8" > /etc/locale.gen
+
+# Python virtual environment
+RUN python3.11 -m venv /venv
+ENV PATH="/venv/bin:$PATH"
+
+# PyTorch and ONNX Runtime
+RUN python3 -m pip install --upgrade pip && \
+    python3 -m pip install --no-cache-dir torch torchvision torchaudio onnxruntime
+
+# ComfyUI and custom nodes
+COPY ./ComfyUI /ComfyUI/
+RUN python3 -m pip install -r /ComfyUI/requirements.txt && \
+    python3 -m pip install -r /ComfyUI/custom_nodes/comfyui_controlnet_aux/requirements.txt && \
+    python3 -m pip install -r /ComfyUI/custom_nodes/comfyui-tooling-nodes/requirements.txt && \
+    python3 -m pip install insightface && \
+    python3 -m pip cache purge
+
+# Prepare scripts and folders for models (download is eventually done at container startup via pre_start.sh)
+COPY ./krita-ai-diffusion/ /krita-ai-diffusion/
+COPY ./extra_model_paths.yaml /ComfyUI/
+RUN python3 -m pip install --no-cache-dir aiohttp tqdm && \
+    python3 /krita-ai-diffusion/scripts/download_models.py --dry-run /workspace
+RUN ln -s /workspace/models /models
+
+
+FROM base
+
+# Install additional dependencies (convenience for manual interaction)
+RUN apt install -y --no-install-recommends \
+    nginx \
+    net-tools \
+    inetutils-ping \
+    openssh-server \
     wget \
     curl \
     psmisc \
@@ -34,39 +69,8 @@ RUN apt update && \
     unzip \
     p7zip-full \
     htop \
-    pkg-config \
-    libtcmalloc-minimal4 \
-    apt-transport-https \
-    ca-certificates && \
-    update-ca-certificates && \
-    apt clean && \
-    rm -rf /var/lib/apt/lists/* && \
-    echo "en_US.UTF-8 UTF-8" > /etc/locale.gen
-
-# Set Python
-RUN ln -s /usr/bin/python3.11 /usr/bin/python && \
-    python -m venv /venv
-ENV PATH="/venv/bin:$PATH"
-
-# Install Pytorch
-RUN pip3 install --no-cache-dir torch torchvision torchaudio --index-url https://download.pytorch.org/whl/cu121
-
-# Copy ComfyUI
-COPY ./ComfyUI /ComfyUI
-
-# Install ComfyUI & custom node dependencies
-RUN pip3 install -r /ComfyUI/requirements.txt && \
-    pip3 install -r /ComfyUI/custom_nodes/comfyui_controlnet_aux/requirements.txt && \
-    pip3 install -r /ComfyUI/custom_nodes/comfyui-tooling-nodes/requirements.txt && \
-    pip3 install insightface onnxruntime && \
-    pip3 cache purge 
-
-# Prepare scripts and folders for models (download is eventually done at container startup via pre_start.sh)
-COPY ./scripts/ /scripts/
-COPY ./extra_model_paths.yaml /ComfyUI/
-RUN pip3 install --no-cache-dir aiohttp tqdm && \
-    python /scripts/download_models.py --dry-run /workspace/
-RUN ln -s /workspace/models /models
+    apt-transport-https && \    
+    apt clean
 
 # Install Jupyter
 RUN pip3 install -U --no-cache-dir jupyterlab \
@@ -84,9 +88,9 @@ COPY ./nginx/502.html /usr/share/nginx/html/502.html
 COPY ./nginx/README.md /usr/share/nginx/html/README.md
 
 # Copy the scripts and create workspace
-COPY --chmod=755 ./pre_start.sh ./start.sh ./
 RUN mkdir -p workspace/logs
+COPY --chmod=755 pre_start.sh start.sh ./
 
 # Start the container
 SHELL ["/bin/bash", "--login", "-c"]
-CMD [ "/start.sh" ]
+CMD ["/start.sh", "--recommended"]

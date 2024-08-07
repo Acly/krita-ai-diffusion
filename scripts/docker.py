@@ -19,9 +19,10 @@ comfy_dir = docker_dir / "ComfyUI"
 
 
 def copy_scripts():
+    repo_dir = docker_dir / "krita-ai-diffusion"
     for source_file, target_dir in [
-        (root_dir / "ai_diffusion" / "resources.py", docker_dir / "scripts" / "ai_diffusion"),
-        (root_dir / "scripts" / "download_models.py", docker_dir / "scripts"),
+        (root_dir / "ai_diffusion" / "resources.py", repo_dir / "ai_diffusion"),
+        (root_dir / "scripts" / "download_models.py", repo_dir / "scripts"),
     ]:
         target_dir.mkdir(parents=True, exist_ok=True)
         shutil.copy(source_file, target_dir)
@@ -47,6 +48,16 @@ def download_repositories():
         download_repository(repo.url, custom_nodes_dir / repo.folder, repo.version)
 
 
+def check_line_endings():
+    for file in docker_dir.rglob("*.sh"):
+        with open(file, "rb") as f:
+            content = f.read()
+        if b"\r\n" in content:
+            print(f"Windows line endings detected in {file}, fixing...")
+            with open(file, "wb") as f:
+                f.write(content.replace(b"\r\n", b"\n"))
+
+
 async def main():
     print("Downloading repositories")
     download_repositories()
@@ -54,10 +65,17 @@ async def main():
     print("Copying scripts")
     copy_scripts()
 
+    check_line_endings()
+
     print("Preparation complete.\n\nTo build run:")
     print(f"  docker build -t aclysia/sd-comfyui-krita:{version} scripts/docker/")
     print("\nTo test the image:")
     print(f"  docker run --gpus all -p 3001:3000 -p 8888:8888 aclysia/sd-comfyui-krita:{version}")
+    print(f"\nTo test the image with a local file server:")
+    print(f"  python scripts/file_server.py")
+    print(
+        f"  docker run --gpus all -p 3001:3000 -p 8888:8888 -e AI_DIFFUSION_DOWNLOAD_URL=http://host.docker.internal:51222 aclysia/sd-comfyui-krita:{version}"
+    )
 
 
 if __name__ == "__main__":
