@@ -56,8 +56,9 @@ class RecentlyUsedSync:
                 model.inpaint.fill = FillMode[self.inpaint_fill]
                 model.inpaint.use_inpaint = self.inpaint_use_model
                 model.inpaint.use_prompt_focus = self.inpaint_use_prompt_focus
-                model.inpaint.context = InpaintContext[self.inpaint_context]
                 model.upscale.upscaler = self.upscale_model
+                if self.inpaint_context != InpaintContext.layer_bounds.name:
+                    model.inpaint.context = InpaintContext[self.inpaint_context]
         except Exception as e:
             log.warning(f"Failed to apply default settings to new document: {type(e)} {e}")
 
