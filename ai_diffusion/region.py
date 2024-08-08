@@ -308,7 +308,7 @@ class RootRegion(QObject, ObservableProperties):
             layer, changed = self._get_active_layer()
             if layer and not changed and not region.is_linked(layer):
                 target = region.first_layer
-                if target.type is LayerType.group:
+                if target.type is LayerType.group and len(target.child_layers) > 0:
                     target = target.child_layers[-1]
                 self.layers.active = target
 
