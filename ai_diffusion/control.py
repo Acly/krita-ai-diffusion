@@ -97,11 +97,11 @@ class ControlLayer(QObject, ObservableProperties):
             if not value:
                 self._set_values_from_preset()
 
-    def to_api(self, bounds: Bounds | None = None):
+    def to_api(self, bounds: Bounds | None = None, time: int | None = None):
         layer = self.layer
         if self.mode.is_ip_adapter and not layer.bounds.is_zero:
             bounds = None  # ignore mask bounds, use layer bounds
-        image = layer.get_pixels(bounds)
+        image = layer.get_pixels(bounds, time)
         if self.mode.is_lines or self.mode is ControlMode.stencil:
             image.make_opaque(background=Qt.GlobalColor.white)
         strength = self.strength / self.strength_multiplier

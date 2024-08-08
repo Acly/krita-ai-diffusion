@@ -915,10 +915,10 @@ class AnimationWorkspace(QObject, ObservableProperties):
         self._model.clear_error()
         eventloop.run(_report_errors(self._model, self._generate_frame()))
 
-    def _prepare_input(self, canvas: Image | Extent, seed: int):
+    def _prepare_input(self, canvas: Image | Extent, seed: int, time: int):
         m = self._model
         bounds = Bounds(0, 0, *m.document.extent)
-        conditioning, _ = process_regions(m.regions, bounds, self._model.layers.root)
+        conditioning, _ = process_regions(m.regions, bounds, self._model.layers.root, time=time)
         conditioning.language = m.prompt_translation_language
         return workflow.prepare(
             WorkflowKind.generate if m.strength == 1.0 else WorkflowKind.refine,
@@ -937,7 +937,7 @@ class AnimationWorkspace(QObject, ObservableProperties):
         bounds = Bounds(0, 0, *m.document.extent)
         canvas = m._get_current_image(bounds) if m.strength < 1.0 else bounds.extent
         seed = m.seed if m.fixed_seed else workflow.generate_seed()
-        inputs = self._prepare_input(canvas, seed)
+        inputs = self._prepare_input(canvas, seed, m.document.current_time)
         params = JobParams(bounds, m.regions.positive, frame=(m.document.current_time, 0, 0))
         await m.enqueue_jobs(inputs, JobKind.animation_frame, params)
 
@@ -975,7 +975,7 @@ class AnimationWorkspace(QObject, ObservableProperties):
                 if strength < 1.0:
                     canvas = layer.get_pixels(time=frame)
 
-                inputs = self._prepare_input(canvas, seed)
+                inputs = self._prepare_input(canvas, seed, frame)
                 params = JobParams(bounds, self._model.regions.active_or_root.positive)
                 params.frame = (frame, start_frame, end_frame)
                 params.animation_id = animation_id
@@ -1016,7 +1016,11 @@ class AnimationWorkspace(QObject, ObservableProperties):
         keyframes = self._keyframes.pop(job.params.animation_id)
         _, start, end = job.params.frame
         doc.import_animation(keyframes, start)
-        doc.layers.active.name = f"[Generated] {start}-{end}: {job.params.prompt}"
+        eventloop.run(self._update_layer_name(f"[Generated] {start}-{end}: {job.params.prompt}"))
+
+    async def _update_layer_name(self, name: str):
+        doc = self._model.document
+        doc.layers.active.name = name
         self.target_layer = doc.layers.active.id
 
     def _update_target_image(self):

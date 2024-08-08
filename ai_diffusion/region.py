@@ -369,7 +369,11 @@ def get_region_inpaint_mask(region_layer: Layer, max_extent: Extent, min_size=0)
 
 
 def process_regions(
-    root: RootRegion, bounds: Bounds, parent_layer: Layer | None = None, min_coverage=0.02
+    root: RootRegion,
+    bounds: Bounds,
+    parent_layer: Layer | None = None,
+    min_coverage=0.02,
+    time: int | None = None,
 ):
     parent_region = None
     if parent_layer and not parent_layer.is_root:
@@ -385,7 +389,7 @@ def process_regions(
     result = ConditioningInput(
         positive=workflow.merge_prompt(parent_prompt, root.positive),
         negative=root.negative,
-        control=[c.to_api(bounds) for c in list(root.control) + parent_control],
+        control=[c.to_api(bounds, time) for c in list(root.control) + parent_control],
     )
 
     # Collect layers with linked regions. Optionally restrict to to child layers of a region.
@@ -416,7 +420,7 @@ def process_regions(
             layer.get_mask(bounds),
             layer_bounds,
             workflow.merge_prompt(region.positive, root.positive),
-            control=[c.to_api(bounds) for c in region.control],
+            control=[c.to_api(bounds, time) for c in region.control],
         )
         job_params = JobRegion(layer.id_string, region.positive, layer_bounds)
         result_regions.append((region_result, job_params))

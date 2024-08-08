@@ -182,14 +182,17 @@ class Layer(QObject):
         if not silent and self.is_visible:
             self.refresh()
 
-    def get_mask(self, bounds: Bounds | None = None):
+    def get_mask(self, bounds: Bounds | None = None, time: int | None = None):
         bounds = bounds or self.bounds
         if self.type.is_mask:
-            data: QByteArray = self._node.pixelData(*bounds)
+            if time is None:
+                data: QByteArray = self._node.pixelData(*bounds)
+            else:
+                data: QByteArray = self._node.pixelDataAtTime(*bounds, time)
             assert data is not None and data.size() >= bounds.extent.pixel_count
             return Image(QImage(data, *bounds.extent, QImage.Format.Format_Grayscale8))
         else:
-            img = self.get_pixels(bounds)
+            img = self.get_pixels(bounds, time)
             alpha = img._qimage.convertToFormat(QImage.Format.Format_Alpha8)
             alpha.reinterpretAsFormat(QImage.Format.Format_Grayscale8)
             return Image(alpha)

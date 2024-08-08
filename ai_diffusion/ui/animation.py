@@ -19,6 +19,7 @@ from ..root import root
 from ..settings import settings
 from ..localization import translate as _
 from . import theme
+from .control import ControlListWidget
 from .widget import WorkspaceSelectWidget, StyleSelectWidget, TextPromptWidget, StrengthWidget
 from .widget import QueueButton, create_wide_tool_button
 
@@ -67,6 +68,9 @@ class AnimationWidget(QWidget):
         strength_layout.addWidget(self.strength_slider)
         strength_layout.addWidget(self.add_control_button)
         layout.addLayout(strength_layout)
+
+        self.control_list = ControlListWidget(self.model.regions.control, parent=self)
+        layout.addWidget(self.control_list)
 
         mode_layout = QHBoxLayout()
         self.batch_mode_button = QRadioButton(_("Full Animation"), self)
@@ -142,6 +146,7 @@ class AnimationWidget(QWidget):
             ]
             self.queue_button.model = model
             self.strength_slider.model = model
+            self.control_list.model = model.regions.control
             self.update_mode()
             self.update_target_layers()
             self.preview_area.clear()
