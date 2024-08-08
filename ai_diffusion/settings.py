@@ -46,13 +46,13 @@ class ApplyBehavior(Enum):
 
 
 class PerformancePreset(Enum):
-    auto = "Automatic"
-    cpu = "CPU"
-    low = "GPU low (up to 6GB)"
-    medium = "GPU medium (6GB to 12GB)"
-    high = "GPU high (more than 12GB)"
-    cloud = "Cloud"
-    custom = "Custom"
+    auto = _("Automatic")
+    cpu = _("CPU")
+    low = _("GPU low (up to 6GB)")
+    medium = _("GPU medium (6GB to 12GB)")
+    high = _("GPU high (more than 12GB)")
+    cloud = _("Cloud")
+    custom = _("Custom")
 
 
 @dataclass
