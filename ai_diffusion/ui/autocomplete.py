@@ -183,7 +183,10 @@ class PromptAutoComplete:
                 continue
 
             with tag_path.open("r", encoding="utf-8") as f:
-                for tag, type_str, count, _aliases in csv.reader(f):
+                csv_reader = csv.reader(f)
+                # skip header line
+                next(csv_reader)
+                for tag, type_str, count, _aliases in csv_reader:
                     tag = tag.replace("_", " ")
                     tag_type = TagType(int(type_str))
                     count = int(count)
