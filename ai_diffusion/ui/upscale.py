@@ -228,7 +228,7 @@ class UpscaleWidget(QWidget):
             has_unblur = models.control.find(ControlMode.blur, allow_universal=True) is not None
         self.unblur_combo.setEnabled(has_unblur)
         if not has_unblur:
-            self.unblur_combo.setToolTip(_("The tile/unblur control model is not intalled."))
+            self.unblur_combo.setToolTip(_("The tile/unblur control model is not installed."))
         else:
             self.unblur_combo.setToolTip(
                 _(

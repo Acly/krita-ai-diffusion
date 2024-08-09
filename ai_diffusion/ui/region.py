@@ -277,7 +277,7 @@ class ActiveRegionWidget(QFrame):
                 desc = _("Active layer is linked to this region via a group layer")
             elif active_layer.type not in [LayerType.paint, LayerType.group]:
                 icon = "link-disabled"
-                desc = _("Only paint layers and groups and be linked to regions")
+                desc = _("Only paint layers and groups can be linked to regions")
             elif self._root.is_linked(active_layer, RegionLink.direct):
                 icon = "link-disabled"
                 desc = _("Active layer is already linked to another region")
