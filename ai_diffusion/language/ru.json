@@ -97,7 +97,7 @@
     "Diffusion": "Рассеивание",
     "Diffusion Settings": "Настройки рассеивания",
     "Directory where ComfyUI will be installed. At least 10GB of free disk space is required for a minimal installation.": "Каталог, в который ComfyUI будет установлен. Для минимальной установки требуется не менее 10 ГБ свободного места на диске.",
-    "Disabled": "Отключен",
+    "Disabled": "Отключено",
     "Disabled: selected layer must be a vector layer to add a pose": "Отключено: выбранный слой должен быть векторным, чтобы добавить позу",
     "Discard Image": "Удалить изображение",
     "Disconnected": "Отключение",
