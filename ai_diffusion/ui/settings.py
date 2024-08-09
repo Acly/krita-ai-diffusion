@@ -422,6 +422,7 @@ class InterfaceSettings(SettingsTab):
         )
 
         self.add("tag_files", FileListSetting(S._tag_files, files=self._tag_files(), parent=self))
+        self._layout.addWidget(self._widgets["tag_files"].list_widget)
         self._widgets["tag_files"].add_button(
             Krita.instance().icon("reload-preset"),
             _("Look for new tag files"),
