@@ -124,6 +124,9 @@ def load_checkpoint_with_lora(w: ComfyWorkflow, checkpoint: CheckpointInput, mod
     if checkpoint.self_attention_guidance:
         model = w.apply_self_attention_guidance(model)
 
+    if checkpoint.perturbed_attention_guidance:
+        model = w.apply_perturbed_attention_guidance(model)
+
     return model, clip, vae
 
 

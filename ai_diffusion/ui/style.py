@@ -472,6 +472,12 @@ class StylePresets(SettingsTab):
                 SwitchSetting(StyleSettings.self_attention_guidance, parent=self),
             )
         )
+        self._checkpoint_advanced_widgets.append(
+            add(
+                "perturbed_attention_guidance",
+                SwitchSetting(StyleSettings.perturbed_attention_guidance, parent=self),
+            )
+        )
         for widget in self._checkpoint_advanced_widgets:
             widget.indent = 1
         self._toggle_checkpoint_advanced(False)
