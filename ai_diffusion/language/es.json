@@ -186,7 +186,7 @@
     "Look for new LoRA files": "Buscar nuevos archivos LoRA",
     "Look for new checkpoint files": "Buscar nuevos archivos de Punto de Control",
     "Look for new style files": "Buscar por nuevos archivos de Estilo",
-    "Look for new tag files": "",
+    "Look for new tag files": "Buscar por nuevos archivos de Tags",
     "Main memory (RAM) used for the history of generated images": "Memoria principal (RAM) usada para el historial de imágenes generadas",
     "Maximum Batch Size": "Tamaño Máximo de Lote",
     "Maximum Pixel Count": "Recuento Máximo de Píxeles",
