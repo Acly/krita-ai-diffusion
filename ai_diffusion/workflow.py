@@ -524,6 +524,13 @@ def scale_refine_and_decode(
     return image
 
 
+def ensure_minimum_extent(w: ComfyWorkflow, image: Output, extent: Extent, min_extent: int):
+    # For example, upscale with model requires minimum size of 32x32
+    if extent.shortest_side < min_extent:
+        image = w.scale_image(image, extent * (min_extent / extent.shortest_side))
+    return image
+
+
 class MiscParams(NamedTuple):
     batch_count: int
     nsfw_filter: float
@@ -704,6 +711,7 @@ def inpaint(
         upscale_model = w.load_upscale_model(upscaler)
         upscale = w.vae_decode(vae, out_latent)
         upscale = w.crop_image(upscale, initial_bounds)
+        upscale = ensure_minimum_extent(w, upscale, initial_bounds.extent, 32)
         upscale = w.upscale_image(upscale_model, upscale)
         upscale = w.scale_image(upscale, upscale_extent.desired)
         latent = w.vae_encode(vae, upscale)
