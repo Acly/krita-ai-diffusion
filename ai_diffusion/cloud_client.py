@@ -136,7 +136,7 @@ class CloudClient(Client):
 
     async def _process_job(self, job: JobInfo):
         user = ensure(self.user)
-        inputs = job.work.to_dict()
+        inputs = job.work.to_dict(max_image_size=16 * 1024)
         await self.send_images(inputs)
         data = {"input": {"workflow": inputs}}
         response: dict = await self._post("generate", data)

@@ -173,7 +173,10 @@ class WorkflowInput:
     def from_dict(data: dict[str, Any]):
         return Deserializer.run(data)
 
-    def to_dict(self, image_format: ImageFileFormat | None = ImageFileFormat.webp):
+    def to_dict(
+        self, image_format: ImageFileFormat | None = ImageFileFormat.webp, max_image_size: int = 0
+    ):
+        _check_image_size(self, max_image_size)
         return Serializer.run(self, image_format)
 
     @property
@@ -275,7 +278,7 @@ class Deserializer:
     def __init__(self, images: ImageCollection):
         self._images = images
 
-    def _object(self, type: type, input: dict):
+    def _object(self, type, input: dict):
         values = (self._field(field, input.get(field.name)) for field in fields(type))
         return type(*values)
 
@@ -302,3 +305,13 @@ class Deserializer:
             return [self._value(get_args(cls)[0], v) for v in value]
         else:
             return value
+
+
+def _check_image_size(workflow: WorkflowInput, max_image_size: int):
+    if max_image_size > 0:
+        e = workflow.extent
+        for extent in (e.input, e.initial, e.desired, e.target, workflow.crop_upscale_extent):
+            if extent and extent.longest_side > max_image_size:
+                raise ValueError(
+                    f"Image size {extent.width}x{extent.height} exceeds maximum of {max_image_size}"
+                )
