@@ -306,6 +306,7 @@ class SamplerPreset(NamedTuple):
     cfg: float
     lora: str | None = None
     minimum_steps: int = 4
+    hidden: bool = False
 
 
 class SamplerPresets:
@@ -382,7 +383,12 @@ class SamplerPresets:
         return self._presets.items()
 
     def names(self):
-        return self._presets.keys()
+        def is_visible(name: str, preset: SamplerPreset):
+            return not preset.hidden or any(
+                s.live_sampler == name or s.sampler == name for s in Styles.list()
+            )
+
+        return [name for name, preset in self._presets.items() if is_visible(name, preset)]
 
 
 legacy_map = {
