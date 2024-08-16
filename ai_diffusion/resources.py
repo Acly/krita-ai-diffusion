@@ -6,7 +6,7 @@ from typing import NamedTuple, Sequence
 
 # Version identifier for all the resources defined here. This is used as the server version.
 # It usually follows the plugin version, but not all new plugin versions also require a server update.
-version = "1.22.0"
+version = "1.23.0"
 
 comfy_url = "https://github.com/comfyanonymous/ComfyUI"
 comfy_version = "413322645e713bdda69836620a97d4c9ca66b230"
@@ -46,7 +46,7 @@ required_custom_nodes = [
         "Inpaint Nodes",
         "comfyui-inpaint-nodes",
         "https://github.com/Acly/comfyui-inpaint-nodes",
-        "717cb7717daf9f10979940163f708e35ee8eda05",
+        "48a8913b584b25db8a9c529be84929be66b1194e",
         ["INPAINT_LoadFooocusInpaint", "INPAINT_ApplyFooocusInpaint", "INPAINT_ExpandMask"],
     ),
 ]
