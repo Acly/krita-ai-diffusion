@@ -451,8 +451,8 @@ class StylePresets(SettingsTab):
         self._checkpoint_advanced_widgets = [add("vae", ComboBoxSetting(StyleSettings.vae, self))]
 
         self._clip_skip = add("clip_skip", SpinBoxSetting(StyleSettings.clip_skip, self, 0, 12))
-        clip_skip_check = self._clip_skip.add_checkbox(_("Override"))
-        clip_skip_check.toggled.connect(self._toggle_clip_skip)
+        self._clip_skip_check = self._clip_skip.add_checkbox(_("Override"))
+        self._clip_skip_check.toggled.connect(self._toggle_clip_skip)
         self._checkpoint_advanced_widgets.append(self._clip_skip)
 
         self._resolution_spin = add(
@@ -463,15 +463,17 @@ class StylePresets(SettingsTab):
         resolution_check.toggled.connect(self._toggle_preferred_resolution)
         self._checkpoint_advanced_widgets.append(self._resolution_spin)
 
-        self._checkpoint_advanced_widgets.append(
-            add("v_prediction_zsnr", SwitchSetting(StyleSettings.v_prediction_zsnr, parent=self))
+        self._zsnr = add(
+            "v_prediction_zsnr", SwitchSetting(StyleSettings.v_prediction_zsnr, parent=self)
         )
-        self._checkpoint_advanced_widgets.append(
-            add(
-                "self_attention_guidance",
-                SwitchSetting(StyleSettings.self_attention_guidance, parent=self),
-            )
+        self._checkpoint_advanced_widgets.append(self._zsnr)
+
+        self._sag = add(
+            "self_attention_guidance",
+            SwitchSetting(StyleSettings.self_attention_guidance, parent=self),
         )
+        self._checkpoint_advanced_widgets.append(self._sag)
+
         for widget in self._checkpoint_advanced_widgets:
             widget.indent = 1
         self._toggle_checkpoint_advanced(False)
@@ -597,14 +599,21 @@ class StylePresets(SettingsTab):
 
     def _toggle_clip_skip(self, checked: bool):
         if checked and self._clip_skip.value == 0:
-            sd_ver = resolve_sd_version(self.current_style, root.connection.client_if_connected)
-            self._clip_skip.value = 1 if sd_ver is SDVersion.sd15 else 2
+            arch = resolve_sd_version(self.current_style, root.connection.client_if_connected)
+            self._clip_skip.value = 1 if arch is SDVersion.sd15 else 2
         elif not checked and self._clip_skip.value > 0:
             self._clip_skip.value = 0
 
     def _toggle_checkpoint_advanced(self, checked: bool):
         for widget in self._checkpoint_advanced_widgets:
             widget.visible = checked
+
+    def _enable_checkpoint_advanced(self):
+        arch = resolve_sd_version(self.current_style, root.connection.client_if_connected)
+        self._clip_skip_check.setEnabled(arch.supports_clip_skip)
+        self._clip_skip.enabled = arch.supports_clip_skip and self.current_style.clip_skip > 0
+        self._zsnr.enabled = arch.supports_attention_guidance
+        self._sag.enabled = arch.supports_attention_guidance
 
     def _read_style(self, style: Style):
         with self._write_guard:
@@ -613,7 +622,7 @@ class StylePresets(SettingsTab):
             self._default_sampler.read(style)
             self._live_sampler.read(style)
         self._set_checkpoint_warning()
-        self._clip_skip.enabled = style.clip_skip > 0
+        self._enable_checkpoint_advanced()
         self._resolution_spin.enabled = style.preferred_resolution > 0
 
     def _read(self):
@@ -640,4 +649,5 @@ class StylePresets(SettingsTab):
         self._default_sampler.write(style)
         self._live_sampler.write(style)
         self._set_checkpoint_warning()
+        self._enable_checkpoint_advanced()
         style.save()

@@ -87,6 +87,7 @@ def _sampler_params(sampling: SamplingInput, strength: float | None = None):
 
 
 def load_checkpoint_with_lora(w: ComfyWorkflow, checkpoint: CheckpointInput, models: ClientModels):
+    arch = checkpoint.version
     checkpoint_model = checkpoint.checkpoint
     if checkpoint_model not in models.checkpoints:
         checkpoint_model = next(iter(models.checkpoints.keys()))
@@ -95,12 +96,12 @@ def load_checkpoint_with_lora(w: ComfyWorkflow, checkpoint: CheckpointInput, mod
         )
     model, clip, vae = w.load_checkpoint(checkpoint_model)
 
-    if checkpoint.version is SDVersion.sd3:
-        clip_models = models.for_version(checkpoint.version).clip
+    if arch is SDVersion.sd3:
+        clip_models = models.for_version(arch).clip
         model = w.model_sampling_sd3(model)
         clip = w.load_dual_clip(clip_models["clip_g"], clip_models["clip_l"], type="sd3")
 
-    if checkpoint.clip_skip != StyleSettings.clip_skip.default:
+    if arch.supports_clip_skip and checkpoint.clip_skip != StyleSettings.clip_skip.default:
         clip = w.clip_set_last_layer(clip, (checkpoint.clip_skip * -1))
 
     if checkpoint.vae != StyleSettings.vae.default:
@@ -116,12 +117,12 @@ def load_checkpoint_with_lora(w: ComfyWorkflow, checkpoint: CheckpointInput, mod
         model = w.model_sampling_discrete(model, "v_prediction", zsnr=True)
         model = w.rescale_cfg(model, 0.7)
 
-    if checkpoint.version.supports_lcm:
+    if arch.supports_lcm:
         lcm_lora = models.for_checkpoint(checkpoint_model).lora.find("lcm")
         if lcm_lora and any(l.name == lcm_lora for l in checkpoint.loras):
             model = w.model_sampling_discrete(model, "lcm")
 
-    if checkpoint.self_attention_guidance:
+    if arch.supports_attention_guidance and checkpoint.self_attention_guidance:
         model = w.apply_self_attention_guidance(model)
 
     return model, clip, vae

@@ -103,6 +103,14 @@ class SDVersion(Enum):
     def supports_lcm(self):
         return self in [SDVersion.sd15, SDVersion.sdxl]
 
+    @property
+    def supports_clip_skip(self):
+        return self in [SDVersion.sd15, SDVersion.sdxl]
+
+    @property
+    def supports_attention_guidance(self):
+        return self in [SDVersion.sd15, SDVersion.sdxl]
+
     @staticmethod
     def list():
         return [SDVersion.sd15, SDVersion.sdxl, SDVersion.sd3, SDVersion.flux]
