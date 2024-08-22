@@ -308,6 +308,7 @@ class Lora:
     name: str
     sha: str | None = None
     filepath: Path | None = None
+    size: int = 0
     strength: float = 1.0
 
 
@@ -350,7 +351,11 @@ class LoraCollection:
             while chunk := f.read(4096):
                 sha.update(chunk)
         lora = Lora(
-            filepath.name, filepath.stem, sha=b64encode(sha.digest()).decode(), filepath=filepath
+            id=filepath.name,
+            name=filepath.stem,
+            sha=b64encode(sha.digest()).decode(),
+            filepath=filepath,
+            size=filepath.stat().st_size,
         )
         self._loras[lora.id] = lora
         self.save()

@@ -241,15 +241,26 @@ class CloudClient(Client):
                 await self._upload_lora(lora_info)
 
     async def _upload_lora(self, lora: Lora):
-        upload = await self._get(f"upload/lora/{lora.sha}")
+        upload = await self._get(f"upload/lora/{lora.sha}?size={lora.size}")
+        if upload["status"] == "too-large":
+            max_size = int(upload.get("max", 0)) / (1024 * 1024)
+            raise ValueError(
+                _("LoRA model is too large to upload") + f" (max {max_size} MB) {lora.name}"
+            )
         if upload["status"] == "cached":
-            return
+            return  # already uploaded
         if not lora.filepath or not lora.filepath.exists():
-            raise ValueError(f"Lora model file not found: {lora.filepath}")
+            raise ValueError(_("LoRA model file not found") + f" {lora.filepath}")
         log.info(
-            f"Uploading Lora model {lora.name} to cloud (hash={lora.sha}, url={upload['url']})"
+            f"Uploading LoRA model {lora.name} to cloud (hash={lora.sha}, url={upload['url']})"
         )
-        await self._requests.put(upload["url"], lora.filepath.read_bytes())
+        try:
+            await self._requests.put(upload["url"], lora.filepath.read_bytes())
+        except NetworkError as e:
+            log.error(f"LoRA model upload failed [{e.status}]: {e.message}")
+            raise Exception(_("Connection error during upload of LoRA model") + f" {lora.name}")
+        except Exception as e:
+            raise Exception(_("Error during upload of LoRA model") + f" {lora.name}") from e
 
     async def receive_images(self, images: dict):
         offsets = images.get("offsets")
