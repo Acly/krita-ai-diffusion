@@ -14,6 +14,7 @@ from .client import TranslationPackage, User
 from .image import Extent, ImageCollection
 from .network import RequestManager, NetworkError
 from .resources import SDVersion
+from .style import Lora, LoraCollection
 from .settings import PerformanceSettings, settings
 from .localization import translate as _
 from .util import clamp, ensure, client_logger as log
@@ -137,6 +138,7 @@ class CloudClient(Client):
     async def _process_job(self, job: JobInfo):
         user = ensure(self.user)
         inputs = job.work.to_dict(max_image_size=16 * 1024)
+        await self.send_lora(job.work)
         await self.send_images(inputs)
         data = {"input": {"workflow": inputs}}
         response: dict = await self._post("generate", data)
@@ -218,14 +220,36 @@ class CloudClient(Client):
                 encoded = b64encode(blob).decode("utf-8")
                 inputs["image_data"] = {"base64": encoded, "offsets": offsets}
             else:
-                s3_object = await self._upload_to_s3(blob)
+                s3_object = await self._upload_image(blob)
                 inputs["image_data"] = {"s3_object": s3_object, "offsets": offsets}
 
-    async def _upload_to_s3(self, data: bytes):
-        upload_info = await self._get("upload")
+    async def _upload_image(self, data: bytes):
+        upload_info = await self._get("upload/image")
         log.info(f"Uploading image input to temporary transfer {upload_info['url']}")
         await self._requests.put(upload_info["url"], data)
         return upload_info["object"]
+
+    async def send_lora(self, workflow: WorkflowInput):
+        if models := workflow.models:
+            for lora in models.loras:
+                if not lora.storage_id and not lora.name in models.loras:
+                    raise ValueError(f"Lora model is not available: {lora.name}")
+                lora_info = LoraCollection.instance().find(lora.name)
+                if lora_info is None or lora_info.filepath is None:
+                    raise ValueError(f"Can't find Lora model: {lora.name}")
+                assert lora.storage_id == lora_info.sha
+                await self._upload_lora(lora_info)
+
+    async def _upload_lora(self, lora: Lora):
+        upload = await self._get(f"upload/lora/{lora.sha}")
+        if upload["status"] == "cached":
+            return
+        if not lora.filepath or not lora.filepath.exists():
+            raise ValueError(f"Lora model file not found: {lora.filepath}")
+        log.info(
+            f"Uploading Lora model {lora.name} to cloud (hash={lora.sha}, url={upload['url']})"
+        )
+        await self._requests.put(upload["url"], lora.filepath.read_bytes())
 
     async def receive_images(self, images: dict):
         offsets = images.get("offsets")

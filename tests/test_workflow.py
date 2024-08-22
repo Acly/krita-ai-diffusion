@@ -16,11 +16,11 @@ from ai_diffusion.resources import ControlMode
 from ai_diffusion.settings import PerformanceSettings
 from ai_diffusion.image import Mask, Bounds, Extent, Image, ImageCollection
 from ai_diffusion.client import Client, ClientEvent
-from ai_diffusion.style import SDVersion, Style
+from ai_diffusion.style import SDVersion, Style, LoraCollection
 from ai_diffusion.pose import Pose
 from ai_diffusion.workflow import detect_inpaint
 from . import config
-from .config import root_dir, image_dir, result_dir, reference_dir, default_checkpoint
+from .config import root_dir, test_dir, image_dir, result_dir, reference_dir, default_checkpoint
 
 service_available = (root_dir / "service" / "web" / ".env.local").exists()
 client_params = ["local", "cloud"] if service_available else ["local"]
@@ -44,6 +44,7 @@ async def connect_cloud():
 def client(pytestconfig, request, qtapp):
     if pytestconfig.getoption("--ci"):
         pytest.skip("Diffusion is disabled on CI")
+
     if request.param == "local":
         return qtapp.run(ComfyClient.connect())
     else:
@@ -690,6 +691,20 @@ def test_outpaint_resolution_multiplier(qtapp, client):
         perf=perf_settings,
     )
     run_and_save(qtapp, client, job, f"test_outpaint_resolution_multiplier", image, mask)
+
+
+def test_lora(qtapp, client):
+    lora = LoraCollection.instance().add_file(test_dir / "data" / "animeoutlineV4_16.safetensors")
+    style = default_style(client, SDVersion.sd15)
+    style.loras.append(dict(name=lora.id, strength=lora.strength))
+    job = create(
+        WorkflowKind.generate,
+        client,
+        canvas=Extent(512, 512),
+        cond=ConditioningInput("manga, lineart, monochrome, sunflower field"),
+        style=style,
+    )
+    run_and_save(qtapp, client, job, "test_lora")
 
 
 def test_nsfw_filter(qtapp, client):

@@ -1,5 +1,8 @@
 from __future__ import annotations
+from base64 import b64encode
+from dataclasses import dataclass
 from enum import Enum
+import hashlib
 from typing import NamedTuple
 import json
 from pathlib import Path
@@ -297,6 +300,69 @@ class Styles(QObject):
 
     def __iter__(self):
         return iter(self._list)
+
+
+@dataclass
+class Lora:
+    id: str
+    name: str
+    sha: str | None = None
+    filepath: Path | None = None
+    strength: float = 1.0
+
+
+class LoraCollection:
+    default_db_file = user_data_dir / "data" / "loras.json"
+
+    _db_file: Path
+    _loras: dict[str, Lora]
+
+    _instance: LoraCollection | None = None
+
+    @classmethod
+    def instance(cls):
+        if cls._instance is None:
+            cls._instance = LoraCollection()
+        return cls._instance
+
+    def __init__(self, db_file: Path | None = None):
+        self._db_file = db_file or self.default_db_file
+        self._loras = {}
+        self.load(self._db_file)
+
+    def load(self, file: Path):
+        if not file.exists():
+            return
+        try:
+            loras = read_json_with_comments(file)
+            self._loras = {name: Lora(**lora) for name, lora in loras.items()}
+            log.info(f"Loaded {len(loras)} LoRAs from {file}")
+        except Exception as e:
+            log.error(f"Failed to load LoRAs from {file}: {e}")
+
+    def save(self):
+        self._db_file.parent.mkdir(parents=True, exist_ok=True)
+        self._db_file.write_text(json.dumps(self._loras, indent=4, default=encode_json))
+
+    def add_file(self, filepath: Path):
+        sha = hashlib.sha256()
+        with open(filepath, "rb") as f:
+            while chunk := f.read(4096):
+                sha.update(chunk)
+        lora = Lora(
+            filepath.name, filepath.stem, sha=b64encode(sha.digest()).decode(), filepath=filepath
+        )
+        self._loras[lora.id] = lora
+        self.save()
+        return lora
+
+    def find(self, id: str):
+        return self._loras.get(id)
+
+    def can_provide(self, id: str):
+        if lora := self._loras.get(id):
+            return lora.filepath is not None
+        return False
 
 
 class SamplerPreset(NamedTuple):

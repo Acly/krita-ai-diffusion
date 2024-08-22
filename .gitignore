@@ -13,6 +13,7 @@ scripts/docker/krita-ai-diffusion
 scripts/docker/ComfyUI
 scripts/downloads
 service
+tests/data/*.safetensors
 tests/server
 tests/results
 tests/benchmark
