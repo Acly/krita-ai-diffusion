@@ -204,6 +204,10 @@ class CloudClient(Client):
         )
 
     @property
+    def max_upload_size(self):
+        return 250 * (1024**2)  # 250 MB
+
+    @property
     def supported_languages(self):
         return [
             TranslationPackage("zh", "Chinese"),
@@ -224,7 +228,7 @@ class CloudClient(Client):
                 inputs["image_data"] = {"s3_object": s3_object, "offsets": offsets}
 
     async def _upload_image(self, data: bytes):
-        upload_info = await self._get("upload/image")
+        upload_info = await self._post("upload/image", {})
         log.info(f"Uploading image input to temporary transfer {upload_info['url']}")
         await self._requests.put(upload_info["url"], data)
         return upload_info["object"]
@@ -242,7 +246,7 @@ class CloudClient(Client):
 
     async def _upload_lora(self, lora: File):
         assert lora.hash and lora.size
-        upload = await self._get(f"upload/lora/{lora.hash}?size={lora.size}")
+        upload = await self._post(f"upload/lora", dict(hash=lora.hash, size=lora.size))
         if upload["status"] == "too-large":
             max_size = int(upload.get("max", 0)) / (1024 * 1024)
             raise ValueError(
@@ -256,7 +260,8 @@ class CloudClient(Client):
             f"Uploading LoRA model {lora.name} to cloud (hash={lora.hash}, url={upload['url']})"
         )
         try:
-            await self._requests.put(upload["url"], lora.path.read_bytes())
+            data = lora.path.read_bytes()
+            await self._requests.put(upload["url"], data)
         except NetworkError as e:
             log.error(f"LoRA model upload failed [{e.status}]: {e.message}")
             raise Exception(_("Connection error during upload of LoRA model") + f" {lora.name}")

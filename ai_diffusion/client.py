@@ -261,6 +261,10 @@ class Client(ABC):
     @property
     def performance_settings(self) -> PerformanceSettings: ...
 
+    @property
+    def max_upload_size(self) -> int:
+        return 0  # in bytes, 0 means unlimited
+
 
 def resolve_sd_version(style: Style, client: Client | None = None):
     if style.sd_version is SDVersion.auto:

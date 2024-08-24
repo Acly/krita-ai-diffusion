@@ -5,13 +5,14 @@ from enum import Flag
 from dataclasses import dataclass
 from pathlib import Path
 from typing import NamedTuple, Sequence
-from PyQt5.QtCore import QAbstractListModel, QModelIndex, Qt
+from PyQt5.QtCore import QAbstractListModel, QSortFilterProxyModel, QModelIndex, Qt
 from PyQt5.QtGui import QIcon
 
 from .util import encode_json, read_json_with_comments, user_data_dir, client_logger as log
 
 
 class FileSource(Flag):
+    unavailable = 0
     local = 1
     remote = 2
 
@@ -20,7 +21,7 @@ class FileSource(Flag):
 class File:
     id: str
     name: str
-    source: FileSource
+    source: FileSource = FileSource.unavailable
     icon: QIcon | None = None
     hash: str | None = None
     path: Path | None = None
@@ -41,6 +42,23 @@ class File:
             file.compute_hash()
         return file
 
+    @staticmethod
+    def from_dict(data: dict):
+        data["source"] = FileSource(data["source"])
+        data["path"] = Path(data["path"]) if data.get("path") else None
+        return File(**data)
+
+    def update(self, other: "File"):
+        assert self.id == other.id, "Cannot update file with different id"
+        has_changes = self != other
+        if has_changes:
+            self.source = self.source | other.source
+            self.icon = other.icon or self.icon
+            self.hash = other.hash or self.hash
+            self.path = other.path or self.path
+            self.size = other.size or self.size
+        return has_changes
+
     def compute_hash(self):
         if self.hash:
             return self.hash
@@ -55,11 +73,14 @@ class File:
 
 class FileCollection(QAbstractListModel):
 
+    source_role = Qt.ItemDataRole.UserRole + 1
+
     def __init__(self, database: Path | None = None, parent=None):
         super().__init__(parent)
 
         self._database = database
         self._files: list[File] = []
+        self.load()
 
     def rowCount(self, parent=QModelIndex()):
         return len(self._files)
@@ -71,33 +92,51 @@ class FileCollection(QAbstractListModel):
             match role:
                 case Qt.ItemDataRole.DisplayRole | Qt.ItemDataRole.EditRole:
                     return item.name
-                case Qt.ItemDataRole.UserRole:
-                    return item.id
                 case Qt.ItemDataRole.DecorationRole:
                     return item.icon
+                case Qt.ItemDataRole.UserRole:
+                    return item.id
+                case FileCollection.source_role:
+                    return item.source.value
                 case _:
                     return None
 
-    def extend(self, files: list[File]):
-        self.beginInsertRows(QModelIndex(), len(self._files), len(self._files) + len(files) - 1)
-        self._files.extend(files)
-        self.endInsertRows()
+    def extend(self, input_files: Sequence[File]):
+        if len(input_files) == 0:
+            return
 
-        if any(FileSource.local in f.source for f in files):
-            self.save()
+        existing = {f.id: (i, f) for i, f in enumerate(self._files)}
+        new_files = []
+        for f in input_files:
+            if lookup := existing.get(f.id):
+                idx, existing_file = lookup
+                if existing_file.update(f):
+                    self.dataChanged.emit(self.index(idx), self.index(idx))
+            else:
+                new_files.append(f)
+
+        if len(new_files) > 0:
+            end = len(self._files)
+            self.beginInsertRows(QModelIndex(), end, end + len(new_files) - 1)
+            self._files.extend(new_files)
+            self.endInsertRows()
+
+        self.save()
 
     def remove(self, index: int):
         self.beginRemoveRows(QModelIndex(), index, index)
         del self._files[index]
         self.endRemoveRows()
+        self.save()
 
     def update(self, new_files: Sequence[File], source: FileSource):
-        existing_ids = {f.id for f in self._files if f.source is source}
         new_ids = {f.id for f in new_files}
-        for id in existing_ids:
-            if id not in new_ids:
-                self.remove(self.find_index(id))
-        self.extend([f for f in new_files if f.id not in existing_ids])
+        for i, f in enumerate(self._files):
+            if source in f.source and f.id not in new_ids:
+                f.source = f.source & (~source)
+                self.dataChanged.emit(self.index(i), self.index(i))
+
+        self.extend(new_files)
 
     def add(self, file: File):
         self.extend([file])
@@ -117,7 +156,7 @@ class FileCollection(QAbstractListModel):
             return
         try:
             data = read_json_with_comments(self._database)
-            self.extend([File(**f) for f in data])
+            self.extend([File.from_dict(f) for f in data])
             log.info(f"Loaded {len(self)} model files from {self._database}")
         except Exception as e:
             log.error(f"Failed to read {self._database}: {e}")
@@ -164,3 +203,42 @@ class FileLibrary(NamedTuple):
         if not _instance:
             return FileLibrary.load()
         return _instance
+
+
+class FileFilter(QSortFilterProxyModel):
+    def __init__(self, source: FileCollection, parent=None):
+        super().__init__(parent)
+        self.setSourceModel(source)
+        self._available_only = False
+        self._name_prefix = ""
+
+    @property
+    def available_only(self):
+        return self._available_only
+
+    @available_only.setter
+    def available_only(self, value):
+        self._available_only = value
+        self.invalidateFilter()
+
+    @property
+    def name_prefix(self):
+        return self._name_prefix
+
+    @name_prefix.setter
+    def name_prefix(self, value):
+        self._name_prefix = value
+        self.invalidateFilter()
+
+    def filterAcceptsRow(self, source_row: int, source_parent: QModelIndex):
+        if src := self.sourceModel():
+            index = src.index(source_row, 0, source_parent)
+            if self._available_only:
+                source = FileSource(src.data(index, FileCollection.source_role))
+                if source is FileSource.unavailable:
+                    return False
+            if self._name_prefix:
+                name = src.data(index)
+                if not name.startswith(self._name_prefix):
+                    return False
+        return True

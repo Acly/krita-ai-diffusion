@@ -14,8 +14,10 @@ from PyQt5.QtWidgets import (
     QComboBox,
     QWidget,
     QCompleter,
+    QFileDialog,
+    QMessageBox,
 )
-from PyQt5.QtCore import Qt, QUrl, QStringListModel, QSortFilterProxyModel, pyqtSignal
+from PyQt5.QtCore import Qt, QUrl, QAbstractItemModel, pyqtSignal
 from PyQt5.QtGui import QDesktopServices
 from krita import Krita
 
@@ -23,14 +25,14 @@ from ..client import resolve_sd_version
 from ..resources import SDVersion
 from ..settings import Setting, ServerMode, settings
 from ..server import Server
-from ..files import File
+from ..files import File, FileFilter, FileSource
 from ..style import Style, Styles, StyleSettings, SamplerPresets
 from ..localization import translate as _
 from ..root import root
 from .settings_widgets import ExpanderButton, SpinBoxSetting, SliderSetting, SwitchSetting
 from .settings_widgets import ComboBoxSetting, TextSetting, LineEditSetting, SettingWidget
 from .settings_widgets import SettingsTab, WarningIcon
-from .theme import SignalBlocker, add_header, icon, sd_version_icon, yellow
+from .theme import SignalBlocker, add_header, icon, yellow
 
 
 class LoraList(QWidget):
@@ -41,7 +43,7 @@ class LoraList(QWidget):
 
         _current: File | None = None
 
-        def __init__(self, filter: str, parent=None):
+        def __init__(self, lora_list: QAbstractItemModel, parent=None):
             super().__init__(parent)
             self.setContentsMargins(0, 0, 0, 0)
 
@@ -49,17 +51,13 @@ class LoraList(QWidget):
             layout.setContentsMargins(0, 0, 0, 0)
             self.setLayout(layout)
 
-            self._filter = QSortFilterProxyModel()
-            self._filter.setSourceModel(root.files.loras)
-            self._filter.setFilterCaseSensitivity(Qt.CaseSensitivity.CaseInsensitive)
-
-            completer = QCompleter(self._filter)
+            completer = QCompleter(lora_list)
             completer.setCaseSensitivity(Qt.CaseSensitivity.CaseInsensitive)
             completer.setFilterMode(Qt.MatchFlag.MatchContains)
 
             self._select = QComboBox(self)
             self._select.setEditable(True)
-            self._select.setModel(self._filter)
+            self._select.setModel(lora_list)
             self._select.setCompleter(completer)
             self._select.setMaxVisibleItems(20)
             self._select.currentIndexChanged.connect(self._select_lora)
@@ -84,8 +82,6 @@ class LoraList(QWidget):
             layout.addWidget(self._warning_icon)
             layout.addWidget(self._remove)
 
-            self.set_filter(filter)
-
         def _update(self):
             self.changed.emit()
 
@@ -96,17 +92,6 @@ class LoraList(QWidget):
                 self._current = file
                 self._update()
                 self._show_lora_warnings(file)
-
-        def set_filter(self, filter: str):
-            with SignalBlocker(self._select):
-                if filter == "All":
-                    filter = ""
-                self._filter.setFilterFixedString(f"{filter}/")
-
-                if not self._current:
-                    self._select_lora()
-                else:
-                    self._select.setEditText(self._current.name)
 
         def remove(self):
             self.removed.emit(self)
@@ -124,6 +109,8 @@ class LoraList(QWidget):
                 self._current = new_value
                 if self._select.findText(new_value.name) >= 0:
                     self._select.setCurrentText(self._current.name)
+                else:
+                    self._select.setEditText(self._current.name)
                 self._strength.setValue(int(v["strength"] * 100))
                 self._show_lora_warnings(new_value)
 
@@ -173,6 +160,11 @@ class LoraList(QWidget):
         self._add_button.clicked.connect(self._add_item)
         header_layout.addWidget(self._add_button, 1)
 
+        self._upload_button = QPushButton(icon("upload"), "  " + _("Upload"), self)
+        self._upload_button.setToolTip(_("Import a LoRA file from your local harddrive"))
+        self._upload_button.clicked.connect(self._upload_lora)
+        header_layout.addWidget(self._upload_button, 1)
+
         self._filter_combo = QComboBox(self)
         self._filter_combo.currentIndexChanged.connect(self._set_filtered_names)
         header_layout.addWidget(self._filter_combo, 2)
@@ -197,16 +189,19 @@ class LoraList(QWidget):
         self._item_list.setContentsMargins(0, 0, 0, 0)
         self._layout.addLayout(self._item_list)
 
-        self.setEnabled(settings.server_mode is not ServerMode.cloud)
-        settings.changed.connect(self._handle_settings_change)
+        self._filtered_lora = FileFilter(root.files.loras)
+        self._filtered_lora.available_only = True
         root.files.loras.rowsInserted.connect(self._collect_filters)
         root.files.loras.rowsRemoved.connect(self._collect_filters)
+        self._collect_filters()
 
-    def _add_item(self, lora=None):
+    def _add_item(self, lora: dict | File | None = None):
         assert self._item_list is not None
-        item = self.Item(self.filter, parent=self)
+        item = self.Item(self._filtered_lora, parent=self)
         if isinstance(lora, dict):
             item.value = lora
+        elif isinstance(lora, File):
+            item.value = dict(name=lora.id, strength=1.0)
         item.changed.connect(self._update_item)
         item.removed.connect(self._remove_item)
         self._items.append(item)
@@ -228,9 +223,10 @@ class LoraList(QWidget):
             self._filter_combo.addItem(icon("filter"), "All")
             folders = set()
             for lora in root.files.loras:
-                parts = Path(lora.id.replace("\\", "/")).parts
-                for i in range(1, len(parts)):
-                    folders.add("/".join(parts[:i]))
+                if lora.source is not FileSource.unavailable:
+                    parts = Path(lora.id).parts
+                    for i in range(1, len(parts)):
+                        folders.add("/".join(parts[:i]))
             folder_icon = Krita.instance().icon("document-open")
             for folder in sorted(folders, key=lambda x: x.lower()):
                 self._filter_combo.addItem(folder_icon, folder)
@@ -238,12 +234,21 @@ class LoraList(QWidget):
 
     def _set_filtered_names(self):
         LoraList.last_filter = self.filter
-        for item in self._items:
-            item.set_filter(self.filter)
+        self._filtered_lora.name_prefix = "" if self.filter == "All" else self.filter
 
-    def _handle_settings_change(self, key: str, value):
-        if key == "server_mode":
-            self.setEnabled(value is not ServerMode.cloud)
+    def _upload_lora(self):
+        filepath = QFileDialog.getOpenFileName(
+            self, _("Select LoRA file"), None, "LoRA files (*.safetensors)"
+        )
+        if filepath[0]:
+            path = Path(filepath[0])
+            if client := root.connection.client_if_connected:
+                if client.max_upload_size and path.stat().st_size > client.max_upload_size:
+                    _show_file_too_large_warning(client.max_upload_size, self)
+                    return
+            file = File.local(path, compute_hash=True)
+            root.files.loras.add(file)
+            self._add_item(file)
 
     @property
     def filter(self):
@@ -259,6 +264,11 @@ class LoraList(QWidget):
             self._remove_item(self._items[-1])
         for lora in v:
             self._add_item(lora)
+
+
+def _show_file_too_large_warning(max_size: int, parent=None):
+    msg = _("The file is too large to be uploaded. Files up to a size of {size} MB are supported.")
+    QMessageBox.warning(parent, _("File too large"), msg.format(size=max_size / (1024**2)))
 
 
 class SamplerWidget(QWidget):

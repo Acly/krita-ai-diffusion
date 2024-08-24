@@ -1,4 +1,4 @@
-from enum import Enum
+from enum import Enum, Flag
 from dataclasses import asdict, is_dataclass
 from itertools import islice
 from pathlib import Path
@@ -131,6 +131,8 @@ def trim_text(text: str, max_length: int) -> str:
 
 
 def encode_json(obj: Any):
+    if isinstance(obj, Flag):
+        return obj.value
     if isinstance(obj, Enum):
         return obj.name
     if isinstance(obj, Path):
