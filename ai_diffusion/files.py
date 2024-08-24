@@ -1,7 +1,7 @@
 import json
 import hashlib
 from base64 import b64encode
-from enum import Enum
+from enum import Flag
 from dataclasses import dataclass
 from pathlib import Path
 from typing import NamedTuple, Sequence
@@ -11,41 +11,46 @@ from PyQt5.QtGui import QIcon
 from .util import encode_json, read_json_with_comments, user_data_dir, client_logger as log
 
 
-class FileSource(Enum):
+class FileSource(Flag):
     local = 1
     remote = 2
 
 
 @dataclass
-class LocalFile:
+class File:
     id: str
     name: str
-    path: Path
-    hash: str
-    size: int
+    source: FileSource
     icon: QIcon | None = None
-
-    @property
-    def source(self):
-        return FileSource.local
-
-
-@dataclass
-class RemoteFile:
-    id: str
-    name: str
-    icon: QIcon | None = None
-
-    @property
-    def source(self):
-        return FileSource.remote
+    hash: str | None = None
+    path: Path | None = None
+    size: int | None = None
 
     @staticmethod
-    def from_id(id: str):
-        return RemoteFile(id, id.replace("\\", "/").removesuffix(".safetensors"))
+    def remote(id: str):
+        id = id.replace("\\", "/")
+        dot = id.rfind(".")
+        name = id if dot == -1 else id[:dot]
+        return File(id, name, FileSource.remote)
 
+    @staticmethod
+    def local(path: Path, compute_hash=False):
+        file = File(path.name, path.stem, FileSource.local, path=path)
+        file.size = path.stat().st_size
+        if compute_hash:
+            file.compute_hash()
+        return file
 
-File = LocalFile | RemoteFile
+    def compute_hash(self):
+        if self.hash:
+            return self.hash
+        assert self.path is not None, "Local filepath must be set to compute hash"
+        sha = hashlib.sha256()
+        with open(self.path, "rb") as f:
+            while chunk := f.read(4096):
+                sha.update(chunk)
+        self.hash = b64encode(sha.digest()).decode()
+        return self.hash
 
 
 class FileCollection(QAbstractListModel):
@@ -75,9 +80,11 @@ class FileCollection(QAbstractListModel):
 
     def extend(self, files: list[File]):
         self.beginInsertRows(QModelIndex(), len(self._files), len(self._files) + len(files) - 1)
-        print(f"Adding {len(files)} files")
         self._files.extend(files)
         self.endInsertRows()
+
+        if any(FileSource.local in f.source for f in files):
+            self.save()
 
     def remove(self, index: int):
         self.beginRemoveRows(QModelIndex(), index, index)
@@ -89,31 +96,18 @@ class FileCollection(QAbstractListModel):
         new_ids = {f.id for f in new_files}
         for id in existing_ids:
             if id not in new_ids:
-                print(f"Removing {id}")
                 self.remove(self.find_index(id))
         self.extend([f for f in new_files if f.id not in existing_ids])
 
-    def add_file(self, filepath: Path):
-        sha = hashlib.sha256()
-        with open(filepath, "rb") as f:
-            while chunk := f.read(4096):
-                sha.update(chunk)
-        file = LocalFile(
-            id=filepath.name,
-            name=filepath.stem,
-            hash=b64encode(sha.digest()).decode(),
-            path=filepath,
-            size=filepath.stat().st_size,
-        )
+    def add(self, file: File):
         self.extend([file])
-        self.save()
         return file
 
     def find(self, id: str):
         return next((f for f in self if f.id == id), None)
 
     def find_local(self, id: str):
-        return next((f for f in self if f.id == id and isinstance(f, LocalFile)), None)
+        return next((f for f in self if f.id == id and FileSource.local in f.source), None)
 
     def find_index(self, id: str):
         return next((i for i, f in enumerate(self) if f.id == id), -1)
@@ -123,7 +117,7 @@ class FileCollection(QAbstractListModel):
             return
         try:
             data = read_json_with_comments(self._database)
-            self.extend([LocalFile(**f) for f in data])
+            self.extend([File(**f) for f in data])
             log.info(f"Loaded {len(self)} model files from {self._database}")
         except Exception as e:
             log.error(f"Failed to read {self._database}: {e}")

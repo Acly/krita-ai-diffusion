@@ -7,7 +7,7 @@ from .client import ClientMessage
 from .server import Server, ServerState
 from .document import Document, KritaDocument
 from .model import Model
-from .files import FileLibrary, RemoteFile, FileSource
+from .files import FileLibrary, File, FileSource
 from .persistence import ModelSync, RecentlyUsedSync, import_prompt_from_file
 from .ui.theme import sd_version_icon
 from .settings import ServerMode, settings
@@ -129,13 +129,13 @@ class Root(QObject):
     def _update_files(self):
         if client := self._connection.client_if_connected:
             checkpoints = [
-                RemoteFile(cp.filename, cp.name, icon=sd_version_icon(cp.sd_version))
+                File(cp.filename, cp.name, FileSource.remote, icon=sd_version_icon(cp.sd_version))
                 for cp in client.models.checkpoints.values()
                 if not (cp.is_refiner or cp.is_inpaint)
             ]
             self._files.checkpoints.update(checkpoints, FileSource.remote)
 
-            loras = [RemoteFile.from_id(lora) for lora in client.models.loras]
+            loras = [File.remote(lora) for lora in client.models.loras]
             self._files.loras.update(loras, FileSource.remote)
 
 

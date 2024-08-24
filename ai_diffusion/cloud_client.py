@@ -13,7 +13,7 @@ from .client import Client, ClientEvent, ClientMessage, ClientModels, DeviceInfo
 from .client import TranslationPackage, User
 from .image import Extent, ImageCollection
 from .network import RequestManager, NetworkError
-from .files import FileLibrary, LocalFile
+from .files import FileLibrary, File
 from .resources import SDVersion
 from .settings import PerformanceSettings, settings
 from .localization import translate as _
@@ -240,7 +240,8 @@ class CloudClient(Client):
                 assert lora.storage_id == lora_info.hash
                 await self._upload_lora(lora_info)
 
-    async def _upload_lora(self, lora: LocalFile):
+    async def _upload_lora(self, lora: File):
+        assert lora.hash and lora.size
         upload = await self._get(f"upload/lora/{lora.hash}?size={lora.size}")
         if upload["status"] == "too-large":
             max_size = int(upload.get("max", 0)) / (1024 * 1024)

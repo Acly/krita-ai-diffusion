@@ -1269,7 +1269,7 @@ def _check_server_has_models(input: CheckpointInput, models: ClientModels, style
     for lora in input.loras:
         if lora.name not in models.loras:
             if lora_info := FileLibrary.instance().loras.find_local(lora.name):
-                lora.storage_id = lora_info.hash
+                lora.storage_id = lora_info.compute_hash()
                 continue  # local file available, can be uploaded to server
             raise ValueError(
                 _(

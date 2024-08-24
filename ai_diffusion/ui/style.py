@@ -23,7 +23,7 @@ from ..client import resolve_sd_version
 from ..resources import SDVersion
 from ..settings import Setting, ServerMode, settings
 from ..server import Server
-from ..files import File, RemoteFile
+from ..files import File
 from ..style import Style, Styles, StyleSettings, SamplerPresets
 from ..localization import translate as _
 from ..root import root
@@ -119,7 +119,7 @@ class LoraList(QWidget):
 
         @value.setter
         def value(self, v):
-            new_value = RemoteFile.from_id(v["name"])
+            new_value = File.remote(v["name"])
             if self._current is None or new_value.id != self._current.id:
                 self._current = new_value
                 if self._select.findText(new_value.name) >= 0:
@@ -134,7 +134,7 @@ class LoraList(QWidget):
                     for res, file in client.models.resources.items()
                     if file is not None and res.startswith("lora-")
                 ]
-                if lora.id not in client.models.loras:
+                if root.files.loras.find(lora.id) is None:
                     self._warning_icon.show_message(
                         _("The LoRA file is not installed on the server.")
                     )
