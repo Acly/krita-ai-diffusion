@@ -12,11 +12,12 @@ from ai_diffusion.api import InpaintMode, FillMode, ConditioningInput, RegionInp
 from ai_diffusion.client import ClientModels, CheckpointInfo
 from ai_diffusion.comfy_client import ComfyClient
 from ai_diffusion.cloud_client import CloudClient
+from ai_diffusion.files import FileLibrary
 from ai_diffusion.resources import ControlMode
 from ai_diffusion.settings import PerformanceSettings
 from ai_diffusion.image import Mask, Bounds, Extent, Image, ImageCollection
 from ai_diffusion.client import Client, ClientEvent
-from ai_diffusion.style import SDVersion, Style, LoraCollection
+from ai_diffusion.style import SDVersion, Style
 from ai_diffusion.pose import Pose
 from ai_diffusion.workflow import detect_inpaint
 from . import config
@@ -694,9 +695,10 @@ def test_outpaint_resolution_multiplier(qtapp, client):
 
 
 def test_lora(qtapp, client):
-    lora = LoraCollection.instance().add_file(test_dir / "data" / "animeoutlineV4_16.safetensors")
+    files = FileLibrary.instance()
+    lora = files.loras.add_file(test_dir / "data" / "animeoutlineV4_16.safetensors")
     style = default_style(client, SDVersion.sd15)
-    style.loras.append(dict(name=lora.id, strength=lora.strength))
+    style.loras.append(dict(name=lora.id, strength=1.0))
     job = create(
         WorkflowKind.generate,
         client,

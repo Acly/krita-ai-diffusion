@@ -13,8 +13,8 @@ from .client import Client, ClientEvent, ClientMessage, ClientModels, DeviceInfo
 from .client import TranslationPackage, User
 from .image import Extent, ImageCollection
 from .network import RequestManager, NetworkError
+from .files import FileLibrary, LocalFile
 from .resources import SDVersion
-from .style import Lora, LoraCollection
 from .settings import PerformanceSettings, settings
 from .localization import translate as _
 from .util import clamp, ensure, client_logger as log
@@ -234,14 +234,14 @@ class CloudClient(Client):
             for lora in models.loras:
                 if not lora.storage_id and not lora.name in models.loras:
                     raise ValueError(f"Lora model is not available: {lora.name}")
-                lora_info = LoraCollection.instance().find(lora.name)
-                if lora_info is None or lora_info.filepath is None:
+                lora_info = FileLibrary.instance().loras.find_local(lora.name)
+                if lora_info is None or lora_info.path is None:
                     raise ValueError(f"Can't find Lora model: {lora.name}")
-                assert lora.storage_id == lora_info.sha
+                assert lora.storage_id == lora_info.hash
                 await self._upload_lora(lora_info)
 
-    async def _upload_lora(self, lora: Lora):
-        upload = await self._get(f"upload/lora/{lora.sha}?size={lora.size}")
+    async def _upload_lora(self, lora: LocalFile):
+        upload = await self._get(f"upload/lora/{lora.hash}?size={lora.size}")
         if upload["status"] == "too-large":
             max_size = int(upload.get("max", 0)) / (1024 * 1024)
             raise ValueError(
@@ -249,13 +249,13 @@ class CloudClient(Client):
             )
         if upload["status"] == "cached":
             return  # already uploaded
-        if not lora.filepath or not lora.filepath.exists():
-            raise ValueError(_("LoRA model file not found") + f" {lora.filepath}")
+        if not lora.path or not lora.path.exists():
+            raise ValueError(_("LoRA model file not found") + f" {lora.path}")
         log.info(
-            f"Uploading LoRA model {lora.name} to cloud (hash={lora.sha}, url={upload['url']})"
+            f"Uploading LoRA model {lora.name} to cloud (hash={lora.hash}, url={upload['url']})"
         )
         try:
-            await self._requests.put(upload["url"], lora.filepath.read_bytes())
+            await self._requests.put(upload["url"], lora.path.read_bytes())
         except NetworkError as e:
             log.error(f"LoRA model upload failed [{e.status}]: {e.message}")
             raise Exception(_("Connection error during upload of LoRA model") + f" {lora.name}")

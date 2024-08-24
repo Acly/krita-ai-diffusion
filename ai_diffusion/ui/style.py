@@ -23,7 +23,7 @@ from ..client import resolve_sd_version
 from ..resources import SDVersion
 from ..settings import Setting, ServerMode, settings
 from ..server import Server
-from ..text import LoraId
+from ..files import File, RemoteFile
 from ..style import Style, Styles, StyleSettings, SamplerPresets
 from ..localization import translate as _
 from ..root import root
@@ -39,10 +39,9 @@ class LoraList(QWidget):
         changed = pyqtSignal()
         removed = pyqtSignal(QWidget)
 
-        _loras: list[LoraId]
-        _current = LoraId("", "")
+        _current: File | None = None
 
-        def __init__(self, loras: list[LoraId], filter: str, parent=None):
+        def __init__(self, filter: str, parent=None):
             super().__init__(parent)
             self.setContentsMargins(0, 0, 0, 0)
 
@@ -50,8 +49,18 @@ class LoraList(QWidget):
             layout.setContentsMargins(0, 0, 0, 0)
             self.setLayout(layout)
 
+            self._filter = QSortFilterProxyModel()
+            self._filter.setSourceModel(root.files.loras)
+            self._filter.setFilterCaseSensitivity(Qt.CaseSensitivity.CaseInsensitive)
+
+            completer = QCompleter(self._filter)
+            completer.setCaseSensitivity(Qt.CaseSensitivity.CaseInsensitive)
+            completer.setFilterMode(Qt.MatchFlag.MatchContains)
+
             self._select = QComboBox(self)
             self._select.setEditable(True)
+            self._select.setModel(self._filter)
+            self._select.setCompleter(completer)
             self._select.setMaxVisibleItems(20)
             self._select.currentIndexChanged.connect(self._select_lora)
 
@@ -75,38 +84,26 @@ class LoraList(QWidget):
             layout.addWidget(self._warning_icon)
             layout.addWidget(self._remove)
 
-            self.set_names(loras, filter)
+            self.set_filter(filter)
 
         def _update(self):
             self.changed.emit()
 
         def _select_lora(self):
             name = self._select.currentText()
-            id = next((l for l in self._loras if l.name == name), LoraId("", ""))
-            if id.file and id != self._current:
-                self._current = id
+            file = next((l for l in root.files.loras if l.name == name), None)
+            if file and file != self._current:
+                self._current = file
                 self._update()
-                self._show_lora_warnings(id)
+                self._show_lora_warnings(file)
 
-        def set_names(self, loras: list[LoraId], filter: str):
-            self._loras = loras
-
+        def set_filter(self, filter: str):
             with SignalBlocker(self._select):
-                model = QStringListModel([l.name for l in loras])
-                sorted = QSortFilterProxyModel()
-                sorted.setSourceModel(model)
-                sorted.setFilterCaseSensitivity(Qt.CaseSensitivity.CaseInsensitive)
-                if filter != "All":
-                    sorted.setFilterFixedString(f"{filter}/")
+                if filter == "All":
+                    filter = ""
+                self._filter.setFilterFixedString(f"{filter}/")
 
-                completer = QCompleter(sorted)
-                completer.setCaseSensitivity(Qt.CaseSensitivity.CaseInsensitive)
-                completer.setFilterMode(Qt.MatchFlag.MatchContains)
-
-                self._select.setModel(sorted)
-                self._select.setCompleter(completer)
-
-                if not self._current.name:
+                if not self._current:
                     self._select_lora()
                 else:
                     self._select.setEditText(self._current.name)
@@ -116,32 +113,32 @@ class LoraList(QWidget):
 
         @property
         def value(self):
-            return dict(name=self._current.file, strength=self._strength.value() / 100)
+            if self._current is None:
+                return dict(name="", strength=1.0)
+            return dict(name=self._current.id, strength=self._strength.value() / 100)
 
         @value.setter
         def value(self, v):
-            new_value = LoraId.normalize(v["name"])
-            if new_value.file != self._current.file:
+            new_value = RemoteFile.from_id(v["name"])
+            if self._current is None or new_value.id != self._current.id:
                 self._current = new_value
                 if self._select.findText(new_value.name) >= 0:
                     self._select.setCurrentText(self._current.name)
-                else:
-                    self._select.setEditText(self._current.name)
                 self._strength.setValue(int(v["strength"] * 100))
                 self._show_lora_warnings(new_value)
 
-        def _show_lora_warnings(self, id: LoraId):
+        def _show_lora_warnings(self, lora: File):
             if client := root.connection.client_if_connected:
                 special_loras = [
                     file
                     for res, file in client.models.resources.items()
                     if file is not None and res.startswith("lora-")
                 ]
-                if id.file not in client.models.loras:
+                if lora.id not in client.models.loras:
                     self._warning_icon.show_message(
                         _("The LoRA file is not installed on the server.")
                     )
-                elif id.file in special_loras:
+                elif lora.name in special_loras:
                     self._warning_icon.show_message(
                         _(
                             "This LoRA is usually added automatically by a Sampler or Control Layer when needed.\nIt is not required to add it manually here."
@@ -155,12 +152,10 @@ class LoraList(QWidget):
     open_folder_button: Optional[QToolButton] = None
     last_filter = "All"
 
-    _loras: list[LoraId]
     _items: list[Item]
 
     def __init__(self, setting: Setting, parent=None):
         super().__init__(parent)
-        self._loras = []
         self._items = []
 
         self._layout = QVBoxLayout()
@@ -204,10 +199,12 @@ class LoraList(QWidget):
 
         self.setEnabled(settings.server_mode is not ServerMode.cloud)
         settings.changed.connect(self._handle_settings_change)
+        root.files.loras.rowsInserted.connect(self._collect_filters)
+        root.files.loras.rowsRemoved.connect(self._collect_filters)
 
     def _add_item(self, lora=None):
         assert self._item_list is not None
-        item = self.Item(self._loras, self.filter, self)
+        item = self.Item(self.filter, parent=self)
         if isinstance(lora, dict):
             item.value = lora
         item.changed.connect(self._update_item)
@@ -225,13 +222,13 @@ class LoraList(QWidget):
     def _update_item(self):
         self.value_changed.emit()
 
-    def _collect_filters(self, names: list[str]):
+    def _collect_filters(self):
         with SignalBlocker(self._filter_combo):
             self._filter_combo.clear()
             self._filter_combo.addItem(icon("filter"), "All")
             folders = set()
-            for name in names:
-                parts = Path(name.replace("\\", "/")).parts
+            for lora in root.files.loras:
+                parts = Path(lora.id.replace("\\", "/")).parts
                 for i in range(1, len(parts)):
                     folders.add("/".join(parts[:i]))
             folder_icon = Krita.instance().icon("document-open")
@@ -242,7 +239,7 @@ class LoraList(QWidget):
     def _set_filtered_names(self):
         LoraList.last_filter = self.filter
         for item in self._items:
-            item.set_names(self._loras, self.filter)
+            item.set_filter(self.filter)
 
     def _handle_settings_change(self, key: str, value):
         if key == "server_mode":
@@ -251,16 +248,6 @@ class LoraList(QWidget):
     @property
     def filter(self):
         return self._filter_combo.currentText()
-
-    @property
-    def names(self):
-        return self._loras
-
-    @names.setter
-    def names(self, v: list[str]):
-        self._loras = [LoraId.normalize(name) for name in v]
-        self._collect_filters(v)
-        self._set_filtered_names()
 
     @property
     def value(self):
@@ -433,8 +420,11 @@ class StylePresets(SettingsTab):
         add("name", TextSetting(StyleSettings.name, self))
         self._style_widgets["name"].value_changed.connect(self._update_name)
 
-        add("sd_checkpoint", ComboBoxSetting(StyleSettings.sd_checkpoint, self))
-        self._style_widgets["sd_checkpoint"].add_button(
+        checkpoint_select = add(
+            "sd_checkpoint",
+            ComboBoxSetting(StyleSettings.sd_checkpoint, model=root.files.checkpoints, parent=self),
+        )
+        checkpoint_select.add_button(
             Krita.instance().icon("reload-preset"),
             _("Look for new checkpoint files"),
             root.connection.refresh,
@@ -448,7 +438,9 @@ class StylePresets(SettingsTab):
         checkpoint_advanced.toggled.connect(self._toggle_checkpoint_advanced)
         self._layout.addWidget(checkpoint_advanced)
 
-        self._checkpoint_advanced_widgets = [add("vae", ComboBoxSetting(StyleSettings.vae, self))]
+        self._checkpoint_advanced_widgets = [
+            add("vae", ComboBoxSetting(StyleSettings.vae, parent=self))
+        ]
 
         self._clip_skip = add("clip_skip", SpinBoxSetting(StyleSettings.clip_skip, self, 0, 12))
         self._clip_skip_check = self._clip_skip.add_checkbox(_("Override"))
@@ -629,13 +621,6 @@ class StylePresets(SettingsTab):
         self._show_builtin_checkbox.setChecked(settings.show_builtin_styles)
         if client := root.connection.client_if_connected:
             default_vae = cast(str, StyleSettings.vae.default)
-            checkpoints = [
-                (cp.name, cp.filename, sd_version_icon(cp.sd_version, client))
-                for cp in client.models.checkpoints.values()
-                if not (cp.is_refiner or cp.is_inpaint)
-            ]
-            self._style_widgets["sd_checkpoint"].set_items(checkpoints)
-            self._style_widgets["loras"].names = client.models.loras
             self._style_widgets["vae"].set_items([default_vae] + client.models.vae)
         self._read_style(self.current_style)
 

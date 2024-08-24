@@ -12,7 +12,8 @@ from .api import ExtentInput, InpaintMode, InpaintParams, FillMode, Conditioning
 from .api import RegionInput
 from .image import Bounds, Extent, Image, Mask, Point, multiple_of
 from .client import ClientModels, ModelDict
-from .style import Style, StyleSettings, SamplerPresets, LoraCollection
+from .files import FileLibrary
+from .style import Style, StyleSettings, SamplerPresets
 from .resolution import ScaledExtent, ScaleMode, TileLayout, get_inpaint_reference
 from .resources import ControlMode, SDVersion, UpscalerName, ResourceKind
 from .settings import PerformanceSettings
@@ -1267,10 +1268,9 @@ def _check_server_has_models(input: CheckpointInput, models: ClientModels, style
         )
     for lora in input.loras:
         if lora.name not in models.loras:
-            if lora_info := LoraCollection.instance().find(lora.name):
-                if lora_info.filepath and lora_info.sha:
-                    lora.storage_id = lora_info.sha
-                    continue  # local file available, can be uploaded to server
+            if lora_info := FileLibrary.instance().loras.find_local(lora.name):
+                lora.storage_id = lora_info.hash
+                continue  # local file available, can be uploaded to server
             raise ValueError(
                 _(
                     "The LoRA '{lora}' used by style '{style}' is not available on the server",

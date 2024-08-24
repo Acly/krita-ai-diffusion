@@ -17,7 +17,7 @@ from PyQt5.QtWidgets import (
     QScrollArea,
     QFrame,
 )
-from PyQt5.QtCore import Qt, QSize, pyqtSignal
+from PyQt5.QtCore import Qt, QAbstractListModel, QSize, pyqtSignal
 from PyQt5.QtGui import QIcon
 
 from ..localization import translate as _
@@ -265,10 +265,12 @@ class ComboBoxSetting(SettingWidget):
     _enum_type = None
     _original_text = ""
 
-    def __init__(self, setting: Setting, parent=None):
+    def __init__(self, setting: Setting, model: QAbstractListModel | None = None, parent=None):
         super().__init__(setting, parent)
         self._combo = QComboBox(self)
-        if isinstance(setting.default, Enum):
+        if model is not None:
+            self._combo.setModel(model)
+        elif isinstance(setting.default, Enum):
             self._enum_type = type(setting.default)
             self.set_items(self._enum_type)
         elif setting.items:

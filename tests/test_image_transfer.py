@@ -20,29 +20,33 @@ if (root_dir / "service" / "pod" / "lib").exists():
     }
 
     @pytest.mark.parametrize("mode", ["b64", "transfer"])
-    def test_send(mode: str):
+    def test_send(qtapp, mode: str):
         images = [
             Image.open(test_dir / "images" / f).convert("RGBA")
             for f in ("cat.webp", "pegonia.webp")
         ]
         max_b64_size = max_b64_size_config[mode]
-        transfer = image_transfer.send_images(images, max_inline_size=max_b64_size)
-        assert len(transfer["offsets"]) == 2
 
-        if mode == "transfer":
-            url = transfer.get("url")
-            assert url and "interstice-transfer-1" in url
-            response = requests.get(url)
-            assert response.status_code == 200
-            result_bytes = response.content
-        else:
-            b64data = transfer.get("base64")
-            assert isinstance(b64data, str)
-            result_bytes = b64decode(b64data.encode("utf-8"))
+        async def main():
+            transfer = await image_transfer.send_images(images, max_inline_size=max_b64_size)
+            assert len(transfer["offsets"]) == 2
 
-        results = ImageCollection.from_bytes(result_bytes, transfer["offsets"])
-        for result, expected in zip(results, images):
-            assert result.to_numpy_format() == ImageWrapper.from_pil(expected).to_numpy_format()
+            if mode == "transfer":
+                url = transfer.get("url")
+                assert url and "interstice-transfer-1" in url
+                response = requests.get(url)
+                assert response.status_code == 200
+                result_bytes = response.content
+            else:
+                b64data = transfer.get("base64")
+                assert isinstance(b64data, str)
+                result_bytes = b64decode(b64data.encode("utf-8"))
+
+            results = ImageCollection.from_bytes(result_bytes, transfer["offsets"])
+            for result, expected in zip(results, images):
+                assert result.to_numpy_format() == ImageWrapper.from_pil(expected).to_numpy_format()
+
+        qtapp.run(main())
 
     @pytest.mark.parametrize("mode", ["b64", "transfer"])
     def test_receive(qtapp, mode: str):
@@ -61,7 +65,7 @@ if (root_dir / "service" / "pod" / "lib").exists():
                 assert "s3_object" in input["image_data"]
             else:
                 assert "base64" in input["image_data"]
-            image_transfer.receive_images(input)
+            await image_transfer.receive_images(input)
 
             image_data = input["image_data"]
             blob, offsets = image_data["bytes"], image_data["offsets"]
