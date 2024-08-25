@@ -120,6 +120,7 @@ class Server:
         network = QNetworkAccessManager()
         self._cache_dir = self.path / ".cache"
         self._cache_dir.mkdir(parents=True, exist_ok=True)
+        self._version_file.write_text("incomplete")
 
         if is_windows and (self.comfy_dir is None or self._python_cmd is None):
             # On Windows install an embedded version of Python
@@ -484,13 +485,18 @@ class Server:
 
     @property
     def can_install(self):
-        return not self.path.exists() or (self.path.is_dir() and not any(self.path.iterdir()))
+        if not self.path.exists():
+            return True
+        if self.path.is_dir():
+            return self.version == "incomplete" or not any(self.path.iterdir())
+        return False
 
     @property
     def upgrade_required(self):
         return (
             self.state is not ServerState.not_installed
             and self.version is not None
+            and self.version != "incomplete"
             and self.version != resources.version
         )
 
