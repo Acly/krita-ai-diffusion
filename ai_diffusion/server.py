@@ -5,7 +5,7 @@ from enum import Enum
 from itertools import chain
 from pathlib import Path
 import shutil
-import subprocess
+import re
 from typing import Callable, NamedTuple, Optional, Union
 from PyQt5.QtNetwork import QNetworkAccessManager
 
@@ -271,7 +271,7 @@ class Server:
             log.error("Installation failed")
             self.state = ServerState.stopped
             self.check_install()
-            raise e
+            raise Exception(parse_common_errors(str(e)))
 
     async def download_required(self, callback: Callback):
         models = [m.name for m in resources.required_models if m.sd_version is SDVersion.all]
@@ -424,7 +424,7 @@ class Server:
             self.state = ServerState.stopped
             ret = self._process.returncode
             self._process = None
-            error_msg = _parse_common_errors(error, ret)
+            error_msg = parse_common_errors(error, ret)
             raise Exception(_("Error during server startup") + f": {error_msg}")
 
         self._task = asyncio.create_task(self.run())
@@ -640,7 +640,7 @@ async def get_python_version(python_cmd: Path, *args: str):
     return out.decode(enc, errors="replace").strip()
 
 
-def _parse_common_errors(output: str, return_code: int | None):
+def parse_common_errors(output: str, return_code: int | None = None):
     if "error while attempting to bind on address" in output:
         message_part = output.split("bind on address")[-1].strip()
         return (
@@ -649,11 +649,23 @@ def _parse_common_errors(output: str, return_code: int | None):
             + "<a href='https://github.com/Acly/krita-ai-diffusion/wiki/Common-Issues#error-during-server-startup-could-not-bind-on-address-only-one-usage-of-each-socket-address-is-normally-permitted'>More information...</a>"
         )
 
-    nvidia_driver = _("Found no NVIDIA driver on your system")
+    nvidia_driver = "Found no NVIDIA driver on your system"
+    nvidia_driver_translated = _("Found no NVIDIA driver on your system")
     if nvidia_driver in output:
         message_part = output.split(nvidia_driver)[-1]
-        return f"{nvidia_driver} {message_part}<br>" + _(
+        return f"{nvidia_driver_translated} {message_part}<br>" + _(
             "If you do not have an NVIDIA GPU, select a different backend below. Server reinstall may be required."
         )
 
-    return f"{output} [{return_code}]"
+    readtimeout_pattern = re.compile(
+        r"ReadTimeoutError: HTTPSConnectionPool\(host='(.+)'.+\): Read timed out"
+    )
+    if match := readtimeout_pattern.search(output):
+        return _(
+            "Connection to {host} timed out during download. Please make sure you have a stable internet connection and try again.",
+            host=match.group(1),
+        )
+
+    if return_code is not None:
+        return f"{output} [{return_code}]"
+    return output
