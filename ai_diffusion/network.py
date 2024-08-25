@@ -42,7 +42,12 @@ class NetworkError(Exception):
             error = data.get("error", "Network error")
             return NetworkError(code, f"{error} ({reply.errorString()})", url, status, data)
         except:
-            pass
+            try:
+                text = reply.readAll().data().decode("utf-8")
+                if text:
+                    return NetworkError(code, f"{text} ({reply.errorString()})", url, status)
+            except:
+                pass
         return NetworkError(code, reply.errorString(), url, status)
 
 
@@ -67,6 +72,9 @@ class Request(NamedTuple):
     buffer: QBuffer | None = None
 
 
+Headers = list[tuple[str, str]]
+
+
 class RequestManager:
     def __init__(self):
         self._net = QNetworkAccessManager()
@@ -74,15 +82,26 @@ class RequestManager:
         self._net.sslErrors.connect(self._handle_ssl_errors)
         self._requests: dict[QNetworkReply, Request] = {}
 
-    def http(self, method, url: str, data: dict | QByteArray | None = None, bearer=""):
+    def http(
+        self,
+        method,
+        url: str,
+        data: dict | QByteArray | None = None,
+        bearer="",
+        headers: Headers | None = None,
+    ):
         self._cleanup()
 
         request = QNetworkRequest(QUrl(url))
+        request.setHeader(QNetworkRequest.KnownHeaders.UserAgentHeader, "interstice.cloud/1.0")
         # request.setTransferTimeout({"GET": 30000, "POST": 0}[method]) # requires Qt 5.15 (Krita 5.2)
         request.setAttribute(QNetworkRequest.FollowRedirectsAttribute, True)
         request.setRawHeader(b"ngrok-skip-browser-warning", b"69420")
         if bearer:
             request.setRawHeader(b"Authorization", f"Bearer {bearer}".encode("utf-8"))
+        if headers:
+            for key, value in headers:
+                request.setRawHeader(key.encode("utf-8"), value.encode("utf-8"))
 
         assert method in ["GET", "POST", "PUT"]
         if method == "POST":
@@ -114,8 +133,9 @@ class RequestManager:
     def post(self, url: str, data: dict, bearer=""):
         return self.http("POST", url, data, bearer=bearer)
 
-    def put(self, url: str, data: QByteArray | bytes):
-        return self.http("PUT", url, data)
+    def put(self, url: str, data: QByteArray | bytes, sha256: str | None = None):
+        headers = [("x-amz-checksum-sha256", sha256)] if sha256 else None
+        return self.http("PUT", url, data, headers=headers)
 
     def download(self, url: str):
         self._cleanup()

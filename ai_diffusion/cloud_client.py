@@ -261,7 +261,7 @@ class CloudClient(Client):
         )
         try:
             data = lora.path.read_bytes()
-            await self._requests.put(upload["url"], data)
+            await self._requests.put(upload["url"], data, sha256=lora.hash)
         except NetworkError as e:
             log.error(f"LoRA model upload failed [{e.status}]: {e.message}")
             raise Exception(_("Connection error during upload of LoRA model") + f" {lora.name}")
