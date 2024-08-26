@@ -86,8 +86,8 @@ class LoraList(QWidget):
             self.changed.emit()
 
         def _select_lora(self):
-            name = self._select.currentText()
-            file = next((l for l in root.files.loras if l.name == name), None)
+            id = self._select.currentData()
+            file = next((l for l in root.files.loras if l.id == id), None)
             if file and file != self._current:
                 self._current = file
                 self._update()

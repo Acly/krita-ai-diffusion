@@ -134,11 +134,10 @@ class RequestManager:
     def post(self, url: str, data: dict, bearer=""):
         return self.http("POST", url, data, bearer=bearer)
 
-    def put(self, url: str, data: QByteArray | bytes, sha256: str | None = None):
-        headers = [("x-amz-checksum-sha256", sha256)] if sha256 else None
-        return self.http("PUT", url, data, headers=headers)
+    def put(self, url: str, data: QByteArray | bytes):
+        return self.http("PUT", url, data)
 
-    async def upload(self, url: str, data: QByteArray | bytes, sha256: str):
+    async def upload(self, url: str, data: QByteArray | bytes, sha256: str | None = None):
         self._cleanup()
         if isinstance(data, bytes):
             data = QByteArray(data)
@@ -146,7 +145,8 @@ class RequestManager:
 
         request = QNetworkRequest(QUrl(url))
         request.setAttribute(QNetworkRequest.Attribute.FollowRedirectsAttribute, True)
-        request.setRawHeader(b"x-amz-checksum-sha256", sha256.encode("utf-8"))
+        if sha256:
+            request.setRawHeader(b"x-amz-checksum-sha256", sha256.encode("utf-8"))
         request.setHeader(
             QNetworkRequest.KnownHeaders.ContentTypeHeader, "application/octet-stream"
         )

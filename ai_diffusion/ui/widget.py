@@ -213,18 +213,19 @@ class QueueButton(QToolButton):
 
     def _update(self):
         count = self._model.jobs.count(JobState.queued)
-        if self._model.jobs.any_executing():
-            queued_msg = _("{count} jobs queued.", count=count)
-            cancel_msg = _("Click to cancel.")
-            if self._model.progress_kind is ProgressKind.upload:
-                self.setIcon(theme.icon("queue-upload"))
-                self.setToolTip(_("Uploading models.") + f" {queued_msg} {cancel_msg}")
+        queued_msg = _("{count} jobs queued.", count=count)
+        cancel_msg = _("Click to cancel.")
+
+        if self._model.progress_kind is ProgressKind.upload:
+            self.setIcon(theme.icon("queue-upload"))
+            self.setToolTip(_("Uploading models.") + f" {queued_msg} {cancel_msg}")
+            count += 1
+        elif self._model.jobs.any_executing():
+            self.setIcon(theme.icon("queue-active"))
+            if count > 0:
+                self.setToolTip(_("Generating image.") + f" {queued_msg} {cancel_msg}")
             else:
-                self.setIcon(theme.icon("queue-active"))
-                if count > 0:
-                    self.setToolTip(_("Generating image.") + f" {queued_msg} {cancel_msg}")
-                else:
-                    self.setToolTip(_("Generating image.") + f" {cancel_msg}")
+                self.setToolTip(_("Generating image.") + f" {cancel_msg}")
             count += 1
         else:
             self.setIcon(theme.icon("queue-inactive"))

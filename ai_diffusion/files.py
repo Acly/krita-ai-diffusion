@@ -29,9 +29,9 @@ class File:
 
     @staticmethod
     def remote(id: str):
-        id = id.replace("\\", "/")
-        dot = id.rfind(".")
-        name = id if dot == -1 else id[:dot]
+        name = id.replace("\\", "/")
+        dot = name.rfind(".")
+        name = name if dot == -1 else name[:dot]
         return File(id, name, FileSource.remote)
 
     @staticmethod
@@ -158,6 +158,7 @@ class FileCollection(QAbstractListModel):
             data = read_json_with_comments(self._database)
             self.extend([File.from_dict(f) for f in data])
             log.info(f"Loaded {len(self)} model files from {self._database}")
+            self._remove_missing_files()
         except Exception as e:
             log.error(f"Failed to read {self._database}: {e}")
 
@@ -170,6 +171,16 @@ class FileCollection(QAbstractListModel):
         if not index.isValid():
             return super().flags(index) | Qt.ItemFlag.ItemIsDropEnabled
         return super().flags(index) | Qt.ItemFlag.ItemIsDragEnabled | Qt.ItemFlag.ItemIsDropEnabled
+
+    def _remove_missing_files(self):
+        i = 0
+        while i < len(self._files):
+            f = self._files[i]
+            if f.source is FileSource.local and f.path and not f.path.exists():
+                log.warning(f"Local file {f.path} not found, removing from collection")
+                self.remove(i)
+            else:
+                i += 1
 
     def __iter__(self):
         return iter(self._files)

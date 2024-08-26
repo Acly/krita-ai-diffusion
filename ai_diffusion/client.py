@@ -7,10 +7,12 @@ from PyQt5.QtCore import QObject, pyqtSignal
 from .api import WorkflowInput
 from .image import ImageCollection
 from .properties import Property, ObservableProperties
+from .files import FileLibrary
 from .style import Style, Styles
 from .settings import PerformanceSettings
 from .resources import ControlMode, ResourceKind, SDVersion, UpscalerName
 from .resources import ResourceId, resource_id
+from .localization import translate as _
 from .util import client_logger as log
 
 
@@ -284,3 +286,19 @@ def filter_supported_styles(styles: Iterable[Style], client: Client | None = Non
             and style.sd_checkpoint in client.models.checkpoints
         ]
     return list(styles)
+
+
+def loras_to_upload(workflow: WorkflowInput, client_models: ClientModels):
+    if models := workflow.models:
+        for lora in models.loras:
+            if lora.name in client_models.loras:
+                continue
+            if not lora.storage_id:
+                raise ValueError(f"Lora model is not available: {lora.name}")
+            lora_file = FileLibrary.instance().loras.find_local(lora.name)
+            if lora_file is None or lora_file.path is None:
+                raise ValueError(f"Can't find Lora model: {lora.name}")
+            if not lora_file.path.exists():
+                raise ValueError(_("LoRA model file not found") + f" {lora_file.path}")
+            assert lora.storage_id == lora_file.hash
+            yield lora_file
