@@ -18,6 +18,7 @@ yellow = "#cc3" if is_dark else "#762"
 red = "#c33"
 grey = "#888" if is_dark else "#606060"
 highlight = "#8df" if is_dark else "#357"
+progress_alt = "#a16207" if is_dark else "#ca8a04"
 active = _palette.color(QPalette.ColorRole.Highlight).name()
 line = _palette.color(QPalette.ColorRole.Background).darker(120).name()
 line_base = _palette.color(QPalette.ColorRole.Base).darker(120).name()

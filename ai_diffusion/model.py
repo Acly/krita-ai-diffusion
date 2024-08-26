@@ -37,6 +37,11 @@ class Workspace(Enum):
     animation = 3
 
 
+class ProgressKind(Enum):
+    generation = 0
+    upload = 1
+
+
 class Model(QObject, ObservableProperties):
     """Represents diffusion workflows for a specific Krita document. Stores all inputs related to
     image generation. Launches generation jobs. Listens to server messages and keeps a
@@ -61,6 +66,7 @@ class Model(QObject, ObservableProperties):
     upscale: "UpscaleWorkspace"
     live: "LiveWorkspace"
     animation: "AnimationWorkspace"
+    progress_kind = Property(ProgressKind.generation)
     progress = Property(0.0)
     jobs: JobQueue
     error = Property("")
@@ -74,6 +80,7 @@ class Model(QObject, ObservableProperties):
     fixed_seed_changed = pyqtSignal(bool)
     queue_front_changed = pyqtSignal(bool)
     translation_enabled_changed = pyqtSignal(bool)
+    progress_kind_changed = pyqtSignal(ProgressKind)
     progress_changed = pyqtSignal(float)
     error_changed = pyqtSignal(str)
     has_error_changed = pyqtSignal(bool)
@@ -399,6 +406,11 @@ class Model(QObject, ObservableProperties):
             self.progress_changed.emit(-1)
         elif message.event is ClientEvent.progress:
             self.jobs.notify_started(job)
+            self.progress_kind = ProgressKind.generation
+            self.progress = message.progress
+        elif message.event is ClientEvent.upload:
+            self.jobs.notify_started(job)
+            self.progress_kind = ProgressKind.upload
             self.progress = message.progress
         elif message.event is ClientEvent.finished:
             if message.images:

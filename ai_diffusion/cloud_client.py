@@ -41,6 +41,7 @@ class CloudClient(Client):
     _token: str = ""
     _user: User | None = None
     _current_job: JobInfo | None = None
+    _cancel_requested: bool = False
 
     @staticmethod
     async def connect(url: str, access_token: str = ""):
@@ -118,8 +119,12 @@ class CloudClient(Client):
         while True:
             try:
                 self._current_job = await self._queue.get()
+                self._cancel_requested = False
                 async for msg in self._process_job(self._current_job):
                     yield msg
+                    if self._cancel_requested:
+                        yield ClientMessage(ClientEvent.interrupted, self._current_job.local_id)
+                        break
 
             except NetworkError as e:
                 msg = self._process_http_error(e)
@@ -138,7 +143,8 @@ class CloudClient(Client):
     async def _process_job(self, job: JobInfo):
         user = ensure(self.user)
         inputs = job.work.to_dict(max_image_size=16 * 1024)
-        await self.send_lora(job.work)
+        async for progress in self.send_lora(job.work):
+            yield ClientMessage(ClientEvent.upload, job.local_id, progress)
         await self.send_images(inputs)
         data = {"input": {"workflow": inputs}}
         response: dict = await self._post("generate", data)
@@ -185,8 +191,10 @@ class CloudClient(Client):
             log.warning(f"Got unknown job status {response['status']}")
 
     async def interrupt(self):
-        if self._current_job and self._current_job.remote_id:
-            await self._post(f"cancel/{self._current_job.remote_id}", {})
+        if self._current_job:
+            self._cancel_requested = True
+            # if  self._current_job.remote_id:
+            #     await self._post(f"cancel/{self._current_job.remote_id}", {})
 
     async def clear_queue(self):
         self._queue = asyncio.Queue()
@@ -242,7 +250,8 @@ class CloudClient(Client):
                 if lora_info is None or lora_info.path is None:
                     raise ValueError(f"Can't find Lora model: {lora.name}")
                 assert lora.storage_id == lora_info.hash
-                await self._upload_lora(lora_info)
+                async for progress in self._upload_lora(lora_info):
+                    yield progress
 
     async def _upload_lora(self, lora: File):
         assert lora.hash and lora.size
@@ -261,7 +270,8 @@ class CloudClient(Client):
         )
         try:
             data = lora.path.read_bytes()
-            await self._requests.put(upload["url"], data, sha256=lora.hash)
+            async for sent, total in self._requests.upload(upload["url"], data, sha256=lora.hash):
+                yield sent / max(total, 1)
         except NetworkError as e:
             log.error(f"LoRA model upload failed [{e.status}]: {e.message}")
             raise Exception(_("Connection error during upload of LoRA model") + f" {lora.name}")

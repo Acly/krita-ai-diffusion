@@ -41,7 +41,7 @@ from ..root import root
 from ..client import filter_supported_styles, resolve_sd_version
 from ..properties import Binding, Bind, bind, bind_combo
 from ..jobs import JobState, JobKind
-from ..model import Model, Workspace, SamplingQuality
+from ..model import Model, Workspace, SamplingQuality, ProgressKind
 from ..text import edit_attention, select_on_cursor_pos
 from ..localization import translate as _
 from ..util import ensure
@@ -178,13 +178,11 @@ class QueuePopup(QMenu):
 
 
 class QueueButton(QToolButton):
-    _model: Model
-    _popup: QueuePopup
 
     def __init__(self, supports_batch=True, parent: QWidget | None = None):
         super().__init__(parent)
         self._model = root.active_model
-        self._model.jobs.count_changed.connect(self._update)
+        self._connect_model()
 
         self._popup = QueuePopup(supports_batch)
         popup_action = QWidgetAction(self)
@@ -201,21 +199,32 @@ class QueueButton(QToolButton):
 
     @model.setter
     def model(self, model: Model):
-        self._model.jobs.count_changed.disconnect(self._update)
-        self._model = model
-        self._popup.model = model
-        self._model.jobs.count_changed.connect(self._update)
+        if self._model != model:
+            Binding.disconnect_all(self._connections)
+            self._model = model
+            self._popup.model = model
+            self._connect_model()
+
+    def _connect_model(self):
+        self._connections = [
+            self._model.jobs.count_changed.connect(self._update),
+            self._model.progress_kind_changed.connect(self._update),
+        ]
 
     def _update(self):
         count = self._model.jobs.count(JobState.queued)
         if self._model.jobs.any_executing():
-            self.setIcon(theme.icon("queue-active"))
-            if count > 0:
-                self.setToolTip(
-                    _("Generating image. {count} jobs queued - click to cancel.", count=count)
-                )
+            queued_msg = _("{count} jobs queued.", count=count)
+            cancel_msg = _("Click to cancel.")
+            if self._model.progress_kind is ProgressKind.upload:
+                self.setIcon(theme.icon("queue-upload"))
+                self.setToolTip(_("Uploading models.") + f" {queued_msg} {cancel_msg}")
             else:
-                self.setToolTip(_("Generating image. Click to cancel."))
+                self.setIcon(theme.icon("queue-active"))
+                if count > 0:
+                    self.setToolTip(_("Generating image.") + f" {queued_msg} {cancel_msg}")
+                else:
+                    self.setToolTip(_("Generating image.") + f" {cancel_msg}")
             count += 1
         else:
             self.setIcon(theme.icon("queue-inactive"))

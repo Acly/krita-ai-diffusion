@@ -22,6 +22,7 @@ class ClientEvent(Enum):
     connected = 4
     disconnected = 5
     queued = 6
+    upload = 7
 
 
 class ClientMessage(NamedTuple):
