@@ -400,6 +400,7 @@ class StylePresets(SettingsTab):
         self._open_folder_button.clicked.connect(self._open_style_folder)
 
         self._show_builtin_checkbox = QCheckBox(_("Show pre-installed styles"), self)
+        self._show_builtin_checkbox.setChecked(settings.show_builtin_styles)
         self._show_builtin_checkbox.toggled.connect(self.write)
 
         style_control_layout = QHBoxLayout()

@@ -42,6 +42,7 @@ class CloudClient(Client):
     _user: User | None = None
     _current_job: JobInfo | None = None
     _cancel_requested: bool = False
+    _max_upload_size = 300 * (1024**2)
 
     @staticmethod
     async def connect(url: str, access_token: str = ""):
@@ -104,6 +105,7 @@ class CloudClient(Client):
         self._user = User(user_data["id"], user_data["name"])
         self._user.images_generated = user_data["images_generated"]
         self._user.credits = user_data["credits"]
+        self._max_upload_size = user_data.get("max_upload_size", self._max_upload_size)
         log.info(f"Connected to {self.url}, user: {self._user.id}")
         return self._user
 
@@ -213,7 +215,7 @@ class CloudClient(Client):
 
     @property
     def max_upload_size(self):
-        return 250 * (1024**2)  # 250 MB
+        return self._max_upload_size
 
     @property
     def supported_languages(self):
