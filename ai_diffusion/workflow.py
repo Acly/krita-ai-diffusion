@@ -1044,6 +1044,7 @@ def prepare(
     i.sampling = _sampling_from_style(style, strength, is_live)
     i.sampling.seed = seed
     i.models = style.get_models()
+    i.conditioning.positive += _collect_lora_triggers(i.models.loras, files)
     i.models.loras = unique(i.models.loras + extra_loras, key=lambda l: l.name)
     _check_server_has_models(i.models, models, files, style.name)
 
@@ -1256,6 +1257,16 @@ def _get_sampling_lora(style: Style, is_live: bool, model_set: ModelDict, models
                 )
         return [LoraInput(file or preset.lora, 1.0)]
     return []
+
+
+def _collect_lora_triggers(loras: list[LoraInput], files: FileLibrary):
+    def trigger_words(lora: LoraInput) -> str:
+        if file := files.loras.find(lora.name):
+            return file.meta("lora_triggers", "")
+        return ""
+
+    result = " ".join(trigger_words(lora) for lora in loras)
+    return " " + result if result else ""
 
 
 def _check_server_has_models(

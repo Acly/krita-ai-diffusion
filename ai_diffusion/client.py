@@ -293,6 +293,8 @@ def loras_to_upload(workflow: WorkflowInput, client_models: ClientModels):
         for lora in models.loras:
             if lora.name in client_models.loras:
                 continue
+            if not lora.storage_id and lora.name in _lcm_loras:
+                raise ValueError(_lcm_warning)
             if not lora.storage_id:
                 raise ValueError(f"Lora model is not available: {lora.name}")
             lora_file = FileLibrary.instance().loras.find_local(lora.name)
@@ -302,3 +304,7 @@ def loras_to_upload(workflow: WorkflowInput, client_models: ClientModels):
                 raise ValueError(_("LoRA model file not found") + f" {lora_file.path}")
             assert lora.storage_id == lora_file.hash
             yield lora_file
+
+
+_lcm_loras = ["lcm-lora-sdv1-5.safetensors", "lcm-lora-sdxl.safetensors"]
+_lcm_warning = "LCM is no longer supported by the server. Please change the Style's sampling method to 'Realtime - Hyper'"
