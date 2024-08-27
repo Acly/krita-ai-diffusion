@@ -350,7 +350,12 @@ models.checkpoints = {
     ),
 }
 models.vae = []
-models.loras = []
+models.loras = [
+    "Hyper-SD15-8steps-CFG-lora.safetensors",
+    "Hyper-SDXL-8steps-CFG-lora.safetensors",
+    "lcm-lora-sdv1-5.safetensors",
+    "lcm-lora-sdxl.safetensors",
+]
 models.upscalers = [
     "4x_NMKD-Superscale-SP_178000_G.pth",
     "HAT_SRx4_ImageNet-pretrain.pth",

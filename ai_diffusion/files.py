@@ -2,7 +2,7 @@ import json
 import hashlib
 from base64 import b64encode
 from enum import Flag
-from dataclasses import dataclass
+from dataclasses import dataclass, asdict
 from pathlib import Path
 from typing import NamedTuple, Sequence
 from PyQt5.QtCore import QAbstractListModel, QSortFilterProxyModel, QModelIndex, Qt
@@ -47,6 +47,9 @@ class File:
         data["source"] = FileSource(data["source"])
         data["path"] = Path(data["path"]) if data.get("path") else None
         return File(**data)
+
+    def to_dict(self):
+        return {k: v for k, v in asdict(self).items() if k != "icon" and v is not None}
 
     def update(self, other: "File"):
         assert self.id == other.id, "Cannot update file with different id"
@@ -164,8 +167,9 @@ class FileCollection(QAbstractListModel):
 
     def save(self):
         if self._database:
+            db = [f.to_dict() for f in self._files]
             self._database.parent.mkdir(parents=True, exist_ok=True)
-            self._database.write_text(json.dumps(self._files, indent=4, default=encode_json))
+            self._database.write_text(json.dumps(db, indent=2, default=encode_json))
 
     def flags(self, index: QModelIndex):
         if not index.isValid():
@@ -202,7 +206,7 @@ class FileLibrary(NamedTuple):
     @staticmethod
     def load(database_dir: Path | None = None):
         global _instance
-        database_dir = database_dir or user_data_dir / "data"
+        database_dir = database_dir or user_data_dir / "database"
         _instance = FileLibrary(
             checkpoints=FileCollection(),
             loras=FileCollection(database_dir / "loras.json"),
