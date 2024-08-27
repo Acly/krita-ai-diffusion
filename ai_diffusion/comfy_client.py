@@ -192,8 +192,8 @@ class ComfyClient(Client):
 
     async def _run(self):
         while True:
+            job = await self._queue.get()
             try:
-                job = await self._queue.get()
                 await self._run_job(job)
             except Exception as e:
                 log.exception(f"Unhandled exception while processing {job}")

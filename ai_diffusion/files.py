@@ -4,7 +4,7 @@ from base64 import b64encode
 from enum import Flag
 from dataclasses import dataclass, asdict
 from pathlib import Path
-from typing import NamedTuple, Sequence
+from typing import Any, NamedTuple, Sequence
 from PyQt5.QtCore import QAbstractListModel, QSortFilterProxyModel, QModelIndex, Qt
 from PyQt5.QtGui import QIcon
 
@@ -26,6 +26,7 @@ class File:
     hash: str | None = None
     path: Path | None = None
     size: int | None = None
+    metadata: dict[str, Any] | None = None
 
     @staticmethod
     def remote(id: str):
@@ -72,6 +73,9 @@ class File:
                 sha.update(chunk)
         self.hash = b64encode(sha.digest()).decode()
         return self.hash
+
+    def meta(self, key: str, default=None) -> Any:
+        return self.metadata.get(key, default) if self.metadata else default
 
 
 class FileCollection(QAbstractListModel):
@@ -154,6 +158,12 @@ class FileCollection(QAbstractListModel):
     def find_index(self, id: str):
         return next((i for i, f in enumerate(self) if f.id == id), -1)
 
+    def set_meta(self, file: File, key: str, value: Any):
+        if not file.metadata:
+            file.metadata = {}
+        file.metadata[key] = value
+        self.save()
+
     def load(self):
         if not self._database or not self._database.exists():
             return
@@ -192,7 +202,7 @@ class FileCollection(QAbstractListModel):
     def __len__(self):
         return len(self._files)
 
-    def __getitem__(self, index):
+    def __getitem__(self, index: int):
         return self._files[index]
 
 

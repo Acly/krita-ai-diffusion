@@ -12,7 +12,7 @@ from ai_diffusion.api import InpaintMode, FillMode, ConditioningInput, RegionInp
 from ai_diffusion.client import ClientModels, CheckpointInfo
 from ai_diffusion.comfy_client import ComfyClient
 from ai_diffusion.cloud_client import CloudClient
-from ai_diffusion.files import FileLibrary, File
+from ai_diffusion.files import FileLibrary, FileCollection, File
 from ai_diffusion.resources import ControlMode
 from ai_diffusion.settings import PerformanceSettings
 from ai_diffusion.image import Mask, Bounds, Extent, Image, ImageCollection
@@ -153,23 +153,32 @@ def test_prepare_lora():
     models = ClientModels()
     models.checkpoints = {"CP": CheckpointInfo("CP", SDVersion.sd15)}
     models.loras = ["PINK_UNICORNS", "MOTHER_OF_PEARL"]
+
+    files = FileLibrary(FileCollection(), FileCollection())
+    fractal = files.loras.add(File.local(Path("path/to/FRACTAL.safetensors")))
+    files.loras.set_meta(fractal, "lora_strength", 0.55)
+    files.loras.set_meta(fractal, "lora_triggers", "FRACTAL HEART")
+
     style = Style(Path("default.json"))
     style.sd_checkpoint = "CP"
     style.loras.append(dict(name="MOTHER_OF_PEARL", strength=0.33))
+
     job = workflow.prepare(
         WorkflowKind.generate,
         canvas=Extent(512, 512),
-        cond=ConditioningInput("test <lora:PINK_UNICORNS:0.77>"),
+        cond=ConditioningInput("test <lora:PINK_UNICORNS:0.77> baloon <lora:FRACTAL> space"),
         style=style,
         seed=29,
         models=models,
+        files=files,
         perf=default_perf,
     )
-    assert job.conditioning and job.conditioning.positive == "test"
+    assert job.conditioning and job.conditioning.positive == "test baloon FRACTAL HEART space"
     assert (
         job.models
         and LoraInput("PINK_UNICORNS", 0.77) in job.models.loras
         and LoraInput("MOTHER_OF_PEARL", 0.33) in job.models.loras
+        and LoraInput("FRACTAL", 0.55) in job.models.loras
     )
 
 

@@ -21,6 +21,7 @@ from .document import Document, KritaDocument
 from .layer import Layer, LayerType, RestoreActiveLayer
 from .pose import Pose
 from .style import Style, Styles, SDVersion
+from .files import FileLibrary
 from .connection import Connection
 from .properties import Property, ObservableProperties
 from .jobs import Job, JobKind, JobParams, JobQueue, JobState, JobRegion
@@ -188,6 +189,7 @@ class Model(QObject, ObservableProperties):
             self.style,
             self.seed if self.fixed_seed else workflow.generate_seed(),
             client.models,
+            FileLibrary.instance(),
             client.performance_settings,
             mask=mask,
             strength=self.strength,
@@ -246,6 +248,7 @@ class Model(QObject, ObservableProperties):
                 self.style,
                 params.seed,
                 client.models,
+                FileLibrary.instance(),
                 client.performance_settings,
                 strength=params.strength,
                 upscale_factor=params.factor,
@@ -331,6 +334,7 @@ class Model(QObject, ObservableProperties):
             self.style,
             self.seed,
             client.models,
+            FileLibrary.instance(),
             client.performance_settings,
             mask=mask,
             strength=self.live.strength,
@@ -940,6 +944,7 @@ class AnimationWorkspace(QObject, ObservableProperties):
             seed=seed,
             perf=m._connection.client.performance_settings,
             models=m._connection.client.models,
+            files=FileLibrary.instance(),
             strength=m.strength,
             is_live=self.sampling_quality is SamplingQuality.fast,
         )

@@ -4,6 +4,7 @@ from pathlib import Path
 from typing import Tuple, List, NamedTuple
 
 from .api import LoraInput
+from .files import FileCollection, FileSource
 from .localization import translate as _
 from .util import client_logger as log
 
@@ -31,36 +32,42 @@ def merge_prompt(prompt: str, style_prompt: str, language: str = ""):
     return f"{prompt}, {style_prompt}"
 
 
-_pattern_lora = re.compile(r"\s*<lora:([^:<>]+)(?::(-?[^:<>]*))?>\s*", re.IGNORECASE)
+_pattern_lora = re.compile(r"<lora:([^:<>]+)(?::(-?[^:<>]*))?>", re.IGNORECASE)
 
 
-def extract_loras(prompt: str, client_loras: list[str]):
+def extract_loras(prompt: str, lora_files: FileCollection):
     loras: list[LoraInput] = []
-    for match in _pattern_lora.findall(prompt):
-        lora_name = ""
 
-        for client_lora in client_loras:
-            lora_filename = Path(client_lora).stem.lower()
-            lora_normalized = LoraId.normalize(client_lora).name.lower()
-            input = match[0].lower()
-            if input == lora_filename or input == lora_normalized:
-                lora_name = client_lora
+    def replace(match: re.Match[str]):
+        lora_file = None
+        input = match[1].lower()
 
-        if not lora_name:
-            error = _("LoRA not found") + f": {match[0]}"
+        for file in lora_files:
+            if file.source is not FileSource.unavailable:
+                lora_filename = Path(file.id).stem.lower()
+                lora_normalized = file.name.lower()
+                if input == lora_filename or input == lora_normalized:
+                    lora_file = file
+
+        if not lora_file:
+            error = _("LoRA not found") + f": {input}"
             log.warning(error)
             raise Exception(error)
 
-        lora_strength = match[1] if match[1] != "" else 1.0
-        try:
-            lora_strength = float(lora_strength)
-        except ValueError:
-            error = _("Invalid LoRA strength for") + f" {match[0]}: {lora_strength}"
-            log.warning(error)
-            raise Exception(error)
+        lora_strength: float = lora_file.meta("lora_strength", 1.0)
+        if match[2]:
+            try:
+                lora_strength = float(match[2])
+            except ValueError:
+                error = _("Invalid LoRA strength for") + f" {input}: {lora_strength}"
+                log.warning(error)
+                raise Exception(error)
 
-        loras.append(LoraInput(lora_name, lora_strength))
-    return _pattern_lora.sub("", prompt), loras
+        loras.append(LoraInput(lora_file.id, lora_strength))
+        return lora_file.meta("lora_triggers", "")
+
+    prompt = _pattern_lora.sub(replace, prompt)
+    return prompt.strip(), loras
 
 
 def select_current_parenthesis_block(
