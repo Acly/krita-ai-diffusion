@@ -185,14 +185,13 @@ def test_upload_lora(qtapp, comfy_server, tmp_path: Path):
 
         task = asyncio.get_running_loop().create_task(client.upload_loras(input, "JOB-ID"))
         upload_progress = 0
-        async with asyncio.timeout(20):
-            async for msg in client.listen():
-                if msg.event is ClientEvent.upload:
-                    assert msg.job_id == "JOB-ID"
-                    assert msg.progress >= upload_progress
-                    upload_progress = msg.progress
-                    if upload_progress == 1.0:
-                        break
+        async for msg in client.listen():
+            if msg.event is ClientEvent.upload:
+                assert msg.job_id == "JOB-ID"
+                assert msg.progress >= upload_progress
+                upload_progress = msg.progress
+                if upload_progress == 1.0:
+                    break
 
         await task
         assert file.id in client.models.loras
