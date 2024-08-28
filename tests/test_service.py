@@ -135,7 +135,7 @@ def test_large_image(qtapp, cloud_client):
 def test_validation(qtapp, cloud_client: CloudClient, scenario: str):
     workflow = create_simple_workflow()
     if scenario == "resolution":
-        workflow.images = ImageInput.from_extent(Extent(9000, 512))
+        workflow.images = ImageInput.from_extent(Extent(19000, 512))
     elif scenario == "steps":
         ensure(workflow.sampling).total_steps = 200
     elif scenario == "control":

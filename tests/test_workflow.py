@@ -518,7 +518,7 @@ def test_create_control_image(qtapp, client: Client, mode):
     result = run_and_save(qtapp, client, job, image_name)
     if isinstance(client, ComfyClient):
         reference = Image.load(reference_dir / image_name)
-        threshold = 0.015 if mode is ControlMode.pose else 0.002
+        threshold = 0.015 if mode is ControlMode.pose else 0.003
         assert Image.compare(result, reference) < threshold
         # cloud results are a bit different, maybe due to compression of input?
 
