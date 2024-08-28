@@ -202,7 +202,7 @@ class ComfyClient(Client):
                 break
 
     async def _run_job(self, job: JobInfo):
-        await self.upload_loras(job)
+        await self.upload_loras(job.work, job.local_id)
         workflow = create_workflow(job.work, self.models)
         job.node_count = workflow.node_count
         job.sample_count = workflow.sample_count
@@ -328,6 +328,13 @@ class ComfyClient(Client):
         await self._post("interrupt", {})
 
     async def clear_queue(self):
+        while not self._queue.empty():
+            try:
+                job = self._queue.get_nowait()
+                await self._report(ClientEvent.interrupted, job.local_id)
+            except asyncio.QueueEmpty:
+                break
+
         await self._post("queue", {"clear": True})
         self._jobs.clear()
 
@@ -339,7 +346,7 @@ class ComfyClient(Client):
 
     @property
     def queued_count(self):
-        return len(self._jobs)
+        return len(self._jobs) + self._queue.qsize()
 
     @property
     def is_executing(self):
@@ -400,16 +407,16 @@ class ComfyClient(Client):
             max_pixel_count=settings.max_pixel_count,
         )
 
-    async def upload_loras(self, job: JobInfo):
-        for file in loras_to_upload(job.work, self.models):
+    async def upload_loras(self, work: WorkflowInput, local_job_id: str):
+        for file in loras_to_upload(work, self.models):
             try:
                 assert file.path is not None
-                url = f"{self.url}/api/etn/upload/loras/{file.id}?clientid={self._id}"
+                url = f"{self.url}/api/etn/upload/loras/{file.id}"
                 log.info(f"Uploading lora model {file.id} to {url}")
                 data = file.path.read_bytes()
                 async for sent, total in self._requests.upload(url, data):
                     progress = sent / max(sent, total)
-                    await self._report(ClientEvent.upload, job.local_id, progress)
+                    await self._report(ClientEvent.upload, local_job_id, progress)
 
                 await self.refresh()
             except Exception as e:

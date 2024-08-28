@@ -25,6 +25,7 @@ from .config import root_dir, test_dir, image_dir, result_dir, reference_dir, de
 
 service_available = (root_dir / "service" / "web" / ".env.local").exists()
 client_params = ["local", "cloud"] if service_available else ["local"]
+files = FileLibrary(FileCollection(), FileCollection())
 
 
 async def connect_cloud():
@@ -47,9 +48,12 @@ def client(pytestconfig, request, qtapp):
         pytest.skip("Diffusion is disabled on CI")
 
     if request.param == "local":
-        return qtapp.run(ComfyClient.connect())
+        client = qtapp.run(ComfyClient.connect())
     else:
-        return qtapp.run(connect_cloud())
+        client = qtapp.run(connect_cloud())
+
+    files.loras.update([File.remote(m) for m in client.models.loras], FileSource.remote)
+    return client
 
 
 default_seed = 1234
@@ -72,6 +76,7 @@ def create(kind: WorkflowKind, client: Client, **kwargs):
     kwargs.setdefault("style", default_style(client))
     kwargs.setdefault("seed", default_seed)
     kwargs.setdefault("perf", default_perf)
+    kwargs.setdefault("files", files)
     return workflow.prepare(kind, models=client.models, **kwargs)
 
 
@@ -719,6 +724,7 @@ def test_lora(qtapp, client):
     job = create(
         WorkflowKind.generate,
         client,
+        files=files,
         canvas=Extent(512, 512),
         cond=ConditioningInput("manga, lineart, monochrome, sunflower field"),
         style=style,
