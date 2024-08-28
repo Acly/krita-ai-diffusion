@@ -46,8 +46,8 @@ from ..text import edit_attention, select_on_cursor_pos
 from ..localization import translate as _
 from ..util import ensure
 from ..workflow import apply_strength, snap_to_percent
+from ..settings import settings
 from .autocomplete import PromptAutoComplete
-from .settings import SettingsDialog, settings
 from .theme import SignalBlocker
 from . import actions, theme
 
@@ -303,6 +303,8 @@ class StyleSelectWidget(QWidget):
         self.quality_changed.emit(quality)
 
     def show_settings(self):
+        from .settings import SettingsDialog
+
         SettingsDialog.instance().show(self._value)
 
     @property
@@ -801,6 +803,18 @@ def create_wide_tool_button(icon_name: str, text: str, parent=None):
     icon_height = button.iconSize().height()
     button.setIconSize(QSize(int(icon_height * 1.25), icon_height))
     return button
+
+
+def create_framed_label(text: str, parent=None):
+    frame = QFrame(parent)
+    frame.setFrameStyle(QFrame.Shape.StyledPanel | QFrame.Shadow.Plain)
+    label = QLabel(parent=frame)
+    label.setText(text)
+    frame_layout = QHBoxLayout()
+    frame_layout.setContentsMargins(4, 2, 4, 2)
+    frame_layout.addWidget(label)
+    frame.setLayout(frame_layout)
+    return frame, label
 
 
 def _paint_tool_drop_down(widget: QToolButton, text: str | None = None):

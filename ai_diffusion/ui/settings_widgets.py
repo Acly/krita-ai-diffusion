@@ -22,7 +22,6 @@ from PyQt5.QtGui import QIcon
 
 from ..localization import translate as _
 from ..settings import Setting, settings
-from ..util import ensure
 from .switch import SwitchWidget
 from .theme import add_header, icon
 

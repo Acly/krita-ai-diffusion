@@ -33,6 +33,7 @@ from ..root import root
 from .settings_widgets import ExpanderButton, SpinBoxSetting, SliderSetting, SwitchSetting
 from .settings_widgets import ComboBoxSetting, TextSetting, LineEditSetting, SettingWidget
 from .settings_widgets import SettingsTab, WarningIcon
+from .widget import create_framed_label
 from .theme import SignalBlocker, add_header, icon
 from . import theme
 
@@ -112,13 +113,18 @@ class LoraItem(QWidget):
         trigger_layout.addWidget(trigger_label)
         trigger_layout.addWidget(self._trigger_edit)
 
-        default_strength_label = QLabel(_("Default strength"), parent=self._advanced)
-        self._default_strength_button = QPushButton(parent=self._advanced)
+        default_label = QLabel(_("Default Strength"), parent=self._advanced)
+        default_frame, self._default_strength_value = create_framed_label("100%", self._advanced)
+        self._default_strength_button = QPushButton(_("Set Default"), parent=self._advanced)
         self._default_strength_button.clicked.connect(self._set_default_strength)
 
+        default_strength_frame_layout = QHBoxLayout()
+        default_strength_frame_layout.setContentsMargins(0, 0, 0, 0)
+        default_strength_frame_layout.addWidget(default_frame)
+        default_strength_frame_layout.addWidget(self._default_strength_button)
         default_strength_layout = QVBoxLayout()
-        default_strength_layout.addWidget(default_strength_label)
-        default_strength_layout.addWidget(self._default_strength_button)
+        default_strength_layout.addWidget(default_label)
+        default_strength_layout.addLayout(default_strength_frame_layout)
 
         meta_layout = QHBoxLayout()
         meta_layout.addLayout(trigger_layout, 3)
@@ -157,6 +163,9 @@ class LoraItem(QWidget):
         layout.addWidget(self._advanced)
         self.setLayout(layout)
 
+        if lora_list.rowCount() > 0:
+            self._select_lora()
+
     def _expand(self):
         self._advanced.setVisible(self._advanced_button.isChecked())
 
@@ -177,17 +186,17 @@ class LoraItem(QWidget):
                 self._file_path_label.setVisible(False)
             if strength := self._current.meta("lora_strength"):
                 istrength = int(strength * 100)
-                self._default_strength_button.setText(f"{istrength}%")
+                self._default_strength_value.setText(f"{istrength}%")
                 self._default_strength_button.setEnabled(istrength != self._strength.value())
             else:
-                self._default_strength_button.setText("100%")
+                self._default_strength_value.setText("100%")
                 self._default_strength_button.setEnabled(self._strength.value() != 100)
             self._trigger_edit.setText(self._current.meta("lora_triggers", ""))
             self._show_lora_warnings(self._current)
 
     def _select_lora(self):
         id = self._select.currentData()
-        file = next((l for l in root.files.loras if l.id == id), None)
+        file = root.files.loras.find(id)
         if file and file != self._current:
             self._current = file
             default_strength = int(file.meta("lora_strength", 1.0) * 100)
@@ -326,10 +335,6 @@ class LoraList(QWidget):
             item.value = lora
         elif isinstance(lora, File):
             item.value = dict(name=lora.id, strength=1.0)
-        elif self._filtered_lora.rowCount() > 0:
-            first_index = self._filtered_lora.index(0, 0)
-            first = self._filtered_lora.data(first_index, Qt.ItemDataRole.UserRole)
-            item.value = dict(name=first, strength=1.0)
         item.changed.connect(self._update_item)
         item.removed.connect(self._remove_item)
         self._items.append(item)
