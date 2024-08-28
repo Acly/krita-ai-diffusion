@@ -626,7 +626,7 @@ async def rename_extracted_folder(name: str, path: Path, suffix: str):
     extracted_folder.rename(path)
 
 
-def safe_remove_dir(path: Path, max_size=8 * 1024 * 1024):
+def safe_remove_dir(path: Path, max_size=12 * 1024 * 1024):
     if path.is_dir():
         for p in path.rglob("*"):
             if p.is_file():
