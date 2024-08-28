@@ -242,6 +242,9 @@ class Client(ABC):
     async def translate(self, text: str, lang: str) -> str:
         return text
 
+    async def disconnect(self):
+        pass
+
     @property
     def user(self) -> User | None:
         return None
@@ -267,6 +270,12 @@ class Client(ABC):
     @property
     def max_upload_size(self) -> int:
         return 0  # in bytes, 0 means unlimited
+
+    async def __aenter__(self):
+        return self
+
+    async def __aexit__(self, exc_type, exc_value, traceback):
+        await self.disconnect()
 
 
 def resolve_sd_version(style: Style, client: Client | None = None):

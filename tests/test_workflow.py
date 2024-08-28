@@ -42,7 +42,7 @@ async def connect_cloud():
     return await CloudClient.connect(url, token)
 
 
-@pytest.fixture(params=client_params, scope="module")
+@pytest.fixture(params=client_params)
 def client(pytestconfig, request, qtapp):
     if pytestconfig.getoption("--ci"):
         pytest.skip("Diffusion is disabled on CI")
@@ -51,9 +51,11 @@ def client(pytestconfig, request, qtapp):
         client = qtapp.run(ComfyClient.connect())
     else:
         client = qtapp.run(connect_cloud())
-
     files.loras.update([File.remote(m) for m in client.models.loras], FileSource.remote)
-    return client
+
+    yield client
+
+    qtapp.run(client.disconnect())
 
 
 default_seed = 1234
@@ -80,9 +82,17 @@ def create(kind: WorkflowKind, client: Client, **kwargs):
     return workflow.prepare(kind, models=client.models, **kwargs)
 
 
+counter = 0
+
+
 async def receive_images(client: Client, work: WorkflowInput):
+    global counter
+
+    counter += 1
+
     job_id = None
-    async for msg in client.listen():
+    messages = client.listen()
+    async for msg in messages:
         if not job_id:
             job_id = await client.enqueue(work)
         if msg.event is ClientEvent.finished and msg.job_id == job_id:

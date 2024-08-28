@@ -256,6 +256,8 @@ class CloudClient(Client):
             raise ValueError(
                 _("LoRA model is too large to upload") + f" (max {max_size} MB) {lora.name}"
             )
+        if upload["status"] == "limit-exceeded":
+            raise ValueError(_("Can't upload LoRA model, limit exceeded") + f" {lora.name}")
         if upload["status"] == "cached":
             return  # already uploaded
         log.info(

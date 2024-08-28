@@ -157,24 +157,25 @@ class Connection(QObject, ObservableProperties):
         assert client is not None
 
         try:
-            async for msg in client.listen():
-                try:
-                    if msg.event is ClientEvent.error and not msg.job_id:
-                        self.error = _("Error communicating with server: ") + str(msg.error)
-                    elif msg.event is ClientEvent.disconnected:
-                        temporary_disconnect = True
-                        self.error = _("Disconnected from server, trying to reconnect...")
-                    elif msg.event is ClientEvent.connected:
-                        if temporary_disconnect:
-                            temporary_disconnect = False
-                            self.error = ""
-                    else:
-                        self.message_received.emit(msg)
-                except asyncio.CancelledError:
-                    break
-                except Exception as e:
-                    util.client_logger.exception(e)
-                    self.error = _("Error handling server message: ") + str(e)
+            async with client:
+                async for msg in client.listen():
+                    try:
+                        if msg.event is ClientEvent.error and not msg.job_id:
+                            self.error = _("Error communicating with server: ") + str(msg.error)
+                        elif msg.event is ClientEvent.disconnected:
+                            temporary_disconnect = True
+                            self.error = _("Disconnected from server, trying to reconnect...")
+                        elif msg.event is ClientEvent.connected:
+                            if temporary_disconnect:
+                                temporary_disconnect = False
+                                self.error = ""
+                        else:
+                            self.message_received.emit(msg)
+                    except asyncio.CancelledError:
+                        break
+                    except Exception as e:
+                        util.client_logger.exception(e)
+                        self.error = _("Error handling server message: ") + str(e)
         except asyncio.CancelledError:
             pass  # shutdown
 

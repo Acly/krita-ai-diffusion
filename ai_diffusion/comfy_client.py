@@ -51,6 +51,11 @@ class JobInfo:
     def create(work: WorkflowInput, front: bool = False):
         return JobInfo(str(uuid.uuid4()), work, front)
 
+    async def get_remote_id(self):
+        if isinstance(self.remote_id, asyncio.Future):
+            self.remote_id = await self.remote_id
+        return self.remote_id
+
 
 class Progress:
     _nodes = 0
@@ -175,6 +180,7 @@ class ComfyClient(Client):
         self._messages = asyncio.Queue()
         self._queue = asyncio.Queue()
         self._jobs = deque()
+        self._is_connected = False
 
     async def _get(self, op: str):
         return await self._requests.get(f"{self.url}/{op}")
@@ -191,15 +197,17 @@ class ComfyClient(Client):
         await self._messages.put(ClientMessage(event, job_id, value, **kwargs))
 
     async def _run(self):
-        while True:
-            job = await self._queue.get()
-            try:
-                await self._run_job(job)
-            except Exception as e:
-                log.exception(f"Unhandled exception while processing {job}")
-                await self._report(ClientEvent.error, job.local_id, error=str(e))
-            except asyncio.CancelledError:
-                break
+        assert self._is_connected
+        try:
+            while self._is_connected:
+                job = await self._queue.get()
+                try:
+                    await self._run_job(job)
+                except Exception as e:
+                    log.exception(f"Unhandled exception while processing {job}")
+                    await self._report(ClientEvent.error, job.local_id, error=str(e))
+        except asyncio.CancelledError:
+            pass
 
     async def _run_job(self, job: JobInfo):
         await self.upload_loras(job.work, job.local_id)
@@ -244,7 +252,7 @@ class ComfyClient(Client):
                 await self._report(ClientEvent.error, "", error=str(e))
 
     async def _listen_websocket(self, websocket: websockets_client.WebSocketClientProtocol):
-        progress = None
+        progress: Progress | None = None
         images = ImageCollection()
         last_images = ImageCollection()
         result = None
@@ -264,7 +272,7 @@ class ComfyClient(Client):
                 if msg["type"] == "execution_start":
                     id = msg["data"]["prompt_id"]
                     self._active = await self._start_job(id)
-                    if self._active:
+                    if self._active is not None:
                         progress = Progress(self._active)
                         images = ImageCollection()
                         result = None
@@ -285,7 +293,7 @@ class ComfyClient(Client):
                         await self._report(ClientEvent.finished, job_id, 1, images=images)
 
                 elif msg["type"] in ("execution_cached", "executing", "progress"):
-                    if self._active and progress:
+                    if self._active is not None and progress is not None:
                         progress.handle(msg)
                         await self._report(
                             ClientEvent.progress, self._active.local_id, progress.value
@@ -315,14 +323,15 @@ class ComfyClient(Client):
                         await self._report(ClientEvent.error, job.local_id, 0, error=error)
 
     async def listen(self):
+        self._is_connected = True
         self._job_runner = asyncio.create_task(self._run())
         self._websocket_listener = asyncio.create_task(self._listen())
 
-        while True:
-            try:
+        try:
+            while self._is_connected:
                 yield await self._messages.get()
-            except asyncio.CancelledError:
-                break
+        except asyncio.CancelledError:
+            pass
 
     async def interrupt(self):
         await self._post("interrupt", {})
@@ -337,6 +346,17 @@ class ComfyClient(Client):
 
         await self._post("queue", {"clear": True})
         self._jobs.clear()
+
+    async def disconnect(self):
+        if self._is_connected:
+            self._is_connected = False
+            self._job_runner.cancel()
+            self._websocket_listener.cancel()
+            await asyncio.gather(
+                self._job_runner,
+                self._websocket_listener,
+                self._report(ClientEvent.disconnected, ""),
+            )
 
     async def try_inspect_checkpoints(self):
         try:
@@ -442,17 +462,14 @@ class ComfyClient(Client):
             log.warning(f"Received unknown job {remote_id}")
             return None
 
-        front = self._jobs[0]
-        if isinstance(front.remote_id, asyncio.Future):
-            front.remote_id = await front.remote_id
-        if front.remote_id == remote_id:
+        if await self._jobs[0].get_remote_id() == remote_id:
             return self._jobs.popleft()
 
-        log.warning(f"Started job {remote_id}, but {front} was expected")
-        active = next((j for j in self._jobs if j.remote_id == remote_id), None)
-        if active is not None:
-            self._jobs.remove(active)
-            return active
+        log.warning(f"Started job {remote_id}, but {self._jobs[0]} was expected")
+        for job in self._jobs:
+            if await job.get_remote_id() == remote_id:
+                self._jobs.remove(job)
+                return job
         return None
 
     def _clear_job(self, job_remote_id: str | asyncio.Future | None):
