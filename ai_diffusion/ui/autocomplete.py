@@ -1,16 +1,15 @@
 from enum import Enum
 from dataclasses import dataclass
 import csv
-from pathlib import Path
-from typing import cast, List
+from typing import cast
 
 from PyQt5.QtWidgets import QApplication, QCompleter, QLineEdit, QStyledItemDelegate, QStyle
-from PyQt5.QtGui import QFont, QPainter, QPalette, QPen, QColor, QFontMetrics
+from PyQt5.QtGui import QFont, QPalette, QPen, QColor, QFontMetrics
 from PyQt5.QtCore import Qt, QStringListModel, QSize, QRect, QAbstractProxyModel
 
 from ..root import root
 from ..settings import settings
-from ..text import LoraId
+from ..files import FileFilter
 from ..util import ensure, plugin_dir, user_data_dir
 
 
@@ -137,7 +136,6 @@ class PromptAutoComplete:
     _completer: QCompleter
     _completion_prefix: str
     _completion_suffix: str
-    _lora_model: QStringListModel | None
 
     def __init__(self, widget: QLineEdit):
         self._widget = widget
@@ -152,15 +150,11 @@ class PromptAutoComplete:
         self._completion_prefix = ""
         self._completion_suffix = ""
 
-        self._refresh_loras()
-        root.connection.state_changed.connect(self._refresh_loras)
+        self._lora_model = FileFilter(root.files.loras)
+        self._lora_model.available_only = True
+
         self._reload_tag_model()
         settings.changed.connect(self._reload_tag_model)
-
-    def _refresh_loras(self):
-        if client := root.connection.client_if_connected:
-            loras = [LoraId.normalize(lora).name for lora in client.models.loras]
-            self._lora_model = QStringListModel(loras)
 
     def _reload_tag_model(self):
         global _tag_model
@@ -217,7 +211,7 @@ class PromptAutoComplete:
         name = prefix.removeprefix("<lora:")
         lora_mode = len(prefix) > len(name)
 
-        if lora_mode and self._lora_model:
+        if lora_mode:
             self._completer.setModel(self._lora_model)
             self._completion_prefix = name
             self._completion_suffix = ">"
