@@ -1,5 +1,6 @@
 from ai_diffusion.text import merge_prompt, extract_loras, edit_attention, select_on_cursor_pos
 from ai_diffusion.api import LoraInput
+from ai_diffusion.files import File, FileCollection
 
 
 def test_merge_prompt():
@@ -29,36 +30,35 @@ def test_language_directives():
 
 
 def test_extract_loras():
-    loras = [
-        "/path/to/Lora-One.safetensors",
-        "Lora-two.safetensors",
-        "folder\\lora-three.safetensors",
-    ]
+    loras = FileCollection()
+    loras.add(File.remote("/path/to/Lora-One.safetensors"))
+    loras.add(File.remote("Lora-two.safetensors"))
+    loras.add(File.remote("folder\\lora-three.safetensors"))
 
     assert extract_loras("a ship", loras) == ("a ship", [])
     assert extract_loras("a ship <lora:lora-one>", loras) == (
         "a ship",
-        [LoraInput(loras[0], 1.0)],
+        [LoraInput(loras[0].id, 1.0)],
     )
     assert extract_loras("a ship <lora:LoRA-one>", loras) == (
         "a ship",
-        [LoraInput(loras[0], 1.0)],
+        [LoraInput(loras[0].id, 1.0)],
     )
     assert extract_loras("a ship <lora:lora-one:0.0>", loras) == (
         "a ship",
-        [LoraInput(loras[0], 0.0)],
+        [LoraInput(loras[0].id, 0.0)],
     )
     assert extract_loras("a ship <lora:lora-two:0.5>", loras) == (
         "a ship",
-        [LoraInput(loras[1], 0.5)],
+        [LoraInput(loras[1].id, 0.5)],
     )
     assert extract_loras("a ship <lora:lora-two:-1.0>", loras) == (
         "a ship",
-        [LoraInput(loras[1], -1.0)],
+        [LoraInput(loras[1].id, -1.0)],
     )
     assert extract_loras("banana <lora:folder/lora-three:0.5>", loras) == (
         "banana",
-        [LoraInput(loras[2], 0.5)],
+        [LoraInput(loras[2].id, 0.5)],
     )
 
     try:
@@ -70,6 +70,18 @@ def test_extract_loras():
         extract_loras("a ship <lora:lora-one:test-invalid-str>", loras)
     except Exception as e:
         assert str(e).startswith("Invalid LoRA strength")
+
+
+def test_extract_loras_meta():
+    loras = FileCollection()
+    lora = loras.add(File.remote("zap.safetensors"))
+    loras.set_meta(lora, "lora_strength", 0.5)
+    loras.set_meta(lora, "lora_triggers", "zippity")
+
+    assert extract_loras("a ship <lora:zap> zap", loras) == (
+        "a ship zippity zap",
+        [LoraInput(lora.id, 0.5)],
+    )
 
 
 class TestEditAttention:

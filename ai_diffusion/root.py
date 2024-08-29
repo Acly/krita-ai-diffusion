@@ -7,7 +7,9 @@ from .client import ClientMessage
 from .server import Server, ServerState
 from .document import Document, KritaDocument
 from .model import Model
+from .files import FileLibrary, File, FileSource
 from .persistence import ModelSync, RecentlyUsedSync, import_prompt_from_file
+from .ui.theme import sd_version_icon
 from .settings import ServerMode, settings
 from .util import client_logger as log
 
@@ -33,9 +35,11 @@ class Root(QObject):
     def init(self):
         self._server = Server(settings.server_path)
         self._connection = Connection()
+        self._files = FileLibrary.load()
         self._models = []
         self._recent = RecentlyUsedSync.from_settings()
         self._connection.message_received.connect(self._handle_message)
+        self._connection.models_changed.connect(self._update_files)
 
     def prune_models(self):
         # Remove models for documents that have been closed
@@ -69,6 +73,10 @@ class Root(QObject):
     @property
     def server(self):
         return self._server
+
+    @property
+    def files(self) -> FileLibrary:
+        return self._files
 
     @property
     def active_model(self):
@@ -117,6 +125,18 @@ class Root(QObject):
         model = self._find_model(msg.job_id)
         if model is not None:
             model.handle_message(msg)
+
+    def _update_files(self):
+        if client := self._connection.client_if_connected:
+            checkpoints = [
+                File(cp.filename, cp.name, FileSource.remote, icon=sd_version_icon(cp.sd_version))
+                for cp in client.models.checkpoints.values()
+                if not (cp.is_refiner or cp.is_inpaint)
+            ]
+            self._files.checkpoints.update(checkpoints, FileSource.remote)
+
+            loras = [File.remote(lora) for lora in client.models.loras]
+            self._files.loras.update(loras, FileSource.remote)
 
 
 root = Root()

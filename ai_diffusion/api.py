@@ -45,6 +45,7 @@ class ImageInput:
 class LoraInput:
     name: str
     strength: float
+    storage_id: str = ""  # Base64-encoded SHA256 hash
 
     @staticmethod
     def from_dict(data: dict[str, Any]):
@@ -173,7 +174,10 @@ class WorkflowInput:
     def from_dict(data: dict[str, Any]):
         return Deserializer.run(data)
 
-    def to_dict(self, image_format=ImageFileFormat.webp):
+    def to_dict(
+        self, image_format: ImageFileFormat | None = ImageFileFormat.webp, max_image_size: int = 0
+    ):
+        _check_image_size(self, max_image_size)
         return Serializer.run(self, image_format)
 
     @property
@@ -221,10 +225,10 @@ class Serializer:
     _images: ImageCollection
 
     @staticmethod
-    def run(work: WorkflowInput, image_format=ImageFileFormat.webp):
+    def run(work: WorkflowInput, image_format: ImageFileFormat | None = ImageFileFormat.webp):
         serializer = Serializer()
         result = serializer._object(work)
-        if len(serializer._images) > 0:
+        if image_format and len(serializer._images) > 0:
             blob, offsets = serializer._images.to_bytes(image_format)
             assert blob.size() > 0, "Image data is empty"
             result["image_data"] = {"bytes": blob.data(), "offsets": offsets}
@@ -233,7 +237,7 @@ class Serializer:
     def __init__(self):
         self._images = ImageCollection()
 
-    def _object(self, obj):
+    def _object(self, obj) -> dict[str, Any]:
         items = (
             (field.name, self._value(getattr(obj, field.name), field.default))
             for field in fields(obj)
@@ -275,7 +279,7 @@ class Deserializer:
     def __init__(self, images: ImageCollection):
         self._images = images
 
-    def _object(self, type: type, input: dict):
+    def _object(self, type, input: dict):
         values = (self._field(field, input.get(field.name)) for field in fields(type))
         return type(*values)
 
@@ -302,3 +306,13 @@ class Deserializer:
             return [self._value(get_args(cls)[0], v) for v in value]
         else:
             return value
+
+
+def _check_image_size(workflow: WorkflowInput, max_image_size: int):
+    if max_image_size > 0:
+        e = workflow.extent
+        for extent in (e.input, e.initial, e.desired, e.target, workflow.crop_upscale_extent):
+            if extent and extent.longest_side > max_image_size:
+                raise ValueError(
+                    f"Image size {extent.width}x{extent.height} exceeds maximum of {max_image_size}"
+                )

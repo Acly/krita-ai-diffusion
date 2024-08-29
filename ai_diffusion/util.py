@@ -1,4 +1,5 @@
-from enum import Enum
+from enum import Enum, Flag
+from dataclasses import asdict, is_dataclass
 from itertools import islice
 from pathlib import Path
 import asyncio
@@ -11,7 +12,7 @@ import logging
 import logging.handlers
 import statistics
 import zipfile
-from typing import Callable, Iterable, Optional, Sequence, TypeVar
+from typing import Any, Callable, Iterable, Optional, Sequence, TypeVar
 from PyQt5.QtCore import QStandardPaths
 
 T = TypeVar("T")
@@ -129,9 +130,16 @@ def trim_text(text: str, max_length: int) -> str:
     return text
 
 
-def encode_json(obj):
+def encode_json(obj: Any):
+    if isinstance(obj, Flag):
+        return obj.value
     if isinstance(obj, Enum):
         return obj.name
+    if isinstance(obj, Path):
+        return str(obj.as_posix())
+    if is_dataclass(obj):
+        assert not isinstance(obj, type)
+        return asdict(obj)
     raise TypeError(f"Object of type {obj.__class__.__name__} is not JSON serializable")
 
 

@@ -1,6 +1,6 @@
 from __future__ import annotations
 from PyQt5.QtCore import Qt, QMetaObject, QSize, QPoint, QUuid, pyqtSignal
-from PyQt5.QtGui import QGuiApplication, QMouseEvent
+from PyQt5.QtGui import QGuiApplication, QMouseEvent, QPalette, QColor
 from PyQt5.QtWidgets import (
     QAction,
     QWidget,
@@ -24,7 +24,7 @@ from PyQt5.QtWidgets import (
 from ..properties import Binding, Bind, bind, bind_combo, bind_toggle
 from ..image import Bounds, Extent, Image
 from ..jobs import Job, JobQueue, JobState, JobKind, JobParams
-from ..model import Model, InpaintContext, RootRegion
+from ..model import Model, InpaintContext, RootRegion, ProgressKind
 from ..root import root
 from ..workflow import InpaintMode, FillMode
 from ..localization import translate as _
@@ -601,6 +601,7 @@ class GenerationWidget(QWidget):
                 model.regions.active_changed.connect(self.update_generate_button),
                 model.region_only_changed.connect(self.update_generate_button),
                 model.progress_changed.connect(self.update_progress),
+                model.progress_kind_changed.connect(self.update_progress_kind),
                 model.error_changed.connect(self.error_text.setText),
                 model.has_error_changed.connect(self.error_text.setVisible),
                 self.add_control_button.clicked.connect(model.regions.add_control),
@@ -615,6 +616,12 @@ class GenerationWidget(QWidget):
             self.strength_slider.model = model
             self.history.model_ = model
             self.update_generate_button()
+
+    def update_progress_kind(self):
+        palette = self.palette()
+        if self.model.progress_kind is ProgressKind.upload:
+            palette.setColor(QPalette.ColorRole.Highlight, QColor(theme.progress_alt))
+        self.progress_bar.setPalette(palette)
 
     def update_progress(self):
         if self.model.progress >= 0:

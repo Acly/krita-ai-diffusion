@@ -4,9 +4,10 @@
 3) Set environment variable HOSTMAP=1 to replace all huggingface / civitai urls.
 """
 
-from aiohttp import web
 import sys
+from aiohttp import web
 from pathlib import Path
+from urllib.parse import unquote as url_unquote
 
 sys.path.append(str(Path(__file__).parent.parent))
 from ai_diffusion import resources
@@ -21,10 +22,12 @@ def url_strip(url: str):
 
 
 files = {
-    url_strip(url): dir / filepath
+    url_unquote(url_strip(url)): dir / filepath
     for m in resources.all_models()
     for filepath, url in m.files.items()
 }
+
+urls = [url_strip(url) for m in resources.all_models() for _, url in m.files.items()]
 
 
 async def file_sender(file: Path):
@@ -70,7 +73,7 @@ def run(port=51222, verbose=False):
             print(f"- {url} -> {path}")
 
     app = web.Application()
-    app.add_routes([web.get(url, handle) for url in files.keys()])
+    app.add_routes([web.get(url, handle) for url in urls])
     web.run_app(app, host="localhost", port=port)
 
 

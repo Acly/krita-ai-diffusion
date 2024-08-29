@@ -148,8 +148,9 @@ class JobQueue(QObject):
             self.prune(keep=job)
 
     def notify_started(self, job: Job):
-        job.state = JobState.executing
-        self.count_changed.emit()
+        if job.state is not JobState.executing:
+            job.state = JobState.executing
+            self.count_changed.emit()
 
     def notify_finished(self, job: Job):
         job.state = JobState.finished

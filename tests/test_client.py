@@ -3,7 +3,7 @@ from pathlib import Path
 import pytest
 
 from ai_diffusion import eventloop, resources
-from ai_diffusion.api import WorkflowInput, WorkflowKind
+from ai_diffusion.api import WorkflowInput, WorkflowKind, LoraInput
 from ai_diffusion.api import CheckpointInput, ImageInput, SamplingInput, ConditioningInput
 from ai_diffusion.resources import ControlMode
 from ai_diffusion.network import NetworkError
@@ -12,7 +12,9 @@ from ai_diffusion.client import ClientEvent, resolve_sd_version
 from ai_diffusion.comfy_client import ComfyClient, parse_url, websocket_url
 from ai_diffusion.style import SDVersion, Style
 from ai_diffusion.server import Server, ServerState, ServerBackend
-from .config import server_dir, default_checkpoint
+from ai_diffusion.files import FileLibrary, File
+from ai_diffusion.util import ensure
+from .config import server_dir, default_checkpoint, test_dir
 
 
 @pytest.fixture(scope="session")
@@ -62,7 +64,7 @@ def test_cancel(qtapp, comfy_server, cancel_point):
                     assert client.queued_count == 1
                 if not interrupted:
                     if cancel_point == "after_enqueue":
-                        await client.interrupt()
+                        await client.clear_queue()
                         interrupted = True
                     if cancel_point == "after_start" and msg.event is ClientEvent.progress:
                         await client.interrupt()
@@ -161,5 +163,37 @@ def test_info(pytestconfig, qtapp, comfy_server):
         check_client_info(client)
         check_resolve_sd_version(client, SDVersion.sd15)
         # check_resolve_sd_version(client, SDVersion.sdxl) # no SDXL checkpoint in default installation
+
+    qtapp.run(main())
+
+
+def test_upload_lora(qtapp, comfy_server, tmp_path: Path):
+    lora_path = tmp_path / "test-lora.safetensors"
+    lora_path.write_bytes(b"testdata" * 1024 * 1024)
+
+    files = FileLibrary.instance()
+    file = files.loras.add(File.local(lora_path, compute_hash=True))
+
+    async def main():
+        client = await ComfyClient.connect(comfy_server)
+        if file.id in client.models.loras:
+            client.models.loras.remove(file.id)
+
+        input = make_default_work()
+        assert input.models is not None
+        input.models.loras = [LoraInput(file.id, 1.0, storage_id=ensure(file.hash))]
+
+        task = asyncio.get_running_loop().create_task(client.upload_loras(input, "JOB-ID"))
+        upload_progress = 0
+        async for msg in client.listen():
+            if msg.event is ClientEvent.upload:
+                assert msg.job_id == "JOB-ID"
+                assert msg.progress >= upload_progress
+                upload_progress = msg.progress
+                if upload_progress == 1.0:
+                    break
+
+        await task
+        assert file.id in client.models.loras
 
     qtapp.run(main())

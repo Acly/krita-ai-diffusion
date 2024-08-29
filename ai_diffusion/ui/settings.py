@@ -386,7 +386,7 @@ class DiffusionSettings(SettingsTab):
         self.add("selection_grow", SliderSetting(S._selection_grow, self, 0, 25, "{} %"))
         self.add("selection_feather", SliderSetting(S._selection_feather, self, 0, 25, "{} %"))
         self.add("selection_padding", SliderSetting(S._selection_padding, self, 0, 25, "{} %"))
-        self.add("nsfw_filter", ComboBoxSetting(S._nsfw_filter, self))
+        self.add("nsfw_filter", ComboBoxSetting(S._nsfw_filter, parent=self))
 
         nsfw_settings = [(_("Disabled"), 0.0), (_("Basic"), 0.65), (_("Strict"), 0.8)]
         self._widgets["nsfw_filter"].set_items(nsfw_settings)
@@ -413,8 +413,8 @@ class InterfaceSettings(SettingsTab):
         super().__init__(_("Interface Settings"))
 
         S = Settings
-        self.add("language", ComboBoxSetting(S._language, self))
-        self.add("prompt_translation", ComboBoxSetting(S._prompt_translation, self))
+        self.add("language", ComboBoxSetting(S._language, parent=self))
+        self.add("prompt_translation", ComboBoxSetting(S._prompt_translation, parent=self))
         self.add("prompt_line_count", SpinBoxSetting(S._prompt_line_count, self, 1, 10))
         self.add(
             "show_negative_prompt",

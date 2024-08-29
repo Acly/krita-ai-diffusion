@@ -2,6 +2,7 @@ from __future__ import annotations
 import asyncio
 import json
 import os
+from asyncio import Future
 from datetime import datetime
 from pathlib import Path
 from typing import NamedTuple, Callable
@@ -42,7 +43,12 @@ class NetworkError(Exception):
             error = data.get("error", "Network error")
             return NetworkError(code, f"{error} ({reply.errorString()})", url, status, data)
         except:
-            pass
+            try:
+                text = reply.readAll().data().decode("utf-8")
+                if text:
+                    return NetworkError(code, f"{text} ({reply.errorString()})", url, status)
+            except:
+                pass
         return NetworkError(code, reply.errorString(), url, status)
 
 
@@ -67,14 +73,25 @@ class Request(NamedTuple):
     buffer: QBuffer | None = None
 
 
+Headers = list[tuple[str, str]]
+
+
 class RequestManager:
     def __init__(self):
         self._net = QNetworkAccessManager()
         self._net.finished.connect(self._finished)
         self._net.sslErrors.connect(self._handle_ssl_errors)
         self._requests: dict[QNetworkReply, Request] = {}
+        self._upload_future: Future[tuple[int, int]] | None = None
 
-    def http(self, method, url: str, data: dict | QByteArray | None = None, bearer=""):
+    def http(
+        self,
+        method,
+        url: str,
+        data: dict | QByteArray | None = None,
+        bearer="",
+        headers: Headers | None = None,
+    ):
         self._cleanup()
 
         request = QNetworkRequest(QUrl(url))
@@ -83,6 +100,9 @@ class RequestManager:
         request.setRawHeader(b"ngrok-skip-browser-warning", b"69420")
         if bearer:
             request.setRawHeader(b"Authorization", f"Bearer {bearer}".encode("utf-8"))
+        if headers:
+            for key, value in headers:
+                request.setRawHeader(key.encode("utf-8"), value.encode("utf-8"))
 
         assert method in ["GET", "POST", "PUT"]
         if method == "POST":
@@ -117,6 +137,37 @@ class RequestManager:
     def put(self, url: str, data: QByteArray | bytes):
         return self.http("PUT", url, data)
 
+    async def upload(self, url: str, data: QByteArray | bytes, sha256: str | None = None):
+        self._cleanup()
+        if isinstance(data, bytes):
+            data = QByteArray(data)
+        assert isinstance(data, QByteArray)
+
+        request = QNetworkRequest(QUrl(url))
+        request.setAttribute(QNetworkRequest.Attribute.FollowRedirectsAttribute, True)
+        if sha256:
+            request.setRawHeader(b"x-amz-checksum-sha256", sha256.encode("utf-8"))
+        request.setHeader(
+            QNetworkRequest.KnownHeaders.ContentTypeHeader, "application/octet-stream"
+        )
+        request.setHeader(QNetworkRequest.KnownHeaders.ContentLengthHeader, data.size())
+        reply = self._net.put(request, data)
+        assert reply is not None, f"Network request for {url} failed: reply is None"
+
+        reply.uploadProgress.connect(self._upload_progress)
+        self._upload_future = asyncio.get_running_loop().create_future()
+        finished_future = asyncio.get_running_loop().create_future()
+        self._requests[reply] = Request(url, finished_future)
+        while self._upload_future is not None:
+            fut = next(asyncio.as_completed([self._upload_future, finished_future]))
+            progress = await fut
+            if isinstance(progress, tuple) and progress[0] != progress[1]:
+                self._upload_future = asyncio.get_running_loop().create_future()
+                yield progress
+            else:
+                yield (len(data), len(data))
+                break
+
     def download(self, url: str):
         self._cleanup()
         request = QNetworkRequest(QUrl(url))
@@ -135,6 +186,15 @@ class RequestManager:
         reply.downloadProgress.connect(write)
         self._requests[reply] = tracker
         return future
+
+    def _upload_progress(self, bytes_sent: int, bytes_total: int):
+        if bytes_total == 0:
+            return
+        if self._upload_future is None or self._upload_future.done():
+            return
+        if not self._upload_future.cancelled():
+            self._upload_future.set_result((bytes_sent, bytes_total))
+        self._upload_future = None
 
     def _finished(self, reply: QNetworkReply):
         future = None

@@ -5,7 +5,7 @@ from enum import Enum
 from itertools import chain
 from pathlib import Path
 import shutil
-import subprocess
+import re
 from typing import Callable, NamedTuple, Optional, Union
 from PyQt5.QtNetwork import QNetworkAccessManager
 
@@ -120,6 +120,7 @@ class Server:
         network = QNetworkAccessManager()
         self._cache_dir = self.path / ".cache"
         self._cache_dir.mkdir(parents=True, exist_ok=True)
+        self._version_file.write_text("incomplete")
 
         if is_windows and (self.comfy_dir is None or self._python_cmd is None):
             # On Windows install an embedded version of Python
@@ -186,8 +187,10 @@ class Server:
         await _extract_archive("ComfyUI", archive_path, comfy_dir.parent, cb)
         temp_comfy_dir = comfy_dir.parent / f"ComfyUI-{resources.comfy_version}"
 
-        torch_args = ["torch==2.3.1", "torchvision==0.18.1", "torchaudio==2.3.1"]
-        if self.backend is ServerBackend.cpu or self.backend is ServerBackend.mps:
+        torch_args = ["torch", "torchvision", "torchaudio"]
+        if is_windows:  # Issues with torch 2.4.0 on Windows
+            torch_args = ["torch<=2.3.1", "torchvision<=0.18.1", "torchaudio<=2.3.1"]
+        if self.backend is ServerBackend.cpu:
             torch_args += ["--index-url", "https://download.pytorch.org/whl/cpu"]
         elif self.backend is ServerBackend.cuda:
             torch_args += ["--index-url", "https://download.pytorch.org/whl/cu121"]
@@ -269,7 +272,7 @@ class Server:
             log.error("Installation failed")
             self.state = ServerState.stopped
             self.check_install()
-            raise e
+            raise Exception(parse_common_errors(str(e)))
 
     async def download_required(self, callback: Callback):
         models = [m.name for m in resources.required_models if m.sd_version is SDVersion.all]
@@ -422,7 +425,7 @@ class Server:
             self.state = ServerState.stopped
             ret = self._process.returncode
             self._process = None
-            error_msg = _parse_common_errors(error, ret)
+            error_msg = parse_common_errors(error, ret)
             raise Exception(_("Error during server startup") + f": {error_msg}")
 
         self._task = asyncio.create_task(self.run())
@@ -482,13 +485,18 @@ class Server:
 
     @property
     def can_install(self):
-        return not self.path.exists() or (self.path.is_dir() and not any(self.path.iterdir()))
+        if not self.path.exists():
+            return True
+        if self.path.is_dir():
+            return self.version == "incomplete" or not any(self.path.iterdir())
+        return False
 
     @property
     def upgrade_required(self):
         return (
             self.state is not ServerState.not_installed
             and self.version is not None
+            and self.version != "incomplete"
             and self.version != resources.version
         )
 
@@ -618,7 +626,7 @@ async def rename_extracted_folder(name: str, path: Path, suffix: str):
     extracted_folder.rename(path)
 
 
-def safe_remove_dir(path: Path, max_size=8 * 1024 * 1024):
+def safe_remove_dir(path: Path, max_size=12 * 1024 * 1024):
     if path.is_dir():
         for p in path.rglob("*"):
             if p.is_file():
@@ -638,7 +646,7 @@ async def get_python_version(python_cmd: Path, *args: str):
     return out.decode(enc, errors="replace").strip()
 
 
-def _parse_common_errors(output: str, return_code: int | None):
+def parse_common_errors(output: str, return_code: int | None = None):
     if "error while attempting to bind on address" in output:
         message_part = output.split("bind on address")[-1].strip()
         return (
@@ -647,11 +655,23 @@ def _parse_common_errors(output: str, return_code: int | None):
             + "<a href='https://github.com/Acly/krita-ai-diffusion/wiki/Common-Issues#error-during-server-startup-could-not-bind-on-address-only-one-usage-of-each-socket-address-is-normally-permitted'>More information...</a>"
         )
 
-    nvidia_driver = _("Found no NVIDIA driver on your system")
+    nvidia_driver = "Found no NVIDIA driver on your system"
+    nvidia_driver_translated = _("Found no NVIDIA driver on your system")
     if nvidia_driver in output:
         message_part = output.split(nvidia_driver)[-1]
-        return f"{nvidia_driver} {message_part}<br>" + _(
+        return f"{nvidia_driver_translated} {message_part}<br>" + _(
             "If you do not have an NVIDIA GPU, select a different backend below. Server reinstall may be required."
         )
 
-    return f"{output} [{return_code}]"
+    readtimeout_pattern = re.compile(
+        r"ReadTimeoutError: HTTPSConnectionPool\(host='(.+)'.+\): Read timed out"
+    )
+    if match := readtimeout_pattern.search(output):
+        return _(
+            "Connection to {host} timed out during download. Please make sure you have a stable internet connection and try again.",
+            host=match.group(1),
+        )
+
+    if return_code is not None:
+        return f"{output} [{return_code}]"
+    return output

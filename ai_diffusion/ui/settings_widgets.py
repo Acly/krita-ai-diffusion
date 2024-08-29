@@ -17,24 +17,28 @@ from PyQt5.QtWidgets import (
     QScrollArea,
     QFrame,
 )
-from PyQt5.QtCore import Qt, QSize, pyqtSignal
+from PyQt5.QtCore import Qt, QAbstractListModel, QSize, pyqtSignal
 from PyQt5.QtGui import QIcon
 
 from ..localization import translate as _
 from ..settings import Setting, settings
-from ..util import ensure
 from .switch import SwitchWidget
 from .theme import add_header, icon
 
 
 class ExpanderButton(QToolButton):
-    def __init__(self, text, parent=None):
+    def __init__(self, text: str | None = None, parent=None):
         super().__init__(parent)
         self.setCheckable(True)
         self.setIconSize(QSize(8, 8))
         self.setStyleSheet("QToolButton { border: none; font-weight: bold }")
-        self.setToolButtonStyle(Qt.ToolButtonStyle.ToolButtonTextBesideIcon)
-        self.setText(" " + text)
+        if text is not None:
+            self.setToolButtonStyle(Qt.ToolButtonStyle.ToolButtonTextBesideIcon)
+            self.setText(" " + text)
+        else:
+            self.setToolButtonStyle(Qt.ToolButtonStyle.ToolButtonIconOnly)
+            self.setMinimumHeight(24)
+            self.setMinimumWidth(18)
         self._toggle(False)
         self.toggled.connect(self._toggle)
 
@@ -265,10 +269,12 @@ class ComboBoxSetting(SettingWidget):
     _enum_type = None
     _original_text = ""
 
-    def __init__(self, setting: Setting, parent=None):
+    def __init__(self, setting: Setting, model: QAbstractListModel | None = None, parent=None):
         super().__init__(setting, parent)
         self._combo = QComboBox(self)
-        if isinstance(setting.default, Enum):
+        if model is not None:
+            self._combo.setModel(model)
+        elif isinstance(setting.default, Enum):
             self._enum_type = type(setting.default)
             self.set_items(self._enum_type)
         elif setting.items:

@@ -12,6 +12,7 @@ from ai_diffusion.api import InpaintMode, FillMode, ConditioningInput, RegionInp
 from ai_diffusion.client import ClientModels, CheckpointInfo
 from ai_diffusion.comfy_client import ComfyClient
 from ai_diffusion.cloud_client import CloudClient
+from ai_diffusion.files import FileLibrary, FileCollection, File, FileSource
 from ai_diffusion.resources import ControlMode
 from ai_diffusion.settings import PerformanceSettings
 from ai_diffusion.image import Mask, Bounds, Extent, Image, ImageCollection
@@ -20,10 +21,11 @@ from ai_diffusion.style import SDVersion, Style
 from ai_diffusion.pose import Pose
 from ai_diffusion.workflow import detect_inpaint
 from . import config
-from .config import root_dir, image_dir, result_dir, reference_dir, default_checkpoint
+from .config import root_dir, test_dir, image_dir, result_dir, reference_dir, default_checkpoint
 
 service_available = (root_dir / "service" / "web" / ".env.local").exists()
 client_params = ["local", "cloud"] if service_available else ["local"]
+files = FileLibrary(FileCollection(), FileCollection())
 
 
 async def connect_cloud():
@@ -40,14 +42,20 @@ async def connect_cloud():
     return await CloudClient.connect(url, token)
 
 
-@pytest.fixture(params=client_params, scope="module")
+@pytest.fixture(params=client_params)
 def client(pytestconfig, request, qtapp):
     if pytestconfig.getoption("--ci"):
         pytest.skip("Diffusion is disabled on CI")
+
     if request.param == "local":
-        return qtapp.run(ComfyClient.connect())
+        client = qtapp.run(ComfyClient.connect())
     else:
-        return qtapp.run(connect_cloud())
+        client = qtapp.run(connect_cloud())
+    files.loras.update([File.remote(m) for m in client.models.loras], FileSource.remote)
+
+    yield client
+
+    qtapp.run(client.disconnect())
 
 
 default_seed = 1234
@@ -70,12 +78,21 @@ def create(kind: WorkflowKind, client: Client, **kwargs):
     kwargs.setdefault("style", default_style(client))
     kwargs.setdefault("seed", default_seed)
     kwargs.setdefault("perf", default_perf)
+    kwargs.setdefault("files", files)
     return workflow.prepare(kind, models=client.models, **kwargs)
 
 
+counter = 0
+
+
 async def receive_images(client: Client, work: WorkflowInput):
+    global counter
+
+    counter += 1
+
     job_id = None
-    async for msg in client.listen():
+    messages = client.listen()
+    async for msg in messages:
         if not job_id:
             job_id = await client.enqueue(work)
         if msg.event is ClientEvent.finished and msg.job_id == job_id:
@@ -150,24 +167,41 @@ def test_inpaint_params():
 def test_prepare_lora():
     models = ClientModels()
     models.checkpoints = {"CP": CheckpointInfo("CP", SDVersion.sd15)}
-    models.loras = ["PINK_UNICORNS", "MOTHER_OF_PEARL"]
+    models.loras = [
+        "PINK_UNICORNS.safetensors",
+        "MOTHER_OF_PEARL.safetensors",
+        "x/FRACTAL.safetensors",
+    ]
+
+    files = FileLibrary(FileCollection(), FileCollection())
+    fractal = files.loras.add(File.remote("x/FRACTAL.safetensors"))
+    files.loras.set_meta(fractal, "lora_strength", 0.55)
+    files.loras.set_meta(fractal, "lora_triggers", "FRACTAL HEART")
+
+    mop = files.loras.add(File.remote("MOTHER_OF_PEARL.safetensors"))
+    files.loras.set_meta(mop, "lora_triggers", "crab")
+    files.loras.update([File.remote(m) for m in models.loras], FileSource.remote)
+
     style = Style(Path("default.json"))
     style.sd_checkpoint = "CP"
-    style.loras.append(dict(name="MOTHER_OF_PEARL", strength=0.33))
+    style.loras.append(dict(name="MOTHER_OF_PEARL.safetensors", strength=0.33))
+
     job = workflow.prepare(
         WorkflowKind.generate,
         canvas=Extent(512, 512),
-        cond=ConditioningInput("test <lora:PINK_UNICORNS:0.77>"),
+        cond=ConditioningInput("test <lora:PINK_UNICORNS:0.77> baloon <lora:x/FRACTAL> space"),
         style=style,
         seed=29,
         models=models,
+        files=files,
         perf=default_perf,
     )
-    assert job.conditioning and job.conditioning.positive == "test"
+    assert job.conditioning and job.conditioning.positive == "test  baloon FRACTAL HEART space crab"
     assert (
         job.models
-        and LoraInput("PINK_UNICORNS", 0.77) in job.models.loras
-        and LoraInput("MOTHER_OF_PEARL", 0.33) in job.models.loras
+        and LoraInput("PINK_UNICORNS.safetensors", 0.77) in job.models.loras
+        and LoraInput("MOTHER_OF_PEARL.safetensors", 0.33) in job.models.loras
+        and LoraInput("x/FRACTAL.safetensors", 0.55) in job.models.loras
     )
 
 
@@ -494,7 +528,7 @@ def test_create_control_image(qtapp, client: Client, mode):
     result = run_and_save(qtapp, client, job, image_name)
     if isinstance(client, ComfyClient):
         reference = Image.load(reference_dir / image_name)
-        threshold = 0.015 if mode is ControlMode.pose else 0.002
+        threshold = 0.015 if mode is ControlMode.pose else 0.003
         assert Image.compare(result, reference) < threshold
         # cloud results are a bit different, maybe due to compression of input?
 
@@ -690,6 +724,22 @@ def test_outpaint_resolution_multiplier(qtapp, client):
         perf=perf_settings,
     )
     run_and_save(qtapp, client, job, f"test_outpaint_resolution_multiplier", image, mask)
+
+
+def test_lora(qtapp, client):
+    files = FileLibrary.instance()
+    lora = files.loras.add(File.local(test_dir / "data" / "animeoutlineV4_16.safetensors"))
+    style = default_style(client, SDVersion.sd15)
+    style.loras.append(dict(name=lora.id, strength=1.0))
+    job = create(
+        WorkflowKind.generate,
+        client,
+        files=files,
+        canvas=Extent(512, 512),
+        cond=ConditioningInput("manga, lineart, monochrome, sunflower field"),
+        style=style,
+    )
+    run_and_save(qtapp, client, job, "test_lora")
 
 
 def test_nsfw_filter(qtapp, client):

@@ -221,3 +221,16 @@ def test_python_version(qtapp):
         assert pip.startswith("pip ")
 
     qtapp.run(main())
+
+
+common_errors = {
+    "timeout": {
+        "original": "pip._vendor.urllib3.exceptions.ReadTimeoutError: HTTPSConnectionPool(host='download.pytorch.org', port=443): Read timed out.",
+        "expected": "Connection to download.pytorch.org timed out during download. Please make sure you have a stable internet connection and try again.",
+    }
+}
+
+
+@pytest.mark.parametrize("errors", common_errors.values(), ids=common_errors.keys())
+def test_common_errors(errors):
+    assert server.parse_common_errors(errors["original"]) == errors["expected"]

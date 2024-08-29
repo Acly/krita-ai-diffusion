@@ -7,10 +7,12 @@ from PyQt5.QtCore import QObject, pyqtSignal
 from .api import WorkflowInput
 from .image import ImageCollection
 from .properties import Property, ObservableProperties
+from .files import FileLibrary
 from .style import Style, Styles
 from .settings import PerformanceSettings
 from .resources import ControlMode, ResourceKind, SDVersion, UpscalerName
 from .resources import ResourceId, resource_id
+from .localization import translate as _
 from .util import client_logger as log
 
 
@@ -22,6 +24,7 @@ class ClientEvent(Enum):
     connected = 4
     disconnected = 5
     queued = 6
+    upload = 7
 
 
 class ClientMessage(NamedTuple):
@@ -239,6 +242,9 @@ class Client(ABC):
     async def translate(self, text: str, lang: str) -> str:
         return text
 
+    async def disconnect(self):
+        pass
+
     @property
     def user(self) -> User | None:
         return None
@@ -261,6 +267,16 @@ class Client(ABC):
     @property
     def performance_settings(self) -> PerformanceSettings: ...
 
+    @property
+    def max_upload_size(self) -> int:
+        return 0  # in bytes, 0 means unlimited
+
+    async def __aenter__(self):
+        return self
+
+    async def __aexit__(self, exc_type, exc_value, traceback):
+        await self.disconnect()
+
 
 def resolve_sd_version(style: Style, client: Client | None = None):
     if style.sd_version is SDVersion.auto:
@@ -279,3 +295,25 @@ def filter_supported_styles(styles: Iterable[Style], client: Client | None = Non
             and style.sd_checkpoint in client.models.checkpoints
         ]
     return list(styles)
+
+
+def loras_to_upload(workflow: WorkflowInput, client_models: ClientModels):
+    if models := workflow.models:
+        for lora in models.loras:
+            if lora.name in client_models.loras:
+                continue
+            if not lora.storage_id and lora.name in _lcm_loras:
+                raise ValueError(_lcm_warning)
+            if not lora.storage_id:
+                raise ValueError(f"Lora model is not available: {lora.name}")
+            lora_file = FileLibrary.instance().loras.find_local(lora.name)
+            if lora_file is None or lora_file.path is None:
+                raise ValueError(f"Can't find Lora model: {lora.name}")
+            if not lora_file.path.exists():
+                raise ValueError(_("LoRA model file not found") + f" {lora_file.path}")
+            assert lora.storage_id == lora_file.hash
+            yield lora_file
+
+
+_lcm_loras = ["lcm-lora-sdv1-5.safetensors", "lcm-lora-sdxl.safetensors"]
+_lcm_warning = "LCM is no longer supported by the server. Please change the Style's sampling method to 'Realtime - Hyper'"
