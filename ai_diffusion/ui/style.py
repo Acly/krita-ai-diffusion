@@ -294,7 +294,7 @@ class LoraList(QWidget):
         header_layout.addWidget(self._add_button, 1)
 
         self._upload_button = QPushButton(icon("upload"), "  " + _("Upload"), self)
-        self._upload_button.setToolTip(_("Import a LoRA file from your local harddrive"))
+        self._upload_button.setToolTip(_("Import a LoRA file from your local system"))
         self._upload_button.clicked.connect(self._upload_lora)
         header_layout.addWidget(self._upload_button, 1)
 
