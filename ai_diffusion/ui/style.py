@@ -518,6 +518,11 @@ class StylePresets(SettingsTab):
         self._create_style_button.setToolTip(_("Create a new style"))
         self._create_style_button.clicked.connect(self._create_style)
 
+        self._duplicate_style_button = QToolButton(self)
+        self._duplicate_style_button.setIcon(Krita.instance().icon("duplicate"))
+        self._duplicate_style_button.setToolTip(_("Duplicate the current style"))
+        self._duplicate_style_button.clicked.connect(self._duplicate_style)
+
         self._delete_style_button = QToolButton(self)
         self._delete_style_button.setIcon(Krita.instance().icon("deletelayer"))
         self._delete_style_button.setToolTip(_("Delete the current style"))
@@ -541,6 +546,7 @@ class StylePresets(SettingsTab):
         style_control_layout.setContentsMargins(0, 0, 0, 0)
         style_control_layout.addWidget(self._style_list)
         style_control_layout.addWidget(self._create_style_button)
+        style_control_layout.addWidget(self._duplicate_style_button)
         style_control_layout.addWidget(self._delete_style_button)
         style_control_layout.addWidget(self._refresh_button)
         style_control_layout.addWidget(self._open_folder_button)
@@ -664,6 +670,11 @@ class StylePresets(SettingsTab):
         cp = self._style_widgets["sd_checkpoint"].value or StyleSettings.sd_checkpoint.default
         new_style = Styles.list().create(checkpoint=cp)
         self.current_style = new_style
+
+    def _duplicate_style(self):
+        self.current_style = Styles.list().create(
+            self.current_style.filename, copy_from=self.current_style
+        )
 
     def _delete_style(self):
         Styles.list().delete(self.current_style)

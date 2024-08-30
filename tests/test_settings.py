@@ -136,6 +136,23 @@ def test_default_style(tmp_path_factory):
     assert style_is_default(style)
 
 
+def test_duplicate_style(tmp_path_factory):
+    styles = Styles(tmp_path_factory.mktemp("builtin"), tmp_path_factory.mktemp("user"))
+    original = styles.create("original.json")
+    original.loras.append({"name": "lora", "strength": 1.0})
+    original.name = "Original"
+    original.live_sampler_steps = 42
+
+    copy = styles.create(original.filename, copy_from=original)
+    assert copy.filename == "original-1.json"
+    assert copy.name == "Original (Copy)"
+    assert copy.loras == original.loras
+    assert copy.live_sampler_steps == original.live_sampler_steps
+
+    copy.loras[0] = {"name": "lora2", "strength": 2.0}
+    assert copy.loras != original.loras
+
+
 def test_sampler_presets(tmp_path_factory):
     dir = tmp_path_factory.mktemp("presets")
 
