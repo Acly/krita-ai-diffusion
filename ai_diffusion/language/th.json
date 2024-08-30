@@ -408,6 +408,7 @@
     "Select LoRA file": null,
     "Regional text prompt": null,
     "Enable text completion for tags from the selected files": null,
-    "Custom": null
+    "Custom": null,
+    "Duplicate the current style": null
   }
 }

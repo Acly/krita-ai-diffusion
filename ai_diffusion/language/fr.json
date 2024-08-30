@@ -408,6 +408,7 @@
     "LoRA model is too large to upload": null,
     "Upload": null,
     "Error during upload of LoRA model": null,
-    "Select LoRA file": null
+    "Select LoRA file": null,
+    "Duplicate the current style": null
   }
 }
