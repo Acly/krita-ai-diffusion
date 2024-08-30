@@ -18,7 +18,7 @@ from .websockets.src.websockets import client as websockets_client
 from .websockets.src.websockets import exceptions as websockets_exceptions
 from .style import Styles
 from .resources import ControlMode, MissingResource, ResourceKind, SDVersion, UpscalerName
-from .resources import resource_id
+from .resources import CustomNode, resource_id
 from .settings import PerformanceSettings, settings
 from .localization import translate as _
 from .util import client_logger as log
@@ -120,11 +120,7 @@ class ComfyClient(Client):
 
         # Check custom nodes
         nodes = await client._get("object_info")
-        missing = [
-            package
-            for package in resources.required_custom_nodes
-            if any(node not in nodes for node in package.nodes)
-        ]
+        missing = _check_for_missing_nodes(nodes)
         if len(missing) > 0:
             raise MissingResource(ResourceKind.node, missing)
 
@@ -506,6 +502,20 @@ def parse_url(url: str):
 
 def websocket_url(url_http: str):
     return url_http.replace("http", "ws", 1)
+
+
+def _check_for_missing_nodes(nodes: dict):
+    def missing(node: str, package: CustomNode):
+        if node not in nodes:
+            log.error(f"Missing required node {node} from package {package.name} ({package.url})")
+            return True
+        return False
+
+    return [
+        package
+        for package in resources.required_custom_nodes
+        if any(missing(node, package) for node in package.nodes)
+    ]
 
 
 def _find_model(
