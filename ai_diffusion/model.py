@@ -1,6 +1,7 @@
 from __future__ import annotations
 import asyncio
 from copy import copy
+from dataclasses import replace
 from pathlib import Path
 from enum import Enum
 from typing import Any, NamedTuple
@@ -209,8 +210,10 @@ class Model(QObject, ObservableProperties):
             params.prompt = params.regions[0].prompt
 
         for i in range(count):
-            sampling.seed = sampling.seed + i * settings.batch_size
-            params.seed = sampling.seed
+            input = replace(
+                input, sampling=replace(sampling, seed=sampling.seed + i * settings.batch_size)
+            )
+            params.seed = ensure(input.sampling).seed
             job = self.jobs.add(kind, copy(params))
             await self._enqueue_job(job, input)
 
