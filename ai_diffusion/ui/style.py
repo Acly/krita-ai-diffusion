@@ -14,153 +14,268 @@ from PyQt5.QtWidgets import (
     QComboBox,
     QWidget,
     QCompleter,
+    QFileDialog,
+    QMessageBox,
+    QLineEdit,
 )
-from PyQt5.QtCore import Qt, QUrl, QStringListModel, QSortFilterProxyModel, pyqtSignal
-from PyQt5.QtGui import QDesktopServices
+from PyQt5.QtCore import Qt, QUrl, QAbstractItemModel, pyqtSignal
+from PyQt5.QtGui import QDesktopServices, QPalette, QColor
 from krita import Krita
 
 from ..client import resolve_sd_version
 from ..resources import SDVersion
 from ..settings import Setting, ServerMode, settings
 from ..server import Server
-from ..text import LoraId
+from ..files import File, FileFilter, FileSource
 from ..style import Style, Styles, StyleSettings, SamplerPresets
 from ..localization import translate as _
 from ..root import root
 from .settings_widgets import ExpanderButton, SpinBoxSetting, SliderSetting, SwitchSetting
 from .settings_widgets import ComboBoxSetting, TextSetting, LineEditSetting, SettingWidget
 from .settings_widgets import SettingsTab, WarningIcon
-from .theme import SignalBlocker, add_header, icon, sd_version_icon, yellow
+from .widget import create_framed_label
+from .theme import SignalBlocker, add_header, icon
+from . import theme
+
+
+class LoraItem(QWidget):
+    changed = pyqtSignal()
+    removed = pyqtSignal(QWidget)
+
+    _current: File | None = None
+
+    def __init__(self, lora_list: QAbstractItemModel, parent=None):
+        super().__init__(parent)
+        self.setContentsMargins(0, 0, 0, 0)
+
+        completer = QCompleter(lora_list)
+        completer.setCaseSensitivity(Qt.CaseSensitivity.CaseInsensitive)
+        completer.setFilterMode(Qt.MatchFlag.MatchContains)
+
+        small_font = self.font()
+        small_font.setPointSize(small_font.pointSize() - 1)
+
+        grey_text = self.palette()
+        grey_text.setColor(QPalette.ColorRole.Foreground, QColor(theme.grey))
+
+        self._advanced_button = ExpanderButton(parent=self)
+        self._advanced_button.toggled.connect(self._expand)
+
+        self._select = QComboBox(self)
+        self._select.setEditable(True)
+        self._select.setModel(lora_list)
+        self._select.setCompleter(completer)
+        self._select.setMaxVisibleItems(20)
+        self._select.currentIndexChanged.connect(self._select_lora)
+
+        expander_layout = QHBoxLayout()
+        expander_layout.setContentsMargins(0, 0, 0, 0)
+        expander_layout.setSpacing(0)
+        expander_layout.addWidget(self._advanced_button)
+        expander_layout.addWidget(self._select)
+
+        self._warning_icon = WarningIcon(self)
+
+        self._strength = QSpinBox(self)
+        self._strength.setMinimum(-400)
+        self._strength.setMaximum(400)
+        self._strength.setSingleStep(5)
+        self._strength.setValue(100)
+        self._strength.setPrefix(_("Strength") + ": ")
+        self._strength.setSuffix("%")
+        self._strength.valueChanged.connect(self._notify_changed)
+
+        self._remove = QToolButton(self)
+        self._remove.setIcon(icon("discard"))
+        self._remove.clicked.connect(self.remove)
+
+        item_layout = QHBoxLayout()
+        item_layout.setContentsMargins(0, 0, 0, 0)
+        item_layout.addLayout(expander_layout, 3)
+        item_layout.addWidget(self._strength, 1)
+        item_layout.addWidget(self._warning_icon)
+        item_layout.addWidget(self._remove)
+
+        self._advanced = QWidget(self)
+        self._advanced.setVisible(False)
+
+        self._warning_text = QLabel(self._advanced)
+        self._warning_text.setStyleSheet(f"color: {theme.yellow}; font-weight: bold;")
+        self._warning_text.setVisible(False)
+
+        trigger_label = QLabel(_("Trigger words"), parent=self._advanced)
+        trigger_help = _("Optional text which is added to the prompt when the LoRA is used")
+        self._trigger_edit = QLineEdit(parent=self._advanced)
+        self._trigger_edit.setPlaceholderText(trigger_help)
+        self._trigger_edit.textChanged.connect(self._set_triggers)
+
+        trigger_layout = QVBoxLayout()
+        trigger_layout.addWidget(trigger_label)
+        trigger_layout.addWidget(self._trigger_edit)
+
+        default_label = QLabel(_("Default Strength"), parent=self._advanced)
+        default_frame, self._default_strength_value = create_framed_label("100%", self._advanced)
+        self._default_strength_button = QPushButton(_("Set Default"), parent=self._advanced)
+        self._default_strength_button.clicked.connect(self._set_default_strength)
+
+        default_strength_frame_layout = QHBoxLayout()
+        default_strength_frame_layout.setContentsMargins(0, 0, 0, 0)
+        default_strength_frame_layout.addWidget(default_frame)
+        default_strength_frame_layout.addWidget(self._default_strength_button)
+        default_strength_layout = QVBoxLayout()
+        default_strength_layout.addWidget(default_label)
+        default_strength_layout.addLayout(default_strength_frame_layout)
+
+        meta_layout = QHBoxLayout()
+        meta_layout.addLayout(trigger_layout, 3)
+        meta_layout.addLayout(default_strength_layout, 1)
+
+        self._file_id_label = QLabel(parent=self._advanced)
+        self._file_id_label.setFont(small_font)
+        self._file_id_label.setPalette(grey_text)
+
+        self._file_path_label = QLabel(parent=self._advanced)
+        self._file_path_label.setFont(small_font)
+        self._file_path_label.setPalette(grey_text)
+
+        advanced_layout = QVBoxLayout()
+        advanced_layout.setContentsMargins(3, 2, 0, 2)
+        advanced_layout.addWidget(self._warning_text)
+        advanced_layout.addLayout(meta_layout)
+        advanced_layout.addWidget(self._file_id_label)
+        advanced_layout.addWidget(self._file_path_label)
+
+        line = QFrame(self)
+        line.setObjectName("LeftIndent")
+        line.setStyleSheet(f"#LeftIndent {{ color: {theme.line};  }}")
+        line.setFrameShape(QFrame.Shape.VLine)
+        line.setLineWidth(1)
+
+        pad_layout = QHBoxLayout()
+        pad_layout.setContentsMargins(7, 0, 34, 10)
+        pad_layout.addWidget(line)
+        pad_layout.addLayout(advanced_layout)
+        self._advanced.setLayout(pad_layout)
+
+        layout = QVBoxLayout()
+        layout.setContentsMargins(0, 0, 0, 0)
+        layout.addLayout(item_layout)
+        layout.addWidget(self._advanced)
+        self.setLayout(layout)
+
+        if lora_list.rowCount() > 0:
+            self._select_lora()
+
+    def _expand(self):
+        self._advanced.setVisible(self._advanced_button.isChecked())
+
+    def _notify_changed(self):
+        self._update()
+        self.changed.emit()
+
+    def _update(self):
+        if self._current:
+            self._file_id_label.setText(f"ID: {self._current.id}")
+            if FileSource.local in self._current.source and self._current.path:
+                path = str(self._current.path)
+                if len(path) > 80:
+                    path = "..." + path[-80:]
+                self._file_path_label.setText(_("Local file") + f": {path}")
+                self._file_path_label.setVisible(True)
+            else:
+                self._file_path_label.setVisible(False)
+            if strength := self._current.meta("lora_strength"):
+                istrength = int(strength * 100)
+                self._default_strength_value.setText(f"{istrength}%")
+                self._default_strength_button.setEnabled(istrength != self._strength.value())
+            else:
+                self._default_strength_value.setText("100%")
+                self._default_strength_button.setEnabled(self._strength.value() != 100)
+            self._trigger_edit.setText(self._current.meta("lora_triggers", ""))
+            self._show_lora_warnings(self._current)
+
+    def _select_lora(self):
+        id = self._select.currentData()
+        file = root.files.loras.find(id)
+        if file and file != self._current:
+            self._current = file
+            default_strength = int(file.meta("lora_strength", 1.0) * 100)
+            if default_strength != self._strength.value():
+                self._strength.setValue(default_strength)
+            if trigger_words := file.meta("lora_triggers", ""):
+                self._trigger_edit.setText(trigger_words)
+            self._notify_changed()
+
+    def _set_triggers(self):
+        value = self._trigger_edit.text()
+        if self._current and self._current.meta("lora_triggers") != value:
+            root.files.loras.set_meta(self._current, "lora_triggers", value)
+
+    def _set_default_strength(self):
+        value = self._strength.value() / 100
+        if self._current and self._current.meta("lora_strength") != value:
+            root.files.loras.set_meta(self._current, "lora_strength", value)
+            self._update()
+
+    def remove(self):
+        self.removed.emit(self)
+
+    @property
+    def value(self):
+        if self._current is None:
+            return dict(name="", strength=1.0)
+        return dict(name=self._current.id, strength=self._strength.value() / 100)
+
+    @value.setter
+    def value(self, v):
+        new_value = root.files.loras.find(v["name"]) or File.remote(v["name"])
+        if self._current is None or new_value.id != self._current.id:
+            self._current = new_value
+            index = self._select.findData(new_value.id)
+            if index >= 0:
+                self._select.setCurrentIndex(index)
+            else:
+                self._select.setEditText(self._current.name)
+            self._strength.setValue(int(v["strength"] * 100))
+            self._update()
+
+    def _show_lora_warnings(self, lora: File):
+        if client := root.connection.client_if_connected:
+            special_loras = [
+                file
+                for res, file in client.models.resources.items()
+                if file is not None and res.startswith("lora-")
+            ]
+            file_ref = root.files.loras.find(lora.id)
+            if file_ref is None or file_ref.source is FileSource.unavailable:
+                self._warning_icon.show_message(_lora_not_installed_warning)
+                self._warning_text.setText(_lora_not_installed_warning)
+                self._warning_text.setVisible(True)
+            elif lora.id in special_loras:
+                self._warning_icon.show_message(_special_lora_warning)
+                self._warning_text.setText(_special_lora_warning)
+                self._warning_text.setVisible(True)
+            else:
+                self._warning_icon.hide()
+                self._warning_text.setVisible(False)
+
+
+_lora_not_installed_warning = _("The LoRA file is not installed on the server.")
+_special_lora_warning = _(
+    "This LoRA is usually added automatically by a Sampler or Control Layer when needed.\nIt is not required to add it manually here."
+)
 
 
 class LoraList(QWidget):
-
-    class Item(QWidget):
-        changed = pyqtSignal()
-        removed = pyqtSignal(QWidget)
-
-        _loras: list[LoraId]
-        _current = LoraId("", "")
-
-        def __init__(self, loras: list[LoraId], filter: str, parent=None):
-            super().__init__(parent)
-            self.setContentsMargins(0, 0, 0, 0)
-
-            layout = QHBoxLayout()
-            layout.setContentsMargins(0, 0, 0, 0)
-            self.setLayout(layout)
-
-            self._select = QComboBox(self)
-            self._select.setEditable(True)
-            self._select.setMaxVisibleItems(20)
-            self._select.currentIndexChanged.connect(self._select_lora)
-
-            self._warning_icon = WarningIcon(self)
-
-            self._strength = QSpinBox(self)
-            self._strength.setMinimum(-400)
-            self._strength.setMaximum(400)
-            self._strength.setSingleStep(5)
-            self._strength.setValue(100)
-            self._strength.setPrefix(_("Strength") + ": ")
-            self._strength.setSuffix("%")
-            self._strength.valueChanged.connect(self._update)
-
-            self._remove = QToolButton(self)
-            self._remove.setIcon(icon("discard"))
-            self._remove.clicked.connect(self.remove)
-
-            layout.addWidget(self._select, 3)
-            layout.addWidget(self._strength, 1)
-            layout.addWidget(self._warning_icon)
-            layout.addWidget(self._remove)
-
-            self.set_names(loras, filter)
-
-        def _update(self):
-            self.changed.emit()
-
-        def _select_lora(self):
-            name = self._select.currentText()
-            id = next((l for l in self._loras if l.name == name), LoraId("", ""))
-            if id.file and id != self._current:
-                self._current = id
-                self._update()
-                self._show_lora_warnings(id)
-
-        def set_names(self, loras: list[LoraId], filter: str):
-            self._loras = loras
-
-            with SignalBlocker(self._select):
-                model = QStringListModel([l.name for l in loras])
-                sorted = QSortFilterProxyModel()
-                sorted.setSourceModel(model)
-                sorted.setFilterCaseSensitivity(Qt.CaseSensitivity.CaseInsensitive)
-                if filter != "All":
-                    sorted.setFilterFixedString(f"{filter}/")
-
-                completer = QCompleter(sorted)
-                completer.setCaseSensitivity(Qt.CaseSensitivity.CaseInsensitive)
-                completer.setFilterMode(Qt.MatchFlag.MatchContains)
-
-                self._select.setModel(sorted)
-                self._select.setCompleter(completer)
-
-                if not self._current.name:
-                    self._select_lora()
-                else:
-                    self._select.setEditText(self._current.name)
-
-        def remove(self):
-            self.removed.emit(self)
-
-        @property
-        def value(self):
-            return dict(name=self._current.file, strength=self._strength.value() / 100)
-
-        @value.setter
-        def value(self, v):
-            new_value = LoraId.normalize(v["name"])
-            if new_value.file != self._current.file:
-                self._current = new_value
-                if self._select.findText(new_value.name) >= 0:
-                    self._select.setCurrentText(self._current.name)
-                else:
-                    self._select.setEditText(self._current.name)
-                self._strength.setValue(int(v["strength"] * 100))
-                self._show_lora_warnings(new_value)
-
-        def _show_lora_warnings(self, id: LoraId):
-            if client := root.connection.client_if_connected:
-                special_loras = [
-                    file
-                    for res, file in client.models.resources.items()
-                    if file is not None and res.startswith("lora-")
-                ]
-                if id.file not in client.models.loras:
-                    self._warning_icon.show_message(
-                        _("The LoRA file is not installed on the server.")
-                    )
-                elif id.file in special_loras:
-                    self._warning_icon.show_message(
-                        _(
-                            "This LoRA is usually added automatically by a Sampler or Control Layer when needed.\nIt is not required to add it manually here."
-                        )
-                    )
-                else:
-                    self._warning_icon.hide()
-
     value_changed = pyqtSignal()
 
     open_folder_button: Optional[QToolButton] = None
     last_filter = "All"
 
-    _loras: list[LoraId]
-    _items: list[Item]
+    _items: list[LoraItem]
 
     def __init__(self, setting: Setting, parent=None):
         super().__init__(parent)
-        self._loras = []
         self._items = []
 
         self._layout = QVBoxLayout()
@@ -177,6 +292,11 @@ class LoraList(QWidget):
         self._add_button.setMinimumWidth(100)
         self._add_button.clicked.connect(self._add_item)
         header_layout.addWidget(self._add_button, 1)
+
+        self._upload_button = QPushButton(icon("upload"), "  " + _("Upload"), self)
+        self._upload_button.setToolTip(_("Import a LoRA file from your local system"))
+        self._upload_button.clicked.connect(self._upload_lora)
+        header_layout.addWidget(self._upload_button, 1)
 
         self._filter_combo = QComboBox(self)
         self._filter_combo.currentIndexChanged.connect(self._set_filtered_names)
@@ -202,14 +322,19 @@ class LoraList(QWidget):
         self._item_list.setContentsMargins(0, 0, 0, 0)
         self._layout.addLayout(self._item_list)
 
-        self.setEnabled(settings.server_mode is not ServerMode.cloud)
-        settings.changed.connect(self._handle_settings_change)
+        self._filtered_lora = FileFilter(root.files.loras)
+        self._filtered_lora.available_only = True
+        root.files.loras.rowsInserted.connect(self._collect_filters)
+        root.files.loras.rowsRemoved.connect(self._collect_filters)
+        self._collect_filters()
 
-    def _add_item(self, lora=None):
+    def _add_item(self, lora: dict | File | None = None):
         assert self._item_list is not None
-        item = self.Item(self._loras, self.filter, self)
+        item = LoraItem(self._filtered_lora, parent=self)
         if isinstance(lora, dict):
             item.value = lora
+        elif isinstance(lora, File):
+            item.value = dict(name=lora.id, strength=1.0)
         item.changed.connect(self._update_item)
         item.removed.connect(self._remove_item)
         self._items.append(item)
@@ -225,42 +350,43 @@ class LoraList(QWidget):
     def _update_item(self):
         self.value_changed.emit()
 
-    def _collect_filters(self, names: list[str]):
+    def _collect_filters(self):
         with SignalBlocker(self._filter_combo):
             self._filter_combo.clear()
             self._filter_combo.addItem(icon("filter"), "All")
             folders = set()
-            for name in names:
-                parts = Path(name.replace("\\", "/")).parts
-                for i in range(1, len(parts)):
-                    folders.add("/".join(parts[:i]))
+            for lora in root.files.loras:
+                if lora.source is not FileSource.unavailable:
+                    parts = Path(lora.id).parts
+                    for i in range(1, len(parts)):
+                        folders.add("/".join(parts[:i]))
             folder_icon = Krita.instance().icon("document-open")
             for folder in sorted(folders, key=lambda x: x.lower()):
                 self._filter_combo.addItem(folder_icon, folder)
         self._filter_combo.setCurrentText(LoraList.last_filter)
+        self._add_button.setEnabled(self._filtered_lora.rowCount() > 0)
 
     def _set_filtered_names(self):
         LoraList.last_filter = self.filter
-        for item in self._items:
-            item.set_names(self._loras, self.filter)
+        self._filtered_lora.name_prefix = "" if self.filter == "All" else self.filter
 
-    def _handle_settings_change(self, key: str, value):
-        if key == "server_mode":
-            self.setEnabled(value is not ServerMode.cloud)
+    def _upload_lora(self):
+        filepath = QFileDialog.getOpenFileName(
+            self, _("Select LoRA file"), None, "LoRA files (*.safetensors)"
+        )
+        if filepath[0]:
+            path = Path(filepath[0])
+            if client := root.connection.client_if_connected:
+                if client.max_upload_size and path.stat().st_size > client.max_upload_size:
+                    _show_file_too_large_warning(client.max_upload_size, self)
+                    return
+            file = File.local(path, compute_hash=True)
+            root.files.loras.add(file)
+            self._add_item(file)
 
     @property
     def filter(self):
         return self._filter_combo.currentText()
-
-    @property
-    def names(self):
-        return self._loras
-
-    @names.setter
-    def names(self, v: list[str]):
-        self._loras = [LoraId.normalize(name) for name in v]
-        self._collect_filters(v)
-        self._set_filtered_names()
 
     @property
     def value(self):
@@ -272,6 +398,11 @@ class LoraList(QWidget):
             self._remove_item(self._items[-1])
         for lora in v:
             self._add_item(lora)
+
+
+def _show_file_too_large_warning(max_size: int, parent=None):
+    msg = _("The file is too large to be uploaded. Files up to a size of {size} MB are supported.")
+    QMessageBox.warning(parent, _("File too large"), msg.format(size=max_size / (1024**2)))
 
 
 class SamplerWidget(QWidget):
@@ -387,6 +518,11 @@ class StylePresets(SettingsTab):
         self._create_style_button.setToolTip(_("Create a new style"))
         self._create_style_button.clicked.connect(self._create_style)
 
+        self._duplicate_style_button = QToolButton(self)
+        self._duplicate_style_button.setIcon(Krita.instance().icon("duplicate"))
+        self._duplicate_style_button.setToolTip(_("Duplicate the current style"))
+        self._duplicate_style_button.clicked.connect(self._duplicate_style)
+
         self._delete_style_button = QToolButton(self)
         self._delete_style_button.setIcon(Krita.instance().icon("deletelayer"))
         self._delete_style_button.setToolTip(_("Delete the current style"))
@@ -403,12 +539,14 @@ class StylePresets(SettingsTab):
         self._open_folder_button.clicked.connect(self._open_style_folder)
 
         self._show_builtin_checkbox = QCheckBox(_("Show pre-installed styles"), self)
+        self._show_builtin_checkbox.setChecked(settings.show_builtin_styles)
         self._show_builtin_checkbox.toggled.connect(self.write)
 
         style_control_layout = QHBoxLayout()
         style_control_layout.setContentsMargins(0, 0, 0, 0)
         style_control_layout.addWidget(self._style_list)
         style_control_layout.addWidget(self._create_style_button)
+        style_control_layout.addWidget(self._duplicate_style_button)
         style_control_layout.addWidget(self._delete_style_button)
         style_control_layout.addWidget(self._refresh_button)
         style_control_layout.addWidget(self._open_folder_button)
@@ -433,14 +571,17 @@ class StylePresets(SettingsTab):
         add("name", TextSetting(StyleSettings.name, self))
         self._style_widgets["name"].value_changed.connect(self._update_name)
 
-        add("sd_checkpoint", ComboBoxSetting(StyleSettings.sd_checkpoint, self))
-        self._style_widgets["sd_checkpoint"].add_button(
+        checkpoint_select = add(
+            "sd_checkpoint",
+            ComboBoxSetting(StyleSettings.sd_checkpoint, model=root.files.checkpoints, parent=self),
+        )
+        checkpoint_select.add_button(
             Krita.instance().icon("reload-preset"),
             _("Look for new checkpoint files"),
             root.connection.refresh,
         )
         self._checkpoint_warning = QLabel(self)
-        self._checkpoint_warning.setStyleSheet(f"font-style: italic; color: {yellow};")
+        self._checkpoint_warning.setStyleSheet(f"font-style: italic; color: {theme.yellow};")
         self._checkpoint_warning.setVisible(False)
         self._layout.addWidget(self._checkpoint_warning, alignment=Qt.AlignmentFlag.AlignRight)
 
@@ -448,11 +589,13 @@ class StylePresets(SettingsTab):
         checkpoint_advanced.toggled.connect(self._toggle_checkpoint_advanced)
         self._layout.addWidget(checkpoint_advanced)
 
-        self._checkpoint_advanced_widgets = [add("vae", ComboBoxSetting(StyleSettings.vae, self))]
+        self._checkpoint_advanced_widgets = [
+            add("vae", ComboBoxSetting(StyleSettings.vae, parent=self))
+        ]
 
         self._clip_skip = add("clip_skip", SpinBoxSetting(StyleSettings.clip_skip, self, 0, 12))
-        clip_skip_check = self._clip_skip.add_checkbox(_("Override"))
-        clip_skip_check.toggled.connect(self._toggle_clip_skip)
+        self._clip_skip_check = self._clip_skip.add_checkbox(_("Override"))
+        self._clip_skip_check.toggled.connect(self._toggle_clip_skip)
         self._checkpoint_advanced_widgets.append(self._clip_skip)
 
         self._resolution_spin = add(
@@ -463,15 +606,17 @@ class StylePresets(SettingsTab):
         resolution_check.toggled.connect(self._toggle_preferred_resolution)
         self._checkpoint_advanced_widgets.append(self._resolution_spin)
 
-        self._checkpoint_advanced_widgets.append(
-            add("v_prediction_zsnr", SwitchSetting(StyleSettings.v_prediction_zsnr, parent=self))
+        self._zsnr = add(
+            "v_prediction_zsnr", SwitchSetting(StyleSettings.v_prediction_zsnr, parent=self)
         )
-        self._checkpoint_advanced_widgets.append(
-            add(
-                "self_attention_guidance",
-                SwitchSetting(StyleSettings.self_attention_guidance, parent=self),
-            )
+        self._checkpoint_advanced_widgets.append(self._zsnr)
+
+        self._sag = add(
+            "self_attention_guidance",
+            SwitchSetting(StyleSettings.self_attention_guidance, parent=self),
         )
+        self._checkpoint_advanced_widgets.append(self._sag)
+
         for widget in self._checkpoint_advanced_widgets:
             widget.indent = 1
         self._toggle_checkpoint_advanced(False)
@@ -525,6 +670,11 @@ class StylePresets(SettingsTab):
         cp = self._style_widgets["sd_checkpoint"].value or StyleSettings.sd_checkpoint.default
         new_style = Styles.list().create(checkpoint=cp)
         self.current_style = new_style
+
+    def _duplicate_style(self):
+        self.current_style = Styles.list().create(
+            self.current_style.filename, copy_from=self.current_style
+        )
 
     def _delete_style(self):
         Styles.list().delete(self.current_style)
@@ -597,14 +747,21 @@ class StylePresets(SettingsTab):
 
     def _toggle_clip_skip(self, checked: bool):
         if checked and self._clip_skip.value == 0:
-            sd_ver = resolve_sd_version(self.current_style, root.connection.client_if_connected)
-            self._clip_skip.value = 1 if sd_ver is SDVersion.sd15 else 2
+            arch = resolve_sd_version(self.current_style, root.connection.client_if_connected)
+            self._clip_skip.value = 1 if arch is SDVersion.sd15 else 2
         elif not checked and self._clip_skip.value > 0:
             self._clip_skip.value = 0
 
     def _toggle_checkpoint_advanced(self, checked: bool):
         for widget in self._checkpoint_advanced_widgets:
             widget.visible = checked
+
+    def _enable_checkpoint_advanced(self):
+        arch = resolve_sd_version(self.current_style, root.connection.client_if_connected)
+        self._clip_skip_check.setEnabled(arch.supports_clip_skip)
+        self._clip_skip.enabled = arch.supports_clip_skip and self.current_style.clip_skip > 0
+        self._zsnr.enabled = arch.supports_attention_guidance
+        self._sag.enabled = arch.supports_attention_guidance
 
     def _read_style(self, style: Style):
         with self._write_guard:
@@ -613,20 +770,13 @@ class StylePresets(SettingsTab):
             self._default_sampler.read(style)
             self._live_sampler.read(style)
         self._set_checkpoint_warning()
-        self._clip_skip.enabled = style.clip_skip > 0
+        self._enable_checkpoint_advanced()
         self._resolution_spin.enabled = style.preferred_resolution > 0
 
     def _read(self):
         self._show_builtin_checkbox.setChecked(settings.show_builtin_styles)
         if client := root.connection.client_if_connected:
             default_vae = cast(str, StyleSettings.vae.default)
-            checkpoints = [
-                (cp.name, cp.filename, sd_version_icon(cp.sd_version, client))
-                for cp in client.models.checkpoints.values()
-                if not (cp.is_refiner or cp.is_inpaint)
-            ]
-            self._style_widgets["sd_checkpoint"].set_items(checkpoints)
-            self._style_widgets["loras"].names = client.models.loras
             self._style_widgets["vae"].set_items([default_vae] + client.models.vae)
         self._read_style(self.current_style)
 
@@ -640,4 +790,5 @@ class StylePresets(SettingsTab):
         self._default_sampler.write(style)
         self._live_sampler.write(style)
         self._set_checkpoint_warning()
+        self._enable_checkpoint_advanced()
         style.save()

@@ -10,9 +10,10 @@ from dataclasses import dataclass
 
 from .api import WorkflowInput, WorkflowKind
 from .client import Client, ClientEvent, ClientMessage, ClientModels, DeviceInfo, CheckpointInfo
-from .client import TranslationPackage, User
+from .client import TranslationPackage, User, loras_to_upload
 from .image import Extent, ImageCollection
 from .network import RequestManager, NetworkError
+from .files import FileLibrary, File
 from .resources import SDVersion
 from .settings import PerformanceSettings, settings
 from .localization import translate as _
@@ -40,6 +41,8 @@ class CloudClient(Client):
     _token: str = ""
     _user: User | None = None
     _current_job: JobInfo | None = None
+    _cancel_requested: bool = False
+    _max_upload_size = 300 * (1024**2)
 
     @staticmethod
     async def connect(url: str, access_token: str = ""):
@@ -102,6 +105,7 @@ class CloudClient(Client):
         self._user = User(user_data["id"], user_data["name"])
         self._user.images_generated = user_data["images_generated"]
         self._user.credits = user_data["credits"]
+        self._max_upload_size = user_data.get("max_upload_size", self._max_upload_size)
         log.info(f"Connected to {self.url}, user: {self._user.id}")
         return self._user
 
@@ -117,8 +121,12 @@ class CloudClient(Client):
         while True:
             try:
                 self._current_job = await self._queue.get()
+                self._cancel_requested = False
                 async for msg in self._process_job(self._current_job):
                     yield msg
+                    if self._cancel_requested:
+                        yield ClientMessage(ClientEvent.interrupted, self._current_job.local_id)
+                        break
 
             except NetworkError as e:
                 msg = self._process_http_error(e)
@@ -136,8 +144,10 @@ class CloudClient(Client):
 
     async def _process_job(self, job: JobInfo):
         user = ensure(self.user)
-        inputs = job.work.to_dict()
-        await self._send_images(inputs)
+        inputs = job.work.to_dict(max_image_size=16 * 1024)
+        async for progress in self.send_lora(job.work):
+            yield ClientMessage(ClientEvent.upload, job.local_id, progress)
+        await self.send_images(inputs)
         data = {"input": {"workflow": inputs}}
         response: dict = await self._post("generate", data)
 
@@ -183,8 +193,10 @@ class CloudClient(Client):
             log.warning(f"Got unknown job status {response['status']}")
 
     async def interrupt(self):
-        if self._current_job and self._current_job.remote_id:
-            await self._post(f"cancel/{self._current_job.remote_id}", {})
+        if self._current_job:
+            self._cancel_requested = True
+            # if  self._current_job.remote_id:
+            #     await self._post(f"cancel/{self._current_job.remote_id}", {})
 
     async def clear_queue(self):
         self._queue = asyncio.Queue()
@@ -202,6 +214,10 @@ class CloudClient(Client):
         )
 
     @property
+    def max_upload_size(self):
+        return self._max_upload_size
+
+    @property
     def supported_languages(self):
         return [
             TranslationPackage("zh", "Chinese"),
@@ -211,21 +227,51 @@ class CloudClient(Client):
             TranslationPackage("es", "Spanish"),
         ]
 
-    async def _send_images(self, inputs: dict):
+    async def send_images(self, inputs: dict, max_inline_size=3_500_000):
         if image_data := inputs.get("image_data"):
             blob, offsets = image_data["bytes"], image_data["offsets"]
-            if _base64_size(len(blob)) < 3_500_000:
+            if _base64_size(len(blob)) < max_inline_size:
                 encoded = b64encode(blob).decode("utf-8")
                 inputs["image_data"] = {"base64": encoded, "offsets": offsets}
             else:
-                s3_object = await self._upload_to_s3(blob)
+                s3_object = await self._upload_image(blob)
                 inputs["image_data"] = {"s3_object": s3_object, "offsets": offsets}
 
-    async def _upload_to_s3(self, data: bytes):
-        upload_info = await self._get("upload")
+    async def _upload_image(self, data: bytes):
+        upload_info = await self._post("upload/image", {})
         log.info(f"Uploading image input to temporary transfer {upload_info['url']}")
         await self._requests.put(upload_info["url"], data)
         return upload_info["object"]
+
+    async def send_lora(self, workflow: WorkflowInput):
+        for file in loras_to_upload(workflow, self.models):
+            async for progress in self._upload_lora(file):
+                yield progress
+
+    async def _upload_lora(self, lora: File):
+        assert lora.path and lora.hash and lora.size
+        upload = await self._post(f"upload/lora", dict(hash=lora.hash, size=lora.size))
+        if upload["status"] == "too-large":
+            max_size = int(upload.get("max", 0)) / (1024 * 1024)
+            raise ValueError(
+                _("LoRA model is too large to upload") + f" (max {max_size} MB) {lora.name}"
+            )
+        if upload["status"] == "limit-exceeded":
+            raise ValueError(_("Can't upload LoRA model, limit exceeded") + f" {lora.name}")
+        if upload["status"] == "cached":
+            return  # already uploaded
+        log.info(
+            f"Uploading LoRA model {lora.name} to cloud (hash={lora.hash}, url={upload['url']})"
+        )
+        try:
+            data = lora.path.read_bytes()
+            async for sent, total in self._requests.upload(upload["url"], data, sha256=lora.hash):
+                yield sent / max(total, 1)
+        except NetworkError as e:
+            log.error(f"LoRA model upload failed [{e.status}]: {e.message}")
+            raise Exception(_("Connection error during upload of LoRA model") + f" {lora.name}")
+        except Exception as e:
+            raise Exception(_("Error during upload of LoRA model") + f" {lora.name}") from e
 
     async def receive_images(self, images: dict):
         offsets = images.get("offsets")
@@ -306,7 +352,10 @@ models.checkpoints = {
     ),
 }
 models.vae = []
-models.loras = []
+models.loras = [
+    "Hyper-SD15-8steps-CFG-lora.safetensors",
+    "Hyper-SDXL-8steps-CFG-lora.safetensors",
+]
 models.upscalers = [
     "4x_NMKD-Superscale-SP_178000_G.pth",
     "HAT_SRx4_ImageNet-pretrain.pth",

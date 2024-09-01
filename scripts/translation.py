@@ -13,8 +13,8 @@ def extract_source_strings(filepath: Path):
     return set(expression.findall(text))
 
 
-def parse_source(dir: Path):
-    result = set()
+def parse_source(dir: Path) -> set[str]:
+    result: set[str] = set()
     for file in dir.iterdir():
         if file.is_dir() and not file.name in excluded_dirs:
             result |= parse_source(file)
@@ -41,9 +41,9 @@ def update_all():
     for lang_file in (source_dir / "language").iterdir():
         if lang_file.name != "en.json" and lang_file.suffix == ".json":
             existing = json.loads(lang_file.read_text(encoding="utf-8"))
-            translations = base.copy()
-            translations.update(existing["translations"])
-            existing["translations"] = translations
+            updated = {s: t for s, t in existing["translations"].items() if s in strings}
+            updated.update({s: None for s in strings if s not in updated})
+            existing["translations"] = updated
             with lang_file.open("w", encoding="utf-8") as f:
                 json.dump(existing, f, ensure_ascii=False, indent=2)
 

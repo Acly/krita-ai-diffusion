@@ -380,16 +380,16 @@ def process_regions(
         parent_region = root.find_linked(parent_layer)
 
     parent_prompt = ""
-    parent_control: list[ControlLayer] = []
     job_info = []
+    control = root.control.to_api(bounds, time)
     if parent_layer and parent_region:
         parent_prompt = parent_region.positive
-        parent_control = list(parent_region.control)
+        control += parent_region.control.to_api(bounds, time)
         job_info = [JobRegion(parent_layer.id_string, parent_prompt, bounds)]
     result = ConditioningInput(
         positive=workflow.merge_prompt(parent_prompt, root.positive),
         negative=root.negative,
-        control=[c.to_api(bounds, time) for c in list(root.control) + parent_control],
+        control=control,
     )
 
     # Collect layers with linked regions. Optionally restrict to to child layers of a region.
@@ -420,7 +420,7 @@ def process_regions(
             layer.get_mask(bounds),
             layer_bounds,
             workflow.merge_prompt(region.positive, root.positive),
-            control=[c.to_api(bounds, time) for c in region.control],
+            control=region.control.to_api(bounds, time),
         )
         job_params = JobRegion(layer.id_string, region.positive, layer_bounds)
         result_regions.append((region_result, job_params))

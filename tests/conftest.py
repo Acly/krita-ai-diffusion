@@ -8,7 +8,7 @@ from PyQt5.QtCore import QCoreApplication
 root_dir = Path(__file__).parent.parent
 sys.path.append(str(root_dir))
 
-from ai_diffusion import eventloop, network
+from ai_diffusion import eventloop, network, util
 from ai_diffusion.settings import settings
 
 from .config import result_dir
@@ -36,6 +36,16 @@ class QtTestApp:
 @pytest.fixture(scope="session")
 def qtapp():
     return QtTestApp()
+
+
+@pytest.fixture(scope="session", autouse=True)
+def clear_appdata():
+    user_dir = util.user_data_dir
+    assert user_dir.name == ".appdata", "expected local test appdata dir"
+
+    data_dir = user_dir / "data"
+    if data_dir.exists():
+        shutil.rmtree(data_dir)
 
 
 @pytest.fixture(scope="session", autouse=True)

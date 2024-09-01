@@ -12,6 +12,7 @@ from .api import ExtentInput, InpaintMode, InpaintParams, FillMode, Conditioning
 from .api import RegionInput
 from .image import Bounds, Extent, Image, Mask, Point, multiple_of
 from .client import ClientModels, ModelDict
+from .files import FileLibrary
 from .style import Style, StyleSettings, SamplerPresets
 from .resolution import ScaledExtent, ScaleMode, TileLayout, get_inpaint_reference
 from .resources import ControlMode, SDVersion, UpscalerName, ResourceKind
@@ -87,6 +88,7 @@ def _sampler_params(sampling: SamplingInput, strength: float | None = None):
 
 
 def load_checkpoint_with_lora(w: ComfyWorkflow, checkpoint: CheckpointInput, models: ClientModels):
+    arch = checkpoint.version
     checkpoint_model = checkpoint.checkpoint
     if checkpoint_model not in models.checkpoints:
         checkpoint_model = next(iter(models.checkpoints.keys()))
@@ -95,12 +97,12 @@ def load_checkpoint_with_lora(w: ComfyWorkflow, checkpoint: CheckpointInput, mod
         )
     model, clip, vae = w.load_checkpoint(checkpoint_model)
 
-    if checkpoint.version is SDVersion.sd3:
-        clip_models = models.for_version(checkpoint.version).clip
+    if arch is SDVersion.sd3:
+        clip_models = models.for_version(arch).clip
         model = w.model_sampling_sd3(model)
         clip = w.load_dual_clip(clip_models["clip_g"], clip_models["clip_l"], type="sd3")
 
-    if checkpoint.clip_skip != StyleSettings.clip_skip.default:
+    if arch.supports_clip_skip and checkpoint.clip_skip != StyleSettings.clip_skip.default:
         clip = w.clip_set_last_layer(clip, (checkpoint.clip_skip * -1))
 
     if checkpoint.vae != StyleSettings.vae.default:
@@ -116,12 +118,12 @@ def load_checkpoint_with_lora(w: ComfyWorkflow, checkpoint: CheckpointInput, mod
         model = w.model_sampling_discrete(model, "v_prediction", zsnr=True)
         model = w.rescale_cfg(model, 0.7)
 
-    if checkpoint.version.supports_lcm:
+    if arch.supports_lcm:
         lcm_lora = models.for_checkpoint(checkpoint_model).lora.find("lcm")
         if lcm_lora and any(l.name == lcm_lora for l in checkpoint.loras):
             model = w.model_sampling_discrete(model, "lcm")
 
-    if checkpoint.self_attention_guidance:
+    if arch.supports_attention_guidance and checkpoint.self_attention_guidance:
         model = w.apply_self_attention_guidance(model)
 
     return model, clip, vae
@@ -524,6 +526,13 @@ def scale_refine_and_decode(
     return image
 
 
+def ensure_minimum_extent(w: ComfyWorkflow, image: Output, extent: Extent, min_extent: int):
+    # For example, upscale with model requires minimum size of 32x32
+    if extent.shortest_side < min_extent:
+        image = w.scale_image(image, extent * (min_extent / extent.shortest_side))
+    return image
+
+
 class MiscParams(NamedTuple):
     batch_count: int
     nsfw_filter: float
@@ -704,6 +713,7 @@ def inpaint(
         upscale_model = w.load_upscale_model(upscaler)
         upscale = w.vae_decode(vae, out_latent)
         upscale = w.crop_image(upscale, initial_bounds)
+        upscale = ensure_minimum_extent(w, upscale, initial_bounds.extent, 32)
         upscale = w.upscale_image(upscale_model, upscale)
         upscale = w.scale_image(upscale, upscale_extent.desired)
         latent = w.vae_encode(vae, upscale)
@@ -813,16 +823,16 @@ def refine_region(
     positive, negative = apply_control(
         w, prompt_pos, prompt_neg, cond.all_control, extent.initial, models
     )
-    if models.version is SDVersion.sd15 or not inpaint.use_inpaint_model:
-        latent = w.vae_encode(vae, in_image)
-        latent = w.set_latent_noise_mask(latent, initial_mask)
-        inpaint_model = model
-    else:  # SDXL inpaint model
+    if inpaint.use_inpaint_model and models.version is SDVersion.sdxl:
         positive, negative, latent_inpaint, latent = w.vae_encode_inpaint_conditioning(
             vae, in_image, initial_mask, positive, negative
         )
         inpaint_patch = w.load_fooocus_inpaint(**models.fooocus_inpaint)
         inpaint_model = w.apply_fooocus_inpaint(model, inpaint_patch, latent_inpaint)
+    else:
+        latent = w.vae_encode(vae, in_image)
+        latent = w.set_latent_noise_mask(latent, initial_mask)
+        inpaint_model = model
 
     latent = w.batch_latent(latent, misc.batch_count)
     out_latent = w.sampler_custom_advanced(
@@ -1009,6 +1019,7 @@ def prepare(
     style: Style,
     seed: int,
     models: ClientModels,
+    files: FileLibrary,
     perf: PerformanceSettings,
     mask: Mask | None = None,
     strength: float = 1.0,
@@ -1023,18 +1034,19 @@ def prepare(
     """
     i = WorkflowInput(kind)
     i.conditioning = cond
-    i.conditioning.positive, extra_loras = extract_loras(i.conditioning.positive, models.loras)
+    i.conditioning.positive, extra_loras = extract_loras(i.conditioning.positive, files.loras)
     i.conditioning.negative = merge_prompt(cond.negative, style.negative_prompt, cond.language)
     i.conditioning.style = style.style_prompt
     for idx, region in enumerate(i.conditioning.regions):
         assert region.mask or idx == 0, "Only the first/bottom region can be without a mask"
-        region.positive, region_loras = extract_loras(region.positive, models.loras)
+        region.positive, region_loras = extract_loras(region.positive, files.loras)
         extra_loras += region_loras
     i.sampling = _sampling_from_style(style, strength, is_live)
     i.sampling.seed = seed
     i.models = style.get_models()
+    i.conditioning.positive += _collect_lora_triggers(i.models.loras, files)
     i.models.loras = unique(i.models.loras + extra_loras, key=lambda l: l.name)
-    _check_server_has_models(i.models, models, style.name)
+    _check_server_has_models(i.models, models, files, style.name)
 
     sd_version = i.models.version = models.version_of(style.sd_checkpoint)
     model_set = models.for_version(sd_version)
@@ -1247,7 +1259,19 @@ def _get_sampling_lora(style: Style, is_live: bool, model_set: ModelDict, models
     return []
 
 
-def _check_server_has_models(input: CheckpointInput, models: ClientModels, style_name: str):
+def _collect_lora_triggers(loras: list[LoraInput], files: FileLibrary):
+    def trigger_words(lora: LoraInput) -> str:
+        if file := files.loras.find(lora.name):
+            return file.meta("lora_triggers", "")
+        return ""
+
+    result = " ".join(trigger_words(lora) for lora in loras)
+    return " " + result if result else ""
+
+
+def _check_server_has_models(
+    input: CheckpointInput, models: ClientModels, files: FileLibrary, style_name: str
+):
     if input.checkpoint not in models.checkpoints:
         raise ValueError(
             _(
@@ -1258,6 +1282,9 @@ def _check_server_has_models(input: CheckpointInput, models: ClientModels, style
         )
     for lora in input.loras:
         if lora.name not in models.loras:
+            if lora_info := files.loras.find_local(lora.name):
+                lora.storage_id = lora_info.compute_hash()
+                continue  # local file available, can be uploaded to server
             raise ValueError(
                 _(
                     "The LoRA '{lora}' used by style '{style}' is not available on the server",

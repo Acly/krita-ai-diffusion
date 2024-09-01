@@ -11,9 +11,12 @@ exclude = [
     "**/.pytest_cache",
     "**/.server",
     "tests/server",
-    "tests/test_pod.py",
+    "tests/test_image_transfer.py",
     "ai_diffusion/websockets",
 ]
 ignore = ["ai_diffusion/websockets", "krita.pyi"]
 extraPaths = ["scripts/typeshed"]
 reportMissingModuleSource = false
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]

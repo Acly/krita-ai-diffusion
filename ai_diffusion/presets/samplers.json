@@ -50,6 +50,7 @@
         "cfg": 3.5
     },
     "Realtime - LCM": {
+        "hidden": true,
         "sampler": "lcm",
         "scheduler": "sgm_uniform",
         "lora": "lcm",
@@ -58,6 +59,7 @@
         "cfg": 1.8
     },
     "Realtime - Lightning": {
+        "hidden": true,
         "sampler": "euler",
         "scheduler": "sgm_uniform",
         "lora": "lightning",

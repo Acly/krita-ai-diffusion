@@ -1,4 +1,5 @@
 from __future__ import annotations
+from copy import copy
 from enum import Enum
 from typing import NamedTuple
 import json
@@ -9,7 +10,7 @@ from .api import CheckpointInput, LoraInput
 from .settings import Setting, settings
 from .resources import SDVersion
 from .localization import translate as _
-from .util import encode_json, read_json_with_comments
+from .util import encode_json, find_unused_path, read_json_with_comments
 from .util import plugin_dir, user_data_dir, client_logger as log
 
 
@@ -175,7 +176,9 @@ class Style:
     def filename(self):
         if self.filepath.is_relative_to(Styles.default_user_folder):
             return str(self.filepath.relative_to(Styles.default_user_folder).as_posix())
-        return f"built-in/{self.filepath.name}"
+        if self.filepath.is_relative_to(Styles.default_builtin_folder):
+            return f"built-in/{self.filepath.name}"
+        return self.filepath.name
 
     def get_models(self):
         result = CheckpointInput(
@@ -238,18 +241,18 @@ class Styles(QObject):
     def default(self):
         return self[0]
 
-    def create(self, name: str = "style", checkpoint: str = "") -> Style:
-        if Path(self.user_folder / f"{name}.json").exists():
-            i = 1
-            basename = name
-            while Path(self.user_folder / f"{basename}_{i}.json").exists():
-                i += 1
-            name = f"{basename}_{i}"
-
-        new_style = Style(self.user_folder / f"{name}.json")
+    def create(self, filename="style.json", checkpoint: str = "", copy_from: Style | None = None):
+        filename = Path(filename).name
+        path = find_unused_path(self.user_folder / filename)
+        new_style = Style(path)
         new_style.name = _("New Style")
         if checkpoint:
             new_style.sd_checkpoint = checkpoint
+        if copy_from:
+            for name, setting in StyleSettings.__dict__.items():
+                if isinstance(setting, Setting):
+                    setattr(new_style, name, copy(getattr(copy_from, name)))
+            new_style.name = f"{copy_from.name} (Copy)"
         self._list.append(new_style)
         new_style.save()
         self.changed.emit()
@@ -306,6 +309,7 @@ class SamplerPreset(NamedTuple):
     cfg: float
     lora: str | None = None
     minimum_steps: int = 4
+    hidden: bool = False
 
 
 class SamplerPresets:
@@ -382,7 +386,12 @@ class SamplerPresets:
         return self._presets.items()
 
     def names(self):
-        return self._presets.keys()
+        def is_visible(name: str, preset: SamplerPreset):
+            return not preset.hidden or any(
+                s.live_sampler == name or s.sampler == name for s in Styles.list()
+            )
+
+        return [name for name, preset in self._presets.items() if is_visible(name, preset)]
 
 
 legacy_map = {

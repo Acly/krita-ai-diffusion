@@ -6,10 +6,10 @@ from typing import NamedTuple, Sequence
 
 # Version identifier for all the resources defined here. This is used as the server version.
 # It usually follows the plugin version, but not all new plugin versions also require a server update.
-version = "1.22.0"
+version = "1.23.0"
 
 comfy_url = "https://github.com/comfyanonymous/ComfyUI"
-comfy_version = "413322645e713bdda69836620a97d4c9ca66b230"
+comfy_version = "38c22e631ad090a4841e4a0f015a30c565a9f7fc"
 
 
 class CustomNode(NamedTuple):
@@ -25,28 +25,28 @@ required_custom_nodes = [
         "ControlNet Preprocessors",
         "comfyui_controlnet_aux",
         "https://github.com/Fannovel16/comfyui_controlnet_aux",
-        "6f1ba1c10df84af6d356119ccf4ebcf796a10e1c",
+        "6c563c5032f77dd3336b603bde3d12b415d003ab",
         ["InpaintPreprocessor", "DepthAnythingV2Preprocessor"],
     ),
     CustomNode(
         "IP-Adapter",
         "ComfyUI_IPAdapter_plus",
         "https://github.com/cubiq/ComfyUI_IPAdapter_plus",
-        "78ac59c61c8caf33e3419d2c8f70838b2da0fb04",
+        "88a71407c545e4eb0f223294f5b56302ef8696f3",
         ["IPAdapterModelLoader", "IPAdapter"],
     ),
     CustomNode(
         "External Tooling Nodes",
         "comfyui-tooling-nodes",
         "https://github.com/Acly/comfyui-tooling-nodes",
-        "b5fec4a0625e47586b7b28585ce27d4ecdd3b18a",
+        "e0d0c3cc2cbb1e055014d0b27851e61dd24748e4",
         ["ETN_LoadImageBase64", "ETN_LoadMaskBase64", "ETN_SendImageWebSocket", "ETN_Translate"],
     ),
     CustomNode(
         "Inpaint Nodes",
         "comfyui-inpaint-nodes",
         "https://github.com/Acly/comfyui-inpaint-nodes",
-        "717cb7717daf9f10979940163f708e35ee8eda05",
+        "6ce66ff1b5ed4e5819b23ccf1feb976ef479528a",
         ["INPAINT_LoadFooocusInpaint", "INPAINT_ApplyFooocusInpaint", "INPAINT_ExpandMask"],
     ),
 ]
@@ -101,6 +101,14 @@ class SDVersion(Enum):
 
     @property
     def supports_lcm(self):
+        return self in [SDVersion.sd15, SDVersion.sdxl]
+
+    @property
+    def supports_clip_skip(self):
+        return self in [SDVersion.sd15, SDVersion.sdxl]
+
+    @property
+    def supports_attention_guidance(self):
         return self in [SDVersion.sd15, SDVersion.sdxl]
 
     @staticmethod

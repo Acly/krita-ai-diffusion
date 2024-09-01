@@ -3,6 +3,7 @@ import asyncio
 import json
 import struct
 import uuid
+from dataclasses import dataclass
 from enum import Enum
 from collections import deque
 from itertools import chain, product
@@ -10,14 +11,14 @@ from typing import NamedTuple, Optional, Sequence
 
 from .api import WorkflowInput
 from .client import Client, CheckpointInfo, ClientMessage, ClientEvent, DeviceInfo, ClientModels
-from .client import TranslationPackage, filter_supported_styles
+from .client import TranslationPackage, filter_supported_styles, loras_to_upload
 from .image import Image, ImageCollection
 from .network import RequestManager, NetworkError
 from .websockets.src.websockets import client as websockets_client
 from .websockets.src.websockets import exceptions as websockets_exceptions
 from .style import Styles
 from .resources import ControlMode, MissingResource, ResourceKind, SDVersion, UpscalerName
-from .resources import resource_id
+from .resources import CustomNode, resource_id
 from .settings import PerformanceSettings, settings
 from .localization import translate as _
 from .util import client_logger as log
@@ -34,10 +35,26 @@ if util.is_macos:
         log.error(f"Error setting SSL_CERT_FILE on MacOS: {e}")
 
 
-class JobInfo(NamedTuple):
-    id: str
-    node_count: int
-    sample_count: int
+@dataclass
+class JobInfo:
+    local_id: str
+    work: WorkflowInput
+    front: bool = False
+    remote_id: str | asyncio.Future[str] | None = None
+    node_count: int = 0
+    sample_count: int = 0
+
+    def __str__(self):
+        return f"Job[local={self.local_id}, remote={self.remote_id}]"
+
+    @staticmethod
+    def create(work: WorkflowInput, front: bool = False):
+        return JobInfo(str(uuid.uuid4()), work, front)
+
+    async def get_remote_id(self):
+        if isinstance(self.remote_id, asyncio.Future):
+            self.remote_id = await self.remote_id
+        return self.remote_id
 
 
 class Progress:
@@ -50,7 +67,7 @@ class Progress:
 
     def handle(self, msg: dict):
         id = msg["data"].get("prompt_id", None)
-        if id is not None and id != self._info.id:
+        if id is not None and id != self._info.remote_id:
             return
         if msg["type"] == "executing":
             self._nodes += 1
@@ -74,8 +91,12 @@ class ComfyClient(Client):
 
     _requests = RequestManager()
     _id: str
+    _messages: asyncio.Queue[ClientMessage]
+    _queue: asyncio.Queue[JobInfo]
     _jobs: deque[JobInfo]
     _active: Optional[JobInfo] = None
+    _job_runner: asyncio.Task
+    _websocket_listener: asyncio.Task
     _supported_sd_versions: list[SDVersion]
     _supported_languages: list[TranslationPackage]
 
@@ -99,11 +120,7 @@ class ComfyClient(Client):
 
         # Check custom nodes
         nodes = await client._get("object_info")
-        missing = [
-            package
-            for package in resources.required_custom_nodes
-            if any(node not in nodes for node in package.nodes)
-        ]
+        missing = _check_for_missing_nodes(nodes)
         if len(missing) > 0:
             raise MissingResource(ResourceKind.node, missing)
 
@@ -156,7 +173,10 @@ class ComfyClient(Client):
         self.url = url
         self.models = ClientModels()
         self._id = str(uuid.uuid4())
+        self._messages = asyncio.Queue()
+        self._queue = asyncio.Queue()
         self._jobs = deque()
+        self._is_connected = False
 
     async def _get(self, op: str):
         return await self._requests.get(f"{self.url}/{op}")
@@ -165,29 +185,59 @@ class ComfyClient(Client):
         return await self._requests.post(f"{self.url}/{op}", data)
 
     async def enqueue(self, work: WorkflowInput, front: bool = False):
-        workflow = create_workflow(work, self.models)
+        job = JobInfo.create(work, front=front)
+        await self._queue.put(job)
+        return job.local_id
+
+    async def _report(self, event: ClientEvent, job_id: str, value: float = 0, **kwargs):
+        await self._messages.put(ClientMessage(event, job_id, value, **kwargs))
+
+    async def _run(self):
+        assert self._is_connected
+        try:
+            while self._is_connected:
+                job = await self._queue.get()
+                try:
+                    await self._run_job(job)
+                except Exception as e:
+                    log.exception(f"Unhandled exception while processing {job}")
+                    await self._report(ClientEvent.error, job.local_id, error=str(e))
+        except asyncio.CancelledError:
+            pass
+
+    async def _run_job(self, job: JobInfo):
+        await self.upload_loras(job.work, job.local_id)
+        workflow = create_workflow(job.work, self.models)
+        job.node_count = workflow.node_count
+        job.sample_count = workflow.sample_count
         if settings.debug_dump_workflow:
             workflow.dump(util.log_dir)
-        data = {"prompt": workflow.root, "client_id": self._id, "front": front}
-        result = await self._post("prompt", data)
-        job_id = result["prompt_id"]
-        self._jobs.append(JobInfo(job_id, workflow.node_count, workflow.sample_count))
-        return job_id
 
-    async def listen(self):
+        data = {"prompt": workflow.root, "client_id": self._id, "front": job.front}
+        job.remote_id = asyncio.get_running_loop().create_future()
+        self._jobs.append(job)
+        try:
+            result = await self._post("prompt", data)
+            job.remote_id.set_result(result["prompt_id"])
+        except Exception as e:
+            job.remote_id.set_result("ERROR")
+            if self._jobs[0] == job:
+                self._jobs.popleft()
+            raise e
+
+    async def _listen(self):
         url = websocket_url(self.url)
         async for websocket in websockets_client.connect(
             f"{url}/ws?clientId={self._id}", max_size=2**30, read_limit=2**30, ping_timeout=60
         ):
             try:
-                async for msg in self._listen(websocket):
-                    yield msg
+                await self._listen_websocket(websocket)
             except websockets_exceptions.ConnectionClosedError as e:
                 log.warning(f"Websocket connection closed: {str(e)}")
-                yield ClientMessage(ClientEvent.disconnected)
+                await self._report(ClientEvent.disconnected, "")
             except OSError as e:
                 msg = _("Could not connect to websocket server at") + f"{url}: {str(e)}"
-                yield ClientMessage(ClientEvent.error, error=msg)
+                await self._report(ClientEvent.error, "", error=msg)
             except asyncio.CancelledError:
                 await websocket.close()
                 self._active = None
@@ -195,10 +245,10 @@ class ComfyClient(Client):
                 break
             except Exception as e:
                 log.exception("Unhandled exception in websocket listener")
-                yield ClientMessage(ClientEvent.error, error=str(e))
+                await self._report(ClientEvent.error, "", error=str(e))
 
-    async def _listen(self, websocket: websockets_client.WebSocketClientProtocol):
-        progress = None
+    async def _listen_websocket(self, websocket: websockets_client.WebSocketClientProtocol):
+        progress: Progress | None = None
         images = ImageCollection()
         last_images = ImageCollection()
         result = None
@@ -213,12 +263,12 @@ class ComfyClient(Client):
                 msg = json.loads(msg)
 
                 if msg["type"] == "status":
-                    yield ClientMessage(ClientEvent.connected)
+                    await self._report(ClientEvent.connected, "")
 
                 if msg["type"] == "execution_start":
                     id = msg["data"]["prompt_id"]
-                    self._active = self._start_job(id)
-                    if self._active:
+                    self._active = await self._start_job(id)
+                    if self._active is not None:
                         progress = Progress(self._active)
                         images = ImageCollection()
                         result = None
@@ -226,8 +276,8 @@ class ComfyClient(Client):
                 if msg["type"] == "execution_interrupted":
                     job = self._get_active_job(msg["data"]["prompt_id"])
                     if job:
-                        self._clear_job(job.id)
-                        yield ClientMessage(ClientEvent.interrupted, job.id)
+                        self._clear_job(job.remote_id)
+                        await self._report(ClientEvent.interrupted, job.local_id)
 
                 if msg["type"] == "executing" and msg["data"]["node"] is None:
                     job_id = msg["data"]["prompt_id"]
@@ -236,12 +286,14 @@ class ComfyClient(Client):
                         # But it may happen if the entire execution is cached and no images are sent.
                         if len(images) == 0:
                             images = last_images
-                        yield ClientMessage(ClientEvent.finished, job_id, 1, images)
+                        await self._report(ClientEvent.finished, job_id, 1, images=images)
 
                 elif msg["type"] in ("execution_cached", "executing", "progress"):
-                    if self._active and progress:
+                    if self._active is not None and progress is not None:
                         progress.handle(msg)
-                        yield ClientMessage(ClientEvent.progress, self._active.id, progress.value)
+                        await self._report(
+                            ClientEvent.progress, self._active.local_id, progress.value
+                        )
                     else:
                         log.error(f"Received message {msg} but there is no active job")
 
@@ -251,25 +303,56 @@ class ComfyClient(Client):
                     if job and pose_json:
                         result = pose_json
                     elif job and _validate_executed_node(msg, len(images)):
-                        self._clear_job(job.id)
+                        self._clear_job(job.remote_id)
                         last_images = images
-                        yield ClientMessage(ClientEvent.finished, job.id, 1, images, result)
+                        await self._report(
+                            ClientEvent.finished, job.local_id, 1, images=images, result=result
+                        )
 
                 if msg["type"] == "execution_error":
                     job = self._get_active_job(msg["data"]["prompt_id"])
                     if job:
                         error = msg["data"].get("exception_message", "execution_error")
                         traceback = msg["data"].get("traceback", "no traceback")
-                        log.error(f"Job {job.id} failed: {error}\n{traceback}")
-                        self._clear_job(job.id)
-                        yield ClientMessage(ClientEvent.error, job.id, 0, error=error)
+                        log.error(f"Job {job} failed: {error}\n{traceback}")
+                        self._clear_job(job.remote_id)
+                        await self._report(ClientEvent.error, job.local_id, 0, error=error)
+
+    async def listen(self):
+        self._is_connected = True
+        self._job_runner = asyncio.create_task(self._run())
+        self._websocket_listener = asyncio.create_task(self._listen())
+
+        try:
+            while self._is_connected:
+                yield await self._messages.get()
+        except asyncio.CancelledError:
+            pass
 
     async def interrupt(self):
         await self._post("interrupt", {})
 
     async def clear_queue(self):
+        while not self._queue.empty():
+            try:
+                job = self._queue.get_nowait()
+                await self._report(ClientEvent.interrupted, job.local_id)
+            except asyncio.QueueEmpty:
+                break
+
         await self._post("queue", {"clear": True})
         self._jobs.clear()
+
+    async def disconnect(self):
+        if self._is_connected:
+            self._is_connected = False
+            self._job_runner.cancel()
+            self._websocket_listener.cancel()
+            await asyncio.gather(
+                self._job_runner,
+                self._websocket_listener,
+                self._report(ClientEvent.disconnected, ""),
+            )
 
     async def try_inspect_checkpoints(self):
         try:
@@ -279,7 +362,7 @@ class ComfyClient(Client):
 
     @property
     def queued_count(self):
-        return len(self._jobs)
+        return len(self._jobs) + self._queue.qsize()
 
     @property
     def is_executing(self):
@@ -340,36 +423,53 @@ class ComfyClient(Client):
             max_pixel_count=settings.max_pixel_count,
         )
 
-    def _get_active_job(self, id: str) -> Optional[JobInfo]:
-        if self._active and self._active.id == id:
+    async def upload_loras(self, work: WorkflowInput, local_job_id: str):
+        for file in loras_to_upload(work, self.models):
+            try:
+                assert file.path is not None
+                url = f"{self.url}/api/etn/upload/loras/{file.id}"
+                log.info(f"Uploading lora model {file.id} to {url}")
+                data = file.path.read_bytes()
+                async for sent, total in self._requests.upload(url, data):
+                    progress = sent / max(sent, total)
+                    await self._report(ClientEvent.upload, local_job_id, progress)
+
+                await self.refresh()
+            except Exception as e:
+                raise Exception(_("Error during upload of LoRA model") + f" {file.path}: {str(e)}")
+
+    def _get_active_job(self, remote_id: str) -> Optional[JobInfo]:
+        if self._active and self._active.remote_id == remote_id:
             return self._active
         elif self._active:
-            log.warning(f"Received message for job {id}, but job {self._active.id} is active")
+            log.warning(f"Received message for job {remote_id}, but job {self._active} is active")
         if len(self._jobs) == 0:
-            log.warning(f"Received unknown job {id}")
+            log.warning(f"Received unknown job {remote_id}")
             return None
-        active = next((j for j in self._jobs if j.id == id), None)
+        active = next((j for j in self._jobs if j.remote_id == remote_id), None)
         if active is not None:
             return active
         return None
 
-    def _start_job(self, id: str):
+    async def _start_job(self, remote_id: str):
         if self._active is not None:
-            log.warning(f"Started job {id}, but {self._active.id} was never finished")
+            log.warning(f"Started job {remote_id}, but {self._active} was never finished")
         if len(self._jobs) == 0:
-            log.warning(f"Received unknown job {id}")
+            log.warning(f"Received unknown job {remote_id}")
             return None
-        if self._jobs[0].id == id:
+
+        if await self._jobs[0].get_remote_id() == remote_id:
             return self._jobs.popleft()
-        log.warning(f"Started job {id}, but {self._jobs[0].id} was expected")
-        active = next((j for j in self._jobs if j.id == id), None)
-        if active is not None:
-            self._jobs.remove(active)
-            return active
+
+        log.warning(f"Started job {remote_id}, but {self._jobs[0]} was expected")
+        for job in self._jobs:
+            if await job.get_remote_id() == remote_id:
+                self._jobs.remove(job)
+                return job
         return None
 
-    def _clear_job(self, job_id: str):
-        if self._active is not None and self._active.id == job_id:
+    def _clear_job(self, job_remote_id: str | asyncio.Future | None):
+        if self._active is not None and self._active.remote_id == job_remote_id:
             self._active = None
             return True
         return False
@@ -402,6 +502,20 @@ def parse_url(url: str):
 
 def websocket_url(url_http: str):
     return url_http.replace("http", "ws", 1)
+
+
+def _check_for_missing_nodes(nodes: dict):
+    def missing(node: str, package: CustomNode):
+        if node not in nodes:
+            log.error(f"Missing required node {node} from package {package.name} ({package.url})")
+            return True
+        return False
+
+    return [
+        package
+        for package in resources.required_custom_nodes
+        if any(missing(node, package) for node in package.nodes)
+    ]
 
 
 def _find_model(

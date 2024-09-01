@@ -1,6 +1,7 @@
 from __future__ import annotations
 import asyncio
 from copy import copy
+from dataclasses import replace
 from pathlib import Path
 from enum import Enum
 from typing import Any, NamedTuple
@@ -21,6 +22,7 @@ from .document import Document, KritaDocument
 from .layer import Layer, LayerType, RestoreActiveLayer
 from .pose import Pose
 from .style import Style, Styles, SDVersion
+from .files import FileLibrary
 from .connection import Connection
 from .properties import Property, ObservableProperties
 from .jobs import Job, JobKind, JobParams, JobQueue, JobState, JobRegion
@@ -35,6 +37,11 @@ class Workspace(Enum):
     upscaling = 1
     live = 2
     animation = 3
+
+
+class ProgressKind(Enum):
+    generation = 0
+    upload = 1
 
 
 class Model(QObject, ObservableProperties):
@@ -61,6 +68,7 @@ class Model(QObject, ObservableProperties):
     upscale: "UpscaleWorkspace"
     live: "LiveWorkspace"
     animation: "AnimationWorkspace"
+    progress_kind = Property(ProgressKind.generation)
     progress = Property(0.0)
     jobs: JobQueue
     error = Property("")
@@ -74,6 +82,7 @@ class Model(QObject, ObservableProperties):
     fixed_seed_changed = pyqtSignal(bool)
     queue_front_changed = pyqtSignal(bool)
     translation_enabled_changed = pyqtSignal(bool)
+    progress_kind_changed = pyqtSignal(ProgressKind)
     progress_changed = pyqtSignal(float)
     error_changed = pyqtSignal(str)
     has_error_changed = pyqtSignal(bool)
@@ -181,6 +190,7 @@ class Model(QObject, ObservableProperties):
             self.style,
             self.seed if self.fixed_seed else workflow.generate_seed(),
             client.models,
+            FileLibrary.instance(),
             client.performance_settings,
             mask=mask,
             strength=self.strength,
@@ -200,8 +210,10 @@ class Model(QObject, ObservableProperties):
             params.prompt = params.regions[0].prompt
 
         for i in range(count):
-            sampling.seed = sampling.seed + i * settings.batch_size
-            params.seed = sampling.seed
+            input = replace(
+                input, sampling=replace(sampling, seed=sampling.seed + i * settings.batch_size)
+            )
+            params.seed = ensure(input.sampling).seed
             job = self.jobs.add(kind, copy(params))
             await self._enqueue_job(job, input)
 
@@ -239,6 +251,7 @@ class Model(QObject, ObservableProperties):
                 self.style,
                 params.seed,
                 client.models,
+                FileLibrary.instance(),
                 client.performance_settings,
                 strength=params.strength,
                 upscale_factor=params.factor,
@@ -324,6 +337,7 @@ class Model(QObject, ObservableProperties):
             self.style,
             self.seed,
             client.models,
+            FileLibrary.instance(),
             client.performance_settings,
             mask=mask,
             strength=self.live.strength,
@@ -399,6 +413,11 @@ class Model(QObject, ObservableProperties):
             self.progress_changed.emit(-1)
         elif message.event is ClientEvent.progress:
             self.jobs.notify_started(job)
+            self.progress_kind = ProgressKind.generation
+            self.progress = message.progress
+        elif message.event is ClientEvent.upload:
+            self.jobs.notify_started(job)
+            self.progress_kind = ProgressKind.upload
             self.progress = message.progress
         elif message.event is ClientEvent.finished:
             if message.images:
@@ -928,6 +947,7 @@ class AnimationWorkspace(QObject, ObservableProperties):
             seed=seed,
             perf=m._connection.client.performance_settings,
             models=m._connection.client.models,
+            files=FileLibrary.instance(),
             strength=m.strength,
             is_live=self.sampling_quality is SamplingQuality.fast,
         )

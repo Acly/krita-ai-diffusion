@@ -135,7 +135,7 @@ def test_large_image(qtapp, cloud_client):
 def test_validation(qtapp, cloud_client: CloudClient, scenario: str):
     workflow = create_simple_workflow()
     if scenario == "resolution":
-        workflow.images = ImageInput.from_extent(Extent(9000, 512))
+        workflow.images = ImageInput.from_extent(Extent(19000, 512))
     elif scenario == "steps":
         ensure(workflow.sampling).total_steps = 200
     elif scenario == "control":
@@ -146,7 +146,8 @@ def test_validation(qtapp, cloud_client: CloudClient, scenario: str):
     elif scenario == "max_pixels":
         workflow.images = ImageInput.from_extent(Extent(3840, 2168))  # > 4k
 
-    with pytest.raises(Exception, match="Validation error"):
+    expected = "Image size" if scenario == "resolution" else "Validation error"
+    with pytest.raises(Exception, match=expected):
         run_and_save(qtapp, cloud_client, workflow, "pod_validation")
 
 

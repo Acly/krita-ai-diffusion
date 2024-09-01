@@ -32,6 +32,7 @@ class RecentlyUsedSync:
 
     style: str = ""
     batch_count: int = 1
+    translation_enabled: bool = True
     inpaint_mode: str = "automatic"
     inpaint_fill: str = "neutral"
     inpaint_use_model: bool = True
@@ -52,6 +53,7 @@ class RecentlyUsedSync:
             if _find_annotation(model.document, "ui.json") is None:
                 model.style = Styles.list().find(self.style) or Styles.list().default
                 model.batch_count = self.batch_count
+                model.translation_enabled = self.translation_enabled
                 model.inpaint.mode = InpaintMode[self.inpaint_mode]
                 model.inpaint.fill = FillMode[self.inpaint_fill]
                 model.inpaint.use_inpaint = self.inpaint_use_model
@@ -64,6 +66,7 @@ class RecentlyUsedSync:
 
         model.style_changed.connect(self._set("style"))
         model.batch_count_changed.connect(self._set("batch_count"))
+        model.translation_enabled_changed.connect(self._set("translation_enabled"))
         model.inpaint.mode_changed.connect(self._set("inpaint_mode"))
         model.inpaint.fill_changed.connect(self._set("inpaint_fill"))
         model.inpaint.use_inpaint_changed.connect(self._set("inpaint_use_model"))
