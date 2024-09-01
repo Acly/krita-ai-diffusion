@@ -189,7 +189,7 @@ class Server:
 
         torch_args = ["torch", "torchvision", "torchaudio"]
         if is_windows:  # Issues with torch 2.4.0 on Windows
-            torch_args = ["torch<=2.3.1", "torchvision<=0.18.1", "torchaudio<=2.3.1"]
+            torch_args = ["numpy<2", "torch<=2.3.1", "torchvision<=0.18.1", "torchaudio<=2.3.1"]
         if self.backend is ServerBackend.cpu:
             torch_args += ["--index-url", "https://download.pytorch.org/whl/cpu"]
         elif self.backend is ServerBackend.cuda:
