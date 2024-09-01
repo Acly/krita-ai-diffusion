@@ -330,7 +330,7 @@
     "Text prompt common to all regions": "Подсказка для всех регионов",
     "Text prompt for region": "Подсказка для региона",
     "Text prompt regions have not been set up.\\nIt is not recommended to use a single text description for tiled upscale,\\nunless it can be generally applied to all parts of the image.": "Подсказки регионов не настроены.\\n Не рекомендуется использовать единое описание для увеличение(tiled),\\nесли только это не может быть применено в целом ко всем частям изображения.",
-    "Text which is appended to all prompts. The {prompt} placeholder can be used to wrap prompts.": "Текст, который добавляется ко всем подсказкам. {prompt} можно использовать для переноса подсказок в разные части текст",
+    "Text which is appended to all prompts. The {prompt} placeholder can be used to wrap prompts.": "Текст, который добавляется ко всем подсказкам. {prompt} можно использовать для переноса подсказок в разные части текста",
     "Text which is common to all regions": "Текст, общий для всех регионов",
     "Textual description of things to avoid in generated images.": "Текстовое описание того, чего следует избегать в сгенерированных изображениях.",
     "The ControlNet model is not installed": "Модель ControlNet не установлена",
