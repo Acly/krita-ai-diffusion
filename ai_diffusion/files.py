@@ -4,7 +4,7 @@ from base64 import b64encode
 from enum import Flag
 from dataclasses import dataclass, asdict
 from pathlib import Path
-from typing import Any, NamedTuple, Sequence
+from typing import Any, NamedTuple, Sequence, cast
 from PyQt5.QtCore import QAbstractListModel, QSortFilterProxyModel, QModelIndex, Qt
 from PyQt5.QtGui import QIcon
 
@@ -233,9 +233,11 @@ class FileLibrary(NamedTuple):
 class FileFilter(QSortFilterProxyModel):
     def __init__(self, source: FileCollection, parent=None):
         super().__init__(parent)
-        self.setSourceModel(source)
         self._available_only = False
         self._name_prefix = ""
+        self.setSourceModel(source)
+        self.setSortCaseSensitivity(Qt.CaseSensitivity.CaseInsensitive)
+        self.sort(0)
 
     @property
     def available_only(self):
@@ -267,3 +269,8 @@ class FileFilter(QSortFilterProxyModel):
                 if not name.startswith(self._name_prefix):
                     return False
         return True
+
+    def __getitem__(self, index: int):
+        src = cast(FileCollection, self.sourceModel())
+        idx = self.mapToSource(self.index(index, 0)).row()
+        return src[idx]

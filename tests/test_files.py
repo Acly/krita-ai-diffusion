@@ -2,7 +2,7 @@ from pathlib import Path
 from PyQt5.QtCore import Qt, QModelIndex
 from PyQt5.QtGui import QIcon
 
-from ai_diffusion.files import File, FileCollection, FileSource
+from ai_diffusion.files import File, FileCollection, FileSource, FileFilter
 
 
 class EventHandler:
@@ -158,3 +158,28 @@ def test_serialization(tmp_path: Path):
     assert files2[1].id == file2.id and files2[1].source == file2.source
     assert files2[1].path == file2.path and files2[1].hash == file2.hash
     assert files2[1].meta("key") == "value"
+
+
+def test_sort_filter():
+    files = FileCollection()
+    files.add(File.remote("b.txt"))
+    files.add(File.remote("a.txt"))
+    files.add(File.remote("piong/c.txt"))
+
+    filtered = FileFilter(files)
+    assert filtered[0].id == "a.txt"
+    assert filtered[1].id == "b.txt"
+    assert filtered[2].id == "piong/c.txt"
+
+    files.add(File.remote("piong/a.txt"))
+    assert filtered[2].id == "piong/a.txt"
+    assert filtered[3].id == "piong/c.txt"
+
+    files[0].source = FileSource.unavailable
+    filtered.available_only = True
+    assert filtered[0].id == "a.txt"
+    assert filtered[1].id == "piong/a.txt"
+
+    filtered.name_prefix = "piong"
+    assert filtered[0].id == "piong/a.txt"
+    assert filtered[1].id == "piong/c.txt"
