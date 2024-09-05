@@ -492,6 +492,7 @@ def scale_refine_and_decode(
     clip: Output,
     vae: Output,
     models: ModelDict,
+    use_transparency: bool = False
 ):
     """Handles scaling images from `initial` to `desired` resolution.
     If it is a substantial upscale, runs a high-res SD refinement pass.
@@ -500,6 +501,8 @@ def scale_refine_and_decode(
     mode = extent.refinement_scaling
     if mode in [ScaleMode.none, ScaleMode.resize, ScaleMode.upscale_fast]:
         decoded = w.vae_decode(vae, latent)
+        if use_transparency:
+            decoded = w.layer_diffuse_decode(decoded, latent)
         return scale(extent.initial, extent.desired, mode, w, decoded, models)
 
     model = apply_attention_mask(w, model, cond, clip, extent.desired)
@@ -523,6 +526,8 @@ def scale_refine_and_decode(
     )
     result = w.sampler_custom_advanced(model, positive, negative, latent, models.version, **params)
     image = w.vae_decode(vae, result)
+    if use_transparency:
+        image = w.layer_diffuse_decode(image, result)
     return image
 
 
@@ -536,6 +541,7 @@ def ensure_minimum_extent(w: ComfyWorkflow, image: Output, extent: Extent, min_e
 class MiscParams(NamedTuple):
     batch_count: int
     nsfw_filter: float
+    use_transparency: bool
 
 
 def generate(
@@ -548,6 +554,8 @@ def generate(
     models: ModelDict,
 ):
     model, clip, vae = load_checkpoint_with_lora(w, checkpoint, models.all)
+    if misc.use_transparency:
+        model = w.layer_diffuse_apply(model, 1)
     model = apply_ip_adapter(w, model, cond.control, models)
     model_orig = copy(model)
     model = apply_attention_mask(w, model, cond, clip, extent.initial)
@@ -561,7 +569,8 @@ def generate(
         model, positive, negative, latent, models.version, **_sampler_params(sampling)
     )
     out_image = scale_refine_and_decode(
-        extent, w, cond, sampling, out_latent, prompt_pos, prompt_neg, model_orig, clip, vae, models
+        extent, w, cond, sampling, out_latent, prompt_pos, prompt_neg, model_orig, clip, vae, models,
+        misc.use_transparency
     )
     out_image = w.nsfw_filter(out_image, sensitivity=misc.nsfw_filter)
     out_image = scale_to_target(extent, w, out_image, models)
@@ -1024,6 +1033,7 @@ def prepare(
     mask: Mask | None = None,
     strength: float = 1.0,
     inpaint: InpaintParams | None = None,
+    use_transparency: bool = False,
     upscale_factor: float = 1.0,
     upscale_model: str = "",
     is_live: bool = False,
@@ -1043,6 +1053,7 @@ def prepare(
         extra_loras += region_loras
     i.sampling = _sampling_from_style(style, strength, is_live)
     i.sampling.seed = seed
+    i.use_transparency = use_transparency
     i.models = style.get_models()
     i.conditioning.positive += _collect_lora_triggers(i.models.loras, files)
     i.models.loras = unique(i.models.loras + extra_loras, key=lambda l: l.name)
@@ -1066,7 +1077,7 @@ def prepare(
 
     elif kind is WorkflowKind.inpaint:
         assert isinstance(canvas, Image) and mask and inpaint and style
-        i.images, _ = resolution.prepare_image(canvas, sd_version, style, perf)
+        i.images, _ = resolution.prepare_image(canvas, sd_version, style, perf, layer_diffusion=use_transparency)
         i.images.hires_mask = mask.to_image(canvas.extent)
         upscale_extent, _ = resolution.prepare_extent(
             mask.bounds.extent, sd_version, style, perf, downscale=False
@@ -1085,7 +1096,7 @@ def prepare(
     elif kind is WorkflowKind.refine:
         assert isinstance(canvas, Image) and style
         i.images, i.batch_count = resolution.prepare_image(
-            canvas, sd_version, style, perf, downscale=False
+            canvas, sd_version, style, perf, downscale=False, layer_diffusion=use_transparency
         )
         downscale_all_control_images(i.conditioning, canvas.extent, i.images.extent.desired)
 
@@ -1093,7 +1104,7 @@ def prepare(
         assert isinstance(canvas, Image) and mask and inpaint and style
         allow_2pass = strength >= 0.7
         i.images, i.batch_count = resolution.prepare_image(
-            canvas, sd_version, style, perf, downscale=allow_2pass
+            canvas, sd_version, style, perf, downscale=allow_2pass, layer_diffusion=use_transparency
         )
         i.images.hires_mask = mask.to_image(canvas.extent)
         i.inpaint = inpaint
@@ -1152,7 +1163,7 @@ def create(i: WorkflowInput, models: ClientModels, comfy_mode=ComfyRunMode.serve
     This should be a pure function, the workflow is entirely defined by the input.
     """
     workflow = ComfyWorkflow(models.node_inputs, comfy_mode)
-    misc = MiscParams(i.batch_count, i.nsfw_filter)
+    misc = MiscParams(i.batch_count, i.nsfw_filter, i.use_transparency)
 
     if i.kind is WorkflowKind.generate:
         return generate(

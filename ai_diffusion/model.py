@@ -59,6 +59,7 @@ class Model(QObject, ObservableProperties):
     style = Property(Styles.list().default, setter="set_style", persist=True)
     strength = Property(1.0, persist=True)
     region_only = Property(False, persist=True)
+    use_transparency = Property(False, persist=True)
     batch_count = Property(1, persist=True)
     seed = Property(0, persist=True)
     fixed_seed = Property(False, persist=True)
@@ -77,6 +78,7 @@ class Model(QObject, ObservableProperties):
     style_changed = pyqtSignal(Style)
     strength_changed = pyqtSignal(float)
     region_only_changed = pyqtSignal(bool)
+    use_transparency_changed = pyqtSignal(bool)
     batch_count_changed = pyqtSignal(int)
     seed_changed = pyqtSignal(int)
     fixed_seed_changed = pyqtSignal(bool)
@@ -195,6 +197,7 @@ class Model(QObject, ObservableProperties):
             mask=mask,
             strength=self.strength,
             inpaint=inpaint,
+            use_transparency=self.use_transparency
         )
         job_params = JobParams(bounds, prompt, regions=job_regions)
         return input, job_params

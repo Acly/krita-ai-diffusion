@@ -720,3 +720,22 @@ class ComfyWorkflow:
             # use smaller model, but it requires onnxruntime, see #630
             mdls["bbox_detector"] = "yolo_nas_l_fp16.onnx"
         return self.add("DWPreprocessor", 1, image=image, resolution=resolution, **feat, **mdls)
+
+    def layer_diffuse_apply(self, model: Output, weight: int):
+        return self.add(
+            "LayeredDiffusionApply",
+            1,
+            model=model,
+            config="SDXL, Conv Injection",
+            weight=weight,
+        )
+
+    def layer_diffuse_decode(self, image: Output, latent_image: Output):
+        return self.add(
+            "LayeredDiffusionDecodeRGBA",
+            1,
+            samples=latent_image,
+            images=image,
+            sd_version="SDXL",
+            sub_batch_size=16,
+        )

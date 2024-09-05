@@ -49,6 +49,13 @@ required_custom_nodes = [
         "6ce66ff1b5ed4e5819b23ccf1feb976ef479528a",
         ["INPAINT_LoadFooocusInpaint", "INPAINT_ApplyFooocusInpaint", "INPAINT_ExpandMask"],
     ),
+    CustomNode(
+        "Layer Diffusion",
+        "ComfyUI-layerdiffuse",
+        "https://github.com/huchenlei/ComfyUI-layerdiffuse",
+        "6e4aeb2da78ba48c519367608a61bf47ea6249b4",
+        ["LayeredDiffusionApply", "LayeredDiffusionDecodeRGBA"],
+    ),
 ]
 
 

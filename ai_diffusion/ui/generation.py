@@ -547,6 +547,15 @@ class GenerationWidget(QWidget):
             _("Generate the active layer region only (use layer transparency as mask)")
         )
 
+        self.use_transparency_button = QCheckBox(self)
+        self.use_transparency_button.setText(_("Transparency"))
+        self.use_transparency_button.setToolTip(_("Generate content on transparent background"))
+
+        options_layout = QHBoxLayout(self)
+        options_layout.setContentsMargins(5, 0, 5, 0)
+        options_layout.addWidget(self.use_transparency_button)
+        layout.addLayout(options_layout)
+
         generate_layout = QHBoxLayout()
         generate_layout.setSpacing(0)
         generate_layout.addWidget(self.generate_button)
@@ -593,6 +602,7 @@ class GenerationWidget(QWidget):
                 bind(model, "workspace", self.workspace_select, "value", Bind.one_way),
                 bind(model, "style", self.style_select, "value"),
                 bind(model, "strength", self.strength_slider, "value"),
+                bind_toggle(model, "use_transparency", self.use_transparency_button),
                 bind_toggle(model, "region_only", self.region_mask_button),
                 model.inpaint.mode_changed.connect(self.update_generate_button),
                 model.strength_changed.connect(self.update_generate_button),

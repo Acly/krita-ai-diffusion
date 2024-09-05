@@ -175,6 +175,7 @@ def prepare_diffusion_input(
     style: Style,
     perf: PerformanceSettings,
     downscale=True,
+    layer_diffusion=False
 ):
     # Take settings into account to compute the desired resolution for diffusion.
     desired = apply_resolution_settings(extent, perf)
@@ -183,7 +184,7 @@ def prepare_diffusion_input(
     mult = 8
     if sd_version is SDVersion.flux:
         mult = 16
-    if SDVersion is SDVersion.sd3:
+    if SDVersion is SDVersion.sd3 or layer_diffusion:
         mult = 64
     min_size, max_size, min_scale, max_scale = CheckpointResolution.compute(
         desired, sd_version, style
@@ -228,10 +229,10 @@ def prepare_extent(
 
 
 def prepare_image(
-    image: Image, sd_ver: SDVersion, style: Style, perf: PerformanceSettings, downscale=True
+    image: Image, sd_ver: SDVersion, style: Style, perf: PerformanceSettings, downscale=True, layer_diffusion=False
 ):
     scaled, out_image, batch = prepare_diffusion_input(
-        image.extent, image, sd_ver, style, perf, downscale
+        image.extent, image, sd_ver, style, perf, downscale, layer_diffusion
     )
     assert out_image is not None
     return ImageInput(scaled.as_input, out_image), batch
