@@ -44,11 +44,15 @@ class LoraItem(QWidget):
 
     _current: File | None = None
 
-    def __init__(self, lora_list: QAbstractItemModel, parent=None):
+    def __init__(self, name_filter: str, parent=None):
         super().__init__(parent)
         self.setContentsMargins(0, 0, 0, 0)
 
-        completer = QCompleter(lora_list)
+        self._loras = FileFilter(root.files.loras)
+        self._loras.available_only = True
+        self._loras.name_prefix = name_filter
+
+        completer = QCompleter(self._loras)
         completer.setCaseSensitivity(Qt.CaseSensitivity.CaseInsensitive)
         completer.setFilterMode(Qt.MatchFlag.MatchContains)
 
@@ -63,7 +67,7 @@ class LoraItem(QWidget):
 
         self._select = QComboBox(self)
         self._select.setEditable(True)
-        self._select.setModel(lora_list)
+        self._select.setModel(self._loras)
         self._select.setCompleter(completer)
         self._select.setMaxVisibleItems(20)
         self._select.currentIndexChanged.connect(self._select_lora)
@@ -163,7 +167,7 @@ class LoraItem(QWidget):
         layout.addWidget(self._advanced)
         self.setLayout(layout)
 
-        if lora_list.rowCount() > 0:
+        if self._loras.rowCount() > 0:
             self._select_lora()
 
     def _expand(self):
@@ -238,6 +242,12 @@ class LoraItem(QWidget):
                 self._select.setEditText(self._current.name)
             self._strength.setValue(int(v["strength"] * 100))
             self._update()
+
+    def apply_filter(self, name_filter: str):
+        with SignalBlocker(self._select):
+            self._loras.name_prefix = name_filter
+        if self._current and self._current.id != self._select.currentData():
+            self._select.setEditText(self._current.name)
 
     def _show_lora_warnings(self, lora: File):
         if client := root.connection.client_if_connected:
@@ -322,15 +332,13 @@ class LoraList(QWidget):
         self._item_list.setContentsMargins(0, 0, 0, 0)
         self._layout.addLayout(self._item_list)
 
-        self._filtered_lora = FileFilter(root.files.loras)
-        self._filtered_lora.available_only = True
         root.files.loras.rowsInserted.connect(self._collect_filters)
         root.files.loras.rowsRemoved.connect(self._collect_filters)
         self._collect_filters()
 
     def _add_item(self, lora: dict | File | None = None):
         assert self._item_list is not None
-        item = LoraItem(self._filtered_lora, parent=self)
+        item = LoraItem(self.filter_prefix, parent=self)
         if isinstance(lora, dict):
             item.value = lora
         elif isinstance(lora, File):
@@ -364,11 +372,12 @@ class LoraList(QWidget):
             for folder in sorted(folders, key=lambda x: x.lower()):
                 self._filter_combo.addItem(folder_icon, folder)
         self._filter_combo.setCurrentText(LoraList.last_filter)
-        self._add_button.setEnabled(self._filtered_lora.rowCount() > 0)
+        self._add_button.setEnabled(root.files.loras.rowCount() > 0)
 
     def _set_filtered_names(self):
         LoraList.last_filter = self.filter
-        self._filtered_lora.name_prefix = "" if self.filter == "All" else self.filter
+        for item in self._items:
+            item.apply_filter(self.filter_prefix)
 
     def _upload_lora(self):
         filepath = QFileDialog.getOpenFileName(
@@ -387,6 +396,10 @@ class LoraList(QWidget):
     @property
     def filter(self):
         return self._filter_combo.currentText()
+
+    @property
+    def filter_prefix(self):
+        return self.filter if self.filter != "All" else ""
 
     @property
     def value(self):
