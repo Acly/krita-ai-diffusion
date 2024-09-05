@@ -153,14 +153,14 @@ class Server:
         return [self._python_cmd, "-su", "-m", "pip", "install", *args]
 
     async def _install_python(self, network: QNetworkAccessManager, cb: InternalCB):
-        url = "https://www.python.org/ftp/python/3.10.11/python-3.10.11-embed-amd64.zip"
-        archive_path = self._cache_dir / "python-3.10.11-embed-amd64.zip"
+        url = "https://www.python.org/ftp/python/3.11.9/python-3.11.9-embed-amd64.zip"
+        archive_path = self._cache_dir / "python-3.11.9-embed-amd64.zip"
         dir = self.path / "python"
 
         await _download_cached("Python", network, url, archive_path, cb)
         await _extract_archive("Python", archive_path, dir, cb)
 
-        python_pth = dir / "python310._pth"
+        python_pth = dir / "python311._pth"
         cb("Installing Python", f"Patching {python_pth}")
         with open(python_pth, "a") as file:
             file.write("import site\n")
@@ -187,21 +187,17 @@ class Server:
         await _extract_archive("ComfyUI", archive_path, comfy_dir.parent, cb)
         temp_comfy_dir = comfy_dir.parent / f"ComfyUI-{resources.comfy_version}"
 
-        torch_args = ["torch", "torchvision", "torchaudio"]
-        if is_windows:  # Issues with torch 2.4.0 on Windows
-            torch_args = ["numpy<2", "torch<=2.3.1", "torchvision<=0.18.1", "torchaudio<=2.3.1"]
+        torch_args = ["torch~=2.4.1", "torchvision~=0.19.1", "torchaudio~=2.4.1"]
         if self.backend is ServerBackend.cpu:
             torch_args += ["--index-url", "https://download.pytorch.org/whl/cpu"]
         elif self.backend is ServerBackend.cuda:
-            torch_args += ["--index-url", "https://download.pytorch.org/whl/cu121"]
+            torch_args += ["--index-url", "https://download.pytorch.org/whl/cu124"]
+        elif self.backend is ServerBackend.directml:
+            torch_args = ["numpy<2", "torch-directml"]
         await _execute_process("PyTorch", self._pip_install(*torch_args), self.path, cb)
 
         requirements_txt = temp_comfy_dir / "requirements.txt"
         await _execute_process("ComfyUI", self._pip_install("-r", requirements_txt), self.path, cb)
-
-        if self.backend is ServerBackend.directml:
-            # for some reason this must come AFTER ComfyUI requirements
-            await _execute_process("PyTorch", self._pip_install("torch-directml"), self.path, cb)
 
         await rename_extracted_folder("ComfyUI", comfy_dir, resources.comfy_version)
         self.comfy_dir = comfy_dir
