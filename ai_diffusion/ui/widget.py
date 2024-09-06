@@ -209,6 +209,7 @@ class QueueButton(QToolButton):
         self._connections = [
             self._model.jobs.count_changed.connect(self._update),
             self._model.progress_kind_changed.connect(self._update),
+            self._model.queue_length_changed.connect(self._update),
         ]
 
     def _update(self):
@@ -220,6 +221,10 @@ class QueueButton(QToolButton):
             self.setIcon(theme.icon("queue-upload"))
             self.setToolTip(_("Uploading models.") + f" {queued_msg} {cancel_msg}")
             count += 1
+        elif self._model.queue_length > 0:
+            self.setIcon(theme.icon("queue-inactive"))
+            self.setToolTip(_("Server is busy."))
+            count = f"+{self.model.queue_length}"
         elif self._model.jobs.any_executing():
             self.setIcon(theme.icon("queue-active"))
             if count > 0:
