@@ -340,7 +340,9 @@ class ComfyClient(Client):
             except asyncio.QueueEmpty:
                 break
 
-        await self._post("queue", {"clear": True})
+        remote_ids = [await job.get_remote_id() for job in self._jobs]
+        await self._post("api/queue", {"delete": remote_ids})
+
         self._jobs.clear()
 
     async def disconnect(self):
