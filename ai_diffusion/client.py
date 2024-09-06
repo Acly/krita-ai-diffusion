@@ -7,7 +7,7 @@ from PyQt5.QtCore import QObject, pyqtSignal
 from .api import WorkflowInput
 from .image import ImageCollection
 from .properties import Property, ObservableProperties
-from .files import FileLibrary
+from .files import FileLibrary, FileFormat
 from .style import Style, Styles
 from .settings import PerformanceSettings
 from .resources import ControlMode, ResourceKind, SDVersion, UpscalerName
@@ -71,8 +71,7 @@ class DeviceInfo(NamedTuple):
 class CheckpointInfo(NamedTuple):
     filename: str
     sd_version: SDVersion
-    is_inpaint: bool = False
-    is_refiner: bool = False
+    format: FileFormat = FileFormat.checkpoint
 
     @property
     def name(self):
@@ -81,10 +80,7 @@ class CheckpointInfo(NamedTuple):
     @staticmethod
     def deduce_from_filename(filename: str):
         return CheckpointInfo(
-            filename,
-            SDVersion.from_checkpoint_name(filename),
-            "inpaint" in filename.lower(),
-            "refiner" in filename.lower(),
+            filename, SDVersion.from_checkpoint_name(filename), FileFormat.checkpoint
         )
 
 
@@ -106,10 +102,15 @@ class ClientModels:
         self, kind: ResourceKind, identifier: ControlMode | UpscalerName | str, version: SDVersion
     ):
         id = ResourceId(kind, version, identifier)
-        model = self.resources.get(id.string)
+        model = self.find(id)
         if model is None:
             raise Exception(f"{id.name} not found")
         return model
+
+    def find(self, id: ResourceId):
+        if result := self.resources.get(id.string):
+            return result
+        return self.resources.get(id._replace(version=SDVersion.all).string)
 
     def version_of(self, checkpoint: str):
         if info := self.checkpoints.get(checkpoint):
@@ -158,8 +159,8 @@ class ModelDict:
         return ModelDict(self._models, self.kind, version)
 
     @property
-    def clip(self):
-        return ModelDict(self._models, ResourceKind.clip, self.version)
+    def text_encoder(self):
+        return ModelDict(self._models, ResourceKind.text_encoder, self.version)
 
     @property
     def clip_vision(self):
@@ -186,6 +187,10 @@ class ModelDict:
         return ModelDict(self._models, ResourceKind.lora, self.version)
 
     @property
+    def vae(self):
+        return self._models.resource(ResourceKind.vae, "default", self.version)
+
+    @property
     def fooocus_inpaint(self):
         assert self.version is SDVersion.sdxl
         return dict(
@@ -200,6 +205,15 @@ class ModelDict:
     @property
     def node_inputs(self):
         return self._models.node_inputs
+
+    @property
+    def has_te_vae(self):
+        if self._models.find(ResourceId(ResourceKind.vae, self.version, "default")) is None:
+            return False
+        for te in self.version.text_encoders:
+            if self._models.find(ResourceId(ResourceKind.text_encoder, self.version, te)) is None:
+                return False
+        return True
 
 
 class TranslationPackage(NamedTuple):

@@ -304,7 +304,13 @@ class ComfyWorkflow:
     def load_checkpoint(self, checkpoint: str):
         return self.add_cached("CheckpointLoaderSimple", 3, ckpt_name=checkpoint)
 
-    def load_dual_clip(self, clip_name1: str, clip_name2: str, type="sd3"):
+    def load_diffusion_model(self, model_name: str):
+        return self.add_cached("UNETLoader", 1, unet_name=model_name, weight_dtype="default")
+
+    def load_clip(self, clip_name: str, type: str):
+        return self.add_cached("CLIPLoader", 1, clip_name=clip_name, type=type)
+
+    def load_dual_clip(self, clip_name1: str, clip_name2: str, type: str):
         return self.add_cached(
             "DualCLIPLoader", 1, clip_name1=clip_name1, clip_name2=clip_name2, type=type
         )

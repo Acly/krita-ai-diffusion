@@ -12,7 +12,7 @@ from .api import ExtentInput, InpaintMode, InpaintParams, FillMode, Conditioning
 from .api import RegionInput
 from .image import Bounds, Extent, Image, Mask, Point, multiple_of
 from .client import ClientModels, ModelDict
-from .files import FileLibrary
+from .files import FileLibrary, FileFormat
 from .style import Style, StyleSettings, SamplerPresets
 from .resolution import ScaledExtent, ScaleMode, TileLayout, get_inpaint_reference
 from .resources import ControlMode, SDVersion, UpscalerName, ResourceKind
@@ -89,37 +89,52 @@ def _sampler_params(sampling: SamplingInput, strength: float | None = None):
 
 def load_checkpoint_with_lora(w: ComfyWorkflow, checkpoint: CheckpointInput, models: ClientModels):
     arch = checkpoint.version
-    checkpoint_model = checkpoint.checkpoint
-    if checkpoint_model not in models.checkpoints:
-        checkpoint_model = next(iter(models.checkpoints.keys()))
-        log.warning(
-            f"Style checkpoint {checkpoint.checkpoint} not found, using default {checkpoint_model}"
-        )
-    model, clip, vae = w.load_checkpoint(checkpoint_model)
+    model_info = models.checkpoints.get(checkpoint.checkpoint)
+    if model_info is None:
+        raise RuntimeError(f"Style checkpoint {checkpoint.checkpoint} not found")
 
-    if arch is SDVersion.sd3:
-        clip_models = models.for_version(arch).clip
-        model = w.model_sampling_sd3(model)
-        clip = w.load_dual_clip(clip_models["clip_g"], clip_models["clip_l"], type="sd3")
+    if model_info.format is FileFormat.checkpoint:
+        model, clip, vae = w.load_checkpoint(model_info.filename)
+    elif model_info.format is FileFormat.diffusion:
+        model = w.load_diffusion_model(model_info.filename)
+        clip, vae = None, None
+    else:
+        raise RuntimeError(f"Style checkpoint {checkpoint.checkpoint} has an unsupported format")
+
+    if clip is None or arch is SDVersion.sd3:
+        te_models = models.for_version(arch).text_encoder
+        match arch:
+            case SDVersion.sd15:
+                clip = w.load_clip(te_models["clip_l"], "stable_diffusion")
+            case SDVersion.sdxl:
+                clip = w.load_dual_clip(te_models["clip_g"], te_models["clip_l"], type="sdxl")
+            case SDVersion.sd3:
+                clip = w.load_dual_clip(te_models["clip_g"], te_models["clip_l"], type="sd3")
+            case SDVersion.flux:
+                clip = w.load_dual_clip(te_models["clip_l"], te_models["t5"], type="flux")
+            case _:
+                raise RuntimeError(f"No text encoder for model architecture {arch.name}")
 
     if arch.supports_clip_skip and checkpoint.clip_skip != StyleSettings.clip_skip.default:
         clip = w.clip_set_last_layer(clip, (checkpoint.clip_skip * -1))
 
     if checkpoint.vae != StyleSettings.vae.default:
-        if checkpoint.vae in models.vae:
-            vae = w.load_vae(checkpoint.vae)
-        else:
-            log.warning(f"Style VAE {checkpoint.vae} not found, using default VAE from checkpoint")
+        vae = w.load_vae(checkpoint.vae)
+    if vae is None:
+        vae = w.load_vae(models.for_version(arch).vae)
 
     for lora in checkpoint.loras:
         model, clip = w.load_lora(model, clip, lora.name, lora.strength, lora.strength)
+
+    if arch is SDVersion.sd3:
+        model = w.model_sampling_sd3(model)
 
     if checkpoint.v_prediction_zsnr:
         model = w.model_sampling_discrete(model, "v_prediction", zsnr=True)
         model = w.rescale_cfg(model, 0.7)
 
     if arch.supports_lcm:
-        lcm_lora = models.for_checkpoint(checkpoint_model).lora.find("lcm")
+        lcm_lora = models.for_version(arch).lora.find("lcm")
         if lcm_lora and any(l.name == lcm_lora for l in checkpoint.loras):
             model = w.model_sampling_discrete(model, "lcm")
 

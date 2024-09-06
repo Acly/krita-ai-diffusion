@@ -12,13 +12,14 @@ from typing import NamedTuple, Optional, Sequence
 from .api import WorkflowInput
 from .client import Client, CheckpointInfo, ClientMessage, ClientEvent, DeviceInfo, ClientModels
 from .client import TranslationPackage, filter_supported_styles, loras_to_upload
+from .files import FileFormat
 from .image import Image, ImageCollection
 from .network import RequestManager, NetworkError
 from .websockets.src.websockets import client as websockets_client
 from .websockets.src.websockets import exceptions as websockets_exceptions
 from .style import Styles
-from .resources import ControlMode, MissingResource, ResourceKind, SDVersion, UpscalerName
-from .resources import CustomNode, resource_id
+from .resources import ControlMode, MissingResource, ResourceId, ResourceKind, SDVersion
+from .resources import CustomNode, UpscalerName, resource_id
 from .settings import PerformanceSettings, settings
 from .localization import translate as _
 from .util import client_logger as log
@@ -130,7 +131,10 @@ class ComfyClient(Client):
         available_resources = client.models.resources = {}
 
         clip_models = nodes["DualCLIPLoader"]["input"]["required"]["clip_name1"][0]
-        available_resources.update(_find_clip_models(clip_models))
+        available_resources.update(_find_text_encoder_models(clip_models))
+
+        vae_models = nodes["VAELoader"]["input"]["required"]["vae_name"][0]
+        available_resources.update(_find_vae_models(vae_models))
 
         control_models = nodes["ControlNetLoader"]["input"]["required"]["control_net_name"][0]
         available_resources.update(_find_control_models(control_models))
@@ -151,7 +155,9 @@ class ComfyClient(Client):
         available_resources.update(_find_loras(loras))
 
         # Retrieve list of checkpoints
-        client._refresh_models(nodes, await client.try_inspect_checkpoints())
+        checkpoints = await client.try_inspect("checkpoints")
+        diffusion_models = await client.try_inspect("diffusion_models")
+        client._refresh_models(nodes, checkpoints, diffusion_models)
 
         # Check supported SD versions and make sure there is at least one
         missing = {ver: client._check_workload(ver) for ver in SDVersion.list()}
@@ -354,9 +360,9 @@ class ComfyClient(Client):
                 self._report(ClientEvent.disconnected, ""),
             )
 
-    async def try_inspect_checkpoints(self):
+    async def try_inspect(self, folder_name: str):
         try:
-            return await self._get("etn/model_info")
+            return await self._get(f"api/etn/model_info/{folder_name}")
         except NetworkError:
             return None  # server has old external tooling version
 
@@ -369,27 +375,41 @@ class ComfyClient(Client):
         return self._active is not None
 
     async def refresh(self):
-        nodes, info = await asyncio.gather(self._get("object_info"), self.try_inspect_checkpoints())
-        self._refresh_models(nodes, info)
+        nodes, checkpoints, diffusion_models = await asyncio.gather(
+            self._get("object_info"),
+            self.try_inspect("checkpoints"),
+            self.try_inspect("diffusion_models"),
+        )
+        self._refresh_models(nodes, checkpoints, diffusion_models)
 
-    def _refresh_models(self, nodes: dict, checkpoint_info: Optional[dict]):
+    def _refresh_models(self, nodes: dict, checkpoints: dict | None, diffusion_models: dict | None):
         models = self.models
-        if checkpoint_info:
-            models.checkpoints = {
-                filename: CheckpointInfo(
+
+        def parse_model_info(models: dict, model_format: FileFormat):
+            parsed = (
+                (
                     filename,
-                    SDVersion.from_string(info["base_model"]) or SDVersion.sd15,
+                    SDVersion.from_string(info["base_model"]),
                     info.get("is_inpaint", False),
                     info.get("is_refiner", False),
                 )
-                for filename, info in checkpoint_info.items()
-                if info["base_model"] in SDVersion.list_strings()
+                for filename, info in models.items()
+            )
+            return {
+                filename: CheckpointInfo(filename, version, model_format)
+                for filename, version, is_inpaint, is_refiner in parsed
+                if not (version is None or is_inpaint or is_refiner)
             }
+
+        if checkpoints:
+            models.checkpoints = parse_model_info(checkpoints, FileFormat.checkpoint)
         else:
             models.checkpoints = {
                 filename: CheckpointInfo.deduce_from_filename(filename)
                 for filename in nodes["CheckpointLoaderSimple"]["input"]["required"]["ckpt_name"][0]
             }
+        if diffusion_models:
+            models.checkpoints.update(parse_model_info(diffusion_models, FileFormat.diffusion))
         models.vae = nodes["VAELoader"]["input"]["required"]["vae_name"][0]
         models.loras = nodes["LoraLoader"]["input"]["required"]["lora_name"][0]
 
@@ -480,7 +500,7 @@ class ComfyClient(Client):
         for id in resources.required_resource_ids:
             if id.version is not SDVersion.all and id.version is not sdver:
                 continue
-            if models.resources[id.string] is None:
+            if models.find(id) is None:
                 missing.append(MissingResource(id.kind, [id]))
         has_checkpoint = any(cp.sd_version is sdver for cp in models.checkpoints.values())
         if not has_checkpoint:
@@ -552,11 +572,11 @@ def _find_model(
     return found
 
 
-def _find_clip_models(model_list: Sequence[str], ver=SDVersion.sd3):
-    kind = ResourceKind.clip
+def _find_text_encoder_models(model_list: Sequence[str]):
+    kind = ResourceKind.text_encoder
     return {
-        resource_id(kind, ver, name): _find_model(model_list, kind, ver, name)
-        for name in ["clip_g", "clip_l"]
+        resource_id(kind, SDVersion.all, te): _find_model(model_list, kind, SDVersion.all, te)
+        for te in ["clip_l", "clip_g", "t5"]
     }
 
 
@@ -607,6 +627,14 @@ def _find_loras(model_list: Sequence[str]):
     return {
         resource_id(kind, ver, name): _find_model(model_list, kind, ver, name)
         for name, ver in chain(common_loras, sdxl_loras)
+    }
+
+
+def _find_vae_models(model_list: Sequence[str]):
+    kind = ResourceKind.vae
+    return {
+        resource_id(kind, ver, "default"): _find_model(model_list, kind, ver, "default")
+        for ver in SDVersion.list()
     }
 
 

@@ -12,7 +12,7 @@ from ai_diffusion.client import ClientEvent, resolve_sd_version
 from ai_diffusion.comfy_client import ComfyClient, parse_url, websocket_url
 from ai_diffusion.style import SDVersion, Style
 from ai_diffusion.server import Server, ServerState, ServerBackend
-from ai_diffusion.files import FileLibrary, File
+from ai_diffusion.files import FileLibrary, File, FileFormat
 from ai_diffusion.util import ensure
 from .config import server_dir, default_checkpoint, test_dir
 
@@ -136,8 +136,7 @@ def check_client_info(client: ComfyClient):
     for filename, cp in client.models.checkpoints.items():
         assert cp.filename == filename
         assert cp.filename.startswith(cp.name)
-        assert cp.is_inpaint == ("inpaint" in cp.name.lower())
-        assert cp.is_refiner == ("refiner" in cp.name.lower())
+        assert cp.format is FileFormat.checkpoint
 
     assert len(client.models.resources) >= len(resources.required_resource_ids)
     inpaint = client.models.for_version(SDVersion.sd15).control[ControlMode.inpaint]

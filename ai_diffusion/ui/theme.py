@@ -4,6 +4,7 @@ from PyQt5.QtGui import QGuiApplication, QPalette, QIcon, QPixmap, QFontMetrics
 from PyQt5.QtWidgets import QVBoxLayout, QLabel, QWidget
 from pathlib import Path
 
+from ..files import FileFormat
 from ..settings import Setting
 from ..style import SDVersion
 from ..client import Client
@@ -42,10 +43,15 @@ def icon(name: str):
     return QIcon(str(path))
 
 
-def sd_version_icon(version: SDVersion, client: Client | None = None):
-    if client and not client.supports_version(version):
-        return icon("warning")
-    elif version is SDVersion.sd15:
+def sd_version_icon(
+    version: SDVersion, format: FileFormat | None = None, client: Client | None = None
+):
+    if client:
+        if not client.supports_version(version):
+            return icon("warning")
+        if format is FileFormat.diffusion and not client.models.for_version(version).has_te_vae:
+            return icon("warning")
+    if version is SDVersion.sd15:
         return icon("sd-version-15")
     elif version is SDVersion.sdxl:
         return icon("sd-version-xl")

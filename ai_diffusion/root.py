@@ -129,9 +129,14 @@ class Root(QObject):
     def _update_files(self):
         if client := self._connection.client_if_connected:
             checkpoints = [
-                File(cp.filename, cp.name, FileSource.remote, icon=sd_version_icon(cp.sd_version))
+                File(
+                    cp.filename,
+                    cp.name,
+                    FileSource.remote,
+                    cp.format,
+                    icon=sd_version_icon(cp.sd_version, cp.format, client),
+                )
                 for cp in client.models.checkpoints.values()
-                if not (cp.is_refiner or cp.is_inpaint)
             ]
             self._files.checkpoints.update(checkpoints, FileSource.remote)
 

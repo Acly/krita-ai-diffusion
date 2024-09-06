@@ -111,6 +111,19 @@ class SDVersion(Enum):
     def supports_attention_guidance(self):
         return self in [SDVersion.sd15, SDVersion.sdxl]
 
+    @property
+    def text_encoders(self):
+        match self:
+            case SDVersion.sd15:
+                return ["clip_l"]
+            case SDVersion.sdxl:
+                return ["clip_l", "clip_g"]
+            case SDVersion.sd3:
+                return ["clip_l", "clip_g"]
+            case SDVersion.flux:
+                return ["clip_l", "t5"]
+        raise ValueError(f"Unsupported architecture: {self}")
+
     @staticmethod
     def list():
         return [SDVersion.sd15, SDVersion.sdxl, SDVersion.sd3, SDVersion.flux]
@@ -121,8 +134,9 @@ class SDVersion(Enum):
 
 
 class ResourceKind(Enum):
-    checkpoint = "Diffusion Checkpoint"
-    clip = "CLIP model"
+    checkpoint = "Diffusion checkpoint"
+    text_encoder = "Text Encoder model"
+    vae = "Image Encoder (VAE) model"
     controlnet = "ControlNet model"
     clip_vision = "CLIP Vision model"
     ip_adapter = "IP-Adapter model"
@@ -767,8 +781,6 @@ def is_required(
 
 # fmt: off
 search_paths: dict[str, list[str]] = {
-    resource_id(ResourceKind.clip, SDVersion.sd3, "clip_l") : ["clip_l"],
-    resource_id(ResourceKind.clip, SDVersion.sd3, "clip_g") : ["clip_g"],
     resource_id(ResourceKind.controlnet, SDVersion.sd15, ControlMode.inpaint):  ["control_v11p_sd15_inpaint"],
     resource_id(ResourceKind.controlnet, SDVersion.sdxl, ControlMode.universal):  ["union-sdxl", "xinsirunion"],
     resource_id(ResourceKind.controlnet, SDVersion.sd15, ControlMode.scribble): ["control_v11p_sd15_scribble", "control_lora_rank128_v11p_sd15_scribble"],
@@ -811,13 +823,19 @@ search_paths: dict[str, list[str]] = {
     resource_id(ResourceKind.inpaint, SDVersion.sdxl, "fooocus_head"): ["fooocus_inpaint_head.pth"],
     resource_id(ResourceKind.inpaint, SDVersion.sdxl, "fooocus_patch"): ["inpaint_v26.fooocus.patch"],
     resource_id(ResourceKind.inpaint, SDVersion.all, "default"): ["MAT_Places512_G_fp16", "Places_512_FullData_G", "big-lama.pt"],
+    resource_id(ResourceKind.text_encoder, SDVersion.all, "clip_l"): ["clip_l"],
+    resource_id(ResourceKind.text_encoder, SDVersion.all, "clip_g"): ["clip_g"],
+    resource_id(ResourceKind.text_encoder, SDVersion.all, "t5"): ["t5"],
+    resource_id(ResourceKind.vae, SDVersion.sd15, "default"): ["vae-ft-mse-840000-ema"],
+    resource_id(ResourceKind.vae, SDVersion.sdxl, "default"): ["sdxl_vae"],
+    resource_id(ResourceKind.vae, SDVersion.flux, "default"): ["ae.s"],
 }
 # fmt: on
 
 required_resource_ids = set(
     [
-        ResourceId(ResourceKind.clip, SDVersion.sd3, "clip_l"),
-        ResourceId(ResourceKind.clip, SDVersion.sd3, "clip_g"),
+        ResourceId(ResourceKind.text_encoder, SDVersion.sd3, "clip_l"),
+        ResourceId(ResourceKind.text_encoder, SDVersion.sd3, "clip_g"),
         ResourceId(ResourceKind.controlnet, SDVersion.sd15, ControlMode.inpaint),
         ResourceId(ResourceKind.controlnet, SDVersion.sd15, ControlMode.blur),
         ResourceId(ResourceKind.ip_adapter, SDVersion.sd15, ControlMode.reference),

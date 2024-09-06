@@ -1,7 +1,7 @@
 import json
 import hashlib
 from base64 import b64encode
-from enum import Flag
+from enum import Enum, Flag
 from dataclasses import dataclass, asdict
 from pathlib import Path
 from typing import Any, NamedTuple, Sequence, cast
@@ -17,11 +17,19 @@ class FileSource(Flag):
     remote = 2
 
 
+class FileFormat(Enum):
+    unknown = 0
+    checkpoint = 1  # TE + VAE + Diffusion model
+    diffusion = 2  # Diffusion model only
+    lora = 3
+
+
 @dataclass
 class File:
     id: str
     name: str
     source: FileSource = FileSource.unavailable
+    format: FileFormat = FileFormat.unknown
     icon: QIcon | None = None
     hash: str | None = None
     path: Path | None = None
@@ -29,15 +37,15 @@ class File:
     metadata: dict[str, Any] | None = None
 
     @staticmethod
-    def remote(id: str):
+    def remote(id: str, format=FileFormat.unknown):
         name = id.replace("\\", "/")
         dot = name.rfind(".")
         name = name if dot == -1 else name[:dot]
-        return File(id, name, FileSource.remote)
+        return File(id, name, FileSource.remote, format)
 
     @staticmethod
-    def local(path: Path, compute_hash=False):
-        file = File(path.name, path.stem, FileSource.local, path=path)
+    def local(path: Path, format=FileFormat.unknown, compute_hash=False):
+        file = File(path.name, path.stem, FileSource.local, format, path=path)
         file.size = path.stat().st_size
         if compute_hash:
             file.compute_hash()

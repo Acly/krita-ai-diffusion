@@ -27,7 +27,7 @@ class StyleSettings:
     sd_checkpoint = Setting(
         _("Model Checkpoint"),
         "<no checkpoint set>",
-        _("The Stable Diffusion checkpoint file"),
+        _("The Diffusion model checkpoint file"),
         _(
             "This has a large impact on which kind of content will be generated. To install additional checkpoints, place them into [ComfyUI]/models/checkpoints."
         ),

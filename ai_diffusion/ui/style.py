@@ -23,10 +23,10 @@ from PyQt5.QtGui import QDesktopServices, QPalette, QColor
 from krita import Krita
 
 from ..client import resolve_sd_version
-from ..resources import SDVersion
+from ..resources import SDVersion, ResourceId, ResourceKind, search_paths
 from ..settings import Setting, ServerMode, settings
 from ..server import Server
-from ..files import File, FileFilter, FileSource
+from ..files import File, FileFilter, FileSource, FileFormat
 from ..style import Style, Styles, StyleSettings, SamplerPresets
 from ..localization import translate as _
 from ..root import root
@@ -584,9 +584,11 @@ class StylePresets(SettingsTab):
         add("name", TextSetting(StyleSettings.name, self))
         self._style_widgets["name"].value_changed.connect(self._update_name)
 
+        checkpoints = FileFilter(root.files.checkpoints)
+        checkpoints.available_only = True
         checkpoint_select = add(
             "sd_checkpoint",
-            ComboBoxSetting(StyleSettings.sd_checkpoint, model=root.files.checkpoints, parent=self),
+            ComboBoxSetting(StyleSettings.sd_checkpoint, model=checkpoints, parent=self),
         )
         checkpoint_select.add_button(
             Krita.instance().icon("reload-preset"),
@@ -735,21 +737,37 @@ class StylePresets(SettingsTab):
     def _set_checkpoint_warning(self):
         self._checkpoint_warning.setVisible(False)
         if client := root.connection.client_if_connected:
-            if self.current_style.sd_checkpoint not in client.models.checkpoints:
-                self._checkpoint_warning.setText(
-                    _("The checkpoint used by this style is not installed.")
-                )
-                self._checkpoint_warning.setVisible(True)
-            else:
-                version = resolve_sd_version(self.current_style, client)
-                if not client.supports_version(version):
-                    self._checkpoint_warning.setText(
-                        _(
-                            "This is a {version} checkpoint, but the {version} workload has not been installed.",
-                            version=version.value,
-                        )
+            warn = []
+            file = root.files.checkpoints.find(self.current_style.sd_checkpoint)
+            if file is None:
+                warn.append(_("The checkpoint used by this style is not installed."))
+
+            version = resolve_sd_version(self.current_style, client)
+            if file and not client.supports_version(version):
+                warn.append(
+                    _(
+                        "This is a {version} checkpoint, but the {version} workload has not been installed.",
+                        version=version.value,
                     )
-                    self._checkpoint_warning.setVisible(True)
+                )
+
+            if file and file.format is FileFormat.diffusion:
+                vae_id = ResourceId(ResourceKind.vae, version, "default")
+                if client.models.resources.get(vae_id.string) is None:
+                    paths = search_paths.get(vae_id.string, [])
+                    text = _("The VAE for this diffusion model is not installed")
+                    text += ": " + ", ".join(str(p) for p in paths)
+                    warn.append(text)
+                for te in version.text_encoders:
+                    te_id = ResourceId(ResourceKind.text_encoder, SDVersion.all, te)
+                    if client.models.resources.get(te_id.string) is None:
+                        paths = search_paths.get(te_id.string, [])
+                        text = _("The text encoder for this diffusion model is not installed")
+                        text += ": " + ", ".join(str(p) for p in paths)
+                        warn.append(text)
+            if warn:
+                self._checkpoint_warning.setText("\n".join(warn))
+                self._checkpoint_warning.setVisible(True)
 
     def _toggle_preferred_resolution(self, checked: bool):
         if checked and self._resolution_spin.value == 0:
