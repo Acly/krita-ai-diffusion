@@ -56,7 +56,10 @@ def test_cancel(qtapp, comfy_server, cancel_point):
         stage = 0
 
         async for msg in client.listen():
-            if stage == 0:
+            if msg.event is ClientEvent.error:
+                assert False, msg.error
+
+            elif stage == 0:
                 assert msg.event is not ClientEvent.finished
                 assert msg.job_id == job_id or msg.job_id == ""
                 if not job_id:

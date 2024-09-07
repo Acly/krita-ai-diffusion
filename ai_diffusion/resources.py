@@ -244,6 +244,17 @@ class ResourceId(NamedTuple):
         ident = self.identifier.name if isinstance(self.identifier, Enum) else self.identifier
         return f"{self.kind.value} '{ident}' for {self.version.value}"
 
+    @staticmethod
+    def parse(string: str):
+        kind, identifier, version = string.split("-")
+        kind = ResourceKind[kind]
+        version = SDVersion[version]
+        if kind in [ResourceKind.controlnet, ResourceKind.ip_adapter]:
+            identifier = ControlMode[identifier]
+        elif kind == ResourceKind.upscaler:
+            identifier = UpscalerName[identifier]
+        return ResourceId(kind, version, identifier)
+
 
 class ModelRequirements(Enum):
     none = 0

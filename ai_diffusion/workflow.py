@@ -15,7 +15,7 @@ from .client import ClientModels, ModelDict
 from .files import FileLibrary, FileFormat
 from .style import Style, StyleSettings, SamplerPresets
 from .resolution import ScaledExtent, ScaleMode, TileLayout, get_inpaint_reference
-from .resources import ControlMode, SDVersion, UpscalerName, ResourceKind
+from .resources import ControlMode, SDVersion, UpscalerName, ResourceKind, ResourceId
 from .settings import PerformanceSettings
 from .text import merge_prompt, extract_loras
 from .comfy_workflow import ComfyWorkflow, ComfyRunMode, Output
@@ -118,7 +118,7 @@ def load_checkpoint_with_lora(w: ComfyWorkflow, checkpoint: CheckpointInput, mod
     if arch.supports_clip_skip and checkpoint.clip_skip != StyleSettings.clip_skip.default:
         clip = w.clip_set_last_layer(clip, (checkpoint.clip_skip * -1))
 
-    if checkpoint.vae != StyleSettings.vae.default:
+    if checkpoint.vae and checkpoint.vae != StyleSettings.vae.default:
         vae = w.load_vae(checkpoint.vae)
     if vae is None:
         vae = w.load_vae(models.for_version(arch).vae)
@@ -1061,9 +1061,9 @@ def prepare(
     i.models = style.get_models()
     i.conditioning.positive += _collect_lora_triggers(i.models.loras, files)
     i.models.loras = unique(i.models.loras + extra_loras, key=lambda l: l.name)
+    sd_version = i.models.version = models.version_of(style.sd_checkpoint)
     _check_server_has_models(i.models, models, files, style.name)
 
-    sd_version = i.models.version = models.version_of(style.sd_checkpoint)
     model_set = models.for_version(sd_version)
     has_ip_adapter = model_set.ip_adapter.find(ControlMode.reference) is not None
     i.models.loras += _get_sampling_lora(style, is_live, model_set, models)
@@ -1307,6 +1307,18 @@ def _check_server_has_models(
                     style=style_name,
                 )
             )
+        for id, res in models.resources.items():
+            lora_arch = ResourceId.parse(id).version
+            if lora.name == res and input.version is not lora_arch:
+                raise ValueError(
+                    _(
+                        "Model architecture mismatch for LoRA '{lora}': Cannot use {lora_arch} LoRA with a {checkpoint_arch} checkpoint.",
+                        lora=lora.name,
+                        lora_arch=lora_arch.value,
+                        checkpoint_arch=input.version.value,
+                    )
+                )
+
     if input.vae != StyleSettings.vae.default and input.vae not in models.vae:
         raise ValueError(
             _(
