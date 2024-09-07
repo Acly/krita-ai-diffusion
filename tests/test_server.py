@@ -95,7 +95,7 @@ def test_install_and_run(qtapp, pytestconfig, local_download_server):
 
         version_file = server_dir / ".version"
         assert version_file.exists()
-        with version_file.open("w") as f:
+        with version_file.open("w", encoding="utf-8") as f:
             f.write("1.0.42")
         server.check_install()
         assert server.upgrade_required
