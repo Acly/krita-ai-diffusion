@@ -1,4 +1,5 @@
 from __future__ import annotations
+from PyQt5.QtCore import Qt
 from PyQt5.QtWidgets import QWidget, QVBoxLayout, QHBoxLayout, QPushButton, QLabel, QStackedWidget
 from krita import Krita, DockWidget
 import krita
@@ -51,6 +52,16 @@ class WelcomeWidget(QWidget):
         self._settings_button.setMinimumHeight(32)
         self._settings_button.clicked.connect(self.show_settings)
         layout.addWidget(self._settings_button)
+
+        layout.addSpacing(24)
+        info = QLabel(
+            "<a href='https://www.interstice.cloud'>Interstice.cloud</a> | "
+            + "<a href='https://https://github.com/Acly/krita-ai-diffusion'>GitHub Project</a> | "
+            + "<a href='https://discord.gg/pWyzHfHHhU'>Discord</a>",
+            self,
+        )
+        info.setOpenExternalLinks(True)
+        layout.addWidget(info, 0, Qt.AlignmentFlag.AlignRight)
 
         layout.addStretch()
 
