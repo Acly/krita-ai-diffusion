@@ -15,7 +15,7 @@ from .client import ClientModels, ModelDict
 from .files import FileLibrary, FileFormat
 from .style import Style, StyleSettings, SamplerPresets
 from .resolution import ScaledExtent, ScaleMode, TileLayout, get_inpaint_reference
-from .resources import ControlMode, SDVersion, UpscalerName, ResourceKind, ResourceId
+from .resources import ControlMode, Arch, UpscalerName, ResourceKind, ResourceId
 from .settings import PerformanceSettings
 from .text import merge_prompt, extract_loras
 from .comfy_workflow import ComfyWorkflow, ComfyRunMode, Output
@@ -104,16 +104,16 @@ def load_checkpoint_with_lora(w: ComfyWorkflow, checkpoint: CheckpointInput, mod
                 f"Style checkpoint {checkpoint.checkpoint} has an unsupported format {model_info.format.name}"
             )
 
-    if clip is None or arch is SDVersion.sd3:
-        te_models = models.for_version(arch).text_encoder
+    if clip is None or arch is Arch.sd3:
+        te_models = models.for_arch(arch).text_encoder
         match arch:
-            case SDVersion.sd15:
+            case Arch.sd15:
                 clip = w.load_clip(te_models["clip_l"], "stable_diffusion")
-            case SDVersion.sdxl:
+            case Arch.sdxl:
                 clip = w.load_dual_clip(te_models["clip_g"], te_models["clip_l"], type="sdxl")
-            case SDVersion.sd3:
+            case Arch.sd3:
                 clip = w.load_dual_clip(te_models["clip_g"], te_models["clip_l"], type="sd3")
-            case SDVersion.flux:
+            case Arch.flux:
                 clip = w.load_dual_clip(te_models["clip_l"], te_models["t5"], type="flux")
             case _:
                 raise RuntimeError(f"No text encoder for model architecture {arch.name}")
@@ -124,12 +124,12 @@ def load_checkpoint_with_lora(w: ComfyWorkflow, checkpoint: CheckpointInput, mod
     if checkpoint.vae and checkpoint.vae != StyleSettings.vae.default:
         vae = w.load_vae(checkpoint.vae)
     if vae is None:
-        vae = w.load_vae(models.for_version(arch).vae)
+        vae = w.load_vae(models.for_arch(arch).vae)
 
     for lora in checkpoint.loras:
         model, clip = w.load_lora(model, clip, lora.name, lora.strength, lora.strength)
 
-    if arch is SDVersion.sd3:
+    if arch is Arch.sd3:
         model = w.model_sampling_sd3(model)
 
     if checkpoint.v_prediction_zsnr:
@@ -137,7 +137,7 @@ def load_checkpoint_with_lora(w: ComfyWorkflow, checkpoint: CheckpointInput, mod
         model = w.rescale_cfg(model, 0.7)
 
     if arch.supports_lcm:
-        lcm_lora = models.for_version(arch).lora.find("lcm")
+        lcm_lora = models.for_arch(arch).lora.find("lcm")
         if lcm_lora and any(l.name == lcm_lora for l in checkpoint.loras):
             model = w.model_sampling_discrete(model, "lcm")
 
@@ -539,7 +539,7 @@ def scale_refine_and_decode(
     positive, negative = apply_control(
         w, prompt_pos, prompt_neg, cond.all_control, extent.desired, models
     )
-    result = w.sampler_custom_advanced(model, positive, negative, latent, models.version, **params)
+    result = w.sampler_custom_advanced(model, positive, negative, latent, models.arch, **params)
     image = w.vae_decode(vae, result)
     return image
 
@@ -570,13 +570,13 @@ def generate(
     model_orig = copy(model)
     model = apply_attention_mask(w, model, cond, clip, extent.initial)
     model = apply_regional_ip_adapter(w, model, cond.regions, extent.initial, models)
-    latent = w.empty_latent_image(extent.initial, models.version, misc.batch_count)
+    latent = w.empty_latent_image(extent.initial, models.arch, misc.batch_count)
     prompt_pos, prompt_neg = encode_text_prompt(w, cond, clip)
     positive, negative = apply_control(
         w, prompt_pos, prompt_neg, cond.all_control, extent.initial, models
     )
     out_latent = w.sampler_custom_advanced(
-        model, positive, negative, latent, models.version, **_sampler_params(sampling)
+        model, positive, negative, latent, models.arch, **_sampler_params(sampling)
     )
     out_image = scale_refine_and_decode(
         extent, w, cond, sampling, out_latent, prompt_pos, prompt_neg, model_orig, clip, vae, models
@@ -612,7 +612,7 @@ def apply_grow_feather(w: ComfyWorkflow, mask: Output, inpaint: InpaintParams):
 def detect_inpaint(
     mode: InpaintMode,
     bounds: Bounds,
-    sd_ver: SDVersion,
+    sd_ver: Arch,
     prompt: str,
     control: list[ControlInput],
     strength: float,
@@ -620,14 +620,14 @@ def detect_inpaint(
     assert mode is not InpaintMode.automatic
     result = InpaintParams(mode, bounds)
 
-    if sd_ver is SDVersion.sd15:
+    if sd_ver is Arch.sd15:
         result.use_inpaint_model = strength > 0.5
         result.use_condition_mask = (
             mode is InpaintMode.add_object
             and prompt != ""
             and not any(c.mode.is_structural for c in control)
         )
-    elif sd_ver is SDVersion.sdxl:
+    elif sd_ver is Arch.sdxl:
         result.use_inpaint_model = strength > 0.8
 
     is_ref_mode = mode in [InpaintMode.fill, InpaintMode.expand]
@@ -689,7 +689,7 @@ def inpaint(
             Control(ControlMode.reference, ImageOutput(reference), None, 0.5, (0.2, 0.8))
         )
     inpaint_mask = ImageOutput(initial_mask, is_mask=True)
-    if params.use_inpaint_model and models.version is SDVersion.sd15:
+    if params.use_inpaint_model and models.arch is Arch.sd15:
         cond_base.control.append(Control(ControlMode.inpaint, ImageOutput(in_image), inpaint_mask))
     if params.use_condition_mask and len(cond_base.regions) == 0:
         base_prompt = TextPrompt(merge_prompt("", cond_base.style_prompt), cond.language)
@@ -705,7 +705,7 @@ def inpaint(
     positive, negative = apply_control(
         w, positive, negative, cond_base.all_control, extent.initial, models
     )
-    if params.use_inpaint_model and models.version is SDVersion.sdxl:
+    if params.use_inpaint_model and models.arch is Arch.sdxl:
         positive, negative, latent_inpaint, latent = w.vae_encode_inpaint_conditioning(
             vae, in_image, initial_mask, positive, negative
         )
@@ -718,7 +718,7 @@ def inpaint(
 
     latent = w.batch_latent(latent, misc.batch_count)
     out_latent = w.sampler_custom_advanced(
-        inpaint_model, positive, negative, latent, models.version, **_sampler_params(sampling)
+        inpaint_model, positive, negative, latent, models.arch, **_sampler_params(sampling)
     )
 
     if extent.refinement_scaling in [ScaleMode.upscale_small, ScaleMode.upscale_quality]:
@@ -745,7 +745,7 @@ def inpaint(
         model = apply_attention_mask(w, model, cond_upscale, clip, res)
         model = apply_regional_ip_adapter(w, model, cond_upscale.regions, res, models)
 
-        if params.use_inpaint_model and models.version is SDVersion.sd15:
+        if params.use_inpaint_model and models.arch is Arch.sd15:
             hires_image = ImageOutput(images.hires_image)
             hires_mask = ImageOutput(cropped_mask, is_mask=True)
             cond_upscale.control.append(Control(ControlMode.inpaint, hires_image, hires_mask))
@@ -753,7 +753,7 @@ def inpaint(
             w, positive_up, negative_up, cond_upscale.all_control, res, models
         )
         out_latent = w.sampler_custom_advanced(
-            model, positive_up, negative_up, latent, models.version, **sampler_params
+            model, positive_up, negative_up, latent, models.arch, **sampler_params
         )
         out_image = w.vae_decode(vae, out_latent)
         out_image = scale_to_target(upscale_extent, w, out_image, models)
@@ -800,7 +800,7 @@ def refine(
         w, positive, negative, cond.all_control, extent.desired, models
     )
     sampler = w.sampler_custom_advanced(
-        model, positive, negative, latent, models.version, **_sampler_params(sampling)
+        model, positive, negative, latent, models.arch, **_sampler_params(sampling)
     )
     out_image = w.vae_decode(vae, sampler)
     out_image = w.nsfw_filter(out_image, sensitivity=misc.nsfw_filter)
@@ -835,13 +835,13 @@ def refine_region(
     in_mask = apply_grow_feather(w, in_mask, inpaint)
     initial_mask = scale_to_initial(extent, w, in_mask, models, is_mask=True)
 
-    if inpaint.use_inpaint_model and models.version is SDVersion.sd15:
+    if inpaint.use_inpaint_model and models.arch is Arch.sd15:
         c_mask = ImageOutput(initial_mask, is_mask=True)
         cond.control.append(Control(ControlMode.inpaint, ImageOutput(in_image), c_mask))
     positive, negative = apply_control(
         w, prompt_pos, prompt_neg, cond.all_control, extent.initial, models
     )
-    if inpaint.use_inpaint_model and models.version is SDVersion.sdxl:
+    if inpaint.use_inpaint_model and models.arch is Arch.sdxl:
         positive, negative, latent_inpaint, latent = w.vae_encode_inpaint_conditioning(
             vae, in_image, initial_mask, positive, negative
         )
@@ -854,7 +854,7 @@ def refine_region(
 
     latent = w.batch_latent(latent, misc.batch_count)
     out_latent = w.sampler_custom_advanced(
-        inpaint_model, positive, negative, latent, models.version, **_sampler_params(sampling)
+        inpaint_model, positive, negative, latent, models.arch, **_sampler_params(sampling)
     )
     out_image = scale_refine_and_decode(
         extent, w, cond, sampling, out_latent, prompt_pos, prompt_neg, model_orig, clip, vae, models
@@ -1015,7 +1015,7 @@ def upscale_tiled(
         latent = w.vae_encode(vae, tile_image)
         latent = w.set_latent_noise_mask(latent, tile_mask)
         sampler = w.sampler_custom_advanced(
-            tile_model, tile_pos, tile_neg, latent, models.version, **_sampler_params(sampling)
+            tile_model, tile_pos, tile_neg, latent, models.arch, **_sampler_params(sampling)
         )
         tile_result = w.vae_decode(vae, sampler)
         out_image = w.merge_image_tile(out_image, tile_layout, i, tile_result)
@@ -1064,10 +1064,10 @@ def prepare(
     i.models = style.get_models()
     i.conditioning.positive += _collect_lora_triggers(i.models.loras, files)
     i.models.loras = unique(i.models.loras + extra_loras, key=lambda l: l.name)
-    sd_version = i.models.version = models.version_of(style.sd_checkpoint)
+    arch = i.models.version = models.arch_of(style.sd_checkpoint)
     _check_server_has_models(i.models, models, files, style.name)
 
-    model_set = models.for_version(sd_version)
+    model_set = models.for_arch(arch)
     has_ip_adapter = model_set.ip_adapter.find(ControlMode.reference) is not None
     i.models.loras += _get_sampling_lora(style, is_live, model_set, models)
     all_control = cond.control + [c for r in cond.regions for c in r.control]
@@ -1078,16 +1078,16 @@ def prepare(
     if kind is WorkflowKind.generate:
         assert isinstance(canvas, Extent)
         i.images, i.batch_count = resolution.prepare_extent(
-            canvas, sd_version, ensure(style), perf, downscale=not is_live
+            canvas, arch, ensure(style), perf, downscale=not is_live
         )
         downscale_all_control_images(i.conditioning, canvas, i.images.extent.desired)
 
     elif kind is WorkflowKind.inpaint:
         assert isinstance(canvas, Image) and mask and inpaint and style
-        i.images, _ = resolution.prepare_image(canvas, sd_version, style, perf)
+        i.images, _ = resolution.prepare_image(canvas, arch, style, perf)
         i.images.hires_mask = mask.to_image(canvas.extent)
         upscale_extent, _ = resolution.prepare_extent(
-            mask.bounds.extent, sd_version, style, perf, downscale=False
+            mask.bounds.extent, arch, style, perf, downscale=False
         )
         i.inpaint = inpaint
         i.inpaint.use_reference = inpaint.use_reference and has_ip_adapter
@@ -1103,7 +1103,7 @@ def prepare(
     elif kind is WorkflowKind.refine:
         assert isinstance(canvas, Image) and style
         i.images, i.batch_count = resolution.prepare_image(
-            canvas, sd_version, style, perf, downscale=False
+            canvas, arch, style, perf, downscale=False
         )
         downscale_all_control_images(i.conditioning, canvas.extent, i.images.extent.desired)
 
@@ -1111,7 +1111,7 @@ def prepare(
         assert isinstance(canvas, Image) and mask and inpaint and style
         allow_2pass = strength >= 0.7
         i.images, i.batch_count = resolution.prepare_image(
-            canvas, sd_version, style, perf, downscale=allow_2pass
+            canvas, arch, style, perf, downscale=allow_2pass
         )
         i.images.hires_mask = mask.to_image(canvas.extent)
         i.inpaint = inpaint
@@ -1122,7 +1122,7 @@ def prepare(
         if style.preferred_resolution > 0:
             tile_size = style.preferred_resolution
         else:
-            tile_size = 1024 if sd_version is SDVersion.sdxl else 800
+            tile_size = 1024 if arch is Arch.sdxl else 800
         tile_size = multiple_of(tile_size - 128, 8)
         tile_size = Extent(tile_size, tile_size)
         target_extent = canvas.extent * upscale_factor
@@ -1249,11 +1249,11 @@ def _get_sampling_lora(style: Style, is_live: bool, model_set: ModelDict, models
     if preset.lora:
         file = model_set.lora.find(preset.lora)
         if file is None and not preset.lora in models.loras:
-            res = resources.search_path(ResourceKind.lora, model_set.version, preset.lora)
+            res = resources.search_path(ResourceKind.lora, model_set.arch, preset.lora)
             if res is None and preset.lora == "lightning":
                 raise ValueError(
                     f"The chosen sampler preset '{sampler_name}' requires LoRA "
-                    f"'{preset.lora}', which is not supported by {model_set.version.value}."
+                    f"'{preset.lora}', which is not supported by {model_set.arch.value}."
                     " Please choose a different sampler."
                 )
             elif res is None:
@@ -1311,7 +1311,7 @@ def _check_server_has_models(
                 )
             )
         for id, res in models.resources.items():
-            lora_arch = ResourceId.parse(id).version
+            lora_arch = ResourceId.parse(id).arch
             if lora.name == res and input.version is not lora_arch:
                 raise ValueError(
                     _(

@@ -11,7 +11,7 @@ from PyQt5.QtNetwork import QNetworkAccessManager
 
 from .settings import settings, ServerBackend
 from . import resources
-from .resources import CustomNode, ModelResource, ModelRequirements, SDVersion
+from .resources import CustomNode, ModelResource, ModelRequirements, Arch
 from .network import download, DownloadProgress
 from .localization import translate as _
 from .util import ZipFile, is_windows, create_process
@@ -97,11 +97,9 @@ class Server:
         ]
         self.missing_resources += missing_nodes
 
-        self.missing_resources += find_missing(
-            self.comfy_dir, resources.required_models, SDVersion.all
-        )
-        missing_sd15 = find_missing(self.comfy_dir, resources.required_models, SDVersion.sd15)
-        missing_sdxl = find_missing(self.comfy_dir, resources.required_models, SDVersion.sdxl)
+        self.missing_resources += find_missing(self.comfy_dir, resources.required_models, Arch.all)
+        missing_sd15 = find_missing(self.comfy_dir, resources.required_models, Arch.sd15)
+        missing_sdxl = find_missing(self.comfy_dir, resources.required_models, Arch.sdxl)
         if len(self.missing_resources) > 0 or (len(missing_sd15) > 0 and len(missing_sdxl) > 0):
             self.state = ServerState.missing_resources
         else:
@@ -271,7 +269,7 @@ class Server:
             raise Exception(parse_common_errors(str(e)))
 
     async def download_required(self, callback: Callback):
-        models = [m.name for m in resources.required_models if m.sd_version is SDVersion.all]
+        models = [m.name for m in resources.required_models if m.arch is Arch.all]
         await self.download(models, callback)
 
     async def download(self, packages: list[str], callback: Callback):
@@ -593,11 +591,9 @@ def _decode_utf8_log_error(b: bytes):
         return result
 
 
-def find_missing(folder: Path, resources: list[ModelResource], ver: SDVersion | None = None):
+def find_missing(folder: Path, resources: list[ModelResource], ver: Arch | None = None):
     return [
-        res.name
-        for res in resources
-        if (not ver or res.sd_version is ver) and not res.exists_in(folder)
+        res.name for res in resources if (not ver or res.arch is ver) and not res.exists_in(folder)
     ]
 
 

@@ -11,7 +11,7 @@ from ai_diffusion.api import SamplingInput, ConditioningInput, ExtentInput
 from ai_diffusion.client import Client, ClientEvent
 from ai_diffusion.cloud_client import CloudClient
 from ai_diffusion.image import Extent, Image
-from ai_diffusion.resources import ControlMode, SDVersion
+from ai_diffusion.resources import ControlMode, Arch
 from ai_diffusion.util import ensure
 from .config import root_dir, test_dir, result_dir
 
@@ -152,18 +152,18 @@ def test_validation(qtapp, cloud_client: CloudClient, scenario: str):
 
 
 cost_params = {
-    "sd15-live-512x512": (SDVersion.sd15, 1, 512, 512, 1),
-    "sd15-8x512x512": (SDVersion.sd15, 8, 512, 512, 20),
-    "sd15-2x1024x1024": (SDVersion.sd15, 2, 1024, 1024, 20),
-    "sd15-1x1024x2048": (SDVersion.sd15, 1, 1024, 2048, 20),
-    "sdxl-2x1024x1024": (SDVersion.sdxl, 2, 1024, 1024, 20),
-    "sdxl-highstep": (SDVersion.sdxl, 1, 1536, 1024, 50),
-    "sdxl-refine": (SDVersion.sdxl, 1, 1536, 1024, 20),
-    "inpaint-initial": (SDVersion.sdxl, 2, 1024, 1024, 24),
-    "inpaint-crop": (SDVersion.sd15, 2, 512, 512, 24),
-    "upscale-tiled": (SDVersion.sd15, 1, 512, 512, 10),
-    "upscale-tiled-2": (SDVersion.sd15, 1, 320, 640, 10),
-    "upscaled-invalid": (SDVersion.sd15, 1, 512, 512, 10),
+    "sd15-live-512x512": (Arch.sd15, 1, 512, 512, 1),
+    "sd15-8x512x512": (Arch.sd15, 8, 512, 512, 20),
+    "sd15-2x1024x1024": (Arch.sd15, 2, 1024, 1024, 20),
+    "sd15-1x1024x2048": (Arch.sd15, 1, 1024, 2048, 20),
+    "sdxl-2x1024x1024": (Arch.sdxl, 2, 1024, 1024, 20),
+    "sdxl-highstep": (Arch.sdxl, 1, 1536, 1024, 50),
+    "sdxl-refine": (Arch.sdxl, 1, 1536, 1024, 20),
+    "inpaint-initial": (Arch.sdxl, 2, 1024, 1024, 24),
+    "inpaint-crop": (Arch.sd15, 2, 512, 512, 24),
+    "upscale-tiled": (Arch.sd15, 1, 512, 512, 10),
+    "upscale-tiled-2": (Arch.sd15, 1, 320, 640, 10),
+    "upscaled-invalid": (Arch.sd15, 1, 512, 512, 10),
 }
 
 

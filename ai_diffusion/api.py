@@ -6,7 +6,7 @@ from typing import Any, get_args, get_origin
 import math
 
 from .image import Bounds, Extent, Image, ImageCollection, ImageFileFormat
-from .resources import ControlMode, SDVersion
+from .resources import ControlMode, Arch
 from .util import ensure, clamp
 
 
@@ -55,7 +55,7 @@ class LoraInput:
 @dataclass
 class CheckpointInput:
     checkpoint: str
-    version: SDVersion = SDVersion.sd15
+    version: Arch = Arch.sd15
     vae: str = ""
     loras: list[LoraInput] = field(default_factory=list)
     clip_skip: int = 0
@@ -211,12 +211,12 @@ class WorkflowInput:
         return base + round((10 * cost) / unit)
 
 
-def _base_cost(version: SDVersion):
-    if version is SDVersion.sd15:
+def _base_cost(arch: Arch):
+    if arch is Arch.sd15:
         return 1
-    if version is SDVersion.sdxl:
+    if arch is Arch.sdxl:
         return 2
-    if version is SDVersion.flux:
+    if arch is Arch.flux:
         return 4
     return 1
 

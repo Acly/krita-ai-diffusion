@@ -22,8 +22,8 @@ from PyQt5.QtCore import Qt, QUrl, QAbstractItemModel, pyqtSignal
 from PyQt5.QtGui import QDesktopServices, QPalette, QColor
 from krita import Krita
 
-from ..client import resolve_sd_version
-from ..resources import SDVersion, ResourceId, ResourceKind, search_paths
+from ..client import resolve_arch
+from ..resources import Arch, ResourceId, ResourceKind, search_paths
 from ..settings import Setting, ServerMode, settings
 from ..server import Server
 from ..files import File, FileFilter, FileSource, FileFormat
@@ -742,24 +742,24 @@ class StylePresets(SettingsTab):
             if file is None:
                 warn.append(_("The checkpoint used by this style is not installed."))
 
-            version = resolve_sd_version(self.current_style, client)
-            if file and not client.supports_version(version):
+            arch = resolve_arch(self.current_style, client)
+            if file and not client.supports_arch(arch):
                 warn.append(
                     _(
                         "This is a {version} checkpoint, but the {version} workload has not been installed.",
-                        version=version.value,
+                        version=arch.value,
                     )
                 )
 
             if file and file.format is FileFormat.diffusion:
-                vae_id = ResourceId(ResourceKind.vae, version, "default")
+                vae_id = ResourceId(ResourceKind.vae, arch, "default")
                 if client.models.resources.get(vae_id.string) is None:
                     paths = search_paths.get(vae_id.string, [])
                     text = _("The VAE for this diffusion model is not installed")
                     text += ": " + ", ".join(str(p) for p in paths)
                     warn.append(text)
-                for te in version.text_encoders:
-                    te_id = ResourceId(ResourceKind.text_encoder, SDVersion.all, te)
+                for te in arch.text_encoders:
+                    te_id = ResourceId(ResourceKind.text_encoder, Arch.all, te)
                     if client.models.resources.get(te_id.string) is None:
                         paths = search_paths.get(te_id.string, [])
                         text = _("The text encoder for this diffusion model is not installed")
@@ -771,15 +771,15 @@ class StylePresets(SettingsTab):
 
     def _toggle_preferred_resolution(self, checked: bool):
         if checked and self._resolution_spin.value == 0:
-            sd_ver = resolve_sd_version(self.current_style, root.connection.client_if_connected)
-            self._resolution_spin.value = 640 if sd_ver is SDVersion.sd15 else 1024
+            sd_ver = resolve_arch(self.current_style, root.connection.client_if_connected)
+            self._resolution_spin.value = 640 if sd_ver is Arch.sd15 else 1024
         elif not checked and self._resolution_spin.value > 0:
             self._resolution_spin.value = 0
 
     def _toggle_clip_skip(self, checked: bool):
         if checked and self._clip_skip.value == 0:
-            arch = resolve_sd_version(self.current_style, root.connection.client_if_connected)
-            self._clip_skip.value = 1 if arch is SDVersion.sd15 else 2
+            arch = resolve_arch(self.current_style, root.connection.client_if_connected)
+            self._clip_skip.value = 1 if arch is Arch.sd15 else 2
         elif not checked and self._clip_skip.value > 0:
             self._clip_skip.value = 0
 
@@ -788,7 +788,7 @@ class StylePresets(SettingsTab):
             widget.visible = checked
 
     def _enable_checkpoint_advanced(self):
-        arch = resolve_sd_version(self.current_style, root.connection.client_if_connected)
+        arch = resolve_arch(self.current_style, root.connection.client_if_connected)
         self._clip_skip_check.setEnabled(arch.supports_clip_skip)
         self._clip_skip.enabled = arch.supports_clip_skip and self.current_style.clip_skip > 0
         self._zsnr.enabled = arch.supports_attention_guidance

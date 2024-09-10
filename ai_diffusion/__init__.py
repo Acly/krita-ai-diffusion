@@ -1,6 +1,6 @@
 """Generative AI plugin for Krita using Stable Diffusion"""
 
-__version__ = "1.23.0"
+__version__ = "1.24.0"
 
 import importlib.util
 

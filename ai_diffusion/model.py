@@ -17,11 +17,11 @@ from .util import clamp, ensure, trim_text, client_logger as log
 from .settings import ApplyBehavior, settings
 from .network import NetworkError
 from .image import Extent, Image, Mask, Bounds, DummyImage
-from .client import ClientMessage, ClientEvent, filter_supported_styles, resolve_sd_version
+from .client import ClientMessage, ClientEvent, filter_supported_styles, resolve_arch
 from .document import Document, KritaDocument
 from .layer import Layer, LayerType, RestoreActiveLayer
 from .pose import Pose
-from .style import Style, Styles, SDVersion
+from .style import Style, Styles, Arch
 from .files import FileLibrary
 from .connection import Connection
 from .properties import Property, ObservableProperties
@@ -172,13 +172,13 @@ class Model(QObject, ObservableProperties):
 
             bounds, mask.bounds = compute_relative_bounds(bounds, mask.bounds)
 
-            sd_version = client.models.version_of(self.style.sd_checkpoint)
+            arch = client.models.arch_of(self.style.sd_checkpoint)
             if inpaint_mode is InpaintMode.custom:
                 inpaint = self.inpaint.get_params(mask)
             else:
                 pos, ctrl = conditioning.positive, conditioning.control
                 inpaint = workflow.detect_inpaint(
-                    inpaint_mode, mask.bounds, sd_version, pos, ctrl, self.strength
+                    inpaint_mode, mask.bounds, arch, pos, ctrl, self.strength
                 )
             inpaint.grow, inpaint.feather = selection_mod.apply(selection_bounds)
 
@@ -299,8 +299,8 @@ class Model(QObject, ObservableProperties):
         strength = self.live.strength
         workflow_kind = WorkflowKind.generate if strength == 1.0 else WorkflowKind.refine
         client = self._connection.client
-        ver = client.models.version_of(self.style.sd_checkpoint)
-        min_mask_size = 512 if ver is SDVersion.sd15 else 800
+        ver = client.models.arch_of(self.style.sd_checkpoint)
+        min_mask_size = 512 if ver is Arch.sd15 else 800
         extent = self._doc.extent
         region_layer = None
         job_regions: list[JobRegion] = []
@@ -611,8 +611,8 @@ class Model(QObject, ObservableProperties):
         return settings.prompt_translation if self.translation_enabled else ""
 
     @property
-    def sd_version(self):
-        return resolve_sd_version(self.style, self._connection.client_if_connected)
+    def arch(self):
+        return resolve_arch(self.style, self._connection.client_if_connected)
 
     @property
     def history(self):

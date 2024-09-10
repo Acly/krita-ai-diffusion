@@ -6,7 +6,7 @@ from uuid import uuid4
 import json
 
 from .image import Bounds, Extent, Image
-from .resources import SDVersion, ControlMode
+from .resources import Arch, ControlMode
 
 
 class ComfyRunMode(Enum):
@@ -175,7 +175,7 @@ class ComfyWorkflow:
         positive: Output,
         negative: Output,
         latent_image: Output,
-        model_version: SDVersion,
+        model_version: Arch,
         sampler="dpmpp_2m_sde_gpu",
         scheduler="normal",
         steps=20,
@@ -185,7 +185,7 @@ class ComfyWorkflow:
     ):
         self.sample_count += steps - start_at_step
 
-        if model_version is SDVersion.flux:
+        if model_version is Arch.flux:
             guider = self.basic_guider(model, positive)
         else:
             guider = self.cfg_guider(model, positive, negative, cfg)
@@ -203,12 +203,12 @@ class ComfyWorkflow:
         )[1]
 
     def scheduler_sigmas(
-        self, model: Output, scheduler="normal", steps=20, model_version=SDVersion.sdxl
+        self, model: Output, scheduler="normal", steps=20, model_version=Arch.sdxl
     ):
         if scheduler in ("align_your_steps", "ays"):
-            assert model_version in (SDVersion.sd15, SDVersion.sdxl)
+            assert model_version in (Arch.sd15, Arch.sdxl)
 
-            if model_version == SDVersion.sd15:
+            if model_version == Arch.sd15:
                 model_type = "SD1"
             else:
                 model_type = "SDXL"
@@ -358,9 +358,9 @@ class ComfyWorkflow:
     def load_fooocus_inpaint(self, head: str, patch: str):
         return self.add_cached("INPAINT_LoadFooocusInpaint", 1, head=head, patch=patch)
 
-    def empty_latent_image(self, extent: Extent, version: SDVersion, batch_size=1):
+    def empty_latent_image(self, extent: Extent, arch: Arch, batch_size=1):
         w, h = extent.width, extent.height
-        if version in [SDVersion.sd3, SDVersion.flux]:
+        if arch in [Arch.sd3, Arch.flux]:
             return self.add("EmptySD3LatentImage", 1, width=w, height=h, batch_size=batch_size)
         return self.add("EmptyLatentImage", 1, width=w, height=h, batch_size=batch_size)
 

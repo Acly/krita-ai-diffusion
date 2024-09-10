@@ -5,7 +5,7 @@ from typing import NamedTuple, overload
 
 from .api import ExtentInput, ImageInput
 from .image import Bounds, Extent, Image, Mask, Point, multiple_of
-from .resources import SDVersion
+from .resources import Arch
 from .settings import PerformanceSettings
 from .style import Style
 
@@ -142,13 +142,13 @@ class CheckpointResolution(NamedTuple):
     max_scale: float
 
     @staticmethod
-    def compute(extent: Extent, sd_ver: SDVersion, style: Style | None = None):
+    def compute(extent: Extent, sd_ver: Arch, style: Style | None = None):
         if style is None or style.preferred_resolution == 0:
             min_size, max_size, min_pixel_count, max_pixel_count = {
-                SDVersion.sd15: (512, 768, 512**2, 512 * 768),
-                SDVersion.sdxl: (896, 1280, 1024**2, 1024**2),
-                SDVersion.sd3: (512, 1536, 512**2, 1536**2),
-                SDVersion.flux: (256, 2048, 512**2, 2048**2),
+                Arch.sd15: (512, 768, 512**2, 512 * 768),
+                Arch.sdxl: (896, 1280, 1024**2, 1024**2),
+                Arch.sd3: (512, 1536, 512**2, 1536**2),
+                Arch.flux: (256, 2048, 512**2, 2048**2),
             }[sd_ver]
         else:
             range_offset = multiple_of(round(0.2 * style.preferred_resolution), 8)
@@ -171,7 +171,7 @@ def apply_resolution_settings(extent: Extent, settings: PerformanceSettings):
 def prepare_diffusion_input(
     extent: Extent,
     image: Image | None,
-    sd_version: SDVersion,
+    arch: Arch,
     style: Style,
     perf: PerformanceSettings,
     downscale=True,
@@ -181,13 +181,11 @@ def prepare_diffusion_input(
 
     # The checkpoint may require a different resolution than what is requested.
     mult = 8
-    if sd_version is SDVersion.flux:
+    if arch is Arch.flux:
         mult = 16
-    if SDVersion is SDVersion.sd3:
+    if Arch is Arch.sd3:
         mult = 64
-    min_size, max_size, min_scale, max_scale = CheckpointResolution.compute(
-        desired, sd_version, style
-    )
+    min_size, max_size, min_scale, max_scale = CheckpointResolution.compute(desired, arch, style)
 
     if downscale and max_scale < 1 and any(x > max_size for x in desired):
         # Desired resolution is larger than the maximum size. Do 2 passes:
@@ -221,14 +219,14 @@ def prepare_diffusion_input(
 
 
 def prepare_extent(
-    extent: Extent, sd_ver: SDVersion, style: Style, perf: PerformanceSettings, downscale=True
+    extent: Extent, sd_ver: Arch, style: Style, perf: PerformanceSettings, downscale=True
 ):
     scaled, _, batch = prepare_diffusion_input(extent, None, sd_ver, style, perf, downscale)
     return ImageInput(scaled.as_input), batch
 
 
 def prepare_image(
-    image: Image, sd_ver: SDVersion, style: Style, perf: PerformanceSettings, downscale=True
+    image: Image, sd_ver: Arch, style: Style, perf: PerformanceSettings, downscale=True
 ):
     scaled, out_image, batch = prepare_diffusion_input(
         image.extent, image, sd_ver, style, perf, downscale

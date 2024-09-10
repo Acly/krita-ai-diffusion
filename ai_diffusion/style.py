@@ -8,7 +8,7 @@ from PyQt5.QtCore import QObject, pyqtSignal
 
 from .api import CheckpointInput, LoraInput
 from .settings import Setting, settings
-from .resources import SDVersion
+from .resources import Arch
 from .localization import translate as _
 from .util import encode_json, find_unused_path, read_json_with_comments
 from .util import plugin_dir, user_data_dir, client_logger as log
@@ -20,7 +20,7 @@ class StyleSettings:
 
     sd_version = Setting(
         _("Stable Diffusion Version"),
-        SDVersion.auto,
+        Arch.auto,
         _("The base architecture must match checkpoint and LoRA"),
     )
 
@@ -108,7 +108,7 @@ class Style:
     filepath: Path
     version: int = StyleSettings.version.default
     name: str = StyleSettings.name.default
-    sd_version: SDVersion = StyleSettings.sd_version.default
+    sd_version: Arch = StyleSettings.sd_version.default
     sd_checkpoint: str = StyleSettings.sd_checkpoint.default
     loras: list[dict[str, str | float]]
     style_prompt: str = StyleSettings.style_prompt.default

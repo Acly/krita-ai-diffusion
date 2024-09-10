@@ -9,7 +9,7 @@ from .document import Document, KritaDocument
 from .model import Model
 from .files import FileLibrary, File, FileSource
 from .persistence import ModelSync, RecentlyUsedSync, import_prompt_from_file
-from .ui.theme import sd_version_icon
+from .ui.theme import checkpoint_icon
 from .settings import ServerMode, settings
 from .util import client_logger as log
 
@@ -134,7 +134,7 @@ class Root(QObject):
                     cp.name,
                     FileSource.remote,
                     cp.format,
-                    icon=sd_version_icon(cp.sd_version, cp.format, client),
+                    icon=checkpoint_icon(cp.arch, cp.format, client),
                 )
                 for cp in client.models.checkpoints.values()
             ]
