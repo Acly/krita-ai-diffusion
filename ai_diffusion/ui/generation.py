@@ -59,7 +59,7 @@ class HistoryWidget(QListWidget):
         }}
     """
 
-    def __init__(self, parent):
+    def __init__(self, parent: QWidget | None):
         super().__init__(parent)
         self._model = root.active_model
         self._connections = []

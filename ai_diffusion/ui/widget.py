@@ -248,7 +248,7 @@ class StyleSelectWidget(QWidget):
     value_changed = pyqtSignal(Style)
     quality_changed = pyqtSignal(SamplingQuality)
 
-    def __init__(self, parent, show_quality=False):
+    def __init__(self, parent: QWidget | None, show_quality=False):
         super().__init__(parent)
         self._value = Styles.list().default
 
@@ -347,7 +347,7 @@ class MultiLineTextPromptWidget(QPlainTextEdit):
 
     _line_count = 2
 
-    def __init__(self, parent):
+    def __init__(self, parent: QWidget | None):
         super().__init__(parent)
         self.setHorizontalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAlwaysOff)
         self.setVerticalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAlwaysOff)
