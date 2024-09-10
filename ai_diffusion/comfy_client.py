@@ -132,6 +132,9 @@ class ComfyClient(Client):
 
         clip_models = nodes["DualCLIPLoader"]["input"]["required"]["clip_name1"][0]
         available_resources.update(_find_text_encoder_models(clip_models))
+        if clip_gguf := nodes.get("DualCLIPLoaderGGUF", None):
+            clip_gguf_models = clip_gguf["input"]["required"]["clip_name1"][0]
+            available_resources.update(_find_text_encoder_models(clip_gguf_models))
 
         vae_models = nodes["VAELoader"]["input"]["required"]["vae_name"][0]
         available_resources.update(_find_vae_models(vae_models))
