@@ -6,7 +6,7 @@ from typing import NamedTuple, Sequence
 
 # Version identifier for all the resources defined here. This is used as the server version.
 # It usually follows the plugin version, but not all new plugin versions also require a server update.
-version = "1.23.0"
+version = "1.24.0"
 
 comfy_url = "https://github.com/comfyanonymous/ComfyUI"
 comfy_version = "cd4955367e4170b88ba839efccb6d2ed0dd963ad"
@@ -49,6 +49,16 @@ required_custom_nodes = [
         "6ce66ff1b5ed4e5819b23ccf1feb976ef479528a",
         ["INPAINT_LoadFooocusInpaint", "INPAINT_ApplyFooocusInpaint", "INPAINT_ExpandMask"],
     ),
+]
+
+optional_custom_nodes = [
+    CustomNode(
+        "GGUF",
+        "ComfyUI-GGUF",
+        "https://github.com/city96/ComfyUI-GGUF",
+        "454955ead3336322215a206edbd7191eb130bba0",
+        ["UnetLoaderGGUF", "DualCLIPLoaderGGUF"],
+    )
 ]
 
 

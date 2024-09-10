@@ -140,7 +140,7 @@ class Server:
         if not self.has_comfy:
             await try_install(comfy_dir, self._install_comfy, comfy_dir, network, cb)
 
-        for pkg in resources.required_custom_nodes:
+        for pkg in chain(resources.required_custom_nodes, resources.optional_custom_nodes):
             dir = comfy_dir / "custom_nodes" / pkg.folder
             await install_if_missing(dir, self._install_custom_node, pkg, network, cb)
 
