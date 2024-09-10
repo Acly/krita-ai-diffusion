@@ -410,8 +410,19 @@ class ComfyClient(Client):
             }
         if diffusion_models:
             models.checkpoints.update(parse_model_info(diffusion_models, FileFormat.diffusion))
+
         models.vae = nodes["VAELoader"]["input"]["required"]["vae_name"][0]
         models.loras = nodes["LoraLoader"]["input"]["required"]["lora_name"][0]
+
+        if gguf_node := nodes.get("UnetLoaderGGUF", None):
+            gguf_models = {
+                name: CheckpointInfo(name, SDVersion.flux, FileFormat.diffusion)
+                for name in gguf_node["input"]["required"]["unet_name"][0]
+            }
+            models.checkpoints.update(gguf_models)
+            log.info(f"GGUF support: {len(gguf_models)} models found.")
+        else:
+            log.info(f"GGUF support: node is not installed.")
 
     async def translate(self, text: str, lang: str):
         try:
@@ -548,8 +559,14 @@ def _find_model(
     if search_paths is None:
         return None
 
-    sanitize = lambda m: m.replace("\\", "/").lower()
-    matches = (m for m in model_list if any(sanitize(p) in sanitize(m) for p in search_paths))
+    sanitize = lambda p: p.replace("\\", "/").lower()
+
+    def match(filename: str, pattern: str):
+        filename = sanitize(filename)
+        pattern = pattern.lower()
+        return all(p in filename for p in pattern.split("*"))
+
+    matches = (m for m in model_list if any(match(m, p) for p in search_paths))
     # if there are multiple matches, prefer the one with "krita" in the path
     prio = sorted(matches, key=lambda m: 0 if "krita" in m else 1)
     found = next(iter(prio), None)
@@ -558,9 +575,7 @@ def _find_model(
 
     if found is None and resources.is_required(kind, sdver, identifier):
         log.warning(f"Missing {model_name} for {sdver.value}")
-        log.info(
-            f"-> No model matches search paths: {', '.join(sanitize(p) for p in search_paths)}"
-        )
+        log.info(f"-> No model matches search paths: {', '.join(p.lower() for p in search_paths)}")
         log.info(f"-> Available models: {', '.join(sanitize(m) for m in model_list)}")
     elif found is None:
         log.info(

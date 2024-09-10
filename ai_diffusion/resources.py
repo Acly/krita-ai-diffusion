@@ -9,7 +9,7 @@ from typing import NamedTuple, Sequence
 version = "1.23.0"
 
 comfy_url = "https://github.com/comfyanonymous/ComfyUI"
-comfy_version = "38c22e631ad090a4841e4a0f015a30c565a9f7fc"
+comfy_version = "cd4955367e4170b88ba839efccb6d2ed0dd963ad"
 
 
 class CustomNode(NamedTuple):
@@ -836,7 +836,7 @@ search_paths: dict[str, list[str]] = {
     resource_id(ResourceKind.inpaint, SDVersion.all, "default"): ["MAT_Places512_G_fp16", "Places_512_FullData_G", "big-lama.pt"],
     resource_id(ResourceKind.text_encoder, SDVersion.all, "clip_l"): ["clip_l"],
     resource_id(ResourceKind.text_encoder, SDVersion.all, "clip_g"): ["clip_g"],
-    resource_id(ResourceKind.text_encoder, SDVersion.all, "t5"): ["t5"],
+    resource_id(ResourceKind.text_encoder, SDVersion.all, "t5"): ["t5*.safetensors"],
     resource_id(ResourceKind.vae, SDVersion.sd15, "default"): ["vae-ft-mse-840000-ema"],
     resource_id(ResourceKind.vae, SDVersion.sdxl, "default"): ["sdxl_vae"],
     resource_id(ResourceKind.vae, SDVersion.flux, "default"): ["ae.s"],

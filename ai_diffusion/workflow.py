@@ -93,13 +93,16 @@ def load_checkpoint_with_lora(w: ComfyWorkflow, checkpoint: CheckpointInput, mod
     if model_info is None:
         raise RuntimeError(f"Style checkpoint {checkpoint.checkpoint} not found")
 
-    if model_info.format is FileFormat.checkpoint:
-        model, clip, vae = w.load_checkpoint(model_info.filename)
-    elif model_info.format is FileFormat.diffusion:
-        model = w.load_diffusion_model(model_info.filename)
-        clip, vae = None, None
-    else:
-        raise RuntimeError(f"Style checkpoint {checkpoint.checkpoint} has an unsupported format")
+    clip, vae = None, None
+    match model_info.format:
+        case FileFormat.checkpoint:
+            model, clip, vae = w.load_checkpoint(model_info.filename)
+        case FileFormat.diffusion:
+            model = w.load_diffusion_model(model_info.filename)
+        case _:
+            raise RuntimeError(
+                f"Style checkpoint {checkpoint.checkpoint} has an unsupported format {model_info.format.name}"
+            )
 
     if clip is None or arch is SDVersion.sd3:
         te_models = models.for_version(arch).text_encoder
