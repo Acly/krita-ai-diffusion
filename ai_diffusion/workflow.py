@@ -1119,13 +1119,14 @@ def prepare(
 
     elif kind is WorkflowKind.upscale_tiled:
         assert isinstance(canvas, Image) and style
+        target_extent = canvas.extent * upscale_factor
         if style.preferred_resolution > 0:
             tile_size = style.preferred_resolution
         else:
             tile_size = 1024 if arch is Arch.sdxl else 800
+        tile_size = max(tile_size, target_extent.longest_side // 12) # max 12x12 tiles total
         tile_size = multiple_of(tile_size - 128, 8)
         tile_size = Extent(tile_size, tile_size)
-        target_extent = canvas.extent * upscale_factor
         extent = ExtentInput(canvas.extent, target_extent.multiple_of(8), tile_size, target_extent)
         i.images = ImageInput(extent, canvas)
         i.upscale_model = upscale_model if upscale_factor > 1 else ""

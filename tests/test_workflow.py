@@ -834,3 +834,46 @@ def test_inpaint_benchmark(pytestconfig, qtapp, client):
 
         print("-", scenario, "|", sdver.name, "|", prompt_mode, "|", seed)
         run_inpaint_benchmark(qtapp, client, sdver, prompt_mode, scenario, seed, output_dir)
+
+
+# def test_reproduce(qtapp, client: Client):
+#     workflow = {
+#         "conditioning": {
+#             "control": [{"strength": 0.5, "mode": "blur"}],
+#             "negative": "<redacted>",
+#             "positive": "<redacted>",
+#             "regions": [],
+#             "style": "<redacted>",
+#         },
+#         "images": {
+#             "extent": {
+#                 "desired": [672, 672],
+#                 "initial": [8736, 15552],
+#                 "input": [2912, 5184],
+#                 "target": [8736, 15552],
+#             },
+#             "initial_image": 0,
+#         },
+#         "kind": "upscale_tiled",
+#         "models": {
+#             "checkpoint": "realisticVisionV51_v51VAE.safetensors",
+#             "loras": [],
+#             "vae": "Checkpoint Default",
+#             "version": "sd15",
+#         },
+#         "sampling": {
+#             "cfg_scale": 7,
+#             "sampler": "dpmpp_2m",
+#             "scheduler": "karras",
+#             "seed": 1159574572,
+#             "start_step": 14,
+#             "total_steps": 20,
+#         },
+#         "upscale_model": "4x_NMKD-Superscale-SP_178000_G.pth",
+#     }
+#     image = Image.create(Extent(2912, 5184))
+#     images = ImageCollection([image])
+#     data, offsets = images.to_bytes()
+#     workflow["image_data"] = {"bytes": data, "offsets": offsets}
+#     input = WorkflowInput.from_dict(workflow)
+#     run_and_save(qtapp, client, input, "test_reproduce")
