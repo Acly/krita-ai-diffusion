@@ -2,6 +2,7 @@ from enum import Enum, Flag
 from dataclasses import asdict, is_dataclass
 from itertools import islice
 from pathlib import Path
+from typing import Generator
 import asyncio
 import importlib.util
 import os
@@ -122,6 +123,14 @@ def median_or_zero(values: Iterable[float]) -> float:
 def unique(seq: Sequence[T], key) -> list[T]:
     seen = set()
     return [x for x in seq if (k := key(x)) not in seen and not seen.add(k)]
+
+
+def flatten(seq: Sequence[T | list[T]]) -> Generator[T, None, None]:
+    for x in seq:
+        if isinstance(x, list):
+            yield from x
+        else:
+            yield x
 
 
 def trim_text(text: str, max_length: int) -> str:

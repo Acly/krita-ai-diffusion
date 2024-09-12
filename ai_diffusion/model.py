@@ -197,6 +197,7 @@ class Model(QObject, ObservableProperties):
             inpaint=inpaint,
         )
         job_params = JobParams(bounds, prompt, regions=job_regions)
+        job_params.set_style(self.style)
         return input, job_params
 
     async def enqueue_jobs(

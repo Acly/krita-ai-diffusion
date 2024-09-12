@@ -8,6 +8,7 @@ from PyQt5.QtCore import QObject, pyqtSignal
 
 from .image import Bounds, ImageCollection
 from .settings import settings
+from .style import Style
 from .util import ensure
 from . import control
 
@@ -49,6 +50,9 @@ class JobParams:
     regions: list[JobRegion] = field(default_factory=list)
     strength: float = 1.0
     seed: int = 0
+    style: str = ""
+    checkpoint: str = ""
+    sampler: str = ""
     has_mask: bool = False
     frame: tuple[int, int, int] = (0, 0, 0)
     animation_id: str = ""
@@ -65,6 +69,11 @@ class JobParams:
             return a is b
         field_names = (f.name for f in fields(cls) if not f.name == "seed")
         return all(getattr(a, name) == getattr(b, name) for name in field_names)
+
+    def set_style(self, style: Style):
+        self.style = style.filename
+        self.checkpoint = style.sd_checkpoint
+        self.sampler = f"{style.sampler} ({style.sampler_steps} / {style.cfg_scale})"
 
 
 class Job:
