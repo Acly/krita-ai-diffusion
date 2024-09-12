@@ -126,7 +126,7 @@ async def main(
         versions.append(Arch.flux)
 
     timeout = aiohttp.ClientTimeout(total=None, sock_connect=10, sock_read=60)
-    async with aiohttp.ClientSession(timeout=timeout) as client:
+    async with aiohttp.ClientSession(timeout=timeout, trust_env=True) as client:
         models = set()
         models.update([m for m in default_checkpoints if all or (m.id.identifier in checkpoints)])
         if minimal or recommended or all or sd15 or sdxl:
