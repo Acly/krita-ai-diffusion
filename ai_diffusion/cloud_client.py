@@ -383,8 +383,6 @@ models.resources = {
     resource_id(ResourceKind.ip_adapter, Arch.sd15, ControlMode.face): None,
     resource_id(ResourceKind.ip_adapter, Arch.sdxl, ControlMode.face): None,
     resource_id(ResourceKind.clip_vision, Arch.all, "ip_adapter"): "clip-vision_vit-h.safetensors",
-    resource_id(ResourceKind.lora, Arch.sd15, "lcm"): "lcm-lora-sdv1-5.safetensors",
-    resource_id(ResourceKind.lora, Arch.sdxl, "lcm"): "lcm-lora-sdxl.safetensors",
     resource_id(ResourceKind.lora, Arch.sd15, "hyper"): "Hyper-SD15-8steps-CFG-lora.safetensors",
     resource_id(ResourceKind.lora, Arch.sdxl, "hyper"): "Hyper-SDXL-8steps-CFG-lora.safetensors",
     resource_id(ResourceKind.lora, Arch.sd15, ControlMode.face): None,

@@ -119,9 +119,13 @@ class ControlLayer(QObject, ObservableProperties):
         if client := root.connection.client_if_connected:
             models = client.models.for_checkpoint(self._model.style.sd_checkpoint)
             if self.mode.is_ip_adapter and models.ip_adapter.find(self.mode) is None:
-                self.error_text = (
-                    _("The server is missing the IP-Adapter model") + f" {self.mode.text}"
-                )
+                search_path = resources.search_path(ResourceKind.ip_adapter, models.arch, self.mode)
+                if search_path:
+                    self.error_text = (
+                        _("The server is missing the IP-Adapter model") + f" {self.mode.text}"
+                    )
+                else:
+                    self.error_text = _("Not supported for") + f" {models.arch.value}"
                 if not client.supports_ip_adapter:
                     self.error_text = _("IP-Adapter is not supported by this GPU")
                 is_supported = False

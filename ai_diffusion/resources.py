@@ -644,7 +644,7 @@ optional_models = [
         ResourceId(ResourceKind.controlnet, Arch.flux, ControlMode.line_art),
         {
             Path(
-                "mistoline_flux.dev_v1.safetensors"
+                "models/controlnet/mistoline_flux.dev_v1.safetensors"
             ): "https://huggingface.co/TheMistoAI/MistoLine_Flux.dev/resolve/main/mistoline_flux.dev_v1.safetensors"
         },
     ),
@@ -662,7 +662,7 @@ optional_models = [
         ResourceId(ResourceKind.controlnet, Arch.flux, ControlMode.depth),
         {
             Path(
-                "flux-depth-controlnet-v3.safetensors"
+                "models/controlnet/flux-depth-controlnet-v3.safetensors"
             ): "https://huggingface.co/XLabs-AI/flux-controlnet-collections/resolve/main/flux-depth-controlnet-v3.safetensors"
         },
     ),
