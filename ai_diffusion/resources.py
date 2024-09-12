@@ -639,6 +639,33 @@ optional_models = [
         },
         requirements=ModelRequirements.insightface,
     ),
+    ModelResource(
+        "ControlNet Lines (Flux)",
+        ResourceId(ResourceKind.controlnet, Arch.flux, ControlMode.line_art),
+        {
+            Path(
+                "mistoline_flux.dev_v1.safetensors"
+            ): "https://huggingface.co/TheMistoAI/MistoLine_Flux.dev/resolve/main/mistoline_flux.dev_v1.safetensors"
+        },
+    ),
+    ModelResource(
+        "ControlNet Canny (Flux)",
+        ResourceId(ResourceKind.controlnet, Arch.flux, ControlMode.canny_edge),
+        {
+            Path(
+                "models/controlnet/flux-canny-controlnet-v3.safetensors"
+            ): "https://huggingface.co/XLabs-AI/flux-controlnet-collections/resolve/main/flux-canny-controlnet-v3.safetensors"
+        },
+    ),
+    ModelResource(
+        "ControlNet Depth (Flux)",
+        ResourceId(ResourceKind.controlnet, Arch.flux, ControlMode.depth),
+        {
+            Path(
+                "flux-depth-controlnet-v3.safetensors"
+            ): "https://huggingface.co/XLabs-AI/flux-controlnet-collections/resolve/main/flux-depth-controlnet-v3.safetensors"
+        },
+    ),
 ]
 
 prefetch_models = [
