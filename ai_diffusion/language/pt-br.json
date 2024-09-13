@@ -337,7 +337,6 @@
     "The LoRA '{lora}' used by style '{style}' is not available on the server": "O LoRA '{lora}' usado pelo Estilo '{style}' não está disponível no servidor",
     "The LoRA file is not installed on the server.": "O arquivo de LoRA não está instalado no servidor",
     "The NSFW filter is a basic tool to exclude explicit content from generated images. It is NOT a guarantee and may not catch all inappropriate content. Please use responsibly and always review the generated images.": "O filtro NSFW é uma ferramenta básica para excluir conteúdo explícito das imagens geradas. NÃO é uma garantia e pode não detectar todo o conteúdo inapropriado. Use-o de maneira responsável e revise sempre as imagens geradas.",
-    "The Stable Diffusion checkpoint file": "Arquivo de Checkpoint do Stable Diffusion",
     "The VAE '{vae}' used by style '{style}' is not available on the server": "O VAE '{vae}' usado pelo estilo '{style}' não está disponível no servidor.",
     "The active layer does not contain an animation.": "A camada ativa não contém uma animação.",
     "The base architecture must match checkpoint and LoRA": "A arquitetura base deve coincidir com o Checkpoint e LoRA",
@@ -409,6 +408,13 @@
     "Upload": null,
     "Error during upload of LoRA model": null,
     "Select LoRA file": null,
-    "Duplicate the current style": null
+    "Duplicate the current style": null,
+    "The Diffusion model checkpoint file": null,
+    "The text encoder for this diffusion model is not installed": null,
+    "Prompt": null,
+    "Model architecture mismatch for LoRA '{lora}': Cannot use {lora_arch} LoRA with a {checkpoint_arch} checkpoint.": null,
+    "The VAE for this diffusion model is not installed": null,
+    "Copy Style": null,
+    "Model": null
   }
 }

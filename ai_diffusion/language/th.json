@@ -318,7 +318,6 @@
     "The LoRA '{lora}' used by style '{style}' is not available on the server": "LoRA '{lora}' ที่ใช้โดย Style '{style}' ไม่พร้อมใช้งานบน Server",
     "The LoRA file is not installed on the server.": "ไฟล์ LoRA ไม่ได้ติดตั้งบน Server",
     "The NSFW filter is a basic tool to exclude explicit content from generated images. It is NOT a guarantee and may not catch all inappropriate content. Please use responsibly and always review the generated images.": "ตัวกรอง NSFW เป็นเครื่องมือพื้นฐาน ในการแยกเนื้อหา 18+ ออกจากรูปภาพที่สร้างขึ้น โดยที่ ตัวกรองนี้ ไม่รับประกัน และอาจไม่สามารถตรวจจับเนื้อหาที่ไม่เหมาะสมทั้งหมดได้ โปรดใช้ด้วยความรับผิดชอบ และตรวจสอบรูปภาพที่สร้างขึ้นเสมอ",
-    "The Stable Diffusion checkpoint file": "ไฟล์ Stable Diffusion checkpoint",
     "The VAE '{vae}' used by style '{style}' is not available on the server": "VAE '{vae}' ที่ใช้โดย Style '{style}' ไม่พร้อมใช้งานบน Server",
     "The active layer does not contain an animation.": "Layer ที่ใช้งานอยู่ ไม่มีแอนิเมชั่น",
     "The base architecture must match checkpoint and LoRA": "สถาปัตยกรรมพื้นฐาน ต้องตรงกับ Checkpoint และ LoRA",
@@ -409,6 +408,13 @@
     "Regional text prompt": null,
     "Enable text completion for tags from the selected files": null,
     "Custom": null,
-    "Duplicate the current style": null
+    "Duplicate the current style": null,
+    "The Diffusion model checkpoint file": null,
+    "The text encoder for this diffusion model is not installed": null,
+    "Prompt": null,
+    "Model architecture mismatch for LoRA '{lora}': Cannot use {lora_arch} LoRA with a {checkpoint_arch} checkpoint.": null,
+    "The VAE for this diffusion model is not installed": null,
+    "Copy Style": null,
+    "Model": null
   }
 }
