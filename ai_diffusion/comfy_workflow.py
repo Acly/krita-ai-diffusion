@@ -186,9 +186,14 @@ class ComfyWorkflow:
         self.sample_count += steps - start_at_step
 
         if model_version is Arch.flux:
+            positive = self.flux_guidance(positive, cfg if cfg > 1 else 3.5)
             guider = self.basic_guider(model, positive)
         else:
             guider = self.cfg_guider(model, positive, negative, cfg)
+
+        sigmas = self.scheduler_sigmas(model, scheduler, steps, model_version)
+        if start_at_step > 0:
+            _, sigmas = self.split_sigmas(sigmas, start_at_step)
 
         return self.add(
             "SamplerCustomAdvanced",
@@ -196,9 +201,7 @@ class ComfyWorkflow:
             noise=self.random_noise(seed),
             guider=guider,
             sampler=self.sampler_select(sampler),
-            sigmas=self.split_sigmas(
-                self.scheduler_sigmas(model, scheduler, steps, model_version), start_at_step
-            )[1],
+            sigmas=sigmas,
             latent_image=latent_image,
         )[1]
 
@@ -267,6 +270,9 @@ class ComfyWorkflow:
             negative=negative,
             cfg=cfg,
         )
+
+    def flux_guidance(self, conditioning: Output, guidance=3.5):
+        return self.add("FluxGuidance", 1, conditioning=conditioning, guidance=guidance)
 
     def random_noise(self, noise_seed=-1):
         return self.add_cached(
