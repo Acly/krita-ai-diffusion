@@ -482,6 +482,15 @@ default_checkpoints = [
         },
     ),
     ModelResource(
+        "Flux [dev]",
+        ResourceId(ResourceKind.checkpoint, Arch.flux, "flux-dev"),
+        {
+            Path(
+                "models/checkpoints/flux1-dev-fp8.safetensors"
+            ): "https://huggingface.co/Comfy-Org/flux1-dev/resolve/main/flux1-dev-fp8.safetensors"
+        },
+    ),
+    ModelResource(
         "Flux [schnell]",
         ResourceId(ResourceKind.checkpoint, Arch.flux, "flux-schnell"),
         {
