@@ -220,11 +220,12 @@ class Server:
         cb(f"Installing {pkg.name}", f"Finished installing {pkg.name}")
 
     async def _install_insightface(self, network: QNetworkAccessManager, cb: InternalCB):
-        assert self.comfy_dir is not None
+        assert self.comfy_dir is not None and self._python_cmd is not None
         await _execute_process("FaceID", self._pip_install("onnxruntime"), self.path, cb)
-        if is_windows:
-            whl_file = self._cache_dir / "insightface-0.7.3-cp310-cp310-win_amd64.whl"
-            whl_url = "https://github.com/bihailantian655/insightface_wheel/raw/main/insightface-0.7.3-cp310-cp310-win_amd64.whl"
+        pyver = await get_python_version(self._python_cmd)
+        if is_windows and "3.11" in pyver:
+            whl_file = self._cache_dir / "insightface-0.7.3-cp311-cp311-win_amd64.whl"
+            whl_url = "https://github.com/bihailantian655/insightface_wheel/raw/main/insightface-0.7.3-cp311-cp311-win_amd64%20(1).whl"
             await _download_cached("FaceID", network, whl_url, whl_file, cb)
             await _execute_process("FaceID", self._pip_install(whl_file), self.path, cb)
         else:
