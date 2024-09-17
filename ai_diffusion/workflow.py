@@ -360,16 +360,18 @@ def apply_control(
     negative: Output,
     control_layers: list[Control],
     extent: Extent | None,
+    vae: Output,
     models: ModelDict,
 ):
     models = models.control
     for control in (c for c in control_layers if c.mode.is_control_net):
         image = control.image.load(w, extent)
-        if control.mode is ControlMode.inpaint:
+        if control.mode is ControlMode.inpaint and models.arch is Arch.sd15:
             assert control.mask is not None, "Inpaint control requires a mask"
             image = w.inpaint_preprocessor(image, control.mask.load(w))
         if control.mode.is_lines:  # ControlNet expects white lines on black background
             image = w.invert_image(image)
+
         if model := models.find(control.mode):
             controlnet = w.load_controlnet(model)
         elif model := models.find(ControlMode.universal):
@@ -377,14 +379,17 @@ def apply_control(
             controlnet = w.set_controlnet_type(controlnet, control.mode)
         else:
             raise Exception(f"ControlNet model not found for mode {control.mode}")
-        positive, negative = w.apply_controlnet(
-            positive,
-            negative,
-            controlnet,
-            image,
-            strength=control.strength,
-            range=control.range,
-        )
+
+        if control.mode is ControlMode.inpaint and models.arch is Arch.flux:
+            assert control.mask is not None, "Inpaint control requires a mask"
+            mask = control.mask.load(w)
+            positive, negative = w.apply_controlnet_inpainting(
+                positive, negative, controlnet, vae, image, mask, control.strength, control.range
+            )
+        else:
+            positive, negative = w.apply_controlnet(
+                positive, negative, controlnet, image, control.strength, control.range
+            )
 
     return positive, negative
 
@@ -537,7 +542,7 @@ def scale_refine_and_decode(
     params = _sampler_params(sampling, strength=0.4)
 
     positive, negative = apply_control(
-        w, prompt_pos, prompt_neg, cond.all_control, extent.desired, models
+        w, prompt_pos, prompt_neg, cond.all_control, extent.desired, vae, models
     )
     result = w.sampler_custom_advanced(model, positive, negative, latent, models.arch, **params)
     image = w.vae_decode(vae, result)
@@ -573,7 +578,7 @@ def generate(
     latent = w.empty_latent_image(extent.initial, models.arch, misc.batch_count)
     prompt_pos, prompt_neg = encode_text_prompt(w, cond, clip)
     positive, negative = apply_control(
-        w, prompt_pos, prompt_neg, cond.all_control, extent.initial, models
+        w, prompt_pos, prompt_neg, cond.all_control, extent.initial, vae, models
     )
     out_latent = w.sampler_custom_advanced(
         model, positive, negative, latent, models.arch, **_sampler_params(sampling)
@@ -629,6 +634,8 @@ def detect_inpaint(
         )
     elif sd_ver is Arch.sdxl:
         result.use_inpaint_model = strength > 0.8
+    elif sd_ver is Arch.flux:
+        result.use_inpaint_model = strength == 1.0
 
     is_ref_mode = mode in [InpaintMode.fill, InpaintMode.expand]
     result.use_reference = is_ref_mode and prompt == ""
@@ -641,6 +648,17 @@ def detect_inpaint(
         InpaintMode.replace_background: FillMode.replace,
     }[mode]
     return result
+
+
+def inpaint_control(image: Output | ImageOutput, mask: Output | ImageOutput, arch: Arch):
+    strength, range = 1.0, (0.0, 1.0)
+    if arch is Arch.flux:
+        strength, range = 0.9, (0.0, 0.5)
+    if isinstance(image, Output):
+        image = ImageOutput(image)
+    if isinstance(mask, Output):
+        mask = ImageOutput(mask, is_mask=True)
+    return Control(ControlMode.inpaint, image, mask, strength, range)
 
 
 def inpaint(
@@ -689,8 +707,8 @@ def inpaint(
             Control(ControlMode.reference, ImageOutput(reference), None, 0.5, (0.2, 0.8))
         )
     inpaint_mask = ImageOutput(initial_mask, is_mask=True)
-    if params.use_inpaint_model and models.arch is Arch.sd15:
-        cond_base.control.append(Control(ControlMode.inpaint, ImageOutput(in_image), inpaint_mask))
+    if params.use_inpaint_model and models.arch.has_controlnet_inpaint:
+        cond_base.control.append(inpaint_control(in_image, inpaint_mask, models.arch))
     if params.use_condition_mask and len(cond_base.regions) == 0:
         base_prompt = TextPrompt(merge_prompt("", cond_base.style_prompt), cond.language)
         cond_base.regions = [
@@ -703,7 +721,7 @@ def inpaint(
     model = apply_regional_ip_adapter(w, model, cond_base.regions, extent.initial, models)
     positive, negative = encode_text_prompt(w, cond, clip)
     positive, negative = apply_control(
-        w, positive, negative, cond_base.all_control, extent.initial, models
+        w, positive, negative, cond_base.all_control, extent.initial, vae, models
     )
     if params.use_inpaint_model and models.arch is Arch.sdxl:
         positive, negative, latent_inpaint, latent = w.vae_encode_inpaint_conditioning(
@@ -745,12 +763,11 @@ def inpaint(
         model = apply_attention_mask(w, model, cond_upscale, clip, res)
         model = apply_regional_ip_adapter(w, model, cond_upscale.regions, res, models)
 
-        if params.use_inpaint_model and models.arch is Arch.sd15:
+        if params.use_inpaint_model and models.arch.has_controlnet_inpaint:
             hires_image = ImageOutput(images.hires_image)
-            hires_mask = ImageOutput(cropped_mask, is_mask=True)
-            cond_upscale.control.append(Control(ControlMode.inpaint, hires_image, hires_mask))
+            cond_upscale.control.append(inpaint_control(hires_image, cropped_mask, models.arch))
         positive_up, negative_up = apply_control(
-            w, positive_up, negative_up, cond_upscale.all_control, res, models
+            w, positive_up, negative_up, cond_upscale.all_control, res, vae, models
         )
         out_latent = w.sampler_custom_advanced(
             model, positive_up, negative_up, latent, models.arch, **sampler_params
@@ -797,7 +814,7 @@ def refine(
     latent = w.batch_latent(latent, misc.batch_count)
     positive, negative = encode_text_prompt(w, cond, clip)
     positive, negative = apply_control(
-        w, positive, negative, cond.all_control, extent.desired, models
+        w, positive, negative, cond.all_control, extent.desired, vae, models
     )
     sampler = w.sampler_custom_advanced(
         model, positive, negative, latent, models.arch, **_sampler_params(sampling)
@@ -835,11 +852,10 @@ def refine_region(
     in_mask = apply_grow_feather(w, in_mask, inpaint)
     initial_mask = scale_to_initial(extent, w, in_mask, models, is_mask=True)
 
-    if inpaint.use_inpaint_model and models.arch is Arch.sd15:
-        c_mask = ImageOutput(initial_mask, is_mask=True)
-        cond.control.append(Control(ControlMode.inpaint, ImageOutput(in_image), c_mask))
+    if inpaint.use_inpaint_model and models.arch.has_controlnet_inpaint:
+        cond.control.append(inpaint_control(in_image, initial_mask, models.arch))
     positive, negative = apply_control(
-        w, prompt_pos, prompt_neg, cond.all_control, extent.initial, models
+        w, prompt_pos, prompt_neg, cond.all_control, extent.initial, vae, models
     )
     if inpaint.use_inpaint_model and models.arch is Arch.sdxl:
         positive, negative, latent_inpaint, latent = w.vae_encode_inpaint_conditioning(
@@ -1010,7 +1026,7 @@ def upscale_tiled(
         tile_model = apply_regional_ip_adapter(w, tile_model, tile_cond.regions, None, models)
 
         control = [tiled_control(c, i) for c in tile_cond.all_control]
-        tile_pos, tile_neg = apply_control(w, positive, negative, control, None, models)
+        tile_pos, tile_neg = apply_control(w, positive, negative, control, None, vae, models)
 
         latent = w.vae_encode(vae, tile_image)
         latent = w.set_latent_noise_mask(latent, tile_mask)

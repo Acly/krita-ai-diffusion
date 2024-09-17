@@ -109,7 +109,7 @@ class Arch(Enum):
 
     @property
     def has_controlnet_inpaint(self):
-        return self is Arch.sd15
+        return self is Arch.sd15 or self is Arch.flux
 
     @property
     def supports_lcm(self):
@@ -649,6 +649,15 @@ optional_models = [
         requirements=ModelRequirements.insightface,
     ),
     ModelResource(
+        "ControlNet Inpaint (Flux)",
+        ResourceId(ResourceKind.controlnet, Arch.flux, ControlMode.inpaint),
+        {
+            Path(
+                "models/controlnet/FLUX.1-dev-Controlnet-Inpainting-Alpha.safetensors"
+            ): "https://huggingface.co/alimama-creative/FLUX.1-dev-Controlnet-Inpainting-Alpha/resolve/main/diffusion_pytorch_model.safetensors"
+        },
+    ),
+    ModelResource(
         "ControlNet Lines (Flux)",
         ResourceId(ResourceKind.controlnet, Arch.flux, ControlMode.line_art),
         {
@@ -834,8 +843,9 @@ def is_required(kind: ResourceKind, arch: Arch, identifier: ControlMode | Upscal
 
 # fmt: off
 search_paths: dict[str, list[str]] = {
-    resource_id(ResourceKind.controlnet, Arch.sd15, ControlMode.inpaint):  ["control_v11p_sd15_inpaint"],
-    resource_id(ResourceKind.controlnet, Arch.sdxl, ControlMode.universal):  ["union-sdxl", "xinsirunion"],
+    resource_id(ResourceKind.controlnet, Arch.sd15, ControlMode.inpaint): ["control_v11p_sd15_inpaint"],
+    resource_id(ResourceKind.controlnet, Arch.flux, ControlMode.inpaint): ["flux.1-dev-controlnet-inpaint"],
+    resource_id(ResourceKind.controlnet, Arch.sdxl, ControlMode.universal): ["union-sdxl", "xinsirunion"],
     resource_id(ResourceKind.controlnet, Arch.sd15, ControlMode.scribble): ["control_v11p_sd15_scribble", "control_lora_rank128_v11p_sd15_scribble"],
     resource_id(ResourceKind.controlnet, Arch.sdxl, ControlMode.scribble): ["xinsirscribble", "scribble-sdxl", "mistoline", "control-lora-sketch-rank", "sai_xl_sketch_"],
     resource_id(ResourceKind.controlnet, Arch.sd15, ControlMode.line_art): ["control_v11p_sd15_lineart", "control_lora_rank128_v11p_sd15_lineart"],

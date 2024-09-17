@@ -183,7 +183,7 @@ def prepare_diffusion_input(
     mult = 8
     if arch is Arch.flux:
         mult = 16
-    if Arch is Arch.sd3:
+    if arch is Arch.sd3:
         mult = 64
     min_size, max_size, min_scale, max_scale = CheckpointResolution.compute(desired, arch, style)
 

@@ -433,6 +433,31 @@ class ComfyWorkflow:
             end_percent=range[1],
         )
 
+    def apply_controlnet_inpainting(
+        self,
+        positive: Output,
+        negative: Output,
+        controlnet: Output,
+        vae: Output,
+        image: Output,
+        mask: Output,
+        strength=1.0,
+        range: tuple[float, float] = (0.0, 1.0),
+    ):
+        return self.add(
+            "ControlNetInpaintingAliMamaApply",
+            2,
+            positive=positive,
+            negative=negative,
+            control_net=controlnet,
+            vae=vae,
+            image=image,
+            mask=mask,
+            strength=strength,
+            start_percent=range[0],
+            end_percent=range[1],
+        )
+
     def set_controlnet_type(self, controlnet: Output, mode: ControlMode):
         match mode:
             case ControlMode.pose:
