@@ -1081,7 +1081,9 @@ def prepare(
     i.conditioning.positive += _collect_lora_triggers(i.models.loras, files)
     i.models.loras = unique(i.models.loras + extra_loras, key=lambda l: l.name)
     arch = i.models.version = models.arch_of(style.sd_checkpoint)
+
     _check_server_has_models(i.models, models, files, style.name)
+    _check_inpaint_model(inpaint, arch, models)
 
     model_set = models.for_arch(arch)
     has_ip_adapter = model_set.ip_adapter.find(ControlMode.reference) is not None
@@ -1347,3 +1349,13 @@ def _check_server_has_models(
                 style=style_name,
             )
         )
+
+
+def _check_inpaint_model(inpaint: InpaintParams | None, arch: Arch, models: ClientModels):
+    if inpaint and inpaint.use_inpaint_model and arch.has_controlnet_inpaint:
+        if models.for_arch(arch).control.find(ControlMode.inpaint) is None:
+            msg = f"No inpaint model found for {arch.value}."
+            res_id = ResourceId(ResourceKind.controlnet, arch, ControlMode.inpaint)
+            if res := resources.find_resource(res_id):
+                msg += f" Missing '{res.filename}' in folder '{res.folder}'."
+            raise ValueError(msg)
