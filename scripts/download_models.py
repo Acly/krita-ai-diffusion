@@ -28,9 +28,11 @@ from ai_diffusion.resources import required_models, default_checkpoints, optiona
 
 try:
     import truststore
+
     truststore.inject_into_ssl()
 except ImportError:
     pass
+
 
 def _progress(name: str, size: int | None):
     return tqdm(
