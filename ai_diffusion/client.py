@@ -7,10 +7,10 @@ from PyQt5.QtCore import QObject, pyqtSignal
 from .api import WorkflowInput
 from .image import ImageCollection
 from .properties import Property, ObservableProperties
-from .files import FileLibrary
+from .files import FileLibrary, FileFormat
 from .style import Style, Styles
 from .settings import PerformanceSettings
-from .resources import ControlMode, ResourceKind, SDVersion, UpscalerName
+from .resources import ControlMode, ResourceKind, Arch, UpscalerName
 from .resources import ResourceId, resource_id
 from .localization import translate as _
 from .util import client_logger as log
@@ -70,9 +70,8 @@ class DeviceInfo(NamedTuple):
 
 class CheckpointInfo(NamedTuple):
     filename: str
-    sd_version: SDVersion
-    is_inpaint: bool = False
-    is_refiner: bool = False
+    arch: Arch
+    format: FileFormat = FileFormat.checkpoint
 
     @property
     def name(self):
@@ -80,12 +79,7 @@ class CheckpointInfo(NamedTuple):
 
     @staticmethod
     def deduce_from_filename(filename: str):
-        return CheckpointInfo(
-            filename,
-            SDVersion.from_checkpoint_name(filename),
-            "inpaint" in filename.lower(),
-            "refiner" in filename.lower(),
-        )
+        return CheckpointInfo(filename, Arch.from_checkpoint_name(filename), FileFormat.checkpoint)
 
 
 class ClientModels:
@@ -103,94 +97,103 @@ class ClientModels:
         self.resources = {}
 
     def resource(
-        self, kind: ResourceKind, identifier: ControlMode | UpscalerName | str, version: SDVersion
+        self, kind: ResourceKind, identifier: ControlMode | UpscalerName | str, arch: Arch
     ):
-        id = ResourceId(kind, version, identifier)
-        model = self.resources.get(id.string)
+        id = ResourceId(kind, arch, identifier)
+        model = self.find(id)
         if model is None:
             raise Exception(f"{id.name} not found")
         return model
 
-    def version_of(self, checkpoint: str):
-        if info := self.checkpoints.get(checkpoint):
-            return info.sd_version
-        return SDVersion.from_checkpoint_name(checkpoint)
+    def find(self, id: ResourceId):
+        if result := self.resources.get(id.string):
+            return result
+        return self.resources.get(id._replace(arch=Arch.all).string)
 
-    def for_version(self, version: SDVersion):
-        return ModelDict(self, ResourceKind.upscaler, version)
+    def arch_of(self, checkpoint: str):
+        if info := self.checkpoints.get(checkpoint):
+            return info.arch
+        return Arch.from_checkpoint_name(checkpoint)
+
+    def for_arch(self, arch: Arch):
+        return ModelDict(self, ResourceKind.upscaler, arch)
 
     def for_checkpoint(self, checkpoint: str):
-        return self.for_version(self.version_of(checkpoint))
+        return self.for_arch(self.arch_of(checkpoint))
 
     @property
     def upscale(self):
-        return ModelDict(self, ResourceKind.upscaler, SDVersion.all)
+        return ModelDict(self, ResourceKind.upscaler, Arch.all)
 
     @property
     def default_upscaler(self):
-        return self.resource(ResourceKind.upscaler, UpscalerName.default, SDVersion.all)
+        return self.resource(ResourceKind.upscaler, UpscalerName.default, Arch.all)
 
 
 class ModelDict:
-    """Provides access to filtered list of models matching a certain SD version."""
+    """Provides access to filtered list of models matching a certain Diffusion base model."""
 
     _models: ClientModels
     kind: ResourceKind
-    version: SDVersion
+    arch: Arch
 
-    def __init__(self, models: ClientModels, kind: ResourceKind, version: SDVersion):
+    def __init__(self, models: ClientModels, kind: ResourceKind, arch: Arch):
         self._models = models
         self.kind = kind
-        self.version = version
+        self.arch = arch
 
     def __getitem__(self, key: ControlMode | UpscalerName | str):
-        return self._models.resource(self.kind, key, self.version)
+        return self._models.resource(self.kind, key, self.arch)
 
     def find(self, key: ControlMode | UpscalerName | str, allow_universal=False) -> str | None:
         if key in [ControlMode.style, ControlMode.composition]:
             key = ControlMode.reference  # Same model with different weight types
-        result = self._models.resources.get(resource_id(self.kind, self.version, key))
+        result = self._models.resources.get(resource_id(self.kind, self.arch, key))
         if result is None and allow_universal and isinstance(key, ControlMode):
             result = self.find(ControlMode.universal)
         return result
 
-    def for_version(self, version: SDVersion):
-        return ModelDict(self._models, self.kind, version)
+    def for_version(self, arch: Arch):
+        return ModelDict(self._models, self.kind, arch)
 
     @property
-    def clip(self):
-        return ModelDict(self._models, ResourceKind.clip, self.version)
+    def text_encoder(self):
+        return ModelDict(self._models, ResourceKind.text_encoder, self.arch)
 
     @property
     def clip_vision(self):
-        return self._models.resource(ResourceKind.clip_vision, "ip_adapter", SDVersion.all)
+        return self._models.resource(ResourceKind.clip_vision, "ip_adapter", Arch.all)
 
     @property
     def upscale(self):
-        return ModelDict(self._models, ResourceKind.upscaler, SDVersion.all)
+        return ModelDict(self._models, ResourceKind.upscaler, Arch.all)
 
     @property
     def control(self):
-        return ModelDict(self._models, ResourceKind.controlnet, self.version)
+        return ModelDict(self._models, ResourceKind.controlnet, self.arch)
 
     @property
     def ip_adapter(self):
-        return ModelDict(self._models, ResourceKind.ip_adapter, self.version)
+        return ModelDict(self._models, ResourceKind.ip_adapter, self.arch)
 
     @property
     def inpaint(self):
-        return ModelDict(self._models, ResourceKind.inpaint, SDVersion.all)
+        return ModelDict(self._models, ResourceKind.inpaint, Arch.all)
 
     @property
     def lora(self):
-        return ModelDict(self._models, ResourceKind.lora, self.version)
+        return ModelDict(self._models, ResourceKind.lora, self.arch)
+
+    @property
+    def vae(self):
+        return self._models.resource(ResourceKind.vae, "default", self.arch)
 
     @property
     def fooocus_inpaint(self):
-        assert self.version is SDVersion.sdxl
+        assert self.arch is Arch.sdxl
         return dict(
-            head=self._models.resource(ResourceKind.inpaint, "fooocus_head", SDVersion.sdxl),
-            patch=self._models.resource(ResourceKind.inpaint, "fooocus_patch", SDVersion.sdxl),
+            head=self._models.resource(ResourceKind.inpaint, "fooocus_head", Arch.sdxl),
+            patch=self._models.resource(ResourceKind.inpaint, "fooocus_patch", Arch.sdxl),
         )
 
     @property
@@ -200,6 +203,15 @@ class ModelDict:
     @property
     def node_inputs(self):
         return self._models.node_inputs
+
+    @property
+    def has_te_vae(self):
+        if self._models.find(ResourceId(ResourceKind.vae, self.arch, "default")) is None:
+            return False
+        for te in self.arch.text_encoders:
+            if self._models.find(ResourceId(ResourceKind.text_encoder, self.arch, te)) is None:
+                return False
+        return True
 
 
 class TranslationPackage(NamedTuple):
@@ -249,7 +261,7 @@ class Client(ABC):
     def user(self) -> User | None:
         return None
 
-    def supports_version(self, version: SDVersion) -> bool:
+    def supports_arch(self, arch: Arch) -> bool:
         return True
 
     @property
@@ -278,10 +290,10 @@ class Client(ABC):
         await self.disconnect()
 
 
-def resolve_sd_version(style: Style, client: Client | None = None):
-    if style.sd_version is SDVersion.auto:
+def resolve_arch(style: Style, client: Client | None = None):
+    if style.sd_version is Arch.auto:
         if client and style.sd_checkpoint in client.models.checkpoints:
-            return client.models.version_of(style.sd_checkpoint)
+            return client.models.arch_of(style.sd_checkpoint)
         return style.sd_version.resolve(style.sd_checkpoint)
     return style.sd_version
 
@@ -291,7 +303,7 @@ def filter_supported_styles(styles: Iterable[Style], client: Client | None = Non
         return [
             style
             for style in styles
-            if client.supports_version(resolve_sd_version(style, client))
+            if client.supports_arch(resolve_arch(style, client))
             and style.sd_checkpoint in client.models.checkpoints
         ]
     return list(styles)

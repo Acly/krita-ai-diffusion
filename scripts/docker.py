@@ -7,6 +7,7 @@ import sys
 import shutil
 import requests
 from pathlib import Path
+from itertools import chain
 
 sys.path.append(str(Path(__file__).parent.parent))
 import ai_diffusion
@@ -47,7 +48,7 @@ def download_repositories():
 
     download_repository(resources.comfy_url, comfy_dir, resources.comfy_version)
     download_repository(manager_url, custom_nodes_dir / "ComfyUI-Manager", "main")
-    for repo in resources.required_custom_nodes:
+    for repo in chain(resources.required_custom_nodes, resources.optional_custom_nodes):
         download_repository(repo.url, custom_nodes_dir / repo.folder, repo.version)
 
 

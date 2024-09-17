@@ -12,13 +12,14 @@ from typing import NamedTuple, Optional, Sequence
 from .api import WorkflowInput
 from .client import Client, CheckpointInfo, ClientMessage, ClientEvent, DeviceInfo, ClientModels
 from .client import TranslationPackage, filter_supported_styles, loras_to_upload
+from .files import FileFormat
 from .image import Image, ImageCollection
 from .network import RequestManager, NetworkError
 from .websockets.src.websockets import client as websockets_client
 from .websockets.src.websockets import exceptions as websockets_exceptions
 from .style import Styles
-from .resources import ControlMode, MissingResource, ResourceKind, SDVersion, UpscalerName
-from .resources import resource_id
+from .resources import ControlMode, MissingResource, ResourceId, ResourceKind, Arch
+from .resources import CustomNode, UpscalerName, resource_id
 from .settings import PerformanceSettings, settings
 from .localization import translate as _
 from .util import client_logger as log
@@ -97,7 +98,7 @@ class ComfyClient(Client):
     _active: Optional[JobInfo] = None
     _job_runner: asyncio.Task
     _websocket_listener: asyncio.Task
-    _supported_sd_versions: list[SDVersion]
+    _supported_archs: list[Arch]
     _supported_languages: list[TranslationPackage]
 
     @staticmethod
@@ -120,11 +121,7 @@ class ComfyClient(Client):
 
         # Check custom nodes
         nodes = await client._get("object_info")
-        missing = [
-            package
-            for package in resources.required_custom_nodes
-            if any(node not in nodes for node in package.nodes)
-        ]
+        missing = _check_for_missing_nodes(nodes)
         if len(missing) > 0:
             raise MissingResource(ResourceKind.node, missing)
 
@@ -134,7 +131,13 @@ class ComfyClient(Client):
         available_resources = client.models.resources = {}
 
         clip_models = nodes["DualCLIPLoader"]["input"]["required"]["clip_name1"][0]
-        available_resources.update(_find_clip_models(clip_models))
+        available_resources.update(_find_text_encoder_models(clip_models))
+        if clip_gguf := nodes.get("DualCLIPLoaderGGUF", None):
+            clip_gguf_models = clip_gguf["input"]["required"]["clip_name1"][0]
+            available_resources.update(_find_text_encoder_models(clip_gguf_models))
+
+        vae_models = nodes["VAELoader"]["input"]["required"]["vae_name"][0]
+        available_resources.update(_find_vae_models(vae_models))
 
         control_models = nodes["ControlNetLoader"]["input"]["required"]["control_net_name"][0]
         available_resources.update(_find_control_models(control_models))
@@ -155,19 +158,21 @@ class ComfyClient(Client):
         available_resources.update(_find_loras(loras))
 
         # Retrieve list of checkpoints
-        client._refresh_models(nodes, await client.try_inspect_checkpoints())
+        checkpoints = await client.try_inspect("checkpoints")
+        diffusion_models = await client.try_inspect("diffusion_models")
+        client._refresh_models(nodes, checkpoints, diffusion_models)
 
         # Check supported SD versions and make sure there is at least one
-        missing = {ver: client._check_workload(ver) for ver in SDVersion.list()}
-        client._supported_sd_versions = [ver for ver, miss in missing.items() if len(miss) == 0]
-        if len(client._supported_sd_versions) == 0:
-            raise missing[SDVersion.sd15][0]
+        missing = {ver: client._check_workload(ver) for ver in Arch.list()}
+        client._supported_archs = [ver for ver, miss in missing.items() if len(miss) == 0]
+        if len(client._supported_archs) == 0:
+            raise missing[Arch.sd15][0]
 
         # Workarounds for DirectML
         if client.device_info.type == "privateuseone":
             # OmniSR causes a crash
             for n in [2, 3, 4]:
-                id = resource_id(ResourceKind.upscaler, SDVersion.all, UpscalerName.fast_x(n))
+                id = resource_id(ResourceKind.upscaler, Arch.all, UpscalerName.fast_x(n))
                 available_resources[id] = models.default_upscaler
 
         _ensure_supported_style(client)
@@ -358,9 +363,9 @@ class ComfyClient(Client):
                 self._report(ClientEvent.disconnected, ""),
             )
 
-    async def try_inspect_checkpoints(self):
+    async def try_inspect(self, folder_name: str):
         try:
-            return await self._get("etn/model_info")
+            return await self._get(f"api/etn/model_info/{folder_name}")
         except NetworkError:
             return None  # server has old external tooling version
 
@@ -373,29 +378,54 @@ class ComfyClient(Client):
         return self._active is not None
 
     async def refresh(self):
-        nodes, info = await asyncio.gather(self._get("object_info"), self.try_inspect_checkpoints())
-        self._refresh_models(nodes, info)
+        nodes, checkpoints, diffusion_models = await asyncio.gather(
+            self._get("object_info"),
+            self.try_inspect("checkpoints"),
+            self.try_inspect("diffusion_models"),
+        )
+        self._refresh_models(nodes, checkpoints, diffusion_models)
 
-    def _refresh_models(self, nodes: dict, checkpoint_info: Optional[dict]):
+    def _refresh_models(self, nodes: dict, checkpoints: dict | None, diffusion_models: dict | None):
         models = self.models
-        if checkpoint_info:
-            models.checkpoints = {
-                filename: CheckpointInfo(
+
+        def parse_model_info(models: dict, model_format: FileFormat):
+            parsed = (
+                (
                     filename,
-                    SDVersion.from_string(info["base_model"]) or SDVersion.sd15,
+                    Arch.from_string(info["base_model"]),
                     info.get("is_inpaint", False),
                     info.get("is_refiner", False),
                 )
-                for filename, info in checkpoint_info.items()
-                if info["base_model"] in SDVersion.list_strings()
+                for filename, info in models.items()
+            )
+            return {
+                filename: CheckpointInfo(filename, arch, model_format)
+                for filename, arch, is_inpaint, is_refiner in parsed
+                if not (arch is None or is_inpaint or is_refiner)
             }
+
+        if checkpoints:
+            models.checkpoints = parse_model_info(checkpoints, FileFormat.checkpoint)
         else:
             models.checkpoints = {
                 filename: CheckpointInfo.deduce_from_filename(filename)
                 for filename in nodes["CheckpointLoaderSimple"]["input"]["required"]["ckpt_name"][0]
             }
+        if diffusion_models:
+            models.checkpoints.update(parse_model_info(diffusion_models, FileFormat.diffusion))
+
         models.vae = nodes["VAELoader"]["input"]["required"]["vae_name"][0]
         models.loras = nodes["LoraLoader"]["input"]["required"]["lora_name"][0]
+
+        if gguf_node := nodes.get("UnetLoaderGGUF", None):
+            gguf_models = {
+                name: CheckpointInfo(name, Arch.flux, FileFormat.diffusion)
+                for name in gguf_node["input"]["required"]["unet_name"][0]
+            }
+            models.checkpoints.update(gguf_models)
+            log.info(f"GGUF support: {len(gguf_models)} models found.")
+        else:
+            log.info(f"GGUF support: node is not installed.")
 
     async def translate(self, text: str, lang: str):
         try:
@@ -404,8 +434,8 @@ class ComfyClient(Client):
             log.error(f"Could not translate text: {str(e)}")
             return text
 
-    def supports_version(self, version: SDVersion):
-        return version in self._supported_sd_versions
+    def supports_arch(self, arch: Arch):
+        return arch in self._supported_archs
 
     @property
     def supports_ip_adapter(self):
@@ -478,15 +508,15 @@ class ComfyClient(Client):
             return True
         return False
 
-    def _check_workload(self, sdver: SDVersion) -> list[MissingResource]:
+    def _check_workload(self, sdver: Arch) -> list[MissingResource]:
         models = self.models
         missing: list[MissingResource] = []
         for id in resources.required_resource_ids:
-            if id.version is not SDVersion.all and id.version is not sdver:
+            if id.arch is not Arch.all and id.arch is not sdver:
                 continue
-            if models.resources[id.string] is None:
+            if models.find(id) is None:
                 missing.append(MissingResource(id.kind, [id]))
-        has_checkpoint = any(cp.sd_version is sdver for cp in models.checkpoints.values())
+        has_checkpoint = any(cp.arch is sdver for cp in models.checkpoints.values())
         if not has_checkpoint:
             missing.append(MissingResource(ResourceKind.checkpoint, [sdver.value]))
         if len(missing) == 0:
@@ -508,18 +538,38 @@ def websocket_url(url_http: str):
     return url_http.replace("http", "ws", 1)
 
 
+def _check_for_missing_nodes(nodes: dict):
+    def missing(node: str, package: CustomNode):
+        if node not in nodes:
+            log.error(f"Missing required node {node} from package {package.name} ({package.url})")
+            return True
+        return False
+
+    return [
+        package
+        for package in resources.required_custom_nodes
+        if any(missing(node, package) for node in package.nodes)
+    ]
+
+
 def _find_model(
     model_list: Sequence[str],
     kind: ResourceKind,
-    sdver: SDVersion,
+    sdver: Arch,
     identifier: ControlMode | UpscalerName | str,
 ):
     search_paths = resources.search_path(kind, sdver, identifier)
     if search_paths is None:
         return None
 
-    sanitize = lambda m: m.replace("\\", "/").lower()
-    matches = (m for m in model_list if any(sanitize(p) in sanitize(m) for p in search_paths))
+    sanitize = lambda p: p.replace("\\", "/").lower()
+
+    def match(filename: str, pattern: str):
+        filename = sanitize(filename)
+        pattern = pattern.lower()
+        return all(p in filename for p in pattern.split("*"))
+
+    matches = (m for m in model_list if any(match(m, p) for p in search_paths))
     # if there are multiple matches, prefer the one with "krita" in the path
     prio = sorted(matches, key=lambda m: 0 if "krita" in m else 1)
     found = next(iter(prio), None)
@@ -528,9 +578,7 @@ def _find_model(
 
     if found is None and resources.is_required(kind, sdver, identifier):
         log.warning(f"Missing {model_name} for {sdver.value}")
-        log.info(
-            f"-> No model matches search paths: {', '.join(sanitize(p) for p in search_paths)}"
-        )
+        log.info(f"-> No model matches search paths: {', '.join(p.lower() for p in search_paths)}")
         log.info(f"-> Available models: {', '.join(sanitize(m) for m in model_list)}")
     elif found is None:
         log.info(
@@ -542,11 +590,11 @@ def _find_model(
     return found
 
 
-def _find_clip_models(model_list: Sequence[str], ver=SDVersion.sd3):
-    kind = ResourceKind.clip
+def _find_text_encoder_models(model_list: Sequence[str]):
+    kind = ResourceKind.text_encoder
     return {
-        resource_id(kind, ver, name): _find_model(model_list, kind, ver, name)
-        for name in ["clip_g", "clip_l"]
+        resource_id(kind, Arch.all, te): _find_model(model_list, kind, Arch.all, te)
+        for te in ["clip_l", "clip_g", "t5"]
     }
 
 
@@ -554,7 +602,7 @@ def _find_control_models(model_list: Sequence[str]):
     kind = ResourceKind.controlnet
     return {
         resource_id(kind, ver, mode): _find_model(model_list, kind, ver, mode)
-        for mode, ver in product(ControlMode, SDVersion.list())
+        for mode, ver in product(ControlMode, Arch.list())
         if mode.is_control_net
     }
 
@@ -563,49 +611,57 @@ def _find_ip_adapters(model_list: Sequence[str]):
     kind = ResourceKind.ip_adapter
     return {
         resource_id(kind, ver, mode): _find_model(model_list, kind, ver, mode)
-        for mode, ver in product(ControlMode, SDVersion.list())
+        for mode, ver in product(ControlMode, Arch.list())
         if mode.is_ip_adapter
     }
 
 
 def _find_clip_vision_model(model_list: Sequence[str]):
-    model = _find_model(model_list, ResourceKind.clip_vision, SDVersion.all, "ip_adapter")
+    model = _find_model(model_list, ResourceKind.clip_vision, Arch.all, "ip_adapter")
     if model is None:
         raise MissingResource(
             ResourceKind.clip_vision,
-            resources.search_path(ResourceKind.clip_vision, SDVersion.all, "ip_adapter"),
+            resources.search_path(ResourceKind.clip_vision, Arch.all, "ip_adapter"),
         )
-    return {resource_id(ResourceKind.clip_vision, SDVersion.all, "ip_adapter"): model}
+    return {resource_id(ResourceKind.clip_vision, Arch.all, "ip_adapter"): model}
 
 
 def _find_upscalers(model_list: Sequence[str]):
     kind = ResourceKind.upscaler
     models = {
-        resource_id(kind, SDVersion.all, name): _find_model(model_list, kind, SDVersion.all, name)
+        resource_id(kind, Arch.all, name): _find_model(model_list, kind, Arch.all, name)
         for name in UpscalerName
     }
-    default_id = resource_id(kind, SDVersion.all, UpscalerName.default)
+    default_id = resource_id(kind, Arch.all, UpscalerName.default)
     if models[default_id] is None and len(model_list) > 0:
-        models[default_id] = models[resource_id(kind, SDVersion.all, UpscalerName.fast_4x)]
+        models[default_id] = models[resource_id(kind, Arch.all, UpscalerName.fast_4x)]
     return models
 
 
 def _find_loras(model_list: Sequence[str]):
     kind = ResourceKind.lora
-    common_loras = list(product(["hyper", "lcm", "face"], [SDVersion.sd15, SDVersion.sdxl]))
-    sdxl_loras = [("lightning", SDVersion.sdxl)]
+    common_loras = list(product(["hyper", "lcm", "face"], [Arch.sd15, Arch.sdxl]))
+    sdxl_loras = [("lightning", Arch.sdxl)]
     return {
         resource_id(kind, ver, name): _find_model(model_list, kind, ver, name)
         for name, ver in chain(common_loras, sdxl_loras)
     }
 
 
+def _find_vae_models(model_list: Sequence[str]):
+    kind = ResourceKind.vae
+    return {
+        resource_id(kind, ver, "default"): _find_model(model_list, kind, ver, "default")
+        for ver in Arch.list()
+    }
+
+
 def _find_inpaint_models(model_list: Sequence[str]):
     kind = ResourceKind.inpaint
-    ids: list[tuple[SDVersion, str]] = [
-        (SDVersion.all, "default"),
-        (SDVersion.sdxl, "fooocus_head"),
-        (SDVersion.sdxl, "fooocus_patch"),
+    ids: list[tuple[Arch, str]] = [
+        (Arch.all, "default"),
+        (Arch.sdxl, "fooocus_head"),
+        (Arch.sdxl, "fooocus_patch"),
     ]
     return {
         resource_id(kind, ver, name): _find_model(model_list, kind, ver, name) for ver, name in ids
@@ -618,7 +674,7 @@ def _ensure_supported_style(client: Client):
         checkpoint = next(
             cp.filename
             for cp in client.models.checkpoints.values()
-            if client.supports_version(cp.sd_version)
+            if client.supports_arch(cp.arch)
         )
         log.info(f"No supported styles found, creating default style with checkpoint {checkpoint}")
         default = next((s for s in Styles.list() if s.filename == "default.json"), None)

@@ -1,4 +1,5 @@
 from __future__ import annotations
+from textwrap import wrap as wrap_text
 from PyQt5.QtCore import Qt, QMetaObject, QSize, QPoint, QUuid, pyqtSignal
 from PyQt5.QtGui import QGuiApplication, QMouseEvent, QPalette, QColor
 from PyQt5.QtWidgets import (
@@ -25,10 +26,11 @@ from ..properties import Binding, Bind, bind, bind_combo, bind_toggle
 from ..image import Bounds, Extent, Image
 from ..jobs import Job, JobQueue, JobState, JobKind, JobParams
 from ..model import Model, InpaintContext, RootRegion, ProgressKind
+from ..style import Styles
 from ..root import root
 from ..workflow import InpaintMode, FillMode
 from ..localization import translate as _
-from ..util import ensure
+from ..util import ensure, flatten
 from .widget import WorkspaceSelectWidget, StyleSelectWidget, StrengthWidget, QueueButton
 from .widget import GenerateButton, create_wide_tool_button
 from .region import RegionPromptWidget
@@ -59,7 +61,7 @@ class HistoryWidget(QListWidget):
         }}
     """
 
-    def __init__(self, parent):
+    def __init__(self, parent: QWidget | None):
         super().__init__(parent)
         self._model = root.active_model
         self._connections = []
@@ -130,10 +132,10 @@ class HistoryWidget(QListWidget):
         scroll_to_bottom = (
             scrollbar and scrollbar.isVisible() and scrollbar.value() >= scrollbar.maximum() - 4
         )
-        prompt = job.params.prompt if job.params.prompt != "" else "<no prompt>"
 
         if not JobParams.equal_ignore_seed(self._last_job_params, job.params):
             self._last_job_params = job.params
+            prompt = job.params.prompt if job.params.prompt != "" else "<no prompt>"
             strength = f"{job.params.strength*100:.0f}% - " if job.params.strength != 1.0 else ""
 
             header = QListWidgetItem(f"{job.timestamp:%H:%M} - {strength}{prompt}")
@@ -148,15 +150,33 @@ class HistoryWidget(QListWidget):
             item = QListWidgetItem(self._image_thumbnail(job, i), None)  # type: ignore (text can be None)
             item.setData(Qt.ItemDataRole.UserRole, job.id)
             item.setData(Qt.ItemDataRole.UserRole + 1, i)
-            item.setData(
-                Qt.ItemDataRole.ToolTipRole,
-                f"{prompt} @ {job.params.strength*100:.0f}% strength\n"
-                + _("Click to toggle preview, double-click to apply."),
-            )
+            item.setData(Qt.ItemDataRole.ToolTipRole, self._job_info(job.params))
             self.addItem(item)
 
         if scroll_to_bottom:
             self.scrollToBottom()
+
+    def _job_info(self, params: JobParams):
+        prompt = params.prompt if params.prompt != "" else "<no prompt>"
+        if len(prompt) > 70:
+            prompt = prompt[:66] + "..."
+        style = Styles.list().find(params.style)
+        positive = _("Prompt") + f": {params.prompt or '-'}"
+        negative = _("Negative Prompt") + f": {params.negative_prompt or '-'}"
+        strings = [
+            f"{prompt} @ {params.strength*100:.0f}%\n",
+            _("Click to toggle preview, double-click to apply."),
+            "",
+            _("Style") + f": {style.name if style else params.style}",
+            wrap_text(positive, 80, subsequent_indent="  "),
+            wrap_text(negative, 80, subsequent_indent="  "),
+            _("Strength") + f": {params.strength*100:.0f}%",
+            _("Model") + f": {params.checkpoint}",
+            _("Sampler") + f": {params.sampler}",
+            _("Seed") + f": {params.seed}",
+            f"{params.bounds}",
+        ]
+        return "\n".join(flatten(strings))
 
     def remove(self, job: Job):
         self._remove_items(ensure(job.id))
@@ -313,9 +333,13 @@ class HistoryWidget(QListWidget):
     def _show_context_menu(self, pos: QPoint):
         item = self.itemAt(pos)
         if item is not None:
+            job = self._model.jobs.find(self._item_data(item).job)
             menu = QMenu(self)
             menu.addAction(_("Copy Prompt"), self._copy_prompt)
             menu.addAction(_("Copy Strength"), self._copy_strength)
+            style_action = ensure(menu.addAction(_("Copy Style"), self._copy_style))
+            if job is None or Styles.list().find(job.params.style) is None:
+                style_action.setEnabled(False)
             menu.addAction(_("Copy Seed"), self._copy_seed)
             menu.addSeparator()
             save_action = ensure(menu.addAction(_("Save Image"), self._save_image))
@@ -347,6 +371,11 @@ class HistoryWidget(QListWidget):
     def _copy_strength(self):
         if job := self.selected_job:
             self._model.strength = job.params.strength
+
+    def _copy_style(self):
+        if job := self.selected_job:
+            if style := Styles.list().find(job.params.style):
+                self._model.style = style
 
     def _copy_seed(self):
         if job := self.selected_job:

@@ -11,7 +11,7 @@ from PyQt5.QtNetwork import QNetworkAccessManager
 
 from .settings import settings, ServerBackend
 from . import resources
-from .resources import CustomNode, ModelResource, ModelRequirements, SDVersion
+from .resources import CustomNode, ModelResource, ModelRequirements, Arch
 from .network import download, DownloadProgress
 from .localization import translate as _
 from .util import ZipFile, is_windows, create_process
@@ -97,11 +97,9 @@ class Server:
         ]
         self.missing_resources += missing_nodes
 
-        self.missing_resources += find_missing(
-            self.comfy_dir, resources.required_models, SDVersion.all
-        )
-        missing_sd15 = find_missing(self.comfy_dir, resources.required_models, SDVersion.sd15)
-        missing_sdxl = find_missing(self.comfy_dir, resources.required_models, SDVersion.sdxl)
+        self.missing_resources += find_missing(self.comfy_dir, resources.required_models, Arch.all)
+        missing_sd15 = find_missing(self.comfy_dir, resources.required_models, Arch.sd15)
+        missing_sdxl = find_missing(self.comfy_dir, resources.required_models, Arch.sdxl)
         if len(self.missing_resources) > 0 or (len(missing_sd15) > 0 and len(missing_sdxl) > 0):
             self.state = ServerState.missing_resources
         else:
@@ -140,7 +138,7 @@ class Server:
         if not self.has_comfy:
             await try_install(comfy_dir, self._install_comfy, comfy_dir, network, cb)
 
-        for pkg in resources.required_custom_nodes:
+        for pkg in chain(resources.required_custom_nodes, resources.optional_custom_nodes):
             dir = comfy_dir / "custom_nodes" / pkg.folder
             await install_if_missing(dir, self._install_custom_node, pkg, network, cb)
 
@@ -153,14 +151,14 @@ class Server:
         return [self._python_cmd, "-su", "-m", "pip", "install", *args]
 
     async def _install_python(self, network: QNetworkAccessManager, cb: InternalCB):
-        url = "https://www.python.org/ftp/python/3.10.11/python-3.10.11-embed-amd64.zip"
-        archive_path = self._cache_dir / "python-3.10.11-embed-amd64.zip"
+        url = "https://www.python.org/ftp/python/3.11.9/python-3.11.9-embed-amd64.zip"
+        archive_path = self._cache_dir / "python-3.11.9-embed-amd64.zip"
         dir = self.path / "python"
 
         await _download_cached("Python", network, url, archive_path, cb)
         await _extract_archive("Python", archive_path, dir, cb)
 
-        python_pth = dir / "python310._pth"
+        python_pth = dir / "python311._pth"
         cb("Installing Python", f"Patching {python_pth}")
         with open(python_pth, "a") as file:
             file.write("import site\n")
@@ -187,21 +185,17 @@ class Server:
         await _extract_archive("ComfyUI", archive_path, comfy_dir.parent, cb)
         temp_comfy_dir = comfy_dir.parent / f"ComfyUI-{resources.comfy_version}"
 
-        torch_args = ["torch", "torchvision", "torchaudio"]
-        if is_windows:  # Issues with torch 2.4.0 on Windows
-            torch_args = ["torch<=2.3.1", "torchvision<=0.18.1", "torchaudio<=2.3.1"]
+        torch_args = ["torch~=2.4.1", "torchvision~=0.19.1", "torchaudio~=2.4.1"]
         if self.backend is ServerBackend.cpu:
             torch_args += ["--index-url", "https://download.pytorch.org/whl/cpu"]
         elif self.backend is ServerBackend.cuda:
-            torch_args += ["--index-url", "https://download.pytorch.org/whl/cu121"]
+            torch_args += ["--index-url", "https://download.pytorch.org/whl/cu124"]
+        elif self.backend is ServerBackend.directml:
+            torch_args = ["numpy<2", "torch-directml"]
         await _execute_process("PyTorch", self._pip_install(*torch_args), self.path, cb)
 
         requirements_txt = temp_comfy_dir / "requirements.txt"
         await _execute_process("ComfyUI", self._pip_install("-r", requirements_txt), self.path, cb)
-
-        if self.backend is ServerBackend.directml:
-            # for some reason this must come AFTER ComfyUI requirements
-            await _execute_process("PyTorch", self._pip_install("torch-directml"), self.path, cb)
 
         await rename_extracted_folder("ComfyUI", comfy_dir, resources.comfy_version)
         self.comfy_dir = comfy_dir
@@ -226,11 +220,15 @@ class Server:
         cb(f"Installing {pkg.name}", f"Finished installing {pkg.name}")
 
     async def _install_insightface(self, network: QNetworkAccessManager, cb: InternalCB):
-        assert self.comfy_dir is not None
-        await _execute_process("FaceID", self._pip_install("onnxruntime"), self.path, cb)
-        if is_windows:
-            whl_file = self._cache_dir / "insightface-0.7.3-cp310-cp310-win_amd64.whl"
-            whl_url = "https://github.com/bihailantian655/insightface_wheel/raw/main/insightface-0.7.3-cp310-cp310-win_amd64.whl"
+        assert self.comfy_dir is not None and self._python_cmd is not None
+
+        dependencies = ["onnx==1.16.1", "onnxruntime"]  # onnx version pinned due to #1033
+        await _execute_process("FaceID", self._pip_install(*dependencies), self.path, cb)
+
+        pyver = await get_python_version(self._python_cmd)
+        if is_windows and "3.11" in pyver:
+            whl_file = self._cache_dir / "insightface-0.7.3-cp311-cp311-win_amd64.whl"
+            whl_url = "https://github.com/bihailantian655/insightface_wheel/raw/main/insightface-0.7.3-cp311-cp311-win_amd64%20(1).whl"
             await _download_cached("FaceID", network, whl_url, whl_file, cb)
             await _execute_process("FaceID", self._pip_install(whl_file), self.path, cb)
         else:
@@ -275,7 +273,7 @@ class Server:
             raise Exception(parse_common_errors(str(e)))
 
     async def download_required(self, callback: Callback):
-        models = [m.name for m in resources.required_models if m.sd_version is SDVersion.all]
+        models = [m.name for m in resources.required_models if m.arch is Arch.all]
         await self.download(models, callback)
 
     async def download(self, packages: list[str], callback: Callback):
@@ -597,11 +595,9 @@ def _decode_utf8_log_error(b: bytes):
         return result
 
 
-def find_missing(folder: Path, resources: list[ModelResource], ver: SDVersion | None = None):
+def find_missing(folder: Path, resources: list[ModelResource], ver: Arch | None = None):
     return [
-        res.name
-        for res in resources
-        if (not ver or res.sd_version is ver) and not res.exists_in(folder)
+        res.name for res in resources if (not ver or res.arch is ver) and not res.exists_in(folder)
     ]
 
 

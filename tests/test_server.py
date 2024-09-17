@@ -6,11 +6,11 @@ import pytest
 import shutil
 
 from ai_diffusion import network, server, resources
-from ai_diffusion.style import SDVersion
+from ai_diffusion.style import Arch
 from ai_diffusion.server import Server, ServerState, ServerBackend, InstallationProgress
 from .config import server_dir
 
-workload_sd15 = [p.name for p in resources.required_models if p.sd_version is SDVersion.sd15]
+workload_sd15 = [p.name for p in resources.required_models if p.arch is Arch.sd15]
 workload_sd15 += [resources.default_checkpoints[0].name]
 
 
@@ -95,7 +95,7 @@ def test_install_and_run(qtapp, pytestconfig, local_download_server):
 
         version_file = server_dir / ".version"
         assert version_file.exists()
-        with version_file.open("w") as f:
+        with version_file.open("w", encoding="utf-8") as f:
             f.write("1.0.42")
         server.check_install()
         assert server.upgrade_required

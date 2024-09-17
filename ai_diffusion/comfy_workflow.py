@@ -6,7 +6,7 @@ from uuid import uuid4
 import json
 
 from .image import Bounds, Extent, Image
-from .resources import SDVersion, ControlMode
+from .resources import Arch, ControlMode
 
 
 class ComfyRunMode(Enum):
@@ -175,7 +175,7 @@ class ComfyWorkflow:
         positive: Output,
         negative: Output,
         latent_image: Output,
-        model_version: SDVersion,
+        model_version: Arch,
         sampler="dpmpp_2m_sde_gpu",
         scheduler="normal",
         steps=20,
@@ -185,10 +185,15 @@ class ComfyWorkflow:
     ):
         self.sample_count += steps - start_at_step
 
-        if model_version is SDVersion.flux:
+        if model_version is Arch.flux:
+            positive = self.flux_guidance(positive, cfg if cfg > 1 else 3.5)
             guider = self.basic_guider(model, positive)
         else:
             guider = self.cfg_guider(model, positive, negative, cfg)
+
+        sigmas = self.scheduler_sigmas(model, scheduler, steps, model_version)
+        if start_at_step > 0:
+            _, sigmas = self.split_sigmas(sigmas, start_at_step)
 
         return self.add(
             "SamplerCustomAdvanced",
@@ -196,19 +201,17 @@ class ComfyWorkflow:
             noise=self.random_noise(seed),
             guider=guider,
             sampler=self.sampler_select(sampler),
-            sigmas=self.split_sigmas(
-                self.scheduler_sigmas(model, scheduler, steps, model_version), start_at_step
-            )[1],
+            sigmas=sigmas,
             latent_image=latent_image,
         )[1]
 
     def scheduler_sigmas(
-        self, model: Output, scheduler="normal", steps=20, model_version=SDVersion.sdxl
+        self, model: Output, scheduler="normal", steps=20, model_version=Arch.sdxl
     ):
         if scheduler in ("align_your_steps", "ays"):
-            assert model_version in (SDVersion.sd15, SDVersion.sdxl)
+            assert model_version in (Arch.sd15, Arch.sdxl)
 
-            if model_version == SDVersion.sd15:
+            if model_version == Arch.sd15:
                 model_type = "SD1"
             else:
                 model_type = "SDXL"
@@ -268,6 +271,9 @@ class ComfyWorkflow:
             cfg=cfg,
         )
 
+    def flux_guidance(self, conditioning: Output, guidance=3.5):
+        return self.add("FluxGuidance", 1, conditioning=conditioning, guidance=guidance)
+
     def random_noise(self, noise_seed=-1):
         return self.add_cached(
             "RandomNoise",
@@ -304,10 +310,19 @@ class ComfyWorkflow:
     def load_checkpoint(self, checkpoint: str):
         return self.add_cached("CheckpointLoaderSimple", 3, ckpt_name=checkpoint)
 
-    def load_dual_clip(self, clip_name1: str, clip_name2: str, type="sd3"):
-        return self.add_cached(
-            "DualCLIPLoader", 1, clip_name1=clip_name1, clip_name2=clip_name2, type=type
-        )
+    def load_diffusion_model(self, model_name: str):
+        if model_name.endswith(".gguf"):
+            return self.add_cached("UnetLoaderGGUF", 1, unet_name=model_name)
+        return self.add_cached("UNETLoader", 1, unet_name=model_name, weight_dtype="default")
+
+    def load_clip(self, clip_name: str, type: str):
+        return self.add_cached("CLIPLoader", 1, clip_name=clip_name, type=type)
+
+    def load_dual_clip(self, clip_name1: str, clip_name2: str, type: str):
+        node = "DualCLIPLoader"
+        if any(f.endswith(".gguf") for f in (clip_name1, clip_name2)):
+            node = "DualCLIPLoaderGGUF"
+        return self.add_cached(node, 1, clip_name1=clip_name1, clip_name2=clip_name2, type=type)
 
     def load_vae(self, vae_name: str):
         return self.add_cached("VAELoader", 1, vae_name=vae_name)
@@ -349,9 +364,9 @@ class ComfyWorkflow:
     def load_fooocus_inpaint(self, head: str, patch: str):
         return self.add_cached("INPAINT_LoadFooocusInpaint", 1, head=head, patch=patch)
 
-    def empty_latent_image(self, extent: Extent, version: SDVersion, batch_size=1):
+    def empty_latent_image(self, extent: Extent, arch: Arch, batch_size=1):
         w, h = extent.width, extent.height
-        if version in [SDVersion.sd3, SDVersion.flux]:
+        if arch in [Arch.sd3, Arch.flux]:
             return self.add("EmptySD3LatentImage", 1, width=w, height=h, batch_size=batch_size)
         return self.add("EmptyLatentImage", 1, width=w, height=h, batch_size=batch_size)
 
@@ -413,6 +428,31 @@ class ComfyWorkflow:
             negative=negative,
             control_net=controlnet,
             image=image,
+            strength=strength,
+            start_percent=range[0],
+            end_percent=range[1],
+        )
+
+    def apply_controlnet_inpainting(
+        self,
+        positive: Output,
+        negative: Output,
+        controlnet: Output,
+        vae: Output,
+        image: Output,
+        mask: Output,
+        strength=1.0,
+        range: tuple[float, float] = (0.0, 1.0),
+    ):
+        return self.add(
+            "ControlNetInpaintingAliMamaApply",
+            2,
+            positive=positive,
+            negative=negative,
+            control_net=controlnet,
+            vae=vae,
+            image=image,
+            mask=mask,
             strength=strength,
             start_percent=range[0],
             end_percent=range[1],

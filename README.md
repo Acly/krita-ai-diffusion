@@ -1,6 +1,6 @@
 <h1><img width="64px" src="ai_diffusion/icons/logo-128.png"> Generative AI <i>for Krita</i></h1>
 
-✨[Features](#features) | ⭳ [Download](https://github.com/Acly/krita-ai-diffusion/releases/latest) | 🛠️[Installation](https://www.interstice.cloud/plugin) | 🎞️ [Video](https://youtu.be/Ly6USRwTHe0) | 🖼️[Screenshots](#gallery) | 📖[Wiki](https://github.com/Acly/krita-ai-diffusion/wiki) | 💬[Discussion](https://github.com/Acly/krita-ai-diffusion/discussions)
+✨[Features](#features) | ⭳ [Download](https://github.com/Acly/krita-ai-diffusion/releases/latest) | 🛠️[Installation](https://www.interstice.cloud/plugin) | 🎞️ [Video](https://youtu.be/Ly6USRwTHe0) | 🖼️[Gallery](#gallery) | 📖[Wiki](https://github.com/Acly/krita-ai-diffusion/wiki) | 💬[Discussion](https://github.com/Acly/krita-ai-diffusion/discussions) | 🗣️[Discord](https://discord.gg/pWyzHfHHhU)
 
 This is a plugin to use generative AI in image painting and editing workflows from within Krita. For a more visual introduction, see [**www.interstice.cloud**](https://www.interstice.cloud)
 
@@ -73,7 +73,7 @@ To run locally a powerful graphics card with at least 6 GB VRAM (NVIDIA) is reco
 > [!NOTE]
 > If you encounter problems please check the [FAQ / list of common issues](https://github.com/Acly/krita-ai-diffusion/wiki/Common-Issues) for solutions.
 >
-> Reach out via [discussions](https://github.com/Acly/krita-ai-diffusion/discussions), or report [an issue here](https://github.com/Acly/krita-ai-diffusion/issues). Please note that official Krita channels are **not** the right place to seek help with
+> Reach out via [discussions](https://github.com/Acly/krita-ai-diffusion/discussions), our [Discord](https://discord.gg/pWyzHfHHhU), or report [an issue here](https://github.com/Acly/krita-ai-diffusion/issues). Please note that official Krita channels are **not** the right place to seek help with
 > issues related to this extension!
 
 ### _Optional:_ Custom ComfyUI Server

@@ -21,6 +21,22 @@ def pytest_addoption(parser):
     parser.addoption("--benchmark", action="store_true")
 
 
+def pytest_collection_modifyitems(session, config, items: list[pytest.Item]):
+    def order(item: pytest.Item):
+        if not item.parent or "test_workflow" not in item.parent.name:
+            return 0
+        if "cloud" in item.name and "sdxl" in item.name:
+            return 4
+        elif "cloud" in item.name:
+            return 3
+        elif "sdxl" in item.name:
+            return 2
+        else:
+            return 1
+
+    items.sort(key=order)
+
+
 class QtTestApp:
     def __init__(self):
         self._app = QCoreApplication([])

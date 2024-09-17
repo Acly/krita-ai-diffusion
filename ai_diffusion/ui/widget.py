@@ -38,7 +38,7 @@ from PyQt5.QtCore import QObject, Qt, QMetaObject, QSize, pyqtSignal, QEvent
 
 from ..style import Style, Styles
 from ..root import root
-from ..client import filter_supported_styles, resolve_sd_version
+from ..client import filter_supported_styles, resolve_arch
 from ..properties import Binding, Bind, bind, bind_combo
 from ..jobs import JobState, JobKind
 from ..model import Model, Workspace, SamplingQuality, ProgressKind
@@ -248,7 +248,7 @@ class StyleSelectWidget(QWidget):
     value_changed = pyqtSignal(Style)
     quality_changed = pyqtSignal(SamplingQuality)
 
-    def __init__(self, parent, show_quality=False):
+    def __init__(self, parent: QWidget | None, show_quality=False):
         super().__init__(parent)
         self._value = Styles.list().default
 
@@ -284,7 +284,7 @@ class StyleSelectWidget(QWidget):
         with SignalBlocker(self._combo):
             self._combo.clear()
             for style in self._styles:
-                icon = theme.sd_version_icon(resolve_sd_version(style, comfy))
+                icon = theme.checkpoint_icon(resolve_arch(style, comfy))
                 self._combo.addItem(icon, style.name, style.filename)
             if self._value in self._styles:
                 self._combo.setCurrentText(self._value.name)
@@ -347,7 +347,7 @@ class MultiLineTextPromptWidget(QPlainTextEdit):
 
     _line_count = 2
 
-    def __init__(self, parent):
+    def __init__(self, parent: QWidget | None):
         super().__init__(parent)
         self.setHorizontalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAlwaysOff)
         self.setVerticalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAlwaysOff)

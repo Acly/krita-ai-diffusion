@@ -13,7 +13,7 @@ class Language(NamedTuple):
     @staticmethod
     def from_file(filepath: Path):
         try:
-            with filepath.open() as f:
+            with filepath.open(encoding="utf-8") as f:
                 lang = json.load(f)
                 return Language(lang["id"], lang["name"], filepath)
         except Exception as e:
@@ -51,7 +51,7 @@ class Localization:
     @staticmethod
     def load(id: str, filepath: Path):
         try:
-            with filepath.open() as f:
+            with filepath.open(encoding="utf-8") as f:
                 lang = json.load(f)
                 return Localization(id, lang["name"], lang["translations"])
         except Exception as e:
@@ -63,7 +63,7 @@ class Localization:
         settings_path = settings_path or user_data_dir / "settings.json"
         if settings_path.exists():
             try:
-                with settings_path.open() as f:
+                with settings_path.open(encoding="utf-8") as f:
                     settings = json.load(f)
                     language = settings.get("language", "en")
             except Exception as e:

@@ -22,11 +22,11 @@ from PyQt5.QtCore import Qt, QUrl, QAbstractItemModel, pyqtSignal
 from PyQt5.QtGui import QDesktopServices, QPalette, QColor
 from krita import Krita
 
-from ..client import resolve_sd_version
-from ..resources import SDVersion
+from ..client import resolve_arch
+from ..resources import Arch, ResourceId, ResourceKind, search_paths
 from ..settings import Setting, ServerMode, settings
 from ..server import Server
-from ..files import File, FileFilter, FileSource
+from ..files import File, FileFilter, FileSource, FileFormat
 from ..style import Style, Styles, StyleSettings, SamplerPresets
 from ..localization import translate as _
 from ..root import root
@@ -44,11 +44,15 @@ class LoraItem(QWidget):
 
     _current: File | None = None
 
-    def __init__(self, lora_list: QAbstractItemModel, parent=None):
+    def __init__(self, name_filter: str, parent=None):
         super().__init__(parent)
         self.setContentsMargins(0, 0, 0, 0)
 
-        completer = QCompleter(lora_list)
+        self._loras = FileFilter(root.files.loras)
+        self._loras.available_only = True
+        self._loras.name_prefix = name_filter
+
+        completer = QCompleter(self._loras)
         completer.setCaseSensitivity(Qt.CaseSensitivity.CaseInsensitive)
         completer.setFilterMode(Qt.MatchFlag.MatchContains)
 
@@ -63,7 +67,7 @@ class LoraItem(QWidget):
 
         self._select = QComboBox(self)
         self._select.setEditable(True)
-        self._select.setModel(lora_list)
+        self._select.setModel(self._loras)
         self._select.setCompleter(completer)
         self._select.setMaxVisibleItems(20)
         self._select.currentIndexChanged.connect(self._select_lora)
@@ -163,7 +167,7 @@ class LoraItem(QWidget):
         layout.addWidget(self._advanced)
         self.setLayout(layout)
 
-        if lora_list.rowCount() > 0:
+        if self._loras.rowCount() > 0:
             self._select_lora()
 
     def _expand(self):
@@ -238,6 +242,12 @@ class LoraItem(QWidget):
                 self._select.setEditText(self._current.name)
             self._strength.setValue(int(v["strength"] * 100))
             self._update()
+
+    def apply_filter(self, name_filter: str):
+        with SignalBlocker(self._select):
+            self._loras.name_prefix = name_filter
+        if self._current and self._current.id != self._select.currentData():
+            self._select.setEditText(self._current.name)
 
     def _show_lora_warnings(self, lora: File):
         if client := root.connection.client_if_connected:
@@ -322,15 +332,13 @@ class LoraList(QWidget):
         self._item_list.setContentsMargins(0, 0, 0, 0)
         self._layout.addLayout(self._item_list)
 
-        self._filtered_lora = FileFilter(root.files.loras)
-        self._filtered_lora.available_only = True
         root.files.loras.rowsInserted.connect(self._collect_filters)
         root.files.loras.rowsRemoved.connect(self._collect_filters)
         self._collect_filters()
 
     def _add_item(self, lora: dict | File | None = None):
         assert self._item_list is not None
-        item = LoraItem(self._filtered_lora, parent=self)
+        item = LoraItem(self.filter_prefix, parent=self)
         if isinstance(lora, dict):
             item.value = lora
         elif isinstance(lora, File):
@@ -364,11 +372,12 @@ class LoraList(QWidget):
             for folder in sorted(folders, key=lambda x: x.lower()):
                 self._filter_combo.addItem(folder_icon, folder)
         self._filter_combo.setCurrentText(LoraList.last_filter)
-        self._add_button.setEnabled(self._filtered_lora.rowCount() > 0)
+        self._add_button.setEnabled(root.files.loras.rowCount() > 0)
 
     def _set_filtered_names(self):
         LoraList.last_filter = self.filter
-        self._filtered_lora.name_prefix = "" if self.filter == "All" else self.filter
+        for item in self._items:
+            item.apply_filter(self.filter_prefix)
 
     def _upload_lora(self):
         filepath = QFileDialog.getOpenFileName(
@@ -387,6 +396,10 @@ class LoraList(QWidget):
     @property
     def filter(self):
         return self._filter_combo.currentText()
+
+    @property
+    def filter_prefix(self):
+        return self.filter if self.filter != "All" else ""
 
     @property
     def value(self):
@@ -518,6 +531,11 @@ class StylePresets(SettingsTab):
         self._create_style_button.setToolTip(_("Create a new style"))
         self._create_style_button.clicked.connect(self._create_style)
 
+        self._duplicate_style_button = QToolButton(self)
+        self._duplicate_style_button.setIcon(Krita.instance().icon("duplicate"))
+        self._duplicate_style_button.setToolTip(_("Duplicate the current style"))
+        self._duplicate_style_button.clicked.connect(self._duplicate_style)
+
         self._delete_style_button = QToolButton(self)
         self._delete_style_button.setIcon(Krita.instance().icon("deletelayer"))
         self._delete_style_button.setToolTip(_("Delete the current style"))
@@ -541,6 +559,7 @@ class StylePresets(SettingsTab):
         style_control_layout.setContentsMargins(0, 0, 0, 0)
         style_control_layout.addWidget(self._style_list)
         style_control_layout.addWidget(self._create_style_button)
+        style_control_layout.addWidget(self._duplicate_style_button)
         style_control_layout.addWidget(self._delete_style_button)
         style_control_layout.addWidget(self._refresh_button)
         style_control_layout.addWidget(self._open_folder_button)
@@ -565,9 +584,11 @@ class StylePresets(SettingsTab):
         add("name", TextSetting(StyleSettings.name, self))
         self._style_widgets["name"].value_changed.connect(self._update_name)
 
+        checkpoints = FileFilter(root.files.checkpoints)
+        checkpoints.available_only = True
         checkpoint_select = add(
             "sd_checkpoint",
-            ComboBoxSetting(StyleSettings.sd_checkpoint, model=root.files.checkpoints, parent=self),
+            ComboBoxSetting(StyleSettings.sd_checkpoint, model=checkpoints, parent=self),
         )
         checkpoint_select.add_button(
             Krita.instance().icon("reload-preset"),
@@ -665,6 +686,11 @@ class StylePresets(SettingsTab):
         new_style = Styles.list().create(checkpoint=cp)
         self.current_style = new_style
 
+    def _duplicate_style(self):
+        self.current_style = Styles.list().create(
+            self.current_style.filename, copy_from=self.current_style
+        )
+
     def _delete_style(self):
         Styles.list().delete(self.current_style)
 
@@ -711,33 +737,49 @@ class StylePresets(SettingsTab):
     def _set_checkpoint_warning(self):
         self._checkpoint_warning.setVisible(False)
         if client := root.connection.client_if_connected:
-            if self.current_style.sd_checkpoint not in client.models.checkpoints:
-                self._checkpoint_warning.setText(
-                    _("The checkpoint used by this style is not installed.")
-                )
-                self._checkpoint_warning.setVisible(True)
-            else:
-                version = resolve_sd_version(self.current_style, client)
-                if not client.supports_version(version):
-                    self._checkpoint_warning.setText(
-                        _(
-                            "This is a {version} checkpoint, but the {version} workload has not been installed.",
-                            version=version.value,
-                        )
+            warn = []
+            file = root.files.checkpoints.find(self.current_style.sd_checkpoint)
+            if file is None:
+                warn.append(_("The checkpoint used by this style is not installed."))
+
+            arch = resolve_arch(self.current_style, client)
+            if file and not client.supports_arch(arch):
+                warn.append(
+                    _(
+                        "This is a {version} checkpoint, but the {version} workload has not been installed.",
+                        version=arch.value,
                     )
-                    self._checkpoint_warning.setVisible(True)
+                )
+
+            if file and file.format is FileFormat.diffusion:
+                vae_id = ResourceId(ResourceKind.vae, arch, "default")
+                if client.models.resources.get(vae_id.string) is None:
+                    paths = search_paths.get(vae_id.string, [])
+                    text = _("The VAE for this diffusion model is not installed")
+                    text += ": " + ", ".join(str(p) for p in paths)
+                    warn.append(text)
+                for te in arch.text_encoders:
+                    te_id = ResourceId(ResourceKind.text_encoder, Arch.all, te)
+                    if client.models.resources.get(te_id.string) is None:
+                        paths = search_paths.get(te_id.string, [])
+                        text = _("The text encoder for this diffusion model is not installed")
+                        text += ": " + ", ".join(str(p) for p in paths)
+                        warn.append(text)
+            if warn:
+                self._checkpoint_warning.setText("\n".join(warn))
+                self._checkpoint_warning.setVisible(True)
 
     def _toggle_preferred_resolution(self, checked: bool):
         if checked and self._resolution_spin.value == 0:
-            sd_ver = resolve_sd_version(self.current_style, root.connection.client_if_connected)
-            self._resolution_spin.value = 640 if sd_ver is SDVersion.sd15 else 1024
+            sd_ver = resolve_arch(self.current_style, root.connection.client_if_connected)
+            self._resolution_spin.value = 640 if sd_ver is Arch.sd15 else 1024
         elif not checked and self._resolution_spin.value > 0:
             self._resolution_spin.value = 0
 
     def _toggle_clip_skip(self, checked: bool):
         if checked and self._clip_skip.value == 0:
-            arch = resolve_sd_version(self.current_style, root.connection.client_if_connected)
-            self._clip_skip.value = 1 if arch is SDVersion.sd15 else 2
+            arch = resolve_arch(self.current_style, root.connection.client_if_connected)
+            self._clip_skip.value = 1 if arch is Arch.sd15 else 2
         elif not checked and self._clip_skip.value > 0:
             self._clip_skip.value = 0
 
@@ -746,7 +788,7 @@ class StylePresets(SettingsTab):
             widget.visible = checked
 
     def _enable_checkpoint_advanced(self):
-        arch = resolve_sd_version(self.current_style, root.connection.client_if_connected)
+        arch = resolve_arch(self.current_style, root.connection.client_if_connected)
         self._clip_skip_check.setEnabled(arch.supports_clip_skip)
         self._clip_skip.enabled = arch.supports_clip_skip and self.current_style.clip_skip > 0
         self._zsnr.enabled = arch.supports_attention_guidance

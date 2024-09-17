@@ -7,7 +7,7 @@ import json
 from . import model, jobs, resources, util
 from .api import ControlInput
 from .layer import Layer, LayerType
-from .resources import ControlMode, ResourceKind, SDVersion
+from .resources import ControlMode, ResourceKind, Arch
 from .properties import Property, ObservableProperties
 from .image import Bounds
 from .localization import translate as _
@@ -85,7 +85,7 @@ class ControlLayer(QObject, ObservableProperties):
 
     def _set_values_from_preset(self):
         params = ControlPresets.instance().interpolate(
-            self.mode, self._model.sd_version, self.preset_value / self.max_preset_value
+            self.mode, self._model.arch, self.preset_value / self.max_preset_value
         )
         self.strength = int(params.strength * self.strength_multiplier)
         self.start, self.end = params.range
@@ -119,23 +119,27 @@ class ControlLayer(QObject, ObservableProperties):
         if client := root.connection.client_if_connected:
             models = client.models.for_checkpoint(self._model.style.sd_checkpoint)
             if self.mode.is_ip_adapter and models.ip_adapter.find(self.mode) is None:
-                self.error_text = (
-                    _("The server is missing the IP-Adapter model") + f" {self.mode.text}"
-                )
+                search_path = resources.search_path(ResourceKind.ip_adapter, models.arch, self.mode)
+                if search_path:
+                    self.error_text = (
+                        _("The server is missing the IP-Adapter model") + f" {self.mode.text}"
+                    )
+                else:
+                    self.error_text = _("Not supported for") + f" {models.arch.value}"
                 if not client.supports_ip_adapter:
                     self.error_text = _("IP-Adapter is not supported by this GPU")
                 is_supported = False
             elif self.mode.is_control_net:
                 if models.control.find(self.mode, allow_universal=True) is None:
                     search_path = resources.search_path(
-                        ResourceKind.controlnet, models.version, self.mode
+                        ResourceKind.controlnet, models.arch, self.mode
                     )
                     if search_path:
                         self.error_text = (
                             _("The ControlNet model is not installed") + f" {search_path}"
                         )
                     else:
-                        self.error_text = _("Not supported for") + f" {models.version.value}"
+                        self.error_text = _("Not supported for") + f" {models.arch.value}"
                     is_supported = False
 
         self.is_supported = is_supported
@@ -240,18 +244,18 @@ class ControlPresets:
         self._user_path = util.user_data_dir / "presets" / "control.json"
         self._read()
 
-    def get(self, mode: ControlMode, version: SDVersion):
+    def get(self, mode: ControlMode, arch: Arch):
         default = self._presets["default"]
         versions = self._presets.get(mode.name, default)
         all = versions.get("all", None)
-        presets = versions.get(version.name, all)
+        presets = versions.get(arch.name, all)
         if presets is None:
-            raise KeyError(f"No control strength presets found for {mode} and {version}")
+            raise KeyError(f"No control strength presets found for {mode} and {arch}")
         return [ControlParams.from_dict(p) for p in presets]
 
-    def interpolate(self, mode: ControlMode, version: SDVersion, value: float):
+    def interpolate(self, mode: ControlMode, arch: Arch, value: float):
         assert value >= 0 and value <= 1, f"Interpolate value out of range: {value}"
-        presets = self.get(mode, version)
+        presets = self.get(mode, arch)
         if len(presets) == 1 or value <= 0:
             return presets[0]
         if value == 1:
@@ -265,7 +269,7 @@ class ControlPresets:
                     _lerp(p0.strength, p1.strength, t),
                     (_lerp(p0.range[0], p1.range[0], t), _lerp(p0.range[1], p1.range[1], t)),
                 )
-        assert False, f"Interpolation failed: {mode}, {version}, value={value}, presets={presets}"
+        assert False, f"Interpolation failed: {mode}, {arch}, value={value}, presets={presets}"
 
     def _read(self):
         self._presets = self._read_file(self._path)
@@ -287,7 +291,7 @@ class ControlPresets:
 
 def _validate_presets(filepath: Path, data: dict[str, Any]) -> bool:
     control_modes = ["default"] + list(ControlMode.__members__.keys())
-    sd_versions = list(SDVersion.__members__.keys())
+    model_archs = list(Arch.__members__.keys())
 
     for mode, versions in data.items():
         if mode not in control_modes:
@@ -299,23 +303,23 @@ def _validate_presets(filepath: Path, data: dict[str, Any]) -> bool:
         if not isinstance(versions, dict):
             log.error(f"Invalid presets for mode '{mode}' in presets file {filepath}.")
             return False
-        for version, presets in versions.items():
-            if version not in sd_versions:
+        for arch, presets in versions.items():
+            if arch not in model_archs:
                 log.error(
-                    f"Invalid SD version '{version}' for mode '{mode}' in presets file {filepath}."
-                    f" Valid versions are: {', '.join(sd_versions)}"
+                    f"Invalid Base model '{arch}' for mode '{mode}' in presets file {filepath}."
+                    f" Valid versions are: {', '.join(model_archs)}"
                 )
                 return False
             if not isinstance(presets, list):
                 log.error(
-                    f"Invalid presets for '{mode}/{version}' in presets file {filepath}."
+                    f"Invalid presets for '{mode}/{arch}' in presets file {filepath}."
                     f" Expected a list, got {presets}"
                 )
                 return False
             for p in presets:
                 if not isinstance(p, dict) or not all(k in p for k in ("strength", "start", "end")):
                     log.error(
-                        f"Invalid preset for '{mode}/{version}' in presets file {filepath}."
+                        f"Invalid preset for '{mode}/{arch}' in presets file {filepath}."
                         f" Expected a {{strength, start, end}}, got {p}"
                     )
                     return False

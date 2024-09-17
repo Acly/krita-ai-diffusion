@@ -1,10 +1,10 @@
 import json
 import hashlib
 from base64 import b64encode
-from enum import Flag
+from enum import Enum, Flag
 from dataclasses import dataclass, asdict
 from pathlib import Path
-from typing import Any, NamedTuple, Sequence
+from typing import Any, NamedTuple, Sequence, cast
 from PyQt5.QtCore import QAbstractListModel, QSortFilterProxyModel, QModelIndex, Qt
 from PyQt5.QtGui import QIcon
 
@@ -17,11 +17,19 @@ class FileSource(Flag):
     remote = 2
 
 
+class FileFormat(Enum):
+    unknown = 0
+    checkpoint = 1  # TE + VAE + Diffusion model
+    diffusion = 2  # Diffusion model only
+    lora = 3
+
+
 @dataclass
 class File:
     id: str
     name: str
     source: FileSource = FileSource.unavailable
+    format: FileFormat = FileFormat.unknown
     icon: QIcon | None = None
     hash: str | None = None
     path: Path | None = None
@@ -29,15 +37,15 @@ class File:
     metadata: dict[str, Any] | None = None
 
     @staticmethod
-    def remote(id: str):
+    def remote(id: str, format=FileFormat.unknown):
         name = id.replace("\\", "/")
         dot = name.rfind(".")
         name = name if dot == -1 else name[:dot]
-        return File(id, name, FileSource.remote)
+        return File(id, name, FileSource.remote, format)
 
     @staticmethod
-    def local(path: Path, compute_hash=False):
-        file = File(path.name, path.stem, FileSource.local, path=path)
+    def local(path: Path, format=FileFormat.unknown, compute_hash=False):
+        file = File(path.name, path.stem, FileSource.local, format, path=path)
         file.size = path.stat().st_size
         if compute_hash:
             file.compute_hash()
@@ -233,9 +241,11 @@ class FileLibrary(NamedTuple):
 class FileFilter(QSortFilterProxyModel):
     def __init__(self, source: FileCollection, parent=None):
         super().__init__(parent)
-        self.setSourceModel(source)
         self._available_only = False
         self._name_prefix = ""
+        self.setSourceModel(source)
+        self.setSortCaseSensitivity(Qt.CaseSensitivity.CaseInsensitive)
+        self.sort(0)
 
     @property
     def available_only(self):
@@ -267,3 +277,8 @@ class FileFilter(QSortFilterProxyModel):
                 if not name.startswith(self._name_prefix):
                     return False
         return True
+
+    def __getitem__(self, index: int):
+        src = cast(FileCollection, self.sourceModel())
+        idx = self.mapToSource(self.index(index, 0)).row()
+        return src[idx]

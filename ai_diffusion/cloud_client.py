@@ -14,7 +14,7 @@ from .client import TranslationPackage, User, loras_to_upload
 from .image import Extent, ImageCollection
 from .network import RequestManager, NetworkError
 from .files import FileLibrary, File
-from .resources import SDVersion
+from .resources import Arch
 from .settings import PerformanceSettings, settings
 from .localization import translate as _
 from .util import clamp, ensure, client_logger as log
@@ -336,20 +336,18 @@ _poll_interval = 0.5  # seconds
 
 models = ClientModels()
 models.checkpoints = {
-    "dreamshaper_8.safetensors": CheckpointInfo("dreamshaper_8.safetensors", SDVersion.sd15),
+    "dreamshaper_8.safetensors": CheckpointInfo("dreamshaper_8.safetensors", Arch.sd15),
     "realisticVisionV51_v51VAE.safetensors": CheckpointInfo(
-        "realisticVisionV51_v51VAE.safetensors", SDVersion.sd15
+        "realisticVisionV51_v51VAE.safetensors", Arch.sd15
     ),
     "flat2DAnimerge_v45Sharp.safetensors": CheckpointInfo(
-        "flat2DAnimerge_v45Sharp.safetensors", SDVersion.sd15
+        "flat2DAnimerge_v45Sharp.safetensors", Arch.sd15
     ),
     "juggernautXL_version6Rundiffusion.safetensors": CheckpointInfo(
-        "juggernautXL_version6Rundiffusion.safetensors", SDVersion.sdxl
+        "juggernautXL_version6Rundiffusion.safetensors", Arch.sdxl
     ),
-    "zavychromaxl_v80.safetensors": CheckpointInfo("zavychromaxl_v80.safetensors", SDVersion.sdxl),
-    "flux1-schnell-fp8.safetensors": CheckpointInfo(
-        "flux1-schnell-fp8.safetensors", SDVersion.flux
-    ),
+    "zavychromaxl_v80.safetensors": CheckpointInfo("zavychromaxl_v80.safetensors", Arch.sdxl),
+    "flux1-schnell-fp8.safetensors": CheckpointInfo("flux1-schnell-fp8.safetensors", Arch.flux),
 }
 models.vae = []
 models.loras = [
@@ -366,37 +364,35 @@ models.upscalers = [
 # fmt: off
 from ai_diffusion.resources import resource_id, ResourceKind, ControlMode, UpscalerName
 models.resources = {
-    resource_id(ResourceKind.controlnet, SDVersion.sd15, ControlMode.inpaint): "control_v11p_sd15_inpaint_fp16.safetensors",
-    resource_id(ResourceKind.controlnet, SDVersion.sdxl, ControlMode.universal): "xinsir-controlnet-union-sdxl-1.0-promax.safetensors",
-    resource_id(ResourceKind.controlnet, SDVersion.sd15, ControlMode.scribble): "control_lora_rank128_v11p_sd15_scribble_fp16.safetensors",
-    resource_id(ResourceKind.controlnet, SDVersion.sd15, ControlMode.line_art): "control_v11p_sd15_lineart_fp16.safetensors",
-    resource_id(ResourceKind.controlnet, SDVersion.sd15, ControlMode.soft_edge): "control_v11p_sd15_softedge_fp16.safetensors",
-    resource_id(ResourceKind.controlnet, SDVersion.sd15, ControlMode.canny_edge): "control_v11p_sd15_canny_fp16.safetensors",
-    resource_id(ResourceKind.controlnet, SDVersion.sd15, ControlMode.depth): "control_lora_rank128_v11f1p_sd15_depth_fp16.safetensors",
-    resource_id(ResourceKind.controlnet, SDVersion.sd15, ControlMode.normal): None,
-    resource_id(ResourceKind.controlnet, SDVersion.sd15, ControlMode.pose): "control_lora_rank128_v11p_sd15_openpose_fp16.safetensors",
-    resource_id(ResourceKind.controlnet, SDVersion.sd15, ControlMode.segmentation): None,
-    resource_id(ResourceKind.controlnet, SDVersion.sd15, ControlMode.blur):"control_lora_rank128_v11f1e_sd15_tile_fp16.safetensors",
-    resource_id(ResourceKind.controlnet, SDVersion.sd15, ControlMode.stencil): "control_v1p_sd15_qrcode_monster.safetensors",
-    resource_id(ResourceKind.controlnet, SDVersion.sd15, ControlMode.hands): None,
-    resource_id(ResourceKind.controlnet, SDVersion.sdxl, ControlMode.hands): None,
-    resource_id(ResourceKind.ip_adapter, SDVersion.sd15, ControlMode.reference): "ip-adapter_sd15.safetensors",
-    resource_id(ResourceKind.ip_adapter, SDVersion.sdxl, ControlMode.reference): "ip-adapter_sdxl_vit-h.safetensors",
-    resource_id(ResourceKind.ip_adapter, SDVersion.sd15, ControlMode.face): None,
-    resource_id(ResourceKind.ip_adapter, SDVersion.sdxl, ControlMode.face): None,
-    resource_id(ResourceKind.clip_vision, SDVersion.all, "ip_adapter"): "clip-vision_vit-h.safetensors",
-    resource_id(ResourceKind.lora, SDVersion.sd15, "lcm"): "lcm-lora-sdv1-5.safetensors",
-    resource_id(ResourceKind.lora, SDVersion.sdxl, "lcm"): "lcm-lora-sdxl.safetensors",
-    resource_id(ResourceKind.lora, SDVersion.sd15, "hyper"): "Hyper-SD15-8steps-CFG-lora.safetensors",
-    resource_id(ResourceKind.lora, SDVersion.sdxl, "hyper"): "Hyper-SDXL-8steps-CFG-lora.safetensors",
-    resource_id(ResourceKind.lora, SDVersion.sd15, ControlMode.face): None,
-    resource_id(ResourceKind.lora, SDVersion.sdxl, ControlMode.face): None,
-    resource_id(ResourceKind.upscaler, SDVersion.all, UpscalerName.default): UpscalerName.default.value,
-    resource_id(ResourceKind.upscaler, SDVersion.all, UpscalerName.fast_2x): UpscalerName.fast_2x.value,
-    resource_id(ResourceKind.upscaler, SDVersion.all, UpscalerName.fast_3x): UpscalerName.fast_3x.value,
-    resource_id(ResourceKind.upscaler, SDVersion.all, UpscalerName.fast_4x): UpscalerName.fast_4x.value,
-    resource_id(ResourceKind.inpaint, SDVersion.sdxl, "fooocus_head"): "fooocus_inpaint_head.pth",
-    resource_id(ResourceKind.inpaint, SDVersion.sdxl, "fooocus_patch"): "inpaint_v26.fooocus.patch",
-    resource_id(ResourceKind.inpaint, SDVersion.all, "default"): "MAT_Places512_G_fp16.safetensors",
+    resource_id(ResourceKind.controlnet, Arch.sd15, ControlMode.inpaint): "control_v11p_sd15_inpaint_fp16.safetensors",
+    resource_id(ResourceKind.controlnet, Arch.sdxl, ControlMode.universal): "xinsir-controlnet-union-sdxl-1.0-promax.safetensors",
+    resource_id(ResourceKind.controlnet, Arch.sd15, ControlMode.scribble): "control_lora_rank128_v11p_sd15_scribble_fp16.safetensors",
+    resource_id(ResourceKind.controlnet, Arch.sd15, ControlMode.line_art): "control_v11p_sd15_lineart_fp16.safetensors",
+    resource_id(ResourceKind.controlnet, Arch.sd15, ControlMode.soft_edge): "control_v11p_sd15_softedge_fp16.safetensors",
+    resource_id(ResourceKind.controlnet, Arch.sd15, ControlMode.canny_edge): "control_v11p_sd15_canny_fp16.safetensors",
+    resource_id(ResourceKind.controlnet, Arch.sd15, ControlMode.depth): "control_lora_rank128_v11f1p_sd15_depth_fp16.safetensors",
+    resource_id(ResourceKind.controlnet, Arch.sd15, ControlMode.normal): None,
+    resource_id(ResourceKind.controlnet, Arch.sd15, ControlMode.pose): "control_lora_rank128_v11p_sd15_openpose_fp16.safetensors",
+    resource_id(ResourceKind.controlnet, Arch.sd15, ControlMode.segmentation): None,
+    resource_id(ResourceKind.controlnet, Arch.sd15, ControlMode.blur):"control_lora_rank128_v11f1e_sd15_tile_fp16.safetensors",
+    resource_id(ResourceKind.controlnet, Arch.sd15, ControlMode.stencil): "control_v1p_sd15_qrcode_monster.safetensors",
+    resource_id(ResourceKind.controlnet, Arch.sd15, ControlMode.hands): None,
+    resource_id(ResourceKind.controlnet, Arch.sdxl, ControlMode.hands): None,
+    resource_id(ResourceKind.ip_adapter, Arch.sd15, ControlMode.reference): "ip-adapter_sd15.safetensors",
+    resource_id(ResourceKind.ip_adapter, Arch.sdxl, ControlMode.reference): "ip-adapter_sdxl_vit-h.safetensors",
+    resource_id(ResourceKind.ip_adapter, Arch.sd15, ControlMode.face): None,
+    resource_id(ResourceKind.ip_adapter, Arch.sdxl, ControlMode.face): None,
+    resource_id(ResourceKind.clip_vision, Arch.all, "ip_adapter"): "clip-vision_vit-h.safetensors",
+    resource_id(ResourceKind.lora, Arch.sd15, "hyper"): "Hyper-SD15-8steps-CFG-lora.safetensors",
+    resource_id(ResourceKind.lora, Arch.sdxl, "hyper"): "Hyper-SDXL-8steps-CFG-lora.safetensors",
+    resource_id(ResourceKind.lora, Arch.sd15, ControlMode.face): None,
+    resource_id(ResourceKind.lora, Arch.sdxl, ControlMode.face): None,
+    resource_id(ResourceKind.upscaler, Arch.all, UpscalerName.default): UpscalerName.default.value,
+    resource_id(ResourceKind.upscaler, Arch.all, UpscalerName.fast_2x): UpscalerName.fast_2x.value,
+    resource_id(ResourceKind.upscaler, Arch.all, UpscalerName.fast_3x): UpscalerName.fast_3x.value,
+    resource_id(ResourceKind.upscaler, Arch.all, UpscalerName.fast_4x): UpscalerName.fast_4x.value,
+    resource_id(ResourceKind.inpaint, Arch.sdxl, "fooocus_head"): "fooocus_inpaint_head.pth",
+    resource_id(ResourceKind.inpaint, Arch.sdxl, "fooocus_patch"): "inpaint_v26.fooocus.patch",
+    resource_id(ResourceKind.inpaint, Arch.all, "default"): "MAT_Places512_G_fp16.safetensors",
 }
 # fmt: on

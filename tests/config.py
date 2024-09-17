@@ -1,5 +1,5 @@
 from pathlib import Path
-from ai_diffusion.resources import SDVersion, default_checkpoints
+from ai_diffusion.resources import Arch, default_checkpoints
 
 
 test_dir = Path(__file__).parent
@@ -12,6 +12,6 @@ reference_dir = test_dir / "references"
 benchmark_dir = test_dir / "benchmark"
 
 default_checkpoint = {
-    SDVersion.sd15: "realisticVisionV51_v51VAE.safetensors",
-    SDVersion.sdxl: "juggernautXL_version6Rundiffusion.safetensors",
+    Arch.sd15: "realisticVisionV51_v51VAE.safetensors",
+    Arch.sdxl: "juggernautXL_version6Rundiffusion.safetensors",
 }

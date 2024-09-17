@@ -5,7 +5,7 @@ from ai_diffusion import resolution, workflow
 from ai_diffusion.api import InpaintMode
 from ai_diffusion.image import Bounds, Extent, Image, Mask, Point
 from ai_diffusion.resolution import ScaledExtent, ScaleMode, CheckpointResolution, TileLayout
-from ai_diffusion.resources import SDVersion
+from ai_diffusion.resources import Arch
 from ai_diffusion.style import Style
 from ai_diffusion.settings import PerformanceSettings
 
@@ -92,7 +92,7 @@ def test_scaled_extent_multiple8():
 def test_compute_checkpoint_resolution(extent: Extent, preferred: int, expected):
     style = Style(Path("default.json"))
     style.preferred_resolution = preferred
-    assert CheckpointResolution.compute(extent, SDVersion.sdxl, style) == expected
+    assert CheckpointResolution.compute(extent, Arch.sdxl, style) == expected
 
 
 @pytest.mark.parametrize(
@@ -132,7 +132,7 @@ def test_inpaint_context(area, expected_extent, expected_crop: tuple[int, int] |
 )
 def test_prepare_highres(input, expected_initial, expected_desired):
     image = Image.create(input)
-    r, _ = resolution.prepare_image(image, SDVersion.sd15, dummy_style, perf)
+    r, _ = resolution.prepare_image(image, Arch.sd15, dummy_style, perf)
     assert (
         r.initial_image
         and r.extent.input == r.initial_image.extent
@@ -153,7 +153,7 @@ def test_prepare_highres(input, expected_initial, expected_desired):
 )
 def test_prepare_lowres(input: Extent, expected: Extent):
     image = Image.create(input)
-    r, _ = resolution.prepare_image(image, SDVersion.sd15, dummy_style, perf)
+    r, _ = resolution.prepare_image(image, Arch.sd15, dummy_style, perf)
     assert (
         r.extent.input == input
         and image.extent == input
@@ -169,7 +169,7 @@ def test_prepare_lowres(input: Extent, expected: Extent):
 )
 def test_prepare_passthrough(input: Extent):
     image = Image.create(input)
-    r, _ = resolution.prepare_image(image, SDVersion.sd15, dummy_style, perf)
+    r, _ = resolution.prepare_image(image, Arch.sd15, dummy_style, perf)
     assert (
         r.initial_image
         and r.initial_image == image
@@ -184,7 +184,7 @@ def test_prepare_passthrough(input: Extent):
     "input,expected", [(Extent(512, 513), Extent(512, 520)), (Extent(300, 1024), Extent(304, 1024))]
 )
 def test_prepare_multiple8(input: Extent, expected: Extent):
-    r, _ = resolution.prepare_extent(input, SDVersion.sd15, dummy_style, perf)
+    r, _ = resolution.prepare_extent(input, Arch.sd15, dummy_style, perf)
     assert (
         r.extent.input == input
         and r.extent.initial == expected
@@ -193,17 +193,17 @@ def test_prepare_multiple8(input: Extent, expected: Extent):
     )
 
 
-@pytest.mark.parametrize("sdver", [SDVersion.sd15, SDVersion.sdxl])
-def test_prepare_extent(sdver: SDVersion):
+@pytest.mark.parametrize("sdver", [Arch.sd15, Arch.sdxl])
+def test_prepare_extent(sdver: Arch):
     input = Extent(1024, 1536)
     r, _ = resolution.prepare_extent(input, sdver, dummy_style, perf)
-    expected = Extent(512, 768) if sdver == SDVersion.sd15 else Extent(840, 1256)
+    expected = Extent(512, 768) if sdver == Arch.sd15 else Extent(840, 1256)
     assert r.extent.initial == expected and r.extent.desired == input and r.extent.target == input
 
 
 def test_prepare_no_mask():
     image = Image.create(Extent(256, 256))
-    r, _ = resolution.prepare_image(image, SDVersion.sd15, dummy_style, perf)
+    r, _ = resolution.prepare_image(image, Arch.sd15, dummy_style, perf)
     assert (
         r.initial_image
         and r.initial_image == image
@@ -215,7 +215,7 @@ def test_prepare_no_mask():
 @pytest.mark.parametrize("input", [Extent(512, 512), Extent(1024, 1628), Extent(1536, 999)])
 def test_prepare_no_downscale(input: Extent):
     image = Image.create(input)
-    r, _ = resolution.prepare_image(image, SDVersion.sd15, dummy_style, perf, downscale=False)
+    r, _ = resolution.prepare_image(image, Arch.sd15, dummy_style, perf, downscale=False)
     assert (
         r.initial_image
         and r.initial_image == image
@@ -228,11 +228,11 @@ def test_prepare_no_downscale(input: Extent):
 @pytest.mark.parametrize(
     "sd_ver,input,expected_initial,expected_desired",
     [
-        (SDVersion.sd15, Extent(2000, 2000), (632, 632), (1000, 1000)),
-        (SDVersion.sd15, Extent(1000, 1000), (632, 632), (1000, 1000)),
-        (SDVersion.sdxl, Extent(1024, 1024), (1024, 1024), (1024, 1024)),
-        (SDVersion.sdxl, Extent(2000, 2000), (1000, 1000), (1000, 1000)),
-        (SDVersion.sd15, Extent(801, 801), (632, 632), (808, 808)),
+        (Arch.sd15, Extent(2000, 2000), (632, 632), (1000, 1000)),
+        (Arch.sd15, Extent(1000, 1000), (632, 632), (1000, 1000)),
+        (Arch.sdxl, Extent(1024, 1024), (1024, 1024), (1024, 1024)),
+        (Arch.sdxl, Extent(2000, 2000), (1000, 1000), (1000, 1000)),
+        (Arch.sd15, Extent(801, 801), (632, 632), (808, 808)),
     ],
     ids=["sd15_large", "sd15_small", "sdxl_small", "sdxl_large", "sd15_odd"],
 )
@@ -261,7 +261,7 @@ def test_prepare_max_pixel_count(input, sd_ver, expected_initial, expected_desir
 )
 def test_prepare_resolution_multiplier(input, multiplier, expected_initial, expected_desired):
     perf_settings = PerformanceSettings(resolution_multiplier=multiplier)
-    r, _ = resolution.prepare_extent(input, SDVersion.sd15, dummy_style, perf_settings)
+    r, _ = resolution.prepare_extent(input, Arch.sd15, dummy_style, perf_settings)
     assert (
         r.extent.initial == expected_initial
         and r.extent.desired == expected_desired
@@ -273,7 +273,7 @@ def test_prepare_resolution_multiplier_inputs():
     perf_settings = PerformanceSettings(resolution_multiplier=0.5)
     input = Extent(1024, 1024)
     image = Image.create(input)
-    r, _ = resolution.prepare_image(image, SDVersion.sd15, dummy_style, perf_settings)
+    r, _ = resolution.prepare_image(image, Arch.sd15, dummy_style, perf_settings)
     assert (
         r.extent.input == Extent(512, 512)
         and r.initial_image
@@ -291,7 +291,7 @@ def test_prepare_resolution_multiplier_inputs():
 def test_prepare_resolution_multiplier_max(multiplier, expected):
     perf_settings = PerformanceSettings(resolution_multiplier=multiplier, max_pixel_count=1)
     input = Extent(2048, 2048)
-    r, _ = resolution.prepare_extent(input, SDVersion.sd15, dummy_style, perf_settings)
+    r, _ = resolution.prepare_extent(input, Arch.sd15, dummy_style, perf_settings)
     assert r.extent.initial.width <= 632 and r.extent.desired == expected
 
 

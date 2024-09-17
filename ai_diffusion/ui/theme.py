@@ -4,8 +4,9 @@ from PyQt5.QtGui import QGuiApplication, QPalette, QIcon, QPixmap, QFontMetrics
 from PyQt5.QtWidgets import QVBoxLayout, QLabel, QWidget
 from pathlib import Path
 
+from ..files import FileFormat
 from ..settings import Setting
-from ..style import SDVersion
+from ..style import Arch
 from ..client import Client
 from ..util import is_windows, client_logger as log
 
@@ -42,19 +43,22 @@ def icon(name: str):
     return QIcon(str(path))
 
 
-def sd_version_icon(version: SDVersion, client: Client | None = None):
-    if client and not client.supports_version(version):
-        return icon("warning")
-    elif version is SDVersion.sd15:
+def checkpoint_icon(arch: Arch, format: FileFormat | None = None, client: Client | None = None):
+    if client:
+        if not client.supports_arch(arch):
+            return icon("warning")
+        if format is FileFormat.diffusion and not client.models.for_arch(arch).has_te_vae:
+            return icon("warning")
+    if arch is Arch.sd15:
         return icon("sd-version-15")
-    elif version is SDVersion.sdxl:
+    elif arch is Arch.sdxl:
         return icon("sd-version-xl")
-    elif version is SDVersion.sd3:
+    elif arch is Arch.sd3:
         return icon("sd-version-3")
-    elif version is SDVersion.flux:
+    elif arch is Arch.flux:
         return icon("sd-version-flux")
     else:
-        log.warning(f"Unresolved SD version {version}, cannot fetch icon")
+        log.warning(f"Unresolved SD version {arch}, cannot fetch icon")
         return icon("warning")
 
 

@@ -23,7 +23,7 @@ from PyQt5.QtWidgets import (
 from krita import Krita
 
 from ..settings import Settings, ServerMode, settings
-from ..style import SDVersion
+from ..style import Arch
 from ..resources import ModelResource, CustomNode
 from ..server import Server, ServerBackend, ServerState
 from ..connection import ConnectionState
@@ -52,7 +52,7 @@ class PackageGroupWidget(QWidget):
     _items: list[PackageItem]
     _status: QLabel
     _desc: Optional[QLabel] = None
-    _workload = SDVersion.all
+    _workload = Arch.all
     _is_checkable = False
 
     changed = pyqtSignal()
@@ -163,8 +163,8 @@ class PackageGroupWidget(QWidget):
         self._update_status()
 
     def _update_workload(self, item: PackageItem):
-        enabled = not isinstance(item.package, ModelResource) or SDVersion.match(
-            self._workload, item.package.sd_version
+        enabled = not isinstance(item.package, ModelResource) or Arch.match(
+            self._workload, item.package.arch
         )
         if not enabled and item.state in [PackageState.selected, PackageState.available]:
             item.state = PackageState.disabled
@@ -188,7 +188,7 @@ class PackageGroupWidget(QWidget):
         return self._workload
 
     @workload.setter
-    def workload(self, workload: SDVersion):
+    def workload(self, workload: Arch):
         self._workload = workload
         self._update()
 
@@ -340,7 +340,7 @@ class ServerWidget(QWidget):
         self._packages = {
             "checkpoints": PackageGroupWidget(
                 _("Recommended checkpoints"),
-                [c for c in resources.default_checkpoints if c.sd_version is not SDVersion.flux],
+                [c for c in resources.default_checkpoints if c.arch is not Arch.flux],
                 description=(
                     _(
                         "At least one Stable Diffusion checkpoint is required. Below are some popular choices, more can be found online."
@@ -358,13 +358,13 @@ class ServerWidget(QWidget):
             ),
             "control_sd15": PackageGroupWidget(
                 _("Control extensions for SD 1.5"),
-                [m for m in resources.optional_models if m.sd_version is SDVersion.sd15],
+                [m for m in resources.optional_models if m.arch is Arch.sd15],
                 is_checkable=True,
                 parent=self,
             ),
             "control_sdxl": PackageGroupWidget(
                 _("Control extensions for SD XL"),
-                [m for m in resources.optional_models if m.sd_version is SDVersion.sdxl],
+                [m for m in resources.optional_models if m.arch is Arch.sdxl],
                 is_checkable=True,
                 parent=self,
             ),
@@ -616,7 +616,7 @@ class ServerWidget(QWidget):
         has_missing_models = any(
             model.name in self._server.missing_resources
             for model in resources.required_models
-            if model.sd_version is SDVersion.all
+            if model.arch is Arch.all
         )
         installed_status = [
             self._server.has_python,
@@ -628,8 +628,8 @@ class ServerWidget(QWidget):
 
     def update_optional(self):
         workloads = [
-            [m for m in resources.required_models if m.sd_version is SDVersion.sd15],
-            [m for m in resources.required_models if m.sd_version is SDVersion.sdxl],
+            [m for m in resources.required_models if m.arch is Arch.sd15],
+            [m for m in resources.required_models if m.arch is Arch.sdxl],
         ]
         self._workload_group.set_installed([self._server.all_installed(w) for w in workloads])
         if all(state is PackageState.available for state in self._workload_group.values):
@@ -665,9 +665,9 @@ class ServerWidget(QWidget):
             for state in self._workload_group.values
         ]
         if all(selected_or_installed):
-            return SDVersion.all
+            return Arch.all
         if selected_or_installed[0]:
-            return SDVersion.sd15
+            return Arch.sd15
         if selected_or_installed[1]:
-            return SDVersion.sdxl
+            return Arch.sdxl
         assert False, "No workload selected!"

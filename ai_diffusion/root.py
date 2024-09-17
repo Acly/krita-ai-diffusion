@@ -9,7 +9,7 @@ from .document import Document, KritaDocument
 from .model import Model
 from .files import FileLibrary, File, FileSource
 from .persistence import ModelSync, RecentlyUsedSync, import_prompt_from_file
-from .ui.theme import sd_version_icon
+from .ui.theme import checkpoint_icon
 from .settings import ServerMode, settings
 from .util import client_logger as log
 
@@ -129,9 +129,14 @@ class Root(QObject):
     def _update_files(self):
         if client := self._connection.client_if_connected:
             checkpoints = [
-                File(cp.filename, cp.name, FileSource.remote, icon=sd_version_icon(cp.sd_version))
+                File(
+                    cp.filename,
+                    cp.name,
+                    FileSource.remote,
+                    cp.format,
+                    icon=checkpoint_icon(cp.arch, cp.format, client),
+                )
                 for cp in client.models.checkpoints.values()
-                if not (cp.is_refiner or cp.is_inpaint)
             ]
             self._files.checkpoints.update(checkpoints, FileSource.remote)
 

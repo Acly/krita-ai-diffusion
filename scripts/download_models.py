@@ -23,7 +23,7 @@ from argparse import ArgumentParser
 
 sys.path.append(str(Path(__file__).parent.parent))
 from ai_diffusion import resources
-from ai_diffusion.resources import SDVersion, ResourceKind
+from ai_diffusion.resources import Arch, ResourceKind
 from ai_diffusion.resources import required_models, default_checkpoints, optional_models
 
 
@@ -100,6 +100,7 @@ async def main(
     dry_run=False,
     sd15=False,
     sdxl=False,
+    flux=False,
     upscalers=False,
     checkpoints=[],
     controlnet=False,
@@ -116,30 +117,30 @@ async def main(
         sum([minimal, recommended, all]) <= 1
     ), "Only one of --minimal, --recommended, --all can be specified"
 
-    versions = [SDVersion.all]
+    versions = [Arch.all]
     if sd15 or minimal or all:
-        versions.append(SDVersion.sd15)
+        versions.append(Arch.sd15)
     if sdxl or recommended or all:
-        versions.append(SDVersion.sdxl)
+        versions.append(Arch.sdxl)
+    if flux:
+        versions.append(Arch.flux)
 
     timeout = aiohttp.ClientTimeout(total=None, sock_connect=10, sock_read=60)
-    async with aiohttp.ClientSession(timeout=timeout) as client:
+    async with aiohttp.ClientSession(timeout=timeout, trust_env=True) as client:
         models = set()
         models.update([m for m in default_checkpoints if all or (m.id.identifier in checkpoints)])
         if minimal or recommended or all or sd15 or sdxl:
-            models.update([m for m in required_models if m.sd_version in versions])
+            models.update([m for m in required_models if m.arch in versions])
         if minimal:
             models.add(default_checkpoints[0])
         if recommended:
-            models.update([m for m in default_checkpoints if m.sd_version is SDVersion.sdxl])
+            models.update([m for m in default_checkpoints if m.arch is Arch.sdxl])
         if upscalers or recommended or all:
             models.update([m for m in required_models if m.kind is ResourceKind.upscaler])
             models.update(resources.upscale_models)
         if controlnet or recommended or all:
             kinds = [ResourceKind.controlnet, ResourceKind.ip_adapter]
-            models.update(
-                [m for m in optional_models if m.kind in kinds and m.sd_version in versions]
-            )
+            models.update([m for m in optional_models if m.kind in kinds and m.arch in versions])
         if prefetch or all:
             models.update(resources.prefetch_models)
 
@@ -182,6 +183,7 @@ if __name__ == "__main__":
     parser.add_argument("-a", "--all", action="store_true", help="download ALL models")
     parser.add_argument("--sd15", action="store_true", help="[Workload] everything needed to run SD 1.5 (no checkpoints)")
     parser.add_argument("--sdxl", action="store_true", help="[Workload] everything needed to run SDXL (no checkpoints)")
+    parser.add_argument("--flux", action="store_true", help="[Workload] everything needed to run Flux (no checkpoints)")
     parser.add_argument("--checkpoints", action="store_true", dest="checkpoints", help="download all checkpoints for selected workloads")
     parser.add_argument("--controlnet", action="store_true", help="download ControlNet models for selected workloads")
     parser.add_argument("--checkpoint", action="append", choices=checkpoint_names, dest="checkpoint_list", help="download a specific checkpoint (can specify multiple times)")
@@ -193,13 +195,11 @@ if __name__ == "__main__":
     args = parser.parse_args()
     checkpoints = args.checkpoint_list or []
     if args.checkpoints and args.sd15:
-        checkpoints += [
-            m.id.identifier for m in default_checkpoints if m.sd_version is SDVersion.sd15
-        ]
+        checkpoints += [m.id.identifier for m in default_checkpoints if m.arch is Arch.sd15]
     if args.checkpoints and args.sdxl:
-        checkpoints += [
-            m.id.identifier for m in default_checkpoints if m.sd_version is SDVersion.sdxl
-        ]
+        checkpoints += [m.id.identifier for m in default_checkpoints if m.arch is Arch.sdxl]
+    if args.checkpoints and args.flux:
+        checkpoints += [m.id.identifier for m in default_checkpoints if m.arch is Arch.flux]
     asyncio.run(
         main(
             destination=args.destination,
@@ -207,6 +207,7 @@ if __name__ == "__main__":
             dry_run=args.dry_run,
             sd15=args.sd15,
             sdxl=args.sdxl,
+            flux=args.flux,
             upscalers=args.upscalers,
             checkpoints=checkpoints,
             controlnet=args.controlnet,

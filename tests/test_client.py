@@ -8,11 +8,11 @@ from ai_diffusion.api import CheckpointInput, ImageInput, SamplingInput, Conditi
 from ai_diffusion.resources import ControlMode
 from ai_diffusion.network import NetworkError
 from ai_diffusion.image import Extent
-from ai_diffusion.client import ClientEvent, resolve_sd_version
+from ai_diffusion.client import ClientEvent, resolve_arch
 from ai_diffusion.comfy_client import ComfyClient, parse_url, websocket_url
-from ai_diffusion.style import SDVersion, Style
+from ai_diffusion.style import Arch, Style
 from ai_diffusion.server import Server, ServerState, ServerBackend
-from ai_diffusion.files import FileLibrary, File
+from ai_diffusion.files import FileLibrary, File, FileFormat
 from ai_diffusion.util import ensure
 from .config import server_dir, default_checkpoint, test_dir
 
@@ -32,7 +32,7 @@ def comfy_server(qtapp):
 def make_default_work(size=512, steps=20):
     return WorkflowInput(
         WorkflowKind.generate,
-        models=CheckpointInput(default_checkpoint[SDVersion.sd15]),
+        models=CheckpointInput(default_checkpoint[Arch.sd15]),
         images=ImageInput.from_extent(Extent(size, size)),
         conditioning=ConditioningInput("a photo of a cat", "a photo of a dog"),
         sampling=SamplingInput("euler", "normal", cfg_scale=7.0, total_steps=steps),
@@ -56,7 +56,10 @@ def test_cancel(qtapp, comfy_server, cancel_point):
         stage = 0
 
         async for msg in client.listen():
-            if stage == 0:
+            if msg.event is ClientEvent.error:
+                assert False, msg.error
+
+            elif stage == 0:
                 assert msg.event is not ClientEvent.finished
                 assert msg.job_id == job_id or msg.job_id == ""
                 if not job_id:
@@ -136,23 +139,20 @@ def check_client_info(client: ComfyClient):
     for filename, cp in client.models.checkpoints.items():
         assert cp.filename == filename
         assert cp.filename.startswith(cp.name)
-        assert cp.is_inpaint == ("inpaint" in cp.name.lower())
-        assert cp.is_refiner == ("refiner" in cp.name.lower())
+        assert cp.format is FileFormat.checkpoint
 
     assert len(client.models.resources) >= len(resources.required_resource_ids)
-    inpaint = client.models.for_version(SDVersion.sd15).control[ControlMode.inpaint]
+    inpaint = client.models.for_arch(Arch.sd15).control[ControlMode.inpaint]
     assert inpaint and "inpaint" in inpaint
 
 
-def check_resolve_sd_version(client: ComfyClient, sd_version: SDVersion):
-    checkpoint = next(
-        cp for cp in client.models.checkpoints.values() if cp.sd_version == sd_version
-    )
+def check_resolve_sd_version(client: ComfyClient, arch: Arch):
+    checkpoint = next(cp for cp in client.models.checkpoints.values() if cp.arch == arch)
     style = Style(Path("dummy"))
-    style.sd_version = SDVersion.auto
+    style.sd_version = Arch.auto
     style.sd_checkpoint = checkpoint.filename
-    assert resolve_sd_version(style, client) == sd_version
-    assert resolve_sd_version(style, None) == sd_version
+    assert resolve_arch(style, client) == arch
+    assert resolve_arch(style, None) == arch
 
 
 def test_info(pytestconfig, qtapp, comfy_server):
@@ -161,8 +161,8 @@ def test_info(pytestconfig, qtapp, comfy_server):
         check_client_info(client)
         await client.refresh()
         check_client_info(client)
-        check_resolve_sd_version(client, SDVersion.sd15)
-        # check_resolve_sd_version(client, SDVersion.sdxl) # no SDXL checkpoint in default installation
+        check_resolve_sd_version(client, Arch.sd15)
+        # check_resolve_sd_version(client, Arch.sdxl) # no SDXL checkpoint in default installation
 
     qtapp.run(main())
 
