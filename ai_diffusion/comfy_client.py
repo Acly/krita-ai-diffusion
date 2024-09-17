@@ -28,7 +28,8 @@ from . import resources, util
 
 if util.is_macos:
     import os
-    os.environ["SSL_CERT_FILE"] = "/etc/ssl/cert.pem"
+    if "SSL_CERT_FILE" not in os.environ:
+        os.environ["SSL_CERT_FILE"] = "/etc/ssl/cert.pem"
 
 
 @dataclass
