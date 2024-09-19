@@ -2,6 +2,7 @@ import sys
 import pytest
 import shutil
 import subprocess
+import dotenv
 from pathlib import Path
 from PyQt5.QtCore import QCoreApplication
 
@@ -88,3 +89,9 @@ def local_download_server():
 
         proc.terminate()
         proc.wait()
+
+
+has_local_cloud = (root_dir / "service").exists()
+
+if has_local_cloud:
+    dotenv.load_dotenv(root_dir / "service" / "web" / ".env.local")

@@ -3,6 +3,7 @@
 
 # Development
 black
+pyright
 requests
 
 # Testing
@@ -12,6 +13,7 @@ python-dotenv
 markdown
 numpy
 pytest
+pytest-asyncio
 tqdm
 PyQt5
 Pillow

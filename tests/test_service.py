@@ -4,7 +4,6 @@ import subprocess
 import os
 import sys
 import asyncio
-import dotenv
 
 from ai_diffusion.api import WorkflowInput, WorkflowKind, ControlInput, ImageInput, CheckpointInput
 from ai_diffusion.api import SamplingInput, ConditioningInput, ExtentInput
@@ -13,9 +12,9 @@ from ai_diffusion.cloud_client import CloudClient
 from ai_diffusion.image import Extent, Image
 from ai_diffusion.resources import ControlMode, Arch
 from ai_diffusion.util import ensure
+from .conftest import has_local_cloud
 from .config import root_dir, test_dir, result_dir
 
-dotenv.load_dotenv(root_dir / "service" / "web" / ".env.local")
 pod_main = root_dir / "service" / "pod" / "pod.py"
 run_dir = test_dir / "pod"
 
@@ -78,6 +77,8 @@ async def receive_images(client: Client, work: WorkflowInput):
 def cloud_client(pytestconfig, qtapp, pod_server):
     if pytestconfig.getoption("--ci"):
         pytest.skip("Diffusion is disabled on CI")
+    if not has_local_cloud:
+        pytest.skip("Local cloud service not found")
     url = os.environ["TEST_SERVICE_URL"]
     token = os.environ["TEST_SERVICE_TOKEN"]
     return qtapp.run(CloudClient.connect(url, token))
