@@ -89,6 +89,11 @@ class Settings(QObject):
         _("Interface language used by the plugin - requires restart!"),
     )
 
+    auto_update: bool
+    _auto_update = Setting(
+        _("Enable Automatic Updates"), True, _("Check for new versions of the plugin on startup")
+    )
+
     server_mode: ServerMode
     _server_mode = Setting(
         _("Server Management"),

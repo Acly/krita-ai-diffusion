@@ -1,6 +1,7 @@
 from __future__ import annotations
 from PyQt5.QtCore import Qt
 from PyQt5.QtWidgets import QWidget, QVBoxLayout, QHBoxLayout, QPushButton, QLabel, QStackedWidget
+from PyQt5.QtWidgets import QCheckBox
 from krita import Krita, DockWidget
 import krita
 
@@ -8,6 +9,7 @@ from ..model import Model, Workspace
 from ..server import Server
 from ..connection import ConnectionState
 from ..settings import ServerMode, settings
+from ..updates import UpdateState
 from ..root import root
 from ..localization import translate as _
 from . import theme
@@ -17,53 +19,95 @@ from .live import LiveWidget
 from .animation import AnimationWidget
 
 
-class WelcomeWidget(QWidget):
-    _server: Server
+class AutoUpdateWidget(QWidget):
 
-    def __init__(self, server: Server):
-        super().__init__()
+    def __init__(self, parent: QWidget):
+        super().__init__(parent)
+
+        update_message = QLabel(_("A new plugin version is available!"), self)
+        self._update_status = QLabel(self)
+        self._update_status.setStyleSheet(f"color: {theme.yellow}; font-weight: bold;")
+        self._update_error = QLabel(self)
+
+        self._update_checkbox = QCheckBox(_("Check for updates on startup"), self)
+        self._update_checkbox.setChecked(settings.auto_update)
+        self._update_checkbox.stateChanged.connect(self._toggle_auto_update)
+
+        self._update_button = QPushButton(_("Download and Install"), self)
+        self._update_button.setMinimumHeight(32)
+        self._update_button.clicked.connect(self._run_update)
+
+        update_layout = QVBoxLayout()
+        update_layout.addWidget(update_message)
+        update_layout.addWidget(self._update_status)
+        update_layout.addWidget(self._update_error)
+        update_layout.addWidget(self._update_checkbox)
+        update_layout.addWidget(self._update_button)
+        self.setLayout(update_layout)
+
+        root.auto_update.latest_version_changed.connect(self.update_content)
+        root.auto_update.error_changed.connect(self.update_content)
+        self.update_content()
+
+    def update_content(self):
+        au = root.auto_update
+        match au.state:
+            case UpdateState.available:
+                self._update_status.setText(
+                    _("Update") + f" {au.current_version} -> {au.latest_version}"
+                )
+            case UpdateState.downloading:
+                self._update_status.setText(_("Downloading package..."))
+                self._update_button.setEnabled(False)
+            case UpdateState.installing:
+                self._update_status.setText(_("Installing new version..."))
+                self._update_button.setEnabled(False)
+            case UpdateState.failed:
+                self._update_status.setText(_("Update failed"))
+                self._update_error.setText(au.error)
+                self._update_button.setEnabled(True)
+            case UpdateState.restart_required:
+                self._update_status.setText(_("Restart required to complete update"))
+                self._update_button.setEnabled(False)
+
+        self.setVisible(self.is_visible)
+
+    @property
+    def is_visible(self):
+        return root.auto_update.state not in [UpdateState.latest, UpdateState.disabled]
+
+    def _toggle_auto_update(self):
+        enabled = self._update_checkbox.isChecked()
+        root.auto_update.is_enabled = enabled
+        settings.auto_update = enabled
+        settings.save()
+
+    def _run_update(self):
+        root.auto_update.run()
+
+
+class ConnectionWidget(QWidget):
+    def __init__(self, server: Server, parent: QWidget):
+        super().__init__(parent)
         self._server = server
 
-        layout = QVBoxLayout()
-        self.setLayout(layout)
-
-        header_layout = QHBoxLayout()
-        header_logo = QLabel(self)
-        header_logo.setPixmap(theme.logo().scaled(64, 64))
-        header_logo.setMaximumSize(64, 64)
-        header_text = QLabel("AI Image\nGeneration", self)
-        header_text.setStyleSheet("font-size: 12pt")
-        header_layout.addWidget(header_logo)
-        header_layout.addWidget(header_text)
-        layout.addLayout(header_layout)
-        layout.addSpacing(12)
-
         self._connect_status = QLabel(_("Not connected to server."), self)
-        layout.addWidget(self._connect_status)
-        layout.addSpacing(6)
 
         self._connect_error = QLabel(self)
         self._connect_error.setVisible(False)
         self._connect_error.setWordWrap(True)
         self._connect_error.setStyleSheet(f"color: {theme.yellow};")
-        layout.addWidget(self._connect_error)
 
         self._settings_button = QPushButton(theme.icon("settings"), _("Configure"), self)
         self._settings_button.setMinimumHeight(32)
         self._settings_button.clicked.connect(self.show_settings)
+
+        layout = QVBoxLayout()
+        layout.addWidget(self._connect_status)
+        layout.addSpacing(6)
+        layout.addWidget(self._connect_error)
         layout.addWidget(self._settings_button)
-
-        layout.addSpacing(24)
-        info = QLabel(
-            "<a href='https://www.interstice.cloud'>Interstice.cloud</a> | "
-            + "<a href='https://https://github.com/Acly/krita-ai-diffusion'>GitHub Project</a> | "
-            + "<a href='https://discord.gg/pWyzHfHHhU'>Discord</a>",
-            self,
-        )
-        info.setOpenExternalLinks(True)
-        layout.addWidget(info, 0, Qt.AlignmentFlag.AlignRight)
-
-        layout.addStretch()
+        self.setLayout(layout)
 
         root.connection.state_changed.connect(self.update_content)
         self.update_content()
@@ -105,6 +149,50 @@ class WelcomeWidget(QWidget):
 
     def show_settings(self):
         Krita.instance().action("ai_diffusion_settings").trigger()
+
+
+class WelcomeWidget(QWidget):
+
+    def __init__(self, server: Server):
+        super().__init__()
+
+        layout = QVBoxLayout()
+        self.setLayout(layout)
+
+        header_layout = QHBoxLayout()
+        header_logo = QLabel(self)
+        header_logo.setPixmap(theme.logo().scaled(64, 64))
+        header_logo.setMaximumSize(64, 64)
+        header_text = QLabel("AI Image\nGeneration", self)
+        header_text.setStyleSheet("font-size: 12pt")
+        header_layout.addWidget(header_logo)
+        header_layout.addWidget(header_text)
+
+        self._update_widget = AutoUpdateWidget(self)
+        self._connection_widget = ConnectionWidget(server, self)
+
+        info = QLabel(
+            "<a href='https://www.interstice.cloud'>Interstice.cloud</a> | "
+            + "<a href='https://https://github.com/Acly/krita-ai-diffusion'>GitHub Project</a> | "
+            + "<a href='https://discord.gg/pWyzHfHHhU'>Discord</a>",
+            self,
+        )
+        info.setOpenExternalLinks(True)
+
+        layout.addLayout(header_layout)
+        layout.addSpacing(12)
+        layout.addWidget(self._update_widget)
+        layout.addWidget(self._connection_widget)
+        layout.addSpacing(24)
+        layout.addWidget(info, 0, Qt.AlignmentFlag.AlignRight)
+        layout.addStretch()
+
+        root.auto_update.state_changed.connect(self.update_content)
+
+    def update_content(self):
+        self._update_widget.update_content()
+        self._connection_widget.update_content()
+        self._connection_widget.setVisible(not self._update_widget.is_visible)
 
 
 class ImageDiffusionWidget(DockWidget):

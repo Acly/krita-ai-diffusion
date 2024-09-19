@@ -100,7 +100,7 @@ pytest tests
 Some tests require a running ComfyUI server. This should be automated... but for now it's not.
 
 ### What is tested
-Generating images is tested. Because it takes a lot of time the number of tests is limited. Because it's very random, images are not compared (but this can be solved with consistent installation and fixed seeds).
+Generating images is tested. Because it takes a lot of time the number of tests is limited. Images are not compared in most cases, as they tend to frequently change with updates to dependencies.
 
 Functionality which uses Krita's API is _not_ tested. It just doesn't work outside Krita without a comprehensive mock.
 
@@ -125,5 +125,3 @@ You can also run the file server manually. Then you can start Krita with the `HO
 python scripts/file_server.py
 
 HOSTMAP=1 /your/krita/install/krita
-```
-Note that the mock file server likes to transmit corrupted files if they are very large (eg. SDXL checkpoint)... not sure why (?)

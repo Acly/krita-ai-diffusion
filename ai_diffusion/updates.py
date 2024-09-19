@@ -61,6 +61,7 @@ class AutoUpdate(QObject, ObservableProperties):
         self._request_manager: RequestManager | None = None
 
         if self.is_enabled:
+            self.state = UpdateState.unknown
             self.check()
 
     def check(self):
@@ -73,17 +74,22 @@ class AutoUpdate(QObject, ObservableProperties):
             return
 
         self.state = UpdateState.checking
+        log.info(f"Checking for latest plugin version at {self.api_url}")
         result = await self._net.get(f"{self.api_url}/plugin/latest?version={self.current_version}")
         self.latest_version = result.get("version")
         if not self.latest_version:
+            log.error(f"Invalid plugin update information: {result}")
             self.state = UpdateState.failed
             self.error = "Failed to retrieve plugin update information"
         elif self.latest_version == self.current_version:
+            log.info(f"Plugin is up to date!")
             self.state = UpdateState.latest
         elif "url" not in result or "sha256" not in result:
+            log.error(f"Invalid plugin update information: {result}")
             self.state = UpdateState.failed
             self.error = "Plugin update package is incomplete"
         else:
+            log.info(f"New plugin version available: {self.latest_version}")
             self._package = UpdatePackage(
                 version=self.latest_version,
                 url=result["url"],

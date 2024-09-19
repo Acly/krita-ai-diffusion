@@ -9,6 +9,7 @@ from .document import Document, KritaDocument
 from .model import Model
 from .files import FileLibrary, File, FileSource
 from .persistence import ModelSync, RecentlyUsedSync, import_prompt_from_file
+from .updates import AutoUpdate
 from .ui.theme import checkpoint_icon
 from .settings import ServerMode, settings
 from .util import client_logger as log
@@ -38,6 +39,7 @@ class Root(QObject):
         self._files = FileLibrary.load()
         self._models = []
         self._recent = RecentlyUsedSync.from_settings()
+        self._auto_update = AutoUpdate(enabled=settings.auto_update)
         self._connection.message_received.connect(self._handle_message)
         self._connection.models_changed.connect(self._update_files)
 
@@ -77,6 +79,10 @@ class Root(QObject):
     @property
     def files(self) -> FileLibrary:
         return self._files
+
+    @property
+    def auto_update(self) -> AutoUpdate:
+        return self._auto_update
 
     @property
     def active_model(self):
