@@ -103,3 +103,18 @@ async def run_auto_update_test(tmp_path: Path):
         assert updater.state is UpdateState.restart_required
         assert updater.latest_version == new_version
         assert install_test_file.read_text() == "if you're feeling orange, try flying a kite"
+
+
+async def test_authorization():
+    if not has_local_cloud:
+        pytest.skip("No local cloud service found")
+    service_url = os.environ["TEST_SERVICE_URL"]
+    async with ClientSession(service_url) as session:
+
+        # Version check is public
+        async with session.get("/plugin/latest?version=1.2.3") as response:
+            assert response.status == 200
+
+        # Upload requires authorization
+        async with session.put("/plugin/upload/1.2.3") as response:
+            assert response.status == 401
