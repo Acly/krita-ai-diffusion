@@ -466,6 +466,8 @@ class SettingsWriteGuard:
 
 def _add_title(layout: QVBoxLayout, title: str):
     title_label = QLabel(title)
-    title_label.setStyleSheet("font-size: 12pt")
+    font = title_label.font()
+    font.setPointSize(font.pointSize() + 2)
+    title_label.setFont(font)
     layout.addWidget(title_label)
     layout.addSpacing(6)

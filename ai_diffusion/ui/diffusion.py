@@ -62,7 +62,7 @@ class AutoUpdateWidget(QWidget):
             case UpdateState.installing:
                 self._update_status.setText(_("Installing new version..."))
                 self._update_button.setEnabled(False)
-            case UpdateState.failed:
+            case UpdateState.failed_update:
                 self._update_status.setText(_("Update failed"))
                 self._update_error.setText(au.error)
                 self._update_button.setEnabled(True)
@@ -74,12 +74,13 @@ class AutoUpdateWidget(QWidget):
 
     @property
     def is_visible(self):
-        return root.auto_update.state not in [UpdateState.latest, UpdateState.disabled]
+        return settings.auto_update and root.auto_update.state not in [
+            UpdateState.latest,
+            UpdateState.failed_check,
+        ]
 
     def _toggle_auto_update(self):
-        enabled = self._update_checkbox.isChecked()
-        root.auto_update.is_enabled = enabled
-        settings.auto_update = enabled
+        settings.auto_update = self._update_checkbox.isChecked()
         settings.save()
 
     def _run_update(self):

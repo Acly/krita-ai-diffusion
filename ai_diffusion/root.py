@@ -39,7 +39,9 @@ class Root(QObject):
         self._files = FileLibrary.load()
         self._models = []
         self._recent = RecentlyUsedSync.from_settings()
-        self._auto_update = AutoUpdate(enabled=settings.auto_update)
+        self._auto_update = AutoUpdate()
+        if settings.auto_update:
+            self._auto_update.check()
         self._connection.message_received.connect(self._handle_message)
         self._connection.models_changed.connect(self._update_files)
 

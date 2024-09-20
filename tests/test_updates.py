@@ -55,14 +55,10 @@ async def run_auto_update_test(tmp_path: Path):
         install_test_file.write_text("local produce is the best")
 
         updater = AutoUpdate(
-            enabled=False,
             current_version=last_version,
             plugin_dir=install_dir,
             api_url=service_url,
         )
-        assert updater.state is UpdateState.disabled
-
-        updater.is_enabled = True
         assert updater.state is UpdateState.unknown
 
         state_changes = SignalObserver(updater.state_changed)

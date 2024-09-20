@@ -18,9 +18,10 @@ from PyQt5.QtWidgets import (
     QComboBox,
     QWidget,
     QMessageBox,
+    QCheckBox,
 )
 from PyQt5.QtCore import Qt, QMetaObject, QSize, QUrl, pyqtSignal
-from PyQt5.QtGui import QDesktopServices, QGuiApplication, QCursor
+from PyQt5.QtGui import QDesktopServices, QGuiApplication, QCursor, QFontMetrics
 
 from ..client import Client, User
 from ..cloud_client import CloudClient
@@ -30,6 +31,7 @@ from ..server import Server
 from ..style import Style
 from ..root import root
 from ..connection import ConnectionState, apply_performance_preset
+from ..updates import UpdateState
 from ..properties import Binding
 from ..localization import Localization, translate as _
 from .. import eventloop, util, __version__
@@ -37,7 +39,7 @@ from .server import ServerWidget
 from .settings_widgets import SpinBoxSetting, SliderSetting, SwitchSetting
 from .settings_widgets import SettingsTab, ComboBoxSetting, FileListSetting
 from .style import StylePresets
-from .theme import add_header, red, yellow, green, grey
+from .theme import add_header, logo, red, yellow, green, grey
 
 
 class UserWidget(QFrame):
@@ -605,6 +607,154 @@ class PerformanceSettings(SettingsTab):
         ]
 
 
+class AboutSettings(SettingsTab):
+    def __init__(self):
+        super().__init__(_("Plugin Information and Updates"))
+
+        large = self.font()
+        large.setPointSize(large.pointSize() + 2)
+
+        extra_large = self.font()
+        extra_large.setPointSize(extra_large.pointSize() + 4)
+
+        bold = self.font()
+        bold.setBold(True)
+
+        italic = self.font()
+        italic.setItalic(True)
+
+        header_layout = QHBoxLayout()
+        header_logo = QLabel(self)
+        font_height = QFontMetrics(extra_large).height() + 4
+        header_logo.setPixmap(logo().scaled(font_height * 2, font_height * 2))
+        header_logo.setMaximumSize(font_height * 2, font_height * 2)
+        header_text = QLabel("Generative AI\nfor Krita", self)
+        header_text.setFont(extra_large)
+        header_layout.addWidget(header_logo)
+        header_layout.addWidget(header_text)
+
+        current_version_name = QLabel(_("Current version") + ":", self)
+        current_version_value = QLabel(__version__, self)
+
+        latest_version_name = QLabel(_("Latest version") + ":", self)
+        self._latest_version_value = QLabel(self)
+        self._latest_version_value.setFont(bold)
+
+        self._update_error = QLabel(self)
+        self._update_error.setFont(italic)
+
+        self._update_checkbox = QCheckBox(_("Check for updates on startup"), self)
+        self._update_checkbox.setChecked(settings.auto_update)
+        self._update_checkbox.stateChanged.connect(self._toggle_auto_update)
+
+        self._check_button = QPushButton(_("Check for Updates"), self)
+        self._check_button.setMinimumWidth(font_height * 6)
+        self._check_button.clicked.connect(self._check_updates)
+
+        self._update_button = QPushButton(_("Download and Install"), self)
+        self._update_button.setMinimumWidth(font_height * 6)
+        self._update_button.clicked.connect(self._run_update)
+
+        doc_header = QLabel(_("Documentation and Support"), self)
+        doc_header.setFont(large)
+
+        doc_links = QLabel(_links_text, self)
+        doc_links.setOpenExternalLinks(True)
+        doc_contact = QLabel(_contact_text, self)
+        doc_contact.setOpenExternalLinks(True)
+
+        self._layout.addLayout(header_layout)
+        self._layout.addSpacing(10)
+        current_version_layout = QHBoxLayout()
+        current_version_layout.addWidget(current_version_name)
+        current_version_layout.addWidget(current_version_value)
+        current_version_layout.addStretch()
+        self._layout.addLayout(current_version_layout)
+        latest_version_layout = QHBoxLayout()
+        latest_version_layout.addWidget(latest_version_name)
+        latest_version_layout.addWidget(self._latest_version_value)
+        latest_version_layout.addStretch()
+        self._layout.addLayout(latest_version_layout)
+        self._layout.addWidget(self._update_error)
+        self._layout.addWidget(self._update_checkbox)
+        update_layout = QHBoxLayout()
+        update_layout.addWidget(self._check_button)
+        update_layout.addWidget(self._update_button)
+        update_layout.addStretch()
+        self._layout.addLayout(update_layout)
+        self._layout.addSpacing(20)
+        self._layout.addWidget(doc_header)
+        self._layout.addSpacing(5)
+        doc_layout = QHBoxLayout()
+        doc_layout.addWidget(doc_links)
+        doc_layout.addSpacing(40)
+        doc_layout.addWidget(doc_contact)
+        doc_layout.addStretch()
+        self._layout.addLayout(doc_layout)
+        self._layout.addStretch()
+
+        root.auto_update.state_changed.connect(self._update_content)
+        self._update_content()
+
+    def _update_content(self):
+        self._check_button.setEnabled(False)
+        self._update_button.setEnabled(False)
+        self._update_error.clear()
+
+        au = root.auto_update
+        match au.state:
+            case UpdateState.unknown:
+                self._latest_version_value.setText(_("Not checked"))
+                self._check_button.setEnabled(True)
+            case UpdateState.checking:
+                self._latest_version_value.setText(_("Checking for updates..."))
+            case UpdateState.latest:
+                self._latest_version_value.setText(au.latest_version)
+                self._check_button.setEnabled(True)
+            case UpdateState.available:
+                self._latest_version_value.setText(au.latest_version)
+                self._check_button.setEnabled(True)
+                self._update_button.setEnabled(True)
+            case UpdateState.downloading:
+                self._latest_version_value.setText(_("Downloading package..."))
+            case UpdateState.installing:
+                self._latest_version_value.setText(_("Installing new version..."))
+            case UpdateState.failed_check:
+                self._latest_version_value.setText(_("Unknown"))
+                self._update_error.setText(au.error)
+                self._check_button.setEnabled(True)
+            case UpdateState.failed_update:
+                self._latest_version_value.setText(_("Update failed"))
+                self._update_error.setText(au.error)
+                self._check_button.setEnabled(True)
+                self._update_button.setEnabled(True)
+            case UpdateState.restart_required:
+                self._update_status.setText(_("Restart required to complete update"))
+
+    def _toggle_auto_update(self):
+        settings.auto_update = self._update_checkbox.isChecked()
+        settings.save()
+
+    def _check_updates(self):
+        root.auto_update.check()
+
+    def _run_update(self):
+        root.auto_update.run()
+
+
+_links_text = """
+<a href='https://www.interstice.cloud'>Website</a><br><br>
+<a href='https://github.com/Acly/krita-ai-diffusion'>GitHub</a><br><br>
+<a href='https://github.com/Acly/krita-ai-diffusion/wiki'>Wiki</a>
+"""
+
+_contact_text = """
+<a href='https://github.com/Acly/krita-ai-diffusion/issues'>Issues</a><br><br>
+<a href='https://github.com/Acly/krita-ai-diffusion/discussions'>Discussions</a><br><br>
+<a href='https://discord.gg/pWyzHfHHhU'>Discord</a>
+"""
+
+
 class SettingsDialog(QDialog):
     _instance = None
 
@@ -646,6 +796,7 @@ class SettingsDialog(QDialog):
         create_list_item(_("Diffusion"), self.diffusion)
         create_list_item(_("Interface"), self.interface)
         create_list_item(_("Performance"), self.performance)
+        create_list_item(_("Plugin"), AboutSettings())
 
         self._list.setCurrentRow(0)
         self._list.currentRowChanged.connect(self._change_page)
