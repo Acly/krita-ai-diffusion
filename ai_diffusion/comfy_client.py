@@ -566,7 +566,7 @@ def _find_model(
         pattern = pattern.lower()
         return all(p in filename for p in pattern.split("*"))
 
-    matches = (m for m in model_list if any(match(m, p) for p in search_paths))
+    matches = (m for p in search_paths for m in model_list if match(m, p))
     # if there are multiple matches, prefer the one with "krita" in the path
     prio = sorted(matches, key=lambda m: 0 if "krita" in m else 1)
     found = next(iter(prio), None)
