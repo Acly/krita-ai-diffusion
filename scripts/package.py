@@ -1,4 +1,8 @@
+import asyncio
+import aiohttp
 import sys
+import dotenv
+import os
 from markdown import markdown
 from shutil import rmtree, copy, copytree, ignore_patterns, make_archive
 from pathlib import Path
@@ -46,6 +50,36 @@ def build_package():
     make_archive(str(root / package_name), "zip", package_dir)
 
 
+async def publish_package(package_path: Path, target: str):
+    dotenv.load_dotenv(root / "service" / "web" / ".env.local")
+    service_url = os.environ["TEST_SERVICE_URL"]
+    if target == "production":
+        service_url = "https://api.interstice.cloud"
+    service_token = os.environ["INTERSTICE_INFRA_TOKEN"]
+    headers = {"Authorization": f"Bearer {service_token}"}
+
+    archive_data = package_path.read_bytes()
+    async with aiohttp.ClientSession(service_url, headers=headers) as session:
+        print("Uploading package to", service_url)
+        async with session.put(f"/plugin/upload/{version}", data=archive_data) as response:
+            if response.status != 200:
+                raise RuntimeError(
+                    f"Failed to upload package: {response.status}", await response.text()
+                )
+            uploaded = await response.json()
+            for key, value in uploaded.items():
+                print(f"{key}: {value}")
+
+
 if __name__ == "__main__":
-    print("Building package", root / package_name)
-    build_package()
+    cmd = sys.argv[1] if len(sys.argv) > 1 else "build"
+
+    if cmd == "build":
+        print("Building package", root / package_name)
+        build_package()
+
+    elif cmd == "publish":
+        target = sys.argv[2] if len(sys.argv) > 2 else "production"
+        package = root / f"{package_name}.zip"
+        print("Publishing package", str(package))
+        asyncio.run(publish_package(package, target))

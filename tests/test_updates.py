@@ -8,9 +8,6 @@ from ai_diffusion.util import ZipFile
 from ai_diffusion.updates import AutoUpdate, UpdateState
 from .conftest import has_local_cloud
 
-service_url = os.environ["TEST_SERVICE_URL"]
-service_token = os.environ["INTERSTICE_INFRA_TOKEN"]
-
 
 class SignalObserver:
     def __init__(self, signal: pyqtBoundSignal):
@@ -24,7 +21,8 @@ class SignalObserver:
         self.events = []
 
 
-def http_session():
+def http_session(service_url: str):
+    service_token = os.environ["INTERSTICE_INFRA_TOKEN"]
     headers = {"Authorization": f"Bearer {service_token}"}
     return ClientSession(service_url, headers=headers)
 
@@ -36,7 +34,8 @@ def test_auto_update(qtapp, tmp_path: Path):
 
 
 async def run_auto_update_test(tmp_path: Path):
-    async with http_session() as session:
+    service_url = os.environ["TEST_SERVICE_URL"]
+    async with http_session(service_url) as session:
         last_version = new_version = "666.6.6"
 
         # Get the latest plugin version (set from previous test)

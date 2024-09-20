@@ -729,7 +729,9 @@ class AboutSettings(SettingsTab):
                 self._check_button.setEnabled(True)
                 self._update_button.setEnabled(True)
             case UpdateState.restart_required:
-                self._update_status.setText(_("Restart required to complete update"))
+                self._latest_version_value.setText(
+                    _("Please restart Krita to complete the update!")
+                )
 
     def _toggle_auto_update(self):
         settings.auto_update = self._update_checkbox.isChecked()

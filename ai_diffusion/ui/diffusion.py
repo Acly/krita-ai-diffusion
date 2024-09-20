@@ -53,9 +53,7 @@ class AutoUpdateWidget(QWidget):
         au = root.auto_update
         match au.state:
             case UpdateState.available:
-                self._update_status.setText(
-                    _("Update") + f" {au.current_version} -> {au.latest_version}"
-                )
+                self._update_status.setText(_("Latest version") + f": {au.latest_version}")
             case UpdateState.downloading:
                 self._update_status.setText(_("Downloading package..."))
                 self._update_button.setEnabled(False)
@@ -67,7 +65,7 @@ class AutoUpdateWidget(QWidget):
                 self._update_error.setText(au.error)
                 self._update_button.setEnabled(True)
             case UpdateState.restart_required:
-                self._update_status.setText(_("Restart required to complete update"))
+                self._update_status.setText(_("Please restart Krita to complete the update!"))
                 self._update_button.setEnabled(False)
 
         self.setVisible(self.is_visible)
@@ -195,6 +193,10 @@ class WelcomeWidget(QWidget):
         self._connection_widget.update_content()
         self._connection_widget.setVisible(not self._update_widget.is_visible)
 
+    @property
+    def requires_update(self):
+        return self._update_widget.is_visible
+
 
 class ImageDiffusionWidget(DockWidget):
     def __init__(self):
@@ -214,6 +216,7 @@ class ImageDiffusionWidget(DockWidget):
         self.setWidget(self._frame)
 
         root.connection.state_changed.connect(self.update_content)
+        root.auto_update.state_changed.connect(self.update_content)
         root.model_created.connect(self.register_model)
 
     def canvasChanged(self, canvas: krita.Canvas):
@@ -227,7 +230,8 @@ class ImageDiffusionWidget(DockWidget):
     def update_content(self):
         model = root.model_for_active_document()
         connection = root.connection
-        if model is None or connection.state is not ConnectionState.connected:
+        requires_update = self._welcome.requires_update
+        if model is None or connection.state is not ConnectionState.connected or requires_update:
             self._frame.setCurrentWidget(self._welcome)
         elif model.workspace is Workspace.generation:
             self._generation.model = model
