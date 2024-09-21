@@ -645,7 +645,7 @@ class AboutSettings(SettingsTab):
 
         self._update_checkbox = QCheckBox(_("Check for updates on startup"), self)
         self._update_checkbox.setChecked(settings.auto_update)
-        self._update_checkbox.stateChanged.connect(self._toggle_auto_update)
+        self._update_checkbox.stateChanged.connect(self.write)
 
         self._check_button = QPushButton(_("Check for Updates"), self)
         self._check_button.setMinimumWidth(font_height * 6)
@@ -733,15 +733,17 @@ class AboutSettings(SettingsTab):
                     _("Please restart Krita to complete the update!")
                 )
 
-    def _toggle_auto_update(self):
-        settings.auto_update = self._update_checkbox.isChecked()
-        settings.save()
-
     def _check_updates(self):
         root.auto_update.check()
 
     def _run_update(self):
         root.auto_update.run()
+
+    def _read(self):
+        self._update_checkbox.setChecked(settings.auto_update)
+
+    def _write(self):
+        settings.auto_update = self._update_checkbox.isChecked()
 
 
 _links_text = """
@@ -783,6 +785,7 @@ class SettingsDialog(QDialog):
         self.diffusion = DiffusionSettings()
         self.interface = InterfaceSettings()
         self.performance = PerformanceSettings()
+        self.about = AboutSettings()
 
         self._stack = QStackedWidget(self)
         self._list = QListWidget(self)
@@ -798,7 +801,7 @@ class SettingsDialog(QDialog):
         create_list_item(_("Diffusion"), self.diffusion)
         create_list_item(_("Interface"), self.interface)
         create_list_item(_("Performance"), self.performance)
-        create_list_item(_("Plugin"), AboutSettings())
+        create_list_item(_("Plugin"), self.about)
 
         self._list.setCurrentRow(0)
         self._list.currentRowChanged.connect(self._change_page)
@@ -842,6 +845,7 @@ class SettingsDialog(QDialog):
         self.diffusion.read()
         self.interface.read()
         self.performance.read()
+        self.about.read()
 
     def restore_defaults(self):
         settings.restore()

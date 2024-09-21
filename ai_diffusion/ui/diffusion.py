@@ -47,9 +47,12 @@ class AutoUpdateWidget(QWidget):
 
         root.auto_update.latest_version_changed.connect(self.update_content)
         root.auto_update.error_changed.connect(self.update_content)
+        settings.changed.connect(self.update_content)
         self.update_content()
 
     def update_content(self):
+        self._update_checkbox.setChecked(settings.auto_update)
+
         au = root.auto_update
         match au.state:
             case UpdateState.available:
@@ -80,6 +83,7 @@ class AutoUpdateWidget(QWidget):
     def _toggle_auto_update(self):
         settings.auto_update = self._update_checkbox.isChecked()
         settings.save()
+        root.auto_update.state_changed.emit(root.auto_update.state)
 
     def _run_update(self):
         root.auto_update.run()
