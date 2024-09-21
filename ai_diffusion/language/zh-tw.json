@@ -415,6 +415,24 @@
     "Model architecture mismatch for LoRA '{lora}': Cannot use {lora_arch} LoRA with a {checkpoint_arch} checkpoint.": null,
     "The VAE for this diffusion model is not installed": null,
     "Copy Style": null,
-    "Model": null
+    "Model": null,
+    "Unknown": null,
+    "Check for new versions of the plugin on startup": null,
+    "Installing new version...": null,
+    "Download and Install": null,
+    "A new plugin version is available!": null,
+    "Please restart Krita to complete the update!": null,
+    "Check for updates on startup": null,
+    "Documentation and Support": null,
+    "Enable Automatic Updates": null,
+    "Current version": null,
+    "Plugin": null,
+    "Checking for updates...": null,
+    "Not checked": null,
+    "Downloading package...": null,
+    "Check for Updates": null,
+    "Plugin Information and Updates": null,
+    "Latest version": null,
+    "Update failed": null
   }
 }

@@ -415,6 +415,24 @@
     "packages available": "利用可能なパッケージ",
     "packages require installation": "パッケージのインストールが必要",
     "packages selected": "選択パッケージ",
-    "{count} jobs queued.": "生成待ち {count} 件。"
+    "{count} jobs queued.": "生成待ち {count} 件。",
+    "Unknown": null,
+    "Check for new versions of the plugin on startup": null,
+    "Installing new version...": null,
+    "Download and Install": null,
+    "A new plugin version is available!": null,
+    "Please restart Krita to complete the update!": null,
+    "Check for updates on startup": null,
+    "Documentation and Support": null,
+    "Enable Automatic Updates": null,
+    "Current version": null,
+    "Plugin": null,
+    "Checking for updates...": null,
+    "Not checked": null,
+    "Downloading package...": null,
+    "Check for Updates": null,
+    "Plugin Information and Updates": null,
+    "Latest version": null,
+    "Update failed": null
   }
 }
