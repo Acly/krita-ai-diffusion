@@ -41,7 +41,7 @@ COPY ./ComfyUI /ComfyUI/
 RUN python3 -m pip install -r /ComfyUI/requirements.txt && \
     python3 -m pip install -r /ComfyUI/custom_nodes/comfyui_controlnet_aux/requirements.txt && \
     python3 -m pip install -r /ComfyUI/custom_nodes/comfyui-tooling-nodes/requirements.txt && \
-    python3 -m pip install -r /ComfyUI/custom_nodex/ComfyUI-GGUF/requirements.txt && \
+    python3 -m pip install -r /ComfyUI/custom_nodes/ComfyUI-GGUF/requirements.txt && \
     python3 -m pip install insightface && \
     python3 -m pip cache purge
 
