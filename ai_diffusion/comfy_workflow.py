@@ -726,7 +726,7 @@ class ComfyWorkflow:
     def send_image(self, image: Output):
         if self._run_mode is ComfyRunMode.runtime:
             return self.add("ETN_ReturnImage", 1, images=image)
-        return self.add("ETN_SendImageWebSocket", 1, images=image)
+        return self.add("ETN_SendImageWebSocket", 1, images=image, format="PNG")
 
     def save_image(self, image: Output, prefix: str):
         return self.add("SaveImage", 1, images=image, filename_prefix=prefix)
