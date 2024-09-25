@@ -10,14 +10,15 @@ from PyQt5.QtGui import QImage, QPainter, QColor, QBrush
 import uuid
 
 from . import eventloop, workflow, util
-from .api import ConditioningInput, ControlInput, WorkflowKind, WorkflowInput
-from .api import InpaintMode, InpaintParams, FillMode
+from .api import ConditioningInput, ControlInput, WorkflowKind, WorkflowInput, SamplingInput
+from .api import InpaintMode, InpaintParams, FillMode, ImageInput, CustomWorkflowInput
 from .localization import translate as _
 from .util import clamp, ensure, trim_text, client_logger as log
 from .settings import ApplyBehavior, settings
 from .network import NetworkError
 from .image import Extent, Image, Mask, Bounds, DummyImage
-from .client import ClientMessage, ClientEvent, filter_supported_styles, resolve_arch
+from .client import ClientMessage, ClientEvent, SharedWorkflow
+from .client import filter_supported_styles, resolve_arch
 from .document import Document, KritaDocument
 from .layer import Layer, LayerType, RestoreActiveLayer
 from .pose import Pose
@@ -37,6 +38,7 @@ class Workspace(Enum):
     upscaling = 1
     live = 2
     animation = 3
+    custom = 4
 
 
 class ProgressKind(Enum):
@@ -64,6 +66,7 @@ class Model(QObject, ObservableProperties):
     fixed_seed = Property(False, persist=True)
     queue_front = Property(False, persist=True)
     translation_enabled = Property(True, persist=True)
+    custom_workflow = Property("", persist=True)
     inpaint: CustomInpaint
     upscale: "UpscaleWorkspace"
     live: "LiveWorkspace"
@@ -82,6 +85,7 @@ class Model(QObject, ObservableProperties):
     fixed_seed_changed = pyqtSignal(bool)
     queue_front_changed = pyqtSignal(bool)
     translation_enabled_changed = pyqtSignal(bool)
+    custom_workflow_changed = pyqtSignal(str)
     progress_kind_changed = pyqtSignal(ProgressKind)
     progress_changed = pyqtSignal(float)
     error_changed = pyqtSignal(str)
@@ -353,6 +357,27 @@ class Model(QObject, ObservableProperties):
 
         return None
 
+    def generate_custom(self):
+        try:
+            bounds = Bounds(0, 0, *self._doc.extent)
+            workflow = self._connection.workflows[self.custom_workflow]
+            img_input = ImageInput.from_extent(bounds.extent)
+            img_input.initial_image = self._get_current_image(bounds)
+            input = WorkflowInput(
+                WorkflowKind.custom,
+                img_input,
+                sampling=SamplingInput("custom", "custom", 1, 1000, seed=self.seed),
+                custom_workflow=CustomWorkflowInput(workflow, {}),
+            )
+            job_params = JobParams(bounds, self.custom_workflow)
+        except Exception as e:
+            self.report_error(util.log_error(e))
+            return
+
+        self.clear_error()
+        jobs = self.enqueue_jobs(input, JobKind.diffusion, job_params, self.batch_count)
+        eventloop.run(_report_errors(self, jobs))
+
     def _get_current_image(self, bounds: Bounds):
         exclude = None
         if self.workspace is not Workspace.live:
@@ -559,9 +584,9 @@ class Model(QObject, ObservableProperties):
         self.jobs.selection = None
         self.jobs.notify_used(job_id, index)
 
-    def add_control_layer(self, job: Job, result: dict | None):
+    def add_control_layer(self, job: Job, result: dict | SharedWorkflow | None):
         assert job.kind is JobKind.control_layer and job.control
-        if job.control.mode is ControlMode.pose and result is not None:
+        if job.control.mode is ControlMode.pose and isinstance(result, dict):
             pose = Pose.from_open_pose_json(result)
             pose.scale(job.params.bounds.extent)
             return self.layers.create_vector(job.params.prompt, pose.to_svg())

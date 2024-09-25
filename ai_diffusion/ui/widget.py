@@ -691,6 +691,7 @@ class WorkspaceSelectWidget(QToolButton):
         Workspace.upscaling: theme.icon("workspace-upscaling"),
         Workspace.live: theme.icon("workspace-live"),
         Workspace.animation: theme.icon("workspace-animation"),
+        Workspace.custom: theme.icon("workspace-custom"),
     }
 
     _value = Workspace.generation
@@ -703,6 +704,7 @@ class WorkspaceSelectWidget(QToolButton):
         menu.addAction(self._create_action(_("Upscale"), Workspace.upscaling))
         menu.addAction(self._create_action(_("Live"), Workspace.live))
         menu.addAction(self._create_action(_("Animation"), Workspace.animation))
+        menu.addAction(self._create_action(_("Graph"), Workspace.custom))
 
         self.setToolButtonStyle(Qt.ToolButtonStyle.ToolButtonIconOnly)
         self.setMenu(menu)

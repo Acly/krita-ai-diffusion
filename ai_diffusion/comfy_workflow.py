@@ -22,26 +22,43 @@ class Output(NamedTuple):
 Output2 = Tuple[Output, Output]
 Output3 = Tuple[Output, Output, Output]
 Output4 = Tuple[Output, Output, Output, Output]
+Input = int | float | bool | str | Output
+
+
+class ComfyNode(NamedTuple):
+    id: int
+    type: str
+    inputs: dict[str, Input]
+
+    def output(self, index=0) -> Output:
+        return Output(int(self.id), index)
 
 
 class ComfyWorkflow:
     """Builder for workflows which can be sent to the ComfyUI prompt API."""
 
-    root: dict[str, dict]
-    images: dict[str, Image]
-    node_count = 0
-    sample_count = 0
-
-    _cache: dict[str, Output | Output2 | Output3 | Output4]
-    _nodes_required_inputs: dict[str, dict[str, Any]]
-    _run_mode: ComfyRunMode
-
     def __init__(self, node_inputs: dict | None = None, run_mode=ComfyRunMode.server):
-        self.root = {}
-        self.images = {}
-        self._cache = {}
-        self._nodes_required_inputs = node_inputs or {}
-        self._run_mode = run_mode
+        self.root: dict[str, dict] = {}
+        self.images: dict[str, Image] = {}
+        self.node_count = 0
+        self.sample_count = 0
+        self._cache: dict[str, Output | Output2 | Output3 | Output4] = {}
+        self._nodes_required_inputs: dict[str, dict[str, Any]] = node_inputs or {}
+        self._run_mode: ComfyRunMode = run_mode
+
+    @staticmethod
+    def from_dict(existing: dict):
+        w = ComfyWorkflow()
+        node_map: dict[str, str] = {}
+        for k, v in existing.items():
+            node_map[k] = str(w.node_count)
+            w.root[str(w.node_count)] = v
+            w.node_count += 1
+        for node in w.root.values():
+            for e in node["inputs"].values():
+                if isinstance(e, list):
+                    e[0] = node_map.get(e[0], e[0])
+        return w
 
     def add_default_values(self, node_name: str, args: dict):
         if node_inputs := self._nodes_required_inputs.get(node_name, None):
@@ -102,10 +119,31 @@ class ComfyWorkflow:
             self._cache[key] = result
         return result
 
+    def remove(self, node_id: int):
+        del self.root[str(node_id)]
+
+    def node(self, node_id: int):
+        inputs = self.root[str(node_id)]["inputs"]
+        inputs = {
+            k: Output(int(v[0]), v[1]) if isinstance(v, list) else v for k, v in inputs.items()
+        }
+        return ComfyNode(node_id, self.root[str(node_id)]["class_type"], inputs)
+
+    def copy(self, node: ComfyNode):
+        return self.add(node.type, 1, **node.inputs)
+
+    def __iter__(self):
+        return iter(self.node(int(k)) for k in self.root.keys())
+
+    def __contains__(self, node: ComfyNode):
+        return any(n == node for n in self)
+
     def _add_image(self, image: Image):
         id = str(uuid4())
         self.images[id] = image
         return id
+
+    # Nodes
 
     def ksampler(
         self,

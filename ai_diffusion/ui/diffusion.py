@@ -13,7 +13,7 @@ from ..updates import UpdateState
 from ..root import root
 from ..localization import translate as _
 from . import theme
-from .generation import GenerationWidget
+from .generation import GenerationWidget, CustomWorkflowWidget
 from .upscale import UpscaleWidget
 from .live import LiveWidget
 from .animation import AnimationWidget
@@ -211,12 +211,14 @@ class ImageDiffusionWidget(DockWidget):
         self._upscaling = UpscaleWidget()
         self._animation = AnimationWidget()
         self._live = LiveWidget()
+        self._custom = CustomWorkflowWidget()
         self._frame = QStackedWidget(self)
         self._frame.addWidget(self._welcome)
         self._frame.addWidget(self._generation)
         self._frame.addWidget(self._upscaling)
         self._frame.addWidget(self._live)
         self._frame.addWidget(self._animation)
+        self._frame.addWidget(self._custom)
         self.setWidget(self._frame)
 
         root.connection.state_changed.connect(self.update_content)
@@ -249,3 +251,6 @@ class ImageDiffusionWidget(DockWidget):
         elif model.workspace is Workspace.animation:
             self._animation.model = model
             self._frame.setCurrentWidget(self._animation)
+        elif model.workspace is Workspace.custom:
+            self._custom.model = model
+            self._frame.setCurrentWidget(self._custom)

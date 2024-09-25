@@ -519,6 +519,14 @@ class CustomInpaintWidget(QWidget):
             self._model.inpaint.context = data
 
 
+def _create_error_label(parent: QWidget) -> QLabel:
+    label = QLabel(parent)
+    label.setStyleSheet("font-weight: bold; color: red;")
+    label.setWordWrap(True)
+    label.setVisible(False)
+    return label
+
+
 class GenerationWidget(QWidget):
     _model: Model
     _model_bindings: list[QMetaObject.Connection | Binding]
@@ -597,10 +605,7 @@ class GenerationWidget(QWidget):
         self.progress_bar.setFixedHeight(6)
         layout.addWidget(self.progress_bar)
 
-        self.error_text = QLabel(self)
-        self.error_text.setStyleSheet("font-weight: bold; color: red;")
-        self.error_text.setWordWrap(True)
-        self.error_text.setVisible(False)
+        self.error_text = _create_error_label(self)
         layout.addWidget(self.error_text)
 
         self.history = HistoryWidget(self)
@@ -788,3 +793,60 @@ _region_mask_button_icons = {
     True: theme.icon("region-alpha-active"),
     False: theme.icon("region-alpha"),
 }
+
+
+class CustomWorkflowWidget(QWidget):
+    def __init__(self):
+        super().__init__()
+        self._model = root.active_model
+        self._model_bindings: list[QMetaObject.Connection | Binding] = []
+
+        self._workspace_select = WorkspaceSelectWidget(self)
+        self._workflow_select = QComboBox(self)
+
+        self._generate_button = GenerateButton(JobKind.diffusion, self)
+        self._error_text = _create_error_label(self)
+
+        layout = QVBoxLayout()
+        header_layout = QHBoxLayout()
+        header_layout.addWidget(self._workspace_select)
+        header_layout.addWidget(self._workflow_select)
+        layout.addLayout(header_layout)
+        layout.addWidget(self._generate_button)
+        layout.addWidget(self._error_text)
+        layout.addStretch()
+        self.setLayout(layout)
+
+    def _update_workflows(self):
+        workflows = root.connection.workflows
+        current_items = [
+            self._workflow_select.itemText(i) for i in range(self._workflow_select.count())
+        ]
+        for key in workflows:
+            if key not in current_items:
+                self._workflow_select.addItem(key, key)
+        for item in current_items:
+            if item not in workflows:
+                self._workflow_select.removeItem(self._workflow_select.findText(item))
+
+    def _update_current_workflow(self):
+        pass
+
+    @property
+    def model(self):
+        return self._model
+
+    @model.setter
+    def model(self, model: Model):
+        if self._model != model:
+            Binding.disconnect_all(self._model_bindings)
+            self._model = model
+            self._model_bindings = [
+                bind(model, "workspace", self._workspace_select, "value", Bind.one_way),
+                bind_combo(model, "custom_workflow", self._workflow_select),
+                root.connection.workflow_published.connect(self._update_workflows),
+                model.custom_workflow_changed.connect(self._update_current_workflow),
+                model.error_changed.connect(self._error_text.setText),
+                model.has_error_changed.connect(self._error_text.setVisible),
+                self._generate_button.clicked.connect(model.generate_custom),
+            ]

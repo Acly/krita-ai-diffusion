@@ -1,17 +1,20 @@
 import itertools
 import pytest
 import dotenv
+import json
 import os
 from datetime import datetime
 from pathlib import Path
 from typing import Any
+from PyQt5.QtCore import Qt
 
 from ai_diffusion import workflow
-from ai_diffusion.api import LoraInput, WorkflowKind, WorkflowInput, ControlInput
-from ai_diffusion.api import InpaintMode, FillMode, ConditioningInput, RegionInput
+from ai_diffusion.api import LoraInput, WorkflowKind, WorkflowInput, ControlInput, RegionInput
+from ai_diffusion.api import InpaintMode, FillMode, ConditioningInput, CustomWorkflowInput
 from ai_diffusion.client import ClientModels, CheckpointInfo
 from ai_diffusion.comfy_client import ComfyClient
 from ai_diffusion.cloud_client import CloudClient
+from ai_diffusion.comfy_workflow import ComfyWorkflow, ComfyNode, Output
 from ai_diffusion.files import FileLibrary, FileCollection, File, FileSource
 from ai_diffusion.resources import ControlMode
 from ai_diffusion.settings import PerformanceSettings
@@ -538,7 +541,7 @@ def test_create_open_pose_vector(qtapp, client: Client):
             if not job_id:
                 job_id = await client.enqueue(job)
             if msg.event is ClientEvent.finished and msg.job_id == job_id:
-                assert msg.result is not None
+                assert isinstance(msg.result, dict)
                 result = Pose.from_open_pose_json(msg.result).to_svg()
                 (result_dir / image_name).write_text(result)
                 return
@@ -747,6 +750,39 @@ def test_translation(qtapp, client):
     cond = ConditioningInput("rote (kerze) auf einer fensterbank", style="photo", language="de")
     job = create(WorkflowKind.generate, client, canvas=Extent(512, 512), cond=cond)
     run_and_save(qtapp, client, job, "test_translation")
+
+
+def test_initialize_workflow():
+    w = ComfyWorkflow.from_dict(
+        {
+            "4": {"class_type": "A", "inputs": {"int": 4, "float": 1.2, "string": "mouse"}},
+            "zak": {"class_type": "C", "inputs": {"in": ["9", 1]}},
+            "9": {"class_type": "B", "inputs": {"in": ["4", 0]}},
+        }
+    )
+    assert w.node(0) == ComfyNode(0, "A", {"int": 4, "float": 1.2, "string": "mouse"})
+    assert w.node(1) == ComfyNode(1, "C", {"in": Output(2, 1)})
+    assert w.node(2) == ComfyNode(2, "B", {"in": Output(0, 0)})
+
+
+def test_expand_workflow():
+    ext = ComfyWorkflow()
+    in_img, width, height = ext.add("ETN_KritaCanvas", 3)
+    scaled = ext.add("ImageScale", 1, image=in_img, width=width, height=height)
+    ext.add("ETN_KritaOutput", 1, images=scaled)
+
+    input = CustomWorkflowInput(workflow=ext.root, params={})
+    image = Image.create(Extent(4, 4), Qt.GlobalColor.white)
+
+    w = ComfyWorkflow()
+    w = workflow.expand_custom(w, input, image)
+    expected = [
+        ComfyNode(1, "ETN_LoadImageBase64", {"image": image.to_base64()}),
+        ComfyNode(2, "ImageScale", {"image": Output(1, 0), "width": 4, "height": 4}),
+        ComfyNode(3, "ETN_KritaOutput", {"images": Output(2, 0)}),
+    ]
+    for node in expected:
+        assert node in w, f"Node {node} not found in\n{json.dumps(w.root, indent=2)}"
 
 
 inpaint_benchmark = {

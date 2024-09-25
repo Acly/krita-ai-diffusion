@@ -25,6 +25,7 @@ class ClientEvent(Enum):
     disconnected = 5
     queued = 6
     upload = 7
+    published = 8
 
 
 class ClientMessage(NamedTuple):
@@ -32,7 +33,7 @@ class ClientMessage(NamedTuple):
     job_id: str = ""
     progress: float = 0
     images: ImageCollection | None = None
-    result: dict | None = None
+    result: dict | SharedWorkflow | None = None
     error: str | None = None
 
 
@@ -66,6 +67,11 @@ class DeviceInfo(NamedTuple):
         except Exception as e:
             log.error(f"Could not parse device info {data}: {str(e)}")
             return DeviceInfo("cpu", "unknown", 0)
+
+
+class SharedWorkflow(NamedTuple):
+    publisher: str
+    workflow: dict
 
 
 class CheckpointInfo(NamedTuple):

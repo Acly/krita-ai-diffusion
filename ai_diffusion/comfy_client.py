@@ -11,7 +11,7 @@ from typing import NamedTuple, Optional, Sequence
 
 from .api import WorkflowInput
 from .client import Client, CheckpointInfo, ClientMessage, ClientEvent, DeviceInfo, ClientModels
-from .client import TranslationPackage, filter_supported_styles, loras_to_upload
+from .client import SharedWorkflow, TranslationPackage, filter_supported_styles, loras_to_upload
 from .files import FileFormat
 from .image import Image, ImageCollection
 from .network import RequestManager, NetworkError
@@ -87,16 +87,18 @@ class ComfyClient(Client):
 
     default_url = "http://127.0.0.1:8188"
 
-    _requests = RequestManager()
-    _id: str
-    _messages: asyncio.Queue[ClientMessage]
-    _queue: asyncio.Queue[JobInfo]
-    _jobs: deque[JobInfo]
-    _active: Optional[JobInfo] = None
-    _job_runner: asyncio.Task
-    _websocket_listener: asyncio.Task
-    _supported_archs: list[Arch]
-    _supported_languages: list[TranslationPackage]
+    def __init__(self, url):
+        self.url = url
+        self.models = ClientModels()
+        self._requests = RequestManager()
+        self._id = str(uuid.uuid4())
+        self._active: Optional[JobInfo] = None
+        self._supported_archs: list[Arch] = []
+        self._supported_languages: list[TranslationPackage] = []
+        self._messages = asyncio.Queue()
+        self._queue = asyncio.Queue()
+        self._jobs = deque()
+        self._is_connected = False
 
     @staticmethod
     async def connect(url=default_url, access_token=""):
@@ -175,15 +177,6 @@ class ComfyClient(Client):
         _ensure_supported_style(client)
         return client
 
-    def __init__(self, url):
-        self.url = url
-        self.models = ClientModels()
-        self._id = str(uuid.uuid4())
-        self._messages = asyncio.Queue()
-        self._queue = asyncio.Queue()
-        self._jobs = deque()
-        self._is_connected = False
-
     async def _get(self, op: str):
         return await self._requests.get(f"{self.url}/{op}")
 
@@ -237,6 +230,7 @@ class ComfyClient(Client):
             f"{url}/ws?clientId={self._id}", max_size=2**30, read_limit=2**30, ping_timeout=60
         ):
             try:
+                await self._subscribe_workflows()
                 await self._listen_websocket(websocket)
             except websockets_exceptions.ConnectionClosedError as e:
                 log.warning(f"Websocket connection closed: {str(e)}")
@@ -322,7 +316,12 @@ class ComfyClient(Client):
                         traceback = msg["data"].get("traceback", "no traceback")
                         log.error(f"Job {job} failed: {error}\n{traceback}")
                         self._clear_job(job.remote_id)
-                        await self._report(ClientEvent.error, job.local_id, 0, error=error)
+                        await self._report(ClientEvent.error, job.local_id, error=error)
+
+                if msg["type"] == "etn_workflow_published":
+                    name = f"{msg['data']['publisher']['name']} ({msg['data']['publisher']['id']})"
+                    workflow = SharedWorkflow(name, msg["data"]["workflow"])
+                    await self._report(ClientEvent.published, "", result=workflow)
 
     async def listen(self):
         self._is_connected = True
@@ -358,6 +357,7 @@ class ComfyClient(Client):
                 self._job_runner,
                 self._websocket_listener,
                 self._report(ClientEvent.disconnected, ""),
+                self._unsubscribe_workflows(),
             )
 
     async def try_inspect(self, folder_name: str):
@@ -430,6 +430,18 @@ class ComfyClient(Client):
         except NetworkError as e:
             log.error(f"Could not translate text: {str(e)}")
             return text
+
+    async def _subscribe_workflows(self):
+        try:
+            await self._post("api/etn/workflow/subscribe", {"client_id": self._id})
+        except Exception as e:
+            log.error(f"Couldn't subscribe to shared workflows: {str(e)}")
+
+    async def _unsubscribe_workflows(self):
+        try:
+            await self._post("api/etn/workflow/unsubscribe", {"client_id": self._id})
+        except Exception as e:
+            log.error(f"Couldn't unsubscribe from shared workflows: {str(e)}")
 
     def supports_arch(self, arch: Arch):
         return arch in self._supported_archs

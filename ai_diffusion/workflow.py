@@ -9,7 +9,7 @@ import random
 from . import resolution, resources
 from .api import ControlInput, ImageInput, CheckpointInput, SamplingInput, WorkflowInput, LoraInput
 from .api import ExtentInput, InpaintMode, InpaintParams, FillMode, ConditioningInput, WorkflowKind
-from .api import RegionInput
+from .api import RegionInput, CustomWorkflowInput
 from .image import Bounds, Extent, Image, Mask, Point, multiple_of
 from .client import ClientModels, ModelDict
 from .files import FileLibrary, FileFormat
@@ -18,7 +18,7 @@ from .resolution import ScaledExtent, ScaleMode, TileLayout, get_inpaint_referen
 from .resources import ControlMode, Arch, UpscalerName, ResourceKind, ResourceId
 from .settings import PerformanceSettings
 from .text import merge_prompt, extract_loras
-from .comfy_workflow import ComfyWorkflow, ComfyRunMode, Output
+from .comfy_workflow import ComfyWorkflow, ComfyRunMode, Input, Output, ComfyNode
 from .localization import translate as _
 from .settings import settings
 from .util import ensure, median_or_zero, unique, client_logger as log
@@ -1043,6 +1043,33 @@ def upscale_tiled(
     return w
 
 
+def expand_custom(w: ComfyWorkflow, input: CustomWorkflowInput, image: Image):
+    custom = ComfyWorkflow.from_dict(input.workflow)
+    nodes: dict[int, int] = {}  # map old node IDs to new node IDs
+    outputs: dict[Output, Input] = {}
+
+    def map_input(input):
+        if isinstance(input, Output):
+            if mapped := outputs.get(input):
+                return mapped
+            else:
+                return Output(nodes[input.node], input.output)
+        return input
+
+    for node in custom:
+        match node.type:
+            case "ETN_KritaCanvas":
+                outputs[node.output(0)] = w.load_image(image)
+                outputs[node.output(1)] = image.width
+                outputs[node.output(2)] = image.height
+            case _:
+                mapped_inputs = {k: map_input(v) for k, v in node.inputs.items()}
+                mapped = ComfyNode(node.id, node.type, mapped_inputs)
+                nodes[node.id] = w.copy(mapped).node
+
+    return w
+
+
 ###################################################################################################
 
 
@@ -1258,6 +1285,8 @@ def create(i: WorkflowInput, models: ClientModels, comfy_mode=ComfyRunMode.serve
             bounds=i.inpaint.target_bounds if i.inpaint else None,
             seed=i.sampling.seed if i.sampling else -1,
         )
+    elif i.kind is WorkflowKind.custom:
+        return expand_custom(workflow, ensure(i.custom_workflow), i.image)
     else:
         raise ValueError(f"Unsupported workflow kind: {i.kind}")
 

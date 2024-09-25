@@ -4,7 +4,7 @@ from PyQt5.QtCore import QObject, pyqtSignal, QUrl
 from PyQt5.QtGui import QDesktopServices
 import asyncio
 
-from .client import Client, ClientMessage, ClientEvent, DeviceInfo
+from .client import Client, ClientMessage, ClientEvent, DeviceInfo, SharedWorkflow
 from .comfy_client import ComfyClient
 from .cloud_client import CloudClient
 from .network import NetworkError
@@ -36,12 +36,16 @@ class Connection(QObject, ObservableProperties):
     error_changed = pyqtSignal(str)
     models_changed = pyqtSignal()
     message_received = pyqtSignal(ClientMessage)
-
-    _client: Client | None = None
-    _task: asyncio.Task | None = None
+    workflow_published = pyqtSignal(str)
 
     def __init__(self):
         super().__init__()
+
+        self._client: Client | None = None
+        self._task: asyncio.Task | None = None
+        self._workflows: dict[str, dict] = {}
+        self._temporary_disconnect = False
+
         settings.changed.connect(self._handle_settings_changed)
         self._update_state()
 
@@ -151,26 +155,20 @@ class Connection(QObject, ObservableProperties):
         if client := self.client_if_connected:
             return client.user
 
+    @property
+    def workflows(self):
+        return self._workflows
+
     async def _handle_messages(self):
         client = self._client
-        temporary_disconnect = False
+        self._temporary_disconnect = False
         assert client is not None
 
         try:
             async with client:
                 async for msg in client.listen():
                     try:
-                        if msg.event is ClientEvent.error and not msg.job_id:
-                            self.error = _("Error communicating with server: ") + str(msg.error)
-                        elif msg.event is ClientEvent.disconnected:
-                            temporary_disconnect = True
-                            self.error = _("Disconnected from server, trying to reconnect...")
-                        elif msg.event is ClientEvent.connected:
-                            if temporary_disconnect:
-                                temporary_disconnect = False
-                                self.error = ""
-                        else:
-                            self.message_received.emit(msg)
+                        self._handle_message(msg)
                     except asyncio.CancelledError:
                         break
                     except Exception as e:
@@ -178,6 +176,24 @@ class Connection(QObject, ObservableProperties):
                         self.error = _("Error handling server message: ") + str(e)
         except asyncio.CancelledError:
             pass  # shutdown
+
+    def _handle_message(self, msg: ClientMessage):
+        match msg:
+            case (ClientEvent.error, "", *_):
+                self.error = _("Error communicating with server: ") + str(msg.error)
+            case (ClientEvent.disconnected, *_):
+                self._temporary_disconnect = True
+                self.error = _("Disconnected from server, trying to reconnect...")
+            case (ClientEvent.connected, *_):
+                if self._temporary_disconnect:
+                    self._temporary_disconnect = False
+                    self.error = ""
+            case (ClientEvent.published, *_):
+                assert isinstance(msg.result, SharedWorkflow)
+                self._workflows[msg.result.publisher] = msg.result.workflow
+                self.workflow_published.emit(msg.result.publisher)
+            case _:
+                self.message_received.emit(msg)
 
     def _update_state(self):
         if (
