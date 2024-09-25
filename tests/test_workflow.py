@@ -761,8 +761,8 @@ def test_initialize_workflow():
         }
     )
     assert w.node(0) == ComfyNode(0, "A", {"int": 4, "float": 1.2, "string": "mouse"})
-    assert w.node(1) == ComfyNode(1, "C", {"in": Output(2, 1)})
-    assert w.node(2) == ComfyNode(2, "B", {"in": Output(0, 0)})
+    assert w.node(1) == ComfyNode(1, "B", {"in": Output(0, 0)})
+    assert w.node(2) == ComfyNode(2, "C", {"in": Output(1, 1)})
 
 
 def test_expand_workflow():

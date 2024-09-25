@@ -519,7 +519,46 @@ class CustomInpaintWidget(QWidget):
             self._model.inpaint.context = data
 
 
-def _create_error_label(parent: QWidget) -> QLabel:
+class ProgressBar(QProgressBar):
+    def __init__(self, parent: QWidget):
+        super().__init__(parent)
+        self._model = root.active_model
+        self._model_bindings: list[QMetaObject.Connection] = []
+        self.setMinimum(0)
+        self.setMaximum(1000)
+        self.setTextVisible(False)
+        self.setFixedHeight(6)
+
+    @property
+    def model(self):
+        return self._model
+
+    @model.setter
+    def model(self, model: Model):
+        if self._model != model:
+            Binding.disconnect_all(self._model_bindings)
+            self._model = model
+            self._model_bindings = [
+                self._model.progress_changed.connect(self._update_progress),
+                self._model.progress_kind_changed.connect(self._update_progress_kind),
+            ]
+
+    def _update_progress_kind(self):
+        palette = self.palette()
+        if self._model.progress_kind is ProgressKind.upload:
+            palette.setColor(QPalette.ColorRole.Highlight, QColor(theme.progress_alt))
+        self.setPalette(palette)
+
+    def _update_progress(self):
+        if self._model.progress >= 0:
+            self.setValue(int(self._model.progress * 1000))
+        else:
+            if self.value() >= 100:
+                self.reset()
+            self.setValue(min(99, self.value() + 2))
+
+
+def _create_error_label(parent: QWidget):
     label = QLabel(parent)
     label.setStyleSheet("font-weight: bold; color: red;")
     label.setWordWrap(True)
@@ -598,11 +637,7 @@ class GenerationWidget(QWidget):
         actions_layout.addWidget(self.queue_button)
         layout.addLayout(actions_layout)
 
-        self.progress_bar = QProgressBar(self)
-        self.progress_bar.setMinimum(0)
-        self.progress_bar.setMaximum(1000)
-        self.progress_bar.setTextVisible(False)
-        self.progress_bar.setFixedHeight(6)
+        self.progress_bar = ProgressBar(self)
         layout.addWidget(self.progress_bar)
 
         self.error_text = _create_error_label(self)
@@ -634,8 +669,6 @@ class GenerationWidget(QWidget):
                 model.document.layers.active_changed.connect(self.update_generate_button),
                 model.regions.active_changed.connect(self.update_generate_button),
                 model.region_only_changed.connect(self.update_generate_button),
-                model.progress_changed.connect(self.update_progress),
-                model.progress_kind_changed.connect(self.update_progress_kind),
                 model.error_changed.connect(self.error_text.setText),
                 model.has_error_changed.connect(self.error_text.setVisible),
                 self.add_control_button.clicked.connect(model.regions.add_control),
@@ -647,23 +680,10 @@ class GenerationWidget(QWidget):
             self.custom_inpaint.model = model
             self.generate_button.model = model
             self.queue_button.model = model
+            self.progress_bar.model = model
             self.strength_slider.model = model
             self.history.model_ = model
             self.update_generate_button()
-
-    def update_progress_kind(self):
-        palette = self.palette()
-        if self.model.progress_kind is ProgressKind.upload:
-            palette.setColor(QPalette.ColorRole.Highlight, QColor(theme.progress_alt))
-        self.progress_bar.setPalette(palette)
-
-    def update_progress(self):
-        if self.model.progress >= 0:
-            self.progress_bar.setValue(int(self.model.progress * 1000))
-        else:
-            if self.progress_bar.value() >= 100:
-                self.progress_bar.reset()
-            self.progress_bar.setValue(min(99, self.progress_bar.value() + 2))
 
     def apply_result(self, item: QListWidgetItem):
         job_id, index = self.history.item_info(item)
@@ -805,17 +825,31 @@ class CustomWorkflowWidget(QWidget):
         self._workflow_select = QComboBox(self)
 
         self._generate_button = GenerateButton(JobKind.diffusion, self)
+        self._queue_button = QueueButton(parent=self)
+        self._queue_button.setFixedHeight(self._generate_button.height() - 2)
+        self._progress_bar = ProgressBar(self)
         self._error_text = _create_error_label(self)
+
+        self._history = HistoryWidget(self)
+        self._history.item_activated.connect(self.apply_result)
 
         layout = QVBoxLayout()
         header_layout = QHBoxLayout()
         header_layout.addWidget(self._workspace_select)
         header_layout.addWidget(self._workflow_select)
         layout.addLayout(header_layout)
-        layout.addWidget(self._generate_button)
+        actions_layout = QHBoxLayout()
+        actions_layout.addWidget(self._generate_button)
+        actions_layout.addWidget(self._queue_button)
+        layout.addLayout(actions_layout)
+        layout.addWidget(self._progress_bar)
         layout.addWidget(self._error_text)
-        layout.addStretch()
+        layout.addWidget(self._history)
         self.setLayout(layout)
+
+        self._update_workflows()
+        self._update_current_workflow()
+        root.connection.workflow_published.connect(self._update_workflows)
 
     def _update_workflows(self):
         workflows = root.connection.workflows
@@ -844,9 +878,15 @@ class CustomWorkflowWidget(QWidget):
             self._model_bindings = [
                 bind(model, "workspace", self._workspace_select, "value", Bind.one_way),
                 bind_combo(model, "custom_workflow", self._workflow_select),
-                root.connection.workflow_published.connect(self._update_workflows),
                 model.custom_workflow_changed.connect(self._update_current_workflow),
                 model.error_changed.connect(self._error_text.setText),
                 model.has_error_changed.connect(self._error_text.setVisible),
                 self._generate_button.clicked.connect(model.generate_custom),
             ]
+            self._queue_button.model = model
+            self._progress_bar.model = model
+            self._history.model_ = model
+
+    def apply_result(self, item: QListWidgetItem):
+        job_id, index = self._history.item_info(item)
+        self.model.apply_generated_result(job_id, index)

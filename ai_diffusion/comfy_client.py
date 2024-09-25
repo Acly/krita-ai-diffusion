@@ -230,7 +230,6 @@ class ComfyClient(Client):
             f"{url}/ws?clientId={self._id}", max_size=2**30, read_limit=2**30, ping_timeout=60
         ):
             try:
-                await self._subscribe_workflows()
                 await self._listen_websocket(websocket)
             except websockets_exceptions.ConnectionClosedError as e:
                 log.warning(f"Websocket connection closed: {str(e)}")
@@ -264,6 +263,7 @@ class ComfyClient(Client):
 
                 if msg["type"] == "status":
                     await self._report(ClientEvent.connected, "")
+                    await self._subscribe_workflows()
 
                 if msg["type"] == "execution_start":
                     id = msg["data"]["prompt_id"]

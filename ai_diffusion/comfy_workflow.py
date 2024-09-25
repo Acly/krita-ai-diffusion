@@ -50,14 +50,20 @@ class ComfyWorkflow:
     def from_dict(existing: dict):
         w = ComfyWorkflow()
         node_map: dict[str, str] = {}
-        for k, v in existing.items():
-            node_map[k] = str(w.node_count)
-            w.root[str(w.node_count)] = v
+        queue = list(existing.keys())
+        while queue:
+            id = queue.pop(0)
+            node = existing[id]
+            edges = [e for e in node["inputs"].values() if isinstance(e, list)]
+            if any(e[0] not in node_map for e in edges):
+                queue.append(id)  # requeue node if an input is not yet mapped
+                continue
+
+            for e in edges:
+                e[0] = node_map[e[0]]
+            node_map[id] = str(w.node_count)
+            w.root[str(w.node_count)] = node
             w.node_count += 1
-        for node in w.root.values():
-            for e in node["inputs"].values():
-                if isinstance(e, list):
-                    e[0] = node_map.get(e[0], e[0])
         return w
 
     def add_default_values(self, node_name: str, args: dict):
