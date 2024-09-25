@@ -230,6 +230,7 @@ class ComfyClient(Client):
             f"{url}/ws?clientId={self._id}", max_size=2**30, read_limit=2**30, ping_timeout=60
         ):
             try:
+                await self._subscribe_workflows()
                 await self._listen_websocket(websocket)
             except websockets_exceptions.ConnectionClosedError as e:
                 log.warning(f"Websocket connection closed: {str(e)}")
@@ -263,7 +264,6 @@ class ComfyClient(Client):
 
                 if msg["type"] == "status":
                     await self._report(ClientEvent.connected, "")
-                    await self._subscribe_workflows()
 
                 if msg["type"] == "execution_start":
                     id = msg["data"]["prompt_id"]
@@ -281,12 +281,18 @@ class ComfyClient(Client):
 
                 if msg["type"] == "executing" and msg["data"]["node"] is None:
                     job_id = msg["data"]["prompt_id"]
-                    if self._clear_job(job_id):
+                    if local_id := self._clear_job(job_id):
                         # Usually we don't get here because finished, interrupted or error is sent first.
                         # But it may happen if the entire execution is cached and no images are sent.
                         if len(images) == 0:
                             images = last_images
-                        await self._report(ClientEvent.finished, job_id, 1, images=images)
+                        if len(images) == 0:
+                            # Still no images. Potential scenario: execution cached, but previous
+                            # generation happened before the client was connected.
+                            err = "No new images were generated because the inputs did not change."
+                            await self._report(ClientEvent.error, local_id, error=err)
+                        else:
+                            await self._report(ClientEvent.finished, local_id, 1, images=images)
 
                 elif msg["type"] in ("execution_cached", "executing", "progress"):
                     if self._active is not None and progress is not None:
@@ -302,7 +308,7 @@ class ComfyClient(Client):
                     pose_json = _extract_pose_json(msg)
                     if job and pose_json:
                         result = pose_json
-                    elif job and _validate_executed_node(msg, len(images)):
+                    elif job is not None and _validate_executed_node(msg, len(images)):
                         self._clear_job(job.remote_id)
                         last_images = images
                         await self._report(
@@ -513,9 +519,10 @@ class ComfyClient(Client):
 
     def _clear_job(self, job_remote_id: str | asyncio.Future | None):
         if self._active is not None and self._active.remote_id == job_remote_id:
+            result = self._active.local_id
             self._active = None
-            return True
-        return False
+            return result
+        return None
 
     def _check_workload(self, sdver: Arch) -> list[MissingResource]:
         models = self.models
@@ -731,8 +738,11 @@ def _validate_executed_node(msg: dict, image_count: int):
         images = output["images"]
         if len(images) != image_count:  # not critical
             log.warning(f"Received number of images does not match: {len(images)} != {image_count}")
-        if len(images) > 0 and "source" in images[0] and images[0]["type"] == "output":
+        if image_count == 0 or len(images) == 0:
+            log.warning(f"Received no images (execution cached?)")
+            return False
+        if "source" in images[0] and images[0]["type"] == "output":
             return True
     except Exception as e:
         log.warning(f"Error processing message, error={str(e)}, msg={msg}")
-        return False
+    return False
