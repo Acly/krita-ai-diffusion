@@ -11,6 +11,7 @@ from PyQt5.QtCore import Qt
 from ai_diffusion import workflow
 from ai_diffusion.api import LoraInput, WorkflowKind, WorkflowInput, ControlInput, RegionInput
 from ai_diffusion.api import InpaintMode, FillMode, ConditioningInput, CustomWorkflowInput
+from ai_diffusion.api import SamplingInput, ImageInput
 from ai_diffusion.client import ClientModels, CheckpointInfo
 from ai_diffusion.comfy_client import ComfyClient
 from ai_diffusion.cloud_client import CloudClient
@@ -752,8 +753,8 @@ def test_translation(qtapp, client):
     run_and_save(qtapp, client, job, "test_translation")
 
 
-def test_initialize_workflow():
-    w = ComfyWorkflow.from_dict(
+def test_import_workflow():
+    w = ComfyWorkflow.import_graph(
         {
             "4": {"class_type": "A", "inputs": {"int": 4, "float": 1.2, "string": "mouse"}},
             "zak": {"class_type": "C", "inputs": {"in": ["9", 1]}},
@@ -767,19 +768,23 @@ def test_initialize_workflow():
 
 def test_expand_workflow():
     ext = ComfyWorkflow()
-    in_img, width, height = ext.add("ETN_KritaCanvas", 3)
+    in_img, width, height, seed = ext.add("ETN_KritaCanvas", 4)
     scaled = ext.add("ImageScale", 1, image=in_img, width=width, height=height)
     ext.add("ETN_KritaOutput", 1, images=scaled)
+    ext.add("SeedEater", 1, seed=seed)
 
     input = CustomWorkflowInput(workflow=ext.root, params={})
-    image = Image.create(Extent(4, 4), Qt.GlobalColor.white)
+    images = ImageInput.from_extent(Extent(4, 4))
+    images.initial_image = Image.create(Extent(4, 4), Qt.GlobalColor.white)
+    sampling = SamplingInput("", "", 1.0, 1000, seed=123)
 
     w = ComfyWorkflow()
-    w = workflow.expand_custom(w, input, image)
+    w = workflow.expand_custom(w, input, images, sampling)
     expected = [
-        ComfyNode(1, "ETN_LoadImageBase64", {"image": image.to_base64()}),
+        ComfyNode(1, "ETN_LoadImageBase64", {"image": images.initial_image.to_base64()}),
         ComfyNode(2, "ImageScale", {"image": Output(1, 0), "width": 4, "height": 4}),
         ComfyNode(3, "ETN_KritaOutput", {"images": Output(2, 0)}),
+        ComfyNode(4, "SeedEater", {"seed": 123}),
     ]
     for node in expected:
         assert node in w, f"Node {node} not found in\n{json.dumps(w.root, indent=2)}"

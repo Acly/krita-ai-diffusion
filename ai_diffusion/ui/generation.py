@@ -217,6 +217,7 @@ class HistoryWidget(QListWidget):
         elif selection:
             item = self._find(selection)
             if item is not None and not item.isSelected():
+                self.clearSelection()
                 item.setSelected(True)
         self.update_apply_button()
 
@@ -875,6 +876,8 @@ class CustomWorkflowWidget(QWidget):
         if self._model != model:
             Binding.disconnect_all(self._model_bindings)
             self._model = model
+            if not model.custom_workflow:
+                model.custom_workflow = self._workflow_select.currentData()
             self._model_bindings = [
                 bind(model, "workspace", self._workspace_select, "value", Bind.one_way),
                 bind_combo(model, "custom_workflow", self._workflow_select),

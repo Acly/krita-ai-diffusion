@@ -1043,7 +1043,9 @@ def upscale_tiled(
     return w
 
 
-def expand_custom(w: ComfyWorkflow, input: CustomWorkflowInput, image: Image):
+def expand_custom(
+    w: ComfyWorkflow, input: CustomWorkflowInput, images: ImageInput, sampling: SamplingInput
+):
     custom = ComfyWorkflow.from_dict(input.workflow)
     nodes: dict[int, int] = {}  # map old node IDs to new node IDs
     outputs: dict[Output, Input] = {}
@@ -1059,9 +1061,13 @@ def expand_custom(w: ComfyWorkflow, input: CustomWorkflowInput, image: Image):
     for node in custom:
         match node.type:
             case "ETN_KritaCanvas":
+                image = ensure(images.initial_image)
                 outputs[node.output(0)] = w.load_image(image)
                 outputs[node.output(1)] = image.width
                 outputs[node.output(2)] = image.height
+                outputs[node.output(3)] = sampling.seed
+            case "ETN_KritaSelection":
+                outputs[node.output(0)] = w.load_mask(ensure(images.hires_mask))
             case _:
                 mapped_inputs = {k: map_input(v) for k, v in node.inputs.items()}
                 mapped = ComfyNode(node.id, node.type, mapped_inputs)
@@ -1286,7 +1292,9 @@ def create(i: WorkflowInput, models: ClientModels, comfy_mode=ComfyRunMode.serve
             seed=i.sampling.seed if i.sampling else -1,
         )
     elif i.kind is WorkflowKind.custom:
-        return expand_custom(workflow, ensure(i.custom_workflow), i.image)
+        return expand_custom(
+            workflow, ensure(i.custom_workflow), ensure(i.images), ensure(i.sampling)
+        )
     else:
         raise ValueError(f"Unsupported workflow kind: {i.kind}")
 

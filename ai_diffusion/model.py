@@ -31,6 +31,7 @@ from .control import ControlLayer, ControlLayerList
 from .region import Region, RegionLink, RootRegion, process_regions, get_region_inpaint_mask
 from .resources import ControlMode
 from .resolution import compute_bounds, compute_relative_bounds
+from .comfy_workflow import ComfyWorkflow
 
 
 class Workspace(Enum):
@@ -359,15 +360,25 @@ class Model(QObject, ObservableProperties):
 
     def generate_custom(self):
         try:
+            workflow_raw = self._connection.workflows[self.custom_workflow]
+            wf = ComfyWorkflow.import_graph(workflow_raw)
             bounds = Bounds(0, 0, *self._doc.extent)
-            workflow = self._connection.workflows[self.custom_workflow]
             img_input = ImageInput.from_extent(bounds.extent)
             img_input.initial_image = self._get_current_image(bounds)
+            seed = self.seed if self.fixed_seed else workflow.generate_seed()
+
+            if next(wf.find(type="ETN_KritaSelection"), None):
+                mask, _ = self._doc.create_mask_from_selection()
+                if mask:
+                    img_input.hires_mask = mask.to_image(bounds.extent)
+                else:
+                    img_input.hires_mask = Mask.transparent(bounds).to_image()
+
             input = WorkflowInput(
                 WorkflowKind.custom,
                 img_input,
-                sampling=SamplingInput("custom", "custom", 1, 1000, seed=self.seed),
-                custom_workflow=CustomWorkflowInput(workflow, {}),
+                sampling=SamplingInput("custom", "custom", 1, 1000, seed=seed),
+                custom_workflow=CustomWorkflowInput(wf.root, {}),
             )
             job_params = JobParams(bounds, self.custom_workflow)
         except Exception as e:

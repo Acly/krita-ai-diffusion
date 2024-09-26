@@ -691,6 +691,10 @@ class Mask:
             assert not self.image.isNull()
 
     @staticmethod
+    def transparent(bounds: Bounds):
+        return Mask(bounds, QByteArray(bytes(bounds.width * bounds.height)))
+
+    @staticmethod
     def rectangle(bounds: Bounds, feather=0):
         # Note: for testing only, where Krita selection is not available
         m = [255 for i in range(bounds.width * bounds.height)]

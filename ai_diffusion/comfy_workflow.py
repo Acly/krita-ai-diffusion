@@ -1,7 +1,8 @@
 from __future__ import annotations
+from copy import deepcopy
 from enum import Enum
 from pathlib import Path
-from typing import NamedTuple, Tuple, Literal, overload, Any
+from typing import NamedTuple, Tuple, Literal, TypeVar, overload, Any
 from uuid import uuid4
 import json
 
@@ -19,6 +20,7 @@ class Output(NamedTuple):
     output: int
 
 
+T = TypeVar("T")
 Output2 = Tuple[Output, Output]
 Output3 = Tuple[Output, Output, Output]
 Output4 = Tuple[Output, Output, Output, Output]
@@ -29,6 +31,17 @@ class ComfyNode(NamedTuple):
     id: int
     type: str
     inputs: dict[str, Input]
+
+    @overload
+    def input(self, key: str, default: T) -> T: ...
+
+    @overload
+    def input(self, key: str, default: None = None) -> Input: ...
+
+    def input(self, key: str, default: T | None = None) -> T | Input:
+        result = self.inputs[key]
+        assert default is None or type(result) == type(default)
+        return result
 
     def output(self, index=0) -> Output:
         return Output(int(self.id), index)
@@ -47,13 +60,13 @@ class ComfyWorkflow:
         self._run_mode: ComfyRunMode = run_mode
 
     @staticmethod
-    def from_dict(existing: dict):
+    def import_graph(existing: dict):
         w = ComfyWorkflow()
         node_map: dict[str, str] = {}
         queue = list(existing.keys())
         while queue:
             id = queue.pop(0)
-            node = existing[id]
+            node = deepcopy(existing[id])
             edges = [e for e in node["inputs"].values() if isinstance(e, list)]
             if any(e[0] not in node_map for e in edges):
                 queue.append(id)  # requeue node if an input is not yet mapped
@@ -64,6 +77,12 @@ class ComfyWorkflow:
             node_map[id] = str(w.node_count)
             w.root[str(w.node_count)] = node
             w.node_count += 1
+        return w
+
+    @staticmethod
+    def from_dict(existing: dict):
+        w = ComfyWorkflow()
+        w.root = existing
         return w
 
     def add_default_values(self, node_name: str, args: dict):
@@ -137,6 +156,9 @@ class ComfyWorkflow:
 
     def copy(self, node: ComfyNode):
         return self.add(node.type, 1, **node.inputs)
+
+    def find(self, type: str):
+        return (self.node(int(k)) for k, v in self.root.items() if v["class_type"] == type)
 
     def __iter__(self):
         return iter(self.node(int(k)) for k in self.root.keys())
