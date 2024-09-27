@@ -1,3 +1,4 @@
+from copy import copy
 from enum import Enum
 from typing import Any, NamedTuple, Sequence, TypeVar, Generic
 
@@ -18,7 +19,7 @@ class ObservableProperties:
             name: attr for name, attr in cls.__dict__.items() if isinstance(attr, Property)
         }
         for name, property in properties.items():
-            setattr(cls, f"_{name}", property.default_value)
+            setattr(cls, f"_{name}", _copy_reference_types(property.default_value))
             getter, setter = None, None
             if property.getter is not None:
                 getter = getattr(cls, property.getter)
@@ -198,3 +199,9 @@ def deserialize(obj: QObject, data: dict[str, Any], converter=_default_deseriali
             if not isinstance(value, type(current)):
                 raise TypeError(f"{name} was '{value}', but expected {type(current)}")
             setattr(obj, name, value)
+
+
+def _copy_reference_types(object):
+    if isinstance(object, (list, dict)):
+        return copy(object)
+    return object

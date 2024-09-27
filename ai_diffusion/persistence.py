@@ -132,6 +132,7 @@ class ModelSync:
         state["upscale"] = _serialize(model.upscale)
         state["live"] = _serialize(model.live)
         state["animation"] = _serialize(model.animation)
+        state["custom"] = _serialize(model.custom)
         state["history"] = [asdict(h) for h in self._history]
         state["root"] = _serialize(model.regions)
         state["control"] = [_serialize(c) for c in model.regions.control]
@@ -150,6 +151,7 @@ class ModelSync:
         _deserialize(model.upscale, state.get("upscale", {}))
         _deserialize(model.live, state.get("live", {}))
         _deserialize(model.animation, state.get("animation", {}))
+        _deserialize(model.custom, state.get("custom", {}))
         _deserialize(model.regions, state.get("root", {}))
         for control_state in state.get("control", []):
             _deserialize(model.regions.control.emplace(), control_state)
@@ -176,6 +178,7 @@ class ModelSync:
         model.upscale.modified.connect(self._save)
         model.live.modified.connect(self._save)
         model.animation.modified.connect(self._save)
+        model.custom.modified.connect(self._save)
         model.jobs.job_finished.connect(self._save_results)
         model.jobs.job_discarded.connect(self._remove_results)
         model.jobs.result_discarded.connect(self._remove_image)

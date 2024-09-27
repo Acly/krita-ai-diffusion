@@ -19,6 +19,7 @@ from .network import NetworkError
 from .image import Extent, Image, Mask, Bounds, DummyImage
 from .client import ClientMessage, ClientEvent, SharedWorkflow
 from .client import filter_supported_styles, resolve_arch
+from .custom_workflow import CustomWorkspace
 from .document import Document, KritaDocument
 from .layer import Layer, LayerType, RestoreActiveLayer
 from .pose import Pose
@@ -53,10 +54,6 @@ class Model(QObject, ObservableProperties):
     list of finished, currently running and enqueued jobs.
     """
 
-    _doc: Document
-    _connection: Connection
-    _layer: Layer | None = None
-
     workspace = Property(Workspace.generation, setter="set_workspace", persist=True)
     regions: "RootRegion"
     style = Property(Styles.list().default, setter="set_style", persist=True)
@@ -67,14 +64,8 @@ class Model(QObject, ObservableProperties):
     fixed_seed = Property(False, persist=True)
     queue_front = Property(False, persist=True)
     translation_enabled = Property(True, persist=True)
-    custom_workflow = Property("", persist=True)
-    inpaint: CustomInpaint
-    upscale: "UpscaleWorkspace"
-    live: "LiveWorkspace"
-    animation: "AnimationWorkspace"
     progress_kind = Property(ProgressKind.generation)
     progress = Property(0.0)
-    jobs: JobQueue
     error = Property("")
 
     workspace_changed = pyqtSignal(Workspace)
@@ -86,7 +77,6 @@ class Model(QObject, ObservableProperties):
     fixed_seed_changed = pyqtSignal(bool)
     queue_front_changed = pyqtSignal(bool)
     translation_enabled_changed = pyqtSignal(bool)
-    custom_workflow_changed = pyqtSignal(str)
     progress_kind_changed = pyqtSignal(ProgressKind)
     progress_changed = pyqtSignal(float)
     error_changed = pyqtSignal(str)
@@ -97,6 +87,7 @@ class Model(QObject, ObservableProperties):
         super().__init__()
         self._doc = document
         self._connection = connection
+        self._layer: Layer | None = None
         self.generate_seed()
         self.jobs = JobQueue()
         self.regions = RootRegion(self)
@@ -104,6 +95,7 @@ class Model(QObject, ObservableProperties):
         self.upscale = UpscaleWorkspace(self)
         self.live = LiveWorkspace(self)
         self.animation = AnimationWorkspace(self)
+        self.custom = CustomWorkspace(connection)
 
         self.jobs.selection_changed.connect(self.update_preview)
         self.error_changed.connect(lambda: self.has_error_changed.emit(self.has_error))
@@ -360,8 +352,7 @@ class Model(QObject, ObservableProperties):
 
     def generate_custom(self):
         try:
-            workflow_raw = self._connection.workflows[self.custom_workflow]
-            wf = ComfyWorkflow.import_graph(workflow_raw)
+            wf = ensure(self.custom.workflow)
             bounds = Bounds(0, 0, *self._doc.extent)
             img_input = ImageInput.from_extent(bounds.extent)
             img_input.initial_image = self._get_current_image(bounds)
@@ -380,7 +371,7 @@ class Model(QObject, ObservableProperties):
                 sampling=SamplingInput("custom", "custom", 1, 1000, seed=seed),
                 custom_workflow=CustomWorkflowInput(wf.root, {}),
             )
-            job_params = JobParams(bounds, self.custom_workflow)
+            job_params = JobParams(bounds, self.custom.graph_id)
         except Exception as e:
             self.report_error(util.log_error(e))
             return

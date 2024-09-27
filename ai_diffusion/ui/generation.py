@@ -1,26 +1,21 @@
 from __future__ import annotations
+from enum import Enum
 from textwrap import wrap as wrap_text
+from typing import Any, NamedTuple
 from PyQt5.QtCore import Qt, QMetaObject, QSize, QPoint, QUuid, pyqtSignal
 from PyQt5.QtGui import QGuiApplication, QMouseEvent, QPalette, QColor
+from PyQt5.QtWidgets import QAction, QWidget, QVBoxLayout, QHBoxLayout, QPushButton, QProgressBar
 from PyQt5.QtWidgets import (
-    QAction,
-    QWidget,
-    QVBoxLayout,
-    QHBoxLayout,
-    QPushButton,
-    QProgressBar,
     QLabel,
     QListWidget,
     QListWidgetItem,
     QListView,
     QSizePolicy,
     QToolButton,
-    QComboBox,
-    QCheckBox,
-    QMenu,
-    QShortcut,
-    QMessageBox,
+    QSlider,
+    QSpinBox,
 )
+from PyQt5.QtWidgets import QComboBox, QCheckBox, QMenu, QShortcut, QMessageBox, QGridLayout
 
 from ..properties import Binding, Bind, bind, bind_combo, bind_toggle
 from ..image import Bounds, Extent, Image
@@ -29,12 +24,15 @@ from ..model import Model, InpaintContext, RootRegion, ProgressKind
 from ..style import Styles
 from ..root import root
 from ..workflow import InpaintMode, FillMode
+from ..comfy_workflow import ComfyWorkflow, ComfyNode, Input, Output
 from ..localization import translate as _
 from ..util import ensure, flatten
 from .widget import WorkspaceSelectWidget, StyleSelectWidget, StrengthWidget, QueueButton
 from .widget import GenerateButton, create_wide_tool_button
 from .region import RegionPromptWidget
 from . import theme
+
+from ..custom_workflow import CustomParam, ParamKind
 
 
 class HistoryWidget(QListWidget):
@@ -816,6 +814,146 @@ _region_mask_button_icons = {
 }
 
 
+class LayerSelect(QComboBox):
+    value_changed = pyqtSignal()
+
+    def __init__(self, filter: str | None = None, parent: QWidget | None = None):
+        super().__init__(parent)
+        self.setContentsMargins(0, 0, 0, 0)
+        self.filter = filter
+        self.currentIndexChanged.connect(lambda _: self.value_changed.emit())
+
+        self._update()
+        root.active_model.layers.changed.connect(self._update)
+
+    def _update(self):
+        if self.filter is None:
+            layers = root.active_model.layers.all
+        elif self.filter == "image":
+            layers = root.active_model.layers.images
+        elif self.filter == "mask":
+            layers = root.active_model.layers.masks
+        else:
+            assert False, f"Unknown filter: {self.filter}"
+
+        for l in layers:
+            if self.findData(l.id) == -1:
+                self.addItem(l.name, l.id)
+        i = 0
+        while i < self.count():
+            if self.itemData(i) not in (l.id for l in layers):
+                self.removeItem(i)
+            else:
+                i += 1
+
+    @property
+    def value(self):
+        return self.currentData()
+
+    @value.setter
+    def value(self, value: str):
+        i = self.findData(value)
+        if i != -1 and i != self.currentIndex():
+            self.setCurrentIndex(i)
+
+
+class IntParamWidget(QWidget):
+    value_changed = pyqtSignal()
+
+    def __init__(self, param: CustomParam, parent: QWidget | None = None):
+        super().__init__(parent)
+        self.setContentsMargins(0, 0, 0, 0)
+
+        layout = QHBoxLayout(self)
+        layout.setContentsMargins(0, 0, 0, 0)
+        self.setLayout(layout)
+
+        assert param.min is not None and param.max is not None and param.default is not None
+        if param.max - param.min <= 200:
+            self._widget = QSlider(Qt.Orientation.Horizontal, parent)
+            self._widget.setRange(param.min, param.max)
+            self._widget.setMinimumHeight(self._widget.minimumSizeHint().height() + 4)
+            self._widget.valueChanged.connect(self._notify)
+            self._label = QLabel(self)
+            self._label.setFixedWidth(40)
+            self._label.setAlignment(Qt.AlignmentFlag.AlignRight)
+            layout.addWidget(self._widget)
+            layout.addWidget(self._label)
+            self.setLayout(layout)
+        else:
+            self._widget = QSpinBox(parent)
+            self._widget.setRange(param.min, param.max)
+            self._widget.valueChanged.connect(self._notify)
+            self._label = None
+            layout = QHBoxLayout(self)
+            layout.addWidget(self._widget)
+            self.setLayout(layout)
+
+        self.value = param.default
+
+    def _notify(self):
+        if self._label:
+            self._label.setText(str(self._widget.value()))
+        self.value_changed.emit()
+
+    @property
+    def value(self):
+        return self._widget.value()
+
+    @value.setter
+    def value(self, value: int):
+        self._widget.setValue(value)
+
+
+CustomParamWidget = LayerSelect | IntParamWidget
+
+
+def _create_param_widget(param: CustomParam, parent: QWidget):
+    if param.kind is ParamKind.image_layer:
+        return LayerSelect("image", parent)
+    if param.kind is ParamKind.mask_layer:
+        return LayerSelect("mask", parent)
+    if param.kind is ParamKind.number_int:
+        return IntParamWidget(param, parent)
+    assert False, f"Unknown param kind: {param.kind}"
+
+
+class WorkflowParamsWidget(QWidget):
+    value_changed = pyqtSignal()
+
+    def __init__(self, params: list[CustomParam], parent: QWidget | None = None):
+        super().__init__(parent)
+        self._widgets: dict[str, CustomParamWidget] = {}
+
+        layout = QGridLayout(self)
+        layout.setContentsMargins(0, 0, 0, 0)
+        layout.setColumnMinimumWidth(1, 10)
+        self.setLayout(layout)
+
+        for p in params:
+            label = QLabel(p.name, self)
+            widget = _create_param_widget(p, self)
+            widget.value_changed.connect(self._notify)
+            row = len(self._widgets)
+            layout.addWidget(label, row, 0)
+            layout.addWidget(widget, row, 2)
+            self._widgets[p.name] = widget
+
+    def _notify(self):
+        self.value_changed.emit()
+
+    @property
+    def value(self):
+        return {name: widget.value for name, widget in self._widgets.items()}
+
+    @value.setter
+    def value(self, values: dict[str, Any]):
+        for name, value in values.items():
+            if widget := self._widgets.get(name):
+                if type(widget.value) == type(value):
+                    widget.value = value
+
+
 class CustomWorkflowWidget(QWidget):
     def __init__(self):
         super().__init__()
@@ -824,6 +962,8 @@ class CustomWorkflowWidget(QWidget):
 
         self._workspace_select = WorkspaceSelectWidget(self)
         self._workflow_select = QComboBox(self)
+        self._workflow_select.currentIndexChanged.connect(self._change_workflow)
+        self._params_widget = WorkflowParamsWidget([], self)
 
         self._generate_button = GenerateButton(JobKind.diffusion, self)
         self._queue_button = QueueButton(parent=self)
@@ -834,26 +974,28 @@ class CustomWorkflowWidget(QWidget):
         self._history = HistoryWidget(self)
         self._history.item_activated.connect(self.apply_result)
 
-        layout = QVBoxLayout()
+        self._layout = QVBoxLayout()
         header_layout = QHBoxLayout()
         header_layout.addWidget(self._workspace_select)
         header_layout.addWidget(self._workflow_select)
-        layout.addLayout(header_layout)
+        self._layout.addLayout(header_layout)
+        self._layout.addWidget(self._params_widget)
         actions_layout = QHBoxLayout()
         actions_layout.addWidget(self._generate_button)
         actions_layout.addWidget(self._queue_button)
-        layout.addLayout(actions_layout)
-        layout.addWidget(self._progress_bar)
-        layout.addWidget(self._error_text)
-        layout.addWidget(self._history)
-        self.setLayout(layout)
+        self._layout.addLayout(actions_layout)
+        self._layout.addWidget(self._progress_bar)
+        self._layout.addWidget(self._error_text)
+        self._layout.addWidget(self._history)
+        self.setLayout(self._layout)
 
         self._update_workflows()
-        self._update_current_workflow()
         root.connection.workflow_published.connect(self._update_workflows)
 
     def _update_workflows(self):
-        workflows = root.connection.workflows
+        workflows = set(root.connection.workflows)
+        if self.model.custom.graph_id:
+            workflows.add(self.model.custom.graph_id)
         current_items = [
             self._workflow_select.itemText(i) for i in range(self._workflow_select.count())
         ]
@@ -864,8 +1006,25 @@ class CustomWorkflowWidget(QWidget):
             if item not in workflows:
                 self._workflow_select.removeItem(self._workflow_select.findText(item))
 
+        self._update_current_workflow()
+
     def _update_current_workflow(self):
-        pass
+        if not self.model.custom.workflow:
+            return
+        self._params_widget.deleteLater()
+        self._params_widget = WorkflowParamsWidget(self.model.custom.metadata, self)
+        self._params_widget.value = self.model.custom.params
+        self._layout.insertWidget(1, self._params_widget)
+        self._params_widget.value_changed.connect(self._change_params)
+
+    def _change_workflow(self):
+        id = self._workflow_select.currentData()
+        if graph := root.connection.workflows.get(id):
+            self.model.custom.graph = graph
+            self.model.custom.graph_id = id
+
+    def _change_params(self):
+        self.model.custom.params = self._params_widget.value
 
     @property
     def model(self):
@@ -876,12 +1035,10 @@ class CustomWorkflowWidget(QWidget):
         if self._model != model:
             Binding.disconnect_all(self._model_bindings)
             self._model = model
-            if not model.custom_workflow:
-                model.custom_workflow = self._workflow_select.currentData()
             self._model_bindings = [
                 bind(model, "workspace", self._workspace_select, "value", Bind.one_way),
-                bind_combo(model, "custom_workflow", self._workflow_select),
-                model.custom_workflow_changed.connect(self._update_current_workflow),
+                bind_combo(model.custom, "graph_id", self._workflow_select, Bind.one_way),
+                model.custom.graph_changed.connect(self._update_current_workflow),
                 model.error_changed.connect(self._error_text.setText),
                 model.has_error_changed.connect(self._error_text.setVisible),
                 self._generate_button.clicked.connect(model.generate_custom),
@@ -889,6 +1046,7 @@ class CustomWorkflowWidget(QWidget):
             self._queue_button.model = model
             self._progress_bar.model = model
             self._history.model_ = model
+            self._update_workflows()
 
     def apply_result(self, item: QListWidgetItem):
         job_id, index = self._history.item_info(item)
