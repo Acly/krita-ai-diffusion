@@ -389,7 +389,7 @@ class LoraList(QWidget):
                 if client.max_upload_size and path.stat().st_size > client.max_upload_size:
                     _show_file_too_large_warning(client.max_upload_size, self)
                     return
-            file = File.local(path, compute_hash=True)
+            file = File.local(path, FileFormat.lora, compute_hash=True)
             root.files.loras.add(file)
             self._add_item(file)
 

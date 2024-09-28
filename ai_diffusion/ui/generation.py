@@ -32,7 +32,7 @@ from .widget import GenerateButton, create_wide_tool_button
 from .region import RegionPromptWidget
 from . import theme
 
-from ..custom_workflow import CustomParam, ParamKind
+from ..custom_workflow import CustomParam, ParamKind, SortedWorkflows
 
 
 class HistoryWidget(QListWidget):
@@ -962,7 +962,9 @@ class CustomWorkflowWidget(QWidget):
 
         self._workspace_select = WorkspaceSelectWidget(self)
         self._workflow_select = QComboBox(self)
+        self._workflow_select.setModel(SortedWorkflows(root.workflows))
         self._workflow_select.currentIndexChanged.connect(self._change_workflow)
+
         self._params_widget = WorkflowParamsWidget([], self)
 
         self._generate_button = GenerateButton(JobKind.diffusion, self)
@@ -989,25 +991,6 @@ class CustomWorkflowWidget(QWidget):
         self._layout.addWidget(self._history)
         self.setLayout(self._layout)
 
-        self._update_workflows()
-        root.connection.workflow_published.connect(self._update_workflows)
-
-    def _update_workflows(self):
-        workflows = set(root.connection.workflows)
-        if self.model.custom.graph_id:
-            workflows.add(self.model.custom.graph_id)
-        current_items = [
-            self._workflow_select.itemText(i) for i in range(self._workflow_select.count())
-        ]
-        for key in workflows:
-            if key not in current_items:
-                self._workflow_select.addItem(key, key)
-        for item in current_items:
-            if item not in workflows:
-                self._workflow_select.removeItem(self._workflow_select.findText(item))
-
-        self._update_current_workflow()
-
     def _update_current_workflow(self):
         if not self.model.custom.workflow:
             return
@@ -1018,10 +1001,7 @@ class CustomWorkflowWidget(QWidget):
         self._params_widget.value_changed.connect(self._change_params)
 
     def _change_workflow(self):
-        id = self._workflow_select.currentData()
-        if graph := root.connection.workflows.get(id):
-            self.model.custom.graph = graph
-            self.model.custom.graph_id = id
+        self.model.custom.workflow_id = self._workflow_select.currentData()
 
     def _change_params(self):
         self.model.custom.params = self._params_widget.value
@@ -1037,7 +1017,7 @@ class CustomWorkflowWidget(QWidget):
             self._model = model
             self._model_bindings = [
                 bind(model, "workspace", self._workspace_select, "value", Bind.one_way),
-                bind_combo(model.custom, "graph_id", self._workflow_select, Bind.one_way),
+                bind_combo(model.custom, "workflow_id", self._workflow_select, Bind.one_way),
                 model.custom.graph_changed.connect(self._update_current_workflow),
                 model.error_changed.connect(self._error_text.setText),
                 model.has_error_changed.connect(self._error_text.setVisible),
@@ -1046,7 +1026,7 @@ class CustomWorkflowWidget(QWidget):
             self._queue_button.model = model
             self._progress_bar.model = model
             self._history.model_ = model
-            self._update_workflows()
+            self._update_current_workflow()
 
     def apply_result(self, item: QListWidgetItem):
         job_id, index = self._history.item_info(item)

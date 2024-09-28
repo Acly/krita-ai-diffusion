@@ -19,7 +19,7 @@ from .network import NetworkError
 from .image import Extent, Image, Mask, Bounds, DummyImage
 from .client import ClientMessage, ClientEvent, SharedWorkflow
 from .client import filter_supported_styles, resolve_arch
-from .custom_workflow import CustomWorkspace
+from .custom_workflow import CustomWorkspace, WorkflowCollection
 from .document import Document, KritaDocument
 from .layer import Layer, LayerType, RestoreActiveLayer
 from .pose import Pose
@@ -32,7 +32,6 @@ from .control import ControlLayer, ControlLayerList
 from .region import Region, RegionLink, RootRegion, process_regions, get_region_inpaint_mask
 from .resources import ControlMode
 from .resolution import compute_bounds, compute_relative_bounds
-from .comfy_workflow import ComfyWorkflow
 
 
 class Workspace(Enum):
@@ -83,7 +82,7 @@ class Model(QObject, ObservableProperties):
     has_error_changed = pyqtSignal(bool)
     modified = pyqtSignal(QObject, str)
 
-    def __init__(self, document: Document, connection: Connection):
+    def __init__(self, document: Document, connection: Connection, workflows: WorkflowCollection):
         super().__init__()
         self._doc = document
         self._connection = connection
@@ -95,7 +94,7 @@ class Model(QObject, ObservableProperties):
         self.upscale = UpscaleWorkspace(self)
         self.live = LiveWorkspace(self)
         self.animation = AnimationWorkspace(self)
-        self.custom = CustomWorkspace(connection)
+        self.custom = CustomWorkspace(workflows)
 
         self.jobs.selection_changed.connect(self.update_preview)
         self.error_changed.connect(lambda: self.has_error_changed.emit(self.has_error))
@@ -352,7 +351,7 @@ class Model(QObject, ObservableProperties):
 
     def generate_custom(self):
         try:
-            wf = ensure(self.custom.workflow)
+            wf = ensure(self.custom.graph)
             bounds = Bounds(0, 0, *self._doc.extent)
             img_input = ImageInput.from_extent(bounds.extent)
             img_input.initial_image = self._get_current_image(bounds)
