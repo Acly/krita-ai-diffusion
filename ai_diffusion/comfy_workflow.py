@@ -550,6 +550,9 @@ class ComfyWorkflow:
     def apply_self_attention_guidance(self, model: Output):
         return self.add("SelfAttentionGuidance", 1, model=model, scale=0.5, blur_sigma=2.0)
 
+    def apply_perturbed_attention_guidance(self, model: Output):
+        return self.add("PerturbedAttentionGuidance", 1, model=model)
+
     def inpaint_preprocessor(self, image: Output, mask: Output):
         return self.add("InpaintPreprocessor", 1, image=image, mask=mask)
 

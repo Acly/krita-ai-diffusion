@@ -632,6 +632,12 @@ class StylePresets(SettingsTab):
         )
         self._checkpoint_advanced_widgets.append(self._sag)
 
+        self._pag = add(
+            "perturbed_attention_guidance",
+            SwitchSetting(StyleSettings.perturbed_attention_guidance, parent=self),
+        )
+        self._checkpoint_advanced_widgets.append(self._pag)
+
         for widget in self._checkpoint_advanced_widgets:
             widget.indent = 1
         self._toggle_checkpoint_advanced(False)
@@ -793,6 +799,7 @@ class StylePresets(SettingsTab):
         self._clip_skip.enabled = arch.supports_clip_skip and self.current_style.clip_skip > 0
         self._zsnr.enabled = arch.supports_attention_guidance
         self._sag.enabled = arch.supports_attention_guidance
+        self._pag.enabled = arch.supports_attention_guidance
 
     def _read_style(self, style: Style):
         with self._write_guard:
