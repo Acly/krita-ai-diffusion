@@ -1,0 +1,150 @@
+import json
+from pathlib import Path
+from PyQt5.QtCore import Qt
+
+from ai_diffusion.api import CustomWorkflowInput, ImageInput, SamplingInput
+from ai_diffusion.connection import Connection
+from ai_diffusion.comfy_workflow import ComfyNode, ComfyWorkflow, Output
+from ai_diffusion.custom_workflow import CustomWorkflow, WorkflowSource, WorkflowCollection
+from ai_diffusion.custom_workflow import SortedWorkflows, CustomWorkspace, CustomParam
+from ai_diffusion.image import Image, Extent
+from ai_diffusion import workflow
+
+
+def test_workflow_collection(tmp_path: Path):
+    file1 = tmp_path / "file1.json"
+    file1.write_text('{"file": 1}')
+    file2 = tmp_path / "file2.json"
+    file2.write_text('{"file": 2}')
+
+    connection = Connection()
+    connection_workflows = {
+        "connection1": {"connection": 1},
+    }
+    connection._workflows = connection_workflows
+
+    collection = WorkflowCollection(connection, tmp_path)
+    assert len(collection) == 3
+    assert collection.find("file1") == CustomWorkflow("file1", WorkflowSource.local, {"file": 1})
+    assert collection.find("file2") == CustomWorkflow("file2", WorkflowSource.local, {"file": 2})
+    assert collection.find("connection1") == CustomWorkflow(
+        "connection1", WorkflowSource.remote, {"connection": 1}
+    )
+
+    events = []
+
+    def on_begin_insert(index, first, last):
+        events.append(("begin_insert", first))
+
+    def on_end_insert():
+        events.append("end_insert")
+
+    def on_data_changed(start, end):
+        events.append(("data_changed", start.row()))
+
+    collection.rowsAboutToBeInserted.connect(on_begin_insert)
+    collection.rowsInserted.connect(on_end_insert)
+    collection.dataChanged.connect(on_data_changed)
+
+    connection_workflows["connection2"] = {"connection": 2}
+    connection.workflow_published.emit("connection2")
+
+    assert len(collection) == 4
+    assert collection.find("connection2") == CustomWorkflow(
+        "connection2", WorkflowSource.remote, {"connection": 2}
+    )
+
+    collection.set_graph(collection.index(0), {"file": 3})
+    assert collection.find("file1") == CustomWorkflow("file1", WorkflowSource.local, {"file": 3})
+
+    assert events == [("begin_insert", 3), "end_insert", ("data_changed", 0)]
+
+    collection.append(CustomWorkflow("doc1", WorkflowSource.document, {"doc": 1}))
+
+    sorted = SortedWorkflows(collection)
+    assert sorted[0].source is WorkflowSource.document
+    assert sorted[1].source is WorkflowSource.remote
+    assert sorted[2].source is WorkflowSource.remote
+    assert sorted[3].name == "file1"
+    assert sorted[4].name == "file2"
+
+
+def test_workspace():
+    connection = Connection()
+    connection_workflows = {
+        "connection1": {
+            "1": {
+                "class_type": "ETN_IntParameter",
+                "inputs": {"name": "param1", "default": 42, "min": 5, "max": 95},
+            }
+        }
+    }
+    connection._workflows = connection_workflows
+    workflows = WorkflowCollection(connection)
+
+    workspace = CustomWorkspace(workflows)
+    assert workspace.workflow_id == "connection1"
+    assert workspace.workflow and workspace.workflow.id == "connection1"
+    assert workspace.graph and workspace.graph.node(0).type == "ETN_IntParameter"
+    assert workspace.metadata[0].name == "param1"
+    assert workspace.params == {"param1": 42}
+
+    doc_graph = {
+        "1": {
+            "class_type": "ETN_IntParameter",
+            "inputs": {"name": "param2", "default": 23, "min": 9, "max": 35},
+        }
+    }
+    workspace.set_graph("doc1", doc_graph)
+    assert workspace.workflow_id == "doc1"
+    assert workspace.workflow and workspace.workflow.source is WorkflowSource.document
+    assert workspace.graph and workspace.graph.node(0).type == "ETN_IntParameter"
+    assert workspace.metadata[0].name == "param2"
+    assert workspace.params == {"param2": 23}
+
+    doc_graph["1"]["inputs"]["default"] = 24
+    doc_graph["2"] = {
+        "class_type": "ETN_IntParameter",
+        "inputs": {"name": "param3", "default": 7, "min": 0, "max": 10},
+    }
+    workflows.set_graph(workflows.index(1), doc_graph)
+    assert workspace.metadata[0].default == 24
+    assert workspace.metadata[1].name == "param3"
+    assert workspace.params == {"param2": 23, "param3": 7}
+
+
+def test_import_workflow():
+    w = ComfyWorkflow.import_graph(
+        {
+            "4": {"class_type": "A", "inputs": {"int": 4, "float": 1.2, "string": "mouse"}},
+            "zak": {"class_type": "C", "inputs": {"in": ["9", 1]}},
+            "9": {"class_type": "B", "inputs": {"in": ["4", 0]}},
+        }
+    )
+    assert w.node(0) == ComfyNode(0, "A", {"int": 4, "float": 1.2, "string": "mouse"})
+    assert w.node(1) == ComfyNode(1, "B", {"in": Output(0, 0)})
+    assert w.node(2) == ComfyNode(2, "C", {"in": Output(1, 1)})
+
+
+def test_expand_workflow():
+    ext = ComfyWorkflow()
+    in_img, width, height, seed = ext.add("ETN_KritaCanvas", 4)
+    scaled = ext.add("ImageScale", 1, image=in_img, width=width, height=height)
+    ext.add("ETN_KritaOutput", 1, images=scaled)
+    ext.add("SeedEater", 1, seed=seed)
+
+    input = CustomWorkflowInput(workflow=ext.root, params={})
+    images = ImageInput.from_extent(Extent(4, 4))
+    images.initial_image = Image.create(Extent(4, 4), Qt.GlobalColor.white)
+    sampling = SamplingInput("", "", 1.0, 1000, seed=123)
+
+    w = ComfyWorkflow()
+    w = workflow.expand_custom(w, input, images, sampling)
+    expected = [
+        ComfyNode(1, "ETN_LoadImageBase64", {"image": images.initial_image.to_base64()}),
+        ComfyNode(2, "ImageScale", {"image": Output(1, 0), "width": 4, "height": 4}),
+        ComfyNode(3, "ETN_KritaOutput", {"images": Output(2, 0)}),
+        ComfyNode(4, "SeedEater", {"seed": 123}),
+    ]
+    for node in expected:
+        assert node in w, f"Node {node} not found in\n{json.dumps(w.root, indent=2)}"

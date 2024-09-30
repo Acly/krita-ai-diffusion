@@ -753,43 +753,6 @@ def test_translation(qtapp, client):
     run_and_save(qtapp, client, job, "test_translation")
 
 
-def test_import_workflow():
-    w = ComfyWorkflow.import_graph(
-        {
-            "4": {"class_type": "A", "inputs": {"int": 4, "float": 1.2, "string": "mouse"}},
-            "zak": {"class_type": "C", "inputs": {"in": ["9", 1]}},
-            "9": {"class_type": "B", "inputs": {"in": ["4", 0]}},
-        }
-    )
-    assert w.node(0) == ComfyNode(0, "A", {"int": 4, "float": 1.2, "string": "mouse"})
-    assert w.node(1) == ComfyNode(1, "B", {"in": Output(0, 0)})
-    assert w.node(2) == ComfyNode(2, "C", {"in": Output(1, 1)})
-
-
-def test_expand_workflow():
-    ext = ComfyWorkflow()
-    in_img, width, height, seed = ext.add("ETN_KritaCanvas", 4)
-    scaled = ext.add("ImageScale", 1, image=in_img, width=width, height=height)
-    ext.add("ETN_KritaOutput", 1, images=scaled)
-    ext.add("SeedEater", 1, seed=seed)
-
-    input = CustomWorkflowInput(workflow=ext.root, params={})
-    images = ImageInput.from_extent(Extent(4, 4))
-    images.initial_image = Image.create(Extent(4, 4), Qt.GlobalColor.white)
-    sampling = SamplingInput("", "", 1.0, 1000, seed=123)
-
-    w = ComfyWorkflow()
-    w = workflow.expand_custom(w, input, images, sampling)
-    expected = [
-        ComfyNode(1, "ETN_LoadImageBase64", {"image": images.initial_image.to_base64()}),
-        ComfyNode(2, "ImageScale", {"image": Output(1, 0), "width": 4, "height": 4}),
-        ComfyNode(3, "ETN_KritaOutput", {"images": Output(2, 0)}),
-        ComfyNode(4, "SeedEater", {"seed": 123}),
-    ]
-    for node in expected:
-        assert node in w, f"Node {node} not found in\n{json.dumps(w.root, indent=2)}"
-
-
 inpaint_benchmark = {
     "tori": (InpaintMode.fill, "photo of tori, japanese garden", None),
     "bruges": (InpaintMode.fill, "photo of a canal in bruges, belgium", None),
