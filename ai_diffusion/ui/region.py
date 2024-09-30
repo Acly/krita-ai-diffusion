@@ -1,7 +1,16 @@
 from __future__ import annotations
 from enum import Enum
 from PyQt5.QtWidgets import QWidget, QLabel, QToolButton, QHBoxLayout, QVBoxLayout, QFrame, QMenu
-from PyQt5.QtGui import QGuiApplication, QMouseEvent, QResizeEvent, QPixmap, QImage, QPainter, QIcon
+from PyQt5.QtGui import (
+    QGuiApplication,
+    QMouseEvent,
+    QResizeEvent,
+    QPixmap,
+    QImage,
+    QPainter,
+    QIcon,
+    QFontMetrics,
+)
 from PyQt5.QtCore import QObject, QEvent, Qt, QMetaObject, QSize, pyqtSignal
 
 from ..root import root
@@ -125,9 +134,11 @@ class ActiveRegionWidget(QFrame):
 
         self.positive = TextPromptWidget(parent=self)
         self.positive.line_count = min(settings.prompt_line_count, self._max_lines)
+        self.positive.handle_dragged.connect(self._handle_dragging)
         self.positive.install_event_filter(self)
 
         self.negative = TextPromptWidget(line_count=1, is_negative=True, parent=self)
+        self.negative.handle_dragged.connect(self._handle_dragging)
         self.negative.install_event_filter(self)
 
         self._no_region = QWidget(self)
@@ -180,6 +191,7 @@ class ActiveRegionWidget(QFrame):
         )
         self._language_button.clicked.connect(self._toggle_translation_enabled)
         self._layout_language_button()
+        self._setup_resize_handle()
 
         self._setup_bindings(self._region)
         settings.changed.connect(self.update_settings)
@@ -342,6 +354,7 @@ class ActiveRegionWidget(QFrame):
             self.negative.text = ""
             self.negative.setVisible(value and isinstance(self._region, RootRegion))
             self._layout_language_button()
+            self._setup_resize_handle()
         elif key == "prompt_translation":
             self._update_language()
 
@@ -397,6 +410,28 @@ class ActiveRegionWidget(QFrame):
             s = QSize(self.fontMetrics().width("EN"), self.fontMetrics().height())
             self._language_button.move(pos.x() - s.width() - 2, pos.y() - s.height() - 2)
             self._language_button.resize(s)
+
+    def _setup_resize_handle(self):
+        if settings.show_negative_prompt:
+            self.positive.set_resize_handle(False)
+            self.negative.set_resize_handle(True)
+        else:
+            self.positive.set_resize_handle(True)
+            self.negative.set_resize_handle(False)
+
+    def _handle_dragging(self, y_pos: int):
+        # math determined experimentally, sorry :(
+        if self.negative.isVisible():
+            pos_height = self.positive.contentsRect().height()
+            neg_height = self.negative.contentsRect().height()
+            new_height = y_pos - neg_height + pos_height - 10
+        else:
+            new_height = y_pos - 5
+        fm = QFontMetrics(ensure(self.positive._multi.document()).defaultFont())
+        new_line_count = round(new_height / fm.lineSpacing())
+        if 1 <= new_line_count <= 10:
+            settings.prompt_line_count = new_line_count
+            self.positive.line_count = new_line_count
 
     def resizeEvent(self, a0):
         super().resizeEvent(a0)
