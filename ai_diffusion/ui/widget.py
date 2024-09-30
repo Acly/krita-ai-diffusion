@@ -440,6 +440,42 @@ class SingleLineTextPromptWidget(QLineEdit):
         super().keyPressEvent(a0)
 
 
+class ResizeHandle(QWidget):
+    """A small resize handle that appears at the bottom of the prompt widget."""
+
+    handle_dragged = pyqtSignal(int)
+
+    def __init__(self, parent: QWidget):
+        super().__init__(parent)
+        self.setCursor(Qt.CursorShape.SizeVerCursor)
+        self.setFixedSize(22, 8)
+        self._dragging = False
+
+    def mousePressEvent(self, a0: QMouseEvent | None) -> None:
+        if ensure(a0).button() == Qt.MouseButton.LeftButton:
+            self._dragging = True
+
+    def mouseReleaseEvent(self, a0: QMouseEvent | None) -> None:
+        self._dragging = False
+
+    def mouseMoveEvent(self, a0: QMouseEvent | None) -> None:
+        if not self._dragging:
+            return
+        y_pos = self.mapToParent(ensure(a0).pos()).y()
+        self.handle_dragged.emit(y_pos)
+
+    def paintEvent(self, a0: QPaintEvent | None) -> None:
+        if not self.isVisible():
+            return
+        painter = QPainter(self)
+        painter.setPen(self.palette().color(QPalette.ColorRole.PlaceholderText).lighter(100))
+        painter.setBrush(painter.pen().color())
+        w, h = self.width(), self.height()
+        for i, x in enumerate(range(2, w - 1, 3)):
+            y = 2 * h // 3 if i % 2 == 0 else h // 3
+            painter.drawEllipse(x - 1, y - 1, 2, 2)
+
+
 class TextPromptWidget(QFrame):
     """Wraps a single or multi-line text widget, with ability to switch between them.
     Using QPlainTextEdit set to a single line doesn't work properly because it still
@@ -447,11 +483,12 @@ class TextPromptWidget(QFrame):
 
     activated = pyqtSignal()
     text_changed = pyqtSignal(str)
+    handle_dragged = pyqtSignal(int)
 
     _line_count = 2
     _is_negative = False
 
-    def __init__(self, line_count=2, is_negative=False, parent=None):
+    def __init__(self, line_count=2, is_negative=False, parent=None, resize_handle=False):
         super().__init__(parent)
         self._line_count = line_count
         self._is_negative = is_negative
@@ -473,6 +510,9 @@ class TextPromptWidget(QFrame):
 
         self._layout.addWidget(self._multi)
         self._layout.addWidget(self._single)
+
+        self._resize_handle = ResizeHandle(self)
+        self._resize_handle.setVisible(False)
 
         palette: QPalette = self._multi.palette()
         self._base_color = palette.color(QPalette.ColorRole.Base)
@@ -496,6 +536,22 @@ class TextPromptWidget(QFrame):
         with SignalBlocker(widget):  # avoid auto-completion on non-user input
             widget.setText(value)
 
+    def set_resize_handle(self, value: bool):
+        if value and not self._resize_handle.isVisible():
+            self._resize_handle.setVisible(True)
+            self._resize_handle.handle_dragged.connect(self.handle_dragged)
+            self._place_resize_handle()
+        if not value and self._resize_handle.isVisible():
+            self._resize_handle.setVisible(False)
+            self._resize_handle.handle_dragged.disconnect(self.handle_dragged)
+
+    def _place_resize_handle(self):
+        rect = self.geometry()
+        self._resize_handle.move(
+            (rect.width() - self._resize_handle.width()) // 2,
+            rect.height() - self._resize_handle.height(),
+        )
+
     @property
     def line_count(self):
         return self._line_count
@@ -509,6 +565,11 @@ class TextPromptWidget(QFrame):
         self._single.setVisible(self._line_count == 1)
         if self._line_count > 1:
             self._multi.line_count = self._line_count
+
+    def resizeEvent(self, a0):
+        super().resizeEvent(a0)
+        if self._resize_handle:
+            self._place_resize_handle()
 
     @property
     def is_negative(self):
