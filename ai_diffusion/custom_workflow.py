@@ -85,6 +85,31 @@ class WorkflowCollection(QAbstractListModel):
         self._workflows[index.row()].graph = graph
         self.dataChanged.emit(index, index)
 
+    def save_as(self, id: str, graph: dict):
+        if self.find(id) is not None:
+            suffix = 1
+            while self.find(f"{id} ({suffix})"):
+                suffix += 1
+            id = f"{id} ({suffix})"
+
+        self._folder.mkdir(exist_ok=True)
+        path = self._folder / f"{id}.json"
+        path.write_text(json.dumps(graph, indent=2))
+        self.append(CustomWorkflow(id, WorkflowSource.local, graph, path))
+        return id
+
+    def import_file(self, filepath: Path):
+        try:
+            with filepath.open("r") as f:
+                graph = json.load(f)
+                try:
+                    ComfyWorkflow.import_graph(graph)
+                except Exception as e:
+                    raise RuntimeError(f"This is not a supported workflow file ({e})")
+            return self.save_as(filepath.stem, graph)
+        except Exception as e:
+            raise RuntimeError(f"Error importing workflow from {filepath}: {e}")
+
     def find_index(self, id: str):
         for i, wf in enumerate(self._workflows):
             if wf.id == id:
@@ -207,6 +232,13 @@ class CustomWorkspace(QObject, ObservableProperties):
         if self._workflows.find(id) is None:
             self._workflows.append(CustomWorkflow(id, WorkflowSource.document, graph))
         self.workflow_id = id
+
+    def import_file(self, filepath: Path):
+        self.workflow_id = self._workflows.import_file(filepath)
+
+    def save_as(self, id: str):
+        assert self._graph, "Save as: no workflow selected"
+        self.workflow_id = self._workflows.save_as(id, self._graph.root)
 
     @property
     def workflow(self):

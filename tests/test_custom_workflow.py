@@ -1,4 +1,5 @@
 import json
+import pytest
 from pathlib import Path
 from PyQt5.QtCore import Qt
 
@@ -11,7 +12,7 @@ from ai_diffusion.image import Image, Extent
 from ai_diffusion import workflow
 
 
-def test_workflow_collection(tmp_path: Path):
+def test_collection(tmp_path: Path):
     file1 = tmp_path / "file1.json"
     file1.write_text('{"file": 1}')
     file2 = tmp_path / "file2.json"
@@ -69,16 +70,49 @@ def test_workflow_collection(tmp_path: Path):
     assert sorted[4].name == "file2"
 
 
-def test_workspace():
-    connection = Connection()
-    connection_workflows = {
-        "connection1": {
-            "1": {
-                "class_type": "ETN_IntParameter",
-                "inputs": {"name": "param1", "default": 42, "min": 5, "max": 95},
-            }
+def make_dummy_graph(n: int = 42):
+    return {
+        "1": {
+            "class_type": "ETN_IntParameter",
+            "inputs": {"name": "param1", "default": n, "min": 5, "max": 95},
         }
     }
+
+
+def test_files(tmp_path: Path):
+    collection_folder = tmp_path / "workflows"
+
+    collection = WorkflowCollection(Connection(), collection_folder)
+    assert len(collection) == 0
+
+    file1 = tmp_path / "file1.json"
+    file1.write_text(json.dumps(make_dummy_graph()))
+
+    collection.import_file(file1)
+    assert collection.find("file1") is not None
+
+    collection.import_file(file1)
+    assert collection.find("file1 (1)") is not None
+
+    collection.save_as("file1", {"file": 2})
+    assert collection.find("file1 (2)") is not None
+
+    files = [
+        collection_folder / "file1.json",
+        collection_folder / "file1 (1).json",
+        collection_folder / "file1 (2).json",
+    ]
+    assert all(f.exists() for f in files)
+
+    bad_file = tmp_path / "bad.json"
+    bad_file.write_text("bad json")
+    with pytest.raises(RuntimeError):
+        collection.import_file(bad_file)
+
+
+def test_workspace():
+    connection = Connection()
+    connection_workflows = {"connection1": make_dummy_graph(42)}
     connection._workflows = connection_workflows
     workflows = WorkflowCollection(connection)
 
@@ -92,7 +126,7 @@ def test_workspace():
     doc_graph = {
         "1": {
             "class_type": "ETN_IntParameter",
-            "inputs": {"name": "param2", "default": 23, "min": 9, "max": 35},
+            "inputs": {"name": "param2", "default": 23, "min": 5, "max": 95},
         }
     }
     workspace.set_graph("doc1", doc_graph)
@@ -113,7 +147,7 @@ def test_workspace():
     assert workspace.params == {"param2": 23, "param3": 7}
 
 
-def test_import_workflow():
+def test_import():
     w = ComfyWorkflow.import_graph(
         {
             "4": {"class_type": "A", "inputs": {"int": 4, "float": 1.2, "string": "mouse"}},
@@ -126,7 +160,7 @@ def test_import_workflow():
     assert w.node(2) == ComfyNode(2, "C", {"in": Output(1, 1)})
 
 
-def test_expand_workflow():
+def test_expand():
     ext = ComfyWorkflow()
     in_img, width, height, seed = ext.add("ETN_KritaCanvas", 4)
     scaled = ext.add("ImageScale", 1, image=in_img, width=width, height=height)

@@ -1,9 +1,11 @@
 from __future__ import annotations
 from enum import Enum
+from functools import wraps
+from pathlib import Path
 from textwrap import wrap as wrap_text
 from typing import Any, NamedTuple
-from PyQt5.QtCore import Qt, QMetaObject, QSize, QPoint, QUuid, pyqtSignal
-from PyQt5.QtGui import QGuiApplication, QMouseEvent, QPalette, QColor
+from PyQt5.QtCore import Qt, QMetaObject, QSize, QPoint, QUuid, pyqtSignal, QUrl
+from PyQt5.QtGui import QGuiApplication, QMouseEvent, QPalette, QColor, QDesktopServices
 from PyQt5.QtWidgets import QAction, QWidget, QVBoxLayout, QHBoxLayout, QPushButton, QProgressBar
 from PyQt5.QtWidgets import (
     QLabel,
@@ -14,6 +16,8 @@ from PyQt5.QtWidgets import (
     QToolButton,
     QSlider,
     QSpinBox,
+    QFileDialog,
+    QLineEdit,
 )
 from PyQt5.QtWidgets import QComboBox, QCheckBox, QMenu, QShortcut, QMessageBox, QGridLayout
 
@@ -954,16 +958,61 @@ class WorkflowParamsWidget(QWidget):
                     widget.value = value
 
 
+def popup_on_error(func):
+    @wraps(func)
+    def wrapper(self, *args, **kwargs):
+        try:
+            return func(self, *args, **kwargs)
+        except Exception as e:
+            QMessageBox.critical(self, _("Error"), str(e))
+
+    return wrapper
+
+
 class CustomWorkflowWidget(QWidget):
     def __init__(self):
         super().__init__()
+
         self._model = root.active_model
         self._model_bindings: list[QMetaObject.Connection | Binding] = []
 
         self._workspace_select = WorkspaceSelectWidget(self)
-        self._workflow_select = QComboBox(self)
+
+        self._workflow_select_widgets = QWidget(self)
+
+        self._workflow_select = QComboBox(self._workflow_select_widgets)
         self._workflow_select.setModel(SortedWorkflows(root.workflows))
         self._workflow_select.currentIndexChanged.connect(self._change_workflow)
+
+        self._import_workflow_button = QToolButton(self._workflow_select_widgets)
+        self._import_workflow_button.setText("I")
+        self._import_workflow_button.setToolTip(_("Import workflow from file"))
+        self._import_workflow_button.clicked.connect(self._import_workflow)
+
+        self._save_workflow_button = QToolButton(self._workflow_select_widgets)
+        self._save_workflow_button.setText("S")
+        self._save_workflow_button.setToolTip(_("Save workflow to file"))
+        self._save_workflow_button.clicked.connect(self._save_workflow)
+
+        self._open_webui_button = QToolButton(self._workflow_select_widgets)
+        self._open_webui_button.setText("W")
+        self._open_webui_button.setToolTip(_("Open Web UI to create custom workflows"))
+        self._open_webui_button.clicked.connect(self._open_webui)
+
+        self._workflow_edit_widgets = QWidget(self)
+        self._workflow_edit_widgets.setVisible(False)
+
+        self._workflow_name_edit = QLineEdit(self._workflow_edit_widgets)
+        self._workflow_name_edit.textEdited.connect(self._edit_name)
+        self._workflow_name_edit.returnPressed.connect(self._accept_name)
+
+        self._accept_name_button = QToolButton(self._workflow_edit_widgets)
+        self._accept_name_button.setText("✔")
+        self._accept_name_button.clicked.connect(self._accept_name)
+
+        self._cancel_name_button = QToolButton(self._workflow_edit_widgets)
+        self._cancel_name_button.setText("✘")
+        self._cancel_name_button.clicked.connect(self._cancel_name)
 
         self._params_widget = WorkflowParamsWidget([], self)
 
@@ -977,9 +1026,23 @@ class CustomWorkflowWidget(QWidget):
         self._history.item_activated.connect(self.apply_result)
 
         self._layout = QVBoxLayout()
+        select_layout = QHBoxLayout()
+        select_layout.setContentsMargins(0, 0, 0, 0)
+        select_layout.addWidget(self._workflow_select)
+        select_layout.addWidget(self._import_workflow_button)
+        select_layout.addWidget(self._save_workflow_button)
+        select_layout.addWidget(self._open_webui_button)
+        self._workflow_select_widgets.setLayout(select_layout)
+        edit_layout = QHBoxLayout()
+        edit_layout.setContentsMargins(0, 0, 0, 0)
+        edit_layout.addWidget(self._workflow_name_edit)
+        edit_layout.addWidget(self._accept_name_button)
+        edit_layout.addWidget(self._cancel_name_button)
+        self._workflow_edit_widgets.setLayout(edit_layout)
         header_layout = QHBoxLayout()
         header_layout.addWidget(self._workspace_select)
-        header_layout.addWidget(self._workflow_select)
+        header_layout.addWidget(self._workflow_select_widgets)
+        header_layout.addWidget(self._workflow_edit_widgets)
         self._layout.addLayout(header_layout)
         self._layout.addWidget(self._params_widget)
         actions_layout = QHBoxLayout()
@@ -993,7 +1056,10 @@ class CustomWorkflowWidget(QWidget):
 
     def _update_current_workflow(self):
         if not self.model.custom.workflow:
+            self._save_workflow_button.setEnabled(False)
             return
+        self._save_workflow_button.setEnabled(True)
+
         self._params_widget.deleteLater()
         self._params_widget = WorkflowParamsWidget(self.model.custom.metadata, self)
         self._params_widget.value = self.model.custom.params
@@ -1018,6 +1084,7 @@ class CustomWorkflowWidget(QWidget):
             self._model_bindings = [
                 bind(model, "workspace", self._workspace_select, "value", Bind.one_way),
                 bind_combo(model.custom, "workflow_id", self._workflow_select, Bind.one_way),
+                model.workspace_changed.connect(self._cancel_name),
                 model.custom.graph_changed.connect(self._update_current_workflow),
                 model.error_changed.connect(self._error_text.setText),
                 model.has_error_changed.connect(self._error_text.setVisible),
@@ -1031,3 +1098,47 @@ class CustomWorkflowWidget(QWidget):
     def apply_result(self, item: QListWidgetItem):
         job_id, index = self._history.item_info(item)
         self.model.apply_generated_result(job_id, index)
+
+    @popup_on_error
+    def _import_workflow(self, *args):
+        filename, __ = QFileDialog.getOpenFileName(
+            self,
+            _("Import Workflow"),
+            str(Path.home()),
+            "Workflow Files (*.json);;All Files (*)",
+        )
+        if filename:
+            self.model.custom.import_file(Path(filename))
+
+    def _save_workflow(self):
+        self.is_edit_mode = True
+
+    def _open_webui(self):
+        if client := root.connection.client_if_connected:
+            QDesktopServices.openUrl(QUrl(client.url))
+
+    @property
+    def is_edit_mode(self):
+        return self._workflow_edit_widgets.isVisible()
+
+    @is_edit_mode.setter
+    def is_edit_mode(self, value: bool):
+        if value == self.is_edit_mode:
+            return
+        self._workflow_select_widgets.setVisible(not value)
+        self._workflow_edit_widgets.setVisible(value)
+        if value:
+            self._workflow_name_edit.setText(self.model.custom.workflow_id)
+            self._workflow_name_edit.selectAll()
+            self._workflow_name_edit.setFocus()
+
+    def _edit_name(self):
+        self._accept_name_button.setEnabled(self._workflow_name_edit.text().strip() != "")
+
+    @popup_on_error
+    def _accept_name(self, *args):
+        self.model.custom.save_as(self._workflow_name_edit.text())
+        self.is_edit_mode = False
+
+    def _cancel_name(self):
+        self.is_edit_mode = False
