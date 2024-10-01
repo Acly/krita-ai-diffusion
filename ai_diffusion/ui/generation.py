@@ -3,9 +3,9 @@ from enum import Enum
 from functools import wraps
 from pathlib import Path
 from textwrap import wrap as wrap_text
-from typing import Any, NamedTuple
+from typing import Any, Callable, NamedTuple
 from PyQt5.QtCore import Qt, QMetaObject, QSize, QPoint, QUuid, pyqtSignal, QUrl
-from PyQt5.QtGui import QGuiApplication, QMouseEvent, QPalette, QColor, QDesktopServices
+from PyQt5.QtGui import QGuiApplication, QMouseEvent, QPalette, QColor, QDesktopServices, QIcon
 from PyQt5.QtWidgets import QAction, QWidget, QVBoxLayout, QHBoxLayout, QPushButton, QProgressBar
 from PyQt5.QtWidgets import (
     QLabel,
@@ -25,6 +25,7 @@ from ..properties import Binding, Bind, bind, bind_combo, bind_toggle
 from ..image import Bounds, Extent, Image
 from ..jobs import Job, JobQueue, JobState, JobKind, JobParams
 from ..model import Model, InpaintContext, RootRegion, ProgressKind
+from ..custom_workflow import CustomParam, ParamKind, SortedWorkflows
 from ..style import Styles
 from ..root import root
 from ..workflow import InpaintMode, FillMode
@@ -35,8 +36,6 @@ from .widget import WorkspaceSelectWidget, StyleSelectWidget, StrengthWidget, Qu
 from .widget import GenerateButton, create_wide_tool_button
 from .region import RegionPromptWidget
 from . import theme
-
-from ..custom_workflow import CustomParam, ParamKind, SortedWorkflows
 
 
 class HistoryWidget(QListWidget):
@@ -969,6 +968,16 @@ def popup_on_error(func):
     return wrapper
 
 
+def _create_tool_button(parent: QWidget, icon: QIcon, tooltip: str, handler: Callable[..., None]):
+    button = QToolButton(parent)
+    button.setIcon(icon)
+    button.setToolTip(tooltip)
+    button.setToolButtonStyle(Qt.ToolButtonStyle.ToolButtonIconOnly)
+    button.setAutoRaise(True)
+    button.clicked.connect(handler)
+    return button
+
+
 class CustomWorkflowWidget(QWidget):
     def __init__(self):
         super().__init__()
@@ -984,20 +993,24 @@ class CustomWorkflowWidget(QWidget):
         self._workflow_select.setModel(SortedWorkflows(root.workflows))
         self._workflow_select.currentIndexChanged.connect(self._change_workflow)
 
-        self._import_workflow_button = QToolButton(self._workflow_select_widgets)
-        self._import_workflow_button.setText("I")
-        self._import_workflow_button.setToolTip(_("Import workflow from file"))
-        self._import_workflow_button.clicked.connect(self._import_workflow)
-
-        self._save_workflow_button = QToolButton(self._workflow_select_widgets)
-        self._save_workflow_button.setText("S")
-        self._save_workflow_button.setToolTip(_("Save workflow to file"))
-        self._save_workflow_button.clicked.connect(self._save_workflow)
-
-        self._open_webui_button = QToolButton(self._workflow_select_widgets)
-        self._open_webui_button.setText("W")
-        self._open_webui_button.setToolTip(_("Open Web UI to create custom workflows"))
-        self._open_webui_button.clicked.connect(self._open_webui)
+        self._import_workflow_button = _create_tool_button(
+            self._workflow_select_widgets,
+            theme.icon("import"),
+            _("Import workflow from file"),
+            self._import_workflow,
+        )
+        self._save_workflow_button = _create_tool_button(
+            self._workflow_select_widgets,
+            theme.icon("save"),
+            _("Save workflow to file"),
+            self._save_workflow,
+        )
+        self._open_webui_button = _create_tool_button(
+            self._workflow_select_widgets,
+            theme.icon("comfyui"),
+            _("Open Web UI to create custom workflows"),
+            self._open_webui,
+        )
 
         self._workflow_edit_widgets = QWidget(self)
         self._workflow_edit_widgets.setVisible(False)
@@ -1006,13 +1019,12 @@ class CustomWorkflowWidget(QWidget):
         self._workflow_name_edit.textEdited.connect(self._edit_name)
         self._workflow_name_edit.returnPressed.connect(self._accept_name)
 
-        self._accept_name_button = QToolButton(self._workflow_edit_widgets)
-        self._accept_name_button.setText("✔")
-        self._accept_name_button.clicked.connect(self._accept_name)
-
-        self._cancel_name_button = QToolButton(self._workflow_edit_widgets)
-        self._cancel_name_button.setText("✘")
-        self._cancel_name_button.clicked.connect(self._cancel_name)
+        self._accept_name_button = _create_tool_button(
+            self._workflow_edit_widgets, theme.icon("apply"), _("Apply"), self._accept_name
+        )
+        self._cancel_name_button = _create_tool_button(
+            self._workflow_edit_widgets, theme.icon("cancel"), _("Cancel"), self._cancel_name
+        )
 
         self._params_widget = WorkflowParamsWidget([], self)
 
@@ -1028,6 +1040,7 @@ class CustomWorkflowWidget(QWidget):
         self._layout = QVBoxLayout()
         select_layout = QHBoxLayout()
         select_layout.setContentsMargins(0, 0, 0, 0)
+        select_layout.setSpacing(2)
         select_layout.addWidget(self._workflow_select)
         select_layout.addWidget(self._import_workflow_button)
         select_layout.addWidget(self._save_workflow_button)
@@ -1035,6 +1048,7 @@ class CustomWorkflowWidget(QWidget):
         self._workflow_select_widgets.setLayout(select_layout)
         edit_layout = QHBoxLayout()
         edit_layout.setContentsMargins(0, 0, 0, 0)
+        edit_layout.setSpacing(2)
         edit_layout.addWidget(self._workflow_name_edit)
         edit_layout.addWidget(self._accept_name_button)
         edit_layout.addWidget(self._cancel_name_button)

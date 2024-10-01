@@ -11,6 +11,7 @@ from .comfy_workflow import ComfyWorkflow
 from .connection import Connection
 from .properties import Property, ObservableProperties
 from .util import user_data_dir, client_logger as log
+from .ui import theme
 
 
 class WorkflowSource(Enum):
@@ -36,6 +37,11 @@ class CustomWorkflow:
 
 
 class WorkflowCollection(QAbstractListModel):
+
+    _icon_local = theme.icon("file-json")
+    _icon_remote = theme.icon("web-connection")
+    _icon_document = theme.icon("file-kra")
+
     def __init__(self, connection: Connection, folder: Path | None = None):
         super().__init__()
         self._workflows: list[CustomWorkflow] = []
@@ -74,6 +80,13 @@ class WorkflowCollection(QAbstractListModel):
             return self._workflows[index.row()].name
         if role == Qt.ItemDataRole.UserRole:
             return self._workflows[index.row()].id
+        if role == Qt.ItemDataRole.DecorationRole:
+            source = self._workflows[index.row()].source
+            if source is WorkflowSource.document:
+                return self._icon_document
+            if source is WorkflowSource.remote:
+                return self._icon_remote
+            return self._icon_local
 
     def append(self, item: CustomWorkflow):
         end = len(self._workflows)
