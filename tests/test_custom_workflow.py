@@ -26,8 +26,12 @@ def test_collection(tmp_path: Path):
 
     collection = WorkflowCollection(connection, tmp_path)
     assert len(collection) == 3
-    assert collection.find("file1") == CustomWorkflow("file1", WorkflowSource.local, {"file": 1})
-    assert collection.find("file2") == CustomWorkflow("file2", WorkflowSource.local, {"file": 2})
+    assert collection.find("file1") == CustomWorkflow(
+        "file1", WorkflowSource.local, {"file": 1}, file1
+    )
+    assert collection.find("file2") == CustomWorkflow(
+        "file2", WorkflowSource.local, {"file": 2}, file2
+    )
     assert collection.find("connection1") == CustomWorkflow(
         "connection1", WorkflowSource.remote, {"connection": 1}
     )
@@ -56,8 +60,9 @@ def test_collection(tmp_path: Path):
     )
 
     collection.set_graph(collection.index(0), {"file": 3})
-    assert collection.find("file1") == CustomWorkflow("file1", WorkflowSource.local, {"file": 3})
-
+    assert collection.find("file1") == CustomWorkflow(
+        "file1", WorkflowSource.local, {"file": 3}, file1
+    )
     assert events == [("begin_insert", 3), "end_insert", ("data_changed", 0)]
 
     collection.append(CustomWorkflow("doc1", WorkflowSource.document, {"doc": 1}))
@@ -103,6 +108,10 @@ def test_files(tmp_path: Path):
         collection_folder / "file1 (2).json",
     ]
     assert all(f.exists() for f in files)
+
+    collection.remove("file1 (1)")
+    assert collection.find("file1 (1)") is None
+    assert not (collection_folder / "file1 (1).json").exists()
 
     bad_file = tmp_path / "bad.json"
     bad_file.write_text("bad json")

@@ -25,7 +25,7 @@ from ..properties import Binding, Bind, bind, bind_combo, bind_toggle
 from ..image import Bounds, Extent, Image
 from ..jobs import Job, JobQueue, JobState, JobKind, JobParams
 from ..model import Model, InpaintContext, RootRegion, ProgressKind
-from ..custom_workflow import CustomParam, ParamKind, SortedWorkflows
+from ..custom_workflow import CustomParam, ParamKind, SortedWorkflows, WorkflowSource
 from ..style import Styles
 from ..root import root
 from ..workflow import InpaintMode, FillMode
@@ -1005,6 +1005,12 @@ class CustomWorkflowWidget(QWidget):
             _("Save workflow to file"),
             self._save_workflow,
         )
+        self._delete_workflow_button = _create_tool_button(
+            self._workflow_select_widgets,
+            theme.icon("discard"),
+            _("Delete the currently selected workflow"),
+            self._delete_workflow,
+        )
         self._open_webui_button = _create_tool_button(
             self._workflow_select_widgets,
             theme.icon("comfyui"),
@@ -1044,6 +1050,7 @@ class CustomWorkflowWidget(QWidget):
         select_layout.addWidget(self._workflow_select)
         select_layout.addWidget(self._import_workflow_button)
         select_layout.addWidget(self._save_workflow_button)
+        select_layout.addWidget(self._delete_workflow_button)
         select_layout.addWidget(self._open_webui_button)
         self._workflow_select_widgets.setLayout(select_layout)
         edit_layout = QHBoxLayout()
@@ -1071,8 +1078,12 @@ class CustomWorkflowWidget(QWidget):
     def _update_current_workflow(self):
         if not self.model.custom.workflow:
             self._save_workflow_button.setEnabled(False)
+            self._delete_workflow_button.setEnabled(False)
             return
         self._save_workflow_button.setEnabled(True)
+        self._delete_workflow_button.setEnabled(
+            self.model.custom.workflow.source is WorkflowSource.local
+        )
 
         self._params_widget.deleteLater()
         self._params_widget = WorkflowParamsWidget(self.model.custom.metadata, self)
@@ -1126,6 +1137,18 @@ class CustomWorkflowWidget(QWidget):
 
     def _save_workflow(self):
         self.is_edit_mode = True
+
+    def _delete_workflow(self):
+        filepath = ensure(self.model.custom.workflow).path
+        q = QMessageBox.question(
+            self,
+            _("Delete Workflow"),
+            _("Are you sure you want to delete the current workflow?") + f"\n{filepath}",
+            QMessageBox.Yes | QMessageBox.No,
+            QMessageBox.StandardButton.No,
+        )
+        if q == QMessageBox.StandardButton.Yes:
+            self.model.custom.remove_workflow()
 
     def _open_webui(self):
         if client := root.connection.client_if_connected:

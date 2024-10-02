@@ -370,7 +370,7 @@ class Model(QObject, ObservableProperties):
                 sampling=SamplingInput("custom", "custom", 1, 1000, seed=seed),
                 custom_workflow=CustomWorkflowInput(wf.root, {}),
             )
-            job_params = JobParams(bounds, self.custom.graph_id)
+            job_params = JobParams(bounds, self.custom.workflow_id)
         except Exception as e:
             self.report_error(util.log_error(e))
             return

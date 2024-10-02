@@ -63,7 +63,7 @@ class WorkflowCollection(QAbstractListModel):
 
     def _process_file(self, file: Path):
         with file.open("r") as f:
-            self._process(CustomWorkflow(file.stem, WorkflowSource.local, json.load(f)))
+            self._process(CustomWorkflow(file.stem, WorkflowSource.local, json.load(f), file))
 
     def _process(self, workflow: CustomWorkflow):
         idx = self.find_index(workflow.id)
@@ -93,6 +93,16 @@ class WorkflowCollection(QAbstractListModel):
         self.beginInsertRows(QModelIndex(), end, end)
         self._workflows.append(item)
         self.endInsertRows()
+
+    def remove(self, id: str):
+        idx = self.find_index(id)
+        if idx.isValid():
+            wf = self._workflows[idx.row()]
+            if wf.source is WorkflowSource.local and wf.path is not None:
+                wf.path.unlink()
+            self.beginRemoveRows(QModelIndex(), idx.row(), idx.row())
+            self._workflows.pop(idx.row())
+            self.endRemoveRows()
 
     def set_graph(self, index: QModelIndex, graph: dict):
         self._workflows[index.row()].graph = graph
@@ -252,6 +262,14 @@ class CustomWorkspace(QObject, ObservableProperties):
     def save_as(self, id: str):
         assert self._graph, "Save as: no workflow selected"
         self.workflow_id = self._workflows.save_as(id, self._graph.root)
+
+    def remove_workflow(self):
+        if id := self.workflow_id:
+            self._workflow_id = ""
+            self._workflow = None
+            self._graph = None
+            self._metadata = []
+            self._workflows.remove(id)
 
     @property
     def workflow(self):
