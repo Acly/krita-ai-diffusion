@@ -854,12 +854,12 @@ class LayerSelect(QComboBox):
                 i += 1
 
     @property
-    def value(self):
-        return self.currentData()
+    def value(self) -> str:
+        return self.currentData().toString()
 
     @value.setter
     def value(self, value: str):
-        i = self.findData(value)
+        i = self.findData(QUuid(value))
         if i != -1 and i != self.currentIndex():
             self.setCurrentIndex(i)
 

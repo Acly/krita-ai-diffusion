@@ -19,7 +19,7 @@ from .network import NetworkError
 from .image import Extent, Image, Mask, Bounds, DummyImage
 from .client import ClientMessage, ClientEvent, SharedWorkflow
 from .client import filter_supported_styles, resolve_arch
-from .custom_workflow import CustomWorkspace, WorkflowCollection
+from .custom_workflow import CustomWorkspace, WorkflowCollection, ParamKind
 from .document import Document, KritaDocument
 from .layer import Layer, LayerType, RestoreActiveLayer
 from .pose import Pose
@@ -364,11 +364,20 @@ class Model(QObject, ObservableProperties):
                 else:
                     img_input.hires_mask = Mask.transparent(bounds).to_image()
 
+            params = copy(self.custom.params)
+            for md in self.custom.metadata:
+                if md.kind is ParamKind.image_layer:
+                    layer = self.layers.find(QUuid(params[md.name]))
+                    params[md.name] = ensure(layer).get_pixels(bounds)
+                elif md.kind is ParamKind.mask_layer:
+                    layer = self.layers.find(QUuid(params[md.name]))
+                    params[md.name] = ensure(layer).get_mask(bounds)
+
             input = WorkflowInput(
                 WorkflowKind.custom,
                 img_input,
                 sampling=SamplingInput("custom", "custom", 1, 1000, seed=seed),
-                custom_workflow=CustomWorkflowInput(wf.root, {}),
+                custom_workflow=CustomWorkflowInput(wf.root, params),
             )
             job_params = JobParams(bounds, self.custom.workflow_id)
         except Exception as e:
