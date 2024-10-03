@@ -6,6 +6,7 @@ from textwrap import wrap as wrap_text
 from typing import Any, Callable, NamedTuple
 from PyQt5.QtCore import Qt, QMetaObject, QSize, QPoint, QUuid, pyqtSignal, QUrl
 from PyQt5.QtGui import QGuiApplication, QMouseEvent, QPalette, QColor, QDesktopServices, QIcon
+from PyQt5.QtGui import QFontMetrics
 from PyQt5.QtWidgets import QAction, QWidget, QVBoxLayout, QHBoxLayout, QPushButton, QProgressBar
 from PyQt5.QtWidgets import (
     QLabel,
@@ -18,6 +19,8 @@ from PyQt5.QtWidgets import (
     QSpinBox,
     QFileDialog,
     QLineEdit,
+    QDoubleSpinBox,
+    QFrame,
 )
 from PyQt5.QtWidgets import QComboBox, QCheckBox, QMenu, QShortcut, QMessageBox, QGridLayout
 
@@ -33,8 +36,9 @@ from ..comfy_workflow import ComfyWorkflow, ComfyNode, Input, Output
 from ..localization import translate as _
 from ..util import ensure, flatten
 from .widget import WorkspaceSelectWidget, StyleSelectWidget, StrengthWidget, QueueButton
-from .widget import GenerateButton, create_wide_tool_button
+from .widget import GenerateButton, TextPromptWidget, create_wide_tool_button
 from .region import RegionPromptWidget
+from .switch import SwitchWidget
 from . import theme
 
 
@@ -874,7 +878,7 @@ class IntParamWidget(QWidget):
         assert param.min is not None and param.max is not None and param.default is not None
         if param.max - param.min <= 200:
             self._widget = QSlider(Qt.Orientation.Horizontal, parent)
-            self._widget.setRange(param.min, param.max)
+            self._widget.setRange(int(param.min), int(param.max))
             self._widget.setMinimumHeight(self._widget.minimumSizeHint().height() + 4)
             self._widget.valueChanged.connect(self._notify)
             self._label = QLabel(self)
@@ -882,15 +886,13 @@ class IntParamWidget(QWidget):
             self._label.setAlignment(Qt.AlignmentFlag.AlignRight)
             layout.addWidget(self._widget)
             layout.addWidget(self._label)
-            self.setLayout(layout)
         else:
             self._widget = QSpinBox(parent)
-            self._widget.setRange(param.min, param.max)
+            self._widget.setRange(int(param.min), int(param.max))
             self._widget.valueChanged.connect(self._notify)
             self._label = None
             layout = QHBoxLayout(self)
             layout.addWidget(self._widget)
-            self.setLayout(layout)
 
         self.value = param.default
 
@@ -908,7 +910,150 @@ class IntParamWidget(QWidget):
         self._widget.setValue(value)
 
 
-CustomParamWidget = LayerSelect | IntParamWidget
+class FloatParamWidget(QWidget):
+    value_changed = pyqtSignal()
+
+    def __init__(self, param: CustomParam, parent: QWidget | None = None):
+        super().__init__(parent)
+        self.setContentsMargins(0, 0, 0, 0)
+
+        layout = QHBoxLayout(self)
+        layout.setContentsMargins(0, 0, 0, 0)
+        self.setLayout(layout)
+
+        assert param.min is not None and param.max is not None and param.default is not None
+        if param.max - param.min <= 20:
+            self._widget = QSlider(Qt.Orientation.Horizontal, parent)
+            self._widget.setRange(round(param.min * 100), round(param.max * 100))
+            self._widget.setMinimumHeight(self._widget.minimumSizeHint().height() + 4)
+            self._widget.valueChanged.connect(self._notify)
+            self._label = QLabel(self)
+            self._label.setFixedWidth(40)
+            self._label.setAlignment(Qt.AlignmentFlag.AlignRight)
+            layout.addWidget(self._widget)
+            layout.addWidget(self._label)
+        else:
+            self._widget = QDoubleSpinBox(parent)
+            self._widget.setRange(param.min, param.max)
+            self._widget.valueChanged.connect(self._notify)
+            self._label = None
+            layout = QHBoxLayout(self)
+            layout.addWidget(self._widget)
+
+        self.value = param.default
+
+    def _notify(self):
+        if self._label:
+            self._label.setText(f"{self.value:.2f}")
+        self.value_changed.emit()
+
+    @property
+    def value(self):
+        if isinstance(self._widget, QSlider):
+            return self._widget.value() / 100
+        else:
+            return self._widget.value()
+
+    @value.setter
+    def value(self, value: float):
+        if isinstance(self._widget, QSlider):
+            self._widget.setValue(round(value * 100))
+        else:
+            self._widget.setValue(value)
+
+
+class BoolParamWidget(QWidget):
+    value_changed = pyqtSignal()
+
+    _true_text = _("On")
+    _false_text = _("Off")
+
+    def __init__(self, param: CustomParam, parent: QWidget | None = None):
+        super().__init__(parent)
+        self.setContentsMargins(0, 0, 0, 0)
+
+        layout = QHBoxLayout(self)
+        layout.setContentsMargins(0, 0, 0, 0)
+        self.setLayout(layout)
+
+        fm = QFontMetrics(self.font())
+        self._label = QLabel(self)
+        self._label.setMinimumWidth(max(fm.width(self._true_text), fm.width(self._false_text)) + 4)
+        self._widget = SwitchWidget(parent)
+        self._widget.toggled.connect(self._notify)
+        layout.addWidget(self._widget)
+        layout.addWidget(self._label)
+
+        assert isinstance(param.default, bool)
+        self.value = param.default
+
+    def _notify(self):
+        self._label.setText(self._true_text if self.value else self._false_text)
+        self.value_changed.emit()
+
+    @property
+    def value(self):
+        return self._widget.isChecked()
+
+    @value.setter
+    def value(self, value: bool):
+        self._widget.setChecked(value)
+
+
+class TextParamWidget(QLineEdit):
+    value_changed = pyqtSignal()
+
+    def __init__(self, param: CustomParam, parent: QWidget | None = None):
+        super().__init__(parent)
+        assert isinstance(param.default, str)
+
+        self.value = param.default
+        self.textChanged.connect(self._notify)
+
+    def _notify(self):
+        self.value_changed.emit()
+
+    @property
+    def value(self):
+        return self.text()
+
+    @value.setter
+    def value(self, value: str):
+        self.setText(value)
+
+
+class PromptParamWidget(TextPromptWidget):
+    value_changed = pyqtSignal()
+
+    def __init__(self, param: CustomParam, parent: QWidget | None = None):
+        super().__init__(is_negative=param.kind is ParamKind.prompt_negative, parent=parent)
+        assert isinstance(param.default, str)
+
+        self.setObjectName("PromptParam")
+        self.setFrameStyle(QFrame.Shape.StyledPanel)
+        self.setStyleSheet(
+            f"QFrame#PromptParam {{ background-color: {theme.base}; border: 1px solid {theme.line_base}; }}"
+        )
+        self.text = param.default
+        self.text_changed.connect(self.value_changed)
+
+    @property
+    def value(self):
+        return self.text
+
+    @value.setter
+    def value(self, value: str):
+        self.text = value
+
+
+CustomParamWidget = (
+    LayerSelect
+    | IntParamWidget
+    | FloatParamWidget
+    | BoolParamWidget
+    | TextParamWidget
+    | PromptParamWidget
+)
 
 
 def _create_param_widget(param: CustomParam, parent: QWidget):
@@ -918,6 +1063,14 @@ def _create_param_widget(param: CustomParam, parent: QWidget):
         return LayerSelect("mask", parent)
     if param.kind is ParamKind.number_int:
         return IntParamWidget(param, parent)
+    if param.kind is ParamKind.number_float:
+        return FloatParamWidget(param, parent)
+    if param.kind is ParamKind.boolean:
+        return BoolParamWidget(param, parent)
+    if param.kind is ParamKind.text:
+        return TextParamWidget(param, parent)
+    if param.kind in [ParamKind.prompt_positive, ParamKind.prompt_negative]:
+        return PromptParamWidget(param, parent)
     assert False, f"Unknown param kind: {param.kind}"
 
 

@@ -182,17 +182,22 @@ class ParamKind(Enum):
     image_layer = 0
     mask_layer = 1
     number_int = 2
+    number_float = 3
+    boolean = 4
+    text = 5
+    prompt_positive = 6
+    prompt_negative = 7
 
 
 class CustomParam(NamedTuple):
     kind: ParamKind
     name: str
     default: Any | None = None
-    min: int | None = None
-    max: int | None = None
+    min: int | float | None = None
+    max: int | float | None = None
 
 
-def _gather_params(w: ComfyWorkflow):
+def workflow_parameters(w: ComfyWorkflow):
     for node in w:
         match node.type:
             case "ETN_KritaImageLayer":
@@ -207,6 +212,27 @@ def _gather_params(w: ComfyWorkflow):
                 min = node.input("min", -(2**31))
                 max = node.input("max", 2**31)
                 yield CustomParam(ParamKind.number_int, name, default=default, min=min, max=max)
+            case "ETN_NumberParameter":
+                name = node.input("name", "Parameter")
+                default = node.input("default", 0.0)
+                min = node.input("min", 0.0)
+                max = node.input("max", 1.0)
+                yield CustomParam(ParamKind.number_float, name, default=default, min=min, max=max)
+            case "ETN_BoolParameter":
+                name = node.input("name", "Parameter")
+                default = node.input("default", False)
+                yield CustomParam(ParamKind.boolean, name, default=default)
+            case "ETN_TextParameter":
+                name = node.input("name", "Parameter")
+                default = node.input("default", "")
+                type = node.input("type", "general")
+                match type:
+                    case "general":
+                        yield CustomParam(ParamKind.text, name, default=default)
+                    case "prompt (positive)":
+                        yield CustomParam(ParamKind.prompt_positive, name, default=default)
+                    case "prompt (negative)":
+                        yield CustomParam(ParamKind.prompt_negative, name, default=default)
 
 
 class CustomWorkspace(QObject, ObservableProperties):
@@ -239,7 +265,7 @@ class CustomWorkspace(QObject, ObservableProperties):
         if wf.id == self._workflow_id:
             self._workflow = wf
             self._graph = self._workflow.workflow
-            self._metadata = list(_gather_params(self._graph))
+            self._metadata = list(workflow_parameters(self._graph))
             self.params = _coerce(self.params, self._metadata)
             self.graph_changed.emit()
 

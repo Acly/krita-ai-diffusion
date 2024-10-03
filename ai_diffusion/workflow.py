@@ -1052,11 +1052,21 @@ def expand_custom(
 
     def map_input(input):
         if isinstance(input, Output):
-            if mapped := outputs.get(input):
+            mapped = outputs.get(input)
+            if mapped is not None:
                 return mapped
             else:
                 return Output(nodes[input.node], input.output)
         return input
+
+    def get_param(node: ComfyNode, expected_type: type | None = None):
+        name = node.input("name", "")
+        value = input.params.get(name)
+        if value is None:
+            raise Exception(f"Missing required parameter '{name}' for custom workflow")
+        if expected_type and not isinstance(value, expected_type):
+            raise Exception(f"Parameter '{name}' must be of type {expected_type}")
+        return value
 
     for node in custom:
         match node.type:
@@ -1068,6 +1078,17 @@ def expand_custom(
                 outputs[node.output(3)] = sampling.seed
             case "ETN_KritaSelection":
                 outputs[node.output(0)] = w.load_mask(ensure(images.hires_mask))
+            case "ETN_KritaImageLayer":
+                outputs[node.output(0)] = w.load_image(get_param(node, Image))
+            case "ETN_KritaMaskLayer":
+                outputs[node.output(0)] = w.load_mask(get_param(node, Image))
+            case (
+                "ETN_IntParameter"
+                | "ETN_NumberParameter"
+                | "ETN_BoolParameter"
+                | "ETN_TextParameter"
+            ):
+                outputs[node.output(0)] = get_param(node)
             case _:
                 mapped_inputs = {k: map_input(v) for k, v in node.inputs.items()}
                 mapped = ComfyNode(node.id, node.type, mapped_inputs)

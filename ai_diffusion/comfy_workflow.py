@@ -40,11 +40,19 @@ class ComfyNode(NamedTuple):
 
     def input(self, key: str, default: T | None = None) -> T | Input:
         result = self.inputs[key]
-        assert default is None or type(result) == type(default)
+        assert (
+            default is None
+            or type(result) == type(default)
+            or (isnumber(result) and isnumber(default))
+        )
         return result
 
     def output(self, index=0) -> Output:
         return Output(int(self.id), index)
+
+
+def isnumber(x):
+    return isinstance(x, (int, float))
 
 
 class ComfyWorkflow:

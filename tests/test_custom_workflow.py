@@ -7,7 +7,8 @@ from ai_diffusion.api import CustomWorkflowInput, ImageInput, SamplingInput
 from ai_diffusion.connection import Connection
 from ai_diffusion.comfy_workflow import ComfyNode, ComfyWorkflow, Output
 from ai_diffusion.custom_workflow import CustomWorkflow, WorkflowSource, WorkflowCollection
-from ai_diffusion.custom_workflow import SortedWorkflows, CustomWorkspace, CustomParam
+from ai_diffusion.custom_workflow import SortedWorkflows, CustomWorkspace
+from ai_diffusion.custom_workflow import CustomParam, ParamKind, workflow_parameters
 from ai_diffusion.image import Image, Extent
 from ai_diffusion import workflow
 
@@ -169,14 +170,62 @@ def test_import():
     assert w.node(2) == ComfyNode(2, "C", {"in": Output(1, 1)})
 
 
+def test_parameters():
+    w = ComfyWorkflow()
+    w.add("ETN_IntParameter", 1, name="int", default=4, min=0, max=10)
+    w.add("ETN_BoolParameter", 1, name="bool", default=True)
+    w.add("ETN_NumberParameter", 1, name="number", default=1.2, min=0.0, max=10.0)
+    w.add("ETN_TextParameter", 1, name="text", type="general", default="mouse")
+    w.add("ETN_TextParameter", 1, name="positive", type="prompt (positive)", default="p")
+    w.add("ETN_TextParameter", 1, name="negative", type="prompt (negative)", default="n")
+    w.add("ETN_KritaImageLayer", 1, name="image")
+    w.add("ETN_KritaMaskLayer", 1, name="mask")
+
+    assert list(workflow_parameters(w)) == [
+        CustomParam(ParamKind.number_int, "int", 4, 0, 10),
+        CustomParam(ParamKind.boolean, "bool", True),
+        CustomParam(ParamKind.number_float, "number", 1.2, 0.0, 10.0),
+        CustomParam(ParamKind.text, "text", "mouse"),
+        CustomParam(ParamKind.prompt_positive, "positive", "p"),
+        CustomParam(ParamKind.prompt_negative, "negative", "n"),
+        CustomParam(ParamKind.image_layer, "image"),
+        CustomParam(ParamKind.mask_layer, "mask"),
+    ]
+
+
 def test_expand():
     ext = ComfyWorkflow()
     in_img, width, height, seed = ext.add("ETN_KritaCanvas", 4)
     scaled = ext.add("ImageScale", 1, image=in_img, width=width, height=height)
     ext.add("ETN_KritaOutput", 1, images=scaled)
-    ext.add("SeedEater", 1, seed=seed)
+    inty = ext.add("ETN_IntParameter", 1, name="inty", default=4, min=0, max=10)
+    numby = ext.add("ETN_NumberParameter", 1, name="numby", default=1.2, min=0.0, max=10.0)
+    texty = ext.add("ETN_TextParameter", 1, name="texty", type="general", default="mouse")
+    booly = ext.add("ETN_BoolParameter", 1, name="booly", default=True)
+    layer_img = ext.add("ETN_KritaImageLayer", 1, name="layer_img")
+    layer_mask = ext.add("ETN_KritaMaskLayer", 1, name="layer_mask")
+    ext.add(
+        "Sink",
+        1,
+        seed=seed,
+        inty=inty,
+        numby=numby,
+        texty=texty,
+        booly=booly,
+        layer_img=layer_img,
+        layer_mask=layer_mask,
+    )
 
-    input = CustomWorkflowInput(workflow=ext.root, params={})
+    params = {
+        "inty": 7,
+        "numby": 3.4,
+        "texty": "cat",
+        "booly": False,
+        "layer_img": Image.create(Extent(4, 4), Qt.GlobalColor.black),
+        "layer_mask": Image.create(Extent(4, 4), Qt.GlobalColor.white),
+    }
+
+    input = CustomWorkflowInput(workflow=ext.root, params=params)
     images = ImageInput.from_extent(Extent(4, 4))
     images.initial_image = Image.create(Extent(4, 4), Qt.GlobalColor.white)
     sampling = SamplingInput("", "", 1.0, 1000, seed=123)
@@ -187,7 +236,21 @@ def test_expand():
         ComfyNode(1, "ETN_LoadImageBase64", {"image": images.initial_image.to_base64()}),
         ComfyNode(2, "ImageScale", {"image": Output(1, 0), "width": 4, "height": 4}),
         ComfyNode(3, "ETN_KritaOutput", {"images": Output(2, 0)}),
-        ComfyNode(4, "SeedEater", {"seed": 123}),
+        ComfyNode(4, "ETN_LoadImageBase64", {"image": params["layer_img"].to_base64()}),
+        ComfyNode(5, "ETN_LoadMaskBase64", {"mask": params["layer_mask"].to_base64()}),
+        ComfyNode(
+            6,
+            "Sink",
+            {
+                "seed": 123,
+                "inty": 7,
+                "numby": 3.4,
+                "texty": "cat",
+                "booly": False,
+                "layer_img": Output(4, 0),
+                "layer_mask": Output(5, 0),
+            },
+        ),
     ]
     for node in expected:
         assert node in w, f"Node {node} not found in\n{json.dumps(w.root, indent=2)}"
