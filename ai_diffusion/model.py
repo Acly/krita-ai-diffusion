@@ -368,10 +368,14 @@ class Model(QObject, ObservableProperties):
             for md in self.custom.metadata:
                 if md.kind is ParamKind.image_layer:
                     layer = self.layers.find(QUuid(params[md.name]))
-                    params[md.name] = ensure(layer).get_pixels(bounds)
+                    if layer is None:
+                        raise ValueError(f"Input layer for parameter {md.name} not found")
+                    params[md.name] = layer.get_pixels(bounds)
                 elif md.kind is ParamKind.mask_layer:
                     layer = self.layers.find(QUuid(params[md.name]))
-                    params[md.name] = ensure(layer).get_mask(bounds)
+                    if layer is None:
+                        raise ValueError(f"Input layer for parameter {md.name} not found")
+                    params[md.name] = layer.get_mask(bounds)
 
             input = WorkflowInput(
                 WorkflowKind.custom,

@@ -13,7 +13,8 @@ from ..updates import UpdateState
 from ..root import root
 from ..localization import translate as _
 from . import theme
-from .generation import GenerationWidget, CustomWorkflowWidget
+from .generation import GenerationWidget
+from .custom_workflow import CustomWorkflowWidget
 from .upscale import UpscaleWidget
 from .live import LiveWidget
 from .animation import AnimationWidget
