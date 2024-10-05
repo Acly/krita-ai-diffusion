@@ -15,29 +15,41 @@ from ai_diffusion import workflow
 from .config import test_dir
 
 
+def _assert_has_workflow(
+    collection: WorkflowCollection,
+    name: str,
+    source: WorkflowSource,
+    graph: dict,
+    file: Path | None = None,
+):
+    workflow = collection.find(name)
+    assert (
+        workflow is not None
+        and workflow.source == source
+        and workflow.workflow.root == graph
+        and workflow.path == file
+    )
+
+
 def test_collection(tmp_path: Path):
     file1 = tmp_path / "file1.json"
-    file1.write_text('{"file": 1}')
+    file1_graph = {"0": {"class_type": "F1", "inputs": {}}}
+    file1.write_text(json.dumps(file1_graph))
+
     file2 = tmp_path / "file2.json"
-    file2.write_text('{"file": 2}')
+    file2_graph = {"0": {"class_type": "F2", "inputs": {}}}
+    file2.write_text(json.dumps(file2_graph))
 
     connection = Connection()
-    connection_workflows = {
-        "connection1": {"connection": 1},
-    }
+    connection_graph = {"0": {"class_type": "C1", "inputs": {}}}
+    connection_workflows = {"connection1": connection_graph}
     connection._workflows = connection_workflows
 
     collection = WorkflowCollection(connection, tmp_path)
     assert len(collection) == 3
-    assert collection.find("file1") == CustomWorkflow.from_api(
-        "file1", WorkflowSource.local, {"file": 1}, file1
-    )
-    assert collection.find("file2") == CustomWorkflow.from_api(
-        "file2", WorkflowSource.local, {"file": 2}, file2
-    )
-    assert collection.find("connection1") == CustomWorkflow.from_api(
-        "connection1", WorkflowSource.remote, {"connection": 1}
-    )
+    _assert_has_workflow(collection, "file1", WorkflowSource.local, file1_graph, file1)
+    _assert_has_workflow(collection, "file2", WorkflowSource.local, file2_graph, file2)
+    _assert_has_workflow(collection, "connection1", WorkflowSource.remote, connection_graph)
 
     events = []
 
@@ -54,21 +66,19 @@ def test_collection(tmp_path: Path):
     collection.rowsInserted.connect(on_end_insert)
     collection.dataChanged.connect(on_data_changed)
 
-    connection_workflows["connection2"] = {"connection": 2}
+    connection2_graph = {"0": {"class_type": "C2", "inputs": {}}}
+    connection_workflows["connection2"] = connection2_graph
     connection.workflow_published.emit("connection2")
 
     assert len(collection) == 4
-    assert collection.find("connection2") == CustomWorkflow.from_api(
-        "connection2", WorkflowSource.remote, {"connection": 2}
-    )
+    _assert_has_workflow(collection, "connection2", WorkflowSource.remote, connection2_graph)
 
-    collection.set_graph(collection.index(0), {"file": 3})
-    assert collection.find("file1") == CustomWorkflow.from_api(
-        "file1", WorkflowSource.local, {"file": 3}, file1
-    )
+    file1_graph_changed = {"0": {"class_type": "F3", "inputs": {}}}
+    collection.set_graph(collection.index(0), file1_graph_changed)
+    _assert_has_workflow(collection, "file1", WorkflowSource.local, file1_graph_changed, file1)
     assert events == [("begin_insert", 3), "end_insert", ("data_changed", 0)]
 
-    collection.add_from_document("doc1", {"doc": 1})
+    collection.add_from_document("doc1", {"0": {"class_type": "D1", "inputs": {}}})
 
     sorted = SortedWorkflows(collection)
     assert sorted[0].source is WorkflowSource.document
@@ -102,7 +112,7 @@ def test_files(tmp_path: Path):
     collection.import_file(file1)
     assert collection.find("file1 (1)") is not None
 
-    collection.save_as("file1", {"file": 2})
+    collection.save_as("file1", make_dummy_graph(77))
     assert collection.find("file1 (2)") is not None
 
     files = [

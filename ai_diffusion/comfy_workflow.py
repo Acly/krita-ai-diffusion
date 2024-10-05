@@ -859,6 +859,9 @@ def _convert_ui_workflow(w: dict, node_inputs: dict):
     if not (version and nodes and links):
         return w
 
+    if not node_inputs:
+        raise ValueError("An active ComfyUI connection is required to convert a UI workflow file.")
+
     primitives = {}
     for node in nodes:
         if node["type"] == "PrimitiveNode":
