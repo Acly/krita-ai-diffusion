@@ -64,17 +64,22 @@ class ComfyWorkflow:
         self.node_count = 0
         self.sample_count = 0
         self._cache: dict[str, Output | Output2 | Output3 | Output4] = {}
-        self._nodes_required_inputs: dict[str, dict[str, Any]] = node_inputs or {}
+        self._nodes_inputs: dict[str, dict[str, Any]] = node_inputs or {}
         self._run_mode: ComfyRunMode = run_mode
 
     @staticmethod
-    def import_graph(existing: dict):
-        w = ComfyWorkflow()
+    def import_graph(existing: dict, node_inputs: dict):
+        w = ComfyWorkflow(node_inputs)
+        existing = _convert_ui_workflow(existing, node_inputs)
         node_map: dict[str, str] = {}
         queue = list(existing.keys())
         while queue:
             id = queue.pop(0)
             node = deepcopy(existing[id])
+            if node_inputs and node["class_type"] not in node_inputs:
+                raise ValueError(
+                    f"Workflow contains a node of type {node['class_type']} which is not installed on the ComfyUI server."
+                )
             edges = [e for e in node["inputs"].values() if isinstance(e, list)]
             if any(e[0] not in node_map for e in edges):
                 queue.append(id)  # requeue node if an input is not yet mapped
@@ -94,7 +99,7 @@ class ComfyWorkflow:
         return w
 
     def add_default_values(self, node_name: str, args: dict):
-        if node_inputs := self._nodes_required_inputs.get(node_name, None):
+        if node_inputs := _inputs_for_node(self._nodes_inputs, node_name, "required"):
             for k, v in node_inputs.items():
                 if k not in args:
                     if len(v) == 1 and isinstance(v[0], list) and len(v[0]) > 0:
@@ -834,3 +839,59 @@ class ComfyWorkflow:
             # use smaller model, but it requires onnxruntime, see #630
             mdls["bbox_detector"] = "yolo_nas_l_fp16.onnx"
         return self.add("DWPreprocessor", 1, image=image, resolution=resolution, **feat, **mdls)
+
+
+def _inputs_for_node(node_inputs: dict[str, dict[str, Any]], node_name: str, filter=""):
+    inputs = node_inputs.get(node_name)
+    if inputs is None:
+        return None
+    if filter:
+        return inputs.get(filter)
+    result = inputs.get("required", {})
+    result.update(inputs.get("optional", {}))
+    return result
+
+
+def _convert_ui_workflow(w: dict, node_inputs: dict):
+    version = w.get("version")
+    nodes = w.get("nodes")
+    links = w.get("links")
+    if not (version and nodes and links):
+        return w
+
+    primitives = {}
+    for node in nodes:
+        if node["type"] == "PrimitiveNode":
+            primitives[node["id"]] = node["widgets_values"][0]
+
+    r = {}
+    for node in nodes:
+        id = node["id"]
+        type = node["type"]
+        if type == "PrimitiveNode":
+            continue
+
+        inputs = {}
+        fields = _inputs_for_node(node_inputs, type)
+        if fields is None:
+            raise ValueError(
+                f"Workflow uses node type {type}, but it is not installed on the ComfyUI server."
+            )
+        widget_count = 0
+        for field_name, field in fields.items():
+            field_type = field[0]
+            if field_type in ["INT", "FLOAT", "BOOL", "STRING"] or isinstance(field_type, list):
+                inputs[field_name] = node["widgets_values"][widget_count]
+                widget_count += 1
+            for connection in node["inputs"]:
+                if connection["name"] == field_name and connection["link"] is not None:
+                    link = next(l for l in links if l[0] == connection["link"])
+                    prim = primitives.get(link[1])
+                    if prim is not None:
+                        inputs[field_name] = prim
+                    else:
+                        inputs[field_name] = [link[1], link[2]]
+                    break
+        r[id] = {"class_type": type, "inputs": inputs}
+
+    return r

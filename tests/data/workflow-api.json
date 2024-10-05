@@ -1,0 +1,64 @@
+{
+  "0": {
+    "class_type": "UpscaleModelLoader",
+    "inputs": {
+      "model_name": "4x_NMKD-Superscale-SP_178000_G.pth"
+    }
+  },
+  "1": {
+    "class_type": "ETN_KritaCanvas",
+    "inputs": {}
+  },
+  "2": {
+    "class_type": "ETN_KritaMaskLayer",
+    "inputs": {
+      "name": "Zauber"
+    }
+  },
+  "3": {
+    "class_type": "GrowMask",
+    "inputs": {
+      "mask": [
+        "2",
+        0
+      ],
+      "expand": 4
+    }
+  },
+  "4": {
+    "class_type": "ImageUpscaleWithModel",
+    "inputs": {
+      "upscale_model": [
+        "0",
+        0
+      ],
+      "image": [
+        "1",
+        0
+      ]
+    }
+  },
+  "5": {
+    "class_type": "ETN_ApplyMaskToImage",
+    "inputs": {
+      "image": [
+        "4",
+        0
+      ],
+      "mask": [
+        "3",
+        0
+      ]
+    }
+  },
+  "6": {
+    "class_type": "ETN_KritaOutput",
+    "inputs": {
+      "images": [
+        "5",
+        0
+      ],
+      "format": "PNG"
+    }
+  }
+}

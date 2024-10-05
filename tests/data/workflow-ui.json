@@ -1,0 +1,438 @@
+{
+  "last_node_id": 10,
+  "last_link_id": 10,
+  "nodes": [
+    {
+      "id": 3,
+      "type": "GrowMask",
+      "pos": {
+        "0": 448,
+        "1": 57
+      },
+      "size": [
+        315,
+        82
+      ],
+      "flags": {},
+      "order": 5,
+      "mode": 0,
+      "inputs": [
+        {
+          "name": "mask",
+          "type": "MASK",
+          "link": 3
+        },
+        {
+          "name": "expand",
+          "type": "INT",
+          "link": 2,
+          "widget": {
+            "name": "expand"
+          }
+        }
+      ],
+      "outputs": [
+        {
+          "name": "MASK",
+          "type": "MASK",
+          "links": [
+            10
+          ],
+          "shape": 3
+        }
+      ],
+      "properties": {
+        "Node name for S&R": "GrowMask"
+      },
+      "widgets_values": [
+        4,
+        true
+      ]
+    },
+    {
+      "id": 4,
+      "type": "PrimitiveNode",
+      "pos": {
+        "0": 138,
+        "1": 156
+      },
+      "size": [
+        210,
+        82
+      ],
+      "flags": {},
+      "order": 0,
+      "mode": 0,
+      "inputs": [],
+      "outputs": [
+        {
+          "name": "INT",
+          "type": "INT",
+          "links": [
+            2
+          ],
+          "slot_index": 0,
+          "widget": {
+            "name": "expand"
+          }
+        }
+      ],
+      "properties": {
+        "Run widget replace on values": false
+      },
+      "widgets_values": [
+        4,
+        "fixed"
+      ]
+    },
+    {
+      "id": 8,
+      "type": "PrimitiveNode",
+      "pos": {
+        "0": -280,
+        "1": -370
+      },
+      "size": [
+        364.38086885107873,
+        106
+      ],
+      "flags": {},
+      "order": 1,
+      "mode": 0,
+      "inputs": [],
+      "outputs": [
+        {
+          "name": "COMBO",
+          "type": "COMBO",
+          "links": [
+            4
+          ],
+          "slot_index": 0,
+          "widget": {
+            "name": "model_name"
+          }
+        }
+      ],
+      "properties": {
+        "Run widget replace on values": false
+      },
+      "widgets_values": [
+        "4x_NMKD-Superscale-SP_178000_G.pth",
+        "fixed",
+        ""
+      ]
+    },
+    {
+      "id": 9,
+      "type": "ImageUpscaleWithModel",
+      "pos": {
+        "0": 470,
+        "1": -370
+      },
+      "size": {
+        "0": 340.20001220703125,
+        "1": 46
+      },
+      "flags": {},
+      "order": 6,
+      "mode": 0,
+      "inputs": [
+        {
+          "name": "upscale_model",
+          "type": "UPSCALE_MODEL",
+          "link": 5
+        },
+        {
+          "name": "image",
+          "type": "IMAGE",
+          "link": 6
+        }
+      ],
+      "outputs": [
+        {
+          "name": "IMAGE",
+          "type": "IMAGE",
+          "links": [
+            9
+          ],
+          "shape": 3,
+          "slot_index": 0
+        }
+      ],
+      "properties": {
+        "Node name for S&R": "ImageUpscaleWithModel"
+      }
+    },
+    {
+      "id": 10,
+      "type": "ETN_ApplyMaskToImage",
+      "pos": {
+        "0": 870,
+        "1": -190
+      },
+      "size": {
+        "0": 239.40000915527344,
+        "1": 46
+      },
+      "flags": {},
+      "order": 7,
+      "mode": 0,
+      "inputs": [
+        {
+          "name": "image",
+          "type": "IMAGE",
+          "link": 9
+        },
+        {
+          "name": "mask",
+          "type": "MASK",
+          "link": 10
+        }
+      ],
+      "outputs": [
+        {
+          "name": "IMAGE",
+          "type": "IMAGE",
+          "links": [
+            8
+          ],
+          "shape": 3,
+          "slot_index": 0
+        }
+      ],
+      "properties": {
+        "Node name for S&R": "ETN_ApplyMaskToImage"
+      }
+    },
+    {
+      "id": 6,
+      "type": "UpscaleModelLoader",
+      "pos": {
+        "0": 120,
+        "1": -370
+      },
+      "size": [
+        315,
+        58
+      ],
+      "flags": {},
+      "order": 4,
+      "mode": 0,
+      "inputs": [
+        {
+          "name": "model_name",
+          "type": "COMBO",
+          "link": 4,
+          "widget": {
+            "name": "model_name"
+          }
+        }
+      ],
+      "outputs": [
+        {
+          "name": "UPSCALE_MODEL",
+          "type": "UPSCALE_MODEL",
+          "links": [
+            5
+          ],
+          "shape": 3,
+          "slot_index": 0
+        }
+      ],
+      "properties": {
+        "Node name for S&R": "UpscaleModelLoader"
+      },
+      "widgets_values": [
+        "4x_NMKD-Superscale-SP_178000_G.pth"
+      ]
+    },
+    {
+      "id": 1,
+      "type": "ETN_KritaCanvas",
+      "pos": {
+        "0": 205,
+        "1": -247
+      },
+      "size": [
+        200,
+        100
+      ],
+      "flags": {},
+      "order": 2,
+      "mode": 0,
+      "inputs": [],
+      "outputs": [
+        {
+          "name": "image",
+          "type": "IMAGE",
+          "links": [
+            6
+          ],
+          "shape": 3,
+          "slot_index": 0
+        },
+        {
+          "name": "width",
+          "type": "INT",
+          "links": null,
+          "shape": 3
+        },
+        {
+          "name": "height",
+          "type": "INT",
+          "links": null,
+          "shape": 3
+        },
+        {
+          "name": "seed",
+          "type": "INT",
+          "links": null,
+          "shape": 3
+        }
+      ],
+      "properties": {
+        "Node name for S&R": "ETN_KritaCanvas"
+      }
+    },
+    {
+      "id": 2,
+      "type": "ETN_KritaOutput",
+      "pos": {
+        "0": 1140,
+        "1": -190
+      },
+      "size": [
+        200,
+        120
+      ],
+      "flags": {},
+      "order": 8,
+      "mode": 0,
+      "inputs": [
+        {
+          "name": "images",
+          "type": "IMAGE",
+          "link": 8
+        }
+      ],
+      "outputs": [],
+      "properties": {
+        "Node name for S&R": "ETN_KritaOutput"
+      },
+      "widgets_values": [
+        "PNG"
+      ]
+    },
+    {
+      "id": 5,
+      "type": "ETN_KritaMaskLayer",
+      "pos": {
+        "0": 41,
+        "1": 11
+      },
+      "size": {
+        "0": 315,
+        "1": 58
+      },
+      "flags": {},
+      "order": 3,
+      "mode": 0,
+      "inputs": [],
+      "outputs": [
+        {
+          "name": "mask",
+          "type": "MASK",
+          "links": [
+            3
+          ],
+          "shape": 3,
+          "slot_index": 0
+        }
+      ],
+      "properties": {
+        "Node name for S&R": "ETN_KritaMaskLayer"
+      },
+      "widgets_values": [
+        "Zauber"
+      ]
+    }
+  ],
+  "links": [
+    [
+      2,
+      4,
+      0,
+      3,
+      1,
+      "INT"
+    ],
+    [
+      3,
+      5,
+      0,
+      3,
+      0,
+      "MASK"
+    ],
+    [
+      4,
+      8,
+      0,
+      6,
+      0,
+      "COMBO"
+    ],
+    [
+      5,
+      6,
+      0,
+      9,
+      0,
+      "UPSCALE_MODEL"
+    ],
+    [
+      6,
+      1,
+      0,
+      9,
+      1,
+      "IMAGE"
+    ],
+    [
+      8,
+      10,
+      0,
+      2,
+      0,
+      "IMAGE"
+    ],
+    [
+      9,
+      9,
+      0,
+      10,
+      0,
+      "IMAGE"
+    ],
+    [
+      10,
+      3,
+      0,
+      10,
+      1,
+      "MASK"
+    ]
+  ],
+  "groups": [],
+  "config": {},
+  "extra": {
+    "ds": {
+      "scale": 1.0834705943388394,
+      "offset": [
+        311.97951538052513,
+        487.01874472527845
+      ]
+    }
+  },
+  "version": 0.4
+}

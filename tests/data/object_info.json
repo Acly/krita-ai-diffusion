@@ -1,0 +1,241 @@
+{
+    "GrowMask": {
+        "input": {
+            "required": {
+                "mask": [
+                    "MASK"
+                ],
+                "expand": [
+                    "INT",
+                    {
+                        "default": 0,
+                        "min": -16384,
+                        "max": 16384,
+                        "step": 1
+                    }
+                ],
+                "tapered_corners": [
+                    "BOOLEAN",
+                    {
+                        "default": true
+                    }
+                ]
+            }
+        },
+        "input_order": {
+            "required": [
+                "mask",
+                "expand",
+                "tapered_corners"
+            ]
+        },
+        "output": [
+            "MASK"
+        ],
+        "output_is_list": [
+            false
+        ],
+        "output_name": [
+            "MASK"
+        ],
+        "name": "GrowMask",
+        "display_name": "GrowMask",
+        "description": "",
+        "python_module": "comfy_extras.nodes_mask",
+        "category": "mask",
+        "output_node": false
+    },
+    "ImageUpscaleWithModel": {
+        "input": {
+            "required": {
+                "upscale_model": [
+                    "UPSCALE_MODEL"
+                ],
+                "image": [
+                    "IMAGE"
+                ]
+            }
+        },
+        "input_order": {
+            "required": [
+                "upscale_model",
+                "image"
+            ]
+        },
+        "output": [
+            "IMAGE"
+        ],
+        "output_is_list": [
+            false
+        ],
+        "output_name": [
+            "IMAGE"
+        ],
+        "name": "ImageUpscaleWithModel",
+        "display_name": "Upscale Image (using Model)",
+        "description": "",
+        "python_module": "comfy_extras.nodes_upscale_model",
+        "category": "image/upscaling",
+        "output_node": false
+    },
+    "ETN_ApplyMaskToImage": {
+        "input": {
+            "required": {
+                "image": [
+                    "IMAGE"
+                ],
+                "mask": [
+                    "MASK"
+                ]
+            }
+        },
+        "input_order": {
+            "required": [
+                "image",
+                "mask"
+            ]
+        },
+        "output": [
+            "IMAGE"
+        ],
+        "output_is_list": [
+            false
+        ],
+        "output_name": [
+            "IMAGE"
+        ],
+        "name": "ETN_ApplyMaskToImage",
+        "display_name": "Apply Mask to Image",
+        "description": "",
+        "python_module": "custom_nodes.comfyui-tooling-nodes",
+        "category": "external_tooling",
+        "output_node": false
+    },
+    "UpscaleModelLoader": {
+        "input": {
+            "required": {
+                "model_name": [
+                    [
+                        "4x_NMKD-Superscale-SP_178000_G.pth",
+                        "OmniSR_X2_DIV2K.safetensors",
+                        "OmniSR_X3_DIV2K.safetensors",
+                        "OmniSR_X4_DIV2K.safetensors"
+                    ]
+                ]
+            }
+        },
+        "input_order": {
+            "required": [
+                "model_name"
+            ]
+        },
+        "output": [
+            "UPSCALE_MODEL"
+        ],
+        "output_is_list": [
+            false
+        ],
+        "output_name": [
+            "UPSCALE_MODEL"
+        ],
+        "name": "UpscaleModelLoader",
+        "display_name": "Load Upscale Model",
+        "description": "",
+        "python_module": "comfy_extras.nodes_upscale_model",
+        "category": "loaders",
+        "output_node": false
+    },
+    "ETN_KritaCanvas": {
+        "input": {},
+        "input_order": {},
+        "output": [
+            "IMAGE",
+            "INT",
+            "INT",
+            "INT"
+        ],
+        "output_is_list": [
+            false,
+            false,
+            false,
+            false
+        ],
+        "output_name": [
+            "image",
+            "width",
+            "height",
+            "seed"
+        ],
+        "name": "ETN_KritaCanvas",
+        "display_name": "Krita Canvas",
+        "description": "",
+        "python_module": "custom_nodes.comfyui-tooling-nodes",
+        "category": "krita",
+        "output_node": false
+    },
+    "ETN_KritaOutput": {
+        "input": {
+            "required": {
+                "images": [
+                    "IMAGE"
+                ],
+                "format": [
+                    [
+                        "PNG",
+                        "JPEG"
+                    ],
+                    {
+                        "default": "PNG"
+                    }
+                ]
+            }
+        },
+        "input_order": {
+            "required": [
+                "images",
+                "format"
+            ]
+        },
+        "output": [],
+        "output_is_list": [],
+        "output_name": [],
+        "name": "ETN_KritaOutput",
+        "display_name": "Krita Output",
+        "description": "",
+        "python_module": "custom_nodes.comfyui-tooling-nodes",
+        "category": "krita",
+        "output_node": true
+    },
+    "ETN_KritaMaskLayer": {
+        "input": {
+            "required": {
+                "name": [
+                    "STRING",
+                    {
+                        "default": "Mask"
+                    }
+                ]
+            }
+        },
+        "input_order": {
+            "required": [
+                "name"
+            ]
+        },
+        "output": [
+            "MASK"
+        ],
+        "output_is_list": [
+            false
+        ],
+        "output_name": [
+            "mask"
+        ],
+        "name": "ETN_KritaMaskLayer",
+        "display_name": "Krita Mask Layer",
+        "description": "",
+        "python_module": "custom_nodes.comfyui-tooling-nodes",
+        "category": "krita",
+        "output_node": false
+    }
+}

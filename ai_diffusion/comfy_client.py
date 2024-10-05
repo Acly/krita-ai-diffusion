@@ -126,7 +126,7 @@ class ComfyClient(Client):
 
         # Check for required and optional model resources
         models = client.models
-        models.node_inputs = {name: nodes[name]["input"].get("required", None) for name in nodes}
+        models.node_inputs = {name: nodes[name]["input"] for name in nodes}
         available_resources = client.models.resources = {}
 
         clip_models = nodes["DualCLIPLoader"]["input"]["required"]["clip_name1"][0]

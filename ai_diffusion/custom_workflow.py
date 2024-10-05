@@ -25,15 +25,17 @@ class CustomWorkflow:
     id: str
     source: WorkflowSource
     graph: dict
+    workflow: ComfyWorkflow
     path: Path | None = None
+
+    @staticmethod
+    def from_api(id: str, source: WorkflowSource, graph: dict, path: Path | None = None):
+        # doesn't work for UI workflow export (API workflow only)
+        return CustomWorkflow(id, source, graph, ComfyWorkflow.import_graph(graph, {}), path)
 
     @property
     def name(self):
         return self.id.removesuffix(".json")
-
-    @property
-    def workflow(self):
-        return ComfyWorkflow.import_graph(self.graph)
 
 
 class WorkflowCollection(QAbstractListModel):
@@ -58,12 +60,20 @@ class WorkflowCollection(QAbstractListModel):
         for wf in self._connection.workflows.keys():
             self._process_remote_workflow(wf)
 
+    def _create_workflow(
+        self, id: str, source: WorkflowSource, graph: dict, path: Path | None = None
+    ):
+        wf = ComfyWorkflow.import_graph(graph, self._connection.client.models.node_inputs)
+        return CustomWorkflow(id, source, graph, wf, path)
+
     def _process_remote_workflow(self, id: str):
-        self._process(CustomWorkflow(id, WorkflowSource.remote, self._connection.workflows[id]))
+        graph = self._connection.workflows[id]
+        self._process(self._create_workflow(id, WorkflowSource.remote, graph))
 
     def _process_file(self, file: Path):
         with file.open("r") as f:
-            self._process(CustomWorkflow(file.stem, WorkflowSource.local, json.load(f), file))
+            graph = json.load(f)
+            self._process(self._create_workflow(file.stem, WorkflowSource.local, graph, file))
 
     def _process(self, workflow: CustomWorkflow):
         idx = self.find_index(workflow.id)
@@ -94,6 +104,9 @@ class WorkflowCollection(QAbstractListModel):
         self._workflows.append(item)
         self.endInsertRows()
 
+    def add_from_document(self, id: str, graph: dict):
+        self.append(self._create_workflow(id, WorkflowSource.document, graph))
+
     def remove(self, id: str):
         idx = self.find_index(id)
         if idx.isValid():
@@ -118,7 +131,7 @@ class WorkflowCollection(QAbstractListModel):
         self._folder.mkdir(exist_ok=True)
         path = self._folder / f"{id}.json"
         path.write_text(json.dumps(graph, indent=2))
-        self.append(CustomWorkflow(id, WorkflowSource.local, graph, path))
+        self.append(self._create_workflow(id, WorkflowSource.local, graph, path))
         return id
 
     def import_file(self, filepath: Path):
@@ -126,7 +139,7 @@ class WorkflowCollection(QAbstractListModel):
             with filepath.open("r") as f:
                 graph = json.load(f)
                 try:
-                    ComfyWorkflow.import_graph(graph)
+                    ComfyWorkflow.import_graph(graph, self._connection.client.models.node_inputs)
                 except Exception as e:
                     raise RuntimeError(f"This is not a supported workflow file ({e})")
             return self.save_as(filepath.stem, graph)
@@ -279,7 +292,7 @@ class CustomWorkspace(QObject, ObservableProperties):
 
     def set_graph(self, id: str, graph: dict):
         if self._workflows.find(id) is None:
-            self._workflows.append(CustomWorkflow(id, WorkflowSource.document, graph))
+            self._workflows.add_from_document(id, graph)
         self.workflow_id = id
 
     def import_file(self, filepath: Path):

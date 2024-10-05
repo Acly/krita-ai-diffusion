@@ -12,6 +12,8 @@ from ai_diffusion.custom_workflow import CustomParam, ParamKind, workflow_parame
 from ai_diffusion.image import Image, Extent
 from ai_diffusion import workflow
 
+from .config import test_dir
+
 
 def test_collection(tmp_path: Path):
     file1 = tmp_path / "file1.json"
@@ -27,13 +29,13 @@ def test_collection(tmp_path: Path):
 
     collection = WorkflowCollection(connection, tmp_path)
     assert len(collection) == 3
-    assert collection.find("file1") == CustomWorkflow(
+    assert collection.find("file1") == CustomWorkflow.from_api(
         "file1", WorkflowSource.local, {"file": 1}, file1
     )
-    assert collection.find("file2") == CustomWorkflow(
+    assert collection.find("file2") == CustomWorkflow.from_api(
         "file2", WorkflowSource.local, {"file": 2}, file2
     )
-    assert collection.find("connection1") == CustomWorkflow(
+    assert collection.find("connection1") == CustomWorkflow.from_api(
         "connection1", WorkflowSource.remote, {"connection": 1}
     )
 
@@ -56,17 +58,17 @@ def test_collection(tmp_path: Path):
     connection.workflow_published.emit("connection2")
 
     assert len(collection) == 4
-    assert collection.find("connection2") == CustomWorkflow(
+    assert collection.find("connection2") == CustomWorkflow.from_api(
         "connection2", WorkflowSource.remote, {"connection": 2}
     )
 
     collection.set_graph(collection.index(0), {"file": 3})
-    assert collection.find("file1") == CustomWorkflow(
+    assert collection.find("file1") == CustomWorkflow.from_api(
         "file1", WorkflowSource.local, {"file": 3}, file1
     )
     assert events == [("begin_insert", 3), "end_insert", ("data_changed", 0)]
 
-    collection.append(CustomWorkflow("doc1", WorkflowSource.document, {"doc": 1}))
+    collection.add_from_document("doc1", {"doc": 1})
 
     sorted = SortedWorkflows(collection)
     assert sorted[0].source is WorkflowSource.document
@@ -158,16 +160,26 @@ def test_workspace():
 
 
 def test_import():
-    w = ComfyWorkflow.import_graph(
-        {
-            "4": {"class_type": "A", "inputs": {"int": 4, "float": 1.2, "string": "mouse"}},
-            "zak": {"class_type": "C", "inputs": {"in": ["9", 1]}},
-            "9": {"class_type": "B", "inputs": {"in": ["4", 0]}},
-        }
-    )
+    graph = {
+        "4": {"class_type": "A", "inputs": {"int": 4, "float": 1.2, "string": "mouse"}},
+        "zak": {"class_type": "C", "inputs": {"in": ["9", 1]}},
+        "9": {"class_type": "B", "inputs": {"in": ["4", 0]}},
+    }
+    w = ComfyWorkflow.import_graph(graph, {})
     assert w.node(0) == ComfyNode(0, "A", {"int": 4, "float": 1.2, "string": "mouse"})
     assert w.node(1) == ComfyNode(1, "B", {"in": Output(0, 0)})
     assert w.node(2) == ComfyNode(2, "C", {"in": Output(1, 1)})
+
+
+def test_import_ui_workflow():
+    graph = json.loads((test_dir / "data" / "workflow-ui.json").read_text())
+    object_info = json.loads((test_dir / "data" / "object_info.json").read_text())
+    node_inputs = {k: v.get("input") for k, v in object_info.items()}
+    result = ComfyWorkflow.import_graph(graph, node_inputs)
+
+    expected_graph = json.loads((test_dir / "data" / "workflow-api.json").read_text())
+    expected = ComfyWorkflow.import_graph(expected_graph, {})
+    assert result.root == expected.root
 
 
 def test_parameters():
