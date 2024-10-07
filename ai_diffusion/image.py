@@ -1,7 +1,7 @@
 from __future__ import annotations
 from enum import Enum
 from math import ceil, sqrt
-from PyQt5.QtGui import QImage, QImageWriter, QPixmap, QIcon, QPainter, QColorSpace
+from PyQt5.QtGui import QImage, QImageWriter, QImageReader, QPixmap, QIcon, QPainter, QColorSpace
 from PyQt5.QtGui import qRgba, qRed, qGreen, qBlue, qAlpha, qGray
 from PyQt5.QtCore import Qt, QByteArray, QBuffer, QRect, QSize, QFile, QIODevice
 from typing import Callable, Iterable, SupportsIndex, Tuple, NamedTuple, Union, Optional
@@ -642,10 +642,11 @@ class ImageCollection:
         for i, offset in enumerate(offsets):
             buffer.seek(offset)
             img = QImage()
-            if img.load(buffer, None):
+            loader = QImageReader(buffer)
+            if loader.read(img):
                 images.append(Image(img))
             else:
-                raise Exception(f"Failed to load image {i} from buffer")
+                raise Exception(f"Failed to load image {i} from buffer: {loader.errorString()}")
         buffer.close()
         return images
 
