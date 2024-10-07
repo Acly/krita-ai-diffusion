@@ -36,10 +36,10 @@ class ComfyNode(NamedTuple):
     def input(self, key: str, default: T) -> T: ...
 
     @overload
-    def input(self, key: str, default: None = None) -> Input: ...
+    def input(self, key: str, default: None = None) -> Input | None: ...
 
-    def input(self, key: str, default: T | None = None) -> T | Input:
-        result = self.inputs[key]
+    def input(self, key: str, default: T | None = None) -> T | Input | None:
+        result = self.inputs.get(key, default)
         assert (
             default is None
             or type(result) == type(default)
@@ -112,6 +112,11 @@ class ComfyWorkflow:
                             args[k] = default
         return args
 
+    def input_type(self, class_type: str, input_name: str) -> tuple | None:
+        if inputs := _inputs_for_node(self._nodes_inputs, class_type):
+            return inputs.get(input_name)
+        return None
+
     def dump(self, filepath: str | Path):
         filepath = Path(filepath)
         if filepath.suffix != ".json":
@@ -172,6 +177,12 @@ class ComfyWorkflow:
 
     def find(self, type: str):
         return (self.node(int(k)) for k, v in self.root.items() if v["class_type"] == type)
+
+    def find_connected(self, output: Output):
+        for node in self:
+            for input_name, input_value in node.inputs.items():
+                if input_value == output:
+                    yield node, input_name
 
     def __iter__(self):
         return iter(self.node(int(k)) for k in self.root.keys())

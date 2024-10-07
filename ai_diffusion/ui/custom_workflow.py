@@ -14,7 +14,7 @@ from ..model import Model
 from ..properties import Binding, Bind, bind, bind_combo
 from ..root import root
 from ..localization import translate as _
-from ..util import ensure
+from ..util import ensure, clamp
 from .generation import GenerateButton, ProgressBar, QueueButton, HistoryWidget, create_error_label
 from .switch import SwitchWidget
 from .widget import TextPromptWidget, WorkspaceSelectWidget
@@ -80,7 +80,6 @@ class IntParamWidget(QWidget):
         assert param.min is not None and param.max is not None and param.default is not None
         if param.max - param.min <= 200:
             self._widget = QSlider(Qt.Orientation.Horizontal, parent)
-            self._widget.setRange(int(param.min), int(param.max))
             self._widget.setMinimumHeight(self._widget.minimumSizeHint().height() + 4)
             self._widget.valueChanged.connect(self._notify)
             self._label = QLabel(self)
@@ -90,11 +89,13 @@ class IntParamWidget(QWidget):
             layout.addWidget(self._label)
         else:
             self._widget = QSpinBox(parent)
-            self._widget.setRange(int(param.min), int(param.max))
             self._widget.valueChanged.connect(self._notify)
             self._label = None
-            layout = QHBoxLayout(self)
             layout.addWidget(self._widget)
+
+        min_range = clamp(int(param.min), -(2**31), 2**31 - 1)
+        max_range = clamp(int(param.max), -(2**31), 2**31 - 1)
+        self._widget.setRange(min_range, max_range)
 
         self.value = param.default
 
@@ -139,7 +140,6 @@ class FloatParamWidget(QWidget):
             self._widget.setRange(param.min, param.max)
             self._widget.valueChanged.connect(self._notify)
             self._label = None
-            layout = QHBoxLayout(self)
             layout.addWidget(self._widget)
 
         self.value = param.default
@@ -248,6 +248,31 @@ class PromptParamWidget(TextPromptWidget):
         self.text = value
 
 
+class ChoiceParamWidget(QComboBox):
+    value_changed = pyqtSignal()
+
+    def __init__(self, param: CustomParam, parent: QWidget | None = None):
+        super().__init__(parent)
+        if param.choices:
+            self.addItems(param.choices)
+        self.currentIndexChanged.connect(lambda _: self.value_changed.emit())
+
+        if param.default is not None:
+            self.value = param.default
+
+    @property
+    def value(self) -> str:
+        if self.currentIndex() == -1:
+            return ""
+        return self.currentText()
+
+    @value.setter
+    def value(self, value: str):
+        i = self.findText(value)
+        if i != -1 and i != self.currentIndex():
+            self.setCurrentIndex(i)
+
+
 CustomParamWidget = (
     LayerSelect
     | IntParamWidget
@@ -255,6 +280,7 @@ CustomParamWidget = (
     | BoolParamWidget
     | TextParamWidget
     | PromptParamWidget
+    | ChoiceParamWidget
 )
 
 
@@ -267,12 +293,14 @@ def _create_param_widget(param: CustomParam, parent: QWidget):
         return IntParamWidget(param, parent)
     if param.kind is ParamKind.number_float:
         return FloatParamWidget(param, parent)
-    if param.kind is ParamKind.boolean:
+    if param.kind is ParamKind.toggle:
         return BoolParamWidget(param, parent)
     if param.kind is ParamKind.text:
         return TextParamWidget(param, parent)
     if param.kind in [ParamKind.prompt_positive, ParamKind.prompt_negative]:
         return PromptParamWidget(param, parent)
+    if param.kind is ParamKind.choice:
+        return ChoiceParamWidget(param, parent)
     assert False, f"Unknown param kind: {param.kind}"
 
 

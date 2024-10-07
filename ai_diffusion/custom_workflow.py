@@ -77,6 +77,7 @@ class WorkflowCollection(QAbstractListModel):
     def _process(self, workflow: CustomWorkflow):
         idx = self.find_index(workflow.id)
         if idx.isValid():
+            self._workflows[idx.row()] = workflow
             self.dataChanged.emit(idx, idx)
         else:
             self.append(workflow)
@@ -196,10 +197,11 @@ class ParamKind(Enum):
     mask_layer = 1
     number_int = 2
     number_float = 3
-    boolean = 4
+    toggle = 4
     text = 5
     prompt_positive = 6
     prompt_negative = 7
+    choice = 8
 
 
 class CustomParam(NamedTuple):
@@ -208,44 +210,60 @@ class CustomParam(NamedTuple):
     default: Any | None = None
     min: int | float | None = None
     max: int | float | None = None
+    choices: list[str] | None = None
 
 
 def workflow_parameters(w: ComfyWorkflow):
+    text_types = ("text", "prompt (positive)", "prompt (negative)")
     for node in w:
-        match node.type:
-            case "ETN_KritaImageLayer":
+        match (node.type, node.input("type", "")):
+            case ("ETN_KritaImageLayer", _):
                 name = node.input("name", "Image")
                 yield CustomParam(ParamKind.image_layer, name)
-            case "ETN_KritaMaskLayer":
+            case ("ETN_KritaMaskLayer", _):
                 name = node.input("name", "Mask")
                 yield CustomParam(ParamKind.mask_layer, name)
-            case "ETN_IntParameter":
+            case ("ETN_Parameter", "number (integer)"):
                 name = node.input("name", "Parameter")
                 default = node.input("default", 0)
                 min = node.input("min", -(2**31))
                 max = node.input("max", 2**31)
                 yield CustomParam(ParamKind.number_int, name, default=default, min=min, max=max)
-            case "ETN_NumberParameter":
+            case ("ETN_Parameter", "number"):
                 name = node.input("name", "Parameter")
                 default = node.input("default", 0.0)
                 min = node.input("min", 0.0)
                 max = node.input("max", 1.0)
                 yield CustomParam(ParamKind.number_float, name, default=default, min=min, max=max)
-            case "ETN_BoolParameter":
+            case ("ETN_Parameter", "toggle"):
                 name = node.input("name", "Parameter")
                 default = node.input("default", False)
-                yield CustomParam(ParamKind.boolean, name, default=default)
-            case "ETN_TextParameter":
+                yield CustomParam(ParamKind.toggle, name, default=default)
+            case ("ETN_Parameter", type) if type in text_types:
                 name = node.input("name", "Parameter")
                 default = node.input("default", "")
-                type = node.input("type", "general")
                 match type:
-                    case "general":
+                    case "text":
                         yield CustomParam(ParamKind.text, name, default=default)
                     case "prompt (positive)":
                         yield CustomParam(ParamKind.prompt_positive, name, default=default)
                     case "prompt (negative)":
                         yield CustomParam(ParamKind.prompt_negative, name, default=default)
+            case ("ETN_Parameter", "choice"):
+                name = node.input("name", "Parameter")
+                default = node.input("default", "")
+                connected, input_name = next(w.find_connected(node.output()), (None, ""))
+                if connected:
+                    if input_type := w.input_type(connected.type, input_name):
+                        if isinstance(input_type[0], list):
+                            yield CustomParam(
+                                ParamKind.choice, name, choices=input_type[0], default=default
+                            )
+                else:
+                    yield CustomParam(ParamKind.text, name, default=default)
+            case ("ETN_Parameter", unknown_type):
+                unknown = node.input("name", "?") + ": " + unknown_type
+                log.warning(f"Custom workflow has an unsupported parameter type {unknown}")
 
 
 class CustomWorkspace(QObject, ObservableProperties):

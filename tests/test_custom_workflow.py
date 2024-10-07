@@ -91,8 +91,14 @@ def test_collection(tmp_path: Path):
 def make_dummy_graph(n: int = 42):
     return {
         "1": {
-            "class_type": "ETN_IntParameter",
-            "inputs": {"name": "param1", "default": n, "min": 5, "max": 95},
+            "class_type": "ETN_Parameter",
+            "inputs": {
+                "name": "param1",
+                "type": "number (integer)",
+                "default": n,
+                "min": 5,
+                "max": 95,
+            },
         }
     }
 
@@ -141,27 +147,33 @@ def test_workspace():
     workspace = CustomWorkspace(workflows)
     assert workspace.workflow_id == "connection1"
     assert workspace.workflow and workspace.workflow.id == "connection1"
-    assert workspace.graph and workspace.graph.node(0).type == "ETN_IntParameter"
+    assert workspace.graph and workspace.graph.node(0).type == "ETN_Parameter"
     assert workspace.metadata[0].name == "param1"
     assert workspace.params == {"param1": 42}
 
     doc_graph = {
         "1": {
-            "class_type": "ETN_IntParameter",
-            "inputs": {"name": "param2", "default": 23, "min": 5, "max": 95},
+            "class_type": "ETN_Parameter",
+            "inputs": {
+                "name": "param2",
+                "type": "number (integer)",
+                "default": 23,
+                "min": 5,
+                "max": 95,
+            },
         }
     }
     workspace.set_graph("doc1", doc_graph)
     assert workspace.workflow_id == "doc1"
     assert workspace.workflow and workspace.workflow.source is WorkflowSource.document
-    assert workspace.graph and workspace.graph.node(0).type == "ETN_IntParameter"
+    assert workspace.graph and workspace.graph.node(0).type == "ETN_Parameter"
     assert workspace.metadata[0].name == "param2"
     assert workspace.params == {"param2": 23}
 
     doc_graph["1"]["inputs"]["default"] = 24
     doc_graph["2"] = {
-        "class_type": "ETN_IntParameter",
-        "inputs": {"name": "param3", "default": 7, "min": 0, "max": 10},
+        "class_type": "ETN_Parameter",
+        "inputs": {"name": "param3", "type": "number (integer)", "default": 7, "min": 0, "max": 10},
     }
     workflows.set_graph(workflows.index(1), doc_graph)
     assert workspace.metadata[0].default == 24
@@ -193,23 +205,30 @@ def test_import_ui_workflow():
 
 
 def test_parameters():
-    w = ComfyWorkflow()
-    w.add("ETN_IntParameter", 1, name="int", default=4, min=0, max=10)
-    w.add("ETN_BoolParameter", 1, name="bool", default=True)
-    w.add("ETN_NumberParameter", 1, name="number", default=1.2, min=0.0, max=10.0)
-    w.add("ETN_TextParameter", 1, name="text", type="general", default="mouse")
-    w.add("ETN_TextParameter", 1, name="positive", type="prompt (positive)", default="p")
-    w.add("ETN_TextParameter", 1, name="negative", type="prompt (negative)", default="n")
+    node_inputs = {"ChoiceNode": {"required": {"choice_param": (["a", "b", "c"],)}}}
+
+    w = ComfyWorkflow(node_inputs=node_inputs)
+    w.add("ETN_Parameter", 1, name="int", type="number (integer)", default=4, min=0, max=10)
+    w.add("ETN_Parameter", 1, name="bool", type="toggle", default=True)
+    w.add("ETN_Parameter", 1, name="number", type="number", default=1.2, min=0.0, max=10.0)
+    w.add("ETN_Parameter", 1, name="text", type="text", default="mouse")
+    w.add("ETN_Parameter", 1, name="positive", type="prompt (positive)", default="p")
+    w.add("ETN_Parameter", 1, name="negative", type="prompt (negative)", default="n")
+    w.add("ETN_Parameter", 1, name="choice_unconnected", type="choice", default="z")
+    choice_param = w.add("ETN_Parameter", 1, name="choice", type="choice", default="c")
+    w.add("ChoiceNode", 1, choice_param=choice_param)
     w.add("ETN_KritaImageLayer", 1, name="image")
     w.add("ETN_KritaMaskLayer", 1, name="mask")
 
     assert list(workflow_parameters(w)) == [
         CustomParam(ParamKind.number_int, "int", 4, 0, 10),
-        CustomParam(ParamKind.boolean, "bool", True),
+        CustomParam(ParamKind.toggle, "bool", True),
         CustomParam(ParamKind.number_float, "number", 1.2, 0.0, 10.0),
         CustomParam(ParamKind.text, "text", "mouse"),
         CustomParam(ParamKind.prompt_positive, "positive", "p"),
         CustomParam(ParamKind.prompt_negative, "negative", "n"),
+        CustomParam(ParamKind.text, "choice_unconnected", "z"),
+        CustomParam(ParamKind.choice, "choice", "c", choices=["a", "b", "c"]),
         CustomParam(ParamKind.image_layer, "image"),
         CustomParam(ParamKind.mask_layer, "mask"),
     ]
@@ -220,10 +239,13 @@ def test_expand():
     in_img, width, height, seed = ext.add("ETN_KritaCanvas", 4)
     scaled = ext.add("ImageScale", 1, image=in_img, width=width, height=height)
     ext.add("ETN_KritaOutput", 1, images=scaled)
-    inty = ext.add("ETN_IntParameter", 1, name="inty", default=4, min=0, max=10)
-    numby = ext.add("ETN_NumberParameter", 1, name="numby", default=1.2, min=0.0, max=10.0)
-    texty = ext.add("ETN_TextParameter", 1, name="texty", type="general", default="mouse")
-    booly = ext.add("ETN_BoolParameter", 1, name="booly", default=True)
+    inty = ext.add(
+        "ETN_Parameter", 1, name="inty", type="number (integer)", default=4, min=0, max=10
+    )
+    numby = ext.add("ETN_Parameter", 1, name="numby", type="number", default=1.2, min=0.0, max=10.0)
+    texty = ext.add("ETN_Parameter", 1, name="texty", type="text", default="mouse")
+    booly = ext.add("ETN_Parameter", 1, name="booly", type="toggle", default=True)
+    choicy = ext.add("ETN_Parameter", 1, name="choicy", type="choice", default="c")
     layer_img = ext.add("ETN_KritaImageLayer", 1, name="layer_img")
     layer_mask = ext.add("ETN_KritaMaskLayer", 1, name="layer_mask")
     ext.add(
@@ -234,6 +256,7 @@ def test_expand():
         numby=numby,
         texty=texty,
         booly=booly,
+        choicy=choicy,
         layer_img=layer_img,
         layer_mask=layer_mask,
     )
@@ -243,6 +266,7 @@ def test_expand():
         "numby": 3.4,
         "texty": "cat",
         "booly": False,
+        "choicy": "b",
         "layer_img": Image.create(Extent(4, 4), Qt.GlobalColor.black),
         "layer_mask": Image.create(Extent(4, 4), Qt.GlobalColor.white),
     }
@@ -269,6 +293,7 @@ def test_expand():
                 "numby": 3.4,
                 "texty": "cat",
                 "booly": False,
+                "choicy": "b",
                 "layer_img": Output(4, 0),
                 "layer_mask": Output(5, 0),
             },
