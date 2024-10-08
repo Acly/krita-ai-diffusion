@@ -16,16 +16,14 @@ from . import theme
 
 
 class ControlWidget(QWidget):
-    _control_list: ControlLayerList
-    _control: ControlLayer
-    _connections: list[QMetaObject.Connection | Binding]
 
     def __init__(
-        self, control_list: ControlLayerList, control: ControlLayer, parent: ControlListWidget
+        self, control_list: ControlLayerList | None, control: ControlLayer, parent: QWidget
     ):
         super().__init__(parent)
         self._control_list = control_list
         self._control = control
+        self._connections: list[QMetaObject.Connection | Binding] = []
 
         layout = QVBoxLayout(self)
         layout.setContentsMargins(0, 0, 0, 0)
@@ -80,13 +78,6 @@ class ControlWidget(QWidget):
         self.expand_button.setChecked(False)
         self.expand_button.clicked.connect(self._toggle_extended)
 
-        self.remove_button = QToolButton(self)
-        self.remove_button.setToolButtonStyle(Qt.ToolButtonStyle.ToolButtonIconOnly)
-        self.remove_button.setIcon(theme.icon("remove"))
-        self.remove_button.setToolTip(_("Remove control layer"))
-        self.remove_button.setAutoRaise(True)
-        self.remove_button.clicked.connect(self.remove)
-
         bar_layout = QHBoxLayout()
         bar_layout.addWidget(self.mode_select)
         bar_layout.addWidget(self.layer_select, 3)
@@ -95,8 +86,16 @@ class ControlWidget(QWidget):
         bar_layout.addWidget(self.preset_slider, 1)
         bar_layout.addWidget(self.error_text, 3)
         bar_layout.addWidget(self.expand_button)
-        bar_layout.addWidget(self.remove_button)
         layout.addLayout(bar_layout)
+
+        if self._control_list is not None:
+            self.remove_button = QToolButton(self)
+            self.remove_button.setToolButtonStyle(Qt.ToolButtonStyle.ToolButtonIconOnly)
+            self.remove_button.setIcon(theme.icon("remove"))
+            self.remove_button.setToolTip(_("Remove control layer"))
+            self.remove_button.setAutoRaise(True)
+            self.remove_button.clicked.connect(self.remove)
+            bar_layout.addWidget(self.remove_button)
 
         line = QFrame(self)
         line.setObjectName("LeftIndent")
@@ -198,12 +197,13 @@ class ControlWidget(QWidget):
                 self.layer_select.addItem(layer.name, layer.id)
                 if layer.id == self._control.layer_id:
                     index = self.layer_select.count() - 1
-            if index == -1 and self._control in self._control_list:
+            if index == -1 and self._control_list and self._control in self._control_list:
                 self.remove()
-            else:
+            elif index >= 0:
                 self.layer_select.setCurrentIndex(index)
 
     def remove(self):
+        assert self._control_list is not None
         self._control_list.remove(self._control)
 
     def resizeEvent(self, a0: QResizeEvent | None):

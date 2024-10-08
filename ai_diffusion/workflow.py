@@ -1044,13 +1044,17 @@ def upscale_tiled(
 
 
 def expand_custom(
-    w: ComfyWorkflow, input: CustomWorkflowInput, images: ImageInput, sampling: SamplingInput
+    w: ComfyWorkflow,
+    input: CustomWorkflowInput,
+    images: ImageInput,
+    sampling: SamplingInput,
+    models: ClientModels,
 ):
     custom = ComfyWorkflow.from_dict(input.workflow)
     nodes: dict[int, int] = {}  # map old node IDs to new node IDs
     outputs: dict[Output, Input] = {}
 
-    def map_input(input):
+    def map_input(input: Input):
         if isinstance(input, Output):
             mapped = outputs.get(input)
             if mapped is not None:
@@ -1078,12 +1082,27 @@ def expand_custom(
                 outputs[node.output(3)] = sampling.seed
             case "ETN_KritaSelection":
                 outputs[node.output(0)] = w.load_mask(ensure(images.hires_mask))
+            case "ETN_Parameter":
+                outputs[node.output(0)] = get_param(node)
             case "ETN_KritaImageLayer":
                 outputs[node.output(0)] = w.load_image(get_param(node, Image))
             case "ETN_KritaMaskLayer":
                 outputs[node.output(0)] = w.load_mask(get_param(node, Image))
-            case "ETN_Parameter":
-                outputs[node.output(0)] = get_param(node)
+            case "ETN_KritaStyle":
+                style: Style = get_param(node, Style)
+                is_live = node.input("sampler_preset", "auto") == "live"
+                checkpoint_input = style.get_models()
+                sampling = _sampling_from_style(style, 1.0, is_live)
+                model, clip, vae = load_checkpoint_with_lora(w, checkpoint_input, models)
+                outputs[node.output(0)] = model
+                outputs[node.output(1)] = clip
+                outputs[node.output(2)] = vae
+                outputs[node.output(3)] = style.style_prompt
+                outputs[node.output(4)] = style.negative_prompt
+                outputs[node.output(5)] = sampling.sampler
+                outputs[node.output(6)] = sampling.scheduler
+                outputs[node.output(7)] = sampling.total_steps
+                outputs[node.output(8)] = sampling.cfg_scale
             case _:
                 mapped_inputs = {k: map_input(v) for k, v in node.inputs.items()}
                 mapped = ComfyNode(node.id, node.type, mapped_inputs)
@@ -1309,7 +1328,7 @@ def create(i: WorkflowInput, models: ClientModels, comfy_mode=ComfyRunMode.serve
         )
     elif i.kind is WorkflowKind.custom:
         return expand_custom(
-            workflow, ensure(i.custom_workflow), ensure(i.images), ensure(i.sampling)
+            workflow, ensure(i.custom_workflow), ensure(i.images), ensure(i.sampling), models
         )
     else:
         raise ValueError(f"Unsupported workflow kind: {i.kind}")

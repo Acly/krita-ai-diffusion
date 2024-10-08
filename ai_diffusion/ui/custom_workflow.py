@@ -12,12 +12,13 @@ from ..custom_workflow import CustomParam, ParamKind, SortedWorkflows, WorkflowS
 from ..jobs import JobKind
 from ..model import Model
 from ..properties import Binding, Bind, bind, bind_combo
+from ..style import Styles
 from ..root import root
 from ..localization import translate as _
 from ..util import ensure, clamp
 from .generation import GenerateButton, ProgressBar, QueueButton, HistoryWidget, create_error_label
 from .switch import SwitchWidget
-from .widget import TextPromptWidget, WorkspaceSelectWidget
+from .widget import TextPromptWidget, WorkspaceSelectWidget, StyleSelectWidget
 from . import theme
 
 
@@ -273,6 +274,31 @@ class ChoiceParamWidget(QComboBox):
             self.setCurrentIndex(i)
 
 
+class StyleParamWidget(QWidget):
+    value_changed = pyqtSignal()
+
+    def __init__(self, parent: QWidget):
+        super().__init__(parent)
+        self._style_select = StyleSelectWidget(self)
+        self._style_select.value_changed.connect(self._notify)
+        layout = QHBoxLayout()
+        layout.setContentsMargins(0, 0, 0, 0)
+        layout.addWidget(self._style_select)
+        self.setLayout(layout)
+
+    def _notify(self):
+        self.value_changed.emit()
+
+    @property
+    def value(self):
+        return self._style_select.value.filename
+
+    @value.setter
+    def value(self, value: str):
+        if style := Styles.list().find(value):
+            self._style_select.value = style
+
+
 CustomParamWidget = (
     LayerSelect
     | IntParamWidget
@@ -281,10 +307,11 @@ CustomParamWidget = (
     | TextParamWidget
     | PromptParamWidget
     | ChoiceParamWidget
+    | StyleParamWidget
 )
 
 
-def _create_param_widget(param: CustomParam, parent: QWidget):
+def _create_param_widget(param: CustomParam, parent: QWidget) -> CustomParamWidget:
     if param.kind is ParamKind.image_layer:
         return LayerSelect("image", parent)
     if param.kind is ParamKind.mask_layer:
@@ -301,13 +328,15 @@ def _create_param_widget(param: CustomParam, parent: QWidget):
         return PromptParamWidget(param, parent)
     if param.kind is ParamKind.choice:
         return ChoiceParamWidget(param, parent)
+    if param.kind is ParamKind.style:
+        return StyleParamWidget(parent)
     assert False, f"Unknown param kind: {param.kind}"
 
 
 class WorkflowParamsWidget(QWidget):
     value_changed = pyqtSignal()
 
-    def __init__(self, params: list[CustomParam], parent: QWidget | None = None):
+    def __init__(self, params: list[CustomParam], parent: QWidget):
         super().__init__(parent)
         self._widgets: dict[str, CustomParamWidget] = {}
 
@@ -321,7 +350,7 @@ class WorkflowParamsWidget(QWidget):
             widget = _create_param_widget(p, self)
             widget.value_changed.connect(self._notify)
             row = len(self._widgets)
-            layout.addWidget(label, row, 0)
+            layout.addWidget(label, row, 0, Qt.AlignmentFlag.AlignBaseline)
             layout.addWidget(widget, row, 2)
             self._widgets[p.name] = widget
 

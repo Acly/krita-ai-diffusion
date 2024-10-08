@@ -366,16 +366,24 @@ class Model(QObject, ObservableProperties):
 
             params = copy(self.custom.params)
             for md in self.custom.metadata:
+                param = params.get(md.name)
+                assert param is not None, f"Parameter {md.name} not found"
+
                 if md.kind is ParamKind.image_layer:
-                    layer = self.layers.find(QUuid(params[md.name]))
+                    layer = self.layers.find(QUuid(param))
                     if layer is None:
                         raise ValueError(f"Input layer for parameter {md.name} not found")
                     params[md.name] = layer.get_pixels(bounds)
                 elif md.kind is ParamKind.mask_layer:
-                    layer = self.layers.find(QUuid(params[md.name]))
+                    layer = self.layers.find(QUuid(param))
                     if layer is None:
                         raise ValueError(f"Input layer for parameter {md.name} not found")
                     params[md.name] = layer.get_mask(bounds)
+                elif md.kind is ParamKind.style:
+                    style = Styles.list().find(str(param))
+                    if style is None:
+                        raise ValueError(f"Style {param} not found")
+                    params[md.name] = style
 
             input = WorkflowInput(
                 WorkflowKind.custom,

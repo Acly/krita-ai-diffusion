@@ -4,12 +4,15 @@ from pathlib import Path
 from PyQt5.QtCore import Qt
 
 from ai_diffusion.api import CustomWorkflowInput, ImageInput, SamplingInput
+from ai_diffusion.client import ClientModels, CheckpointInfo
 from ai_diffusion.connection import Connection
 from ai_diffusion.comfy_workflow import ComfyNode, ComfyWorkflow, Output
 from ai_diffusion.custom_workflow import CustomWorkflow, WorkflowSource, WorkflowCollection
 from ai_diffusion.custom_workflow import SortedWorkflows, CustomWorkspace
 from ai_diffusion.custom_workflow import CustomParam, ParamKind, workflow_parameters
 from ai_diffusion.image import Image, Extent
+from ai_diffusion.style import Style
+from ai_diffusion.resources import Arch
 from ai_diffusion import workflow
 
 from .config import test_dir
@@ -219,6 +222,7 @@ def test_parameters():
     w.add("ChoiceNode", 1, choice_param=choice_param)
     w.add("ETN_KritaImageLayer", 1, name="image")
     w.add("ETN_KritaMaskLayer", 1, name="mask")
+    w.add("ETN_KritaStyle", 9, name="style", sampler_preset="live")  # type: ignore
 
     assert list(workflow_parameters(w)) == [
         CustomParam(ParamKind.number_int, "int", 4, 0, 10),
@@ -231,6 +235,7 @@ def test_parameters():
         CustomParam(ParamKind.choice, "choice", "c", choices=["a", "b", "c"]),
         CustomParam(ParamKind.image_layer, "image"),
         CustomParam(ParamKind.mask_layer, "mask"),
+        CustomParam(ParamKind.style, "style", "live"),
     ]
 
 
@@ -248,6 +253,7 @@ def test_expand():
     choicy = ext.add("ETN_Parameter", 1, name="choicy", type="choice", default="c")
     layer_img = ext.add("ETN_KritaImageLayer", 1, name="layer_img")
     layer_mask = ext.add("ETN_KritaMaskLayer", 1, name="layer_mask")
+    stylie = ext.add("ETN_KritaStyle", 9, name="style", sampler_preset="live")  # type: ignore
     ext.add(
         "Sink",
         1,
@@ -259,8 +265,21 @@ def test_expand():
         choicy=choicy,
         layer_img=layer_img,
         layer_mask=layer_mask,
+        model=stylie[0],
+        clip=stylie[1],
+        vae=stylie[2],
+        positive=stylie[3],
+        negative=stylie[4],
+        sampler=stylie[5],
+        scheduler=stylie[6],
+        steps=stylie[7],
+        guidance=stylie[8],
     )
 
+    style = Style(Path("default.json"))
+    style.sd_checkpoint = "checkpoint.safetensors"
+    style.style_prompt = "bee hive"
+    style.negative_prompt = "pigoon"
     params = {
         "inty": 7,
         "numby": 3.4,
@@ -269,6 +288,7 @@ def test_expand():
         "choicy": "b",
         "layer_img": Image.create(Extent(4, 4), Qt.GlobalColor.black),
         "layer_mask": Image.create(Extent(4, 4), Qt.GlobalColor.white),
+        "style": style,
     }
 
     input = CustomWorkflowInput(workflow=ext.root, params=params)
@@ -276,16 +296,22 @@ def test_expand():
     images.initial_image = Image.create(Extent(4, 4), Qt.GlobalColor.white)
     sampling = SamplingInput("", "", 1.0, 1000, seed=123)
 
+    models = ClientModels()
+    models.checkpoints = {
+        "checkpoint.safetensors": CheckpointInfo("checkpoint.safetensors", Arch.sd15)
+    }
+
     w = ComfyWorkflow()
-    w = workflow.expand_custom(w, input, images, sampling)
+    w = workflow.expand_custom(w, input, images, sampling, models)
     expected = [
         ComfyNode(1, "ETN_LoadImageBase64", {"image": images.initial_image.to_base64()}),
         ComfyNode(2, "ImageScale", {"image": Output(1, 0), "width": 4, "height": 4}),
         ComfyNode(3, "ETN_KritaOutput", {"images": Output(2, 0)}),
         ComfyNode(4, "ETN_LoadImageBase64", {"image": params["layer_img"].to_base64()}),
         ComfyNode(5, "ETN_LoadMaskBase64", {"mask": params["layer_mask"].to_base64()}),
+        ComfyNode(6, "CheckpointLoaderSimple", {"ckpt_name": "checkpoint.safetensors"}),
         ComfyNode(
-            6,
+            7,
             "Sink",
             {
                 "seed": 123,
@@ -296,6 +322,15 @@ def test_expand():
                 "choicy": "b",
                 "layer_img": Output(4, 0),
                 "layer_mask": Output(5, 0),
+                "model": Output(6, 0),
+                "clip": Output(6, 1),
+                "vae": Output(6, 2),
+                "positive": "bee hive",
+                "negative": "pigoon",
+                "sampler": "euler",
+                "scheduler": "sgm_uniform",
+                "steps": 6,
+                "guidance": 1.8,
             },
         ),
     ]
