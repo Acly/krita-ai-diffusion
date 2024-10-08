@@ -294,7 +294,6 @@ def test_expand():
     input = CustomWorkflowInput(workflow=ext.root, params=params)
     images = ImageInput.from_extent(Extent(4, 4))
     images.initial_image = Image.create(Extent(4, 4), Qt.GlobalColor.white)
-    sampling = SamplingInput("", "", 1.0, 1000, seed=123)
 
     models = ClientModels()
     models.checkpoints = {
@@ -302,7 +301,7 @@ def test_expand():
     }
 
     w = ComfyWorkflow()
-    w = workflow.expand_custom(w, input, images, sampling, models)
+    w = workflow.expand_custom(w, input, images, 123, models)
     expected = [
         ComfyNode(1, "ETN_LoadImageBase64", {"image": images.initial_image.to_base64()}),
         ComfyNode(2, "ImageScale", {"image": Output(1, 0), "width": 4, "height": 4}),

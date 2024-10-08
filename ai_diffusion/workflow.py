@@ -1047,7 +1047,7 @@ def expand_custom(
     w: ComfyWorkflow,
     input: CustomWorkflowInput,
     images: ImageInput,
-    sampling: SamplingInput,
+    seed: int,
     models: ClientModels,
 ):
     custom = ComfyWorkflow.from_dict(input.workflow)
@@ -1079,7 +1079,7 @@ def expand_custom(
                 outputs[node.output(0)] = w.load_image(image)
                 outputs[node.output(1)] = image.width
                 outputs[node.output(2)] = image.height
-                outputs[node.output(3)] = sampling.seed
+                outputs[node.output(3)] = seed
             case "ETN_KritaSelection":
                 outputs[node.output(0)] = w.load_mask(ensure(images.hires_mask))
             case "ETN_Parameter":
@@ -1327,9 +1327,8 @@ def create(i: WorkflowInput, models: ClientModels, comfy_mode=ComfyRunMode.serve
             seed=i.sampling.seed if i.sampling else -1,
         )
     elif i.kind is WorkflowKind.custom:
-        return expand_custom(
-            workflow, ensure(i.custom_workflow), ensure(i.images), ensure(i.sampling), models
-        )
+        seed = ensure(i.sampling).seed
+        return expand_custom(workflow, ensure(i.custom_workflow), ensure(i.images), seed, models)
     else:
         raise ValueError(f"Unsupported workflow kind: {i.kind}")
 
