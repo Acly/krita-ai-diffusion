@@ -23,6 +23,19 @@ from .widget import create_wide_tool_button
 from . import theme
 
 
+class LivePreviewArea(QLabel):
+    def __init__(self, parent: QWidget):
+        super().__init__(parent)
+        self.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Expanding)
+        self.setAlignment(Qt.AlignmentFlag(Qt.AlignmentFlag.AlignTop | Qt.AlignmentFlag.AlignLeft))
+
+    def show_image(self, image: Image):
+        target = Extent.from_qsize(self.size())
+        img = Image.scale_to_fit(image, target)
+        self.setPixmap(img.to_pixmap())
+        self.setMinimumSize(256, 256)
+
+
 class LiveWidget(QWidget):
     _play_icon = theme.icon("play")
     _pause_icon = theme.icon("pause")
@@ -163,11 +176,7 @@ class LiveWidget(QWidget):
         self.progress_bar.setVisible(False)
         layout.addWidget(self.progress_bar)
 
-        self.preview_area = QLabel(self)
-        self.preview_area.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Expanding)
-        self.preview_area.setAlignment(
-            Qt.AlignmentFlag(Qt.AlignmentFlag.AlignTop | Qt.AlignmentFlag.AlignLeft)
-        )
+        self.preview_area = LivePreviewArea(self)
         layout.addWidget(self.preview_area)
 
     @property
@@ -252,10 +261,7 @@ class LiveWidget(QWidget):
 
     def show_result(self, image: Image):
         self.progress_bar.setVisible(False)
-        target = Extent.from_qsize(self.preview_area.size())
-        img = Image.scale_to_fit(image, target)
-        self.preview_area.setPixmap(img.to_pixmap())
-        self.preview_area.setMinimumSize(256, 256)
+        self.preview_area.show_image(image)
 
     def apply_result(self):
         self.model.live.apply_result()

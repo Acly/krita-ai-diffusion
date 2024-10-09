@@ -1,21 +1,25 @@
+import asyncio
 import json
 
 from enum import Enum
 from copy import copy
 from dataclasses import dataclass
-from typing import Any, NamedTuple
+from typing import Any, Awaitable, Callable, NamedTuple, Literal
 from pathlib import Path
 from PyQt5.QtCore import Qt, QObject, QUuid, QAbstractListModel, QSortFilterProxyModel, QModelIndex
 from PyQt5.QtCore import pyqtSignal
 
+from .api import WorkflowInput
 from .comfy_workflow import ComfyWorkflow
 from .connection import Connection
-from .image import Bounds
+from .image import Bounds, Image
 from .layer import LayerManager
+from .jobs import Job, JobParams, JobQueue, JobKind
 from .properties import Property, ObservableProperties
 from .style import Styles
 from .util import user_data_dir, client_logger as log
 from .ui import theme
+from . import eventloop
 
 
 class WorkflowSource(Enum):
@@ -274,23 +278,45 @@ def workflow_parameters(w: ComfyWorkflow):
                 log.warning(f"Custom workflow has an unsupported parameter type {unknown}")
 
 
+ImageGenerator = Callable[[WorkflowInput | None], Awaitable[None | Literal[False] | WorkflowInput]]
+
+
+class CustomGenerationMode(Enum):
+    regular = 0
+    live = 1
+
+
 class CustomWorkspace(QObject, ObservableProperties):
 
     workflow_id = Property("", setter="_set_workflow_id")
     params = Property({}, persist=True)
+    mode = Property(CustomGenerationMode.regular, setter="_set_mode")
+    is_live = Property(False, setter="toggle_live")
+    has_result = Property(False)
 
     workflow_id_changed = pyqtSignal(str)
     graph_changed = pyqtSignal()
     params_changed = pyqtSignal(dict)
+    mode_changed = pyqtSignal(CustomGenerationMode)
+    is_live_changed = pyqtSignal(bool)
+    result_available = pyqtSignal(Image)
+    has_result_changed = pyqtSignal(bool)
     modified = pyqtSignal(QObject, str)
 
-    def __init__(self, workflows: WorkflowCollection):
+    _live_poll_rate = 0.1
+
+    def __init__(self, workflows: WorkflowCollection, generator: ImageGenerator, jobs: JobQueue):
         super().__init__()
         self._workflows = workflows
+        self._generator = generator
         self._workflow: CustomWorkflow | None = None
         self._graph: ComfyWorkflow | None = None
         self._metadata: list[CustomParam] = []
+        self._last_input: WorkflowInput | None = None
+        self._last_result: Image | None = None
+        self._last_job: JobParams | None = None
 
+        jobs.job_finished.connect(self._handle_job_finished)
         workflows.dataChanged.connect(self._update_workflow)
         workflows.rowsInserted.connect(self._set_default_workflow)
         self._set_default_workflow()
@@ -336,6 +362,22 @@ class CustomWorkspace(QObject, ObservableProperties):
             self._metadata = []
             self._workflows.remove(id)
 
+    def generate(self):
+        eventloop.run(self._generator(None))
+
+    def toggle_live(self, active: bool):
+        if self._is_live != active:
+            self._is_live = active
+            self.is_live_changed.emit(active)
+            if active:
+                eventloop.run(self._continue_generating())
+
+    def _set_mode(self, value: CustomGenerationMode):
+        if self._mode != value:
+            self._mode = value
+            self.mode_changed.emit(value)
+            self.is_live = False
+
     @property
     def workflow(self):
         return self._workflow
@@ -370,6 +412,32 @@ class CustomWorkspace(QObject, ObservableProperties):
                     raise ValueError(f"Style {param} not found")
                 params[md.name] = style
         return params
+
+    def _handle_job_finished(self, job: Job):
+        if job.kind is JobKind.live_preview:
+            if len(job.results) > 0:
+                self._last_result = job.results[0]
+                self._last_job = job.params
+                self.result_available.emit(self._last_result)
+                self.has_result = True
+            eventloop.run(self._continue_generating())
+
+    async def _continue_generating(self):
+        while self.is_live:
+            new_input = await self._generator(self._last_input)
+            if new_input is False:  # abort live generation
+                self.is_live = False
+                return
+            elif new_input is None:  # no changes in input data
+                await asyncio.sleep(self._live_poll_rate)
+            else:  # frame was scheduled
+                self._last_input = new_input
+                return
+
+    @property
+    def live_result(self):
+        assert self._last_result and self._last_job, "No live result available"
+        return self._last_result, self._last_job
 
 
 def _coerce(params: dict[str, Any], types: list[CustomParam]):

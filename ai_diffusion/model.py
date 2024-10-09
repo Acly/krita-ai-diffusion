@@ -19,7 +19,7 @@ from .network import NetworkError
 from .image import Extent, Image, Mask, Bounds, DummyImage
 from .client import ClientMessage, ClientEvent, SharedWorkflow
 from .client import filter_supported_styles, resolve_arch
-from .custom_workflow import CustomWorkspace, WorkflowCollection, ParamKind
+from .custom_workflow import CustomWorkspace, WorkflowCollection, CustomGenerationMode
 from .document import Document, KritaDocument
 from .layer import Layer, LayerType, RestoreActiveLayer
 from .pose import Pose
@@ -94,7 +94,7 @@ class Model(QObject, ObservableProperties):
         self.upscale = UpscaleWorkspace(self)
         self.live = LiveWorkspace(self)
         self.animation = AnimationWorkspace(self)
-        self.custom = CustomWorkspace(workflows)
+        self.custom = CustomWorkspace(workflows, self._generate_custom, self.jobs)
 
         self.jobs.selection_changed.connect(self.update_preview)
         self.error_changed.connect(lambda: self.has_error_changed.emit(self.has_error))
@@ -349,13 +349,17 @@ class Model(QObject, ObservableProperties):
 
         return None
 
-    def generate_custom(self):
+    async def _generate_custom(self, previous_input: WorkflowInput | None):
+        if self.workspace is not Workspace.custom or not self.document.is_active:
+            return False
+
         try:
             wf = ensure(self.custom.graph)
             bounds = Bounds(0, 0, *self._doc.extent)
             img_input = ImageInput.from_extent(bounds.extent)
             img_input.initial_image = self._get_current_image(bounds)
-            seed = self.seed if self.fixed_seed else workflow.generate_seed()
+            is_live = self.custom.mode is CustomGenerationMode.live
+            seed = self.seed if is_live or self.fixed_seed else workflow.generate_seed()
 
             if next(wf.find(type="ETN_KritaSelection"), None):
                 mask, _ = self._doc.create_mask_from_selection()
@@ -372,13 +376,18 @@ class Model(QObject, ObservableProperties):
                 custom_workflow=CustomWorkflowInput(wf.root, params),
             )
             job_params = JobParams(bounds, self.custom.workflow_id)
+            job_kind = JobKind.live_preview if is_live else JobKind.diffusion
+
+            if input == previous_input:
+                return None
+
+            self.clear_error()
+            await self.enqueue_jobs(input, job_kind, job_params, self.batch_count)
+            return input
+
         except Exception as e:
             self.report_error(util.log_error(e))
-            return
-
-        self.clear_error()
-        jobs = self.enqueue_jobs(input, JobKind.diffusion, job_params, self.batch_count)
-        eventloop.run(_report_errors(self, jobs))
+            return False
 
     def _get_current_image(self, bounds: Bounds):
         exclude = None

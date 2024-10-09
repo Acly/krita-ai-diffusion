@@ -2,21 +2,24 @@ from functools import wraps
 from pathlib import Path
 from typing import Any, Callable
 
-from PyQt5.QtCore import Qt, pyqtSignal, QMetaObject, QUuid, QUrl
+from PyQt5.QtCore import Qt, pyqtSignal, QMetaObject, QUuid, QUrl, QPoint
 from PyQt5.QtGui import QFontMetrics, QIcon, QDesktopServices
-from PyQt5.QtWidgets import QComboBox, QFileDialog, QFrame, QGridLayout, QHBoxLayout
-from PyQt5.QtWidgets import QLabel, QLineEdit, QListWidgetItem, QMessageBox, QSpinBox
+from PyQt5.QtWidgets import QComboBox, QFileDialog, QFrame, QGridLayout, QHBoxLayout, QMenu
+from PyQt5.QtWidgets import QLabel, QLineEdit, QListWidgetItem, QMessageBox, QSpinBox, QAction
 from PyQt5.QtWidgets import QToolButton, QVBoxLayout, QWidget, QSlider, QDoubleSpinBox
 
 from ..custom_workflow import CustomParam, ParamKind, SortedWorkflows, WorkflowSource
+from ..custom_workflow import CustomGenerationMode
 from ..jobs import JobKind
-from ..model import Model
+from ..model import Model, ApplyBehavior
 from ..properties import Binding, Bind, bind, bind_combo
 from ..style import Styles
 from ..root import root
+from ..settings import settings
 from ..localization import translate as _
 from ..util import ensure, clamp
 from .generation import GenerateButton, ProgressBar, QueueButton, HistoryWidget, create_error_label
+from .live import LivePreviewArea
 from .switch import SwitchWidget
 from .widget import TextPromptWidget, WorkspaceSelectWidget, StyleSelectWidget
 from . import theme
@@ -447,13 +450,35 @@ class CustomWorkflowWidget(QWidget):
         self._params_widget = WorkflowParamsWidget([], self)
 
         self._generate_button = GenerateButton(JobKind.diffusion, self)
+        self._generate_button.clicked.connect(self._generate)
+
+        self._apply_button = QToolButton(self)
+        self._apply_button.setIcon(theme.icon("apply"))
+        self._apply_button.setFixedHeight(self._generate_button.height() - 2)
+        self._apply_button.setToolTip(_("Create a new layer with the current result"))
+        self._apply_button.clicked.connect(self.apply_live_result)
+
+        self._mode_button = QToolButton(self)
+        self._mode_button.setArrowType(Qt.ArrowType.DownArrow)
+        self._mode_button.setFixedHeight(self._generate_button.height() - 2)
+        self._mode_button.clicked.connect(self._show_generate_menu)
+        menu = QMenu(self)
+        menu.addAction(self._mk_action(CustomGenerationMode.regular, _("Generate"), "generate"))
+        menu.addAction(
+            self._mk_action(CustomGenerationMode.live, _("Generate Live"), "workspace-live")
+        )
+        self._generate_menu = menu
+
         self._queue_button = QueueButton(parent=self)
         self._queue_button.setFixedHeight(self._generate_button.height() - 2)
+
         self._progress_bar = ProgressBar(self)
         self._error_text = create_error_label(self)
 
         self._history = HistoryWidget(self)
         self._history.item_activated.connect(self.apply_result)
+
+        self._live_preview = LivePreviewArea(self)
 
         self._layout = QVBoxLayout()
         select_layout = QHBoxLayout()
@@ -479,13 +504,88 @@ class CustomWorkflowWidget(QWidget):
         self._layout.addLayout(header_layout)
         self._layout.addWidget(self._params_widget)
         actions_layout = QHBoxLayout()
+        actions_layout.setSpacing(0)
         actions_layout.addWidget(self._generate_button)
+        actions_layout.addWidget(self._apply_button)
+        actions_layout.addWidget(self._mode_button)
+        actions_layout.addSpacing(4)
         actions_layout.addWidget(self._queue_button)
         self._layout.addLayout(actions_layout)
         self._layout.addWidget(self._progress_bar)
         self._layout.addWidget(self._error_text)
         self._layout.addWidget(self._history)
+        self._layout.addWidget(self._live_preview)
         self.setLayout(self._layout)
+
+        self._update_ui()
+
+    @property
+    def model(self):
+        return self._model
+
+    @model.setter
+    def model(self, model: Model):
+        if self._model != model:
+            Binding.disconnect_all(self._model_bindings)
+            self._model = model
+            self._model_bindings = [
+                bind(model, "workspace", self._workspace_select, "value", Bind.one_way),
+                bind_combo(model.custom, "workflow_id", self._workflow_select, Bind.one_way),
+                model.workspace_changed.connect(self._cancel_name),
+                model.custom.graph_changed.connect(self._update_current_workflow),
+                model.error_changed.connect(self._error_text.setText),
+                model.has_error_changed.connect(self._error_text.setVisible),
+                model.custom.mode_changed.connect(self._update_ui),
+                model.custom.is_live_changed.connect(self._update_ui),
+                model.custom.result_available.connect(self._live_preview.show_image),
+                model.custom.has_result_changed.connect(self._apply_button.setEnabled),
+            ]
+            self._queue_button.model = model
+            self._progress_bar.model = model
+            self._history.model_ = model
+            self._update_current_workflow()
+            self._update_ui()
+
+    def _mk_action(self, mode: CustomGenerationMode, text: str, icon: str):
+        action = QAction(text, self)
+        action.setIcon(theme.icon(icon))
+        action.setIconVisibleInMenu(True)
+        action.triggered.connect(lambda: self._change_mode(mode))
+        return action
+
+    def _change_mode(self, mode: CustomGenerationMode):
+        self.model.custom.mode = mode
+
+    def _show_generate_menu(self):
+        width = self._generate_button.width() + self._mode_button.width()
+        pos = QPoint(0, self._generate_button.height())
+        self._generate_menu.setFixedWidth(width)
+        self._generate_menu.exec_(self._generate_button.mapToGlobal(pos))
+
+    def _update_ui(self):
+        is_live_mode = self.model.custom.mode is CustomGenerationMode.live
+        self._history.setVisible(not is_live_mode)
+        self._live_preview.setVisible(is_live_mode)
+        self._apply_button.setVisible(is_live_mode)
+        self._apply_button.setEnabled(self.model.custom.has_result)
+
+        if not is_live_mode:
+            text = _("Generate")
+            icon = "generate"
+        elif not self.model.custom.is_live:
+            text = _("Start Generating")
+            icon = "play"
+        else:
+            text = _("Stop Generating")
+            icon = "pause"
+        self._generate_button.operation = text
+        self._generate_button.setIcon(theme.icon(icon))
+
+    def _generate(self):
+        if self.model.custom.mode is CustomGenerationMode.regular:
+            self.model.custom.generate()
+        else:
+            self.model.custom.is_live = not self.model.custom.is_live
 
     def _update_current_workflow(self):
         if not self.model.custom.workflow:
@@ -509,32 +609,15 @@ class CustomWorkflowWidget(QWidget):
     def _change_params(self):
         self.model.custom.params = self._params_widget.value
 
-    @property
-    def model(self):
-        return self._model
-
-    @model.setter
-    def model(self, model: Model):
-        if self._model != model:
-            Binding.disconnect_all(self._model_bindings)
-            self._model = model
-            self._model_bindings = [
-                bind(model, "workspace", self._workspace_select, "value", Bind.one_way),
-                bind_combo(model.custom, "workflow_id", self._workflow_select, Bind.one_way),
-                model.workspace_changed.connect(self._cancel_name),
-                model.custom.graph_changed.connect(self._update_current_workflow),
-                model.error_changed.connect(self._error_text.setText),
-                model.has_error_changed.connect(self._error_text.setVisible),
-                self._generate_button.clicked.connect(model.generate_custom),
-            ]
-            self._queue_button.model = model
-            self._progress_bar.model = model
-            self._history.model_ = model
-            self._update_current_workflow()
-
     def apply_result(self, item: QListWidgetItem):
         job_id, index = self._history.item_info(item)
         self.model.apply_generated_result(job_id, index)
+
+    def apply_live_result(self):
+        image, params = self.model.custom.live_result
+        self.model.apply_result(image, params, ApplyBehavior.layer)
+        if settings.new_seed_after_apply:
+            self.model.generate_seed()
 
     @popup_on_error
     def _import_workflow(self, *args):
