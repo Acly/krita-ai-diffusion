@@ -150,7 +150,7 @@ class Settings(QObject):
 
     live_cancel_jobs_on_change: bool
     _live_cancel_jobs_on_change = Setting(
-        _("Cancel incomplete jobs on change"),
+        _("Live: Cancel incomplete jobs on change"),
         False,
         _("Prevents intermediate results from being shown in Live Mode"),
     )
