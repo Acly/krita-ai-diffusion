@@ -1,15 +1,19 @@
 import json
 
 from enum import Enum
+from copy import copy
 from dataclasses import dataclass
 from typing import Any, NamedTuple
 from pathlib import Path
-from PyQt5.QtCore import Qt, QObject, QAbstractListModel, QSortFilterProxyModel, QModelIndex
+from PyQt5.QtCore import Qt, QObject, QUuid, QAbstractListModel, QSortFilterProxyModel, QModelIndex
 from PyQt5.QtCore import pyqtSignal
 
 from .comfy_workflow import ComfyWorkflow
 from .connection import Connection
+from .image import Bounds
+from .layer import LayerManager
 from .properties import Property, ObservableProperties
+from .style import Styles
 from .util import user_data_dir, client_logger as log
 from .ui import theme
 
@@ -265,7 +269,7 @@ def workflow_parameters(w: ComfyWorkflow):
                             )
                 else:
                     yield CustomParam(ParamKind.text, name, default=default)
-            case ("ETN_Parameter", unknown_type):
+            case ("ETN_Parameter", unknown_type) if unknown_type != "auto":
                 unknown = node.input("name", "?") + ": " + unknown_type
                 log.warning(f"Custom workflow has an unsupported parameter type {unknown}")
 
@@ -343,6 +347,29 @@ class CustomWorkspace(QObject, ObservableProperties):
     @property
     def metadata(self):
         return self._metadata
+
+    def collect_parameters(self, layers: LayerManager, bounds: Bounds):
+        params = copy(self.params)
+        for md in self.metadata:
+            param = params.get(md.name)
+            assert param is not None, f"Parameter {md.name} not found"
+
+            if md.kind is ParamKind.image_layer:
+                layer = layers.find(QUuid(param))
+                if layer is None:
+                    raise ValueError(f"Input layer for parameter {md.name} not found")
+                params[md.name] = layer.get_pixels(bounds)
+            elif md.kind is ParamKind.mask_layer:
+                layer = layers.find(QUuid(param))
+                if layer is None:
+                    raise ValueError(f"Input layer for parameter {md.name} not found")
+                params[md.name] = layer.get_mask(bounds)
+            elif md.kind is ParamKind.style:
+                style = Styles.list().find(str(param))
+                if style is None:
+                    raise ValueError(f"Style {param} not found")
+                params[md.name] = style
+        return params
 
 
 def _coerce(params: dict[str, Any], types: list[CustomParam]):

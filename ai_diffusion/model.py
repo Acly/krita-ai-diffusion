@@ -364,27 +364,7 @@ class Model(QObject, ObservableProperties):
                 else:
                     img_input.hires_mask = Mask.transparent(bounds).to_image()
 
-            params = copy(self.custom.params)
-            for md in self.custom.metadata:
-                param = params.get(md.name)
-                assert param is not None, f"Parameter {md.name} not found"
-
-                if md.kind is ParamKind.image_layer:
-                    layer = self.layers.find(QUuid(param))
-                    if layer is None:
-                        raise ValueError(f"Input layer for parameter {md.name} not found")
-                    params[md.name] = layer.get_pixels(bounds)
-                elif md.kind is ParamKind.mask_layer:
-                    layer = self.layers.find(QUuid(param))
-                    if layer is None:
-                        raise ValueError(f"Input layer for parameter {md.name} not found")
-                    params[md.name] = layer.get_mask(bounds)
-                elif md.kind is ParamKind.style:
-                    style = Styles.list().find(str(param))
-                    if style is None:
-                        raise ValueError(f"Style {param} not found")
-                    params[md.name] = style
-
+            params = self.custom.collect_parameters(self.layers, bounds)
             input = WorkflowInput(
                 WorkflowKind.custom,
                 img_input,
@@ -539,7 +519,7 @@ class Model(QObject, ObservableProperties):
     ):
         name = f"{prefix}{job_region.prompt} ({params.seed})"
         region_layer = self.layers.find(QUuid(job_region.layer_id)) or self.layers.root
-        # a previous apply from the same batch my have already created groups and re-linked
+        # a previous apply from the same batch may have already created groups and re-linked
         region_layer = Region.link_target(region_layer)
 
         # Replace content if requested and not a group layer
