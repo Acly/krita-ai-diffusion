@@ -148,6 +148,13 @@ class Settings(QObject):
         _("NSFW Filter"), 0.0, _("Attempt to filter out images with explicit content")
     )
 
+    live_cancel_jobs_on_change: bool
+    _live_cancel_jobs_on_change = Setting(
+        _("Live: Cancel incomplete jobs on change"),
+        False,
+        _("Prevents intermediate results from being shown in Live Mode"),
+    )
+
     new_seed_after_apply: bool
     _new_seed_after_apply = Setting(
         _("Live: New Seed after Apply"),
