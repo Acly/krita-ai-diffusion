@@ -11,6 +11,7 @@ from ai_diffusion.custom_workflow import CustomWorkflow, WorkflowSource, Workflo
 from ai_diffusion.custom_workflow import SortedWorkflows, CustomWorkspace
 from ai_diffusion.custom_workflow import CustomParam, ParamKind, workflow_parameters
 from ai_diffusion.image import Image, Extent
+from ai_diffusion.jobs import JobQueue
 from ai_diffusion.style import Style
 from ai_diffusion.resources import Arch
 from ai_diffusion import workflow
@@ -141,13 +142,18 @@ def test_files(tmp_path: Path):
         collection.import_file(bad_file)
 
 
+async def dummy_generate(workflow_input):
+    return None
+
+
 def test_workspace():
     connection = Connection()
     connection_workflows = {"connection1": make_dummy_graph(42)}
     connection._workflows = connection_workflows
     workflows = WorkflowCollection(connection)
 
-    workspace = CustomWorkspace(workflows)
+    jobs = JobQueue()
+    workspace = CustomWorkspace(workflows, dummy_generate, jobs)
     assert workspace.workflow_id == "connection1"
     assert workspace.workflow and workspace.workflow.id == "connection1"
     assert workspace.graph and workspace.graph.node(0).type == "ETN_Parameter"

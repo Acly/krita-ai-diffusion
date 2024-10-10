@@ -4,7 +4,7 @@ import json
 from enum import Enum
 from copy import copy
 from dataclasses import dataclass
-from typing import Any, Awaitable, Callable, NamedTuple, Literal
+from typing import Any, Awaitable, Callable, NamedTuple, Literal, TYPE_CHECKING
 from pathlib import Path
 from PyQt5.QtCore import Qt, QObject, QUuid, QAbstractListModel, QSortFilterProxyModel, QModelIndex
 from PyQt5.QtCore import pyqtSignal
@@ -13,13 +13,15 @@ from .api import WorkflowInput
 from .comfy_workflow import ComfyWorkflow
 from .connection import Connection
 from .image import Bounds, Image
-from .layer import LayerManager
 from .jobs import Job, JobParams, JobQueue, JobKind
 from .properties import Property, ObservableProperties
 from .style import Styles
 from .util import user_data_dir, client_logger as log
 from .ui import theme
 from . import eventloop
+
+if TYPE_CHECKING:
+    from .layer import LayerManager
 
 
 class WorkflowSource(Enum):
@@ -390,7 +392,7 @@ class CustomWorkspace(QObject, ObservableProperties):
     def metadata(self):
         return self._metadata
 
-    def collect_parameters(self, layers: LayerManager, bounds: Bounds):
+    def collect_parameters(self, layers: "LayerManager", bounds: Bounds):
         params = copy(self.params)
         for md in self.metadata:
             param = params.get(md.name)
