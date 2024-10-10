@@ -119,8 +119,9 @@ class HistoryWidget(QListWidget):
 
         if not JobParams.equal_ignore_seed(self._last_job_params, job.params):
             self._last_job_params = job.params
-            prompt = job.params.prompt if job.params.prompt != "" else "<no prompt>"
-            strength = f"{job.params.strength*100:.0f}% - " if job.params.strength != 1.0 else ""
+            prompt = job.params.name if job.params.name != "" else "<no prompt>"
+            strength = job.params.metadata.get("strength", 1.0)
+            strength = f"{strength*100:.0f}% - " if strength != 1.0 else ""
 
             header = QListWidgetItem(f"{job.timestamp:%H:%M} - {strength}{prompt}")
             header.setFlags(Qt.ItemFlag.NoItemFlags)
@@ -140,26 +141,39 @@ class HistoryWidget(QListWidget):
         if scroll_to_bottom:
             self.scrollToBottom()
 
+    _job_info_translations = {
+        "prompt": _("Prompt"),
+        "negative_prompt": _("Negative Prompt"),
+        "style": _("Style"),
+        "strength": _("Strength"),
+        "checkpoint": _("Model"),
+        "loras": _("LoRA"),
+        "sampler": _("Sampler"),
+        "seed": _("Seed"),
+    }
+
     def _job_info(self, params: JobParams):
-        prompt = params.prompt if params.prompt != "" else "<no prompt>"
-        if len(prompt) > 70:
-            prompt = prompt[:66] + "..."
+        title = params.name if params.name != "" else "<no prompt>"
+        if len(title) > 70:
+            title = title[:66] + "..."
+        if params.strength != 1.0:
+            title = f"{title} @ {params.strength*100:.0f}%"
         style = Styles.list().find(params.style)
-        positive = _("Prompt") + f": {params.prompt or '-'}"
-        negative = _("Negative Prompt") + f": {params.negative_prompt or '-'}"
-        strings = [
-            f"{prompt} @ {params.strength*100:.0f}%\n",
+        strings: list[str | list[str]] = [
+            title + "\n",
             _("Click to toggle preview, double-click to apply."),
             "",
-            _("Style") + f": {style.name if style else params.style}",
-            wrap_text(positive, 80, subsequent_indent="  "),
-            wrap_text(negative, 80, subsequent_indent="  "),
-            _("Strength") + f": {params.strength*100:.0f}%",
-            _("Model") + f": {params.checkpoint}",
-            _("Sampler") + f": {params.sampler}",
-            _("Seed") + f": {params.seed}",
-            f"{params.bounds}",
         ]
+        for key, value in params.metadata.items():
+            if key == "style" and style:
+                value = style.name
+            if isinstance(value, list) and len(value) == 0:
+                continue
+            if isinstance(value, list) and isinstance(value[0], dict):
+                value = "\n  ".join((f"{v.get('name')} ({v.get('strength')})" for v in value))
+            s = f"{self._job_info_translations.get(key, key)}: {value}"
+            strings.append(wrap_text(s, 80, subsequent_indent=" "))
+        strings.append(_("Seed") + f": {params.seed}")
         return "\n".join(flatten(strings))
 
     def remove(self, job: Job):
@@ -351,7 +365,7 @@ class HistoryWidget(QListWidget):
             active = self._model.regions.active_or_root
             active.positive = job.params.prompt
             if isinstance(active, RootRegion):
-                active.negative = job.params.negative_prompt
+                active.negative = job.params.metadata.get("negative_prompt", "")
 
     def _copy_strength(self):
         if job := self.selected_job:
@@ -509,6 +523,7 @@ class ProgressBar(QProgressBar):
         super().__init__(parent)
         self._model = root.active_model
         self._model_bindings: list[QMetaObject.Connection] = []
+        self._palette = self.palette()
         self.setMinimum(0)
         self.setMaximum(1000)
         self.setTextVisible(False)
@@ -529,8 +544,9 @@ class ProgressBar(QProgressBar):
             ]
 
     def _update_progress_kind(self):
-        palette = self.palette()
+        palette = self._palette
         if self._model.progress_kind is ProgressKind.upload:
+            palette = self.palette()
             palette.setColor(QPalette.ColorRole.Highlight, QColor(theme.progress_alt))
         self.setPalette(palette)
 

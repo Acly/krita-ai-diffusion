@@ -194,23 +194,23 @@ class Model(QObject, ObservableProperties):
         )
         job_params = JobParams(bounds, prompt, regions=job_regions)
         job_params.set_style(self.style)
+        job_params.metadata["prompt"] = prompt
+        job_params.metadata["negative_prompt"] = self.regions.negative
+        job_params.metadata["strength"] = self.strength
+        if len(job_regions) == 1:
+            job_params.metadata["prompt"] = job_params.name = job_regions[0].prompt
         return input, job_params
 
     async def enqueue_jobs(
         self, input: WorkflowInput, kind: JobKind, params: JobParams, count: int = 1
     ):
         sampling = ensure(input.sampling)
-        params.negative_prompt = self.regions.negative
-        params.strength = sampling.denoise_strength
         params.has_mask = input.images is not None and input.images.hires_mask is not None
-        if len(params.regions) == 1:
-            params.prompt = params.regions[0].prompt
 
         for i in range(count):
-            input = replace(
-                input, sampling=replace(sampling, seed=sampling.seed + i * settings.batch_size)
-            )
-            params.seed = ensure(input.sampling).seed
+            next_seed = sampling.seed + i * settings.batch_size
+            input = replace(input, sampling=replace(sampling, seed=next_seed))
+            params.seed = next_seed
             job = self.jobs.add(kind, copy(params))
             await self._enqueue_job(job, input)
 
@@ -375,7 +375,7 @@ class Model(QObject, ObservableProperties):
                 sampling=SamplingInput("custom", "custom", 1, 1000, seed=seed),
                 custom_workflow=CustomWorkflowInput(wf.root, params),
             )
-            job_params = JobParams(bounds, self.custom.workflow_id)
+            job_params = JobParams(bounds, self.custom.job_name, metadata=self.custom.params)
             job_kind = JobKind.live_preview if is_live else JobKind.diffusion
 
             if input == previous_input:
@@ -486,7 +486,7 @@ class Model(QObject, ObservableProperties):
     def show_preview(self, job_id: str, index: int, name_prefix="Preview"):
         job = self.jobs.find(job_id)
         assert job is not None, "Cannot show preview, invalid job id"
-        name = f"[{name_prefix}] {trim_text(job.params.prompt, 77)}"
+        name = f"[{name_prefix}] {trim_text(job.params.name, 77)}"
         if self._layer and self._layer.was_removed:
             self._layer = None  # layer was removed by user
         if self._layer is not None:
@@ -508,7 +508,7 @@ class Model(QObject, ObservableProperties):
             if behavior is ApplyBehavior.replace:
                 self.layers.update_layer_image(self.layers.active, image, params.bounds)
             else:
-                name = f"{prefix}{trim_text(params.prompt, 200)} ({params.seed})"
+                name = f"{prefix}{trim_text(params.name, 200)} ({params.seed})"
                 self.layers.create(name, image, params.bounds)
         else:  # apply to regions
             with RestoreActiveLayer(self.layers) as restore:
@@ -600,9 +600,9 @@ class Model(QObject, ObservableProperties):
         if job.control.mode is ControlMode.pose and isinstance(result, dict):
             pose = Pose.from_open_pose_json(result)
             pose.scale(job.params.bounds.extent)
-            return self.layers.create_vector(job.params.prompt, pose.to_svg())
+            return self.layers.create_vector(job.params.name, pose.to_svg())
         elif len(job.results) > 0:
-            return self.layers.create(job.params.prompt, job.results[0], job.params.bounds)
+            return self.layers.create(job.params.name, job.results[0], job.params.bounds)
         return self.layers.active  # Execution was cached and no image was produced
 
     def add_upscale_layer(self, job: Job):
@@ -1073,7 +1073,7 @@ class AnimationWorkspace(QObject, ObservableProperties):
         keyframes = self._keyframes.pop(job.params.animation_id)
         _, start, end = job.params.frame
         doc.import_animation(keyframes, start)
-        eventloop.run(self._update_layer_name(f"[Generated] {start}-{end}: {job.params.prompt}"))
+        eventloop.run(self._update_layer_name(f"[Generated] {start}-{end}: {job.params.name}"))
 
     async def _update_layer_name(self, name: str):
         doc = self._model.document
@@ -1138,7 +1138,7 @@ def _save_job_result(model: Model, job: Job | None, index: int):
     assert len(job.results) > index, "Cannot save result, invalid result index"
     assert model.document.filename, "Cannot save result, document is not saved"
     timestamp = job.timestamp.strftime("%Y%m%d-%H%M%S")
-    prompt = util.sanitize_prompt(job.params.prompt)
+    prompt = util.sanitize_prompt(job.params.name)
     path = Path(model.document.filename)
     path = path.parent / f"{path.stem}-generated-{timestamp}-{index}-{prompt}.png"
     path = util.find_unused_path(path)

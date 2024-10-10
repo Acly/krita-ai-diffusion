@@ -47,14 +47,10 @@ class JobRegion:
 @dataclass
 class JobParams:
     bounds: Bounds
-    prompt: str
-    negative_prompt: str = ""
+    name: str  # used eg. as name for new layers created from this job
     regions: list[JobRegion] = field(default_factory=list)
-    strength: float = 1.0
+    metadata: dict[str, Any] = field(default_factory=dict)
     seed: int = 0
-    style: str = ""
-    checkpoint: str = ""
-    sampler: str = ""
     has_mask: bool = False
     frame: tuple[int, int, int] = (0, 0, 0)
     animation_id: str = ""
@@ -73,9 +69,22 @@ class JobParams:
         return all(getattr(a, name) == getattr(b, name) for name in field_names)
 
     def set_style(self, style: Style):
-        self.style = style.filename
-        self.checkpoint = style.sd_checkpoint
-        self.sampler = f"{style.sampler} ({style.sampler_steps} / {style.cfg_scale})"
+        self.metadata["style"] = style.filename
+        self.metadata["checkpoint"] = style.sd_checkpoint
+        self.metadata["loras"] = style.loras
+        self.metadata["sampler"] = f"{style.sampler} ({style.sampler_steps} / {style.cfg_scale})"
+
+    @property
+    def prompt(self):
+        return self.metadata.get("prompt", "")
+
+    @property
+    def style(self):
+        return self.metadata.get("style", "")
+
+    @property
+    def strength(self):
+        return self.metadata.get("strength", 1.0)
 
 
 class Job:

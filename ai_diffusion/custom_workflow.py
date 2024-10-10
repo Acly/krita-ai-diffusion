@@ -392,6 +392,13 @@ class CustomWorkspace(QObject, ObservableProperties):
     def metadata(self):
         return self._metadata
 
+    @property
+    def job_name(self):
+        for param in self.metadata:
+            if param.kind is ParamKind.prompt_positive:
+                return str(self.params[param.name])
+        return self.workflow_id or "Custom Workflow"
+
     def collect_parameters(self, layers: "LayerManager", bounds: Bounds):
         params = copy(self.params)
         for md in self.metadata:
