@@ -40,6 +40,7 @@ class Root(QObject):
         self._files = FileLibrary.load()
         self._workflows = WorkflowCollection(self._connection)
         self._models = []
+        self._null_model = Model(Document(), self._connection, self._workflows)
         self._recent = RecentlyUsedSync.from_settings()
         self._auto_update = AutoUpdate()
         if settings.auto_update:
@@ -96,7 +97,7 @@ class Root(QObject):
     def active_model(self):
         if model := self.model_for_active_document():
             return model
-        return Model(Document(), self._connection, self._workflows)
+        return self._null_model
 
     async def autostart(self, signal_server_change: Callable):
         connection = self._connection

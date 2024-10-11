@@ -10,8 +10,8 @@ from PyQt5.QtCore import Qt, QObject, QUuid, QAbstractListModel, QSortFilterProx
 from PyQt5.QtCore import pyqtSignal
 
 from .api import WorkflowInput
-from .comfy_workflow import ComfyWorkflow
-from .connection import Connection
+from .comfy_workflow import ComfyWorkflow, ComfyNode
+from .connection import Connection, ConnectionState
 from .image import Bounds, Image
 from .jobs import Job, JobParams, JobQueue, JobKind
 from .properties import Property, ObservableProperties
@@ -51,23 +51,29 @@ class WorkflowCollection(QAbstractListModel):
     def __init__(self, connection: Connection, folder: Path | None = None):
         super().__init__()
         self._connection = connection
+        self._folder = folder or user_data_dir / "workflows"
         self._workflows: list[CustomWorkflow] = []
 
-        self._folder = folder or user_data_dir / "workflows"
-        for file in self._folder.glob("*.json"):
-            try:
-                self._process_file(file)
-            except Exception as e:
-                log.exception(f"Error loading workflow from {file}: {e}")
-
+        self._connection.state_changed.connect(self._handle_connection)
         self._connection.workflow_published.connect(self._process_remote_workflow)
-        for wf in self._connection.workflows.keys():
-            self._process_remote_workflow(wf)
+        self._handle_connection(self._connection.state)
+
+    def _handle_connection(self, state: ConnectionState):
+        if state in (ConnectionState.connected, ConnectionState.disconnected):
+            self.clear()
+
+        if state is ConnectionState.connected:
+            for file in self._folder.glob("*.json"):
+                try:
+                    self._process_file(file)
+                except Exception as e:
+                    log.exception(f"Error loading workflow from {file}: {e}")
+
+            for wf in self._connection.workflows.keys():
+                self._process_remote_workflow(wf)
 
     def _node_inputs(self):
-        if client := self._connection.client_if_connected:
-            return client.models.node_inputs
-        return {}
+        return self._connection.client.models.node_inputs
 
     def _create_workflow(
         self, id: str, source: WorkflowSource, graph: dict, path: Path | None = None
@@ -126,6 +132,12 @@ class WorkflowCollection(QAbstractListModel):
             self.beginRemoveRows(QModelIndex(), idx.row(), idx.row())
             self._workflows.pop(idx.row())
             self.endRemoveRows()
+
+    def clear(self):
+        if len(self._workflows) > 0:
+            self.beginResetModel()
+            self._workflows.clear()
+            self.endResetModel()
 
     def set_graph(self, index: QModelIndex, graph: dict):
         wf = self._workflows[index.row()]
@@ -266,18 +278,22 @@ def workflow_parameters(w: ComfyWorkflow):
             case ("ETN_Parameter", "choice"):
                 name = node.input("name", "Parameter")
                 default = node.input("default", "")
-                connected, input_name = next(w.find_connected(node.output()), (None, ""))
-                if connected:
-                    if input_type := w.input_type(connected.type, input_name):
-                        if isinstance(input_type[0], list):
-                            yield CustomParam(
-                                ParamKind.choice, name, choices=input_type[0], default=default
-                            )
+                if choices := _get_choices(w, node):
+                    yield CustomParam(ParamKind.choice, name, choices=choices, default=default)
                 else:
                     yield CustomParam(ParamKind.text, name, default=default)
             case ("ETN_Parameter", unknown_type) if unknown_type != "auto":
                 unknown = node.input("name", "?") + ": " + unknown_type
                 log.warning(f"Custom workflow has an unsupported parameter type {unknown}")
+
+
+def _get_choices(w: ComfyWorkflow, node: ComfyNode):
+    connected, input_name = next(w.find_connected(node.output()), (None, ""))
+    if connected:
+        if input_type := w.input_type(connected.type, input_name):
+            if isinstance(input_type[0], list):
+                return input_type[0]
+    return None
 
 
 ImageGenerator = Callable[[WorkflowInput | None], Awaitable[None | Literal[False] | WorkflowInput]]

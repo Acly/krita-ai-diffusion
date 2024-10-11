@@ -3,9 +3,9 @@ import pytest
 from pathlib import Path
 from PyQt5.QtCore import Qt
 
-from ai_diffusion.api import CustomWorkflowInput, ImageInput, SamplingInput
-from ai_diffusion.client import ClientModels, CheckpointInfo
-from ai_diffusion.connection import Connection
+from ai_diffusion.api import CustomWorkflowInput, ImageInput, WorkflowInput
+from ai_diffusion.client import Client, ClientModels, CheckpointInfo
+from ai_diffusion.connection import Connection, ConnectionState
 from ai_diffusion.comfy_workflow import ComfyNode, ComfyWorkflow, Output
 from ai_diffusion.custom_workflow import CustomWorkflow, WorkflowSource, WorkflowCollection
 from ai_diffusion.custom_workflow import SortedWorkflows, CustomWorkspace
@@ -17,6 +17,40 @@ from ai_diffusion.resources import Arch
 from ai_diffusion import workflow
 
 from .config import test_dir
+
+
+class MockClient(Client):
+    def __init__(self, node_inputs: dict[str, dict]):
+        self.models = ClientModels()
+        self.models.node_inputs = node_inputs
+
+    @staticmethod
+    async def connect(url: str, access_token: str = "") -> Client:
+        return MockClient({})
+
+    async def enqueue(self, work: WorkflowInput, front: bool = False) -> str:
+        return ""
+
+    async def listen(self):  # type: ignore
+        return
+
+    async def interrupt(self):
+        pass
+
+    async def clear_queue(self):
+        pass
+
+
+def create_mock_connection(
+    initial_workflows: dict[str, dict],
+    node_inputs: dict[str, dict] | None = None,
+    state: ConnectionState = ConnectionState.connected,
+):
+    connection = Connection()
+    connection._client = MockClient(node_inputs or {})
+    connection._workflows = initial_workflows
+    connection.state = state
+    return connection
 
 
 def _assert_has_workflow(
@@ -44,12 +78,13 @@ def test_collection(tmp_path: Path):
     file2_graph = {"0": {"class_type": "F2", "inputs": {}}}
     file2.write_text(json.dumps(file2_graph))
 
-    connection = Connection()
     connection_graph = {"0": {"class_type": "C1", "inputs": {}}}
     connection_workflows = {"connection1": connection_graph}
-    connection._workflows = connection_workflows
+    connection = create_mock_connection(connection_workflows, state=ConnectionState.disconnected)
 
     collection = WorkflowCollection(connection, tmp_path)
+    assert len(collection) == 0
+    connection.state = ConnectionState.connected
     assert len(collection) == 3
     _assert_has_workflow(collection, "file1", WorkflowSource.local, file1_graph, file1)
     _assert_has_workflow(collection, "file2", WorkflowSource.local, file2_graph, file2)
@@ -110,7 +145,7 @@ def make_dummy_graph(n: int = 42):
 def test_files(tmp_path: Path):
     collection_folder = tmp_path / "workflows"
 
-    collection = WorkflowCollection(Connection(), collection_folder)
+    collection = WorkflowCollection(create_mock_connection({}, {}), collection_folder)
     assert len(collection) == 0
 
     file1 = tmp_path / "file1.json"
@@ -147,9 +182,8 @@ async def dummy_generate(workflow_input):
 
 
 def test_workspace():
-    connection = Connection()
     connection_workflows = {"connection1": make_dummy_graph(42)}
-    connection._workflows = connection_workflows
+    connection = create_mock_connection(connection_workflows, {})
     workflows = WorkflowCollection(connection)
 
     jobs = JobQueue()
