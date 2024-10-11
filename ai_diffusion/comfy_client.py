@@ -282,9 +282,8 @@ class ComfyClient(Client):
                 if msg["type"] == "executing" and msg["data"]["node"] is None:
                     job_id = msg["data"]["prompt_id"]
                     if local_id := self._clear_job(job_id):
-                        # Usually we don't get here because finished, interrupted or error is sent first.
-                        # But it may happen if the entire execution is cached and no images are sent.
                         if len(images) == 0:
+                            # It may happen if the entire execution is cached and no images are sent.
                             images = last_images
                         if len(images) == 0:
                             # Still no images. Potential scenario: execution cached, but previous
@@ -292,7 +291,10 @@ class ComfyClient(Client):
                             err = "No new images were generated because the inputs did not change."
                             await self._report(ClientEvent.error, local_id, error=err)
                         else:
-                            await self._report(ClientEvent.finished, local_id, 1, images=images)
+                            last_images = images
+                            await self._report(
+                                ClientEvent.finished, local_id, 1, images=images, result=result
+                            )
 
                 elif msg["type"] in ("execution_cached", "executing", "progress"):
                     if self._active is not None and progress is not None:
@@ -308,12 +310,6 @@ class ComfyClient(Client):
                     pose_json = _extract_pose_json(msg)
                     if job and pose_json:
                         result = pose_json
-                    elif job is not None and _validate_executed_node(msg, len(images)):
-                        self._clear_job(job.remote_id)
-                        last_images = images
-                        await self._report(
-                            ClientEvent.finished, job.local_id, 1, images=images, result=result
-                        )
 
                 if msg["type"] == "execution_error":
                     job = self._get_active_job(msg["data"]["prompt_id"])

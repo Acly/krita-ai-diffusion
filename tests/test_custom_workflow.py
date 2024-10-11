@@ -192,14 +192,16 @@ def test_workspace():
 
 def test_import():
     graph = {
-        "4": {"class_type": "A", "inputs": {"int": 4, "float": 1.2, "string": "mouse"}},
+        "4": {"class_type": "A", "inputs": {"steps": 4, "float": 1.2, "string": "mouse"}},
         "zak": {"class_type": "C", "inputs": {"in": ["9", 1]}},
         "9": {"class_type": "B", "inputs": {"in": ["4", 0]}},
     }
     w = ComfyWorkflow.import_graph(graph, {})
-    assert w.node(0) == ComfyNode(0, "A", {"int": 4, "float": 1.2, "string": "mouse"})
+    assert w.node(0) == ComfyNode(0, "A", {"steps": 4, "float": 1.2, "string": "mouse"})
     assert w.node(1) == ComfyNode(1, "B", {"in": Output(0, 0)})
     assert w.node(2) == ComfyNode(2, "C", {"in": Output(1, 1)})
+    assert w.node_count == 3
+    assert w.guess_sample_count() == 4
 
 
 def test_import_ui_workflow():

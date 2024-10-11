@@ -1108,6 +1108,7 @@ def expand_custom(
                 mapped = ComfyNode(node.id, node.type, mapped_inputs)
                 nodes[node.id] = w.copy(mapped).node
 
+    w.guess_sample_count()
     return w
 
 

@@ -96,6 +96,7 @@ class ComfyWorkflow:
     def from_dict(existing: dict):
         w = ComfyWorkflow()
         w.root = existing
+        w.node_count = len(w.root)
         return w
 
     def add_default_values(self, node_name: str, args: dict):
@@ -183,6 +184,15 @@ class ComfyWorkflow:
             for input_name, input_value in node.inputs.items():
                 if input_value == output:
                     yield node, input_name
+
+    def guess_sample_count(self):
+        self.sample_count = sum(
+            int(value)
+            for node in self
+            for name, value in node.inputs.items()
+            if name == "steps" and isinstance(value, (int, float))
+        )
+        return self.sample_count
 
     def __iter__(self):
         return iter(self.node(int(k)) for k in self.root.keys())
