@@ -674,3 +674,33 @@ class CustomWorkflowWidget(QWidget):
 
     def _cancel_name(self):
         self.is_edit_mode = False
+
+
+class CustomWorkflowPlaceholder(QWidget):
+    def __init__(self):
+        super().__init__()
+        self._model = root.active_model
+        self._connections = []
+
+        self._workspace_select = WorkspaceSelectWidget(self)
+        note = QLabel("<i>" + _("Custom workflows are not available on Cloud.") + "</i>", self)
+
+        self._layout = QVBoxLayout()
+        self._layout.addWidget(self._workspace_select)
+        self._layout.addSpacing(50)
+        self._layout.addWidget(note, 0, Qt.AlignmentFlag.AlignCenter)
+        self._layout.addStretch()
+        self.setLayout(self._layout)
+
+    @property
+    def model(self):
+        return self._model
+
+    @model.setter
+    def model(self, model: Model):
+        if self._model != model:
+            Binding.disconnect_all(self._connections)
+            self._model = model
+            self._connections = [
+                bind(model, "workspace", self._workspace_select, "value", Bind.one_way)
+            ]
