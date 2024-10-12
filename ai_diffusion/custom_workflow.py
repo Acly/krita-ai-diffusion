@@ -48,11 +48,14 @@ class WorkflowCollection(QAbstractListModel):
     _icon_remote = theme.icon("web-connection")
     _icon_document = theme.icon("file-kra")
 
+    loaded = pyqtSignal()
+
     def __init__(self, connection: Connection, folder: Path | None = None):
         super().__init__()
         self._connection = connection
         self._folder = folder or user_data_dir / "workflows"
         self._workflows: list[CustomWorkflow] = []
+        self._pending_workflows: list[tuple[str, WorkflowSource, dict]] = []
 
         self._connection.state_changed.connect(self._handle_connection)
         self._connection.workflow_published.connect(self._process_remote_workflow)
@@ -63,6 +66,10 @@ class WorkflowCollection(QAbstractListModel):
             self.clear()
 
         if state is ConnectionState.connected:
+            for id, source, graph in self._pending_workflows:
+                self._process_workflow(id, source, graph)
+            self._pending_workflows.clear()
+
             for file in self._folder.glob("*.json"):
                 try:
                     self._process_file(file)
@@ -72,31 +79,36 @@ class WorkflowCollection(QAbstractListModel):
             for wf in self._connection.workflows.keys():
                 self._process_remote_workflow(wf)
 
+            self.loaded.emit()
+
     def _node_inputs(self):
         return self._connection.client.models.node_inputs
 
-    def _create_workflow(
+    def _process_workflow(
         self, id: str, source: WorkflowSource, graph: dict, path: Path | None = None
     ):
-        wf = ComfyWorkflow.import_graph(graph, self._node_inputs())
-        return CustomWorkflow(id, source, wf, path)
+        if self._connection.state is not ConnectionState.connected:
+            self._pending_workflows.append((id, source, graph))
+            return
 
-    def _process_remote_workflow(self, id: str):
-        graph = self._connection.workflows[id]
-        self._process(self._create_workflow(id, WorkflowSource.remote, graph))
-
-    def _process_file(self, file: Path):
-        with file.open("r") as f:
-            graph = json.load(f)
-            self._process(self._create_workflow(file.stem, WorkflowSource.local, graph, file))
-
-    def _process(self, workflow: CustomWorkflow):
+        comfy_flow = ComfyWorkflow.import_graph(graph, self._node_inputs())
+        workflow = CustomWorkflow(id, source, comfy_flow, path)
         idx = self.find_index(workflow.id)
         if idx.isValid():
             self._workflows[idx.row()] = workflow
             self.dataChanged.emit(idx, idx)
         else:
             self.append(workflow)
+        return idx
+
+    def _process_remote_workflow(self, id: str):
+        graph = self._connection.workflows[id]
+        self._process_workflow(id, WorkflowSource.remote, graph)
+
+    def _process_file(self, file: Path):
+        with file.open("r") as f:
+            graph = json.load(f)
+            self._process_workflow(file.stem, WorkflowSource.local, graph, file)
 
     def rowCount(self, parent=QModelIndex()):
         return len(self._workflows)
@@ -121,7 +133,7 @@ class WorkflowCollection(QAbstractListModel):
         self.endInsertRows()
 
     def add_from_document(self, id: str, graph: dict):
-        self.append(self._create_workflow(id, WorkflowSource.document, graph))
+        self._process_workflow(id, WorkflowSource.document, graph)
 
     def remove(self, id: str):
         idx = self.find_index(id)
@@ -154,7 +166,7 @@ class WorkflowCollection(QAbstractListModel):
         self._folder.mkdir(exist_ok=True)
         path = self._folder / f"{id}.json"
         path.write_text(json.dumps(graph, indent=2))
-        self.append(self._create_workflow(id, WorkflowSource.local, graph, path))
+        self._process_workflow(id, WorkflowSource.local, graph, path)
         return id
 
     def import_file(self, filepath: Path):
@@ -336,12 +348,16 @@ class CustomWorkspace(QObject, ObservableProperties):
 
         jobs.job_finished.connect(self._handle_job_finished)
         workflows.dataChanged.connect(self._update_workflow)
-        workflows.rowsInserted.connect(self._set_default_workflow)
+        workflows.loaded.connect(self._set_default_workflow)
         self._set_default_workflow()
 
     def _set_default_workflow(self):
         if not self.workflow_id and len(self._workflows) > 0:
             self.workflow_id = self._workflows[0].id
+        else:
+            current_index = self._workflows.find_index(self.workflow_id)
+            if current_index.isValid():
+                self._update_workflow(current_index, QModelIndex())
 
     def _update_workflow(self, idx: QModelIndex, _: QModelIndex):
         wf = self._workflows[idx.row()]
@@ -358,10 +374,13 @@ class CustomWorkspace(QObject, ObservableProperties):
         self._workflow_id = id
         self.workflow_id_changed.emit(id)
         self.modified.emit(self, "workflow_id")
-        self._update_workflow(self._workflows.find_index(id), QModelIndex())
+        index = self._workflows.find_index(id)
+        if index.isValid():  # might be invalid when loading document before connecting
+            self._update_workflow(index, QModelIndex())
 
     def set_graph(self, id: str, graph: dict):
         if self._workflows.find(id) is None:
+            id = "Document Workflow (embedded)"
             self._workflows.add_from_document(id, graph)
         self.workflow_id = id
 

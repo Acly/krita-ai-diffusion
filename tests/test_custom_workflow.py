@@ -83,14 +83,24 @@ def test_collection(tmp_path: Path):
     connection = create_mock_connection(connection_workflows, state=ConnectionState.disconnected)
 
     collection = WorkflowCollection(connection, tmp_path)
+    events = []
+
     assert len(collection) == 0
+
+    def on_loaded():
+        events.append("loaded")
+
+    collection.loaded.connect(on_loaded)
+    doc_graph = {"0": {"class_type": "D1", "inputs": {}}}
+    collection.add_from_document("doc1", doc_graph)
+
     connection.state = ConnectionState.connected
-    assert len(collection) == 3
+    assert len(collection) == 4
+    assert events == ["loaded"]
     _assert_has_workflow(collection, "file1", WorkflowSource.local, file1_graph, file1)
     _assert_has_workflow(collection, "file2", WorkflowSource.local, file2_graph, file2)
     _assert_has_workflow(collection, "connection1", WorkflowSource.remote, connection_graph)
-
-    events = []
+    _assert_has_workflow(collection, "doc1", WorkflowSource.document, doc_graph)
 
     def on_begin_insert(index, first, last):
         events.append(("begin_insert", first))
@@ -109,15 +119,13 @@ def test_collection(tmp_path: Path):
     connection_workflows["connection2"] = connection2_graph
     connection.workflow_published.emit("connection2")
 
-    assert len(collection) == 4
+    assert len(collection) == 5
     _assert_has_workflow(collection, "connection2", WorkflowSource.remote, connection2_graph)
 
     file1_graph_changed = {"0": {"class_type": "F3", "inputs": {}}}
-    collection.set_graph(collection.index(0), file1_graph_changed)
+    collection.set_graph(collection.find_index("file1"), file1_graph_changed)
     _assert_has_workflow(collection, "file1", WorkflowSource.local, file1_graph_changed, file1)
-    assert events == [("begin_insert", 3), "end_insert", ("data_changed", 0)]
-
-    collection.add_from_document("doc1", {"0": {"class_type": "D1", "inputs": {}}})
+    assert events == ["loaded", ("begin_insert", 4), "end_insert", ("data_changed", 1)]
 
     sorted = SortedWorkflows(collection)
     assert sorted[0].source is WorkflowSource.document
@@ -207,7 +215,7 @@ def test_workspace():
         }
     }
     workspace.set_graph("doc1", doc_graph)
-    assert workspace.workflow_id == "doc1"
+    assert workspace.workflow_id == "Document Workflow (embedded)"
     assert workspace.workflow and workspace.workflow.source is WorkflowSource.document
     assert workspace.graph and workspace.graph.node(0).type == "ETN_Parameter"
     assert workspace.metadata[0].name == "param2"
