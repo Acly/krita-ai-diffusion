@@ -1,7 +1,8 @@
 from __future__ import annotations
+from copy import deepcopy
 from enum import Enum
 from pathlib import Path
-from typing import NamedTuple, Tuple, Literal, overload, Any
+from typing import NamedTuple, Tuple, Literal, TypeVar, overload, Any
 from uuid import uuid4
 import json
 
@@ -19,32 +20,87 @@ class Output(NamedTuple):
     output: int
 
 
+T = TypeVar("T")
 Output2 = Tuple[Output, Output]
 Output3 = Tuple[Output, Output, Output]
 Output4 = Tuple[Output, Output, Output, Output]
+Input = int | float | bool | str | Output
+
+
+class ComfyNode(NamedTuple):
+    id: int
+    type: str
+    inputs: dict[str, Input]
+
+    @overload
+    def input(self, key: str, default: T) -> T: ...
+
+    @overload
+    def input(self, key: str, default: None = None) -> Input | None: ...
+
+    def input(self, key: str, default: T | None = None) -> T | Input | None:
+        result = self.inputs.get(key, default)
+        assert (
+            default is None
+            or type(result) == type(default)
+            or (isnumber(result) and isnumber(default))
+        )
+        return result
+
+    def output(self, index=0) -> Output:
+        return Output(int(self.id), index)
+
+
+def isnumber(x):
+    return isinstance(x, (int, float))
 
 
 class ComfyWorkflow:
     """Builder for workflows which can be sent to the ComfyUI prompt API."""
 
-    root: dict[str, dict]
-    images: dict[str, Image]
-    node_count = 0
-    sample_count = 0
-
-    _cache: dict[str, Output | Output2 | Output3 | Output4]
-    _nodes_required_inputs: dict[str, dict[str, Any]]
-    _run_mode: ComfyRunMode
-
     def __init__(self, node_inputs: dict | None = None, run_mode=ComfyRunMode.server):
-        self.root = {}
-        self.images = {}
-        self._cache = {}
-        self._nodes_required_inputs = node_inputs or {}
-        self._run_mode = run_mode
+        self.root: dict[str, dict] = {}
+        self.images: dict[str, Image] = {}
+        self.node_count = 0
+        self.sample_count = 0
+        self._cache: dict[str, Output | Output2 | Output3 | Output4] = {}
+        self._nodes_inputs: dict[str, dict[str, Any]] = node_inputs or {}
+        self._run_mode: ComfyRunMode = run_mode
+
+    @staticmethod
+    def import_graph(existing: dict, node_inputs: dict):
+        w = ComfyWorkflow(node_inputs)
+        existing = _convert_ui_workflow(existing, node_inputs)
+        node_map: dict[str, str] = {}
+        queue = list(existing.keys())
+        while queue:
+            id = queue.pop(0)
+            node = deepcopy(existing[id])
+            if node_inputs and node["class_type"] not in node_inputs:
+                raise ValueError(
+                    f"Workflow contains a node of type {node['class_type']} which is not installed on the ComfyUI server."
+                )
+            edges = [e for e in node["inputs"].values() if isinstance(e, list)]
+            if any(e[0] not in node_map for e in edges):
+                queue.append(id)  # requeue node if an input is not yet mapped
+                continue
+
+            for e in edges:
+                e[0] = node_map[e[0]]
+            node_map[id] = str(w.node_count)
+            w.root[str(w.node_count)] = node
+            w.node_count += 1
+        return w
+
+    @staticmethod
+    def from_dict(existing: dict):
+        w = ComfyWorkflow()
+        w.root = existing
+        w.node_count = len(w.root)
+        return w
 
     def add_default_values(self, node_name: str, args: dict):
-        if node_inputs := self._nodes_required_inputs.get(node_name, None):
+        if node_inputs := _inputs_for_node(self._nodes_inputs, node_name, "required"):
             for k, v in node_inputs.items():
                 if k not in args:
                     if len(v) == 1 and isinstance(v[0], list) and len(v[0]) > 0:
@@ -56,6 +112,11 @@ class ComfyWorkflow:
                         if default is not None:
                             args[k] = default
         return args
+
+    def input_type(self, class_type: str, input_name: str) -> tuple | None:
+        if inputs := _inputs_for_node(self._nodes_inputs, class_type):
+            return inputs.get(input_name)
+        return None
 
     def dump(self, filepath: str | Path):
         filepath = Path(filepath)
@@ -102,10 +163,49 @@ class ComfyWorkflow:
             self._cache[key] = result
         return result
 
+    def remove(self, node_id: int):
+        del self.root[str(node_id)]
+
+    def node(self, node_id: int):
+        inputs = self.root[str(node_id)]["inputs"]
+        inputs = {
+            k: Output(int(v[0]), v[1]) if isinstance(v, list) else v for k, v in inputs.items()
+        }
+        return ComfyNode(node_id, self.root[str(node_id)]["class_type"], inputs)
+
+    def copy(self, node: ComfyNode):
+        return self.add(node.type, 1, **node.inputs)
+
+    def find(self, type: str):
+        return (self.node(int(k)) for k, v in self.root.items() if v["class_type"] == type)
+
+    def find_connected(self, output: Output):
+        for node in self:
+            for input_name, input_value in node.inputs.items():
+                if input_value == output:
+                    yield node, input_name
+
+    def guess_sample_count(self):
+        self.sample_count = sum(
+            int(value)
+            for node in self
+            for name, value in node.inputs.items()
+            if name == "steps" and isinstance(value, (int, float))
+        )
+        return self.sample_count
+
+    def __iter__(self):
+        return iter(self.node(int(k)) for k in self.root.keys())
+
+    def __contains__(self, node: ComfyNode):
+        return any(n == node for n in self)
+
     def _add_image(self, image: Image):
         id = str(uuid4())
         self.images[id] = image
         return id
+
+    # Nodes
 
     def ksampler(
         self,
@@ -726,7 +826,7 @@ class ComfyWorkflow:
     def send_image(self, image: Output):
         if self._run_mode is ComfyRunMode.runtime:
             return self.add("ETN_ReturnImage", 1, images=image)
-        return self.add("ETN_SendImageWebSocket", 1, images=image)
+        return self.add("ETN_SendImageWebSocket", 1, images=image, format="PNG")
 
     def save_image(self, image: Output, prefix: str):
         return self.add("SaveImage", 1, images=image, filename_prefix=prefix)
@@ -760,3 +860,62 @@ class ComfyWorkflow:
             # use smaller model, but it requires onnxruntime, see #630
             mdls["bbox_detector"] = "yolo_nas_l_fp16.onnx"
         return self.add("DWPreprocessor", 1, image=image, resolution=resolution, **feat, **mdls)
+
+
+def _inputs_for_node(node_inputs: dict[str, dict[str, Any]], node_name: str, filter=""):
+    inputs = node_inputs.get(node_name)
+    if inputs is None:
+        return None
+    if filter:
+        return inputs.get(filter)
+    result = inputs.get("required", {})
+    result.update(inputs.get("optional", {}))
+    return result
+
+
+def _convert_ui_workflow(w: dict, node_inputs: dict):
+    version = w.get("version")
+    nodes = w.get("nodes")
+    links = w.get("links")
+    if not (version and nodes and links):
+        return w
+
+    if not node_inputs:
+        raise ValueError("An active ComfyUI connection is required to convert a UI workflow file.")
+
+    primitives = {}
+    for node in nodes:
+        if node["type"] == "PrimitiveNode":
+            primitives[node["id"]] = node["widgets_values"][0]
+
+    r = {}
+    for node in nodes:
+        id = node["id"]
+        type = node["type"]
+        if type == "PrimitiveNode":
+            continue
+
+        inputs = {}
+        fields = _inputs_for_node(node_inputs, type)
+        if fields is None:
+            raise ValueError(
+                f"Workflow uses node type {type}, but it is not installed on the ComfyUI server."
+            )
+        widget_count = 0
+        for field_name, field in fields.items():
+            field_type = field[0]
+            if field_type in ["INT", "FLOAT", "BOOL", "STRING"] or isinstance(field_type, list):
+                inputs[field_name] = node["widgets_values"][widget_count]
+                widget_count += 1
+            for connection in node["inputs"]:
+                if connection["name"] == field_name and connection["link"] is not None:
+                    link = next(l for l in links if l[0] == connection["link"])
+                    prim = primitives.get(link[1])
+                    if prim is not None:
+                        inputs[field_name] = prim
+                    else:
+                        inputs[field_name] = [link[1], link[2]]
+                    break
+        r[id] = {"class_type": type, "inputs": inputs}
+
+    return r

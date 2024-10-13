@@ -1,17 +1,21 @@
 import itertools
 import pytest
 import dotenv
+import json
 import os
 from datetime import datetime
 from pathlib import Path
 from typing import Any
+from PyQt5.QtCore import Qt
 
 from ai_diffusion import workflow
-from ai_diffusion.api import LoraInput, WorkflowKind, WorkflowInput, ControlInput
-from ai_diffusion.api import InpaintMode, FillMode, ConditioningInput, RegionInput
+from ai_diffusion.api import LoraInput, WorkflowKind, WorkflowInput, ControlInput, RegionInput
+from ai_diffusion.api import InpaintMode, FillMode, ConditioningInput, CustomWorkflowInput
+from ai_diffusion.api import SamplingInput, ImageInput
 from ai_diffusion.client import ClientModels, CheckpointInfo
 from ai_diffusion.comfy_client import ComfyClient
 from ai_diffusion.cloud_client import CloudClient
+from ai_diffusion.comfy_workflow import ComfyWorkflow, ComfyNode, Output
 from ai_diffusion.files import FileLibrary, FileCollection, File, FileSource
 from ai_diffusion.resources import ControlMode
 from ai_diffusion.settings import PerformanceSettings
@@ -538,7 +542,7 @@ def test_create_open_pose_vector(qtapp, client: Client):
             if not job_id:
                 job_id = await client.enqueue(job)
             if msg.event is ClientEvent.finished and msg.job_id == job_id:
-                assert msg.result is not None
+                assert isinstance(msg.result, dict)
                 result = Pose.from_open_pose_json(msg.result).to_svg()
                 (result_dir / image_name).write_text(result)
                 return

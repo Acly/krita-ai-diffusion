@@ -14,6 +14,7 @@ from ..root import root
 from ..localization import translate as _
 from . import theme
 from .generation import GenerationWidget
+from .custom_workflow import CustomWorkflowWidget, CustomWorkflowPlaceholder
 from .upscale import UpscaleWidget
 from .live import LiveWidget
 from .animation import AnimationWidget
@@ -211,12 +212,16 @@ class ImageDiffusionWidget(DockWidget):
         self._upscaling = UpscaleWidget()
         self._animation = AnimationWidget()
         self._live = LiveWidget()
+        self._custom = CustomWorkflowWidget()
+        self._custom_placeholder = CustomWorkflowPlaceholder()
         self._frame = QStackedWidget(self)
         self._frame.addWidget(self._welcome)
         self._frame.addWidget(self._generation)
         self._frame.addWidget(self._upscaling)
         self._frame.addWidget(self._live)
         self._frame.addWidget(self._animation)
+        self._frame.addWidget(self._custom)
+        self._frame.addWidget(self._custom_placeholder)
         self.setWidget(self._frame)
 
         root.connection.state_changed.connect(self.update_content)
@@ -235,6 +240,7 @@ class ImageDiffusionWidget(DockWidget):
         model = root.model_for_active_document()
         connection = root.connection
         requires_update = self._welcome.requires_update
+        is_cloud = settings.server_mode is ServerMode.cloud
         if model is None or connection.state is not ConnectionState.connected or requires_update:
             self._frame.setCurrentWidget(self._welcome)
         elif model.workspace is Workspace.generation:
@@ -249,3 +255,9 @@ class ImageDiffusionWidget(DockWidget):
         elif model.workspace is Workspace.animation:
             self._animation.model = model
             self._frame.setCurrentWidget(self._animation)
+        elif model.workspace is Workspace.custom and is_cloud:
+            self._custom_placeholder.model = model
+            self._frame.setCurrentWidget(self._custom_placeholder)
+        elif model.workspace is Workspace.custom:
+            self._custom.model = model
+            self._frame.setCurrentWidget(self._custom)

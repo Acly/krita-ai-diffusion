@@ -2,25 +2,9 @@ from __future__ import annotations
 from textwrap import wrap as wrap_text
 from PyQt5.QtCore import Qt, QMetaObject, QSize, QPoint, QUuid, pyqtSignal
 from PyQt5.QtGui import QGuiApplication, QMouseEvent, QPalette, QColor
-from PyQt5.QtWidgets import (
-    QAction,
-    QWidget,
-    QVBoxLayout,
-    QHBoxLayout,
-    QPushButton,
-    QProgressBar,
-    QLabel,
-    QListWidget,
-    QListWidgetItem,
-    QListView,
-    QSizePolicy,
-    QToolButton,
-    QComboBox,
-    QCheckBox,
-    QMenu,
-    QShortcut,
-    QMessageBox,
-)
+from PyQt5.QtWidgets import QAction, QWidget, QVBoxLayout, QHBoxLayout, QPushButton, QProgressBar
+from PyQt5.QtWidgets import QLabel, QListWidget, QListWidgetItem, QListView, QSizePolicy
+from PyQt5.QtWidgets import QComboBox, QCheckBox, QMenu, QShortcut, QMessageBox, QToolButton
 
 from ..properties import Binding, Bind, bind, bind_combo, bind_toggle
 from ..image import Bounds, Extent, Image
@@ -135,8 +119,9 @@ class HistoryWidget(QListWidget):
 
         if not JobParams.equal_ignore_seed(self._last_job_params, job.params):
             self._last_job_params = job.params
-            prompt = job.params.prompt if job.params.prompt != "" else "<no prompt>"
-            strength = f"{job.params.strength*100:.0f}% - " if job.params.strength != 1.0 else ""
+            prompt = job.params.name if job.params.name != "" else "<no prompt>"
+            strength = job.params.metadata.get("strength", 1.0)
+            strength = f"{strength*100:.0f}% - " if strength != 1.0 else ""
 
             header = QListWidgetItem(f"{job.timestamp:%H:%M} - {strength}{prompt}")
             header.setFlags(Qt.ItemFlag.NoItemFlags)
@@ -156,26 +141,39 @@ class HistoryWidget(QListWidget):
         if scroll_to_bottom:
             self.scrollToBottom()
 
+    _job_info_translations = {
+        "prompt": _("Prompt"),
+        "negative_prompt": _("Negative Prompt"),
+        "style": _("Style"),
+        "strength": _("Strength"),
+        "checkpoint": _("Model"),
+        "loras": _("LoRA"),
+        "sampler": _("Sampler"),
+        "seed": _("Seed"),
+    }
+
     def _job_info(self, params: JobParams):
-        prompt = params.prompt if params.prompt != "" else "<no prompt>"
-        if len(prompt) > 70:
-            prompt = prompt[:66] + "..."
+        title = params.name if params.name != "" else "<no prompt>"
+        if len(title) > 70:
+            title = title[:66] + "..."
+        if params.strength != 1.0:
+            title = f"{title} @ {params.strength*100:.0f}%"
         style = Styles.list().find(params.style)
-        positive = _("Prompt") + f": {params.prompt or '-'}"
-        negative = _("Negative Prompt") + f": {params.negative_prompt or '-'}"
-        strings = [
-            f"{prompt} @ {params.strength*100:.0f}%\n",
+        strings: list[str | list[str]] = [
+            title + "\n",
             _("Click to toggle preview, double-click to apply."),
             "",
-            _("Style") + f": {style.name if style else params.style}",
-            wrap_text(positive, 80, subsequent_indent="  "),
-            wrap_text(negative, 80, subsequent_indent="  "),
-            _("Strength") + f": {params.strength*100:.0f}%",
-            _("Model") + f": {params.checkpoint}",
-            _("Sampler") + f": {params.sampler}",
-            _("Seed") + f": {params.seed}",
-            f"{params.bounds}",
         ]
+        for key, value in params.metadata.items():
+            if key == "style" and style:
+                value = style.name
+            if isinstance(value, list) and len(value) == 0:
+                continue
+            if isinstance(value, list) and isinstance(value[0], dict):
+                value = "\n  ".join((f"{v.get('name')} ({v.get('strength')})" for v in value))
+            s = f"{self._job_info_translations.get(key, key)}: {value}"
+            strings.append(wrap_text(s, 80, subsequent_indent=" "))
+        strings.append(_("Seed") + f": {params.seed}")
         return "\n".join(flatten(strings))
 
     def remove(self, job: Job):
@@ -217,6 +215,7 @@ class HistoryWidget(QListWidget):
         elif selection:
             item = self._find(selection)
             if item is not None and not item.isSelected():
+                self.clearSelection()
                 item.setSelected(True)
         self.update_apply_button()
 
@@ -366,7 +365,7 @@ class HistoryWidget(QListWidget):
             active = self._model.regions.active_or_root
             active.positive = job.params.prompt
             if isinstance(active, RootRegion):
-                active.negative = job.params.negative_prompt
+                active.negative = job.params.metadata.get("negative_prompt", "")
 
     def _copy_strength(self):
         if job := self.selected_job:
@@ -519,6 +518,55 @@ class CustomInpaintWidget(QWidget):
             self._model.inpaint.context = data
 
 
+class ProgressBar(QProgressBar):
+    def __init__(self, parent: QWidget):
+        super().__init__(parent)
+        self._model = root.active_model
+        self._model_bindings: list[QMetaObject.Connection] = []
+        self._palette = self.palette()
+        self.setMinimum(0)
+        self.setMaximum(1000)
+        self.setTextVisible(False)
+        self.setFixedHeight(6)
+
+    @property
+    def model(self):
+        return self._model
+
+    @model.setter
+    def model(self, model: Model):
+        if self._model != model:
+            Binding.disconnect_all(self._model_bindings)
+            self._model = model
+            self._model_bindings = [
+                self._model.progress_changed.connect(self._update_progress),
+                self._model.progress_kind_changed.connect(self._update_progress_kind),
+            ]
+
+    def _update_progress_kind(self):
+        palette = self._palette
+        if self._model.progress_kind is ProgressKind.upload:
+            palette = self.palette()
+            palette.setColor(QPalette.ColorRole.Highlight, QColor(theme.progress_alt))
+        self.setPalette(palette)
+
+    def _update_progress(self):
+        if self._model.progress >= 0:
+            self.setValue(int(self._model.progress * 1000))
+        else:
+            if self.value() >= 100:
+                self.reset()
+            self.setValue(min(99, self.value() + 2))
+
+
+def create_error_label(parent: QWidget):
+    label = QLabel(parent)
+    label.setStyleSheet("font-weight: bold; color: red;")
+    label.setWordWrap(True)
+    label.setVisible(False)
+    return label
+
+
 class GenerationWidget(QWidget):
     _model: Model
     _model_bindings: list[QMetaObject.Connection | Binding]
@@ -590,17 +638,10 @@ class GenerationWidget(QWidget):
         actions_layout.addWidget(self.queue_button)
         layout.addLayout(actions_layout)
 
-        self.progress_bar = QProgressBar(self)
-        self.progress_bar.setMinimum(0)
-        self.progress_bar.setMaximum(1000)
-        self.progress_bar.setTextVisible(False)
-        self.progress_bar.setFixedHeight(6)
+        self.progress_bar = ProgressBar(self)
         layout.addWidget(self.progress_bar)
 
-        self.error_text = QLabel(self)
-        self.error_text.setStyleSheet("font-weight: bold; color: red;")
-        self.error_text.setWordWrap(True)
-        self.error_text.setVisible(False)
+        self.error_text = create_error_label(self)
         layout.addWidget(self.error_text)
 
         self.history = HistoryWidget(self)
@@ -629,8 +670,6 @@ class GenerationWidget(QWidget):
                 model.document.layers.active_changed.connect(self.update_generate_button),
                 model.regions.active_changed.connect(self.update_generate_button),
                 model.region_only_changed.connect(self.update_generate_button),
-                model.progress_changed.connect(self.update_progress),
-                model.progress_kind_changed.connect(self.update_progress_kind),
                 model.error_changed.connect(self.error_text.setText),
                 model.has_error_changed.connect(self.error_text.setVisible),
                 self.add_control_button.clicked.connect(model.regions.add_control),
@@ -642,23 +681,10 @@ class GenerationWidget(QWidget):
             self.custom_inpaint.model = model
             self.generate_button.model = model
             self.queue_button.model = model
+            self.progress_bar.model = model
             self.strength_slider.model = model
             self.history.model_ = model
             self.update_generate_button()
-
-    def update_progress_kind(self):
-        palette = self.palette()
-        if self.model.progress_kind is ProgressKind.upload:
-            palette.setColor(QPalette.ColorRole.Highlight, QColor(theme.progress_alt))
-        self.progress_bar.setPalette(palette)
-
-    def update_progress(self):
-        if self.model.progress >= 0:
-            self.progress_bar.setValue(int(self.model.progress * 1000))
-        else:
-            if self.progress_bar.value() >= 100:
-                self.progress_bar.reset()
-            self.progress_bar.setValue(min(99, self.progress_bar.value() + 2))
 
     def apply_result(self, item: QListWidgetItem):
         job_id, index = self.history.item_info(item)

@@ -10,14 +10,16 @@ from PyQt5.QtGui import QImage, QPainter, QColor, QBrush
 import uuid
 
 from . import eventloop, workflow, util
-from .api import ConditioningInput, ControlInput, WorkflowKind, WorkflowInput
-from .api import InpaintMode, InpaintParams, FillMode
+from .api import ConditioningInput, ControlInput, WorkflowKind, WorkflowInput, SamplingInput
+from .api import InpaintMode, InpaintParams, FillMode, ImageInput, CustomWorkflowInput
 from .localization import translate as _
 from .util import clamp, ensure, trim_text, client_logger as log
 from .settings import ApplyBehavior, settings
 from .network import NetworkError
 from .image import Extent, Image, Mask, Bounds, DummyImage
-from .client import ClientMessage, ClientEvent, filter_supported_styles, resolve_arch
+from .client import ClientMessage, ClientEvent, SharedWorkflow
+from .client import filter_supported_styles, resolve_arch
+from .custom_workflow import CustomWorkspace, WorkflowCollection, CustomGenerationMode
 from .document import Document, KritaDocument
 from .layer import Layer, LayerType, RestoreActiveLayer
 from .pose import Pose
@@ -37,6 +39,7 @@ class Workspace(Enum):
     upscaling = 1
     live = 2
     animation = 3
+    custom = 4
 
 
 class ProgressKind(Enum):
@@ -50,10 +53,6 @@ class Model(QObject, ObservableProperties):
     list of finished, currently running and enqueued jobs.
     """
 
-    _doc: Document
-    _connection: Connection
-    _layer: Layer | None = None
-
     workspace = Property(Workspace.generation, setter="set_workspace", persist=True)
     regions: "RootRegion"
     style = Property(Styles.list().default, setter="set_style", persist=True)
@@ -64,13 +63,8 @@ class Model(QObject, ObservableProperties):
     fixed_seed = Property(False, persist=True)
     queue_front = Property(False, persist=True)
     translation_enabled = Property(True, persist=True)
-    inpaint: CustomInpaint
-    upscale: "UpscaleWorkspace"
-    live: "LiveWorkspace"
-    animation: "AnimationWorkspace"
     progress_kind = Property(ProgressKind.generation)
     progress = Property(0.0)
-    jobs: JobQueue
     error = Property("")
 
     workspace_changed = pyqtSignal(Workspace)
@@ -88,10 +82,11 @@ class Model(QObject, ObservableProperties):
     has_error_changed = pyqtSignal(bool)
     modified = pyqtSignal(QObject, str)
 
-    def __init__(self, document: Document, connection: Connection):
+    def __init__(self, document: Document, connection: Connection, workflows: WorkflowCollection):
         super().__init__()
         self._doc = document
         self._connection = connection
+        self._layer: Layer | None = None
         self.generate_seed()
         self.jobs = JobQueue()
         self.regions = RootRegion(self)
@@ -99,6 +94,7 @@ class Model(QObject, ObservableProperties):
         self.upscale = UpscaleWorkspace(self)
         self.live = LiveWorkspace(self)
         self.animation = AnimationWorkspace(self)
+        self.custom = CustomWorkspace(workflows, self._generate_custom, self.jobs)
 
         self.jobs.selection_changed.connect(self.update_preview)
         self.error_changed.connect(lambda: self.has_error_changed.emit(self.has_error))
@@ -198,23 +194,23 @@ class Model(QObject, ObservableProperties):
         )
         job_params = JobParams(bounds, prompt, regions=job_regions)
         job_params.set_style(self.style)
+        job_params.metadata["prompt"] = prompt
+        job_params.metadata["negative_prompt"] = self.regions.negative
+        job_params.metadata["strength"] = self.strength
+        if len(job_regions) == 1:
+            job_params.metadata["prompt"] = job_params.name = job_regions[0].prompt
         return input, job_params
 
     async def enqueue_jobs(
         self, input: WorkflowInput, kind: JobKind, params: JobParams, count: int = 1
     ):
         sampling = ensure(input.sampling)
-        params.negative_prompt = self.regions.negative
-        params.strength = sampling.denoise_strength
         params.has_mask = input.images is not None and input.images.hires_mask is not None
-        if len(params.regions) == 1:
-            params.prompt = params.regions[0].prompt
 
         for i in range(count):
-            input = replace(
-                input, sampling=replace(sampling, seed=sampling.seed + i * settings.batch_size)
-            )
-            params.seed = ensure(input.sampling).seed
+            next_seed = sampling.seed + i * settings.batch_size
+            input = replace(input, sampling=replace(sampling, seed=next_seed))
+            params.seed = next_seed
             job = self.jobs.add(kind, copy(params))
             await self._enqueue_job(job, input)
 
@@ -353,6 +349,46 @@ class Model(QObject, ObservableProperties):
 
         return None
 
+    async def _generate_custom(self, previous_input: WorkflowInput | None):
+        if self.workspace is not Workspace.custom or not self.document.is_active:
+            return False
+
+        try:
+            wf = ensure(self.custom.graph)
+            bounds = Bounds(0, 0, *self._doc.extent)
+            img_input = ImageInput.from_extent(bounds.extent)
+            img_input.initial_image = self._get_current_image(bounds)
+            is_live = self.custom.mode is CustomGenerationMode.live
+            seed = self.seed if is_live or self.fixed_seed else workflow.generate_seed()
+
+            if next(wf.find(type="ETN_KritaSelection"), None):
+                mask, _ = self._doc.create_mask_from_selection()
+                if mask:
+                    img_input.hires_mask = mask.to_image(bounds.extent)
+                else:
+                    img_input.hires_mask = Mask.transparent(bounds).to_image()
+
+            params = self.custom.collect_parameters(self.layers, bounds)
+            input = WorkflowInput(
+                WorkflowKind.custom,
+                img_input,
+                sampling=SamplingInput("custom", "custom", 1, 1000, seed=seed),
+                custom_workflow=CustomWorkflowInput(wf.root, params),
+            )
+            job_params = JobParams(bounds, self.custom.job_name, metadata=self.custom.params)
+            job_kind = JobKind.live_preview if is_live else JobKind.diffusion
+
+            if input == previous_input:
+                return None
+
+            self.clear_error()
+            await self.enqueue_jobs(input, job_kind, job_params, self.batch_count)
+            return input
+
+        except Exception as e:
+            self.report_error(util.log_error(e))
+            return False
+
     def _get_current_image(self, bounds: Bounds):
         exclude = None
         if self.workspace is not Workspace.live:
@@ -450,7 +486,7 @@ class Model(QObject, ObservableProperties):
     def show_preview(self, job_id: str, index: int, name_prefix="Preview"):
         job = self.jobs.find(job_id)
         assert job is not None, "Cannot show preview, invalid job id"
-        name = f"[{name_prefix}] {trim_text(job.params.prompt, 77)}"
+        name = f"[{name_prefix}] {trim_text(job.params.name, 77)}"
         if self._layer and self._layer.was_removed:
             self._layer = None  # layer was removed by user
         if self._layer is not None:
@@ -472,7 +508,7 @@ class Model(QObject, ObservableProperties):
             if behavior is ApplyBehavior.replace:
                 self.layers.update_layer_image(self.layers.active, image, params.bounds)
             else:
-                name = f"{prefix}{trim_text(params.prompt, 200)} ({params.seed})"
+                name = f"{prefix}{trim_text(params.name, 200)} ({params.seed})"
                 self.layers.create(name, image, params.bounds)
         else:  # apply to regions
             with RestoreActiveLayer(self.layers) as restore:
@@ -492,7 +528,7 @@ class Model(QObject, ObservableProperties):
     ):
         name = f"{prefix}{job_region.prompt} ({params.seed})"
         region_layer = self.layers.find(QUuid(job_region.layer_id)) or self.layers.root
-        # a previous apply from the same batch my have already created groups and re-linked
+        # a previous apply from the same batch may have already created groups and re-linked
         region_layer = Region.link_target(region_layer)
 
         # Replace content if requested and not a group layer
@@ -559,14 +595,14 @@ class Model(QObject, ObservableProperties):
         self.jobs.selection = None
         self.jobs.notify_used(job_id, index)
 
-    def add_control_layer(self, job: Job, result: dict | None):
+    def add_control_layer(self, job: Job, result: dict | SharedWorkflow | None):
         assert job.kind is JobKind.control_layer and job.control
-        if job.control.mode is ControlMode.pose and result is not None:
+        if job.control.mode is ControlMode.pose and isinstance(result, dict):
             pose = Pose.from_open_pose_json(result)
             pose.scale(job.params.bounds.extent)
-            return self.layers.create_vector(job.params.prompt, pose.to_svg())
+            return self.layers.create_vector(job.params.name, pose.to_svg())
         elif len(job.results) > 0:
-            return self.layers.create(job.params.prompt, job.results[0], job.params.bounds)
+            return self.layers.create(job.params.name, job.results[0], job.params.bounds)
         return self.layers.active  # Execution was cached and no image was produced
 
     def add_upscale_layer(self, job: Job):
@@ -1037,7 +1073,7 @@ class AnimationWorkspace(QObject, ObservableProperties):
         keyframes = self._keyframes.pop(job.params.animation_id)
         _, start, end = job.params.frame
         doc.import_animation(keyframes, start)
-        eventloop.run(self._update_layer_name(f"[Generated] {start}-{end}: {job.params.prompt}"))
+        eventloop.run(self._update_layer_name(f"[Generated] {start}-{end}: {job.params.name}"))
 
     async def _update_layer_name(self, name: str):
         doc = self._model.document
@@ -1102,7 +1138,7 @@ def _save_job_result(model: Model, job: Job | None, index: int):
     assert len(job.results) > index, "Cannot save result, invalid result index"
     assert model.document.filename, "Cannot save result, document is not saved"
     timestamp = job.timestamp.strftime("%Y%m%d-%H%M%S")
-    prompt = util.sanitize_prompt(job.params.prompt)
+    prompt = util.sanitize_prompt(job.params.name)
     path = Path(model.document.filename)
     path = path.parent / f"{path.stem}-generated-{timestamp}-{index}-{prompt}.png"
     path = util.find_unused_path(path)

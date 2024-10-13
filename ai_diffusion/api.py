@@ -18,6 +18,7 @@ class WorkflowKind(Enum):
     upscale_simple = 4
     upscale_tiled = 5
     control_image = 6
+    custom = 7
 
 
 @dataclass
@@ -145,6 +146,12 @@ class InpaintParams:
 
 
 @dataclass
+class CustomWorkflowInput:
+    workflow: dict
+    params: dict[str, Any]
+
+
+@dataclass
 class WorkflowInput:
     kind: WorkflowKind
     images: ImageInput | None = None
@@ -157,6 +164,7 @@ class WorkflowInput:
     control_mode: ControlMode = ControlMode.reference
     batch_count: int = 1
     nsfw_filter: float = 0.0
+    custom_workflow: CustomWorkflowInput | None = None
 
     @property
     def extent(self):

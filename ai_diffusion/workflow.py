@@ -9,7 +9,7 @@ import random
 from . import resolution, resources
 from .api import ControlInput, ImageInput, CheckpointInput, SamplingInput, WorkflowInput, LoraInput
 from .api import ExtentInput, InpaintMode, InpaintParams, FillMode, ConditioningInput, WorkflowKind
-from .api import RegionInput
+from .api import RegionInput, CustomWorkflowInput
 from .image import Bounds, Extent, Image, Mask, Point, multiple_of
 from .client import ClientModels, ModelDict
 from .files import FileLibrary, FileFormat
@@ -18,7 +18,7 @@ from .resolution import ScaledExtent, ScaleMode, TileLayout, get_inpaint_referen
 from .resources import ControlMode, Arch, UpscalerName, ResourceKind, ResourceId
 from .settings import PerformanceSettings
 from .text import merge_prompt, extract_loras
-from .comfy_workflow import ComfyWorkflow, ComfyRunMode, Output
+from .comfy_workflow import ComfyWorkflow, ComfyRunMode, Input, Output, ComfyNode
 from .localization import translate as _
 from .settings import settings
 from .util import ensure, median_or_zero, unique, client_logger as log
@@ -1043,6 +1043,75 @@ def upscale_tiled(
     return w
 
 
+def expand_custom(
+    w: ComfyWorkflow,
+    input: CustomWorkflowInput,
+    images: ImageInput,
+    seed: int,
+    models: ClientModels,
+):
+    custom = ComfyWorkflow.from_dict(input.workflow)
+    nodes: dict[int, int] = {}  # map old node IDs to new node IDs
+    outputs: dict[Output, Input] = {}
+
+    def map_input(input: Input):
+        if isinstance(input, Output):
+            mapped = outputs.get(input)
+            if mapped is not None:
+                return mapped
+            else:
+                return Output(nodes[input.node], input.output)
+        return input
+
+    def get_param(node: ComfyNode, expected_type: type | None = None):
+        name = node.input("name", "")
+        value = input.params.get(name)
+        if value is None:
+            raise Exception(f"Missing required parameter '{name}' for custom workflow")
+        if expected_type and not isinstance(value, expected_type):
+            raise Exception(f"Parameter '{name}' must be of type {expected_type}")
+        return value
+
+    for node in custom:
+        match node.type:
+            case "ETN_KritaCanvas":
+                image = ensure(images.initial_image)
+                outputs[node.output(0)] = w.load_image(image)
+                outputs[node.output(1)] = image.width
+                outputs[node.output(2)] = image.height
+                outputs[node.output(3)] = seed
+            case "ETN_KritaSelection":
+                outputs[node.output(0)] = w.load_mask(ensure(images.hires_mask))
+            case "ETN_Parameter":
+                outputs[node.output(0)] = get_param(node)
+            case "ETN_KritaImageLayer":
+                outputs[node.output(0)] = w.load_image(get_param(node, Image))
+            case "ETN_KritaMaskLayer":
+                outputs[node.output(0)] = w.load_mask(get_param(node, Image))
+            case "ETN_KritaStyle":
+                style: Style = get_param(node, Style)
+                is_live = node.input("sampler_preset", "auto") == "live"
+                checkpoint_input = style.get_models()
+                sampling = _sampling_from_style(style, 1.0, is_live)
+                model, clip, vae = load_checkpoint_with_lora(w, checkpoint_input, models)
+                outputs[node.output(0)] = model
+                outputs[node.output(1)] = clip
+                outputs[node.output(2)] = vae
+                outputs[node.output(3)] = style.style_prompt
+                outputs[node.output(4)] = style.negative_prompt
+                outputs[node.output(5)] = sampling.sampler
+                outputs[node.output(6)] = sampling.scheduler
+                outputs[node.output(7)] = sampling.total_steps
+                outputs[node.output(8)] = sampling.cfg_scale
+            case _:
+                mapped_inputs = {k: map_input(v) for k, v in node.inputs.items()}
+                mapped = ComfyNode(node.id, node.type, mapped_inputs)
+                nodes[node.id] = w.copy(mapped).node
+
+    w.guess_sample_count()
+    return w
+
+
 ###################################################################################################
 
 
@@ -1258,6 +1327,9 @@ def create(i: WorkflowInput, models: ClientModels, comfy_mode=ComfyRunMode.serve
             bounds=i.inpaint.target_bounds if i.inpaint else None,
             seed=i.sampling.seed if i.sampling else -1,
         )
+    elif i.kind is WorkflowKind.custom:
+        seed = ensure(i.sampling).seed
+        return expand_custom(workflow, ensure(i.custom_workflow), ensure(i.images), seed, models)
     else:
         raise ValueError(f"Unsupported workflow kind: {i.kind}")
 

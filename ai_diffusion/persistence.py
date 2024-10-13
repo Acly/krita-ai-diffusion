@@ -8,8 +8,9 @@ from PyQt5.QtGui import QImageReader
 from PyQt5.QtWidgets import QMessageBox
 
 from .api import InpaintMode, FillMode
-from .image import Bounds, Image, ImageCollection, ImageFileFormat
+from .image import ImageCollection
 from .model import Model, InpaintContext
+from .custom_workflow import CustomWorkspace
 from .control import ControlLayer, ControlLayerList
 from .region import RootRegion, Region
 from .jobs import Job, JobKind, JobParams, JobQueue
@@ -132,6 +133,7 @@ class ModelSync:
         state["upscale"] = _serialize(model.upscale)
         state["live"] = _serialize(model.live)
         state["animation"] = _serialize(model.animation)
+        state["custom"] = _serialize_custom(model.custom)
         state["history"] = [asdict(h) for h in self._history]
         state["root"] = _serialize(model.regions)
         state["control"] = [_serialize(c) for c in model.regions.control]
@@ -150,6 +152,7 @@ class ModelSync:
         _deserialize(model.upscale, state.get("upscale", {}))
         _deserialize(model.live, state.get("live", {}))
         _deserialize(model.animation, state.get("animation", {}))
+        _deserialize_custom(model.custom, state.get("custom", {}))
         _deserialize(model.regions, state.get("root", {}))
         for control_state in state.get("control", []):
             _deserialize(model.regions.control.emplace(), control_state)
@@ -176,6 +179,7 @@ class ModelSync:
         model.upscale.modified.connect(self._save)
         model.live.modified.connect(self._save)
         model.animation.modified.connect(self._save)
+        model.custom.modified.connect(self._save)
         model.jobs.job_finished.connect(self._save_results)
         model.jobs.job_discarded.connect(self._remove_results)
         model.jobs.result_discarded.connect(self._remove_image)
@@ -259,6 +263,21 @@ def _deserialize(obj: QObject, data: dict[str, Any]):
         return value
 
     return deserialize(obj, data, converter)
+
+
+def _serialize_custom(custom: CustomWorkspace):
+    result = _serialize(custom)
+    result["workflow_id"] = custom.workflow_id
+    result["graph"] = custom.graph.root if custom.graph else None
+    return result
+
+
+def _deserialize_custom(custom: CustomWorkspace, data: dict[str, Any]):
+    _deserialize(custom, data)
+    workflow_id = data.get("workflow_id", "")
+    graph = data.get("graph", None)
+    if workflow_id and graph:
+        custom.set_graph(workflow_id, graph)
 
 
 def _find_annotation(document, name: str):
