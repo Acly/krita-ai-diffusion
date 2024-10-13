@@ -48,6 +48,7 @@ def extract_loras(prompt: str, lora_files: FileCollection):
                 lora_normalized = file.name.lower()
                 if input == lora_filename or input == lora_normalized:
                     lora_file = file
+                    break
 
         if not lora_file:
             error = _("LoRA not found") + f": {input}"
@@ -64,7 +65,7 @@ def extract_loras(prompt: str, lora_files: FileCollection):
                 raise Exception(error)
 
         loras.append(LoraInput(lora_file.id, lora_strength))
-        return lora_file.meta("lora_triggers", "")
+        return ""
 
     prompt = _pattern_lora.sub(replace, prompt)
     return prompt.strip(), loras

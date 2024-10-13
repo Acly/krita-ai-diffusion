@@ -79,7 +79,7 @@ def test_extract_loras_meta():
     loras.set_meta(lora, "lora_triggers", "zippity")
 
     assert extract_loras("a ship <lora:zap> zap", loras) == (
-        "a ship zippity zap",
+        "a ship  zap",  # triggers are inserted on auto-complete, not at extraction
         [LoraInput(lora.id, 0.5)],
     )
 

@@ -133,9 +133,6 @@ _tag_files = None
 
 
 class PromptAutoComplete:
-    _completer: QCompleter
-    _completion_prefix: str
-    _completion_suffix: str
 
     def __init__(self, widget: QLineEdit):
         self._widget = widget
@@ -235,17 +232,20 @@ class PromptAutoComplete:
         self._completer.complete(rect)
 
     def _insert_completion(self, completion):
-        if not self._current_text().startswith("<lora:"):
+        triggers = ""
+        if self._current_text().startswith("<lora:"):
+            if file := root.files.loras.find(f"{completion}.safetensors"):
+                triggers = " " + file.meta("lora_triggers", "")
+        else:  # tag completion
             # escape () in tags so they won't be interpreted as prompt weights
             completion = completion.replace("(", "\\(").replace(")", "\\)")
         text = self._widget.text()
         pos = self._widget.cursorPosition()
-        prefix_len = len(self._completion_prefix)
-        text = text[: pos - prefix_len] + completion + self._completion_suffix + text[pos:]
+        start_pos = pos - len(self._completion_prefix)
+        fill = completion + self._completion_suffix + triggers
+        text = text[:start_pos] + fill + text[pos:]
         self._widget.setText(text)
-        self._widget.setCursorPosition(
-            pos - prefix_len + len(completion) + len(self._completion_suffix)
-        )
+        self._widget.setCursorPosition(start_pos + len(fill))
 
     @property
     def is_active(self):
