@@ -438,14 +438,17 @@ class CustomWorkspace(QObject, ObservableProperties):
         params = copy(self.params)
         for md in self.metadata:
             param = params.get(md.name)
-            assert param is not None, f"Parameter {md.name} not found"
 
             if md.kind is ParamKind.image_layer:
+                if param is None and len(layers.images) > 0:
+                    param = layers.images[0].id
                 layer = layers.find(QUuid(param))
                 if layer is None:
                     raise ValueError(f"Input layer for parameter {md.name} not found")
                 params[md.name] = layer.get_pixels(bounds)
             elif md.kind is ParamKind.mask_layer:
+                if param is None and len(layers.masks) > 0:
+                    param = layers.masks[0].id
                 layer = layers.find(QUuid(param))
                 if layer is None:
                     raise ValueError(f"Input layer for parameter {md.name} not found")
@@ -455,6 +458,9 @@ class CustomWorkspace(QObject, ObservableProperties):
                 if style is None:
                     raise ValueError(f"Style {param} not found")
                 params[md.name] = style
+            elif param is None:
+                raise ValueError(f"Parameter {md.name} not found")
+
         return params
 
     def _handle_job_finished(self, job: Job):

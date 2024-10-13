@@ -487,16 +487,18 @@ class Model(QObject, ObservableProperties):
         job = self.jobs.find(job_id)
         assert job is not None, "Cannot show preview, invalid job id"
         name = f"[{name_prefix}] {trim_text(job.params.name, 77)}"
+        image = job.results[index]
+        bounds = job.params.bounds
+        if image.extent != bounds.extent:
+            image = Image.crop(image, Bounds(0, 0, *bounds.extent))
         if self._layer and self._layer.was_removed:
             self._layer = None  # layer was removed by user
         if self._layer is not None:
             self._layer.name = name
-            self._layer.write_pixels(job.results[index], job.params.bounds)
+            self._layer.write_pixels(image, bounds)
             self._layer.move_to_top()
         else:
-            self._layer = self.layers.create(
-                name, job.results[index], job.params.bounds, make_active=False
-            )
+            self._layer = self.layers.create(name, image, bounds, make_active=False)
             self._layer.is_locked = True
 
     def hide_preview(self):
@@ -504,6 +506,8 @@ class Model(QObject, ObservableProperties):
             self._layer.hide()
 
     def apply_result(self, image: Image, params: JobParams, behavior: ApplyBehavior, prefix=""):
+        if image.extent != params.bounds.extent:
+            image = Image.crop(image, Bounds(0, 0, *params.bounds.extent))
         if len(params.regions) == 0:
             if behavior is ApplyBehavior.replace:
                 self.layers.update_layer_image(self.layers.active, image, params.bounds)

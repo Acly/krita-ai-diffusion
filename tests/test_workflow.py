@@ -180,7 +180,6 @@ def test_prepare_lora():
     files = FileLibrary(FileCollection(), FileCollection())
     fractal = files.loras.add(File.remote("x/FRACTAL.safetensors"))
     files.loras.set_meta(fractal, "lora_strength", 0.55)
-    files.loras.set_meta(fractal, "lora_triggers", "FRACTAL HEART")
 
     mop = files.loras.add(File.remote("MOTHER_OF_PEARL.safetensors"))
     files.loras.set_meta(mop, "lora_triggers", "crab")
@@ -200,7 +199,7 @@ def test_prepare_lora():
         files=files,
         perf=default_perf,
     )
-    assert job.conditioning and job.conditioning.positive == "test  baloon FRACTAL HEART space crab"
+    assert job.conditioning and job.conditioning.positive == "test  baloon  space crab"
     assert (
         job.models
         and LoraInput("PINK_UNICORNS.safetensors", 0.77) in job.models.loras

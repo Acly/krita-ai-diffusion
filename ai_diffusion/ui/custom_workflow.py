@@ -30,8 +30,11 @@ class LayerSelect(QComboBox):
 
     def __init__(self, filter: str | None = None, parent: QWidget | None = None):
         super().__init__(parent)
-        self.setContentsMargins(0, 0, 0, 0)
         self.filter = filter
+
+        self.setContentsMargins(0, 0, 0, 0)
+        self.setMinimumContentsLength(20)
+        self.setSizeAdjustPolicy(QComboBox.SizeAdjustPolicy.AdjustToMinimumContentsLength)
         self.currentIndexChanged.connect(lambda _: self.value_changed.emit())
 
         self._update()
@@ -257,6 +260,9 @@ class ChoiceParamWidget(QComboBox):
 
     def __init__(self, param: CustomParam, parent: QWidget | None = None):
         super().__init__(parent)
+        self.setMinimumContentsLength(20)
+        self.setSizeAdjustPolicy(QComboBox.SizeAdjustPolicy.AdjustToMinimumContentsLength)
+
         if param.choices:
             self.addItems(param.choices)
         self.currentIndexChanged.connect(lambda _: self.value_changed.emit())
