@@ -281,7 +281,7 @@ class ComboBoxSetting(SettingWidget):
             self.set_items(setting.items)
 
         self._combo.setMinimumWidth(230)
-        self._combo.currentIndexChanged.connect(self._change_value)
+        self._combo.activated.connect(self._change_value)
         self.set_widget(self._combo)
         self._original_text = self._key_label.text()
 
