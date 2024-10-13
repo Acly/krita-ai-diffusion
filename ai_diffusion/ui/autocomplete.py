@@ -235,7 +235,9 @@ class PromptAutoComplete:
         self._completer.complete(rect)
 
     def _insert_completion(self, completion):
-        completion = completion.replace("(", "\\(").replace(")", "\\)")
+        if not self._current_text().startswith("<lora:"):
+            # escape () in tags so they won't be interpreted as prompt weights
+            completion = completion.replace("(", "\\(").replace(")", "\\)")
         text = self._widget.text()
         pos = self._widget.cursorPosition()
         prefix_len = len(self._completion_prefix)
