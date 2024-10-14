@@ -234,7 +234,6 @@ class ComfyClient(Client):
                 await self._listen_websocket(websocket)
             except websockets_exceptions.ConnectionClosedError as e:
                 log.warning(f"Websocket connection closed: {str(e)}")
-                await self._report(ClientEvent.disconnected, "")
             except OSError as e:
                 msg = _("Could not connect to websocket server at") + f"{url}: {str(e)}"
                 await self._report(ClientEvent.error, "", error=msg)
@@ -246,6 +245,8 @@ class ComfyClient(Client):
             except Exception as e:
                 log.exception("Unhandled exception in websocket listener")
                 await self._report(ClientEvent.error, "", error=str(e))
+            finally:
+                await self._report(ClientEvent.disconnected, "")
 
     async def _listen_websocket(self, websocket: websockets_client.WebSocketClientProtocol):
         progress: Progress | None = None
@@ -358,7 +359,6 @@ class ComfyClient(Client):
             await asyncio.gather(
                 self._job_runner,
                 self._websocket_listener,
-                self._report(ClientEvent.disconnected, ""),
                 self._unsubscribe_workflows(),
             )
 

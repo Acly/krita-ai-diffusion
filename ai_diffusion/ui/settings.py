@@ -304,7 +304,7 @@ class ConnectionSettings(SettingsTab):
         self._server_stack.setCurrentWidget(widget)
 
     def update_ui(self):
-        self._server_widget.update()
+        self._server_widget.update_ui()
 
     def _read(self):
         self.server_mode = settings.server_mode
@@ -854,7 +854,9 @@ class SettingsDialog(QDialog):
 
     def show(self, style: Optional[Style] = None):
         self.read()
+        self.connection.update_ui()
         super().show()
+
         if style:
             self._list.setCurrentRow(1)
             self.styles.current_style = style

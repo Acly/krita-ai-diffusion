@@ -438,8 +438,19 @@ class Server:
             async for line in self._process.stdout:
                 server_log.info(_decode_utf8_log_error(line).strip())
 
+            code = await asyncio.wait_for(self._process.wait(), timeout=1)
+            if code != 0:
+                log.error(f"Server process terminated with code {self._process.returncode}")
+            elif code is not None:
+                log.info(f"Server process was shut down sucessfully")
+
         except asyncio.CancelledError:
             pass
+        except asyncio.TimeoutError:
+            log.warning("Server process did not terminate after the pipe was closed")
+
+        self.state = ServerState.stopped
+        self._process = None
 
     async def stop(self):
         assert self.state is ServerState.running
@@ -448,15 +459,10 @@ class Server:
                 log.info("Stopping server")
                 self._process.terminate()
                 self._task.cancel()
-                await asyncio.wait_for(self._process.communicate(), timeout=5)
-                log.info(f"Server terminated with code {self._process.returncode}")
+                await asyncio.wait_for(self._task, timeout=5)
         except asyncio.TimeoutError:
             log.warning("Server did not terminate in time")
             pass
-        finally:
-            self.state = ServerState.stopped
-            self._process = None
-            self._task = None
 
     def terminate(self):
         try:
