@@ -458,11 +458,11 @@ class Server:
             if self._process and self._task:
                 log.info("Stopping server")
                 self._process.terminate()
-                self._task.cancel()
                 await asyncio.wait_for(self._task, timeout=5)
+        except asyncio.CancelledError:
+            pass
         except asyncio.TimeoutError:
             log.warning("Server did not terminate in time")
-            pass
 
     def terminate(self):
         try:
