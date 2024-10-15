@@ -59,6 +59,15 @@ class JobParams:
     def from_dict(data: dict[str, Any]):
         data["bounds"] = Bounds(*data["bounds"])
         data["regions"] = [JobRegion.from_dict(r) for r in data.get("regions", [])]
+        if "metadata" not in data:  # older documents before version 1.26.0
+            data["name"] = data.get("prompt", "")
+            data["metadata"] = {}
+            _move_field(data, "prompt", data["metadata"])
+            _move_field(data, "negative_prompt", data["metadata"])
+            _move_field(data, "strength", data["metadata"])
+            _move_field(data, "style", data["metadata"])
+            _move_field(data, "sampler", data["metadata"])
+            _move_field(data, "checkpoint", data["metadata"])
         return JobParams(**data)
 
     @classmethod
@@ -257,3 +266,9 @@ class JobQueue(QObject):
                 break
             if j.state in [JobState.queued, JobState.executing]:
                 j.state = JobState.cancelled
+
+
+def _move_field(src: dict[str, Any], field: str, dest: dict[str, Any]):
+    if field in src:
+        dest[field] = src[field]
+        del src[field]
