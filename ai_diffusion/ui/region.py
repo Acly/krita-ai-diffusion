@@ -384,7 +384,7 @@ class ActiveRegionWidget(QFrame):
             if enabled:
                 text = self._lang_help_enabled
                 if client := root.connection.client_if_connected:
-                    if client.supports_translation:
+                    if client.features.translation:
                         text += "\n" + self._lang_help_translate
             else:
                 text = self._lang_help_disabled

@@ -11,7 +11,8 @@ from typing import NamedTuple, Optional, Sequence
 
 from .api import WorkflowInput
 from .client import Client, CheckpointInfo, ClientMessage, ClientEvent, DeviceInfo, ClientModels
-from .client import SharedWorkflow, TranslationPackage, filter_supported_styles, loras_to_upload
+from .client import SharedWorkflow, TranslationPackage, ClientFeatures
+from .client import filter_supported_styles, loras_to_upload
 from .files import FileFormat
 from .image import Image, ImageCollection
 from .network import RequestManager, NetworkError
@@ -447,6 +448,12 @@ class ComfyClient(Client):
 
     def supports_arch(self, arch: Arch):
         return arch in self._supported_archs
+
+    @property
+    def features(self):
+        return ClientFeatures(
+            ip_adapter=True, translation=True, languages=self._supported_languages
+        )
 
     @property
     def supports_ip_adapter(self):

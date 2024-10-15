@@ -6,10 +6,10 @@ import sys
 import asyncio
 
 from ai_diffusion.api import WorkflowInput, WorkflowKind, ControlInput, ImageInput, CheckpointInput
-from ai_diffusion.api import SamplingInput, ConditioningInput, ExtentInput
+from ai_diffusion.api import SamplingInput, ConditioningInput, ExtentInput, RegionInput
 from ai_diffusion.client import Client, ClientEvent
-from ai_diffusion.cloud_client import CloudClient
-from ai_diffusion.image import Extent, Image
+from ai_diffusion.cloud_client import CloudClient, enumerate_features, apply_limits
+from ai_diffusion.image import Extent, Image, Bounds
 from ai_diffusion.resources import ControlMode, Arch
 from ai_diffusion.util import ensure
 from .conftest import has_local_cloud
@@ -203,3 +203,26 @@ def test_compute_cost(qtapp, cloud_client: CloudClient, params):
         assert service_cost == input.cost
 
     qtapp.run(check())
+
+
+def test_features_limits():
+    features = enumerate_features({"max_control_layers": 2})
+    image = Image.create(Extent(4, 4))
+    control_layers = [
+        ControlInput(ControlMode.blur, image),
+        ControlInput(ControlMode.line_art, image),
+        ControlInput(ControlMode.depth, image),
+    ]
+    work = WorkflowInput(
+        WorkflowKind.generate,
+        models=CheckpointInput("ckpt", self_attention_guidance=True),
+        conditioning=ConditioningInput(
+            "prompt",
+            control=control_layers,
+            regions=[RegionInput(image, Bounds(0, 0, 4, 4), "positive", control_layers)],
+        ),
+    )
+    apply_limits(work, features)
+    assert work.conditioning and len(work.conditioning.control) == 2
+    assert work.conditioning and len(work.conditioning.regions[0].control) == 2
+    assert work.models and work.models.self_attention_guidance is False

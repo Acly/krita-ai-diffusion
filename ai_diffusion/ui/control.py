@@ -55,7 +55,7 @@ class ControlWidget(QWidget):
         self.preset_slider.setToolTip(_("Control strength: how much the layer affects the image"))
 
         self.error_text = QLabel(self)
-        self.error_text.setStyleSheet(f"color: {theme.red};")
+        self.error_text.setStyleSheet(f"color: {theme.yellow};")
         self.error_text.setVisible(not control.is_supported)
         self._set_error(control.error_text)
 

@@ -355,7 +355,7 @@ def translate_prompt(region: Region | RootRegion):
     from .root import root
 
     if client := root.connection.client_if_connected:
-        if settings.prompt_translation and client.supports_translation:
+        if settings.prompt_translation and client.features.translation:
             eventloop.run(region.translate_prompt(client))
 
 

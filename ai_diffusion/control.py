@@ -45,14 +45,13 @@ class ControlLayer(QObject, ObservableProperties):
     error_text_changed = pyqtSignal(str)
     modified = pyqtSignal(QObject, str)
 
-    _model: model.Model
-    _generate_job: jobs.Job | None = None
-
-    def __init__(self, model: model.Model, mode: ControlMode, layer_id: QUuid):
+    def __init__(self, model: model.Model, mode: ControlMode, layer_id: QUuid, index: int):
         from .root import root
 
         super().__init__()
         self._model = model
+        self._index = index
+        self._generate_job: jobs.Job | None = None
         self.layer_id = layer_id
         self.mode = mode
         self._update_is_supported()
@@ -97,6 +96,15 @@ class ControlLayer(QObject, ObservableProperties):
             if not value:
                 self._set_values_from_preset()
 
+    @property
+    def index(self):
+        return self._index
+
+    @index.setter
+    def index(self, index: int):
+        self._index = index
+        self._update_is_supported()
+
     def to_api(self, bounds: Bounds | None = None, time: int | None = None):
         assert self.is_supported, "Control layer is not supported"
         layer = self.layer
@@ -126,7 +134,7 @@ class ControlLayer(QObject, ObservableProperties):
                     )
                 else:
                     self.error_text = _("Not supported for") + f" {models.arch.value}"
-                if not client.supports_ip_adapter:
+                if not client.features.ip_adapter:
                     self.error_text = _("IP-Adapter is not supported by this GPU")
                 is_supported = False
             elif self.mode.is_control_net:
@@ -141,6 +149,10 @@ class ControlLayer(QObject, ObservableProperties):
                     else:
                         self.error_text = _("Not supported for") + f" {models.arch.value}"
                     is_supported = False
+
+            if self._index >= client.features.max_control_layers:
+                self.error_text = _("Too many control layers")
+                is_supported = False
 
         self.is_supported = is_supported
         self.can_generate = is_supported and self.mode.has_preprocessor
@@ -182,7 +194,7 @@ class ControlLayerList(QObject):
         if layer is None:  # shouldn't be possible, Krita doesn't allow removing all non-mask layers
             log.warning("Trying to add control layer, but document has no suitable layer")
             return
-        control = ControlLayer(self._model, self._last_mode, layer.id)
+        control = ControlLayer(self._model, self._last_mode, layer.id, len(self._layers))
         control.mode_changed.connect(self._update_last_mode)
         self._layers.append(control)
         self.added.emit(control)
@@ -194,6 +206,9 @@ class ControlLayerList(QObject):
     def remove(self, control: ControlLayer):
         self._layers.remove(control)
         self.removed.emit(control)
+
+        for i, c in enumerate(self._layers):
+            c.index = i
 
     def to_api(self, bounds: Bounds | None = None, time: int | None = None):
         for layer in (c for c in self._layers if not c.is_supported):

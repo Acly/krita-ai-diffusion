@@ -10,7 +10,7 @@ from dataclasses import dataclass
 
 from .api import WorkflowInput, WorkflowKind
 from .client import Client, ClientEvent, ClientMessage, ClientModels, DeviceInfo, CheckpointInfo
-from .client import TranslationPackage, User, loras_to_upload
+from .client import ClientFeatures, TranslationPackage, User, loras_to_upload
 from .image import Extent, ImageCollection
 from .network import RequestManager, NetworkError
 from .files import FileLibrary, File
@@ -36,14 +36,6 @@ class CloudClient(Client):
     default_api_url = os.getenv("INTERSTICE_URL", "https://api.interstice.cloud")
     default_web_url = os.getenv("INTERSTICE_WEB_URL", "https://www.interstice.cloud")
 
-    _requests = RequestManager()
-    _queue: asyncio.Queue[JobInfo]
-    _token: str = ""
-    _user: User | None = None
-    _current_job: JobInfo | None = None
-    _cancel_requested: bool = False
-    _max_upload_size = 300 * (1024**2)
-
     @staticmethod
     async def connect(url: str, access_token: str = ""):
         if not access_token:
@@ -56,7 +48,13 @@ class CloudClient(Client):
         self.url = url
         self.models = models
         self.device_info = DeviceInfo("Cloud", "Remote GPU", 24)
-        self._queue = asyncio.Queue()
+        self._requests = RequestManager()
+        self._token: str = ""
+        self._user: User | None = None
+        self._current_job: JobInfo | None = None
+        self._cancel_requested: bool = False
+        self._queue: asyncio.Queue[JobInfo] = asyncio.Queue()
+        self._features = enumerate_features({})
 
     async def _get(self, op: str):
         return await self._requests.get(f"{self.url}/{op}", bearer=self._token)
@@ -105,13 +103,12 @@ class CloudClient(Client):
         self._user = User(user_data["id"], user_data["name"])
         self._user.images_generated = user_data["images_generated"]
         self._user.credits = user_data["credits"]
-        self._max_upload_size = user_data.get("max_upload_size", self._max_upload_size)
+        self._features = enumerate_features(user_data)
         log.info(f"Connected to {self.url}, user: {self._user.id}")
         return self._user
 
     async def enqueue(self, work: WorkflowInput, front: bool = False):
-        if work.models:
-            work.models.self_attention_guidance = False
+        apply_limits(work, self.features)
         job = JobInfo(str(uuid.uuid4()), work)
         await self._queue.put(job)
         return job.local_id
@@ -214,18 +211,8 @@ class CloudClient(Client):
         )
 
     @property
-    def max_upload_size(self):
-        return self._max_upload_size
-
-    @property
-    def supported_languages(self):
-        return [
-            TranslationPackage("zh", "Chinese"),
-            TranslationPackage("fr", "French"),
-            TranslationPackage("de", "German"),
-            TranslationPackage("ru", "Russian"),
-            TranslationPackage("es", "Spanish"),
-        ]
+    def features(self):
+        return self._features
 
     async def send_images(self, inputs: dict, max_inline_size=3_500_000):
         if image_data := inputs.get("image_data"):
@@ -326,6 +313,33 @@ def _update_user(user: User, response: dict | None):
     else:
         log.warning("Did not receive updated user data from server")
         return 0
+
+
+def enumerate_features(user_data: dict):
+    return ClientFeatures(
+        ip_adapter=True,
+        translation=True,
+        languages=[
+            TranslationPackage("zh", "Chinese"),
+            TranslationPackage("fr", "French"),
+            TranslationPackage("de", "German"),
+            TranslationPackage("ru", "Russian"),
+            TranslationPackage("es", "Spanish"),
+        ],
+        max_upload_size=user_data.get("max_upload_size", 300 * 1024 * 1024),
+        max_control_layers=user_data.get("max_control_layers", 4),
+    )
+
+
+def apply_limits(work: WorkflowInput, features: ClientFeatures):
+    if work.models:
+        work.models.self_attention_guidance = False
+    if work.conditioning:
+        work.conditioning.control = work.conditioning.control[: features.max_control_layers]
+        for region in work.conditioning.regions:
+            region.control = region.control[: features.max_control_layers]
+    if work.sampling:
+        work.sampling.total_steps = min(work.sampling.total_steps, 1000)
 
 
 def _base64_size(size: int):
