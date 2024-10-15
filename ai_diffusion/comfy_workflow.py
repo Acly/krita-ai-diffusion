@@ -518,6 +518,7 @@ class ComfyWorkflow:
         negative: Output,
         controlnet: Output,
         image: Output,
+        vae: Output,
         strength=1.0,
         range: tuple[float, float] = (0.0, 1.0),
     ):
@@ -528,6 +529,7 @@ class ComfyWorkflow:
             negative=negative,
             control_net=controlnet,
             image=image,
+            vae=vae,
             strength=strength,
             start_percent=range[0],
             end_percent=range[1],

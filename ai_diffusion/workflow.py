@@ -388,7 +388,7 @@ def apply_control(
             )
         else:
             positive, negative = w.apply_controlnet(
-                positive, negative, controlnet, image, control.strength, control.range
+                positive, negative, controlnet, image, vae, control.strength, control.range
             )
 
     return positive, negative
