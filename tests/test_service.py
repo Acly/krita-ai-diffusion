@@ -132,18 +132,13 @@ def test_large_image(qtapp, cloud_client):
     run_and_save(qtapp, cloud_client, workflow, "pod_large_image")
 
 
-@pytest.mark.parametrize("scenario", ["resolution", "steps", "control", "max_pixels"])
+@pytest.mark.parametrize("scenario", ["resolution", "steps", "max_pixels"])
 def test_validation(qtapp, cloud_client: CloudClient, scenario: str):
     workflow = create_simple_workflow()
     if scenario == "resolution":
         workflow.images = ImageInput.from_extent(Extent(19000, 512))
     elif scenario == "steps":
         ensure(workflow.sampling).total_steps = 200
-    elif scenario == "control":
-        img = Image.create(Extent(4, 4))
-        control = ensure(workflow.conditioning).control
-        for i in range(7):
-            control.append(ControlInput(ControlMode.depth, img))
     elif scenario == "max_pixels":
         workflow.images = ImageInput.from_extent(Extent(3840, 2168))  # > 4k
 

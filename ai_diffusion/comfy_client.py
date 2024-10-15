@@ -727,7 +727,8 @@ def _extract_pose_json(msg: dict):
     try:
         output = msg["data"]["output"]
         if "openpose_json" in output:
-            return json.loads(output["openpose_json"][0])
+            result = json.loads(output["openpose_json"][0])
+            return result[0] if isinstance(result, list) else result
     except Exception as e:
         log.warning(f"Error processing message, error={str(e)}, msg={msg}")
     return None
