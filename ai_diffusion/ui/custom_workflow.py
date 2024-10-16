@@ -132,7 +132,7 @@ class FloatParamWidget(QWidget):
         self.setLayout(layout)
 
         assert param.min is not None and param.max is not None and param.default is not None
-        if param.max - param.min <= 20:
+        if param.max - param.min <= 100:
             self._widget = QSlider(Qt.Orientation.Horizontal, parent)
             self._widget.setRange(round(param.min * 100), round(param.max * 100))
             self._widget.setMinimumHeight(self._widget.minimumSizeHint().height() + 4)
@@ -352,6 +352,7 @@ class WorkflowParamsWidget(QWidget):
         layout = QGridLayout(self)
         layout.setContentsMargins(0, 0, 0, 0)
         layout.setColumnMinimumWidth(1, 10)
+        layout.setColumnStretch(2, 1)
         self.setLayout(layout)
 
         for p in params:
