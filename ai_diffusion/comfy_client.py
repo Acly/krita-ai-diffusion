@@ -727,26 +727,7 @@ def _extract_pose_json(msg: dict):
     try:
         output = msg["data"]["output"]
         if "openpose_json" in output:
-            result = json.loads(output["openpose_json"][0])
-            return result[0] if isinstance(result, list) else result
+            return json.loads(output["openpose_json"][0])
     except Exception as e:
         log.warning(f"Error processing message, error={str(e)}, msg={msg}")
     return None
-
-
-def _validate_executed_node(msg: dict, image_count: int):
-    try:
-        output = msg["data"]["output"]
-        assert "openpose_json" not in output
-
-        images = output["images"]
-        if len(images) != image_count:  # not critical
-            log.warning(f"Received number of images does not match: {len(images)} != {image_count}")
-        if image_count == 0 or len(images) == 0:
-            log.warning(f"Received no images (execution cached?)")
-            return False
-        if "source" in images[0] and images[0]["type"] == "output":
-            return True
-    except Exception as e:
-        log.warning(f"Error processing message, error={str(e)}, msg={msg}")
-    return False

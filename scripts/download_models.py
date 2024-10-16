@@ -23,7 +23,7 @@ from argparse import ArgumentParser
 
 sys.path.append(str(Path(__file__).parent.parent))
 from ai_diffusion import resources
-from ai_diffusion.resources import Arch, ResourceKind
+from ai_diffusion.resources import Arch, ResourceKind, ModelResource
 from ai_diffusion.resources import required_models, default_checkpoints, optional_models
 
 try:
@@ -115,6 +115,7 @@ async def main(
     minimal=False,
     recommended=False,
     all=False,
+    exclude=[],
     retry_attempts=5,
     continue_on_error=False,
 ):
@@ -134,7 +135,7 @@ async def main(
 
     timeout = aiohttp.ClientTimeout(total=None, sock_connect=10, sock_read=60)
     async with aiohttp.ClientSession(timeout=timeout, trust_env=True) as client:
-        models = set()
+        models: set[ModelResource] = set()
         models.update([m for m in default_checkpoints if all or (m.id.identifier in checkpoints)])
         if minimal or recommended or all or sd15 or sdxl:
             models.update([m for m in required_models if m.arch in versions])
@@ -150,6 +151,8 @@ async def main(
             models.update([m for m in optional_models if m.kind in kinds and m.arch in versions])
         if prefetch or all:
             models.update(resources.prefetch_models)
+
+        models = models - set([m for m in models if m.id.string in exclude])
 
         if len(models) == 0:
             print("\nNo models selected for download.")

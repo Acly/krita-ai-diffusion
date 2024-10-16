@@ -541,7 +541,7 @@ def test_create_open_pose_vector(qtapp, client: Client):
             if not job_id:
                 job_id = await client.enqueue(job)
             if msg.event is ClientEvent.finished and msg.job_id == job_id:
-                assert isinstance(msg.result, dict)
+                assert isinstance(msg.result, (dict, list))
                 result = Pose.from_open_pose_json(msg.result).to_svg()
                 (result_dir / image_name).write_text(result)
                 return
