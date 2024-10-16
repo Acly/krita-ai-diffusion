@@ -348,6 +348,8 @@ class Model(QObject, ObservableProperties):
         if input != last_input:
             self.clear_error()
             params = JobParams(bounds, conditioning.positive, regions=job_regions)
+            if settings.live_cancel_jobs_on_change:
+                await self._cancel_everything()
             await self.enqueue_jobs(input, JobKind.live_preview, params)
             return input
 
@@ -402,6 +404,17 @@ class Model(QObject, ObservableProperties):
             if self._layer:  # exclude preview layer
                 exclude.append(self._layer)
         return self._doc.get_image(bounds, exclude_layers=exclude)
+
+    async def _cancel_everything(self):
+        await self._connection.client.clear_queue()
+        await self._connection.client.interrupt()
+        to_remove = [
+            job
+            for job in self.jobs
+            if job.state is JobState.queued or job.state is JobState.executing
+        ]
+        for job in to_remove:
+            self.jobs.remove(job)
 
     def generate_control_layer(self, control: ControlLayer):
         ok, msg = self._doc.check_color_mode()
@@ -855,14 +868,16 @@ class LiveWorkspace(QObject, ObservableProperties):
             if len(job.results) > 0:
                 self.set_result(job.results[0], job.params)
             self.is_active = self._is_active and self._model.document.is_active
-            eventloop.run(_report_errors(self._model, self._continue_generating()))
+            if not settings.live_cancel_jobs_on_change:
+                eventloop.run(_report_errors(self._model, self._continue_generating()))
 
     async def _continue_generating(self):
         while self.is_active and self._model.document.is_active:
             new_input = await self._model._generate_live(self._last_input)
             if new_input is not None:  # frame was scheduled
                 self._last_input = new_input
-                return
+                if not settings.live_cancel_jobs_on_change:
+                    return
             # no changes in input data
             await asyncio.sleep(self._poll_rate)
 
