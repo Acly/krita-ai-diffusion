@@ -437,6 +437,34 @@ class SingleLineTextPromptWidget(QLineEdit):
         super().keyPressEvent(a0)
 
 
+class TextPromptResizeWidget(QWidget):
+    """Handles drag-based resizing for TextPromptWidget."""
+
+    def __init__(self, text_prompt: TextPromptWidget):
+        super().__init__(text_prompt)
+        self.setCursor(Qt.CursorShape.SizeVerCursor)
+        self.setFixedHeight(5)
+        self._dragging = False
+        self._text_prompt = text_prompt
+
+    def mousePressEvent(self, a0: QMouseEvent | None) -> None:
+        if ensure(a0).button() == Qt.MouseButton.LeftButton:
+            self._dragging = True
+
+    def mouseReleaseEvent(self, a0: QMouseEvent | None) -> None:
+        self._dragging = False
+
+    def mouseMoveEvent(self, a0: QMouseEvent | None) -> None:
+        if not self._dragging:
+            return
+        new_height = self.mapToParent(ensure(a0).pos()).y() - self._text_prompt.contentsRect().top()
+        fm = QFontMetrics(ensure(self._text_prompt._multi.document()).defaultFont())
+        new_line_count = round((new_height - 13) / fm.lineSpacing())
+        if 1 <= new_line_count <= 10:
+            settings.prompt_line_count = new_line_count
+            self._text_prompt.line_count = new_line_count
+
+
 class TextPromptWidget(QFrame):
     """Wraps a single or multi-line text widget, with ability to switch between them.
     Using QPlainTextEdit set to a single line doesn't work properly because it still
@@ -470,6 +498,9 @@ class TextPromptWidget(QFrame):
 
         self._layout.addWidget(self._multi)
         self._layout.addWidget(self._single)
+
+        if not is_negative:
+            self._layout.addWidget(TextPromptResizeWidget(self))
 
         palette: QPalette = self._multi.palette()
         self._base_color = palette.color(QPalette.ColorRole.Base)
