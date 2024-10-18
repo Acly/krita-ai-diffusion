@@ -437,6 +437,7 @@ class Model(QObject, ObservableProperties):
     def report_error(self, message: str):
         self.error = message
         self.live.is_active = False
+        self.custom.is_live = False
 
     def clear_error(self):
         if self.error != "":
