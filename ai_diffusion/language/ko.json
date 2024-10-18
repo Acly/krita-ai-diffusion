@@ -433,6 +433,19 @@
     "Check for Updates": null,
     "Plugin Information and Updates": null,
     "Latest version": null,
-    "Update failed": null
+    "Update failed": null,
+    "Generate Live": null,
+    "Are you sure you want to delete the current workflow?": null,
+    "Open Web UI to create custom workflows": null,
+    "Stop Generating": null,
+    "Import Workflow": null,
+    "Save workflow to file": null,
+    "Too many control layers": null,
+    "Delete the currently selected workflow": null,
+    "Graph": null,
+    "Custom workflows are not available on Cloud.": null,
+    "Delete Workflow": null,
+    "Start Generating": null,
+    "Import workflow from file": null
   }
 }

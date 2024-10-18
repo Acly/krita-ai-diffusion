@@ -433,6 +433,19 @@
     "Check for Updates": "检查更新",
     "Plugin Information and Updates": "插件信息和更新",
     "Latest version": "最新版本",
-    "Update failed": "更新失败"
+    "Update failed": "更新失败",
+    "Generate Live": null,
+    "Are you sure you want to delete the current workflow?": null,
+    "Open Web UI to create custom workflows": null,
+    "Stop Generating": null,
+    "Import Workflow": null,
+    "Save workflow to file": null,
+    "Too many control layers": null,
+    "Delete the currently selected workflow": null,
+    "Graph": null,
+    "Custom workflows are not available on Cloud.": null,
+    "Delete Workflow": null,
+    "Start Generating": null,
+    "Import workflow from file": null
   }
 }
