@@ -8,6 +8,7 @@ import json
 
 from .image import Bounds, Extent, Image
 from .resources import Arch, ControlMode
+from .util import base_type_match
 
 
 class ComfyRunMode(Enum):
@@ -40,19 +41,11 @@ class ComfyNode(NamedTuple):
 
     def input(self, key: str, default: T | None = None) -> T | Input | None:
         result = self.inputs.get(key, default)
-        assert (
-            default is None
-            or type(result) == type(default)
-            or (isnumber(result) and isnumber(default))
-        )
+        assert default is None or base_type_match(result, default)
         return result
 
     def output(self, index=0) -> Output:
         return Output(int(self.id), index)
-
-
-def isnumber(x):
-    return isinstance(x, (int, float))
 
 
 class ComfyWorkflow:

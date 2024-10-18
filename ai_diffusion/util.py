@@ -120,6 +120,14 @@ def median_or_zero(values: Iterable[float]) -> float:
         return 0
 
 
+def isnumber(x):
+    return isinstance(x, (int, float))
+
+
+def base_type_match(a, b):
+    return type(a) == type(b) or (isnumber(a) and isnumber(b))
+
+
 def unique(seq: Sequence[T], key) -> list[T]:
     seen = set()
     return [x for x in seq if (k := key(x)) not in seen and not seen.add(k)]

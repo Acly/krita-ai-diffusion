@@ -16,7 +16,7 @@ from .image import Bounds, Image
 from .jobs import Job, JobParams, JobQueue, JobKind
 from .properties import Property, ObservableProperties
 from .style import Styles
-from .util import user_data_dir, client_logger as log
+from .util import base_type_match, user_data_dir, client_logger as log
 from .ui import theme
 from . import eventloop
 
@@ -492,7 +492,9 @@ class CustomWorkspace(QObject, ObservableProperties):
 
 def _coerce(params: dict[str, Any], types: list[CustomParam]):
     def use(value, default):
-        if value is None or not type(value) == type(default):
+        if default is None:
+            return value
+        if value is None or not base_type_match(value, default):
             return default
         return value
 
