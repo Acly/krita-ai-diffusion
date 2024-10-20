@@ -606,7 +606,7 @@ class Model(QObject, ObservableProperties):
 
     def add_control_layer(self, job: Job, result: dict | SharedWorkflow | None):
         assert job.kind is JobKind.control_layer and job.control
-        if job.control.mode is ControlMode.pose and isinstance(result, dict):
+        if job.control.mode is ControlMode.pose and isinstance(result, (dict, list)):
             pose = Pose.from_open_pose_json(result)
             pose.scale(job.params.bounds.extent)
             return self.layers.create_vector(job.params.name, pose.to_svg())
