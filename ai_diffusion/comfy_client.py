@@ -88,8 +88,9 @@ class ComfyClient(Client):
 
     default_url = "http://127.0.0.1:8188"
 
-    def __init__(self, url):
+    def __init__(self, url, bearer=""):
         self.url = url
+        self.bearer = bearer
         self.models = ClientModels()
         self._requests = RequestManager()
         self._id = str(uuid.uuid4())
@@ -103,7 +104,7 @@ class ComfyClient(Client):
 
     @staticmethod
     async def connect(url=default_url, access_token=""):
-        client = ComfyClient(parse_url(url))
+        client = ComfyClient(parse_url(url), bearer=access_token)
         log.info(f"Connecting to {client.url}")
 
         # Retrieve system info
@@ -113,7 +114,7 @@ class ComfyClient(Client):
         # Try to establish websockets connection
         wsurl = websocket_url(client.url)
         try:
-            async with websockets_client.connect(f"{wsurl}/ws?clientId={client._id}"):
+            async with websockets_client.connect(f"{wsurl}/ws?clientId={client._id}", extra_headers={"Authorization": f"Bearer {client.bearer}"}):
                 pass
         except Exception as e:
             msg = _("Could not establish websocket connection at") + f" {wsurl}: {str(e)}"
@@ -179,10 +180,10 @@ class ComfyClient(Client):
         return client
 
     async def _get(self, op: str):
-        return await self._requests.get(f"{self.url}/{op}")
+        return await self._requests.get(f"{self.url}/{op}", bearer=self.bearer)
 
     async def _post(self, op: str, data: dict):
-        return await self._requests.post(f"{self.url}/{op}", data)
+        return await self._requests.post(f"{self.url}/{op}", data, bearer=self.bearer)
 
     async def enqueue(self, work: WorkflowInput, front: bool = False):
         job = JobInfo.create(work, front=front)
@@ -228,7 +229,7 @@ class ComfyClient(Client):
     async def _listen(self):
         url = websocket_url(self.url)
         async for websocket in websockets_client.connect(
-            f"{url}/ws?clientId={self._id}", max_size=2**30, read_limit=2**30, ping_timeout=60
+            f"{url}/ws?clientId={self._id}", max_size=2**30, read_limit=2**30, ping_timeout=60, extra_headers={"Authorization": f"Bearer {self.bearer}"}
         ):
             try:
                 await self._subscribe_workflows()
