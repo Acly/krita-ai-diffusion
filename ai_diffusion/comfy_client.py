@@ -305,7 +305,11 @@ class ComfyClient(Client):
                             ClientEvent.progress, self._active.local_id, progress.value
                         )
                     else:
-                        log.error(f"Received message {msg} but there is no active job")
+                        if settings.live_cancel_jobs_on_change:
+                            # likely to be an out-of-order progress from cancelled/interrupted job so don't log these
+                            pass
+                        else:
+                            log.error(f"Received message {msg} but there is no active job")
 
                 if msg["type"] == "executed":
                     job = self._get_active_job(msg["data"]["prompt_id"])
