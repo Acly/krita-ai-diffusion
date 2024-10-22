@@ -112,7 +112,10 @@ def load_checkpoint_with_lora(w: ComfyWorkflow, checkpoint: CheckpointInput, mod
             case Arch.sdxl:
                 clip = w.load_dual_clip(te_models["clip_g"], te_models["clip_l"], type="sdxl")
             case Arch.sd3:
-                clip = w.load_dual_clip(te_models["clip_g"], te_models["clip_l"], type="sd3")
+                if te_models.find("t5"):
+                    clip = w.load_triple_clip(te_models["clip_l"], te_models["clip_g"], te_models["t5"])
+                else:
+                    clip = w.load_dual_clip(te_models["clip_g"], te_models["clip_l"], type="sd3")
             case Arch.flux:
                 clip = w.load_dual_clip(te_models["clip_l"], te_models["t5"], type="flux")
             case _:

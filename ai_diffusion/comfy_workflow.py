@@ -417,6 +417,14 @@ class ComfyWorkflow:
             node = "DualCLIPLoaderGGUF"
         return self.add_cached(node, 1, clip_name1=clip_name1, clip_name2=clip_name2, type=type)
 
+    def load_triple_clip(self, clip_name1: str, clip_name2: str, clip_name3: str):
+        node = "TripleCLIPLoader"
+        if any(f.endswith(".gguf") for f in (clip_name1, clip_name2, clip_name3)):
+            node = "TripleCLIPLoaderGGUF"
+        return self.add_cached(
+            node, 1, clip_name1=clip_name1, clip_name2=clip_name2, clip_name3=clip_name3
+        )
+
     def load_vae(self, vae_name: str):
         return self.add_cached("VAELoader", 1, vae_name=vae_name)
 

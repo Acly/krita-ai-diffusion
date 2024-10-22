@@ -154,7 +154,7 @@ class ModelDict:
     def find(self, key: ControlMode | UpscalerName | str, allow_universal=False) -> str | None:
         if key in [ControlMode.style, ControlMode.composition]:
             key = ControlMode.reference  # Same model with different weight types
-        result = self._models.resources.get(resource_id(self.kind, self.arch, key))
+        result = self._models.find(ResourceId(self.kind, self.arch, key))
         if result is None and allow_universal and isinstance(key, ControlMode):
             result = self.find(ControlMode.universal)
         return result
