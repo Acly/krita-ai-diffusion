@@ -439,6 +439,10 @@ class InterfaceSettings(SettingsTab):
         self.add("auto_preview", SwitchSetting(S._auto_preview, parent=self))
         self.add("show_steps", SwitchSetting(S._show_steps, parent=self))
         self.add("new_seed_after_apply", SwitchSetting(S._new_seed_after_apply, parent=self))
+        self.add(
+            "live_cancel_jobs_on_change",
+            SwitchSetting(S._live_cancel_jobs_on_change, parent=self),
+        )
         self.add("debug_dump_workflow", SwitchSetting(S._debug_dump_workflow, parent=self))
 
         languages = [(lang.name, lang.id) for lang in Localization.available]
