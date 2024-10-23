@@ -7,6 +7,7 @@ from dataclasses import dataclass
 from enum import Enum
 from collections import deque
 from itertools import chain, product
+from operator import itemgetter
 from typing import NamedTuple, Optional, Sequence
 
 from .api import WorkflowInput
@@ -266,6 +267,7 @@ class ComfyClient(Client):
 
                 if msg["type"] == "status":
                     await self._report(ClientEvent.connected, "")
+                    await self._poll_server_queue()
 
                 if msg["type"] == "execution_start":
                     id = msg["data"]["prompt_id"]
@@ -349,8 +351,32 @@ class ComfyClient(Client):
             except asyncio.QueueEmpty:
                 break
 
-        await self._post("queue", {"clear": True})
+        remote_ids = [await job.get_remote_id() for job in self._jobs]
+        await self._post("api/queue", {"delete": remote_ids})
+
         self._jobs.clear()
+
+    async def _poll_server_queue(self):
+        queue = await self._get("api/queue")
+        server_jobs = queue["queue_running"] + queue["queue_pending"]
+        # why are they unsorted to start with...?
+        server_jobs = sorted(server_jobs, key=itemgetter(0))
+        server_jobs = [entry[1] for entry in server_jobs]
+        if not (self._jobs or self._active):
+            return
+
+        if self._active:
+            first_job = self._active
+        else:
+            first_job = self._jobs[0]
+        # as we got the job from `_jobs` or `_active`, this field must have been set (in `_run_job`).
+        first_remote_id = util.ensure(await first_job.get_remote_id())
+        try:
+            offset = server_jobs.index(first_remote_id)
+        except ValueError:
+            # probably just haven't gotten the notification yet
+            return
+        await self._report(ClientEvent.queued, first_job.local_id, queue_length=offset)
 
     async def disconnect(self):
         if self._is_connected:
@@ -495,7 +521,7 @@ class ComfyClient(Client):
             return self._active
         elif self._active:
             log.warning(f"Received message for job {remote_id}, but job {self._active} is active")
-        if len(self._jobs) == 0:
+        if not self._jobs:
             log.warning(f"Received unknown job {remote_id}")
             return None
         active = next((j for j in self._jobs if j.remote_id == remote_id), None)
@@ -506,7 +532,7 @@ class ComfyClient(Client):
     async def _start_job(self, remote_id: str):
         if self._active is not None:
             log.warning(f"Started job {remote_id}, but {self._active} was never finished")
-        if len(self._jobs) == 0:
+        if not self._jobs:
             log.warning(f"Received unknown job {remote_id}")
             return None
 

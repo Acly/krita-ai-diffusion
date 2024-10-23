@@ -35,6 +35,8 @@ class ClientMessage(NamedTuple):
     images: ImageCollection | None = None
     result: dict | SharedWorkflow | None = None
     error: str | None = None
+    # jobs queued before our next one
+    queue_length: int | None = None
 
 
 class User(QObject, ObservableProperties):
