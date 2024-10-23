@@ -49,8 +49,8 @@ class ExpanderButton(QToolButton):
 class WarningIcon(QLabel):
     def __init__(self, parent=None):
         super().__init__(parent)
-        font_height = int(1.2 * self.fontMetrics().height())
-        warning_icon = icon("warning").pixmap(font_height, font_height)
+        self.icon_size = int(1.2 * self.fontMetrics().height())
+        warning_icon = icon("warning").pixmap(self.icon_size, self.icon_size)
         self.setPixmap(warning_icon)
         self.setVisible(False)
 

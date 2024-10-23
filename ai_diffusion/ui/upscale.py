@@ -92,6 +92,7 @@ class UpscaleWidget(QWidget):
         self.use_prompt_value = QLabel(_("Off"), self)
         self.prompt_warning = WarningIcon(self)
         self.prompt_label = QLabel(self)
+        self.prompt_label.setMinimumWidth(40)
         self.prompt_label.setEnabled(False)
         prompt_layout = QHBoxLayout()
         prompt_layout.addWidget(QLabel(_("Use Prompt"), self))
@@ -241,7 +242,9 @@ class UpscaleWidget(QWidget):
         text = self.model.regions.positive
         if len(self.model.regions) > 0:
             text = f"<b>{len(self.model.regions)} " + _("Regions") + f"</b> | {text}"
+        padding = 8
         if self.model.upscale.use_prompt and len(self.model.regions) == 0:
+            padding += self.prompt_warning.icon_size
             self.prompt_warning.show_message(
                 _(
                     "Text prompt regions have not been set up.\nIt is not recommended to use a single text description for tiled upscale,\nunless it can be generally applied to all parts of the image."
@@ -249,7 +252,7 @@ class UpscaleWidget(QWidget):
             )
         else:
             self.prompt_warning.hide()
-        set_text_clipped(self.prompt_label, text, padding=12)
+        set_text_clipped(self.prompt_label, text, padding=padding)
 
 
 def _upscaler_order(filename: str):
