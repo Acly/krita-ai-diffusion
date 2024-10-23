@@ -717,8 +717,10 @@ def _extract_message_png_image(data: memoryview):
     s = struct.calcsize(">II")
     if len(data) > s:
         event, format = struct.unpack_from(">II", data)
-        # ComfyUI server.py: BinaryEventTypes.PREVIEW_IMAGE=1, PNG=2
-        if event == 1 and format == 2:
+        # ComfyUI server.py: BinaryEventTypes.PREVIEW_IMAGE=1
+        if event == 1:
+            if not (format == 1 or format == 2):  # JPEG=1, PNG=2
+                log.warning(f"Websocket binary data has unknwon image format '{format}'")
             return Image.from_bytes(data[s:])
     return None
 
@@ -726,7 +728,7 @@ def _extract_message_png_image(data: memoryview):
 def _extract_pose_json(msg: dict):
     try:
         output = msg["data"]["output"]
-        if "openpose_json" in output:
+        if output is not None and "openpose_json" in output:
             return json.loads(output["openpose_json"][0])
     except Exception as e:
         log.warning(f"Error processing message, error={str(e)}, msg={msg}")

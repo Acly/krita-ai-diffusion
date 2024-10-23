@@ -351,10 +351,24 @@ class Image:
         return Image.from_bytes(bytes)
 
     @staticmethod
-    def from_bytes(data: QByteArray | memoryview, format: str | None = None):
-        img = QImage.fromData(data, format)
-        assert img and not img.isNull(), "Failed to load image from memory"
-        return Image(img)
+    def from_bytes(data: QBuffer | QByteArray | memoryview, format: str | None = None):
+        if isinstance(data, QBuffer):
+            buffer = data
+        else:
+            if not isinstance(data, QByteArray):
+                data = QByteArray(bytearray(data))
+            buffer = QBuffer(data)
+            buffer.open(QBuffer.OpenModeFlag.ReadOnly)
+        if format:
+            loader = QImageReader(buffer, format.encode("utf-8"))
+        else:
+            loader = QImageReader(buffer)
+
+        img = QImage()
+        if loader.read(img):
+            return Image(img)
+        else:
+            raise Exception(f"Failed to load image from buffer: {loader.errorString()}")
 
     @staticmethod
     def from_pil(pil_image):
@@ -641,12 +655,7 @@ class ImageCollection:
         buffer.open(QBuffer.OpenModeFlag.ReadOnly)
         for i, offset in enumerate(offsets):
             buffer.seek(offset)
-            img = QImage()
-            loader = QImageReader(buffer)
-            if loader.read(img):
-                images.append(Image(img))
-            else:
-                raise Exception(f"Failed to load image {i} from buffer: {loader.errorString()}")
+            images.append(Image.from_bytes(buffer))
         buffer.close()
         return images
 
