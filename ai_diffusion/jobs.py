@@ -208,17 +208,17 @@ class JobQueue(QObject):
             self.selection = self._previous_selection
 
     def _discard_job(self, job: Job):
+        self._entries.remove(job)
         self._memory_usage -= job.results.size / (1024**2)
         self.job_discarded.emit(job)
 
     def prune(self, keep: Job):
         while self._memory_usage > settings.history_size and self._entries[0] != keep:
-            self._discard_job(self._entries.popleft())
+            self._discard_job(self._entries[0])
 
     def discard(self, job_id: str, index: int):
         job = ensure(self.find(job_id))
         if len(job.results) <= 1:
-            self._entries.remove(job)
             self._discard_job(job)
             return
         for i in range(index, len(job.results) - 1):
@@ -228,9 +228,13 @@ class JobQueue(QObject):
         self.result_discarded.emit(self.Item(job_id, index))
 
     def clear(self):
-        for job in self._entries:
-            if job.kind is JobKind.diffusion and job.state is JobState.finished:
-                self._discard_job(job)
+        jobs_to_discard = [
+            job
+            for job in self._entries
+            if job.kind is JobKind.diffusion and job.state is JobState.finished
+        ]
+        for job in jobs_to_discard:
+            self._discard_job(job)
 
     def any_executing(self):
         return any(j.state is JobState.executing for j in self._entries)

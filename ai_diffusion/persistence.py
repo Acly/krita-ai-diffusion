@@ -224,6 +224,7 @@ class ModelSync:
             item = self._history.pop(index)
             self._model.document.remove_annotation(f"result{item.slot}.webp")
             self._memory_used.pop(item.slot, None)
+        self._save()
 
     def _remove_image(self, item: JobQueue.Item):
         if history := next((h for h in self._history if h.id == item.job), None):

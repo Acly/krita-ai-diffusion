@@ -105,19 +105,19 @@ def load_checkpoint_with_lora(w: ComfyWorkflow, checkpoint: CheckpointInput, mod
             )
 
     if clip is None or arch is Arch.sd3:
-        te_models = models.for_arch(arch).text_encoder
+        te = models.for_arch(arch).text_encoder
         match arch:
             case Arch.sd15:
-                clip = w.load_clip(te_models["clip_l"], "stable_diffusion")
+                clip = w.load_clip(te["clip_l"], "stable_diffusion")
             case Arch.sdxl:
-                clip = w.load_dual_clip(te_models["clip_g"], te_models["clip_l"], type="sdxl")
+                clip = w.load_dual_clip(te["clip_g"], te["clip_l"], type="sdxl")
             case Arch.sd3:
-                if te_models.find("t5"):
-                    clip = w.load_triple_clip(te_models["clip_l"], te_models["clip_g"], te_models["t5"])
+                if te.find("t5"):
+                    clip = w.load_triple_clip(te["clip_l"], te["clip_g"], te["t5"])
                 else:
-                    clip = w.load_dual_clip(te_models["clip_g"], te_models["clip_l"], type="sd3")
+                    clip = w.load_dual_clip(te["clip_g"], te["clip_l"], type="sd3")
             case Arch.flux:
-                clip = w.load_dual_clip(te_models["clip_l"], te_models["t5"], type="flux")
+                clip = w.load_dual_clip(te["clip_l"], te["t5"], type="flux")
             case _:
                 raise RuntimeError(f"No text encoder for model architecture {arch.name}")
 
