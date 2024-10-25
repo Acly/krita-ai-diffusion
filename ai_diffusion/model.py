@@ -17,7 +17,7 @@ from .util import clamp, ensure, trim_text, client_logger as log
 from .settings import ApplyBehavior, settings
 from .network import NetworkError
 from .image import Extent, Image, Mask, Bounds, DummyImage
-from .client import ClientMessage, ClientEvent, SharedWorkflow
+from .client import ClientMessage, ClientEvent, ClientOutput
 from .client import filter_supported_styles, resolve_arch
 from .custom_workflow import CustomWorkspace, WorkflowCollection, CustomGenerationMode
 from .document import Document, KritaDocument
@@ -461,6 +461,8 @@ class Model(QObject, ObservableProperties):
             self.jobs.notify_started(job)
             self.progress_kind = ProgressKind.upload
             self.progress = message.progress
+        elif message.event is ClientEvent.output:
+            self.custom.show_output(message.result)
         elif message.event is ClientEvent.finished:
             if message.images:
                 self.jobs.set_results(job, message.images)
@@ -604,7 +606,7 @@ class Model(QObject, ObservableProperties):
         self.jobs.selection = None
         self.jobs.notify_used(job_id, index)
 
-    def add_control_layer(self, job: Job, result: dict | SharedWorkflow | None):
+    def add_control_layer(self, job: Job, result: ClientOutput | None):
         assert job.kind is JobKind.control_layer and job.control
         if job.control.mode is ControlMode.pose and isinstance(result, (dict, list)):
             pose = Pose.from_open_pose_json(result)

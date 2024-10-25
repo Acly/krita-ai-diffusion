@@ -7,9 +7,11 @@ from PyQt5.QtGui import QFontMetrics, QIcon, QDesktopServices
 from PyQt5.QtWidgets import QComboBox, QFileDialog, QFrame, QGridLayout, QHBoxLayout, QMenu
 from PyQt5.QtWidgets import QLabel, QLineEdit, QListWidgetItem, QMessageBox, QSpinBox, QAction
 from PyQt5.QtWidgets import QToolButton, QVBoxLayout, QWidget, QSlider, QDoubleSpinBox
+from PyQt5.QtWidgets import QScrollArea, QTextEdit, QSizePolicy
 
 from ..custom_workflow import CustomParam, ParamKind, SortedWorkflows, WorkflowSource
 from ..custom_workflow import CustomGenerationMode
+from ..client import TextOutput
 from ..jobs import JobKind
 from ..model import Model, ApplyBehavior
 from ..properties import Binding, Bind, bind, bind_combo
@@ -22,6 +24,7 @@ from .generation import GenerateButton, ProgressBar, QueueButton, HistoryWidget,
 from .live import LivePreviewArea
 from .switch import SwitchWidget
 from .widget import TextPromptWidget, WorkspaceSelectWidget, StyleSelectWidget
+from .settings_widgets import ExpanderButton
 from . import theme
 
 
@@ -384,6 +387,93 @@ class WorkflowParamsWidget(QWidget):
                     widget.value = value
 
 
+class WorkflowOutputsWidget(QWidget):
+    def __init__(self, parent: QWidget):
+        super().__init__(parent)
+        self._value: dict[str, TextOutput] = {}
+
+        self._scroll_area = QScrollArea(self)
+        self._scroll_area.setFrameShape(QFrame.Shape.NoFrame)
+        self._scroll_area.setHorizontalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAlwaysOff)
+
+        self.expander = ExpanderButton(_("Text Output"), self)
+        self.expander.setStyleSheet("QToolButton { border: none; }")
+        self.expander.setChecked(True)
+        self.expander.toggled.connect(self._scroll_area.setVisible)
+
+        layout = QVBoxLayout(self)
+        layout.setContentsMargins(0, 0, 0, 0)
+        layout.addWidget(self.expander)
+        layout.addWidget(self._scroll_area)
+
+    @property
+    def value(self):
+        return self._value
+
+    @value.setter
+    def value(self, value: dict[str, TextOutput]):
+        self._value = value
+        self._update()
+
+    def _update(self):
+        if len(self._value) == 0:
+            self.expander.hide()
+            self._scroll_area.hide()
+            return
+        elif not self.expander.isVisible():
+            self.expander.show()
+            self._scroll_area.show()
+
+        widget = QWidget(self._scroll_area)
+        layout = QGridLayout()
+        layout.setContentsMargins(0, 0, 0, 0)
+        layout.setColumnMinimumWidth(1, 8)
+        layout.setColumnStretch(2, 1)
+        widget.setLayout(layout)
+
+        line = 0
+        text_areas: list[QTextEdit] = []
+        for output in self._value.values():
+            label = QLabel(output.name, widget)
+            if (not output.mime or output.mime == "text/plain") and len(output.text) < 40:
+                value = QLabel(output.text, widget)
+                value.setWordWrap(True)
+                value.setMinimumWidth(40)
+                layout.addWidget(label, line, 0)
+                layout.addWidget(value, line, 2)
+                line += 1
+            else:
+                value = QTextEdit(widget)
+                value.setFrameShape(QFrame.Shape.StyledPanel)
+                value.setStyleSheet(
+                    "QTextEdit { background: transparent; border-left: 1px solid %s; padding-left: 2px; }"
+                    % theme.line
+                )
+                value.setReadOnly(True)
+                match output.mime:
+                    case "" | "text/plain":
+                        value.setPlainText(output.text)
+                    case "text/html":
+                        value.setHtml(output.text)
+                    case "text/markdown":
+                        value.setMarkdown(output.text)
+                layout.addWidget(label, line, 0, 1, 3)
+                layout.addWidget(value, line + 1, 0, 1, 3)
+                text_areas.append(value)
+                line += 2
+
+        layout.setRowStretch(line, 1)
+        widget.setFixedWidth(self._scroll_area.width() - 8)
+        self._scroll_area.setWidget(widget)
+        if self.expander.isChecked():
+            widget.show()
+
+        for w in text_areas:
+            size = ensure(w.document()).size().toSize()
+            w.setFixedHeight(max(size.height() + 2, self.fontMetrics().height() + 6))
+        widget.adjustSize()
+
+
 def popup_on_error(func):
     @wraps(func)
     def wrapper(self, *args, **kwargs):
@@ -487,6 +577,9 @@ class CustomWorkflowWidget(QWidget):
         self._progress_bar = ProgressBar(self)
         self._error_text = create_error_label(self)
 
+        self._outputs = WorkflowOutputsWidget(self)
+        self._outputs.expander.toggled.connect(self._update_layout)
+
         self._history = HistoryWidget(self)
         self._history.item_activated.connect(self.apply_result)
 
@@ -525,11 +618,16 @@ class CustomWorkflowWidget(QWidget):
         self._layout.addLayout(actions_layout)
         self._layout.addWidget(self._progress_bar)
         self._layout.addWidget(self._error_text)
-        self._layout.addWidget(self._history)
-        self._layout.addWidget(self._live_preview)
+        self._layout.addWidget(self._outputs, stretch=1)
+        self._layout.addWidget(self._history, stretch=3)
+        self._layout.addWidget(self._live_preview, stretch=5)
         self.setLayout(self._layout)
 
         self._update_ui()
+
+    def _update_layout(self):
+        stretch = 1 if self._outputs.expander.isChecked() else 0
+        self._layout.setStretchFactor(self._outputs, stretch)
 
     @property
     def model(self):
@@ -543,6 +641,7 @@ class CustomWorkflowWidget(QWidget):
             self._model_bindings = [
                 bind(model, "workspace", self._workspace_select, "value", Bind.one_way),
                 bind_combo(model.custom, "workflow_id", self._workflow_select, Bind.one_way),
+                bind(model.custom, "outputs", self._outputs, "value", Bind.one_way),
                 model.workspace_changed.connect(self._cancel_name),
                 model.custom.graph_changed.connect(self._update_current_workflow),
                 model.error_changed.connect(self._error_text.setText),

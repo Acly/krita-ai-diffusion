@@ -10,6 +10,7 @@ from PyQt5.QtCore import Qt, QObject, QUuid, QAbstractListModel, QSortFilterProx
 from PyQt5.QtCore import pyqtSignal
 
 from .api import WorkflowInput
+from .client import TextOutput, ClientOutput
 from .comfy_workflow import ComfyWorkflow, ComfyNode
 from .connection import Connection, ConnectionState
 from .image import Bounds, Image
@@ -323,6 +324,7 @@ class CustomWorkspace(QObject, ObservableProperties):
     mode = Property(CustomGenerationMode.regular, setter="_set_mode")
     is_live = Property(False, setter="toggle_live")
     has_result = Property(False)
+    outputs = Property({})
 
     workflow_id_changed = pyqtSignal(str)
     graph_changed = pyqtSignal()
@@ -331,6 +333,7 @@ class CustomWorkspace(QObject, ObservableProperties):
     is_live_changed = pyqtSignal(bool)
     result_available = pyqtSignal(Image)
     has_result_changed = pyqtSignal(bool)
+    outputs_changed = pyqtSignal(dict)
     modified = pyqtSignal(QObject, str)
 
     _live_poll_rate = 0.1
@@ -345,6 +348,7 @@ class CustomWorkspace(QObject, ObservableProperties):
         self._last_input: WorkflowInput | None = None
         self._last_result: Image | None = None
         self._last_job: JobParams | None = None
+        self._new_outputs: list[str] = []
 
         jobs.job_finished.connect(self._handle_job_finished)
         workflows.dataChanged.connect(self._update_workflow)
@@ -463,7 +467,20 @@ class CustomWorkspace(QObject, ObservableProperties):
 
         return params
 
+    def show_output(self, output: ClientOutput | None):
+        if isinstance(output, TextOutput):
+            self._new_outputs.append(output.key)
+            self.outputs[output.key] = output
+            self.outputs_changed.emit(self.outputs)
+
     def _handle_job_finished(self, job: Job):
+        to_remove = [k for k in self.outputs.keys() if k not in self._new_outputs]
+        for key in to_remove:
+            del self.outputs[key]
+        if len(to_remove) > 0:
+            self.outputs_changed.emit(self.outputs)
+        self._new_outputs.clear()
+
         if job.kind is JobKind.live_preview:
             if len(job.results) > 0:
                 self._last_result = job.results[0]

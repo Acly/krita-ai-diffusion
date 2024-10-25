@@ -1,19 +1,21 @@
 import json
 import pytest
+from copy import copy
 from pathlib import Path
 from PyQt5.QtCore import Qt
 
 from ai_diffusion.api import CustomWorkflowInput, ImageInput, WorkflowInput
-from ai_diffusion.client import Client, ClientModels, CheckpointInfo
+from ai_diffusion.client import Client, ClientModels, CheckpointInfo, TextOutput
 from ai_diffusion.connection import Connection, ConnectionState
 from ai_diffusion.comfy_workflow import ComfyNode, ComfyWorkflow, Output
 from ai_diffusion.custom_workflow import CustomWorkflow, WorkflowSource, WorkflowCollection
 from ai_diffusion.custom_workflow import SortedWorkflows, CustomWorkspace
 from ai_diffusion.custom_workflow import CustomParam, ParamKind, workflow_parameters
 from ai_diffusion.image import Image, Extent
-from ai_diffusion.jobs import JobQueue
+from ai_diffusion.jobs import JobQueue, Job, JobKind, JobParams
 from ai_diffusion.style import Style
 from ai_diffusion.resources import Arch
+from ai_diffusion.image import Bounds
 from ai_diffusion import workflow
 
 from .config import test_dir
@@ -286,6 +288,48 @@ def test_parameters():
         CustomParam(ParamKind.image_layer, "image"),
         CustomParam(ParamKind.mask_layer, "mask"),
         CustomParam(ParamKind.style, "style", "live"),
+    ]
+
+
+def test_text_output():
+    connection_workflows = {"connection1": make_dummy_graph(42)}
+    connection = create_mock_connection(connection_workflows, {})
+    workflows = WorkflowCollection(connection)
+
+    output_events = []
+
+    def on_output(outputs: dict):
+        output_events.append(copy(outputs))
+
+    text_messages = [
+        TextOutput("1", "Food", "Dumpling", "text/plain"),
+        TextOutput("2", "Drink", "Tea", "text/plain"),
+        TextOutput("3", "Time", "Moonrise", "text/plain"),
+        TextOutput("1", "Food", "Sweet Potato", "text/plain"),
+    ]
+
+    jobs = JobQueue()
+    workspace = CustomWorkspace(workflows, dummy_generate, jobs)
+    workspace.outputs_changed.connect(on_output)
+    workspace.show_output(text_messages[0])
+    workspace.show_output(text_messages[1])
+    assert workspace.outputs == {"1": text_messages[0], "2": text_messages[1]}
+
+    job_params = JobParams(Bounds(0, 0, 1, 1), "test")
+    jobs.job_finished.emit(Job("job1", JobKind.diffusion, job_params))
+
+    workspace.show_output(text_messages[3])
+    workspace.show_output(text_messages[2])
+    jobs.job_finished.emit(Job("job2", JobKind.diffusion, job_params))
+    assert workspace.outputs == {"1": text_messages[3], "3": text_messages[2]}
+
+    assert output_events == [
+        {"1": text_messages[0]},  # show_output(0)
+        {"1": text_messages[0], "2": text_messages[1]},  # show_output(1)
+        # job_finished(job1) - no changes
+        {"1": text_messages[3], "2": text_messages[1]},  # show_output(3)
+        {"1": text_messages[3], "2": text_messages[1], "3": text_messages[2]},  # show_output(2)
+        {"1": text_messages[3], "3": text_messages[2]},  # job_finished(job2)
     ]
 
 
