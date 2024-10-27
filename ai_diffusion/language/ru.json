@@ -446,6 +446,7 @@
     "Custom workflows are not available on Cloud.": "Пользовательские рабочие процессы недоступны в облаке.",
     "Delete Workflow": "Удалить рабочий процесс",
     "Start Generating": "Начать генерацию",
-    "Import workflow from file": "Импортировать рабочий процесс из файла"
+    "Import workflow from file": "Импортировать рабочий процесс из файла",
+    "Text Output": null
   }
 }

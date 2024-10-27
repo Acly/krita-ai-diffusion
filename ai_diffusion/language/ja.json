@@ -446,6 +446,7 @@
     "Custom workflows are not available on Cloud.": "カスタムワークフローはクラウドでは使用できません。",
     "Delete Workflow": "ワークフローを削除",
     "Start Generating": "生成開始",
-    "Import workflow from file": "ファイルからワークフローをインポート"
+    "Import workflow from file": "ファイルからワークフローをインポート",
+    "Text Output": null
   }
 }

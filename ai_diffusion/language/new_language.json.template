@@ -375,6 +375,7 @@
     "Target layer": null,
     "Target layer not found": null,
     "Target size": null,
+    "Text Output": null,
     "Text prompt common to all regions": null,
     "Text prompt for region": null,
     "Text prompt regions have not been set up.\\nIt is not recommended to use a single text description for tiled upscale,\\nunless it can be generally applied to all parts of the image.": null,

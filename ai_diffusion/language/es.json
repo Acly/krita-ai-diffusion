@@ -446,6 +446,7 @@
     "Custom workflows are not available on Cloud.": "Flujos de trabajo personalizados no están disponibles en la nube",
     "Delete Workflow": "Eliminar Flujo de trabajo",
     "Start Generating": "Iniciar Generación",
-    "Import workflow from file": "Importar Flujo de trabajo desde archivo"
+    "Import workflow from file": "Importar Flujo de trabajo desde archivo",
+    "Text Output": null
   }
 }

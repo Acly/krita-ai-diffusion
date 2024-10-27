@@ -446,6 +446,7 @@
     "Custom workflows are not available on Cloud.": "云端不支持自定义工作流",
     "Delete Workflow": "删除工作流",
     "Start Generating": "开始生成",
-    "Import workflow from file": "导入工作流"
+    "Import workflow from file": "导入工作流",
+    "Text Output": null
   }
 }

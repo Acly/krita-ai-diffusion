@@ -446,6 +446,7 @@
     "Custom workflows are not available on Cloud.": "os Workflows personalizados não estão disponíveis na nuvem",
     "Delete Workflow": "Deletar workflow",
     "Start Generating": "Iniciar Geração",
-    "Import workflow from file": "Importar workflow desde um arquivo"
+    "Import workflow from file": "Importar workflow desde um arquivo",
+    "Text Output": null
   }
 }

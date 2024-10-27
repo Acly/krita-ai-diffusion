@@ -9,7 +9,7 @@ from typing import NamedTuple, Sequence
 version = "1.27.0"
 
 comfy_url = "https://github.com/comfyanonymous/ComfyUI"
-comfy_version = "8ce2a1052ca03183768da0aaa483024e58b8008c"
+comfy_version = "52810907e20e11b126642f5b4917406e7043e70a"
 
 
 class CustomNode(NamedTuple):
@@ -39,7 +39,7 @@ required_custom_nodes = [
         "External Tooling Nodes",
         "comfyui-tooling-nodes",
         "https://github.com/Acly/comfyui-tooling-nodes",
-        "ef5ccfa98f035fd1d9fd00a21ac4ab75a5f73061",
+        "1d4ffe14bb411c44014c2fa57b44975c51f6e063",
         ["ETN_LoadImageBase64", "ETN_LoadMaskBase64", "ETN_SendImageWebSocket", "ETN_Translate"],
     ),
     CustomNode(

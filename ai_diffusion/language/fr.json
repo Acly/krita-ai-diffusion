@@ -446,6 +446,7 @@
     "Custom workflows are not available on Cloud.": null,
     "Delete Workflow": null,
     "Start Generating": null,
-    "Import workflow from file": null
+    "Import workflow from file": null,
+    "Text Output": null
   }
 }
