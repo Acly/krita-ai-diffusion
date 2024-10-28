@@ -415,6 +415,10 @@ class WorkflowOutputsWidget(QWidget):
         self._value = value
         self._update()
 
+    @property
+    def is_visible(self):
+        return self._scroll_area.isVisible()
+
     def _update(self):
         if len(self._value) == 0:
             self.expander.hide()
@@ -422,7 +426,7 @@ class WorkflowOutputsWidget(QWidget):
             return
         elif not self.expander.isVisible():
             self.expander.show()
-            self._scroll_area.show()
+            self._scroll_area.setVisible(self.expander.isChecked())
 
         widget = QWidget(self._scroll_area)
         layout = QGridLayout()
@@ -618,7 +622,7 @@ class CustomWorkflowWidget(QWidget):
         self._layout.addLayout(actions_layout)
         self._layout.addWidget(self._progress_bar)
         self._layout.addWidget(self._error_text)
-        self._layout.addWidget(self._outputs, stretch=1)
+        self._layout.addWidget(self._outputs, stretch=0)
         self._layout.addWidget(self._history, stretch=3)
         self._layout.addWidget(self._live_preview, stretch=5)
         self.setLayout(self._layout)
@@ -626,7 +630,7 @@ class CustomWorkflowWidget(QWidget):
         self._update_ui()
 
     def _update_layout(self):
-        stretch = 1 if self._outputs.expander.isChecked() else 0
+        stretch = 1 if self._outputs.is_visible else 0
         self._layout.setStretchFactor(self._outputs, stretch)
 
     @property
@@ -642,6 +646,7 @@ class CustomWorkflowWidget(QWidget):
                 bind(model, "workspace", self._workspace_select, "value", Bind.one_way),
                 bind_combo(model.custom, "workflow_id", self._workflow_select, Bind.one_way),
                 bind(model.custom, "outputs", self._outputs, "value", Bind.one_way),
+                model.custom.outputs_changed.connect(self._update_layout),
                 model.workspace_changed.connect(self._cancel_name),
                 model.custom.graph_changed.connect(self._update_current_workflow),
                 model.error_changed.connect(self._error_text.setText),
