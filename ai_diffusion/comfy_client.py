@@ -721,9 +721,7 @@ def _extract_message_png_image(data: memoryview):
     if len(data) > s:
         event, format = struct.unpack_from(">II", data)
         # ComfyUI server.py: BinaryEventTypes.PREVIEW_IMAGE=1
-        if event == 1:
-            if not (format == 1 or format == 2):  # JPEG=1, PNG=2
-                log.warning(f"Websocket binary data has unknwon image format '{format}'")
+        if event == 1 and format == 2:  # format: JPEG=1, PNG=2
             return Image.from_bytes(data[s:])
     return None
 
