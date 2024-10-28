@@ -330,7 +330,7 @@ class Server:
         if upgrade_comfy_dir.exists():
             raise Exception(
                 _(
-                    "Backup folder {dir} already exists! Please make sure it does not contain any valuable data, delete it and try again.",
+                    "Backup folder {dir} already exists! Please make sure it does not contain any valuable data such as checkpoints or other models you downloaded. Then delete the folder and try again.",
                     dir=upgrade_comfy_dir,
                 )
             )
