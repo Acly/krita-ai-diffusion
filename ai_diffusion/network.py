@@ -38,17 +38,18 @@ class NetworkError(Exception):
         code = reply.error()  # type: ignore (bug in PyQt5-stubs)
         url = reply.url().toString()
         status = reply.attribute(QNetworkRequest.Attribute.HttpStatusCodeAttribute)
-        try:  # extract detailed information from the payload
-            data = json.loads(reply.readAll().data())
-            error = data.get("error", "Network error")
-            return NetworkError(code, f"{error} ({reply.errorString()})", url, status, data)
-        except:
-            try:
-                text = reply.readAll().data().decode("utf-8")
-                if text:
-                    return NetworkError(code, f"{text} ({reply.errorString()})", url, status)
+        if reply.isReadable():
+            try:  # extract detailed information from the payload
+                data = json.loads(reply.readAll().data())
+                error = data.get("error", "Network error")
+                return NetworkError(code, f"{error} ({reply.errorString()})", url, status, data)
             except:
-                pass
+                try:
+                    text = reply.readAll().data().decode("utf-8")
+                    if text:
+                        return NetworkError(code, f"{text} ({reply.errorString()})", url, status)
+                except:
+                    pass
         return NetworkError(code, reply.errorString(), url, status)
 
 
@@ -91,11 +92,11 @@ class RequestManager:
         data: dict | QByteArray | None = None,
         bearer="",
         headers: Headers | None = None,
+        timeout: int | None = None,
     ):
         self._cleanup()
 
         request = QNetworkRequest(QUrl(url))
-        # request.setTransferTimeout({"GET": 30000, "POST": 0}[method]) # requires Qt 5.15 (Krita 5.2)
         request.setAttribute(QNetworkRequest.FollowRedirectsAttribute, True)
         request.setRawHeader(b"ngrok-skip-browser-warning", b"69420")
         if bearer:
@@ -103,6 +104,8 @@ class RequestManager:
         if headers:
             for key, value in headers:
                 request.setRawHeader(key.encode("utf-8"), value.encode("utf-8"))
+        if timeout is not None:
+            request.setTransferTimeout(timeout)
 
         assert method in ["GET", "POST", "PUT"]
         if method == "POST":
@@ -128,8 +131,8 @@ class RequestManager:
         self._requests[reply] = Request(url, future)
         return future
 
-    def get(self, url: str, bearer=""):
-        return self.http("GET", url, bearer=bearer)
+    def get(self, url: str, bearer="", timeout: int | None = None):
+        return self.http("GET", url, bearer=bearer, timeout=timeout)
 
     def post(self, url: str, data: dict, bearer=""):
         return self.http("POST", url, data, bearer=bearer)

@@ -56,8 +56,12 @@ class AutoUpdateWidget(QWidget):
 
         au = root.auto_update
         match au.state:
+            case UpdateState.checking:
+                self._update_status.setText(_("Checking for updates..."))
+                self._update_button.setEnabled(False)
             case UpdateState.available:
                 self._update_status.setText(_("Latest version") + f": {au.latest_version}")
+                self._update_button.setEnabled(True)
             case UpdateState.downloading:
                 self._update_status.setText(_("Downloading package..."))
                 self._update_button.setEnabled(False)
@@ -79,6 +83,7 @@ class AutoUpdateWidget(QWidget):
         return settings.auto_update and root.auto_update.state not in [
             UpdateState.latest,
             UpdateState.failed_check,
+            UpdateState.checking,
         ]
 
     def _toggle_auto_update(self):
@@ -191,6 +196,7 @@ class WelcomeWidget(QWidget):
         layout.addWidget(info, 0, Qt.AlignmentFlag.AlignRight)
         layout.addStretch()
 
+        self.update_content()
         root.auto_update.state_changed.connect(self.update_content)
 
     def update_content(self):
