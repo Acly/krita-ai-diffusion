@@ -34,7 +34,6 @@
     "Auto Preview": "ดูตัวอย่างอัตโนมัติ",
     "Automatic Context": "Context อัตโนมัติ",
     "Automatically preview the first generated result on the canvas": "ดูตัวอย่างผลลัพธ์แรกที่สร้างขึ้น ใน Canvas อัตโนมัติ",
-    "Backup folder {dir} already exists! Please make sure it does not contain any valuable data, delete it and try again.": "Folder สำรอง {dir} มีอยู่แล้ว! โปรดตรวจสอบให้แน่ใจ ว่าไม่มีข้อมูลที่สำคัญใดๆ ลบมันทิ้งแล้วลองอีกครั้ง",
     "Blur": "เบลอ",
     "Border": "ขอบ",
     "Cancel": "ยกเลิก",
@@ -447,6 +446,7 @@
     "Delete Workflow": null,
     "Start Generating": null,
     "Import workflow from file": null,
-    "Text Output": null
+    "Text Output": null,
+    "Backup folder {dir} already exists! Please make sure it does not contain any valuable data such as checkpoints or other models you downloaded. Then delete the folder and try again.": "Folder สำรอง {dir} มีอยู่แล้ว! โปรดตรวจสอบให้แน่ใจ ว่าไม่มีข้อมูลที่สำคัญใดๆ ลบมันทิ้งแล้วลองอีกครั้ง"
   }
 }

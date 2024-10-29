@@ -35,7 +35,6 @@
     "Automatic": "자동",
     "Automatic Context": "자동 컨텍스트",
     "Automatically preview the first generated result on the canvas": "캔버스에 생성된 첫 번째 결과를 자동으로 미리보기",
-    "Backup folder {dir} already exists! Please make sure it does not contain any valuable data, delete it and try again.": "백업 폴더 {dir}이(가) 이미 존재합니다! 중요한 데이터가 없는지 확인하고 삭제한 후 다시 시도하세요.",
     "Basic": "기본",
     "Batches": "배치",
     "Blur": "흐림",
@@ -447,6 +446,7 @@
     "Delete Workflow": "워크플로 삭제",
     "Start Generating": "생성 시작",
     "Import workflow from file": "파일에서 워크플로 가져오기",
-    "Text Output": null
+    "Text Output": null,
+    "Backup folder {dir} already exists! Please make sure it does not contain any valuable data such as checkpoints or other models you downloaded. Then delete the folder and try again.": "백업 폴더 {dir}이(가) 이미 존재합니다! 중요한 데이터가 없는지 확인하고 삭제한 후 다시 시도하세요."
   }
 }

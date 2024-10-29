@@ -36,7 +36,6 @@
     "Automatic": "自動",
     "Automatic Context": "自動コンテキスト",
     "Automatically preview the first generated result on the canvas": "生成された最初の結果をキャンバス上に自動プレビュー",
-    "Backup folder {dir} already exists! Please make sure it does not contain any valuable data, delete it and try again.": "バックアップ・フォルダ {dir} が既に存在しています。重要なデータが含まれていないことを確認してから削除し、もう一度試して下さい。",
     "Basic": "基本",
     "Batches": "バッチ数",
     "Blur": "ぼかし",
@@ -447,6 +446,7 @@
     "Delete Workflow": "ワークフローを削除",
     "Start Generating": "生成開始",
     "Import workflow from file": "ファイルからワークフローをインポート",
-    "Text Output": null
+    "Text Output": null,
+    "Backup folder {dir} already exists! Please make sure it does not contain any valuable data such as checkpoints or other models you downloaded. Then delete the folder and try again.": "バックアップ・フォルダ {dir} が既に存在しています。重要なデータが含まれていないことを確認してから削除し、もう一度試して下さい。"
   }
 }

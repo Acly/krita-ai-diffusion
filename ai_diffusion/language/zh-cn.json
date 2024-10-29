@@ -35,7 +35,6 @@
     "Automatic": "自动模式",
     "Automatic Context": "自动内容",
     "Automatically preview the first generated result on the canvas": "自动在画布上预览第一个生成的结果",
-    "Backup folder {dir} already exists! Please make sure it does not contain any valuable data, delete it and try again.": "备份文件夹 {dir} 已存在！请确保其中没有任何重要数据，删除它后再试一次。",
     "Basic": "基本限制",
     "Batches": "批量",
     "Blur": "模糊",
@@ -447,6 +446,7 @@
     "Delete Workflow": "删除工作流",
     "Start Generating": "开始生成",
     "Import workflow from file": "导入工作流",
-    "Text Output": null
+    "Text Output": null,
+    "Backup folder {dir} already exists! Please make sure it does not contain any valuable data such as checkpoints or other models you downloaded. Then delete the folder and try again.": "备份文件夹 {dir} 已存在！请确保其中没有任何重要数据，删除它后再试一次。"
   }
 }

@@ -35,7 +35,6 @@
     "Automatic": "Автоматический",
     "Automatic Context": "Автоматический регион",
     "Automatically preview the first generated result on the canvas": "Автопросмотр первого сгенерированного результата на холсте",
-    "Backup folder {dir} already exists! Please make sure it does not contain any valuable data, delete it and try again.": "Папка резервного копирования {dir} уже существует! Пожалуйста, убедитесь, что она не содержит никаких ценных данных, удалите её и повторите попытку.",
     "Basic": "Базовый",
     "Batches": "Партия",
     "Blur": "Размытие",
@@ -447,6 +446,7 @@
     "Delete Workflow": "Удалить рабочий процесс",
     "Start Generating": "Начать генерацию",
     "Import workflow from file": "Импортировать рабочий процесс из файла",
-    "Text Output": null
+    "Text Output": null,
+    "Backup folder {dir} already exists! Please make sure it does not contain any valuable data such as checkpoints or other models you downloaded. Then delete the folder and try again.": "Папка резервного копирования {dir} уже существует! Пожалуйста, убедитесь, что она не содержит никаких ценных данных, удалите её и повторите попытку."
   }
 }

@@ -35,7 +35,6 @@
     "Automatic": "Automático",
     "Automatic Context": "Contexto Automático",
     "Automatically preview the first generated result on the canvas": "Pré-visualizar Automaticamente o primeiro resultado gerado na tela",
-    "Backup folder {dir} already exists! Please make sure it does not contain any valuable data, delete it and try again.": "A localização de backup {dir} já existe! Por favor, tenha certeza que não contém nenhum tipo de dados valiosos, apague-a tente de novo.",
     "Basic": "Básico",
     "Batches": "Lotes",
     "Blur": "desenfocar",
@@ -447,6 +446,7 @@
     "Delete Workflow": "Deletar workflow",
     "Start Generating": "Iniciar Geração",
     "Import workflow from file": "Importar workflow desde um arquivo",
-    "Text Output": null
+    "Text Output": null,
+    "Backup folder {dir} already exists! Please make sure it does not contain any valuable data such as checkpoints or other models you downloaded. Then delete the folder and try again.": "A localização de backup {dir} já existe! Por favor, tenha certeza que não contém nenhum tipo de dados valiosos, apague-a tente de novo."
   }
 }
