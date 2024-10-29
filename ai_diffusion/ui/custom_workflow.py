@@ -353,7 +353,7 @@ def _create_param_widget(param: CustomParam, parent: QWidget) -> CustomParamWidg
 class WorkflowParamsWidget(QWidget):
     value_changed = pyqtSignal()
 
-    def __init__(self, params: list[CustomParam], parent: QWidget):
+    def __init__(self, params: list[CustomParam], parent: QWidget | None = None):
         super().__init__(parent)
         self._widgets: dict[str, CustomParamWidget] = {}
 
@@ -553,7 +553,11 @@ class CustomWorkflowWidget(QWidget):
             self._workflow_edit_widgets, theme.icon("cancel"), _("Cancel"), self._cancel_name
         )
 
-        self._params_widget = WorkflowParamsWidget([], self)
+        self._params_widget: WorkflowParamsWidget | None = None
+        self._params_scroll = QScrollArea(self)
+        self._params_scroll.setWidgetResizable(True)
+        self._params_scroll.setFrameShape(QFrame.Shape.NoFrame)
+        self._params_scroll.setHorizontalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAlwaysOff)
 
         self._generate_button = GenerateButton(JobKind.diffusion, self)
         self._generate_button.clicked.connect(self._generate)
@@ -611,7 +615,7 @@ class CustomWorkflowWidget(QWidget):
         header_layout.addWidget(self._workflow_select_widgets)
         header_layout.addWidget(self._workflow_edit_widgets)
         self._layout.addLayout(header_layout)
-        self._layout.addWidget(self._params_widget)
+        self._layout.addWidget(self._params_scroll)
         actions_layout = QHBoxLayout()
         actions_layout.setSpacing(0)
         actions_layout.addWidget(self._generate_button)
@@ -713,17 +717,28 @@ class CustomWorkflowWidget(QWidget):
             self.model.custom.workflow.source is WorkflowSource.local
         )
 
-        self._params_widget.deleteLater()
-        self._params_widget = WorkflowParamsWidget(self.model.custom.metadata, self)
-        self._params_widget.value = self.model.custom.params
-        self._layout.insertWidget(1, self._params_widget)
-        self._params_widget.value_changed.connect(self._change_params)
+        if self._params_widget:
+            self._params_scroll.setWidget(None)
+            self._params_widget.deleteLater()
+            self._params_widget = None
+        if len(self.model.custom.metadata) > 0:
+            self._params_widget = WorkflowParamsWidget(self.model.custom.metadata, self)
+            self._params_widget.value = self.model.custom.params
+            self._params_widget.value_changed.connect(self._change_params)
+
+            self._params_scroll.setWidget(self._params_widget)
+            widget_size = self._params_scroll.viewportSizeHint().height() + 4
+            params_size = min(self.height() // 2, widget_size)
+            self._params_scroll.setFixedHeight(params_size)
+        else:
+            self._params_scroll.setFixedHeight(0)
 
     def _change_workflow(self):
         self.model.custom.workflow_id = self._workflow_select.currentData()
 
     def _change_params(self):
-        self.model.custom.params = self._params_widget.value
+        if self._params_widget:
+            self.model.custom.params = self._params_widget.value
 
     def apply_result(self, item: QListWidgetItem):
         job_id, index = self._history.item_info(item)
