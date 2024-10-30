@@ -1,4 +1,5 @@
-from PyQt5.QtCore import Qt, QMetaObject
+from PyQt5.QtCore import Qt, QMetaObject, QEvent, pyqtSignal
+from PyQt5.QtGui import QCursor
 from PyQt5.QtWidgets import (
     QWidget,
     QVBoxLayout,
@@ -22,6 +23,82 @@ from .widget import WorkspaceSelectWidget, StyleSelectWidget, StrengthWidget, Qu
 from .widget import GenerateButton
 from .settings_widgets import WarningIcon
 from .switch import SwitchWidget
+from . import theme
+
+
+class FactorWidget(QWidget):
+    value_changed = pyqtSignal(float)
+
+    def __init__(self, parent: QWidget | None):
+        super().__init__(parent)
+        self._value = 1.0
+
+        self.slider = QSlider(Qt.Orientation.Horizontal, self)
+        self.slider.setMinimum(100)
+        self.slider.setMaximum(400)
+        self.slider.setTickInterval(50)
+        self.slider.setTickPosition(QSlider.TickPosition.TicksBelow)
+        self.slider.setSingleStep(50)
+        self.slider.setPageStep(50)
+        self.slider.valueChanged.connect(self.change_factor_slider)
+
+        self.input = QDoubleSpinBox(self)
+        self.input.setMinimum(1.0)
+        self.input.setMaximum(4.0)
+        self.input.setSingleStep(0.5)
+        self.input.setPrefix(_("Scale") + ": ")
+        self.input.setSuffix("x")
+        self.input.setDecimals(2)
+        self.input.valueChanged.connect(self.change_factor)
+
+        self.target_label = QLabel(self)
+        self.target_label.setStyleSheet(f"color: {theme.grey};")
+
+        value_layout = QHBoxLayout()
+        value_layout.addWidget(self.slider)
+        value_layout.addWidget(self.input)
+        layout = QVBoxLayout(self)
+        layout.addLayout(value_layout)
+        layout.addWidget(self.target_label, alignment=Qt.AlignmentFlag.AlignRight)
+
+    @property
+    def value(self):
+        return self._value
+
+    @value.setter
+    def value(self, value: float):
+        if value != self._value:
+            self._value = value
+            with SignalBlocker(self.input), SignalBlocker(self.slider):
+                self.slider.setValue(int(value * 100))
+                self.input.setValue(value)
+            self.update_target_extent()
+            self.value_changed.emit(value)
+
+    def change_factor_slider(self, value: int | float):
+        rounded = round(value / 50) * 50
+        if rounded != value:
+            self.slider.setValue(rounded)
+        else:
+            self.value = value / 100
+
+    def change_factor(self, value: float):
+        self.value = value
+
+    def update_target_extent(self):
+        e = root.active_model.upscale.target_extent
+        if self.slider.isSliderDown() or self.rect().contains(self.mapFromGlobal(QCursor.pos())):
+            self.target_label.setText(_("Target size") + f": {e.width} x {e.height}")
+        else:
+            self.target_label.setText("")
+
+    def enterEvent(self, a0: QEvent | None):
+        self.update_target_extent()
+        super().enterEvent(a0)
+
+    def leaveEvent(self, a0: QEvent | None):
+        self.update_target_extent()
+        super().leaveEvent(a0)
 
 
 class UpscaleWidget(QWidget):
@@ -45,32 +122,8 @@ class UpscaleWidget(QWidget):
         model_layout.addWidget(self.model_select)
         layout.addLayout(model_layout)
 
-        self.factor_slider = QSlider(Qt.Orientation.Horizontal, self)
-        self.factor_slider.setMinimum(100)
-        self.factor_slider.setMaximum(400)
-        self.factor_slider.setTickInterval(50)
-        self.factor_slider.setTickPosition(QSlider.TickPosition.TicksBelow)
-        self.factor_slider.setSingleStep(50)
-        self.factor_slider.setPageStep(50)
-        self.factor_slider.valueChanged.connect(self.change_factor_slider)
-
-        self.factor_input = QDoubleSpinBox(self)
-        self.factor_input.setMinimum(1.0)
-        self.factor_input.setMaximum(4.0)
-        self.factor_input.setSingleStep(0.5)
-        self.factor_input.setPrefix(_("Scale") + ": ")
-        self.factor_input.setSuffix("x")
-        self.factor_input.setDecimals(2)
-        self.factor_input.valueChanged.connect(self.change_factor)
-
-        factor_layout = QHBoxLayout()
-        factor_layout.addWidget(self.factor_slider)
-        factor_layout.addWidget(self.factor_input)
-        layout.addLayout(factor_layout)
-
-        self.target_label = QLabel(_("Target size") + ":", self)
-        layout.addWidget(self.target_label, alignment=Qt.AlignmentFlag.AlignRight)
-        layout.addSpacing(6)
+        self.factor_widget = FactorWidget(self)
+        layout.addWidget(self.factor_widget)
 
         self.refinement_checkbox = QGroupBox(_("Refine upscaled image"), self)
         self.refinement_checkbox.setCheckable(True)
@@ -108,7 +161,7 @@ class UpscaleWidget(QWidget):
         group_layout.addLayout(prompt_layout)
         self.refinement_checkbox.setLayout(group_layout)
         layout.addWidget(self.refinement_checkbox)
-        self.factor_input.setMinimumWidth(self.strength_slider._input.width() + 10)
+        self.factor_widget.input.setMinimumWidth(self.strength_slider._input.width() + 10)
 
         self.upscale_button = GenerateButton(JobKind.upscaling, self)
         self.upscale_button.operation = _("Upscale")
@@ -149,8 +202,7 @@ class UpscaleWidget(QWidget):
             self._model_bindings = [
                 bind(model, "workspace", self.workspace_select, "value", Bind.one_way),
                 bind_combo(model.upscale, "upscaler", self.model_select),
-                model.upscale.factor_changed.connect(self.update_factor),
-                model.upscale.target_extent_changed.connect(self.update_target_extent),
+                bind(model.upscale, "factor", self.factor_widget, "value"),
                 bind_toggle(model.upscale, "use_diffusion", self.refinement_checkbox),
                 bind(model, "style", self.style_select, "value"),
                 bind(model.upscale, "strength", self.strength_slider, "value"),
@@ -168,8 +220,6 @@ class UpscaleWidget(QWidget):
             ]
             self.upscale_button.model = model
             self.queue_button.model = model
-            self.update_factor(model.upscale.factor)
-            self.update_target_extent()
             self._update_prompt()
             self._update_unblur_enabled()
             self.update_progress()
@@ -198,30 +248,11 @@ class UpscaleWidget(QWidget):
                 selected = self.model_select.findData(self.model.upscale.upscaler)
                 self.model_select.setCurrentIndex(max(selected, 0))
 
-    def update_factor(self, value: float):
-        with SignalBlocker(self.factor_input), SignalBlocker(self.factor_slider):
-            self.factor_slider.setValue(int(value * 100))
-            self.factor_input.setValue(value)
-
     def update_progress(self):
         self.progress_bar.setValue(int(self.model.progress * 100))
 
     def upscale(self):
         self.model.upscale_image()
-
-    def change_factor_slider(self, value: int | float):
-        rounded = round(value / 50) * 50
-        if rounded != value:
-            self.factor_slider.setValue(rounded)
-        else:
-            self.model.upscale.factor = value / 100
-
-    def change_factor(self, value: float):
-        self.model.upscale.factor = value
-
-    def update_target_extent(self):
-        e = self.model.upscale.target_extent
-        self.target_label.setText(_("Target size") + f": {e.width} x {e.height}")
 
     def _update_unblur_enabled(self):
         has_unblur = False
