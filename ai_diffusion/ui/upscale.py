@@ -156,6 +156,7 @@ class UpscaleWidget(QWidget):
                 bind(model.upscale, "strength", self.strength_slider, "value"),
                 bind_combo(model.upscale, "unblur_strength", self.unblur_combo),
                 bind_toggle(model.upscale, "use_prompt", self.use_prompt_switch),
+                bind(model.upscale, "can_generate", self.upscale_button, "enabled", Bind.one_way),
                 model.upscale.use_prompt_changed.connect(self._update_prompt),
                 model.regions.modified.connect(self._update_prompt),
                 model.regions.added.connect(self._update_prompt),

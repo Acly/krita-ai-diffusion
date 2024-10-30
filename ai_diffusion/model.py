@@ -278,6 +278,7 @@ class Model(QObject, ObservableProperties):
         eventloop.run(_report_errors(self, self._enqueue_job(job, inputs)))
 
         self._doc.resize(job.params.bounds.extent)
+        self.upscale.can_generate = False
         self.upscale.target_extent_changed.emit(self.upscale.target_extent)
 
     def estimate_cost(self, kind=JobKind.diffusion):
@@ -471,18 +472,26 @@ class Model(QObject, ObservableProperties):
                 job.control.layer_id = self.add_control_layer(job, message.result).id
             elif job.kind is JobKind.upscaling:
                 self.add_upscale_layer(job)
-            self.progress = 1
-            self.jobs.notify_finished(job)
-            if job.kind is not JobKind.diffusion:
-                self.jobs.remove(job)
-            elif settings.auto_preview and self._layer is None and job.id:
+            self._finish_job(job, message.event)
+            show_preview = settings.auto_preview and self._layer is None
+            if job.id and job.kind is JobKind.diffusion and show_preview:
                 self.jobs.select(job.id, 0)
         elif message.event is ClientEvent.interrupted:
+            self._finish_job(job, message.event)
+        elif message.event is ClientEvent.error:
+            self._finish_job(job, message.event)
+            self.report_error(_("Server execution error") + f": {message.error}")
+
+    def _finish_job(self, job: Job, event: ClientEvent):
+        if job.kind is JobKind.upscaling:
+            self.upscale.can_generate = True
+
+        if event is ClientEvent.finished:
+            self.jobs.notify_finished(job)
+            self.progress = 1
+        else:
             self.jobs.notify_cancelled(job)
             self.progress = 0
-        elif message.event is ClientEvent.error:
-            self.jobs.notify_cancelled(job)
-            self.report_error(_("Server execution error") + f": {message.error}")
 
     def update_preview(self):
         if selection := self.jobs.selection:
@@ -755,6 +764,7 @@ class UpscaleWorkspace(QObject, ObservableProperties):
     strength = Property(0.3, persist=True)
     unblur_strength = Property(1, persist=True)
     use_prompt = Property(False, persist=True)
+    can_generate = Property(True)
 
     upscaler_changed = pyqtSignal(str)
     factor_changed = pyqtSignal(float)
@@ -763,6 +773,7 @@ class UpscaleWorkspace(QObject, ObservableProperties):
     unblur_strength_changed = pyqtSignal(int)
     use_prompt_changed = pyqtSignal(bool)
     target_extent_changed = pyqtSignal(Extent)
+    can_generate_changed = pyqtSignal(bool)
     modified = pyqtSignal(QObject, str)
 
     _model: Model

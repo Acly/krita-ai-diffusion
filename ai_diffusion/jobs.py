@@ -187,6 +187,9 @@ class JobQueue(QObject):
         self._cancel_earlier_jobs(job)
         self.count_changed.emit()
 
+        if job.kind is not JobKind.diffusion:
+            self.remove(job)
+
     def notify_cancelled(self, job: Job):
         job.state = JobState.cancelled
         self._cancel_earlier_jobs(job)
