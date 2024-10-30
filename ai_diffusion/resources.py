@@ -56,7 +56,7 @@ optional_custom_nodes = [
         "GGUF",
         "ComfyUI-GGUF",
         "https://github.com/city96/ComfyUI-GGUF",
-        "68ad5fb2149ead7e4978f83f14e045ecd812a394",
+        "6561064dcfb3dfa638e3739506acfd34924e1cc5",
         ["UnetLoaderGGUF", "DualCLIPLoaderGGUF"],
     )
 ]
