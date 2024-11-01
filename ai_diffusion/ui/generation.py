@@ -16,7 +16,7 @@ from ..workflow import InpaintMode, FillMode
 from ..localization import translate as _
 from ..util import ensure, flatten
 from .widget import WorkspaceSelectWidget, StyleSelectWidget, StrengthWidget, QueueButton
-from .widget import GenerateButton, create_wide_tool_button
+from .widget import GenerateButton, ErrorBox, create_wide_tool_button
 from .region import RegionPromptWidget
 from . import theme
 
@@ -559,14 +559,6 @@ class ProgressBar(QProgressBar):
             self.setValue(min(99, self.value() + 2))
 
 
-def create_error_label(parent: QWidget):
-    label = QLabel(parent)
-    label.setStyleSheet("font-weight: bold; color: red;")
-    label.setWordWrap(True)
-    label.setVisible(False)
-    return label
-
-
 class GenerationWidget(QWidget):
     _model: Model
     _model_bindings: list[QMetaObject.Connection | Binding]
@@ -641,8 +633,8 @@ class GenerationWidget(QWidget):
         self.progress_bar = ProgressBar(self)
         layout.addWidget(self.progress_bar)
 
-        self.error_text = create_error_label(self)
-        layout.addWidget(self.error_text)
+        self.error_box = ErrorBox(self)
+        layout.addWidget(self.error_box)
 
         self.history = HistoryWidget(self)
         self.history.item_activated.connect(self.apply_result)
@@ -663,6 +655,7 @@ class GenerationWidget(QWidget):
                 bind(model, "workspace", self.workspace_select, "value", Bind.one_way),
                 bind(model, "style", self.style_select, "value"),
                 bind(model, "strength", self.strength_slider, "value"),
+                bind(model, "error", self.error_box, "text", Bind.one_way),
                 bind_toggle(model, "region_only", self.region_mask_button),
                 model.inpaint.mode_changed.connect(self.update_generate_button),
                 model.strength_changed.connect(self.update_generate_button),
@@ -670,8 +663,6 @@ class GenerationWidget(QWidget):
                 model.document.layers.active_changed.connect(self.update_generate_button),
                 model.regions.active_changed.connect(self.update_generate_button),
                 model.region_only_changed.connect(self.update_generate_button),
-                model.error_changed.connect(self.error_text.setText),
-                model.has_error_changed.connect(self.error_text.setVisible),
                 self.add_control_button.clicked.connect(model.regions.add_control),
                 self.add_region_button.clicked.connect(model.regions.create_region_group),
                 self.region_prompt.activated.connect(model.generate),

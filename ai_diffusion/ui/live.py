@@ -19,7 +19,7 @@ from ..root import root
 from .control import ControlListWidget
 from .region import ActiveRegionWidget, PromptHeader
 from .widget import WorkspaceSelectWidget, StyleSelectWidget, StrengthWidget
-from .widget import create_wide_tool_button
+from .widget import ErrorBox, create_wide_tool_button
 from . import theme
 
 
@@ -153,11 +153,8 @@ class LiveWidget(QWidget):
         layout.addLayout(cond_layout)
         layout.addWidget(self.control_list)
 
-        self.error_text = QLabel(self)
-        self.error_text.setStyleSheet("font-weight: bold; color: red;")
-        self.error_text.setWordWrap(True)
-        self.error_text.setVisible(False)
-        layout.addWidget(self.error_text)
+        self.error_box = ErrorBox(self)
+        layout.addWidget(self.error_box)
 
         self.progress_bar = QProgressBar(self)
         self.progress_bar.setTextVisible(True)
@@ -193,6 +190,7 @@ class LiveWidget(QWidget):
                 bind(model, "style", self.style_select, "value"),
                 bind(model.live, "strength", self.strength_slider, "value"),
                 bind(model, "seed", self.seed_input, "value"),
+                bind(model, "error", self.error_box, "text", Bind.one_way),
                 model.live.is_active_changed.connect(self.update_is_active),
                 model.live.is_recording_changed.connect(self.update_is_recording),
                 model.live.has_result_changed.connect(self.apply_button.setEnabled),
@@ -200,8 +198,6 @@ class LiveWidget(QWidget):
                 self.add_region_button.clicked.connect(model.regions.create_region_layer),
                 self.add_control_button.clicked.connect(model.regions.add_control),
                 self.random_seed_button.clicked.connect(model.generate_seed),
-                model.error_changed.connect(self.error_text.setText),
-                model.has_error_changed.connect(self.error_text.setVisible),
                 model.progress_changed.connect(self.update_progress),
                 model.live.result_available.connect(self.show_result),
                 model.regions.active_changed.connect(self.update_region),
