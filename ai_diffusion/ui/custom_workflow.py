@@ -20,10 +20,10 @@ from ..root import root
 from ..settings import settings
 from ..localization import translate as _
 from ..util import ensure, clamp, base_type_match
-from .generation import GenerateButton, ProgressBar, QueueButton, HistoryWidget, create_error_label
+from .generation import GenerateButton, ProgressBar, QueueButton, HistoryWidget
 from .live import LivePreviewArea
 from .switch import SwitchWidget
-from .widget import TextPromptWidget, WorkspaceSelectWidget, StyleSelectWidget
+from .widget import TextPromptWidget, WorkspaceSelectWidget, StyleSelectWidget, ErrorBox
 from .settings_widgets import ExpanderButton
 from . import theme
 
@@ -583,7 +583,7 @@ class CustomWorkflowWidget(QWidget):
         self._queue_button.setFixedHeight(self._generate_button.height() - 2)
 
         self._progress_bar = ProgressBar(self)
-        self._error_text = create_error_label(self)
+        self._error_box = ErrorBox(self)
 
         self._outputs = WorkflowOutputsWidget(self)
         self._outputs.expander.toggled.connect(self._update_layout)
@@ -625,7 +625,7 @@ class CustomWorkflowWidget(QWidget):
         actions_layout.addWidget(self._queue_button)
         self._layout.addLayout(actions_layout)
         self._layout.addWidget(self._progress_bar)
-        self._layout.addWidget(self._error_text)
+        self._layout.addWidget(self._error_box)
         self._layout.addWidget(self._outputs, stretch=0)
         self._layout.addWidget(self._history, stretch=3)
         self._layout.addWidget(self._live_preview, stretch=5)
@@ -648,13 +648,12 @@ class CustomWorkflowWidget(QWidget):
             self._model = model
             self._model_bindings = [
                 bind(model, "workspace", self._workspace_select, "value", Bind.one_way),
+                bind(model, "error", self._error_box, "text", Bind.one_way),
                 bind_combo(model.custom, "workflow_id", self._workflow_select, Bind.one_way),
                 bind(model.custom, "outputs", self._outputs, "value", Bind.one_way),
                 model.custom.outputs_changed.connect(self._update_layout),
                 model.workspace_changed.connect(self._cancel_name),
                 model.custom.graph_changed.connect(self._update_current_workflow),
-                model.error_changed.connect(self._error_text.setText),
-                model.has_error_changed.connect(self._error_text.setVisible),
                 model.custom.mode_changed.connect(self._update_ui),
                 model.custom.is_live_changed.connect(self._update_ui),
                 model.custom.result_available.connect(self._live_preview.show_image),

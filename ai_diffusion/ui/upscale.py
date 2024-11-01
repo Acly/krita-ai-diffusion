@@ -20,7 +20,7 @@ from ..localization import translate as _
 from ..root import root
 from .theme import SignalBlocker, set_text_clipped
 from .widget import WorkspaceSelectWidget, StyleSelectWidget, StrengthWidget, QueueButton
-from .widget import GenerateButton
+from .widget import GenerateButton, ErrorBox
 from .settings_widgets import WarningIcon
 from .switch import SwitchWidget
 from . import theme
@@ -182,11 +182,8 @@ class UpscaleWidget(QWidget):
         self.progress_bar.setFixedHeight(6)
         layout.addWidget(self.progress_bar)
 
-        self.error_text = QLabel(self)
-        self.error_text.setStyleSheet("font-weight: bold; color: red;")
-        self.error_text.setWordWrap(True)
-        self.error_text.setVisible(False)
-        layout.addWidget(self.error_text)
+        self.error_box = ErrorBox(self)
+        layout.addWidget(self.error_box)
 
         layout.addStretch()
 
@@ -209,13 +206,12 @@ class UpscaleWidget(QWidget):
                 bind_combo(model.upscale, "unblur_strength", self.unblur_combo),
                 bind_toggle(model.upscale, "use_prompt", self.use_prompt_switch),
                 bind(model.upscale, "can_generate", self.upscale_button, "enabled", Bind.one_way),
+                bind(model, "error", self.error_box, "text", Bind.one_way),
                 model.upscale.use_prompt_changed.connect(self._update_prompt),
                 model.regions.modified.connect(self._update_prompt),
                 model.regions.added.connect(self._update_prompt),
                 model.regions.removed.connect(self._update_prompt),
                 model.progress_changed.connect(self.update_progress),
-                model.error_changed.connect(self.error_text.setText),
-                model.has_error_changed.connect(self.error_text.setVisible),
                 model.style_changed.connect(self._update_unblur_enabled),
             ]
             self.upscale_button.model = model

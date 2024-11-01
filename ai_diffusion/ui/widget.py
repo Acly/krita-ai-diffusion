@@ -24,6 +24,7 @@ from PyQt5.QtWidgets import (
     QFrame,
 )
 from PyQt5.QtGui import (
+    QGuiApplication,
     QFontMetrics,
     QKeyEvent,
     QMouseEvent,
@@ -35,6 +36,7 @@ from PyQt5.QtGui import (
     QKeySequence,
 )
 from PyQt5.QtCore import QObject, Qt, QMetaObject, QSize, pyqtSignal, QEvent
+from krita import Krita
 
 from ..style import Style, Styles
 from ..root import root
@@ -794,6 +796,60 @@ class GenerateButton(QPushButton):
             style.drawItemText(painter, cost_rect, vcenter, self.palette(), True, str(self._cost))
             cost_rect = cost_rect.adjusted(cost_width + 4, 0, 0, 0)
             style.drawItemPixmap(painter, cost_rect, vcenter, pixmap)
+
+
+class ErrorBox(QFrame):
+    def __init__(self, parent=None):
+        super().__init__(parent)
+        self._original_error = ""
+
+        self.setObjectName("errorBox")
+        self.setFrameStyle(QFrame.Shape.StyledPanel)
+        self.setStyleSheet("QFrame#errorBox { border: 1px solid #a01020; }")
+
+        self._label = QLabel(self)
+        self._label.setStyleSheet(f"color: {theme.red};")
+        self._label.setWordWrap(True)
+
+        self._copy_button = QToolButton(self)
+        self._copy_button.setToolButtonStyle(Qt.ToolButtonStyle.ToolButtonIconOnly)
+        self._copy_button.setIcon(Krita.instance().icon("edit-copy"))
+        self._copy_button.setToolTip(_("Copy error message to clipboard"))
+        self._copy_button.setAutoRaise(True)
+        self._copy_button.clicked.connect(self.copy_error)
+
+        layout = QHBoxLayout(self)
+        layout.setContentsMargins(2, 2, 2, 2)
+        layout.addWidget(self._label)
+        layout.addWidget(self._copy_button)
+
+    @property
+    def text(self):
+        return self._label.text()
+
+    @text.setter
+    def text(self, text: str):
+        self._original_error = text
+        if text == "":
+            self.hide()
+        else:
+            if text.count("\n") > 3:
+                lines = text.split("\n")
+                n = 1
+                text = lines[-n]
+                while n < len(lines) and text.strip() == "":
+                    n += 1
+                    text = lines[-n]
+            if len(text) > 60 * 3:
+                text = text[: 60 * 2] + " [...] " + text[-60:]
+            self._label.setText(text)
+            if text != self._original_error:
+                self._label.setToolTip(self._original_error)
+            self.show()
+
+    def copy_error(self):
+        if clipboard := QGuiApplication.clipboard():
+            clipboard.setText(self._original_error)
 
 
 def create_wide_tool_button(icon_name: str, text: str, parent=None):
