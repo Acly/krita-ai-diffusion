@@ -97,9 +97,10 @@ class Server:
         ]
         self.missing_resources += missing_nodes
 
-        self.missing_resources += find_missing(self.comfy_dir, resources.required_models, Arch.all)
-        missing_sd15 = find_missing(self.comfy_dir, resources.required_models, Arch.sd15)
-        missing_sdxl = find_missing(self.comfy_dir, resources.required_models, Arch.sdxl)
+        model_folders = [self.path, self.comfy_dir]
+        self.missing_resources += find_missing(model_folders, resources.required_models, Arch.all)
+        missing_sd15 = find_missing(model_folders, resources.required_models, Arch.sd15)
+        missing_sdxl = find_missing(model_folders, resources.required_models, Arch.sdxl)
         if len(self.missing_resources) > 0 or (len(missing_sd15) > 0 and len(missing_sdxl) > 0):
             self.state = ServerState.missing_resources
         else:
@@ -107,9 +108,9 @@ class Server:
         self.missing_resources += missing_sd15 + missing_sdxl
 
         # Optional resources
-        self.missing_resources += find_missing(self.comfy_dir, resources.default_checkpoints)
-        self.missing_resources += find_missing(self.comfy_dir, resources.upscale_models)
-        self.missing_resources += find_missing(self.comfy_dir, resources.optional_models)
+        self.missing_resources += find_missing(model_folders, resources.default_checkpoints)
+        self.missing_resources += find_missing(model_folders, resources.upscale_models)
+        self.missing_resources += find_missing(model_folders, resources.optional_models)
 
     async def _install(self, cb: InternalCB):
         self.state = ServerState.installing
@@ -197,6 +198,7 @@ class Server:
         requirements_txt = temp_comfy_dir / "requirements.txt"
         await _execute_process("ComfyUI", self._pip_install("-r", requirements_txt), self.path, cb)
 
+        _configure_extra_model_paths(temp_comfy_dir)
         await rename_extracted_folder("ComfyUI", comfy_dir, resources.comfy_version)
         self.comfy_dir = comfy_dir
         cb("Installing ComfyUI", "Finished installing ComfyUI")
@@ -297,10 +299,10 @@ class Server:
             )
             to_install = (r for r in all_models if r.name in packages)
             for resource in to_install:
-                if not resource.exists_in(self.comfy_dir):
+                if not resource.exists_in(self.path) and not resource.exists_in(self.comfy_dir):
                     await self._install_requirements(resource.requirements, network, cb)
                     for filepath, url in resource.files.items():
-                        target_file = self.comfy_dir / filepath
+                        target_file = self.path / filepath
                         target_file.parent.mkdir(parents=True, exist_ok=True)
                         await _download_cached(resource.name, network, url, target_file, cb)
         except Exception as e:
@@ -324,7 +326,6 @@ class Server:
         keep_paths = [
             Path("models"),
             Path("custom_nodes", "comfyui_controlnet_aux", "ckpts"),
-            Path("extra_model_paths.yaml"),
         ]
         info(f"Backing up {comfy_dir} to {upgrade_comfy_dir}")
         if upgrade_comfy_dir.exists():
@@ -347,6 +348,7 @@ class Server:
             raise e
 
         try:
+            _upgrade_models_dir(upgrade_comfy_dir / "models", self.path / "models")
             for path in keep_paths:
                 src = upgrade_comfy_dir / path
                 dst = comfy_dir / path
@@ -354,6 +356,7 @@ class Server:
                     info(f"Migrating {dst}")
                     safe_remove_dir(dst)  # Remove placeholder
                     shutil.move(src, dst)
+            _upgrade_extra_model_paths(upgrade_comfy_dir, comfy_dir)
             self.check_install()
 
             # Clean up temporary directory
@@ -601,9 +604,11 @@ def _decode_utf8_log_error(b: bytes):
         return result
 
 
-def find_missing(folder: Path, resources: list[ModelResource], ver: Arch | None = None):
+def find_missing(folders: list[Path], resources: list[ModelResource], ver: Arch | None = None):
     return [
-        res.name for res in resources if (not ver or res.arch is ver) and not res.exists_in(folder)
+        res.name
+        for res in resources
+        if (not ver or res.arch is ver) and not any(res.exists_in(f) for f in folders)
     ]
 
 
@@ -677,3 +682,53 @@ def parse_common_errors(output: str, return_code: int | None = None):
     if return_code is not None:
         return f"{output} [{return_code}]"
     return output
+
+
+_extra_model_paths_yaml = """
+
+krita-managed:
+    base_path: ../models
+    checkpoints: checkpoints
+    clip: clip
+    clip_vision: clip_vision
+    controlnet: controlnet
+    diffusion_models: diffusion_models
+    embeddings: embeddings
+    inpaint: inpaint
+    ipadapter: ipadapter
+    loras: loras
+    upscale_models: upscale_models
+    vae: vae
+"""
+
+
+def _configure_extra_model_paths(comfy_dir: Path):
+    path = comfy_dir / "extra_model_paths.yaml"
+    example = comfy_dir / "extra_model_paths.yaml.example"
+    if not path.exists() and example.exists():
+        example.rename(path)
+    if not path.exists():
+        raise Exception(f"Could not find or create extra_model_paths.yaml in {comfy_dir}")
+    contents = path.read_text()
+    if "krita-managed" not in contents:
+        log.info(f"Extending {path}")
+        path.write_text(contents + _extra_model_paths_yaml)
+
+
+def _upgrade_extra_model_paths(src_dir: Path, dst_dir: Path):
+    src = src_dir / "extra_model_paths.yaml"
+    dst = dst_dir / "extra_model_paths.yaml"
+    if src.exists():
+        if dst.exists():
+            dst.unlink()
+        shutil.copy2(src, dst)
+        _configure_extra_model_paths(dst_dir)
+
+
+def _upgrade_models_dir(src_dir: Path, dst_dir: Path):
+    if src_dir.exists() and not dst_dir.exists():
+        log.info(f"Moving {src_dir} to {dst_dir}")
+        try:
+            shutil.move(src_dir, dst_dir)
+        except Exception as e:
+            log.error(f"Could not move model folder to new location: {str(e)}")

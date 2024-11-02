@@ -724,16 +724,16 @@ class StylePresets(SettingsTab):
         self._read_style(self.current_style)
 
     def _open_checkpoints_folder(self):
-        if self.server.comfy_dir is not None:
-            QDesktopServices.openUrl(
-                QUrl.fromLocalFile(str(self.server.comfy_dir / "models" / "checkpoints"))
-            )
+        self._open_folder(Path("models/checkpoints"))
 
     def _open_lora_folder(self):
+        self._open_folder(Path("models/loras"))
+
+    def _open_folder(self, subfolder: Path):
         if self.server.comfy_dir is not None:
-            QDesktopServices.openUrl(
-                QUrl.fromLocalFile(str(self.server.comfy_dir / "models" / "loras"))
-            )
+            folder = self.server.path / subfolder
+            folder.mkdir(parents=True, exist_ok=True)
+            QDesktopServices.openUrl(QUrl.fromLocalFile(str(folder)))
 
     def _set_checkpoint_warning(self):
         self._checkpoint_warning.setVisible(False)
