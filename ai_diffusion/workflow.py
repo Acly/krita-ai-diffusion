@@ -1179,7 +1179,7 @@ def prepare(
         upscale_extent, _ = resolution.prepare_extent(
             mask.bounds.extent, arch, style, perf, downscale=False
         )
-        i.inpaint = inpaint
+        i.inpaint = InpaintParams.clamped(inpaint)
         i.inpaint.use_reference = inpaint.use_reference and has_ip_adapter
         i.crop_upscale_extent = upscale_extent.extent.desired
         largest_extent = Extent.largest(i.images.extent.initial, upscale_extent.extent.desired)
@@ -1204,7 +1204,7 @@ def prepare(
             canvas, arch, style, perf, downscale=allow_2pass
         )
         i.images.hires_mask = mask.to_image(canvas.extent)
-        i.inpaint = inpaint
+        i.inpaint = InpaintParams.clamped(inpaint)
         downscale_all_control_images(i.conditioning, canvas.extent, i.images.extent.desired)
 
     elif kind is WorkflowKind.upscale_tiled:
