@@ -172,13 +172,12 @@ class Model(QObject, ObservableProperties):
 
             bounds, mask.bounds = compute_relative_bounds(bounds, mask.bounds)
 
-            arch = client.models.arch_of(self.style.sd_checkpoint)
             if inpaint_mode is InpaintMode.custom:
                 inpaint = self.inpaint.get_params(mask)
             else:
                 pos, ctrl = conditioning.positive, conditioning.control
                 inpaint = workflow.detect_inpaint(
-                    inpaint_mode, mask.bounds, arch, pos, ctrl, self.strength
+                    inpaint_mode, mask.bounds, self.arch, pos, ctrl, self.strength
                 )
             inpaint.grow, inpaint.feather = selection_mod.apply(selection_bounds)
 
@@ -197,7 +196,7 @@ class Model(QObject, ObservableProperties):
             inpaint=inpaint,
         )
         job_params = JobParams(bounds, prompt, regions=job_regions)
-        job_params.set_style(self.style)
+        job_params.set_style(self.style, ensure(input.models).checkpoint)
         job_params.metadata["prompt"] = prompt
         job_params.metadata["negative_prompt"] = self.regions.negative
         job_params.metadata["strength"] = self.strength
@@ -238,7 +237,7 @@ class Model(QObject, ObservableProperties):
                 region.bounds = Bounds.scale(region.bounds, params.factor)
         else:
             conditioning, job_regions = ConditioningInput("4k uhd"), []
-        models = client.models.for_checkpoint(self.style.sd_checkpoint)
+        models = client.models.for_arch(self.arch)
         has_unblur = models.control.find(ControlMode.blur, allow_universal=True) is not None
         if has_unblur and params.unblur_strength > 0.0:
             control = ControlInput(ControlMode.blur, None, params.unblur_strength)
@@ -301,8 +300,7 @@ class Model(QObject, ObservableProperties):
         strength = self.live.strength
         workflow_kind = WorkflowKind.generate if strength == 1.0 else WorkflowKind.refine
         client = self._connection.client
-        ver = client.models.arch_of(self.style.sd_checkpoint)
-        min_mask_size = 512 if ver is Arch.sd15 else 800
+        min_mask_size = 512 if self.arch is Arch.sd15 else 800
         extent = self._doc.extent
         region_layer = None
         job_regions: list[JobRegion] = []

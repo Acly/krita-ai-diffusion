@@ -71,9 +71,7 @@ def default_style(client: Client, sd_ver=Arch.sd15):
     checkpoint = default_checkpoint[sd_ver]
 
     style = Style(Path("default.json"))
-    style.sd_checkpoint = (
-        checkpoint if checkpoint in version_checkpoints else version_checkpoints[0]
-    )
+    style.checkpoints = [checkpoint] + version_checkpoints
     return style
 
 
@@ -186,7 +184,7 @@ def test_prepare_lora():
     files.loras.update([File.remote(m) for m in models.loras], FileSource.remote)
 
     style = Style(Path("default.json"))
-    style.sd_checkpoint = "CP"
+    style.checkpoints = ["CP"]
     style.loras.append(dict(name="MOTHER_OF_PEARL.safetensors", strength=0.33))
 
     job = workflow.prepare(

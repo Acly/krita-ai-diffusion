@@ -130,6 +130,16 @@ def test_bad_style_type():
         )
 
 
+def test_preferred_style():
+    checkpoints = ["cats", "birds", "snakes"]
+    style = Style(Path("test_style.json"))
+    assert style.preferred_checkpoint(checkpoints) == "not-found"
+    style.checkpoints = ["birds"]
+    assert style.preferred_checkpoint(checkpoints) == "birds"
+    style.checkpoints = ["dogs", "cats"]
+    assert style.preferred_checkpoint(checkpoints) == "cats"
+
+
 def test_default_style(tmp_path_factory):
     styles = Styles(tmp_path_factory.mktemp("builtin"), tmp_path_factory.mktemp("user"))
     style = styles.default

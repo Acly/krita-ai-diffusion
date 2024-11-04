@@ -253,7 +253,7 @@ class UpscaleWidget(QWidget):
     def _update_unblur_enabled(self):
         has_unblur = False
         if client := root.connection.client_if_connected:
-            models = client.models.for_checkpoint(self.model.style.sd_checkpoint)
+            models = client.models.for_arch(self.model.arch)
             has_unblur = models.control.find(ControlMode.blur, allow_universal=True) is not None
         self.unblur_combo.setEnabled(has_unblur)
         if not has_unblur:

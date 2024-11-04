@@ -149,8 +149,8 @@ def check_client_info(client: ComfyClient):
 def check_resolve_sd_version(client: ComfyClient, arch: Arch):
     checkpoint = next(cp for cp in client.models.checkpoints.values() if cp.arch == arch)
     style = Style(Path("dummy"))
-    style.sd_version = Arch.auto
-    style.sd_checkpoint = checkpoint.filename
+    style.architecture = Arch.auto
+    style.checkpoints = [checkpoint.filename]
     assert resolve_arch(style, client) == arch
     assert resolve_arch(style, None) == arch
 

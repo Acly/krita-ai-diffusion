@@ -77,9 +77,9 @@ class JobParams:
         field_names = (f.name for f in fields(cls) if not f.name == "seed")
         return all(getattr(a, name) == getattr(b, name) for name in field_names)
 
-    def set_style(self, style: Style):
+    def set_style(self, style: Style, checkpoint: str):
         self.metadata["style"] = style.filename
-        self.metadata["checkpoint"] = style.sd_checkpoint
+        self.metadata["checkpoint"] = checkpoint
         self.metadata["loras"] = style.loras
         self.metadata["sampler"] = f"{style.sampler} ({style.sampler_steps} / {style.cfg_scale})"
 
