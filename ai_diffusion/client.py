@@ -303,11 +303,14 @@ class Client(ABC):
 
 
 def resolve_arch(style: Style, client: Client | None = None):
-    if style.sd_version is Arch.auto:
-        if client and style.sd_checkpoint in client.models.checkpoints:
-            return client.models.arch_of(style.sd_checkpoint)
-        return style.sd_version.resolve(style.sd_checkpoint)
-    return style.sd_version
+    if style.architecture is Arch.auto:
+        if client:
+            checkpoint = style.preferred_checkpoint(client.models.checkpoints.keys())
+            if checkpoint != "not-found":
+                return client.models.arch_of(checkpoint)
+        if style.checkpoints:
+            return style.architecture.resolve(style.checkpoints[0])
+    return style.architecture
 
 
 def filter_supported_styles(styles: Iterable[Style], client: Client | None = None):
@@ -316,7 +319,7 @@ def filter_supported_styles(styles: Iterable[Style], client: Client | None = Non
             style
             for style in styles
             if client.supports_arch(resolve_arch(style, client))
-            and style.sd_checkpoint in client.models.checkpoints
+            and style.preferred_checkpoint(client.models.checkpoints.keys()) != "not-found"
         ]
     return list(styles)
 

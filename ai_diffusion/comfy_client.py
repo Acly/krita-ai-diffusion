@@ -701,7 +701,7 @@ def _ensure_supported_style(client: Client):
         log.info(f"No supported styles found, creating default style with checkpoint {checkpoint}")
         default = next((s for s in Styles.list() if s.filename == "default.json"), None)
         if default:
-            default.sd_checkpoint = checkpoint
+            default.checkpoints = [checkpoint]
             default.save()
         else:
             Styles.list().create("default", checkpoint)

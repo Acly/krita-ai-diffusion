@@ -371,7 +371,7 @@ def test_expand():
     )
 
     style = Style(Path("default.json"))
-    style.sd_checkpoint = "checkpoint.safetensors"
+    style.checkpoints = ["checkpoint.safetensors"]
     style.style_prompt = "bee hive"
     style.negative_prompt = "pigoon"
     params = {

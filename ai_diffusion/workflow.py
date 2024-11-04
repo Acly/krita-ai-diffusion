@@ -1094,7 +1094,7 @@ def expand_custom(
             case "ETN_KritaStyle":
                 style: Style = get_param(node, Style)
                 is_live = node.input("sampler_preset", "auto") == "live"
-                checkpoint_input = style.get_models()
+                checkpoint_input = style.get_models(models.checkpoints.keys())
                 sampling = _sampling_from_style(style, 1.0, is_live)
                 model, clip, vae = load_checkpoint_with_lora(w, checkpoint_input, models)
                 outputs[node.output(0)] = model
@@ -1149,10 +1149,10 @@ def prepare(
         extra_loras += region_loras
     i.sampling = _sampling_from_style(style, strength, is_live)
     i.sampling.seed = seed
-    i.models = style.get_models()
+    i.models = style.get_models(models.checkpoints.keys())
     i.conditioning.positive += _collect_lora_triggers(i.models.loras, files)
     i.models.loras = unique(i.models.loras + extra_loras, key=lambda l: l.name)
-    arch = i.models.version = models.arch_of(style.sd_checkpoint)
+    arch = i.models.version = models.arch_of(i.models.checkpoint)
 
     _check_server_has_models(i.models, models, files, style.name)
     _check_inpaint_model(inpaint, arch, models)

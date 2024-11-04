@@ -587,15 +587,17 @@ class StylePresets(SettingsTab):
 
         checkpoints = FileFilter(root.files.checkpoints)
         checkpoints.available_only = True
-        checkpoint_select = add(
-            "sd_checkpoint",
-            ComboBoxSetting(StyleSettings.sd_checkpoint, model=checkpoints, parent=self),
+        self._checkpoint_select = ComboBoxSetting(
+            StyleSettings.checkpoints, model=checkpoints, parent=self
         )
-        checkpoint_select.add_button(
+        self._checkpoint_select.value_changed.connect(self.write)
+        self._checkpoint_select.add_button(
             Krita.instance().icon("reload-preset"),
             _("Look for new checkpoint files"),
             root.connection.refresh,
         )
+        self._layout.addWidget(self._checkpoint_select)
+
         self._checkpoint_warning = QLabel(self)
         self._checkpoint_warning.setStyleSheet(f"font-style: italic; color: {theme.yellow};")
         self._checkpoint_warning.setVisible(False)
@@ -655,7 +657,7 @@ class StylePresets(SettingsTab):
         self._layout.addStretch()
 
         if settings.server_mode is ServerMode.managed:
-            self._style_widgets["sd_checkpoint"].add_button(
+            self._checkpoint_select.add_button(
                 Krita.instance().icon("document-open"),
                 _("Open the folder where checkpoints are stored"),
                 self._open_checkpoints_folder,
@@ -683,8 +685,8 @@ class StylePresets(SettingsTab):
             self._read()
 
     def _create_style(self):
-        cp = self._style_widgets["sd_checkpoint"].value or StyleSettings.sd_checkpoint.default
-        new_style = Styles.list().create(checkpoint=cp)
+        cp = self._checkpoint_select.value
+        new_style = Styles.list().create(checkpoint=str(cp))
         self.current_style = new_style
 
     def _duplicate_style(self):
@@ -739,7 +741,8 @@ class StylePresets(SettingsTab):
         self._checkpoint_warning.setVisible(False)
         if client := root.connection.client_if_connected:
             warn = []
-            file = root.files.checkpoints.find(self.current_style.sd_checkpoint)
+            cp_files = (root.files.checkpoints.find(cp) for cp in self.current_style.checkpoints)
+            file = next((f for f in cp_files if f is not None), None)
             if file is None:
                 warn.append(_("The checkpoint used by this style is not installed."))
 
@@ -769,6 +772,20 @@ class StylePresets(SettingsTab):
             if warn:
                 self._checkpoint_warning.setText("\n".join(warn))
                 self._checkpoint_warning.setVisible(True)
+
+    def _read_checkpoint(self, style: Style):
+        if client := root.connection.client_if_connected:
+            checkpoint = style.preferred_checkpoint(client.models.checkpoints.keys())
+            self._checkpoint_select.value = checkpoint
+        elif style.checkpoints:
+            self._checkpoint_select.value = style.checkpoints[0]
+        self._set_checkpoint_warning()
+
+    def _write_checkpoint(self, style: Style):
+        value = self._checkpoint_select.value
+        if isinstance(value, str) and value != "":
+            style.checkpoints = [value]
+        self._set_checkpoint_warning()
 
     def _toggle_preferred_resolution(self, checked: bool):
         if checked and self._resolution_spin.value == 0:
@@ -801,7 +818,7 @@ class StylePresets(SettingsTab):
                 widget.value = getattr(style, name)
             self._default_sampler.read(style)
             self._live_sampler.read(style)
-        self._set_checkpoint_warning()
+        self._read_checkpoint(style)
         self._enable_checkpoint_advanced()
         self._resolution_spin.enabled = style.preferred_resolution > 0
 
@@ -819,8 +836,8 @@ class StylePresets(SettingsTab):
         for name, widget in self._style_widgets.items():
             if widget.value is not None:
                 setattr(style, name, widget.value)
+        self._write_checkpoint(style)
         self._default_sampler.write(style)
         self._live_sampler.write(style)
-        self._set_checkpoint_warning()
         self._enable_checkpoint_advanced()
         style.save()

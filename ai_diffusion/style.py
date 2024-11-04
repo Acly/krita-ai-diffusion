@@ -1,7 +1,7 @@
 from __future__ import annotations
 from copy import copy
 from enum import Enum
-from typing import NamedTuple
+from typing import Iterable, NamedTuple
 import json
 from pathlib import Path
 from PyQt5.QtCore import QObject, pyqtSignal
@@ -16,17 +16,13 @@ from .util import plugin_dir, user_data_dir, client_logger as log
 
 class StyleSettings:
     name = Setting(_("Name"), _("Default Style"))
-    version = Setting("Version", 1)
+    version = Setting("Version", 2)
 
-    sd_version = Setting(
-        _("Stable Diffusion Version"),
-        Arch.auto,
-        _("The base architecture must match checkpoint and LoRA"),
-    )
+    architecture = Setting(_("Diffusion Model Architecture"), Arch.auto)
 
-    sd_checkpoint = Setting(
+    checkpoints = Setting(
         _("Model Checkpoint"),
-        "<no checkpoint set>",
+        [],
         _("The Diffusion model checkpoint file"),
         _(
             "This has a large impact on which kind of content will be generated. To install additional checkpoints, place them into [ComfyUI]/models/checkpoints."
@@ -108,8 +104,8 @@ class Style:
     filepath: Path
     version: int = StyleSettings.version.default
     name: str = StyleSettings.name.default
-    sd_version: Arch = StyleSettings.sd_version.default
-    sd_checkpoint: str = StyleSettings.sd_checkpoint.default
+    architecture: Arch = StyleSettings.architecture.default
+    checkpoints: list[str] = StyleSettings.checkpoints.default
     loras: list[dict[str, str | float]]
     style_prompt: str = StyleSettings.style_prompt.default
     negative_prompt: str = StyleSettings.negative_prompt.default
@@ -159,6 +155,8 @@ class Style:
             style.live_sampler = _map_sampler_preset(
                 filepath, style.live_sampler, style.live_sampler_steps, style.live_cfg_scale
             )
+            if "sd_checkpoint" in cfg:
+                style.checkpoints = [cfg["sd_checkpoint"]]
             return style
         except json.JSONDecodeError as e:
             log.warning(f"Failed to load style {filepath}: {e}")
@@ -170,6 +168,7 @@ class Style:
             for name, setting in StyleSettings.__dict__.items()
             if isinstance(setting, Setting)
         }
+        cfg["version"] = StyleSettings.version.default
         self.filepath.write_text(json.dumps(cfg, indent=4, default=encode_json))
 
     @property
@@ -180,9 +179,12 @@ class Style:
             return f"built-in/{self.filepath.name}"
         return self.filepath.name
 
-    def get_models(self):
+    def preferred_checkpoint(self, available_checkpoints: Iterable[str]):
+        return next((c for c in self.checkpoints if c in available_checkpoints), "not-found")
+
+    def get_models(self, available_checkpoints: Iterable[str]):
         result = CheckpointInput(
-            checkpoint=self.sd_checkpoint,
+            checkpoint=self.preferred_checkpoint(available_checkpoints),
             vae=self.vae,
             clip_skip=self.clip_skip,
             v_prediction_zsnr=self.v_prediction_zsnr,
@@ -247,7 +249,7 @@ class Styles(QObject):
         new_style = Style(path)
         new_style.name = _("New Style")
         if checkpoint:
-            new_style.sd_checkpoint = checkpoint
+            new_style.checkpoints = [checkpoint]
         if copy_from:
             for name, setting in StyleSettings.__dict__.items():
                 if isinstance(setting, Setting):

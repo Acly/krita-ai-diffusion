@@ -125,7 +125,7 @@ class ControlLayer(QObject, ObservableProperties):
 
         is_supported = True
         if client := root.connection.client_if_connected:
-            models = client.models.for_checkpoint(self._model.style.sd_checkpoint)
+            models = client.models.for_arch(self._model.arch)
             if self.mode.is_ip_adapter and models.ip_adapter.find(self.mode) is None:
                 search_path = resources.search_path(ResourceKind.ip_adapter, models.arch, self.mode)
                 if search_path:
