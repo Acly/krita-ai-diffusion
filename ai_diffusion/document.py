@@ -11,6 +11,7 @@ from .image import Extent, Bounds, Mask, Image
 from .layer import Layer, LayerManager, LayerType
 from .pose import Pose
 from .localization import translate as _
+from .util import acquire_elements
 
 
 class Document(QObject):
@@ -120,7 +121,10 @@ class KritaDocument(Document):
     @classmethod
     def active(cls):
         if doc := Krita.instance().activeDocument():
-            if doc not in Krita.instance().documents() or doc.activeNode() is None:
+            if (
+                doc not in acquire_elements(Krita.instance().documents())
+                or doc.activeNode() is None
+            ):
                 return None
             id = doc.rootNode().uniqueId().toString()
             return cls._instances.get(id) or KritaDocument(doc)
@@ -237,7 +241,7 @@ class KritaDocument(Document):
 
     @property
     def is_valid(self):
-        return self._doc in Krita.instance().documents()
+        return self._doc in acquire_elements(Krita.instance().documents())
 
     @property
     def is_active(self):
@@ -303,14 +307,14 @@ class PoseLayers:
 
         layer = cast(krita.VectorLayer, layer.node)
         pose = self._layers.setdefault(layer.uniqueId(), Pose(doc.extent))
-        self._update(layer, layer.shapes(), pose, doc.resolution)
+        self._update(layer, acquire_elements(layer.shapes()), pose, doc.resolution)
 
     def add_character(self, layer: krita.VectorLayer):
         doc = KritaDocument.active()
         assert doc is not None
         pose = self._layers.setdefault(layer.uniqueId(), Pose(doc.extent))
         svg = Pose.create_default(doc.extent, pose.people_count).to_svg()
-        shapes = layer.addShapesFromSvg(svg)
+        shapes = acquire_elements(layer.addShapesFromSvg(svg))
         self._update(layer, shapes, pose, doc.resolution)
 
     def _update(
