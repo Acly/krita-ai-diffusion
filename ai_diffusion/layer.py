@@ -6,7 +6,7 @@ from PyQt5.QtCore import QObject, QUuid, QByteArray, QTimer, pyqtSignal
 from PyQt5.QtGui import QImage
 
 from .image import Extent, Bounds, Image
-from .util import ensure, maybe, client_logger as log
+from .util import acquire_elements, ensure, maybe, client_logger as log
 from . import eventloop
 
 
@@ -143,7 +143,11 @@ class Layer(QObject):
 
     @property
     def child_layers(self):
-        return [self._manager.wrap(child) for child in self._node.childNodes() if _is_real(child)]
+        return [
+            self._manager.wrap(child)
+            for child in acquire_elements(self._node.childNodes())
+            if _is_real(child)
+        ]
 
     @property
     def is_root(self):
@@ -199,7 +203,7 @@ class Layer(QObject):
 
     def move_to_top(self):
         parent = self._node.parentNode()
-        if parent.childNodes()[-1] == self._node:
+        if acquire_elements(parent.childNodes())[-1] == self._node:
             return  # already top-most layer
         with RestoreActiveLayer(self._manager):
             parent.removeChildNode(self.node)
@@ -556,7 +560,7 @@ class LayerManager(QObject):
 
 
 def traverse_layers(node: krita.Node, type_filter: list[str] | None = None):
-    for child in node.childNodes():
+    for child in acquire_elements(node.childNodes()):
         type = child.type()
         if _is_real(type) and (not type_filter or type in type_filter):
             yield child

@@ -14,10 +14,12 @@ import logging.handlers
 import statistics
 import zipfile
 from typing import Any, Callable, Iterable, Optional, Sequence, TypeVar
-from PyQt5.QtCore import QStandardPaths
+from PyQt5 import sip
+from PyQt5.QtCore import QObject, QStandardPaths
 
 T = TypeVar("T")
 R = TypeVar("R")
+QOBJECT = TypeVar("QOBJECT", bound=QObject)
 
 is_windows = sys.platform.startswith("win")
 is_macos = sys.platform == "darwin"
@@ -243,3 +245,15 @@ class LongPathZipFile(zipfile.ZipFile):
 
 
 ZipFile = LongPathZipFile if is_windows else zipfile.ZipFile
+
+
+def acquire_elements(l: list[QOBJECT]) -> list[QOBJECT]:
+    # Many Pykrita functions return a `QList<QObject*>` where the objects are
+    # allocated for the caller. SIP does not handle this case and just leaks
+    # the objects outright. Fix this by taking explicit ownership of the objects.
+    # Note: ONLY call this if you are confident that the Pykrita function
+    # allocates the list members!
+    for obj in l:
+        if obj is not None:
+            sip.transferback(obj)
+    return l
