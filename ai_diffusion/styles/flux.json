@@ -1,8 +1,11 @@
 {
     "name": "Flux",
     "version": 1,
-    "sd_version": "auto",
-    "sd_checkpoint": "flux1-dev-fp8.safetensors",
+    "architecture": "auto",
+    "checkpoints": [
+        "flux1-dev-fp8.safetensors",
+        "flux1-dev.safetensors"
+    ],
     "loras": [],
     "style_prompt": "photo of {prompt}, atmospheric film still",
     "negative_prompt": "",

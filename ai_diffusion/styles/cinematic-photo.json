@@ -1,8 +1,12 @@
 {
     "name": "Cinematic Photo",
-    "version": 1,
-    "sd_version": "auto",
-    "sd_checkpoint": "realisticVisionV51_v51VAE.safetensors",
+    "version": 2,
+    "architecture": "auto",
+    "checkpoints": [
+        "serenity_v21Safetensors.safetensors",
+        "realisticVisionV60B1_v60B1VAE.safetensors",
+        "realisticVisionV51_v51VAE.safetensors"
+    ],
     "loras": [],
     "style_prompt": "cinematic photo of {prompt}, photograph, film, best quality, highres",
     "negative_prompt": "drawing, painting, sketch, bad quality, low resolution, blurry",
