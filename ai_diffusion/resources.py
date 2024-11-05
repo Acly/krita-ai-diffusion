@@ -46,7 +46,7 @@ required_custom_nodes = [
         "Inpaint Nodes",
         "comfyui-inpaint-nodes",
         "https://github.com/Acly/comfyui-inpaint-nodes",
-        "b21f64931f245dbfde523a33541c974108381b20",
+        "146a2f17b1f91eb155011ab36aa349c696b6e38b",
         ["INPAINT_LoadFooocusInpaint", "INPAINT_ApplyFooocusInpaint", "INPAINT_ExpandMask"],
     ),
 ]
@@ -56,7 +56,7 @@ optional_custom_nodes = [
         "GGUF",
         "ComfyUI-GGUF",
         "https://github.com/city96/ComfyUI-GGUF",
-        "6561064dcfb3dfa638e3739506acfd34924e1cc5",
+        "98333480059a2ccafb4718924ebcb9cdcb9b1f43",
         ["UnetLoaderGGUF", "DualCLIPLoaderGGUF"],
     )
 ]
@@ -889,7 +889,7 @@ search_paths: dict[str, list[str]] = {
     resource_id(ResourceKind.upscaler, Arch.all, UpscalerName.fast_3x): [UpscalerName.fast_3x.value],
     resource_id(ResourceKind.upscaler, Arch.all, UpscalerName.fast_4x): [UpscalerName.fast_4x.value],
     resource_id(ResourceKind.inpaint, Arch.sdxl, "fooocus_head"): ["fooocus_inpaint_head.pth"],
-    resource_id(ResourceKind.inpaint, Arch.sdxl, "fooocus_patch"): ["inpaint_v26.fooocus.patch"],
+    resource_id(ResourceKind.inpaint, Arch.sdxl, "fooocus_patch"): ["inpaint_v26.fooocus"],
     resource_id(ResourceKind.inpaint, Arch.all, "default"): ["MAT_Places512_G_fp16", "Places_512_FullData_G", "big-lama.pt"],
     resource_id(ResourceKind.text_encoder, Arch.all, "clip_l"): ["clip_l"],
     resource_id(ResourceKind.text_encoder, Arch.all, "clip_g"): ["clip_g"],
