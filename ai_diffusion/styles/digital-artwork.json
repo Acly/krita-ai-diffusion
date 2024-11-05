@@ -1,8 +1,10 @@
 {
     "name": "Digital Artwork",
-    "version": 1,
-    "sd_version": "auto",
-    "sd_checkpoint": "dreamshaper_8.safetensors",
+    "version": 2,
+    "architecture": "auto",
+    "checkpoints": [
+        "dreamshaper_8.safetensors"
+    ],
     "loras": [],
     "style_prompt": "digital artwork of {prompt}, best quality, highres, 4k",
     "negative_prompt": "photo, photorealistic, bad quality, low resolution, blurry",

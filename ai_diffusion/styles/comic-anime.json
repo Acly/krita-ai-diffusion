@@ -1,8 +1,10 @@
 {
     "name": "Comic & Anime",
-    "version": 1,
-    "sd_version": "auto",
-    "sd_checkpoint": "flat2DAnimerge_v45Sharp.safetensors",
+    "version": 2,
+    "architecture": "auto",
+    "checkpoints": [
+        "flat2DAnimerge_v45Sharp.safetensors"
+    ],
     "loras": [],
     "style_prompt": "anime artwork {prompt} . comic art, graphic novel art, studio anime, highly detailed",
     "negative_prompt": "embedding:EasyNegative, photo, deformed, black and white, realism, disfigured, low contrast",
