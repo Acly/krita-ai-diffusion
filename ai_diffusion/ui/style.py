@@ -70,6 +70,7 @@ class LoraItem(QWidget):
         self._select.setModel(self._loras)
         self._select.setCompleter(completer)
         self._select.setMaxVisibleItems(20)
+        self._select.setMinimumWidth(200)
         self._select.currentIndexChanged.connect(self._select_lora)
 
         expander_layout = QHBoxLayout()
