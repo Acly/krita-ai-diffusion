@@ -7,6 +7,7 @@ import uuid
 from base64 import b64encode
 from datetime import datetime
 from dataclasses import dataclass
+from itertools import chain
 
 from .api import WorkflowInput, WorkflowKind
 from .client import Client, ClientEvent, ClientMessage, ClientModels, DeviceInfo, CheckpointInfo
@@ -18,7 +19,7 @@ from .resources import Arch
 from .settings import PerformanceSettings, settings
 from .localization import translate as _
 from .util import clamp, ensure, client_logger as log
-from . import __version__ as plugin_version
+from . import resources, __version__ as plugin_version
 
 
 @dataclass
@@ -346,22 +347,31 @@ def _base64_size(size: int):
     return math.ceil(size / 3) * 4
 
 
+def _checkpoint_info(id: str, arch: Arch):
+    models = chain(resources.default_checkpoints, resources.deprecated_models)
+    res = next(m for m in models if m.id.identifier == id and m.arch == arch)
+    return (res.filename, CheckpointInfo(res.filename, res.arch))
+
+
 _poll_interval = 0.5  # seconds
 
 models = ClientModels()
 models.checkpoints = {
-    "dreamshaper_8.safetensors": CheckpointInfo("dreamshaper_8.safetensors", Arch.sd15),
-    "realisticVisionV51_v51VAE.safetensors": CheckpointInfo(
-        "realisticVisionV51_v51VAE.safetensors", Arch.sd15
-    ),
-    "flat2DAnimerge_v45Sharp.safetensors": CheckpointInfo(
-        "flat2DAnimerge_v45Sharp.safetensors", Arch.sd15
-    ),
-    "juggernautXL_version6Rundiffusion.safetensors": CheckpointInfo(
-        "juggernautXL_version6Rundiffusion.safetensors", Arch.sdxl
-    ),
-    "zavychromaxl_v80.safetensors": CheckpointInfo("zavychromaxl_v80.safetensors", Arch.sdxl),
-    "flux1-schnell-fp8.safetensors": CheckpointInfo("flux1-schnell-fp8.safetensors", Arch.flux),
+    filename: info
+    for filename, info in (
+        _checkpoint_info(name, arch)
+        for name, arch in [
+            ("dreamshaper", Arch.sd15),
+            ("realistic-vision", Arch.sd15),
+            ("serenity", Arch.sd15),
+            ("flat2d-animerge", Arch.sd15),
+            ("juggernaut", Arch.sdxl),
+            ("realvis", Arch.sdxl),
+            ("zavychroma", Arch.sdxl),
+            ("pixelwave", Arch.sdxl),
+            ("flux-schnell", Arch.flux),
+        ]
+    )
 }
 models.vae = []
 models.loras = [
