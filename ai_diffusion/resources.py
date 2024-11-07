@@ -9,7 +9,7 @@ from typing import NamedTuple, Sequence
 version = "1.28.0"
 
 comfy_url = "https://github.com/comfyanonymous/ComfyUI"
-comfy_version = "52810907e20e11b126642f5b4917406e7043e70a"
+comfy_version = "5e29e7a488b3f48afc6c4a3cb8ed110976d0ebb8"
 
 
 class CustomNode(NamedTuple):
@@ -46,7 +46,7 @@ required_custom_nodes = [
         "Inpaint Nodes",
         "comfyui-inpaint-nodes",
         "https://github.com/Acly/comfyui-inpaint-nodes",
-        "146a2f17b1f91eb155011ab36aa349c696b6e38b",
+        "422eccd86685e084b551fb7e14bc025d77a64cc2",
         ["INPAINT_LoadFooocusInpaint", "INPAINT_ApplyFooocusInpaint", "INPAINT_ExpandMask"],
     ),
 ]
@@ -56,7 +56,7 @@ optional_custom_nodes = [
         "GGUF",
         "ComfyUI-GGUF",
         "https://github.com/city96/ComfyUI-GGUF",
-        "98333480059a2ccafb4718924ebcb9cdcb9b1f43",
+        "8e898fad4caab59bf4144e0cf11978b893de7e54",
         ["UnetLoaderGGUF", "DualCLIPLoaderGGUF"],
     )
 ]
@@ -437,16 +437,16 @@ required_models = [
 
 default_checkpoints = [
     ModelResource(
-        "Realistic Vision (Photography)",
-        ResourceId(ResourceKind.checkpoint, Arch.sd15, "realistic-vision"),
+        "Serenity (SD1.5 - Photography)",
+        ResourceId(ResourceKind.checkpoint, Arch.sd15, "serenity"),
         {
             Path(
-                "models/checkpoints/realisticVisionV51_v51VAE.safetensors"
-            ): "https://huggingface.co/lllyasviel/fav_models/resolve/main/fav/realisticVisionV51_v51VAE.safetensors",
+                "models/checkpoints/serenity_v21Safetensors.safetensors"
+            ): "https://huggingface.co/Acly/SD-Checkpoints/resolve/main/serenity_v21Safetensors.safetensors"
         },
     ),
     ModelResource(
-        "DreamShaper (Artwork)",
+        "DreamShaper (SD1.5 - Artwork)",
         ResourceId(ResourceKind.checkpoint, Arch.sd15, "dreamshaper"),
         {
             Path(
@@ -455,7 +455,7 @@ default_checkpoints = [
         },
     ),
     ModelResource(
-        "Flat2D AniMerge (Cartoon/Anime)",
+        "Flat2D AniMerge (SD1.5 - Cartoon/Anime)",
         ResourceId(ResourceKind.checkpoint, Arch.sd15, "flat2d-animerge"),
         {
             Path(
@@ -464,21 +464,30 @@ default_checkpoints = [
         },
     ),
     ModelResource(
-        "Juggernaut XL",
-        ResourceId(ResourceKind.checkpoint, Arch.sdxl, "juggernaut"),
+        "RealVis (SDXL - Photography)",
+        ResourceId(ResourceKind.checkpoint, Arch.sdxl, "realvis"),
         {
             Path(
-                "models/checkpoints/juggernautXL_version6Rundiffusion.safetensors"
-            ): "https://huggingface.co/lllyasviel/fav_models/resolve/main/fav/juggernautXL_version6Rundiffusion.safetensors"
+                "models/checkpoints/RealVisXL_V5.0_fp16.safetensors"
+            ): "https://huggingface.co/SG161222/RealVisXL_V5.0/resolve/main/RealVisXL_V5.0_fp16.safetensors"
         },
     ),
     ModelResource(
-        "ZavyChroma XL",
+        "ZavyChroma (SDXL - Artwork)",
         ResourceId(ResourceKind.checkpoint, Arch.sdxl, "zavychroma"),
         {
             Path(
                 "models/checkpoints/zavychromaxl_v80.safetensors"
             ): "https://huggingface.co/misri/zavychromaxl_v80/resolve/main/zavychromaxl_v80.safetensors"
+        },
+    ),
+    ModelResource(
+        "Pixelwave (SDXL - Artwork)",
+        ResourceId(ResourceKind.checkpoint, Arch.sdxl, "pixelwave"),
+        {
+            Path(
+                "models/checkpoints/pixelwave_11.safetensors"
+            ): "https://huggingface.co/Acly/SD-Checkpoints/resolve/main/pixelwave_11.safetensors"
         },
     ),
     ModelResource(
@@ -766,6 +775,24 @@ deprecated_models = [
             Path(
                 "models/loras/lcm-lora-sdxl.safetensors"
             ): "https://huggingface.co/latent-consistency/lcm-lora-sdxl/resolve/main/pytorch_lora_weights.safetensors",
+        },
+    ),
+    ModelResource(
+        "Realistic Vision (SD1.5 - Photography)",
+        ResourceId(ResourceKind.checkpoint, Arch.sd15, "realistic-vision"),
+        {
+            Path(
+                "models/checkpoints/realisticVisionV51_v51VAE.safetensors"
+            ): "https://huggingface.co/lllyasviel/fav_models/resolve/main/fav/realisticVisionV51_v51VAE.safetensors",
+        },
+    ),
+    ModelResource(
+        "Juggernaut XL (Old)",
+        ResourceId(ResourceKind.checkpoint, Arch.sdxl, "juggernaut"),
+        {
+            Path(
+                "models/checkpoints/juggernautXL_version6Rundiffusion.safetensors"
+            ): "https://huggingface.co/lllyasviel/fav_models/resolve/main/fav/juggernautXL_version6Rundiffusion.safetensors"
         },
     ),
 ]

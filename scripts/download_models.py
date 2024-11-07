@@ -112,6 +112,7 @@ async def main(
     checkpoints=[],
     controlnet=False,
     prefetch=False,
+    deprecated=False,
     minimal=False,
     recommended=False,
     all=False,
@@ -151,6 +152,8 @@ async def main(
             models.update([m for m in optional_models if m.kind in kinds and m.arch in versions])
         if prefetch or all:
             models.update(resources.prefetch_models)
+        if deprecated:
+            models.update([m for m in resources.deprecated_models if m.arch in versions])
 
         models = models - set([m for m in models if m.id.string in exclude])
 
@@ -199,6 +202,7 @@ if __name__ == "__main__":
     parser.add_argument("--checkpoint", action="append", choices=checkpoint_names, dest="checkpoint_list", help="download a specific checkpoint (can specify multiple times)")
     parser.add_argument("--upscalers", action="store_true", help="download additional upscale models")
     parser.add_argument("--prefetch", action="store_true", help="download models which would be automatically downloaded on first use")
+    parser.add_argument("--deprecated", action="store_true", help="download old models which will be removed in the near future")
     parser.add_argument("--retry-attempts", type=int, default=5, metavar="N", help="number of retry attempts for downloading a model")
     parser.add_argument("--continue-on-error", action="store_true", help="continue downloading models even if an error occurs")
     # fmt: on
@@ -222,6 +226,7 @@ if __name__ == "__main__":
             checkpoints=checkpoints,
             controlnet=args.controlnet,
             prefetch=args.prefetch,
+            deprecated=args.deprecated,
             minimal=args.minimal,
             recommended=args.recommended,
             all=args.all,
