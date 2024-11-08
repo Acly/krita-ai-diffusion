@@ -296,7 +296,7 @@ class Model(QObject, ObservableProperties):
     def generate_live(self):
         eventloop.run(_report_errors(self, self._generate_live()))
 
-    async def _generate_live(self, last_input: WorkflowInput | None = None):
+    def _prepare_live_job_params(self):
         strength = self.live.strength
         workflow_kind = WorkflowKind.generate if strength == 1.0 else WorkflowKind.refine
         client = self._connection.client
@@ -344,12 +344,15 @@ class Model(QObject, ObservableProperties):
             inpaint=inpaint if mask else None,
             is_live=True,
         )
+        params = JobParams(bounds, conditioning.positive, regions=job_regions)
+        return input, params
+
+    async def _generate_live(self, last_input: WorkflowInput | None = None):
+        input, job_params = self._prepare_live_job_params()
         if input != last_input:
             self.clear_error()
-            params = JobParams(bounds, conditioning.positive, regions=job_regions)
-            await self.enqueue_jobs(input, JobKind.live_preview, params)
+            await self.enqueue_jobs(input, JobKind.live_preview, job_params)
             return input
-
         return None
 
     async def _generate_custom(self, previous_input: WorkflowInput | None):
@@ -883,12 +886,21 @@ class LiveWorkspace(QObject, ObservableProperties):
             eventloop.run(_report_errors(self._model, self._continue_generating()))
 
     async def _continue_generating(self):
+        just_got_here = True
         while self.is_active and self._model.document.is_active:
-            new_input = await self._model._generate_live(self._last_input)
-            if new_input is not None:  # frame was scheduled
-                self._last_input = new_input
-                return
+            new_input, _ = self._model._prepare_live_job_params()
+            if self._last_input != new_input:
+                if settings.live_redraw_grace_period > 0 and not just_got_here:
+                    # only use grace period if this isn't our first frame of polling
+                    # if it is, and there are changes in the input, it's likely that we have some changes we ignored
+                    # previously due to the generation process running, and we need to update the preview asap
+                    await asyncio.sleep(settings.live_redraw_grace_period)
+                new_input = await self._model._generate_live(self._last_input)
+                if new_input is not None:
+                    self._last_input = new_input
+                    return
             # no changes in input data
+            just_got_here = False
             await asyncio.sleep(self._poll_rate)
 
     def apply_result(self, layer_only=False):
