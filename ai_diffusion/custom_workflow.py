@@ -242,11 +242,21 @@ class ParamKind(Enum):
 
 class CustomParam(NamedTuple):
     kind: ParamKind
-    name: str
+    full_name: str
     default: Any | None = None
     min: int | float | None = None
     max: int | float | None = None
     choices: list[str] | None = None
+
+    @property
+    def name(self):
+        return self.full_name.split("/")[-1]
+
+    @property
+    def group(self):
+        if "/" in self.full_name:
+            return self.full_name.rsplit("/", 1)[0]
+        return ""
 
 
 def workflow_parameters(w: ComfyWorkflow):
