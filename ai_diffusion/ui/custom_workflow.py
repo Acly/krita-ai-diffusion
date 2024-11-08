@@ -359,21 +359,50 @@ class WorkflowParamsWidget(QWidget):
 
         layout = QGridLayout(self)
         layout.setContentsMargins(0, 0, 0, 0)
-        layout.setColumnMinimumWidth(1, 10)
-        layout.setColumnStretch(2, 1)
+        layout.setColumnMinimumWidth(0, 10)
+        layout.setColumnMinimumWidth(2, 10)
+        layout.setColumnStretch(3, 1)
         self.setLayout(layout)
 
+        params = sorted(params, key=lambda p: p.group)
+        current_group: tuple[str, ExpanderButton | None, list[CustomParamWidget]] = ("", None, [])
+
         for p in params:
+            group, expander, group_widgets = current_group
+            if p.group != group:
+                self._create_group(expander, group_widgets)
+                expander = ExpanderButton(p.group, self)
+                group_widgets = []
+                current_group = (p.group, expander, group_widgets)
+                layout.addWidget(expander, layout.rowCount(), 0, 1, 4)
             label = QLabel(p.name, self)
             widget = _create_param_widget(p, self)
             widget.value_changed.connect(self._notify)
-            row = len(self._widgets)
-            layout.addWidget(label, row, 0, Qt.AlignmentFlag.AlignBaseline)
-            layout.addWidget(widget, row, 2)
+            row = layout.rowCount()
+            col, col_span = (0, 2) if p.group == "" else (1, 1)
+            layout.addWidget(label, row, col, 1, col_span, Qt.AlignmentFlag.AlignBaseline)
+            layout.addWidget(widget, row, 3)
             self._widgets[p.name] = widget
+            group_widgets.extend((label, widget))
+
+        self._create_group(current_group[1], current_group[2])
+        layout.setRowStretch(layout.rowCount(), 1)
 
     def _notify(self):
         self.value_changed.emit()
+
+    def _create_group(self, expander: ExpanderButton | None, widgets: list[CustomParamWidget]):
+        if expander is not None:
+            expander.setChecked(len(self._widgets) < 7)
+            expander.toggled.connect(self._show_group(widgets))
+            self._show_group(widgets)(expander.isChecked())
+
+    def _show_group(self, widgets: list[CustomParamWidget]):
+        def set_visible(checked: bool):
+            for w in widgets:
+                w.setVisible(checked)
+
+        return set_visible
 
     @property
     def value(self):
