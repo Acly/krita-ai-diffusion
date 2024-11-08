@@ -23,11 +23,15 @@ def url_strip(url: str):
 
 files = {
     url_unquote(url_strip(url)): dir / filepath
-    for m in resources.all_models()
+    for m in resources.all_models(include_deprecated=True)
     for filepath, url in m.files.items()
 }
 
-urls = [url_strip(url) for m in resources.all_models() for _, url in m.files.items()]
+urls = [
+    url_strip(url)
+    for m in resources.all_models(include_deprecated=True)
+    for _, url in m.files.items()
+]
 
 
 async def file_sender(file: Path):
