@@ -364,7 +364,7 @@ class WorkflowParamsWidget(QWidget):
         layout.setColumnStretch(3, 1)
         self.setLayout(layout)
 
-        params = sorted(params, key=lambda p: p.group)
+        params = sorted(params)
         current_group: tuple[str, ExpanderButton | None, list[CustomParamWidget]] = ("", None, [])
 
         for p in params:

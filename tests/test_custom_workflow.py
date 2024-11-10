@@ -291,6 +291,29 @@ def test_parameters():
     ]
 
 
+def test_parameter_order():
+    params = [
+        CustomParam(ParamKind.number_int, "Ant", 4, 0, 10),
+        CustomParam(ParamKind.number_int, "Bee", 4, 0, 10),
+        CustomParam(ParamKind.number_int, "3. Cat", 4, 0, 10),
+        CustomParam(ParamKind.number_int, "1. Dolphin", 4, 0, 10),
+        CustomParam(ParamKind.number_int, "4. Elephant", 4, 0, 10),
+        CustomParam(ParamKind.number_int, "2. Fish/9. Salmon", 4, 0, 10),
+        CustomParam(ParamKind.number_int, "2. Fish/8. Trout", 4, 0, 10),
+        CustomParam(ParamKind.number_int, "1. Insect/Dragonfly", 4, 0, 10),
+    ]
+    assert sorted(params) == [
+        CustomParam(ParamKind.number_int, "Ant", 4, 0, 10),
+        CustomParam(ParamKind.number_int, "Bee", 4, 0, 10),
+        CustomParam(ParamKind.number_int, "1. Dolphin", 4, 0, 10),
+        CustomParam(ParamKind.number_int, "3. Cat", 4, 0, 10),
+        CustomParam(ParamKind.number_int, "4. Elephant", 4, 0, 10),
+        CustomParam(ParamKind.number_int, "1. Insect/Dragonfly", 4, 0, 10),
+        CustomParam(ParamKind.number_int, "2. Fish/8. Trout", 4, 0, 10),
+        CustomParam(ParamKind.number_int, "2. Fish/9. Salmon", 4, 0, 10),
+    ]
+
+
 def test_text_output():
     connection_workflows = {"connection1": make_dummy_graph(42)}
     connection = create_mock_connection(connection_workflows, {})
