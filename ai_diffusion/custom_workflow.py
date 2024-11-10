@@ -1,5 +1,6 @@
 import asyncio
 import json
+import re
 
 from enum import Enum
 from copy import copy
@@ -250,13 +251,38 @@ class CustomParam(NamedTuple):
 
     @property
     def name(self):
-        return self.full_name.split("/")[-1]
+        _, name = self._split_order(self._split_name()[-1])
+        return name
 
     @property
     def group(self):
+        _, group_name = self._split_order(self._split_name()[0])
+        return group_name
+
+    def _split_name(self):
         if "/" in self.full_name:
-            return self.full_name.rsplit("/", 1)[0]
-        return ""
+            return self.full_name.rsplit("/", 1)
+        return "", self.full_name
+
+    @staticmethod
+    def _split_order(s: str):
+        if num := re.match(r"(\d+)\. ", s):
+            return int(num.group(1)), s[num.end() :].lstrip()
+        return 0, s
+
+    def __lt__(self, other):
+        def compare(a: str, b: str):
+            order_a, _ = self._split_order(a)
+            order_b, _ = self._split_order(b)
+            if order_a != 0 or order_b != 0:
+                return order_a < order_b
+            return a < b
+
+        self_group, self_name = self._split_name()
+        other_group, other_name = other._split_name()
+        if self_group != other_group:
+            return compare(self_group, other_group)
+        return compare(self_name, other_name)
 
 
 def workflow_parameters(w: ComfyWorkflow):
