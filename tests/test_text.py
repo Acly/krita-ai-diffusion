@@ -130,6 +130,10 @@ class TestEditAttention:
         assert edit_attention("<foo:bar:1.1>", positive=False) == "<foo:bar:1.0>"
         assert edit_attention("<foo:bar:0.0>", positive=False) == "<foo:bar:-0.1>"
 
+    def test_newline(self):
+        assert edit_attention("foo\nbar", positive=True) == "(foo\nbar:1.1)"
+        assert edit_attention("(foo\nbar:1.1)", positive=True) == "(foo\nbar:1.2)"
+
 
 class TestSelectOnCursorPos:
     def test_word_selection(self):
