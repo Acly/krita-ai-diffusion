@@ -9,7 +9,7 @@ from typing import NamedTuple, Sequence
 version = "1.28.0"
 
 comfy_url = "https://github.com/comfyanonymous/ComfyUI"
-comfy_version = "5e29e7a488b3f48afc6c4a3cb8ed110976d0ebb8"
+comfy_version = "2d28b0b4790e3f6c2287be49d9872419eadfe5bb"
 
 
 class CustomNode(NamedTuple):

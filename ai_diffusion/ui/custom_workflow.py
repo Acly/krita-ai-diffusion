@@ -807,6 +807,7 @@ class CustomWorkflowWidget(QWidget):
     def _open_webui(self):
         if client := root.connection.client_if_connected:
             QDesktopServices.openUrl(QUrl(client.url))
+            self.model.custom.switch_to_web_workflow()
 
     @property
     def is_edit_mode(self):
