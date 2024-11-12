@@ -8,7 +8,7 @@ from dataclasses import dataclass
 from typing import Any, Awaitable, Callable, NamedTuple, Literal, TYPE_CHECKING
 from pathlib import Path
 from PyQt5.QtCore import Qt, QObject, QUuid, QAbstractListModel, QSortFilterProxyModel, QModelIndex
-from PyQt5.QtCore import pyqtSignal
+from PyQt5.QtCore import QMetaObject, QTimer, pyqtSignal
 
 from .api import WorkflowInput
 from .client import TextOutput, ClientOutput
@@ -385,6 +385,8 @@ class CustomWorkspace(QObject, ObservableProperties):
         self._last_result: Image | None = None
         self._last_job: JobParams | None = None
         self._new_outputs: list[str] = []
+        self._switch_workflow_bind: QMetaObject.Connection | None = None
+        self._switch_workflow_timer: QTimer | None = None
 
         jobs.job_finished.connect(self._handle_job_finished)
         workflows.dataChanged.connect(self._update_workflow)
@@ -502,6 +504,27 @@ class CustomWorkspace(QObject, ObservableProperties):
                 raise ValueError(f"Parameter {md.name} not found")
 
         return params
+
+    def switch_to_web_workflow(self):
+        self._switch_workflow_bind = self._workflows.rowsInserted.connect(self._set_workflow_index)
+        self._switch_workflow_timer = QTimer()
+        self._switch_workflow_timer.timeout.connect(self._clear_switch_workflow)
+        self._switch_workflow_timer.start(5 * 60 * 1000)
+
+    def _set_workflow_index(self, parent: QModelIndex, first: int, last: int):
+        for i in range(first, last + 1):
+            if self._workflows[i].source is WorkflowSource.remote:
+                self._clear_switch_workflow()
+                self.workflow_id = self._workflows[i].id
+                return
+
+    def _clear_switch_workflow(self):
+        if self._switch_workflow_timer is not None:
+            self._switch_workflow_timer.stop()
+            self._switch_workflow_timer = None
+        if self._switch_workflow_bind is not None:
+            self._workflows.rowsInserted.disconnect(self._switch_workflow_bind)
+            self._switch_workflow_bind = None
 
     def show_output(self, output: ClientOutput | None):
         if isinstance(output, TextOutput):
