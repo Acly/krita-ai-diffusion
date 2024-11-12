@@ -306,7 +306,6 @@
     "Soft Edge": "Bord doux",
     "Some models remain in": "Certains modèles restent dans",
     "Stable Diffusion 1.5": "Stable Diffusion 1.5",
-    "Stable Diffusion Version": "Version de Stable Diffusion",
     "Stable Diffusion XL": "Stable Diffusion XL",
     "Start live generation and insert images as keyframes into an animation": "Démarrer la génération en direct et insérer des images en tant qu'images clés dans une animation",
     "Start/stop live preview": "Démarrer/arrêter l'aperçu en direct",
@@ -338,7 +337,6 @@
     "The NSFW filter is a basic tool to exclude explicit content from generated images. It is NOT a guarantee and may not catch all inappropriate content. Please use responsibly and always review the generated images.": "Le filtre NSFW est un outil de base pour exclure le contenu explicite des images générées. Ce n'est PAS une garantie et il peut ne pas capturer tout le contenu inapproprié. Veuillez l'utiliser de manière responsable et toujours revoir les images générées.",
     "The VAE '{vae}' used by style '{style}' is not available on the server": "Le VAE '{vae}' utilisé par le style '{style}' n'est pas disponible sur le serveur",
     "The active layer does not contain an animation.": "La couche active ne contient pas d'animation.",
-    "The base architecture must match checkpoint and LoRA": "L'architecture de base doit correspondre au checkpoint et au LoRA",
     "The border is blurred by a fraction of selection size": "La bordure est floutée par une fraction de la taille de la sélection",
     "The checkpoint '{checkpoint}' used by style '{style}' is not available on the server": "Le checkpoint '{checkpoint}' utilisé par le style '{style}' n'est pas disponible sur le serveur",
     "The checkpoint used by this style is not installed.": "Le checkpoint utilisé par ce style n'est pas installé.",
@@ -447,6 +445,9 @@
     "Start Generating": null,
     "Import workflow from file": null,
     "Text Output": null,
-    "Backup folder {dir} already exists! Please make sure it does not contain any valuable data such as checkpoints or other models you downloaded. Then delete the folder and try again.": "Le dossier de sauvegarde {dir} existe déjà! Veuillez vous assurer qu'il ne contient aucune donnée précieuse, supprimez-le et réessayez."
+    "Backup folder {dir} already exists! Please make sure it does not contain any valuable data such as checkpoints or other models you downloaded. Then delete the folder and try again.": "Le dossier de sauvegarde {dir} existe déjà! Veuillez vous assurer qu'il ne contient aucune donnée précieuse, supprimez-le et réessayez.",
+    "Diffusion Model Architecture": null,
+    "Copy error message to clipboard": null,
+    "Reset all parameters in this group": null
   }
 }

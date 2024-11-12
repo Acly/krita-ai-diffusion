@@ -306,7 +306,6 @@
     "Soft Edge": "Soft Edge",
     "Some models remain in": "Some models remain in",
     "Stable Diffusion 1.5": "Stable Diffusion 1.5",
-    "Stable Diffusion Version": "Версия Stable Diffusion",
     "Stable Diffusion XL": "Stable Diffusion XL",
     "Start live generation and insert images as keyframes into an animation": "Запустить генерацию в режиме реального времени и вставьте изображения в качестве ключевых кадров в анимацию",
     "Start/stop live preview": "Вкл/Выкл просмотр в реальном времени",
@@ -338,7 +337,6 @@
     "The NSFW filter is a basic tool to exclude explicit content from generated images. It is NOT a guarantee and may not catch all inappropriate content. Please use responsibly and always review the generated images.": "Фильтр NSFW - это базовый инструмент для исключения откровенного контента из созданных изображений. Он не является гарантией и не может выявить весь неприемлемый контент. Пожалуйста, используйте его ответственно и всегда просматривайте сгенерированные изображения.",
     "The VAE '{vae}' used by style '{style}' is not available on the server": "VAE '{vae}' для стиля '{style}' не доступна на сервере",
     "The active layer does not contain an animation.": "Активный слой не содержит анимации.",
-    "The base architecture must match checkpoint and LoRA": "Базовая архитектура должна соответствовать модели и LoRA",
     "The border is blurred by a fraction of selection size": "Размытие границы на долю от выбранного размера",
     "The checkpoint '{checkpoint}' used by style '{style}' is not available on the server": "Модель '{checkpoint}' для стиля '{style}' не доступна на сервере",
     "The checkpoint used by this style is not installed.": "Модель для этого стиля не установлена",
@@ -447,6 +445,9 @@
     "Start Generating": "Начать генерацию",
     "Import workflow from file": "Импортировать рабочий процесс из файла",
     "Text Output": null,
-    "Backup folder {dir} already exists! Please make sure it does not contain any valuable data such as checkpoints or other models you downloaded. Then delete the folder and try again.": "Папка резервного копирования {dir} уже существует! Пожалуйста, убедитесь, что она не содержит никаких ценных данных, удалите её и повторите попытку."
+    "Backup folder {dir} already exists! Please make sure it does not contain any valuable data such as checkpoints or other models you downloaded. Then delete the folder and try again.": "Папка резервного копирования {dir} уже существует! Пожалуйста, убедитесь, что она не содержит никаких ценных данных, удалите её и повторите попытку.",
+    "Diffusion Model Architecture": null,
+    "Copy error message to clipboard": null,
+    "Reset all parameters in this group": null
   }
 }

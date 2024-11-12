@@ -342,7 +342,6 @@
     "Soft Edge": "ソフト輪郭(Soft Edge)",
     "Some models remain in": "いくつかのモデルが残っているのは",
     "Stable Diffusion 1.5": "Stable Diffusion 1.5",
-    "Stable Diffusion Version": "Stable Diffusion バージョン",
     "Stable Diffusion XL": "Stable Diffusion XL",
     "Start live generation and insert images as keyframes into an animation": "ライブ生成を開始し、画像をキーフレームとしてアニメーションに挿入",
     "Start/stop live preview": "ライブビューの開始・停止",
@@ -376,7 +375,6 @@
     "The VAE '{vae}' used by style '{style}' is not available on the server": "スタイル '{style}' で使用される VAE '{vae}' はサーバー上で利用できません",
     "The VAE for this diffusion model is not installed": "このディフュージョンモデルのVAEはインストールされていません",
     "The active layer does not contain an animation.": "選択レイヤーにはアニメーションが含まれていません。",
-    "The base architecture must match checkpoint and LoRA": "基本アーキテクチャはチェックポイントとLoRAとで一致している必要があります",
     "The border is blurred by a fraction of selection size": "境界に指定サイズのぼかしを行います",
     "The checkpoint '{checkpoint}' used by style '{style}' is not available on the server": "スタイル '{style}' で使用されるチェックポイント '{checkpoint}' はサーバー上で利用できません",
     "The checkpoint used by this style is not installed.": "このスタイルで使用されるチェックポイントはインストールされていません。",
@@ -447,6 +445,9 @@
     "Start Generating": "生成開始",
     "Import workflow from file": "ファイルからワークフローをインポート",
     "Text Output": null,
-    "Backup folder {dir} already exists! Please make sure it does not contain any valuable data such as checkpoints or other models you downloaded. Then delete the folder and try again.": "バックアップ・フォルダ {dir} が既に存在しています。重要なデータが含まれていないことを確認してから削除し、もう一度試して下さい。"
+    "Backup folder {dir} already exists! Please make sure it does not contain any valuable data such as checkpoints or other models you downloaded. Then delete the folder and try again.": "バックアップ・フォルダ {dir} が既に存在しています。重要なデータが含まれていないことを確認してから削除し、もう一度試して下さい。",
+    "Diffusion Model Architecture": null,
+    "Copy error message to clipboard": null,
+    "Reset all parameters in this group": null
   }
 }

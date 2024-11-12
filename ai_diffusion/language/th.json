@@ -289,7 +289,6 @@
     "Soft Edge": null,
     "Some models remain in": "บาง models ยังคงอยู่ใน",
     "Stable Diffusion 1.5": "Stable Diffusion 1.5",
-    "Stable Diffusion Version": "รุ่น Stable Diffusion",
     "Stable Diffusion XL": "Stable Diffusion XL",
     "Start live generation and insert images as keyframes into an animation": "เริ่ม live และแทรกภาพเป็น keyframes ลงในแอนิเมชัน",
     "Start/stop live preview": "เริ่ม/หยุด live ตัวอย่าง",
@@ -319,7 +318,6 @@
     "The NSFW filter is a basic tool to exclude explicit content from generated images. It is NOT a guarantee and may not catch all inappropriate content. Please use responsibly and always review the generated images.": "ตัวกรอง NSFW เป็นเครื่องมือพื้นฐาน ในการแยกเนื้อหา 18+ ออกจากรูปภาพที่สร้างขึ้น โดยที่ ตัวกรองนี้ ไม่รับประกัน และอาจไม่สามารถตรวจจับเนื้อหาที่ไม่เหมาะสมทั้งหมดได้ โปรดใช้ด้วยความรับผิดชอบ และตรวจสอบรูปภาพที่สร้างขึ้นเสมอ",
     "The VAE '{vae}' used by style '{style}' is not available on the server": "VAE '{vae}' ที่ใช้โดย Style '{style}' ไม่พร้อมใช้งานบน Server",
     "The active layer does not contain an animation.": "Layer ที่ใช้งานอยู่ ไม่มีแอนิเมชั่น",
-    "The base architecture must match checkpoint and LoRA": "สถาปัตยกรรมพื้นฐาน ต้องตรงกับ Checkpoint และ LoRA",
     "The border is blurred by a fraction of selection size": "ขอบ Selection เบลอ เป็นเศษส่วนของขนาด Selection",
     "The checkpoint '{checkpoint}' used by style '{style}' is not available on the server": "Checkpoint '{checkpoint}' ที่ใช้โดย Style '{style}' ไม่พร้อมใช้งานบน Server",
     "The checkpoint used by this style is not installed.": "ไม่ได้ติดตั้ง Checkpoint ที่ใช้โดย Style นี้",
@@ -447,6 +445,9 @@
     "Start Generating": null,
     "Import workflow from file": null,
     "Text Output": null,
-    "Backup folder {dir} already exists! Please make sure it does not contain any valuable data such as checkpoints or other models you downloaded. Then delete the folder and try again.": "Folder สำรอง {dir} มีอยู่แล้ว! โปรดตรวจสอบให้แน่ใจ ว่าไม่มีข้อมูลที่สำคัญใดๆ ลบมันทิ้งแล้วลองอีกครั้ง"
+    "Backup folder {dir} already exists! Please make sure it does not contain any valuable data such as checkpoints or other models you downloaded. Then delete the folder and try again.": "Folder สำรอง {dir} มีอยู่แล้ว! โปรดตรวจสอบให้แน่ใจ ว่าไม่มีข้อมูลที่สำคัญใดๆ ลบมันทิ้งแล้วลองอีกครั้ง",
+    "Diffusion Model Architecture": null,
+    "Copy error message to clipboard": null,
+    "Reset all parameters in this group": null
   }
 }

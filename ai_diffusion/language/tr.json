@@ -306,7 +306,6 @@
     "Soft Edge": "Soft Edge",
     "Some models remain in": "Bazı modeller şurada kaldı:",
     "Stable Diffusion 1.5": "Stable Diffusion 1.5",
-    "Stable Diffusion Version": "Stable Diffusion Sürümü",
     "Stable Diffusion XL": "Stable Diffusion XL",
     "Start live generation and insert images as keyframes into an animation": "Canlı oluşturmayı başlat ve görüntüleri bir animasyona anahtar kareler olarak ekle",
     "Start/stop live preview": "Canlı önizlemeyi başlat/durdur",
@@ -338,7 +337,6 @@
     "The NSFW filter is a basic tool to exclude explicit content from generated images. It is NOT a guarantee and may not catch all inappropriate content. Please use responsibly and always review the generated images.": "NSFW filtresi, oluşturulan görüntülerden açık içeriği çıkarmak için temel bir araçtır. Bu bir garanti DEĞİLDİR ve tüm uygunsuz içeriği yakalamayabilir. Lütfen sorumlu bir şekilde kullanın ve oluşturulan görüntüleri her zaman gözden geçirin.",
     "The VAE '{vae}' used by style '{style}' is not available on the server": "'{style}' stili tarafından kullanılan VAE '{vae}' sunucuda mevcut değil",
     "The active layer does not contain an animation.": "Aktif katman bir animasyon içermiyor.",
-    "The base architecture must match checkpoint and LoRA": "Temel mimari, checkpoint ve LoRA ile eşleşmelidir",
     "The border is blurred by a fraction of selection size": "Kenarlık, seçim boyutunun bir kısmı kadar bulanıklaştırılır",
     "The checkpoint '{checkpoint}' used by style '{style}' is not available on the server": "'{style}' stili tarafından kullanılan checkpoint '{checkpoint}' sunucuda mevcut değil",
     "The checkpoint used by this style is not installed.": "Bu stil tarafından kullanılan checkpoint kurulu değil.",
@@ -447,6 +445,9 @@
     "Start Generating": null,
     "Import workflow from file": null,
     "Text Output": null,
-    "Backup folder {dir} already exists! Please make sure it does not contain any valuable data such as checkpoints or other models you downloaded. Then delete the folder and try again.": "Yedek klasörü {dir} zaten mevcut! Lütfen değerli veri içermediğinden emin olun, silin ve tekrar deneyin."
+    "Backup folder {dir} already exists! Please make sure it does not contain any valuable data such as checkpoints or other models you downloaded. Then delete the folder and try again.": "Yedek klasörü {dir} zaten mevcut! Lütfen değerli veri içermediğinden emin olun, silin ve tekrar deneyin.",
+    "Diffusion Model Architecture": null,
+    "Copy error message to clipboard": null,
+    "Reset all parameters in this group": null
   }
 }

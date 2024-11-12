@@ -306,7 +306,6 @@
     "Soft Edge": "부드러운 가장자리",
     "Some models remain in": "몇몇 모델이 남아 있습니다",
     "Stable Diffusion 1.5": "Stable Diffusion 1.5",
-    "Stable Diffusion Version": "Stable Diffusion 버전",
     "Stable Diffusion XL": "Stable Diffusion XL",
     "Start live generation and insert images as keyframes into an animation": "실시간 생성을 시작하고 이미지를 애니메이션의 키프레임으로 삽입합니다",
     "Start/stop live preview": "실시간 미리보기 시작/중지",
@@ -338,7 +337,6 @@
     "The NSFW filter is a basic tool to exclude explicit content from generated images. It is NOT a guarantee and may not catch all inappropriate content. Please use responsibly and always review the generated images.": "NSFW 필터는 생성된 이미지에서 음란 콘텐츠를 제외하는 기본 도구입니다. 보장이 아니며 모든 부적절한 콘텐츠를 잡지 못할 수 있습니다. 책임감 있게 사용하고 생성된 이미지를 항상 검토하세요.",
     "The VAE '{vae}' used by style '{style}' is not available on the server": "스타일 '{style}'에서 사용하는 VAE '{vae}'가 서버에 없습니다",
     "The active layer does not contain an animation.": "활성 레이어에 애니메이션이 포함되어 있지 않습니다.",
-    "The base architecture must match checkpoint and LoRA": "기본 아키텍처는 체크포인트와 LoRA와 일치해야 합니다",
     "The border is blurred by a fraction of selection size": "테두리가 선택 크기의 일부로 흐릿해집니다",
     "The checkpoint '{checkpoint}' used by style '{style}' is not available on the server": "스타일 '{style}'에서 사용하는 체크포인트 '{checkpoint}'가 서버에 없습니다",
     "The checkpoint used by this style is not installed.": "이 스타일에서 사용하는 체크포인트가 설치되지 않았습니다.",
@@ -447,6 +445,9 @@
     "Start Generating": "생성 시작",
     "Import workflow from file": "파일에서 워크플로 가져오기",
     "Text Output": null,
-    "Backup folder {dir} already exists! Please make sure it does not contain any valuable data such as checkpoints or other models you downloaded. Then delete the folder and try again.": "백업 폴더 {dir}이(가) 이미 존재합니다! 중요한 데이터가 없는지 확인하고 삭제한 후 다시 시도하세요."
+    "Backup folder {dir} already exists! Please make sure it does not contain any valuable data such as checkpoints or other models you downloaded. Then delete the folder and try again.": "백업 폴더 {dir}이(가) 이미 존재합니다! 중요한 데이터가 없는지 확인하고 삭제한 후 다시 시도하세요.",
+    "Diffusion Model Architecture": null,
+    "Copy error message to clipboard": null,
+    "Reset all parameters in this group": null
   }
 }

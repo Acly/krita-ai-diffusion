@@ -306,7 +306,6 @@
     "Soft Edge": "Soft Edge",
     "Some models remain in": "Alguns modelos permanecem em",
     "Stable Diffusion 1.5": "Stable diffusion 1.5",
-    "Stable Diffusion Version": "Versão de Stable diffusion",
     "Stable Diffusion XL": "Stable Diffusion XL",
     "Start live generation and insert images as keyframes into an animation": "Iniciar a geração em modo Live e inserir as imagens como keyframes de animação.",
     "Start/stop live preview": "Iniciar/Parar pré-visualização ao vivo",
@@ -338,7 +337,6 @@
     "The NSFW filter is a basic tool to exclude explicit content from generated images. It is NOT a guarantee and may not catch all inappropriate content. Please use responsibly and always review the generated images.": "O filtro NSFW é uma ferramenta básica para excluir conteúdo explícito das imagens geradas. NÃO é uma garantia e pode não detectar todo o conteúdo inapropriado. Use-o de maneira responsável e revise sempre as imagens geradas.",
     "The VAE '{vae}' used by style '{style}' is not available on the server": "O VAE '{vae}' usado pelo estilo '{style}' não está disponível no servidor.",
     "The active layer does not contain an animation.": "A camada ativa não contém uma animação.",
-    "The base architecture must match checkpoint and LoRA": "A arquitetura base deve coincidir com o Checkpoint e LoRA",
     "The border is blurred by a fraction of selection size": "A borda está enevoada por uma fração do tamanho da seleção",
     "The checkpoint '{checkpoint}' used by style '{style}' is not available on the server": "O Checkpoint '{checkpoint}' usado pelo estilo '{style}', não está disponível no servidor",
     "The checkpoint used by this style is not installed.": "O Checkpoint usado por este estilo não está instalado.",
@@ -447,6 +445,9 @@
     "Start Generating": "Iniciar Geração",
     "Import workflow from file": "Importar workflow desde um arquivo",
     "Text Output": null,
-    "Backup folder {dir} already exists! Please make sure it does not contain any valuable data such as checkpoints or other models you downloaded. Then delete the folder and try again.": "A localização de backup {dir} já existe! Por favor, tenha certeza que não contém nenhum tipo de dados valiosos, apague-a tente de novo."
+    "Backup folder {dir} already exists! Please make sure it does not contain any valuable data such as checkpoints or other models you downloaded. Then delete the folder and try again.": "A localização de backup {dir} já existe! Por favor, tenha certeza que não contém nenhum tipo de dados valiosos, apague-a tente de novo.",
+    "Diffusion Model Architecture": null,
+    "Copy error message to clipboard": null,
+    "Reset all parameters in this group": null
   }
 }

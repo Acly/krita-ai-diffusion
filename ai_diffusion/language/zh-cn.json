@@ -306,7 +306,6 @@
     "Soft Edge": "SoftEdge 软边缘",
     "Some models remain in": "一些模型仍然保留在",
     "Stable Diffusion 1.5": "Stable Diffusion 1.5",
-    "Stable Diffusion Version": "Stable Diffusion 版本",
     "Stable Diffusion XL": "Stable Diffusion XL",
     "Start live generation and insert images as keyframes into an animation": "开始实时生成并在动画中将图像作为关键帧插入",
     "Start/stop live preview": "开始/停止实时预览",
@@ -338,7 +337,6 @@
     "The NSFW filter is a basic tool to exclude explicit content from generated images. It is NOT a guarantee and may not catch all inappropriate content. Please use responsibly and always review the generated images.": " NSFW过滤器是从生成的图像中排除显式内容的基本工具。这不是一种保证，可能无法捕捉到所有不恰当的内容。请负责任地使用并始终查看生成的图像。",
     "The VAE '{vae}' used by style '{style}' is not available on the server": "风格 '{style}' 使用的 VAE '{vae}' 在服务器上不可用",
     "The active layer does not contain an animation.": "当前活动层不包含动画。",
-    "The base architecture must match checkpoint and LoRA": "基础架构必须与checkpoint和LoRA相匹配",
     "The border is blurred by a fraction of selection size": "边界被模糊，模糊程度是选择区域大小的一部分",
     "The checkpoint '{checkpoint}' used by style '{style}' is not available on the server": "风格 '{style}' 使用的关键点 '{checkpoint}' 在服务器上不可用",
     "The checkpoint used by this style is not installed.": "此风格使用的checkpoint未安装。",
@@ -447,6 +445,9 @@
     "Start Generating": "开始生成",
     "Import workflow from file": "导入工作流",
     "Text Output": null,
-    "Backup folder {dir} already exists! Please make sure it does not contain any valuable data such as checkpoints or other models you downloaded. Then delete the folder and try again.": "备份文件夹 {dir} 已存在！请确保其中没有任何重要数据，删除它后再试一次。"
+    "Backup folder {dir} already exists! Please make sure it does not contain any valuable data such as checkpoints or other models you downloaded. Then delete the folder and try again.": "备份文件夹 {dir} 已存在！请确保其中没有任何重要数据，删除它后再试一次。",
+    "Diffusion Model Architecture": null,
+    "Copy error message to clipboard": null,
+    "Reset all parameters in this group": null
   }
 }
