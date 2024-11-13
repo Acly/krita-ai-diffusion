@@ -421,7 +421,7 @@ class WorkflowParamsWidget(QWidget):
                 group_widgets = []
                 current_group = (p.group, expander, group_widgets)
                 layout.addWidget(expander, layout.rowCount(), 0, 1, 4)
-            label = QLabel(p.name, self)
+            label = QLabel(p.display_name, self)
             widget = _create_param_widget(p, self)
             widget.value_changed.connect(self._notify)
             row = layout.rowCount()

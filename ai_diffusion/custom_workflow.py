@@ -243,14 +243,14 @@ class ParamKind(Enum):
 
 class CustomParam(NamedTuple):
     kind: ParamKind
-    full_name: str
+    name: str
     default: Any | None = None
     min: int | float | None = None
     max: int | float | None = None
     choices: list[str] | None = None
 
     @property
-    def name(self):
+    def display_name(self):
         _, name = self._split_order(self._split_name()[-1])
         return name
 
@@ -260,9 +260,9 @@ class CustomParam(NamedTuple):
         return group_name
 
     def _split_name(self):
-        if "/" in self.full_name:
-            return self.full_name.rsplit("/", 1)
-        return "", self.full_name
+        if "/" in self.name:
+            return self.name.rsplit("/", 1)
+        return "", self.name
 
     @staticmethod
     def _split_order(s: str):
