@@ -4,7 +4,7 @@
   "translations": {
     "(Custom)": "(Personalizado)",
     "<No text prompt>": "<Sin texto de prompt>",
-    "AI Image Generation": "Genarador de imagenes con IA",
+    "AI Image Generation": "Generador de imagenes con IA",
     "Account:": "Cuenta",
     "Active": "Activo",
     "Active History Size": "Tamaño de Historial Activo",
@@ -446,8 +446,8 @@
     "Import workflow from file": "Importar Flujo de trabajo desde archivo",
     "Text Output": "Texto de salida",
     "Backup folder {dir} already exists! Please make sure it does not contain any valuable data such as checkpoints or other models you downloaded. Then delete the folder and try again.": "La ruta de respaldo {dir} ya existe! Por favor, asegúrese que no contiene ningún tipo de datos valiosos, elimínelo y vuelva a intentar.",
-    "Diffusion Model Architecture": null,
-    "Copy error message to clipboard": null,
-    "Reset all parameters in this group": null
+    "Diffusion Model Architecture": "Arquitectura de Modelo de Difusión",
+    "Copy error message to clipboard": "Copiar mensaje de error para el portapapeles",
+    "Reset all parameters in this group": "Resetear todos los parametros en este grupo"
   }
 }
