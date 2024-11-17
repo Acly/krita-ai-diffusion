@@ -277,7 +277,7 @@ class Model(QObject, ObservableProperties):
         eventloop.run(_report_errors(self, self._enqueue_job(job, inputs)))
 
         self._doc.resize(job.params.bounds.extent)
-        self.upscale.can_generate = False
+        self.upscale.set_in_progress(True)
         self.upscale.target_extent_changed.emit(self.upscale.target_extent)
 
     def estimate_cost(self, kind=JobKind.diffusion):
@@ -482,7 +482,7 @@ class Model(QObject, ObservableProperties):
 
     def _finish_job(self, job: Job, event: ClientEvent):
         if job.kind is JobKind.upscaling:
-            self.upscale.can_generate = True
+            self.upscale.set_in_progress(False)
 
         if event is ClientEvent.finished:
             self.jobs.notify_finished(job)
@@ -757,7 +757,7 @@ class UpscaleParams(NamedTuple):
 
 class UpscaleWorkspace(QObject, ObservableProperties):
     upscaler = Property("", persist=True)
-    factor = Property(2.0, persist=True)
+    factor = Property(2.0, persist=True, setter="_set_factor")
     use_diffusion = Property(True, persist=True)
     strength = Property(0.3, persist=True)
     unblur_strength = Property(1, persist=True)
@@ -774,12 +774,11 @@ class UpscaleWorkspace(QObject, ObservableProperties):
     can_generate_changed = pyqtSignal(bool)
     modified = pyqtSignal(QObject, str)
 
-    _model: Model
-
     def __init__(self, model: Model):
         super().__init__()
         self._model = model
-        self.factor_changed.connect(lambda _: self.target_extent_changed.emit(self.target_extent))
+        self._in_progress = False
+        self.use_diffusion_changed.connect(self._update_can_generate)
         self._init_model()
         model._connection.models_changed.connect(self._init_model)
 
@@ -787,6 +786,20 @@ class UpscaleWorkspace(QObject, ObservableProperties):
         if client := self._model._connection.client_if_connected:
             if self.upscaler not in client.models.upscalers:
                 self.upscaler = client.models.default_upscaler
+
+    def set_in_progress(self, in_progress: bool):
+        self._in_progress = in_progress
+        self._update_can_generate()
+
+    def _set_factor(self, value: float):
+        if self._factor != value:
+            self._factor = value
+            self.factor_changed.emit(value)
+            self.target_extent_changed.emit(self.target_extent)
+            self._update_can_generate()
+
+    def _update_can_generate(self):
+        self.can_generate = not self._in_progress and (self.factor > 1.0 or self.use_diffusion)
 
     @property
     def target_extent(self):

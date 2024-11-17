@@ -739,7 +739,7 @@ class WorkspaceSelectWidget(QToolButton):
 
 class GenerateButton(QPushButton):
     model: Model
-    operation: str
+    _operation: str
     _kind: JobKind
     _cost: int = 0
     _cost_icon: QIcon
@@ -747,14 +747,23 @@ class GenerateButton(QPushButton):
     def __init__(self, kind: JobKind, parent: QWidget):
         super().__init__(parent)
         self.model = root.active_model
-        self.operation = _("Generate")
+        self._operation = _("Generate")
         self._kind = kind
         self._cost_icon = theme.icon("interstice")
         self.setAttribute(Qt.WidgetAttribute.WA_Hover)
 
+    @property
+    def operation(self):
+        return self._operation
+
+    @operation.setter
+    def operation(self, value: str):
+        self._operation = value
+        self.update()
+
     def minimumSizeHint(self):
         fm = self.fontMetrics()
-        return QSize(fm.width(self.operation) + 40, 12 + int(1.3 * fm.height()))
+        return QSize(fm.width(self._operation) + 40, 12 + int(1.3 * fm.height()))
 
     def enterEvent(self, a0: QEvent | None):
         if client := root.connection.client_if_connected:
@@ -776,12 +785,12 @@ class GenerateButton(QPushButton):
         is_hover = int(opt.state) & QStyle.StateFlag.State_MouseOver
         element = QStyle.PrimitiveElement.PE_PanelButtonCommand
         vcenter = Qt.AlignmentFlag.AlignVCenter
-        content_width = fm.width(self.operation) + 5 + pixmap.width()
+        content_width = fm.width(self._operation) + 5 + pixmap.width()
         content_rect = rect.adjusted(int(0.5 * (rect.width() - content_width)), 0, 0, 0)
         style.drawPrimitive(element, opt, painter, self)
         style.drawItemPixmap(painter, content_rect, vcenter, pixmap)
         content_rect = content_rect.adjusted(pixmap.width() + 5, 0, 0, 0)
-        style.drawItemText(painter, content_rect, vcenter, self.palette(), True, self.operation)
+        style.drawItemText(painter, content_rect, vcenter, self.palette(), True, self._operation)
 
         if is_hover and self._cost > 0:
             cost_width = fm.width(str(self._cost))

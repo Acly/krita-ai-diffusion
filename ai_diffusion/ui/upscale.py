@@ -123,6 +123,7 @@ class UpscaleWidget(QWidget):
         layout.addLayout(model_layout)
 
         self.factor_widget = FactorWidget(self)
+        self.factor_widget.value_changed.connect(self._update_factor)
         layout.addWidget(self.factor_widget)
 
         self.refinement_checkbox = QGroupBox(_("Refine upscaled image"), self)
@@ -281,6 +282,12 @@ class UpscaleWidget(QWidget):
         else:
             self.prompt_warning.hide()
         set_text_clipped(self.prompt_label, text, padding=padding)
+
+    def _update_factor(self):
+        if self.factor_widget.value == 1.0 and self.model.upscale.use_diffusion:
+            self.upscale_button.operation = _("Refine")
+        else:
+            self.upscale_button.operation = _("Upscale")
 
 
 def _upscaler_order(filename: str):
