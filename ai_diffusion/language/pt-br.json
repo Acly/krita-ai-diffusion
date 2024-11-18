@@ -444,10 +444,10 @@
     "Delete Workflow": "Deletar workflow",
     "Start Generating": "Iniciar Geração",
     "Import workflow from file": "Importar workflow desde um arquivo",
-    "Text Output": null,
+    "Text Output": "Saída de Texto",
     "Backup folder {dir} already exists! Please make sure it does not contain any valuable data such as checkpoints or other models you downloaded. Then delete the folder and try again.": "A localização de backup {dir} já existe! Por favor, tenha certeza que não contém nenhum tipo de dados valiosos, apague-a tente de novo.",
-    "Diffusion Model Architecture": null,
-    "Copy error message to clipboard": null,
-    "Reset all parameters in this group": null
+    "Diffusion Model Architecture": "Modelo de Arquitetura de Difusão",
+    "Copy error message to clipboard": "Copiar menssagem de erro ao clipboard",
+    "Reset all parameters in this group": "Reiniciar todos os parámetros neste grupo"
   }
 }

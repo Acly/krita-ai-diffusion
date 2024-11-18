@@ -8,7 +8,7 @@ import json
 
 from .image import Bounds, Extent, Image
 from .resources import Arch, ControlMode
-from .util import base_type_match
+from .util import base_type_match, client_logger as log
 
 
 class ComfyRunMode(Enum):
@@ -69,9 +69,13 @@ class ComfyWorkflow:
         while queue:
             id = queue.pop(0)
             node = deepcopy(existing[id])
-            if node_inputs and node["class_type"] not in node_inputs:
+            class_type = node.get("class_type")
+            if class_type is None:
+                log.warning(f"Workflow import: Node {id} is not installed, aborting.")
+                return w
+            if node_inputs and class_type not in node_inputs:
                 raise ValueError(
-                    f"Workflow contains a node of type {node['class_type']} which is not installed on the ComfyUI server."
+                    f"Workflow contains a node of type {class_type} which is not installed on the ComfyUI server."
                 )
             edges = [e for e in node["inputs"].values() if isinstance(e, list)]
             if any(e[0] not in node_map for e in edges):

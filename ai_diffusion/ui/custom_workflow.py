@@ -318,8 +318,9 @@ class StyleParamWidget(QWidget):
 
     @value.setter
     def value(self, value: str):
-        if style := Styles.list().find(value):
-            self._style_select.value = style
+        if value != self.value:
+            if style := Styles.list().find(value):
+                self._style_select.value = style
 
 
 CustomParamWidget = (
@@ -421,7 +422,7 @@ class WorkflowParamsWidget(QWidget):
                 group_widgets = []
                 current_group = (p.group, expander, group_widgets)
                 layout.addWidget(expander, layout.rowCount(), 0, 1, 4)
-            label = QLabel(p.name, self)
+            label = QLabel(p.display_name, self)
             widget = _create_param_widget(p, self)
             widget.value_changed.connect(self._notify)
             row = layout.rowCount()
@@ -788,7 +789,8 @@ class CustomWorkflowWidget(QWidget):
             self._params_widget = None
         if len(self.model.custom.metadata) > 0:
             self._params_widget = WorkflowParamsWidget(self.model.custom.metadata, self)
-            self._params_widget.value = self.model.custom.params
+            self._params_widget.value = self.model.custom.params  # set default values from model
+            self.model.custom.params = self._params_widget.value  # set default values from widgets
             self._params_widget.value_changed.connect(self._change_params)
 
             self._params_scroll.setWidget(self._params_widget)
