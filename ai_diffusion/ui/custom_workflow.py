@@ -2,6 +2,7 @@ from functools import wraps
 from pathlib import Path
 from typing import Any, Callable
 
+from krita import Krita
 from PyQt5.QtCore import Qt, pyqtSignal, QMetaObject, QUuid, QUrl, QPoint
 from PyQt5.QtGui import QFontMetrics, QIcon, QDesktopServices
 from PyQt5.QtWidgets import QComboBox, QFileDialog, QFrame, QGridLayout, QHBoxLayout, QMenu
@@ -246,7 +247,8 @@ class PromptParamWidget(TextPromptWidget):
     value_changed = pyqtSignal()
 
     def __init__(self, param: CustomParam, parent: QWidget | None = None):
-        super().__init__(is_negative=param.kind is ParamKind.prompt_negative, parent=parent)
+        line_count = settings.prompt_line_count if param.kind is ParamKind.prompt_positive else TextPromptWidget._line_count
+        super().__init__(is_negative=param.kind is ParamKind.prompt_negative, line_count=line_count, parent=parent)
         assert isinstance(param.default, str)
         self.param = param
 
@@ -257,6 +259,7 @@ class PromptParamWidget(TextPromptWidget):
         )
         self.text = param.default
         self.text_changed.connect(self.value_changed)
+        settings.changed.connect(self.update_settings)
 
     @property
     def value(self):
@@ -266,6 +269,9 @@ class PromptParamWidget(TextPromptWidget):
     def value(self, value: str):
         self.text = value
 
+    def update_settings(self, key: str, value):
+        if key == "prompt_line_count":
+            self.line_count = value
 
 class ChoiceParamWidget(QComboBox):
     value_changed = pyqtSignal()
