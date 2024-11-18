@@ -611,6 +611,12 @@ class CustomWorkflowWidget(QWidget):
             _("Open Web UI to create custom workflows"),
             self._open_webui,
         )
+        self._open_settings_button = _create_tool_button(
+            self._workflow_select_widgets,
+            theme.icon("settings"),
+            _("Open settings"),
+            self._show_settings,
+        )
 
         self._workflow_edit_widgets = QWidget(self)
         self._workflow_edit_widgets.setVisible(False)
@@ -675,6 +681,7 @@ class CustomWorkflowWidget(QWidget):
         select_layout.addWidget(self._save_workflow_button)
         select_layout.addWidget(self._delete_workflow_button)
         select_layout.addWidget(self._open_webui_button)
+        select_layout.addWidget(self._open_settings_button)
         self._workflow_select_widgets.setLayout(select_layout)
         edit_layout = QHBoxLayout()
         edit_layout.setContentsMargins(0, 0, 0, 0)
@@ -704,11 +711,15 @@ class CustomWorkflowWidget(QWidget):
         self._layout.addWidget(self._live_preview, stretch=5)
         self.setLayout(self._layout)
 
+        settings.changed.connect(self._update_current_workflow)
         self._update_ui()
 
     def _update_layout(self):
         stretch = 1 if self._outputs.is_visible else 0
         self._layout.setStretchFactor(self._outputs, stretch)
+        
+    def _show_settings(self):
+        Krita.instance().action("ai_diffusion_settings").trigger()
 
     @property
     def model(self):
