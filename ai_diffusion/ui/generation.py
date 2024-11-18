@@ -152,7 +152,7 @@ class HistoryWidget(QListWidget):
         "seed": _("Seed"),
     }
 
-    def _job_info(self, params: JobParams, tooltip_header: bool = True):
+    def _job_info(self, params: JobParams):
         title = params.name if params.name != "" else "<no prompt>"
         if len(title) > 70:
             title = title[:66] + "..."
@@ -163,7 +163,7 @@ class HistoryWidget(QListWidget):
             title + "\n",
             _("Click to toggle preview, double-click to apply."),
             "",
-        ] if tooltip_header else []
+        ]
         for key, value in params.metadata.items():
             if key == "style" and style:
                 value = style.name
@@ -340,7 +340,6 @@ class HistoryWidget(QListWidget):
             if job is None or Styles.list().find(job.params.style) is None:
                 style_action.setEnabled(False)
             menu.addAction(_("Copy Seed"), self._copy_seed)
-            menu.addAction(_("Info to Clipboard"), self._info_to_clipboard)
             menu.addSeparator()
             save_action = ensure(menu.addAction(_("Save Image"), self._save_image))
             if self._model.document.filename == "":
@@ -381,10 +380,6 @@ class HistoryWidget(QListWidget):
         if job := self.selected_job:
             self._model.fixed_seed = True
             self._model.seed = job.params.seed
-
-    def _info_to_clipboard(self):
-        if (job := self.selected_job) and (clipboard := QGuiApplication.clipboard()):
-            clipboard.setText(self._job_info(job.params, tooltip_header=False))
 
     def _save_image(self):
         items = self.selectedItems()
