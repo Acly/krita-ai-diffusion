@@ -159,11 +159,15 @@ class HistoryWidget(QListWidget):
         if params.strength != 1.0:
             title = f"{title} @ {params.strength*100:.0f}%"
         style = Styles.list().find(params.style)
-        strings: list[str | list[str]] = [
-            title + "\n",
-            _("Click to toggle preview, double-click to apply."),
-            "",
-        ] if tooltip_header else []
+        strings: list[str | list[str]] = (
+            [
+                title + "\n",
+                _("Click to toggle preview, double-click to apply."),
+                "",
+            ]
+            if tooltip_header
+            else []
+        )
         for key, value in params.metadata.items():
             if key == "style" and style:
                 value = style.name
