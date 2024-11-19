@@ -247,8 +247,16 @@ class PromptParamWidget(TextPromptWidget):
     value_changed = pyqtSignal()
 
     def __init__(self, param: CustomParam, parent: QWidget | None = None):
-        line_count = settings.prompt_line_count if param.kind is ParamKind.prompt_positive else TextPromptWidget._line_count
-        super().__init__(is_negative=param.kind is ParamKind.prompt_negative, line_count=line_count, parent=parent)
+        line_count = (
+            settings.prompt_line_count
+            if param.kind is ParamKind.prompt_positive
+            else TextPromptWidget._line_count
+        )
+        super().__init__(
+            is_negative=param.kind is ParamKind.prompt_negative,
+            line_count=line_count,
+            parent=parent,
+        )
         assert isinstance(param.default, str)
         self.param = param
 
@@ -270,8 +278,9 @@ class PromptParamWidget(TextPromptWidget):
         self.text = value
 
     def update_settings(self, key: str, value):
-        if key == "prompt_line_count":
+        if key == "prompt_line_count" and self.param.kind is ParamKind.prompt_positive:
             self.line_count = value
+
 
 class ChoiceParamWidget(QComboBox):
     value_changed = pyqtSignal()
@@ -717,7 +726,7 @@ class CustomWorkflowWidget(QWidget):
     def _update_layout(self):
         stretch = 1 if self._outputs.is_visible else 0
         self._layout.setStretchFactor(self._outputs, stretch)
-        
+
     def _show_settings(self):
         Krita.instance().action("ai_diffusion_settings").trigger()
 
