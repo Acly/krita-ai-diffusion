@@ -176,7 +176,9 @@ class HistoryWidget(QListWidget):
             if isinstance(value, list) and isinstance(value[0], dict):
                 value = "\n  ".join((f"{v.get('name')} ({v.get('strength')})" for v in value))
             s = f"{self._job_info_translations.get(key, key)}: {value}"
-            strings.append(wrap_text(s, 80, subsequent_indent=" "))
+            if tooltip_header:
+                s = wrap_text(s, 80, subsequent_indent=" ")
+            strings.append(s)
         strings.append(_("Seed") + f": {params.seed}")
         return "\n".join(flatten(strings))
 
