@@ -42,8 +42,6 @@ class LoraItem(QWidget):
     changed = pyqtSignal()
     removed = pyqtSignal(QWidget)
 
-    _current: File | None = None
-
     def __init__(self, name_filter: str, parent=None):
         super().__init__(parent)
         self.setContentsMargins(0, 0, 0, 0)
@@ -51,6 +49,7 @@ class LoraItem(QWidget):
         self._loras = FileFilter(root.files.loras)
         self._loras.available_only = True
         self._loras.name_prefix = name_filter
+        self._current: File | None = None
 
         completer = QCompleter(self._loras)
         completer.setCaseSensitivity(Qt.CaseSensitivity.CaseInsensitive)
@@ -217,22 +216,31 @@ class LoraItem(QWidget):
             root.files.loras.set_meta(self._current, "lora_triggers", value)
 
     def _set_default_strength(self):
-        value = self._strength.value() / 100
-        if self._current and self._current.meta("lora_strength") != value:
-            root.files.loras.set_meta(self._current, "lora_strength", value)
+        if self._current and self._current.meta("lora_strength") != self.strength:
+            root.files.loras.set_meta(self._current, "lora_strength", self.strength)
             self._update()
 
     def remove(self):
         self.removed.emit(self)
 
     @property
+    def strength(self):
+        return self._strength.value() / 100
+
+    @strength.setter
+    def strength(self, value: float):
+        value_int = int(value * 100)
+        if value_int != self._strength.value():
+            self._strength.setValue(value_int)
+
+    @property
     def value(self):
         if self._current is None:
             return dict(name="", strength=1.0)
-        return dict(name=self._current.id, strength=self._strength.value() / 100)
+        return dict(name=self._current.id, strength=self.strength)
 
     @value.setter
-    def value(self, v):
+    def value(self, v: dict):
         new_value = root.files.loras.find(v["name"]) or File.remote(v["name"])
         if self._current is None or new_value.id != self._current.id:
             self._current = new_value
@@ -241,8 +249,8 @@ class LoraItem(QWidget):
                 self._select.setCurrentIndex(index)
             else:
                 self._select.setEditText(self._current.name)
-            self._strength.setValue(int(v["strength"] * 100))
-            self._update()
+        self.strength = v["strength"]
+        self._update()
 
     def apply_filter(self, name_filter: str):
         with SignalBlocker(self._select):
