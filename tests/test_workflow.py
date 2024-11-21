@@ -750,6 +750,28 @@ def test_translation(qtapp, client):
     run_and_save(qtapp, client, job, "test_translation")
 
 
+def test_custom_workflow(qtapp, client: Client):
+    if isinstance(client, CloudClient):
+        pytest.skip("Not supported in cloud")
+    workflow_json = test_dir / "data" / "workflow-custom.json"
+    workflow_dict = json.loads(workflow_json.read_text())
+    workflow_graph = ComfyWorkflow.import_graph(workflow_dict, client.models.node_inputs)
+    params = {
+        "1. Prompt": "a painting of a forest",
+        "2. Detail/2. Steps": 14,
+        "2. Detail/4. CFG": 3.5,
+    }
+    job = WorkflowInput(
+        WorkflowKind.custom,
+        images=ImageInput.from_extent(Extent(512, 512)),
+        sampling=SamplingInput("custom", "custom", 1, 1000, seed=1234),
+        custom_workflow=CustomWorkflowInput(workflow_graph.root, params),
+    )
+    assert job.images is not None
+    job.images.initial_image = Image.create(Extent(512, 512))
+    run_and_save(qtapp, client, job, "test_custom_workflow")
+
+
 inpaint_benchmark = {
     "tori": (InpaintMode.fill, "photo of tori, japanese garden", None),
     "bruges": (InpaintMode.fill, "photo of a canal in bruges, belgium", None),
