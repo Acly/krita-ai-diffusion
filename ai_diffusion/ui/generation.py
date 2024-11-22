@@ -9,7 +9,7 @@ from PyQt5.QtWidgets import QComboBox, QCheckBox, QMenu, QShortcut, QMessageBox,
 from ..properties import Binding, Bind, bind, bind_combo, bind_toggle
 from ..image import Bounds, Extent, Image
 from ..jobs import Job, JobQueue, JobState, JobKind, JobParams
-from ..model import Model, InpaintContext, RootRegion, ProgressKind
+from ..model import Model, InpaintContext, RootRegion, ProgressKind, Workspace
 from ..style import Styles
 from ..root import root
 from ..workflow import InpaintMode, FillMode
@@ -373,6 +373,9 @@ class HistoryWidget(QListWidget):
             active.positive = job.params.prompt
             if isinstance(active, RootRegion):
                 active.negative = job.params.metadata.get("negative_prompt", "")
+
+            if self._model.workspace is Workspace.custom and self._model.document.is_active:
+                self._model.custom.try_set_params(job.params.metadata)
 
     def _copy_strength(self):
         if job := self.selected_job:
