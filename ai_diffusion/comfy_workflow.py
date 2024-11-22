@@ -444,6 +444,9 @@ class ComfyWorkflow:
     def load_upscale_model(self, model_name: str):
         return self.add_cached("UpscaleModelLoader", 1, model_name=model_name)
 
+    def load_style_model(self, model_name: str):
+        return self.add_cached("StyleModelLoader", 1, style_model_name=model_name)
+
     def load_lora_model(self, model: Output, lora_name: str, strength: float):
         return self.add(
             "LoraLoaderModelOnly", 1, model=model, lora_name=lora_name, strength_model=strength
@@ -505,6 +508,24 @@ class ComfyWorkflow:
 
     def conditioning_combine(self, a: Output, b: Output):
         return self.add("ConditioningCombine", 1, conditioning_1=a, conditioning_2=b)
+
+    def conditioning_average(self, a: Output, b: Output, strength_a: float):
+        return self.add(
+            "ConditioningAverage",
+            1,
+            conditioning_to=a,
+            conditioning_from=b,
+            conditioning_to_strength=strength_a,
+        )
+
+    def conditioning_step_range(self, conditioning: Output, range: tuple[float, float]):
+        return self.add(
+            "ConditioningSetTimestepRange",
+            1,
+            conditioning=conditioning,
+            start=range[0],
+            end=range[1],
+        )
 
     def background_region(self, conditioning: Output):
         return self.add("ETN_BackgroundRegion", 1, conditioning=conditioning)
@@ -584,6 +605,18 @@ class ComfyWorkflow:
             case _:
                 type = "auto"
         return self.add("SetUnionControlNetType", 1, control_net=controlnet, type=type)
+
+    def encode_clip_vision(self, clip_vision: Output, image: Output):
+        return self.add("CLIPVisionEncode", 1, clip_vision=clip_vision, image=image)
+
+    def apply_style_model(self, conditioning: Output, style_model: Output, embeddings: Output):
+        return self.add(
+            "StyleModelApply",
+            1,
+            conditioning=conditioning,
+            style_model=style_model,
+            clip_vision_output=embeddings,
+        )
 
     def encode_ip_adapter(
         self, image: Output, weight: float, ip_adapter: Output, clip_vision: Output

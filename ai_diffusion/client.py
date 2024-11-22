@@ -163,7 +163,8 @@ class ModelDict:
         return self._models.resource(self.kind, key, self.arch)
 
     def find(self, key: ControlMode | UpscalerName | str, allow_universal=False) -> str | None:
-        if key in [ControlMode.style, ControlMode.composition]:
+        is_sd = self.arch in [Arch.sd15, Arch.sdxl]
+        if key in [ControlMode.style, ControlMode.composition] and is_sd:
             key = ControlMode.reference  # Same model with different weight types
         result = self._models.find(ResourceId(self.kind, self.arch, key))
         if result is None and allow_universal and isinstance(key, ControlMode):
@@ -179,7 +180,7 @@ class ModelDict:
 
     @property
     def clip_vision(self):
-        return self._models.resource(ResourceKind.clip_vision, "ip_adapter", Arch.all)
+        return self._models.resource(ResourceKind.clip_vision, "ip_adapter", self.arch)
 
     @property
     def upscale(self):

@@ -394,7 +394,32 @@ def apply_control(
                 positive, negative, controlnet, image, vae, control.strength, control.range
             )
 
+    positive = apply_style_models(w, positive, control_layers, models)
+
     return positive, negative
+
+
+def apply_style_models(
+    w: ComfyWorkflow, cond: Output, control_layers: list[Control], models: ModelDict
+):
+    if models.arch is Arch.flux:
+        initial = cond
+
+        for control in (c for c in control_layers if c.mode is ControlMode.reference):
+            clip_vision_model = models.all.resource(ResourceKind.clip_vision, "redux", Arch.flux)
+            clip_vision = w.load_clip_vision(clip_vision_model)
+            redux = w.load_style_model(models.ip_adapter[ControlMode.reference])
+            image = control.image.load(w)
+            embed = w.encode_clip_vision(clip_vision, image)
+            styled = w.apply_style_model(initial, redux, embed)
+            if control.strength < 1.0:
+                styled = w.conditioning_average(styled, initial, control.strength)
+            if control.range != (0.0, 1.0):
+                styled = w.conditioning_step_range(styled, control.range)
+            if cond != initial or control.range != (0.0, 1.0):
+                cond = w.conditioning_combine(cond, styled)
+
+    return cond
 
 
 def apply_ip_adapter(
@@ -404,6 +429,9 @@ def apply_ip_adapter(
     models: ModelDict,
     mask: Output | None = None,
 ):
+    if models.arch is Arch.flux:
+        return model  # No IP-adapter for Flux, using Style model instead
+
     models = models.ip_adapter
 
     # Create a separate embedding for each face ID (though more than 1 is questionable)

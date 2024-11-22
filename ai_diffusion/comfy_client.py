@@ -148,6 +148,9 @@ class ComfyClient(Client):
         ip_adapter_models = nodes["IPAdapterModelLoader"]["input"]["required"]["ipadapter_file"][0]
         available_resources.update(_find_ip_adapters(ip_adapter_models))
 
+        style_models = nodes["StyleModelLoader"]["input"]["required"]["style_model_name"][0]
+        available_resources.update(_find_style_models(style_models))
+
         models.upscalers = nodes["UpscaleModelLoader"]["input"]["required"]["model_name"][0]
         available_resources.update(_find_upscalers(models.upscalers))
 
@@ -612,6 +615,10 @@ def _find_model(
     return found
 
 
+def find_model(model_list: Sequence[str], id: ResourceId):
+    return _find_model(model_list, id.kind, id.arch, id.identifier)
+
+
 def _find_text_encoder_models(model_list: Sequence[str]):
     kind = ResourceKind.text_encoder
     return {
@@ -639,13 +646,20 @@ def _find_ip_adapters(model_list: Sequence[str]):
 
 
 def _find_clip_vision_model(model_list: Sequence[str]):
-    model = _find_model(model_list, ResourceKind.clip_vision, Arch.all, "ip_adapter")
+    clip_vision_sd = ResourceId(ResourceKind.clip_vision, Arch.all, "ip_adapter")
+    model = find_model(model_list, clip_vision_sd)
     if model is None:
-        raise MissingResource(
-            ResourceKind.clip_vision,
-            resources.search_path(ResourceKind.clip_vision, Arch.all, "ip_adapter"),
-        )
-    return {resource_id(ResourceKind.clip_vision, Arch.all, "ip_adapter"): model}
+        raise MissingResource(ResourceKind.clip_vision, resources.search_path(*clip_vision_sd))
+    clip_vision_flux = ResourceId(ResourceKind.clip_vision, Arch.flux, "redux")
+    return {
+        clip_vision_sd.string: model,
+        clip_vision_flux.string: find_model(model_list, clip_vision_flux),
+    }
+
+
+def _find_style_models(model_list: Sequence[str]):
+    redux_flux = ResourceId(ResourceKind.ip_adapter, Arch.flux, ControlMode.reference)
+    return {redux_flux.string: find_model(model_list, redux_flux)}
 
 
 def _find_upscalers(model_list: Sequence[str]):
