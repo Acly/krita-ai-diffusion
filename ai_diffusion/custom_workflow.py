@@ -565,13 +565,24 @@ class CustomWorkspace(QObject, ObservableProperties):
         assert self._last_result and self._last_job, "No live result available"
         return self._last_result, self._last_job
 
+    def try_set_params(self, params: dict):
+        self.params = _coerce_with_fallback(params, self.params, self.metadata)
+        self.graph_changed.emit()
+
 
 def _coerce(params: dict[str, Any], types: list[CustomParam]):
-    def use(value, default):
-        if default is None:
-            return value
-        if value is None or not base_type_match(value, default):
-            return default
-        return value
+    return _coerce_with_fallback(params, {}, types)
 
-    return {t.name: use(params.get(t.name), t.default) for t in types}
+
+def _coerce_with_fallback(
+    params: dict[str, Any], fallback: dict[str, Any], types: list[CustomParam]
+):
+    def use(value, fallback, default):
+        value_or_fallback = value if value is not None else fallback
+        if default is None:
+            return value_or_fallback
+        if value_or_fallback is None or not base_type_match(value, default):
+            return default
+        return value_or_fallback
+
+    return {t.name: use(params.get(t.name), fallback.get(t.name), t.default) for t in types}
