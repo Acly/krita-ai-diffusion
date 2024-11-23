@@ -1,5 +1,5 @@
 from __future__ import annotations
-from typing import Callable, cast
+from typing import Any, Callable, cast
 
 from PyQt5.QtWidgets import (
     QAction,
@@ -24,6 +24,7 @@ from PyQt5.QtWidgets import (
     QFrame,
 )
 from PyQt5.QtGui import (
+    QDesktopServices,
     QGuiApplication,
     QFontMetrics,
     QKeyEvent,
@@ -35,7 +36,7 @@ from PyQt5.QtGui import (
     QPaintEvent,
     QKeySequence,
 )
-from PyQt5.QtCore import QObject, Qt, QMetaObject, QSize, pyqtSignal, QEvent
+from PyQt5.QtCore import QObject, Qt, QMetaObject, QSize, pyqtSignal, QEvent, QUrl
 from krita import Krita
 
 from ..style import Style, Styles
@@ -43,7 +44,7 @@ from ..root import root
 from ..client import filter_supported_styles, resolve_arch
 from ..properties import Binding, Bind, bind, bind_combo
 from ..jobs import JobState, JobKind
-from ..model import Model, Workspace, SamplingQuality, ProgressKind
+from ..model import Model, Workspace, SamplingQuality, ProgressKind, ErrorKind, Error, no_error
 from ..text import edit_attention, select_on_cursor_pos
 from ..localization import translate as _
 from ..util import ensure
@@ -810,55 +811,97 @@ class GenerateButton(QPushButton):
 class ErrorBox(QFrame):
     def __init__(self, parent=None):
         super().__init__(parent)
+        self._error = no_error
         self._original_error = ""
 
         self.setObjectName("errorBox")
         self.setFrameStyle(QFrame.Shape.StyledPanel)
-        self.setStyleSheet("QFrame#errorBox { border: 1px solid #a01020; }")
 
         self._label = QLabel(self)
-        self._label.setStyleSheet(f"color: {theme.red};")
         self._label.setWordWrap(True)
+        self._label.setOpenExternalLinks(True)
+        self._label.setTextFormat(Qt.TextFormat.RichText)
 
         self._copy_button = QToolButton(self)
         self._copy_button.setToolButtonStyle(Qt.ToolButtonStyle.ToolButtonIconOnly)
         self._copy_button.setIcon(Krita.instance().icon("edit-copy"))
         self._copy_button.setToolTip(_("Copy error message to clipboard"))
         self._copy_button.setAutoRaise(True)
-        self._copy_button.clicked.connect(self.copy_error)
+        self._copy_button.clicked.connect(self._copy_error)
+
+        self._recharge_button = QToolButton(self)
+        self._recharge_button.setToolButtonStyle(Qt.ToolButtonStyle.ToolButtonTextBesideIcon)
+        self._recharge_button.setText(_("Charge"))
+        self._recharge_button.setIcon(theme.icon("interstice"))
+        self._recharge_button.clicked.connect(self._recharge)
 
         layout = QHBoxLayout(self)
         layout.setContentsMargins(2, 2, 2, 2)
         layout.addWidget(self._label)
         layout.addWidget(self._copy_button)
+        layout.addWidget(self._recharge_button)
+
+        self.reset()
+
+    def reset(self, color: str = theme.red):
+        self._copy_button.setVisible(False)
+        self._recharge_button.setVisible(False)
+        self._label.setStyleSheet(f"color: {color};")
+        if color == theme.red:
+            self.setStyleSheet("QFrame#errorBox { border: 1px solid #a01020; }")
+        else:
+            self.setStyleSheet(None)
+        self.hide()
 
     @property
-    def text(self):
-        return self._label.text()
+    def error(self):
+        return self._error
 
-    @text.setter
-    def text(self, text: str):
-        self._original_error = text
-        if text == "":
-            self.hide()
-        else:
-            if text.count("\n") > 3:
-                lines = text.split("\n")
-                n = 1
+    @error.setter
+    def error(self, error: Error):
+        self.reset()
+        self._error = error
+        self._original_error = error.message if error else ""
+        if error.kind is ErrorKind.insufficient_funds:
+            self._show_payment_error(error.data)
+        elif error:
+            self._show_error(error.message)
+
+    def _show_error(self, text: str):
+        if text.count("\n") > 3:
+            lines = text.split("\n")
+            n = 1
+            text = lines[-n]
+            while n < len(lines) and text.strip() == "":
+                n += 1
                 text = lines[-n]
-                while n < len(lines) and text.strip() == "":
-                    n += 1
-                    text = lines[-n]
-            if len(text) > 60 * 3:
-                text = text[: 60 * 2] + " [...] " + text[-60:]
-            self._label.setText(text)
-            if text != self._original_error:
-                self._label.setToolTip(self._original_error)
-            self.show()
+        if len(text) > 60 * 3:
+            text = text[: 60 * 2] + " [...] " + text[-60:]
+        self._label.setText(text)
+        if text != self._original_error:
+            self._label.setToolTip(self._original_error)
+        self._copy_button.setVisible(True)
+        self.show()
 
-    def copy_error(self):
+    def _show_payment_error(self, data: dict[str, Any] | None):
+        self.reset(theme.yellow)
+        message = "Insufficient funds"
+        if data:
+            message = _(
+                "Insufficient funds - generation would cost {cost} tokens. Remaining tokens: {tokens}",
+                cost=data["cost"],
+                tokens=data["credits"],
+            )
+        self._label.setText(message)
+        self._recharge_button.setVisible(True)
+        self.show()
+
+    def _copy_error(self):
         if clipboard := QGuiApplication.clipboard():
             clipboard.setText(self._original_error)
+
+    def _recharge(self):
+        QDesktopServices.openUrl(QUrl("https://www.interstice.cloud/user"))
 
 
 def create_wide_tool_button(icon_name: str, text: str, parent=None):

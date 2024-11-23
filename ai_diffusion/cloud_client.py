@@ -5,6 +5,7 @@ import os
 import platform
 import uuid
 from base64 import b64encode
+from copy import copy
 from datetime import datetime
 from dataclasses import dataclass
 from itertools import chain
@@ -127,10 +128,14 @@ class CloudClient(Client):
                         break
 
             except NetworkError as e:
-                msg = self._process_http_error(e)
-                log.exception(f"Network error while processing {self._current_job}: {msg}")
-                if self._current_job is not None:
-                    yield ClientMessage(ClientEvent.error, self._current_job.local_id, error=msg)
+                job_id = self._current_job.local_id if self._current_job else ""
+                if msg := self._process_http_error(e, job_id):
+                    yield msg
+                else:
+                    msg = e.message
+                    log.exception(f"Network error while processing {self._current_job}: {msg}")
+                    if job_id:
+                        yield ClientMessage(ClientEvent.error, job_id, error=msg)
             except Exception as e:
                 log.exception(f"Unhandled exception while processing {self._current_job}")
                 if self._current_job is not None:
@@ -278,19 +283,18 @@ class CloudClient(Client):
         response = await self._post("admin/cost", input.to_dict())
         return int(response.decode())
 
-    def _process_http_error(self, e: NetworkError):
-        message = e.message
+    def _process_http_error(self, e: NetworkError, job_id: str):
         if e.status == 402 and e.data and self.user:  # 402 Payment Required
             try:
+                data = copy(e.data)
+                data["url"] = f"{self.default_web_url}/user"
                 self.user.credits = e.data["credits"]
-                message = _(
-                    "Insufficient funds - generation would cost {cost} tokens. Remaining tokens: {tokens}",
-                    cost=e.data["cost"],
-                    tokens=self.user.credits,
+                return ClientMessage(
+                    ClientEvent.payment_required, job_id, result=e.data, error=e.message
                 )
             except:
                 log.warning(f"Could not parse 402 error: {e.data}")
-        return message
+        return None
 
 
 def _extract_error(response: dict, job_id: str | None):

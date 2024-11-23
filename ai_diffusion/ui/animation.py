@@ -128,7 +128,7 @@ class AnimationWidget(QWidget):
                 bind(model.regions, "positive", self.prompt_textbox, "text"),
                 bind(model.regions, "negative", self.negative_textbox, "text"),
                 bind(model, "strength", self.strength_slider, "value"),
-                bind(model, "error", self.error_box, "text", Bind.one_way),
+                bind(model, "error", self.error_box, "error", Bind.one_way),
                 bind_toggle(model.animation, "batch_mode", self.batch_mode_button),
                 bind_combo(model.animation, "target_layer", self.target_layer),
                 model.animation.batch_mode_changed.connect(self.update_mode),

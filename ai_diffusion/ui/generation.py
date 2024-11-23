@@ -669,7 +669,7 @@ class GenerationWidget(QWidget):
                 bind(model, "workspace", self.workspace_select, "value", Bind.one_way),
                 bind(model, "style", self.style_select, "value"),
                 bind(model, "strength", self.strength_slider, "value"),
-                bind(model, "error", self.error_box, "text", Bind.one_way),
+                bind(model, "error", self.error_box, "error", Bind.one_way),
                 bind_toggle(model, "region_only", self.region_mask_button),
                 model.inpaint.mode_changed.connect(self.update_generate_button),
                 model.strength_changed.connect(self.update_generate_button),

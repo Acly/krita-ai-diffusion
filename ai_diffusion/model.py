@@ -47,6 +47,25 @@ class ProgressKind(Enum):
     upload = 1
 
 
+class ErrorKind(Enum):
+    none = 0
+    plugin_error = 1
+    server_error = 2
+    insufficient_funds = 3
+
+
+class Error(NamedTuple):
+    kind: ErrorKind
+    message: str
+    data: dict[str, Any] | None = None
+
+    def __bool__(self):
+        return self.kind is not ErrorKind.none
+
+
+no_error = Error(ErrorKind.none, "")
+
+
 class Model(QObject, ObservableProperties):
     """Represents diffusion workflows for a specific Krita document. Stores all inputs related to
     image generation. Launches generation jobs. Listens to server messages and keeps a
@@ -65,7 +84,7 @@ class Model(QObject, ObservableProperties):
     translation_enabled = Property(True, persist=True)
     progress_kind = Property(ProgressKind.generation)
     progress = Property(0.0)
-    error = Property("")
+    error = Property(no_error)
 
     workspace_changed = pyqtSignal(Workspace)
     style_changed = pyqtSignal(Style)
@@ -78,8 +97,7 @@ class Model(QObject, ObservableProperties):
     translation_enabled_changed = pyqtSignal(bool)
     progress_kind_changed = pyqtSignal(ProgressKind)
     progress_changed = pyqtSignal(float)
-    error_changed = pyqtSignal(str)
-    has_error_changed = pyqtSignal(bool)
+    error_changed = pyqtSignal(Error)
     modified = pyqtSignal(QObject, str)
 
     def __init__(self, document: Document, connection: Connection, workflows: WorkflowCollection):
@@ -97,7 +115,6 @@ class Model(QObject, ObservableProperties):
         self.custom = CustomWorkspace(workflows, self._generate_custom, self.jobs)
 
         self.jobs.selection_changed.connect(self.update_preview)
-        self.error_changed.connect(lambda: self.has_error_changed.emit(self.has_error))
         connection.state_changed.connect(self._init_on_connect)
         connection.error_changed.connect(self._forward_error)
         Styles.list().changed.connect(self._init_on_connect)
@@ -112,7 +129,7 @@ class Model(QObject, ObservableProperties):
                 self.upscale.upscaler = client.models.default_upscaler
 
     def _forward_error(self, error: str):
-        self.error = error
+        self.error = Error(ErrorKind.server_error, error)
 
     def generate(self):
         """Enqueue image generation for the current setup."""
@@ -433,14 +450,16 @@ class Model(QObject, ObservableProperties):
         if active and self.jobs.any_executing():
             self._connection.interrupt()
 
-    def report_error(self, message: str):
-        self.error = message
+    def report_error(self, error: Error | str):
+        if isinstance(error, str):
+            error = Error(ErrorKind.server_error, error)
+        self.error = error
         self.live.is_active = False
         self.custom.is_live = False
 
     def clear_error(self):
-        if self.error != "":
-            self.error = ""
+        if self.error:
+            self.error = no_error
 
     def handle_message(self, message: ClientMessage):
         job = self.jobs.find(message.job_id)
@@ -479,6 +498,10 @@ class Model(QObject, ObservableProperties):
         elif message.event is ClientEvent.error:
             self._finish_job(job, message.event)
             self.report_error(_("Server execution error") + f": {message.error}")
+        elif message.event is ClientEvent.payment_required:
+            self._finish_job(job, ClientEvent.error)
+            assert isinstance(message.error, str) and isinstance(message.result, dict)
+            self.report_error(Error(ErrorKind.insufficient_funds, message.error, message.result))
 
     def _finish_job(self, job: Job, event: ClientEvent):
         if job.kind is JobKind.upscaling:
@@ -672,10 +695,6 @@ class Model(QObject, ObservableProperties):
     @property
     def history(self):
         return (job for job in self.jobs if job.state is JobState.finished)
-
-    @property
-    def has_error(self):
-        return self.error != ""
 
     @property
     def has_document(self):

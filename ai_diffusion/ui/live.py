@@ -190,7 +190,7 @@ class LiveWidget(QWidget):
                 bind(model, "style", self.style_select, "value"),
                 bind(model.live, "strength", self.strength_slider, "value"),
                 bind(model, "seed", self.seed_input, "value"),
-                bind(model, "error", self.error_box, "text", Bind.one_way),
+                bind(model, "error", self.error_box, "error", Bind.one_way),
                 model.live.is_active_changed.connect(self.update_is_active),
                 model.live.is_recording_changed.connect(self.update_is_recording),
                 model.live.has_result_changed.connect(self.apply_button.setEnabled),

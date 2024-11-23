@@ -741,7 +741,7 @@ class CustomWorkflowWidget(QWidget):
             self._model = model
             self._model_bindings = [
                 bind(model, "workspace", self._workspace_select, "value", Bind.one_way),
-                bind(model, "error", self._error_box, "text", Bind.one_way),
+                bind(model, "error", self._error_box, "error", Bind.one_way),
                 bind_combo(model.custom, "workflow_id", self._workflow_select, Bind.one_way),
                 bind(model.custom, "outputs", self._outputs, "value", Bind.one_way),
                 model.custom.outputs_changed.connect(self._update_layout),

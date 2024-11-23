@@ -27,6 +27,7 @@ class ClientEvent(Enum):
     upload = 7
     published = 8
     output = 9
+    payment_required = 10
 
 
 class TextOutput(NamedTuple):
