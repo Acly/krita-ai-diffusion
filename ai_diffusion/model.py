@@ -66,6 +66,7 @@ class Model(QObject, ObservableProperties):
     progress_kind = Property(ProgressKind.generation)
     progress = Property(0.0)
     error = Property("")
+    queue_length: int = 0
 
     workspace_changed = pyqtSignal(Workspace)
     style_changed = pyqtSignal(Style)
@@ -81,6 +82,7 @@ class Model(QObject, ObservableProperties):
     error_changed = pyqtSignal(str)
     has_error_changed = pyqtSignal(bool)
     modified = pyqtSignal(QObject, str)
+    queue_length_changed = pyqtSignal(int)
 
     def __init__(self, document: Document, connection: Connection, workflows: WorkflowCollection):
         super().__init__()
@@ -449,9 +451,13 @@ class Model(QObject, ObservableProperties):
             return
 
         if message.event is ClientEvent.queued:
-            self.jobs.notify_started(job)
-            self.progress = -1
-            self.progress_changed.emit(-1)
+            if message.queue_length is not None:
+                self.queue_length = message.queue_length
+                self.queue_length_changed.emit(message.queue_length)
+            if message.queue_length is None or message.queue_length == 0:
+                self.jobs.notify_started(job)
+                self.progress = -1
+                self.progress_changed.emit(-1)
         elif message.event is ClientEvent.progress:
             self.jobs.notify_started(job)
             self.progress_kind = ProgressKind.generation
