@@ -893,6 +893,31 @@ class ComfyWorkflow:
     def generate_tile_mask(self, layout: Output, index: int):
         return self.add("ETN_GenerateTileMask", 1, layout=layout, index=index)
 
+    def define_reference_image(
+        self, references: Output | None, image: Output, weight: float, range: tuple[float, float]
+    ):
+        return self.add(
+            "ETN_ReferenceImage",
+            1,
+            image=image,
+            weight=weight,
+            range_start=range[0],
+            range_end=range[1],
+            reference_images=references,
+        )
+
+    def apply_reference_images(
+        self, conditioning: Output, clip_vision: Output, style_model: Output, references: Output
+    ):
+        return self.add(
+            "ETN_ApplyReferenceImages",
+            1,
+            conditioning=conditioning,
+            clip_vision=clip_vision,
+            style_model=style_model,
+            references=references,
+        )
+
     def estimate_pose(self, image: Output, resolution: int):
         feat = dict(detect_hand="enable", detect_body="enable", detect_face="enable")
         mdls = dict(bbox_detector="yolox_l.onnx", pose_estimator="dw-ll_ucoco_384.onnx")

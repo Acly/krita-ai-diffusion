@@ -403,21 +403,18 @@ def apply_style_models(
     w: ComfyWorkflow, cond: Output, control_layers: list[Control], models: ModelDict
 ):
     if models.arch is Arch.flux:
-        initial = cond
+        references: Output | None = None
 
         for control in (c for c in control_layers if c.mode is ControlMode.reference):
+            image = control.image.load(w)
+            references = w.define_reference_image(
+                references, image, control.strength, control.range
+            )
+        if references is not None:
             clip_vision_model = models.all.resource(ResourceKind.clip_vision, "redux", Arch.flux)
             clip_vision = w.load_clip_vision(clip_vision_model)
             redux = w.load_style_model(models.ip_adapter[ControlMode.reference])
-            image = control.image.load(w)
-            embed = w.encode_clip_vision(clip_vision, image)
-            styled = w.apply_style_model(initial, redux, embed)
-            if control.strength < 1.0:
-                styled = w.conditioning_average(styled, initial, control.strength)
-            if control.range != (0.0, 1.0):
-                styled = w.conditioning_step_range(styled, control.range)
-            if cond != initial or control.range != (0.0, 1.0):
-                cond = w.conditioning_combine(cond, styled)
+            cond = w.apply_reference_images(cond, clip_vision, redux, references)
 
     return cond
 
