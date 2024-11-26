@@ -4,6 +4,7 @@ from copy import copy
 from dataclasses import replace
 from pathlib import Path
 from enum import Enum
+import time
 from typing import Any, NamedTuple
 from PyQt5.QtCore import QObject, QUuid, pyqtSignal, Qt
 from PyQt5.QtGui import QImage, QPainter, QColor, QBrush
@@ -294,9 +295,10 @@ class Model(QObject, ObservableProperties):
             return 0
 
     def generate_live(self):
-        eventloop.run(_report_errors(self, self._generate_live()))
+        input, job_params = self._prepare_live_workflow()
+        eventloop.run(_report_errors(self, self._generate_live(input, job_params)))
 
-    def _prepare_live_job_params(self):
+    def _prepare_live_workflow(self):
         strength = self.live.strength
         workflow_kind = WorkflowKind.generate if strength == 1.0 else WorkflowKind.refine
         client = self._connection.client
@@ -347,13 +349,9 @@ class Model(QObject, ObservableProperties):
         params = JobParams(bounds, conditioning.positive, regions=job_regions)
         return input, params
 
-    async def _generate_live(self, last_input: WorkflowInput | None = None):
-        input, job_params = self._prepare_live_job_params()
-        if input != last_input:
-            self.clear_error()
-            await self.enqueue_jobs(input, JobKind.live_preview, job_params)
-            return input
-        return None
+    async def _generate_live(self, input: WorkflowInput, job_params: JobParams):
+        self.clear_error()
+        await self.enqueue_jobs(input, JobKind.live_preview, job_params)
 
     async def _generate_custom(self, previous_input: WorkflowInput | None):
         if self.workspace is not Workspace.custom or not self.document.is_active:
@@ -840,6 +838,7 @@ class LiveWorkspace(QObject, ObservableProperties):
 
     _model: Model
     _last_input: WorkflowInput | None = None
+    _last_change: float = 0
     _result: Image | None = None
     _result_composition: Image | None = None
     _result_params: JobParams | None = None
@@ -886,21 +885,16 @@ class LiveWorkspace(QObject, ObservableProperties):
             eventloop.run(_report_errors(self._model, self._continue_generating()))
 
     async def _continue_generating(self):
-        just_got_here = True
         while self.is_active and self._model.document.is_active:
-            new_input, _ = self._model._prepare_live_job_params()
+            new_input, job_params = self._model._prepare_live_workflow()
             if self._last_input != new_input:
-                if settings.live_redraw_grace_period > 0 and not just_got_here:
-                    # only use grace period if this isn't our first frame of polling
-                    # if it is, and there are changes in the input, it's likely that we have some changes we ignored
-                    # previously due to the generation process running, and we need to update the preview asap
-                    await asyncio.sleep(settings.live_redraw_grace_period)
-                new_input = await self._model._generate_live(self._last_input)
-                if new_input is not None:
+                now = time.monotonic()
+                if self._last_change + settings.live_redraw_grace_period <= now:
+                    await self._model._generate_live(new_input, job_params)
                     self._last_input = new_input
                     return
-            # no changes in input data
-            just_got_here = False
+            else:
+                self._last_change = time.monotonic()
             await asyncio.sleep(self._poll_rate)
 
     def apply_result(self, layer_only=False):
