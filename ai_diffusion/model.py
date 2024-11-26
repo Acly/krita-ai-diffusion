@@ -885,16 +885,17 @@ class LiveWorkspace(QObject, ObservableProperties):
             eventloop.run(_report_errors(self._model, self._continue_generating()))
 
     async def _continue_generating(self):
-        while self.is_active and self._model.document.is_active:
-            new_input, job_params = self._model._prepare_live_workflow()
-            if self._last_input != new_input:
-                now = time.monotonic()
-                if self._last_change + settings.live_redraw_grace_period <= now:
-                    await self._model._generate_live(new_input, job_params)
-                    self._last_input = new_input
-                    return
-            else:
-                self._last_change = time.monotonic()
+        while self.is_active:
+            if self._model.document.is_active:
+                new_input, job_params = self._model._prepare_live_workflow()
+                if self._last_input != new_input:
+                    now = time.monotonic()
+                    if self._last_change + settings.live_redraw_grace_period <= now:
+                        await self._model._generate_live(new_input, job_params)
+                        self._last_input = new_input
+                        return
+                else:
+                    self._last_change = time.monotonic()
             await asyncio.sleep(self._poll_rate)
 
     def apply_result(self, layer_only=False):
