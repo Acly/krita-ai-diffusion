@@ -5,9 +5,9 @@ from dataclasses import replace
 from pathlib import Path
 from enum import Enum
 import time
-from typing import Any, NamedTuple
+from typing import NamedTuple
 from PyQt5.QtCore import QObject, QUuid, pyqtSignal, Qt
-from PyQt5.QtGui import QImage, QPainter, QColor, QBrush
+from PyQt5.QtGui import QPainter, QColor, QBrush
 import uuid
 
 from . import eventloop, workflow, util
@@ -29,7 +29,7 @@ from .files import FileLibrary
 from .connection import Connection
 from .properties import Property, ObservableProperties
 from .jobs import Job, JobKind, JobParams, JobQueue, JobState, JobRegion
-from .control import ControlLayer, ControlLayerList
+from .control import ControlLayer
 from .region import Region, RegionLink, RootRegion, process_regions, get_region_inpaint_mask
 from .resources import ControlMode
 from .resolution import compute_bounds, compute_relative_bounds
