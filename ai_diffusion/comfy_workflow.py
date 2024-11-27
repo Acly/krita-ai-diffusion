@@ -527,6 +527,18 @@ class ComfyWorkflow:
             end=range[1],
         )
 
+    def instruct_pix_to_pix_conditioning(
+        self, positive: Output, negative: Output, vae: Output, pixels: Output
+    ):
+        return self.add(
+            "InstructPixToPixConditioning",
+            3,
+            positive=positive,
+            negative=negative,
+            vae=vae,
+            pixels=pixels,
+        )
+
     def background_region(self, conditioning: Output):
         return self.add("ETN_BackgroundRegion", 1, conditioning=conditioning)
 

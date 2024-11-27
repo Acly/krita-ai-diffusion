@@ -138,10 +138,12 @@ class ControlLayer(QObject, ObservableProperties):
                     self.error_text = _("IP-Adapter is not supported by this GPU")
                 is_supported = False
             elif self.mode.is_control_net:
-                if models.control.find(self.mode, allow_universal=True) is None:
+                cn_model = models.control.find(self.mode, allow_universal=True)
+                lora_model = models.lora.find(self.mode)
+                if cn_model is None and lora_model is None:
                     search_path = resources.search_path(
                         ResourceKind.controlnet, models.arch, self.mode
-                    )
+                    ) or resources.search_path(ResourceKind.lora, models.arch, self.mode)
                     if search_path:
                         self.error_text = (
                             _("The ControlNet model is not installed") + f" {search_path}"

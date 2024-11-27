@@ -359,6 +359,7 @@ def apply_attention_mask(
 
 def apply_control(
     w: ComfyWorkflow,
+    model: Output,
     positive: Output,
     negative: Output,
     control_layers: list[Control],
@@ -367,6 +368,8 @@ def apply_control(
     models: ModelDict,
 ):
     models = models.control
+    control_lora: ControlMode | None = None
+
     for control in (c for c in control_layers if c.mode.is_control_net):
         image = control.image.load(w, extent)
         if control.mode is ControlMode.inpaint and models.arch is Arch.sd15:
@@ -375,10 +378,23 @@ def apply_control(
         if control.mode.is_lines:  # ControlNet expects white lines on black background
             image = w.invert_image(image)
 
-        if model := models.find(control.mode):
-            controlnet = w.load_controlnet(model)
-        elif model := models.find(ControlMode.universal):
-            controlnet = w.load_controlnet(model)
+        if lora := models.lora.find(control.mode):
+            if control_lora is not None:
+                raise Exception(
+                    _("The following control layers cannot be used together:")
+                    + f" {control_lora.text}, {control.mode.text}"
+                )
+            control_lora = control.mode
+            model = w.load_lora_model(model, lora, control.strength)
+            positive, negative, __ = w.instruct_pix_to_pix_conditioning(
+                positive, negative, vae, image
+            )
+            continue
+
+        if cn_model := models.find(control.mode):
+            controlnet = w.load_controlnet(cn_model)
+        elif cn_model := models.find(ControlMode.universal):
+            controlnet = w.load_controlnet(cn_model)
             controlnet = w.set_controlnet_type(controlnet, control.mode)
         else:
             raise Exception(f"ControlNet model not found for mode {control.mode}")
@@ -396,7 +412,7 @@ def apply_control(
 
     positive = apply_style_models(w, positive, control_layers, models)
 
-    return positive, negative
+    return model, positive, negative
 
 
 def apply_style_models(
@@ -569,8 +585,8 @@ def scale_refine_and_decode(
     latent = w.vae_encode(vae, upscale)
     params = _sampler_params(sampling, strength=0.4)
 
-    positive, negative = apply_control(
-        w, prompt_pos, prompt_neg, cond.all_control, extent.desired, vae, models
+    model, positive, negative = apply_control(
+        w, model, prompt_pos, prompt_neg, cond.all_control, extent.desired, vae, models
     )
     result = w.sampler_custom_advanced(model, positive, negative, latent, models.arch, **params)
     image = w.vae_decode(vae, result)
@@ -605,8 +621,8 @@ def generate(
     model = apply_regional_ip_adapter(w, model, cond.regions, extent.initial, models)
     latent = w.empty_latent_image(extent.initial, models.arch, misc.batch_count)
     prompt_pos, prompt_neg = encode_text_prompt(w, cond, clip)
-    positive, negative = apply_control(
-        w, prompt_pos, prompt_neg, cond.all_control, extent.initial, vae, models
+    model, positive, negative = apply_control(
+        w, model, prompt_pos, prompt_neg, cond.all_control, extent.initial, vae, models
     )
     out_latent = w.sampler_custom_advanced(
         model, positive, negative, latent, models.arch, **_sampler_params(sampling)
@@ -748,8 +764,8 @@ def inpaint(
     model = apply_ip_adapter(w, model, cond_base.control, models)
     model = apply_regional_ip_adapter(w, model, cond_base.regions, extent.initial, models)
     positive, negative = encode_text_prompt(w, cond, clip)
-    positive, negative = apply_control(
-        w, positive, negative, cond_base.all_control, extent.initial, vae, models
+    model, positive, negative = apply_control(
+        w, model, positive, negative, cond_base.all_control, extent.initial, vae, models
     )
     if params.use_inpaint_model and models.arch is Arch.sdxl:
         positive, negative, latent_inpaint, latent = w.vae_encode_inpaint_conditioning(
@@ -794,8 +810,8 @@ def inpaint(
         if params.use_inpaint_model and models.arch.has_controlnet_inpaint:
             hires_image = ImageOutput(images.hires_image)
             cond_upscale.control.append(inpaint_control(hires_image, cropped_mask, models.arch))
-        positive_up, negative_up = apply_control(
-            w, positive_up, negative_up, cond_upscale.all_control, res, vae, models
+        model, positive_up, negative_up = apply_control(
+            w, model, positive_up, negative_up, cond_upscale.all_control, res, vae, models
         )
         out_latent = w.sampler_custom_advanced(
             model, positive_up, negative_up, latent, models.arch, **sampler_params
@@ -841,8 +857,8 @@ def refine(
     latent = w.vae_encode(vae, in_image)
     latent = w.batch_latent(latent, misc.batch_count)
     positive, negative = encode_text_prompt(w, cond, clip)
-    positive, negative = apply_control(
-        w, positive, negative, cond.all_control, extent.desired, vae, models
+    model, positive, negative = apply_control(
+        w, model, positive, negative, cond.all_control, extent.desired, vae, models
     )
     sampler = w.sampler_custom_advanced(
         model, positive, negative, latent, models.arch, **_sampler_params(sampling)
@@ -882,8 +898,8 @@ def refine_region(
 
     if inpaint.use_inpaint_model and models.arch.has_controlnet_inpaint:
         cond.control.append(inpaint_control(in_image, initial_mask, models.arch))
-    positive, negative = apply_control(
-        w, prompt_pos, prompt_neg, cond.all_control, extent.initial, vae, models
+    model, positive, negative = apply_control(
+        w, model, prompt_pos, prompt_neg, cond.all_control, extent.initial, vae, models
     )
     if inpaint.use_inpaint_model and models.arch is Arch.sdxl:
         positive, negative, latent_inpaint, latent = w.vae_encode_inpaint_conditioning(
@@ -1054,7 +1070,9 @@ def upscale_tiled(
         tile_model = apply_regional_ip_adapter(w, tile_model, tile_cond.regions, None, models)
 
         control = [tiled_control(c, i) for c in tile_cond.all_control]
-        tile_pos, tile_neg = apply_control(w, positive, negative, control, None, vae, models)
+        tile_model, tile_pos, tile_neg = apply_control(
+            w, tile_model, positive, negative, control, None, vae, models
+        )
 
         latent = w.vae_encode(vae, tile_image)
         latent = w.set_latent_noise_mask(latent, tile_mask)

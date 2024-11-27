@@ -678,9 +678,10 @@ def _find_loras(model_list: Sequence[str]):
     kind = ResourceKind.lora
     common_loras = list(product(["hyper", "lcm", "face"], [Arch.sd15, Arch.sdxl]))
     sdxl_loras = [("lightning", Arch.sdxl)]
+    flux_loras = [(ControlMode.depth, Arch.flux), (ControlMode.canny_edge, Arch.flux)]
     return {
-        resource_id(kind, ver, name): _find_model(model_list, kind, ver, name)
-        for name, ver in chain(common_loras, sdxl_loras)
+        resource_id(kind, arch, name): _find_model(model_list, kind, arch, name)
+        for name, arch in chain(common_loras, sdxl_loras, flux_loras)
     }
 
 

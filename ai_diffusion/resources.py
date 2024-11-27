@@ -9,7 +9,7 @@ from typing import NamedTuple, Sequence
 version = "1.28.0"
 
 comfy_url = "https://github.com/comfyanonymous/ComfyUI"
-comfy_version = "2d28b0b4790e3f6c2287be49d9872419eadfe5bb"
+comfy_version = "61196d88576c95c1cd8535e881af48172d5af525"
 
 
 class CustomNode(NamedTuple):
@@ -39,7 +39,7 @@ required_custom_nodes = [
         "External Tooling Nodes",
         "comfyui-tooling-nodes",
         "https://github.com/Acly/comfyui-tooling-nodes",
-        "517790d1d6c044f2aab1bc1a9c570caf1138dc6b",
+        "e10daee9edea458fc709f60e725970a25567fca4",
         ["ETN_LoadImageBase64", "ETN_LoadMaskBase64", "ETN_SendImageWebSocket", "ETN_Translate"],
     ),
     CustomNode(
@@ -913,6 +913,8 @@ search_paths: dict[str, list[str]] = {
     resource_id(ResourceKind.lora, Arch.sdxl, "hyper"): ["Hyper-SDXL-8steps-CFG-lora"],
     resource_id(ResourceKind.lora, Arch.sd15, ControlMode.face): ["ip-adapter-faceid-plusv2_sd15_lora", "ip-adapter-faceid-plus_sd15_lora"],
     resource_id(ResourceKind.lora, Arch.sdxl, ControlMode.face): ["ip-adapter-faceid-plusv2_sdxl_lora", "ip-adapter-faceid_sdxl_lora"],
+    resource_id(ResourceKind.lora, Arch.flux, ControlMode.depth): ["flux1-depth"],
+    resource_id(ResourceKind.lora, Arch.flux, ControlMode.canny_edge): ["flux1-canny"],
     resource_id(ResourceKind.upscaler, Arch.all, UpscalerName.default): [UpscalerName.default.value],
     resource_id(ResourceKind.upscaler, Arch.all, UpscalerName.fast_2x): [UpscalerName.fast_2x.value],
     resource_id(ResourceKind.upscaler, Arch.all, UpscalerName.fast_3x): [UpscalerName.fast_3x.value],
