@@ -751,7 +751,7 @@ def inpaint(
             Control(ControlMode.reference, ImageOutput(reference), None, 0.5, (0.2, 0.8))
         )
     inpaint_mask = ImageOutput(initial_mask, is_mask=True)
-    if params.use_inpaint_model and models.arch.has_controlnet_inpaint:
+    if params.use_inpaint_model and models.control.find(ControlMode.inpaint) is not None:
         cond_base.control.append(inpaint_control(in_image, inpaint_mask, models.arch))
     if params.use_condition_mask and len(cond_base.regions) == 0:
         base_prompt = TextPrompt(merge_prompt("", cond_base.style_prompt), cond.language)
@@ -773,6 +773,13 @@ def inpaint(
         )
         inpaint_patch = w.load_fooocus_inpaint(**models.fooocus_inpaint)
         inpaint_model = w.apply_fooocus_inpaint(model, inpaint_patch, latent_inpaint)
+    elif params.use_inpaint_model and models.control.find(ControlMode.inpaint) is None:
+        positive, negative, latent_inpaint, latent = w.vae_encode_inpaint_conditioning(
+            vae, in_image, initial_mask, positive, negative
+        )
+        if models.arch is Arch.flux:  # flux1-fill based model
+            sampling.cfg_scale = 30
+        inpaint_model = model
     else:
         latent = w.vae_encode(vae, in_image)
         latent = w.set_latent_noise_mask(latent, initial_mask)
@@ -807,7 +814,7 @@ def inpaint(
         model = apply_attention_mask(w, model, cond_upscale, clip, res)
         model = apply_regional_ip_adapter(w, model, cond_upscale.regions, res, models)
 
-        if params.use_inpaint_model and models.arch.has_controlnet_inpaint:
+        if params.use_inpaint_model and models.control.find(ControlMode.inpaint) is not None:
             hires_image = ImageOutput(images.hires_image)
             cond_upscale.control.append(inpaint_control(hires_image, cropped_mask, models.arch))
         model, positive_up, negative_up = apply_control(
@@ -896,7 +903,7 @@ def refine_region(
     in_mask = apply_grow_feather(w, in_mask, inpaint)
     initial_mask = scale_to_initial(extent, w, in_mask, models, is_mask=True)
 
-    if inpaint.use_inpaint_model and models.arch.has_controlnet_inpaint:
+    if inpaint.use_inpaint_model and models.control.find(ControlMode.inpaint) is not None:
         cond.control.append(inpaint_control(in_image, initial_mask, models.arch))
     model, positive, negative = apply_control(
         w, model, prompt_pos, prompt_neg, cond.all_control, extent.initial, vae, models
@@ -1472,6 +1479,8 @@ def _check_server_has_models(
 def _check_inpaint_model(inpaint: InpaintParams | None, arch: Arch, models: ClientModels):
     if inpaint and inpaint.use_inpaint_model and arch.has_controlnet_inpaint:
         if models.for_arch(arch).control.find(ControlMode.inpaint) is None:
+            if arch is Arch.flux:
+                return  # Optional for now, to allow using flux1-fill model instead of inpaint CN
             msg = f"No inpaint model found for {arch.value}."
             res_id = ResourceId(ResourceKind.controlnet, arch, ControlMode.inpaint)
             if res := resources.find_resource(res_id):
