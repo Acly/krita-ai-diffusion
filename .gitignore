@@ -9,6 +9,7 @@
 .server
 .vscode
 __pycache__
+scripts/upload.py
 scripts/docker/krita-ai-diffusion
 scripts/docker/ComfyUI
 scripts/downloads

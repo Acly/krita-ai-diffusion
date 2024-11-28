@@ -662,8 +662,8 @@ optional_models = [
         ResourceId(ResourceKind.controlnet, Arch.flux, ControlMode.inpaint),
         {
             Path(
-                "models/controlnet/FLUX.1-dev-Controlnet-Inpainting-Alpha.safetensors"
-            ): "https://huggingface.co/alimama-creative/FLUX.1-dev-Controlnet-Inpainting-Alpha/resolve/main/diffusion_pytorch_model.safetensors"
+                "models/controlnet/FLUX.1-dev-Controlnet-Inpainting-Beta.safetensors"
+            ): "https://huggingface.co/alimama-creative/FLUX.1-dev-Controlnet-Inpainting-Beta/resolve/main/diffusion_pytorch_model.safetensors"
         },
     ),
     ModelResource(
@@ -691,6 +691,18 @@ optional_models = [
             Path(
                 "models/controlnet/flux-depth-controlnet-v3.safetensors"
             ): "https://huggingface.co/XLabs-AI/flux-controlnet-collections/resolve/main/flux-depth-controlnet-v3.safetensors"
+        },
+    ),
+    ModelResource(
+        "Reference (Flux)",
+        ResourceId(ResourceKind.ip_adapter, Arch.flux, ControlMode.reference),
+        {
+            Path(
+                "models/clip_vision/sigclip_vision_patch14_384.safetensors"
+            ): "https://huggingface.co/Comfy-Org/sigclip_vision_384/resolve/main/sigclip_vision_patch14_384.safetensors",
+            Path(
+                "models/style_models/flux1-redux-dev.safetensors"
+            ): "https://files.interstice.cloud/models/flux1-redux-dev.safetensors",
         },
     ),
 ]
