@@ -217,7 +217,7 @@ class PromptAutoComplete:
             # fall through to tag search
             self._completion_prefix = prefix = self._current_text(separators="()>,\n").lstrip()
             name = prefix.replace("\\(", "(").replace("\\)", ")")
-            if not name.startswith("<") and len(name) > 2:
+            if not name.startswith("<") and len(name.rstrip()) > 2:
                 self._completer.setModel(_tag_model)
                 self._popup.setItemDelegate(TagCompleterDelegate())
                 self._completion_suffix = ""
