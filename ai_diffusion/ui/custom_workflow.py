@@ -418,6 +418,7 @@ class WorkflowParamsWidget(QWidget):
     def __init__(self, params: list[CustomParam], parent: QWidget | None = None):
         super().__init__(parent)
         self._widgets: dict[str, CustomParamWidget] = {}
+        self._max_group_height = 0
 
         layout = QGridLayout(self)
         layout.setContentsMargins(0, 0, 2, 0)
@@ -454,8 +455,12 @@ class WorkflowParamsWidget(QWidget):
         self.value_changed.emit()
 
     def _create_group(self, expander: GroupHeader | None, widgets: list[CustomParamWidget]):
+        display_height = sum(w.sizeHint().height() for w in widgets if not isinstance(w, QLabel))
+        display_height += 2 * len(widgets)  # spacing
         if expander is not None:
             expander.set_group_widgets(widgets, len(self._widgets) < 7)
+            display_height += expander.sizeHint().height()
+        self._max_group_height = max(self._max_group_height, display_height)
 
     @property
     def value(self):
@@ -467,6 +472,10 @@ class WorkflowParamsWidget(QWidget):
             if widget := self._widgets.get(name):
                 if base_type_match(widget.value, value):
                     widget.value = value
+
+    @property
+    def min_size(self):
+        return self._max_group_height
 
 
 class WorkflowOutputsWidget(QWidget):
@@ -821,6 +830,7 @@ class CustomWorkflowWidget(QWidget):
 
             self._params_scroll.setWidget(self._params_widget)
             widget_size = self._params_scroll.viewportSizeHint().height() + 4
+            widget_size = max(widget_size, self._params_widget.min_size)
             params_size = min(self.height() // 2, widget_size)
             self._params_scroll.setFixedHeight(params_size)
         else:
