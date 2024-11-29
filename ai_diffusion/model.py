@@ -4,9 +4,10 @@ from copy import copy
 from dataclasses import replace
 from pathlib import Path
 from enum import Enum
-from typing import Any, NamedTuple
+import time
+from typing import NamedTuple
 from PyQt5.QtCore import QObject, QUuid, pyqtSignal, Qt
-from PyQt5.QtGui import QImage, QPainter, QColor, QBrush
+from PyQt5.QtGui import QPainter, QColor, QBrush
 import uuid
 
 from . import eventloop, workflow, util
@@ -28,7 +29,7 @@ from .files import FileLibrary
 from .connection import Connection
 from .properties import Property, ObservableProperties
 from .jobs import Job, JobKind, JobParams, JobQueue, JobState, JobRegion
-from .control import ControlLayer, ControlLayerList
+from .control import ControlLayer
 from .region import Region, RegionLink, RootRegion, process_regions, get_region_inpaint_mask
 from .resources import ControlMode
 from .resolution import compute_bounds, compute_relative_bounds
@@ -311,9 +312,10 @@ class Model(QObject, ObservableProperties):
             return 0
 
     def generate_live(self):
-        eventloop.run(_report_errors(self, self._generate_live()))
+        input, job_params = self._prepare_live_workflow()
+        eventloop.run(_report_errors(self, self._generate_live(input, job_params)))
 
-    async def _generate_live(self, last_input: WorkflowInput | None = None):
+    def _prepare_live_workflow(self):
         strength = self.live.strength
         workflow_kind = WorkflowKind.generate if strength == 1.0 else WorkflowKind.refine
         client = self._connection.client
@@ -361,13 +363,12 @@ class Model(QObject, ObservableProperties):
             inpaint=inpaint if mask else None,
             is_live=True,
         )
-        if input != last_input:
-            self.clear_error()
-            params = JobParams(bounds, conditioning.positive, regions=job_regions)
-            await self.enqueue_jobs(input, JobKind.live_preview, params)
-            return input
+        params = JobParams(bounds, conditioning.positive, regions=job_regions)
+        return input, params
 
-        return None
+    async def _generate_live(self, input: WorkflowInput, job_params: JobParams):
+        self.clear_error()
+        await self.enqueue_jobs(input, JobKind.live_preview, job_params)
 
     async def _generate_custom(self, previous_input: WorkflowInput | None):
         if self.workspace is not Workspace.custom or not self.document.is_active:
@@ -856,6 +857,7 @@ class LiveWorkspace(QObject, ObservableProperties):
 
     _model: Model
     _last_input: WorkflowInput | None = None
+    _last_change: float = 0
     _result: Image | None = None
     _result_composition: Image | None = None
     _result_params: JobParams | None = None
@@ -902,12 +904,17 @@ class LiveWorkspace(QObject, ObservableProperties):
             eventloop.run(_report_errors(self._model, self._continue_generating()))
 
     async def _continue_generating(self):
-        while self.is_active and self._model.document.is_active:
-            new_input = await self._model._generate_live(self._last_input)
-            if new_input is not None:  # frame was scheduled
-                self._last_input = new_input
-                return
-            # no changes in input data
+        while self.is_active:
+            if self._model.document.is_active:
+                new_input, job_params = self._model._prepare_live_workflow()
+                if self._last_input != new_input:
+                    now = time.monotonic()
+                    if self._last_change + settings.live_redraw_grace_period <= now:
+                        await self._model._generate_live(new_input, job_params)
+                        self._last_input = new_input
+                        return
+                else:
+                    self._last_change = time.monotonic()
             await asyncio.sleep(self._poll_rate)
 
     def apply_result(self, layer_only=False):
