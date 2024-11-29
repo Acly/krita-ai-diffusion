@@ -5,7 +5,7 @@ from dataclasses import replace
 from pathlib import Path
 from enum import Enum
 import time
-from typing import NamedTuple
+from typing import Any, NamedTuple
 from PyQt5.QtCore import QObject, QUuid, pyqtSignal, Qt
 from PyQt5.QtGui import QPainter, QColor, QBrush
 import uuid
@@ -858,6 +858,7 @@ class LiveWorkspace(QObject, ObservableProperties):
     _model: Model
     _last_input: WorkflowInput | None = None
     _last_change: float = 0
+    _has_changes: bool = True
     _result: Image | None = None
     _result_composition: Image | None = None
     _result_params: JobParams | None = None
@@ -907,14 +908,16 @@ class LiveWorkspace(QObject, ObservableProperties):
         while self.is_active:
             if self._model.document.is_active:
                 new_input, job_params = self._model._prepare_live_workflow()
+                now = time.monotonic()
                 if self._last_input != new_input:
-                    now = time.monotonic()
-                    if self._last_change + settings.live_redraw_grace_period <= now:
-                        await self._model._generate_live(new_input, job_params)
-                        self._last_input = new_input
-                        return
-                else:
-                    self._last_change = time.monotonic()
+                    self._last_input = new_input
+                    self._last_change = now
+                    self._has_changes = True
+                elapsed = now - self._last_change
+                if self._has_changes and elapsed >= settings.live_redraw_grace_period:
+                    await self._model._generate_live(new_input, job_params)
+                    self._has_changes = False
+                    return
             await asyncio.sleep(self._poll_rate)
 
     def apply_result(self, layer_only=False):
