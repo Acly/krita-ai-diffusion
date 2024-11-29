@@ -7,7 +7,7 @@ from dataclasses import dataclass
 from enum import Enum
 from collections import deque
 from itertools import chain, product
-from typing import NamedTuple, Optional, Sequence
+from typing import Any, NamedTuple, Optional, Sequence
 
 from .api import WorkflowInput
 from .client import Client, CheckpointInfo, ClientMessage, ClientEvent, DeviceInfo, ClientModels
@@ -163,6 +163,7 @@ class ComfyClient(Client):
         # Retrieve list of checkpoints
         checkpoints = await client.try_inspect("checkpoints")
         diffusion_models = await client.try_inspect("diffusion_models")
+        diffusion_models.update(await client.try_inspect("unet_gguf"))
         client._refresh_models(nodes, checkpoints, diffusion_models)
 
         # Check supported SD versions and make sure there is at least one
@@ -369,11 +370,11 @@ class ComfyClient(Client):
                 self._unsubscribe_workflows(),
             )
 
-    async def try_inspect(self, folder_name: str):
+    async def try_inspect(self, folder_name: str) -> dict[str, Any]:
         try:
             return await self._get(f"api/etn/model_info/{folder_name}")
         except NetworkError:
-            return None  # server has old external tooling version
+            return {}  # server has old external tooling version
 
     @property
     def queued_count(self):
@@ -384,11 +385,13 @@ class ComfyClient(Client):
         return self._active is not None
 
     async def refresh(self):
-        nodes, checkpoints, diffusion_models = await asyncio.gather(
+        nodes, checkpoints, diffusion_models, diffusion_gguf = await asyncio.gather(
             self._get("object_info"),
             self.try_inspect("checkpoints"),
             self.try_inspect("diffusion_models"),
+            self.try_inspect("unet_gguf"),
         )
+        diffusion_models.update(diffusion_gguf)
         self._refresh_models(nodes, checkpoints, diffusion_models)
 
     def _refresh_models(self, nodes: dict, checkpoints: dict | None, diffusion_models: dict | None):
@@ -407,7 +410,7 @@ class ComfyClient(Client):
             return {
                 filename: CheckpointInfo(filename, arch, model_format)
                 for filename, arch, is_inpaint, is_refiner in parsed
-                if not (arch is None or is_inpaint or is_refiner)
+                if not (arch is None or (is_inpaint and arch is not Arch.flux) or is_refiner)
             }
 
         if checkpoints:
@@ -424,12 +427,9 @@ class ComfyClient(Client):
         models.loras = nodes["LoraLoader"]["input"]["required"]["lora_name"][0]
 
         if gguf_node := nodes.get("UnetLoaderGGUF", None):
-            gguf_models = {
-                name: CheckpointInfo(name, Arch.flux, FileFormat.diffusion)
-                for name in gguf_node["input"]["required"]["unet_name"][0]
-            }
-            models.checkpoints.update(gguf_models)
-            log.info(f"GGUF support: {len(gguf_models)} models found.")
+            for name in gguf_node["input"]["required"]["unet_name"][0]:
+                if name not in models.checkpoints:
+                    models.checkpoints[name] = CheckpointInfo(name, Arch.flux, FileFormat.diffusion)
         else:
             log.info(f"GGUF support: node is not installed.")
 

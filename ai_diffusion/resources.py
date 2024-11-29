@@ -6,10 +6,10 @@ from typing import NamedTuple, Sequence
 
 # Version identifier for all the resources defined here. This is used as the server version.
 # It usually follows the plugin version, but not all new plugin versions also require a server update.
-version = "1.28.0"
+version = "1.29.0"
 
 comfy_url = "https://github.com/comfyanonymous/ComfyUI"
-comfy_version = "61196d88576c95c1cd8535e881af48172d5af525"
+comfy_version = "bf2650a80e5a7a888da206eab45c53dbb22940f7"
 
 
 class CustomNode(NamedTuple):
@@ -39,7 +39,7 @@ required_custom_nodes = [
         "External Tooling Nodes",
         "comfyui-tooling-nodes",
         "https://github.com/Acly/comfyui-tooling-nodes",
-        "e10daee9edea458fc709f60e725970a25567fca4",
+        "d7d421baaa7d3140fd7fc500d928244045211217",
         ["ETN_LoadImageBase64", "ETN_LoadMaskBase64", "ETN_SendImageWebSocket", "ETN_Translate"],
     ),
     CustomNode(
@@ -56,7 +56,7 @@ optional_custom_nodes = [
         "GGUF",
         "ComfyUI-GGUF",
         "https://github.com/city96/ComfyUI-GGUF",
-        "8e898fad4caab59bf4144e0cf11978b893de7e54",
+        "4a8432884167f2526d60ef36e985bdabebb9e1e0",
         ["UnetLoaderGGUF", "DualCLIPLoaderGGUF"],
     )
 ]
@@ -939,6 +939,7 @@ search_paths: dict[str, list[str]] = {
     resource_id(ResourceKind.text_encoder, Arch.all, "t5"): ["t5"],
     resource_id(ResourceKind.vae, Arch.sd15, "default"): ["vae-ft-mse-840000-ema"],
     resource_id(ResourceKind.vae, Arch.sdxl, "default"): ["sdxl_vae"],
+    resource_id(ResourceKind.vae, Arch.sd3, "default"): ["sd3"],
     resource_id(ResourceKind.vae, Arch.flux, "default"): ["ae.s"],
 }
 # fmt: on
