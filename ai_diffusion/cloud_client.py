@@ -196,10 +196,11 @@ class CloudClient(Client):
             log.warning(f"Got unknown job status {response['status']}")
 
     async def interrupt(self):
-        if self._current_job:
+        if job := self._current_job:
             self._cancel_requested = True
-            # if  self._current_job.remote_id:
-            #     await self._post(f"cancel/{self._current_job.remote_id}", {})
+            if job.remote_id and job.worker_id:
+                response = await self._post(f"cancel/{job.worker_id}/{job.remote_id}", {})
+                log.info(f"Requested cancellation of {job}: {response}")
 
     async def clear_queue(self):
         self._queue = asyncio.Queue()
