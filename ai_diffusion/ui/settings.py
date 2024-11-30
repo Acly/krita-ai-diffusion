@@ -439,10 +439,6 @@ class InterfaceSettings(SettingsTab):
         self.add("auto_preview", SwitchSetting(S._auto_preview, parent=self))
         self.add("show_steps", SwitchSetting(S._show_steps, parent=self))
         self.add("new_seed_after_apply", SwitchSetting(S._new_seed_after_apply, parent=self))
-        self.add(
-            "live_redraw_grace_period",
-            SliderSetting(S._live_redraw_grace_period, self, 0.0, 3.0, "{} s"),
-        )
         self.add("debug_dump_workflow", SwitchSetting(S._debug_dump_workflow, parent=self))
 
         languages = [(lang.name, lang.id) for lang in Localization.available]

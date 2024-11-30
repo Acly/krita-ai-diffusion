@@ -155,13 +155,6 @@ class Settings(QObject):
         _("Pick a new seed after copying the result to the canvas in Live mode"),
     )
 
-    live_redraw_grace_period: float
-    _live_redraw_grace_period = Setting(
-        _("Live: Redraw grace period"),
-        0.0,
-        _("How long to delay scheduling the live preview job for after a change is made"),
-    )
-
     prompt_translation: str
     _prompt_translation = Setting(
         _("Prompt Translation"),
