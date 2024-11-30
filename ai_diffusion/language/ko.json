@@ -448,6 +448,10 @@
     "Backup folder {dir} already exists! Please make sure it does not contain any valuable data such as checkpoints or other models you downloaded. Then delete the folder and try again.": "백업 폴더 {dir}이(가) 이미 존재합니다! 중요한 데이터가 없는지 확인하고 삭제한 후 다시 시도하세요.",
     "Diffusion Model Architecture": null,
     "Copy error message to clipboard": null,
-    "Reset all parameters in this group": null
+    "Reset all parameters in this group": null,
+    "The following control layers cannot be used together:": null,
+    "Info to Clipboard": null,
+    "Open settings": null,
+    "Charge": null
   }
 }

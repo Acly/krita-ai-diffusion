@@ -448,6 +448,10 @@
     "Backup folder {dir} already exists! Please make sure it does not contain any valuable data such as checkpoints or other models you downloaded. Then delete the folder and try again.": "A localização de backup {dir} já existe! Por favor, tenha certeza que não contém nenhum tipo de dados valiosos, apague-a tente de novo.",
     "Diffusion Model Architecture": "Modelo de Arquitetura de Difusão",
     "Copy error message to clipboard": "Copiar menssagem de erro ao clipboard",
-    "Reset all parameters in this group": "Reiniciar todos os parámetros neste grupo"
+    "Reset all parameters in this group": "Reiniciar todos os parámetros neste grupo",
+    "The following control layers cannot be used together:": null,
+    "Info to Clipboard": null,
+    "Open settings": null,
+    "Charge": null
   }
 }
