@@ -858,6 +858,7 @@ class LiveWorkspace(QObject, ObservableProperties):
     _model: Model
     _last_input: WorkflowInput | None = None
     _last_change: float = 0
+    _oldest_change: float = 0
     _has_changes: bool = True
     _result: Image | None = None
     _result_composition: Image | None = None
@@ -868,6 +869,8 @@ class LiveWorkspace(QObject, ObservableProperties):
     _keyframes: list[Path]
 
     _poll_rate = 0.1
+    _grace_period = 0.25
+    _max_wait_time = 3.0
 
     def __init__(self, model: Model):
         super().__init__()
@@ -912,9 +915,15 @@ class LiveWorkspace(QObject, ObservableProperties):
                 if self._last_input != new_input:
                     self._last_input = new_input
                     self._last_change = now
+                    if not self._has_changes:
+                        self._oldest_change = now
                     self._has_changes = True
-                elapsed = now - self._last_change
-                if self._has_changes and elapsed >= settings.live_redraw_grace_period:
+                time_since_last_change = now - self._last_change
+                time_since_oldest_change = now - self._oldest_change
+                if self._has_changes and (
+                    time_since_last_change >= self._grace_period
+                    or time_since_oldest_change >= self._max_wait_time
+                ):
                     await self._model._generate_live(new_input, job_params)
                     self._has_changes = False
                     return
