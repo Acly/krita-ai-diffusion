@@ -444,14 +444,14 @@
     "Delete Workflow": "Удалить рабочий процесс",
     "Start Generating": "Начать генерацию",
     "Import workflow from file": "Импортировать рабочий процесс из файла",
-    "Text Output": null,
+    "Text Output": "Вывод текста",
     "Backup folder {dir} already exists! Please make sure it does not contain any valuable data such as checkpoints or other models you downloaded. Then delete the folder and try again.": "Папка резервного копирования {dir} уже существует! Пожалуйста, убедитесь, что она не содержит никаких ценных данных, удалите её и повторите попытку.",
-    "Diffusion Model Architecture": null,
-    "Copy error message to clipboard": null,
-    "Reset all parameters in this group": null,
-    "The following control layers cannot be used together:": null,
-    "Info to Clipboard": null,
-    "Open settings": null,
-    "Charge": null
+    "Diffusion Model Architecture": "Архитектура модели диффузии",
+    "Copy error message to clipboard": "Скопировать сообщение об ошибке в буфер обмена",
+    "Reset all parameters in this group": "Сбросить все параметры в этой группе",
+    "The following control layers cannot be used together:": "Следующие слои управления нельзя использовать вместе:",
+    "Info to Clipboard": "Информация в буфер обмена",
+    "Open settings": "Открыть настройки",
+    "Charge": "Зарядка"
   }
 }
