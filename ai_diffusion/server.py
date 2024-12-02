@@ -697,6 +697,7 @@ krita-managed:
     inpaint: inpaint
     ipadapter: ipadapter
     loras: loras
+    style_models: style_models
     text_encoders: text_encoders
     upscale_models: upscale_models
     unet: unet
