@@ -4,7 +4,7 @@
   "translations": {
     "(Custom)": "(Personalizado)",
     "<No text prompt>": "<Sin texto de prompt>",
-    "AI Image Generation": "Generador de imagenes con IA",
+    "AI Image Generation": "Generador de imágenes con IA",
     "Account:": "Cuenta",
     "Active": "Activo",
     "Active History Size": "Tamaño de Historial Activo",
@@ -305,9 +305,9 @@
     "Size of the text editor for image descriptions": "Tamaño del editor de texto para la descripción de la imagen.",
     "Soft Edge": "Soft Edge",
     "Some models remain in": "Algunos modelos permanecen en",
-    "Stable Diffusion 1.5": "Stable diffusion 1.5",
+    "Stable Diffusion 1.5": "Stable Diffusion 1.5",
     "Stable Diffusion XL": "Stable Diffusion XL",
-    "Start live generation and insert images as keyframes into an animation": "Iniciar la generación en vivo e insertar las imagenes como fotogramas clave en la animación.",
+    "Start live generation and insert images as keyframes into an animation": "Iniciar la generación en vivo e insertar las imágenes como fotogramas clave en la animación.",
     "Start/stop live preview": "Iniciar/Detener vista previa en vivo",
     "Starting server...": "Iniciando servidor...",
     "Stencil": "Stencil",
@@ -330,7 +330,7 @@
     "Text prompt regions have not been set up.\\nIt is not recommended to use a single text description for tiled upscale,\\nunless it can be generally applied to all parts of the image.": "El texto del Prompt de la Región, no se han configurado.\\nNo se recomienda usar una sola descripción de texto para la ampliación en mosaico,\\na menos que pueda aplicarse de manera general a todas las partes de la imagen.",
     "Text which is appended to all prompts. The {prompt} placeholder can be used to wrap prompts.": "Texto que se añade a todos los Prompts. El marcador {prompt} se puede usar para envolver los prompts",
     "Text which is common to all regions": "Texto común para todas las Regiones",
-    "Textual description of things to avoid in generated images.": "Descripción textual de las cosas a rechazar en la generación de imagenes",
+    "Textual description of things to avoid in generated images.": "Descripción textual de las cosas a rechazar en la generación de imágenes",
     "The ControlNet model is not installed": "El modelo ControlNet no está instalado",
     "The LoRA '{lora}' used by style '{style}' is not available on the server": "El LoRA '{lora}' usado por el Estilo '{style}' no está disponible en el servidor",
     "The LoRA file is not installed on the server.": "El archivo de LoRA no está instalado en el servidor",
@@ -449,9 +449,9 @@
     "Diffusion Model Architecture": "Arquitectura de Modelo de Difusión",
     "Copy error message to clipboard": "Copiar mensaje de error para el portapapeles",
     "Reset all parameters in this group": "Resetear todos los parametros en este grupo",
-    "The following control layers cannot be used together:": null,
-    "Info to Clipboard": null,
-    "Open settings": null,
-    "Charge": null
+    "The following control layers cannot be used together:": "Las siguientes capas de control no pueden utilizarse juntas:",
+    "Info to Clipboard": "Información en el portapapeles",
+    "Open settings": "Abrir ajustes",
+    "Charge": "Carga"
   }
 }
