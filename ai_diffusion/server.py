@@ -132,8 +132,10 @@ class Server:
             await install_if_missing(python_dir, self._create_venv, cb)
             self._python_cmd = python_dir / "bin" / "python3"
         assert self._python_cmd is not None
-        log.info(f"Using Python: {await get_python_version(self._python_cmd)}, {self._python_cmd}")
-        log.info(f"Using pip: {await get_python_version(self._python_cmd, '-m', 'pip')}")
+        python_ver = await get_python_version_string(self._python_cmd)
+        log.info(f"Using Python: {python_ver}, {self._python_cmd}")
+        pip_ver = await get_python_version_string(self._python_cmd, "-m", "pip")
+        log.info(f"Using pip: {pip_ver}")
 
         comfy_dir = self.comfy_dir or self.path / "ComfyUI"
         if not self.has_comfy:
@@ -176,6 +178,14 @@ class Server:
 
     async def _create_venv(self, cb: InternalCB):
         cb("Creating Python virtual environment", f"Creating venv in {self.path / 'venv'}")
+        assert self._python_cmd is not None
+        python_version, major, minor = await get_python_version(self._python_cmd)
+        if major is not None and minor is not None and (major < 3 or minor < 9):
+            raise Exception(
+                _(
+                    "Python version 3.9 or higher is required, but found {version} at {location}. Please make sure a compatible version of Python is installed and can be found by the Krita process."
+                ).format(version=python_version, location=self._python_cmd)
+            )
         venv_cmd = [self._python_cmd, "-m", "venv", "venv"]
         await _execute_process("Python", venv_cmd, self.path, cb)
 
@@ -644,13 +654,23 @@ def safe_remove_dir(path: Path, max_size=12 * 1024 * 1024):
         shutil.rmtree(path, ignore_errors=True)
 
 
-async def get_python_version(python_cmd: Path, *args: str):
+async def get_python_version_string(python_cmd: Path, *args: str):
     enc = locale.getpreferredencoding(False)
     proc = await asyncio.create_subprocess_exec(
         python_cmd, *args, "--version", stdout=asyncio.subprocess.PIPE
     )
     out, _ = await proc.communicate()
     return out.decode(enc, errors="replace").strip()
+
+
+async def get_python_version(python_cmd: Path, *args: str):
+    string = await get_python_version_string(python_cmd, *args)
+    matches = re.match(r"Python (\d+)\.(\d+)", string)
+    if not matches:
+        log.warning(f"Could not determine Python version: {string}")
+        return string, None, None
+    else:
+        return string, int(matches.group(1)), int(matches.group(2))
 
 
 def parse_common_errors(output: str, return_code: int | None = None):

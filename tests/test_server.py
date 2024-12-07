@@ -215,9 +215,11 @@ def test_safe_remove_dir(scenario):
 
 def test_python_version(qtapp):
     async def main():
-        py = await server.get_python_version(Path("python"))
+        py, major, minor = await server.get_python_version(Path("python"))
         assert py.startswith("Python 3.")
-        pip = await server.get_python_version(Path("pip"))
+        assert major is not None and minor is not None and major >= 3 and minor >= 9
+        pip, major, minor = await server.get_python_version(Path("pip"))
+        assert major is None and minor is None
         assert pip.startswith("pip ")
 
     qtapp.run(main())
