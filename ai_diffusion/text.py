@@ -194,7 +194,6 @@ def edit_attention(text: str, positive: bool) -> str:
         return text
 
     segments = parse_expr(text)
-    print(segments)
     if len(segments) == 1 and segments[0].type == "expr":
         attention_string = text[1 : text.rfind(":")]
         weight = segments[0].weight
