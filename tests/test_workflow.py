@@ -461,6 +461,35 @@ def test_regions_ip_adapter(qtapp, client: Client):
     run_and_save(qtapp, client, job, f"test_regions_ip_adapter")
 
 
+def test_regions_lora(qtapp, client: Client):
+    files = FileLibrary.instance()
+    files.loras.add(File.local(test_dir / "data" / "LowRA.safetensors"))
+    files.loras.add(File.local(test_dir / "data" / "Ink scenery.safetensors"))
+    root_text = "snowy landscape, tundra, illustration, truck in the distance"
+    lines = Image.load(image_dir / "truck_landscape_lines.webp")
+    prompt = ConditioningInput(root_text)
+    prompt.regions = [
+        RegionInput(
+            Mask.load(image_dir / "region_mask_bg.png").to_image(),
+            Bounds(0, 0, 1024, 1024),
+            "frozen lake . " + root_text,
+        ),
+        RegionInput(
+            Mask.load(image_dir / "region_mask_3.png").to_image(),
+            Bounds(600, 150, 424, 600),
+            "truck on an abandoned road . <lora:LowRA:1.0>" + root_text,
+        ),
+        RegionInput(
+            Mask.load(image_dir / "region_mask_2.png").to_image(),
+            Bounds(0, 250, 355, 700),
+            "ink scenery, mountains, trees, <lora:Ink scenery:2.0>" + root_text,
+        ),
+    ]
+    prompt.control = [ControlInput(ControlMode.soft_edge, lines, 0.5)]
+    job = create(WorkflowKind.generate, client, canvas=Extent(1024, 1024), cond=prompt, files=files)
+    run_and_save(qtapp, client, job, f"test_regions_lora")
+
+
 @pytest.mark.parametrize(
     "op", ["generate", "inpaint", "refine", "refine_region", "inpaint_upscale"]
 )
