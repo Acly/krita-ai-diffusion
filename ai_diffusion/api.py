@@ -96,6 +96,7 @@ class RegionInput:
     bounds: Bounds
     positive: str
     control: list[ControlInput] = field(default_factory=list)
+    loras: list[LoraInput] = field(default_factory=list)
 
 
 @dataclass
