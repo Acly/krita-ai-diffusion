@@ -327,21 +327,27 @@ def filter_supported_styles(styles: Iterable[Style], client: Client | None = Non
 
 
 def loras_to_upload(workflow: WorkflowInput, client_models: ClientModels):
+    workflow_loras = []
     if models := workflow.models:
-        for lora in models.loras:
-            if lora.name in client_models.loras:
-                continue
-            if not lora.storage_id and lora.name in _lcm_loras:
-                raise ValueError(_lcm_warning)
-            if not lora.storage_id:
-                raise ValueError(f"Lora model is not available: {lora.name}")
-            lora_file = FileLibrary.instance().loras.find_local(lora.name)
-            if lora_file is None or lora_file.path is None:
-                raise ValueError(f"Can't find Lora model: {lora.name}")
-            if not lora_file.path.exists():
-                raise ValueError(_("LoRA model file not found") + f" {lora_file.path}")
-            assert lora.storage_id == lora_file.hash
-            yield lora_file
+        workflow_loras.extend(models.loras)
+    if cond := workflow.conditioning:
+        for region in cond.regions:
+            workflow_loras.extend(region.loras)
+
+    for lora in workflow_loras:
+        if lora.name in client_models.loras:
+            continue
+        if not lora.storage_id and lora.name in _lcm_loras:
+            raise ValueError(_lcm_warning)
+        if not lora.storage_id:
+            raise ValueError(f"Lora model is not available: {lora.name}")
+        lora_file = FileLibrary.instance().loras.find_local(lora.name)
+        if lora_file is None or lora_file.path is None:
+            raise ValueError(f"Can't find Lora model: {lora.name}")
+        if not lora_file.path.exists():
+            raise ValueError(_("LoRA model file not found") + f" {lora_file.path}")
+        assert lora.storage_id == lora_file.hash
+        yield lora_file
 
 
 _lcm_loras = ["lcm-lora-sdv1-5.safetensors", "lcm-lora-sdxl.safetensors"]
