@@ -288,7 +288,8 @@ class CustomParam(NamedTuple):
 def workflow_parameters(w: ComfyWorkflow):
     text_types = ("text", "prompt (positive)", "prompt (negative)")
     for node in w:
-        match (node.type, node.input("type", "")):
+        param_type = node.input("type", "") if node.type == "ETN_Parameter" else ""
+        match (node.type, param_type):
             case ("ETN_KritaStyle", _):
                 name = node.input("name", "Style")
                 yield CustomParam(ParamKind.style, name, node.input("sampler_preset", "auto"))
