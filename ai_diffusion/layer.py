@@ -386,10 +386,6 @@ class LayerManager(QObject):
             return
 
         with self._update_guard():
-            if active.uniqueId() != self._active_id:
-                self._active_id = active.uniqueId()
-                self.active_changed.emit()
-
             removals = set(self._layers.keys())
             changes = False
             for n in traverse_layers(root_node):
@@ -407,6 +403,11 @@ class LayerManager(QObject):
                 if self._layers[id].is_confirmed:
                     self.removed.emit(self._layers[id])
                     del self._layers[id]
+
+            active_id = active.uniqueId()
+            if active_id != self._active_id and active_id in self._layers:
+                self._active_id = active_id
+                self.active_changed.emit()
 
             if removals or changes:
                 self.changed.emit()
