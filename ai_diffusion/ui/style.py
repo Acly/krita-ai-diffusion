@@ -561,6 +561,11 @@ class StylePresets(SettingsTab):
         self._open_folder_button.setToolTip(_("Open folder containing style files"))
         self._open_folder_button.clicked.connect(self._open_style_folder)
 
+        self._builtin_message = QLabel(_("Built-in styles cannot be modified."), self)
+        self._builtin_message.setStyleSheet(f"font-style: italic; color: {theme.highlight};")
+        self._builtin_copy = QLabel("<a href='copy'>Click to edit a copy</a>", self)
+        self._builtin_copy.linkActivated.connect(self._duplicate_style)
+
         self._show_builtin_checkbox = QCheckBox(_("Show pre-installed styles"), self)
         self._show_builtin_checkbox.setChecked(settings.show_builtin_styles)
         self._show_builtin_checkbox.toggled.connect(self.write)
@@ -573,9 +578,15 @@ class StylePresets(SettingsTab):
         style_control_layout.addWidget(self._delete_style_button)
         style_control_layout.addWidget(self._refresh_button)
         style_control_layout.addWidget(self._open_folder_button)
+        builtin_layout = QHBoxLayout()
+        builtin_layout.setContentsMargins(6, 1, 1, 1)
+        builtin_layout.addWidget(self._builtin_message)
+        builtin_layout.addWidget(self._builtin_copy)
+        builtin_layout.addStretch()
+        builtin_layout.addWidget(self._show_builtin_checkbox)
         frame_layout = QVBoxLayout()
         frame_layout.addLayout(style_control_layout)
-        frame_layout.addWidget(self._show_builtin_checkbox, alignment=Qt.AlignmentFlag.AlignRight)
+        frame_layout.addLayout(builtin_layout)
 
         frame = QFrame(self)
         frame.setFrameStyle(QFrame.StyledPanel)
@@ -583,7 +594,7 @@ class StylePresets(SettingsTab):
         frame.setLayout(frame_layout)
         self._layout.addWidget(frame)
 
-        self._style_widgets = {}
+        self._style_widgets: dict[str, SettingWidget] = {}
 
         def add(name: str, widget: SettingWidget):
             self._style_widgets[name] = widget
@@ -814,6 +825,19 @@ class StylePresets(SettingsTab):
         for widget in self._checkpoint_advanced_widgets:
             widget.visible = checked
 
+    def _show_builtin_info(self, style: Style):
+        is_builtin = Styles.list().is_builtin(style)
+        if self._builtin_message.isVisible() != is_builtin:
+            self._builtin_message.setVisible(is_builtin)
+            self._builtin_copy.setVisible(is_builtin)
+            self._checkpoint_select.setEnabled(not is_builtin)
+            for widget in self._style_widgets.values():
+                widget.setEnabled(not is_builtin)
+            for widget in self._checkpoint_advanced_widgets:
+                widget.setEnabled(not is_builtin)
+            self._default_sampler.setEnabled(not is_builtin)
+            self._live_sampler.setEnabled(not is_builtin)
+
     def _enable_checkpoint_advanced(self):
         arch = resolve_arch(self.current_style, root.connection.client_if_connected)
         self._clip_skip_check.setEnabled(arch.supports_clip_skip)
@@ -827,6 +851,7 @@ class StylePresets(SettingsTab):
                 widget.value = getattr(style, name)
             self._default_sampler.read(style)
             self._live_sampler.read(style)
+        self._show_builtin_info(style)
         self._read_checkpoint(style)
         self._enable_checkpoint_advanced()
         self._resolution_spin.enabled = style.preferred_resolution > 0
