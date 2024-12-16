@@ -563,6 +563,7 @@ class StylePresets(SettingsTab):
 
         self._builtin_message = QLabel(_("Built-in styles cannot be modified."), self)
         self._builtin_message.setStyleSheet(f"font-style: italic; color: {theme.highlight};")
+        self._builtin_message.setVisible(False)
         self._builtin_copy = QLabel("<a href='copy'>Click to edit a copy</a>", self)
         self._builtin_copy.linkActivated.connect(self._duplicate_style)
 
