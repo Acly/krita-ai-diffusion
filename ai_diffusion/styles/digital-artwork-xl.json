@@ -3,8 +3,8 @@
     "version": 2,
     "architecture": "auto",
     "checkpoints": [
-        "pixelwave_11.safetensors",
-        "zavychromaxl_v80.safetensors"
+        "zavychromaxl_v80.safetensors",
+        "pixelwave_11.safetensors"
     ],
     "loras": [],
     "style_prompt": "concept art {prompt} . digital artwork, illustrative, matte painting",
