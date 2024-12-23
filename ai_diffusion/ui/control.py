@@ -214,7 +214,7 @@ class ControlWidget(QWidget):
         root.active_model.document.add_pose_character(self._control.layer)
 
     def _update_visibility(self):
-        is_small = self.width() < 450
+        is_small = self.width() < 420
         is_pose = self._control.mode is ControlMode.pose
 
         def controls():
