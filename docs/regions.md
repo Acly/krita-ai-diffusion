@@ -14,7 +14,7 @@ concepts get mixed up and muddled.
 Observe the following example:
 > a simple wooden table in a stark empty room, on the left a white porcelain vase with light blue cornflowers, on the right an earthenware bowl, rough shape, painted with muted shades of orange and red
 
-![img]
+![](introduction-no-regions.webp)
 
 These are the first few outputs from SDXL. Note that colors and descriptions are
 all over the image. A model with better text understanding (eg. Flux) would do
@@ -22,18 +22,22 @@ much better for this simple example, but runs into similar issues for longer
 descriptions with more subjects.
 
 Let's try with regions:
-![img]
+
+![](introduction-regions-setup.webp)
 
 > _Root:_ a vase with flowers and a bowl on a wooden table
+
 > _Background (white):_ a simple wooden table in a stark empty room
+
 > _Blue:_ a white porcelain vase with light blue cornflowers
+
 > _Red:_ an earthenware bowl, rough shape, painted with muted shades of orange and red
 
 The prompt is split up between three regions. Specifying "on the left", "on the
 right" in the text is no longer needed. Instead there is a "Root" prompt which
 describes the overall composition of the image without going into details.
 
-![img]
+![](introduction-with-regions.webp)
 
 Again, these are the first results with the same model and parameters as above.
 The images aren't perfect, but subjects are cleanly separated as indicated by
@@ -45,21 +49,19 @@ To exclude a frequent misunderstanding: regions are _not_ a tool for
 composition. They constrain text prompts to certain regions, but do not enforce
 subjects to match a certain shape, or even be generated at all!
 
-The following setup does not lead to the desired result:
-![img]
+The following setup with two small regions does not lead to the desired result:
+![](composition-regions.webp)
 
-Instead, consider using a compositional tool like line or depth [Control layers]():
-![img]
+Instead, consider using a compositional tool like sketch, lines or depth [Control layers](). Combine them with regions need to be particularly precise:
+![](composition-control.webp)
 
-Alternatively build your image from the ground up with [Regions in Live mode]().
+Alternatively build your image from the ground up with [Regions in Live mode](#live-mode).
 
 ### Advantages
 
 As text-to-image models become more powerful their understanding of spatial
-instructions improves. For example, using Flux instead of SDXL for the initial
-example follows the intended composition much better, even without regions.
-But there are many reasons regions will remain useful regardless of model
-advances:
+instructions improves. But there are many reasons regions will remain useful
+regardless of model advances:
 * Defining areas is more intuitive and direct. You don't have to translate
   canvas areas into prose, you can just point and say _there_.
 * More precise. Translating areas into text and having the model translate them
@@ -67,10 +69,10 @@ advances:
 * Allows for more complex prompts. Even the latest models become less precise
   the longer the text prompt. Splitting it up helps.
 * Improved inpaint workflow. Regions are not only useful for generating the
-  whole image! It is quite common to go back and forth between selections and
-  refine each individually (inpainting). With regions you don't have to swap out
-  text, control layer and reference images each time. You can assign them per
-  area/layer instead.
+  whole image! It is quite common to go back and forth between different
+  selections and refine each individually. With regions you don't have to swap
+  out text, control layer and reference images each time. You can assign them
+  per area/layer instead.
 * Infinite complexity via [Region hierarchies](). 
 
 
@@ -78,9 +80,11 @@ advances:
 
 This section covers some general advice for using regions.
 
+![](regions-basics-overview.svg)
+
 ### Creating regions
 
-To create a region, use the ![icon] button next to the text input.
+To create a region, use the [icon] button next to the text input.
 
 Regions must be attached to paint layers or layer groups. When creating a new
 region, it is linked to the active layer by default. If the active layer already
@@ -101,7 +105,7 @@ region can also be ![icon] unlinked from the active or ![icon] linked.
 
 ### Root prompt
 
-The text input at the very bottom is reserved for the _Root prompt_. It is not
+The text input at the very bottom is reserved for the [icon] _Root prompt_. It is not
 linked to any layer. It should describe the general composition of the image
 with all its subjects. It may also contain instructions about style, medium,
 quality, etc. which apply to the whole image. The Root prompt is appended to the
@@ -122,9 +126,9 @@ versa. This is accomplished by describing the scene briefly in the Root prompt.
 
 The area affected by a region follows the stacking logic of paint layers. That
 is, the portion of the composited image where a certain layer is visible is also
-what defines the coverage for a region it might be linked to.
+what defines the coverage for a region it is linked to.
 
-This means layer content is allowed to overlap, layers on top may hide parts of
+This means layer content is allowed to overlap, layers on top hide parts of
 layers below. Image generation always produces a single full image which matches
 the _visible_ areas of the individual layers. Applying a generated result
 modifies the pixels on all affected layers where they are visible - or creates
@@ -225,22 +229,75 @@ The workflow is best shown in a [video](https://youtu.be/PPxOE9YH57E?si=POf99kUr
  probably makes sense to move to generation workspace at some point for better
  quality and upscaling.
 
- > [!NOTE] Regions are shared between live and generation workspaces! The
+ > [!NOTE]
+ >
+ > Regions are shared between live and generation workspaces! The
  > interface is reduced in live mode to focus on canvas and preview. Region
  > management (linking/unlinking/removal) is better done in generation
  > workspace.
 
 ### Selections
 
+Regions can be used in combination with selections. When using fill or refine
+the plugin will check which regions are covered by the selection and apply those
+with sufficient coverage during image generation.
+
+![img]
+
+Applying a result creates layers for the affected regions only. Keep in mind
+though that the actual area affected by fill is typically larger than the
+selection to allow for a smooth transition.
+
 ### Refine Region
 
+Regions are a great tool to refine individual subjects in the image. It allows
+you to assign different text prompts and switch between them simply by switching
+layers. To make this workflow easier there is the [icon] Refine region toggle.
+It mainly does two things:
+* Uses the active layer coverage as a mask. It's as if you made a selection for
+  the content of the layer.
+* Does not use regional generation. Only the active region prompt is used (but
+  it is still combined with the Root prompt).
+
+[img]
+
+Refine region can still be combined with a selection to fill or refine a
+sub-area of the active layer. It is also a vital part of [region hierarchies]().
 
 
 ## Advanced techniques
 
 ### Upscaling
 
+Tiled image generation can benefit from regions. Usually text prompts are
+problematic in this scenario: Because the image is split into multiple tiles
+which are processed individually, a text prompt needs to apply equally well to
+all parts of the image. Otherwise the text may negatively impact the result by
+describing something that isn't visible in some part of the image, creating a
+mismatch. Therefore the default for tiled upscale refinement is to not use text
+prompts.
+
+Regions can solve this issue. Descriptions are already assigned to local areas
+in the image. Tiled generation will analyse for each individual tile the regions
+it is affected by. With matching detailed descriptions in place for all parts of
+the image, generation can be guided for improved results.
+
 ### Edit coverage with Transparency masks
 
 ### Region hierarchies
+
+Regions can be nested. When work starts on an image, the number of regions
+should be low and their size relative to the canvas relatively large. That's
+because regardless of your canvas resolution, initial generation will use a
+lower number of pixels and too many regions slow down computation a lot.
+
+As work continues, you might want to split up subjects or describe parts more
+precisely. Instead of creating further regions at the top level, you can add
+sub-regions inside existing regions. This allows to manage complexity better:
+* The UI shows text prompt and details for the current parent region and its
+  direct child regions. Other regions remain hidden.
+* Generating the whole image will only use top-level regions. Refining a single
+  region will make use of its child regions.
+* Selections can apply the most relevant regions across the whole hierarchy
+  (depending on coverage).
 
