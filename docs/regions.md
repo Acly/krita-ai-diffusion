@@ -98,7 +98,8 @@ text focus will follow when switching layers. Regions can be removed with the
 ![icon] button - this will remove the associated text, but keep the layer. A
 region can also be ![icon] unlinked from the active or ![icon] linked.
 
-> !NOTE
+> [!NOTE]
+> 
 > A regional prompt can be linked to multiple layers. This can be useful when there are
 > several objects of the same kind spread out over the canvas which share the same attributes.
 > Conversely, a layer can only be linked to a single region.
@@ -118,21 +119,24 @@ the image, and a fearsome Kraken in another, but for a meaningful image to
 emerge the ship typically needs to be aware that the Kraken exists and vice
 versa. This is accomplished by describing the scene briefly in the Root prompt.
 
-> !NOTE
+> [!TIP]
+> 
 > Describing the scene in the Root prompt is less important when there is another way of
 > guiding composition, such as existing canvas content or Control layers.
 
 ### Coverage and Layer stacking
 
-The area affected by a region follows the stacking logic of paint layers. That
-is, the portion of the composited image where a certain layer is visible is also
-what defines the coverage for a region it is linked to.
+The area affected by a region follows the stacking logic of paint layers. The
+portion of the composited image where a certain layer is visible is also what
+defines the coverage for a region it is linked to.
+
+![](coverage.webp)
 
 This means layer content is allowed to overlap, layers on top hide parts of
 layers below. Image generation always produces a single full image which matches
 the _visible_ areas of the individual layers. Applying a generated result
 modifies the pixels on all affected layers where they are visible - or creates
-new layers when using ![groups]().
+new layers when using [groups](#layer-groups).
 
 ### Background region
 
@@ -153,10 +157,13 @@ linked to _layer groups_. In that case the covered area is the opacity of all
 group layers composited together. Generated results will be applied as a new
 layer _for every affected region group_.
 
+![](regions-basics-groups.svg)
+
 The advantage is that coverage can be continuously adjusted by erasing or adding
 parts of the layer, eg. to follow the outline of a newly generated result.
-[Transparency masks]() can be used for more precise control. Generated results
-remain non-destructive, and can be mixed or partially reverted by erasing.
+[Transparency masks](#edit-coverage-with-transparency-masks) can be used for
+more precise control. Generated results remain non-destructive, and can be mixed
+or partially reverted by erasing.
 
 The disadvantage is that this creates a lot of layers, which require manual
 merging every now and then to keep things tidy.
@@ -171,7 +178,7 @@ are flexible and multi-purpose. You can switch between and combine workflows!
 
 For 100% strength image generation from a blank canvas, regions can be set up in advance:
 1. Type a general prompt for the whole image into the text input. This will
-   become the [Root prompt]().
+   become the [Root prompt](#root-prompt).
 2. Click [icon] Create region. This will transform the existing "Background"
    layer into a region. By default it's white and fully opaque. Fill in some
    text that describes things in the background.
@@ -189,14 +196,14 @@ For 100% strength image generation from a blank canvas, regions can be set up in
 
 This is how to add regions to an existing photo, painting or generated image:
 1. Type a general prompt for the whole image into the text input. This will
-   become the [Root prompt]().
+   become the [Root prompt](#root-prompt).
 2. If the entire image is one layer, make sure it is active. Otherwise select
    your background layer (usually bottom-most). If the background consists of
    multiple layers, put them in a group and select the group.
 3. Click [icon] Create region. Fill in some text that describes things in the background.
-4. Select a subject from your image (using selection tools). Copy and paste the
-   content. This creates a new layer. If your subjects are already on separate
-   layers skip this step.
+4. *If your subjects are already on separate layers skip this step.* Select a
+   subject from your image (using selection tools). Copy and paste the content.
+   This creates a new layer.
 5. With the subject layer active, [icon] create a new region. Fill in some text
    that describes the subject.
 6. Repeat steps 4. and 5. for other subjects.   
@@ -214,11 +221,11 @@ around it for context. This is vital:
 The workflow is best shown in a [video](https://youtu.be/PPxOE9YH57E?si=POf99kUrCWyJB9BH&t=68).
 
 1. Type a general prompt for the whole image into the text input. This will
-   become the [Root prompt]().
+   become the [Root prompt](#root-prompt).
 2. Click [icon] Create region. This will transform the existing "Background"
    layer into a region. Fill in some text that describes things in the
    background and start painting.
-3. After you have a decent first draft background, apply it. In live mode this
+3. After you have a decent first draft background, [icon] apply it. In live mode this
    will overwrite existing layer content by default.
 4. Click [icon] Create region. This will create a new paint layer. Fill in some
    brief text for your first region/subject. Then paint it (as approximately and
@@ -229,7 +236,7 @@ The workflow is best shown in a [video](https://youtu.be/PPxOE9YH57E?si=POf99kUr
  probably makes sense to move to generation workspace at some point for better
  quality and upscaling.
 
- > [!NOTE]
+ > [!TIP]
  >
  > Regions are shared between live and generation workspaces! The
  > interface is reduced in live mode to focus on canvas and preview. Region
@@ -242,11 +249,15 @@ Regions can be used in combination with selections. When using fill or refine
 the plugin will check which regions are covered by the selection and apply those
 with sufficient coverage during image generation.
 
-![img]
+![](workflow-selection.webp)
 
 Applying a result creates layers for the affected regions only. Keep in mind
 though that the actual area affected by fill is typically larger than the
 selection to allow for a smooth transition.
+
+> [!TIP]
+>
+> It's common to use selections to refine parts of an image (like a character's face) with more detailed descriptions. One problem is that interactions with other subjects/characters are lost, because they are not part of either the prompt nor the selection. This can be resolved with regional text prompts and a selection that covers eg. both faces.
 
 ### Refine Region
 
@@ -256,13 +267,14 @@ layers. To make this workflow easier there is the [icon] Refine region toggle.
 It mainly does two things:
 * Uses the active layer coverage as a mask. It's as if you made a selection for
   the content of the layer.
-* Does not use regional generation. Only the active region prompt is used (but
+* Ignores sibling regions. Only the active region prompt is used (but
   it is still combined with the Root prompt).
 
-[img]
+![](workflow-refine-region.webp)
+*With Refine region, only the left character is generated. Note there is no selection.*
 
 Refine region can still be combined with a selection to fill or refine a
-sub-area of the active layer. It is also a vital part of [region hierarchies]().
+sub-area of the active layer. It is also a vital part of [region hierarchies](#region-hierarchies).
 
 
 ## Advanced techniques
@@ -281,6 +293,8 @@ Regions can solve this issue. Descriptions are already assigned to local areas
 in the image. Tiled generation will analyse for each individual tile the regions
 it is affected by. With matching detailed descriptions in place for all parts of
 the image, generation can be guided for improved results.
+
+[image]
 
 ### Edit coverage with Transparency masks
 
