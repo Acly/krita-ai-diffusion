@@ -851,7 +851,7 @@ class ErrorBox(QFrame):
             self.setStyleSheet("QFrame#errorBox { border: 1px solid #a01020; }")
         else:
             self.setStyleSheet(None)
-        self.hide()
+        self.setVisible(False)
 
     @property
     def error(self):
@@ -881,7 +881,7 @@ class ErrorBox(QFrame):
         if text != self._original_error:
             self._label.setToolTip(self._original_error)
         self._copy_button.setVisible(True)
-        self.show()
+        self.setVisible(True)
 
     def _show_payment_error(self, data: dict[str, Any] | None):
         self.reset(theme.yellow)
@@ -894,7 +894,7 @@ class ErrorBox(QFrame):
             )
         self._label.setText(message)
         self._recharge_button.setVisible(True)
-        self.show()
+        self.setVisible(True)
 
     def _copy_error(self):
         if clipboard := QGuiApplication.clipboard():
