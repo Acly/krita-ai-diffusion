@@ -131,7 +131,7 @@ class Model(QObject, ObservableProperties):
                 self.upscale.upscaler = client.models.default_upscaler
 
     def _forward_error(self, error: str):
-        self.error = Error(ErrorKind.server_error, error)
+        self.report_error(error if error else no_error)
 
     def generate(self):
         """Enqueue image generation for the current setup."""
