@@ -1,4 +1,10 @@
-# Regions
+---
+title: Regions
+description: Regional prompts guide
+---
+import { Aside, Code, LinkButton, Steps } from '@astrojs/starlight/components';
+import { Icon } from 'astro-icon/components'
+import { YouTube } from '@astro-community/astro-embed-youtube';
 
 Regions are a way to assign text prompts and reference images to specific areas
 in the image.
@@ -12,32 +18,39 @@ it's not intuitive or precise. It's also common that colors, attributes and
 concepts get mixed up and muddled.
 
 Observe the following example:
-> a simple wooden table in a stark empty room, on the left a white porcelain vase with light blue cornflowers, on the right an earthenware bowl, rough shape, painted with muted shades of orange and red
+```txt wrap
+a simple wooden table in a stark empty room, on the left a white porcelain vase with light blue cornflowers, on the right an earthenware bowl, rough shape, painted with muted shades of orange and red
+```
 
-![](introduction-no-regions.webp)
+![](../../assets/regions/introduction-no-regions.webp)
 
 These are the first few outputs from SDXL. Note that colors and descriptions are
-all over the image. A model with better text understanding (eg. Flux) would do
+all over the place. A model with better text understanding (eg. Flux) would do
 much better for this simple example, but runs into similar issues for longer
 descriptions with more subjects.
 
 Let's try with regions:
 
-![](introduction-regions-setup.webp)
+![](../../assets/regions/introduction-regions-setup.webp)
 
-> _Root:_ a vase with flowers and a bowl on a wooden table
-
-> _Background (white):_ a simple wooden table in a stark empty room
-
-> _Blue:_ a white porcelain vase with light blue cornflowers
-
-> _Red:_ an earthenware bowl, rough shape, painted with muted shades of orange and red
+```txt wrap title="Right region (red area)"
+an earthenware bowl, rough shape, painted with muted shades of orange and red
+```
+```txt wrap title="Left region (blue area)"
+a white porcelain vase with light blue cornflowers
+```
+```txt wrap title="Background region (white area)"
+a simple wooden table in a stark empty room
+```
+```txt wrap title="Root region"
+a vase with flowers and a bowl on a wooden table
+```
 
 The prompt is split up between three regions. Specifying "on the left", "on the
 right" in the text is no longer needed. Instead there is a "Root" prompt which
 describes the overall composition of the image without going into details.
 
-![](introduction-with-regions.webp)
+![](../../assets/regions/introduction-with-regions.webp)
 
 Again, these are the first results with the same model and parameters as above.
 The images aren't perfect, but subjects are cleanly separated as indicated by
@@ -45,23 +58,27 @@ the coverage of the region layers.
 
 ### Composition
 
-To exclude a frequent misunderstanding: regions are _not_ a tool for
-composition. They constrain text prompts to certain regions, but do not enforce
-subjects to match a certain shape, or even be generated at all!
+Regions are _not_ a tool for composition. This is a frequent misunderstanding.
+They constrain text prompts to specified areas, but do not enforce subjects to
+match a certain shape, or even be generated at all!
 
 The following setup with two small regions does not lead to the desired result:
-![](composition-regions.webp)
 
-Instead, consider using a compositional tool like sketch, lines or depth [Control layers](). Combine them with regions need to be particularly precise:
-![](composition-control.webp)
+![](../../assets/regions/composition-regions.webp)
+
+Instead, consider using a compositional tool like sketch, lines or depth
+[Control layers](). The following example combines a sketch with regions. Note how
+the regions need not be particularly precise:
+
+![](../../assets/regions/composition-control.webp)
 
 Alternatively build your image from the ground up with [Regions in Live mode](#live-mode).
 
 ### Advantages
 
 As text-to-image models become more powerful their understanding of spatial
-instructions improves. But there are many reasons regions will remain useful
-regardless of model advances:
+instructions improves. "Prompt bleeding" becomes less of an issue. But there are
+many reasons regions remain useful:
 * Defining areas is more intuitive and direct. You don't have to translate
   canvas areas into prose, you can just point and say _there_.
 * More precise. Translating areas into text and having the model translate them
@@ -73,18 +90,18 @@ regardless of model advances:
   selections and refine each individually. With regions you don't have to swap
   out text, control layer and reference images each time. You can assign them
   per area/layer instead.
-* Infinite complexity via [Region hierarchies](). 
+* Infinite complexity via [Region hierarchies](#region-hierarchies). 
 
 
 ## Basics
 
 This section covers some general advice for using regions.
 
-![](regions-basics-overview.svg)
+![](../../assets/regions/basics-overview.svg)
 
 ### Creating regions
 
-To create a region, use the [icon] button next to the text input.
+To create a region, use the <Icon name="region-add-dark" /> button next to the text input.
 
 Regions must be attached to paint layers or layer groups. When creating a new
 region, it is linked to the active layer by default. If the active layer already
@@ -95,22 +112,22 @@ linked to. Fully transparent pixels will not be affected.
 
 Selecting a region's text input will also make the linked layer active, and the
 text focus will follow when switching layers. Regions can be removed with the
-![icon] button - this will remove the associated text, but keep the layer. A
-region can also be ![icon] unlinked from the active or ![icon] linked.
+<Icon name="remove-dark" /> button - this will remove the associated text, but keep the layer. A
+region can also be <Icon name="link-dark" /> linked and unlinked from the active layer.
 
-> [!NOTE]
-> 
-> A regional prompt can be linked to multiple layers. This can be useful when there are
-> several objects of the same kind spread out over the canvas which share the same attributes.
-> Conversely, a layer can only be linked to a single region.
+<Aside type="note">
+A regional prompt can be linked to multiple layers. This can be useful when there are
+several objects of the same kind spread out over the canvas which share the same attributes.
+Conversely, a layer can only be linked to a single region.
+</Aside>
 
 ### Root prompt
 
-The text input at the very bottom is reserved for the [icon] _Root prompt_. It is not
-linked to any layer. It should describe the general composition of the image
-with all its subjects. It may also contain instructions about style, medium,
-quality, etc. which apply to the whole image. The Root prompt is appended to the
-text of all other regions.
+The text input at the very bottom is reserved for the <Icon name="root-dark" />
+Root prompt. It is not linked to any layer. It should describe the general
+composition of the image with all its subjects. It may also contain instructions
+about style, medium, quality, etc. which apply to the whole image. The Root
+prompt is appended to the text of all other regions.
 
 A good way to think about it is that image generation is a global task. To get a
 good composition, every region generally needs to be aware of the whole image.
@@ -119,10 +136,10 @@ the image, and a fearsome Kraken in another, but for a meaningful image to
 emerge the ship typically needs to be aware that the Kraken exists and vice
 versa. This is accomplished by describing the scene briefly in the Root prompt.
 
-> [!TIP]
-> 
-> Describing the scene in the Root prompt is less important when there is another way of
-> guiding composition, such as existing canvas content or Control layers.
+<Aside type="tip">
+Describing the scene in the Root prompt is less important when there is another way of
+guiding composition, such as existing canvas content or Control layers.
+</Aside>
 
 ### Coverage and Layer stacking
 
@@ -130,7 +147,7 @@ The area affected by a region follows the stacking logic of paint layers. The
 portion of the composited image where a certain layer is visible is also what
 defines the coverage for a region it is linked to.
 
-![](coverage.webp)
+![](../../assets/regions/basics-coverage.webp)
 
 This means layer content is allowed to overlap, layers on top hide parts of
 layers below. Image generation always produces a single full image which matches
@@ -157,7 +174,7 @@ linked to _layer groups_. In that case the covered area is the opacity of all
 group layers composited together. Generated results will be applied as a new
 layer _for every affected region group_.
 
-![](regions-basics-groups.svg)
+![](../../assets/regions/basics-groups.svg)
 
 The advantage is that coverage can be continuously adjusted by erasing or adding
 parts of the layer, eg. to follow the outline of a newly generated result.
@@ -168,6 +185,24 @@ or partially reverted by erasing.
 The disadvantage is that this creates a lot of layers, which require manual
 merging every now and then to keep things tidy.
 
+### Control layers
+
+Each region can have its own set of control layers.
+
+![](../../assets/regions/basics-control-layers.svg)
+
+Currently linking control layers to specific regions makes sense for:
+* <Icon name="control-reference-dark" /> Reference
+* <Icon name="control-composition-dark" /> Composition
+* <Icon name="control-style-dark" /> Style
+* <Icon name="control-face-dark" /> Face
+
+Other control layers already have a per-pixel correspondence of their content
+with the canvas, so regions are less useful. It can still make sense to restrict
+them to a region if they don't have content for the entire image, however this
+is currently only partially supported. It is recommended to keep them attached
+to the root region.
+
 
 ## Workflows
 
@@ -177,12 +212,13 @@ are flexible and multi-purpose. You can switch between and combine workflows!
 ### Regions from scratch
 
 For 100% strength image generation from a blank canvas, regions can be set up in advance:
+<Steps>
 1. Type a general prompt for the whole image into the text input. This will
    become the [Root prompt](#root-prompt).
-2. Click [icon] Create region. This will transform the existing "Background"
+2. Click <Icon name="region-add-dark" /> Create region. This will transform the existing "Background"
    layer into a region. By default it's white and fully opaque. Fill in some
    text that describes things in the background.
-3. Click [icon] Create region again. This creates a new layer group with a
+3. Click <Icon name="region-add-dark" /> Create region again. This creates a new layer group with a
    single paint layer, and a region linked to the group. Fill in some text that
    describes your first subject.
 4. Use a brush to paint the rough area in which you want the first subject to
@@ -190,23 +226,26 @@ For 100% strength image generation from a blank canvas, regions can be set up in
    precise. Use any color you like.
 5. Repeat steps 3. and 4. for other subjects. Keep the total number of regions
    reasonable (recommended 5 or less).
-6. Click [icon] Generate!
+6. Click <Icon name="generate-dark" /> Generate!
+</Steps>
 
 ### Regions for existing images
 
 This is how to add regions to an existing photo, painting or generated image:
+<Steps>
 1. Type a general prompt for the whole image into the text input. This will
    become the [Root prompt](#root-prompt).
 2. If the entire image is one layer, make sure it is active. Otherwise select
    your background layer (usually bottom-most). If the background consists of
    multiple layers, put them in a group and select the group.
-3. Click [icon] Create region. Fill in some text that describes things in the background.
+3. Click <Icon name="region-add-dark" /> Create region. Fill in some text that describes things in the background.
 4. *If your subjects are already on separate layers skip this step.* Select a
    subject from your image (using selection tools). Copy and paste the content.
    This creates a new layer.
-5. With the subject layer active, [icon] create a new region. Fill in some text
+5. With the subject layer active, <Icon name="region-add-dark" /> create a new region. Fill in some text
    that describes the subject.
 6. Repeat steps 4. and 5. for other subjects.   
+</Steps>
 
 ### Live mode
 
@@ -218,30 +257,32 @@ around it for context. This is vital:
 * Generation remains fast. Regional generation causes a significant slow-down
   per region otherwise.
 
-The workflow is best shown in a [video](https://youtu.be/PPxOE9YH57E?si=POf99kUrCWyJB9BH&t=68).
+<YouTube id="PPxOE9YH57E" params="start=67" title="Live Painting with Regions" posterQuality="high" />
 
+<Steps>
 1. Type a general prompt for the whole image into the text input. This will
    become the [Root prompt](#root-prompt).
-2. Click [icon] Create region. This will transform the existing "Background"
+2. Click <Icon name="region-add-dark" /> Create region. This will transform the existing "Background"
    layer into a region. Fill in some text that describes things in the
    background and start painting.
-3. After you have a decent first draft background, [icon] apply it. In live mode this
+3. After you have a decent first draft background, <Icon name="apply-dark" /> apply it. In live mode this
    will overwrite existing layer content by default.
-4. Click [icon] Create region. This will create a new paint layer. Fill in some
+4. Click <Icon name="region-add-dark" /> Create region. This will create a new paint layer. Fill in some
    brief text for your first region/subject. Then paint it (as approximately and
    coarse as you like).
 5. Apply and move on to the next region.
+</Steps>
 
  Live mode is a great way to set up the initial draft and composition. It
  probably makes sense to move to generation workspace at some point for better
  quality and upscaling.
 
- > [!TIP]
- >
- > Regions are shared between live and generation workspaces! The
- > interface is reduced in live mode to focus on canvas and preview. Region
- > management (linking/unlinking/removal) is better done in generation
- > workspace.
+ <Aside type="tip">
+ Regions are shared between live and generation workspaces! The
+ interface is reduced in live mode to focus on canvas and preview. Region
+ management (linking/unlinking/removal) is better done in generation
+ workspace.
+ </Aside>
 
 ### Selections
 
@@ -249,28 +290,33 @@ Regions can be used in combination with selections. When using fill or refine
 the plugin will check which regions are covered by the selection and apply those
 with sufficient coverage during image generation.
 
-![](workflow-selection.webp)
+![](../../assets/regions/workflow-selection.webp)
+*Visualization of the context area (box), selection mask (pink) and regions intersected within.*
 
 Applying a result creates layers for the affected regions only. Keep in mind
 though that the actual area affected by fill is typically larger than the
 selection to allow for a smooth transition.
 
-> [!TIP]
->
-> It's common to use selections to refine parts of an image (like a character's face) with more detailed descriptions. One problem is that interactions with other subjects/characters are lost, because they are not part of either the prompt nor the selection. This can be resolved with regional text prompts and a selection that covers eg. both faces.
+<Aside type="tip">
+It's common to use selections to refine parts of an image (like a character's
+face) with more detailed descriptions. One problem is that interactions with
+other subjects/characters are lost, because they are not part of either the
+prompt nor the selection. This can be resolved with regional text prompts and a
+selection that covers eg. both faces.
+</Aside>
 
 ### Refine Region
 
 Regions are a great tool to refine individual subjects in the image. It allows
 you to assign different text prompts and switch between them simply by switching
-layers. To make this workflow easier there is the [icon] Refine region toggle.
+layers. To make this workflow easier there is the <Icon name="region-alpha-dark" /> Refine region toggle.
 It mainly does two things:
 * Uses the active layer coverage as a mask. It's as if you made a selection for
   the content of the layer.
 * Ignores sibling regions. Only the active region prompt is used (but
   it is still combined with the Root prompt).
 
-![](workflow-refine-region.webp)
+![](../../assets/regions/workflow-refine-region.webp)
 *With Refine region, only the left character is generated. Note there is no selection.*
 
 Refine region can still be combined with a selection to fill or refine a
@@ -294,9 +340,15 @@ in the image. Tiled generation will analyse for each individual tile the regions
 it is affected by. With matching detailed descriptions in place for all parts of
 the image, generation can be guided for improved results.
 
-[image]
+![](../../assets/regions/advanced-upscale.webp)
 
 ### Edit coverage with Transparency masks
+
+The easiest way to adjust the area coverage of a region layer is with the
+eraser. But this only works for a single layer, and doesn't allow adding to the
+area, only removing. Transparency masks can be helpful in those situations. When
+added to a region group, they allow adding and subtracting from the covered area
+for the whole group without touching individual layers.
 
 ### Region hierarchies
 
