@@ -20,6 +20,7 @@ export default defineConfig({
 				{
 					label: 'Guides',
 					items: [
+						{ label: 'Installation', slug: 'installation' },
 						{ label: 'Regions', slug: 'regions' },
 					],
 				},
