@@ -3,8 +3,8 @@ title: Regions
 description: Regional prompts guide
 ---
 import { Aside, Code, LinkButton, Steps } from '@astrojs/starlight/components';
-import { Icon } from 'astro-icon/components'
 import { YouTube } from '@astro-community/astro-embed-youtube';
+import PluginIcon from '../../components/PluginIcon.astro';
 
 Regions are a way to assign text prompts and reference images to specific areas
 in the image.
@@ -101,7 +101,7 @@ This section covers some general advice for using regions.
 
 ### Creating regions
 
-To create a region, use the <Icon name="region-add-dark" /> button next to the text input.
+To create a region, use the <PluginIcon name="region-add" /> button next to the text input.
 
 Regions must be attached to paint layers or layer groups. When creating a new
 region, it is linked to the active layer by default. If the active layer already
@@ -112,8 +112,8 @@ linked to. Fully transparent pixels will not be affected.
 
 Selecting a region's text input will also make the linked layer active, and the
 text focus will follow when switching layers. Regions can be removed with the
-<Icon name="remove-dark" /> button - this will remove the associated text, but keep the layer. A
-region can also be <Icon name="link-dark" /> linked and unlinked from the active layer.
+<PluginIcon name="remove" /> button - this will remove the associated text, but keep the layer. A
+region can also be <PluginIcon name="link" /> linked and unlinked from the active layer.
 
 <Aside type="note">
 A regional prompt can be linked to multiple layers. This can be useful when there are
@@ -123,7 +123,7 @@ Conversely, a layer can only be linked to a single region.
 
 ### Root prompt
 
-The text input at the very bottom is reserved for the <Icon name="root-dark" />
+The text input at the very bottom is reserved for the <PluginIcon name="root" />
 Root prompt. It is not linked to any layer. It should describe the general
 composition of the image with all its subjects. It may also contain instructions
 about style, medium, quality, etc. which apply to the whole image. The Root
@@ -192,10 +192,10 @@ Each region can have its own set of control layers.
 ![](../../assets/regions/basics-control-layers.svg)
 
 Currently linking control layers to specific regions makes sense for:
-* <Icon name="control-reference-dark" /> Reference
-* <Icon name="control-composition-dark" /> Composition
-* <Icon name="control-style-dark" /> Style
-* <Icon name="control-face-dark" /> Face
+* <PluginIcon name="control-reference" /> Reference
+* <PluginIcon name="control-composition" /> Composition
+* <PluginIcon name="control-style" /> Style
+* <PluginIcon name="control-face" /> Face
 
 Other control layers already have a per-pixel correspondence of their content
 with the canvas, so regions are less useful. It can still make sense to restrict
@@ -215,10 +215,10 @@ For 100% strength image generation from a blank canvas, regions can be set up in
 <Steps>
 1. Type a general prompt for the whole image into the text input. This will
    become the [Root prompt](#root-prompt).
-2. Click <Icon name="region-add-dark" /> Create region. This will transform the existing "Background"
+2. Click <PluginIcon name="region-add" /> Create region. This will transform the existing "Background"
    layer into a region. By default it's white and fully opaque. Fill in some
    text that describes things in the background.
-3. Click <Icon name="region-add-dark" /> Create region again. This creates a new layer group with a
+3. Click <PluginIcon name="region-add" /> Create region again. This creates a new layer group with a
    single paint layer, and a region linked to the group. Fill in some text that
    describes your first subject.
 4. Use a brush to paint the rough area in which you want the first subject to
@@ -226,7 +226,7 @@ For 100% strength image generation from a blank canvas, regions can be set up in
    precise. Use any color you like.
 5. Repeat steps 3. and 4. for other subjects. Keep the total number of regions
    reasonable (recommended 5 or less).
-6. Click <Icon name="generate-dark" /> Generate!
+6. Click <PluginIcon name="generate" /> Generate!
 </Steps>
 
 ### Regions for existing images
@@ -238,11 +238,11 @@ This is how to add regions to an existing photo, painting or generated image:
 2. If the entire image is one layer, make sure it is active. Otherwise select
    your background layer (usually bottom-most). If the background consists of
    multiple layers, put them in a group and select the group.
-3. Click <Icon name="region-add-dark" /> Create region. Fill in some text that describes things in the background.
+3. Click <PluginIcon name="region-add" /> Create region. Fill in some text that describes things in the background.
 4. *If your subjects are already on separate layers skip this step.* Select a
    subject from your image (using selection tools). Copy and paste the content.
    This creates a new layer.
-5. With the subject layer active, <Icon name="region-add-dark" /> create a new region. Fill in some text
+5. With the subject layer active, <PluginIcon name="region-add" /> create a new region. Fill in some text
    that describes the subject.
 6. Repeat steps 4. and 5. for other subjects.   
 </Steps>
@@ -262,12 +262,12 @@ around it for context. This is vital:
 <Steps>
 1. Type a general prompt for the whole image into the text input. This will
    become the [Root prompt](#root-prompt).
-2. Click <Icon name="region-add-dark" /> Create region. This will transform the existing "Background"
+2. Click <PluginIcon name="region-add" /> Create region. This will transform the existing "Background"
    layer into a region. Fill in some text that describes things in the
    background and start painting.
-3. After you have a decent first draft background, <Icon name="apply-dark" /> apply it. In live mode this
+3. After you have a decent first draft background, <PluginIcon name="apply" /> apply it. In live mode this
    will overwrite existing layer content by default.
-4. Click <Icon name="region-add-dark" /> Create region. This will create a new paint layer. Fill in some
+4. Click <PluginIcon name="region-add" /> Create region. This will create a new paint layer. Fill in some
    brief text for your first region/subject. Then paint it (as approximately and
    coarse as you like).
 5. Apply and move on to the next region.
@@ -309,7 +309,7 @@ selection that covers eg. both faces.
 
 Regions are a great tool to refine individual subjects in the image. It allows
 you to assign different text prompts and switch between them simply by switching
-layers. To make this workflow easier there is the <Icon name="region-alpha-dark" /> Refine region toggle.
+layers. To make this workflow easier there is the <PluginIcon name="region-alpha" /> Refine region toggle.
 It mainly does two things:
 * Uses the active layer coverage as a mask. It's as if you made a selection for
   the content of the layer.

@@ -1,0 +1,8 @@
+---
+import { Icon } from "astro-icon/components";
+
+const { name } = Astro.props;
+const slug = `plugin/${name}-dark`;
+---
+
+<Icon name={slug} class="plugin-icon" />

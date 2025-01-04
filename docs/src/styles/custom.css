@@ -14,9 +14,6 @@
 	
 	--sl-hue-purple: 18;
 	--sl-hue-blue: 190;
-	/* --sl-color-purple-low: hsl(var(--sl-hue-purple), 39%, 22%);
-	--sl-color-purple: hsl(var(--sl-hue-purple), 82%, 63%);
-	--sl-color-purple-high: hsl(var(--sl-hue-purple), 82%, 89%); */
 
 	[data-icon] {
 		display: inline !important;
@@ -41,7 +38,18 @@
 	--sl-color-gray-7: #f7f6f6;
 	--sl-color-black: #ffffff;
 
-	[data-icon] {
+	.plugin-icon {
 		filter: invert(1);
 	}
+}
+
+span.soft {
+	color: var(--sl-color-gray-3);
+}
+
+aside.hint {
+	background-color: var(--sl-color-gray-6);
+	border-left: 4px solid var(--sl-color-gray-4);
+	padding: 1em;
+	margin: 1em 0;
 }
