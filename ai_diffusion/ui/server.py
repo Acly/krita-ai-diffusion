@@ -327,7 +327,7 @@ class ServerWidget(QWidget):
             [_("Stable Diffusion 1.5"), _("Stable Diffusion XL")],
             description=(
                 _("Choose one or both Stable Diffusion versions to work with.")
-                + " <a href='https://github.com/Acly/krita-ai-diffusion/wiki/Stable-Diffusion-Versions'>"
+                + " <a href='https://docs.interstice.cloud/base-models'>"
                 + _("Read more about workloads.")
                 + "</a>"
             ),

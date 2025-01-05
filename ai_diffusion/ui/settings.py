@@ -367,7 +367,7 @@ class ConnectionSettings(SettingsTab):
             )
         else:
             search_paths = resource.search_path_string.replace("\n", "<br>")
-            link = "<a href='https://github.com/Acly/krita-ai-diffusion/wiki/ComfyUI-Setup'>Custom ComfyUI Setup</a>"
+            link = "<a href='https://docs.interstice.cloud/comfyui-setup'>Custom ComfyUI Setup</a>"
             self._connection_status.setText(
                 f"{err}{str(resource)}<br>{search_paths}<br><br>"
                 + _(
@@ -748,8 +748,8 @@ class AboutSettings(SettingsTab):
 
 _links_text = """
 <a href='https://www.interstice.cloud'>Website</a><br><br>
+<a href='https://docs.interstice.cloud'>Documentation</a>
 <a href='https://github.com/Acly/krita-ai-diffusion'>GitHub</a><br><br>
-<a href='https://github.com/Acly/krita-ai-diffusion/wiki'>Wiki</a>
 """
 
 _contact_text = """

@@ -438,7 +438,7 @@ _scheduler_map = {
     "Euler a": "normal",
 }
 _sampler_presets_stub = """// Custom sampler presets - add your own sampler presets here!
-// https://github.com/Acly/krita-ai-diffusion/wiki/Samplers
+// https://docs.interstice.cloud/samplers
 //
 // *** You have to restart Krita for the changes to take effect! ***
 {
