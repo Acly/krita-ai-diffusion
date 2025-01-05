@@ -3,11 +3,16 @@
   "type": "module",
   "version": "0.0.1",
   "scripts": {
-    "dev": "astro dev",
+    "dev": "tsx scripts/setup.ts && astro dev",
     "start": "astro dev",
-    "build": "astro build",
+    "build": "tsx scripts/setup.ts && astro build",
     "preview": "astro preview",
     "astro": "astro"
+  },
+  "prettier": {
+    "tabWidth": 2,
+    "singleQuote": false,
+    "maxLineLength": 100
   },
   "dependencies": {
     "@astro-community/astro-embed-youtube": "^0.5.6",
@@ -15,5 +20,8 @@
     "astro": "^5.0.2",
     "astro-icon": "^1.1.5",
     "sharp": "^0.32.5"
+  },
+  "devDependencies": {
+    "tsx": "^4.19.2"
   }
 }

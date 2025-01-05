@@ -17,4 +17,5 @@ pnpm-debug.log*
 .env.production
 
 # icons are copied from the plugin icons folder
-src/icons/*
+src/icons/plugin/
+src/content/data/models.json

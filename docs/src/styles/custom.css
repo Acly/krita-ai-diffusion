@@ -53,3 +53,47 @@ aside.hint {
 	padding: 1em;
 	margin: 1em 0;
 }
+
+.model-table {
+	font-size: smaller;
+}
+
+.model-table table p {
+	margin: 0;
+}
+
+span.sep {
+	color: var(--sl-color-gray-3);
+	padding-left: 0.1em;
+	padding-right: 0.2em;
+}
+
+.model-table div.filters {
+	background-color: var(--sl-color-gray-6);
+	border: var(--sl-color-gray-5) 1px solid;
+	padding: 0 0.5em;
+	margin-top: 0rem !important;
+}
+
+.model-table .filters > div {
+	display: flex;
+	margin: 0.3rem 0;
+	border: none;
+	padding: 0;
+}
+
+.model-table .filters > div > div {
+	margin-top: 0;
+}
+
+.model-table ul {
+	display: flex;
+	flex-wrap: wrap;
+	padding: 0 !important;
+	margin-top: 0 !important;
+}
+
+.model-table ul li {
+	display: block;
+	margin: 0 0.5em;
+}
