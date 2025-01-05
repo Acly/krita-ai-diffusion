@@ -1,0 +1,38 @@
+---
+title: Model Database
+description: Reference of model weights which can be used with the Krita AI Diffusion plugin
+---
+import { Aside } from '@astrojs/starlight/components';
+
+This is a non-exhaustive list of model files which can be used with the Krita AI
+Diffusion plugin.
+
+### Model filters
+
+To list the minimum required models for the plugin to work, select the
+_Required_ model set and the [base model](/base-models) you want to use. Make
+sure all model type filters are enabled.
+
+When _optional_ models are enabled, the list will include a (large) number of
+additional models. _ControlNet_, _IP-Adapter_ and _Clip Vision_ provide the
+various [control layers](/control-layers). _Upscaler_ models add more options to
+the upscale workspace.
+
+_Checkpoint_ lists the recommended diffusion models used by the plugin's default styles.
+They are all optional, you are free to use your preferred finetunes.
+
+### Downloading models
+
+Each model file has a download link which you can use to fetch the model weights.
+Make sure to put them in the indicated folder inside your ComfyUI installation.
+
+<Aside type="caution">
+In some cases it is necessary to rename the model file!
+</Aside>
+
+
+## Model list
+
+import ModelTable from '../../components/ModelTable.astro'
+
+<ModelTable />

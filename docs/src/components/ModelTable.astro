@@ -1,0 +1,213 @@
+---
+import { Badge } from "@astrojs/starlight/components";
+import Path from "./Path.astro";
+import * as models from "../content/data/models.json";
+
+interface Filter {
+  name: string;
+  checked: boolean;
+}
+
+const sets: { [id: string]: Filter } = {
+  required: { name: "Required", checked: true },
+  optional: { name: "Optional", checked: false },
+};
+
+const archs: { [id: string]: Filter } = {
+  sd15: { name: "SD1.5", checked: false },
+  sdxl: { name: "SDXL", checked: true },
+  sd35: { name: "SD3.5", checked: false },
+  flux: { name: "Flux", checked: false },
+};
+
+const kinds: { [id: string]: Filter } = {
+  checkpoint: { name: "Checkpoint", checked: false },
+  controlnet: { name: "ControlNet", checked: true },
+  clip_vision: { name: "Clip Vision", checked: true },
+  ip_adapter: { name: "IP Adapter", checked: true },
+  upscaler: { name: "Upscaler", checked: true },
+  lora: { name: "LoRA", checked: true },
+  text_encoder: { name: "Text Encoder", checked: true },
+  vae: { name: "VAE", checked: true },
+  inpaint: { name: "Inpaint", checked: true },
+};
+
+const shortKinds: { [id: string]: string } = {
+  checkpoint: "cp",
+  text_encoder: "te",
+  vae: "vae",
+  controlnet: "cn",
+  clip_vision: "cv",
+  ip_adapter: "ipa",
+  lora: "lora",
+  upscaler: "up",
+  inpaint: "inp",
+  embedding: "emb",
+  preprocessor: "pp",
+  node: "node",
+};
+
+function arch(modelId: string) {
+  const [kind, id, arch] = modelId.split("-");
+  return arch;
+}
+
+function shortKind(modelId: string) {
+  const [kind, id, arch] = modelId.split("-");
+  return Object.keys(shortKinds).includes(kind) ? shortKinds[kind] : kind;
+}
+
+function filename(filepath: string) {
+  return filepath.split("/").slice(-1)[0];
+}
+
+const optionalModels = [
+  ...models.optional,
+  ...models.checkpoints,
+  ...models.upscale,
+];
+const allModels = [
+  { set: "required", models: models.required },
+  { set: "optional", models: optionalModels },
+];
+---
+
+<div class="model-table">
+  <div class="filters">
+    <div>
+      <div>Model set:</div>
+      <ul>
+        {
+          Object.keys(sets).map((set) => (
+            <li>
+              <input
+                id={`set-${set}`}
+                type="checkbox"
+                checked={sets[set].checked}
+              />{" "}
+              {sets[set].name}
+            </li>
+          ))
+        }
+      </ul>
+    </div>
+    <div>
+      <div>Base model:</div>
+      <ul>
+        {
+          Object.keys(archs).map((arch) => (
+            <li>
+              <input
+                id={`arch-${arch}`}
+                type="checkbox"
+                checked={archs[arch].checked}
+              />{" "}
+              {archs[arch].name}
+            </li>
+          ))
+        }
+      </ul>
+    </div>
+    <div>
+      <div>Type:</div>
+      <ul>
+        {
+          Object.keys(kinds).map((kind) => (
+            <li>
+              <input
+                id={`kind-${kind}`}
+                type="checkbox"
+                checked={kinds[kind].checked}
+              />{" "}
+              {kinds[kind].name}
+            </li>
+          ))
+        }
+      </ul>
+    </div>
+  </div>
+  <table>
+    <thead>
+      <tr>
+        <th>Name</th>
+        <th>Files</th>
+        <th></th>
+      </tr>
+    </thead>
+    <tbody>
+      {
+        allModels.map((modelSet) =>
+          modelSet.models.map((model) => (
+            <tr id={model.id} data-set={modelSet.set}>
+              <td>{model.name}</td>
+              <td>
+                {model.files.map((file) => (
+                  <p>
+                    <Path text={file.path} />
+                    <a href={file.url}> {filename(file.path)}</a>
+                  </p>
+                ))}
+              </td>
+              <td>
+                <Badge text={shortKind(model.id)} variant="note" />
+                <Badge text={arch(model.id)} variant="tip" />
+              </td>
+            </tr>
+          )),
+        )
+      }
+    </tbody>
+  </table>
+</div>
+
+<script>
+  const inputs = document.querySelectorAll("input");
+
+  function applyFilters() {
+    const selected: { [id: string]: string[] } = {
+      set: [],
+      arch: [],
+      kind: [],
+    };
+    for (const input of inputs) {
+      if (input.checked) {
+        const [type, id] = input.id.split("-");
+        selected[type].push(id);
+      }
+    }
+
+    const rows = document.querySelectorAll(
+      "tbody > tr",
+    ) as NodeListOf<HTMLTableRowElement>;
+
+    rows.forEach((row) => {
+      const id = row.id;
+      const kind = id.split("-")[0];
+      const arch = id.split("-")[2];
+      const set = row.getAttribute("data-set")!;
+
+      if (
+        selected["set"].includes(set) &&
+        (arch === "all" || selected["arch"].includes(arch)) &&
+        selected["kind"].includes(kind)
+      ) {
+        row.style.display = "table-row";
+      } else {
+        row.style.display = "none";
+      }
+    });
+  }
+
+  inputs.forEach((input) => {
+    input.addEventListener("change", applyFilters);
+  });
+
+  const query = new URLSearchParams(window.location.search);
+  for (const input of inputs) {
+    if (query.has(input.id)) {
+      input.checked = query.get(input.id) === "true";
+    }
+  }
+
+  applyFilters();
+</script>

@@ -5,15 +5,15 @@ const { href } = Astro.props;
 ---
 
 <a href={href} target="_blank" rel="noopener noreferrer" class="external-link">
-    <slot />
-    <Icon name="tabler/external-link" />
+  <slot />
+  <Icon name="tabler/external-link" />
 </a>
 
 <style>
-    .external-link {
-        display: inline-flex;
-        align-items: center;
-        gap: 0.25rem;
-        color: inherit;
-    }
+  .external-link {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.25rem;
+    color: inherit;
+  }
 </style>

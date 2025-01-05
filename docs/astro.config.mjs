@@ -34,6 +34,7 @@ export default defineConfig({
 					label: 'Reference',
 					items: [
 						{ label: 'Base Models', slug: 'base-models' },
+						{ label: 'Model Database', slug: 'models' },
 					]
 				}
 			],

@@ -2,6 +2,7 @@
 title: ComfyUI Setup
 description: Requirements to use ComfyUI with Krita Diffusion plugin
 ---
+import { LinkButton } from '@astrojs/starlight/components'
 import ExternalLink from '../../components/ExternalLink.astro'
 
 You can use the Krita plugin with your custom installation of ComfyUI. When connecting it will check
@@ -27,26 +28,9 @@ in `extra_model_paths.yml` will also work.
 
 Models can be downloaded and placed manually, or via script ([see below](#download-script)).
 
-
-### Shared
-  * [Clip-Vision](https://huggingface.co/h94/IP-Adapter/resolve/main/models/image_encoder/model.safetensors) to `models/clip_vision` _rename to `clip-vision_vit-h.safetensors`_
-  * [NMKD Superscale SP_178000_G](https://huggingface.co/gemasai/4x_NMKD-Superscale-SP_178000_G/resolve/main/4x_NMKD-Superscale-SP_178000_G.pth) to `models/upscale_models`
-  * [OmniSR_X2_DIV2K](https://huggingface.co/Acly/Omni-SR/resolve/main/OmniSR_X2_DIV2K.safetensors) to `models/upscale_models`
-  * [OmniSR_X3_DIV2K](https://huggingface.co/Acly/Omni-SR/resolve/main/OmniSR_X3_DIV2K.safetensors) to `models/upscale_models`
-  * [OmniSR_X4_DIV2K](https://huggingface.co/Acly/Omni-SR/resolve/main/OmniSR_X4_DIV2K.safetensors) to `models/upscale_models`
-  * [MAT_Places512_G_fp16](https://huggingface.co/Acly/MAT/resolve/main/MAT_Places512_G_fp16.safetensors) to `models/inpaint`
-
-### SD 1.5
-  * [ControlNet inpaint](https://huggingface.co/comfyanonymous/ControlNet-v1-1_fp16_safetensors/resolve/main/control_v11p_sd15_inpaint_fp16.safetensors) to `models/controlnet`
-  * [ControlNet tile](https://huggingface.co/comfyanonymous/ControlNet-v1-1_fp16_safetensors/resolve/main/control_lora_rank128_v11f1e_sd15_tile_fp16.safetensors) to `models/controlnet`
-  * [IP-Adapter (SD1.5)](https://huggingface.co/h94/IP-Adapter/resolve/main/models/ip-adapter_sd15.safetensors) to `models/ipadapter`
-  * [Hyper-SD-LoRA (SD1.5)](https://huggingface.co/ByteDance/Hyper-SD/resolve/main/Hyper-SD15-8steps-CFG-lora.safetensors) to `models/loras/`
-
-### SD XL
-  * [IP-Adapter (SDXL)](https://huggingface.co/h94/IP-Adapter/resolve/main/sdxl_models/ip-adapter_sdxl_vit-h.safetensors) to `models/ipadapter`
-  * [Hyper-SD-LoRA (SDXL)](https://huggingface.co/ByteDance/Hyper-SD/resolve/main/Hyper-SDXL-8steps-CFG-lora.safetensors) to `models/loras`
-  * [Fooocus Inpaint (Head)](https://huggingface.co/lllyasviel/fooocus_inpaint/resolve/main/fooocus_inpaint_head.pth) to `models/inpaint`
-  * [Fooocus Inpaint (Patch)](https://huggingface.co/lllyasviel/fooocus_inpaint/resolve/main/inpaint_v26.fooocus.patch) to `models/inpaint`
+<LinkButton href="/models#downloading-models">Model list SDXL</LinkButton>
+<LinkButton href="/models?arch-sd15=true&arch-sdxl=false#downloading-models">Model list SD1.5</LinkButton>
+<LinkButton href="/models?arch-sdxl=false#downloading-models" variant="secondary">Model list (minimal)</LinkButton>
 
 ## Diffusion Model Checkpoints
 At least one diffusion model (commonly just called "Checkpoint") is required. There is a list with recommended
