@@ -24,6 +24,12 @@ export default defineConfig({
 						{ label: 'Regions', slug: 'regions' },
 					],
 				},
+				{
+					label: 'Reference',
+					items: [
+						{ label: 'Base Models', slug: 'base-models' },
+					]
+				}
 			],
 			customCss: ['./src/styles/custom.css'],
 		}),
