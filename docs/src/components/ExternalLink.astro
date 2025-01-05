@@ -1,22 +1,12 @@
 ---
+import { Icon } from "astro-icon/components";
+
 const { href } = Astro.props;
 ---
 
 <a href={href} target="_blank" rel="noopener noreferrer" class="external-link">
     <slot />
-    <svg
-        xmlns="http://www.w3.org/2000/svg"
-        width="16"
-        height="16"
-        fill="currentColor"
-        class="bi bi-box-arrow-up-right"
-        viewBox="0 0 16 16"
-    >
-        <path
-            fill-rule="evenodd"
-            d="M1.5 13A1.5 1.5 0 0 1 0 11.5v-8A1.5 1.5 0 0 1 1.5 2h8A1.5 1.5 0 0 1 11 3.5v1a.5.5 0 0 1-1 0v-1a.5.5 0 0 0-.5-.5h-8a.5.5 0 0 0-.5.5v8a.5.5 0 0 0 .5.5h8a.5.5 0 0 0 .5-.5v-1a.5.5 0 0 1 1 0v1A1.5 1.5 0 0 1 9.5 14h-8zm11-11a.5.5 0 0 1 .5.5v4a.5.5 0 0 1-1 0V3.707L6.854 9.854a.5.5 0 0 1-.708-.708L11.293 3H8.5a.5.5 0 0 1 0-1h4z"
-        ></path>
-    </svg>
+    <Icon name="tabler/external-link" />
 </a>
 
 <style>
@@ -25,9 +15,5 @@ const { href } = Astro.props;
         align-items: center;
         gap: 0.25rem;
         color: inherit;
-    }
-
-    .external-link svg {
-        margin-left: 0.25rem;
     }
 </style>

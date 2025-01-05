@@ -1,0 +1,87 @@
+---
+title: ComfyUI Setup
+description: Requirements to use ComfyUI with Krita Diffusion plugin
+---
+import ExternalLink from '../../components/ExternalLink.astro'
+
+You can use the Krita plugin with your custom installation of ComfyUI. When connecting it will check
+for a number of custom node extensions and models which it requires to function. These are listed below.
+
+## Required custom nodes
+Install custom nodes according to the instructions of the respective projects,
+or use <ExternalLink href="https://github.com/ltdrdata/ComfyUI-Manager">ComfyUI Manager</ExternalLink>.
+
+  * ControlNet preprocessors → <ExternalLink href="https://github.com/Fannovel16/comfyui_controlnet_aux">Fannovel16/comfyui_controlnet_aux</ExternalLink>
+  * IP-Adapter → <ExternalLink href="https://github.com/cubiq/ComfyUI_IPAdapter_plus">cubiq/ComfyUI_IPAdapter_plus</ExternalLink>
+  * Inpaint nodes → <ExternalLink href="https://github.com/Acly/comfyui-inpaint-nodes">Acly/comfyui-inpaint-nodes</ExternalLink>
+  * External tooling nodes → <ExternalLink href="https://github.com/Acly/comfyui-tooling-nodes">Acly/comfyui-tooling-nodes</ExternalLink>
+
+## Required models
+Some models are _required_ for the plugin to work - you cannot connect if they
+are not found. They are used implicitly across various functionality and
+pre-installing them makes for a smoother, uninterrupted experience.
+
+All models must be placed in the appropriate ComfyUI models folder. The plugin
+queries available models from the ComfyUI server. This means paths configured
+in `extra_model_paths.yml` will also work.
+
+Models can be downloaded and placed manually, or via script ([see below](#download-script)).
+
+
+### Shared
+  * [Clip-Vision](https://huggingface.co/h94/IP-Adapter/resolve/main/models/image_encoder/model.safetensors) to `models/clip_vision` _rename to `clip-vision_vit-h.safetensors`_
+  * [NMKD Superscale SP_178000_G](https://huggingface.co/gemasai/4x_NMKD-Superscale-SP_178000_G/resolve/main/4x_NMKD-Superscale-SP_178000_G.pth) to `models/upscale_models`
+  * [OmniSR_X2_DIV2K](https://huggingface.co/Acly/Omni-SR/resolve/main/OmniSR_X2_DIV2K.safetensors) to `models/upscale_models`
+  * [OmniSR_X3_DIV2K](https://huggingface.co/Acly/Omni-SR/resolve/main/OmniSR_X3_DIV2K.safetensors) to `models/upscale_models`
+  * [OmniSR_X4_DIV2K](https://huggingface.co/Acly/Omni-SR/resolve/main/OmniSR_X4_DIV2K.safetensors) to `models/upscale_models`
+  * [MAT_Places512_G_fp16](https://huggingface.co/Acly/MAT/resolve/main/MAT_Places512_G_fp16.safetensors) to `models/inpaint`
+
+### SD 1.5
+  * [ControlNet inpaint](https://huggingface.co/comfyanonymous/ControlNet-v1-1_fp16_safetensors/resolve/main/control_v11p_sd15_inpaint_fp16.safetensors) to `models/controlnet`
+  * [ControlNet tile](https://huggingface.co/comfyanonymous/ControlNet-v1-1_fp16_safetensors/resolve/main/control_lora_rank128_v11f1e_sd15_tile_fp16.safetensors) to `models/controlnet`
+  * [IP-Adapter (SD1.5)](https://huggingface.co/h94/IP-Adapter/resolve/main/models/ip-adapter_sd15.safetensors) to `models/ipadapter`
+  * [Hyper-SD-LoRA (SD1.5)](https://huggingface.co/ByteDance/Hyper-SD/resolve/main/Hyper-SD15-8steps-CFG-lora.safetensors) to `models/loras/`
+
+### SD XL
+  * [IP-Adapter (SDXL)](https://huggingface.co/h94/IP-Adapter/resolve/main/sdxl_models/ip-adapter_sdxl_vit-h.safetensors) to `models/ipadapter`
+  * [Hyper-SD-LoRA (SDXL)](https://huggingface.co/ByteDance/Hyper-SD/resolve/main/Hyper-SDXL-8steps-CFG-lora.safetensors) to `models/loras`
+  * [Fooocus Inpaint (Head)](https://huggingface.co/lllyasviel/fooocus_inpaint/resolve/main/fooocus_inpaint_head.pth) to `models/inpaint`
+  * [Fooocus Inpaint (Patch)](https://huggingface.co/lllyasviel/fooocus_inpaint/resolve/main/inpaint_v26.fooocus.patch) to `models/inpaint`
+
+## Diffusion Model Checkpoints
+At least one diffusion model (commonly just called "Checkpoint") is required. There is a list with recommended
+checkpoints which are used by the plugin's default styles. But they are not required, you can use any checkpoint you like as long
+as the [base model](/base-models) is supported.
+
+## Download Script
+Instead of downloading models manually you can use the
+[download_models.py](https://github.com/Acly/krita-ai-diffusion/blob/main/scripts/download_models.py)
+script to fetch all required and optional models. This requires you to find the script
+and execute Python from the command line.
+
+After installing the plugin you can find the script in the plugin folder (called `ai_diffusion`, see [Paths](https://github.com/Acly/krita-ai-diffusion/wiki/Common-Issues#where-are-plugin-and-user-files-located)). Open a command prompt and run:
+```bash
+python -m pip install aiohttp tqdm
+python download_models.py --all /path/to/your/comfyui
+```
+This will download _all_ models supported by the plugin directly into the specified folder with the correct version, location, and filename.
+The download location does not have to be your ComfyUI installation, you can use an empty folder if you want to avoid clashes and copy models afterwards.
+There are also options to only download a subset, or list all relevant URLs without downloading.
+```bash
+python download_models.py --help
+```
+
+_Note: The script downloads models only. It does not install or modify ComfyUI or custom nodes!_
+
+## Troubleshooting
+If you're getting errors about missing resources, or workload not being installed, it's probably because one of the models wasn't found.
+You can find the `client.log` file by clicking the ["View Log files" link](https://github.com/Acly/krita-ai-diffusion/wiki/Common-Issues#log-files) in the Connection settings. Check the log for warnings. Here you will also
+find which models were found in your installation, and the patterns the plugin looks for.
+
+Model paths must contain one of the search patterns entirely to match. The model path is allowed to be longer though: you may place models
+in arbitrary subfolders and they will still  be found. If there are multiple matches, any files placed inside a `krita` subfolder are prioritized.
+
+### Questions and Support
+* [ComfyUI](https://github.com/comfyanonymous/ComfyUI), [comfy.org](https://www.comfy.org) for issues related to ComfyUI
+* [Discussions](https://github.com/Acly/krita-ai-diffusion/discussions), [Issues](https://github.com/Acly/krita-ai-diffusion/issues) or [Discord](https://discord.gg/pWyzHfHHhU) for things concerning the setup for Krita Diffusion Plugin
+* Please **don't** use official Krita channels for questions related to the Plugin

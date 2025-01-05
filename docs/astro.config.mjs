@@ -18,9 +18,15 @@ export default defineConfig({
 			},
 			sidebar: [
 				{
-					label: 'Guides',
+					label: 'Setup',
 					items: [
 						{ label: 'Installation', slug: 'installation' },
+						{ label: 'ComfyUI Setup', slug: 'comfyui-setup' },
+					],
+				},
+				{
+					label: 'Guides',
+					items: [
 						{ label: 'Regions', slug: 'regions' },
 					],
 				},
