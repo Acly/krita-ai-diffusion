@@ -367,14 +367,14 @@ models.checkpoints = {
         _checkpoint_info(name, arch)
         for name, arch in [
             ("dreamshaper", Arch.sd15),
-            ("realistic-vision", Arch.sd15),
+            ("realistic_vision", Arch.sd15),
             ("serenity", Arch.sd15),
-            ("flat2d-animerge", Arch.sd15),
+            ("flat2d_animerge", Arch.sd15),
             ("juggernaut", Arch.sdxl),
             ("realvis", Arch.sdxl),
             ("zavychroma", Arch.sdxl),
             ("pixelwave", Arch.sdxl),
-            ("flux-schnell", Arch.flux),
+            ("flux_schnell", Arch.flux),
         ]
     )
 }
