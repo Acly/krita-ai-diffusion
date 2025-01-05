@@ -566,6 +566,7 @@ class StylePresets(SettingsTab):
         self._builtin_message.setVisible(False)
         self._builtin_copy = QLabel("<a href='copy'>Click to edit a copy</a>", self)
         self._builtin_copy.linkActivated.connect(self._duplicate_style)
+        self._builtin_copy.setVisible(False)
 
         self._show_builtin_checkbox = QCheckBox(_("Show pre-installed styles"), self)
         self._show_builtin_checkbox.setChecked(settings.show_builtin_styles)
