@@ -28,6 +28,7 @@ export default defineConfig({
 				{
 					label: 'Guides',
 					items: [
+						{ label: 'First Steps', slug: 'basics' },
 						{ label: 'Text Prompts', slug: 'prompts' },
 						{ label: 'Regions', slug: 'regions' },
 					],
