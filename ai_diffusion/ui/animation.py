@@ -101,6 +101,10 @@ class AnimationWidget(QWidget):
         layout.addWidget(self.error_box)
 
         self.target_layer = QComboBox(self)
+        self.target_layer.setMinimumContentsLength(20)
+        self.target_layer.setSizeAdjustPolicy(
+            QComboBox.SizeAdjustPolicy.AdjustToMinimumContentsLength
+        )
         layout.addWidget(self.target_layer)
 
         self.preview_area = QLabel(self)
