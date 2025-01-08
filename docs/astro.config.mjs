@@ -32,6 +32,7 @@ export default defineConfig({
 						{ label: 'Selection Fill', slug: 'selections' },
 						{ label: 'Text Prompts', slug: 'prompts' },
 						{ label: 'Regions', slug: 'regions' },
+						{ label: 'Samplers', slug: 'samplers' },
 					],
 				},
 				{
