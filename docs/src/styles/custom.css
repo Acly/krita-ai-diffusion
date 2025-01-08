@@ -1,5 +1,7 @@
 /* Dark mode colors. */
 :root {
+	--sl-content-width: 800px;
+
 	--sl-color-accent-low: #371c00;
 	--sl-color-accent: #985800;
 	--sl-color-accent-high: #eabf9a;
@@ -15,6 +17,7 @@
 	--sl-hue-purple: 18;
 	--sl-hue-blue: 190;
 
+	/* Overwrite default starlight handling of images for inline icons. */
 	[data-icon] {
 		display: inline !important;
 		margin-bottom: 0 !important;
@@ -38,7 +41,7 @@
 	--sl-color-gray-7: #f7f6f6;
 	--sl-color-black: #ffffff;
 
-	.plugin-icon {
+	.plugin-icon > svg {
 		filter: invert(1);
 	}
 }

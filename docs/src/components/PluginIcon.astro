@@ -1,8 +1,28 @@
 ---
 import { Icon } from "astro-icon/components";
 
-const { name } = Astro.props;
+interface Props {
+  name: string;
+  text?: string;
+}
+
+const { name, text } = Astro.props;
 const slug = `plugin/${name}-dark`;
 ---
 
-<Icon name={slug} class="plugin-icon" />
+<span class="plugin-icon">
+  <Icon name={slug} class="plugin-icon" />
+  {text && <span>{text}</span>}
+</span>
+
+<style>
+  span.plugin-icon {
+    white-space: nowrap;
+    border: 1px dashed var(--sl-color-gray-5);
+    padding-left: 0.1rem;
+    margin-right: 0.2rem;
+  }
+  .plugin-icon > span {
+    margin-left: 0.3rem;
+  }
+</style>

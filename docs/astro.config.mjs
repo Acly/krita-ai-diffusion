@@ -29,6 +29,7 @@ export default defineConfig({
 					label: 'Guides',
 					items: [
 						{ label: 'First Steps', slug: 'basics' },
+						{ label: 'Selection Fill', slug: 'selections' },
 						{ label: 'Text Prompts', slug: 'prompts' },
 						{ label: 'Regions', slug: 'regions' },
 					],

@@ -101,7 +101,7 @@ This section covers some general advice for using regions.
 
 ### Creating regions
 
-To create a region, use the <PluginIcon name="region-add" /> button next to the text input.
+To create a region, use the <PluginIcon name="region-add" text="Add Region" /> button next to the text input.
 
 Regions must be attached to paint layers or layer groups. When creating a new
 region, it is linked to the active layer by default. If the active layer already
@@ -123,8 +123,8 @@ Conversely, a layer can only be linked to a single region.
 
 ### Root prompt
 
-The text input at the very bottom is reserved for the <PluginIcon name="root" />
-Root prompt. It is not linked to any layer. It should describe the general
+The text input at the very bottom is reserved for the <PluginIcon name="root" text="Root prompt" />.
+ It is not linked to any layer. It should describe the general
 composition of the image with all its subjects. It may also contain instructions
 about style, medium, quality, etc. which apply to the whole image. The Root
 prompt is appended to the text of all other regions.
@@ -192,10 +192,10 @@ Each region can have its own set of control layers.
 ![](../../assets/regions/basics-control-layers.svg)
 
 Currently linking control layers to specific regions makes sense for:
-* <PluginIcon name="control-reference" /> Reference
-* <PluginIcon name="control-composition" /> Composition
-* <PluginIcon name="control-style" /> Style
-* <PluginIcon name="control-face" /> Face
+* <PluginIcon name="control-reference" text="Reference" /> 
+* <PluginIcon name="control-composition" text="Composition" /> 
+* <PluginIcon name="control-style" text="Style"/> 
+* <PluginIcon name="control-face" text="Face" /> 
 
 Other control layers already have a per-pixel correspondence of their content
 with the canvas, so regions are less useful. It can still make sense to restrict
@@ -215,10 +215,10 @@ For 100% strength image generation from a blank canvas, regions can be set up in
 <Steps>
 1. Type a general prompt for the whole image into the text input. This will
    become the [Root prompt](#root-prompt).
-2. Click <PluginIcon name="region-add" /> Create region. This will transform the existing "Background"
+2. Click <PluginIcon name="region-add" text="Create region" />. This will transform the existing "Background"
    layer into a region. By default it's white and fully opaque. Fill in some
    text that describes things in the background.
-3. Click <PluginIcon name="region-add" /> Create region again. This creates a new layer group with a
+3. Click <PluginIcon name="region-add" text="Create region" /> again. This creates a new layer group with a
    single paint layer, and a region linked to the group. Fill in some text that
    describes your first subject.
 4. Use a brush to paint the rough area in which you want the first subject to
@@ -226,7 +226,7 @@ For 100% strength image generation from a blank canvas, regions can be set up in
    precise. Use any color you like.
 5. Repeat steps 3. and 4. for other subjects. Keep the total number of regions
    reasonable (recommended 5 or less).
-6. Click <PluginIcon name="generate" /> Generate!
+6. Click <PluginIcon name="generate" text="Generate"/> !
 </Steps>
 
 ### Regions for existing images
@@ -238,7 +238,7 @@ This is how to add regions to an existing photo, painting or generated image:
 2. If the entire image is one layer, make sure it is active. Otherwise select
    your background layer (usually bottom-most). If the background consists of
    multiple layers, put them in a group and select the group.
-3. Click <PluginIcon name="region-add" /> Create region. Fill in some text that describes things in the background.
+3. Click <PluginIcon name="region-add" text="Create region" />. Fill in some text that describes things in the background.
 4. *If your subjects are already on separate layers skip this step.* Select a
    subject from your image (using selection tools). Copy and paste the content.
    This creates a new layer.
@@ -262,12 +262,12 @@ around it for context. This is vital:
 <Steps>
 1. Type a general prompt for the whole image into the text input. This will
    become the [Root prompt](#root-prompt).
-2. Click <PluginIcon name="region-add" /> Create region. This will transform the existing "Background"
+2. Click <PluginIcon name="region-add" text="Create region" />. This will transform the existing "Background"
    layer into a region. Fill in some text that describes things in the
    background and start painting.
-3. After you have a decent first draft background, <PluginIcon name="apply" /> apply it. In live mode this
+3. After you have a decent first draft background, <PluginIcon name="apply" text="Apply" /> it. In live mode this
    will overwrite existing layer content by default.
-4. Click <PluginIcon name="region-add" /> Create region. This will create a new paint layer. Fill in some
+4. Click <PluginIcon name="region-add" text="Create region" />. This will create a new paint layer. Fill in some
    brief text for your first region/subject. Then paint it (as approximately and
    coarse as you like).
 5. Apply and move on to the next region.
@@ -309,7 +309,7 @@ selection that covers eg. both faces.
 
 Regions are a great tool to refine individual subjects in the image. It allows
 you to assign different text prompts and switch between them simply by switching
-layers. To make this workflow easier there is the <PluginIcon name="region-alpha" /> Refine region toggle.
+layers. To make this workflow easier there is the <PluginIcon name="region-alpha" text="Refine region" /> toggle.
 It mainly does two things:
 * Uses the active layer coverage as a mask. It's as if you made a selection for
   the content of the layer.
