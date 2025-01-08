@@ -1,0 +1,638 @@
+{
+  "last_node_id": 13,
+  "last_link_id": 22,
+  "nodes": [
+    {
+      "id": 5,
+      "type": "EmptyLatentImage",
+      "pos": {
+        "0": 272,
+        "1": 558
+      },
+      "size": [
+        315,
+        106
+      ],
+      "flags": {},
+      "order": 3,
+      "mode": 0,
+      "inputs": [
+        {
+          "name": "width",
+          "type": "INT",
+          "link": 16,
+          "widget": {
+            "name": "width"
+          }
+        },
+        {
+          "name": "height",
+          "type": "INT",
+          "link": 17,
+          "widget": {
+            "name": "height"
+          }
+        }
+      ],
+      "outputs": [
+        {
+          "name": "LATENT",
+          "type": "LATENT",
+          "links": [
+            2
+          ],
+          "slot_index": 0
+        }
+      ],
+      "properties": {
+        "Node name for S&R": "EmptyLatentImage"
+      },
+      "widgets_values": [
+        512,
+        512,
+        1
+      ]
+    },
+    {
+      "id": 7,
+      "type": "CLIPTextEncode",
+      "pos": {
+        "0": 358,
+        "1": 429
+      },
+      "size": [
+        210,
+        76
+      ],
+      "flags": {},
+      "order": 5,
+      "mode": 0,
+      "inputs": [
+        {
+          "name": "clip",
+          "type": "CLIP",
+          "link": 12
+        }
+      ],
+      "outputs": [
+        {
+          "name": "CONDITIONING",
+          "type": "CONDITIONING",
+          "links": [
+            6
+          ],
+          "slot_index": 0
+        }
+      ],
+      "properties": {
+        "Node name for S&R": "CLIPTextEncode"
+      },
+      "widgets_values": [
+        "text, watermark"
+      ]
+    },
+    {
+      "id": 12,
+      "type": "ETN_KritaCanvas",
+      "pos": {
+        "0": 13,
+        "1": 563
+      },
+      "size": [
+        200,
+        100
+      ],
+      "flags": {},
+      "order": 0,
+      "mode": 0,
+      "inputs": [],
+      "outputs": [
+        {
+          "name": "image",
+          "type": "IMAGE",
+          "links": null
+        },
+        {
+          "name": "width",
+          "type": "INT",
+          "links": [
+            16
+          ],
+          "slot_index": 1
+        },
+        {
+          "name": "height",
+          "type": "INT",
+          "links": [
+            17
+          ],
+          "slot_index": 2
+        },
+        {
+          "name": "seed",
+          "type": "INT",
+          "links": [
+            18
+          ],
+          "slot_index": 3
+        }
+      ],
+      "properties": {
+        "Node name for S&R": "ETN_KritaCanvas"
+      }
+    },
+    {
+      "id": 3,
+      "type": "KSampler",
+      "pos": {
+        "0": 623,
+        "1": 214
+      },
+      "size": [
+        232.8821539941447,
+        218
+      ],
+      "flags": {},
+      "order": 6,
+      "mode": 0,
+      "inputs": [
+        {
+          "name": "model",
+          "type": "MODEL",
+          "link": 19
+        },
+        {
+          "name": "positive",
+          "type": "CONDITIONING",
+          "link": 4
+        },
+        {
+          "name": "negative",
+          "type": "CONDITIONING",
+          "link": 6
+        },
+        {
+          "name": "latent_image",
+          "type": "LATENT",
+          "link": 2
+        },
+        {
+          "name": "seed",
+          "type": "INT",
+          "link": 18,
+          "widget": {
+            "name": "seed"
+          }
+        },
+        {
+          "name": "cfg",
+          "type": "FLOAT",
+          "link": 22,
+          "widget": {
+            "name": "cfg"
+          }
+        },
+        {
+          "name": "sampler_name",
+          "type": "COMBO",
+          "link": 15,
+          "widget": {
+            "name": "sampler_name"
+          }
+        },
+        {
+          "name": "scheduler",
+          "type": "COMBO",
+          "link": 14,
+          "widget": {
+            "name": "scheduler"
+          }
+        },
+        {
+          "name": "steps",
+          "type": "INT",
+          "link": 13,
+          "widget": {
+            "name": "steps"
+          }
+        }
+      ],
+      "outputs": [
+        {
+          "name": "LATENT",
+          "type": "LATENT",
+          "links": [
+            7
+          ],
+          "slot_index": 0
+        }
+      ],
+      "properties": {
+        "Node name for S&R": "KSampler"
+      },
+      "widgets_values": [
+        156680208700286,
+        "randomize",
+        20,
+        8,
+        "euler",
+        "normal",
+        1
+      ]
+    },
+    {
+      "id": 8,
+      "type": "VAEDecode",
+      "pos": {
+        "0": 895,
+        "1": 215
+      },
+      "size": {
+        "0": 210,
+        "1": 46
+      },
+      "flags": {},
+      "order": 7,
+      "mode": 0,
+      "inputs": [
+        {
+          "name": "samples",
+          "type": "LATENT",
+          "link": 7
+        },
+        {
+          "name": "vae",
+          "type": "VAE",
+          "link": 20
+        }
+      ],
+      "outputs": [
+        {
+          "name": "IMAGE",
+          "type": "IMAGE",
+          "links": [
+            10
+          ],
+          "slot_index": 0
+        }
+      ],
+      "properties": {
+        "Node name for S&R": "VAEDecode"
+      },
+      "widgets_values": []
+    },
+    {
+      "id": 10,
+      "type": "ETN_KritaOutput",
+      "pos": {
+        "0": 893,
+        "1": 321
+      },
+      "size": [
+        210,
+        120
+      ],
+      "flags": {},
+      "order": 8,
+      "mode": 0,
+      "inputs": [
+        {
+          "name": "images",
+          "type": "IMAGE",
+          "link": 10
+        }
+      ],
+      "outputs": [],
+      "properties": {
+        "Node name for S&R": "ETN_KritaOutput"
+      },
+      "widgets_values": [
+        "PNG"
+      ]
+    },
+    {
+      "id": 6,
+      "type": "CLIPTextEncode",
+      "pos": {
+        "0": 371,
+        "1": 133
+      },
+      "size": [
+        210,
+        54
+      ],
+      "flags": {},
+      "order": 4,
+      "mode": 0,
+      "inputs": [
+        {
+          "name": "clip",
+          "type": "CLIP",
+          "link": 11
+        },
+        {
+          "name": "text",
+          "type": "STRING",
+          "link": 21,
+          "widget": {
+            "name": "text"
+          }
+        }
+      ],
+      "outputs": [
+        {
+          "name": "CONDITIONING",
+          "type": "CONDITIONING",
+          "links": [
+            4
+          ],
+          "slot_index": 0
+        }
+      ],
+      "properties": {
+        "Node name for S&R": "CLIPTextEncode"
+      },
+      "widgets_values": [
+        "beautiful scenery nature glass bottle landscape, , purple galaxy bottle,"
+      ]
+    },
+    {
+      "id": 13,
+      "type": "ETN_Parameter",
+      "pos": {
+        "0": 10,
+        "1": -11
+      },
+      "size": {
+        "0": 315,
+        "1": 154
+      },
+      "flags": {},
+      "order": 1,
+      "mode": 0,
+      "inputs": [],
+      "outputs": [
+        {
+          "name": "value",
+          "type": "STRING",
+          "links": [
+            21
+          ],
+          "slot_index": 0
+        }
+      ],
+      "properties": {
+        "Node name for S&R": "ETN_Parameter"
+      },
+      "widgets_values": [
+        "Prompt",
+        "prompt (positive)",
+        "",
+        0,
+        0
+      ]
+    },
+    {
+      "id": 11,
+      "type": "ETN_KritaStyle",
+      "pos": {
+        "0": 4,
+        "1": 196
+      },
+      "size": [
+        262.6581870519956,
+        242
+      ],
+      "flags": {},
+      "order": 2,
+      "mode": 0,
+      "inputs": [],
+      "outputs": [
+        {
+          "name": "model",
+          "type": "MODEL",
+          "links": [
+            19
+          ],
+          "slot_index": 0
+        },
+        {
+          "name": "clip",
+          "type": "CLIP",
+          "links": [
+            11,
+            12
+          ],
+          "slot_index": 1
+        },
+        {
+          "name": "vae",
+          "type": "VAE",
+          "links": [
+            20
+          ],
+          "slot_index": 2
+        },
+        {
+          "name": "positive prompt",
+          "type": "STRING",
+          "links": null
+        },
+        {
+          "name": "negative prompt",
+          "type": "STRING",
+          "links": null
+        },
+        {
+          "name": "sampler name",
+          "type": "COMBO",
+          "links": [
+            15
+          ],
+          "slot_index": 5
+        },
+        {
+          "name": "scheduler",
+          "type": "COMBO",
+          "links": [
+            14
+          ],
+          "slot_index": 6
+        },
+        {
+          "name": "steps",
+          "type": "INT",
+          "links": [
+            13
+          ],
+          "slot_index": 7
+        },
+        {
+          "name": "guidance",
+          "type": "FLOAT",
+          "links": [
+            22
+          ],
+          "slot_index": 8
+        }
+      ],
+      "properties": {
+        "Node name for S&R": "ETN_KritaStyle"
+      },
+      "widgets_values": [
+        "Style",
+        "auto"
+      ]
+    }
+  ],
+  "links": [
+    [
+      2,
+      5,
+      0,
+      3,
+      3,
+      "LATENT"
+    ],
+    [
+      4,
+      6,
+      0,
+      3,
+      1,
+      "CONDITIONING"
+    ],
+    [
+      6,
+      7,
+      0,
+      3,
+      2,
+      "CONDITIONING"
+    ],
+    [
+      7,
+      3,
+      0,
+      8,
+      0,
+      "LATENT"
+    ],
+    [
+      10,
+      8,
+      0,
+      10,
+      0,
+      "IMAGE"
+    ],
+    [
+      11,
+      11,
+      1,
+      6,
+      0,
+      "CLIP"
+    ],
+    [
+      12,
+      11,
+      1,
+      7,
+      0,
+      "CLIP"
+    ],
+    [
+      13,
+      11,
+      7,
+      3,
+      8,
+      "INT"
+    ],
+    [
+      14,
+      11,
+      6,
+      3,
+      7,
+      "COMBO"
+    ],
+    [
+      15,
+      11,
+      5,
+      3,
+      6,
+      "COMBO"
+    ],
+    [
+      16,
+      12,
+      1,
+      5,
+      0,
+      "INT"
+    ],
+    [
+      17,
+      12,
+      2,
+      5,
+      1,
+      "INT"
+    ],
+    [
+      18,
+      12,
+      3,
+      3,
+      4,
+      "INT"
+    ],
+    [
+      19,
+      11,
+      0,
+      3,
+      0,
+      "MODEL"
+    ],
+    [
+      20,
+      11,
+      2,
+      8,
+      1,
+      "VAE"
+    ],
+    [
+      21,
+      13,
+      0,
+      6,
+      1,
+      "STRING"
+    ],
+    [
+      22,
+      11,
+      8,
+      3,
+      5,
+      "FLOAT"
+    ]
+  ],
+  "groups": [],
+  "config": {},
+  "extra": {
+    "ds": {
+      "scale": 1,
+      "offset": [
+        413.3418129480044,
+        117.96950009209382
+      ]
+    }
+  },
+  "version": 0.4
+}

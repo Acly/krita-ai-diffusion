@@ -2,3 +2,191 @@
 title: Custom Graphs
 description: Documentation for nodes to create custom graphs in ComfyUI
 ---
+
+import { Aside } from '@astrojs/starlight/components'
+
+Custom graphs allow you to design node graphs in ComfyUI and run them from
+Krita. Images, layers, selections and masks can be exchanged, and important
+parameters can be exposed.
+
+![Example of using a basic node graph connected to Krita](../../assets/custom-graph/introduction.webp)
+
+## Introduction
+
+### Why custom workflows?
+
+Most of the plugin functionality focuses on providing basic but very flexible
+tools that mesh well with digital painting techniques. But there are also a vast
+number of rather specific AI models, algorithms and parameters, which may save a
+lot of work in certain scenarios. Custom workflows allow you to integrate those
+into Krita.
+
+### Who can use custom workflows?
+
+To use custom workflows you need to use a managed or custom (local/remote)
+ComfyUI server installation and have plugin version 1.26.0 or later installed.
+
+To _author_ workflows, knowledge of ComfyUI and basic understanding of image
+diffusion technology is required.
+
+But anyone can _use_ workflows shared by others: import them in Krita and tweak
+its parameters directly in the UI.
+
+### How does it work?
+
+In a nutshell, a custom workflow is a ComfyUI workflow with special placeholder
+nodes. You design the workflow in ComfyUI's web interface, but you execute it
+from within Krita. The plugin will generate a custom UI for each workflow, and
+connect placeholders with the real input and output.
+
+<Aside type="note">
+You can load workflows directly from your browser tab. They will synchronize and
+run automatically on any changes you make. But you cannot execute them from
+Comfy's web UI.
+</Aside>
+
+
+## The Custom Workspace
+
+You run custom node graph workflows from the Graph workspace.
+
+![The custom Graph workspace](../../assets/custom-graph/workspace.png)
+
+### Importing workflow files
+
+You can import workflows from files. Workflow files are just ComfyUI workflows
+(_*.json_) which contain at least a `Krita Output` node.
+
+![Use the Import File button to open workflow files](../../assets/custom-graph/import.png)
+
+Workflows are stored in the _workflows_ folder in your [user data folder](/common-issues#file-locations).
+
+### Connecting to Web UI
+
+Clicking the ComfyUI Web button will launch your browser and navigate to the
+ComfyUI instance the plugin is connected to (skip this if you already have it
+open). To use the workflow currently loaded in the web UI you have to at least
+create a `Krita Output` node - after you do the instance can be selected from
+the drop-down.
+
+![Button to open a browser tab for editing workflows](../../assets/custom-graph/connect.png)
+
+### Exporting workflows
+
+Use the save button to export the current workflow as a file. This is roughly
+equivalent to using the _Export (API)_ option from the Web UI, which will also
+work. The _Export_ option (not API) from Web UI also works to some extent, but
+is not recommended. UI-specific features like "bypass" may not work after
+import.
+
+![Export workflows in Krita or ComfyUI](../../assets/custom-graph/export.png)
+
+
+## Creating Workflows
+
+This section focuses on special nodes that are used to interact with Krita.
+
+### Output
+
+![Krita Output node](../../assets/custom-graph/krita-output.png)
+
+The most important node is `Krita Output`. It enables workflow synchronization
+and allows Krita to receive images. Simply use it as a sink node for your
+results in place of nodes like `Save Image` or `Preview Image`.
+
+Technically no other nodes are needed to use a workflow from Krita. You can also
+have multiple outputs, or pass batches of images to the output node, although in
+_Live_ mode only the first result will be shown.
+
+### Canvas
+
+![Krita Canvas node](../../assets/custom-graph/krita-canvas.png)
+
+This node provides information about the Krita document / canvas. It gives you
+the current image (ie. "what you see", all visible layers). But even if you
+don't need the image in your workflow, you most likely want to use this node to
+get the canvas resolution.
+
+|                 Text-to-Image                  |                 Image-to-Image                 |
+| :--------------------------------------------: | :--------------------------------------------: |
+| ![Example](../../assets/custom-graph/text-to-image.png) | ![Example](../../assets/custom-graph/image-to-image.png) |
+
+<Aside type="caution">
+Outputs from diffusion models always use a resolution that is a multiple of 8,
+16 or 64. If the Krita canvas doesn't match, you may have to additionally crop
+or resize the diffusion result right before sending it to `Krita Output` to
+match the expected resolution.
+</Aside>
+
+### Parameters
+
+![Parameters of various types are exposed as custom UI](../../assets/custom-graph/parameters.png)
+
+For each custom workflow the Plugin generates a complementary UI, so important
+parameters can be tweaked directly from Krita. Which parameters are exposed is
+explicit: you create a `Parameter` node for each. This allows you to assign a
+name and tweak UI elements (eg. define slider range).
+
+All values that can be configured in node widgets can be converted into
+parameters. In the Web UI, use _Right click > Convert Widget to Input_ on a
+node. Then connect it to a parameter node. It will automatically match the type
+and name of the parameter and create the corresponding UI on Krita side.
+
+#### Parameter Order and Groups
+
+![Parameter order and grouping](../../assets/custom-graph/parameter-groups.png)
+
+To define in which **order** parameters should appear, prefix them with a
+numeral like `1. `, `2. `, and so on. The number is not displayed, but it's used
+to sort the parameters. The absolute value of the numbers does not matter, only
+their relation to each other (gaps are fine).
+
+To create **groups**, use a forward slash `/` to separate group name from
+parameter name. For example `My Group/My Parameter`. You can also choose the
+order in which groups appear, as well as parameters within them. Groups can not
+be nested.
+
+
+### Selection and Layers
+
+![Krita Layer and Selection nodes](../../assets/custom-graph/selection-layers.png)    
+
+Individual layers can be used inside custom workflows. The `Krita Image Layer`
+node will add a UI widget to select an RGB layer, while `Krita Mask Layer` is
+for selection and transparency masks.
+
+You can build inpaint workflows similar to the ones integrated in the Plugin by
+reading the current selection with the `Krita Selection` node. The selection can
+be used like a mask.
+
+
+### Style
+
+![Krita Style node](../../assets/custom-graph/krita-style.png)
+
+In the Plugin, Styles are a way to define and reuse a set of models and
+settings. It's possible to use one (or more) Styles in custom workflows by
+adding the `Krita Style` node. It will load the configured model (checkpoint,
+diffusion model or GGUF) as well as Clip and VAE. It also applies LoRA and model
+settings like clip skip.
+
+Prompt templates configured in the Style are exposed as text - you will probably
+want to merge them with a flexible input prompt inside your workflow before
+encoding them. Sampler settings are exposed to the workflow as names, they can
+be used as input to nodes like `KSampler`.
+
+<Aside type="note">
+Some samplers like _AlignYourSteps_ are not available as names
+and need to be modeled in the workflow explicitly.
+</Aside>
+
+### Send Text
+
+![Send Text node](../../assets/custom-graph/send-text.png)
+
+This node allows you to send any information to the Plugin as text.
+
+
+## Example Workflows
+
+* [Custom Workflow Example.json](/resources/krita-custom-workflow.json)
