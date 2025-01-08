@@ -1,0 +1,142 @@
+---
+title: Selection Fill
+description: Guide to working with selection inpainting in Krita AI Diffusion
+---
+
+import PluginIcon from '../../components/PluginIcon.astro'
+
+Using selections to modify parts of the image is a key feature of the plugin. It
+allows you to apply AI generation exactly where you want. You can work on an
+image iteratively, mixing traditional painting tools and generated content as
+needed. This is also known as _inpainting_.
+
+## Generation mode
+
+Creating a selection will transform the "Generate" button to reflect the
+operation. By default this is either <PluginIcon name="inpaint-fill" text="Fill" />, or
+<PluginIcon name="inpaint-expand" text="Expand" />, depending on the selection context.
+But there is also a drop-down which allows you to choose a more specific action
+which may yield better results.
+
+![Fill drop-down menu](../../assets/selections/inpaint-menu.png)
+
+### Fill
+
+This is a general purpose mode that fits most scenarios where you want to replace a part of the image with something
+similar. It may generate new things, but is biased towards using colors found in the vicinity of the selection.
+It tries to strike a balance between flexibility to make changes and blending in with the rest of the image.
+
+<table>
+<thead><tr><th>Original</th><th></th></tr></thead>
+<tbody><tr><td width="50%">![original photo](../../assets/selections/inpaint-original.jpg)</td><td></td></tr></tbody>
+</table>
+
+| Mask | Result |
+|-|-|
+| ![fill-mask](../../assets/selections/inpaint-fill-mask.jpg) | ![fill-result](../../assets/selections/inpaint-fill-image.jpg) |
+
+
+### Expand
+
+This mode is geared to expanding the image at the left, right, top or bottom. You can expand into more than one direction
+at once, but it requires more resources (memory and time). The easiest way to expand the canvas is to use Krita's crop tool
+(hotkey: C) and click anywhere into the image. You can now resize the canvas at the sides. Select the blank areas and click
+Expand to generate content.
+
+| Mask | Result |
+|-|-|
+| ![release-1 14 0-inpaint-expand-mask](../../assets/selections/inpaint-expand-mask.jpg) | ![release-1 14 0-inpaint-expand-image](../../assets/selections/inpaint-expand-image.jpg) |
+
+_Expand_ completely ignores existing content in the selection area, it can be blank or anything else. It attempts to blend in
+with the colors used at the border of the selection, and prefers to generate more of the same, rather than being overly creative.
+
+### Add Content
+Use this mode to add new things to the image. This mode requires you to use text or control layers to describe the new content
+you want to see. It generates with the flexibility to drastically deviate from the colors seen in the rest of the image, and
+may not blend as well as other modes.
+
+| Mask | Result |
+|-|-|
+| ![release-1 14 0-inpaint-add-mask](../../assets/selections/inpaint-add-mask.jpg) | ![release-1 14 0-inpaint-add-image](../../assets/selections/inpaint-add-image.jpg) |
+
+
+### Remove Content
+This mode is geared towards object removal. It ignores existing content in the selection area and fills it with a continuation
+of the surroundings instead.
+
+| Mask | Result |
+|-|-|
+| ![release-1 14 0-inpaint-remove-mask](../../assets/selections/inpaint-remove-mask.jpg) | ![release-1 14 0-inpaint-remove-image](../../assets/selections/inpaint-remove-image.jpg) |
+
+### Replace Background
+An experimental mode where you can select a forground object. The selected content is kept, and everything else in the image is
+replaced. This mode requires you to use text to describe the new background.
+
+| Mask | Result |
+|-|-|
+| ![release-1 14 0-inpaint-replace-mask](../../assets/selections/inpaint-replace-mask.jpg) | ![release-1 14 0-inpaint-replace-image](../../assets/selections/inpaint-replace-image.jpg) |
+
+_Note:_ inpaint models aren't trained for this particular use case, complex interactions between foreground/background require some luck.
+
+## Custom Generation
+
+If none of the modes quite fit, there is also the option to configure generation parameters manually.
+
+![custom-inpaint-menu](../../assets/selections/custom-inpaint-menu.png)
+
+* **Seamless:** When enabled, an inpaint model is used to make generated content blend in with the existing image as best as possible.
+  In some cases you may want to explicitly disable this, for example when generating a single panel within a comic page. When disabled,
+  generation will behave as if the seleted area was its own image within the canvas, independent of the rest.
+* **Focus:** When disabled, the text you enter describes the entire _context area_ (see below). Enable this to focus your prompt
+  exclusively on the selected area instead.
+* **Fill:** This defines how the selected area is filled before generation, and can influence what kind of results are possible.
+  * **None** means the image content is not touched at all, which allows you to paint it over as you see fit.
+  * **Neutral** allows to generate anything without bias.
+  * **Blur** will blur existing and surrounding content together.
+  * **Border** ignores existing content and takes colors only from the surrounding.
+  * **Inpaint** fills the selected area using a small, specialized AI model.
+
+Visualization of the fill modes: (note that these are not final results, they only show pre-processing)
+
+| Input | |
+|-|-|
+| ![preprocess-input](../../assets/selections/preprocess-input.webp) |
+|  Neutral | Blur | 
+|  ![preprocess-neutral](../../assets/selections/preprocess-neutral.webp) | ![preprocess-blur-65](../../assets/selections/preprocess-blur-65.webp) |
+| Border | Inpaint |
+| ![preprocess-navier-stokes](../../assets/selections/preprocess-navier-stokes.webp) | ![preprocess-mat](../../assets/selections/preprocess-mat.webp) |
+
+### Context area
+
+When generating content for the selected area, part of the surrounding image is processed as "context". This is required to get
+good results that blend in. A larger context area improves coherency with the rest of the image, at the cost of slower speed 
+and increased memory requirements. You always pay for the entire context even if it isn't touched, not just the masked area.
+
+By default the context is selected automatically. It can be influenced by changing _Settings > Diffusion > Selection Padding_.
+Note that there are also internal constraints and tweaks to select a suitable region. Custom Generation offers some additional options:
+* **Selection Bounds:** use only the selection area. This makes sense when _Seamless_ is disabled, but won't allow it to work properly if it's on.
+* **Entire Image:** use the entire image as context. Best coherency, but slow and image quality suffers at high resolutions.
+* **Custom Layer:** use the area indicated by a Selection Mask or Transparency Mask layer. Full control!
+
+### Working with Selection Masks
+
+This is an example workflow that uses selection masks to define a custom context.
+
+First, make sure you have "Global Selection Mask" enabled in Krita.
+
+![custom-inpaint-global-selection](https://github.com/Acly/krita-ai-diffusion/assets/6485914/0595d119-aae8-40e8-8406-99ed26fdc490)
+
+Use rectangular selection tool to mark your context area.
+
+![custom-inpaint-context-selection](https://github.com/Acly/krita-ai-diffusion/assets/6485914/069b1ad2-58fa-4543-836b-374393ef8cde)
+
+Save your selection mask (the dashed circle icon marked below), and optionally give it a nice name. Then create the selection
+which you want to fill (like some badly generated hands).
+
+![custom-inpaint-context-layer](https://github.com/Acly/krita-ai-diffusion/assets/6485914/25af02b5-8437-4ba2-828d-ca847d0940f4)
+
+In custom generation menu, select your mask as context. You can reuse it any time you need.
+
+![custom-inpaint-context-menu](https://github.com/Acly/krita-ai-diffusion/assets/6485914/c79a6009-1fa3-4173-b123-592c4afc2cfc)
+
+

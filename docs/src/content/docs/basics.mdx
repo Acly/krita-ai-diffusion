@@ -19,7 +19,7 @@ something like this:
 ![AI Image Generation Docker](../../assets/basics/generation-docker.png)
 
 The first thing to do is to enter some text in the text input (prompt) field and
-click <PluginIcon name="generate" /> Generate (Shift + Enter). This will ignore
+click <PluginIcon name="generate" text="Generate" /> (Shift + Enter). This will ignore
 any existing content in your canvas and generate a new image of the same size.
 
 <Aside type="tip">
@@ -37,7 +37,7 @@ quickly select and compare them.
 
 ![Generation History](../../assets/basics/generation-history.webp)
 
-To apply one of the results, click its <PluginIcon name="apply" /> Apply button,
+To apply one of the results, click its <PluginIcon name="apply" text="Apply" /> button,
 or double-click the thumbnail. This will add the generated result as a new layer
 on top of the layer stack, and remove the preview. You can apply as many results
 as you want in order to [keep parts or mix them](#generate-erase).
@@ -51,7 +51,7 @@ more efficient than explicitly discarding all unwanted results.
 
 The strength slider controls how much of the canvas content is used in image
 generation. Note how choosing a value that is less than 100% will change the
-generate action to <PluginIcon name="refine" /> Refine, also known as _image-to-image_.
+generate action to <PluginIcon name="refine" text="Refine" />, also known as _image-to-image_.
 Instead of generating a new image from scratch, the AI model will use the current
 canvas content as a starting point. Lower strength means less alteration of the
 existing content.
@@ -68,7 +68,7 @@ Otherwise you might end up refining a blank canvas and get mostly white results.
 ### Selections
 
 Creating a selection on the canvas will restrict image generation to the selected
-area. Note how the generate action changes to <PluginIcon name="inpaint-fill" /> Fill
+area. Note how the generate action changes to <PluginIcon name="inpaint-fill" text="Fill" />
 when strength is at 100%. This is also known as _inpainting_. In addition to Fill the
 dropdown allows you to choose various other actions that influence how surrounding content
 affects the selected area to be generated. [Read more about selection inpainting.](/selections)
@@ -92,7 +92,7 @@ don't care much about the specifics. But when you have a certain composition or 
 in mind, controling generation through _images_ is far more intuitive and precise.
 
 This is what control layers are for. You can create them with the 
-<PluginIcon name="control-add" /> Add control layer button. [Read more about Control Layers.](/control-layers)
+<PluginIcon name="control-add" text="Add control layer" /> button. [Read more about Control Layers.](/control-layers)
 
 
 ## Workspaces
@@ -129,7 +129,7 @@ the image in a tiled fashion, 4k and higher resolutions become manageable.
 
 Live mode is focused on real-time interaction. Quality is traded for speed by default.
 The UI is simplified to show a preview of the generated image, which updates as you
-paint or change parameters. Press the <PluginIcon name="play" /> Play button to start
+paint or change parameters. Press the <PluginIcon name="play" text="Play"/> button to start
 live generation.
 
 ![Scribbles with live preview](../../assets/basics/live-sketch.webp)
@@ -145,7 +145,7 @@ node graph interface can create custom workflows and automate tasks. Running
 them directly from Krita allows you to exchange canvas, layer and selection
 content with ComfyUI.
 
-You can also build custom UI for parametrization! [Read more about Custom Graphs.](/custom-graphs)
+You can also build custom UI for parametrization! [Read more about Custom Graphs.](/custom-graph)
 
 ### Animation
 
