@@ -39,6 +39,7 @@ export default defineConfig({
 				{
 					label: 'Reference',
 					items: [
+						{ label: 'Resolutions', slug: 'resolutions' },
 						{ label: 'Base Models', slug: 'base-models' },
 						{ label: 'Model Database', slug: 'models' },
 					]
