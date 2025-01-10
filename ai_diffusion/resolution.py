@@ -209,10 +209,11 @@ def prepare_diffusion_input(
     else:  # Desired resolution is in acceptable range. Do 1 pass at desired resolution.
         input = extent
         initial = desired = desired.multiple_of(mult)
-        # Scale down input images if needed due to resolution_multiplier or max_pixel_count
-        if extent.pixel_count > desired.pixel_count:
-            input = desired
-            image = Image.scale(image, desired) if image else None
+
+    # Scale down input images if needed due to resolution_multiplier or max_pixel_count
+    if extent.pixel_count > desired.pixel_count:
+        input = desired
+        image = Image.scale(image, desired) if image else None
 
     batch = compute_batch_size(Extent.largest(initial, desired), 512, perf.batch_size)
     return ScaledExtent(input, initial, desired, extent), image, batch

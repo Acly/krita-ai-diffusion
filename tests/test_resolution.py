@@ -269,8 +269,9 @@ def test_prepare_resolution_multiplier(input, multiplier, expected_initial, expe
     )
 
 
-def test_prepare_resolution_multiplier_inputs():
-    perf_settings = PerformanceSettings(resolution_multiplier=0.5)
+@pytest.mark.parametrize("multiplier", [0.5, 0.2])
+def test_prepare_resolution_multiplier_inputs(multiplier):
+    perf_settings = PerformanceSettings(resolution_multiplier=multiplier)
     input = Extent(1024, 1024)
     image = Image.create(input)
     r, _ = resolution.prepare_image(image, Arch.sd15, dummy_style, perf_settings)
