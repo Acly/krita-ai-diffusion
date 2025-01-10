@@ -1,17 +1,39 @@
 ---
 import { Icon } from "astro-icon/components";
+import Image from "astro/components/Image.astro";
+// import pluginControlSoftEdgeDark from "../icons/plugin/control-soft_edge-dark.png";
 
 interface Props {
   name: string;
   text?: string;
+  format?: string;
+  simple?: boolean;
 }
 
-const { name, text } = Astro.props;
+const { name, text, format = "svg", simple = false } = Astro.props;
 const slug = `plugin/${name}-dark`;
+const border = simple ? "border-width: 0;" : "border-width: 1px;";
+
+function findImage() {
+  const imageFiles = import.meta.glob<{ default: ImageMetadata }>(
+    "/src/icons/plugin/*",
+  );
+  const iconFile = `/src/icons/${slug}.png`;
+  if (!(iconFile in imageFiles)) {
+    throw new Error(`Missing icon: ${slug}`);
+  }
+  return imageFiles[iconFile]();
+}
 ---
 
-<span class="plugin-icon">
-  <Icon name={slug} class="plugin-icon" />
+<span class="plugin-icon" style={border}>
+  {
+    format === "svg" ? (
+      <Icon name={slug} class="plugin-icon" />
+    ) : (
+      <Image src={findImage()} alt={name} class="plugin-icon" />
+    )
+  }
   {text && <span>{text}</span>}
 </span>
 
@@ -21,6 +43,11 @@ const slug = `plugin/${name}-dark`;
     border: 1px dashed var(--sl-color-gray-5);
     padding-left: 0.1rem;
     margin-right: 0.2rem;
+  }
+  img.plugin-icon {
+    display: inline-block;
+    height: 1rem;
+    width: 1rem;
   }
   .plugin-icon > span {
     margin-left: 0.3rem;
