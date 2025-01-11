@@ -79,7 +79,11 @@ It's okay for part of the layer to be transparent. Those areas will be ignored.
 
 #### <PluginIcon name="control-reference" simple /> Reference
 
-The control image broadly influences the generated image.
+Subjects, composition, colors and style are taken from the control image. They
+influence the generated image similar to how text prompts do, allowing the model
+some freedom to deviate from the input.
+
+<SideBySide img1="control-layers/reference-control" img2="control-layers/reference-image" />
 
 #### <PluginIcon name="control-style" simple /> Style / <PluginIcon name="control-composition" simple /> Composition
 
@@ -111,9 +115,9 @@ the control image. The distinction is not always very clear. Works best with SDX
 #### <PluginIcon name="control-face" simple /> Face
 
 Replicates facial features from the control image. Input must be a cropped image
-of a face. It's best not to crop too closely, a bit of padding is fine. This mode
-works when you select the area in the canvas where you want the face to appear, or
-when generating a person somewhere in the image.
+of a face. It's best not to crop too closely, a bit of padding is fine. 
+
+<SideBySide img1="control-layers/face-control" img2="control-layers/face-image" />
 
 ### Structural images
 
@@ -134,9 +138,13 @@ be generated or drawn by hand.
 
 #### <PluginIcon name="control-soft_edge" simple format="png" /> Soft Edge
 
+<SideBySide img1="control-layers/soft_edge-control" img2="control-layers/soft_edge-image" />
+
 #### <PluginIcon name="control-canny_edge" simple format="png" /> Canny Edge
 Canny edge input is usually generated from existing images
 using the Canny edge detection filter.
+
+<SideBySide img1="control-layers/canny_edge-control" img2="control-layers/canny_edge-image" />
 
 #### <PluginIcon name="control-depth" simple format="png" /> Depth
 Depth and normal maps can be rendered from 3D scenes in software like Blender.
@@ -144,6 +152,8 @@ Depth and normal maps can be rendered from 3D scenes in software like Blender.
 <SideBySide img1="control-layers/depth-control" img2="control-layers/depth-image" />
 
 #### <PluginIcon name="control-normal" simple format="png" /> Normal
+
+<SideBySide img1="control-layers/normal-control" img2="control-layers/normal-image" />
 
 #### <PluginIcon name="control-pose" simple /> Pose
 Pose uses OpenPose stick figures to represent persons. It can be edited with Krita's
@@ -153,13 +163,19 @@ vector tools.
 
 #### <PluginIcon name="control-segmentation" simple /> Segmentation
 
+<SideBySide img1="control-layers/segmentation-control" img2="control-layers/segmentation-image" />
+
 #### <PluginIcon name="control-blur" simple /> Unblur
 The control input is a blurred version of an image. At high strength the result will
 be very similar to the input, but less blurry (if resolution allows). In combination
 with advanced options this can also be used to generate faithful copies of an image
-with slight modifications.
+while allowing certain limited modifications.
+
+<SideBySide img1="control-layers/unblur-control" img2="control-layers/unblur-image" />
 
 #### <PluginIcon name="control-stencil" simple /> Stencil
 The input is a black and white image. It acts as a pattern which is imprinted on the
 generated image. Originally this was used for creative ways to represent QR codes.
 
+<SideBySide img1="control-layers/stencil-control" img2="control-layers/stencil-image" />
+_Hint: Stepping away from the screen or squinting might help to see the effect._
