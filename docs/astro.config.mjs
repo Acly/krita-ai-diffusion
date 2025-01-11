@@ -31,6 +31,7 @@ export default defineConfig({
 						{ label: 'First Steps', slug: 'basics' },
 						{ label: 'Selection Fill', slug: 'selections' },
 						{ label: 'Text Prompts', slug: 'prompts' },
+						{ label: 'Control Layers', slug: 'control-layers' },
 						{ label: 'Regions', slug: 'regions' },
 						{ label: 'Samplers', slug: 'samplers' },
 						{ label: 'Custom Graphs', slug: 'custom-graph' },
