@@ -71,7 +71,7 @@ class Arch(Enum):
     sd3 = "SD 3"
     flux = "Flux"
     illu = "Illustrious"
-    illu_v = "Illustrious V-Prediction"
+    illu_v = "Illustrious v-prediction"
 
     auto = "Automatic"
     all = "All"

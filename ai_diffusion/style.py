@@ -18,7 +18,12 @@ class StyleSettings:
     name = Setting(_("Name"), _("Default Style"))
     version = Setting("Version", 2)
 
-    architecture = Setting(_("Diffusion Model Architecture"), Arch.auto)
+    architecture = Setting(
+        _("Diffusion Architecture"),
+        Arch.auto,
+        _("The base model ecosystem which the selected checkpoint belongs to."),
+        items=[Arch.auto] + Arch.list(),
+    )
 
     checkpoints = Setting(
         _("Model Checkpoint"),
