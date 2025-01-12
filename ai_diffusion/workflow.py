@@ -109,7 +109,7 @@ def load_checkpoint_with_lora(w: ComfyWorkflow, checkpoint: CheckpointInput, mod
         match arch:
             case Arch.sd15:
                 clip = w.load_clip(te["clip_l"], "stable_diffusion")
-            case Arch.sdxl:
+            case Arch.sdxl | Arch.illu | Arch.illu_v:
                 clip = w.load_dual_clip(te["clip_g"], te["clip_l"], type="sdxl")
             case Arch.sd3:
                 if te.find("t5"):
@@ -1308,7 +1308,7 @@ def prepare(
         if style.preferred_resolution > 0:
             tile_size = style.preferred_resolution
         else:
-            tile_size = 1024 if arch is Arch.sdxl else 800
+            tile_size = 1024 if arch.is_sdxl_like else 800
         tile_size = max(tile_size, target_extent.longest_side // 12)  # max 12x12 tiles total
         tile_size = multiple_of(tile_size - 128, 8)
         tile_size = Extent(tile_size, tile_size)

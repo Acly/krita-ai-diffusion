@@ -223,7 +223,7 @@ class WorkflowInput:
 def _base_cost(arch: Arch):
     if arch is Arch.sd15:
         return 1
-    if arch is Arch.sdxl:
+    if arch.is_sdxl_like:
         return 2
     if arch is Arch.flux:
         return 4

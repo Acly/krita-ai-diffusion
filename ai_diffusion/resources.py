@@ -7,7 +7,7 @@ from typing import Any, NamedTuple, Sequence
 
 # Version identifier for all the resources defined here. This is used as the server version.
 # It usually follows the plugin version, but not all new plugin versions also require a server update.
-version = "1.29.1"
+version = "1.30.0"
 
 comfy_url = "https://github.com/comfyanonymous/ComfyUI"
 comfy_version = "bf2650a80e5a7a888da206eab45c53dbb22940f7"
@@ -70,20 +70,28 @@ class Arch(Enum):
     sdxl = "SD XL"
     sd3 = "SD 3"
     flux = "Flux"
+    illu = "Illustrious"
+    illu_v = "Illustrious V-Prediction"
 
     auto = "Automatic"
     all = "All"
 
     @staticmethod
-    def from_string(string: str):
+    def from_string(string: str, model_type: str = "eps"):
         if string == "sd15":
             return Arch.sd15
-        if string == "sdxl":
+        if string == "sdxl" and model_type == "v-prediction":
+            return Arch.illu_v
+        elif string == "sdxl":
             return Arch.sdxl
         if string == "sd3":
             return Arch.sd3
         if string == "flux" or string == "flux-schnell":
             return Arch.flux
+        if string == "illu":
+            return Arch.illu
+        if string == "illu_v":
+            return Arch.illu_v
         return None
 
     @staticmethod
@@ -118,18 +126,23 @@ class Arch(Enum):
 
     @property
     def supports_clip_skip(self):
-        return self in [Arch.sd15, Arch.sdxl]
+        return self in [Arch.sd15, Arch.sdxl, Arch.illu, Arch.illu_v]
 
     @property
     def supports_attention_guidance(self):
-        return self in [Arch.sd15, Arch.sdxl]
+        return self in [Arch.sd15, Arch.sdxl, Arch.illu, Arch.illu_v]
+
+    @property
+    def is_sdxl_like(self):
+        # illustrious technically uses sdxl architecture, but has a separate ecosystem
+        return self in [Arch.sdxl, Arch.illu, Arch.illu_v]
 
     @property
     def text_encoders(self):
         match self:
             case Arch.sd15:
                 return ["clip_l"]
-            case Arch.sdxl:
+            case Arch.sdxl | Arch.illu | Arch.illu_v:
                 return ["clip_l", "clip_g"]
             case Arch.sd3:
                 return ["clip_l", "clip_g"]
@@ -139,7 +152,7 @@ class Arch(Enum):
 
     @staticmethod
     def list():
-        return [Arch.sd15, Arch.sdxl, Arch.sd3, Arch.flux]
+        return [Arch.sd15, Arch.sdxl, Arch.sd3, Arch.flux, Arch.illu, Arch.illu_v]
 
     @staticmethod
     def list_strings():
@@ -481,7 +494,7 @@ search_paths: dict[str, list[str]] = {
     resource_id(ResourceKind.vae, Arch.sd15, "default"): ["vae-ft-mse-840000-ema"],
     resource_id(ResourceKind.vae, Arch.sdxl, "default"): ["sdxl_vae"],
     resource_id(ResourceKind.vae, Arch.sd3, "default"): ["sd3"],
-    resource_id(ResourceKind.vae, Arch.flux, "default"): ["ae.s"],
+    resource_id(ResourceKind.vae, Arch.flux, "default"): ["flux", "ae.s"],
 }
 # fmt: on
 

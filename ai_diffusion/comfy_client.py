@@ -401,7 +401,7 @@ class ComfyClient(Client):
             parsed = (
                 (
                     filename,
-                    Arch.from_string(info["base_model"]),
+                    Arch.from_string(info["base_model"], info.get("type", "eps")),
                     info.get("is_inpaint", False),
                     info.get("is_refiner", False),
                 )
@@ -596,7 +596,7 @@ def _find_model(
 
     matches = (m for p in search_paths for m in model_list if match(m, p))
     # if there are multiple matches, prefer the one with "krita" in the path
-    prio = sorted(matches, key=lambda m: 0 if "krita" in m else 1)
+    prio = sorted(matches, key=lambda m: 0 if "krita" in m else len(m))
     found = next(iter(prio), None)
     model_id = identifier.name if isinstance(identifier, Enum) else identifier
     model_name = f"{kind.value} {model_id}"
