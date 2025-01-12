@@ -274,11 +274,11 @@ class ComboBoxSetting(SettingWidget):
         self._combo = QComboBox(self)
         if model is not None:
             self._combo.setModel(model)
+        elif setting.items:
+            self.set_items(setting.items)
         elif isinstance(setting.default, Enum):
             self._enum_type = type(setting.default)
             self.set_items(self._enum_type)
-        elif setting.items:
-            self.set_items(setting.items)
 
         self._combo.setMinimumWidth(230)
         self._combo.activated.connect(self._change_value)
@@ -295,6 +295,9 @@ class ComboBoxSetting(SettingWidget):
             for name in items:
                 if isinstance(name, str):
                     self._combo.addItem(name, name)
+                elif isinstance(name, Enum):
+                    self._combo.addItem(name.value, name.name)
+                    self._enum_type = type(name)
                 elif len(name) == 2:
                     self._combo.addItem(name[0], name[1])
                 elif len(name) == 3:

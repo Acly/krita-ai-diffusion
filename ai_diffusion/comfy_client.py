@@ -169,6 +169,7 @@ class ComfyClient(Client):
         # Check supported SD versions and make sure there is at least one
         missing = {ver: client._check_workload(ver) for ver in Arch.list()}
         client._supported_archs = [ver for ver, miss in missing.items() if len(miss) == 0]
+        log.info("Supported workloads: " + ", ".join(ver.value for ver in client._supported_archs))
         if len(client._supported_archs) == 0:
             raise missing[Arch.sd15][0]
 
@@ -542,11 +543,9 @@ class ComfyClient(Client):
             if models.find(id) is None:
                 missing.append(MissingResource(id.kind, [id]))
         has_checkpoint = any(cp.arch is sdver for cp in models.checkpoints.values())
-        if not has_checkpoint:
+        if not has_checkpoint and sdver not in [Arch.illu, Arch.illu_v]:
             missing.append(MissingResource(ResourceKind.checkpoint, [sdver.value]))
-        if len(missing) == 0:
-            log.info(f"{sdver.value}: supported")
-        else:
+        if len(missing) > 0:
             log.info(f"{sdver.value}: missing {len(missing)} models")
         return missing
 

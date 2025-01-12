@@ -630,7 +630,8 @@ class StylePresets(SettingsTab):
         self._layout.addWidget(checkpoint_advanced)
 
         self._checkpoint_advanced_widgets = [
-            add("vae", ComboBoxSetting(StyleSettings.vae, parent=self))
+            add("architecture", ComboBoxSetting(StyleSettings.architecture, parent=self)),
+            add("vae", ComboBoxSetting(StyleSettings.vae, parent=self)),
         ]
 
         self._clip_skip = add("clip_skip", SpinBoxSetting(StyleSettings.clip_skip, self, 0, 12))
