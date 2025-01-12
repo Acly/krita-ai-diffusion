@@ -164,7 +164,7 @@ class ModelDict:
         return self._models.resource(self.kind, key, self.arch)
 
     def find(self, key: ControlMode | UpscalerName | str, allow_universal=False) -> str | None:
-        is_sd = self.arch in [Arch.sd15, Arch.sdxl]
+        is_sd = self.arch is Arch.sd15 or self.arch.is_sdxl_like
         if key in [ControlMode.style, ControlMode.composition] and is_sd:
             key = ControlMode.reference  # Same model with different weight types
         result = self._models.find(ResourceId(self.kind, self.arch, key))

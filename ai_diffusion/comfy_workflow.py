@@ -306,9 +306,9 @@ class ComfyWorkflow:
         self, model: Output, scheduler="normal", steps=20, model_version=Arch.sdxl
     ):
         if scheduler in ("align_your_steps", "ays"):
-            assert model_version in (Arch.sd15, Arch.sdxl)
+            assert model_version is Arch.sd15 or model_version.is_sdxl_like
 
-            if model_version == Arch.sd15:
+            if model_version is Arch.sd15:
                 model_type = "SD1"
             else:
                 model_type = "SDXL"

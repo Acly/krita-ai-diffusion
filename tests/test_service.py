@@ -160,6 +160,8 @@ cost_params = {
     "upscale-tiled": (Arch.sd15, 1, 512, 512, 10),
     "upscale-tiled-2": (Arch.sd15, 1, 320, 640, 10),
     "upscaled-invalid": (Arch.sd15, 1, 512, 512, 10),
+    "illustrious": (Arch.illu, 2, 1024, 1024, 20),
+    "illustrious-v": (Arch.illu_v, 2, 1024, 1024, 20),
 }
 
 

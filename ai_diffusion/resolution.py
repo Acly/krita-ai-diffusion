@@ -142,14 +142,15 @@ class CheckpointResolution(NamedTuple):
     max_scale: float
 
     @staticmethod
-    def compute(extent: Extent, sd_ver: Arch, style: Style | None = None):
+    def compute(extent: Extent, arch: Arch, style: Style | None = None):
+        arch = Arch.sdxl if arch.is_sdxl_like else arch
         if style is None or style.preferred_resolution == 0:
             min_size, max_size, min_pixel_count, max_pixel_count = {
                 Arch.sd15: (512, 768, 512**2, 512 * 768),
                 Arch.sdxl: (640, 1280, 800**2, 1024**2),
                 Arch.sd3: (512, 1536, 512**2, 1536**2),
                 Arch.flux: (256, 2048, 512**2, 2048**2),
-            }[sd_ver]
+            }[arch]
         else:
             range_offset = multiple_of(round(0.2 * style.preferred_resolution), 8)
             min_size = style.preferred_resolution - range_offset
