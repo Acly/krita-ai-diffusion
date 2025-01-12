@@ -9,28 +9,32 @@ hero:
   actions:
     - text: Installation
       link: /installation
-      icon: right-arrow
+      icon: download
     - text: First Steps
       link: /basics
       icon: right-arrow
       variant: secondary
 ---
 
-import { Card, CardGrid } from '@astrojs/starlight/components';
+import { Card, CardGrid, Icon } from '@astrojs/starlight/components';
+import ExternalLink from '../../components/ExternalLink.astro';
 
-## Next steps
-
-<CardGrid stagger>
-	<Card title="Update content" icon="pencil">
-		Edit `src/content/docs/index.mdx` to see this page change.
+<div class="front-cards">
+	<div>
+		<Card title="Guides" icon="open-book">
+			Learn about key concepts:
+			- [Selection Fill](/selection-fill): generative fill, expand, remove content
+			- [Control Layers](/control-layers): guide generation with sketches, 3D scenes, and more
+			- [Regions](/regions): assign prompts to specific layers and areas
+		</Card>
+		<Card title="Community & Links" icon="seti:favicon">
+			- <Icon name="discord" class="inline-icon" /> [Discord](https://discord.gg/pWyzHfHHhU)
+			- 🗪 <ExternalLink href="https://github.com/Acly/krita-ai-diffusion/discussions">Discussions</ExternalLink>
+			- 🐞 <ExternalLink href="https://github.com/Acly/krita-ai-diffusion/issues">Issues</ExternalLink>
+			- 📦 <ExternalLink href="https://github.com/Acly/krita-ai-diffusion/releases">Release change log</ExternalLink>
+		</Card>
+	</div>
+	<Card title="Resources" icon="seti:video">
+		Tutorials and videos made by users.
 	</Card>
-	<Card title="Add new content" icon="add-document">
-		Add Markdown or MDX files to `src/content/docs` to create new pages.
-	</Card>
-	<Card title="Configure your site" icon="setting">
-		Edit your `sidebar` and other config in `astro.config.mjs`.
-	</Card>
-	<Card title="Read the docs" icon="open-book">
-		Learn more in [the Starlight Docs](https://starlight.astro.build/).
-	</Card>
-</CardGrid>
+</div>

@@ -13,12 +13,13 @@
 	--sl-color-gray-5: #3a3836;
 	--sl-color-gray-6: #292624;
 	--sl-color-black: #191817;
-	
+
 	--sl-hue-purple: 18;
 	--sl-hue-blue: 190;
 
 	/* Overwrite default starlight handling of images for inline icons. */
-	[data-icon] {
+	[data-icon],
+	.inline-icon {
 		display: inline !important;
 		margin-bottom: 0 !important;
 		margin-top: 0 !important;
@@ -26,6 +27,7 @@
 		vertical-align: baseline;
 	}
 }
+
 /* Light mode colors. */
 :root[data-theme='light'] {
 	--sl-color-accent-low: #f0d0b4;
@@ -41,9 +43,19 @@
 	--sl-color-gray-7: #f7f6f6;
 	--sl-color-black: #ffffff;
 
-	.plugin-icon > svg {
+	.plugin-icon>svg {
 		filter: invert(1);
 	}
+}
+
+.front-cards {
+	display: flex;
+	gap: 1rem;
+}
+
+.front-cards ul {
+	list-style: none;
+	padding-left: 0;
 }
 
 span.soft {
@@ -78,14 +90,14 @@ span.sep {
 	margin-top: 0rem !important;
 }
 
-.model-table .filters > div {
+.model-table .filters>div {
 	display: flex;
 	margin: 0.3rem 0;
 	border: none;
 	padding: 0;
 }
 
-.model-table .filters > div > div {
+.model-table .filters>div>div {
 	margin-top: 0;
 }
 
