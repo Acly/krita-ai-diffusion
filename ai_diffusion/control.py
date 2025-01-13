@@ -7,7 +7,7 @@ import json
 from . import model, jobs, resources, util
 from .api import ControlInput
 from .layer import Layer, LayerType
-from .resources import ControlMode, ResourceKind, Arch
+from .resources import ControlMode, ResourceKind, Arch, resource_id
 from .properties import Property, ObservableProperties
 from .image import Bounds
 from .localization import translate as _
@@ -126,6 +126,15 @@ class ControlLayer(QObject, ObservableProperties):
         is_supported = True
         if client := root.connection.client_if_connected:
             models = client.models.for_arch(self._model.arch)
+            if self.mode.is_ip_adapter and models.arch in [Arch.illu, Arch.illu_v]:
+                resid = resource_id(ResourceKind.clip_vision, Arch.illu, "ip_adapter")
+                has_clip_vision = client.models.resources.get(resid, None) is not None
+                if not has_clip_vision:
+                    search = resources.search_path(
+                        ResourceKind.clip_vision, Arch.illu, "ip_adapter"
+                    )
+                    self.error_text = _("The server is missing the ClipVision model") + f" {search}"
+                    is_supported = False
             if self.mode.is_ip_adapter and models.ip_adapter.find(self.mode) is None:
                 search_path = resources.search_path(ResourceKind.ip_adapter, models.arch, self.mode)
                 if search_path:

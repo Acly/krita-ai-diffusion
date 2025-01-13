@@ -650,9 +650,11 @@ def _find_clip_vision_model(model_list: Sequence[str]):
     if model is None:
         raise MissingResource(ResourceKind.clip_vision, resources.search_path(*clip_vision_sd))
     clip_vision_flux = ResourceId(ResourceKind.clip_vision, Arch.flux, "redux")
+    clip_vision_illu = ResourceId(ResourceKind.clip_vision, Arch.illu, "ip_adapter")
     return {
         clip_vision_sd.string: model,
         clip_vision_flux.string: find_model(model_list, clip_vision_flux),
+        clip_vision_illu.string: find_model(model_list, clip_vision_illu),
     }
 
 

@@ -11,7 +11,7 @@ from .api import ControlInput, ImageInput, CheckpointInput, SamplingInput, Workf
 from .api import ExtentInput, InpaintMode, InpaintParams, FillMode, ConditioningInput, WorkflowKind
 from .api import RegionInput, CustomWorkflowInput
 from .image import Bounds, Extent, Image, Mask, Point, multiple_of
-from .client import ClientModels, ModelDict
+from .client import ClientModels, ModelDict, resolve_arch
 from .files import FileLibrary, FileFormat
 from .style import Style, StyleSettings, SamplerPresets
 from .resolution import ScaledExtent, ScaleMode, TileLayout, get_inpaint_reference
@@ -1248,7 +1248,7 @@ def prepare(
     i.models = style.get_models(models.checkpoints.keys())
     i.conditioning.positive += _collect_lora_triggers(i.models.loras, files)
     i.models.loras = unique(i.models.loras + extra_loras, key=lambda l: l.name)
-    arch = i.models.version = models.arch_of(i.models.checkpoint)
+    arch = i.models.version = resolve_arch(style, models)
 
     _check_server_has_models(i.models, i.conditioning.regions, models, files, style.name)
     _check_inpaint_model(inpaint, arch, models)
@@ -1367,7 +1367,7 @@ def create(i: WorkflowInput, models: ClientModels, comfy_mode=ComfyRunMode.serve
             Conditioning.from_input(ensure(i.conditioning)),
             ensure(i.sampling),
             misc,
-            models.for_checkpoint(ensure(i.models).checkpoint),
+            models.for_arch(ensure(i.models).version),
         )
     elif i.kind is WorkflowKind.inpaint:
         return inpaint(
@@ -1379,7 +1379,7 @@ def create(i: WorkflowInput, models: ClientModels, comfy_mode=ComfyRunMode.serve
             ensure(i.inpaint),
             ensure(i.crop_upscale_extent),
             misc,
-            models.for_checkpoint(ensure(i.models).checkpoint),
+            models.for_arch(ensure(i.models).version),
         )
     elif i.kind is WorkflowKind.refine:
         return refine(
@@ -1390,7 +1390,7 @@ def create(i: WorkflowInput, models: ClientModels, comfy_mode=ComfyRunMode.serve
             Conditioning.from_input(ensure(i.conditioning)),
             ensure(i.sampling),
             misc,
-            models.for_checkpoint(ensure(i.models).checkpoint),
+            models.for_arch(ensure(i.models).version),
         )
     elif i.kind is WorkflowKind.refine_region:
         return refine_region(
@@ -1401,7 +1401,7 @@ def create(i: WorkflowInput, models: ClientModels, comfy_mode=ComfyRunMode.serve
             ensure(i.sampling),
             ensure(i.inpaint),
             misc,
-            models.for_checkpoint(ensure(i.models).checkpoint),
+            models.for_arch(ensure(i.models).version),
         )
     elif i.kind is WorkflowKind.upscale_simple:
         return upscale_simple(workflow, i.image, i.upscale_model, i.upscale_factor)
@@ -1415,7 +1415,7 @@ def create(i: WorkflowInput, models: ClientModels, comfy_mode=ComfyRunMode.serve
             ensure(i.sampling),
             i.upscale_model,
             misc,
-            models.for_checkpoint(ensure(i.models).checkpoint),
+            models.for_arch(ensure(i.models).version),
         )
     elif i.kind is WorkflowKind.control_image:
         return create_control_image(

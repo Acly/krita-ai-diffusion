@@ -55,7 +55,7 @@ class ControlWidget(QWidget):
         self.preset_slider.setToolTip(_("Control strength: how much the layer affects the image"))
 
         self.error_text = QLabel(self)
-        self.error_text.setStyleSheet(f"color: {theme.yellow};")
+        self.error_text.setStyleSheet(f"QLabel {{ color: {theme.yellow}; }}")
         self.error_text.setVisible(not control.is_supported)
         self._set_error(control.error_text)
 
@@ -279,7 +279,7 @@ class ControlWidget(QWidget):
         self.error_text.setText(parts[0])
         if len(parts) > 1:
             self.error_text.setToolTip(
-                _("Missing one of the following models") + f": {parts[1][:-1]}"
+                _("Required model not found, searching for") + f": {parts[1][:-1]}"
             )
 
 

@@ -126,6 +126,11 @@ class ClientModels:
     def find(self, id: ResourceId):
         if result := self.resources.get(id.string):
             return result
+        # Fallback to epsilon model if v-prediction model not found
+        if id.arch is Arch.illu_v:
+            if result := self.resources.get(id._replace(arch=Arch.illu).string):
+                return result
+        # Search for architecture-agnostic model
         return self.resources.get(id._replace(arch=Arch.all).string)
 
     def arch_of(self, checkpoint: str):
@@ -135,9 +140,6 @@ class ClientModels:
 
     def for_arch(self, arch: Arch):
         return ModelDict(self, ResourceKind.upscaler, arch)
-
-    def for_checkpoint(self, checkpoint: str):
-        return self.for_arch(self.arch_of(checkpoint))
 
     @property
     def upscale(self):
@@ -164,10 +166,13 @@ class ModelDict:
         return self._models.resource(self.kind, key, self.arch)
 
     def find(self, key: ControlMode | UpscalerName | str, allow_universal=False) -> str | None:
+        # Composition/Style modes use same IP-Adapter model as Reference with different weighting
         is_sd = self.arch is Arch.sd15 or self.arch.is_sdxl_like
         if key in [ControlMode.style, ControlMode.composition] and is_sd:
-            key = ControlMode.reference  # Same model with different weight types
+            key = ControlMode.reference
+
         result = self._models.find(ResourceId(self.kind, self.arch, key))
+        # Fallback to universal model if not found
         if result is None and allow_universal and isinstance(key, ControlMode):
             result = self.find(ControlMode.universal)
         return result
@@ -304,12 +309,13 @@ class Client(ABC):
         await self.disconnect()
 
 
-def resolve_arch(style: Style, client: Client | None = None):
+def resolve_arch(style: Style, client: Client | ClientModels | None = None):
     if style.architecture is Arch.auto:
         if client:
-            checkpoint = style.preferred_checkpoint(client.models.checkpoints.keys())
+            models = client.models if isinstance(client, Client) else client
+            checkpoint = style.preferred_checkpoint(models.checkpoints.keys())
             if checkpoint != "not-found":
-                return client.models.arch_of(checkpoint)
+                return models.arch_of(checkpoint)
         if style.checkpoints:
             return style.architecture.resolve(style.checkpoints[0])
     return style.architecture
