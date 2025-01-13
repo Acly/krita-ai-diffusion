@@ -175,19 +175,21 @@ class PromptAutoComplete:
 
             with tag_path.open("r", encoding="utf-8") as f:
                 csv_reader = csv.reader(f)
-                # skip header line
-                next(csv_reader)
                 for tag, type_str, count, _aliases in csv_reader:
-                    tag = tag.replace("_", " ")
-                    tag_type = TagType(int(type_str))
-                    count = int(count)
-                    count_str = str(count)
-                    if count > 1_000_000:
-                        count_str = f"{count/1_000_000:.0f}m"
-                    elif count > 1_000:
-                        count_str = f"{count/1_000:.0f}k"
-                    meta = f"{tag_name} {count_str}"
-                    all_tags.append(TagItem(tag, tag_type, count, meta))
+                    if type_str.isdigit(): # skip header rows if they exist
+                        tag = tag.replace("_", " ")
+                        try:
+                            tag_type = TagType(int(type_str))
+                        except: # default to general category if category is not recognised
+                            tag_type = TagType(0)
+                        count = int(count)
+                        count_str = str(count)
+                        if count > 1_000_000:
+                            count_str = f"{count/1_000_000:.0f}m"
+                        elif count > 1_000:
+                            count_str = f"{count/1_000:.0f}k"
+                        meta = f"{tag_name} {count_str}"
+                        all_tags.append(TagItem(tag, tag_type, count, meta))
 
         sorted_tags = sorted(all_tags, key=lambda x: x.count, reverse=True)
         seen = set()
