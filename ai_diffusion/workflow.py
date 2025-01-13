@@ -1242,6 +1242,7 @@ def prepare(
     for idx, region in enumerate(i.conditioning.regions):
         assert region.mask or idx == 0, "Only the first/bottom region can be without a mask"
         region.positive, region.loras = extract_loras(region.positive, files.loras)
+        region.loras = [l for l in region.loras if l not in extra_loras]
     i.sampling = _sampling_from_style(style, strength, is_live)
     i.sampling.seed = seed
     i.models = style.get_models(models.checkpoints.keys())
