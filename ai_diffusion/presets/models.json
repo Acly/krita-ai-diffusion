@@ -217,6 +217,16 @@
           "url": "https://huggingface.co/Comfy-Org/flux1-schnell/resolve/main/flux1-schnell-fp8.safetensors"
         }
       ]
+    },
+    {
+      "id": "checkpoint-noobai-illu_v",
+      "name": "NoobAI XL/v (Illustrious - Anime)",
+      "files": [
+        {
+          "path": "models/checkpoints/NoobAI-XL-Vpred-v1.0.safetensors",
+          "url": "https://huggingface.co/Laxhar/noobai-XL-Vpred-1.0/resolve/main/NoobAI-XL-Vpred-v1.0.safetensors"
+        }
+      ]
     }
   ],
   "upscale": [
@@ -433,6 +443,106 @@
         {
           "path": "models/style_models/flux1-redux-dev.safetensors",
           "url": "https://files.interstice.cloud/models/flux1-redux-dev.safetensors"
+        }
+      ]
+    },
+    {
+      "id": "controlnet-scribble-illu",
+      "name": "ControlNet Scribble (Illustrious)",
+      "files": [
+        {
+          "path": "models/controlnet/noob-sdxl-controlnet-scribble_pidinet.fp16.safetensors",
+          "url": "https://huggingface.co/Eugeoter/noob-sdxl-controlnet-scribble_pidinet/resolve/main/diffusion_pytorch_model.fp16.safetensors"
+        }
+      ]
+    },
+    {
+      "id": "controlnet-line_art-illu",
+      "name": "ControlNet Line Art (Illustrious)",
+      "files": [
+        {
+          "path": "models/controlnet/noob-sdxl-controlnet-lineart_anime.fp16.safetensors",
+          "url": "https://huggingface.co/Eugeoter/noob-sdxl-controlnet-lineart_anime/resolve/main/diffusion_pytorch_model.fp16.safetensors"
+        }
+      ]
+    },
+    {
+      "id": "controlnet-soft_edge-illu",
+      "name": "ControlNet Soft Edge (Illustrious)",
+      "files": [
+        {
+          "path": "models/controlnet/noob-sdxl-controlnet-softedge_hed.fp16.safetensors",
+          "url": "https://huggingface.co/Eugeoter/noob-sdxl-controlnet-softedge_hed/resolve/main/diffusion_pytorch_model.fp16.safetensors"
+        }
+      ]
+    },
+    {
+      "id": "controlnet-canny_edge-illu",
+      "name": "ControlNet Canny (Illustrious)",
+      "files": [
+        {
+          "path": "models/controlnet/noob_sdxl_controlnet_canny.fp16.safetensors",
+          "url": "https://huggingface.co/Eugeoter/noob-sdxl-controlnet-canny/resolve/main/noob_sdxl_controlnet_canny.fp16.safetensors"
+        }
+      ]
+    },
+    {
+      "id": "controlnet-depth-illu",
+      "name": "ControlNet Depth (Illustrious)",
+      "files": [
+        {
+          "path": "models/controlnet/noob-sdxl-controlnet-depth_midas-v1-1.fp16.safetensors",
+          "url": "https://huggingface.co/Eugeoter/noob-sdxl-controlnet-depth_midas-v1-1/resolve/main/diffusion_pytorch_model.fp16.safetensors"
+        }
+      ]
+    },
+    {
+      "id": "controlnet-normal-illu",
+      "name": "ControlNet Normal (Illustrious)",
+      "files": [
+        {
+          "path": "models/controlnet/noob-sdxl-controlnet-normal.fp16.safetensors",
+          "url": "https://huggingface.co/Eugeoter/noob-sdxl-controlnet-normal/resolve/main/diffusion_pytorch_model.fp16.safetensors"
+        }
+      ]
+    },
+    {
+      "id": "controlnet-pose-illu",
+      "name": "ControlNet Pose (Illustrious)",
+      "files": [
+        {
+          "path": "models/controlnet/noobaiXLControlnet_openposeModel.safetensors",
+          "url": "https://huggingface.co/Laxhar/noob_openpose/resolve/main/openpose_pre.safetensors"
+        }
+      ]
+    },
+    {
+      "id": "controlnet-blur-illu",
+      "name": "ControlNet Unblur (Illustrious)",
+      "files": [
+        {
+          "path": "models/controlnet/noob-sdxl-controlnet-tile.fp16.safetensors",
+          "url": "https://huggingface.co/Eugeoter/noob-sdxl-controlnet-tile/resolve/main/diffusion_pytorch_model.fp16.safetensors"
+        }
+      ]
+    },
+    {
+      "id": "clip_vision-ip_adapter-illu",
+      "name": "CLIP Vision G",
+      "files": [
+        {
+          "path": "models/clip_vision/clip-vision_vit-g.safetensors",
+          "url": "https://huggingface.co/h94/IP-Adapter/resolve/main/sdxl_models/image_encoder/model.safetensors"
+        }
+      ]
+    },
+    {
+      "id": "ip_adapter-reference-illu",
+      "name": "IP-Adapter (Illustrious)",
+      "files": [
+        {
+          "path": "models/ipadapter/noobIPAMARK1_mark1.safetensors",
+          "url": "https://huggingface.co/r3gm/noob-ipa/resolve/main/model_G/noobIPAMARK1_mark1.safetensors"
         }
       ]
     }

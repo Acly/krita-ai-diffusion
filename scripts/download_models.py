@@ -152,7 +152,7 @@ async def main(
             models.update([m for m in required_models if m.kind is ResourceKind.upscaler])
             models.update(resources.upscale_models)
         if controlnet or recommended or all:
-            kinds = [ResourceKind.controlnet, ResourceKind.ip_adapter]
+            kinds = [ResourceKind.controlnet, ResourceKind.ip_adapter, ResourceKind.clip_vision]
             models.update([m for m in optional_models if m.kind in kinds and m.arch in versions])
         if prefetch or all:
             models.update(resources.prefetch_models)
@@ -230,6 +230,7 @@ if __name__ == "__main__":
             sd15=args.sd15,
             sdxl=args.sdxl,
             flux=args.flux,
+            illu=args.illu,
             upscalers=args.upscalers,
             checkpoints=checkpoints,
             controlnet=args.controlnet,
