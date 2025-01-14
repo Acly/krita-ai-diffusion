@@ -3,8 +3,8 @@
 	--sl-content-width: 800px;
 
 	--sl-color-accent-low: #371c00;
-	--sl-color-accent: #985800;
-	--sl-color-accent-high: #eabf9a;
+	--sl-color-accent: rgb(234, 155, 66);
+	--sl-color-accent-high: rgb(245, 179, 88);
 	--sl-color-white: #ffffff;
 	--sl-color-gray-1: #efedec;
 	--sl-color-gray-2: #c3c1c0;
@@ -30,9 +30,9 @@
 
 /* Light mode colors. */
 :root[data-theme='light'] {
-	--sl-color-accent-low: #f0d0b4;
-	--sl-color-accent: #9b5900;
-	--sl-color-accent-high: #4b2900;
+	--sl-color-accent-low: rgb(240, 169, 142);
+	--sl-color-accent: rgb(143, 95, 75);
+	--sl-color-accent-high: #4b1500;
 	--sl-color-white: #191817;
 	--sl-color-gray-1: #292624;
 	--sl-color-gray-2: #3a3836;
@@ -40,8 +40,8 @@
 	--sl-color-gray-4: #8e8b89;
 	--sl-color-gray-5: #c3c1c0;
 	--sl-color-gray-6: #efedec;
-	--sl-color-gray-7: #f7f6f6;
-	--sl-color-black: #ffffff;
+	--sl-color-gray-7: #d7dce0;
+	--sl-color-black: #e6eaee;
 
 	.plugin-icon>svg {
 		filter: invert(1);

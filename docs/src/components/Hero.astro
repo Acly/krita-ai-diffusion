@@ -1,0 +1,109 @@
+---
+import Image from "astro/components/Image.astro";
+import { LinkButton } from "@astrojs/starlight/components";
+
+import darkImage from "../assets/ink-lake-v-low-dark.webp";
+import lightImage from "../assets/ink-lake-v-low-light.webp";
+---
+
+<div class="hero">
+  <Image src={darkImage} alt="Splash image" class="light:sl-hidden" />
+  <Image src={lightImage} alt="Splash image" class="dark:sl-hidden" />
+  <div class="sl-flex stack">
+    <div class="sl-flex copy">
+      <h1 data-page-title>Generative AI for Krita</h1>
+      <div class="tagline">
+        Guides and documentation for working with the Krita AI Diffusion plugin
+      </div>
+    </div>
+    <div class="sl-flex actions">
+      <LinkButton href="/installation" icon="right-arrow"
+        >Installation
+      </LinkButton>
+      <LinkButton href="/basics" variant="secondary" icon="right-arrow"
+        >First Steps
+      </LinkButton>
+    </div>
+  </div>
+</div>
+
+<style>
+  .hero {
+    display: grid;
+    align-items: center;
+  }
+
+  .hero > img {
+    object-fit: contain;
+    width: min(70%, 20rem);
+    height: auto;
+    margin-inline: auto;
+  }
+
+  .stack {
+    flex-direction: column;
+    gap: clamp(1.5rem, calc(1.5rem + 1vw), 2rem);
+    text-align: center;
+  }
+
+  .copy {
+    flex-direction: column;
+    gap: 1rem;
+    align-items: center;
+  }
+
+  .copy > * {
+    max-width: 50ch;
+  }
+
+  h1 {
+    font-size: clamp(
+      var(--sl-text-3xl),
+      calc(0.25rem + 4vw),
+      var(--sl-text-6xl)
+    );
+    line-height: var(--sl-line-height-headings);
+    font-weight: 600;
+    color: var(--sl-color-white);
+  }
+
+  .tagline {
+    font-size: clamp(
+      var(--sl-text-base),
+      calc(0.0625rem + 2vw),
+      var(--sl-text-xl)
+    );
+    color: var(--sl-color-gray-2);
+  }
+
+  .actions {
+    gap: 1rem 2rem;
+    flex-wrap: wrap;
+    justify-content: center;
+  }
+
+  @media (min-width: 50rem) {
+    .hero {
+      grid-template-columns: 7fr 4fr;
+      padding-block: clamp(2.5rem, calc(1rem + 5vmin), 8rem);
+    }
+
+    .hero > img {
+      order: 2;
+      width: min(100%, 35rem);
+      margin-left: -5rem;
+    }
+
+    .stack {
+      text-align: start;
+    }
+
+    .copy {
+      align-items: flex-start;
+    }
+
+    .actions {
+      justify-content: flex-start;
+    }
+  }
+</style>
