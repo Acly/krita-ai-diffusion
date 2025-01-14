@@ -30,7 +30,7 @@ from ..connection import ConnectionState
 from ..root import root
 from ..localization import translate as _
 from .. import eventloop, resources, server, util
-from .theme import add_header, set_text_clipped, green, grey, red, yellow, highlight
+from .theme import SignalBlocker, add_header, set_text_clipped, green, grey, red, yellow, highlight
 
 
 class PackageState(Enum):
@@ -156,15 +156,18 @@ class PackageGroupWidget(QWidget):
                 elif item.state is PackageState.disabled:
                     item.status.setText(_("Workload not selected"))
                     item.status.setStyleSheet(f"color:{grey}")
-                item.status.setChecked(
-                    item.state in [PackageState.selected, PackageState.installed]
-                )
-                item.status.setEnabled(item.state is not PackageState.disabled)
+                with SignalBlocker(item.status):
+                    item.status.setChecked(
+                        item.state in [PackageState.selected, PackageState.installed]
+                    )
+                    item.status.setEnabled(item.state is not PackageState.disabled)
         self._update_status()
 
     def _update_workload(self, item: PackageItem):
-        enabled = not isinstance(item.package, ModelResource) or Arch.match(
-            self._workload, item.package.arch
+        enabled = (
+            not isinstance(item.package, ModelResource)
+            or Arch.match(self._workload, item.package.arch)
+            or item.package.arch not in [Arch.sd15, Arch.sdxl]
         )
         if not enabled and item.state in [PackageState.selected, PackageState.available]:
             item.state = PackageState.disabled
@@ -326,7 +329,7 @@ class ServerWidget(QWidget):
             _("Workloads"),
             [_("Stable Diffusion 1.5"), _("Stable Diffusion XL")],
             description=(
-                _("Choose one or both Stable Diffusion versions to work with.")
+                _("Choose a Diffusion base model to install its basic requirements.")
                 + " <a href='https://docs.interstice.cloud/base-models'>"
                 + _("Read more about workloads.")
                 + "</a>"
@@ -334,42 +337,51 @@ class ServerWidget(QWidget):
             is_checkable=True,
             parent=self,
         )
+        self._workload_group.values = [PackageState.available, PackageState.selected]
         self._workload_group.changed.connect(self.update_ui)
         package_layout.addWidget(self._workload_group)
 
+        optional_models = resources.default_checkpoints + resources.optional_models
         self._packages = {
-            "checkpoints": PackageGroupWidget(
-                _("Recommended checkpoints"),
-                [c for c in resources.default_checkpoints if c.arch is not Arch.flux],
-                description=(
-                    _(
-                        "At least one Stable Diffusion checkpoint is required. Below are some popular choices, more can be found online."
-                    )
-                ),
-                is_checkable=True,
-                initial=PackageState.available if self._server.has_comfy else PackageState.selected,
-                parent=self,
-            ),
             "upscalers": PackageGroupWidget(
                 _("Upscalers (super-resolution)"),
                 resources.upscale_models,
                 is_checkable=True,
                 parent=self,
             ),
-            "control_sd15": PackageGroupWidget(
-                _("Control extensions for SD 1.5"),
-                [m for m in resources.optional_models if m.arch is Arch.sd15],
+            "sd15": PackageGroupWidget(
+                _("Stable Diffusion 1.5 models"),
+                [m for m in optional_models if m.arch is Arch.sd15],
+                description=_("Select at least one diffusion model. Control models are optional."),
+                is_checkable=True,
+                is_expanded=False,
+                parent=self,
+            ),
+            "sdxl": PackageGroupWidget(
+                _("Stable Diffusion XL models"),
+                [m for m in optional_models if m.arch is Arch.sdxl],
+                description=_("Select at least one diffusion model. Control models are optional."),
                 is_checkable=True,
                 parent=self,
             ),
-            "control_sdxl": PackageGroupWidget(
-                _("Control extensions for SD XL"),
-                [m for m in resources.optional_models if m.arch is Arch.sdxl],
+            "illu": PackageGroupWidget(
+                _("Illustrious/NoobAI XL models"),
+                [m for m in optional_models if m.arch in [Arch.illu, Arch.illu_v]],
+                description=_("Select at least one diffusion model. Control models are optional."),
                 is_checkable=True,
+                is_expanded=False,
                 parent=self,
             ),
         }
-        for group in ["checkpoints", "upscalers", "control_sd15", "control_sdxl"]:
+        # Pre-select a recommended set of models if the server hasn't been installed yet
+        if not self._server.has_comfy and self.selected_workload in [Arch.all, Arch.sdxl]:
+            sdxl_packages = self._packages["sdxl"]
+            sdxl_packages.workload = Arch.sdxl
+            state = [PackageState.selected for _ in sdxl_packages.values]
+            state[-1] = PackageState.available  # Face model is optional
+            sdxl_packages.values = state
+
+        for group in ["upscalers", "sd15", "sdxl", "illu"]:
             self._packages[group].changed.connect(self.update_ui)
             package_layout.addWidget(self._packages[group])
 
@@ -632,8 +644,6 @@ class ServerWidget(QWidget):
             [m for m in resources.required_models if m.arch is Arch.sdxl],
         ]
         self._workload_group.set_installed([self._server.all_installed(w) for w in workloads])
-        if all(state is PackageState.available for state in self._workload_group.values):
-            self._workload_group.values = [PackageState.selected, PackageState.available]
         to_install = [
             m.name
             for workload, state in zip(workloads, self._workload_group.values)
@@ -670,4 +680,4 @@ class ServerWidget(QWidget):
             return Arch.sd15
         if selected_or_installed[1]:
             return Arch.sdxl
-        assert False, "No workload selected!"
+        return Arch.auto
