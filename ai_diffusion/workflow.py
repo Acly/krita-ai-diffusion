@@ -137,7 +137,10 @@ def load_checkpoint_with_lora(w: ComfyWorkflow, checkpoint: CheckpointInput, mod
 
     if checkpoint.v_prediction_zsnr:
         model = w.model_sampling_discrete(model, "v_prediction", zsnr=True)
-        model = w.rescale_cfg(model, 0.7)
+
+    is_zsnr = checkpoint.v_prediction_zsnr or arch is Arch.illu_v
+    if is_zsnr and checkpoint.rescale_cfg > 0:
+        model = w.rescale_cfg(model, checkpoint.rescale_cfg)
 
     if arch.supports_lcm:
         lcm_lora = models.for_arch(arch).lora.find("lcm")
