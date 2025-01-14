@@ -220,7 +220,7 @@
     },
     {
       "id": "checkpoint-noobai-illu_v",
-      "name": "NoobAI XL/v (Illustrious - Anime)",
+      "name": "NoobAI XL (Illustrious - Anime)",
       "files": [
         {
           "path": "models/checkpoints/NoobAI-XL-Vpred-v1.0.safetensors",
@@ -528,7 +528,7 @@
     },
     {
       "id": "clip_vision-ip_adapter-illu",
-      "name": "CLIP Vision G",
+      "name": "CLIP Vision G (for IP-Adapter)",
       "files": [
         {
           "path": "models/clip_vision/clip-vision_vit-g.safetensors",
