@@ -31,7 +31,7 @@
 /* Light mode colors. */
 :root[data-theme='light'] {
 	--sl-color-accent-low: rgb(240, 169, 142);
-	--sl-color-accent: rgb(141, 90, 68);
+	--sl-color-accent: rgb(141, 83, 68);
 	--sl-color-accent-high: #4b1500;
 	--sl-color-white: #191817;
 	--sl-color-gray-1: #292624;
@@ -49,8 +49,13 @@
 }
 
 .front-cards {
-	display: flex;
 	gap: 1rem;
+}
+
+@media screen and (min-width: 800px) {
+	.front-cards {
+		display: flex;
+	}
 }
 
 .front-cards ul {

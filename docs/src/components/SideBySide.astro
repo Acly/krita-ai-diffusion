@@ -16,8 +16,14 @@ function findImage(img: string) {
 ---
 
 <div class="side-by-side">
-  <Image src={findImage(img1)} alt="Control Image" />
-  <Image src={findImage(img2)} alt="Generated Result" />
+  <div>
+    <Image src={findImage(img1)} alt="Control Image" />
+    <p>Control Image</p>
+  </div>
+  <div>
+    <Image src={findImage(img2)} alt="Generated Result" />
+    <p>Generated Result</p>
+  </div>
 </div>
 
 <style>
@@ -26,7 +32,14 @@ function findImage(img: string) {
     grid-template-columns: 1fr 1fr;
     gap: 1rem;
   }
-  .side-by-side > img {
+  .side-by-side > div {
     margin-top: 0 !important;
+    font-size: smaller;
+    color: var(--sl-color-gray-4);
+  }
+  .side-by-side p {
+    margin-top: 0.3rem !important;
+    text-align: center;
+    font-style: italic;
   }
 </style>

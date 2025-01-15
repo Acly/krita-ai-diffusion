@@ -107,8 +107,8 @@ Regions must be attached to paint layers or layer groups. When creating a new
 region, it is linked to the active layer by default. If the active layer already
 has a region, creating a new region will automatically create a new layer. 
 
-The area covered by a region is defined by the pixel opacity of the linked it is
-linked to. Fully transparent pixels will not be affected.
+The area covered by a region is defined by the pixel opacity of the layer it is
+linked to. Fully transparent pixels are not affected by the region.
 
 Selecting a region's text input will also make the linked layer active, and the
 text focus will follow when switching layers. Regions can be removed with the
@@ -206,7 +206,7 @@ to the root region.
 
 ## Workflows
 
-This section describes some common workflows to get started. Once setup, regions
+This section describes some common workflows to get started. Once they are set up, regions
 are flexible and multi-purpose. You can switch between and combine workflows!
 
 ### Regions from scratch
@@ -353,17 +353,18 @@ for the whole group without touching individual layers.
 ### Region hierarchies
 
 Regions can be nested. When work starts on an image, the number of regions
-should be low and their size relative to the canvas relatively large. That's
-because regardless of your canvas resolution, initial generation will use a
-lower number of pixels and too many regions slow down computation a lot.
+should be low and their size relative to the canvas large. That's because
+regardless of your canvas resolution, initial generation will use a lower number
+of pixels and too many regions slow down computation a lot.
 
-As work continues, you might want to split up subjects or describe parts more
+As work continues, you might want to split up subjects, or describe parts more
 precisely. Instead of creating further regions at the top level, you can add
 sub-regions inside existing regions. This allows to manage complexity better:
 * The UI shows text prompt and details for the current parent region and its
   direct child regions. Other regions remain hidden.
 * Generating the whole image will only use top-level regions. Refining a single
-  region will make use of its child regions.
+  region will make use of its child regions. The total number of regions for
+  each generation remains manageable.
 * Selections can apply the most relevant regions across the whole hierarchy
-  (depending on coverage).
+  depending on coverage.
 
