@@ -1,5 +1,5 @@
 ---
-import Image from "astro/components/Image.astro";
+import { Image } from "astro:assets";
 import { LinkButton } from "@astrojs/starlight/components";
 
 import darkImage from "../assets/ink-lake-v-low-dark.webp";
@@ -11,9 +11,9 @@ import lightImage from "../assets/ink-lake-v-low-light.webp";
   <Image src={lightImage} alt="Splash image" class="dark:sl-hidden" />
   <div class="sl-flex stack">
     <div class="sl-flex copy">
-      <h1 data-page-title>Generative AI for Krita</h1>
+      <h1 data-page-title>Generative AI <i>for Krita</i></h1>
       <div class="tagline">
-        Guides and documentation for working with the Krita AI Diffusion plugin
+        Guides and tips for working with the<br />Krita AI Diffusion plugin
       </div>
     </div>
     <div class="sl-flex actions">
@@ -59,8 +59,8 @@ import lightImage from "../assets/ink-lake-v-low-light.webp";
   h1 {
     font-size: clamp(
       var(--sl-text-3xl),
-      calc(0.25rem + 4vw),
-      var(--sl-text-6xl)
+      calc(0.25rem + 2vw),
+      var(--sl-text-5xl)
     );
     line-height: var(--sl-line-height-headings);
     font-weight: 600;
@@ -84,14 +84,12 @@ import lightImage from "../assets/ink-lake-v-low-light.webp";
 
   @media (min-width: 50rem) {
     .hero {
-      grid-template-columns: 7fr 4fr;
-      padding-block: clamp(2.5rem, calc(1rem + 5vmin), 8rem);
+      grid-template-columns: 3fr 4fr;
     }
 
     .hero > img {
       order: 2;
-      width: min(100%, 35rem);
-      margin-left: -5rem;
+      width: min(100%, 40rem);
     }
 
     .stack {

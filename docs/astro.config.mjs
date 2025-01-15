@@ -8,7 +8,7 @@ export default defineConfig({
 	site: 'https://docs.interstice.cloud',
 	integrations: [
 		starlight({
-			title: 'Krita Diffusion Plugin',
+			title: 'Krita AI Handbook',
 			logo: { src: './src/assets/logo.png' },
 			favicon: '/favicon.png',
 			social: {
@@ -48,6 +48,7 @@ export default defineConfig({
 			],
 			customCss: ['./src/styles/custom.css'],
 			components: {
+				Header: './src/components/Header.astro',
 				Hero: './src/components/Hero.astro',
 			}
 		}),

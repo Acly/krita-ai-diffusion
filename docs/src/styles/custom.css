@@ -31,7 +31,7 @@
 /* Light mode colors. */
 :root[data-theme='light'] {
 	--sl-color-accent-low: rgb(240, 169, 142);
-	--sl-color-accent: rgb(143, 95, 75);
+	--sl-color-accent: rgb(141, 90, 68);
 	--sl-color-accent-high: #4b1500;
 	--sl-color-white: #191817;
 	--sl-color-gray-1: #292624;
@@ -40,8 +40,8 @@
 	--sl-color-gray-4: #8e8b89;
 	--sl-color-gray-5: #c3c1c0;
 	--sl-color-gray-6: #efedec;
-	--sl-color-gray-7: #d7dce0;
-	--sl-color-black: #e6eaee;
+	--sl-color-gray-7: #eef1f1;
+	--sl-color-black: #f7f6f6;
 
 	.plugin-icon>svg {
 		filter: invert(1);
