@@ -26,21 +26,21 @@ required_custom_nodes = [
         "ControlNet Preprocessors",
         "comfyui_controlnet_aux",
         "https://github.com/Fannovel16/comfyui_controlnet_aux",
-        "6c563c5032f77dd3336b603bde3d12b415d003ab",
+        "5a049bde9cc117dafc327cded156459289097ea1",
         ["InpaintPreprocessor", "DepthAnythingV2Preprocessor"],
     ),
     CustomNode(
         "IP-Adapter",
         "ComfyUI_IPAdapter_plus",
         "https://github.com/cubiq/ComfyUI_IPAdapter_plus",
-        "88a71407c545e4eb0f223294f5b56302ef8696f3",
+        "b188a6cb39b512a9c6da7235b880af42c78ccd0d",
         ["IPAdapterModelLoader", "IPAdapter"],
     ),
     CustomNode(
         "External Tooling Nodes",
         "comfyui-tooling-nodes",
         "https://github.com/Acly/comfyui-tooling-nodes",
-        "50d3479fba55116334ed9fb1ad15f13a9294badf",
+        "8ed5591574ff6340729970eed780e79401568dad",
         ["ETN_LoadImageBase64", "ETN_LoadMaskBase64", "ETN_SendImageWebSocket", "ETN_Translate"],
     ),
     CustomNode(
@@ -57,7 +57,7 @@ optional_custom_nodes = [
         "GGUF",
         "ComfyUI-GGUF",
         "https://github.com/city96/ComfyUI-GGUF",
-        "4a8432884167f2526d60ef36e985bdabebb9e1e0",
+        "5875c52f59baca3a9372d68c43a3775e21846fe0",
         ["UnetLoaderGGUF", "DualCLIPLoaderGGUF"],
     )
 ]
