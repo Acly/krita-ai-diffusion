@@ -176,11 +176,11 @@ class PromptAutoComplete:
             with tag_path.open("r", encoding="utf-8") as f:
                 csv_reader = csv.reader(f)
                 for tag, type_str, count, _aliases in csv_reader:
-                    if type_str.isdigit(): # skip header rows if they exist
+                    if type_str.isdigit():  # skip header rows if they exist
                         tag = tag.replace("_", " ")
                         try:
                             tag_type = TagType(int(type_str))
-                        except: # default to general category if category is not recognised
+                        except:  # default to general category if category is not recognised
                             tag_type = TagType(0)
                         count = int(count)
                         count_str = str(count)
