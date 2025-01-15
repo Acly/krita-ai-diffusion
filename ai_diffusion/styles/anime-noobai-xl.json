@@ -1,0 +1,23 @@
+{
+    "name": "Anime (NoobAI XL)",
+    "version": 2,
+    "architecture": "auto",
+    "checkpoints": [
+        "noobaiXLNAIXL_vPred10Version.safetensors"
+    ],
+    "loras": [],
+    "style_prompt": "artist:, very awa, {prompt}, masterpiece, best quality, recent, newest, absurdres, highres",
+    "negative_prompt": "worst quality, worst aesthetic, bad quality, normal quality, average quality, oldest, old, early, very displeasing, displeasing",
+    "vae": "Checkpoint Default",
+    "clip_skip": 0,
+    "v_prediction_zsnr": false,
+    "rescale_cfg": 0.7,
+    "self_attention_guidance": false,
+    "preferred_resolution": 0,
+    "sampler": "Alternative - Euler A",
+    "sampler_steps": 26,
+    "cfg_scale": 5.0,
+    "live_sampler": "Flux - Euler simple",
+    "live_sampler_steps": 20,
+    "live_cfg_scale": 4.0
+}
