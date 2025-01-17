@@ -1,4 +1,4 @@
-FROM nvidia/cuda:12.0.1-base-ubuntu22.04 AS base
+FROM nvidia/cuda:12.6.3-base-ubuntu24.04 AS base
 
 SHELL ["/bin/bash", "-o", "pipefail", "-c"]
 ENV DEBIAN_FRONTEND=noninteractive \
@@ -11,8 +11,8 @@ RUN apt update && \
     apt install -y --no-install-recommends \
     build-essential \
     software-properties-common \
-    python3.11-venv \
-    python3.11-dev \
+    python3.12-venv \
+    python3.12-dev \
     bash \
     git \
     git-lfs \
@@ -29,7 +29,7 @@ RUN apt update && \
     echo "en_US.UTF-8 UTF-8" > /etc/locale.gen
 
 # Python virtual environment
-RUN python3.11 -m venv /venv
+RUN python3.12 -m venv /venv
 ENV PATH="/venv/bin:$PATH"
 
 # PyTorch and ONNX Runtime

@@ -10,7 +10,7 @@ from typing import Any, NamedTuple, Sequence
 version = "1.30.0"
 
 comfy_url = "https://github.com/comfyanonymous/ComfyUI"
-comfy_version = "bf2650a80e5a7a888da206eab45c53dbb22940f7"
+comfy_version = "7fc3ccdcc2fb1f20c4b7dd4aca374db952fd66df"
 
 
 class CustomNode(NamedTuple):
@@ -275,8 +275,9 @@ class ResourceId(NamedTuple):
         kind, identifier, arch = string.split("-")
         kind = ResourceKind[kind]
         arch = Arch[arch]
-        if kind in [ResourceKind.controlnet, ResourceKind.ip_adapter]:
-            identifier = ControlMode[identifier]
+        if kind in [ResourceKind.controlnet, ResourceKind.ip_adapter, ResourceKind.preprocessor]:
+            if identifier in ControlMode.__members__:
+                identifier = ControlMode[identifier]
         elif kind == ResourceKind.upscaler:
             identifier = UpscalerName[identifier]
         return ResourceId(kind, arch, identifier)

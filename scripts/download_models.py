@@ -134,7 +134,7 @@ async def main(
         versions.append(Arch.sdxl)
     if flux:
         versions.append(Arch.flux)
-    if illu:
+    if illu or all:
         versions.append(Arch.illu)
         versions.append(Arch.illu_v)
 

@@ -3,6 +3,7 @@
     "version": 2,
     "architecture": "auto",
     "checkpoints": [
+        "NoobAI-XL-Vpred-v1.0.safetensors",
         "noobaiXLNAIXL_vPred10Version.safetensors"
     ],
     "loras": [],

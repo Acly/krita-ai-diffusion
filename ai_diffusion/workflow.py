@@ -781,14 +781,8 @@ def inpaint(
     in_image = scale_to_initial(extent, w, in_image, models)
     in_mask = w.load_mask(ensure(images.hires_mask))
     in_mask = apply_grow_feather(w, in_mask, params)
-    if images.initial_mask:
-        # Deprecated in 1.20.0 - initial_mask is no longer used
-        initial_mask = w.load_mask(images.initial_mask)
-        initial_mask = scale_to_initial(extent, w, initial_mask, models, is_mask=True)
-        cropped_mask = in_mask
-    else:
-        initial_mask = scale_to_initial(extent, w, in_mask, models, is_mask=True)
-        cropped_mask = w.crop_mask(in_mask, target_bounds)
+    initial_mask = scale_to_initial(extent, w, in_mask, models, is_mask=True)
+    cropped_mask = w.crop_mask(in_mask, target_bounds)
 
     cond_base = cond.copy()
     cond_base.downscale(extent.input, extent.initial)

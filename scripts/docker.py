@@ -23,6 +23,10 @@ def copy_scripts():
     repo_dir = docker_dir / "krita-ai-diffusion"
     for source_file, target_dir in [
         (root_dir / "ai_diffusion" / "resources.py", repo_dir / "ai_diffusion"),
+        (
+            root_dir / "ai_diffusion" / "presets" / "models.json",
+            repo_dir / "ai_diffusion" / "presets",
+        ),
         (root_dir / "scripts" / "download_models.py", repo_dir / "scripts"),
     ]:
         target_dir.mkdir(parents=True, exist_ok=True)
@@ -62,7 +66,12 @@ def check_line_endings():
                 f.write(content.replace(b"\r\n", b"\n"))
 
 
-async def main():
+async def main(clean=False):
+    if clean:
+        print("Deleting existing repositories")
+        shutil.rmtree(comfy_dir, ignore_errors=True)
+        shutil.rmtree(docker_dir / "krita-ai-diffusion", ignore_errors=True)
+
     print("Downloading repositories")
     download_repositories()
 
@@ -85,4 +94,4 @@ async def main():
 
 
 if __name__ == "__main__":
-    asyncio.run(main())
+    asyncio.run(main(clean="--clean" in sys.argv))

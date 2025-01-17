@@ -12,3 +12,6 @@ runpod:
     controlnet: controlnet
     ipadapter: ipadapter
     inpaint: inpaint
+    style_models: style_models
+    diffusion_models: diffusion_models
+    text_encoders: text_encoders
