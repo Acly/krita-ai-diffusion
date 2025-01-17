@@ -7,8 +7,9 @@ from ai_diffusion.api import (
     ExtentInput,
     ImageInput,
     ConditioningInput,
+    RegionInput,
 )
-from ai_diffusion.image import Extent, Image, ImageFileFormat
+from ai_diffusion.image import Extent, Image, ImageFileFormat, Bounds
 from ai_diffusion.resources import ControlMode
 from ai_diffusion.util import ensure
 
@@ -58,3 +59,22 @@ def test_serialize():
     assert _ensure_cmp(result_control[1].image) == _ensure_cmp(input_control[1].image)
     assert result_control[2].image is None
     assert result == input
+
+
+def test_deserialize_list_default():
+    input = WorkflowInput(WorkflowKind.generate)
+    input.images = ImageInput(ExtentInput(Extent(1, 1), Extent(2, 2), Extent(3, 3), Extent(4, 4)))
+    input.conditioning = ConditioningInput(
+        "prompt",
+        regions=[
+            RegionInput(
+                Image.create(Extent(2, 2), Qt.GlobalColor.red), Bounds(0, 0, 2, 2), "positive", []
+            )
+        ],
+    )
+
+    data = input.to_dict()
+    del data["conditioning"]["regions"][0]["loras"]
+    result = WorkflowInput.from_dict(data)
+    assert result.conditioning is not None
+    assert len(result.conditioning.regions[0].loras) == 0

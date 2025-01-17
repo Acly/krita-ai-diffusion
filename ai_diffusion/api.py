@@ -1,4 +1,4 @@
-from dataclasses import Field, dataclass, field, is_dataclass, fields
+from dataclasses import Field, dataclass, field, is_dataclass, fields, MISSING
 from copy import copy
 from enum import Enum
 from types import GenericAlias, UnionType
@@ -293,8 +293,12 @@ class Deserializer:
         return type(*values)
 
     def _field(self, field: Field, value):
-        if value is None:
+        if value is None and field.default is not MISSING:
             return field.default
+        elif value is None and field.default_factory is not MISSING:
+            return field.default_factory()
+        elif value is None:
+            return None
         field_type = field.type
         if isinstance(field_type, UnionType):
             field_type = get_args(field_type)[0]
