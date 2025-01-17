@@ -748,7 +748,7 @@ class AboutSettings(SettingsTab):
 
 _links_text = """
 <a href='https://www.interstice.cloud'>Website</a><br><br>
-<a href='https://docs.interstice.cloud'>Documentation</a>
+<a href='https://docs.interstice.cloud'>Handbook: Guides and Tips</a>
 <a href='https://github.com/Acly/krita-ai-diffusion'>GitHub</a><br><br>
 """
 

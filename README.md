@@ -1,8 +1,10 @@
 <h1><img width="64px" src="ai_diffusion/icons/logo-128.png"> Generative AI <i>for Krita</i></h1>
 
-✨[Features](#features) | ⭳ [Download](https://github.com/Acly/krita-ai-diffusion/releases/latest) | 🛠️[Installation](https://www.interstice.cloud/plugin) | 🎞️ [Video](https://youtu.be/Ly6USRwTHe0) | 🖼️[Gallery](#gallery) | 📖[Wiki](https://github.com/Acly/krita-ai-diffusion/wiki) | 💬[Discussion](https://github.com/Acly/krita-ai-diffusion/discussions) | 🗣️[Discord](https://discord.gg/pWyzHfHHhU)
+✨[Features](#features) | ⭳ [Download](https://github.com/Acly/krita-ai-diffusion/releases/latest) | 🛠️[Installation](https://docs.interstice.cloud/installation) | 🎞️ [Video](https://youtu.be/Ly6USRwTHe0) | 🖼️[Gallery](#gallery) | 📖[User Guide](https://docs.interstice.cloud) | 💬[Discussion](https://github.com/Acly/krita-ai-diffusion/discussions) | 🗣️[Discord](https://discord.gg/pWyzHfHHhU)
 
-This is a plugin to use generative AI in image painting and editing workflows from within Krita. For a more visual introduction, see [**www.interstice.cloud**](https://www.interstice.cloud)
+This is a plugin to use generative AI in image painting and editing workflows
+from within Krita. Visit
+[**www.interstice.cloud**](https://www.interstice.cloud) for an introduction. Learn how to install and use it on [**docs.interstice.cloud**](https://docs.interstice.cloud).
 
 The main goals of this project are:
 * **Precision and Control.** Creating entire images from text can be unpredictable.
@@ -35,7 +37,7 @@ The main goals of this project are:
 
 ## <a name="installation"></a> Getting Started
 
-See the [Plugin Installation Guide](https://www.interstice.cloud/plugin) for instructions.
+See the [Plugin Installation Guide](https://docs.interstice.cloud/installation) for instructions.
 
 A concise (more technical) version is below:
 
@@ -48,7 +50,9 @@ A concise (more technical) version is below:
 
 #### Hardware support
 
-To run locally a powerful graphics card with at least 6 GB VRAM (NVIDIA) is recommended. Otherwise generating images will take very long or may fail due to insufficient memory!
+To run locally a powerful graphics card with at least 6 GB VRAM (NVIDIA) is
+recommended. Otherwise generating images will take very long or may fail due to
+insufficient memory!
 
 <table>
 <tr><td>NVIDIA GPU</td><td>supported via CUDA</td></tr>
@@ -64,25 +68,27 @@ To run locally a powerful graphics card with at least 6 GB VRAM (NVIDIA) is reco
 1. [Download the plugin](https://github.com/Acly/krita-ai-diffusion/releases/latest).
 2. Start Krita and install the plugin via Tools ▸ Scripts ▸ Import Python Plugin from File...
     * Point it to the ZIP archive you downloaded in the previous step.
-    * ⚠ _This will delete any previous install of the plugin._ If you are updating from 1.14 or older please read [updating to a new version](https://github.com/Acly/krita-ai-diffusion/wiki/Common-Issues#how-do-i-update-to-a-new-version-of-the-plugin).
+    * ⚠ _This will delete any previous install of the plugin._ If you are updating from 1.14 or older please read [updating to a new version](https://docs.interstice.cloud/common-issues#update-plugin).
     * Check [Krita's official documentation](https://docs.krita.org/en/user_manual/python_scripting/install_custom_python_plugin.html) for more options.
 3. Restart Krita and create a new document or open an existing image.
 4. To show the plugin docker: Settings ‣ Dockers ‣ AI Image Generation.
 5. In the plugin docker, click "Configure" to start local server installation or connect.
 
 > [!NOTE]
-> If you encounter problems please check the [FAQ / list of common issues](https://github.com/Acly/krita-ai-diffusion/wiki/Common-Issues) for solutions.
+> If you encounter problems please check the [FAQ / list of common issues](https://docs.interstice.cloud/common-issues) for solutions.
 >
 > Reach out via [discussions](https://github.com/Acly/krita-ai-diffusion/discussions), our [Discord](https://discord.gg/pWyzHfHHhU), or report [an issue here](https://github.com/Acly/krita-ai-diffusion/issues). Please note that official Krita channels are **not** the right place to seek help with
 > issues related to this extension!
 
 ### _Optional:_ Custom ComfyUI Server
 
-The plugin uses [ComfyUI](https://github.com/comfyanonymous/ComfyUI) as backend. As an alternative to the automatic installation,
-you can install it manually or use an existing installation. If the server is already running locally before starting Krita, the plugin will
-automatically try to connect. Using a remote server is also possible this way.
+The plugin uses [ComfyUI](https://github.com/comfyanonymous/ComfyUI) as backend.
+As an alternative to the automatic installation, you can install it manually or
+use an existing installation. If the server is already running locally before
+starting Krita, the plugin will automatically try to connect. Using a remote
+server is also possible this way.
 
-Please check the list of [required extensions and models](https://github.com/Acly/krita-ai-diffusion/wiki/ComfyUI-Setup) to make sure your installation is compatible.
+Please check the list of [required extensions and models](https://docs.interstice.cloud/comfyui-setup) to make sure your installation is compatible.
 
 ### _Optional:_ Object selection tools (Segmentation)
 

@@ -37,9 +37,10 @@ Models can be downloaded and placed manually, or via script ([see below](#downlo
 <LinkButton href="/models?arch-sdxl=false#downloading-models" variant="secondary">Model list (minimal)</LinkButton>
 
 ## Diffusion Model Checkpoints
-At least one diffusion model (commonly just called "Checkpoint") is required. There is a list with recommended
-checkpoints which are used by the plugin's default styles. But they are not required, you can use any checkpoint you like as long
-as the [base model](/base-models) is supported.
+At least one diffusion model (commonly just called "Checkpoint") is required.
+There is a list with [recommended checkpoints](/models?set-optional=true&arch-sd15=true&arch-sdxl=true&arch-illu=true&kind-checkpoint=true&kind-controlnet=false&kind-clip_vision=false&kind-ip_adapter=false&kind-lora=false&kind-text_encoder=false&kind-vae=false&kind-inpaint=false&kind-upscaler=false#downloading-models) which are used by the plugin's
+default styles. But they are not required, you can use any checkpoint you like
+as long as the [base model](/base-models) is supported.
 
 ## Download Script
 Instead of downloading models manually you can use the
@@ -47,14 +48,19 @@ Instead of downloading models manually you can use the
 script to fetch all required and optional models. This requires you to find the script
 and execute Python from the command line.
 
-After installing the plugin you can find the script in the plugin folder (called `ai_diffusion`, see [Paths](https://github.com/Acly/krita-ai-diffusion/wiki/Common-Issues#where-are-plugin-and-user-files-located)). Open a command prompt and run:
+After installing the plugin you can find the script in the plugin folder (called
+`ai_diffusion`, see [Paths](/common-issues#file-locations)). Open a command
+prompt and run:
 ```bash
 python -m pip install aiohttp tqdm
 python download_models.py --all /path/to/your/comfyui
 ```
-This will download _all_ models supported by the plugin directly into the specified folder with the correct version, location, and filename.
-The download location does not have to be your ComfyUI installation, you can use an empty folder if you want to avoid clashes and copy models afterwards.
-There are also options to only download a subset, or list all relevant URLs without downloading.
+This will download _all_ models supported by the plugin directly into the
+specified folder with the correct version, location, and filename. The download
+location does not have to be your ComfyUI installation, you can use an empty
+folder if you want to avoid clashes and copy models afterwards. There are also
+options to only download a subset, or list all relevant URLs without
+downloading.
 ```bash
 python download_models.py --help
 ```
@@ -62,12 +68,17 @@ python download_models.py --help
 _Note: The script downloads models only. It does not install or modify ComfyUI or custom nodes!_
 
 ## Troubleshooting
-If you're getting errors about missing resources, or workload not being installed, it's probably because one of the models wasn't found.
-You can find the `client.log` file by clicking the ["View Log files" link](https://github.com/Acly/krita-ai-diffusion/wiki/Common-Issues#log-files) in the Connection settings. Check the log for warnings. Here you will also
-find which models were found in your installation, and the patterns the plugin looks for.
+If you're getting errors about missing resources, or workload not being
+installed, it's probably because one of the models wasn't found. You can find
+the `client.log` file by clicking the ["View Log files"
+link](/common-issues#log-files) in the Connection settings. Check the log for
+warnings. Here you will also find which models were found in your installation,
+and the patterns the plugin looks for.
 
-Model paths must contain one of the search patterns entirely to match. The model path is allowed to be longer though: you may place models
-in arbitrary subfolders and they will still  be found. If there are multiple matches, any files placed inside a `krita` subfolder are prioritized.
+Model filenames must contain one of the search patterns to match. The model
+path is allowed to be longer though: you may place models in arbitrary
+subfolders and they will still be found. If there are multiple matches, any
+files placed inside a `krita` subfolder are prioritized.
 
 ### Questions and Support
 * [ComfyUI](https://github.com/comfyanonymous/ComfyUI), [comfy.org](https://www.comfy.org) for issues related to ComfyUI
