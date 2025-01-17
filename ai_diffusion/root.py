@@ -1,4 +1,5 @@
 from __future__ import annotations
+from dataclasses import dataclass
 from typing import Callable, NamedTuple
 from PyQt5.QtCore import QObject, pyqtSignal
 
@@ -20,9 +21,10 @@ class Root(QObject):
     """Root object, exists once, maintains all other instances. Keeps track of documents
     openend in Krita and creates a corresponding Model for each."""
 
-    class PerDocument(NamedTuple):
+    @dataclass
+    class PerDocument:
         model: Model
-        sync: ModelSync
+        sync: ModelSync | None = None
 
     _server: Server
     _connection: Connection
@@ -54,10 +56,11 @@ class Root(QObject):
 
     def create_model(self, doc: KritaDocument):
         model = Model(doc, self._connection, self._workflows)
+        model_entry = Root.PerDocument(model)
+        self._models.append(model_entry)
         self._recent.track(model)
-        persistence_sync = ModelSync(model)
+        model_entry.sync = ModelSync(model)
         import_prompt_from_file(model)
-        self._models.append(Root.PerDocument(model, persistence_sync))
         self.model_created.emit(model)
         self.prune_models()
         return model

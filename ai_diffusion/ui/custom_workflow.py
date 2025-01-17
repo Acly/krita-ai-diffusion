@@ -691,6 +691,7 @@ class CustomWorkflowWidget(QWidget):
         self._live_preview = LivePreviewArea(self)
 
         self._layout = QVBoxLayout()
+        self._layout.setContentsMargins(0, 2, 2, 0)
         select_layout = QHBoxLayout()
         select_layout.setContentsMargins(0, 0, 0, 0)
         select_layout.setSpacing(2)
@@ -729,7 +730,6 @@ class CustomWorkflowWidget(QWidget):
         self._layout.addWidget(self._live_preview, stretch=5)
         self.setLayout(self._layout)
 
-        settings.changed.connect(self._update_current_workflow)
         self._update_ui()
 
     def _update_layout(self):
@@ -921,6 +921,7 @@ class CustomWorkflowPlaceholder(QWidget):
         note = QLabel("<i>" + _("Custom workflows are not available on Cloud.") + "</i>", self)
 
         self._layout = QVBoxLayout()
+        self._layout.setContentsMargins(0, 2, 2, 0)
         self._layout.addWidget(self._workspace_select)
         self._layout.addSpacing(50)
         self._layout.addWidget(note, 0, Qt.AlignmentFlag.AlignCenter)
