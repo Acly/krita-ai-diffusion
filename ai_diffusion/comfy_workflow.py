@@ -464,7 +464,9 @@ class ComfyWorkflow:
         )
 
     def load_insight_face(self):
-        return self.add_cached("IPAdapterInsightFaceLoader", 1, provider="CPU")
+        return self.add_cached(
+            "IPAdapterInsightFaceLoader", 1, provider="CPU", model_name="buffalo_l"
+        )
 
     def load_inpaint_model(self, model_name: str):
         return self.add_cached("INPAINT_LoadInpaintModel", 1, model_name=model_name)
@@ -697,9 +699,11 @@ class ComfyWorkflow:
             weight=weight,
             weight_faceidv2=weight * 2,
             weight_type="linear",
+            combine_embeds="concat",
             start_at=range[0],
             end_at=range[1],
             attn_mask=mask,
+            embeds_scaling="V only",
         )
 
     def apply_self_attention_guidance(self, model: Output):

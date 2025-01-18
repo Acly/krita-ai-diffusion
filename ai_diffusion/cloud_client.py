@@ -382,6 +382,8 @@ models.vae = []
 models.loras = [
     "Hyper-SD15-8steps-CFG-lora.safetensors",
     "Hyper-SDXL-8steps-CFG-lora.safetensors",
+    "ip-adapter-faceid-plusv2_sd15_lora.safetensors",
+    "ip-adapter-faceid-plusv2_sdxl_lora.safetensors",
 ]
 models.upscalers = [
     "4x_NMKD-Superscale-SP_178000_G.pth",
