@@ -633,7 +633,7 @@ async def rename_extracted_folder(name: str, path: Path, suffix: str):
             return
         except Exception as e:
             log.warning(f"Rename failed during {name} installation: {str(e)} - retrying...")
-            await asyncio.sleep(0.3)
+            await asyncio.sleep(1)
     extracted_folder.rename(path)
 
 
