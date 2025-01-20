@@ -1,6 +1,5 @@
 from __future__ import annotations
 import asyncio
-import locale
 from enum import Enum
 from itertools import chain
 from pathlib import Path
@@ -10,11 +9,11 @@ from typing import Callable, NamedTuple, Optional, Union
 from PyQt5.QtNetwork import QNetworkAccessManager
 
 from .settings import settings, ServerBackend
-from . import resources
+from . import eventloop, resources
 from .resources import CustomNode, ModelResource, ModelRequirements, Arch
 from .network import download, DownloadProgress
 from .localization import translate as _
-from .util import ZipFile, is_windows, create_process
+from .util import ZipFile, is_windows, create_process, decode_pipe_bytes, determine_system_encoding
 from .util import client_logger as log, server_logger as server_log
 
 
@@ -91,6 +90,8 @@ class Server:
             self.missing_resources = resources.all_resources
             return
 
+        eventloop.run(determine_system_encoding(str(self._python_cmd)))
+
         assert self.comfy_dir is not None
         missing_nodes = [
             package.name
@@ -138,6 +139,7 @@ class Server:
         log.info(f"Using Python: {python_ver}, {self._python_cmd}")
         pip_ver = await get_python_version_string(self._python_cmd, "-m", "pip")
         log.info(f"Using pip: {pip_ver}")
+        await determine_system_encoding(str(self._python_cmd))
 
         comfy_dir = self.comfy_dir or self.path / "ComfyUI"
         if not self.has_comfy:
@@ -390,7 +392,7 @@ class Server:
         self.state = ServerState.starting
         last_line = ""
         try:
-            args = ["-su", "-Xutf8", "main.py"]
+            args = ["-su", "main.py"]
             env = {}
             if self.backend is ServerBackend.cpu:
                 args.append("--cpu")
@@ -410,7 +412,7 @@ class Server:
 
             assert self._process.stdout is not None
             async for line in self._process.stdout:
-                text = _decode_utf8_log_error(line).strip()
+                text = decode_pipe_bytes(line).strip()
                 last_line = text
                 server_log.info(text)
                 if text.startswith("To see the GUI go to:"):
@@ -427,8 +429,8 @@ class Server:
             error = "Process exited unexpectedly"
             try:
                 out, err = await asyncio.wait_for(self._process.communicate(), timeout=10)
-                server_log.error(_decode_utf8_log_error(out).strip())
-                error = last_line + _decode_utf8_log_error(err or out)
+                server_log.error(decode_pipe_bytes(out).strip())
+                error = last_line + decode_pipe_bytes(err or out)
             except asyncio.TimeoutError:
                 self._process.kill()
             except Exception as e:
@@ -451,7 +453,7 @@ class Server:
 
         try:
             async for line in self._process.stdout:
-                server_log.info(_decode_utf8_log_error(line).strip())
+                server_log.info(decode_pipe_bytes(line).strip())
 
             code = await asyncio.wait_for(self._process.wait(), timeout=1)
             if code != 0:
@@ -557,7 +559,6 @@ async def _extract_archive(name: str, archive: Path, target: Path, cb: InternalC
 
 
 async def _execute_process(name: str, cmd: list, cwd: Path, cb: InternalCB):
-    enc = locale.getpreferredencoding(False)
     errlog = ""
 
     cmd = [str(c) for c in cmd]
@@ -566,12 +567,12 @@ async def _execute_process(name: str, cmd: list, cwd: Path, cb: InternalCB):
 
     async def forward(stream: asyncio.StreamReader):
         async for line in stream:
-            cb(f"Installing {name}", line.decode(enc, errors="replace").strip())
+            cb(f"Installing {name}", decode_pipe_bytes(line).strip())
 
     async def collect(stream: asyncio.StreamReader):
         nonlocal errlog
         async for line in stream:
-            errlog += line.decode(enc, errors="replace")
+            errlog += decode_pipe_bytes(line)
 
     assert process.stdout and process.stderr
     await asyncio.gather(forward(process.stdout), collect(process.stderr))
@@ -605,15 +606,6 @@ def _prepend_file(path: Path, line: str):
         file.seek(0)
         file.writelines(lines)
         file.truncate()
-
-
-def _decode_utf8_log_error(b: bytes):
-    try:
-        return b.decode("utf-8")
-    except UnicodeDecodeError as e:
-        result = b.decode("utf-8", errors="replace")
-        log.warning(f"Failed to UTF-8 decode: '{result}': {str(e)}")
-        return result
 
 
 def find_missing(folders: list[Path], resources: list[ModelResource], ver: Arch | None = None):
@@ -657,12 +649,11 @@ def safe_remove_dir(path: Path, max_size=12 * 1024 * 1024):
 
 
 async def get_python_version_string(python_cmd: Path, *args: str):
-    enc = locale.getpreferredencoding(False)
     proc = await asyncio.create_subprocess_exec(
         python_cmd, *args, "--version", stdout=asyncio.subprocess.PIPE
     )
     out, _ = await proc.communicate()
-    return out.decode(enc, errors="replace").strip()
+    return decode_pipe_bytes(out).strip()
 
 
 async def get_python_version(python_cmd: Path, *args: str):

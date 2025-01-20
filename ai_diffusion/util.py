@@ -9,6 +9,7 @@ import os
 import subprocess
 import sys
 import json
+import locale
 import logging
 import logging.handlers
 import statistics
@@ -229,6 +230,42 @@ async def create_process(
         except Exception as e:
             client_logger.error(f"Failed to attach process to job: {e}")
     return p
+
+
+_system_encoding = locale.getpreferredencoding(False)
+_system_encoding_initialized = not is_windows
+
+
+async def determine_system_encoding(python_cmd: str):
+    """Windows: Krita's embedded Python always reports UTF-8, even if the system
+    uses a different encoding (likely). To decode subprocess output correctly,
+    the encoding used by an outside process must be determined."""
+    global _system_encoding
+    global _system_encoding_initialized
+    if _system_encoding_initialized:
+        return
+    try:
+        _system_encoding_initialized = True  # only try once
+        result = await asyncio.create_subprocess_exec(
+            python_cmd,
+            "-c",
+            "import locale; print(locale.getpreferredencoding(False))",
+            stdout=asyncio.subprocess.PIPE,
+            stderr=asyncio.subprocess.PIPE,
+        )
+        out, err = await result.communicate()
+        if out:
+            enc = out.decode().strip()
+            b"test".decode(enc)
+            _system_encoding = enc
+        else:
+            client_logger.warning(f"Failed to determine system locale: {err}")
+    except Exception as e:
+        client_logger.warning(f"Failed to determine system locale: {e}")
+
+
+def decode_pipe_bytes(data: bytes) -> str:
+    return data.decode(_system_encoding, errors="replace")
 
 
 class LongPathZipFile(zipfile.ZipFile):
