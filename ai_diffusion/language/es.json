@@ -446,16 +446,16 @@
     "Info to Clipboard": "Información en el portapapeles",
     "Open settings": "Abrir ajustes",
     "Charge": "Carga",
-    "Diffusion Architecture": null,
-    "The server is missing the ClipVision model": null,
-    "Python version 3.9 or higher is required, but found {version} at {location}. Please make sure a compatible version of Python is installed and can be found by the Krita process.": null,
-    "Illustrious/NoobAI XL models": null,
-    "Built-in styles cannot be modified.": null,
-    "Stable Diffusion 1.5 models": null,
-    "The base model ecosystem which the selected checkpoint belongs to.": null,
-    "Choose a Diffusion base model to install its basic requirements.": null,
-    "Stable Diffusion XL models": null,
-    "Select at least one diffusion model. Control models are optional.": null,
-    "Required model not found, searching for": null
+    "Diffusion Architecture": "Arquitectura de Difusión",
+    "The server is missing the ClipVision model": "No se encontró un modelo tipo ClipVision",
+    "Python version 3.9 or higher is required, but found {version} at {location}. Please make sure a compatible version of Python is installed and can be found by the Krita process.": "Se requiere Python en su versión 3.9 ó mayor, pero se encontró {version} en {location}. Por favor, asegurese de tener una versión de Python compatible instalada, y Krita lo encontrará en sus procesos.",
+    "Illustrious/NoobAI XL models": "Modelos Illustrious/NoobAI XL",
+    "Built-in styles cannot be modified.": "Los Estilos pre instalados pueden ser editados",
+    "Stable Diffusion 1.5 models": "Modelos de Stable Diffusion 1.5",
+    "The base model ecosystem which the selected checkpoint belongs to.": "El ecosistema del modelo base al que pertenece el punto de control seleccionado",
+    "Choose a Diffusion base model to install its basic requirements.": "Elija un modelo base de Difusión para instalar sus requerimientos basicos.",
+    "Stable Diffusion XL models": "Modelos de Stable Diffusión XL",
+    "Select at least one diffusion model. Control models are optional.": "Seleccione por lo menos un modelo de difusión. Los modelos de control son opcionales.",
+    "Required model not found, searching for": "Modelo requerido no encontrado, buscando"
   }
 }
