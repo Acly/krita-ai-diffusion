@@ -679,18 +679,13 @@ class ImageCollection:
 
 
 class Mask:
-    _data: Optional[QByteArray]
-
-    bounds: Bounds
-    image: QImage
 
     def __init__(self, bounds: Bounds, data: Union[QImage, QByteArray]):
         self.bounds = bounds
         if isinstance(data, QImage):
-            self.image = data
+            self.image: QImage = data
         else:
             assert len(data) == bounds.width * bounds.height
-            self._data = data
             self.image = QImage(
                 data.data(),
                 bounds.width,

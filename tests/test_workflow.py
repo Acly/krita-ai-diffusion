@@ -730,6 +730,30 @@ def test_refine_max_pixels(qtapp, client):
     run_and_save(qtapp, client, job, f"test_refine_max_pixels")
 
 
+def test_fill_control_max_pixels(qtapp, client):
+    perf_settings = PerformanceSettings(max_pixel_count=2)  # million pixels
+    image = Image.load(image_dir / "beach_1536x1024.webp")
+    image = Image.scale(image, Extent(2304, 1536))
+    mask = Mask.load(image_dir / "beach_mask_2304x1536.webp")
+    mask.bounds = Bounds(700, 0, 2304 - 700, 1536)
+    depth = Image.load(image_dir / "beach_depth_2304x1536.webp")
+    prompt = ConditioningInput("beach, the sea, cliffs, palm trees")
+    prompt.control = [ControlInput(ControlMode.depth, depth)]
+    inpaint = detect_inpaint(
+        InpaintMode.fill, mask.bounds, Arch.sd15, prompt.positive, prompt.control, 1.0
+    )
+    job = create(
+        WorkflowKind.inpaint,
+        client,
+        canvas=image,
+        mask=mask,
+        cond=prompt,
+        inpaint=inpaint,
+        perf=perf_settings,
+    )
+    run_and_save(qtapp, client, job, f"test_fill_control_max_pixels", image, mask)
+
+
 def test_outpaint_resolution_multiplier(qtapp, client):
     perf_settings = PerformanceSettings(batch_size=1, resolution_multiplier=0.8)
     image = Image.create(Extent(2048, 1024))
@@ -889,42 +913,84 @@ def test_inpaint_benchmark(pytestconfig, qtapp, client):
 
 
 # def test_reproduce(qtapp, client: Client):
-#     workflow = {
-#         "conditioning": {
-#             "control": [{"strength": 0.5, "mode": "blur"}],
-#             "negative": "<redacted>",
-#             "positive": "<redacted>",
-#             "regions": [],
-#             "style": "<redacted>",
-#         },
+#     json_text = """
+#     {
 #         "images": {
 #             "extent": {
-#                 "desired": [672, 672],
-#                 "initial": [8736, 15552],
-#                 "input": [2912, 5184],
-#                 "target": [8736, 15552],
+#                 "desired": [
+#                 3000,
+#                 2000
+#                 ],
+#                 "initial": [
+#                 768,
+#                 512
+#                 ],
+#                 "input": [
+#                 3000,
+#                 2000
+#                 ],
+#                 "target": [
+#                 5760,
+#                 3840
+#                 ]
 #             },
-#             "initial_image": 0,
+#             "hires_image": 1,
+#             "hires_mask": 2,
+#             "initial_image": 0
 #         },
-#         "kind": "upscale_tiled",
+#         "conditioning": {
+#             "control": [
+#                 {
+#                     "mode": "line_art",
+#                     "image": 3,
+#                     "range": [
+#                         0,
+#                         0.8
+#                     ]
+#                 }
+#             ],
+#             "negative": "<redacted>",
+#             "positive": "<redacted>",
+#             "style": "<redacted>"
+#         },
+#         "inpaint": {
+#             "feather": 164,
+#             "grow": 164,
+#             "mode": "custom",
+#             "target_bounds": [
+#                 2008,
+#                 1152,
+#                 3752,
+#                 2680
+#             ],
+#             "use_inpaint_model": true
+#         },
 #         "models": {
-#             "checkpoint": "realisticVisionV51_v51VAE.safetensors",
-#             "loras": [],
+#             "checkpoint": "serenity_v21Safetensors.safetensors",
 #             "vae": "Checkpoint Default",
-#             "version": "sd15",
+#             "version": "sd15"
 #         },
 #         "sampling": {
 #             "cfg_scale": 7,
 #             "sampler": "dpmpp_2m",
 #             "scheduler": "karras",
-#             "seed": 1159574572,
-#             "start_step": 14,
-#             "total_steps": 20,
+#             "seed": 473470401,
+#             "total_steps": 20
 #         },
-#         "upscale_model": "4x_NMKD-Superscale-SP_178000_G.pth",
+#         "crop_upscale_extent": [
+#         2904,
+#         2072
+#         ],
+#         "kind": "inpaint",
+#         "nsfw_filter": 0.8
 #     }
-#     image = Image.create(Extent(2912, 5184))
-#     images = ImageCollection([image])
+#     """
+#     workflow = json.loads(json_text)
+#     initial = Image.create(Extent(768, 512))
+#     hires = Image.create(Extent(2904, 2072))
+#     mask = Mask.transparent(Bounds(0, 0, 3000, 2000))
+#     lineart = Image.create(Extent(3000, 2000))
+#     images = ImageCollection([initial, hires, mask.to_image(), lineart])
 #     data, offsets = images.to_bytes()
 #     workflow["image_data"] = {"bytes": data, "offsets": offsets}
 #     input = WorkflowInput.from_dict(workflow)
