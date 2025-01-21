@@ -22,15 +22,13 @@ def url_strip(url: str):
 
 
 files = {
-    url_unquote(url_strip(url)): dir / filepath
+    url_unquote(url_strip(file.url)): dir / file.path
     for m in resources.all_models(include_deprecated=True)
-    for filepath, url in m.files.items()
+    for file in m.files
 }
 
 urls = [
-    url_strip(url)
-    for m in resources.all_models(include_deprecated=True)
-    for _, url in m.files.items()
+    url_strip(file.url) for m in resources.all_models(include_deprecated=True) for file in m.files
 ]
 
 
