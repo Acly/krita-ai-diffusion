@@ -29,14 +29,17 @@
       "name": "OmniSR Superscale",
       "files": [
         {
+          "id": "upscaler-fast_2x-all",
           "path": "models/upscale_models/OmniSR_X2_DIV2K.safetensors",
           "url": "https://huggingface.co/Acly/Omni-SR/resolve/main/OmniSR_X2_DIV2K.safetensors"
         },
         {
+          "id": "upscaler-fast_3x-all",
           "path": "models/upscale_models/OmniSR_X3_DIV2K.safetensors",
           "url": "https://huggingface.co/Acly/Omni-SR/resolve/main/OmniSR_X3_DIV2K.safetensors"
         },
         {
+          "id": "upscaler-fast_4x-all",
           "path": "models/upscale_models/OmniSR_X4_DIV2K.safetensors",
           "url": "https://huggingface.co/Acly/Omni-SR/resolve/main/OmniSR_X4_DIV2K.safetensors"
         }
@@ -107,10 +110,12 @@
       "name": "Fooocus Inpaint",
       "files": [
         {
+          "id": "inpaint-fooocus_head-sdxl",
           "path": "models/inpaint/fooocus_inpaint_head.pth",
           "url": "https://huggingface.co/lllyasviel/fooocus_inpaint/resolve/main/fooocus_inpaint_head.pth"
         },
         {
+          "id": "inpaint-fooocus_patch-sdxl",
           "path": "models/inpaint/inpaint_v26.fooocus.patch",
           "url": "https://huggingface.co/lllyasviel/fooocus_inpaint/resolve/main/inpaint_v26.fooocus.patch"
         }
@@ -357,10 +362,12 @@
       "name": "IP-Adapter Face (SD1.5)",
       "files": [
         {
+          "id": "ip_adapter-face-sd15",
           "path": "models/ipadapter/ip-adapter-faceid-plusv2_sd15.bin",
           "url": "https://huggingface.co/h94/IP-Adapter-FaceID/resolve/main/ip-adapter-faceid-plusv2_sd15.bin"
         },
         {
+          "id": "lora-face-sd15",
           "path": "models/loras/ip-adapter-faceid-plusv2_sd15_lora.safetensors",
           "url": "https://huggingface.co/h94/IP-Adapter-FaceID/resolve/main/ip-adapter-faceid-plusv2_sd15_lora.safetensors"
         }
@@ -382,10 +389,12 @@
       "name": "IP-Adapter Face (XL)",
       "files": [
         {
+          "id": "ip_adapter-face-sdxl",
           "path": "models/ipadapter/ip-adapter-faceid-plusv2_sdxl.bin",
           "url": "https://huggingface.co/h94/IP-Adapter-FaceID/resolve/main/ip-adapter-faceid-plusv2_sdxl.bin"
         },
         {
+          "id": "lora-face-sdxl",
           "path": "models/loras/ip-adapter-faceid-plusv2_sdxl_lora.safetensors",
           "url": "https://huggingface.co/h94/IP-Adapter-FaceID/resolve/main/ip-adapter-faceid-plusv2_sdxl_lora.safetensors"
         }
@@ -437,10 +446,12 @@
       "name": "Reference (Flux)",
       "files": [
         {
+          "id": "clip_vision-redux-flux",
           "path": "models/clip_vision/sigclip_vision_patch14_384.safetensors",
           "url": "https://huggingface.co/Comfy-Org/sigclip_vision_384/resolve/main/sigclip_vision_patch14_384.safetensors"
         },
         {
+          "id": "ip_adapter-reference-flux",
           "path": "models/style_models/flux1-redux-dev.safetensors",
           "url": "https://files.interstice.cloud/models/flux1-redux-dev.safetensors"
         }

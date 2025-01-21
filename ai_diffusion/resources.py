@@ -256,6 +256,12 @@ class ControlMode(Enum):
         return control.control_mode_text[self]
 
 
+def resource_id(kind: ResourceKind, arch: Arch, identifier: ControlMode | UpscalerName | str):
+    if isinstance(identifier, Enum):
+        identifier = identifier.name
+    return f"{kind.name}-{identifier}-{arch.name}"
+
+
 class ResourceId(NamedTuple):
     kind: ResourceKind
     arch: Arch
@@ -288,29 +294,44 @@ class ModelRequirements(Enum):
     insightface = 1
 
 
+class ModelFile(NamedTuple):
+    path: Path
+    url: str
+    id: ResourceId
+
+    @property
+    def name(self):
+        return self.path.name
+
+    @staticmethod
+    def parse(data: dict[str, Any], parent_id: ResourceId):
+        id = ResourceId.parse(data.get("id", parent_id.string))
+        return ModelFile(Path(data["path"]), data["url"], id)
+
+
 class ModelResource(NamedTuple):
     name: str
     id: ResourceId
-    files: dict[Path, str]
+    files: list[ModelFile]
     alternatives: list[Path] | None = None  # for backwards compatibility
     requirements: ModelRequirements = ModelRequirements.none
 
     @property
     def filename(self):
         assert len(self.files) == 1
-        return next(iter(self.files)).name
+        return self.files[0].name
 
     @property
     def folder(self):
-        return next(iter(self.files)).parent
+        return self.files[0].path.parent
 
     @property
     def url(self):
         assert len(self.files) == 1
-        return next(iter(self.files.values()))
+        return self.files[0].url
 
     def exists_in(self, path: Path):
-        exact = all((path / filepath).exists() for filepath in self.files.keys())
+        exact = all((path / file.path).exists() for file in self.files)
         alt = self.alternatives is not None and any((path / f).exists() for f in self.alternatives)
         return exact or alt
 
@@ -329,7 +350,14 @@ class ModelResource(NamedTuple):
         result = {
             "id": self.id.string,
             "name": self.name,
-            "files": [{"path": str(k.as_posix()), "url": v} for k, v in self.files.items()],
+            "files": [
+                {
+                    "id": f.id,
+                    "path": str(f.path.as_posix()),
+                    "url": f.url,
+                }
+                for f in self.files
+            ],
         }
         if self.alternatives:
             result["alternatives"] = [str(p.as_posix()) for p in self.alternatives]
@@ -340,7 +368,7 @@ class ModelResource(NamedTuple):
     @staticmethod
     def from_dict(data: dict[str, Any]):
         id = ResourceId.parse(data["id"])
-        files = {Path(f["path"]): f["url"] for f in data["files"]}
+        files = [ModelFile.parse(f, id) for f in data["files"]]
         alternatives = [Path(p) for p in data.get("alternatives", [])]
         requirements = (
             ModelRequirements[data["requirements"]]
@@ -415,12 +443,6 @@ def all_models(include_deprecated=False):
     if include_deprecated:
         result = chain(result, deprecated_models)
     return result
-
-
-def resource_id(kind: ResourceKind, arch: Arch, identifier: ControlMode | UpscalerName | str):
-    if isinstance(identifier, Enum):
-        identifier = identifier.name
-    return f"{kind.name}-{identifier}-{arch.name}"
 
 
 def find_resource(id: ResourceId, include_deprecated=False):

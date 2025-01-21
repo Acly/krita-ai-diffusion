@@ -319,10 +319,10 @@ class Server:
             for resource in to_install:
                 if not resource.exists_in(self.path) and not resource.exists_in(self.comfy_dir):
                     await self._install_requirements(resource.requirements, network, cb)
-                    for filepath, url in resource.files.items():
-                        target_file = self.path / filepath
+                    for file in resource.files:
+                        target_file = self.path / file.path
                         target_file.parent.mkdir(parents=True, exist_ok=True)
-                        await _download_cached(resource.name, network, url, target_file, cb)
+                        await _download_cached(resource.name, network, file.url, target_file, cb)
         except Exception as e:
             log.exception(str(e))
             raise e

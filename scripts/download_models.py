@@ -79,9 +79,9 @@ async def download(
     verbose=False,
     dry_run=False,
 ):
-    for filepath, url in model.files.items():
-        target_file = destination / filepath
-        url = _map_url(url)
+    for file in model.files:
+        target_file = destination / file.path
+        url = _map_url(file.url)
         if verbose:
             print(f"Looking for {target_file}")
         if target_file.exists():
