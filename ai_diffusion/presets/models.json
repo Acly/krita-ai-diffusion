@@ -574,10 +574,12 @@
       "name": "Line Art Preprocessor",
       "files": [
         {
+          "id": "preprocessor-line_art-all",
           "path": "custom_nodes/comfyui_controlnet_aux/ckpts/lllyasviel/Annotators/sk_model.pth",
           "url": "https://huggingface.co/lllyasviel/Annotators/resolve/main/sk_model.pth"
         },
         {
+          "id": "preprocessor-line_art-all",
           "path": "custom_nodes/comfyui_controlnet_aux/ckpts/lllyasviel/Annotators/sk_model2.pth",
           "url": "https://huggingface.co/lllyasviel/Annotators/resolve/main/sk_model2.pth"
         }
@@ -608,10 +610,12 @@
       "name": "Pose Preprocessor",
       "files": [
         {
+          "id": "preprocessor-pose-all",
           "path": "custom_nodes/comfyui_controlnet_aux/ckpts/hr16/yolo-nas-fp16/yolo_nas_l_fp16.onnx",
           "url": "https://huggingface.co/hr16/yolo-nas-fp16/resolve/main/yolo_nas_l_fp16.onnx"
         },
         {
+          "id": "preprocessor-pose-all",
           "path": "custom_nodes/comfyui_controlnet_aux/ckpts/yzd-v/DWPose/dw-ll_ucoco_384.onnx",
           "url": "https://huggingface.co/yzd-v/DWPose/resolve/main/dw-ll_ucoco_384.onnx"
         }

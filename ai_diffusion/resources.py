@@ -308,6 +308,16 @@ class ModelFile(NamedTuple):
         id = ResourceId.parse(data.get("id", parent_id.string))
         return ModelFile(Path(data["path"]), data["url"], id)
 
+    def as_dict(self, with_id=True):
+        result = {
+            "id": self.id.string,
+            "path": str(self.path.as_posix()),
+            "url": self.url,
+        }
+        if not with_id:
+            del result["id"]
+        return result
+
 
 class ModelResource(NamedTuple):
     name: str
@@ -350,14 +360,7 @@ class ModelResource(NamedTuple):
         result = {
             "id": self.id.string,
             "name": self.name,
-            "files": [
-                {
-                    "id": f.id,
-                    "path": str(f.path.as_posix()),
-                    "url": f.url,
-                }
-                for f in self.files
-            ],
+            "files": [f.as_dict(len(self.files) > 1) for f in self.files],
         }
         if self.alternatives:
             result["alternatives"] = [str(p.as_posix()) for p in self.alternatives]

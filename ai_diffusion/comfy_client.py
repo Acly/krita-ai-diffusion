@@ -709,11 +709,17 @@ def _find_inpaint_models(model_list: Sequence[str]):
 def _ensure_supported_style(client: Client):
     styles = filter_supported_styles(Styles.list(), client)
     if len(styles) == 0:
-        checkpoint = next(
+        supported_checkpoints = (
             cp.filename
             for cp in client.models.checkpoints.values()
             if client.supports_arch(cp.arch)
         )
+        checkpoint = next(iter(supported_checkpoints), None)
+        if checkpoint is None:
+            log.warning("No checkpoints found for any of the supported workloads!")
+            if len(client.models.checkpoints) == 0:
+                raise Exception(_("No diffusion model checkpoints found"))
+            return
         log.info(f"No supported styles found, creating default style with checkpoint {checkpoint}")
         default = next((s for s in Styles.list() if s.filename == "default.json"), None)
         if default:
