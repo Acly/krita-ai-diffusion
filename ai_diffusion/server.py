@@ -245,7 +245,7 @@ class Server:
         dependencies = ["onnx==1.16.1", "onnxruntime"]  # onnx version pinned due to #1033
         await _execute_process("FaceID", self._pip_install(*dependencies), self.path, cb)
 
-        pyver = await get_python_version(self._python_cmd)
+        pyver = await get_python_version_string(self._python_cmd)
         if is_windows and "3.11" in pyver:
             whl_file = self._cache_dir / "insightface-0.7.3-cp311-cp311-win_amd64.whl"
             whl_url = "https://github.com/bihailantian655/insightface_wheel/raw/main/insightface-0.7.3-cp311-cp311-win_amd64%20(1).whl"
