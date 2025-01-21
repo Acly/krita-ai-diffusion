@@ -135,10 +135,7 @@ class Server:
             await install_if_missing(python_dir, self._create_venv, cb)
             self._python_cmd = python_dir / "bin" / "python3"
         assert self._python_cmd is not None
-        python_ver = await get_python_version_string(self._python_cmd)
-        log.info(f"Using Python: {python_ver}, {self._python_cmd}")
-        pip_ver = await get_python_version_string(self._python_cmd, "-m", "pip")
-        log.info(f"Using pip: {pip_ver}")
+        await self._log_python_version()
         await determine_system_encoding(str(self._python_cmd))
 
         comfy_dir = self.comfy_dir or self.path / "ComfyUI"
@@ -153,6 +150,13 @@ class Server:
         self.state = ServerState.stopped
         cb("Finished", f"Installation finished in {self.path}")
         self.check_install()
+
+    async def _log_python_version(self):
+        if self._python_cmd is not None:
+            python_ver = await get_python_version_string(self._python_cmd)
+            log.info(f"Using Python: {python_ver}, {self._python_cmd}")
+            pip_ver = await get_python_version_string(self._python_cmd, "-m", "pip")
+            log.info(f"Using pip: {pip_ver}")
 
     def _pip_install(self, *args):
         return [self._python_cmd, "-su", "-m", "pip", "install", *args]
@@ -388,6 +392,7 @@ class Server:
     async def start(self, port: int | None = None):
         assert self.state in [ServerState.stopped, ServerState.missing_resources]
         assert self._python_cmd
+        await self._log_python_version()
 
         self.state = ServerState.starting
         last_line = ""
