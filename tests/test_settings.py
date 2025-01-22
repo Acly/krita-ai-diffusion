@@ -52,13 +52,11 @@ def test_performance_preset():
 
 
 def style_is_default(style):
-    return all(
-        [
-            getattr(style, name) == s.default
-            for name, s in StyleSettings.__dict__.items()
-            if isinstance(s, Setting) and name != "name"
-        ]
-    )
+    return all([
+        getattr(style, name) == s.default
+        for name, s in StyleSettings.__dict__.items()
+        if isinstance(s, Setting) and name != "name"
+    ])
 
 
 def test_styles(tmp_path_factory):
@@ -168,20 +166,16 @@ def test_sampler_presets(tmp_path_factory):
 
     builtin_file = dir / "builtin.json"
     builtin_file.write_text(
-        json.dumps(
-            {
-                "Builtin": {"sampler": "dpmpp_2m", "scheduler": "normal", "steps": 42, "cfg": 7.0},
-            }
-        )
+        json.dumps({
+            "Builtin": {"sampler": "dpmpp_2m", "scheduler": "normal", "steps": 42, "cfg": 7.0},
+        })
     )
 
     user_file = dir / "user.json"
     user_file.write_text(
-        json.dumps(
-            {
-                "User": {"sampler": "user_sampler", "scheduler": "normal", "steps": 13, "cfg": 1.0},
-            }
-        )
+        json.dumps({
+            "User": {"sampler": "user_sampler", "scheduler": "normal", "steps": 13, "cfg": 1.0},
+        })
     )
 
     presets = SamplerPresets(builtin_file, user_file)

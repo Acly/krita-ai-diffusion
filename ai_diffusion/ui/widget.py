@@ -181,7 +181,6 @@ class QueuePopup(QMenu):
 
 
 class QueueButton(QToolButton):
-
     def __init__(self, supports_batch=True, parent: QWidget | None = None):
         super().__init__(parent)
         self._model = root.active_model
@@ -424,7 +423,6 @@ class MultiLineTextPromptWidget(QPlainTextEdit):
 
 
 class SingleLineTextPromptWidget(QLineEdit):
-
     _completer: PromptAutoComplete
 
     def __init__(self, parent: QWidget):

@@ -10,7 +10,7 @@ jobs:
         with:
           submodules: true
       - name: Python
-        uses: actions/setup-python@v4
+        uses: actions/setup-python@v5
         with:
           python-version: '3.10'
           cache: 'pip'
@@ -22,7 +22,7 @@ jobs:
           pylance-version: latest-release
       - name: Lint
         if: ${{ !cancelled() }}
-        uses: psf/black@stable
+        run: ruff format --diff
   
   test:
     runs-on: ubuntu-22.04

@@ -505,23 +505,21 @@ search_paths: dict[str, list[str]] = {
 }
 # fmt: on
 
-required_resource_ids = set(
-    [
-        ResourceId(ResourceKind.text_encoder, Arch.sd3, "clip_l"),
-        ResourceId(ResourceKind.text_encoder, Arch.sd3, "clip_g"),
-        ResourceId(ResourceKind.controlnet, Arch.sd15, ControlMode.inpaint),
-        ResourceId(ResourceKind.controlnet, Arch.sd15, ControlMode.blur),
-        ResourceId(ResourceKind.ip_adapter, Arch.sd15, ControlMode.reference),
-        ResourceId(ResourceKind.ip_adapter, Arch.sdxl, ControlMode.reference),
-        ResourceId(ResourceKind.clip_vision, Arch.all, "ip_adapter"),
-        ResourceId(ResourceKind.lora, Arch.sd15, "hyper"),
-        ResourceId(ResourceKind.lora, Arch.sdxl, "hyper"),
-        ResourceId(ResourceKind.upscaler, Arch.all, UpscalerName.default),
-        ResourceId(ResourceKind.upscaler, Arch.all, UpscalerName.fast_2x),
-        ResourceId(ResourceKind.upscaler, Arch.all, UpscalerName.fast_3x),
-        ResourceId(ResourceKind.upscaler, Arch.all, UpscalerName.fast_4x),
-        ResourceId(ResourceKind.inpaint, Arch.sdxl, "fooocus_head"),
-        ResourceId(ResourceKind.inpaint, Arch.sdxl, "fooocus_patch"),
-        ResourceId(ResourceKind.inpaint, Arch.all, "default"),
-    ]
-)
+required_resource_ids = set([
+    ResourceId(ResourceKind.text_encoder, Arch.sd3, "clip_l"),
+    ResourceId(ResourceKind.text_encoder, Arch.sd3, "clip_g"),
+    ResourceId(ResourceKind.controlnet, Arch.sd15, ControlMode.inpaint),
+    ResourceId(ResourceKind.controlnet, Arch.sd15, ControlMode.blur),
+    ResourceId(ResourceKind.ip_adapter, Arch.sd15, ControlMode.reference),
+    ResourceId(ResourceKind.ip_adapter, Arch.sdxl, ControlMode.reference),
+    ResourceId(ResourceKind.clip_vision, Arch.all, "ip_adapter"),
+    ResourceId(ResourceKind.lora, Arch.sd15, "hyper"),
+    ResourceId(ResourceKind.lora, Arch.sdxl, "hyper"),
+    ResourceId(ResourceKind.upscaler, Arch.all, UpscalerName.default),
+    ResourceId(ResourceKind.upscaler, Arch.all, UpscalerName.fast_2x),
+    ResourceId(ResourceKind.upscaler, Arch.all, UpscalerName.fast_3x),
+    ResourceId(ResourceKind.upscaler, Arch.all, UpscalerName.fast_4x),
+    ResourceId(ResourceKind.inpaint, Arch.sdxl, "fooocus_head"),
+    ResourceId(ResourceKind.inpaint, Arch.sdxl, "fooocus_patch"),
+    ResourceId(ResourceKind.inpaint, Arch.all, "default"),
+])

@@ -1,3 +1,8 @@
+[tool.ruff]
+line-length = 100
+preview = true
+extend-exclude = ['ai_diffusion/websockets', 'krita.pyi']
+
 [tool.black]
 line-length = 100
 preview = true

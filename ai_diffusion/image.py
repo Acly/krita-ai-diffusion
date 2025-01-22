@@ -296,7 +296,6 @@ class ImageFileFormat(Enum):
 
 
 class Image:
-
     _qt_supports_webp = True
 
     def __init__(self, qimage: QImage):
@@ -679,7 +678,6 @@ class ImageCollection:
 
 
 class Mask:
-
     def __init__(self, bounds: Bounds, data: Union[QImage, QByteArray]):
         self.bounds = bounds
         if isinstance(data, QImage):

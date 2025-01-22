@@ -648,7 +648,7 @@ class ComfyWorkflow:
         )
 
     def combine_ip_adapter_embeds(self, embeds: list[Output]):
-        e = {f"embed{i+1}": embed for i, embed in enumerate(embeds)}
+        e = {f"embed{i + 1}": embed for i, embed in enumerate(embeds)}
         return self.add("IPAdapterCombineEmbeds", 1, method="concat", **e)
 
     def apply_ip_adapter(

@@ -45,7 +45,6 @@ class CustomWorkflow:
 
 
 class WorkflowCollection(QAbstractListModel):
-
     _icon_local = theme.icon("file-json")
     _icon_remote = theme.icon("web-connection")
     _icon_document = theme.icon("file-kra")
@@ -355,7 +354,6 @@ class CustomGenerationMode(Enum):
 
 
 class CustomWorkspace(QObject, ObservableProperties):
-
     workflow_id = Property("", setter="_set_workflow_id")
     params = Property({}, persist=True)
     mode = Property(CustomGenerationMode.regular, setter="_set_mode")

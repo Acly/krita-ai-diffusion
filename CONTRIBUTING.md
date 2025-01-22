@@ -60,7 +60,7 @@ The easiest way to run a development version of the plugin is to use symlinks:
 
 ### Code formatting
 
-The codebase uses [black](https://github.com/psf/black) for formatting. You can check locally by running `black` in the repository root, or use an IDE integration.
+The codebase uses [black](https://docs.astral.sh/ruff/) for formatting. You can check locally by running `ruff format` in the repository root, or use an IDE integration.
 
 ### Code style
 

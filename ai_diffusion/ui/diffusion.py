@@ -21,7 +21,6 @@ from .animation import AnimationWidget
 
 
 class AutoUpdateWidget(QWidget):
-
     def __init__(self, parent: QWidget):
         super().__init__(parent)
 
@@ -161,7 +160,6 @@ class ConnectionWidget(QWidget):
 
 
 class WelcomeWidget(QWidget):
-
     def __init__(self, server: Server):
         super().__init__()
 

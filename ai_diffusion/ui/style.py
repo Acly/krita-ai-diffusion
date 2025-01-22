@@ -429,7 +429,6 @@ def _show_file_too_large_warning(max_size: int, parent=None):
 
 
 class SamplerWidget(QWidget):
-
     prefix: str
 
     value_changed = pyqtSignal()

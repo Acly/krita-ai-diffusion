@@ -121,7 +121,7 @@ class HistoryWidget(QListWidget):
             self._last_job_params = job.params
             prompt = job.params.name if job.params.name != "" else "<no prompt>"
             strength = job.params.metadata.get("strength", 1.0)
-            strength = f"{strength*100:.0f}% - " if strength != 1.0 else ""
+            strength = f"{strength * 100:.0f}% - " if strength != 1.0 else ""
 
             header = QListWidgetItem(f"{job.timestamp:%H:%M} - {strength}{prompt}")
             header.setFlags(Qt.ItemFlag.NoItemFlags)
@@ -157,7 +157,7 @@ class HistoryWidget(QListWidget):
         if len(title) > 70:
             title = title[:66] + "..."
         if params.strength != 1.0:
-            title = f"{title} @ {params.strength*100:.0f}%"
+            title = f"{title} @ {params.strength * 100:.0f}%"
         style = Styles.list().find(params.style)
         strings: list[str | list[str]] = (
             [

@@ -44,7 +44,7 @@ async def run_auto_update_test(tmp_path: Path):
             result = await response.json()
             last_version = result["version"]
             a, b, c = last_version.split(".")
-            new_version = f"{a}.{b}.{int(c)+1}"
+            new_version = f"{a}.{b}.{int(c) + 1}"
 
         # Create an existing installation
         install_dir = tmp_path / "install"
@@ -110,7 +110,6 @@ async def test_authorization():
         pytest.skip("No local cloud service found")
     service_url = os.environ["TEST_SERVICE_URL"]
     async with ClientSession(service_url) as session:
-
         # Version check is public
         async with session.get("/plugin/latest?version=1.2.3") as response:
             assert response.status == 200

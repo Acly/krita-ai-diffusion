@@ -87,7 +87,6 @@ class File:
 
 
 class FileCollection(QAbstractListModel):
-
     source_role = Qt.ItemDataRole.UserRole + 1
 
     def __init__(self, database: Path | None = None, parent=None):

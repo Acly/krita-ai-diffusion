@@ -133,7 +133,6 @@ _tag_files = None
 
 
 class PromptAutoComplete:
-
     def __init__(self, widget: QLineEdit):
         self._widget = widget
         self._completer = QCompleter()
@@ -185,9 +184,9 @@ class PromptAutoComplete:
                         count = int(count)
                         count_str = str(count)
                         if count > 1_000_000:
-                            count_str = f"{count/1_000_000:.0f}m"
+                            count_str = f"{count / 1_000_000:.0f}m"
                         elif count > 1_000:
-                            count_str = f"{count/1_000:.0f}k"
+                            count_str = f"{count / 1_000:.0f}k"
                         meta = f"{tag_name} {count_str}"
                         all_tags.append(TagItem(tag, tag_type, count, meta))
 

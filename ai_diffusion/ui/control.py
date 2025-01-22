@@ -16,7 +16,6 @@ from . import theme
 
 
 class ControlWidget(QWidget):
-
     def __init__(
         self, control_list: ControlLayerList | None, control: ControlLayer, parent: QWidget
     ):

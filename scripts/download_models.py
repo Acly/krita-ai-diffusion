@@ -123,9 +123,9 @@ async def main(
 ):
     print(f"Generative AI for Krita - Model download - v{resources.version}")
     verbose = verbose or dry_run
-    assert (
-        sum([minimal, recommended, all]) <= 1
-    ), "Only one of --minimal, --recommended, --all can be specified"
+    assert sum([minimal, recommended, all]) <= 1, (
+        "Only one of --minimal, --recommended, --all can be specified"
+    )
 
     versions = [Arch.all]
     if sd15 or minimal or all:

@@ -176,7 +176,7 @@ class ActiveRegionWidget(QFrame):
         self._language_button.setToolButtonStyle(Qt.ToolButtonStyle.ToolButtonTextOnly)
         self._language_button.setText(settings.prompt_translation.upper())
         self._language_button.setStyleSheet(
-            f"QToolButton {{ font-size: {max(6, font_size-2)}pt; background: #40808080;"
+            f"QToolButton {{ font-size: {max(6, font_size - 2)}pt; background: #40808080;"
             " border: 1px solid #60808080; border-radius: 2px; }"
         )
         self._language_button.clicked.connect(self._toggle_translation_enabled)
@@ -504,7 +504,6 @@ class RegionPromptWidget(QWidget):
 
 
 class RegionThumbnailWidget(QLabel):
-
     def __init__(self, region: RootRegion | Region, parent: QWidget):
         super().__init__(parent)
         self.set_region(region)

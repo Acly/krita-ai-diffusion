@@ -33,7 +33,6 @@ class UpdatePackage(NamedTuple):
 
 
 class AutoUpdate(QObject, ObservableProperties):
-
     default_api_url = os.getenv("INTERSTICE_URL", "https://api.interstice.cloud")
 
     state = Property(UpdateState.unknown)

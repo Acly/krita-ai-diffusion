@@ -25,7 +25,6 @@ from .widget import QueueButton, ErrorBox, create_wide_tool_button
 
 
 class AnimationWidget(QWidget):
-
     _model: Model
     _model_bindings: list[QMetaObject.Connection | Binding]
 
