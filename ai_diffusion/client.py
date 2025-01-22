@@ -11,7 +11,7 @@ from .files import FileLibrary, FileFormat
 from .style import Style, Styles
 from .settings import PerformanceSettings
 from .resources import ControlMode, ResourceKind, Arch, UpscalerName
-from .resources import ResourceId, resource_id
+from .resources import CustomNode, ResourceId, search_path
 from .localization import translate as _
 from .util import client_logger as log
 
@@ -84,6 +84,19 @@ class DeviceInfo(NamedTuple):
         except Exception as e:
             log.error(f"Could not parse device info {data}: {str(e)}")
             return DeviceInfo("cpu", "unknown", 0)
+
+
+class MissingResources(Exception):
+    def __init__(self, missing: dict[Arch, list[ResourceId]] | list[CustomNode]):
+        self.missing = missing
+
+    def __str__(self):
+        return "Required custom nodes or model files are missing"
+
+    def get(self, arch: Arch):
+        if isinstance(self.missing, list):
+            return self.missing
+        return self.missing.get(arch, [])
 
 
 class CheckpointInfo(NamedTuple):
@@ -293,7 +306,13 @@ class Client(ABC):
     def user(self) -> User | None:
         return None
 
+    @property
+    def missing_resources(self) -> MissingResources | None:
+        return None
+
     def supports_arch(self, arch: Arch) -> bool:
+        if self.missing_resources:
+            return len(self.missing_resources.get(arch)) == 0
         return True
 
     @property

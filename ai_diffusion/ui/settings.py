@@ -23,9 +23,9 @@ from PyQt5.QtWidgets import (
 from PyQt5.QtCore import Qt, QMetaObject, QSize, QUrl, pyqtSignal
 from PyQt5.QtGui import QDesktopServices, QGuiApplication, QCursor, QFontMetrics
 
-from ..client import Client, User
+from ..client import Client, User, MissingResources
 from ..cloud_client import CloudClient
-from ..resources import CustomNode, MissingResource, ResourceKind
+from ..resources import Arch, ResourceId
 from ..settings import Settings, ServerMode, PerformancePreset, settings
 from ..server import Server
 from ..style import Style
@@ -34,7 +34,7 @@ from ..connection import ConnectionState, apply_performance_preset
 from ..updates import UpdateState
 from ..properties import Binding
 from ..localization import Localization, translate as _
-from .. import eventloop, util, __version__
+from .. import resources, eventloop, util, __version__
 from .server import ServerWidget
 from .settings_widgets import SpinBoxSetting, SliderSetting, SwitchSetting
 from .settings_widgets import SettingsTab, ComboBoxSetting, FileListSetting
@@ -249,12 +249,13 @@ class ConnectionSettings(SettingsTab):
         connection_layout.addLayout(server_layout)
 
         self._connection_status = QLabel(self._connection_widget)
-        self._connection_status.setWordWrap(True)
-        self._connection_status.setTextFormat(Qt.TextFormat.RichText)
-        self._connection_status.setTextInteractionFlags(
+        self._supported_workloads = QLabel(self._connection_widget)
+        self._supported_workloads.setWordWrap(True)
+        self._supported_workloads.setTextFormat(Qt.TextFormat.RichText)
+        self._supported_workloads.setTextInteractionFlags(
             Qt.TextInteractionFlag.TextBrowserInteraction
         )
-        self._connection_status.setOpenExternalLinks(True)
+        self._supported_workloads.setOpenExternalLinks(True)
 
         anchor = _("View log files")
         open_log_button = QLabel(f"<a href='file://{util.log_dir}'>{anchor}</a>", self)
@@ -266,6 +267,7 @@ class ConnectionSettings(SettingsTab):
         status_layout.addWidget(open_log_button, alignment=Qt.AlignmentFlag.AlignRight)
 
         connection_layout.addLayout(status_layout)
+        connection_layout.addWidget(self._supported_workloads)
         connection_layout.addStretch()
 
         self._layout.addWidget(self._server_managed)
@@ -343,38 +345,64 @@ class ConnectionSettings(SettingsTab):
             msg = connection.error.removeprefix("Error: ") if connection.error else "Unknown error"
             self._connection_status.setText("<b>" + _("Error") + f"</b>: {msg}")
             self._connection_status.setStyleSheet(f"color: {red};")
-            if connection.missing_resource is not None:
-                self._handle_missing_resource(connection.missing_resource)
 
-    def _handle_missing_resource(self, resource: MissingResource):
-        err = "<b>" + _("Error") + "</b>: "
-        if resource.kind is ResourceKind.checkpoint:
-            detail = _(
-                "No checkpoints found!\nCheckpoints must be placed into ComfyUI/models/checkpoints."
-            )
-            self._connection_status.setText(err + detail)
-        elif resource.kind is ResourceKind.node:
-            nodes = cast(list[CustomNode], resource.names)
-            self._connection_status.setText(
-                err
-                + _("The following ComfyUI custom nodes are missing")
+        self._supported_workloads.clear()
+        if connection.state in [ConnectionState.connected, ConnectionState.error]:
+            if connection.missing_resources is not None:
+                self._show_missing_resources(connection.missing_resources, connection.state)
+
+    def _show_missing_resources(self, res: MissingResources, state: ConnectionState):
+        def model_name(id: ResourceId, with_file=False):
+            if res := resources.find_resource(id):
+                if with_file:
+                    return f"{res.name} ({', '.join(f.name for f in res.files)})"
+                return res.name
+            if isinstance(id.identifier, str):
+                return id.identifier
+            return f"{id.kind.value} {id.identifier.value}"
+
+        text = ""
+        if isinstance(res.missing, list):
+            text = (
+                _("The following ComfyUI custom nodes are missing")
                 + ":<ul>"
-                + "\n".join((f"<li>{p.name} <a href='{p.url}'>{p.url}</a></li>" for p in nodes))
+                + "\n".join(
+                    (f"<li>{p.name} <a href='{p.url}'>{p.url}</a></li>" for p in res.missing)
+                )
                 + "</ul>"
                 + _(
                     "Please install or update the custom node package, then restart the server and try again."
                 )
+                + "<br>"
             )
         else:
-            search_paths = resource.search_path_string.replace("\n", "<br>")
-            link = "<a href='https://docs.interstice.cloud/comfyui-setup'>Custom ComfyUI Setup</a>"
-            self._connection_status.setText(
-                f"{err}{str(resource)}<br>{search_paths}<br><br>"
-                + _(
-                    "See {link} for required models.<br>Check the client.log file for more details.",
-                    link=link,
-                )
-            )
+            basic = [m for lst in res.missing.values() for m in lst if m.arch is Arch.all]
+            basic = util.unique(basic, key=lambda m: m.string)
+            if len(basic) > 0:
+                text = _("Missing common models") + ":\n<ul>"
+                text += "\n".join((f"<li>{model_name(m, True)}</li>" for m in basic))
+                text += "</ul>"
+            text += _("Detected base models:") + "\n<ul>"
+            for arch, missing in res.missing.items():
+                if arch in [Arch.all, Arch.illu_v]:
+                    continue
+                text += f"<li><b>{arch.value}</b>: "
+                if len(missing) == 0:
+                    text += _("supported")
+                else:
+                    names = (model_name(m) for m in missing if m.arch is arch)
+                    text += _("missing") + " " + ", ".join(names)
+                text += "</li>"
+            text += "</ul>"
+
+        link = "<a href='https://docs.interstice.cloud/comfyui-setup'>Custom ComfyUI Setup</a>"
+        text += _(
+            "See {link} for required models.<br>Check the client.log file for more details.",
+            link=link,
+        )
+        style = "" if state is ConnectionState.error else f"color: {grey};"
+        self._supported_workloads.setStyleSheet(style)
+        self._supported_workloads.setText(text)
 
     def _open_logs(self):
         QDesktopServices.openUrl(QUrl.fromLocalFile(str(util.log_dir)))

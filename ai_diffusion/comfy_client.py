@@ -12,14 +12,14 @@ from typing import Any, NamedTuple, Optional, Sequence
 from .api import WorkflowInput
 from .client import Client, CheckpointInfo, ClientMessage, ClientEvent, DeviceInfo, ClientModels
 from .client import SharedWorkflow, TranslationPackage, ClientFeatures, TextOutput
-from .client import filter_supported_styles, loras_to_upload
+from .client import MissingResources, filter_supported_styles, loras_to_upload
 from .files import FileFormat
 from .image import Image, ImageCollection
 from .network import RequestManager, NetworkError
 from .websockets.src.websockets import client as websockets_client
 from .websockets.src.websockets import exceptions as websockets_exceptions
 from .style import Styles
-from .resources import ControlMode, MissingResource, ResourceId, ResourceKind, Arch
+from .resources import ControlMode, ResourceId, ResourceKind, Arch
 from .resources import CustomNode, UpscalerName, resource_id
 from .settings import PerformanceSettings, settings
 from .localization import translate as _
@@ -94,7 +94,7 @@ class ComfyClient(Client):
         self._requests = RequestManager()
         self._id = str(uuid.uuid4())
         self._active: Optional[JobInfo] = None
-        self._supported_archs: list[Arch] = []
+        self._supported_archs: dict[Arch, list[ResourceId]] = {}
         self._supported_languages: list[TranslationPackage] = []
         self._messages = asyncio.Queue()
         self._queue = asyncio.Queue()
@@ -123,7 +123,7 @@ class ComfyClient(Client):
         nodes = await client._get("object_info")
         missing = _check_for_missing_nodes(nodes)
         if len(missing) > 0:
-            raise MissingResource(ResourceKind.node, missing)
+            raise MissingResources(missing)
 
         # Check for required and optional model resources
         models = client.models
@@ -166,12 +166,14 @@ class ComfyClient(Client):
         diffusion_models.update(await client.try_inspect("unet_gguf"))
         client._refresh_models(nodes, checkpoints, diffusion_models)
 
-        # Check supported SD versions and make sure there is at least one
-        missing = {ver: client._check_workload(ver) for ver in Arch.list()}
-        client._supported_archs = [ver for ver, miss in missing.items() if len(miss) == 0]
-        log.info("Supported workloads: " + ", ".join(ver.value for ver in client._supported_archs))
-        if len(client._supported_archs) == 0:
-            raise missing[Arch.sd15][0]
+        # Check supported base models and make sure there is at least one
+        client._supported_archs = {ver: client._check_workload(ver) for ver in Arch.list()}
+        supported_workloads = [
+            arch for arch, miss in client._supported_archs.items() if len(miss) == 0
+        ]
+        log.info("Supported workloads: " + ", ".join(arch.value for arch in supported_workloads))
+        if len(supported_workloads) == 0:
+            raise MissingResources(client._supported_archs)
 
         # Workarounds for DirectML
         if client.device_info.type == "privateuseone":
@@ -453,8 +455,9 @@ class ComfyClient(Client):
         except Exception as e:
             log.error(f"Couldn't unsubscribe from shared workflows: {str(e)}")
 
-    def supports_arch(self, arch: Arch):
-        return arch in self._supported_archs
+    @property
+    def missing_resources(self):
+        return MissingResources(self._supported_archs)
 
     @property
     def features(self):
@@ -534,17 +537,17 @@ class ComfyClient(Client):
             return result
         return None
 
-    def _check_workload(self, sdver: Arch) -> list[MissingResource]:
+    def _check_workload(self, sdver: Arch) -> list[ResourceId]:
         models = self.models
-        missing: list[MissingResource] = []
+        missing: list[ResourceId] = []
         for id in resources.required_resource_ids:
             if id.arch is not Arch.all and id.arch is not sdver:
                 continue
             if models.find(id) is None:
-                missing.append(MissingResource(id.kind, [id]))
+                missing.append(id)
         has_checkpoint = any(cp.arch is sdver for cp in models.checkpoints.values())
         if not has_checkpoint and sdver not in [Arch.illu, Arch.illu_v]:
-            missing.append(MissingResource(ResourceKind.checkpoint, [sdver.value]))
+            missing.append(ResourceId(ResourceKind.checkpoint, sdver, "Diffusion model checkpoint"))
         if len(missing) > 0:
             log.info(f"{sdver.value}: missing {len(missing)} models")
         return missing
@@ -647,8 +650,6 @@ def _find_ip_adapters(model_list: Sequence[str]):
 def _find_clip_vision_model(model_list: Sequence[str]):
     clip_vision_sd = ResourceId(ResourceKind.clip_vision, Arch.all, "ip_adapter")
     model = find_model(model_list, clip_vision_sd)
-    if model is None:
-        raise MissingResource(ResourceKind.clip_vision, resources.search_path(*clip_vision_sd))
     clip_vision_flux = ResourceId(ResourceKind.clip_vision, Arch.flux, "redux")
     clip_vision_illu = ResourceId(ResourceKind.clip_vision, Arch.illu, "ip_adapter")
     return {

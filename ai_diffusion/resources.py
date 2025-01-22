@@ -161,13 +161,13 @@ class Arch(Enum):
 
 class ResourceKind(Enum):
     checkpoint = "Diffusion checkpoint"
-    text_encoder = "Text Encoder model"
-    vae = "Image Encoder (VAE) model"
-    controlnet = "ControlNet model"
-    clip_vision = "CLIP Vision model"
-    ip_adapter = "IP-Adapter model"
-    lora = "LoRA model"
-    upscaler = "Upscale model"
+    text_encoder = "Text Encoder"
+    vae = "Image Encoder (VAE)"
+    controlnet = "ControlNet"
+    clip_vision = "CLIP Vision"
+    ip_adapter = "IP-Adapter"
+    lora = "LoRA"
+    upscaler = "Upscale"
     inpaint = "Inpaint model"
     embedding = "Textual Embedding"
     preprocessor = "Preprocessor"
@@ -395,37 +395,6 @@ optional_models = ModelResource.from_list(_models_dict["optional"])
 prefetch_models = ModelResource.from_list(_models_dict["prefetch"])
 deprecated_models = ModelResource.from_list(_models_dict["deprecated"])
 
-
-class MissingResource(Exception):
-    kind: ResourceKind
-    names: Sequence[str] | Sequence[ResourceId] | Sequence[CustomNode] | None
-
-    def __init__(
-        self,
-        kind: ResourceKind,
-        names: Sequence[str] | Sequence[ResourceId] | Sequence[CustomNode] | None = None,
-    ):
-        self.kind = kind
-        self.names = names
-
-    def __str__(self):
-        names = self.names or []
-        names = [getattr(n, "name", n) for n in names]
-        return f"Missing {self.kind.value}: {', '.join(str(n) for n in names)}"
-
-    @property
-    def search_path_string(self):
-        if names := self.names:
-            paths = (
-                search_path(n.kind, n.arch, n.identifier)
-                for n in names
-                if isinstance(n, ResourceId)
-            )
-            items = (", ".join(sp) for sp in paths if sp)
-            return "Checking for files with a (partial) match:\n" + "\n".join(items)
-        return ""
-
-
 all_resources = (
     [n.name for n in required_custom_nodes]
     + [m.name for m in required_models]
@@ -449,7 +418,9 @@ def all_models(include_deprecated=False):
 
 
 def find_resource(id: ResourceId, include_deprecated=False):
-    return next((m for m in all_models(include_deprecated) if m.id == id), None)
+    return next(
+        (m for m in all_models(include_deprecated) if any(f.id == id for f in m.files)), None
+    )
 
 
 def search_path(kind: ResourceKind, arch: Arch, identifier: ControlMode | UpscalerName | str):

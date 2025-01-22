@@ -14,6 +14,8 @@ RUN apt update && \
     python3.11-venv \
     python3.11-dev \
     bash \
+    vim \
+    htop \
     git \
     git-lfs \
     libglib2.0-0 \
@@ -66,11 +68,9 @@ RUN apt update && \
     curl \
     psmisc \
     rsync \
-    vim \
     zip \
     unzip \
     p7zip-full \
-    htop \
     apt-transport-https && \    
     apt clean
 
