@@ -13,7 +13,7 @@ from itertools import chain
 from .api import WorkflowInput
 from .client import Client, ClientEvent, ClientMessage, ClientModels, DeviceInfo, CheckpointInfo
 from .client import ClientFeatures, TranslationPackage, User, loras_to_upload
-from .image import ImageCollection
+from .image import ImageCollection, qt_supports_webp
 from .network import RequestManager, NetworkError
 from .files import File
 from .resources import Arch, ResourceKind, ControlMode, UpscalerName, resource_id
@@ -148,10 +148,21 @@ class CloudClient(Client):
     async def _process_job(self, job: JobInfo):
         user = ensure(self.user)
         inputs = job.work.to_dict(max_image_size=16 * 1024)
+
         async for progress in self.send_lora(job.work):
             yield ClientMessage(ClientEvent.upload, job.local_id, progress)
+
         await self.send_images(inputs)
-        data = {"input": {"workflow": inputs}}
+
+        data = {
+            "input": {
+                "workflow": inputs,
+                "clientInfo": f"krita-ai-diffusion {plugin_version}",
+                "options": {
+                    "useWebpCompression": qt_supports_webp(),
+                },
+            }
+        }
         response: dict = await self._post("generate", data)
 
         job.remote_id = response["id"]

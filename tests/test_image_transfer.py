@@ -21,8 +21,9 @@ if (root_dir / "service" / "pod" / "lib").exists():
         "b64": 5_000_000,  # use R2 for images > 5mb -> will use b64
     }
 
+    @pytest.mark.parametrize("format", ["webp", "png"])
     @pytest.mark.parametrize("mode", ["b64", "transfer"])
-    def test_send(qtapp, mode: str):
+    def test_send(qtapp, format: str, mode: str):
         images = [
             Image.open(test_dir / "images" / f).convert("RGBA")
             for f in ("cat.webp", "pegonia.webp")
@@ -32,7 +33,7 @@ if (root_dir / "service" / "pod" / "lib").exists():
         async def main():
             metrics = log.Metrics("test", datetime.now())
             transfer = await image_transfer.send_images(
-                images, metrics, max_inline_size=max_b64_size
+                images, metrics, max_inline_size=max_b64_size, format=format
             )
             assert len(transfer["offsets"]) == 2
 
