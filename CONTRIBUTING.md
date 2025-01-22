@@ -60,7 +60,12 @@ The easiest way to run a development version of the plugin is to use symlinks:
 
 ### Code formatting
 
-The codebase uses [black](https://docs.astral.sh/ruff/) for formatting. You can check locally by running `ruff format` in the repository root, or use an IDE integration.
+The codebase uses [ruff](https://docs.astral.sh/ruff/) for linting. You can
+use an IDE integration, or check locally by running in the repository root:
+```
+ruff format
+ruff check
+```
 
 ### Code style
 

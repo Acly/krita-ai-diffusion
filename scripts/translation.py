@@ -16,7 +16,7 @@ def extract_source_strings(filepath: Path):
 def parse_source(dir: Path) -> set[str]:
     result: set[str] = set()
     for file in dir.iterdir():
-        if file.is_dir() and not file.name in excluded_dirs:
+        if file.is_dir() and file.name not in excluded_dirs:
             result |= parse_source(file)
         elif file.suffix == ".py":
             result |= extract_source_strings(file)
@@ -37,7 +37,6 @@ def update_template():
 
 def update_all():
     strings = parse_source(source_dir)
-    base = {s: None for s in sorted(strings)}
     for lang_file in (source_dir / "language").iterdir():
         if lang_file.name != "en.json" and lang_file.suffix == ".json":
             existing = json.loads(lang_file.read_text(encoding="utf-8"))

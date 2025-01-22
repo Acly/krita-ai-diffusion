@@ -155,7 +155,7 @@ class FileListSetting(SettingWidget):
     def _set_files(self, files: list[str]):
         files = sorted(files, key=lambda x: x.lower())
         self._files = files
-        for _, w in self._list_items:
+        for f, w in self._list_items:
             self._list_layout.removeWidget(w)
         if item := self._list_layout.itemAt(0):
             self._list_layout.removeItem(item)

@@ -10,13 +10,13 @@ from datetime import datetime
 from dataclasses import dataclass
 from itertools import chain
 
-from .api import WorkflowInput, WorkflowKind
+from .api import WorkflowInput
 from .client import Client, ClientEvent, ClientMessage, ClientModels, DeviceInfo, CheckpointInfo
 from .client import ClientFeatures, TranslationPackage, User, loras_to_upload
-from .image import Extent, ImageCollection
+from .image import ImageCollection
 from .network import RequestManager, NetworkError
-from .files import FileLibrary, File
-from .resources import Arch
+from .files import File
+from .resources import Arch, ResourceKind, ControlMode, UpscalerName, resource_id
 from .settings import PerformanceSettings, settings
 from .localization import translate as _
 from .util import clamp, ensure, client_logger as log
@@ -84,7 +84,7 @@ class CloudClient(Client):
 
         if auth_confirm["status"] == "authorized":
             self._token = auth_confirm["token"]
-            log.info(f"Authorization successful")
+            log.info("Authorization successful")
             yield self._token
         else:
             error = auth_confirm.get("status", "unexpected response")
@@ -244,7 +244,7 @@ class CloudClient(Client):
 
     async def _upload_lora(self, lora: File):
         assert lora.path and lora.hash and lora.size
-        upload = await self._post(f"upload/lora", dict(hash=lora.hash, size=lora.size))
+        upload = await self._post("upload/lora", dict(hash=lora.hash, size=lora.size))
         if upload["status"] == "too-large":
             max_size = int(upload.get("max", 0)) / (1024 * 1024)
             raise ValueError(
@@ -293,7 +293,7 @@ class CloudClient(Client):
                 return ClientMessage(
                     ClientEvent.payment_required, job_id, result=e.data, error=e.message
                 )
-            except:
+            except Exception:
                 log.warning(f"Could not parse 402 error: {e.data}")
         return None
 
@@ -393,7 +393,6 @@ models.upscalers = [
     "OmniSR_X4_DIV2K.safetensors",
 ]
 # fmt: off
-from ai_diffusion.resources import resource_id, ResourceKind, ControlMode, UpscalerName
 models.resources = {
     resource_id(ResourceKind.controlnet, Arch.sd15, ControlMode.inpaint): "control_v11p_sd15_inpaint_fp16.safetensors",
     resource_id(ResourceKind.controlnet, Arch.sdxl, ControlMode.universal): "xinsir-controlnet-union-sdxl-1.0-promax.safetensors",

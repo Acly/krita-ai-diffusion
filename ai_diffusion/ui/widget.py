@@ -430,7 +430,7 @@ class SingleLineTextPromptWidget(QLineEdit):
         self._completer = PromptAutoComplete(self)
         self.textChanged.connect(self._completer.check_completion)
         self.setFrame(False)
-        self.setStyleSheet(f"QLineEdit {{ background: transparent; }}")
+        self.setStyleSheet("QLineEdit { background: transparent; }")
 
     def keyPressEvent(self, a0: QKeyEvent | None):
         assert a0 is not None
@@ -524,7 +524,7 @@ class TextPromptWidget(QFrame):
         if value:
             self.setContentsMargins(0, 2, 0, 2)
             self.setFrameStyle(QFrame.Shape.StyledPanel)
-            self.setStyleSheet(f"QFrame {{ background: rgba(255, 0, 0, 15); }}")
+            self.setStyleSheet("QFrame { background: rgba(255, 0, 0, 15); }")
         else:
             self.setFrameStyle(QFrame.Shape.NoFrame)
 

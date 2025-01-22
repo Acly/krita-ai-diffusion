@@ -5,7 +5,7 @@ import os
 from asyncio import Future
 from datetime import datetime
 from pathlib import Path
-from typing import NamedTuple, Callable
+from typing import NamedTuple
 from PyQt5.QtCore import QByteArray, QUrl, QFile, QBuffer
 from PyQt5.QtNetwork import QNetworkAccessManager, QNetworkRequest, QNetworkReply, QSslError
 
@@ -43,12 +43,12 @@ class NetworkError(Exception):
                 data = json.loads(reply.readAll().data())
                 error = data.get("error", "Network error")
                 return NetworkError(code, f"{error} ({reply.errorString()})", url, status, data)
-            except:
+            except Exception:
                 try:
                     text = reply.readAll().data().decode("utf-8")
                     if text:
                         return NetworkError(code, f"{text} ({reply.errorString()})", url, status)
-                except:
+                except Exception:
                     pass
         return NetworkError(code, reply.errorString(), url, status)
 

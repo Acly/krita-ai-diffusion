@@ -464,7 +464,7 @@ class Server:
             if code != 0:
                 log.error(f"Server process terminated with code {self._process.returncode}")
             elif code is not None:
-                log.info(f"Server process was shut down sucessfully")
+                log.info("Server process was shut down sucessfully")
 
         except asyncio.CancelledError:
             pass

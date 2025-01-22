@@ -18,7 +18,7 @@ from PyQt5.QtWidgets import (
     QMessageBox,
     QLineEdit,
 )
-from PyQt5.QtCore import Qt, QUrl, QAbstractItemModel, pyqtSignal
+from PyQt5.QtCore import Qt, QUrl, pyqtSignal
 from PyQt5.QtGui import QDesktopServices, QPalette, QColor
 from krita import Krita
 

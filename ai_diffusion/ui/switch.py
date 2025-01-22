@@ -2,7 +2,7 @@
 from https://stackoverflow.com/a/51825815
 """
 
-from PyQt5.QtCore import QPropertyAnimation, QRectF, QSize, Qt, pyqtProperty  # type: ignore
+from PyQt5.QtCore import QPropertyAnimation, QSize, Qt, pyqtProperty  # type: ignore
 from PyQt5.QtGui import QPainter
 from PyQt5.QtWidgets import QAbstractButton, QSizePolicy
 

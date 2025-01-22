@@ -1,6 +1,5 @@
 import asyncio
 import sys
-import pytest
 from tempfile import TemporaryDirectory
 from pathlib import Path
 from ai_diffusion import util

@@ -7,7 +7,7 @@ from dataclasses import dataclass
 from enum import Enum
 from collections import deque
 from itertools import chain, product
-from typing import Any, NamedTuple, Optional, Sequence
+from typing import Any, Optional, Sequence
 
 from .api import WorkflowInput
 from .client import Client, CheckpointInfo, ClientMessage, ClientEvent, DeviceInfo, ClientModels
@@ -16,8 +16,7 @@ from .client import MissingResources, filter_supported_styles, loras_to_upload
 from .files import FileFormat
 from .image import Image, ImageCollection
 from .network import RequestManager, NetworkError
-from .websockets.src.websockets import client as websockets_client
-from .websockets.src.websockets import exceptions as websockets_exceptions
+from .websockets.src import websockets
 from .style import Styles
 from .resources import ControlMode, ResourceId, ResourceKind, Arch
 from .resources import CustomNode, UpscalerName, resource_id
@@ -113,7 +112,7 @@ class ComfyClient(Client):
         # Try to establish websockets connection
         wsurl = websocket_url(client.url)
         try:
-            async with websockets_client.connect(f"{wsurl}/ws?clientId={client._id}"):
+            async with websockets.connect(f"{wsurl}/ws?clientId={client._id}"):
                 pass
         except Exception as e:
             msg = _("Could not establish websocket connection at") + f" {wsurl}: {str(e)}"
@@ -234,13 +233,13 @@ class ComfyClient(Client):
 
     async def _listen(self):
         url = websocket_url(self.url)
-        async for websocket in websockets_client.connect(
+        async for websocket in websockets.connect(
             f"{url}/ws?clientId={self._id}", max_size=2**30, read_limit=2**30, ping_timeout=60
         ):
             try:
                 await self._subscribe_workflows()
                 await self._listen_websocket(websocket)
-            except websockets_exceptions.ConnectionClosedError as e:
+            except websockets.exceptions.ConnectionClosedError as e:
                 log.warning(f"Websocket connection closed: {str(e)}")
             except OSError as e:
                 msg = _("Could not connect to websocket server at") + f"{url}: {str(e)}"
@@ -256,7 +255,7 @@ class ComfyClient(Client):
             finally:
                 await self._report(ClientEvent.disconnected, "")
 
-    async def _listen_websocket(self, websocket: websockets_client.WebSocketClientProtocol):
+    async def _listen_websocket(self, websocket: websockets.ClientConnection):
         progress: Progress | None = None
         images = ImageCollection()
         last_images = ImageCollection()
@@ -434,7 +433,7 @@ class ComfyClient(Client):
                 if name not in models.checkpoints:
                     models.checkpoints[name] = CheckpointInfo(name, Arch.flux, FileFormat.diffusion)
         else:
-            log.info(f"GGUF support: node is not installed.")
+            log.info("GGUF support: node is not installed.")
 
     async def translate(self, text: str, lang: str):
         try:
@@ -589,7 +588,8 @@ def _find_model(
     if search_paths is None:
         return None
 
-    sanitize = lambda p: p.replace("\\", "/").lower()
+    def sanitize(p):
+        return p.replace("\\", "/").lower()
 
     def match(filename: str, pattern: str):
         filename = sanitize(filename)

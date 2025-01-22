@@ -3,7 +3,7 @@ from textwrap import wrap as wrap_text
 from PyQt5.QtCore import Qt, QMetaObject, QSize, QPoint, QUuid, pyqtSignal
 from PyQt5.QtGui import QGuiApplication, QMouseEvent, QPalette, QColor
 from PyQt5.QtWidgets import QAction, QWidget, QVBoxLayout, QHBoxLayout, QPushButton, QProgressBar
-from PyQt5.QtWidgets import QLabel, QListWidget, QListWidgetItem, QListView, QSizePolicy
+from PyQt5.QtWidgets import QListWidget, QListWidgetItem, QListView, QSizePolicy
 from PyQt5.QtWidgets import QComboBox, QCheckBox, QMenu, QShortcut, QMessageBox, QToolButton
 
 from ..properties import Binding, Bind, bind, bind_combo, bind_toggle
@@ -451,8 +451,10 @@ class CustomInpaintWidget(QWidget):
         self.fill_mode_combo.setStyleSheet(theme.flat_combo_stylesheet)
         self.fill_mode_combo.setToolTip(_("Pre-fill the selected region before diffusion"))
 
+        def ctx_icon(name):
+            return theme.icon(f"context-{name}")
+
         self.context_combo = QComboBox(self)
-        ctx_icon = lambda name: theme.icon(f"context-{name}")
         self.context_combo.addItem(
             ctx_icon("automatic"), _("Automatic Context"), InpaintContext.automatic
         )

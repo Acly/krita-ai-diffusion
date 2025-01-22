@@ -1,4 +1,4 @@
-from ..model import Model, Workspace
+from ..model import Workspace
 from ..root import root
 
 

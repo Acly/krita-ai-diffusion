@@ -7,15 +7,14 @@ from markdown import markdown
 from shutil import rmtree, copy, copytree, ignore_patterns, make_archive
 from pathlib import Path
 
-root = Path(__file__).parent.parent
-package_dir = root / "scripts" / ".package"
-
-sys.path.append(str(root))
+sys.path.append(str(Path(__file__).parent.parent))
 import ai_diffusion
 
 sys.path.append(str(Path(__file__).parent))
 import translation
 
+root = Path(__file__).parent.parent
+package_dir = root / "scripts" / ".package"
 version = ai_diffusion.__version__
 package_name = f"krita_ai_diffusion-{version}"
 

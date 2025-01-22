@@ -6,13 +6,11 @@ import dotenv
 from pathlib import Path
 from PyQt5.QtCore import QCoreApplication
 
-root_dir = Path(__file__).parent.parent
-sys.path.append(str(root_dir))
-
+sys.path.append(str(Path(__file__).parent.parent))
 from ai_diffusion import eventloop, network, util
-from ai_diffusion.settings import settings
-
 from .config import result_dir
+
+root_dir = Path(__file__).parent.parent
 
 
 def pytest_addoption(parser):

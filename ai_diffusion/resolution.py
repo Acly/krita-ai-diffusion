@@ -4,7 +4,7 @@ from enum import Enum
 from typing import NamedTuple, overload
 
 from .api import ExtentInput, ImageInput
-from .image import Bounds, Extent, Image, Mask, Point, multiple_of
+from .image import Bounds, Extent, Image, Point, multiple_of
 from .resources import Arch
 from .settings import PerformanceSettings
 from .style import Style

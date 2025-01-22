@@ -84,7 +84,7 @@ def test_remove():
     files = FileCollection()
     events = EventHandler(files)
 
-    file1 = files.add(File.remote("/path/to/file1.txt"))
+    files.add(File.remote("/path/to/file1.txt"))
     file2 = files.add(File.remote("/path/to/file2.txt"))
     files.remove(0)
 

@@ -217,7 +217,7 @@ class ControlMode(Enum):
 
     @property
     def has_preprocessor(self):
-        return self.is_control_net and not self in [
+        return self.is_control_net and self not in [
             ControlMode.inpaint,
             ControlMode.blur,
             ControlMode.stencil,

@@ -6,13 +6,12 @@ from PyQt5.QtCore import QObject, QEvent, Qt, QMetaObject, QSize, pyqtSignal
 
 from ..root import root
 from ..client import Client
-from ..image import Extent, Bounds
+from ..image import Bounds
 from ..properties import Binding, bind
 from ..document import LayerType
 from ..region import Region, RootRegion, RegionLink, translate_prompt
 from ..localization import translate as _
 from ..util import ensure
-from .. import eventloop
 from .control import ControlListWidget
 from .widget import TextPromptWidget
 from .settings import settings

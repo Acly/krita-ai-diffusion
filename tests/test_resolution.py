@@ -3,7 +3,7 @@ from pathlib import Path
 
 from ai_diffusion import resolution, workflow
 from ai_diffusion.api import InpaintMode
-from ai_diffusion.image import Bounds, Extent, Image, Mask, Point
+from ai_diffusion.image import Bounds, Extent, Image, Point
 from ai_diffusion.resolution import ScaledExtent, ScaleMode, CheckpointResolution, TileLayout
 from ai_diffusion.resources import Arch
 from ai_diffusion.style import Style

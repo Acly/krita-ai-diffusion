@@ -20,9 +20,12 @@ jobs:
         uses: jakebailey/pyright-action@v1
         with:
           pylance-version: latest-release
-      - name: Lint
+      - name: Format
         if: ${{ !cancelled() }}
         run: ruff format --diff
+      - name: Lint
+        if: ${{ !cancelled() }}
+        run: ruff check --output-format=github
   
   test:
     runs-on: ubuntu-22.04

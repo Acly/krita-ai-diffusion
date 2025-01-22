@@ -3,7 +3,7 @@ import json
 from dataclasses import dataclass, asdict
 from enum import Enum
 from typing import Any
-from PyQt5.QtCore import QObject, QByteArray, QBuffer
+from PyQt5.QtCore import QObject, QByteArray
 from PyQt5.QtGui import QImageReader
 from PyQt5.QtWidgets import QMessageBox
 

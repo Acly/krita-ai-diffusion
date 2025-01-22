@@ -6,7 +6,6 @@ import os
 from datetime import datetime
 from pathlib import Path
 from typing import Any
-from PyQt5.QtCore import Qt
 
 from ai_diffusion import workflow
 from ai_diffusion.api import LoraInput, WorkflowKind, WorkflowInput, ControlInput, RegionInput
@@ -15,7 +14,7 @@ from ai_diffusion.api import SamplingInput, ImageInput
 from ai_diffusion.client import ClientModels, CheckpointInfo
 from ai_diffusion.comfy_client import ComfyClient
 from ai_diffusion.cloud_client import CloudClient
-from ai_diffusion.comfy_workflow import ComfyWorkflow, ComfyNode, Output
+from ai_diffusion.comfy_workflow import ComfyWorkflow
 from ai_diffusion.files import FileLibrary, FileCollection, File, FileSource
 from ai_diffusion.resources import ControlMode
 from ai_diffusion.settings import PerformanceSettings
@@ -150,20 +149,20 @@ def test_inpaint_params():
     bounds = Bounds(0, 0, 100, 100)
 
     a = detect_inpaint(InpaintMode.fill, bounds, Arch.sd15, "", [], 1.0)
-    assert a.fill is FillMode.blur and a.use_inpaint_model == True and a.use_reference == True
+    assert a.fill is FillMode.blur and a.use_inpaint_model and a.use_reference
 
     b = detect_inpaint(InpaintMode.add_object, bounds, Arch.sd15, "", [], 1.0)
-    assert b.fill is FillMode.neutral and b.use_condition_mask == False
+    assert b.fill is FillMode.neutral and b.use_condition_mask
 
     c = detect_inpaint(InpaintMode.replace_background, bounds, Arch.sdxl, "", [], 1.0)
-    assert c.fill is FillMode.replace and c.use_inpaint_model == True and c.use_reference == False
+    assert c.fill is FillMode.replace and c.use_inpaint_model and c.use_reference
 
     d = detect_inpaint(InpaintMode.add_object, bounds, Arch.sd15, "prompt", [], 1.0)
-    assert d.use_condition_mask == True
+    assert d.use_condition_mask
 
     control = [ControlInput(ControlMode.line_art, Image.create(Extent(4, 4)))]
     e = detect_inpaint(InpaintMode.add_object, bounds, Arch.sd15, "prompt", control, 1.0)
-    assert e.use_condition_mask == False
+    assert e.use_condition_mask
 
 
 def test_prepare_lora():
@@ -446,7 +445,7 @@ def test_regions_upscale(qtapp, client: Client):
         upscale_model=client.models.default_upscaler,
         upscale_factor=2,
     )
-    run_and_save(qtapp, client, job, f"test_regions_upscale")
+    run_and_save(qtapp, client, job, "test_regions_upscale")
 
 
 def test_regions_ip_adapter(qtapp, client: Client):
@@ -458,7 +457,7 @@ def test_regions_ip_adapter(qtapp, client: Client):
     prompt.regions[3].positive = ""
     prompt.regions[3].control.append(ControlInput(ControlMode.reference, cat))
     job = create(WorkflowKind.generate, client, canvas=Extent(1024, 1024), cond=prompt)
-    run_and_save(qtapp, client, job, f"test_regions_ip_adapter")
+    run_and_save(qtapp, client, job, "test_regions_ip_adapter")
 
 
 def test_regions_lora(qtapp, client: Client):
@@ -487,7 +486,7 @@ def test_regions_lora(qtapp, client: Client):
     ]
     prompt.control = [ControlInput(ControlMode.soft_edge, lines, 0.5)]
     job = create(WorkflowKind.generate, client, canvas=Extent(1024, 1024), cond=prompt, files=files)
-    run_and_save(qtapp, client, job, f"test_regions_lora")
+    run_and_save(qtapp, client, job, "test_regions_lora")
 
 
 @pytest.mark.parametrize(
@@ -558,7 +557,7 @@ def test_create_control_image(qtapp, client: Client, mode):
 
 
 def test_create_open_pose_vector(qtapp, client: Client):
-    image_name = f"test_create_open_pose_vector.svg"
+    image_name = "test_create_open_pose_vector.svg"
     image = Image.load(image_dir / "adobe_stock.jpg")
     job = workflow.prepare_create_control_image(image, ControlMode.pose, default_perf)
 
@@ -727,7 +726,7 @@ def test_refine_max_pixels(qtapp, client):
     job = create(
         WorkflowKind.refine, client, canvas=image, cond=cond, strength=0.6, perf=perf_settings
     )
-    run_and_save(qtapp, client, job, f"test_refine_max_pixels")
+    run_and_save(qtapp, client, job, "test_refine_max_pixels")
 
 
 def test_fill_control_max_pixels(qtapp, client):
@@ -751,7 +750,7 @@ def test_fill_control_max_pixels(qtapp, client):
         inpaint=inpaint,
         perf=perf_settings,
     )
-    run_and_save(qtapp, client, job, f"test_fill_control_max_pixels", image, mask)
+    run_and_save(qtapp, client, job, "test_fill_control_max_pixels", image, mask)
 
 
 def test_outpaint_resolution_multiplier(qtapp, client):
@@ -771,7 +770,7 @@ def test_outpaint_resolution_multiplier(qtapp, client):
         inpaint=params,
         perf=perf_settings,
     )
-    run_and_save(qtapp, client, job, f"test_outpaint_resolution_multiplier", image, mask)
+    run_and_save(qtapp, client, job, "test_outpaint_resolution_multiplier", image, mask)
 
 
 def test_lora(qtapp, client):

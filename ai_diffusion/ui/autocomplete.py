@@ -179,7 +179,7 @@ class PromptAutoComplete:
                         tag = tag.replace("_", " ")
                         try:
                             tag_type = TagType(int(type_str))
-                        except:  # default to general category if category is not recognised
+                        except Exception:  # default to general category if category unrecognised
                             tag_type = TagType(0)
                         count = int(count)
                         count_str = str(count)

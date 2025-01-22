@@ -8,10 +8,10 @@ from .api import WorkflowInput
 from .image import ImageCollection
 from .properties import Property, ObservableProperties
 from .files import FileLibrary, FileFormat
-from .style import Style, Styles
+from .style import Style
 from .settings import PerformanceSettings
 from .resources import ControlMode, ResourceKind, Arch, UpscalerName
-from .resources import CustomNode, ResourceId, search_path
+from .resources import CustomNode, ResourceId
 from .localization import translate as _
 from .util import client_logger as log
 

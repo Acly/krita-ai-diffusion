@@ -10,7 +10,7 @@ from . import resolution, resources
 from .api import ControlInput, ImageInput, CheckpointInput, SamplingInput, WorkflowInput, LoraInput
 from .api import ExtentInput, InpaintMode, InpaintParams, FillMode, ConditioningInput, WorkflowKind
 from .api import RegionInput, CustomWorkflowInput
-from .image import Bounds, Extent, Image, Mask, Point, multiple_of
+from .image import Bounds, Extent, Image, Mask, multiple_of
 from .client import ClientModels, ModelDict, resolve_arch
 from .files import FileLibrary, FileFormat
 from .style import Style, StyleSettings, SamplerPresets
@@ -21,7 +21,7 @@ from .text import merge_prompt, extract_loras
 from .comfy_workflow import ComfyWorkflow, ComfyRunMode, Input, Output, ComfyNode
 from .localization import translate as _
 from .settings import settings
-from .util import ensure, median_or_zero, unique, client_logger as log
+from .util import ensure, median_or_zero, unique
 
 
 def detect_inpaint_mode(extent: Extent, area: Bounds):
@@ -1466,7 +1466,7 @@ def _get_sampling_lora(style: Style, is_live: bool, model_set: ModelDict, models
     preset = SamplerPresets.instance()[sampler_name]
     if preset.lora:
         file = model_set.lora.find(preset.lora)
-        if file is None and not preset.lora in models.loras:
+        if file is None and preset.lora not in models.loras:
             res = resources.search_path(ResourceKind.lora, model_set.arch, preset.lora)
             if res is None and preset.lora == "lightning":
                 raise ValueError(

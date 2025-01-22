@@ -8,7 +8,7 @@ from PyQt5.QtGui import QFontMetrics, QIcon, QDesktopServices
 from PyQt5.QtWidgets import QComboBox, QFileDialog, QFrame, QGridLayout, QHBoxLayout, QMenu
 from PyQt5.QtWidgets import QLabel, QLineEdit, QListWidgetItem, QMessageBox, QSpinBox, QAction
 from PyQt5.QtWidgets import QToolButton, QVBoxLayout, QWidget, QSlider, QDoubleSpinBox
-from PyQt5.QtWidgets import QScrollArea, QTextEdit, QSizePolicy
+from PyQt5.QtWidgets import QScrollArea, QTextEdit
 
 from ..custom_workflow import CustomParam, ParamKind, SortedWorkflows, WorkflowSource
 from ..custom_workflow import CustomGenerationMode

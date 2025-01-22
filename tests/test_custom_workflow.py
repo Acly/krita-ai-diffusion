@@ -8,7 +8,7 @@ from ai_diffusion.api import CustomWorkflowInput, ImageInput, WorkflowInput
 from ai_diffusion.client import Client, ClientModels, CheckpointInfo, TextOutput
 from ai_diffusion.connection import Connection, ConnectionState
 from ai_diffusion.comfy_workflow import ComfyNode, ComfyWorkflow, Output
-from ai_diffusion.custom_workflow import CustomWorkflow, WorkflowSource, WorkflowCollection
+from ai_diffusion.custom_workflow import WorkflowSource, WorkflowCollection
 from ai_diffusion.custom_workflow import SortedWorkflows, CustomWorkspace
 from ai_diffusion.custom_workflow import CustomParam, ParamKind, workflow_parameters
 from ai_diffusion.image import Image, Extent

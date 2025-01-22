@@ -1,7 +1,7 @@
 from __future__ import annotations
 from krita import Krita
 
-from typing import Optional, cast
+from typing import Optional
 from PyQt5.QtWidgets import (
     QVBoxLayout,
     QHBoxLayout,
@@ -557,7 +557,7 @@ class PerformanceSettings(SettingsTab):
 
         add_header(self._layout, Settings._performance_preset)
         self._device_info = QLabel(self)
-        self._device_info.setStyleSheet(f"font-style:italic")
+        self._device_info.setStyleSheet("font-style:italic")
         self._layout.addWidget(self._device_info)
 
         self._performance_preset = QComboBox(self)

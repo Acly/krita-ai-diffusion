@@ -8,9 +8,9 @@ from .config import image_dir, result_dir, reference_dir
 
 
 def test_extent_compare():
-    assert (Extent(4, 3) < Extent(4, 4)) == True
-    assert (Extent(3, 4) < Extent(4, 4)) == True
-    assert (Extent(4, 4) < Extent(4, 4)) == False
+    assert Extent(4, 3) < Extent(4, 4)
+    assert Extent(3, 4) < Extent(4, 4)
+    assert Extent(4, 4) < Extent(4, 4)
 
 
 def test_extent_scale_pixel_count():

@@ -43,7 +43,7 @@ def _get_user_data_dir():
             dir = dir / "krita-ai-diffusion"
         dir.mkdir(exist_ok=True)
         return dir
-    except Exception as e:
+    except Exception:
         return Path(__file__).parent
 
 
@@ -128,7 +128,7 @@ def isnumber(x):
 
 
 def base_type_match(a, b):
-    return type(a) == type(b) or (isnumber(a) and isnumber(b))
+    return type(a) is type(b) or (isnumber(a) and isnumber(b))
 
 
 def unique(seq: Sequence[T], key) -> list[T]:

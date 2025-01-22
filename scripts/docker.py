@@ -84,13 +84,13 @@ async def main(clean=False):
     print(f"  docker build -t aclysia/sd-comfyui-krita:{version} scripts/docker/")
     print("\nTo test the image:")
     print(f"  docker run --gpus all -p 3001:3000 -p 8888:8888 aclysia/sd-comfyui-krita:{version}")
-    print(f"\nTo test the image with a local file server:")
-    print(f"  python scripts/file_server.py")
+    print("\nTo test the image with a local file server:")
+    print("  python scripts/file_server.py")
     print(
         f"  docker run --gpus all -p 3001:3000 -p 8888:8888 -e AI_DIFFUSION_DOWNLOAD_URL=http://host.docker.internal:51222 aclysia/sd-comfyui-krita:{version}"
     )
-    print(f"\nTo build the base image:")
-    print(f"  docker build -t aclysia/sd-comfyui-krita:base --target base scripts/docker/")
+    print("\nTo build the base image:")
+    print("  docker build -t aclysia/sd-comfyui-krita:base --target base scripts/docker/")
 
 
 if __name__ == "__main__":

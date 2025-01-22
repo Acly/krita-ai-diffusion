@@ -189,7 +189,7 @@ def test_rename_extracted_folder(scenario):
             asyncio.run(server.rename_extracted_folder("Test", target, "sffx"))
             assert not source.exists()
             assert (target / "file").exists()
-        except Exception as e:
+        except Exception:
             assert scenario in ["target-exists", "source-missing"]
 
 
@@ -209,7 +209,7 @@ def test_safe_remove_dir(scenario):
         try:
             server.safe_remove_dir(path, max_size=1024)
             assert scenario == "regular-file" and not path.exists()
-        except Exception as e:
+        except Exception:
             assert scenario != "regular-file"
 
 

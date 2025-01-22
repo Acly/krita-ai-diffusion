@@ -420,7 +420,7 @@ class ServerWidget(QWidget):
         backends = ServerBackend.supported()
         try:
             backend = backends[self._backend_select.currentIndex()]
-        except:
+        except Exception:
             backend = backends[0]
         if settings.server_backend != backend:
             self._server.backend = backend
@@ -542,7 +542,7 @@ class ServerWidget(QWidget):
         backends = ServerBackend.supported()
         try:
             index = backends.index(settings.server_backend)
-        except:
+        except Exception:
             index = 0
         self._backend_select.setCurrentIndex(index)
         self._progress_bar.setVisible(False)

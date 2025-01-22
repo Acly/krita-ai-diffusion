@@ -136,8 +136,10 @@ class ComfyWorkflow:
     def add(self, class_type: str, output_count: Literal[4], **inputs) -> Output4: ...
 
     def add(self, class_type: str, output_count: int, **inputs):
+        def normalize(x):
+            return [str(x.node), x.output] if isinstance(x, Output) else x
+
         inputs = self.add_default_values(class_type, inputs)
-        normalize = lambda x: [str(x.node), x.output] if isinstance(x, Output) else x
         self.node_count += 1
         self.root[str(self.node_count)] = {
             "class_type": class_type,
@@ -1069,7 +1071,7 @@ def _convert_ui_workflow(w: dict, node_inputs: dict):
 
             for connection in node["inputs"]:
                 if connection["name"] == field_name and connection["link"] is not None:
-                    link = next(l for l in links if l[0] == connection["link"])
+                    link = next(x for x in links if x[0] == connection["link"])
                     prim = primitives.get(link[1])
                     if prim is not None:
                         inputs[field_name] = prim

@@ -79,7 +79,7 @@ class AutoUpdate(QObject, ObservableProperties):
             self.state = UpdateState.failed_check
             self.error = "Failed to retrieve plugin update information"
         elif self.latest_version == self.current_version:
-            log.info(f"Plugin is up to date!")
+            log.info("Plugin is up to date!")
             self.state = UpdateState.latest
         elif "url" not in result or "sha256" not in result:
             log.error(f"Invalid plugin update information: {result}")
@@ -111,7 +111,7 @@ class AutoUpdate(QObject, ObservableProperties):
         sha256 = hashlib.sha256(archive_data).hexdigest()
         if sha256 != self._package.sha256:
             log.error(f"Update package hash mismatch: {sha256} != {self._package.sha256}")
-            raise RuntimeError(f"Downloaded plugin package is corrupted or incomplete")
+            raise RuntimeError("Downloaded plugin package is corrupted or incomplete")
 
         archive_path.write_bytes(archive_data)
         source_dir = Path(self._temp_dir.name) / f"krita_ai_diffusion-{self.latest_version}"

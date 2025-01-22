@@ -4,7 +4,7 @@ from pathlib import Path
 
 from ai_diffusion.settings import PerformancePreset, Settings, Setting, ServerMode
 from ai_diffusion.style import Style, Styles, StyleSettings, SamplerPreset, SamplerPresets
-from ai_diffusion import style
+from ai_diffusion.style import legacy_map as style_legacy_map
 
 
 def test_get_set():
@@ -194,5 +194,5 @@ def test_sampler_presets(tmp_path_factory):
 
 def test_sampler_preset_conversion():
     presets = SamplerPresets()
-    for old, new in style.legacy_map.items():
+    for old, new in style_legacy_map.items():
         assert presets[old] == presets[new]
