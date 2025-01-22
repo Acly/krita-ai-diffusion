@@ -234,7 +234,7 @@ class ComfyClient(Client):
     async def _listen(self):
         url = websocket_url(self.url)
         async for websocket in websockets.connect(
-            f"{url}/ws?clientId={self._id}", max_size=2**30, read_limit=2**30, ping_timeout=60
+            f"{url}/ws?clientId={self._id}", max_size=2**30, ping_timeout=60
         ):
             try:
                 await self._subscribe_workflows()
