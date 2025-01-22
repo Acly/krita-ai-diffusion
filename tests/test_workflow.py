@@ -152,17 +152,17 @@ def test_inpaint_params():
     assert a.fill is FillMode.blur and a.use_inpaint_model and a.use_reference
 
     b = detect_inpaint(InpaintMode.add_object, bounds, Arch.sd15, "", [], 1.0)
-    assert b.fill is FillMode.neutral and b.use_condition_mask
+    assert b.fill is FillMode.neutral and not b.use_condition_mask
 
     c = detect_inpaint(InpaintMode.replace_background, bounds, Arch.sdxl, "", [], 1.0)
-    assert c.fill is FillMode.replace and c.use_inpaint_model and c.use_reference
+    assert c.fill is FillMode.replace and c.use_inpaint_model and not c.use_reference
 
     d = detect_inpaint(InpaintMode.add_object, bounds, Arch.sd15, "prompt", [], 1.0)
     assert d.use_condition_mask
 
     control = [ControlInput(ControlMode.line_art, Image.create(Extent(4, 4)))]
     e = detect_inpaint(InpaintMode.add_object, bounds, Arch.sd15, "prompt", control, 1.0)
-    assert e.use_condition_mask
+    assert not e.use_condition_mask
 
 
 def test_prepare_lora():

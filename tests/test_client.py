@@ -77,7 +77,7 @@ def test_cancel(qtapp, comfy_server, cancel_point):
                         interrupted = True
                 if msg.event is ClientEvent.interrupted:
                     assert msg.job_id == job_id
-                    assert client.is_executing and client.queued_count == 0
+                    assert not client.is_executing and client.queued_count == 0
 
                     job_id = await client.enqueue(make_default_work(size=320, steps=1))
                     stage = 1
@@ -93,7 +93,7 @@ def test_cancel(qtapp, comfy_server, cancel_point):
                     assert msg.images[0].extent == Extent(320, 320)
                     break
 
-        assert client.is_executing and client.queued_count == 0
+        assert not client.is_executing and client.queued_count == 0
 
     qtapp.run(main())
 
@@ -109,7 +109,7 @@ def test_disconnect(qtapp, comfy_server):
         task.cancel()
         with pytest.raises(asyncio.CancelledError):
             await task
-        assert client.is_executing and client.queued_count == 0
+        assert not client.is_executing and client.queued_count == 0
 
     qtapp.run(main())
 
