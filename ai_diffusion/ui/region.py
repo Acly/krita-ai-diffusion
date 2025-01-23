@@ -135,11 +135,11 @@ class ActiveRegionWidget(QFrame):
         self.positive = TextPromptWidget(parent=self)
         self.positive.line_count = min(settings.prompt_line_count, self._max_lines)
         self.positive.handle_dragged.connect(self._handle_dragging)
-        self.positive.install_event_filter(self)
+        self.positive.installEventFilter(self)
 
         self.negative = TextPromptWidget(line_count=1, is_negative=True, parent=self)
         self.negative.handle_dragged.connect(self._handle_dragging)
-        self.negative.install_event_filter(self)
+        self.negative.installEventFilter(self)
 
         self._no_region = QWidget(self)
         self._no_region.setVisible(False)
@@ -423,9 +423,9 @@ class ActiveRegionWidget(QFrame):
             new_height = y_pos - neg_height + pos_height - 10
         else:
             new_height = y_pos - 5
-        fm = QFontMetrics(ensure(self.positive._multi.document()).defaultFont())
+        fm = QFontMetrics(ensure(self.positive.document()).defaultFont())
         new_line_count = round(new_height / fm.lineSpacing())
-        if 1 <= new_line_count <= 10:
+        if 2 <= new_line_count <= 10:
             settings.prompt_line_count = new_line_count
             self.positive.line_count = new_line_count
 

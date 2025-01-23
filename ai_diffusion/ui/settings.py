@@ -445,7 +445,7 @@ class InterfaceSettings(SettingsTab):
         S = Settings
         self.add("language", ComboBoxSetting(S._language, parent=self))
         self.add("prompt_translation", ComboBoxSetting(S._prompt_translation, parent=self))
-        self.add("prompt_line_count", SpinBoxSetting(S._prompt_line_count, self, 1, 10))
+        self.add("prompt_line_count", SpinBoxSetting(S._prompt_line_count, self, 2, 10))
         self.add(
             "show_negative_prompt",
             SwitchSetting(S._show_negative_prompt, (_("Show"), _("Hide")), self),

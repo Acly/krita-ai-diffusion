@@ -3,7 +3,7 @@ from dataclasses import dataclass
 import csv
 from typing import cast
 
-from PyQt5.QtWidgets import QApplication, QCompleter, QLineEdit, QStyledItemDelegate, QStyle
+from PyQt5.QtWidgets import QApplication, QCompleter, QPlainTextEdit, QStyledItemDelegate, QStyle
 from PyQt5.QtGui import QFont, QPalette, QPen, QColor, QFontMetrics
 from PyQt5.QtCore import Qt, QStringListModel, QSize, QRect, QAbstractProxyModel
 
@@ -133,7 +133,7 @@ _tag_files = None
 
 
 class PromptAutoComplete:
-    def __init__(self, widget: QLineEdit):
+    def __init__(self, widget: QPlainTextEdit):
         self._widget = widget
         self._completer = QCompleter()
         self._completer.activated.connect(self._insert_completion)
@@ -198,8 +198,8 @@ class PromptAutoComplete:
         _tag_files = tag_files
 
     def _current_text(self, separators=" >\n") -> str:
-        text = self._widget.text()
-        start = pos = self._widget.cursorPosition()
+        text = self._widget.toPlainText()
+        start = pos = self._widget.textCursor().position()
         while pos > 0 and (text[pos - 1] not in separators or pos > 1 and text[pos - 2] == "\\"):
             pos -= 1
         return text[pos:start]
@@ -240,13 +240,15 @@ class PromptAutoComplete:
         else:  # tag completion
             # escape () in tags so they won't be interpreted as prompt weights
             completion = completion.replace("(", "\\(").replace(")", "\\)")
-        text = self._widget.text()
-        pos = self._widget.cursorPosition()
+        text = self._widget.toPlainText()
+        pos = self._widget.textCursor().position()
         start_pos = pos - len(self._completion_prefix)
         fill = completion + self._completion_suffix + triggers
         text = text[:start_pos] + fill + text[pos:]
-        self._widget.setText(text)
-        self._widget.setCursorPosition(start_pos + len(fill))
+        self._widget.setPlainText(text)
+        cursor = self._widget.textCursor()
+        cursor.setPosition(start_pos + len(fill))
+        self._widget.setTextCursor(cursor)
 
     @property
     def is_active(self):
