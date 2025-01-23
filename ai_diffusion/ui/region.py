@@ -50,7 +50,7 @@ class InactiveRegionWidget(QFrame):
 
         layout = QHBoxLayout()
         layout.setContentsMargins(0, 0, 5, 0)
-        layout.addWidget(thumbnail)
+        layout.addWidget(thumbnail, alignment=Qt.AlignmentFlag.AlignTop)
         layout.addWidget(self._prompt, 1)
         self.setLayout(layout)
 
@@ -93,7 +93,6 @@ class ActiveRegionWidget(QFrame):
     _region: RootRegion | Region | None
     _bindings: list[QMetaObject.Connection]
     _header_style: PromptHeader
-    _max_lines: int = 99
     _translation_enabled: bool = True
 
     def __init__(self, root: RootRegion, parent: QWidget, header=PromptHeader.full):
@@ -102,6 +101,7 @@ class ActiveRegionWidget(QFrame):
         self._region = root
         self._bindings = []
         self._header_style = header
+        self._is_slim = False
 
         self.setObjectName("ActiveRegionWidget")
         self.setFrameStyle(QFrame.Shape.StyledPanel)
@@ -133,7 +133,6 @@ class ActiveRegionWidget(QFrame):
         self._header.setLayout(header_layout)
 
         self.positive = TextPromptWidget(parent=self)
-        self.positive.line_count = min(settings.prompt_line_count, self._max_lines)
         self.positive.handle_dragged.connect(self._handle_dragging)
         self.positive.installEventFilter(self)
 
@@ -171,7 +170,7 @@ class ActiveRegionWidget(QFrame):
         if header is PromptHeader.icon:
             self._header.setVisible(False)
             positive_layout = QHBoxLayout()
-            positive_layout.addWidget(self._header_icon)
+            positive_layout.addWidget(self._header_icon, alignment=Qt.AlignmentFlag.AlignTop)
             positive_layout.addWidget(self.positive, 1)
             layout.addLayout(positive_layout)
         else:
@@ -190,8 +189,6 @@ class ActiveRegionWidget(QFrame):
             " border: 1px solid #60808080; border-radius: 2px; }"
         )
         self._language_button.clicked.connect(self._toggle_translation_enabled)
-        self._layout_language_button()
-        self._setup_resize_handle()
 
         self._setup_bindings(self._region)
         settings.changed.connect(self.update_settings)
@@ -242,8 +239,8 @@ class ActiveRegionWidget(QFrame):
         self._update_header()
         self._update_links()
         self._update_language()
+        self._update_prompt_widgets()
         self.positive.move_cursor_to_end()
-        self.negative.setVisible(is_root_region and settings.show_negative_prompt)
         self._link_button.setVisible(not is_root_region)
         self._remove_button.setVisible(not is_root_region)
         self.positive.setVisible(region is not None)
@@ -336,25 +333,26 @@ class ActiveRegionWidget(QFrame):
         menu.exec_(self._link_region_button.mapToGlobal(pos))
 
     @property
-    def max_lines(self):
-        return self._max_lines
+    def is_slim(self):
+        return self._is_slim
 
-    @max_lines.setter
-    def max_lines(self, value: int):
-        if value == self._max_lines:
+    @is_slim.setter
+    def is_slim(self, value: bool):
+        if value == self._is_slim:
             return
-        self._max_lines = value
-        self.positive.line_count = min(settings.prompt_line_count, self._max_lines)
+        self._is_slim = value
+        self._update_prompt_widgets()
+
+    @property
+    def has_negative(self):
+        return settings.show_negative_prompt and isinstance(self._region, RootRegion)
 
     def update_settings(self, key: str, value):
-        if key == "prompt_line_count":
-            self.positive.line_count = min(value, self._max_lines)
-            self._layout_language_button()
+        if key == "prompt_line_count" or key == "prompt_line_count_live":
+            self._update_prompt_widgets()
         elif key == "show_negative_prompt":
             self.negative.text = ""
-            self.negative.setVisible(value and isinstance(self._region, RootRegion))
-            self._layout_language_button()
-            self._setup_resize_handle()
+            self._update_prompt_widgets()
         elif key == "prompt_translation":
             self._update_language()
 
@@ -402,22 +400,36 @@ class ActiveRegionWidget(QFrame):
                 text = self._lang_help_disabled
             self._language_button.setToolTip(text)
 
+    def _update_prompt_widgets(self):
+        if not self.is_slim:
+            self.positive.line_count = settings.prompt_line_count
+        elif isinstance(self._region, Region):
+            self.positive.line_count = 1
+        elif self.has_negative:
+            self.positive.line_count = max(1, settings.prompt_line_count_live - 1)
+        else:
+            self.positive.line_count = settings.prompt_line_count_live
+        self.negative.setVisible(self.has_negative)
+        self._layout_language_button()
+        self._setup_resize_handle()
+
     def _layout_language_button(self):
         if settings.prompt_translation:
             pos = self.positive.geometry().bottomRight()
-            if self.negative.isVisible():
+            if self.has_negative:
                 pos = self.negative.geometry().bottomRight()
             s = QSize(self.fontMetrics().width("EN"), self.fontMetrics().height())
             self._language_button.move(pos.x() - s.width() - 2, pos.y() - s.height() - 2)
             self._language_button.resize(s)
 
     def _setup_resize_handle(self):
-        self.positive.is_resizable = not settings.show_negative_prompt
-        self.negative.is_resizable = settings.show_negative_prompt
+        can_resize = not (isinstance(self._region, Region) and self.is_slim)
+        self.positive.is_resizable = not self.has_negative and can_resize
+        self.negative.is_resizable = self.has_negative and can_resize
 
     def _handle_dragging(self, y_pos: int):
         # math determined experimentally, sorry :(
-        if self.negative.isVisible():
+        if self.has_negative:
             pos_height = self.positive.contentsRect().height()
             neg_height = self.negative.contentsRect().height()
             new_height = y_pos - neg_height + pos_height - 10
@@ -425,9 +437,12 @@ class ActiveRegionWidget(QFrame):
             new_height = y_pos - 5
         fm = QFontMetrics(ensure(self.positive.document()).defaultFont())
         new_line_count = round(new_height / fm.lineSpacing())
-        if 2 <= new_line_count <= 10:
-            settings.prompt_line_count = new_line_count
-            self.positive.line_count = new_line_count
+        if 1 <= new_line_count <= 10:
+            if self.is_slim:
+                settings.prompt_line_count_live = new_line_count
+            else:
+                settings.prompt_line_count = new_line_count
+            self._update_prompt_widgets()
 
     def resizeEvent(self, a0):
         super().resizeEvent(a0)

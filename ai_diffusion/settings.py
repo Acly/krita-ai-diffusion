@@ -167,6 +167,9 @@ class Settings(QObject):
         _("Prompt Line Count"), 2, _("Size of the text editor for image descriptions")
     )
 
+    prompt_line_count_live: int
+    _prompt_line_count_live = Setting("Prompt Line Count (Live)", 2)
+
     show_negative_prompt: bool
     _show_negative_prompt = Setting(
         _("Negative Prompt"), False, _("Show text editor to describe things to avoid")

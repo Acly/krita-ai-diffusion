@@ -360,7 +360,7 @@ class TextPromptWidget(QPlainTextEdit):
     text_changed = pyqtSignal(str)
     handle_dragged = pyqtSignal(int)
 
-    def __init__(self, line_count=2, is_negative=False, parent=None, resize_handle=False):
+    def __init__(self, line_count=2, is_negative=False, parent=None):
         super().__init__(parent)
         self._line_count = line_count
         self._is_negative = is_negative
@@ -376,7 +376,6 @@ class TextPromptWidget(QPlainTextEdit):
         self.activated.connect(self.notify_activated)
 
         self._resize_handle: ResizeHandle | None = None
-        self.is_resizable = True
 
         palette: QPalette = self.palette()
         self._base_color = palette.color(QPalette.ColorRole.Base)
