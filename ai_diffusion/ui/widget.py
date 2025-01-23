@@ -387,7 +387,7 @@ class TextPromptWidget(QPlainTextEdit):
         # Ctrl+Backspace should be handled by QPlainTextEdit, not Krita.
         if e.type() == QEvent.Type.ShortcutOverride:
             assert isinstance(e, QKeyEvent)
-            if e.matches(QKeySequence.DeleteStartOfWord):
+            if e.matches(QKeySequence.StandardKey.DeleteStartOfWord):
                 e.accept()
         return super().event(e)
 
@@ -413,6 +413,11 @@ class TextPromptWidget(QPlainTextEdit):
         super().focusOutEvent(e)
         if scroll := self.verticalScrollBar():
             scroll.triggerAction(QScrollBar.SliderAction.SliderToMinimum)
+
+    def focusNextPrevChild(self, next):
+        if self._completer.is_active:
+            return False
+        return super().focusNextPrevChild(next)
 
     def notify_text_changed(self):
         self._completer.check_completion()
