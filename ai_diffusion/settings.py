@@ -305,12 +305,13 @@ class Settings(QObject):
         return object.__getattribute__(self, name)
 
     def __setattr__(self, name: str, value):
-        if name in self._values and self._values[name] != value:
-            self._values[name] = value
-            if name != "document_defaults":
-                self.changed.emit(name, value)
-            if name == "performance_preset":
-                self.apply_performance_preset(value)
+        if name in self._values:
+            if self._values[name] != value:
+                self._values[name] = value
+                if name != "document_defaults":
+                    self.changed.emit(name, value)
+                if name == "performance_preset":
+                    self.apply_performance_preset(value)
         else:
             object.__setattr__(self, name, value)
 
