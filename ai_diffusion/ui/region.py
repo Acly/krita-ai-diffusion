@@ -412,12 +412,8 @@ class ActiveRegionWidget(QFrame):
             self._language_button.resize(s)
 
     def _setup_resize_handle(self):
-        if settings.show_negative_prompt:
-            self.positive.set_resize_handle(False)
-            self.negative.set_resize_handle(True)
-        else:
-            self.positive.set_resize_handle(True)
-            self.negative.set_resize_handle(False)
+        self.positive.is_resizable = not settings.show_negative_prompt
+        self.negative.is_resizable = settings.show_negative_prompt
 
     def _handle_dragging(self, y_pos: int):
         # math determined experimentally, sorry :(

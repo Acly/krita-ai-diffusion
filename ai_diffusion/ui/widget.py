@@ -483,9 +483,6 @@ class TextPromptWidget(QFrame):
     text_changed = pyqtSignal(str)
     handle_dragged = pyqtSignal(int)
 
-    _line_count = 2
-    _is_negative = False
-
     def __init__(self, line_count=2, is_negative=False, parent=None, resize_handle=False):
         super().__init__(parent)
         self._line_count = line_count
@@ -509,8 +506,8 @@ class TextPromptWidget(QFrame):
         self._layout.addWidget(self._multi)
         self._layout.addWidget(self._single)
 
-        self._resize_handle = ResizeHandle(self)
-        self._resize_handle.setVisible(False)
+        self._resize_handle: ResizeHandle | None = None
+        self.is_resizable = True
 
         palette: QPalette = self._multi.palette()
         self._base_color = palette.color(QPalette.ColorRole.Base)
@@ -534,21 +531,29 @@ class TextPromptWidget(QFrame):
         with SignalBlocker(widget):  # avoid auto-completion on non-user input
             widget.setText(value)
 
-    def set_resize_handle(self, value: bool):
-        if value and not self._resize_handle.isVisible():
-            self._resize_handle.setVisible(True)
+    @property
+    def is_resizable(self):
+        return self._resize_handle is not None
+
+    @is_resizable.setter
+    def is_resizable(self, value: bool):
+        if value and self._resize_handle is None:
+            self._resize_handle = ResizeHandle(self)
             self._resize_handle.handle_dragged.connect(self.handle_dragged)
             self._place_resize_handle()
-        if not value and self._resize_handle.isVisible():
-            self._resize_handle.setVisible(False)
+            self._resize_handle.show()
+        if not value and self._resize_handle is not None:
             self._resize_handle.handle_dragged.disconnect(self.handle_dragged)
+            self._resize_handle.deleteLater()
+            self._resize_handle = None
 
     def _place_resize_handle(self):
-        rect = self.geometry()
-        self._resize_handle.move(
-            (rect.width() - self._resize_handle.width()) // 2,
-            rect.height() - self._resize_handle.height(),
-        )
+        if self._resize_handle:
+            rect = self.geometry()
+            self._resize_handle.move(
+                (rect.width() - self._resize_handle.width()) // 2,
+                rect.height() - self._resize_handle.height(),
+            )
 
     @property
     def line_count(self):
