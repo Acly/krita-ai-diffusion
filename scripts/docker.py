@@ -5,6 +5,7 @@ ComfyUI with all required custom nodes and models.
 import asyncio
 import sys
 import shutil
+import subprocess
 import requests
 from pathlib import Path
 from itertools import chain
@@ -56,6 +57,24 @@ def download_repositories():
         download_repository(repo.url, custom_nodes_dir / repo.folder, repo.version)
 
 
+def upgrade_python_dependencies():
+    cmd = [
+        "uv",
+        "pip",
+        "compile",
+        "requirements.in",
+        "ComfyUI/requirements.txt",
+        "ComfyUI/custom_nodes/comfyui_controlnet_aux/requirements.txt",
+        "ComfyUI/custom_nodes/comfyui-tooling-nodes/requirements.txt",
+        "ComfyUI/custom_nodes/ComfyUI-GGUF/requirements.txt",
+        "ComfyUI/custom_nodes/ComfyUI-Manager/requirements.txt",
+        "--no-deps",
+        "-o",
+        "requirements.txt",
+    ]
+    subprocess.run(cmd, cwd=docker_dir, check=True)
+
+
 def check_line_endings():
     for file in docker_dir.rglob("*.sh"):
         with open(file, "rb") as f:
@@ -66,7 +85,7 @@ def check_line_endings():
                 f.write(content.replace(b"\r\n", b"\n"))
 
 
-async def main(clean=False):
+async def main(clean=False, upgrade=False):
     if clean:
         print("Deleting existing repositories")
         shutil.rmtree(comfy_dir, ignore_errors=True)
@@ -74,6 +93,10 @@ async def main(clean=False):
 
     print("Downloading repositories")
     download_repositories()
+
+    if upgrade:
+        print("Upgrading Python dependencies")
+        upgrade_python_dependencies()
 
     print("Copying scripts")
     copy_scripts()
@@ -94,4 +117,4 @@ async def main(clean=False):
 
 
 if __name__ == "__main__":
-    asyncio.run(main(clean="--clean" in sys.argv))
+    asyncio.run(main(clean="--clean" in sys.argv, upgrade="--upgrade" in sys.argv))

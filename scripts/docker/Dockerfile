@@ -11,9 +11,8 @@ RUN apt update && \
     apt install -y --no-install-recommends \
     build-essential \
     software-properties-common \
-    python3.11-venv \
-    python3.11-dev \
     bash \
+    curl \
     vim \
     htop \
     git \
@@ -30,28 +29,23 @@ RUN apt update && \
     apt clean && \
     echo "en_US.UTF-8 UTF-8" > /etc/locale.gen
 
-# Python virtual environment
-RUN python3.11 -m venv /venv
-ENV PATH="/venv/bin:$PATH"
+# Install Python virtual environment
+ENV XDG_BIN_HOME="/usr/bin" \
+    PATH="/venv/bin:$PATH"
+RUN curl -LsSf https://astral.sh/uv/install.sh | sh
+RUN uv venv /venv --python python3.12
 
-# PyTorch and ONNX Runtime
-RUN python3 -m pip install --upgrade pip && \
-    python3 -m pip install --no-cache-dir torch torchvision torchaudio onnxruntime
+# Install Python dependencies
+COPY ./requirements.txt /requirements.txt
+RUN uv pip install --no-cache -r requirements.txt
 
-# ComfyUI and custom nodes
+# Install ComfyUI
 COPY ./ComfyUI /ComfyUI/
-RUN python3 -m pip install -r /ComfyUI/requirements.txt && \
-    python3 -m pip install -r /ComfyUI/custom_nodes/comfyui_controlnet_aux/requirements.txt && \
-    python3 -m pip install -r /ComfyUI/custom_nodes/comfyui-tooling-nodes/requirements.txt && \
-    python3 -m pip install -r /ComfyUI/custom_nodes/ComfyUI-GGUF/requirements.txt && \
-    python3 -m pip install insightface && \
-    python3 -m pip cache purge
+COPY ./extra_model_paths.yaml /ComfyUI/
 
 # Prepare scripts and folders for models (download is eventually done at container startup via pre_start.sh)
 COPY ./krita-ai-diffusion/ /krita-ai-diffusion/
-COPY ./extra_model_paths.yaml /ComfyUI/
-RUN python3 -m pip install --no-cache-dir aiohttp tqdm && \
-    python3 /krita-ai-diffusion/scripts/download_models.py --dry-run /workspace
+RUN python3 /krita-ai-diffusion/scripts/download_models.py --dry-run /workspace
 RUN ln -s /workspace/models /models
 
 
@@ -65,7 +59,6 @@ RUN apt update && \
     inetutils-ping \
     openssh-server \
     wget \
-    curl \
     psmisc \
     rsync \
     zip \
@@ -74,12 +67,8 @@ RUN apt update && \
     apt-transport-https && \    
     apt clean
 
-# ComfyUI Manager dependencies
-RUN python3 -m pip install --no-cache-dir \
-    -r /ComfyUI/custom_nodes/ComfyUI-Manager/requirements.txt
-
 # Install Jupyter
-RUN python3 -m pip install -U --no-cache-dir jupyterlab \
+RUN uv pip install --no-cache jupyterlab \
     jupyterlab_widgets \
     ipykernel \
     ipywidgets \
