@@ -39,7 +39,7 @@ def build_package():
     plugin_dst = package_dir / "ai_diffusion"
 
     def ignore(path, names):
-        return ignore_patterns(".*", "*.pyc", "__pycache__")(path, names)
+        return ignore_patterns(".*", "*.pyc", "__pycache__", "debugpy")(path, names)
 
     copytree(plugin_src, plugin_dst, ignore=ignore)
     copy(root / "scripts" / "download_models.py", plugin_dst)

@@ -1,3 +1,6 @@
 [submodule "ai_diffusion/websockets"]
 	path = ai_diffusion/websockets
 	url = https://github.com/python-websockets/websockets.git
+[submodule "ai_diffusion/debugpy"]
+	path = ai_diffusion/debugpy
+	url = https://github.com/microsoft/debugpy.git

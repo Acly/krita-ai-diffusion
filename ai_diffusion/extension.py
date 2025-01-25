@@ -1,4 +1,5 @@
 import sys
+from pathlib import Path
 from typing import Callable
 from PyQt5.QtWidgets import QAction
 from krita import Extension, Krita, DockWidgetFactory, DockWidgetFactoryBase, Window  # type: ignore
@@ -20,6 +21,15 @@ class AIToolsExtension(Extension):
     def __init__(self, parent):
         super().__init__(parent)
         log.info(f"Extension initialized, Version: {__version__}, Python: {sys.version}")
+
+        try:
+            sys.path.append(str(Path(__file__).parent / "debugpy" / "src"))
+            import debugpy
+
+            debugpy.listen(("127.0.0.1", 5678), in_process_debug_adapter=True)
+            log.info("Developer mode: debugpy listening on port 5678")
+        except ImportError:
+            pass
 
         eventloop.setup()
         settings.load()

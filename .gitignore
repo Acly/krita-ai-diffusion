@@ -7,7 +7,6 @@
 .pytest_cache
 .resources
 .server
-.vscode
 __pycache__
 scripts/upload.py
 scripts/docker/krita-ai-diffusion

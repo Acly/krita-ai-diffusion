@@ -6,6 +6,7 @@
 # Development
 ruff
 pyright
+debugpy
 requests
 uv
 

@@ -2,7 +2,11 @@
 target-version = "py310"
 line-length = 100
 preview = true
-extend-exclude = ["ai_diffusion/websockets", "krita.pyi"]
+extend-exclude = [
+    "ai_diffusion/websockets",
+    "ai_diffusion/debugpy",
+    "krita.pyi",
+]
 
 [tool.ruff.lint]
 ignore = ["E741"]
@@ -22,8 +26,9 @@ exclude = [
     "tests/server",
     "tests/test_image_transfer.py",
     "ai_diffusion/websockets",
+    "ai_diffusion/debugpy",
 ]
-ignore = ["ai_diffusion/websockets", "krita.pyi"]
+ignore = ["ai_diffusion/websockets", "ai_diffusion/debugpy", "krita.pyi"]
 extraPaths = ["scripts/typeshed"]
 reportMissingModuleSource = false
 

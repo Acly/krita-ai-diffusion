@@ -97,7 +97,7 @@ class ComfyClient(Client):
         self._supported_languages: list[TranslationPackage] = []
         self._messages = asyncio.Queue()
         self._queue = asyncio.Queue()
-        self._jobs = deque()
+        self._jobs: deque[JobInfo] = deque()
         self._is_connected = False
 
     @staticmethod

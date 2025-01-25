@@ -4,7 +4,7 @@ import json
 from pathlib import Path
 
 source_dir = Path(__file__).parent.parent / "ai_diffusion"
-excluded_dirs = [".pytest_cache", "__pycache__", "icons", "websockets"]
+excluded_dirs = [".pytest_cache", "__pycache__", "icons", "websockets", "debugpy"]
 expression = re.compile(r'_\(\s*"(.+?)"[\,|\s*\)]')
 
 
