@@ -8,13 +8,14 @@ from PyQt5.QtWidgets import (
     QLabel,
     QComboBox,
     QSlider,
+    QSpinBox,
     QDoubleSpinBox,
     QGroupBox,
 )
 
 from ..properties import Binding, Bind, bind, bind_combo, bind_toggle
 from ..resources import ControlMode, UpscalerName
-from ..model import Model
+from ..model import Model, TileOverlapMode
 from ..jobs import JobKind
 from ..localization import translate as _
 from ..root import root
@@ -86,7 +87,7 @@ class FactorWidget(QWidget):
         self.value = value
 
     def update_target_extent(self):
-        e = root.active_model.upscale.target_extent
+        e = root.active_model.document.extent * self.value
         if self.slider.isSliderDown() or self.rect().contains(self.mapFromGlobal(QCursor.pos())):
             self.target_label.setText(_("Target size") + f": {e.width} x {e.height}")
         else:
@@ -130,16 +131,30 @@ class UpscaleWidget(QWidget):
         self.refinement_checkbox.setCheckable(True)
 
         self.style_select = StyleSelectWidget(self)
-        self.strength_slider = StrengthWidget(slider_range=(20, 50), parent=self)
+        self.strength_slider = StrengthWidget(slider_range=(20, 50), prefix=False, parent=self)
+        strength_layout = QHBoxLayout()
+        strength_layout.addWidget(QLabel(_("Strength"), self), 1)
+        strength_layout.addWidget(self.strength_slider, 3)
 
-        self.unblur_combo = QComboBox(self)
-        self.unblur_combo.addItem(_("Off"), 0)
-        self.unblur_combo.addItem(_("Unblur - Medium"), 1)
-        self.unblur_combo.addItem(_("Unblur - Strong"), 2)
+        self.unblur_slider = StrengthWidget(slider_range=(0, 100), prefix=False, parent=self)
         unblur_layout = QHBoxLayout()
-        unblur_layout.addWidget(QLabel(_("Image guidance"), self), 2)
-        unblur_layout.addWidget(self.unblur_combo, 1)
+        unblur_layout.addWidget(QLabel(_("Image guidance"), self), 1)
+        unblur_layout.addWidget(self.unblur_slider, 3)
         root.connection.models_changed.connect(self._update_unblur_enabled)
+
+        self.overlap_custom_combo = QComboBox(self)
+        self.overlap_custom_combo.addItem(_("Automatic"), TileOverlapMode.auto)
+        self.overlap_custom_combo.addItem(_("Custom"), TileOverlapMode.custom)
+        self.overlap_input = QSpinBox(self)
+        self.overlap_input.setMinimum(0)
+        self.overlap_input.setMaximum(128)
+        self.overlap_input.setSingleStep(8)
+        self.overlap_input.setSuffix(" px")
+        self.overlap_input.setEnabled(False)
+        overlap_layout = QHBoxLayout()
+        overlap_layout.addWidget(QLabel(_("Tile Overlap"), self), 2)
+        overlap_layout.addWidget(self.overlap_custom_combo)
+        overlap_layout.addWidget(self.overlap_input)
 
         self.use_prompt_switch = SwitchWidget(self)
         self.use_prompt_switch.toggled.connect(self._update_prompt)
@@ -147,7 +162,6 @@ class UpscaleWidget(QWidget):
         self.prompt_warning = WarningIcon(self)
         self.prompt_label = QLabel(self)
         self.prompt_label.setMinimumWidth(40)
-        self.prompt_label.setEnabled(False)
         prompt_layout = QHBoxLayout()
         prompt_layout.addWidget(QLabel(_("Use Prompt"), self))
         prompt_layout.addWidget(self.prompt_label, 1)
@@ -157,8 +171,9 @@ class UpscaleWidget(QWidget):
 
         group_layout = QVBoxLayout(self.refinement_checkbox)
         group_layout.addWidget(self.style_select)
-        group_layout.addWidget(self.strength_slider)
+        group_layout.addLayout(strength_layout)
         group_layout.addLayout(unblur_layout)
+        group_layout.addLayout(overlap_layout)
         group_layout.addLayout(prompt_layout)
         self.refinement_checkbox.setLayout(group_layout)
         layout.addWidget(self.refinement_checkbox)
@@ -204,10 +219,13 @@ class UpscaleWidget(QWidget):
                 bind_toggle(model.upscale, "use_diffusion", self.refinement_checkbox),
                 bind(model, "style", self.style_select, "value"),
                 bind(model.upscale, "strength", self.strength_slider, "value"),
-                bind_combo(model.upscale, "unblur_strength", self.unblur_combo),
+                bind(model.upscale, "unblur_strength", self.unblur_slider, "value"),
+                bind_combo(model.upscale, "tile_overlap_mode", self.overlap_custom_combo),
+                bind(model.upscale, "tile_overlap", self.overlap_input, "value"),
                 bind_toggle(model.upscale, "use_prompt", self.use_prompt_switch),
                 bind(model.upscale, "can_generate", self.upscale_button, "enabled", Bind.one_way),
                 bind(model, "error", self.error_box, "error", Bind.one_way),
+                model.upscale.tile_overlap_mode_changed.connect(self._update_overlap),
                 model.upscale.use_prompt_changed.connect(self._update_prompt),
                 model.regions.modified.connect(self._update_prompt),
                 model.regions.added.connect(self._update_prompt),
@@ -219,6 +237,7 @@ class UpscaleWidget(QWidget):
             self.queue_button.model = model
             self._update_prompt()
             self._update_unblur_enabled()
+            self._update_overlap()
             self.update_progress()
 
     def update_models(self):
@@ -251,16 +270,21 @@ class UpscaleWidget(QWidget):
     def upscale(self):
         self.model.upscale_image()
 
+    def _update_overlap(self):
+        self.overlap_input.setEnabled(
+            self.model.upscale.tile_overlap_mode is TileOverlapMode.custom
+        )
+
     def _update_unblur_enabled(self):
         has_unblur = False
         if client := root.connection.client_if_connected:
             models = client.models.for_arch(self.model.arch)
             has_unblur = models.control.find(ControlMode.blur, allow_universal=True) is not None
-        self.unblur_combo.setEnabled(has_unblur)
+        self.unblur_slider.setEnabled(has_unblur)
         if not has_unblur:
-            self.unblur_combo.setToolTip(_("The tile/unblur control model is not installed."))
+            self.unblur_slider.setToolTip(_("The tile/unblur control model is not installed."))
         else:
-            self.unblur_combo.setToolTip(
+            self.unblur_slider.setToolTip(
                 _(
                     "When enabled, the low resolution image is used as guidance for refining the upscaled image.\nThis produces results which are closer to the original while enhancing local details."
                 )

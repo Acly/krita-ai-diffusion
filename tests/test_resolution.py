@@ -333,6 +333,19 @@ tile_layouts = {
         "tile_size": (800, 800),
         "tiles": [{"start": Point(0, 0), "end": Point(800, 800)}],
     },
+    "no-overlap": {
+        "extent": Extent(1024, 1024),
+        "min_tile_size": 512,
+        "padding": 0,
+        "tile_count": (2, 2),
+        "tile_size": (512, 512),
+        "tiles": [
+            {"start": Point(0, 0), "end": Point(512, 512)},
+            {"start": Point(0, 512), "end": Point(512, 1024)},
+            {"start": Point(512, 0), "end": Point(1024, 512)},
+            {"start": Point(512, 512), "end": Point(1024, 1024)},
+        ],
+    },
 }
 
 

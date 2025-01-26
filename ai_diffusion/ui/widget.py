@@ -584,7 +584,7 @@ class StrengthWidget(QWidget):
 
     value_changed = pyqtSignal(float)
 
-    def __init__(self, slider_range: tuple[int, int] = (1, 100), parent=None):
+    def __init__(self, slider_range: tuple[int, int] = (1, 100), prefix=True, parent=None):
         super().__init__(parent)
         self._layout = QHBoxLayout()
         self._layout.setContentsMargins(0, 0, 0, 0)
@@ -599,8 +599,10 @@ class StrengthWidget(QWidget):
 
         self._input = StrengthSpinBox(self)
         self._input.setValue(self._value)
-        self._input.setPrefix(_("Strength") + ": ")
+        if prefix:
+            self._input.setPrefix(_("Strength") + ": ")
         self._input.setSuffix("%")
+        self._input.setSpecialValueText(_("Off"))
         self._input.valueChanged.connect(self.notify_changed)
 
         settings.changed.connect(self.update_suffix)

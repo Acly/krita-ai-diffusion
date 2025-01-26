@@ -278,7 +278,7 @@ class TileLayout:
         self.image_extent = extent
         self.min_size = min_tile_size
         self.padding = padding
-        self.blending = max(1, self.padding // 16) * 8
+        self.blending = max(1, self.padding // 16) * 8 if padding > 0 else 0
         self.tile_count = (self.image_extent // (min_tile_size - 2 * self.padding)).at_least(1)
 
         padded = extent + (self.tile_count - Extent(1, 1)) * 2 * self.padding

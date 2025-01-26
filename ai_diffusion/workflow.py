@@ -9,7 +9,7 @@ import random
 from . import resolution, resources
 from .api import ControlInput, ImageInput, CheckpointInput, SamplingInput, WorkflowInput, LoraInput
 from .api import ExtentInput, InpaintMode, InpaintParams, FillMode, ConditioningInput, WorkflowKind
-from .api import RegionInput, CustomWorkflowInput
+from .api import RegionInput, CustomWorkflowInput, UpscaleInput
 from .image import Bounds, Extent, Image, Mask, multiple_of
 from .client import ClientModels, ModelDict, resolve_arch
 from .files import FileLibrary, FileFormat
@@ -1099,21 +1099,24 @@ def upscale_tiled(
     checkpoint: CheckpointInput,
     cond: Conditioning,
     sampling: SamplingInput,
-    upscale_model_name: str,
+    upscale: UpscaleInput,
     misc: MiscParams,
     models: ModelDict,
 ):
     upscale_factor = extent.initial.width / extent.input.width
-    layout = TileLayout.from_denoise_strength(
-        extent.initial, extent.desired.width, sampling.denoise_strength
-    )
+    if upscale.tile_overlap >= 0:
+        layout = TileLayout(extent.initial, extent.desired.width, upscale.tile_overlap)
+    else:
+        layout = TileLayout.from_denoise_strength(
+            extent.initial, extent.desired.width, sampling.denoise_strength
+        )
 
     model, clip, vae = load_checkpoint_with_lora(w, checkpoint, models.all)
     model = apply_ip_adapter(w, model, cond.control, models)
 
     in_image = w.load_image(image)
-    if upscale_model_name:
-        upscale_model = w.load_upscale_model(upscale_model_name)
+    if upscale.model:
+        upscale_model = w.load_upscale_model(upscale.model)
         upscaled = w.upscale_image(upscale_model, in_image)
     else:
         upscaled = in_image
@@ -1255,7 +1258,7 @@ def prepare(
     strength: float = 1.0,
     inpaint: InpaintParams | None = None,
     upscale_factor: float = 1.0,
-    upscale_model: str = "",
+    upscale: UpscaleInput | None = None,
     is_live: bool = False,
 ) -> WorkflowInput:
     """
@@ -1343,7 +1346,9 @@ def prepare(
         tile_size = Extent(tile_size, tile_size)
         extent = ExtentInput(canvas.extent, target_extent.multiple_of(8), tile_size, target_extent)
         i.images = ImageInput(extent, canvas)
-        i.upscale_model = upscale_model if upscale_factor > 1 else ""
+        assert upscale is not None
+        i.upscale = upscale
+        i.upscale.model = i.upscale.model if upscale_factor > 1 else ""
         i.batch_count = 1
 
     else:
@@ -1358,7 +1363,7 @@ def prepare_upscale_simple(image: Image, model: str, factor: float):
     target_extent = image.extent * factor
     extent = ExtentInput(image.extent, image.extent, target_extent, target_extent)
     i = WorkflowInput(WorkflowKind.upscale_simple, ImageInput(extent, image))
-    i.upscale_model = model
+    i.upscale = UpscaleInput(model)
     return i
 
 
@@ -1432,7 +1437,7 @@ def create(i: WorkflowInput, models: ClientModels, comfy_mode=ComfyRunMode.serve
             models.for_arch(ensure(i.models).version),
         )
     elif i.kind is WorkflowKind.upscale_simple:
-        return upscale_simple(workflow, i.image, i.upscale_model, i.upscale_factor)
+        return upscale_simple(workflow, i.image, ensure(i.upscale).model, i.upscale_factor)
     elif i.kind is WorkflowKind.upscale_tiled:
         return upscale_tiled(
             workflow,
@@ -1441,7 +1446,7 @@ def create(i: WorkflowInput, models: ClientModels, comfy_mode=ComfyRunMode.serve
             ensure(i.models),
             Conditioning.from_input(ensure(i.conditioning)),
             ensure(i.sampling),
-            i.upscale_model,
+            ensure(i.upscale),
             misc,
             models.for_arch(ensure(i.models).version),
         )
