@@ -361,6 +361,7 @@ class CustomWorkspace(QObject, ObservableProperties):
     is_live = Property(False, setter="toggle_live")
     has_result = Property(False)
     outputs = Property({})
+    params_ui_height = Property(100, persist=True)
 
     workflow_id_changed = pyqtSignal(str)
     graph_changed = pyqtSignal()
@@ -370,6 +371,7 @@ class CustomWorkspace(QObject, ObservableProperties):
     result_available = pyqtSignal(Image)
     has_result_changed = pyqtSignal(bool)
     outputs_changed = pyqtSignal(dict)
+    params_ui_height_changed = pyqtSignal(int)
     modified = pyqtSignal(QObject, str)
 
     _live_poll_rate = 0.1

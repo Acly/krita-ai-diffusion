@@ -3,12 +3,12 @@ from pathlib import Path
 from typing import Any, Callable
 
 from krita import Krita
-from PyQt5.QtCore import Qt, pyqtSignal, QMetaObject, QUuid, QUrl, QPoint
+from PyQt5.QtCore import Qt, pyqtSignal, QMetaObject, QUuid, QUrl, QPoint, QSize
 from PyQt5.QtGui import QFontMetrics, QIcon, QDesktopServices
 from PyQt5.QtWidgets import QComboBox, QFileDialog, QFrame, QGridLayout, QHBoxLayout, QMenu
 from PyQt5.QtWidgets import QLabel, QLineEdit, QListWidgetItem, QMessageBox, QSpinBox, QAction
 from PyQt5.QtWidgets import QToolButton, QVBoxLayout, QWidget, QSlider, QDoubleSpinBox
-from PyQt5.QtWidgets import QScrollArea, QTextEdit
+from PyQt5.QtWidgets import QScrollArea, QTextEdit, QSplitter
 
 from ..custom_workflow import CustomParam, ParamKind, SortedWorkflows, WorkflowSource
 from ..custom_workflow import CustomGenerationMode
@@ -269,6 +269,13 @@ class PromptParamWidget(TextPromptWidget):
         self.text_changed.connect(self.value_changed)
         settings.changed.connect(self.update_settings)
 
+        self.is_resizable = True
+        self.handle_dragged.connect(self._handle_dragging)
+
+    def sizeHint(self):
+        fm = QFontMetrics(ensure(self.document()).defaultFont())
+        return QSize(200, fm.lineSpacing() * self.line_count + 8)
+
     @property
     def value(self):
         return self.text
@@ -280,6 +287,13 @@ class PromptParamWidget(TextPromptWidget):
     def update_settings(self, key: str, value):
         if key == "prompt_line_count" and self.param.kind is ParamKind.prompt_positive:
             self.line_count = value
+
+    def _handle_dragging(self, y_pos: int):
+        fm = QFontMetrics(ensure(self.document()).defaultFont())
+        new_line_count = round((y_pos - 5) / fm.lineSpacing())
+        if 1 <= new_line_count <= 10:
+            settings.prompt_line_count = new_line_count
+            self.line_count = new_line_count
 
 
 class ChoiceParamWidget(QComboBox):
@@ -458,9 +472,9 @@ class WorkflowParamsWidget(QWidget):
         display_height = sum(w.sizeHint().height() for w in widgets if not isinstance(w, QLabel))
         display_height += 2 * len(widgets)  # spacing
         if expander is not None:
-            expander.set_group_widgets(widgets, len(self._widgets) < 7)
+            expander.set_group_widgets(widgets, show_group=len(self._widgets) < 7)
             display_height += expander.sizeHint().height()
-        self._max_group_height = max(self._max_group_height, display_height)
+        self._max_group_height = max(self._max_group_height, display_height + 4)
 
     @property
     def value(self):
@@ -656,16 +670,18 @@ class CustomWorkflowWidget(QWidget):
         self._params_scroll.setFrameShape(QFrame.Shape.NoFrame)
         self._params_scroll.setHorizontalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAlwaysOff)
 
-        self._generate_button = GenerateButton(JobKind.diffusion, self)
+        self._bottom = QWidget(self)
+
+        self._generate_button = GenerateButton(JobKind.diffusion, self._bottom)
         self._generate_button.clicked.connect(self._generate)
 
-        self._apply_button = QToolButton(self)
+        self._apply_button = QToolButton(self._bottom)
         self._apply_button.setIcon(theme.icon("apply"))
         self._apply_button.setFixedHeight(self._generate_button.height() - 2)
         self._apply_button.setToolTip(_("Create a new layer with the current result"))
         self._apply_button.clicked.connect(self.apply_live_result)
 
-        self._mode_button = QToolButton(self)
+        self._mode_button = QToolButton(self._bottom)
         self._mode_button.setArrowType(Qt.ArrowType.DownArrow)
         self._mode_button.setFixedHeight(self._generate_button.height() - 2)
         self._mode_button.clicked.connect(self._show_generate_menu)
@@ -681,22 +697,28 @@ class CustomWorkflowWidget(QWidget):
         )
         self._generate_menu = menu
 
-        self._queue_button = QueueButton(parent=self)
+        self._queue_button = QueueButton(parent=self._bottom)
         self._queue_button.setFixedHeight(self._generate_button.height() - 2)
 
-        self._progress_bar = ProgressBar(self)
-        self._error_box = ErrorBox(self)
+        self._progress_bar = ProgressBar(self._bottom)
+        self._error_box = ErrorBox(self._bottom)
 
-        self._outputs = WorkflowOutputsWidget(self)
+        self._outputs = WorkflowOutputsWidget(self._bottom)
         self._outputs.expander.toggled.connect(self._update_layout)
 
-        self._history = HistoryWidget(self)
+        self._history = HistoryWidget(self._bottom)
         self._history.item_activated.connect(self.apply_result)
 
-        self._live_preview = LivePreviewArea(self)
+        self._live_preview = LivePreviewArea(self._bottom)
 
-        self._layout = QVBoxLayout()
-        self._layout.setContentsMargins(0, 2, 2, 0)
+        self._splitter = QSplitter(Qt.Orientation.Vertical, self)
+        self._splitter.addWidget(self._params_scroll)
+        self._splitter.addWidget(self._bottom)
+        self._splitter.setCollapsible(1, False)
+        self._splitter.splitterMoved.connect(self._splitter_moved)
+
+        layout = QVBoxLayout()
+        layout.setContentsMargins(0, 2, 2, 0)
         select_layout = QHBoxLayout()
         select_layout.setContentsMargins(0, 0, 0, 0)
         select_layout.setSpacing(2)
@@ -718,8 +740,8 @@ class CustomWorkflowWidget(QWidget):
         header_layout.addWidget(self._workspace_select)
         header_layout.addWidget(self._workflow_select_widgets)
         header_layout.addWidget(self._workflow_edit_widgets)
-        self._layout.addLayout(header_layout)
-        self._layout.addWidget(self._params_scroll)
+        layout.addLayout(header_layout)
+        layout.addWidget(self._splitter)
         actions_layout = QHBoxLayout()
         actions_layout.setSpacing(0)
         actions_layout.addWidget(self._generate_button)
@@ -727,19 +749,20 @@ class CustomWorkflowWidget(QWidget):
         actions_layout.addWidget(self._mode_button)
         actions_layout.addSpacing(4)
         actions_layout.addWidget(self._queue_button)
-        self._layout.addLayout(actions_layout)
-        self._layout.addWidget(self._progress_bar)
-        self._layout.addWidget(self._error_box)
-        self._layout.addWidget(self._outputs, stretch=0)
-        self._layout.addWidget(self._history, stretch=3)
-        self._layout.addWidget(self._live_preview, stretch=5)
-        self.setLayout(self._layout)
+        self._bottom_layout = QVBoxLayout(self._bottom)
+        self._bottom_layout.addLayout(actions_layout)
+        self._bottom_layout.addWidget(self._progress_bar)
+        self._bottom_layout.addWidget(self._error_box)
+        self._bottom_layout.addWidget(self._outputs, stretch=0)
+        self._bottom_layout.addWidget(self._history, stretch=3)
+        self._bottom_layout.addWidget(self._live_preview, stretch=5)
+        self.setLayout(layout)
 
         self._update_ui()
 
     def _update_layout(self):
         stretch = 1 if self._outputs.is_visible else 0
-        self._layout.setStretchFactor(self._outputs, stretch)
+        self._bottom_layout.setStretchFactor(self._outputs, stretch)
 
     def _show_settings(self):
         Krita.instance().action("ai_diffusion_settings").trigger()
@@ -771,6 +794,7 @@ class CustomWorkflowWidget(QWidget):
             self._history.model_ = model
             self._update_current_workflow()
             self._update_ui()
+            self._set_params_height(model.custom.params_ui_height)
 
     def _mk_action(self, mode: CustomGenerationMode, text: str, icon: str):
         action = QAction(text, self)
@@ -837,12 +861,10 @@ class CustomWorkflowWidget(QWidget):
             self._params_widget.value_changed.connect(self._change_params)
 
             self._params_scroll.setWidget(self._params_widget)
-            widget_size = self._params_scroll.viewportSizeHint().height() + 4
-            widget_size = max(widget_size, self._params_widget.min_size)
-            params_size = min(self.height() // 2, widget_size)
-            self._params_scroll.setFixedHeight(params_size)
+            params_size = min(self.height() // 2, self._params_widget.min_size)
+            self._set_params_height(max(self.model.custom.params_ui_height, params_size))
         else:
-            self._params_scroll.setFixedHeight(0)
+            self._set_params_height(0)
 
     def _change_workflow(self):
         self.model.custom.workflow_id = self._workflow_select.currentData()
@@ -850,6 +872,12 @@ class CustomWorkflowWidget(QWidget):
     def _change_params(self):
         if self._params_widget:
             self.model.custom.params = self._params_widget.value
+
+    def _set_params_height(self, height: int):
+        self._splitter.setSizes([height, self._splitter.height() - height])
+
+    def _splitter_moved(self, pos: int, index: int):
+        self.model.custom.params_ui_height = self._splitter.sizes()[0]
 
     def apply_result(self, item: QListWidgetItem):
         job_id, index = self._history.item_info(item)

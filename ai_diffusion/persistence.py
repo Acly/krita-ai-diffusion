@@ -267,6 +267,9 @@ def _deserialize(obj: QObject, data: dict[str, Any]):
             return style or Styles.list().default
         return value
 
+    if "unblur_strength" in data and not isinstance(data["unblur_strength"], float):
+        data["unblur_strength"] = 0.5
+
     return deserialize(obj, data, converter)
 
 
