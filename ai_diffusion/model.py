@@ -5,6 +5,7 @@ from collections import deque
 from dataclasses import replace
 from pathlib import Path
 from enum import Enum
+from tempfile import TemporaryDirectory
 import time
 from typing import Any, NamedTuple
 from PyQt5.QtCore import QObject, QUuid, pyqtSignal, Qt
@@ -398,7 +399,11 @@ class Model(QObject, ObservableProperties):
                 custom_workflow=CustomWorkflowInput(wf.root, params),
             )
             job_params = JobParams(bounds, self.custom.job_name, metadata=self.custom.params)
-            job_kind = JobKind.live_preview if is_live else JobKind.diffusion
+            job_kind = {
+                CustomGenerationMode.regular: JobKind.diffusion,
+                CustomGenerationMode.live: JobKind.live_preview,
+                CustomGenerationMode.animation: JobKind.animation,
+            }[self.custom.mode]
 
             if input == previous_input:
                 return None
@@ -493,7 +498,7 @@ class Model(QObject, ObservableProperties):
                 self.add_upscale_layer(job)
             self._finish_job(job, message.event)
             show_preview = settings.auto_preview and self._layer is None
-            if job.id and job.kind is JobKind.diffusion and show_preview:
+            if job.id and job.kind in [JobKind.diffusion, JobKind.animation] and show_preview:
                 self.jobs.select(job.id, 0)
         elif message.event is ClientEvent.interrupted:
             self._finish_job(job, message.event)
@@ -525,6 +530,9 @@ class Model(QObject, ObservableProperties):
     def show_preview(self, job_id: str, index: int, name_prefix="Preview"):
         job = self.jobs.find(job_id)
         assert job is not None, "Cannot show preview, invalid job id"
+        if job.kind is JobKind.animation:
+            return  # don't show animation preview on canvas (it's slow and clumsy)
+
         name = f"[{name_prefix}] {trim_text(job.params.name, 77)}"
         image = job.results[index]
         bounds = job.params.bounds
@@ -630,13 +638,33 @@ class Model(QObject, ObservableProperties):
         job = self.jobs.find(job_id)
         assert job is not None, "Cannot apply result, invalid job id"
 
-        self.apply_result(job.results[index], job.params, settings.apply_behavior, "[Generated] ")
+        if job.kind is JobKind.animation:
+            self.apply_animation(job)
+        else:
+            self.apply_result(
+                job.results[index], job.params, settings.apply_behavior, "[Generated] "
+            )
 
         if self._layer:
             self._layer.remove()
             self._layer = None
         self.jobs.selection = None
         self.jobs.notify_used(job_id, index)
+
+    def apply_animation(self, job: Job):
+        assert job.kind is JobKind.animation
+        with TemporaryDirectory(prefix="animation") as temp_dir:
+            frames = []
+            for i, image in enumerate(job.results):
+                filename = Path(temp_dir) / f"{i:03}.png"
+                image.save(filename)
+                frames.append(filename)
+            self.document.import_animation(frames)
+
+        async def _set_layer_name():
+            self.layers.active.name = f"[Animation] {trim_text(job.params.name, 200)}"
+
+        eventloop.run(_set_layer_name())
 
     def add_control_layer(self, job: Job, result: ClientOutput | None):
         assert job.kind is JobKind.control_layer and job.control

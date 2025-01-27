@@ -674,6 +674,11 @@ class CustomWorkflowWidget(QWidget):
         menu.addAction(
             self._mk_action(CustomGenerationMode.live, _("Generate Live"), "workspace-live")
         )
+        menu.addAction(
+            self._mk_action(
+                CustomGenerationMode.animation, _("Generate Animation"), "workspace-animation"
+            )
+        )
         self._generate_menu = menu
 
         self._queue_button = QueueButton(parent=self)
@@ -790,9 +795,12 @@ class CustomWorkflowWidget(QWidget):
         self._apply_button.setVisible(is_live_mode)
         self._apply_button.setEnabled(self.model.custom.has_result)
 
-        if not is_live_mode:
+        if self.model.custom.mode is CustomGenerationMode.regular:
             text = _("Generate")
             icon = "generate"
+        elif self.model.custom.mode is CustomGenerationMode.animation:
+            text = _("Generate Animation")
+            icon = "workspace-animation"
         elif not self.model.custom.is_live:
             text = _("Start Generating")
             icon = "play"

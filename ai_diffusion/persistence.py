@@ -18,7 +18,7 @@ from .style import Style, Styles
 from .properties import serialize, deserialize
 from .settings import settings
 from .localization import translate as _
-from .util import client_logger as log
+from .util import client_logger as log, encode_json
 
 # Version of the persistence format, increment when there are breaking changes
 version = 1
@@ -97,10 +97,12 @@ class _HistoryResult:
     slot: int  # annotation slot where images are stored
     offsets: list[int]  # offsets in bytes for result images
     params: JobParams
+    kind: JobKind = JobKind.diffusion
 
     @staticmethod
     def from_dict(data: dict[str, Any]):
         data["params"] = JobParams.from_dict(data["params"])
+        data["kind"] = JobKind[data.get("kind", "diffusion")]
         return _HistoryResult(**data)
 
 
@@ -141,7 +143,7 @@ class ModelSync:
         for region in model.regions:
             state["regions"].append(_serialize(region))
             state["regions"][-1]["control"] = [_serialize(c) for c in region.control]
-        state_str = json.dumps(state, indent=2)
+        state_str = json.dumps(state, indent=2, default=encode_json)
         state_bytes = QByteArray(state_str.encode("utf-8"))
         model.document.annotate("ui.json", state_bytes)
 
@@ -165,7 +167,7 @@ class ModelSync:
         for result in state.get("history", []):
             item = _HistoryResult.from_dict(result)
             if images_bytes := _find_annotation(model.document, f"result{item.slot}.webp"):
-                job = model.jobs.add_job(Job(item.id, JobKind.diffusion, item.params))
+                job = model.jobs.add_job(Job(item.id, item.kind, item.params))
                 results = ImageCollection.from_bytes(images_bytes, item.offsets)
                 model.jobs.set_results(job, results)
                 model.jobs.notify_finished(job)
@@ -208,12 +210,14 @@ class ModelSync:
             self._track_region(region)
 
     def _save_results(self, job: Job):
-        if job.kind is JobKind.diffusion and len(job.results) > 0:
+        if job.kind in [JobKind.diffusion, JobKind.animation] and len(job.results) > 0:
             slot = self._slot_index
             self._slot_index += 1
             image_data, image_offsets = job.results.to_bytes()
             self._model.document.annotate(f"result{slot}.webp", image_data)
-            self._history.append(_HistoryResult(job.id or "", slot, image_offsets, job.params))
+            self._history.append(
+                _HistoryResult(job.id or "", slot, image_offsets, job.params, job.kind)
+            )
             self._memory_used[slot] = image_data.size()
             self._prune()
             self._save()

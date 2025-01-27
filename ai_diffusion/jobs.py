@@ -27,8 +27,9 @@ class JobKind(Enum):
     control_layer = 1
     upscaling = 2
     live_preview = 3
-    animation_batch = 4
-    animation_frame = 5
+    animation_batch = 4  # single frame as part of an animation batch
+    animation_frame = 5  # just a single frame
+    animation = 6  # full animation in one job
 
 
 @dataclass
@@ -155,8 +156,8 @@ class JobQueue(QObject):
         return job
 
     def remove(self, job: Job):
-        # Diffusion jobs: kept for history, pruned according to meomry usage
-        # Control layer jobs: removed immediately once finished
+        # Diffusion/Animation jobs: kept for history, pruned according to meomry usage
+        # Other jobs: removed immediately once finished
         self._entries.remove(job)
         self.count_changed.emit()
 
@@ -172,7 +173,7 @@ class JobQueue(QObject):
 
     def set_results(self, job: Job, results: ImageCollection):
         job.results = results
-        if job.kind is JobKind.diffusion:
+        if job.kind in [JobKind.diffusion, JobKind.animation]:
             self._memory_usage += results.size / (1024**2)
             self.prune(keep=job)
 
@@ -187,7 +188,7 @@ class JobQueue(QObject):
         self._cancel_earlier_jobs(job)
         self.count_changed.emit()
 
-        if job.kind is not JobKind.diffusion:
+        if job.kind not in [JobKind.diffusion, JobKind.animation]:
             self.remove(job)
 
     def notify_cancelled(self, job: Job):

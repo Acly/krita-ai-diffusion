@@ -351,12 +351,13 @@ ImageGenerator = Callable[[WorkflowInput | None], Awaitable[None | Literal[False
 class CustomGenerationMode(Enum):
     regular = 0
     live = 1
+    animation = 2
 
 
 class CustomWorkspace(QObject, ObservableProperties):
     workflow_id = Property("", setter="_set_workflow_id")
     params = Property({}, persist=True)
-    mode = Property(CustomGenerationMode.regular, setter="_set_mode")
+    mode = Property(CustomGenerationMode.regular, setter="_set_mode", persist=True)
     is_live = Property(False, setter="toggle_live")
     has_result = Property(False)
     outputs = Property({})

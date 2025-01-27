@@ -7,7 +7,7 @@ from typing import Any, NamedTuple, Sequence
 
 # Version identifier for all the resources defined here. This is used as the server version.
 # It usually follows the plugin version, but not all new plugin versions also require a server update.
-version = "1.30.0"
+version = "1.31.0"
 
 comfy_url = "https://github.com/comfyanonymous/ComfyUI"
 comfy_version = "7fc3ccdcc2fb1f20c4b7dd4aca374db952fd66df"
@@ -40,7 +40,7 @@ required_custom_nodes = [
         "External Tooling Nodes",
         "comfyui-tooling-nodes",
         "https://github.com/Acly/comfyui-tooling-nodes",
-        "8ed5591574ff6340729970eed780e79401568dad",
+        "bed8b36705a213f2ec452f8f090b2bcdf43f19ac",
         ["ETN_LoadImageBase64", "ETN_LoadMaskBase64", "ETN_SendImageWebSocket", "ETN_Translate"],
     ),
     CustomNode(

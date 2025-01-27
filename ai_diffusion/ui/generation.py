@@ -1,7 +1,8 @@
 from __future__ import annotations
 from textwrap import wrap as wrap_text
-from PyQt5.QtCore import Qt, QMetaObject, QSize, QPoint, QUuid, pyqtSignal
-from PyQt5.QtGui import QGuiApplication, QMouseEvent, QPalette, QColor
+from typing import cast
+from PyQt5.QtCore import Qt, QMetaObject, QSize, QPoint, QTimer, QUuid, pyqtSignal
+from PyQt5.QtGui import QGuiApplication, QMouseEvent, QPalette, QColor, QIcon
 from PyQt5.QtWidgets import QAction, QWidget, QVBoxLayout, QHBoxLayout, QPushButton, QProgressBar
 from PyQt5.QtWidgets import QListWidget, QListWidgetItem, QListView, QSizePolicy
 from PyQt5.QtWidgets import QComboBox, QCheckBox, QMenu, QShortcut, QMessageBox, QToolButton
@@ -62,6 +63,7 @@ class HistoryWidget(QListWidget):
         self.setDragEnabled(False)
         self.itemClicked.connect(self.handle_preview_click)
         self.itemDoubleClicked.connect(self.item_activated)
+        self.itemSelectionChanged.connect(self.select_item)
 
         self._apply_button = QPushButton(theme.icon("apply"), _("Apply"), self)
         self._apply_button.setStyleSheet(self._button_css)
@@ -99,7 +101,6 @@ class HistoryWidget(QListWidget):
         jobs = model.jobs
         self._connections = [
             jobs.selection_changed.connect(self.update_selection),
-            self.itemSelectionChanged.connect(self.select_item),
             jobs.job_finished.connect(self.add),
             jobs.job_discarded.connect(self.remove),
             jobs.result_used.connect(self.update_image_thumbnail),
@@ -109,8 +110,8 @@ class HistoryWidget(QListWidget):
         self.update_selection()
 
     def add(self, job: Job):
-        if job.state is not JobState.finished or job.kind is not JobKind.diffusion:
-            return  # Only finished diffusion jobs have images to show
+        if not self.is_finished(job):
+            return  # Only finished diffusion/animation jobs have images to show
 
         scrollbar = self.verticalScrollBar()
         scroll_to_bottom = (
@@ -131,10 +132,20 @@ class HistoryWidget(QListWidget):
             header.setTextAlignment(Qt.AlignmentFlag.AlignLeft)
             self.addItem(header)
 
-        for i, img in enumerate(job.results):
-            item = QListWidgetItem(self._image_thumbnail(job, i), None)  # type: ignore (text can be None)
+        if job.kind is JobKind.diffusion:
+            for i, img in enumerate(job.results):
+                item = QListWidgetItem(self._image_thumbnail(job, i), None)  # type: ignore (text can be None)
+                item.setData(Qt.ItemDataRole.UserRole, job.id)
+                item.setData(Qt.ItemDataRole.UserRole + 1, i)
+                item.setData(Qt.ItemDataRole.ToolTipRole, self._job_info(job.params))
+                self.addItem(item)
+
+        if job.kind is JobKind.animation:
+            item = AnimatedListItem([
+                self._image_thumbnail(job, i) for i in range(len(job.results))
+            ])
             item.setData(Qt.ItemDataRole.UserRole, job.id)
-            item.setData(Qt.ItemDataRole.UserRole + 1, i)
+            item.setData(Qt.ItemDataRole.UserRole + 1, 0)
             item.setData(Qt.ItemDataRole.ToolTipRole, self._job_info(job.params))
             self.addItem(item)
 
@@ -202,14 +213,21 @@ class HistoryWidget(QListWidget):
             scrollbar.setValue(scroll_pos)
 
     def update_selection(self):
-        selection = self._model.jobs.selection
-        if selection is None:
+        with theme.SignalBlocker(self):
+            for i in range(self.count()):
+                item = self.item(i)
+                if item and item.type() == QListWidgetItem.ItemType.UserType:
+                    cast(AnimatedListItem, item).stop_animation()
             self.clearSelection()
-        elif selection:
-            item = self._find(selection)
-            if item is not None and not item.isSelected():
-                self.clearSelection()
-                item.setSelected(True)
+
+            selection = self._model.jobs.selection
+            if selection is not None:
+                item = self._find(selection)
+                if item is not None and not item.isSelected():
+                    item.setSelected(True)
+                    if item.type() == QListWidgetItem.ItemType.UserType:
+                        cast(AnimatedListItem, item).start_animation()
+
         self.update_apply_button()
 
     def update_apply_button(self):
@@ -261,7 +279,7 @@ class HistoryWidget(QListWidget):
             self.item_activated.emit(items[0])
 
     def is_finished(self, job: Job):
-        return job.kind is JobKind.diffusion and job.state is JobState.finished
+        return job.kind in [JobKind.diffusion, JobKind.animation] and job.state is JobState.finished
 
     def rebuild(self):
         self.clear()
@@ -295,6 +313,7 @@ class HistoryWidget(QListWidget):
             item = self.itemAt(e.pos())
             if item is not None and item.isSelected():
                 self.clearSelection()
+                e.accept()
                 return
         super().mousePressEvent(e)
 
@@ -405,6 +424,33 @@ class HistoryWidget(QListWidget):
         if reply == QMessageBox.Yes:
             self._model.jobs.clear()
             self.clear()
+
+
+class AnimatedListItem(QListWidgetItem):
+    def __init__(self, images: list[QIcon]):
+        super().__init__(images[0], None, type=QListWidgetItem.ItemType.UserType)
+        self._images = images
+        self._current = 0
+        self._is_running = False
+        self._timer = QTimer()
+        self._timer.setSingleShot(False)
+        self._timer.timeout.connect(self._next_frame)
+
+    def start_animation(self):
+        if not self._is_running:
+            self._is_running = True
+            self._timer.start(40)
+
+    def stop_animation(self):
+        if self._is_running:
+            self._timer.stop()
+            self._is_running = False
+            self._current = 0
+            self.setIcon(self._images[self._current])
+
+    def _next_frame(self):
+        self._current = (self._current + 1) % len(self._images)
+        self.setIcon(self._images[self._current])
 
 
 class CustomInpaintWidget(QWidget):
