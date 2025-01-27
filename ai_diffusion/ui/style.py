@@ -243,7 +243,9 @@ class LoraItem(QWidget):
     def value(self):
         if self._current is None:
             return dict(name="", strength=1.0, enabled=True)
-        return dict(name=self._current.id, strength=self.strength, enabled=self._enabled.isChecked())
+        return dict(
+            name=self._current.id, strength=self.strength, enabled=self._enabled.isChecked()
+        )
 
     @value.setter
     def value(self, v: dict):
