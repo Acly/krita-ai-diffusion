@@ -45,11 +45,12 @@ class ImageInput:
 class LoraInput:
     name: str
     strength: float
+    enabled: bool = True
     storage_id: str = ""  # Base64-encoded SHA256 hash
 
     @staticmethod
     def from_dict(data: dict[str, Any]):
-        return LoraInput(data["name"], data["strength"])
+        return LoraInput(data["name"], data["strength"], data.get("enabled", True))
 
 
 @dataclass
