@@ -835,10 +835,10 @@ class CustomWorkflowWidget(QWidget):
         self._generate_button.setIcon(theme.icon(icon))
 
     def _generate(self):
-        if self.model.custom.mode is CustomGenerationMode.regular:
-            self.model.custom.generate()
-        else:
+        if self.model.custom.mode is CustomGenerationMode.live:
             self.model.custom.is_live = not self.model.custom.is_live
+        else:
+            self.model.custom.generate()
 
     def _update_current_workflow(self):
         if not self.model.custom.workflow:
