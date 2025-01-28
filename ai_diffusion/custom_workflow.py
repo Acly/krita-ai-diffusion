@@ -478,7 +478,7 @@ class CustomWorkspace(QObject, ObservableProperties):
                 return str(self.params[param.name])
         return self.workflow_id or "Custom Workflow"
 
-    def collect_parameters(self, layers: "LayerManager", bounds: Bounds):
+    def collect_parameters(self, layers: "LayerManager", bounds: Bounds, animation=False):
         params = copy(self.params)
         for md in self.metadata:
             param = params.get(md.name)
@@ -489,14 +489,20 @@ class CustomWorkspace(QObject, ObservableProperties):
                 layer = layers.find(QUuid(param))
                 if layer is None:
                     raise ValueError(f"Input layer for parameter {md.name} not found")
-                params[md.name] = layer.get_pixels(bounds)
+                if animation:
+                    params[md.name] = layer.get_pixel_frames(bounds)
+                else:
+                    params[md.name] = layer.get_pixels(bounds)
             elif md.kind is ParamKind.mask_layer:
                 if param is None and len(layers.masks) > 0:
                     param = layers.masks[0].id
                 layer = layers.find(QUuid(param))
                 if layer is None:
                     raise ValueError(f"Input layer for parameter {md.name} not found")
-                params[md.name] = layer.get_mask(bounds)
+                if animation:
+                    params[md.name] = layer.get_mask_frames(bounds)
+                else:
+                    params[md.name] = layer.get_mask(bounds)
             elif md.kind is ParamKind.style:
                 style = Styles.list().find(str(param))
                 if style is None:

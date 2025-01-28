@@ -382,6 +382,7 @@ class Model(QObject, ObservableProperties):
             img_input = ImageInput.from_extent(bounds.extent)
             img_input.initial_image = self._get_current_image(bounds)
             is_live = self.custom.mode is CustomGenerationMode.live
+            is_anim = self.custom.mode is CustomGenerationMode.animation
             seed = self.seed if is_live or self.fixed_seed else workflow.generate_seed()
 
             if next(wf.find(type="ETN_KritaSelection"), None):
@@ -391,7 +392,7 @@ class Model(QObject, ObservableProperties):
                 else:
                     img_input.hires_mask = Mask.transparent(bounds).to_image()
 
-            params = self.custom.collect_parameters(self.layers, bounds)
+            params = self.custom.collect_parameters(self.layers, bounds, is_anim)
             input = WorkflowInput(
                 WorkflowKind.custom,
                 img_input,
@@ -638,7 +639,7 @@ class Model(QObject, ObservableProperties):
         job = self.jobs.find(job_id)
         assert job is not None, "Cannot apply result, invalid job id"
 
-        if job.kind is JobKind.animation:
+        if job.kind is JobKind.animation and len(job.results) > 1:
             self.apply_animation(job)
         else:
             self.apply_result(
@@ -659,7 +660,7 @@ class Model(QObject, ObservableProperties):
                 filename = Path(temp_dir) / f"{i:03}.png"
                 image.save(filename)
                 frames.append(filename)
-            self.document.import_animation(frames)
+            self.document.import_animation(frames, self.document.playback_time_range[0])
 
         async def _set_layer_name():
             self.layers.active.name = f"[Animation] {trim_text(job.params.name, 200)}"

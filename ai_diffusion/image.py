@@ -667,8 +667,8 @@ class ImageCollection:
         buffer.close()
         return images
 
-    def to_base64(self):
-        bytes, offsets = self.to_bytes()
+    def to_base64(self, format=ImageFileFormat.png):
+        bytes, offsets = self.to_bytes(format)
         return bytes.toBase64().data().decode("utf-8"), offsets
 
     @staticmethod

@@ -10,7 +10,7 @@ from . import resolution, resources
 from .api import ControlInput, ImageInput, CheckpointInput, SamplingInput, WorkflowInput, LoraInput
 from .api import ExtentInput, InpaintMode, InpaintParams, FillMode, ConditioningInput, WorkflowKind
 from .api import RegionInput, CustomWorkflowInput, UpscaleInput
-from .image import Bounds, Extent, Image, Mask, multiple_of
+from .image import Bounds, Extent, Image, ImageCollection, Mask, multiple_of
 from .client import ClientModels, ModelDict, resolve_arch
 from .files import FileLibrary, FileFormat
 from .style import Style, StyleSettings, SamplerPresets
@@ -1193,7 +1193,7 @@ def expand_custom(
                 return Output(nodes[input.node], input.output)
         return input
 
-    def get_param(node: ComfyNode, expected_type: type | None = None):
+    def get_param(node: ComfyNode, expected_type: type | tuple[type, type] | None = None):
         name = node.input("name", "")
         value = input.params.get(name)
         if value is None:
@@ -1215,9 +1215,9 @@ def expand_custom(
             case "ETN_Parameter":
                 outputs[node.output(0)] = get_param(node)
             case "ETN_KritaImageLayer":
-                outputs[node.output(0)] = w.load_image(get_param(node, Image))
+                outputs[node.output(0)] = w.load_image(get_param(node, (Image, ImageCollection)))
             case "ETN_KritaMaskLayer":
-                outputs[node.output(0)] = w.load_mask(get_param(node, Image))
+                outputs[node.output(0)] = w.load_mask(get_param(node, (Image, ImageCollection)))
             case "ETN_KritaStyle":
                 style: Style = get_param(node, Style)
                 is_live = node.input("sampler_preset", "auto") == "live"
