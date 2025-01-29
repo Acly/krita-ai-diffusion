@@ -10,7 +10,7 @@ from typing import Any
 from ai_diffusion import workflow
 from ai_diffusion.api import LoraInput, WorkflowKind, WorkflowInput, ControlInput, RegionInput
 from ai_diffusion.api import InpaintMode, FillMode, ConditioningInput, CustomWorkflowInput
-from ai_diffusion.api import SamplingInput, ImageInput
+from ai_diffusion.api import SamplingInput, ImageInput, UpscaleInput
 from ai_diffusion.client import ClientModels, CheckpointInfo
 from ai_diffusion.comfy_client import ComfyClient
 from ai_diffusion.cloud_client import CloudClient
@@ -442,7 +442,7 @@ def test_regions_upscale(qtapp, client: Client):
         canvas=Image.load(image_dir / "regions_base.webp"),
         cond=region_prompt(),
         strength=0.5,
-        upscale_model=client.models.default_upscaler,
+        upscale=UpscaleInput(client.models.default_upscaler),
         upscale_factor=2,
     )
     run_and_save(qtapp, client, job, "test_regions_upscale")
@@ -681,7 +681,7 @@ def test_upscale_tiled(qtapp, client: Client, sdver):
         WorkflowKind.upscale_tiled,
         client,
         canvas=image,
-        upscale_model=client.models.default_upscaler,
+        upscale=UpscaleInput(client.models.default_upscaler),
         upscale_factor=2.0,
         style=default_style(client, sdver),
         cond=ConditioningInput("4k uhd", control=[ControlInput(ControlMode.blur, None)]),
