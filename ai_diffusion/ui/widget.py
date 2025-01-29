@@ -714,18 +714,14 @@ class WorkspaceSelectWidget(QToolButton):
 
 
 class GenerateButton(QPushButton):
-    model: Model
-    _operation: str
-    _kind: JobKind
-    _cost: int = 0
-    _cost_icon: QIcon
-
     def __init__(self, kind: JobKind, parent: QWidget):
         super().__init__(parent)
         self.model = root.active_model
         self._operation = _("Generate")
         self._kind = kind
+        self._cost = 0
         self._cost_icon = theme.icon("interstice")
+        self._seed_icon = theme.icon("seed")
         self.setAttribute(Qt.WidgetAttribute.WA_Hover)
 
     @property
@@ -768,10 +764,12 @@ class GenerateButton(QPushButton):
         content_rect = content_rect.adjusted(pixmap.width() + 5, 0, 0, 0)
         style.drawItemText(painter, content_rect, vcenter, self.palette(), True, self._operation)
 
+        cost_width = 0
         if is_hover and self._cost > 0:
-            cost_width = fm.width(str(self._cost))
             pixmap = self._cost_icon.pixmap(fm.height())
-            cost_rect = rect.adjusted(rect.width() - pixmap.width() - cost_width - 16, 0, 0, 0)
+            cost_width = fm.width(str(self._cost))
+            cost_width += 16 + pixmap.width()
+            cost_rect = rect.adjusted(rect.width() - cost_width, 0, 0, 0)
             painter.setOpacity(0.3)
             painter.drawLine(
                 cost_rect.left(), cost_rect.top() + 6, cost_rect.left(), cost_rect.bottom() - 6
@@ -781,6 +779,11 @@ class GenerateButton(QPushButton):
             style.drawItemText(painter, cost_rect, vcenter, self.palette(), True, str(self._cost))
             cost_rect = cost_rect.adjusted(cost_width + 4, 0, 0, 0)
             style.drawItemPixmap(painter, cost_rect, vcenter, pixmap)
+
+        if is_hover and self.model.fixed_seed:
+            pixmap = self._seed_icon.pixmap(fm.height())
+            seed_rect = rect.adjusted(rect.width() - cost_width - pixmap.width() - 8, 0, 0, 0)
+            style.drawItemPixmap(painter, seed_rect, vcenter, pixmap)
 
 
 class ErrorBox(QFrame):
