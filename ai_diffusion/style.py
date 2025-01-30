@@ -113,7 +113,7 @@ class Style:
     name: str = StyleSettings.name.default
     architecture: Arch = StyleSettings.architecture.default
     checkpoints: list[str] = StyleSettings.checkpoints.default
-    loras: list[dict[str, str | float]]
+    loras: list[dict[str, str | float | bool]]
     style_prompt: str = StyleSettings.style_prompt.default
     negative_prompt: str = StyleSettings.negative_prompt.default
     vae: str = StyleSettings.vae.default
@@ -197,7 +197,7 @@ class Style:
             clip_skip=self.clip_skip,
             v_prediction_zsnr=self.v_prediction_zsnr,
             rescale_cfg=self.rescale_cfg,
-            loras=[LoraInput.from_dict(l) for l in self.loras],
+            loras=[LoraInput.from_dict(l) for l in self.loras if l.get("enabled", True)],
             self_attention_guidance=self.self_attention_guidance,
         )
         return result

@@ -35,6 +35,7 @@ from .settings_widgets import ComboBoxSetting, TextSetting, LineEditSetting, Set
 from .settings_widgets import SettingsTab, WarningIcon
 from .widget import create_framed_label
 from .theme import SignalBlocker, add_header, icon
+from .switch import SwitchWidget
 from . import theme
 
 
@@ -80,6 +81,10 @@ class LoraItem(QWidget):
 
         self._warning_icon = WarningIcon(self)
 
+        self._enabled = SwitchWidget(self)
+        self._enabled.setChecked(True)
+        self._enabled.toggled.connect(self._notify_changed)
+
         self._strength = QSpinBox(self)
         self._strength.setMinimum(-400)
         self._strength.setMaximum(400)
@@ -96,6 +101,7 @@ class LoraItem(QWidget):
         item_layout = QHBoxLayout()
         item_layout.setContentsMargins(0, 0, 0, 0)
         item_layout.addLayout(expander_layout, 3)
+        item_layout.addWidget(self._enabled)
         item_layout.addWidget(self._strength, 1)
         item_layout.addWidget(self._warning_icon)
         item_layout.addWidget(self._remove)
@@ -236,8 +242,10 @@ class LoraItem(QWidget):
     @property
     def value(self):
         if self._current is None:
-            return dict(name="", strength=1.0)
-        return dict(name=self._current.id, strength=self.strength)
+            return dict(name="", strength=1.0, enabled=True)
+        return dict(
+            name=self._current.id, strength=self.strength, enabled=self._enabled.isChecked()
+        )
 
     @value.setter
     def value(self, v: dict):
@@ -250,6 +258,7 @@ class LoraItem(QWidget):
             else:
                 self._select.setEditText(self._current.name)
         self.strength = v["strength"]
+        self._enabled.setChecked(v.get("enabled", True))
         self._update()
 
     def apply_filter(self, name_filter: str):
