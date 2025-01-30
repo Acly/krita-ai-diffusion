@@ -31,7 +31,6 @@ from PyQt5.QtGui import (
     QPalette,
     QTextCursor,
     QPainter,
-    QIcon,
     QPaintEvent,
     QKeySequence,
 )

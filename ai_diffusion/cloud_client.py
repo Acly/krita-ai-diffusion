@@ -383,7 +383,6 @@ models.checkpoints = {
             ("flat2d_animerge", Arch.sd15),
             ("realvis", Arch.sdxl),
             ("zavychroma", Arch.sdxl),
-            ("pixelwave", Arch.sdxl),
             ("flux_schnell", Arch.flux),
             ("noobai", Arch.illu_v),
         ]
