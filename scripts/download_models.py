@@ -34,14 +34,8 @@ except ImportError:
     pass
 
 
-def _progress(name: str, size: int | None):
-    return tqdm(
-        total=size,
-        unit="B",
-        unit_scale=True,
-        unit_divisor=1024,
-        desc=name,
-    )
+def _progress(name: str, size: int | None, index=0):
+    return tqdm(total=size, unit="B", unit_scale=True, unit_divisor=1024, desc=name, position=index)
 
 
 def _map_url(url: str):
@@ -58,10 +52,11 @@ async def download_with_retry(
     dry_run=False,
     retry_attempts=5,
     continue_on_error=False,
+    index=0,
 ):
     for attempt in range(retry_attempts):
         try:
-            await download(client, model, destination, verbose, dry_run)
+            await download(client, model, destination, verbose, dry_run, index)
             break
         except Exception as e:
             print(f"Error downloading {model.name} (attempt {attempt}): {e}")
@@ -78,6 +73,7 @@ async def download(
     destination: Path,
     verbose=False,
     dry_run=False,
+    index=0,
 ):
     for file in model.files:
         target_file = destination / file.path
@@ -94,7 +90,7 @@ async def download(
             async with client.get(url) as resp:
                 resp.raise_for_status()
                 with open(target_file.with_suffix(".part"), "wb") as fd:
-                    with _progress(model.name, resp.content_length) as pbar:
+                    with _progress(model.name, resp.content_length, index) as pbar:
                         async for chunk, is_end in resp.content.iter_chunks():
                             fd.write(chunk)
                             pbar.update(len(chunk))
@@ -120,6 +116,7 @@ async def main(
     exclude=[],
     retry_attempts=5,
     continue_on_error=False,
+    parallel_downloads=4,
 ):
     print(f"Generative AI for Krita - Model download - v{resources.version}")
     verbose = verbose or dry_run
@@ -164,12 +161,28 @@ async def main(
         if len(models) == 0:
             print("\nNo models selected for download.")
 
+        tasks: list[asyncio.Task | None] = [None for _ in range(parallel_downloads)]
         for model in sorted(models, key=lambda m: m.name):
             if verbose:
                 print(f"\n{model.name}")
-            await download_with_retry(
-                client, model, destination, verbose, dry_run, retry_attempts, continue_on_error
+
+            if not any(t is None or t.done() for t in tasks):
+                await asyncio.wait([t for t in tasks if t], return_when=asyncio.FIRST_COMPLETED)
+
+            tasks = [None if t is None or t.done() else t for t in tasks]
+            index = tasks.index(None)
+            download = download_with_retry(
+                client,
+                model,
+                destination,
+                verbose,
+                dry_run,
+                retry_attempts,
+                continue_on_error,
+                index,
             )
+            tasks[index] = asyncio.create_task(download)
+        await asyncio.gather(*[t for t in tasks if t is not None])
 
 
 if __name__ == "__main__":
@@ -210,6 +223,7 @@ if __name__ == "__main__":
     parser.add_argument("--deprecated", action="store_true", help="download old models which will be removed in the near future")
     parser.add_argument("--retry-attempts", type=int, default=5, metavar="N", help="number of retry attempts for downloading a model")
     parser.add_argument("--continue-on-error", action="store_true", help="continue downloading models even if an error occurs")
+    parser.add_argument("-j", "--jobs", type=int, default=4, metavar="N", help="number of parallel downloads")
     # fmt: on
     args = parser.parse_args()
     checkpoints = args.checkpoint_list or []
@@ -241,5 +255,6 @@ if __name__ == "__main__":
             all=args.all,
             retry_attempts=args.retry_attempts,
             continue_on_error=args.continue_on_error,
+            parallel_downloads=args.jobs,
         )
     )
