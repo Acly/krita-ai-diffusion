@@ -62,7 +62,7 @@ def client(pytestconfig, request, qtapp):
 
 
 default_seed = 1234
-default_perf = PerformanceSettings(batch_size=1)
+default_perf = PerformanceSettings(batch_size=1, dynamic_caching=True)
 
 
 def default_style(client: Client, sd_ver=Arch.sd15):
