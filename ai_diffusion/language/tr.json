@@ -64,7 +64,6 @@
     "Connecting to server...": "Sunucuya bağlanıyor...",
     "Connection": "Bağlantı",
     "Connection attempt failed! Click below to configure and reconnect.": "Bağlantı denemesi başarısız oldu! Yapılandırmak ve yeniden bağlanmak için aşağıya tıklayın.",
-    "Connection established, but the server is missing one or more ": "Bağlantı kuruldu, ancak sunucuda bir veya daha fazla eksik var ",
     "Control strength: how much the layer affects the image": "Kontrol gücü: katmanın görüntüyü ne kadar etkilediği",
     "Copy Prompt": "Promptu Kopyala",
     "Copy Seed": "Seedi Kopyala",
@@ -195,7 +194,6 @@
     "Neutral": "Nötr",
     "New Style": "Yeni Stil",
     "New region": "Yeni bölge",
-    "No checkpoints found!\\nCheckpoints must be placed into ComfyUI/models/checkpoints.": "Checkpoint bulunamadı!\\nKontrol noktaları ComfyUI/models/checkpoints içine yerleştirilmelidir.",
     "None": "Yok",
     "Normal": "Normal",
     "Not connected to server.": "Sunucuya bağlı değil.",
@@ -351,8 +349,6 @@
     "Translation is disabled. Click to enable prompt translation from your language to English": "Çeviri devre dışı. Dilinizden İngilizceye prompt çevirisini etkinleştirmek için tıklayın",
     "URL used to connect to a running ComfyUI server. Default is 127.0.0.1:8188 (local).": "Çalışan bir ComfyUI sunucusuna bağlanmak için kullanılan URL. Varsayılan 127.0.0.1:8188 (yerel).",
     "Unblur": "Bulanıklığı Gider",
-    "Unblur - Medium": "Bulanıklığı Gider - Orta",
-    "Unblur - Strong": "Bulanıklığı Gider - Güçlü",
     "Universal": "Evrensel",
     "Upgrade": "Yükselt",
     "Upgrade required": "Yükseltme gerekli",
@@ -456,6 +452,17 @@
     "Choose a Diffusion base model to install its basic requirements.": null,
     "Stable Diffusion XL models": null,
     "Select at least one diffusion model. Control models are optional.": null,
-    "Required model not found, searching for": null
+    "Required model not found, searching for": null,
+    "supported": null,
+    "Connection established, but the server is missing required custom nodes or models.": null,
+    "No diffusion model checkpoints found": null,
+    "Missing common models": null,
+    "missing": null,
+    "Tile Overlap": null,
+    "The {node_name} node is not installed.": null,
+    "Resolution": null,
+    "Detected base models:": null,
+    "Dynamic Caching": null,
+    "Re-use outputs of previous steps (First Block Cache) to speed up generation.": null
   }
 }

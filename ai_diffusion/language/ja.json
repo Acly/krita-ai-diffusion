@@ -72,7 +72,6 @@
     "Connection": "接続",
     "Connection attempt failed! Click below to configure and reconnect.": "接続に失敗しました！ 以下をクリックして設定し、再接続して下さい。",
     "Connection error during upload of LoRA model": "LoRAモデルのアップロード中に接続エラーが発生しました",
-    "Connection established, but the server is missing one or more ": "接続は確立されましたが、サーバーに1つ以上の不足があります ",
     "Connection to {host} timed out during download. Please make sure you have a stable internet connection and try again.": "ダウンロード中に {host} への接続がタイムアウトしました。インターネット接続が安定していることを確認して、もう一度お試しください。",
     "Control strength: how much the layer affects the image": "コントロールの強度: レイヤーが画像にどの程度影響を与えるか",
     "Copy Prompt": "プロンプトをコピー",
@@ -223,7 +222,6 @@
     "Neutral": "中立",
     "New Style": "新規スタイル",
     "New region": "新規領域",
-    "No checkpoints found!\\nCheckpoints must be placed into ComfyUI/models/checkpoints.": "チェックポイントが見つかりません!\\nチェックポイントは、ComfyUI/models/checkpoints に配置する必要があります。",
     "None": "無し",
     "Normal": "法線(Normal)",
     "Not checked": "未チェック",
@@ -392,8 +390,6 @@
     "Trigger words": "トリガーワード",
     "URL used to connect to a running ComfyUI server. Default is 127.0.0.1:8188 (local).": "実行中のComfyUIサーバーへ接続するために使用するURL。デフォルトは 127.0.0.1:8188 (ローカル) です。",
     "Unblur": "ぼかし除去(Unblur)",
-    "Unblur - Medium": "ぼかし除去 - 中",
-    "Unblur - Strong": "ぼかし除去 - 強",
     "Universal": "万能(Universal)",
     "Unknown": "不明",
     "Update failed": "更新に失敗",
@@ -456,6 +452,17 @@
     "Choose a Diffusion base model to install its basic requirements.": null,
     "Stable Diffusion XL models": null,
     "Select at least one diffusion model. Control models are optional.": null,
-    "Required model not found, searching for": null
+    "Required model not found, searching for": null,
+    "supported": null,
+    "Connection established, but the server is missing required custom nodes or models.": null,
+    "No diffusion model checkpoints found": null,
+    "Missing common models": null,
+    "missing": null,
+    "Tile Overlap": null,
+    "The {node_name} node is not installed.": null,
+    "Resolution": null,
+    "Detected base models:": null,
+    "Dynamic Caching": null,
+    "Re-use outputs of previous steps (First Block Cache) to speed up generation.": null
   }
 }

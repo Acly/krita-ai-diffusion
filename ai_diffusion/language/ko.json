@@ -64,7 +64,6 @@
     "Connecting to server...": "서버에 연결 중...",
     "Connection": "연결",
     "Connection attempt failed! Click below to configure and reconnect.": "연결 시도 실패! 아래를 클릭하여 구성하고 다시 연결하세요.",
-    "Connection established, but the server is missing one or more ": "연결이 설정되었지만 서버에 하나 또는 여러개가 없다",
     "Control strength: how much the layer affects the image": "제어 강도: 레이어가 이미지에 영향을 미치는 정도",
     "Copy Prompt": "프롬프트 복사",
     "Copy Seed": "시드 복사",
@@ -195,7 +194,6 @@
     "Neutral": "중립",
     "New Style": "새 스타일",
     "New region": "새 영역",
-    "No checkpoints found!\\nCheckpoints must be placed into ComfyUI/models/checkpoints.": "체크포인트를 찾을 수 없습니다!\\n체크포인트는 ComfyUI/models/checkpoints에 배치해야 합니다.",
     "None": "없음",
     "Normal": "일반",
     "Not connected to server.": "서버에 연결되지 않았습니다.",
@@ -351,8 +349,6 @@
     "Translation is disabled. Click to enable prompt translation from your language to English": "번역이 비활성화되었습니다. 클릭하여 귀하의 언어에서 영어로 프롬프트 번역을 활성화하세요",
     "URL used to connect to a running ComfyUI server. Default is 127.0.0.1:8188 (local).": "실행 중인 ComfyUI 서버에 연결하는 데 사용되는 URL입니다. 기본값은  127.0.0.1:8188 (local)",
     "Unblur": "언블러",
-    "Unblur - Medium": "언블러 - 중간",
-    "Unblur - Strong": "언블러 - 강함",
     "Universal": "유니버셜",
     "Upgrade": "업그레이드",
     "Upgrade required": "업그레이드 필요",
@@ -456,6 +452,17 @@
     "Choose a Diffusion base model to install its basic requirements.": null,
     "Stable Diffusion XL models": null,
     "Select at least one diffusion model. Control models are optional.": null,
-    "Required model not found, searching for": null
+    "Required model not found, searching for": null,
+    "supported": null,
+    "Connection established, but the server is missing required custom nodes or models.": null,
+    "No diffusion model checkpoints found": null,
+    "Missing common models": null,
+    "missing": null,
+    "Tile Overlap": null,
+    "The {node_name} node is not installed.": null,
+    "Resolution": null,
+    "Detected base models:": null,
+    "Dynamic Caching": null,
+    "Re-use outputs of previous steps (First Block Cache) to speed up generation.": null
   }
 }

@@ -64,7 +64,6 @@
     "Connecting to server...": "Conectando ao servidor...",
     "Connection": "Conexão",
     "Connection attempt failed! Click below to configure and reconnect.": "Falhou ao Conectar! Clique abaixo para configurar e reconectar",
-    "Connection established, but the server is missing one or more ": "Conexão estabelecida, mas o servidor não contém um ou mais",
     "Control strength: how much the layer affects the image": "Força de Controle: Quanto afeta a camada à imagem",
     "Copy Prompt": "Copiar Prompt",
     "Copy Seed": "Copiar Semente",
@@ -195,7 +194,6 @@
     "Neutral": "Neutro",
     "New Style": "Novo Estilo",
     "New region": "Nova região",
-    "No checkpoints found!\\nCheckpoints must be placed into ComfyUI/models/checkpoints.": "Não foi encontrado o Checkpoint!\\nOs Checkpoints devem ser colocados em ComfyUI/models/checkpoints.",
     "None": "Nada",
     "Normal": "Normal",
     "Not connected to server.": "Não conectado ao servidor",
@@ -351,8 +349,6 @@
     "Translation is disabled. Click to enable prompt translation from your language to English": "A tradução está desativada. Clique para ativar a tradução de prompts do seu idioma ao inglês.",
     "URL used to connect to a running ComfyUI server. Default is 127.0.0.1:8188 (local).": "URL usado para conectar-se a um servidor ComfyUI em execução. O valor padrão é 127.0.0.1:8188 (local).",
     "Unblur": "Foco",
-    "Unblur - Medium": "Foco - Médio",
-    "Unblur - Strong": "Foco - Forte",
     "Universal": "Universal",
     "Upgrade": "Atualização",
     "Upgrade required": "Atualização necessária",
@@ -456,6 +452,17 @@
     "Choose a Diffusion base model to install its basic requirements.": "Escolha um modelo base de Difusão para instalar os requerimentos básicos.",
     "Stable Diffusion XL models": "Modelos de Stable Diffusion XL",
     "Select at least one diffusion model. Control models are optional.": "Selecione pelo menos um modelo de Difusão. Os modelos de controle são opcionais",
-    "Required model not found, searching for": "O modelo requerido não foi encontrado, procurando por"
+    "Required model not found, searching for": "O modelo requerido não foi encontrado, procurando por",
+    "supported": null,
+    "Connection established, but the server is missing required custom nodes or models.": null,
+    "No diffusion model checkpoints found": null,
+    "Missing common models": null,
+    "missing": null,
+    "Tile Overlap": null,
+    "The {node_name} node is not installed.": null,
+    "Resolution": null,
+    "Detected base models:": null,
+    "Dynamic Caching": null,
+    "Re-use outputs of previous steps (First Block Cache) to speed up generation.": null
   }
 }

@@ -59,7 +59,6 @@
     "Connecting to server...": "กำลังเชื่อมต่อกับ Server...",
     "Connection": "เชื่อมต่อ",
     "Connection attempt failed! Click below to configure and reconnect.": "เชื่อมต่อล้มเหลว! Click ด้านล่าง เพื่อกำหนดค่า และเชื่อมต่อใหม่อีกครั้ง",
-    "Connection established, but the server is missing one or more ": "สร้างการเชื่อมต่อแล้ว แต่ Server ขาดหายไปหนึ่ง หรือมากกว่านั้น",
     "Control strength: how much the layer affects the image": "Denoising strength: Layer ส่งผลต่อภาพมากเพียงใด",
     "Copy Prompt": "คัดลอก Prompt",
     "Copy Seed": "คัดลอก ชุดตัวเลข Noise",
@@ -182,7 +181,6 @@
     "Neutral": "Neutral",
     "New Style": "Style ใหม่",
     "New region": "Region ใหม่",
-    "No checkpoints found!\\nCheckpoints must be placed into ComfyUI/models/checkpoints.": "ไม่ Checkpoints!\\nCheckpoints จะต้องวางไว้ใน .../ComfyUI/models/checkpoints",
     "Normal": null,
     "Not connected to server.": "ไม่ได้เชื่อมต่อกับ Server",
     "Not installed": "ไม่ได้ติดตั้ง",
@@ -331,8 +329,6 @@
     "Translation is disabled. Click to enable prompt translation from your language to English": "ปิดใช้งานการแปล Click เพื่อเปิดใช้งานการแปลข้อความ Prompt จากภาษาของคุณเป็นภาษาอังกฤษ",
     "URL used to connect to a running ComfyUI server. Default is 127.0.0.1:8188 (local).": "URL ที่ใช้เชื่อมต่อกับ Server ComfyUI ที่กำลังทำงาน ค่าเริ่มต้นคือ 127.0.0.1:8188 (local)",
     "Unblur": "Unblur",
-    "Unblur - Medium": "Unblur - Medium",
-    "Unblur - Strong": "Unblur - Strong",
     "Universal": "สากล",
     "Upgrade": "อัปเกรด",
     "Upgrade required": "จำเป็นต้องอัปเกรด",
@@ -456,6 +452,17 @@
     "Choose a Diffusion base model to install its basic requirements.": null,
     "Stable Diffusion XL models": null,
     "Select at least one diffusion model. Control models are optional.": null,
-    "Required model not found, searching for": null
+    "Required model not found, searching for": null,
+    "supported": null,
+    "Connection established, but the server is missing required custom nodes or models.": null,
+    "No diffusion model checkpoints found": null,
+    "Missing common models": null,
+    "missing": null,
+    "Tile Overlap": null,
+    "The {node_name} node is not installed.": null,
+    "Resolution": null,
+    "Detected base models:": null,
+    "Dynamic Caching": null,
+    "Re-use outputs of previous steps (First Block Cache) to speed up generation.": null
   }
 }

@@ -64,7 +64,6 @@
     "Connecting to server...": "正在連線到伺服器...",
     "Connection": "連線",
     "Connection attempt failed! Click below to configure and reconnect.": "連線嘗試失敗！請點選下方以進行設定並重新連線。",
-    "Connection established, but the server is missing one or more ": "連線已建立，但伺服器缺少一或多個 ",
     "Control strength: how much the layer affects the image": "控制強度：圖層影響影像的程度",
     "Copy Prompt": "複製提示詞",
     "Copy Seed": "複製種子值",
@@ -195,7 +194,6 @@
     "Neutral": "中性",
     "New Style": "新風格",
     "New region": "新區域",
-    "No checkpoints found!\\nCheckpoints must be placed into ComfyUI/models/checkpoints.": "找不到任何檢查點！\\n請將檢查點放入 ComfyUI/models/checkpoints 中。",
     "None": "無",
     "Normal": "正常",
     "Not connected to server.": "未連線到伺服器。",
@@ -351,8 +349,6 @@
     "Translation is disabled. Click to enable prompt translation from your language to English": "翻譯已停用。點選即可啟用從您的語言到英文的提示詞翻譯",
     "URL used to connect to a running ComfyUI server. Default is 127.0.0.1:8188 (local).": "用於連線到執行中 ComfyUI 伺服器的網址。預設值為 127.0.0.1:8188（本機）。",
     "Unblur": "去模糊",
-    "Unblur - Medium": "去模糊 - 中",
-    "Unblur - Strong": "去模糊 - 強",
     "Universal": "通用",
     "Upgrade": "升級",
     "Upgrade required": "需要升級",
@@ -456,6 +452,17 @@
     "Choose a Diffusion base model to install its basic requirements.": null,
     "Stable Diffusion XL models": null,
     "Select at least one diffusion model. Control models are optional.": null,
-    "Required model not found, searching for": null
+    "Required model not found, searching for": null,
+    "supported": null,
+    "Connection established, but the server is missing required custom nodes or models.": null,
+    "No diffusion model checkpoints found": null,
+    "Missing common models": null,
+    "missing": null,
+    "Tile Overlap": null,
+    "The {node_name} node is not installed.": null,
+    "Resolution": null,
+    "Detected base models:": null,
+    "Dynamic Caching": null,
+    "Re-use outputs of previous steps (First Block Cache) to speed up generation.": null
   }
 }

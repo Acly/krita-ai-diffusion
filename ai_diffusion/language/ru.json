@@ -64,7 +64,6 @@
     "Connecting to server...": "Подключение к серверу...",
     "Connection": "Соединение",
     "Connection attempt failed! Click below to configure and reconnect.": "Ошибка соединения! Нажмите ниже для настройки и повторного подключения",
-    "Connection established, but the server is missing one or more ": "Соединение установлено, но на сервере отсутствует один или несколько ",
     "Control strength: how much the layer affects the image": "Сила контроля: насколько сильно слой влияет на изображение",
     "Copy Prompt": "Скопировать подсказку",
     "Copy Seed": "Скопировать случайное число",
@@ -195,7 +194,6 @@
     "Neutral": "Нейтральный",
     "New Style": "Новый стиль",
     "New region": "Новый регион",
-    "No checkpoints found!\\nCheckpoints must be placed into ComfyUI/models/checkpoints.": "Модели не найдены!\\nМодели должны быть помещены в ComfyUI/models/checkpoints.",
     "None": "Ничего",
     "Normal": "Карта нормалей",
     "Not connected to server.": "Нет подключения к серверу.",
@@ -351,8 +349,6 @@
     "Translation is disabled. Click to enable prompt translation from your language to English": "Перевод отключен. Нажмите, чтобы включить быстрый перевод с вашего языка на английский.",
     "URL used to connect to a running ComfyUI server. Default is 127.0.0.1:8188 (local).": "URL-адрес, используемый для подключения к работающему серверу ComfyUI. Значение по умолчанию - 127.0.0.1:8188 (локальный).",
     "Unblur": "Чёткость",
-    "Unblur - Medium": "Чёткость- средняя",
-    "Unblur - Strong": "Чёткость - сильная",
     "Universal": "Универсальный",
     "Upgrade": "Обновление",
     "Upgrade required": "Требуется обновление",
@@ -456,6 +452,17 @@
     "Choose a Diffusion base model to install its basic requirements.": null,
     "Stable Diffusion XL models": null,
     "Select at least one diffusion model. Control models are optional.": null,
-    "Required model not found, searching for": null
+    "Required model not found, searching for": null,
+    "supported": null,
+    "Connection established, but the server is missing required custom nodes or models.": null,
+    "No diffusion model checkpoints found": null,
+    "Missing common models": null,
+    "missing": null,
+    "Tile Overlap": null,
+    "The {node_name} node is not installed.": null,
+    "Resolution": null,
+    "Detected base models:": null,
+    "Dynamic Caching": null,
+    "Re-use outputs of previous steps (First Block Cache) to speed up generation.": null
   }
 }

@@ -64,7 +64,6 @@
     "Connecting to server...": "正在连接到服务器...",
     "Connection": "连接",
     "Connection attempt failed! Click below to configure and reconnect.": "连接尝试失败！点击下面的按钮进行配置并重新连接。",
-    "Connection established, but the server is missing one or more ": "连接已建立，但服务器缺少一个或多个",
     "Control strength: how much the layer affects the image": "控制强度：图层对图像的影响程度",
     "Copy Prompt": "复制提示语",
     "Copy Seed": "复制种子数",
@@ -195,7 +194,6 @@
     "Neutral": "中灰",
     "New Style": "新样式",
     "New region": "新区域",
-    "No checkpoints found!\\nCheckpoints must be placed into ComfyUI/models/checkpoints.": "未找到Checkpoints大模型！\\nCheckpoints大模型必须放置在 ComfyUI/models/checkpoints 中。",
     "None": "无",
     "Normal": "Normal 法线图",
     "Not connected to server.": "未连接到服务器。",
@@ -351,8 +349,6 @@
     "Translation is disabled. Click to enable prompt translation from your language to English": "翻译功能已禁用。点击以启用从您的语言到英语的提示词翻译",
     "URL used to connect to a running ComfyUI server. Default is 127.0.0.1:8188 (local).": "用于连接到正在运行的 ComfyUI 服务器的网址。默认是 127.0.0.1:8188（本地）",
     "Unblur": "Tile/Unblur 分块/锐化",
-    "Unblur - Medium": "锐化 - 中等",
-    "Unblur - Strong": "锐化 - 强烈",
     "Universal": "通用",
     "Upgrade": "升级",
     "Upgrade required": "需要升级",
@@ -456,6 +452,17 @@
     "Choose a Diffusion base model to install its basic requirements.": null,
     "Stable Diffusion XL models": null,
     "Select at least one diffusion model. Control models are optional.": null,
-    "Required model not found, searching for": null
+    "Required model not found, searching for": null,
+    "supported": null,
+    "Connection established, but the server is missing required custom nodes or models.": null,
+    "No diffusion model checkpoints found": null,
+    "Missing common models": null,
+    "missing": null,
+    "Tile Overlap": null,
+    "The {node_name} node is not installed.": null,
+    "Resolution": null,
+    "Detected base models:": null,
+    "Dynamic Caching": null,
+    "Re-use outputs of previous steps (First Block Cache) to speed up generation.": null
   }
 }
