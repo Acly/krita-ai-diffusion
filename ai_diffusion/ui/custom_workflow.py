@@ -4,7 +4,7 @@ from typing import Any, Callable
 
 from krita import Krita
 from PyQt5.QtCore import Qt, pyqtSignal, QMetaObject, QUuid, QUrl, QPoint, QSize
-from PyQt5.QtGui import QFontMetrics, QIcon, QDesktopServices
+from PyQt5.QtGui import QFontMetrics, QIcon, QDesktopServices, QPalette
 from PyQt5.QtWidgets import QComboBox, QFileDialog, QFrame, QGridLayout, QHBoxLayout, QMenu
 from PyQt5.QtWidgets import QLabel, QLineEdit, QListWidgetItem, QMessageBox, QSpinBox, QAction
 from PyQt5.QtWidgets import QToolButton, QVBoxLayout, QWidget, QSlider, QDoubleSpinBox
@@ -247,11 +247,7 @@ class PromptParamWidget(TextPromptWidget):
     value_changed = pyqtSignal()
 
     def __init__(self, param: CustomParam, parent: QWidget | None = None):
-        line_count = (
-            settings.prompt_line_count
-            if param.kind is ParamKind.prompt_positive
-            else TextPromptWidget._line_count
-        )
+        line_count = settings.prompt_line_count if param.kind is ParamKind.prompt_positive else 2
         super().__init__(
             is_negative=param.kind is ParamKind.prompt_negative,
             line_count=line_count,
@@ -260,10 +256,13 @@ class PromptParamWidget(TextPromptWidget):
         assert isinstance(param.default, str)
         self.param = param
 
+        base = self.palette().color(QPalette.ColorRole.Base)
+        if param.kind is ParamKind.prompt_negative:
+            base.setRed(base.red() + 15)
         self.setObjectName("PromptParam")
         self.setFrameStyle(QFrame.Shape.StyledPanel)
         self.setStyleSheet(
-            f"QFrame#PromptParam {{ background-color: {theme.base}; border: 1px solid {theme.line_base}; }}"
+            f"QFrame#PromptParam {{ background-color: {base.name()}; border: 1px solid {theme.line_base}; }}"
         )
         self.text = param.default
         self.text_changed.connect(self.value_changed)
