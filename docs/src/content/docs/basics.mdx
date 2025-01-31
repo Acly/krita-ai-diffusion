@@ -117,8 +117,10 @@ image as a new layer once it is ready.
 Checking the "Refine upscaled image" option will additionally run the selected
 diffusion model. Instead of processing the entire image at once, it will be
 split into tiles which are generated one after the other. This can significantly
-improve quality, but may also introduce unwanted changes. Use the "Image guidance"
-option to keep the output closer to the original.
+improve quality, but may also introduce unwanted changes. 
+* Use the "Image guidance" option to keep the output closer to the original.
+* If you see tile seams in your image, try increasing "Tile overlap". Images will
+    take longer to generate, but tile borders become less visible.
 
 <Aside type="note">
 Diffusion on large resolutions becomes extremely slow and memory-intensive. By processing
