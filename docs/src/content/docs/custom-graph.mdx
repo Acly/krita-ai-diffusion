@@ -4,6 +4,7 @@ description: Documentation for nodes to create custom graphs in ComfyUI
 ---
 
 import { Aside } from '@astrojs/starlight/components'
+import PluginIcon from '../../components/PluginIcon.astro'
 
 Custom graphs allow you to design node graphs in ComfyUI and run them from
 Krita. Images, layers, selections and masks can be exchanged, and important
@@ -185,6 +186,26 @@ and need to be modeled in the workflow explicitly.
 ![Send Text node](../../assets/custom-graph/send-text.png)
 
 This node allows you to send any information to the Plugin as text.
+
+
+## Animations
+
+![Animation dropdown in the custom Graph workspace](../../assets/custom-graph/animation-dropdown.png)
+
+When selecting the <PluginIcon name="workspace-animation" text="Generate
+Animation" /> mode, some nodes support transferring multiple images from Krita's
+animation timeline:
+
+* `Krita Image Layer` will send all keyframes in the current playback time range
+  as an image batch.
+* `Krita Mask Layer` will send all keyframes in the current playback time range
+  as a mask batch.
+* `Krita Output` consumes a batch of images and returns them as an animation,
+  rather than individual images. When applying the result, a new layer with
+  keyframes is created.
+
+Note that `Krita Canvas` does _not_ support animations and always displays the
+current view only.
 
 
 ## Example Workflows

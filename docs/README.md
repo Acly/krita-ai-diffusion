@@ -19,3 +19,11 @@ All commands are run from this folder:
 | `npm run build`     | Build your production site to `./dist/`          |
 | `npm run preview`   | Preview your build locally, before deploying     |
 | `npm run astro ...` | Run CLI commands like `astro add`, `astro check` |
+
+## Deployment
+
+Deploy to Cloudflare Pages:
+```
+npm run build
+npx wrangler pages deploy dist
+```
