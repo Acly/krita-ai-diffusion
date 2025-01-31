@@ -1,10 +1,10 @@
 from __future__ import annotations
-from dataclasses import dataclass, asdict
+from dataclasses import dataclass
 import os
 import json
 from enum import Enum
 from pathlib import Path
-from typing import Optional, Any
+from typing import NamedTuple, Optional, Any
 from PyQt5.QtCore import QObject, pyqtSignal
 
 from .util import is_macos, is_windows, user_data_dir, client_logger as log
@@ -55,11 +55,18 @@ class PerformancePreset(Enum):
     custom = _("Custom")
 
 
+class PerformancePresetSettings(NamedTuple):
+    batch_size: int = 4
+    resolution_multiplier: float = 1.0
+    max_pixel_count: int = 6
+
+
 @dataclass
 class PerformanceSettings:
     batch_size: int = 4
     resolution_multiplier: float = 1.0
     max_pixel_count: int = 6
+    dynamic_caching: bool = False
 
 
 class Setting:
@@ -253,28 +260,35 @@ class Settings(QObject):
         _("Maximum resolution to generate images at, in megapixels (FullHD ~ 2MP, 4k ~ 8MP)."),
     )
 
+    dynamic_caching: bool
+    _dynamic_caching = Setting(
+        _("Dynamic Caching"),
+        False,
+        _("Re-use outputs of previous steps (First Block Cache) to speed up generation."),
+    )
+
     _performance_presets = {
-        PerformancePreset.cpu: PerformanceSettings(
+        PerformancePreset.cpu: PerformancePresetSettings(
             batch_size=1,
             resolution_multiplier=1.0,
             max_pixel_count=2,
         ),
-        PerformancePreset.low: PerformanceSettings(
+        PerformancePreset.low: PerformancePresetSettings(
             batch_size=2,
             resolution_multiplier=1.0,
             max_pixel_count=2,
         ),
-        PerformancePreset.medium: PerformanceSettings(
+        PerformancePreset.medium: PerformancePresetSettings(
             batch_size=4,
             resolution_multiplier=1.0,
             max_pixel_count=6,
         ),
-        PerformancePreset.high: PerformanceSettings(
+        PerformancePreset.high: PerformancePresetSettings(
             batch_size=6,
             resolution_multiplier=1.0,
             max_pixel_count=8,
         ),
-        PerformancePreset.cloud: PerformanceSettings(
+        PerformancePreset.cloud: PerformancePresetSettings(
             batch_size=8,
             resolution_multiplier=1.0,
             max_pixel_count=6,
@@ -355,7 +369,7 @@ class Settings(QObject):
 
     def apply_performance_preset(self, preset: PerformancePreset):
         if preset not in [PerformancePreset.custom, PerformancePreset.auto]:
-            for k, v in asdict(self._performance_presets[preset]).items():
+            for k, v in self._performance_presets[preset]._asdict().items():
                 self._values[k] = v
 
     def _migrate_legacy_settings(self, path: Path):

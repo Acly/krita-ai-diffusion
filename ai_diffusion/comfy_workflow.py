@@ -984,6 +984,18 @@ class ComfyWorkflow:
             mdls["bbox_detector"] = "yolo_nas_l_fp16.onnx"
         return self.add("DWPreprocessor", 1, image=image, resolution=resolution, **feat, **mdls)
 
+    def apply_first_block_cache(self, model: Output, arch: Arch):
+        return self.add(
+            "ApplyFBCacheOnModel",
+            1,
+            model=model,
+            object_to_patch="diffusion_model",
+            residual_diff_threshold=0.2 if arch.is_sdxl_like else 0.12,
+            start=0.0,
+            end=1.0,
+            max_consecutive_cache_hits=-1,
+        )
+
     def create_hook_lora(self, loras: list[tuple[str, float]]):
         key = "CreateHookLora" + str(loras)
         hooks = self._cache.get(key, None)

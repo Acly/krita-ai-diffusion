@@ -62,6 +62,7 @@ class CheckpointInput:
     v_prediction_zsnr: bool = False
     rescale_cfg: float = 0.7
     self_attention_guidance: bool = False
+    dynamic_caching: bool = False
 
 
 @dataclass

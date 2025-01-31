@@ -265,11 +265,12 @@ class TranslationPackage(NamedTuple):
 
 
 class ClientFeatures(NamedTuple):
-    ip_adapter: bool
-    translation: bool
-    languages: list[TranslationPackage]
+    ip_adapter: bool = True
+    translation: bool = True
+    languages: list[TranslationPackage] = []
     max_upload_size: int = 0
     max_control_layers: int = 1000
+    wave_speed: bool = False
 
 
 class Client(ABC):

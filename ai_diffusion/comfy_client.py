@@ -93,8 +93,8 @@ class ComfyClient(Client):
         self._requests = RequestManager()
         self._id = str(uuid.uuid4())
         self._active: Optional[JobInfo] = None
+        self._features: ClientFeatures = ClientFeatures()
         self._supported_archs: dict[Arch, list[ResourceId]] = {}
-        self._supported_languages: list[TranslationPackage] = []
         self._messages = asyncio.Queue()
         self._queue = asyncio.Queue()
         self._jobs: deque[JobInfo] = deque()
@@ -107,7 +107,6 @@ class ComfyClient(Client):
 
         # Retrieve system info
         client.device_info = DeviceInfo.parse(await client._get("system_stats"))
-        client._supported_languages = await _list_languages(client)
 
         # Try to establish websockets connection
         wsurl = websocket_url(client.url)
@@ -123,6 +122,13 @@ class ComfyClient(Client):
         missing = _check_for_missing_nodes(nodes)
         if len(missing) > 0:
             raise MissingResources(missing)
+
+        client._features = ClientFeatures(
+            ip_adapter=True,
+            translation=True,
+            languages=await _list_languages(client),
+            wave_speed="ApplyFBCacheOnModel" in nodes,
+        )
 
         # Check for required and optional model resources
         models = client.models
@@ -460,21 +466,7 @@ class ComfyClient(Client):
 
     @property
     def features(self):
-        return ClientFeatures(
-            ip_adapter=True, translation=True, languages=self._supported_languages
-        )
-
-    @property
-    def supports_ip_adapter(self):
-        return True
-
-    @property
-    def supports_translation(self):
-        return True
-
-    @property
-    def supported_languages(self):
-        return self._supported_languages
+        return self._features
 
     @property
     def performance_settings(self):
@@ -482,6 +474,7 @@ class ComfyClient(Client):
             batch_size=settings.batch_size,
             resolution_multiplier=settings.resolution_multiplier,
             max_pixel_count=settings.max_pixel_count,
+            dynamic_caching=settings.dynamic_caching and self.features.wave_speed,
         )
 
     async def upload_loras(self, work: WorkflowInput, local_job_id: str):

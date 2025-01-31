@@ -129,6 +129,9 @@ def load_checkpoint_with_lora(w: ComfyWorkflow, checkpoint: CheckpointInput, mod
     if vae is None:
         vae = w.load_vae(models.for_arch(arch).vae)
 
+    if checkpoint.dynamic_caching and (arch in [Arch.flux, Arch.sd3] or arch.is_sdxl_like):
+        model = w.apply_first_block_cache(model, arch)
+
     for lora in checkpoint.loras:
         model, clip = w.load_lora(model, clip, lora.name, lora.strength, lora.strength)
 
@@ -1279,6 +1282,7 @@ def prepare(
     i.models = style.get_models(models.checkpoints.keys())
     i.conditioning.positive += _collect_lora_triggers(i.models.loras, files)
     i.models.loras = unique(i.models.loras + extra_loras, key=lambda l: l.name)
+    i.models.dynamic_caching = perf.dynamic_caching
     arch = i.models.version = resolve_arch(style, models)
 
     _check_server_has_models(i.models, i.conditioning.regions, models, files, style.name)
