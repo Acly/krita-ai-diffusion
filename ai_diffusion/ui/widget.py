@@ -399,7 +399,6 @@ class TextPromptWidget(QPlainTextEdit):
 
         self._completer = PromptAutoComplete(self)
         self.textChanged.connect(self.notify_text_changed)
-        self.activated.connect(self.notify_activated)
 
         self._resize_handle: ResizeHandle | None = None
 
@@ -448,9 +447,6 @@ class TextPromptWidget(QPlainTextEdit):
     def notify_text_changed(self):
         self._completer.check_completion()
         self.text_changed.emit(self.text)
-
-    def notify_activated(self):
-        self.activated.emit()
 
     @property
     def text(self):
