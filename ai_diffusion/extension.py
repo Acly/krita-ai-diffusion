@@ -22,14 +22,16 @@ class AIToolsExtension(Extension):
         super().__init__(parent)
         log.info(f"Extension initialized, Version: {__version__}, Python: {sys.version}")
 
-        try:
-            sys.path.append(str(Path(__file__).parent / "debugpy" / "src"))
-            import debugpy
+        debugpy_path = Path(__file__).parent / "debugpy" / "src"
+        if debugpy_path.exists():
+            try:
+                sys.path.insert(0, str(debugpy_path))
+                import debugpy
 
-            debugpy.listen(("127.0.0.1", 5678), in_process_debug_adapter=True)
-            log.info("Developer mode: debugpy listening on port 5678")
-        except ImportError:
-            pass
+                debugpy.listen(("127.0.0.1", 5678), in_process_debug_adapter=True)
+                log.info("Developer mode: debugpy listening on port 5678")
+            except ImportError:
+                pass
 
         eventloop.setup()
         settings.load()
