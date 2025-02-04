@@ -330,15 +330,20 @@ class Client(ABC):
 
 
 def resolve_arch(style: Style, client: Client | ClientModels | None = None):
-    if style.architecture is Arch.auto:
-        if client:
-            models = client.models if isinstance(client, Client) else client
-            checkpoint = style.preferred_checkpoint(models.checkpoints.keys())
-            if checkpoint != "not-found":
-                return models.arch_of(checkpoint)
-        if style.checkpoints:
-            return style.architecture.resolve(style.checkpoints[0])
-    return style.architecture
+    arch = Arch.auto
+
+    if client:
+        models = client.models if isinstance(client, Client) else client
+        checkpoint = style.preferred_checkpoint(models.checkpoints.keys())
+        if checkpoint != "not-found":
+            arch = models.arch_of(checkpoint)
+    elif style.checkpoints:
+        arch = style.architecture.resolve(style.checkpoints[0])
+
+    if style.architecture.is_sdxl_like and arch.is_sdxl_like:
+        arch = style.architecture  # user override with compatible arch
+
+    return arch
 
 
 def filter_supported_styles(styles: Iterable[Style], client: Client | None = None):
