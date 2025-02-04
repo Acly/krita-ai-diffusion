@@ -801,6 +801,11 @@ def inpaint(
     target_bounds = params.target_bounds
     extent = ScaledExtent.from_input(images.extent)  # for initial generation with large context
 
+    is_inpaint_model = params.use_inpaint_model and models.control.find(ControlMode.inpaint) is None
+    if is_inpaint_model and models.arch is Arch.flux:
+        checkpoint.dynamic_caching = False  # doesn't seem to work with Flux fill model
+        sampling.cfg_scale = 30  # set Flux guidance to 30 (typical values don't work well)
+
     model, clip, vae = load_checkpoint_with_lora(w, checkpoint, models.all)
     model = w.differential_diffusion(model)
     model_orig = copy(model)
@@ -848,12 +853,10 @@ def inpaint(
         )
         inpaint_patch = w.load_fooocus_inpaint(**models.fooocus_inpaint)
         inpaint_model = w.apply_fooocus_inpaint(model, inpaint_patch, latent_inpaint)
-    elif params.use_inpaint_model and models.control.find(ControlMode.inpaint) is None:
+    elif is_inpaint_model:
         positive, negative, latent_inpaint, latent = w.vae_encode_inpaint_conditioning(
             vae, in_image, initial_mask, positive, negative
         )
-        if models.arch is Arch.flux:  # flux1-fill based model
-            sampling.cfg_scale = 30
         inpaint_model = model
     else:
         latent = w.vae_encode(vae, in_image)
