@@ -26,7 +26,7 @@ The main goals of this project are:
 * **Inpainting**: Use selections for generative fill, expand, to add or remove objects
 * **Live Painting**: Let AI interpret your canvas in real time for immediate feedback. [Watch Video](https://youtu.be/AF2VyqSApjA?si=Ve5uQJWcNOATtABU)
 * **Upscaling**: Upscale and enrich images to 4k, 8k and beyond without running out of memory.
-* **Stable Diffusion**: Supports Stable Diffusion 1.5, and XL. Partial support for SD3.
+* **Diffusion Models**: Supports Stable Diffusion 1.5, and XL. Partial support for [Flux](https://github.com/Acly/krita-ai-diffusion/discussions/1176) and SD3.
 * **ControlNet**: Scribble, Line art, Canny edge, Pose, Depth, Normals, Segmentation, +more
 * **IP-Adapter**: Reference images, Style and composition transfer, Face swap
 * **Regions**: Assign individual text descriptions to image areas defined by layers.
@@ -45,7 +45,7 @@ A concise (more technical) version is below:
 
 * Windows, Linux, MacOS
 * _On Linux/Mac:_ Python + venv must be installed
-    * recommended version: 3.11 or 3.10
+    * recommended version: 3.12 or 3.11
     * usually available via package manager, eg. `apt install python3-venv`
 
 #### Hardware support
@@ -55,9 +55,9 @@ recommended. Otherwise generating images will take very long or may fail due to
 insufficient memory!
 
 <table>
-<tr><td>NVIDIA GPU</td><td>supported via CUDA</td></tr>
-<tr><td>AMD GPU</td><td>limited support, DirectML on Windows, ROCm on Linux (custom install)</td></tr>
-<tr><td>Apple Silicon</td><td>community support, MPS on macOS</td></tr>
+<tr><td>NVIDIA GPU</td><td>supported via CUDA (Windows/Linux)</td></tr>
+<tr><td>AMD GPU</td><td>DirectML (Windows, limited features, 12+ GB VRAM recommended)<br>ROCm (Linux, via custom ComfyUI)</td></tr>
+<tr><td>Apple Silicon</td><td>community support, MPS on macOS 14+</td></tr>
 <tr><td>CPU</td><td>supported, but very slow</td></tr>
 </table>
 
@@ -124,6 +124,6 @@ _Control layers: Scribble, Line art, Depth map, Pose_
 
 ## Technology
 
-* Image generation: [Stable Diffusion](https://github.com/Stability-AI/generative-models)
+* Image generation: [Stable Diffusion](https://github.com/Stability-AI/generative-models), [Flux](https://blackforestlabs.ai/)
 * Diffusion backend: [ComfyUI](https://github.com/comfyanonymous/ComfyUI)
 * Inpainting: [ControlNet](https://github.com/lllyasviel/ControlNet), [IP-Adapter](https://github.com/tencent-ailab/IP-Adapter)
