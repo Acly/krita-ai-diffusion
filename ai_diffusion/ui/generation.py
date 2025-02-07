@@ -200,17 +200,30 @@ class HistoryWidget(QListWidget):
         self._remove_items(id.job, id.image)
 
     def _remove_items(self, job_id: str, image_index: int = -1):
-        scroll_pos = 0
-        if scrollbar := self.verticalScrollBar():
-            scroll_pos = scrollbar.value()
+        def _job_id(item: QListWidgetItem | None):
+            return item.data(Qt.ItemDataRole.UserRole) if item else None
 
-        self.clear()
-        for job in filter(self.is_finished, self._model.jobs):
-            self.add(job)
-        self.update_selection()
+        item_was_selected = False
+        with theme.SignalBlocker(self):
+            # Remove all the job's items before triggering potential selection changes
+            current = next((i for i in range(self.count()) if _job_id(self.item(i)) == job_id), -1)
+            if current >= 0:
+                item = self.item(current)
+                while item and _job_id(item) == job_id:
+                    _, index = self.item_info(item)
+                    if image_index == index or (index is not None and image_index == -1):
+                        item_was_selected = item_was_selected or item.isSelected()
+                        self.takeItem(current)
+                    else:
+                        if index and index > image_index:
+                            item.setData(Qt.ItemDataRole.UserRole + 1, index - 1)
+                        current += 1
+                    item = self.item(current)
 
-        if scrollbar and scrollbar.maximum() > 0:
-            scrollbar.setValue(scroll_pos)
+        if item_was_selected:
+            self._model.jobs.selection = None
+        else:
+            self.update_apply_button()  # selection may have moved
 
     def update_selection(self):
         with theme.SignalBlocker(self):
@@ -409,8 +422,8 @@ class HistoryWidget(QListWidget):
 
     def _discard_image(self):
         items = self.selectedItems()
-        item_info = [self.item_info(item) for item in items]  # items are destroyed while iterating
-        for job_id, image_index in item_info:
+        for item in items:
+            job_id, image_index = self.item_info(item)
             self._model.jobs.discard(job_id, image_index)
 
     def _clear_all(self):
