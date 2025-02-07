@@ -20,7 +20,7 @@ This fork adds functionality for randomly selecting artists and tags:
 python -m pip install beautifulsoup4 requests curl_cffi --target="C:\Program Files\Krita (x64)\lib\site-packages"
 ```
 
-2. Download and install the CFFI backend (run in PowerShell as administrator):
+2. Download and install the correct cffi_backend package file manually (run in PowerShell as administrator):
 ```powershell
 # Create a temporary directory
 New-Item -ItemType Directory -Path "$env:TEMP\cffi_temp" -Force
@@ -33,7 +33,7 @@ Invoke-WebRequest -Uri "https://files.pythonhosted.org/packages/d1/b6/0b0f5ab93b
 Rename-Item -Path "cffi.whl" -NewName "cffi.zip"
 Expand-Archive -Path "cffi.zip" -DestinationPath "."
 
-# Copy the backend file to Krita
+# Copy the backend file to Krita python packages folder
 Copy-Item -Path "_cffi_backend.cp310-win_amd64.pyd" -Destination "C:\Program Files\Krita (x64)\lib\krita-python-libs" -Force
 ```
 
