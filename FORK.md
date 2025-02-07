@@ -10,6 +10,7 @@ This fork adds functionality for randomly selecting artists and tags:
 - Customizable settings menu with:
   - Categories list for filtering
   - Unwanted tags exclusion list
+- Favorite artists dropdown
 
 ## Installation
 
