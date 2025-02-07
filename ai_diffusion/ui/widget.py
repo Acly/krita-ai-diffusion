@@ -1,6 +1,12 @@
 from __future__ import annotations
 from typing import Any, Callable, cast
 
+import csv
+import random
+import re
+import requests
+from pathlib import Path
+from bs4 import BeautifulSoup
 from PyQt5.QtWidgets import (
     QAction,
     QSlider,
@@ -267,6 +273,64 @@ class QueueButton(QToolButton):
     def paintEvent(self, a0):
         _paint_tool_drop_down(self, self.text())
 
+def download_site_icons():
+    """Download site icons if they don't exist locally"""
+    import requests
+    from pathlib import Path
+    
+    icons_dir = Path(__file__).parent.parent / "resources"
+    icons_dir.mkdir(exist_ok=True)
+    
+    icons = {
+        'e621': {
+            'url': 'https://e621.net/packs/static/main-logo-2653c015c5870ec4ff08.svg',
+            'file': 'e621-icon.svg'
+        },
+        'danbooru': {
+            'url': 'https://danbooru.donmai.us/favicon.svg',
+            'file': 'danbooru-icon.svg'
+        }
+    }
+    
+    for site, info in icons.items():
+        icon_path = icons_dir / info['file']
+        if not icon_path.exists():
+            try:
+                response = requests.get(info['url'])
+                if response.ok:
+                    icon_path.write_text(response.text)
+                    print(f"Downloaded {site} icon")
+                else:
+                    print(f"Failed to download {site} icon: {response.status_code}")
+            except Exception as e:
+                print(f"Error downloading {site} icon: {e}")
+
+def create_site_icon(site_name: str) -> QIcon:
+    """Create a QIcon from site SVG"""
+    from PyQt5.QtSvg import QSvgRenderer
+    from PyQt5.QtCore import QSize, Qt
+    from PyQt5.QtGui import QIcon, QPixmap, QPainter
+    
+    icon_path = Path(__file__).parent.parent / "resources" / f"{site_name}-icon.svg"
+    
+    # Download icons if they don't exist
+    if not icon_path.exists():
+        download_site_icons()
+    
+    if not icon_path.exists():
+        return QIcon()  # Return empty icon if download failed
+        
+    # Create icon at multiple sizes
+    icon = QIcon()
+    renderer = QSvgRenderer(str(icon_path))
+    
+    for size in [16, 24, 32, 48]:
+        pixmap = QPixmap(QSize(size, size))
+        pixmap.fill(Qt.transparent)
+        renderer.render(QPainter(pixmap))
+        icon.addPixmap(pixmap)
+        
+    return icon
 
 class StyleSelectWidget(QWidget):
     _value: Style
@@ -278,16 +342,23 @@ class StyleSelectWidget(QWidget):
     def __init__(self, parent: QWidget | None, show_quality=False):
         super().__init__(parent)
         self._value = Styles.list().default
+        self._e621_artists = []
+        self._danbooru_artists = []
+        self._artist_history = []  # Store prompt history for undo
+        self._last_artist = None
+        self._load_artists()
 
         layout = QHBoxLayout(self)
         layout.setContentsMargins(0, 0, 0, 0)
         self.setLayout(layout)
 
+        # Style combo box
         self._combo = QComboBox(self)
         self.update_styles()
         self._combo.currentIndexChanged.connect(self.change_style)
         layout.addWidget(self._combo, 3)
 
+        # Quality selector
         if show_quality:
             self._quality_combo = QComboBox(self)
             self._quality_combo.addItem(_("Fast"), SamplingQuality.fast.value)
@@ -295,15 +366,631 @@ class StyleSelectWidget(QWidget):
             self._quality_combo.currentIndexChanged.connect(self.change_quality)
             layout.addWidget(self._quality_combo, 1)
 
+        # Favorite artists dropdown
+        self._favorite_artists = QComboBox(self)
+        self._favorite_artists.setToolTip(_("Favorite artists"))
+        self._favorite_artists.currentIndexChanged.connect(self._insert_favorite_artist)
+        self._load_favorite_artists()
+        layout.addWidget(self._favorite_artists)
+
+        # Star button for favorites
+        self._star_button = QToolButton(self)
+        self._star_button.setIcon(Krita.instance().icon('star-shape'))
+        self._star_button.setAutoRaise(True)
+        self._star_button.setToolTip(_("Add last used artist to favorites"))
+        self._star_button.clicked.connect(self._add_to_favorites)
+        layout.addWidget(self._star_button)
+
+        # Random e621 artist button
+        random_e621_artist = QToolButton(self)
+        random_e621_artist.setIcon(theme.icon("random"))
+        random_e621_artist.setAutoRaise(True)
+        random_e621_artist.setToolTip(_("Insert random e621 artist"))
+        random_e621_artist.clicked.connect(lambda: self.insert_random_artist("e621"))
+        layout.addWidget(random_e621_artist)
+
+        # E621 random tags button
+        self._e621_tags = QToolButton(self)
+        self._e621_tags.setIcon(create_site_icon('e621'))
+        self._e621_tags.setAutoRaise(True)
+        self._e621_tags.setToolTip(_("Get tags from random e621 image"))
+        self._e621_tags.clicked.connect(lambda: self.get_random_tags("e621"))
+        layout.addWidget(self._e621_tags)
+
+        # Random Danbooru artist button
+        random_danbooru_artist = QToolButton(self)
+        random_danbooru_artist.setIcon(theme.icon("random"))
+        random_danbooru_artist.setAutoRaise(True)
+        random_danbooru_artist.setToolTip(_("Insert random Danbooru artist"))
+        random_danbooru_artist.clicked.connect(lambda: self.insert_random_artist("danbooru"))
+        layout.addWidget(random_danbooru_artist)
+
+        # Danbooru random tags button 
+        self._danbooru_tags = QToolButton(self)
+        self._danbooru_tags.setIcon(create_site_icon('danbooru'))
+        self._danbooru_tags.setAutoRaise(True)
+        self._danbooru_tags.setToolTip(_("Get tags from random Danbooru image"))
+        self._danbooru_tags.clicked.connect(lambda: self.get_random_tags("danbooru"))
+        layout.addWidget(self._danbooru_tags)
+
+        # Settings button
         settings = QToolButton(self)
         settings.setIcon(theme.icon("settings"))
         settings.setAutoRaise(True)
         settings.clicked.connect(self.show_settings)
         layout.addWidget(settings)
 
+        # Solo filter checkbox
+        self._solo_check = QCheckBox(_("Solo only"), self)
+        self._solo_check.setChecked(Settings._require_solo.default)
+        self._solo_check.toggled.connect(self._toggle_solo)
+        layout.addWidget(self._solo_check)
+
         Styles.list().changed.connect(self.update_styles)
         Styles.list().name_changed.connect(self.update_styles)
         root.connection.state_changed.connect(self.update_styles)
+
+        self.installEventFilter(self)
+
+    def _load_artists(self):
+        """Initialize separate artist lists for e621 and danbooru"""
+        self._e621_artists = []
+        self._danbooru_artists = []
+        self._artist_history = []
+        self._last_artist = None
+
+        try:
+            # Load e621 artists
+            e621_file = Path(__file__).parent.parent / "e621_artist_webui.csv"
+            if e621_file.exists():
+                with open(e621_file, 'r', encoding='utf-8') as f:
+                    reader = csv.DictReader(f)
+                    self._e621_artists.extend([row['trigger'] for row in reader])
+                print(f"Loaded {len(self._e621_artists)} e621 artists")
+
+            # Load danbooru artists
+            danbooru_file = Path(__file__).parent.parent / "danbooru_artist_webui.csv"
+            if danbooru_file.exists():
+                with open(danbooru_file, 'r', encoding='utf-8') as f:
+                    reader = csv.DictReader(f)
+                    self._danbooru_artists.extend([row['trigger'] for row in reader])
+                print(f"Loaded {len(self._danbooru_artists)} Danbooru artists")
+
+        except Exception as e:
+            print(f"Error loading artists: {e}")
+
+    def _load_favorite_artists(self):
+        """Load favorite artists from settings"""
+        self._favorite_artists.clear()
+        self._favorite_artists.addItem(_("Favorite artists"))
+        
+        # Get the favorites list from settings
+        favorites = settings.favorite_artists
+        if favorites and isinstance(favorites, list):
+            self._favorite_artists.addItems(favorites)
+
+    def _add_to_favorites(self):
+        """Add current artist to favorites"""
+        if not self._last_artist:
+            return
+            
+        try:
+            current_favorites = settings.favorite_artists or []
+            
+            if self._last_artist not in current_favorites:
+                current_favorites.append(self._last_artist)
+                settings.favorite_artists = current_favorites
+                settings.save()
+                self._load_favorite_artists()
+        except Exception as e:
+            print(f"Error saving favorite artist: {e}")
+
+    def _insert_favorite_artist(self, index):
+        """Insert selected favorite artist into prompt"""
+        if index > 0:  # Skip the first item which is just the label
+            model = root.model_for_active_document()
+            if model:
+                current_prompt = model.regions.positive
+                self._artist_history.append(current_prompt)
+                
+                artist = self._favorite_artists.currentText()
+                new_prompt = re.sub(r'artist:[^,]+,?\s*', '', current_prompt).strip()
+                new_prompt = f"artist:{artist}, {new_prompt}" if new_prompt else f"artist:{artist}, "
+                model.regions.positive = new_prompt
+                self._last_artist = artist
+                
+            self._favorite_artists.setCurrentIndex(0)  # Reset selection
+
+    def insert_random_artist(self):
+        if not self._artists:
+            return
+
+        model = root.model_for_active_document()
+        if not model:
+            return
+
+        current_prompt = model.regions.positive
+        # Remove any existing artist: tags - match until comma or end of string
+        new_prompt = re.sub(r'artist:[^,]+,?\s*', '', current_prompt).strip()
+        # Insert new random artist at the beginning
+        random_artist = random.choice(self._artists)
+        new_prompt = f"artist:{random_artist}, " + new_prompt if new_prompt else f"artist:{random_artist}, "
+        model.regions.positive = new_prompt
+        self._last_artist = random_artist
+
+    def insert_random_artist(self, source="e621"):
+        """Insert a random artist from specified source (e621 or danbooru)"""
+        artists = self._e621_artists if source == "e621" else self._danbooru_artists
+        if not artists:
+            print(f"No artists loaded from {source}")
+            return
+
+        model = root.model_for_active_document()
+        if not model:
+            return
+
+        current_prompt = model.regions.positive
+        self._artist_history.append(current_prompt)
+        
+        # Remove any existing artist: tags
+        new_prompt = re.sub(r'artist:[^,]+,?\s*', '', current_prompt).strip()
+        
+        # Insert new random artist at the beginning
+        random_artist = random.choice(artists)
+        new_prompt = f"artist:{random_artist}, {new_prompt}" if new_prompt else f"artist:{random_artist}, "
+        model.regions.positive = new_prompt
+        self._last_artist = random_artist
+
+    def _toggle_solo(self, checked):
+        settings.require_solo = checked
+        settings.save()
+
+    def eventFilter(self, obj, event):
+        if event.type() == QEvent.KeyPress:
+            if event.key() == Qt.Key_Z and event.modifiers() == Qt.ControlModifier:
+                if self._artist_history:
+                    model = root.model_for_active_document()
+                    if model:
+                        model.regions.positive = self._artist_history.pop()
+                    return True
+        return super().eventFilter(obj, event)
+
+    def _format_tag(self, tag: str, category: str) -> str:
+        """
+        Format a tag based on its category and content.
+        
+        Args:
+            tag: The tag to format
+            category: The tag category (artist, copyright, character, species, general)
+        
+        Returns:
+            The formatted tag string
+        """
+        # Remove leading/trailing whitespace
+        tag = tag.strip()
+        
+        # For artist category, add artist: prefix
+        if category == 'artist':
+            # Remove existing artist: prefix if present to avoid duplication
+            if tag.startswith('artist:'):
+                tag = tag[7:]
+            tag = f"artist:{tag}"
+        
+        # Escape parentheses in any category
+        if '(' in tag or ')' in tag:
+            tag = tag.replace('(', '\\(').replace(')', '\\)')
+            
+        return tag
+
+    def _process_tag_list(self, tag_elements, category: str, unwanted_tags: list[str]) -> list[str]:
+        """
+        Process a list of tag elements and format them appropriately.
+        
+        Args:
+            tag_elements: The BS4 elements containing tags
+            category: The tag category 
+            unwanted_tags: List of tags to exclude
+            
+        Returns:
+            List of formatted tag strings
+        """
+        tags = []
+        for tag_element in tag_elements:
+            tag = tag_element.text.strip()
+            if tag and tag not in unwanted_tags:
+                formatted_tag = self._format_tag(tag, category)
+                tags.append(formatted_tag)
+        return tags
+
+    def _try_get_random_tags(self, session, site="e621", max_attempts=10):
+        """Try to get random tags from specified site."""
+        for attempt in range(max_attempts):
+            try:
+                # Select appropriate URL and selectors based on site
+                if site == "e621":
+                    url = "https://e621.net/posts/random"
+                    tag_selector = '#tag-list li a.search-tag'
+                    category_selector = '#tag-list > ul.{}-tag-list > li a.search-tag'
+                else:  # danbooru
+                    url = "https://danbooru.donmai.us/posts/random"
+                    tag_selector = '.tag-list li a'
+                    category_selector = '.{}-tag-list li a'
+
+                print(f"\nAttempt {attempt + 1} for {site}")
+                print(f"Requesting URL: {url}")
+                
+                random_page = session.get(url, allow_redirects=True)
+                if not random_page.ok:
+                    print(f"Failed to fetch random post from {site} - Status {random_page.status_code}")
+                    continue
+                
+                print(f"Got page response: {random_page.url}")
+                    
+                soup = BeautifulSoup(random_page.text, 'html.parser')
+                
+                # Debug tag selectors
+                print(f"\nUsing tag selector: {tag_selector}")
+                tag_elements = soup.select(tag_selector)
+                print(f"Found {len(tag_elements)} total tags")
+                
+                if not tag_elements:
+                    print("No tags found with selector")
+                    # Print a small portion of the HTML for debugging
+                    print("Page content preview:")
+                    print(random_page.text[:500])
+                    continue
+                
+                # Print found tags for debugging
+                tag_texts = [tag.text.strip() for tag in tag_elements]
+                print("\nFound tags:", tag_texts[:10], "..." if len(tag_texts) > 10 else "")
+                
+                if settings.require_solo:
+                    if 'solo' not in tag_texts or 'duo' in tag_texts:
+                        print("Skipping - solo requirement not met")
+                        continue
+
+                # Get enabled categories
+                enabled_categories = []
+                tag_categories = settings.tag_categories or {
+                    'artist': False,
+                    'copyright': False,
+                    'character': False,
+                    'species': False,
+                    'general': True
+                }
+                
+                print("\nEnabled categories:", tag_categories)
+                
+                for cat, enabled in tag_categories.items():
+                    if enabled:
+                        if site == "danbooru" and cat == "species":
+                            continue  # Danbooru doesn't have species category
+                        category_name = f"{cat}-tag" if site == "danbooru" else cat
+                        enabled_categories.append(category_name)
+                        
+                if not enabled_categories:
+                    enabled_categories = ['general'] if site == "e621" else ['general-tag']
+                
+                print("Processing categories:", enabled_categories)
+                
+                # Collect and format tags from enabled categories
+                tags_output = []
+                unwanted = settings.unwanted_tags if settings.unwanted_tags is not None else []
+                
+                for category in enabled_categories:
+                    selector = category_selector.format(category)
+                    print(f"\nChecking category {category} with selector: {selector}")
+                    tag_elements = soup.select(selector)
+                    print(f"Found {len(tag_elements)} tags in {category}")
+                    
+                    category_name = category.replace('-tag', '') if site == "danbooru" else category
+                    formatted_tags = self._process_tag_list(tag_elements, category_name, unwanted)
+                    print(f"After processing: {len(formatted_tags)} tags")
+                    tags_output.extend(formatted_tags)
+                    
+                if not tags_output:
+                    print("No valid tags found after filtering")
+                    continue
+                    
+                print("\nFinal tags:", tags_output)
+
+                # Update the prompt
+                model = root.model_for_active_document()
+                if not model:
+                    print("No active document model")
+                    return False
+
+                # Save current prompt for undo
+                current_prompt = model.regions.positive
+                self._artist_history.append(current_prompt)
+
+                # Keep existing artist tag if present
+                artist_tags = ""
+                artist_match = re.match(r'(artist:[^,]+,\s*)', current_prompt)
+                if artist_match:
+                    artist_tags = artist_match.group(1)
+                    self._last_artist = artist_match.group(1).replace("artist:", "").replace(",", "").strip()
+                
+                # Update prompt with new tags
+                new_prompt = artist_tags + ', '.join(tags_output)
+                print("\nFinal prompt:", new_prompt)
+                
+                model.regions.positive = new_prompt.strip()
+                return True
+                
+            except Exception as e:
+                print(f"\nError in attempt {attempt + 1}:")
+                print(f"Type: {type(e).__name__}")
+                print(f"Error: {str(e)}")
+                continue
+        
+        print("Failed all attempts to get tags")
+        return False
+
+    def get_random_tags(self, site="e621"):
+        """Get random tags from specified site"""
+        try:
+            model = root.model_for_active_document()
+            if not model:
+                return
+
+            if site == "e621":
+                # E621 works fine with regular requests
+                session = requests.Session()
+                session.headers.update({
+                    'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36'
+                })
+                success = self._try_get_random_tags_requests(session, site)
+            else:
+                # Try to import curl_cffi with better error handling
+                try:
+                    import sys
+                    print("Python path:", sys.path)  # Debug: show Python path
+                    import curl_cffi
+                    print("curl_cffi version:", curl_cffi.__version__)  # Debug: show version
+                    from curl_cffi import requests as curl_requests
+                    success = self._try_get_random_tags_curl(curl_requests, site)
+                except ImportError as e:
+                    print(f"Import error details: {str(e)}")  # Debug: show exact import error
+                    print("Attempted import from:", sys.path)  # Debug: show where Python looked
+                    print("curl_cffi is not installed. Please install with: pip install curl_cffi")
+                    return False
+                    
+            if not success:
+                print(f"Unable to fetch valid tags from {site}")
+                
+        except Exception as e:
+            print(f"Error in get_random_tags: {e}")
+            return
+
+    def _try_get_random_tags_requests(self, session, site="e621", max_attempts=10):
+        """Try to get random tags using regular requests."""
+        for attempt in range(max_attempts):
+            try:
+                print(f"\nAttempt {attempt + 1} for {site}")
+                
+                if site == "e621":
+                    url = "https://e621.net/posts/random"
+                    tag_selector = '#tag-list li a.search-tag'
+                    category_selector = '#tag-list > ul.{}-tag-list > li a.search-tag'
+                else:
+                    url = "https://danbooru.donmai.us/posts/random"
+                    tag_selector = '#tag-list li a.search-tag'
+                    category_selector = '#tag-list > ul.{}-tag-list li a.search-tag'
+                
+                print(f"Requesting URL: {url}")
+                response = session.get(url, allow_redirects=True)
+                
+                if not response.ok:
+                    print(f"Failed to fetch random post - Status {response.status_code}")
+                    print("Response:", response.text[:500])
+                    continue
+                    
+                print(f"Got page response: {response.url}")
+                
+                soup = BeautifulSoup(response.text, 'html.parser')
+                
+                # Debug tag selectors
+                print(f"\nUsing tag selector: {tag_selector}")
+                tag_elements = soup.select(tag_selector)
+                print(f"Found {len(tag_elements)} total tags")
+                
+                if not tag_elements:
+                    print("No tags found with selector")
+                    print("Page content preview:")
+                    print(response.text[:500])
+                    continue
+                
+                # Print found tags for debugging
+                tag_texts = [tag.text.strip() for tag in tag_elements]
+                print("\nFound tags:", tag_texts[:10], "..." if len(tag_texts) > 10 else "")
+                
+                if settings.require_solo:
+                    if 'solo' not in tag_texts or 'duo' in tag_texts:
+                        print("Skipping - solo requirement not met")
+                        continue
+
+                # Get enabled categories
+                enabled_categories = []
+                tag_categories = settings.tag_categories or {
+                    'artist': False,
+                    'copyright': False,
+                    'character': False,
+                    'species': False,
+                    'general': True
+                }
+                
+                print("\nEnabled categories:", tag_categories)
+                
+                for cat, enabled in tag_categories.items():
+                    if enabled:
+                        if site == "danbooru" and cat == "species":
+                            continue  # Danbooru doesn't have species category
+                        if site == "danbooru":
+                            enabled_categories.append(f"{cat}-tag")
+                        else:
+                            enabled_categories.append(cat)
+                        
+                if not enabled_categories:
+                    enabled_categories = ['general'] if site == "e621" else ['general-tag']
+                
+                print("Processing categories:", enabled_categories)
+                
+                # Collect and format tags from enabled categories
+                tags_output = []
+                unwanted = settings.unwanted_tags if settings.unwanted_tags is not None else []
+                
+                for category in enabled_categories:
+                    selector = category_selector.format(category)
+                    print(f"\nChecking category {category} with selector: {selector}")
+                    tag_elements = soup.select(selector)
+                    print(f"Found {len(tag_elements)} tags in {category}")
+                    
+                    category_name = category.replace('-tag', '') if site == "danbooru" else category
+                    formatted_tags = self._process_tag_list(tag_elements, category_name, unwanted)
+                    print(f"After processing: {len(formatted_tags)} tags")
+                    tags_output.extend(formatted_tags)
+                    
+                if not tags_output:
+                    print("No valid tags found after filtering")
+                    continue
+                    
+                print("\nFinal tags:", tags_output)
+
+                # Update the prompt
+                model = root.model_for_active_document()
+                if not model:
+                    print("No active document model")
+                    return False
+
+                current_prompt = model.regions.positive
+                self._artist_history.append(current_prompt)
+
+                artist_tags = ""
+                artist_match = re.match(r'(artist:[^,]+,\s*)', current_prompt)
+                if artist_match:
+                    artist_tags = artist_match.group(1)
+                    self._last_artist = artist_match.group(1).replace("artist:", "").replace(",", "").strip()
+                
+                new_prompt = artist_tags + ', '.join(tags_output)
+                print("\nFinal prompt:", new_prompt)
+                
+                model.regions.positive = new_prompt.strip()
+                return True
+                    
+            except Exception as e:
+                print(f"\nError in attempt {attempt + 1}:")
+                print(f"Type: {type(e).__name__}")
+                print(f"Error: {str(e)}")
+                continue
+                
+        print("Failed to get valid tags after all attempts")
+        return False
+
+    def _try_get_random_tags_curl(self, curl_requests, site="danbooru", max_attempts=10):
+        """Try to get random tags using curl requests."""
+        for attempt in range(max_attempts):
+            try:
+                print(f"\nAttempt {attempt + 1} for {site}")
+                url = "https://danbooru.donmai.us/posts/random"
+                print(f"Requesting URL: {url}")
+                
+                response = curl_requests.get(url, impersonate="chrome")
+                if not response.ok:
+                    print(f"Failed to fetch random post - Status {response.status_code}")
+                    continue
+                    
+                print(f"Got page response: {response.url}")
+                soup = BeautifulSoup(response.text, 'html.parser')
+                
+                # Danbooru specific selectors for different tag categories
+                category_selectors = {
+                    'artist': '.artist-tag-list li a.search-tag',
+                    'copyright': '.copyright-tag-list li a.search-tag',
+                    'character': '.character-tag-list li a.search-tag', 
+                    'general': '.general-tag-list li a.search-tag'
+                }
+                
+                # Get solo tag status first
+                all_tags = []
+                for selector in category_selectors.values():
+                    tag_elements = soup.select(selector)
+                    all_tags.extend([tag.text.strip() for tag in tag_elements])
+                
+                if settings.require_solo:
+                    if 'solo' not in all_tags or any(x in all_tags for x in ['duo', 'group']):
+                        print("Skipping - solo requirement not met")
+                        continue
+                
+                # Get enabled categories from settings
+                tag_categories = settings.tag_categories or {
+                    'artist': False,
+                    'copyright': False, 
+                    'character': False,
+                    'species': False,
+                    'general': True
+                }
+                
+                print("\nEnabled categories:", tag_categories)
+                
+                # Process each enabled category
+                tags_output = []
+                unwanted = settings.unwanted_tags if settings.unwanted_tags is not None else []
+                
+                for category, enabled in tag_categories.items():
+                    if not enabled or category == 'species':  # Skip species for Danbooru
+                        continue
+                        
+                    selector = category_selectors.get(category)
+                    if not selector:
+                        continue
+                        
+                    print(f"\nChecking category {category} with selector: {selector}")
+                    tag_elements = soup.select(selector)
+                    print(f"Found {len(tag_elements)} tags in {category}")
+                    
+                    formatted_tags = self._process_tag_list(tag_elements, category, unwanted)
+                    print(f"After processing: {len(formatted_tags)} tags")
+                    tags_output.extend(formatted_tags)
+                    
+                if not tags_output:
+                    print("No valid tags found after filtering")
+                    continue
+                    
+                print("\nFinal tags:", tags_output)
+
+                # Update the prompt
+                model = root.model_for_active_document()
+                if not model:
+                    print("No active document model")
+                    return False
+
+                # Save current prompt for undo
+                current_prompt = model.regions.positive
+                self._artist_history.append(current_prompt)
+
+                # Keep existing artist tag if present
+                artist_tags = ""
+                artist_match = re.match(r'(artist:[^,]+,\s*)', current_prompt)
+                if artist_match:
+                    artist_tags = artist_match.group(1)
+                    self._last_artist = artist_match.group(1).replace("artist:", "").replace(",", "").strip()
+                
+                # Join tags and update prompt
+                new_prompt = artist_tags + ', '.join(tags_output)
+                print("\nFinal prompt:", new_prompt)
+                
+                model.regions.positive = new_prompt.strip()
+                return True
+                
+            except Exception as e:
+                print(f"\nError in attempt {attempt + 1}:")
+                print(f"Type: {type(e).__name__}")
+                print(f"Error: {str(e)}")
+                continue
+        
+        print("Failed all attempts to get tags")
+        return False
 
     def update_styles(self):
         comfy = root.connection.client_if_connected
@@ -331,7 +1018,6 @@ class StyleSelectWidget(QWidget):
 
     def show_settings(self):
         from .settings import SettingsDialog
-
         SettingsDialog.instance().show(self._value)
 
     @property

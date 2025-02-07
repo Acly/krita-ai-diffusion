@@ -19,6 +19,7 @@ from PyQt5.QtWidgets import (
     QWidget,
     QMessageBox,
     QCheckBox,
+    QPlainTextEdit,
 )
 from PyQt5.QtCore import Qt, QMetaObject, QSize, QUrl, pyqtSignal
 from PyQt5.QtGui import QDesktopServices, QGuiApplication, QCursor, QFontMetrics
@@ -38,6 +39,7 @@ from .. import resources, eventloop, util, __version__
 from .server import ServerWidget
 from .settings_widgets import SpinBoxSetting, SliderSetting, SwitchSetting
 from .settings_widgets import SettingsTab, ComboBoxSetting, FileListSetting
+from .settings_widgets import TagCategoriesWidget, TagListEdit
 from .style import StylePresets
 from .theme import add_header, logo, red, yellow, green, grey
 
@@ -422,6 +424,17 @@ class DiffusionSettings(SettingsTab):
         self._widgets["nsfw_filter"].set_items(nsfw_settings)
         DiffusionSettings._warning_shown = self._warning_shown or settings.nsfw_filter > 0
 
+        # Add new sections for tag settings
+        add_header(self._layout, S._unwanted_tags)  # Using S instead of Settings directly
+        self._unwanted_tags = TagListEdit(self)
+        self._layout.addWidget(self._unwanted_tags)
+        self.add("unwanted_tags", self._unwanted_tags)
+
+        add_header(self._layout, S._tag_categories)  # Using S instead of Settings directly
+        self._tag_categories = TagCategoriesWidget(self)
+        self._layout.addWidget(self._tag_categories)
+        self.add("tag_categories", self._tag_categories)
+
         self._layout.addStretch()
 
     _warning_shown = False
@@ -474,6 +487,7 @@ class InterfaceSettings(SettingsTab):
         self.update_translation(root.connection.client_if_connected)
 
         self._layout.addStretch()
+
 
     def _tag_files(self) -> list[str]:
         plugin_tags_path = util.plugin_dir / "tags"

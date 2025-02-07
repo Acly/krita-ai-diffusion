@@ -16,6 +16,7 @@ from PyQt5.QtWidgets import (
     QWidget,
     QScrollArea,
     QFrame,
+    QPlainTextEdit,
 )
 from PyQt5.QtCore import Qt, QAbstractItemModel, QSize, pyqtSignal
 from PyQt5.QtGui import QIcon
@@ -130,6 +131,67 @@ class SettingWidget(QWidget):
     def _notify_value_changed(self):
         self.value_changed.emit()
 
+class TagCategoriesWidget(QWidget):
+    value_changed = pyqtSignal()
+
+    def __init__(self, parent=None):
+        super().__init__(parent)
+        layout = QVBoxLayout()
+        layout.setContentsMargins(0, 0, 0, 0)
+        self.setLayout(layout)
+        
+        self._checkboxes = {}
+        
+        # Create checkbox for each category
+        categories_layout = QHBoxLayout()
+        for category in ['artist', 'copyright', 'character', 'species', 'general']:
+            checkbox = QCheckBox(_(category.capitalize()))
+            self._checkboxes[category] = checkbox
+            checkbox.stateChanged.connect(self._on_category_changed)
+            categories_layout.addWidget(checkbox)
+        
+        layout.addLayout(categories_layout)
+    
+    def _on_category_changed(self):
+        """Called when any category checkbox changes"""
+        self.value_changed.emit()  # This will trigger Settings._write() in the settings tab
+    
+    @property
+    def value(self) -> dict[str, bool]:
+        """Get current state of all category checkboxes"""
+        return {
+            category: checkbox.isChecked() 
+            for category, checkbox in self._checkboxes.items()
+        }
+    
+    @value.setter
+    def value(self, categories: dict[str, bool] | None):
+        """Set state of category checkboxes"""
+        # Use defaults if None
+        if categories is None:
+            categories = {
+                'artist': False,
+                'copyright': False,
+                'character': False,
+                'species': False,
+                'general': True
+            }
+            
+        # Update each checkbox
+        print("Setting tag categories to:", categories)  # Debug print
+        for category, enabled in categories.items():
+            if category in self._checkboxes:
+                self._checkboxes[category].setChecked(enabled)
+
+    @property
+    def enabled(self) -> bool:
+        """Whether the widget is enabled"""
+        return self.isEnabled()
+    
+    @enabled.setter
+    def enabled(self, value: bool):
+        """Set enabled state of the widget"""
+        self.setEnabled(value)
 
 class FileListSetting(SettingWidget):
     _files: list[str]
@@ -474,3 +536,51 @@ def _add_title(layout: QVBoxLayout, title: str):
     title_label.setFont(font)
     layout.addWidget(title_label)
     layout.addSpacing(6)
+
+class TagListEdit(QPlainTextEdit):
+    value_changed = pyqtSignal()
+
+    def __init__(self, parent=None):
+        super().__init__(parent)
+        self.setMinimumHeight(100)
+        self.setPlaceholderText(_("Enter tags separated by commas"))
+        self._enabled = True
+        self.textChanged.connect(self._on_text_changed)
+    
+    def _on_text_changed(self):
+        print("TagListEdit text changed:", self.toPlainText())
+        self.value_changed.emit()
+    
+    @property
+    def value(self) -> list[str]:
+        val = [tag.strip() for tag in self.toPlainText().split(',') if tag.strip()]
+        print("TagListEdit value getter returning:", val)
+        return val
+    
+    @value.setter 
+    def value(self, tags):
+        print("TagListEdit value setter called with:", tags)
+        if tags is None:
+            tags = []
+            
+        # Convert to list if not already
+        if isinstance(tags, str):
+            tags = [tags]
+            
+        # Join with commas and handle empty list case
+        if tags:
+            text = ', '.join(str(tag).strip() for tag in tags)
+        else:
+            text = ''
+            
+        print("Setting TagListEdit text to:", text)
+        self.setPlainText(text)
+
+    @property
+    def enabled(self) -> bool:
+        return self._enabled
+
+    @enabled.setter
+    def enabled(self, value: bool):
+        self._enabled = value
+        self.setEnabled(value)
