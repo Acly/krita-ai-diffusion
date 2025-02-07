@@ -11,6 +11,7 @@ This fork adds functionality for randomly selecting artists and tags:
   - Categories list for filtering
   - Unwanted tags exclusion list
 - Favorite artists dropdown
+- Solo-only checkbox, skip posts that don't fit this criteria
 
 ## Installation
 
