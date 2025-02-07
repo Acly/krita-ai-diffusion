@@ -23,4 +23,6 @@ And move the cffi_backend dependency that comes with the project to the correct 
 mv "$env:USERPROFILE\AppData\Roaming\krita\pykrita\ai_diffusion\_cffi_backend.cp310-win_amd64.pyd" "C:\Program Files\Krita (x64)\lib\krita-python-libs"
 ```
 
+If you don't trust the package I suggest you to try installing it yourself manually by installing it from pip. I couldn't manage to do that myself though lol
+
 **Note:** You may need administrator privileges to run these commands.
