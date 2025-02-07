@@ -1,6 +1,6 @@
 # Random Artists and Tags Fork
 
-![Screenshot of the plugin](screenshot.png)
+![Screenshot of the plugin](Screenshot.png)
 
 This fork adds functionality for randomly selecting artists and tags:
 - Random artists button that pulls from:
