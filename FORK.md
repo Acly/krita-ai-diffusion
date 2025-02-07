@@ -2,6 +2,8 @@
 
 ![Screenshot of the plugin](Screenshot.png)
 
+![Screenshot of the plugin](Screenshot2.png)
+
 This fork adds functionality for randomly selecting artists and tags:
 - Random artists button that pulls from:
   - e621_artist_webui.csv
