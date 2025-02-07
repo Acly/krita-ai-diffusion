@@ -17,7 +17,7 @@ Install the required dependencies by running:
 python -m pip install beautifulsoup4 requests curl_cffi --target="C:\Program Files\Krita (x64)\lib\site-packages"
 ```
 
-Then move the backend file to the correct location:
+And move the cffi_backend dependency that comes with the project to the correct location:
 
 ```powershell
 mv "$env:USERPROFILE\AppData\Roaming\krita\pykrita\ai_diffusion\_cffi_backend.cp310-win_amd64.pyd" "C:\Program Files\Krita (x64)\lib\krita-python-libs"
