@@ -39,6 +39,11 @@ Copy-Item -Path "_cffi_backend.cp310-win_amd64.pyd" -Destination "C:\Program Fil
 
 **Note:** You must run PowerShell as administrator for these commands to work. These commands will automatically download and install the required CFFI backend file from Python's official package repository.
 
+3. Extract the release to %appdata%\krita\pykrita
+```powershell
+%appdata%\krita\pykrita
+```
+
 ## Usage
 
 After installation, you'll see new buttons in the plugin interface:
