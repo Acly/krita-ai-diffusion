@@ -225,6 +225,12 @@ class HistoryWidget(QListWidget):
         else:
             self.update_apply_button()  # selection may have moved
 
+        for i in range(self.count()):
+            item = self.item(i)
+            next_item = self.item(i + 1)
+            if item and item.text() != "" and next_item and next_item.text() != "":
+                self.takeItem(i)
+
     def update_selection(self):
         with theme.SignalBlocker(self):
             for i in range(self.count()):
