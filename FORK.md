@@ -1,0 +1,1 @@
+This fork adds random artists and random tags button for adding a random artist from e621_artist_webui.csv or danbooru_artist_webui.csv and getting random tags from a random post on either sites. It has a categories list and unwanted tags in the settings menu so you can choose which categories and tags you want to exclude
