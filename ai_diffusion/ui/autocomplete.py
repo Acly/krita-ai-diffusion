@@ -4,7 +4,7 @@ import csv
 from typing import cast
 
 from PyQt5.QtWidgets import QApplication, QCompleter, QPlainTextEdit, QStyledItemDelegate, QStyle
-from PyQt5.QtGui import QFont, QPalette, QPen, QColor, QFontMetrics
+from PyQt5.QtGui import QFont, QPalette, QPen, QColor, QFontMetrics, QTextCursor
 from PyQt5.QtCore import Qt, QStringListModel, QSize, QRect, QAbstractProxyModel
 
 from ..root import root
@@ -37,6 +37,14 @@ class TagListModel(QStringListModel):
     def setTags(self, tags):
         self.tags = tags
         super().setStringList([tag.tag for tag in tags])
+
+
+def cursor_position(text: str, cursor: QTextCursor):
+    pos_c16 = cursor.position()  # counted as 2-byte characters
+    bytes_utf16 = text.encode("utf-16")
+    byte_pos = 2 + pos_c16 * 2  # utf-16 text starts with 2-byte BOM
+    text_until_pos = bytes_utf16[:byte_pos].decode("utf-16")
+    return len(text_until_pos)
 
 
 class TagCompleterDelegate(QStyledItemDelegate):
@@ -199,7 +207,7 @@ class PromptAutoComplete:
 
     def _current_text(self, separators=" >\n") -> str:
         text = self._widget.toPlainText()
-        start = pos = self._widget.textCursor().position()
+        start = pos = cursor_position(text, self._widget.textCursor())
         while pos > 0 and (text[pos - 1] not in separators or pos > 1 and text[pos - 2] == "\\"):
             pos -= 1
         return text[pos:start]
@@ -241,13 +249,15 @@ class PromptAutoComplete:
             # escape () in tags so they won't be interpreted as prompt weights
             completion = completion.replace("(", "\\(").replace(")", "\\)")
         text = self._widget.toPlainText()
-        pos = self._widget.textCursor().position()
-        start_pos = pos - len(self._completion_prefix)
+        initial_cursor = self._widget.textCursor()
+        pos = cursor_position(text, initial_cursor)
+        start_pos = pos - len(self._completion_prefix)  # pos in python string
+        start_cursor_pos = initial_cursor.position() - len(self._completion_prefix)  # pos in utf-16
         fill = completion + self._completion_suffix + triggers
         text = text[:start_pos] + fill + text[pos:]
         self._widget.setPlainText(text)
         cursor = self._widget.textCursor()
-        cursor.setPosition(start_pos + len(fill))
+        cursor.setPosition(start_cursor_pos + len(fill))
         self._widget.setTextCursor(cursor)
 
     @property
