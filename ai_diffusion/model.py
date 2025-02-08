@@ -296,10 +296,11 @@ class Model(QObject, ObservableProperties):
             return
 
         self.clear_error()
+        self.upscale.set_in_progress(True)
+
         eventloop.run(_report_errors(self, self._enqueue_job(job, inputs)))
 
         self._doc.resize(job.params.bounds.extent)
-        self.upscale.set_in_progress(True)
         self.upscale.target_extent_changed.emit(self.upscale.target_extent)
 
     def estimate_cost(self, kind=JobKind.diffusion):
@@ -866,7 +867,7 @@ class UpscaleWorkspace(QObject, ObservableProperties):
             self._update_can_generate()
 
     def _update_can_generate(self):
-        self.can_generate = not self._in_progress and (self.factor > 1.0 or self.use_diffusion)
+        self.can_generate = not self._in_progress
 
     @property
     def target_extent(self):
