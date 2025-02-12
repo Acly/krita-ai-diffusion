@@ -149,12 +149,13 @@ class Layer(QObject):
 
     def get_pixels(self, bounds: Bounds | None = None, time: int | None = None):
         bounds = bounds or self.bounds
+        assert self._node.colorDepth() == "U8", "Operation only supports 8-bit images"
         if time is None:
             data: QByteArray = self._node.projectionPixelData(*bounds)
         else:
             data: QByteArray = self._node.pixelDataAtTime(*bounds, time)
         assert data is not None and data.size() >= bounds.extent.pixel_count * 4
-        return Image(QImage(data, *bounds.extent, QImage.Format.Format_ARGB32))
+        return Image.from_packed_bytes(data, bounds.extent)
 
     def write_pixels(
         self,
@@ -188,7 +189,7 @@ class Layer(QObject):
             else:
                 data: QByteArray = self._node.pixelDataAtTime(*bounds, time)
             assert data is not None and data.size() >= bounds.extent.pixel_count
-            return Image(QImage(data, *bounds.extent, QImage.Format.Format_Grayscale8))
+            return Image.from_packed_bytes(data, bounds.extent, channels=1)
         else:
             img = self.get_pixels(bounds, time)
             alpha = img._qimage.convertToFormat(QImage.Format.Format_Alpha8)

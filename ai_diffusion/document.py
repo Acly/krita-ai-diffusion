@@ -191,13 +191,13 @@ class KritaDocument(Document):
             self._doc.refreshProjection()
 
         bounds = bounds or Bounds(0, 0, self._doc.width(), self._doc.height())
-        img = QImage(self._doc.pixelData(*bounds), *bounds.extent, QImage.Format.Format_ARGB32)
+        img = Image.from_packed_bytes(self._doc.pixelData(*bounds), bounds.extent)
 
         for layer in excluded:
             layer.show()
         if len(excluded) > 0:
             self._doc.refreshProjection()
-        return Image(img)
+        return img
 
     def resize(self, extent: Extent):
         res = self._doc.resolution()
