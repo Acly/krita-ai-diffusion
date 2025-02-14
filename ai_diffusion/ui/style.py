@@ -776,8 +776,8 @@ class StylePresets(SettingsTab):
         self._checkpoint_warning.setVisible(False)
         if client := root.connection.client_if_connected:
             warn = []
-            cp_files = (root.files.checkpoints.find(cp) for cp in self.current_style.checkpoints)
-            file = next((f for f in cp_files if f is not None), None)
+            preferred_cp = self.current_style.preferred_checkpoint(client.models.checkpoints.keys())
+            file = root.files.checkpoints.find(preferred_cp)
             if file is None:
                 warn.append(_("The checkpoint used by this style is not installed."))
 
