@@ -437,7 +437,7 @@ def process_regions(
         coverage = mask.average()
         if coverage > 0.9 and min_coverage > 0:
             # Single region covers (almost) entire image, don't use regional conditioning.
-            result.positive = workflow.merge_prompt(region.positive, root.positive)
+            result.positive = region.positive
             result.control += region.control
             return result, [job_region]
         elif coverage < min_coverage:
