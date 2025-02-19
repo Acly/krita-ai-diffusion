@@ -11,6 +11,8 @@ from .util import is_macos, is_windows, user_data_dir, client_logger as log
 from .util import encode_json, read_json_with_comments
 from .localization import translate as _
 
+from .properties import Property
+
 
 class ServerMode(Enum):
     undefined = -1
@@ -88,6 +90,103 @@ class Setting:
 
 class Settings(QObject):
     default_path = user_data_dir / "settings.json"
+
+    # Define Setting class attributes
+    _unwanted_tags = Setting(
+        _("Unwanted Tags"), 
+        [
+            'comic', 'black background', 'no pupils', 'watermark', 
+            'artist_logo', 'signature', 'english text', 'text', 
+            'dialogue', 'upside down penis', 'patreon logo', 
+            'patreon username', 'patreon link', 'holding phone', 
+            'holding object', 'twitter username', 'gore', 'feces', 'urine'
+        ],
+        _("Tags to exclude when getting random tags")
+    )
+
+    _favorite_artists = Setting(
+        _("Favorite Artists"), 
+        [],  # Default is empty list
+        _("List of favorite artists")
+    )
+
+    _tag_categories = Setting(
+        _("Tag Categories"),
+        {
+            'artist': False,
+            'copyright': False,
+            'character': False,
+            'species': False,
+            'general': True
+        },
+        _("Categories to include when getting random tags")
+    )
+
+    _require_solo = Setting(
+        _("Require Solo"),
+        True,
+        _("Only get tags from images tagged as 'solo'")
+    )
+
+    def __init__(self):
+        super().__init__()
+        # Initialize storage for special settings
+        self._unwanted_tags_value = self._unwanted_tags.default
+        self._favorite_artists_value = self._favorite_artists.default
+        self._tag_categories_value = self._tag_categories.default
+        self._require_solo_value = self._require_solo.default
+        # Now call restore
+        self.restore(init=True)
+
+    @property
+    def unwanted_tags(self) -> list[str]:
+        return self._unwanted_tags_value
+
+    @unwanted_tags.setter
+    def unwanted_tags(self, value: list[str] | None):
+        if value is None:
+            self._unwanted_tags_value = self._unwanted_tags.default
+        else:
+            self._unwanted_tags_value = value
+        self._values['unwanted_tags'] = self._unwanted_tags_value
+        self.changed.emit('unwanted_tags', self._unwanted_tags_value)
+
+    @property
+    def favorite_artists(self) -> list[str]:
+        return self._favorite_artists_value
+
+    @favorite_artists.setter
+    def favorite_artists(self, value: list[str] | None):
+        self._favorite_artists_value = [] if value is None else value
+        self._values['favorite_artists'] = self._favorite_artists_value
+        self.changed.emit('favorite_artists', self._favorite_artists_value)
+
+    @property
+    def tag_categories(self) -> dict[str, bool]:
+        """Get the tag categories configuration"""
+        return self._tag_categories_value
+
+    @tag_categories.setter 
+    def tag_categories(self, value: dict[str, bool] | None):
+        """Set tag categories configuration"""
+        if value is None:
+            self._tag_categories_value = self._tag_categories.default
+        else:
+            self._tag_categories_value = value
+        # Make sure it's in _values for saving
+        self._values['tag_categories'] = self._tag_categories_value
+        # Emit changed signal
+        self.changed.emit('tag_categories', self._tag_categories_value)
+
+    @property
+    def require_solo(self) -> bool:
+        return self._require_solo_value
+
+    @require_solo.setter
+    def require_solo(self, value: bool):
+        self._require_solo_value = value
+        self._values['require_solo'] = value
+        self.changed.emit('require_solo', value)
 
     language: str
     _language = Setting(
@@ -314,56 +413,73 @@ class Settings(QObject):
 
     def __init__(self):
         super().__init__()
+        self._values = {}
         self.restore(init=True)
 
     def __getattr__(self, name: str):
-        if name in self._values:
-            return self._values[name]
-        return object.__getattribute__(self, name)
+        """Handle property access for all settings"""
+        # Check if the name matches a setting
+        setting = getattr(self.__class__, f"_{name}", None)
+        if isinstance(setting, Setting):
+            # Return the value from _values if it exists, otherwise return the default
+            return self._values.get(name, setting.default)
+        return super().__getattr__(name)
 
     def __setattr__(self, name: str, value):
-        if name in self._values:
-            if self._values[name] != value:
+        """Handle property setting for all settings"""
+        # Check if the name matches a setting
+        setting = getattr(self.__class__, f"_{name}", None)
+        if isinstance(setting, Setting):
+            # Store the value and emit change signal
+            if name not in self._values or self._values[name] != value:
                 self._values[name] = value
                 if name != "document_defaults":
                     self.changed.emit(name, value)
                 if name == "performance_preset":
                     self.apply_performance_preset(value)
         else:
-            object.__setattr__(self, name, value)
+            super().__setattr__(name, value)
 
     def restore(self, init=False):
-        self.__dict__["_values"] = {
-            k[1:]: v.default for k, v in Settings.__dict__.items() if isinstance(v, Setting)
-        }
+        """Reset all settings to their default values"""
+        # Get all Setting class attributes
+        settings = {k[1:]: v for k, v in self.__class__.__dict__.items() 
+                   if isinstance(v, Setting)}
+        
+        # Reset all values to defaults
+        self._values = {name: setting.default for name, setting in settings.items()}
+        
         if not init:
             self.server_mode = ServerMode.managed
 
     def save(self, path: Optional[Path] = None):
+        """Save all settings to disk"""
         path = self.default_path or path
         with open(path, "w") as file:
             file.write(json.dumps(self._values, default=encode_json, indent=4))
 
     def load(self, path: Optional[Path] = None):
+        """Load settings from disk"""
         path = self.default_path or path
         self._migrate_legacy_settings(path)
+        
         if not path.exists():
-            self.save()  # create new file with defaults
+            self.save()
             return
 
-        log.info(f"Loading settings from {path}")
         try:
             contents = read_json_with_comments(path)
-            for k, v in contents.items():
-                setting: Setting | None = getattr(Settings, f"_{k}", None)
+            for name, value in contents.items():
+                # Get the corresponding Setting object
+                setting = getattr(self.__class__, f"_{name}", None)
                 if setting is not None:
                     if isinstance(setting.default, Enum):
-                        self._values[k] = setting.str_to_enum(v)
-                    elif isinstance(setting.default, type(v)):
-                        self._values[k] = v
+                        self._values[name] = setting.str_to_enum(value)
+                    elif isinstance(setting.default, type(value)):
+                        self._values[name] = value
                     else:
-                        log.error(f"{path}: {v} is not a valid value for '{k}'")
-                        self._values[k] = setting.default
+                        log.error(f"{path}: {value} is not a valid value for '{name}'")
+                        self._values[name] = setting.default
         except Exception as e:
             log.error(f"Failed to load settings: {e}")
 
