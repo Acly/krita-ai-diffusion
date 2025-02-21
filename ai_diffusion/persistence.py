@@ -133,6 +133,7 @@ class ModelSync:
         model = self._model
         state = _serialize(model)
         state["version"] = version
+        state["preview_layer"] = model.preview_layer_id
         state["inpaint"] = _serialize(model.inpaint)
         state["upscale"] = _serialize(model.upscale)
         state["live"] = _serialize(model.live)
@@ -151,6 +152,7 @@ class ModelSync:
 
     def _load(self, model: Model, state_bytes: bytes):
         state = json.loads(state_bytes.decode("utf-8"))
+        model.try_set_preview_layer(state.get("preview_layer", ""))
         _deserialize(model, state)
         _deserialize(model.inpaint, state.get("inpaint", {}))
         _deserialize(model.upscale, state.get("upscale", {}))
@@ -188,6 +190,8 @@ class ModelSync:
         model.jobs.job_finished.connect(self._save_results)
         model.jobs.job_discarded.connect(self._remove_results)
         model.jobs.result_discarded.connect(self._remove_image)
+        model.jobs.result_used.connect(self._save)
+        model.jobs.selection_changed.connect(self._save)
         self._track_regions(model.regions)
 
     def _track_control(self, control: ControlLayer):

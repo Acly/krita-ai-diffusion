@@ -723,6 +723,18 @@ class Model(QObject, ObservableProperties):
             result.resolution_multiplier = self.resolution_multiplier
         return result
 
+    def try_set_preview_layer(self, uid: str):
+        if uid:
+            try:
+                self._layer = self.layers.find(QUuid(uid))
+            except Exception:
+                log.warning(f"Failed to set preview layer {uid}")
+                self._layer = None
+
+    @property
+    def preview_layer_id(self):
+        return self._layer.id_string if self._layer else ""
+
     @property
     def prompt_translation_language(self):
         return settings.prompt_translation if self.translation_enabled else ""
