@@ -1,6 +1,6 @@
 from __future__ import annotations
 import json
-from dataclasses import dataclass, asdict
+from dataclasses import dataclass, asdict, field
 from enum import Enum
 from typing import Any
 from PyQt5.QtCore import QObject, QByteArray
@@ -98,11 +98,13 @@ class _HistoryResult:
     offsets: list[int]  # offsets in bytes for result images
     params: JobParams
     kind: JobKind = JobKind.diffusion
+    in_use: dict[int, bool] = field(default_factory=dict)
 
     @staticmethod
     def from_dict(data: dict[str, Any]):
         data["params"] = JobParams.from_dict(data["params"])
         data["kind"] = JobKind[data.get("kind", "diffusion")]
+        data["in_use"] = {int(k): v for k, v in data.get("in_use", {}).items()}
         return _HistoryResult(**data)
 
 
@@ -168,6 +170,7 @@ class ModelSync:
             item = _HistoryResult.from_dict(result)
             if images_bytes := _find_annotation(model.document, f"result{item.slot}.webp"):
                 job = model.jobs.add_job(Job(item.id, item.kind, item.params))
+                job.in_use = item.in_use
                 results = ImageCollection.from_bytes(images_bytes, item.offsets)
                 model.jobs.set_results(job, results)
                 model.jobs.notify_finished(job)
@@ -216,7 +219,7 @@ class ModelSync:
             image_data, image_offsets = job.results.to_bytes()
             self._model.document.annotate(f"result{slot}.webp", image_data)
             self._history.append(
-                _HistoryResult(job.id or "", slot, image_offsets, job.params, job.kind)
+                _HistoryResult(job.id or "", slot, image_offsets, job.params, job.kind, job.in_use)
             )
             self._memory_used[slot] = image_data.size()
             self._prune()
