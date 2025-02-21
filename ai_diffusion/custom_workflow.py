@@ -422,9 +422,9 @@ class CustomWorkspace(QObject, ObservableProperties):
         if index.isValid():  # might be invalid when loading document before connecting
             self._update_workflow(index, QModelIndex())
 
-    def set_graph(self, id: str, graph: dict):
+    def set_graph(self, id: str, graph: dict, document_name: str):
         if self._workflows.find(id) is None:
-            id = "Document Workflow (embedded)"
+            id = f"Embedded Workflow ({document_name})"
             self._workflows.add_from_document(id, graph)
         self.workflow_id = id
 

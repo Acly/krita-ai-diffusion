@@ -158,7 +158,7 @@ class ModelSync:
         _deserialize(model.upscale, state.get("upscale", {}))
         _deserialize(model.live, state.get("live", {}))
         _deserialize(model.animation, state.get("animation", {}))
-        _deserialize_custom(model.custom, state.get("custom", {}))
+        _deserialize_custom(model.custom, state.get("custom", {}), model.name)
         _deserialize(model.regions, state.get("root", {}))
         for control_state in state.get("control", []):
             _deserialize(model.regions.control.emplace(), control_state)
@@ -287,12 +287,12 @@ def _serialize_custom(custom: CustomWorkspace):
     return result
 
 
-def _deserialize_custom(custom: CustomWorkspace, data: dict[str, Any]):
+def _deserialize_custom(custom: CustomWorkspace, data: dict[str, Any], document_name: str):
     _deserialize(custom, data)
     workflow_id = data.get("workflow_id", "")
     graph = data.get("graph", None)
     if workflow_id and graph:
-        custom.set_graph(workflow_id, graph)
+        custom.set_graph(workflow_id, graph, document_name)
 
 
 def _find_annotation(document, name: str):

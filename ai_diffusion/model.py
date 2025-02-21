@@ -756,7 +756,7 @@ class Model(QObject, ObservableProperties):
         return self._doc
 
     @document.setter
-    def document(self, doc):
+    def document(self, doc: Document):
         # Note: for some reason Krita sometimes creates a new object for an existing document.
         # The old object is deleted and unusable. This method is used to update the object,
         # but doesn't actually change the document identity.
@@ -769,6 +769,10 @@ class Model(QObject, ObservableProperties):
     @property
     def layers(self):
         return self._doc.layers
+
+    @property
+    def name(self):
+        return Path(self._doc.filename).stem
 
 
 class InpaintContext(Enum):

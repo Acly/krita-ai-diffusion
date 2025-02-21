@@ -216,8 +216,8 @@ def test_workspace():
             },
         }
     }
-    workspace.set_graph("doc1", doc_graph)
-    assert workspace.workflow_id == "Document Workflow (embedded)"
+    workspace.set_graph("doc1", doc_graph, document_name="doc1")
+    assert workspace.workflow_id == "Embedded Workflow (doc1)"
     assert workspace.workflow and workspace.workflow.source is WorkflowSource.document
     assert workspace.graph and workspace.graph.node(0).type == "ETN_Parameter"
     assert workspace.metadata[0].name == "param2"
