@@ -142,7 +142,7 @@ class Bounds(NamedTuple):
 
     @property
     def is_zero(self):
-        return self.width == 0 and self.height == 0
+        return self.width * self.height == 0
 
     def is_within(self, x: int, y: int):
         return x >= 0 and x < self.width and y >= 0 and y < self.height
