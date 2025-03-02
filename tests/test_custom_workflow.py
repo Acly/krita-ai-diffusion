@@ -11,7 +11,7 @@ from ai_diffusion.comfy_workflow import ComfyNode, ComfyWorkflow, Output
 from ai_diffusion.custom_workflow import WorkflowSource, WorkflowCollection
 from ai_diffusion.custom_workflow import SortedWorkflows, CustomWorkspace
 from ai_diffusion.custom_workflow import CustomParam, ParamKind, workflow_parameters
-from ai_diffusion.image import Image, Extent
+from ai_diffusion.image import Image, Extent, ImageCollection
 from ai_diffusion.jobs import JobQueue, Job, JobKind, JobParams
 from ai_diffusion.style import Style
 from ai_diffusion.resources import Arch
@@ -124,10 +124,11 @@ def test_collection(tmp_path: Path):
     assert len(collection) == 5
     _assert_has_workflow(collection, "connection2", WorkflowSource.remote, connection2_graph)
 
+    file1_index = collection.find_index("file1").row()
     file1_graph_changed = {"0": {"class_type": "F3", "inputs": {}}}
     collection.set_graph(collection.find_index("file1"), file1_graph_changed)
     _assert_has_workflow(collection, "file1", WorkflowSource.local, file1_graph_changed, file1)
-    assert events == ["loaded", ("begin_insert", 4), "end_insert", ("data_changed", 1)]
+    assert events == ["loaded", ("begin_insert", 4), "end_insert", ("data_changed", file1_index)]
 
     sorted = SortedWorkflows(collection)
     assert sorted[0].source is WorkflowSource.document
@@ -447,6 +448,59 @@ def test_expand():
                 "scheduler": "sgm_uniform",
                 "steps": 6,
                 "guidance": 1.8,
+            },
+        ),
+    ]
+    for node in expected:
+        assert node in w, f"Node {node} not found in\n{json.dumps(w.root, indent=2)}"
+
+
+def test_expand_animation():
+    ext = ComfyWorkflow()
+    img_layer, img_layer_alpha = ext.add("ETN_KritaImageLayer", 2, name="image")
+    mask_layer = ext.add("ETN_KritaMaskLayer", 1, name="mask")
+    ext.add("Sink", 1, image=img_layer, image_alpha=img_layer_alpha, mask=mask_layer)
+
+    in_images = ImageCollection([
+        Image.create(Extent(4, 4), Qt.GlobalColor.black),
+        Image.create(Extent(4, 4), Qt.GlobalColor.white),
+    ])
+    in_masks = ImageCollection([
+        Image.create(Extent(4, 4), Qt.GlobalColor.black),
+        Image.create(Extent(4, 4), Qt.GlobalColor.white),
+    ])
+    params = {
+        "image": in_images,
+        "mask": in_masks,
+    }
+
+    input = CustomWorkflowInput(workflow=ext.root, params=params)
+    images = ImageInput.from_extent(Extent(4, 4))
+    models = ClientModels()
+
+    w = ComfyWorkflow()
+    w = workflow.expand_custom(w, input, images, 123, models)
+    expected = [
+        ComfyNode(1, "ETN_LoadImageBase64", {"image": in_images[0].to_base64()}),
+        ComfyNode(2, "ETN_LoadImageBase64", {"image": in_images[1].to_base64()}),
+        ComfyNode(3, "ImageBatch", {"image1": Output(1, 0), "image2": Output(2, 0)}),
+        ComfyNode(4, "MaskToImage", {"mask": Output(1, 1)}),
+        ComfyNode(5, "MaskToImage", {"mask": Output(2, 1)}),
+        ComfyNode(6, "ImageBatch", {"image1": Output(4, 0), "image2": Output(5, 0)}),
+        ComfyNode(7, "ImageToMask", {"image": Output(6, 0), "channel": "red"}),
+        ComfyNode(8, "ETN_LoadMaskBase64", {"mask": in_masks[0].to_base64()}),
+        ComfyNode(9, "ETN_LoadMaskBase64", {"mask": in_masks[1].to_base64()}),
+        ComfyNode(10, "MaskToImage", {"mask": Output(8, 0)}),
+        ComfyNode(11, "MaskToImage", {"mask": Output(9, 0)}),
+        ComfyNode(12, "ImageBatch", {"image1": Output(10, 0), "image2": Output(11, 0)}),
+        ComfyNode(13, "ImageToMask", {"image": Output(12, 0), "channel": "red"}),
+        ComfyNode(
+            14,
+            "Sink",
+            {
+                "image": Output(3, 0),
+                "image_alpha": Output(7, 0),
+                "mask": Output(13, 0),
             },
         ),
     ]
