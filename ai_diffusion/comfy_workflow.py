@@ -921,6 +921,20 @@ class ComfyWorkflow:
         assert result is not None
         return result
 
+    def load_image_and_mask(self, images: Image | ImageCollection):
+        assert self._run_mode is ComfyRunMode.server
+        if isinstance(images, Image):
+            return self.add("ETN_LoadImageBase64", 2, image=images.to_base64())
+        result = None
+        for image in images:
+            img, mask = self.add("ETN_LoadImageBase64", 2, image=image.to_base64())
+            if result:
+                result = (self.batch_image(result[0], img), self.batch_mask(result[1], mask))
+            else:
+                result = (img, mask)
+        assert result is not None
+        return result
+
     def send_image(self, image: Output):
         if self._run_mode is ComfyRunMode.runtime:
             return self.add("ETN_ReturnImage", 1, images=image)
