@@ -190,8 +190,8 @@ class ComfyClient(Client):
         _ensure_supported_style(client)
         return client
 
-    async def _get(self, op: str):
-        return await self._requests.get(f"{self.url}/{op}")
+    async def _get(self, op: str, timeout: float | None = 30):
+        return await self._requests.get(f"{self.url}/{op}", timeout=timeout)
 
     async def _post(self, op: str, data: dict):
         return await self._requests.post(f"{self.url}/{op}", data)
@@ -380,9 +380,10 @@ class ComfyClient(Client):
 
     async def try_inspect(self, folder_name: str) -> dict[str, Any]:
         try:
-            return await self._get(f"api/etn/model_info/{folder_name}")
-        except NetworkError:
-            return {}  # server has old external tooling version
+            return await self._get(f"api/etn/model_info/{folder_name}", timeout=90)
+        except NetworkError as e:
+            log.error(f"Error while inspecting models in {folder_name}: {str(e)}")
+            return {}
 
     @property
     def queued_count(self):

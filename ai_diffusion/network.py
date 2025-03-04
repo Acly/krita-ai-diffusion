@@ -92,7 +92,7 @@ class RequestManager:
         data: dict | QByteArray | None = None,
         bearer="",
         headers: Headers | None = None,
-        timeout: int | None = None,
+        timeout: float | None = None,
     ):
         self._cleanup()
 
@@ -105,7 +105,7 @@ class RequestManager:
             for key, value in headers:
                 request.setRawHeader(key.encode("utf-8"), value.encode("utf-8"))
         if timeout is not None:
-            request.setTransferTimeout(timeout)
+            request.setTransferTimeout(int(timeout / 1000))
 
         assert method in ["GET", "POST", "PUT"]
         if method == "POST":
@@ -131,7 +131,7 @@ class RequestManager:
         self._requests[reply] = Request(url, future)
         return future
 
-    def get(self, url: str, bearer="", timeout: int | None = None):
+    def get(self, url: str, bearer="", timeout: float | None = None):
         return self.http("GET", url, bearer=bearer, timeout=timeout)
 
     def post(self, url: str, data: dict, bearer=""):
