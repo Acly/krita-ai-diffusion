@@ -3,7 +3,7 @@ from collections import deque
 from dataclasses import dataclass, fields, field
 from datetime import datetime
 from enum import Enum, Flag
-from typing import Any, Deque, NamedTuple, TYPE_CHECKING
+from typing import Any, NamedTuple, TYPE_CHECKING
 from PyQt5.QtCore import QObject, pyqtSignal
 
 from .image import Bounds, ImageCollection
@@ -133,14 +133,12 @@ class JobQueue(QObject):
     result_used = pyqtSignal(Item)
     result_discarded = pyqtSignal(Item)
 
-    _entries: Deque[Job]
-    _selection: Item | None = None
-    _previous_selection: Item | None = None
-    _memory_usage = 0  # in MB
-
     def __init__(self):
         super().__init__()
-        self._entries = deque()
+        self._entries: deque[Job] = deque()
+        self._selection: list[JobQueue.Item] = []
+        self._previous_selection: JobQueue.Item | None = None
+        self._memory_usage = 0  # in MB
 
     def add(self, kind: JobKind, params: JobParams):
         return self.add_job(Job(None, kind, params))
@@ -202,14 +200,14 @@ class JobQueue(QObject):
         self.result_used.emit(self.Item(job_id, index))
 
     def select(self, job_id: str, index: int):
-        self.selection = self.Item(job_id, index)
+        self.selection = [self.Item(job_id, index)]
 
     def toggle_selection(self):
-        if self._selection is not None:
-            self._previous_selection = self._selection
-            self.selection = None
+        if self._selection:
+            self._previous_selection = self._selection[0]
+            self.selection = []
         elif self._previous_selection is not None and self.has_item(self._previous_selection):
-            self.selection = self._previous_selection
+            self.selection = [self._previous_selection]
 
     def _discard_job(self, job: Job):
         self._entries.remove(job)
@@ -257,7 +255,7 @@ class JobQueue(QObject):
         return self._selection
 
     @selection.setter
-    def selection(self, value: Item | None):
+    def selection(self, value: list[Item]):
         if self._selection != value:
             self._selection = value
             self.selection_changed.emit()

@@ -527,7 +527,7 @@ class Model(QObject, ObservableProperties):
 
     def update_preview(self):
         if selection := self.jobs.selection:
-            self.show_preview(selection.job, selection.image)
+            self.show_preview(selection[0].job, selection[0].image)
         else:
             self.hide_preview()
 
@@ -651,7 +651,7 @@ class Model(QObject, ObservableProperties):
         if self._layer:
             self._layer.remove()
             self._layer = None
-        self.jobs.selection = None
+        self.jobs.selection = []
         self.jobs.notify_used(job_id, index)
 
     def apply_animation(self, job: Job):

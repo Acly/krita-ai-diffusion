@@ -221,7 +221,7 @@ class HistoryWidget(QListWidget):
                     item = self.item(current)
 
         if item_was_selected:
-            self._model.jobs.selection = None
+            self._model.jobs.selection = []
         else:
             self.update_apply_button()  # selection may have moved
 
@@ -239,8 +239,7 @@ class HistoryWidget(QListWidget):
                     cast(AnimatedListItem, item).stop_animation()
             self.clearSelection()
 
-            selection = self._model.jobs.selection
-            if selection is not None:
+            for selection in self._model.jobs.selection:
                 item = self._find(selection)
                 if item is not None and not item.isSelected():
                     item.setSelected(True)
@@ -283,11 +282,7 @@ class HistoryWidget(QListWidget):
             item.setIcon(self._image_thumbnail(job, id.image))
 
     def select_item(self):
-        items = self.selectedItems()
-        if len(items) > 0:
-            self._model.jobs.selection = self._item_data(items[0])
-        else:
-            self._model.jobs.selection = None
+        self._model.jobs.selection = [self._item_data(i) for i in self.selectedItems()]
 
     def _toggle_selection(self):
         self._model.jobs.toggle_selection()
