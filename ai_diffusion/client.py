@@ -1,7 +1,7 @@
 from __future__ import annotations
 from abc import ABC, abstractmethod
 from enum import Enum
-from typing import Any, Generator, Iterable, NamedTuple
+from typing import Any, AsyncGenerator, Iterable, NamedTuple
 from PyQt5.QtCore import QObject, pyqtSignal
 
 from .api import WorkflowInput
@@ -286,7 +286,7 @@ class Client(ABC):
     async def enqueue(self, work: WorkflowInput, front: bool = False) -> str: ...
 
     @abstractmethod
-    async def listen(self) -> Generator[ClientMessage, Any, None]: ...
+    def listen(self) -> AsyncGenerator[ClientMessage, Any]: ...
 
     @abstractmethod
     async def interrupt(self): ...
