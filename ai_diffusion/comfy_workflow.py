@@ -335,9 +335,19 @@ class ComfyWorkflow:
                 "PolyexponentialScheduler",
                 output_count=1,
                 steps=steps,
-                sigma_max=14.61,
-                sigma_min=0.03,
+                sigma_max=14.614642,
+                sigma_min=0.0291675,
                 rho=1.0,
+            )
+        elif scheduler == "laplace":
+            return self.add(
+                "LaplaceScheduler",
+                output_count=1,
+                steps=steps,
+                sigma_max=14.614642,
+                sigma_min=0.0291675,
+                mu=0.0,
+                beta=0.5,
             )
         else:
             return self.add(
