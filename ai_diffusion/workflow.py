@@ -268,6 +268,8 @@ class TextPrompt:
             if text and self.language:
                 text = w.translate(text)
             self._output = w.clip_text_encode(clip, text)
+            if text == "":
+                self._output = w.conditioning_zero_out(self._output)
             self._clip = clip
         return self._output
 

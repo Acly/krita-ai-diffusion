@@ -541,6 +541,9 @@ class ComfyWorkflow:
             end=range[1],
         )
 
+    def conditioning_zero_out(self, conditioning: Output):
+        return self.add("ConditioningZeroOut", 1, conditioning=conditioning)
+
     def instruct_pix_to_pix_conditioning(
         self, positive: Output, negative: Output, vae: Output, pixels: Output
     ):
