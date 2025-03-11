@@ -9,7 +9,7 @@ from .api import ControlInput
 from .layer import Layer, LayerType
 from .resources import ControlMode, ResourceKind, Arch, resource_id
 from .properties import Property, ObservableProperties
-from .image import Bounds
+from .image import Bounds, Extent, Image
 from .localization import translate as _
 from .util import client_logger as log
 
@@ -17,6 +17,7 @@ from .util import client_logger as log
 class ControlLayer(QObject, ObservableProperties):
     max_preset_value = 4
     strength_multiplier = 50
+    clip_vision_extent = Extent(224, 224)
 
     mode = Property(ControlMode.reference, persist=True, setter="set_mode")
     layer_id = Property(QUuid(), persist=True)
@@ -113,6 +114,8 @@ class ControlLayer(QObject, ObservableProperties):
         image = layer.get_pixels(bounds, time)
         if self.mode.is_lines or self.mode is ControlMode.stencil:
             image.make_opaque(background=Qt.GlobalColor.white)
+        if self.mode.is_ip_adapter:
+            image = Image.scale(image, self.clip_vision_extent)
         strength = self.strength / self.strength_multiplier
         return ControlInput(self.mode, image, strength, (self.start, self.end))
 
