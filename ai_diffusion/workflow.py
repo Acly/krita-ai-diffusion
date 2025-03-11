@@ -1221,7 +1221,9 @@ def expand_custom(
             case "ETN_Parameter":
                 outputs[node.output(0)] = get_param(node)
             case "ETN_KritaImageLayer":
-                outputs[node.output(0)] = w.load_image(get_param(node, (Image, ImageCollection)))
+                img, mask = w.load_image_and_mask(get_param(node, (Image, ImageCollection)))
+                outputs[node.output(0)] = img
+                outputs[node.output(1)] = mask
             case "ETN_KritaMaskLayer":
                 outputs[node.output(0)] = w.load_mask(get_param(node, (Image, ImageCollection)))
             case "ETN_KritaStyle":

@@ -1,6 +1,6 @@
 from __future__ import annotations
 import json
-from dataclasses import dataclass, asdict
+from dataclasses import dataclass, asdict, field
 from enum import Enum
 from typing import Any
 from PyQt5.QtCore import QObject, QByteArray
@@ -98,11 +98,13 @@ class _HistoryResult:
     offsets: list[int]  # offsets in bytes for result images
     params: JobParams
     kind: JobKind = JobKind.diffusion
+    in_use: dict[int, bool] = field(default_factory=dict)
 
     @staticmethod
     def from_dict(data: dict[str, Any]):
         data["params"] = JobParams.from_dict(data["params"])
         data["kind"] = JobKind[data.get("kind", "diffusion")]
+        data["in_use"] = {int(k): v for k, v in data.get("in_use", {}).items()}
         return _HistoryResult(**data)
 
 
@@ -131,6 +133,7 @@ class ModelSync:
         model = self._model
         state = _serialize(model)
         state["version"] = version
+        state["preview_layer"] = model.preview_layer_id
         state["inpaint"] = _serialize(model.inpaint)
         state["upscale"] = _serialize(model.upscale)
         state["live"] = _serialize(model.live)
@@ -149,12 +152,13 @@ class ModelSync:
 
     def _load(self, model: Model, state_bytes: bytes):
         state = json.loads(state_bytes.decode("utf-8"))
+        model.try_set_preview_layer(state.get("preview_layer", ""))
         _deserialize(model, state)
         _deserialize(model.inpaint, state.get("inpaint", {}))
         _deserialize(model.upscale, state.get("upscale", {}))
         _deserialize(model.live, state.get("live", {}))
         _deserialize(model.animation, state.get("animation", {}))
-        _deserialize_custom(model.custom, state.get("custom", {}))
+        _deserialize_custom(model.custom, state.get("custom", {}), model.name)
         _deserialize(model.regions, state.get("root", {}))
         for control_state in state.get("control", []):
             _deserialize(model.regions.control.emplace(), control_state)
@@ -168,6 +172,7 @@ class ModelSync:
             item = _HistoryResult.from_dict(result)
             if images_bytes := _find_annotation(model.document, f"result{item.slot}.webp"):
                 job = model.jobs.add_job(Job(item.id, item.kind, item.params))
+                job.in_use = item.in_use
                 results = ImageCollection.from_bytes(images_bytes, item.offsets)
                 model.jobs.set_results(job, results)
                 model.jobs.notify_finished(job)
@@ -185,6 +190,8 @@ class ModelSync:
         model.jobs.job_finished.connect(self._save_results)
         model.jobs.job_discarded.connect(self._remove_results)
         model.jobs.result_discarded.connect(self._remove_image)
+        model.jobs.result_used.connect(self._save)
+        model.jobs.selection_changed.connect(self._save)
         self._track_regions(model.regions)
 
     def _track_control(self, control: ControlLayer):
@@ -216,7 +223,7 @@ class ModelSync:
             image_data, image_offsets = job.results.to_bytes()
             self._model.document.annotate(f"result{slot}.webp", image_data)
             self._history.append(
-                _HistoryResult(job.id or "", slot, image_offsets, job.params, job.kind)
+                _HistoryResult(job.id or "", slot, image_offsets, job.params, job.kind, job.in_use)
             )
             self._memory_used[slot] = image_data.size()
             self._prune()
@@ -280,12 +287,12 @@ def _serialize_custom(custom: CustomWorkspace):
     return result
 
 
-def _deserialize_custom(custom: CustomWorkspace, data: dict[str, Any]):
+def _deserialize_custom(custom: CustomWorkspace, data: dict[str, Any], document_name: str):
     _deserialize(custom, data)
     workflow_id = data.get("workflow_id", "")
     graph = data.get("graph", None)
     if workflow_id and graph:
-        custom.set_graph(workflow_id, graph)
+        custom.set_graph(workflow_id, graph, document_name)
 
 
 def _find_annotation(document, name: str):

@@ -105,7 +105,7 @@ class Job:
     control: "control.ControlLayer | None" = None
     timestamp: datetime
     results: ImageCollection
-    _in_use: dict[int, bool]
+    in_use: dict[int, bool]
 
     def __init__(self, id: str | None, kind: JobKind, params: JobParams):
         self.id = id
@@ -113,10 +113,10 @@ class Job:
         self.params = params
         self.timestamp = datetime.now()
         self.results = ImageCollection()
-        self._in_use = {}
+        self.in_use = {}
 
     def result_was_used(self, index: int):
-        return self._in_use.get(index, False)
+        return self.in_use.get(index, False)
 
 
 class JobQueue(QObject):
@@ -198,7 +198,7 @@ class JobQueue(QObject):
 
     def notify_used(self, job_id: str, index: int):
         job = ensure(self.find(job_id))
-        job._in_use[index] = True
+        job.in_use[index] = True
         self.result_used.emit(self.Item(job_id, index))
 
     def select(self, job_id: str, index: int):
@@ -226,7 +226,7 @@ class JobQueue(QObject):
             self._discard_job(job)
             return
         for i in range(index, len(job.results) - 1):
-            job._in_use[i] = job._in_use.get(i + 1, False)
+            job.in_use[i] = job.in_use.get(i + 1, False)
         img = job.results.remove(index)
         self._memory_usage -= img.size / (1024**2)
         self.result_discarded.emit(self.Item(job_id, index))

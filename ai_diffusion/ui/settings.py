@@ -379,7 +379,7 @@ class ConnectionSettings(SettingsTab):
             basic = [m for lst in res.missing.values() for m in lst if m.arch is Arch.all]
             basic = util.unique(basic, key=lambda m: m.string)
             if len(basic) > 0:
-                text = _("Missing common models") + ":\n<ul>"
+                text = _("Missing common models (required)") + ":\n<ul>"
                 text += "\n".join((f"<li>{model_name(m, True)}</li>" for m in basic))
                 text += "</ul>"
             text += _("Detected base models:") + "\n<ul>"
@@ -390,8 +390,11 @@ class ConnectionSettings(SettingsTab):
                 if len(missing) == 0:
                     text += _("supported")
                 else:
-                    names = (model_name(m) for m in missing if m.arch is arch)
-                    text += _("missing") + " " + ", ".join(names)
+                    names = [model_name(m) for m in missing if m.arch is arch]
+                    if len(names) > 0:
+                        text += _("missing") + " " + ", ".join(names)
+                    else:
+                        text += _("models found")
                 text += "</li>"
             text += "</ul>"
 
