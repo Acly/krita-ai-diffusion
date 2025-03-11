@@ -661,7 +661,7 @@ def scale_refine_and_decode(
 
     mode = extent.refinement_scaling
     if mode in [ScaleMode.none, ScaleMode.resize, ScaleMode.upscale_fast]:
-        decoded = w.vae_decode(vae, latent)
+        decoded = vae_decode(w, vae, latent, tiled_vae)
         return scale(extent.initial, extent.desired, mode, w, decoded, models)
 
     model, regions = apply_attention_mask(w, model, cond, clip, extent.desired)
@@ -674,7 +674,7 @@ def scale_refine_and_decode(
         upscaler = models.upscale[UpscalerName.default]
 
     upscale_model = w.load_upscale_model(upscaler)
-    decoded = w.vae_decode(vae, latent)
+    decoded = vae_decode(w, vae, latent, tiled_vae)
     upscale = w.upscale_image(upscale_model, decoded)
     upscale = w.scale_image(upscale, extent.desired)
     latent = w.vae_encode(vae, upscale)
@@ -893,7 +893,7 @@ def inpaint(
             upscale_mask = w.scale_mask(cropped_mask, crop_upscale_extent)
         sampler_params = _sampler_params(sampling, strength=0.4)
         upscale_model = w.load_upscale_model(upscaler)
-        upscale = w.vae_decode(vae, out_latent)
+        upscale = vae_decode(w, vae, out_latent, checkpoint.tiled_vae)
         upscale = w.crop_image(upscale, initial_bounds)
         upscale = ensure_minimum_extent(w, upscale, initial_bounds.extent, 32)
         upscale = w.upscale_image(upscale_model, upscale)
@@ -1183,7 +1183,7 @@ def upscale_tiled(
         sampler = w.sampler_custom_advanced(
             tile_model, positive, negative, latent, models.arch, **_sampler_params(sampling)
         )
-        tile_result = w.vae_decode(vae, sampler)
+        tile_result = vae_decode(w, vae, sampler, checkpoint.tiled_vae)
         out_image = w.merge_image_tile(out_image, tile_layout, i, tile_result)
 
     out_image = w.nsfw_filter(out_image, sensitivity=misc.nsfw_filter)
