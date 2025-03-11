@@ -475,6 +475,7 @@ class ComfyClient(Client):
             batch_size=settings.batch_size,
             resolution_multiplier=settings.resolution_multiplier,
             max_pixel_count=settings.max_pixel_count,
+            tiled_vae=settings.tiled_vae,
             dynamic_caching=settings.dynamic_caching and self.features.wave_speed,
         )
 

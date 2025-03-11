@@ -59,6 +59,7 @@ class PerformancePresetSettings(NamedTuple):
     batch_size: int = 4
     resolution_multiplier: float = 1.0
     max_pixel_count: int = 6
+    tiled_vae: bool = False
 
 
 @dataclass
@@ -67,6 +68,7 @@ class PerformanceSettings:
     resolution_multiplier: float = 1.0
     max_pixel_count: int = 6
     dynamic_caching: bool = False
+    tiled_vae: bool = False
 
 
 class Setting:
@@ -267,6 +269,13 @@ class Settings(QObject):
         _("Re-use outputs of previous steps (First Block Cache) to speed up generation."),
     )
 
+    tiled_vae: bool
+    _tiled_vae = Setting(
+        _("Tiled VAE"),
+        False,
+        _("Conserve memory by processing output images in smaller tiles."),
+    )
+
     _performance_presets = {
         PerformancePreset.cpu: PerformancePresetSettings(
             batch_size=1,
@@ -277,6 +286,7 @@ class Settings(QObject):
             batch_size=2,
             resolution_multiplier=1.0,
             max_pixel_count=2,
+            tiled_vae=True,
         ),
         PerformancePreset.medium: PerformancePresetSettings(
             batch_size=4,

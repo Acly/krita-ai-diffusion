@@ -153,7 +153,11 @@ def load_checkpoint_with_lora(w: ComfyWorkflow, checkpoint: CheckpointInput, mod
     if arch.supports_attention_guidance and checkpoint.self_attention_guidance:
         model = w.apply_self_attention_guidance(model)
 
-    return model, clip, vae
+
+def vae_decode(w: ComfyWorkflow, vae: Output, latent: Output, tiled: bool):
+    if tiled:
+        return w.vae_decode_tiled(vae, latent)
+    return w.vae_decode(vae, latent)
 
 
 class ImageReshape(NamedTuple):
@@ -642,6 +646,7 @@ def scale_refine_and_decode(
     clip: Output,
     vae: Output,
     models: ModelDict,
+    tiled_vae: bool,
 ):
     """Handles scaling images from `initial` to `desired` resolution.
     If it is a substantial upscale, runs a high-res SD refinement pass.
@@ -673,7 +678,7 @@ def scale_refine_and_decode(
         w, model, positive, negative, cond.all_control, extent.desired, vae, models
     )
     result = w.sampler_custom_advanced(model, positive, negative, latent, models.arch, **params)
-    image = w.vae_decode(vae, result)
+    image = vae_decode(w, vae, result, tiled_vae)
     return image
 
 
@@ -712,7 +717,7 @@ def generate(
         model, positive, negative, latent, models.arch, **_sampler_params(sampling)
     )
     out_image = scale_refine_and_decode(
-        extent, w, cond, sampling, out_latent, model_orig, clip, vae, models
+        extent, w, cond, sampling, out_latent, model_orig, clip, vae, models, checkpoint.tiled_vae
     )
     out_image = w.nsfw_filter(out_image, sensitivity=misc.nsfw_filter)
     out_image = scale_to_target(extent, w, out_image, models)
@@ -905,7 +910,7 @@ def inpaint(
         out_latent = w.sampler_custom_advanced(
             model, positive_up, negative_up, latent, models.arch, **sampler_params
         )
-        out_image = w.vae_decode(vae, out_latent)
+        out_image = vae_decode(w, vae, out_latent, checkpoint.tiled_vae)
         out_image = scale_to_target(upscale_extent, w, out_image, models)
     else:
         desired_bounds = extent.convert(target_bounds, "target", "desired")
@@ -913,7 +918,7 @@ def inpaint(
         cropped_extent = ScaledExtent(
             desired_extent, desired_extent, desired_extent, target_bounds.extent
         )
-        out_image = w.vae_decode(vae, out_latent)
+        out_image = vae_decode(w, vae, out_latent, checkpoint.tiled_vae)
         out_image = scale(
             extent.initial, extent.desired, extent.refinement_scaling, w, out_image, models
         )
@@ -952,7 +957,7 @@ def refine(
     sampler = w.sampler_custom_advanced(
         model, positive, negative, latent, models.arch, **_sampler_params(sampling)
     )
-    out_image = w.vae_decode(vae, sampler)
+    out_image = vae_decode(w, vae, sampler, checkpoint.tiled_vae)
     out_image = w.nsfw_filter(out_image, sensitivity=misc.nsfw_filter)
     out_image = scale_to_target(extent, w, out_image, models)
     w.send_image(out_image)
@@ -1006,7 +1011,7 @@ def refine_region(
         inpaint_model, positive, negative, latent, models.arch, **_sampler_params(sampling)
     )
     out_image = scale_refine_and_decode(
-        extent, w, cond, sampling, out_latent, model_orig, clip, vae, models
+        extent, w, cond, sampling, out_latent, model_orig, clip, vae, models, checkpoint.tiled_vae
     )
     out_image = w.nsfw_filter(out_image, sensitivity=misc.nsfw_filter)
     out_image = scale_to_target(extent, w, out_image, models)
@@ -1290,6 +1295,7 @@ def prepare(
     i.conditioning.positive += _collect_lora_triggers(i.models.loras, files)
     i.models.loras = unique(i.models.loras + extra_loras, key=lambda l: l.name)
     i.models.dynamic_caching = perf.dynamic_caching
+    i.models.tiled_vae = perf.tiled_vae
     arch = i.models.version = resolve_arch(style, models)
 
     _check_server_has_models(i.models, i.conditioning.regions, models, files, style.name)

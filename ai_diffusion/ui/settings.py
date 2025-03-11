@@ -592,6 +592,12 @@ class PerformanceSettings(SettingsTab):
         self._max_pixel_count.value_changed.connect(self.write)
         advanced_layout.addWidget(self._max_pixel_count)
 
+        self._tiled_vae = SwitchSetting(
+            Settings._tiled_vae, text=(_("Always"), _("Automatic")), parent=self._advanced
+        )
+        self._tiled_vae.value_changed.connect(self.write)
+        advanced_layout.addWidget(self._tiled_vae)
+
         self._dynamic_caching = SwitchSetting(Settings._dynamic_caching, parent=self)
         self._dynamic_caching.value_changed.connect(self.write)
         self._layout.addWidget(self._dynamic_caching)
@@ -635,6 +641,7 @@ class PerformanceSettings(SettingsTab):
         )
         self._resolution_multiplier.value = settings.resolution_multiplier
         self._max_pixel_count.value = settings.max_pixel_count
+        self._tiled_vae.value = settings.tiled_vae
         self._dynamic_caching.value = settings.dynamic_caching
         self.update_client_info()
 
@@ -644,6 +651,7 @@ class PerformanceSettings(SettingsTab):
         settings.batch_size = int(self._batch_size.value)
         settings.resolution_multiplier = self._resolution_multiplier.value
         settings.max_pixel_count = self._max_pixel_count.value
+        settings.tiled_vae = self._tiled_vae.value
         settings.performance_preset = list(PerformancePreset)[
             self._performance_preset.currentIndex()
         ]
