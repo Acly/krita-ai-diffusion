@@ -17,7 +17,7 @@ from .api import ConditioningInput, ControlInput, WorkflowKind, WorkflowInput, S
 from .api import InpaintMode, InpaintParams, FillMode, ImageInput, CustomWorkflowInput, UpscaleInput
 from .localization import translate as _
 from .util import clamp, ensure, trim_text, client_logger as log
-from .settings import ApplyBehavior, settings
+from .settings import ApplyBehavior, GenerationFinishedAction, settings
 from .network import NetworkError
 from .image import Extent, Image, Mask, Bounds, DummyImage
 from .client import Client, ClientMessage, ClientEvent, ClientOutput
@@ -501,9 +501,6 @@ class Model(QObject, ObservableProperties):
             elif job.kind is JobKind.upscaling:
                 self.add_upscale_layer(job)
             self._finish_job(job, message.event)
-            show_preview = settings.auto_preview and self._layer is None
-            if job.id and job.kind in [JobKind.diffusion, JobKind.animation] and show_preview:
-                self.jobs.select(job.id, 0)
         elif message.event is ClientEvent.interrupted:
             self._finish_job(job, message.event)
         elif message.event is ClientEvent.error:
@@ -521,6 +518,13 @@ class Model(QObject, ObservableProperties):
         if event is ClientEvent.finished:
             self.jobs.notify_finished(job)
             self.progress = 1
+
+            if job.id and job.kind in [JobKind.diffusion, JobKind.animation]:
+                action = settings.generation_finished_action
+                if action is GenerationFinishedAction.preview and self._layer is None:
+                    self.jobs.select(job.id, 0)
+                elif action is GenerationFinishedAction.apply:
+                    self.apply_generated_result(job.id, 0)
         else:
             self.jobs.notify_cancelled(job)
             self.progress = 0

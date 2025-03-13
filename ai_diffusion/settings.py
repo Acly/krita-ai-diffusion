@@ -37,6 +37,12 @@ class ServerBackend(Enum):
             return ServerBackend.cuda
 
 
+class GenerationFinishedAction(Enum):
+    none = _("Do Nothing")
+    preview = _("Preview")
+    apply = _("Apply")
+
+
 class ApplyBehavior(Enum):
     replace = 0
     layer = 1
@@ -184,9 +190,11 @@ class Settings(QObject):
         _("Negative Prompt"), False, _("Show text editor to describe things to avoid")
     )
 
-    auto_preview: bool
-    _auto_preview = Setting(
-        _("Auto Preview"), True, _("Automatically preview the first generated result on the canvas")
+    generation_finished_action: GenerationFinishedAction
+    _generation_finished_action = Setting(
+        _("Finished Generation"),
+        GenerationFinishedAction.preview,
+        _("Action to take when an image generation job finishes"),
     )
 
     show_steps: bool

@@ -453,6 +453,7 @@ class InterfaceSettings(SettingsTab):
             "show_negative_prompt",
             SwitchSetting(S._show_negative_prompt, (_("Show"), _("Hide")), self),
         )
+        self.add("show_steps", SwitchSetting(S._show_steps, parent=self))
 
         self.add("tag_files", FileListSetting(S._tag_files, files=self._tag_files(), parent=self))
         self._layout.addWidget(self._widgets["tag_files"].list_widget)
@@ -467,8 +468,10 @@ class InterfaceSettings(SettingsTab):
             self._open_tag_folder,
         )
 
-        self.add("auto_preview", SwitchSetting(S._auto_preview, parent=self))
-        self.add("show_steps", SwitchSetting(S._show_steps, parent=self))
+        self.add(
+            "generation_finished_action",
+            ComboBoxSetting(S._generation_finished_action, parent=self),
+        )
         self.add("new_seed_after_apply", SwitchSetting(S._new_seed_after_apply, parent=self))
         self.add("debug_dump_workflow", SwitchSetting(S._debug_dump_workflow, parent=self))
 
