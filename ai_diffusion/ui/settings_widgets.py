@@ -65,21 +65,23 @@ class WarningIcon(QLabel):
 class SettingWidget(QWidget):
     value_changed = pyqtSignal()
 
-    _checkbox: QCheckBox | None = None
-    _layout: QHBoxLayout
-    _widget: QWidget
-
     def __init__(self, setting: Setting, parent=None):
         super().__init__(parent)
 
         self._key_label = QLabel(f"<b>{setting.name}</b><br>{setting.desc}")
         self._key_label.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Preferred)
 
+        self._checkbox: QCheckBox | None = None
+        self._widget: QWidget | None = None
+
+        self._indent = 0
+        self._show_label = True
         self._layout = QHBoxLayout()
-        self._layout.setContentsMargins(0, 2, 0, 2)
+        self._layout.setContentsMargins(0, 0, 0, 0)
         self._layout.addWidget(self._key_label)
         self._layout.addStretch(1)
         self.setLayout(self._layout)
+        self._set_margins()
 
     def set_widget(self, widget: QWidget):
         self._widget = widget
@@ -94,8 +96,10 @@ class SettingWidget(QWidget):
         self._layout.addWidget(button)
 
     def add_checkbox(self, text: str):
+        widget = self._widget
+        assert widget is not None
         checkbox = self._checkbox = QCheckBox(text, self)
-        checkbox.toggled.connect(lambda v: self._widget.setEnabled(v))
+        checkbox.toggled.connect(lambda v: widget.setEnabled(v))
         self._layout.removeWidget(self._widget)
         self._layout.addWidget(checkbox)
         self._layout.addWidget(self._widget)
@@ -111,24 +115,39 @@ class SettingWidget(QWidget):
 
     @property
     def enabled(self):
-        return self._widget.isEnabled()
+        return self._widget and self._widget.isEnabled()
 
     @enabled.setter
     def enabled(self, v: bool):
-        self._widget.setEnabled(v)
+        if self._widget is not None:
+            self._widget.setEnabled(v)
         if self._checkbox is not None:
             self._checkbox.setChecked(v)
 
     @property
     def indent(self):
-        return self._layout.contentsMargins().left() / 16
+        return self._indent
 
     @indent.setter
     def indent(self, v: int):
-        self._layout.setContentsMargins(v * 16, 2, 0, 2)
+        self._indent = v
+        self._set_margins()
+
+    @property
+    def show_label(self):
+        return self._show_label
+
+    @show_label.setter
+    def show_label(self, v: bool):
+        self._show_label = v
+        self._key_label.setVisible(v)
+        self._set_margins()
 
     def _notify_value_changed(self):
         self.value_changed.emit()
+
+    def _set_margins(self):
+        self.setContentsMargins(self._indent * 16, 4 if self._show_label else 0, 0, 0)
 
 
 class FileListSetting(SettingWidget):

@@ -44,11 +44,17 @@ class GenerationFinishedAction(Enum):
 
 
 class ApplyBehavior(Enum):
-    replace = 0
-    layer = 1
-    layer_group = 2
-    layer_hide_below = 3
-    transparency_mask = 4
+    replace = _("Modify active layer")
+    layer = _("New layer on top")
+    layer_active = _("New layer above active")
+
+
+class ApplyRegionBehavior(Enum):
+    none = _("Do not update regions")
+    replace = _("Modify region layers")
+    layer_group = _("Layer group")
+    transparency_mask = _("Layer group + mask")
+    no_hide = _("Layer group (don't hide)")
 
 
 class PerformancePreset(Enum):
@@ -212,15 +218,23 @@ class Settings(QObject):
     apply_behavior: ApplyBehavior
     _apply_behavior = Setting(
         _("Apply Behavior"),
-        ApplyBehavior.layer_hide_below,
+        ApplyBehavior.layer,
         _("Choose how result images are applied to the canvas (generation workspaces)"),
     )
+
+    apply_region_behavior: ApplyRegionBehavior
+    _apply_region_behavior = Setting("Apply Region Behavior", ApplyRegionBehavior.layer_group)
 
     apply_behavior_live: ApplyBehavior
     _apply_behavior_live = Setting(
         "Apply Behavior (Live)",
         ApplyBehavior.replace,
         "Choose how result images are applied to the canvas in Live mode",
+    )
+
+    apply_region_behavior_live: ApplyRegionBehavior
+    _apply_region_behavior_live = Setting(
+        "Apply Region Behavior (Live)", ApplyRegionBehavior.replace
     )
 
     show_builtin_styles: bool
