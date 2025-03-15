@@ -76,7 +76,7 @@ class Connection(QObject, ObservableProperties):
     async def _connect(self, url: str, mode: ServerMode, access_token=""):
         if self.state is ConnectionState.connected:
             await self.disconnect()
-        self.error = None
+        self.error = ""
         self.state = ConnectionState.connecting
         try:
             if mode is ServerMode.cloud:
@@ -121,7 +121,7 @@ class Connection(QObject, ObservableProperties):
             self._task = None
 
         self._client = None
-        self.error = None
+        self.error = ""
         self.missing_resources = None
         self.state = ConnectionState.disconnected
         self._update_state()
