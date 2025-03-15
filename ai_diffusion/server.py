@@ -204,7 +204,7 @@ class Server:
         await _extract_archive("ComfyUI", archive_path, comfy_dir.parent, cb)
         temp_comfy_dir = comfy_dir.parent / f"ComfyUI-{resources.comfy_version}"
 
-        torch_args = ["torch~=2.5.1", "torchvision~=0.20.1", "torchaudio~=2.5.1"]
+        torch_args = ["torch~=2.6.0", "torchvision~=0.21.0", "torchaudio~=2.6.0"]
         if self.backend is ServerBackend.cpu:
             torch_args += ["--index-url", "https://download.pytorch.org/whl/cpu"]
         elif self.backend is ServerBackend.cuda:

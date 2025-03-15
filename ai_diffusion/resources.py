@@ -7,10 +7,10 @@ from typing import Any, NamedTuple, Sequence
 
 # Version identifier for all the resources defined here. This is used as the server version.
 # It usually follows the plugin version, but not all new plugin versions also require a server update.
-version = "1.31.0"
+version = "1.32.0"
 
 comfy_url = "https://github.com/comfyanonymous/ComfyUI"
-comfy_version = "ef85058e977f886c88d4a30b819708b1168f39a4"
+comfy_version = "7ebd8087ffb9c713d308ff74f1bd14f07d569bed"
 
 
 class CustomNode(NamedTuple):
@@ -26,7 +26,7 @@ required_custom_nodes = [
         "ControlNet Preprocessors",
         "comfyui_controlnet_aux",
         "https://github.com/Fannovel16/comfyui_controlnet_aux",
-        "5a049bde9cc117dafc327cded156459289097ea1",
+        "83463c2e4b04e729268e57f638b4212e0da4badc",
         ["InpaintPreprocessor", "DepthAnythingV2Preprocessor"],
     ),
     CustomNode(
@@ -40,14 +40,14 @@ required_custom_nodes = [
         "External Tooling Nodes",
         "comfyui-tooling-nodes",
         "https://github.com/Acly/comfyui-tooling-nodes",
-        "bed8b36705a213f2ec452f8f090b2bcdf43f19ac",
+        "b8e4659a10c97c0d1d95bebf0c54b4eeac434db9",
         ["ETN_LoadImageBase64", "ETN_LoadMaskBase64", "ETN_SendImageWebSocket", "ETN_Translate"],
     ),
     CustomNode(
         "Inpaint Nodes",
         "comfyui-inpaint-nodes",
         "https://github.com/Acly/comfyui-inpaint-nodes",
-        "20092c37b9dfc481ca44e8577a9d4a9d426c0e56",
+        "b9039c22de926919f26b7242cfa4da00d8b6fbec",
         ["INPAINT_LoadFooocusInpaint", "INPAINT_ApplyFooocusInpaint", "INPAINT_ExpandMask"],
     ),
 ]
@@ -57,7 +57,7 @@ optional_custom_nodes = [
         "GGUF",
         "ComfyUI-GGUF",
         "https://github.com/city96/ComfyUI-GGUF",
-        "5875c52f59baca3a9372d68c43a3775e21846fe0",
+        "01f6e3ff6333d521e3e0aa5b0c5e8ce5e8045995",
         ["UnetLoaderGGUF", "DualCLIPLoaderGGUF"],
     ),
     CustomNode(
