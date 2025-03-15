@@ -14,7 +14,7 @@ from ..custom_workflow import CustomParam, ParamKind, SortedWorkflows, WorkflowS
 from ..custom_workflow import CustomGenerationMode
 from ..client import TextOutput
 from ..jobs import JobKind
-from ..model import Model, ApplyBehavior
+from ..model import Model
 from ..properties import Binding, Bind, bind, bind_combo
 from ..style import Styles
 from ..root import root

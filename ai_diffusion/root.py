@@ -119,11 +119,21 @@ class Root(QObject):
                     settings.server_url, ServerMode.cloud, settings.access_token
                 )
             elif settings.server_mode in [ServerMode.undefined, ServerMode.external]:
-                await connection._connect(settings.server_url, ServerMode.external)
+                urls = [settings.server_url]
+                if settings.server_mode is ServerMode.undefined:
+                    urls.append("127.0.0.1:8000")  # ComfyUI Desktop default port
+                for url in urls:
+                    await connection._connect(url, ServerMode.external)
+                    if connection.state is ConnectionState.connected:
+                        settings.server_url = url
+                        break
                 if settings.server_mode is ServerMode.undefined:
                     if connection.state is ConnectionState.connected:
                         settings.server_mode = ServerMode.external
+                        settings.save()
                     else:
+                        connection.state = ConnectionState.disconnected
+                        connection.error = ""
                         settings.server_mode = ServerMode.cloud
         except Exception as e:
             log.warning(f"Failed to launch/connect server at startup: {e}")

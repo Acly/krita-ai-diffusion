@@ -186,6 +186,8 @@ class CloudWidget(QWidget):
             can_connect = state in [ConnectionState.disconnected, ConnectionState.error]
             self.connect_button.setEnabled(can_connect)
             self.connect_button.setText(_("Connect") if can_connect else _("Connected"))
+            self._connection_status.setText(_("Disconnected"))
+            self._connection_status.setStyleSheet(f"color: {grey}; font-style:italic")
 
         if state in [ConnectionState.error, ConnectionState.auth_error]:
             error = root.connection.error or "Unknown error"
@@ -279,6 +281,7 @@ class ConnectionSettings(SettingsTab):
         self._layout.addWidget(self._server_stack)
 
         root.connection.state_changed.connect(self.update_server_status)
+        root.connection.error_changed.connect(self.update_server_status)
         self.update_server_status()
 
     @property
@@ -302,6 +305,7 @@ class ConnectionSettings(SettingsTab):
             ServerMode.cloud: self._cloud_widget,
             ServerMode.managed: self._server_widget,
             ServerMode.external: self._connection_widget,
+            ServerMode.undefined: self._connection_widget,
         }[mode]
         self._server_stack.setCurrentWidget(widget)
 
