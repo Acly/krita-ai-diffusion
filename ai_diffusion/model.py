@@ -564,8 +564,8 @@ class Model(QObject, ObservableProperties):
         self,
         image: Image,
         params: JobParams,
-        behavior: ApplyBehavior,
-        region_behavior: ApplyRegionBehavior,
+        behavior=ApplyBehavior.layer,
+        region_behavior=ApplyRegionBehavior.layer_group,
         prefix="",
     ):
         bounds = Bounds(*params.bounds.offset, *image.extent)

@@ -884,7 +884,7 @@ class CustomWorkflowWidget(QWidget):
 
     def apply_live_result(self):
         image, params = self.model.custom.live_result
-        self.model.apply_result(image, params, ApplyBehavior.layer)
+        self.model.apply_result(image, params)
         if settings.new_seed_after_apply:
             self.model.generate_seed()
 
