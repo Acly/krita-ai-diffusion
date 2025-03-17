@@ -13,7 +13,13 @@ from . import eventloop, resources
 from .resources import CustomNode, ModelResource, ModelRequirements, Arch
 from .network import download, DownloadProgress
 from .localization import translate as _
-from .util import ZipFile, is_windows, create_process, decode_pipe_bytes, determine_system_encoding
+from .util import (
+    ZipFile,
+    is_windows,
+    create_process,
+    decode_pipe_bytes,
+    determine_system_encoding,
+)
 from .util import client_logger as log, server_logger as server_log
 
 
@@ -75,7 +81,9 @@ class Server:
         comfy_pkg = ["main.py", "nodes.py", "custom_nodes"]
         self.comfy_dir = _find_component(comfy_pkg, [self.path / "ComfyUI"])
 
-        python_pkg = ["python3.dll", "python.exe"] if is_windows else ["python3", "pip3"]
+        python_pkg = (
+            ["python3.dll", "python.exe"] if is_windows else ["python3", "pip3"]
+        )
         python_search_paths = [self.path / "python", self.path / "venv" / "bin"]
         python_path = _find_component(python_pkg, python_search_paths)
         if python_path is None:
@@ -101,17 +109,23 @@ class Server:
         self.missing_resources += missing_nodes
 
         model_folders = [self.path, self.comfy_dir]
-        self.missing_resources += find_missing(model_folders, resources.required_models, Arch.all)
+        self.missing_resources += find_missing(
+            model_folders, resources.required_models, Arch.all
+        )
         missing_sd15 = find_missing(model_folders, resources.required_models, Arch.sd15)
         missing_sdxl = find_missing(model_folders, resources.required_models, Arch.sdxl)
-        if len(self.missing_resources) > 0 or (len(missing_sd15) > 0 and len(missing_sdxl) > 0):
+        if len(self.missing_resources) > 0 or (
+            len(missing_sd15) > 0 and len(missing_sdxl) > 0
+        ):
             self.state = ServerState.missing_resources
         else:
             self.state = ServerState.stopped
         self.missing_resources += missing_sd15 + missing_sdxl
 
         # Optional resources
-        self.missing_resources += find_missing(model_folders, resources.default_checkpoints)
+        self.missing_resources += find_missing(
+            model_folders, resources.default_checkpoints
+        )
         self.missing_resources += find_missing(model_folders, resources.upscale_models)
         self.missing_resources += find_missing(model_folders, resources.optional_models)
 
@@ -129,7 +143,9 @@ class Server:
             python_dir = self.path / "python"
             self._python_cmd = python_dir / f"python{_exe}"
             await install_if_missing(python_dir, self._install_python, network, cb)
-        elif not is_windows and (self.comfy_dir is None or not (self.path / "venv").exists()):
+        elif not is_windows and (
+            self.comfy_dir is None or not (self.path / "venv").exists()
+        ):
             # On Linux a system Python is required to create a virtual environment
             python_dir = self.path / "venv"
             await install_if_missing(python_dir, self._create_venv, cb)
@@ -142,7 +158,9 @@ class Server:
         if not self.has_comfy:
             await try_install(comfy_dir, self._install_comfy, comfy_dir, network, cb)
 
-        for pkg in chain(resources.required_custom_nodes, resources.optional_custom_nodes):
+        for pkg in chain(
+            resources.required_custom_nodes, resources.optional_custom_nodes
+        ):
             dir = comfy_dir / "custom_nodes" / pkg.folder
             await install_if_missing(dir, self._install_custom_node, pkg, network, cb)
 
@@ -178,14 +196,19 @@ class Server:
         get_pip_file = dir / "get-pip.py"
         await _download_cached("Python", network, git_pip_url, get_pip_file, cb)
         await _execute_process("Python", [self._python_cmd, get_pip_file], dir, cb)
-        await _execute_process("Python", self._pip_install("wheel", "setuptools"), dir, cb)
+        await _execute_process(
+            "Python", self._pip_install("wheel", "setuptools"), dir, cb
+        )
 
         cb("Installing Python", f"Patching {python_pth}")
         _prepend_file(python_pth, "../ComfyUI\n")
         cb("Installing Python", "Finished installing Python")
 
     async def _create_venv(self, cb: InternalCB):
-        cb("Creating Python virtual environment", f"Creating venv in {self.path / 'venv'}")
+        cb(
+            "Creating Python virtual environment",
+            f"Creating venv in {self.path / 'venv'}",
+        )
         assert self._python_cmd is not None
         python_version, major, minor = await get_python_version(self._python_cmd)
         if major is not None and minor is not None and (major < 3 or minor < 9):
@@ -197,7 +220,9 @@ class Server:
         venv_cmd = [self._python_cmd, "-m", "venv", "venv"]
         await _execute_process("Python", venv_cmd, self.path, cb)
 
-    async def _install_comfy(self, comfy_dir: Path, network: QNetworkAccessManager, cb: InternalCB):
+    async def _install_comfy(
+        self, comfy_dir: Path, network: QNetworkAccessManager, cb: InternalCB
+    ):
         url = f"{resources.comfy_url}/archive/{resources.comfy_version}.zip"
         archive_path = self._cache_dir / f"ComfyUI-{resources.comfy_version}.zip"
         await _download_cached("ComfyUI", network, url, archive_path, cb)
@@ -213,14 +238,29 @@ class Server:
             torch_args = ["numpy<2", "torch-directml"]
         elif self.backend is ServerBackend.xpu:
             torch_args += [
-                "--index-url https://download.pytorch.org/whl/xpu",
-                "intel-extension-for-pytorch==2.6.10+xpu",
-                "--extra-index-url https://pytorch-extension.intel.com/release-whl/stable/xpu/us/",
+                "--index-url",
+                "https://download.pytorch.org/whl/xpu",
             ]
         await _execute_process("PyTorch", self._pip_install(*torch_args), self.path, cb)
 
+        if self.backend is ServerBackend.xpu:
+            await _execute_process(
+                "ipex",
+                self._pip_install(
+                    [
+                        "intel-extension-for-pytorch==2.6.10+xpu",
+                        "--extra-index-url",
+                        "https://pytorch-extension.intel.com/release-whl/stable/xpu/us/",
+                    ]
+                ),
+                self.path,
+                cb,
+            )
+
         requirements_txt = temp_comfy_dir / "requirements.txt"
-        await _execute_process("ComfyUI", self._pip_install("-r", requirements_txt), self.path, cb)
+        await _execute_process(
+            "ComfyUI", self._pip_install("-r", requirements_txt), self.path, cb
+        )
 
         _configure_extra_model_paths(temp_comfy_dir)
         await rename_extracted_folder("ComfyUI", comfy_dir, resources.comfy_version)
@@ -242,14 +282,23 @@ class Server:
 
         requirements_txt = folder / "requirements.txt"
         if requirements_txt.exists():
-            await _execute_process(pkg.name, self._pip_install("-r", requirements_txt), folder, cb)
+            await _execute_process(
+                pkg.name, self._pip_install("-r", requirements_txt), folder, cb
+            )
         cb(f"Installing {pkg.name}", f"Finished installing {pkg.name}")
 
-    async def _install_insightface(self, network: QNetworkAccessManager, cb: InternalCB):
+    async def _install_insightface(
+        self, network: QNetworkAccessManager, cb: InternalCB
+    ):
         assert self.comfy_dir is not None and self._python_cmd is not None
 
-        dependencies = ["onnx==1.16.1", "onnxruntime"]  # onnx version pinned due to #1033
-        await _execute_process("FaceID", self._pip_install(*dependencies), self.path, cb)
+        dependencies = [
+            "onnx==1.16.1",
+            "onnxruntime",
+        ]  # onnx version pinned due to #1033
+        await _execute_process(
+            "FaceID", self._pip_install(*dependencies), self.path, cb
+        )
 
         pyver = await get_python_version_string(self._python_cmd)
         if is_windows and "3.11" in pyver:
@@ -258,18 +307,24 @@ class Server:
             await _download_cached("FaceID", network, whl_url, whl_file, cb)
             await _execute_process("FaceID", self._pip_install(whl_file), self.path, cb)
         else:
-            await _execute_process("FaceID", self._pip_install("insightface"), self.path, cb)
+            await _execute_process(
+                "FaceID", self._pip_install("insightface"), self.path, cb
+            )
 
     async def _install_requirements(
-        self, requirements: ModelRequirements, network: QNetworkAccessManager, cb: InternalCB
+        self,
+        requirements: ModelRequirements,
+        network: QNetworkAccessManager,
+        cb: InternalCB,
     ):
         if requirements is ModelRequirements.insightface:
             await self._install_insightface(network, cb)
 
     async def install(self, callback: Callback):
-        assert self.state in [ServerState.not_installed, ServerState.missing_resources] or (
-            self.state is ServerState.stopped and self.upgrade_required
-        )
+        assert self.state in [
+            ServerState.not_installed,
+            ServerState.missing_resources,
+        ] or (self.state is ServerState.stopped and self.upgrade_required)
         if not is_windows and self._python_cmd is None:
             raise Exception(
                 _(
@@ -323,12 +378,16 @@ class Server:
             )
             to_install = (r for r in all_models if r.name in packages)
             for resource in to_install:
-                if not resource.exists_in(self.path) and not resource.exists_in(self.comfy_dir):
+                if not resource.exists_in(self.path) and not resource.exists_in(
+                    self.comfy_dir
+                ):
                     await self._install_requirements(resource.requirements, network, cb)
                     for file in resource.files:
                         target_file = self.path / file.path
                         target_file.parent.mkdir(parents=True, exist_ok=True)
-                        await _download_cached(resource.name, network, file.url, target_file, cb)
+                        await _download_cached(
+                            resource.name, network, file.url, target_file, cb
+                        )
         except Exception as e:
             log.exception(str(e))
             raise e
@@ -366,7 +425,9 @@ class Server:
             await self.install(callback)
         except Exception as e:
             if upgrade_comfy_dir.exists():
-                log.warning(f"Error during upgrade: {str(e)} - Restoring {upgrade_comfy_dir}")
+                log.warning(
+                    f"Error during upgrade: {str(e)} - Restoring {upgrade_comfy_dir}"
+                )
                 safe_remove_dir(comfy_dir)
                 shutil.move(upgrade_comfy_dir, comfy_dir)
             raise e
@@ -439,7 +500,9 @@ class Server:
         if self.state != ServerState.running:
             error = "Process exited unexpectedly"
             try:
-                out, err = await asyncio.wait_for(self._process.communicate(), timeout=10)
+                out, err = await asyncio.wait_for(
+                    self._process.communicate(), timeout=10
+                )
                 server_log.error(decode_pipe_bytes(out).strip())
                 error = last_line + decode_pipe_bytes(err or out)
             except asyncio.TimeoutError:
@@ -468,7 +531,9 @@ class Server:
 
             code = await asyncio.wait_for(self._process.wait(), timeout=1)
             if code != 0:
-                log.error(f"Server process terminated with code {self._process.returncode}")
+                log.error(
+                    f"Server process terminated with code {self._process.returncode}"
+                )
             elif code is not None:
                 log.info("Server process was shut down sucessfully")
 
@@ -512,7 +577,9 @@ class Server:
         name = package if isinstance(package, str) else package.name
         return name not in self.missing_resources
 
-    def all_installed(self, packages: list[str] | list[ModelResource] | list[CustomNode]):
+    def all_installed(
+        self, packages: list[str] | list[ModelResource] | list[CustomNode]
+    ):
         return all(self.is_installed(p) for p in packages)
 
     @property
@@ -619,7 +686,9 @@ def _prepend_file(path: Path, line: str):
         file.truncate()
 
 
-def find_missing(folders: list[Path], resources: list[ModelResource], ver: Arch | None = None):
+def find_missing(
+    folders: list[Path], resources: list[ModelResource], ver: Arch | None = None
+):
     return [
         res.name
         for res in resources
@@ -631,7 +700,9 @@ async def rename_extracted_folder(name: str, path: Path, suffix: str):
     if path.exists() and path.is_dir() and not any(path.iterdir()):
         path.rmdir()
     elif path.exists():
-        raise Exception(f"Error during {name} installation: target folder {path} already exists")
+        raise Exception(
+            f"Error during {name} installation: target folder {path} already exists"
+        )
 
     extracted_folder = path.parent / f"{path.name}-{suffix}"
     if not extracted_folder.exists():
@@ -643,7 +714,9 @@ async def rename_extracted_folder(name: str, path: Path, suffix: str):
             extracted_folder.rename(path)
             return
         except Exception as e:
-            log.warning(f"Rename failed during {name} installation: {str(e)} - retrying...")
+            log.warning(
+                f"Rename failed during {name} installation: {str(e)} - retrying..."
+            )
             await asyncio.sleep(1)
     extracted_folder.rename(path)
 
@@ -653,9 +726,13 @@ def safe_remove_dir(path: Path, max_size=12 * 1024 * 1024):
         for p in path.rglob("*"):
             if p.is_file():
                 if p.stat().st_size > max_size:
-                    raise Exception(f"Failed to remove {path}: found remaining large file {p}")
+                    raise Exception(
+                        f"Failed to remove {path}: found remaining large file {p}"
+                    )
                 if p.suffix == ".safetensors":
-                    raise Exception(f"Failed to remove {path}: found remaining model {p}")
+                    raise Exception(
+                        f"Failed to remove {path}: found remaining model {p}"
+                    )
         shutil.rmtree(path, ignore_errors=True)
 
 
@@ -735,7 +812,9 @@ def _configure_extra_model_paths(comfy_dir: Path):
     if not path.exists() and example.exists():
         example.rename(path)
     if not path.exists():
-        raise Exception(f"Could not find or create extra_model_paths.yaml in {comfy_dir}")
+        raise Exception(
+            f"Could not find or create extra_model_paths.yaml in {comfy_dir}"
+        )
     contents = path.read_text()
     if "krita-managed" not in contents:
         log.info(f"Extending {path}")
