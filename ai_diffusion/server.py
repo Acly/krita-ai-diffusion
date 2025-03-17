@@ -212,7 +212,11 @@ class Server:
         elif self.backend is ServerBackend.directml:
             torch_args = ["numpy<2", "torch-directml"]
         elif self.backend is ServerBackend.xpu:
-            torch_args += ["--index-url https://download.pytorch.org/whl/xpu", "intel-extension-for-pytorch==2.6.10+xpu","--extra-index-url https://pytorch-extension.intel.com/release-whl/stable/xpu/us/"]
+            torch_args += [
+                "--index-url https://download.pytorch.org/whl/xpu",
+                "intel-extension-for-pytorch==2.6.10+xpu",
+                "--extra-index-url https://pytorch-extension.intel.com/release-whl/stable/xpu/us/",
+            ]
         await _execute_process("PyTorch", self._pip_install(*torch_args), self.path, cb)
 
         requirements_txt = temp_comfy_dir / "requirements.txt"
