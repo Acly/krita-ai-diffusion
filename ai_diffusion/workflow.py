@@ -461,12 +461,13 @@ def apply_control(
 ):
     models = models.control
     control_lora: ControlMode | None = None
+    is_illu = models.arch in [Arch.illu, Arch.illu_v]
 
     for control in (c for c in control_layers if c.mode.is_control_net):
         image = control.image.load(w, shape)
-        if control.mode is ControlMode.inpaint and models.arch is Arch.sd15:
+        if control.mode is ControlMode.inpaint and (models.arch is Arch.sd15 or is_illu):
             assert control.mask is not None, "Inpaint control requires a mask"
-            image = w.inpaint_preprocessor(image, control.mask.load(w))
+            image = w.inpaint_preprocessor(image, control.mask.load(w), fill_black=is_illu)
         if control.mode.is_lines:  # ControlNet expects white lines on black background
             image = w.invert_image(image)
 
@@ -772,7 +773,7 @@ def detect_inpaint(
             and prompt != ""
             and not any(c.mode.is_structural for c in control)
         )
-    elif sd_ver is Arch.sdxl:
+    elif sd_ver.is_sdxl_like:
         result.use_inpaint_model = strength > 0.8
     elif sd_ver is Arch.flux:
         result.use_inpaint_model = strength == 1.0
