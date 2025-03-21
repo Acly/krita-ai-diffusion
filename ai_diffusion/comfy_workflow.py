@@ -751,6 +751,9 @@ class ComfyWorkflow:
     def vae_encode_inpaint(self, vae: Output, image: Output, mask: Output):
         return self.add("VAEEncodeForInpaint", 1, vae=vae, pixels=image, mask=mask, grow_mask_by=0)
 
+    def vae_encode_tiled(self, vae: Output, image: Output):
+        return self.add("VAEEncodeTiled", 1, vae=vae, pixels=image, tile_size=512, overlap=64)
+
     def vae_decode(self, vae: Output, latent_image: Output):
         return self.add("VAEDecode", 1, vae=vae, samples=latent_image)
 
