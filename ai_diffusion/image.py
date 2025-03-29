@@ -202,8 +202,8 @@ class Bounds(NamedTuple):
         """Restrict bounds to be inside another bounds."""
         x = max(within.x, bounds.x)
         y = max(within.y, bounds.y)
-        width = min(within.x + within.width, bounds.x + bounds.width) - x
-        height = min(within.y + within.height, bounds.y + bounds.height) - y
+        width = max(0, min(within.x + within.width, bounds.x + bounds.width) - x)
+        height = max(0, min(within.y + within.height, bounds.y + bounds.height) - y)
         return Bounds(x, y, width, height)
 
     @staticmethod
