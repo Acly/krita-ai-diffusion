@@ -348,16 +348,6 @@
       ]
     },
     {
-      "id": "controlnet-hands-sd15",
-      "name": "ControlNet Hand Refiner",
-      "files": [
-        {
-          "path": "models/controlnet/control_sd15_inpaint_depth_hand_fp16.safetensors",
-          "url": "https://huggingface.co/hr16/ControlNet-HandRefiner-pruned/resolve/main/control_sd15_inpaint_depth_hand_fp16.safetensors"
-        }
-      ]
-    },
-    {
       "id": "ip_adapter-face-sd15",
       "name": "IP-Adapter Face (SD1.5)",
       "files": [
