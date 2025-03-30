@@ -53,6 +53,7 @@ class Server:
     _version_file: Path
     _process: Optional[asyncio.subprocess.Process] = None
     _task: Optional[asyncio.Task] = None
+    _installed_backend: Optional[ServerBackend] = None
 
     def __init__(self, path: Optional[str] = None):
         self.path = Path(path or settings.server_path)
@@ -66,11 +67,16 @@ class Server:
         self._cache_dir = self.path / ".cache"
 
         self._version_file = self.path / ".version"
+        self.version = None
         if self._version_file.exists():
-            self.version = self._version_file.read_text().strip()
-            log.info(f"Found server installation v{self.version} at {self.path}")
-        else:
-            self.version = None
+            content = self._version_file.read_text().strip().split()
+            if len(content) > 0:
+                self.version = content[0]
+            if len(content) > 1 and content[1] in ServerBackend.__members__:
+                self._installed_backend = ServerBackend[content[1]]
+        if self.version is not None:
+            backend = f" [{self._installed_backend.name}]" if self._installed_backend else ""
+            log.info(f"Found server installation v{self.version}{backend} at {self.path}")
 
         comfy_pkg = ["main.py", "nodes.py", "custom_nodes"]
         self.comfy_dir = _find_component(comfy_pkg, [self.path / "ComfyUI"])
@@ -146,7 +152,7 @@ class Server:
             dir = comfy_dir / "custom_nodes" / pkg.folder
             await install_if_missing(dir, self._install_custom_node, pkg, network, cb)
 
-        self._version_file.write_text(resources.version)
+        self._version_file.write_text(f"{resources.version} {self.backend.name}")
         self.state = ServerState.stopped
         cb("Finished", f"Installation finished in {self.path}")
         self.check_install()
@@ -519,11 +525,18 @@ class Server:
 
     @property
     def upgrade_required(self):
+        backend_mismatch = (
+            self._installed_backend is not None
+            and self._installed_backend != self.backend
+            and self.backend in [ServerBackend.cuda, ServerBackend.directml]
+            and self._installed_backend
+            in [ServerBackend.cuda, ServerBackend.directml, ServerBackend.cpu]
+        )
         return (
             self.state is not ServerState.not_installed
             and self.version is not None
             and self.version != "incomplete"
-            and self.version != resources.version
+            and (self.version != resources.version or backend_mismatch)
         )
 
 
