@@ -219,6 +219,9 @@ class Server:
             torch_args = ["numpy<2", "torch-directml"]
         await _execute_process("PyTorch", self._pip_install(*torch_args), self.path, cb)
 
+        requirements_txt = Path(__file__).parent / "server_requirements.txt"
+        await _execute_process("ComfyUI", self._pip_install("-r", requirements_txt), self.path, cb)
+
         requirements_txt = temp_comfy_dir / "requirements.txt"
         await _execute_process("ComfyUI", self._pip_install("-r", requirements_txt), self.path, cb)
 
@@ -239,10 +242,6 @@ class Server:
         await _download_cached(pkg.name, network, resource_url, resource_zip_path, cb)
         await _extract_archive(pkg.name, resource_zip_path, folder.parent, cb)
         await rename_extracted_folder(pkg.name, folder, pkg.version)
-
-        requirements_txt = folder / "requirements.txt"
-        if requirements_txt.exists():
-            await _execute_process(pkg.name, self._pip_install("-r", requirements_txt), folder, cb)
         cb(f"Installing {pkg.name}", f"Finished installing {pkg.name}")
 
     async def _install_insightface(self, network: QNetworkAccessManager, cb: InternalCB):

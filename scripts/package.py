@@ -3,6 +3,7 @@ import aiohttp
 import sys
 import dotenv
 import os
+import subprocess
 from markdown import markdown
 from shutil import rmtree, copy, copytree, ignore_patterns, make_archive
 from pathlib import Path
@@ -27,9 +28,29 @@ def convert_markdown_to_html(markdown_file: Path, html_file: Path):
         f.write(html)
 
 
+def update_server_requirements():
+    subprocess.run(
+        [
+            "uv",
+            "pip",
+            "compile",
+            "scripts/server_requirements.in",
+            "--no-deps",
+            "--no-annotate",
+            "--universal",
+            "-o",
+            "ai_diffusion/server_requirements.txt",
+        ],
+        cwd=root,
+        check=True,
+    )
+
+
 def build_package():
     translation.update_template()
     translation.update_all()
+
+    update_server_requirements()
 
     rmtree(package_dir, ignore_errors=True)
     package_dir.mkdir()
