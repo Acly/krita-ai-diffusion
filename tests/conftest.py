@@ -89,6 +89,18 @@ def local_download_server():
         proc.wait()
 
 
+# Create the test data directory if it doesn't exist
+@pytest.fixture(scope="session", autouse=True)
+def setup_test_wildcards_dir():
+    """Ensure the test data directory exists."""
+    test_dir = root_dir / "tests" / "data" / "wildcards"
+    test_dir.mkdir(parents=True, exist_ok=True)
+    yield test_dir
+    # Cleanup after all tests are done
+    if test_dir.exists():
+        shutil.rmtree(test_dir)
+
+
 has_local_cloud = (root_dir / "service").exists()
 
 if has_local_cloud:

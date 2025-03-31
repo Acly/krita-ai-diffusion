@@ -219,3 +219,43 @@ def edit_attention(text: str, positive: bool) -> str:
         if weight == 1.0 and open_bracket == "("
         else f"{open_bracket}{attention_string}:{weight:.1f}{close_bracket}"
     )
+
+
+def remove_comments_and_normalize(text: str | None) -> str:
+    """Remove Python-style comments and normalize whitespace."""
+    if text is None or text == "":
+        return ""
+
+    def trim_comments(line: str) -> str:
+        quote = None
+        for i, char in enumerate(line):
+            if char in "\"'":
+                quote = None if quote == char else char
+            elif char == "#" and not quote:
+                return line[:i]
+        return line
+
+    return "\n".join(
+        trimmed for line in text.split("\n") if (trimmed := trim_comments(line).strip())
+    )
+
+
+def find_matching_brace(text: str, start_pos: int) -> Tuple[int, bool]:
+    """Find matching closing brace, returning (end_pos, has_pipe)."""
+    depth = 1
+    has_pipe = False
+    pos = start_pos
+
+    while pos < len(text) and depth > 0:
+        if text[pos] == "{":
+            depth += 1
+        elif text[pos] == "}":
+            depth -= 1
+        elif text[pos] == "|" and depth == 1:
+            has_pipe = True
+        pos += 1
+
+    if depth > 0:
+        raise Exception(f"Unmatched opening brace at position {start_pos}")
+
+    return pos, has_pipe

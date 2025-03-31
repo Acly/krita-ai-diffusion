@@ -208,6 +208,13 @@ class Settings(QObject):
         _("Show Steps"), False, _("Display the number of steps to be evaluated in the weights box.")
     )
 
+    dynamic_prompts: bool
+    _dynamic_prompts = Setting(
+        _("Dynamic Prompts"),
+        False,
+        _("Evaluate dynamic prompts (variables, variants and wildcards) at job queue time."),
+    )
+
     tag_files: list[str]
     _tag_files = Setting(
         _("Tag Auto-Completion"),

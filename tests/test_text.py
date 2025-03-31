@@ -1,6 +1,14 @@
-from ai_diffusion.text import merge_prompt, extract_loras, edit_attention, select_on_cursor_pos
+from ai_diffusion.text import (
+    merge_prompt,
+    extract_loras,
+    edit_attention,
+    select_on_cursor_pos,
+    remove_comments_and_normalize,
+    find_matching_brace,
+)
 from ai_diffusion.api import LoraInput
 from ai_diffusion.files import File, FileCollection
+import pytest
 
 
 def test_merge_prompt():
@@ -146,3 +154,75 @@ class TestSelectOnCursorPos:
         assert select_on_cursor_pos("(foo:1.3), bar, baz", 1) == (0, 9)
         assert select_on_cursor_pos("foo, (bar:1.1), baz", 6) == (5, 14)
         assert select_on_cursor_pos("foo, (bar:1.1) <bar:baz:1.0>", 16) == (15, 28)
+
+
+class TestRemoveCommentsAndNormalize:
+    def test_empty_input(self):
+        assert remove_comments_and_normalize("") == ""
+        assert remove_comments_and_normalize(None) == ""
+
+    def test_simple_comment_removal(self):
+        assert remove_comments_and_normalize("Hello # Comment") == "Hello"
+        assert remove_comments_and_normalize("Line 1 # Comment\nLine 2") == "Line 1\nLine 2"
+
+    def test_whole_line_comments(self):
+        assert remove_comments_and_normalize("# This is a comment\nContent") == "Content"
+        assert remove_comments_and_normalize("# Comment 1\n# Comment 2\nContent") == "Content"
+        assert (
+            remove_comments_and_normalize("Content 1\n# Comment 1\nContent 2")
+            == "Content 1\nContent 2"
+        )
+
+    def test_hash_in_quotes(self):
+        assert (
+            remove_comments_and_normalize('Text with "quoted # not a comment"')
+            == 'Text with "quoted # not a comment"'
+        )
+        assert (
+            remove_comments_and_normalize("Text with 'quoted # not a comment'")
+            == "Text with 'quoted # not a comment'"
+        )
+
+    def test_whitespace_normalization(self):
+        assert remove_comments_and_normalize("  Spaced  text  ") == "Spaced  text"
+        assert remove_comments_and_normalize("Line 1  \n  Line 2") == "Line 1\nLine 2"
+
+
+class TestFindMatchingBrace:
+    def test_simple_matching(self):
+        assert find_matching_brace("b}c", 0) == (2, False)
+        assert find_matching_brace("test}", 0) == (5, False)
+        assert find_matching_brace("mid}post", 0) == (4, False)
+
+    def test_nested_braces(self):
+        assert find_matching_brace("b{c}d}", 0) == (6, False)
+        assert find_matching_brace("a{b{c}d}e}", 0) == (10, False)
+        assert find_matching_brace("}}}", 0) == (1, False)
+
+    def test_with_pipes(self):
+        assert find_matching_brace("b|c}", 0) == (4, True)
+        assert find_matching_brace("test|more}", 0) == (10, True)
+        assert find_matching_brace("y|z{w}}", 0) == (7, True)
+        assert find_matching_brace("a{b|c}d}", 0) == (8, False)
+
+    def test_error_cases(self):
+        with pytest.raises(Exception) as exc_info:
+            find_matching_brace("no_closing_brace", 0)
+        assert "Unmatched opening brace" in str(exc_info.value)
+        with pytest.raises(Exception) as exc_info:
+            find_matching_brace("no_(closing)_brace", 0)
+        assert "Unmatched opening brace" in str(exc_info.value)
+
+        with pytest.raises(Exception) as exc_info:
+            find_matching_brace("a{unclosed", 0)
+        assert "Unmatched opening brace" in str(exc_info.value)
+        with pytest.raises(Exception) as exc_info:
+            find_matching_brace("a{closed}", 0)
+        assert "Unmatched opening brace" in str(exc_info.value)
+
+    def test_complex_cases(self):
+        assert find_matching_brace("a|b|c}", 0) == (6, True)
+        assert find_matching_brace("}", 0) == (1, False)
+        assert find_matching_brace(" test | with spaces }", 0) == (21, True)
+        assert find_matching_brace("test{1}|test{2}}", 0) == (16, True)
+        assert find_matching_brace("x{y}z{w}}", 0) == (9, False)
