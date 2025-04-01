@@ -394,6 +394,9 @@ class HistoryWidget(QListWidget):
             if isinstance(active, RootRegion):
                 active.negative = job.params.metadata.get("negative_prompt", "")
 
+            if clipboard := QGuiApplication.clipboard():
+                clipboard.setText(job.params.prompt)
+
             if self._model.workspace is Workspace.custom and self._model.document.is_active:
                 self._model.custom.try_set_params(job.params.metadata)
 
