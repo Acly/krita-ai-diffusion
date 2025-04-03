@@ -163,7 +163,7 @@ class Model(QObject, ObservableProperties):
 
         selection_mod = get_selection_modifiers(self.inpaint.mode, self.strength)
         mask, selection_bounds = self._doc.create_mask_from_selection(
-            selection_mod.padding, invert=selection_mod.invert, min_size=64
+            selection_mod.padding, invert=selection_mod.invert, min_size=256
         )
         bounds = Bounds(0, 0, *extent)
         if mask is None:  # Check for region inpaint
