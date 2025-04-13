@@ -442,7 +442,6 @@
     "Charge": "Зарядка",
     "Diffusion Architecture": "Архитектура Diffusion",
     "The server is missing the ClipVision model": "На сервере отсутствует модель ClipVision",
-    "Python version 3.9 or higher is required, but found {version} at {location}. Please make sure a compatible version of Python is installed and can be found by the Krita process.": "Требуется версия Python 3.9 или выше, но найдена версия {version} в {location}. Пожалуйста, убедитесь, что установлена совместимая версия Python и она доступна для процесса Krita.",
     "Illustrious/NoobAI XL models": "Модели Illustrious/NoobAI XL",
     "Built-in styles cannot be modified.": "Встроенные стили не могут быть изменены.",
     "Stable Diffusion 1.5 models": "Модели Stable Diffusion 1.5",
@@ -477,6 +476,8 @@
     "Layer group + mask": null,
     "Action to take when an image generation job finishes": null,
     "Modify active layer": null,
-    "Always": null
+    "Always": null,
+    "Selected LoRA model could not be applied. Please make sure it is compatible with the checkpoint base model you are using.": null,
+    "Lean more": null
   }
 }

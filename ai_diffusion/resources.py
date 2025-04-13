@@ -7,10 +7,10 @@ from typing import Any, NamedTuple, Sequence
 
 # Version identifier for all the resources defined here. This is used as the server version.
 # It usually follows the plugin version, but not all new plugin versions also require a server update.
-version = "1.32.0"
+version = "1.33.0"
 
 comfy_url = "https://github.com/comfyanonymous/ComfyUI"
-comfy_version = "7ebd8087ffb9c713d308ff74f1bd14f07d569bed"
+comfy_version = "f9207c69369b200c89953cb422500e5f36f7d342"
 
 
 class CustomNode(NamedTuple):
@@ -57,14 +57,14 @@ optional_custom_nodes = [
         "GGUF",
         "ComfyUI-GGUF",
         "https://github.com/city96/ComfyUI-GGUF",
-        "01f6e3ff6333d521e3e0aa5b0c5e8ce5e8045995",
+        "6de4bdba30f142955ebf6f210533000ef094bf0e",
         ["UnetLoaderGGUF", "DualCLIPLoaderGGUF"],
     ),
     CustomNode(
         "WaveSpeed",
         "Comfy-WaveSpeed",
         "https://github.com/chengzeyi/Comfy-WaveSpeed",
-        "a9caacb0706c5fbe5fbc8718081f7c3e3e348ebd",
+        "16ec6f344f8cecbbf006d374043f85af22b7a51d",
         ["ApplyFBCacheOnModel"],
     ),
 ]

@@ -38,6 +38,8 @@ def update_server_requirements():
             "--no-deps",
             "--no-annotate",
             "--universal",
+            "--upgrade",
+            "--quiet",
             "-o",
             "ai_diffusion/server_requirements.txt",
         ],
