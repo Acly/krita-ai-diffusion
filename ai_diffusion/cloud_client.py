@@ -189,7 +189,11 @@ class CloudClient(Client):
             images = await self.receive_images(output["images"])
             pose = output.get("pose", None)
             log.info(f"{job} completed, got {len(images)} images{', got pose' if pose else ''}")
-            yield ClientMessage(ClientEvent.finished, job.local_id, 1, images, pose)
+            lora_warning = output.get("lora_warning", False)
+            if lora_warning:
+                log.warning(f"{job} encountered LoRA that could not be applied to the checkpoint")
+            error = "incompatible_lora" if lora_warning else None
+            yield ClientMessage(ClientEvent.finished, job.local_id, 1, images, pose, error=error)
 
         elif response["status"] == "FAILED":
             err_msg, err_trace = _extract_error(response, job.remote_id)

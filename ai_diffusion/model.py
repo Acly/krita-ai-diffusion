@@ -52,9 +52,15 @@ class ProgressKind(Enum):
 
 class ErrorKind(Enum):
     none = 0
-    plugin_error = 1
-    server_error = 2
-    insufficient_funds = 3
+    plugin_error = 100
+    server_error = 200
+    insufficient_funds = 201
+    warning = 300
+    incompatible_lora = 301
+
+    @property
+    def is_warning(self):
+        return self.value >= ErrorKind.warning.value
 
 
 class Error(NamedTuple):
@@ -64,6 +70,11 @@ class Error(NamedTuple):
 
     def __bool__(self):
         return self.kind is not ErrorKind.none
+
+    @staticmethod
+    def from_string(s: str, fallback: ErrorKind | None = None):
+        kind = ErrorKind[s] if s in ErrorKind.__members__ else fallback or ErrorKind.warning
+        return Error(kind, s)
 
 
 no_error = Error(ErrorKind.none, "")
@@ -463,7 +474,7 @@ class Model(QObject, ObservableProperties):
 
     def report_error(self, error: Error | str):
         if isinstance(error, str):
-            error = Error(ErrorKind.server_error, error)
+            error = Error.from_string(error, ErrorKind.server_error)
         self.error = error
         self.live.is_active = False
         self.custom.is_live = False
@@ -493,6 +504,8 @@ class Model(QObject, ObservableProperties):
         elif message.event is ClientEvent.output:
             self.custom.show_output(message.result)
         elif message.event is ClientEvent.finished:
+            if message.error:  # successful jobs may have encountered some warnings
+                self.report_error(Error.from_string(message.error, ErrorKind.warning))
             if message.images:
                 self.jobs.set_results(job, message.images)
             if job.kind is JobKind.control_layer:

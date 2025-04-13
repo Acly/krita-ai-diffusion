@@ -878,6 +878,8 @@ class ErrorBox(QFrame):
         self._original_error = error.message if error else ""
         if error.kind is ErrorKind.insufficient_funds:
             self._show_payment_error(error.data)
+        elif error.kind.is_warning:
+            self._show_warning(error.kind, error.message)
         elif error:
             self._show_error(error.message)
 
@@ -895,6 +897,20 @@ class ErrorBox(QFrame):
         if text != self._original_error:
             self._label.setToolTip(self._original_error)
         self._copy_button.setVisible(True)
+        self.setVisible(True)
+
+    def _show_warning(self, kind: ErrorKind, text: str):
+        self.reset(theme.yellow)
+        if kind is ErrorKind.incompatible_lora:
+            text = (
+                _(
+                    "Selected LoRA model could not be applied. Please make sure it is compatible with the checkpoint base model you are using."
+                )
+                + " <a href='https://docs.interstice.cloud/base-models'>"
+                + _("Lean more")
+                + "</a>"
+            )
+        self._label.setText(text)
         self.setVisible(True)
 
     def _show_payment_error(self, data: dict[str, Any] | None):
