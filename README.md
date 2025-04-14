@@ -41,12 +41,9 @@ See the [Plugin Installation Guide](https://docs.interstice.cloud/installation) 
 
 A concise (more technical) version is below:
 
-### Requirements
+### Operating System
 
-* Windows, Linux, MacOS
-* _On Linux/Mac:_ Python + venv must be installed
-    * recommended version: 3.12 or 3.11
-    * usually available via package manager, eg. `apt install python3-venv`
+Windows, Linux, MacOS
 
 #### Hardware support
 
