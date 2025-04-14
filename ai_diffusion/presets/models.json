@@ -194,16 +194,6 @@
       ]
     },
     {
-      "id": "checkpoint-pixelwave-sdxl",
-      "name": "Pixelwave (SDXL - Artwork)",
-      "files": [
-        {
-          "path": "models/checkpoints/pixelwave_11.safetensors",
-          "url": "https://huggingface.co/Acly/SD-Checkpoints/resolve/main/pixelwave_11.safetensors"
-        }
-      ]
-    },
-    {
       "id": "checkpoint-flux_dev-flux",
       "name": "Flux [dev]",
       "files": [
@@ -624,42 +614,12 @@
   ],
   "deprecated": [
     {
-      "id": "lora-lcm-sd15",
-      "name": "LCM-LoRA (SD1.5)",
-      "files": [
-        {
-          "path": "models/loras/lcm-lora-sdv1-5.safetensors",
-          "url": "https://huggingface.co/latent-consistency/lcm-lora-sdv1-5/resolve/main/pytorch_lora_weights.safetensors"
-        }
-      ]
-    },
-    {
-      "id": "lora-lcm-sdxl",
-      "name": "LCM-LoRA (SDXL)",
-      "files": [
-        {
-          "path": "models/loras/lcm-lora-sdxl.safetensors",
-          "url": "https://huggingface.co/latent-consistency/lcm-lora-sdxl/resolve/main/pytorch_lora_weights.safetensors"
-        }
-      ]
-    },
-    {
       "id": "checkpoint-realistic_vision-sd15",
       "name": "Realistic Vision (SD1.5 - Photography)",
       "files": [
         {
           "path": "models/checkpoints/realisticVisionV51_v51VAE.safetensors",
           "url": "https://huggingface.co/lllyasviel/fav_models/resolve/main/fav/realisticVisionV51_v51VAE.safetensors"
-        }
-      ]
-    },
-    {
-      "id": "checkpoint-juggernaut-sdxl",
-      "name": "Juggernaut XL (Old)",
-      "files": [
-        {
-          "path": "models/checkpoints/juggernautXL_version6Rundiffusion.safetensors",
-          "url": "https://huggingface.co/lllyasviel/fav_models/resolve/main/fav/juggernautXL_version6Rundiffusion.safetensors"
         }
       ]
     }
