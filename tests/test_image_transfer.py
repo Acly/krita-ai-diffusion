@@ -31,9 +31,10 @@ if (root_dir / "service" / "pod" / "lib").exists():
         max_b64_size = max_b64_size_config[mode]
 
         async def main():
+            logger = log.Log("test")
             metrics = log.Metrics("test", datetime.now())
             transfer = await image_transfer.send_images(
-                images, metrics, max_inline_size=max_b64_size, format=format
+                images, metrics, logger, max_inline_size=max_b64_size, format=format
             )
             assert len(transfer["offsets"]) == 2
 

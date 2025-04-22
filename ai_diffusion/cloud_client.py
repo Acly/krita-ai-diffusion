@@ -237,7 +237,7 @@ class CloudClient(Client):
     def features(self):
         return self._features
 
-    async def send_images(self, inputs: dict, max_inline_size=3_500_000):
+    async def send_images(self, inputs: dict, max_inline_size=4096):
         if image_data := inputs.get("image_data"):
             blob, offsets = image_data["bytes"], image_data["offsets"]
             if _base64_size(len(blob)) < max_inline_size:
