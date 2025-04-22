@@ -196,7 +196,8 @@ class Server:
         await _download_cached("Python", network, url, script_path, cb)
 
         if is_windows:
-            del os.environ["PSModulePath"]  # Don't inherit this from parent process
+            if "PSModulePath" in os.environ:
+                del os.environ["PSModulePath"]  # Don't inherit this from parent process
             cmd = ["powershell", "-ExecutionPolicy", "Bypass", "-File", str(script_path)]
         else:
             cmd = ["/bin/sh", str(script_path)]
