@@ -23,6 +23,7 @@ from PyQt5.QtWidgets import (
     QScrollBar,
 )
 from PyQt5.QtGui import (
+    QCloseEvent,
     QDesktopServices,
     QGuiApplication,
     QFontMetrics,
@@ -199,10 +200,10 @@ class QueuePopup(QMenu):
         self.model.resolution_multiplier = value / 10
         self._resolution_multiplier_display.setText(f"{(value / 10):.1f} x")
 
-    def mouseReleaseEvent(self, a0: QMouseEvent | None) -> None:
+    def closeEvent(self, a0: QCloseEvent | None) -> None:
         if parent := cast(QWidget, self.parent()):
             parent.close()
-        return super().mouseReleaseEvent(a0)
+        return super().closeEvent(a0)
 
 
 class QueueButton(QToolButton):
