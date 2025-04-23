@@ -171,20 +171,22 @@ class CloudClient(Client):
         log.info(f"{job} started, cost was {cost}, {user.credits} tokens remaining")
         yield ClientMessage(ClientEvent.progress, job.local_id, 0)
 
-        while response["status"] == "IN_QUEUE" or response["status"] == "IN_PROGRESS":
+        status = response["status"].lower()
+        while status == "in_queue" or status == "in_progress":
             response = await self._post(f"status/{job.worker_id}/{job.remote_id}", {})
+            status = response["status"].lower()
 
-            if response["status"] == "IN_QUEUE":
+            if status == "in_queue":
                 yield ClientMessage(ClientEvent.queued, job.local_id)
 
-            elif response["status"] == "IN_PROGRESS":
+            elif status == "in_progress":
                 progress = 0.09
                 if output := response.get("output", None):
                     progress = output.get("progress", progress)
                 yield ClientMessage(ClientEvent.progress, job.local_id, progress)
             await asyncio.sleep(_poll_interval)
 
-        if response["status"] == "COMPLETED":
+        if status == "completed":
             output = response["output"]
             images = await self.receive_images(output["images"])
             pose = output.get("pose", None)
@@ -195,20 +197,20 @@ class CloudClient(Client):
             error = "incompatible_lora" if lora_warning else None
             yield ClientMessage(ClientEvent.finished, job.local_id, 1, images, pose, error=error)
 
-        elif response["status"] == "FAILED":
+        elif status == "failed":
             err_msg, err_trace = _extract_error(response, job.remote_id)
             log.error(f"{job} failed\n{err_msg}\n{err_trace}")
             yield ClientMessage(ClientEvent.error, job.local_id, error=err_msg)
 
-        elif response["status"] == "CANCELLED":
+        elif status == "cancelled":
             log.info(f"{job} was cancelled")
             yield ClientMessage(ClientEvent.interrupted, job.local_id)
 
-        elif response["status"] == "TIMED_OUT":
+        elif status == "timed_out":
             log.warning(f"{job} timed out")
             yield ClientMessage(ClientEvent.error, job.local_id, error="job timed out")
         else:
-            log.warning(f"Got unknown job status {response['status']}")
+            log.warning(f"Got unknown job status {status}")
 
     async def interrupt(self):
         if job := self._current_job:
