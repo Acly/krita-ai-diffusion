@@ -225,11 +225,11 @@ class Server:
         await _extract_archive("ComfyUI", archive_path, comfy_dir.parent, cb)
         temp_comfy_dir = comfy_dir.parent / f"ComfyUI-{resources.comfy_version}"
 
-        torch_args = ["torch~=2.6.0", "torchvision~=0.21.0", "torchaudio~=2.6.0"]
+        torch_args = ["torch~=2.7.0", "torchvision~=0.22.0", "torchaudio~=2.7.0"]
         if self.backend is ServerBackend.cpu:
             torch_args += ["--index-url", "https://download.pytorch.org/whl/cpu"]
         elif self.backend is ServerBackend.cuda:
-            torch_args += ["--index-url", "https://download.pytorch.org/whl/cu124"]
+            torch_args += ["--index-url", "https://download.pytorch.org/whl/cu128"]
         elif self.backend is ServerBackend.directml:
             torch_args = ["numpy<2", "torch-directml"]
         await self._pip_install("PyTorch", torch_args, cb)
