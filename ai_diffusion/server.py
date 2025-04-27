@@ -245,13 +245,11 @@ class Server:
 
         if self.backend is ServerBackend.xpu:
             await _execute_process(
-                "ipex",
+                "Ipex",
                 self._pip_install(
-                    [
-                        "intel-extension-for-pytorch==2.6.10+xpu",
-                        "--extra-index-url",
-                        "https://pytorch-extension.intel.com/release-whl/stable/xpu/us/",
-                    ]
+                    "intel-extension-for-pytorch==2.6.10+xpu",
+                    "--extra-index-url",
+                    "https://pytorch-extension.intel.com/release-whl/stable/xpu/us/",
                 ),
                 self.path,
                 cb,
