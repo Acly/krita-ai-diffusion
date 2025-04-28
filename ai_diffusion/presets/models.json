@@ -382,6 +382,16 @@
       "requirements": "insightface"
     },
     {
+      "id": "controlnet-universal-flux",
+      "name": "ControlNet Universal (Flux)",
+      "files": [
+        {
+          "path": "models/FLUX.1-dev-ControlNet-Union-Pro-2.0-fp8.safetensors",
+          "url": "https://huggingface.co/ABDALLALSWAITI/FLUX.1-dev-ControlNet-Union-Pro-2.0-fp8/resolve/main/diffusion_pytorch_model.safetensors"
+        }
+      ]
+    },
+    {
       "id": "controlnet-inpaint-flux",
       "name": "ControlNet Inpaint (Flux)",
       "files": [
@@ -398,26 +408,6 @@
         {
           "path": "models/controlnet/mistoline_flux.dev_v1.safetensors",
           "url": "https://huggingface.co/TheMistoAI/MistoLine_Flux.dev/resolve/main/mistoline_flux.dev_v1.safetensors"
-        }
-      ]
-    },
-    {
-      "id": "controlnet-canny_edge-flux",
-      "name": "ControlNet Canny (Flux)",
-      "files": [
-        {
-          "path": "models/controlnet/flux-canny-controlnet-v3.safetensors",
-          "url": "https://huggingface.co/XLabs-AI/flux-controlnet-collections/resolve/main/flux-canny-controlnet-v3.safetensors"
-        }
-      ]
-    },
-    {
-      "id": "controlnet-depth-flux",
-      "name": "ControlNet Depth (Flux)",
-      "files": [
-        {
-          "path": "models/controlnet/flux-depth-controlnet-v3.safetensors",
-          "url": "https://huggingface.co/XLabs-AI/flux-controlnet-collections/resolve/main/flux-depth-controlnet-v3.safetensors"
         }
       ]
     },

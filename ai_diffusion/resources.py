@@ -262,6 +262,32 @@ class ControlMode(Enum):
 
         return control.control_mode_text[self]
 
+    def can_substitute_universal(self, arch: Arch):
+        """True if this control mode is covered by univeral control-net."""
+        if arch == Arch.sdxl:
+            return self in [
+                ControlMode.inpaint,
+                ControlMode.scribble,
+                ControlMode.line_art,
+                ControlMode.soft_edge,
+                ControlMode.canny_edge,
+                ControlMode.depth,
+                ControlMode.normal,
+                ControlMode.pose,
+                ControlMode.segmentation,
+                ControlMode.blur,
+            ]
+        if arch == Arch.flux:
+            return self in [
+                ControlMode.line_art,
+                ControlMode.soft_edge,
+                ControlMode.canny_edge,
+                ControlMode.depth,
+                ControlMode.pose,
+                ControlMode.blur,
+            ]
+        return False
+
 
 def resource_id(kind: ResourceKind, arch: Arch, identifier: ControlMode | UpscalerName | str):
     if isinstance(identifier, Enum):
@@ -444,6 +470,7 @@ search_paths: dict[str, list[str]] = {
     resource_id(ResourceKind.controlnet, Arch.flux, ControlMode.inpaint): ["flux.1-dev-controlnet-inpaint"],
     resource_id(ResourceKind.controlnet, Arch.illu, ControlMode.inpaint): ["noobaiinpainting"],
     resource_id(ResourceKind.controlnet, Arch.sdxl, ControlMode.universal): ["union-sdxl", "xinsirunion"],
+    resource_id(ResourceKind.controlnet, Arch.flux, ControlMode.universal): ["flux.1-dev-controlnet-union-pro-2.0", "flux.1-dev-controlnet-union-pro", "flux.1-dev-controlnet-union", "flux1devcontrolnetunion"],
     resource_id(ResourceKind.controlnet, Arch.sd15, ControlMode.scribble): ["control_v11p_sd15_scribble", "control_lora_rank128_v11p_sd15_scribble"],
     resource_id(ResourceKind.controlnet, Arch.sdxl, ControlMode.scribble): ["xinsirscribble", "scribble-sdxl", "mistoline_fp16", "mistoline_rank", "control-lora-sketch-rank", "sai_xl_sketch_"],
     resource_id(ResourceKind.controlnet, Arch.illu, ControlMode.scribble): ["noob-sdxl-controlnet-scribble_pidinet", "noobaixlcontrolnet_epsscribble", "noob-sdxl-controlnet-scribble"],
