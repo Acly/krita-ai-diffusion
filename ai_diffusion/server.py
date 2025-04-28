@@ -249,14 +249,13 @@ class Server:
         await self._pip_install("ComfyUI", ["-r", str(requirements_txt)], cb)
 
         if self.backend is ServerBackend.xpu:
-            await _execute_process(
+            await self._pip_install(
                 "Ipex",
-                self._pip_install(
+                [
                     "intel-extension-for-pytorch==2.6.10+xpu",
                     "--extra-index-url",
                     "https://pytorch-extension.intel.com/release-whl/stable/xpu/us/",
-                ),
-                self.path,
+                ],
                 cb,
             )
 
