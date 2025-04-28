@@ -126,23 +126,17 @@ class Server:
         self.missing_resources += missing_nodes
 
         model_folders = [self.path, self.comfy_dir]
-        self.missing_resources += find_missing(
-            model_folders, resources.required_models, Arch.all
-        )
+        self.missing_resources += find_missing(model_folders, resources.required_models, Arch.all)
         missing_sd15 = find_missing(model_folders, resources.required_models, Arch.sd15)
         missing_sdxl = find_missing(model_folders, resources.required_models, Arch.sdxl)
-        if len(self.missing_resources) > 0 or (
-            len(missing_sd15) > 0 and len(missing_sdxl) > 0
-        ):
+        if len(self.missing_resources) > 0 or (len(missing_sd15) > 0 and len(missing_sdxl) > 0):
             self.state = ServerState.missing_resources
         else:
             self.state = ServerState.stopped
         self.missing_resources += missing_sd15 + missing_sdxl
 
         # Optional resources
-        self.missing_resources += find_missing(
-            model_folders, resources.default_checkpoints
-        )
+        self.missing_resources += find_missing(model_folders, resources.default_checkpoints)
         self.missing_resources += find_missing(model_folders, resources.upscale_models)
         self.missing_resources += find_missing(model_folders, resources.optional_models)
 
@@ -172,9 +166,7 @@ class Server:
         if not self.has_comfy:
             await try_install(comfy_dir, self._install_comfy, comfy_dir, network, cb)
 
-        for pkg in chain(
-            resources.required_custom_nodes, resources.optional_custom_nodes
-        ):
+        for pkg in chain(resources.required_custom_nodes, resources.optional_custom_nodes):
             dir = comfy_dir / "custom_nodes" / pkg.folder
             await install_if_missing(dir, self._install_custom_node, pkg, network, cb)
 
@@ -290,9 +282,7 @@ class Server:
         await rename_extracted_folder(pkg.name, folder, pkg.version)
         cb(f"Installing {pkg.name}", f"Finished installing {pkg.name}")
 
-    async def _install_insightface(
-        self, network: QNetworkAccessManager, cb: InternalCB
-    ):
+    async def _install_insightface(self, network: QNetworkAccessManager, cb: InternalCB):
         assert self.comfy_dir is not None and self._python_cmd is not None
 
         dependencies = ["onnx==1.16.1", "onnxruntime"]  # onnx version pinned due to #1033
@@ -374,16 +364,12 @@ class Server:
             )
             to_install = (r for r in all_models if r.name in packages)
             for resource in to_install:
-                if not resource.exists_in(self.path) and not resource.exists_in(
-                    self.comfy_dir
-                ):
+                if not resource.exists_in(self.path) and not resource.exists_in(self.comfy_dir):
                     await self._install_requirements(resource.requirements, network, cb)
                     for file in resource.files:
                         target_file = self.path / file.path
                         target_file.parent.mkdir(parents=True, exist_ok=True)
-                        await _download_cached(
-                            resource.name, network, file.url, target_file, cb
-                        )
+                        await _download_cached(resource.name, network, file.url, target_file, cb)
         except Exception as e:
             log.exception(str(e))
             raise e
@@ -421,9 +407,7 @@ class Server:
             await self.install(callback)
         except Exception as e:
             if upgrade_comfy_dir.exists():
-                log.warning(
-                    f"Error during upgrade: {str(e)} - Restoring {upgrade_comfy_dir}"
-                )
+                log.warning(f"Error during upgrade: {str(e)} - Restoring {upgrade_comfy_dir}")
                 safe_remove_dir(comfy_dir)
                 shutil.move(upgrade_comfy_dir, comfy_dir)
             raise e
@@ -496,9 +480,7 @@ class Server:
         if self.state != ServerState.running:
             error = "Process exited unexpectedly"
             try:
-                out, err = await asyncio.wait_for(
-                    self._process.communicate(), timeout=10
-                )
+                out, err = await asyncio.wait_for(self._process.communicate(), timeout=10)
                 server_log.error(decode_pipe_bytes(out).strip())
                 error = last_line + decode_pipe_bytes(err or out)
             except asyncio.TimeoutError:
@@ -527,9 +509,7 @@ class Server:
 
             code = await asyncio.wait_for(self._process.wait(), timeout=1)
             if code != 0:
-                log.error(
-                    f"Server process terminated with code {self._process.returncode}"
-                )
+                log.error(f"Server process terminated with code {self._process.returncode}")
             elif code is not None:
                 log.info("Server process was shut down sucessfully")
 
@@ -573,9 +553,7 @@ class Server:
         name = package if isinstance(package, str) else package.name
         return name not in self.missing_resources
 
-    def all_installed(
-        self, packages: list[str] | list[ModelResource] | list[CustomNode]
-    ):
+    def all_installed(self, packages: list[str] | list[ModelResource] | list[CustomNode]):
         return all(self.is_installed(p) for p in packages)
 
     @property
@@ -691,9 +669,7 @@ def _prepend_file(path: Path, line: str):
         file.truncate()
 
 
-def find_missing(
-    folders: list[Path], resources: list[ModelResource], ver: Arch | None = None
-):
+def find_missing(folders: list[Path], resources: list[ModelResource], ver: Arch | None = None):
     return [
         res.name
         for res in resources
@@ -705,9 +681,7 @@ async def rename_extracted_folder(name: str, path: Path, suffix: str):
     if path.exists() and path.is_dir() and not any(path.iterdir()):
         path.rmdir()
     elif path.exists():
-        raise Exception(
-            f"Error during {name} installation: target folder {path} already exists"
-        )
+        raise Exception(f"Error during {name} installation: target folder {path} already exists")
 
     extracted_folder = path.parent / f"{path.name}-{suffix}"
     if not extracted_folder.exists():
@@ -719,9 +693,7 @@ async def rename_extracted_folder(name: str, path: Path, suffix: str):
             extracted_folder.rename(path)
             return
         except Exception as e:
-            log.warning(
-                f"Rename failed during {name} installation: {str(e)} - retrying..."
-            )
+            log.warning(f"Rename failed during {name} installation: {str(e)} - retrying...")
             await asyncio.sleep(1)
     extracted_folder.rename(path)
 
@@ -731,13 +703,9 @@ def safe_remove_dir(path: Path, max_size=12 * 1024 * 1024):
         for p in path.rglob("*"):
             if p.is_file():
                 if p.stat().st_size > max_size:
-                    raise Exception(
-                        f"Failed to remove {path}: found remaining large file {p}"
-                    )
+                    raise Exception(f"Failed to remove {path}: found remaining large file {p}")
                 if p.suffix == ".safetensors":
-                    raise Exception(
-                        f"Failed to remove {path}: found remaining model {p}"
-                    )
+                    raise Exception(f"Failed to remove {path}: found remaining model {p}")
         shutil.rmtree(path, ignore_errors=True)
 
 
@@ -817,9 +785,7 @@ def _configure_extra_model_paths(comfy_dir: Path):
     if not path.exists() and example.exists():
         example.rename(path)
     if not path.exists():
-        raise Exception(
-            f"Could not find or create extra_model_paths.yaml in {comfy_dir}"
-        )
+        raise Exception(f"Could not find or create extra_model_paths.yaml in {comfy_dir}")
     contents = path.read_text()
     if "krita-managed" not in contents:
         log.info(f"Extending {path}")
