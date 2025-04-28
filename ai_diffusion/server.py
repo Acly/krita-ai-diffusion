@@ -636,15 +636,6 @@ async def install_if_missing(path: Path, installer, *args):
         await try_install(path, installer, *args)
 
 
-def _prepend_file(path: Path, line: str):
-    with open(path, "r+") as file:
-        lines = file.readlines()
-        lines.insert(0, line)
-        file.seek(0)
-        file.writelines(lines)
-        file.truncate()
-
-
 def find_missing(folders: list[Path], resources: list[ModelResource], ver: Arch | None = None):
     return [
         res.name
