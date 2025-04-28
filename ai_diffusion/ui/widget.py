@@ -23,6 +23,7 @@ from PyQt5.QtWidgets import (
     QScrollBar,
 )
 from PyQt5.QtGui import (
+    QCloseEvent,
     QDesktopServices,
     QGuiApplication,
     QFontMetrics,
@@ -199,10 +200,10 @@ class QueuePopup(QMenu):
         self.model.resolution_multiplier = value / 10
         self._resolution_multiplier_display.setText(f"{(value / 10):.1f} x")
 
-    def mouseReleaseEvent(self, a0: QMouseEvent | None) -> None:
+    def closeEvent(self, a0: QCloseEvent | None) -> None:
         if parent := cast(QWidget, self.parent()):
             parent.close()
-        return super().mouseReleaseEvent(a0)
+        return super().closeEvent(a0)
 
 
 class QueueButton(QToolButton):
@@ -775,17 +776,21 @@ class GenerateButton(QPushButton):
         painter = QPainter(self)
         fm = self.fontMetrics()
         style = ensure(self.style())
+        align = (
+            Qt.AlignmentFlag.AlignLeft
+            | Qt.AlignmentFlag.AlignVCenter
+            | Qt.AlignmentFlag.AlignAbsolute
+        )
         rect = self.rect()
         pixmap = self.icon().pixmap(int(fm.height() * 1.3))
         is_hover = int(opt.state) & QStyle.StateFlag.State_MouseOver
         element = QStyle.PrimitiveElement.PE_PanelButtonCommand
-        vcenter = Qt.AlignmentFlag.AlignVCenter
         content_width = fm.width(self._operation) + 5 + pixmap.width()
         content_rect = rect.adjusted(int(0.5 * (rect.width() - content_width)), 0, 0, 0)
         style.drawPrimitive(element, opt, painter, self)
-        style.drawItemPixmap(painter, content_rect, vcenter, pixmap)
+        style.drawItemPixmap(painter, content_rect, align, pixmap)
         content_rect = content_rect.adjusted(pixmap.width() + 5, 0, 0, 0)
-        style.drawItemText(painter, content_rect, vcenter, self.palette(), True, self._operation)
+        style.drawItemText(painter, content_rect, align, self.palette(), True, self._operation)
 
         cost_width = 0
         if is_hover and self._cost > 0:
@@ -799,23 +804,23 @@ class GenerateButton(QPushButton):
             )
             painter.setOpacity(0.7)
             cost_rect = cost_rect.adjusted(6, 0, 0, 0)
-            style.drawItemText(painter, cost_rect, vcenter, self.palette(), True, str(self._cost))
+            style.drawItemText(painter, cost_rect, align, self.palette(), True, str(self._cost))
             cost_rect = cost_rect.adjusted(text_width + 4, 0, 0, 0)
-            style.drawItemPixmap(painter, cost_rect, vcenter, pixmap)
+            style.drawItemPixmap(painter, cost_rect, align, pixmap)
 
         seed_width = 0
         if is_hover and self.model.fixed_seed:
             pixmap = self._seed_icon.pixmap(fm.height())
             seed_width = pixmap.width() + 4
             seed_rect = rect.adjusted(rect.width() - cost_width - seed_width, 0, 0, 0)
-            style.drawItemPixmap(painter, seed_rect, vcenter, pixmap)
+            style.drawItemPixmap(painter, seed_rect, align, pixmap)
 
         if is_hover and self.model.resolution_multiplier != 1.0:
             pixmap = self._resolution_icon.pixmap(fm.height())
             resolution_rect = rect.adjusted(
                 rect.width() - cost_width - seed_width - pixmap.width() - 4, 0, 0, 0
             )
-            style.drawItemPixmap(painter, resolution_rect, vcenter, pixmap)
+            style.drawItemPixmap(painter, resolution_rect, align, pixmap)
 
 
 class ErrorBox(QFrame):
@@ -874,6 +879,8 @@ class ErrorBox(QFrame):
         self._original_error = error.message if error else ""
         if error.kind is ErrorKind.insufficient_funds:
             self._show_payment_error(error.data)
+        elif error.kind.is_warning:
+            self._show_warning(error.kind, error.message)
         elif error:
             self._show_error(error.message)
 
@@ -891,6 +898,20 @@ class ErrorBox(QFrame):
         if text != self._original_error:
             self._label.setToolTip(self._original_error)
         self._copy_button.setVisible(True)
+        self.setVisible(True)
+
+    def _show_warning(self, kind: ErrorKind, text: str):
+        self.reset(theme.yellow)
+        if kind is ErrorKind.incompatible_lora:
+            text = (
+                _(
+                    "Selected LoRA model could not be applied. Please make sure it is compatible with the checkpoint base model you are using."
+                )
+                + " <a href='https://docs.interstice.cloud/base-models'>"
+                + _("Lean more")
+                + "</a>"
+            )
+        self._label.setText(text)
         self.setVisible(True)
 
     def _show_payment_error(self, data: dict[str, Any] | None):
@@ -942,22 +963,18 @@ def _paint_tool_drop_down(widget: QToolButton, text: str | None = None):
     opt.initFrom(widget)
     painter = QPainter(widget)
     style = ensure(widget.style())
+    align = (
+        Qt.AlignmentFlag.AlignLeft | Qt.AlignmentFlag.AlignVCenter | Qt.AlignmentFlag.AlignAbsolute
+    )
     rect = widget.rect()
     pixmap = widget.icon().pixmap(int(rect.height() * 0.75))
     element = QStyle.PrimitiveElement.PE_Widget
     if int(opt.state) & QStyle.StateFlag.State_MouseOver:
         element = QStyle.PrimitiveElement.PE_PanelButtonCommand
     style.drawPrimitive(element, opt, painter, widget)
-    style.drawItemPixmap(
-        painter,
-        rect.adjusted(4, 0, 0, 0),
-        Qt.AlignmentFlag.AlignLeft | Qt.AlignmentFlag.AlignVCenter,
-        pixmap,
-    )
+    style.drawItemPixmap(painter, rect.adjusted(4, 0, 0, 0), align, pixmap)
     if text:
         text_rect = rect.adjusted(pixmap.width() + 4, 0, 0, 0)
-        style.drawItemText(
-            painter, text_rect, Qt.AlignmentFlag.AlignVCenter, widget.palette(), True, text
-        )
+        style.drawItemText(painter, text_rect, align, widget.palette(), True, text)
     painter.translate(int(0.5 * rect.width() - 10), 0)
     style.drawPrimitive(QStyle.PrimitiveElement.PE_IndicatorArrowDown, opt, painter)

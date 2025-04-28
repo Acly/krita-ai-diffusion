@@ -156,6 +156,12 @@ def load_checkpoint_with_lora(w: ComfyWorkflow, checkpoint: CheckpointInput, mod
     return model, Clip(clip, arch), vae
 
 
+def vae_encode(w: ComfyWorkflow, vae: Output, image: Output, tiled: bool):
+    if tiled:
+        return w.vae_encode_tiled(vae, image)
+    return w.vae_encode(vae, image)
+
+
 def vae_decode(w: ComfyWorkflow, vae: Output, latent: Output, tiled: bool):
     if tiled:
         return w.vae_decode_tiled(vae, latent)
@@ -461,12 +467,13 @@ def apply_control(
 ):
     models = models.control
     control_lora: ControlMode | None = None
+    is_illu = models.arch in [Arch.illu, Arch.illu_v]
 
     for control in (c for c in control_layers if c.mode.is_control_net):
         image = control.image.load(w, shape)
-        if control.mode is ControlMode.inpaint and models.arch is Arch.sd15:
+        if control.mode is ControlMode.inpaint and (models.arch is Arch.sd15 or is_illu):
             assert control.mask is not None, "Inpaint control requires a mask"
-            image = w.inpaint_preprocessor(image, control.mask.load(w))
+            image = w.inpaint_preprocessor(image, control.mask.load(w), fill_black=is_illu)
         if control.mode.is_lines:  # ControlNet expects white lines on black background
             image = w.invert_image(image)
 
@@ -677,7 +684,7 @@ def scale_refine_and_decode(
     decoded = vae_decode(w, vae, latent, tiled_vae)
     upscale = w.upscale_image(upscale_model, decoded)
     upscale = w.scale_image(upscale, extent.desired)
-    latent = w.vae_encode(vae, upscale)
+    latent = vae_encode(w, vae, upscale, tiled_vae)
     params = _sampler_params(sampling, strength=0.4)
 
     positive, negative = encode_text_prompt(w, cond, clip, regions)
@@ -772,7 +779,7 @@ def detect_inpaint(
             and prompt != ""
             and not any(c.mode.is_structural for c in control)
         )
-    elif sd_ver is Arch.sdxl:
+    elif sd_ver.is_sdxl_like:
         result.use_inpaint_model = strength > 0.8
     elif sd_ver is Arch.flux:
         result.use_inpaint_model = strength == 1.0
@@ -873,7 +880,7 @@ def inpaint(
         )
         inpaint_model = model
     else:
-        latent = w.vae_encode(vae, in_image)
+        latent = vae_encode(w, vae, in_image, checkpoint.tiled_vae)
         latent = w.set_latent_noise_mask(latent, initial_mask)
         inpaint_model = model
 
@@ -898,7 +905,7 @@ def inpaint(
         upscale = ensure_minimum_extent(w, upscale, initial_bounds.extent, 32)
         upscale = w.upscale_image(upscale_model, upscale)
         upscale = w.scale_image(upscale, upscale_extent.desired)
-        latent = w.vae_encode(vae, upscale)
+        latent = vae_encode(w, vae, upscale, checkpoint.tiled_vae)
         latent = w.set_latent_noise_mask(latent, upscale_mask)
 
         cond_upscale = cond.copy()
@@ -955,7 +962,7 @@ def refine(
     model = apply_regional_ip_adapter(w, model, cond.regions, extent.initial, models)
     in_image = w.load_image(image)
     in_image = scale_to_initial(extent, w, in_image, models)
-    latent = w.vae_encode(vae, in_image)
+    latent = vae_encode(w, vae, in_image, checkpoint.tiled_vae)
     latent = w.batch_latent(latent, misc.batch_count)
     positive, negative = encode_text_prompt(w, cond, clip, regions)
     model, positive, negative = apply_control(
@@ -1009,7 +1016,7 @@ def refine_region(
         inpaint_patch = w.load_fooocus_inpaint(**models.fooocus_inpaint)
         inpaint_model = w.apply_fooocus_inpaint(model, inpaint_patch, latent_inpaint)
     else:
-        latent = w.vae_encode(vae, in_image)
+        latent = vae_encode(w, vae, in_image, checkpoint.tiled_vae)
         latent = w.set_latent_noise_mask(latent, initial_mask)
         inpaint_model = model
 
@@ -1178,7 +1185,7 @@ def upscale_tiled(
             w, tile_model, positive, negative, control, no_reshape, vae, models
         )
 
-        latent = w.vae_encode(vae, tile_image)
+        latent = vae_encode(w, vae, tile_image, checkpoint.tiled_vae)
         latent = w.set_latent_noise_mask(latent, tile_mask)
         sampler = w.sampler_custom_advanced(
             tile_model, positive, negative, latent, models.arch, **_sampler_params(sampling)

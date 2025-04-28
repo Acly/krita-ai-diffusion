@@ -1,0 +1,56 @@
+# Requirements for ComfyUI and custom nodes
+# meant as input for pinning versions with `uv pip compile`
+#
+# Removed dependencies:
+# - torch (depends on backend and OS, installed manually)
+# - numpy (directml requires an older version)
+# - trimesh (optional, causes problems due to xatlas dependency)
+# - comfyui-frontend-package (installed from ComfyUI's requirements.txt to match version)
+
+# ComfyUI
+torchsde
+einops
+transformers>=4.28.1
+tokenizers>=0.13.3
+sentencepiece
+safetensors>=0.4.2
+aiohttp>=3.11.8
+yarl>=1.18.0
+pyyaml
+Pillow
+scipy
+tqdm
+psutil
+kornia>=0.7.1
+spandrel
+soundfile
+av
+
+# comfyui_controlnet_aux
+importlib_metadata
+huggingface_hub
+scipy
+opencv-python>=4.7.0.72
+filelock
+Pillow
+einops
+pyyaml
+scikit-image
+python-dateutil
+mediapipe
+svglib
+fvcore
+yapf
+omegaconf
+ftfy
+addict
+yacs
+albumentations
+scikit-learn
+matplotlib
+
+# ComfyUI-GGUF
+gguf
+
+# comfyui-tooling-nodes
+argostranslate

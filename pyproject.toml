@@ -1,5 +1,5 @@
 [tool.ruff]
-target-version = "py310"
+target-version = "py311"
 line-length = 100
 preview = true
 extend-exclude = [

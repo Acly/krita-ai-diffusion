@@ -5,6 +5,7 @@ from itertools import chain
 from pathlib import Path
 import shutil
 import re
+import os
 from typing import Callable, NamedTuple, Optional, Union
 from PyQt5.QtNetwork import QNetworkAccessManager
 
@@ -54,11 +55,13 @@ class Server:
     comfy_dir: Optional[Path] = None
     version: Optional[str] = None
 
+    _uv_cmd: Optional[Path] = None
     _python_cmd: Optional[Path] = None
     _cache_dir: Path
     _version_file: Path
     _process: Optional[asyncio.subprocess.Process] = None
     _task: Optional[asyncio.Task] = None
+    _installed_backend: Optional[ServerBackend] = None
 
     def __init__(self, path: Optional[str] = None):
         self.path = Path(path or settings.server_path)
@@ -72,24 +75,38 @@ class Server:
         self._cache_dir = self.path / ".cache"
 
         self._version_file = self.path / ".version"
+        self.version = None
         if self._version_file.exists():
-            self.version = self._version_file.read_text().strip()
-            log.info(f"Found server installation v{self.version} at {self.path}")
-        else:
-            self.version = None
+            content = self._version_file.read_text().strip().split()
+            if len(content) > 0:
+                self.version = content[0]
+            if len(content) > 1 and content[1] in ServerBackend.__members__:
+                self._installed_backend = ServerBackend[content[1]]
+        if self.version is not None:
+            backend = f" [{self._installed_backend.name}]" if self._installed_backend else ""
+            log.info(f"Found server installation v{self.version}{backend} at {self.path}")
 
         comfy_pkg = ["main.py", "nodes.py", "custom_nodes"]
         self.comfy_dir = _find_component(comfy_pkg, [self.path / "ComfyUI"])
 
-        python_pkg = (
-            ["python3.dll", "python.exe"] if is_windows else ["python3", "pip3"]
-        )
-        python_search_paths = [self.path / "python", self.path / "venv" / "bin"]
+        uv_exe = "uv.exe" if is_windows else "uv"
+        self._uv_cmd = self.path / "uv" / uv_exe
+        if not self._uv_cmd.exists():
+            self._uv_cmd = None
+            self._uv_cmd = _find_program(uv_exe)
+
+        python_pkg = ["python.exe"] if is_windows else ["python3"]
+        python_search_paths = [
+            self.path / "python",
+            self.path / "venv" / "bin",
+            self.path / "venv" / "Scripts",
+        ]
         python_path = _find_component(python_pkg, python_search_paths)
         if python_path is None:
-            self._python_cmd = _find_program(
-                "python3.12", "python3.11", "python3.10", "python3", "python"
-            )
+            if not is_windows:
+                self._python_cmd = _find_program(
+                    "python3.12", "python3.11", "python3.10", "python3", "python"
+                )
         else:
             self._python_cmd = python_path / f"python{_exe}"
 
@@ -138,18 +155,15 @@ class Server:
         self._cache_dir.mkdir(parents=True, exist_ok=True)
         self._version_file.write_text("incomplete")
 
-        if is_windows and (self.comfy_dir is None or self._python_cmd is None):
-            # On Windows install an embedded version of Python
-            python_dir = self.path / "python"
-            self._python_cmd = python_dir / f"python{_exe}"
-            await install_if_missing(python_dir, self._install_python, network, cb)
-        elif not is_windows and (
-            self.comfy_dir is None or not (self.path / "venv").exists()
-        ):
-            # On Linux a system Python is required to create a virtual environment
+        has_venv = (self.path / "venv").exists()
+        has_embedded_python = (self.path / "python").exists()
+        has_uv = self._uv_cmd is not None
+        if not any((has_venv, has_embedded_python, has_uv)):
+            await try_install(self.path / "uv", self._install_uv, network, cb)
+
+        if self.comfy_dir is None or not (has_venv or has_embedded_python):
             python_dir = self.path / "venv"
             await install_if_missing(python_dir, self._create_venv, cb)
-            self._python_cmd = python_dir / "bin" / "python3"
         assert self._python_cmd is not None
         await self._log_python_version()
         await determine_system_encoding(str(self._python_cmd))
@@ -164,65 +178,61 @@ class Server:
             dir = comfy_dir / "custom_nodes" / pkg.folder
             await install_if_missing(dir, self._install_custom_node, pkg, network, cb)
 
-        self._version_file.write_text(resources.version)
+        self._version_file.write_text(f"{resources.version} {self.backend.name}")
         self.state = ServerState.stopped
         cb("Finished", f"Installation finished in {self.path}")
         self.check_install()
 
     async def _log_python_version(self):
+        if self._uv_cmd is not None:
+            uv_ver = await get_python_version_string(self._uv_cmd)
+            log.info(f"Using uv: {uv_ver}")
         if self._python_cmd is not None:
             python_ver = await get_python_version_string(self._python_cmd)
             log.info(f"Using Python: {python_ver}, {self._python_cmd}")
-            pip_ver = await get_python_version_string(self._python_cmd, "-m", "pip")
-            log.info(f"Using pip: {pip_ver}")
+            if self._uv_cmd is None:
+                pip_ver = await get_python_version_string(self._python_cmd, "-m", "pip")
+                log.info(f"Using pip: {pip_ver}")
 
-    def _pip_install(self, *args):
-        return [self._python_cmd, "-su", "-m", "pip", "install", *args]
+    def _pip_install(self, name: str, args: list[str], cb: InternalCB):
+        env = None
+        if self._uv_cmd is not None:
+            env = {"VIRTUAL_ENV": str(self.path / "venv")}
+            cmd = [self._uv_cmd, "pip", "install", *args]
+        else:
+            cmd = [self._python_cmd, "-su", "-m", "pip", "install", *args]
+        return _execute_process(name, cmd, self.path, cb, env=env)
 
-    async def _install_python(self, network: QNetworkAccessManager, cb: InternalCB):
-        url = "https://www.python.org/ftp/python/3.11.9/python-3.11.9-embed-amd64.zip"
-        archive_path = self._cache_dir / "python-3.11.9-embed-amd64.zip"
-        dir = self.path / "python"
+    async def _install_uv(self, network: QNetworkAccessManager, cb: InternalCB):
+        script_ext = ".ps1" if is_windows else ".sh"
+        url = f"https://astral.sh/uv/0.6.10/install{script_ext}"
+        script_path = self._cache_dir / f"install_uv{script_ext}"
+        await _download_cached("Python", network, url, script_path, cb)
 
-        await _download_cached("Python", network, url, archive_path, cb)
-        await _extract_archive("Python", archive_path, dir, cb)
+        if is_windows:
+            if "PSModulePath" in os.environ:
+                del os.environ["PSModulePath"]  # Don't inherit this from parent process
+            cmd = ["powershell", "-ExecutionPolicy", "Bypass", "-File", str(script_path)]
+        else:
+            cmd = ["/bin/sh", str(script_path)]
+        env = {"UV_INSTALL_DIR": str(self.path / "uv")}
+        await _execute_process("Python", cmd, self.path, cb, env=env)
 
-        python_pth = dir / "python311._pth"
-        cb("Installing Python", f"Patching {python_pth}")
-        with open(python_pth, "a") as file:
-            file.write("import site\n")
-
-        git_pip_url = "https://bootstrap.pypa.io/get-pip.py"
-        get_pip_file = dir / "get-pip.py"
-        await _download_cached("Python", network, git_pip_url, get_pip_file, cb)
-        await _execute_process("Python", [self._python_cmd, get_pip_file], dir, cb)
-        await _execute_process(
-            "Python", self._pip_install("wheel", "setuptools"), dir, cb
-        )
-
-        cb("Installing Python", f"Patching {python_pth}")
-        _prepend_file(python_pth, "../ComfyUI\n")
-        cb("Installing Python", "Finished installing Python")
+        self._uv_cmd = self.path / "uv" / ("uv" + _exe)
+        cb("Installing Python", f"Installed uv at {self._uv_cmd}")
 
     async def _create_venv(self, cb: InternalCB):
-        cb(
-            "Creating Python virtual environment",
-            f"Creating venv in {self.path / 'venv'}",
-        )
-        assert self._python_cmd is not None
-        python_version, major, minor = await get_python_version(self._python_cmd)
-        if major is not None and minor is not None and (major < 3 or minor < 9):
-            raise Exception(
-                _(
-                    "Python version 3.9 or higher is required, but found {version} at {location}. Please make sure a compatible version of Python is installed and can be found by the Krita process."
-                ).format(version=python_version, location=self._python_cmd)
-            )
-        venv_cmd = [self._python_cmd, "-m", "venv", "venv"]
+        cb("Creating Python virtual environment", f"Creating venv in {self.path / 'venv'}")
+        assert self._uv_cmd is not None
+        venv_cmd = [self._uv_cmd, "venv", "--python", "3.12", str(self.path / "venv")]
         await _execute_process("Python", venv_cmd, self.path, cb)
 
-    async def _install_comfy(
-        self, comfy_dir: Path, network: QNetworkAccessManager, cb: InternalCB
-    ):
+        if is_windows:
+            self._python_cmd = self.path / "venv" / "Scripts" / "python.exe"
+        else:
+            self._python_cmd = self.path / "venv" / "bin" / "python3"
+
+    async def _install_comfy(self, comfy_dir: Path, network: QNetworkAccessManager, cb: InternalCB):
         url = f"{resources.comfy_url}/archive/{resources.comfy_version}.zip"
         archive_path = self._cache_dir / f"ComfyUI-{resources.comfy_version}.zip"
         await _download_cached("ComfyUI", network, url, archive_path, cb)
@@ -241,7 +251,10 @@ class Server:
                 "--index-url",
                 "https://download.pytorch.org/whl/xpu",
             ]
-        await _execute_process("PyTorch", self._pip_install(*torch_args), self.path, cb)
+        await self._pip_install("PyTorch", torch_args, cb)
+
+        requirements_txt = Path(__file__).parent / "server_requirements.txt"
+        await self._pip_install("ComfyUI", ["-r", str(requirements_txt)], cb)
 
         if self.backend is ServerBackend.xpu:
             await _execute_process(
@@ -256,9 +269,7 @@ class Server:
             )
 
         requirements_txt = temp_comfy_dir / "requirements.txt"
-        await _execute_process(
-            "ComfyUI", self._pip_install("-r", requirements_txt), self.path, cb
-        )
+        await self._pip_install("ComfyUI", ["-r", str(requirements_txt)], cb)
 
         _configure_extra_model_paths(temp_comfy_dir)
         await rename_extracted_folder("ComfyUI", comfy_dir, resources.comfy_version)
@@ -277,12 +288,6 @@ class Server:
         await _download_cached(pkg.name, network, resource_url, resource_zip_path, cb)
         await _extract_archive(pkg.name, resource_zip_path, folder.parent, cb)
         await rename_extracted_folder(pkg.name, folder, pkg.version)
-
-        requirements_txt = folder / "requirements.txt"
-        if requirements_txt.exists():
-            await _execute_process(
-                pkg.name, self._pip_install("-r", requirements_txt), folder, cb
-            )
         cb(f"Installing {pkg.name}", f"Finished installing {pkg.name}")
 
     async def _install_insightface(
@@ -290,24 +295,17 @@ class Server:
     ):
         assert self.comfy_dir is not None and self._python_cmd is not None
 
-        dependencies = [
-            "onnx==1.16.1",
-            "onnxruntime",
-        ]  # onnx version pinned due to #1033
-        await _execute_process(
-            "FaceID", self._pip_install(*dependencies), self.path, cb
-        )
+        dependencies = ["onnx==1.16.1", "onnxruntime"]  # onnx version pinned due to #1033
+        await self._pip_install("FaceID", dependencies, cb)
 
         pyver = await get_python_version_string(self._python_cmd)
         if is_windows and "3.11" in pyver:
             whl_file = self._cache_dir / "insightface-0.7.3-cp311-cp311-win_amd64.whl"
             whl_url = "https://github.com/bihailantian655/insightface_wheel/raw/main/insightface-0.7.3-cp311-cp311-win_amd64%20(1).whl"
             await _download_cached("FaceID", network, whl_url, whl_file, cb)
-            await _execute_process("FaceID", self._pip_install(whl_file), self.path, cb)
+            await self._pip_install("FaceID", [str(whl_file)], cb)
         else:
-            await _execute_process(
-                "FaceID", self._pip_install("insightface"), self.path, cb
-            )
+            await self._pip_install("FaceID", ["insightface"], cb)
 
     async def _install_requirements(
         self,
@@ -590,11 +588,18 @@ class Server:
 
     @property
     def upgrade_required(self):
+        backend_mismatch = (
+            self._installed_backend is not None
+            and self._installed_backend != self.backend
+            and self.backend in [ServerBackend.cuda, ServerBackend.directml]
+            and self._installed_backend
+            in [ServerBackend.cuda, ServerBackend.directml, ServerBackend.cpu]
+        )
         return (
             self.state is not ServerState.not_installed
             and self.version is not None
             and self.version != "incomplete"
-            and self.version != resources.version
+            and (self.version != resources.version or backend_mismatch)
         )
 
 
@@ -634,12 +639,14 @@ async def _extract_archive(name: str, archive: Path, target: Path, cb: InternalC
         zip_file.extractall(target)
 
 
-async def _execute_process(name: str, cmd: list, cwd: Path, cb: InternalCB):
+async def _execute_process(
+    name: str, cmd: list, cwd: Path, cb: InternalCB, env: dict | None = None
+):
     errlog = ""
 
     cmd = [str(c) for c in cmd]
     cb(f"Installing {name}", f"Executing {' '.join(cmd)}")
-    process = await create_process(cmd[0], *cmd[1:], cwd=cwd, pipe_stderr=True)
+    process = await create_process(cmd[0], *cmd[1:], cwd=cwd, additional_env=env, pipe_stderr=True)
 
     async def forward(stream: asyncio.StreamReader):
         async for line in stream:
