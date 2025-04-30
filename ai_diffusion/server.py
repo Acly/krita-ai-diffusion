@@ -14,13 +14,7 @@ from . import eventloop, resources
 from .resources import CustomNode, ModelResource, ModelRequirements, Arch
 from .network import download, DownloadProgress
 from .localization import translate as _
-from .util import (
-    ZipFile,
-    is_windows,
-    create_process,
-    decode_pipe_bytes,
-    determine_system_encoding,
-)
+from .util import ZipFile, is_windows, create_process, decode_pipe_bytes, determine_system_encoding
 from .util import client_logger as log, server_logger as server_log
 
 
