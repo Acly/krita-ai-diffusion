@@ -296,7 +296,9 @@ class Server:
         else:
             await self._pip_install("FaceID", ["insightface"], cb)
 
-    async def _install_requirements(self, requirements: ModelRequirements, network: QNetworkAccessManager, cb: InternalCB):
+    async def _install_requirements(
+        self, requirements: ModelRequirements, network: QNetworkAccessManager, cb: InternalCB
+    ):
         if requirements is ModelRequirements.insightface:
             await self._install_insightface(network, cb)
 
