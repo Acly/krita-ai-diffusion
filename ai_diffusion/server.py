@@ -296,20 +296,15 @@ class Server:
         else:
             await self._pip_install("FaceID", ["insightface"], cb)
 
-    async def _install_requirements(
-        self,
-        requirements: ModelRequirements,
-        network: QNetworkAccessManager,
-        cb: InternalCB,
-    ):
+    async def _install_requirements(self, requirements: ModelRequirements, network: QNetworkAccessManager, cb: InternalCB):
         if requirements is ModelRequirements.insightface:
             await self._install_insightface(network, cb)
 
     async def install(self, callback: Callback):
-        assert self.state in [
-            ServerState.not_installed,
-            ServerState.missing_resources,
-        ] or (self.state is ServerState.stopped and self.upgrade_required)
+        assert self.state in [ServerState.not_installed, ServerState.missing_resources] or (
+            self.state is ServerState.stopped and self.upgrade_required
+        )
+
         if not is_windows and self._python_cmd is None:
             raise Exception(
                 _(
