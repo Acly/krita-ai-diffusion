@@ -365,6 +365,16 @@
       ]
     },
     {
+      "id": "controlnet-stencil-sdxl",
+      "name": "ControlNet Stencil (XL)",
+      "files": [
+        {
+          "path": "models/controlnet/control_v1p_sdxl_qrcode_monster.safetensors",
+          "url": "https://huggingface.co/monster-labs/control_v1p_sdxl_qrcode_monster/resolve/main/diffusion_pytorch_model.safetensors"
+        }
+      ]
+    },
+    {
       "id": "ip_adapter-face-sdxl",
       "name": "IP-Adapter Face (XL)",
       "files": [

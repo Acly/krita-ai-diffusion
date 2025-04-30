@@ -276,6 +276,7 @@ class ControlMode(Enum):
                 ControlMode.pose,
                 ControlMode.segmentation,
                 ControlMode.blur,
+                ControlMode.hands,  # same as depth
             ]
         if arch == Arch.flux:
             return self in [
