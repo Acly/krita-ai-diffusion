@@ -225,11 +225,11 @@ class Server:
         await _extract_archive("ComfyUI", archive_path, comfy_dir.parent, cb)
         temp_comfy_dir = comfy_dir.parent / f"ComfyUI-{resources.comfy_version}"
 
-        torch_args = ["torch~=2.6.0", "torchvision~=0.21.0", "torchaudio~=2.6.0"]
+        torch_args = ["torch~=2.7.0", "torchvision~=0.22.0", "torchaudio~=2.7.0"]
         if self.backend is ServerBackend.cpu:
             torch_args += ["--index-url", "https://download.pytorch.org/whl/cpu"]
         elif self.backend is ServerBackend.cuda:
-            torch_args += ["--index-url", "https://download.pytorch.org/whl/cu124"]
+            torch_args += ["--index-url", "https://download.pytorch.org/whl/cu128"]
         elif self.backend is ServerBackend.directml:
             torch_args = ["numpy<2", "torch-directml"]
         elif self.backend is ServerBackend.xpu:
@@ -282,9 +282,12 @@ class Server:
         await self._pip_install("FaceID", dependencies, cb)
 
         pyver = await get_python_version_string(self._python_cmd)
-        if is_windows and "3.11" in pyver:
+        if is_windows and ("3.11" in pyver or "3.12" in pyver):
             whl_file = self._cache_dir / "insightface-0.7.3-cp311-cp311-win_amd64.whl"
-            whl_url = "https://github.com/bihailantian655/insightface_wheel/raw/main/insightface-0.7.3-cp311-cp311-win_amd64%20(1).whl"
+            whl_url = "https://github.com/Gourieff/Assets/raw/main/Insightface/insightface-0.7.3-cp311-cp311-win_amd64.whl"
+            if "3.12" in pyver:
+                whl_file = self._cache_dir / "insightface-0.7.3-cp312-cp312-win_amd64.whl"
+                whl_url = "https://github.com/Gourieff/Assets/raw/main/Insightface/insightface-0.7.3-cp312-cp312-win_amd64.whl"
             await _download_cached("FaceID", network, whl_url, whl_file, cb)
             await self._pip_install("FaceID", [str(whl_file)], cb)
         else:
@@ -648,15 +651,6 @@ async def try_install(path: Path, installer, *args):
 async def install_if_missing(path: Path, installer, *args):
     if not path.exists():
         await try_install(path, installer, *args)
-
-
-def _prepend_file(path: Path, line: str):
-    with open(path, "r+") as file:
-        lines = file.readlines()
-        lines.insert(0, line)
-        file.seek(0)
-        file.writelines(lines)
-        file.truncate()
 
 
 def find_missing(folders: list[Path], resources: list[ModelResource], ver: Arch | None = None):

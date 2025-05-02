@@ -378,6 +378,7 @@ class ServerWidget(QWidget):
             sdxl_packages = self._packages["sdxl"]
             sdxl_packages.workload = Arch.sdxl
             state = [PackageState.selected for _ in sdxl_packages.values]
+            state[-2] = PackageState.available  # Stencil is optional
             state[-1] = PackageState.available  # Face model is optional
             sdxl_packages.values = state
 

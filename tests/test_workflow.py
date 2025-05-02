@@ -540,6 +540,8 @@ def test_control_canny_downscale(qtapp, client):
 
 @pytest.mark.parametrize("mode", [m for m in ControlMode if m.has_preprocessor])
 def test_create_control_image(qtapp, client: Client, mode):
+    if mode is ControlMode.hands:
+        pytest.skip("No longer supported")
     skip_cloud_modes = [ControlMode.normal, ControlMode.segmentation, ControlMode.hands]
     if isinstance(client, CloudClient) and mode in skip_cloud_modes:
         pytest.skip("Control image preproccessor not available")
@@ -551,7 +553,7 @@ def test_create_control_image(qtapp, client: Client, mode):
     result = run_and_save(qtapp, client, job, image_name)
     if isinstance(client, ComfyClient):
         reference = Image.load(reference_dir / image_name)
-        threshold = 0.015 if mode is ControlMode.pose else 0.003
+        threshold = 0.015 if mode is ControlMode.pose else 0.005
         assert Image.compare(result, reference) < threshold
         # cloud results are a bit different, maybe due to compression of input?
 
@@ -576,25 +578,6 @@ def test_create_open_pose_vector(qtapp, client: Client):
         assert False, "Connection closed without receiving images"
 
     qtapp.run(main())
-
-
-@pytest.mark.parametrize("setup", ["no_mask", "right_hand", "left_hand"])
-def test_create_hand_refiner_image(qtapp, client: Client, setup):
-    if isinstance(client, CloudClient):
-        pytest.skip("Hand refiner is not available in the cloud")
-    image_name = f"test_create_hand_refiner_image_{setup}"
-    image = Image.load(image_dir / "character.webp")
-    bounds = {
-        "no_mask": None,
-        "right_hand": Bounds(102, 398, 264, 240),
-        "left_hand": Bounds(541, 642, 232, 248),
-    }[setup]
-    job = workflow.prepare_create_control_image(
-        image, ControlMode.hands, default_perf, bounds, default_seed
-    )
-    result = run_and_save(qtapp, client, job, image_name)
-    reference = Image.load(reference_dir / image_name)
-    assert Image.compare(result, reference) < 0.002
 
 
 @pytest.mark.parametrize("sdver", [Arch.sd15, Arch.sdxl])

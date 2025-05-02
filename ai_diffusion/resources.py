@@ -7,10 +7,10 @@ from typing import Any, NamedTuple, Sequence
 
 # Version identifier for all the resources defined here. This is used as the server version.
 # It usually follows the plugin version, but not all new plugin versions also require a server update.
-version = "1.33.0"
+version = "1.34.0"
 
 comfy_url = "https://github.com/comfyanonymous/ComfyUI"
-comfy_version = "f9207c69369b200c89953cb422500e5f36f7d342"
+comfy_version = "a97f2f850abd7dd330e6363c8d8074bb243eb413"
 
 
 class CustomNode(NamedTuple):
@@ -40,7 +40,7 @@ required_custom_nodes = [
         "External Tooling Nodes",
         "comfyui-tooling-nodes",
         "https://github.com/Acly/comfyui-tooling-nodes",
-        "b8e4659a10c97c0d1d95bebf0c54b4eeac434db9",
+        "5f4373d71ae0aad5fa1e6f833115c15b5e0e70d3",
         ["ETN_LoadImageBase64", "ETN_LoadMaskBase64", "ETN_SendImageWebSocket", "ETN_Translate"],
     ),
     CustomNode(
@@ -57,7 +57,7 @@ optional_custom_nodes = [
         "GGUF",
         "ComfyUI-GGUF",
         "https://github.com/city96/ComfyUI-GGUF",
-        "6de4bdba30f142955ebf6f210533000ef094bf0e",
+        "3d673c5c098ecaa6e6027f834659ba8de534ca32",
         ["UnetLoaderGGUF", "DualCLIPLoaderGGUF"],
     ),
     CustomNode(
@@ -262,6 +262,33 @@ class ControlMode(Enum):
 
         return control.control_mode_text[self]
 
+    def can_substitute_universal(self, arch: Arch):
+        """True if this control mode is covered by univeral control-net."""
+        if arch == Arch.sdxl:
+            return self in [
+                ControlMode.inpaint,
+                ControlMode.scribble,
+                ControlMode.line_art,
+                ControlMode.soft_edge,
+                ControlMode.canny_edge,
+                ControlMode.depth,
+                ControlMode.normal,
+                ControlMode.pose,
+                ControlMode.segmentation,
+                ControlMode.blur,
+                ControlMode.hands,  # same as depth
+            ]
+        if arch == Arch.flux:
+            return self in [
+                ControlMode.line_art,
+                ControlMode.soft_edge,
+                ControlMode.canny_edge,
+                ControlMode.depth,
+                ControlMode.pose,
+                ControlMode.blur,
+            ]
+        return False
+
 
 def resource_id(kind: ResourceKind, arch: Arch, identifier: ControlMode | UpscalerName | str):
     if isinstance(identifier, Enum):
@@ -444,6 +471,7 @@ search_paths: dict[str, list[str]] = {
     resource_id(ResourceKind.controlnet, Arch.flux, ControlMode.inpaint): ["flux.1-dev-controlnet-inpaint"],
     resource_id(ResourceKind.controlnet, Arch.illu, ControlMode.inpaint): ["noobaiinpainting"],
     resource_id(ResourceKind.controlnet, Arch.sdxl, ControlMode.universal): ["union-sdxl", "xinsirunion"],
+    resource_id(ResourceKind.controlnet, Arch.flux, ControlMode.universal): ["flux.1-dev-controlnet-union-pro-2.0", "flux.1-dev-controlnet-union-pro", "flux.1-dev-controlnet-union", "flux1devcontrolnetunion"],
     resource_id(ResourceKind.controlnet, Arch.sd15, ControlMode.scribble): ["control_v11p_sd15_scribble", "control_lora_rank128_v11p_sd15_scribble"],
     resource_id(ResourceKind.controlnet, Arch.sdxl, ControlMode.scribble): ["xinsirscribble", "scribble-sdxl", "mistoline_fp16", "mistoline_rank", "control-lora-sketch-rank", "sai_xl_sketch_"],
     resource_id(ResourceKind.controlnet, Arch.illu, ControlMode.scribble): ["noob-sdxl-controlnet-scribble_pidinet", "noobaixlcontrolnet_epsscribble", "noob-sdxl-controlnet-scribble"],

@@ -186,8 +186,9 @@ class ModelDict:
 
         result = self._models.find(ResourceId(self.kind, self.arch, key))
         # Fallback to universal model if not found
-        if result is None and allow_universal and isinstance(key, ControlMode):
-            result = self.find(ControlMode.universal)
+        if result is None and allow_universal:
+            if isinstance(key, ControlMode) and key.can_substitute_universal(self.arch):
+                result = self.find(ControlMode.universal)
         return result
 
     def for_version(self, arch: Arch):
