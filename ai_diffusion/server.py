@@ -234,9 +234,9 @@ class Server:
             torch_args = ["numpy<2", "torch-directml"]
         elif self.backend is ServerBackend.xpu:
             torch_args = [
-                "torch=2.6.0",
-                "torchvision=0.21.0",
-                "torchaudio=2.6.0",
+                "torch==2.6.0",
+                "torchvision==0.21.0",
+                "torchaudio==2.6.0",
                 "--index-url",
                 "https://download.pytorch.org/whl/xpu",
             ]
