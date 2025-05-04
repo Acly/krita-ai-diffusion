@@ -232,10 +232,29 @@ class Server:
             torch_args += ["--index-url", "https://download.pytorch.org/whl/cu128"]
         elif self.backend is ServerBackend.directml:
             torch_args = ["numpy<2", "torch-directml"]
+        elif self.backend is ServerBackend.xpu:
+            torch_args = [
+                "torch==2.6.0",
+                "torchvision==0.21.0",
+                "torchaudio==2.6.0",
+                "--index-url",
+                "https://download.pytorch.org/whl/xpu",
+            ]
         await self._pip_install("PyTorch", torch_args, cb)
 
         requirements_txt = Path(__file__).parent / "server_requirements.txt"
         await self._pip_install("ComfyUI", ["-r", str(requirements_txt)], cb)
+
+        if self.backend is ServerBackend.xpu:
+            await self._pip_install(
+                "Ipex",
+                [
+                    "intel-extension-for-pytorch==2.6.10+xpu",
+                    "--extra-index-url",
+                    "https://pytorch-extension.intel.com/release-whl/stable/xpu/us/",
+                ],
+                cb,
+            )
 
         requirements_txt = temp_comfy_dir / "requirements.txt"
         await self._pip_install("ComfyUI", ["-r", str(requirements_txt)], cb)
@@ -287,6 +306,7 @@ class Server:
         assert self.state in [ServerState.not_installed, ServerState.missing_resources] or (
             self.state is ServerState.stopped and self.upgrade_required
         )
+
         if not is_windows and self._python_cmd is None:
             raise Exception(
                 _(
