@@ -262,6 +262,10 @@ class Model(QObject, ObservableProperties):
         image = self._doc.get_image(Bounds(0, 0, *extent)) if not dryrun else DummyImage(extent)
         params = self.upscale.params
         params.upscale.model = params.upscale.model or client.models.default_upscaler
+        if params.upscale.model not in client.models.upscalers:
+            msg = _("The upscale model used by the document is not available on the server")
+            self.report_error(Error(ErrorKind.warning, msg + f": {params.upscale.model}"))
+            self.upscale.upscaler = params.upscale.model = client.models.default_upscaler
         bounds = Bounds(0, 0, *self._doc.extent)
         if params.use_prompt and not dryrun:
             conditioning, job_regions = process_regions(self.regions, bounds, min_coverage=0)
@@ -300,15 +304,14 @@ class Model(QObject, ObservableProperties):
 
     def upscale_image(self):
         try:
+            self.clear_error()
             inputs, job_params = self._prepare_upscale_image()
             job = self.jobs.add(JobKind.upscaling, job_params)
         except Exception as e:
             self.report_error(util.log_error(e))
             return
 
-        self.clear_error()
         self.upscale.set_in_progress(True)
-
         eventloop.run(_report_errors(self, self._enqueue_job(job, inputs)))
 
         self._doc.resize(job.params.bounds.extent)
