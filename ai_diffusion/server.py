@@ -195,14 +195,21 @@ class Server:
         script_path = self._cache_dir / f"install_uv{script_ext}"
         await _download_cached("Python", network, url, script_path, cb)
 
+        env = {"UV_INSTALL_DIR": str(self.path / "uv")}
         if is_windows:
             if "PSModulePath" in os.environ:
                 del os.environ["PSModulePath"]  # Don't inherit this from parent process
             cmd = ["powershell", "-ExecutionPolicy", "Bypass", "-File", str(script_path)]
+            try:
+                await _execute_process("Python", cmd, self.path, cb, env=env)
+            except FileNotFoundError:
+                sysroot = os.environ.get("SYSTEMROOT", "C:\\Windows")
+                cmd[0] = f"{sysroot}\\System32\\WindowsPowerShell\\v1.0\\powershell.exe"
+                log.warning(f"powershell command not found, trying to find it at {cmd[0]}")
+                await _execute_process("Python", cmd, self.path, cb, env=env)
         else:
             cmd = ["/bin/sh", str(script_path)]
-        env = {"UV_INSTALL_DIR": str(self.path / "uv")}
-        await _execute_process("Python", cmd, self.path, cb, env=env)
+            await _execute_process("Python", cmd, self.path, cb, env=env)
 
         self._uv_cmd = self.path / "uv" / ("uv" + _exe)
         cb("Installing Python", f"Installed uv at {self._uv_cmd}")
