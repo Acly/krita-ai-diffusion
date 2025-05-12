@@ -114,9 +114,7 @@ class HistoryWidget(QListWidget):
             return  # Only finished diffusion/animation jobs have images to show
 
         scrollbar = self.verticalScrollBar()
-        scroll_to_bottom = (
-            scrollbar and scrollbar.isVisible() and scrollbar.value() >= scrollbar.maximum() - 4
-        )
+        scroll_to_bottom = scrollbar and scrollbar.value() >= scrollbar.maximum() - 4
 
         if not JobParams.equal_ignore_seed(self._last_job_params, job.params):
             self._last_job_params = job.params
