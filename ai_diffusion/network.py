@@ -276,7 +276,9 @@ class DownloadHelper:
 async def _try_download(network: QNetworkAccessManager, url: str, path: Path):
     out_file = QFile(str(path) + ".part")
     if not out_file.open(QFile.ReadWrite | QFile.Append):  # type: ignore
-        raise Exception(_("Error during download: could not open {path} for writing", path=path))
+        raise Exception(
+            _("Error during download: could not open {path} for writing", path=out_file.fileName())
+        )
 
     request = QNetworkRequest(QUrl(_map_host(url)))
     request.setAttribute(QNetworkRequest.FollowRedirectsAttribute, True)

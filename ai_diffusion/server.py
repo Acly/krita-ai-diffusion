@@ -12,6 +12,7 @@ from PyQt5.QtNetwork import QNetworkAccessManager
 from .settings import settings, ServerBackend
 from . import eventloop, resources
 from .resources import CustomNode, ModelResource, ModelRequirements, Arch
+from .resources import VerificationStatus, VerificationState
 from .network import download, DownloadProgress
 from .localization import translate as _
 from .util import ZipFile, is_windows, create_process, decode_pipe_bytes, determine_system_encoding
@@ -28,6 +29,8 @@ class ServerState(Enum):
     stopped = 4
     starting = 5
     running = 6
+    verifying = 7
+    uninstalling = 8
 
 
 class InstallationProgress(NamedTuple):
@@ -544,6 +547,103 @@ class Server:
             print(e)
             pass
 
+    async def verify(self, callback: Callback):
+        assert self.state in [ServerState.stopped, ServerState.missing_resources]
+
+        self.state = ServerState.verifying
+        try:
+            loop = asyncio.get_running_loop()
+            return await asyncio.to_thread(self._verify, callback, loop)
+        except Exception as e:
+            log.exception(f"Error during server verification: {str(e)}")
+            raise e
+        finally:
+            self.state = ServerState.stopped
+
+    def _verify(self, callback: Callback, loop: asyncio.AbstractEventLoop):
+        errors: list[VerificationStatus] = []
+        for status in resources.verify_model_integrity(self.path):
+            if status.state is VerificationState.in_progress:
+                loop.call_soon_threadsafe(
+                    callback, InstallationProgress("Verifying", message=status.file.name)
+                )
+            elif status.state in [VerificationState.mismatch, VerificationState.error]:
+                errors.append(status)
+        return errors
+
+    async def fix_models(self, bad_models: list[VerificationStatus], callback: Callback):
+        network = QNetworkAccessManager()
+        prev_state = self.state
+        self.state = ServerState.installing
+
+        def cb(stage: str, message: str | DownloadProgress):
+            if isinstance(message, str):
+                log.info(message)
+            progress = message if isinstance(message, DownloadProgress) else None
+            callback(InstallationProgress(stage, progress))
+
+        cb("Replacing files", "Trying to remove and re-download corrupted model files")
+        try:
+            for status in bad_models:
+                if status.state is VerificationState.mismatch:
+                    filepath = self.path / status.file.path
+                    log.info(f"Removing {filepath}")
+                    await remove_file(filepath)
+                    await _download_cached(status.file.name, network, status.file.url, filepath, cb)
+        except Exception as e:
+            log.exception(str(e))
+            raise e
+        finally:
+            self.state = prev_state
+            self.check_install()
+
+    async def uninstall(self, callback: Callback, delete_models: bool = False):
+        assert self.state in [ServerState.stopped, ServerState.missing_resources]
+
+        self.state = ServerState.uninstalling
+        log.info(f"Uninstalling server at {self.path}")
+
+        try:
+            if self.comfy_dir and self.comfy_dir.exists():
+                callback(InstallationProgress("Uninstalling", message="Removing ComfyUI"))
+                await remove_subdir(self.comfy_dir, origin=self.path)
+                self.comfy_dir = None
+                await asyncio.sleep(0)
+
+            venv_dir = self.path / "venv"
+            if venv_dir.exists():
+                callback(InstallationProgress("Uninstalling", message="Removing Python venv"))
+                await remove_subdir(venv_dir, origin=self.path)
+                self._python_cmd = None
+                await asyncio.sleep(0)
+
+            if self._cache_dir.exists():
+                callback(InstallationProgress("Uninstalling", message="Removing cache"))
+                await remove_subdir(self._cache_dir, origin=self.path)
+
+            uv_dir = self.path / "uv"
+            if uv_dir.exists():
+                callback(InstallationProgress("Uninstalling", message="Removing uv"))
+                await remove_subdir(uv_dir, origin=self.path)
+                self._uv_cmd = None
+
+            callback(InstallationProgress("Uninstalling", message="Removing installation"))
+            self._version_file.unlink(missing_ok=True)
+
+            if delete_models:
+                model_dir = self.path / "models"
+                if model_dir.exists():
+                    callback(InstallationProgress("Uninstalling", message="Removing models"))
+                    await remove_subdir(model_dir, origin=self.path)
+                self.path.rmdir()
+
+        except Exception as e:
+            log.exception(f"Error during server uninstall: {str(e)}")
+            raise e
+        finally:
+            self.state = ServerState.stopped
+            self.check_install()
+
     @property
     def has_python(self):
         return self._python_cmd is not None
@@ -701,6 +801,41 @@ def safe_remove_dir(path: Path, max_size=12 * 1024 * 1024):
                 if p.suffix == ".safetensors":
                     raise Exception(f"Failed to remove {path}: found remaining model {p}")
         shutil.rmtree(path, ignore_errors=True)
+
+
+async def remove_subdir(path: Path, *, origin: Path):
+    assert path.is_dir() and path.is_relative_to(origin)
+    errors = []
+
+    def handle_error(func, path, excinfo):
+        type, value, traceback = excinfo
+        if type is FileNotFoundError:
+            return
+        log.warning(f"Failed to remove {path}: [{type}] {value}")
+        errors.append(value)
+
+    for i in range(3):
+        shutil.rmtree(path, onerror=handle_error)
+        if len(errors) == 0:
+            return
+        elif i == 2:
+            raise errors[0]
+        await asyncio.sleep(0.1)
+        errors.clear()
+
+
+async def remove_file(path: Path):
+    if path.is_file():
+        try:
+            path.unlink()
+            for i in range(3):
+                if not path.exists():
+                    return
+                await asyncio.sleep(0.1)
+            raise Exception(f"Failed to remove {path}: file still exists")
+        except Exception as e:
+            log.warning(f"Failed to remove {path}: {str(e)}")
+            raise e
 
 
 async def get_python_version_string(python_cmd: Path, *args: str):

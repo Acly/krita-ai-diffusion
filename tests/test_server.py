@@ -8,6 +8,7 @@ import shutil
 from ai_diffusion import network, server, resources
 from ai_diffusion.style import Arch
 from ai_diffusion.server import Server, ServerState, ServerBackend, InstallationProgress
+from ai_diffusion.resources import VerificationState
 from .config import server_dir
 
 workload_sd15 = [p.name for p in resources.required_models if p.arch is Arch.sd15]
@@ -123,6 +124,67 @@ def test_run_external(qtapp, pytestconfig):
 
         await server.stop()
         assert server.state is ServerState.stopped
+
+    qtapp.run(main())
+
+
+def test_verify_and_fix(qtapp, pytestconfig, local_download_server):
+    if not pytestconfig.getoption("--test-install"):
+        pytest.skip("Only runs with --test-install")
+
+    server = Server(str(server_dir))
+    server.backend = ServerBackend.cpu
+    # Requires test_install_and_run to setup the server
+    assert server.state in [ServerState.stopped]
+
+    model_file = resources.required_models[0]
+    model_path = server_dir / model_file.files[0].path
+    assert model_path.exists()
+
+    # Break the model file
+    with model_path.open("w", encoding="utf-8") as f:
+        f.write("test")
+
+    def handle_progress(report: InstallationProgress):
+        print(report.stage, report.message)
+
+    async def main():
+        verify_result = await server.verify(handle_progress)
+        assert len(verify_result) == 1
+        mismatch = verify_result[0]
+        assert mismatch.state is VerificationState.mismatch
+        assert mismatch.file.path == model_file.files[0].path
+        assert server.state is ServerState.stopped
+
+        await server.fix_models(verify_result, handle_progress)
+        fixed_result = await server.verify(handle_progress)
+        assert len(fixed_result) == 0
+        assert server.state is ServerState.stopped
+
+    qtapp.run(main())
+
+
+def test_uninstall(qtapp, pytestconfig):
+    if not pytestconfig.getoption("--test-install"):
+        pytest.skip("Only runs with --test-install")
+
+    server = Server(str(server_dir))
+    server.backend = ServerBackend.cpu
+    assert server.state is ServerState.stopped
+
+    def handle_progress(report: InstallationProgress):
+        print(report.stage, report.message)
+
+    async def main():
+        await server.uninstall(handle_progress)
+        assert server.state is ServerState.not_installed
+        assert (server_dir / "models").exists()
+        assert server.comfy_dir is None
+
+        server.state = ServerState.stopped
+        await server.uninstall(handle_progress, delete_models=True)
+        assert server.state is ServerState.not_installed
+        assert not server_dir.exists()
 
     qtapp.run(main())
 
