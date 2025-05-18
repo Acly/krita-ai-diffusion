@@ -2,6 +2,7 @@ from __future__ import annotations
 from enum import Enum
 from itertools import chain
 import json
+import hashlib
 from pathlib import Path
 from typing import Any, NamedTuple, Sequence
 
@@ -323,6 +324,20 @@ class ResourceId(NamedTuple):
         return ResourceId(kind, arch, identifier)
 
 
+class VerificationState(Enum):
+    not_verified = 0
+    in_progress = 1
+    verified = 2
+    mismatch = 3
+    error = 4
+
+
+class VerificationStatus(NamedTuple):
+    state: VerificationState
+    file: ModelFile
+    info: str | None = None
+
+
 class ModelRequirements(Enum):
     none = 0
     insightface = 1
@@ -332,6 +347,7 @@ class ModelFile(NamedTuple):
     path: Path
     url: str
     id: ResourceId
+    sha256: str | None = None
 
     @property
     def name(self):
@@ -340,7 +356,8 @@ class ModelFile(NamedTuple):
     @staticmethod
     def parse(data: dict[str, Any], parent_id: ResourceId):
         id = ResourceId.parse(data.get("id", parent_id.string))
-        return ModelFile(Path(data["path"]), data["url"], id)
+        sha256 = data.get("sha256", None)
+        return ModelFile(Path(data["path"]), data["url"], id, sha256)
 
     def as_dict(self, with_id=True):
         result = {
@@ -350,7 +367,25 @@ class ModelFile(NamedTuple):
         }
         if not with_id:
             del result["id"]
+        if self.sha256:
+            result["sha256"] = self.sha256
         return result
+
+    def verify(self, base_dir: Path):
+        if self.sha256 is None:
+            return VerificationStatus(VerificationState.not_verified, self)
+
+        try:
+            file_path = base_dir / self.path
+            assert file_path.exists(), f"File {file_path} does not exist"
+
+            actual_sha256 = compute_sha256(file_path)
+            if actual_sha256 == self.sha256:
+                return VerificationStatus(VerificationState.verified, self)
+            else:
+                return VerificationStatus(VerificationState.mismatch, self, actual_sha256)
+        except Exception as e:
+            return VerificationStatus(VerificationState.error, self, str(e))
 
 
 class ModelResource(NamedTuple):
@@ -418,6 +453,13 @@ class ModelResource(NamedTuple):
     def from_list(data: list[dict[str, Any]]):
         return [ModelResource.from_dict(d) for d in data]
 
+    def verify(self, base_dir: Path):
+        for file in self.files:
+            file_path = base_dir / file.path
+            if file_path.exists():
+                yield VerificationStatus(VerificationState.in_progress, file)
+                yield file.verify(base_dir)
+
 
 _models_file = Path(__file__).parent / "presets" / "models.json"
 _models_dict = json.loads(_models_file.read_text())
@@ -455,6 +497,48 @@ def find_resource(id: ResourceId, include_deprecated=False):
     return next(
         (m for m in all_models(include_deprecated) if any(f.id == id for f in m.files)), None
     )
+
+
+def compute_sha256(file_path: Path) -> str:
+    sha256_hash = hashlib.sha256()
+    with open(file_path, "rb") as f:
+        for byte_block in iter(lambda: f.read(4096), b""):
+            sha256_hash.update(byte_block)
+    return sha256_hash.hexdigest()
+
+
+def update_model_checksums(models_path: Path):
+    modified = False
+
+    categories = ["required", "checkpoints", "upscale", "optional", "prefetch", "deprecated"]
+    for category in categories:
+        for model_idx, model in enumerate(_models_dict[category]):
+            for file_idx, file in enumerate(model["files"]):
+                file_path = models_path / file["path"]
+                if not file_path.exists():
+                    print(f"Not found: {file_path}")
+                    continue
+                if "sha256" not in file:
+                    try:
+                        checksum = compute_sha256(file_path)
+                        _models_dict[category][model_idx]["files"][file_idx]["sha256"] = checksum
+                        print(f"Added checksum for {file['path']}: {checksum}")
+                        modified = True
+                    except Exception as e:
+                        print(f"Error computing checksum for {file['path']}: {e}")
+
+    if modified:
+        with open(_models_file, "w") as f:
+            json.dump(_models_dict, f, indent=2)
+        print(f"Updated checksums written to {_models_file}")
+
+
+def verify_model_integrity(base_dir: Path | None = None):
+    if base_dir is None:
+        base_dir = Path(__file__).parent.parent.parent
+
+    for model in all_models():
+        yield from model.verify(base_dir)
 
 
 def search_path(kind: ResourceKind, arch: Arch, identifier: ControlMode | UpscalerName | str):

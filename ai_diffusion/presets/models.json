@@ -6,7 +6,8 @@
       "files": [
         {
           "path": "models/clip_vision/clip-vision_vit-h.safetensors",
-          "url": "https://huggingface.co/h94/IP-Adapter/resolve/main/models/image_encoder/model.safetensors"
+          "url": "https://huggingface.co/h94/IP-Adapter/resolve/main/models/image_encoder/model.safetensors",
+          "sha256": "6ca9667da1ca9e0b0f75e46bb030f7e011f44f86cbfb8d5a36590fcd7507b030"
         }
       ],
       "alternatives": [
@@ -20,7 +21,8 @@
       "files": [
         {
           "path": "models/upscale_models/4x_NMKD-Superscale-SP_178000_G.pth",
-          "url": "https://huggingface.co/gemasai/4x_NMKD-Superscale-SP_178000_G/resolve/main/4x_NMKD-Superscale-SP_178000_G.pth"
+          "url": "https://huggingface.co/gemasai/4x_NMKD-Superscale-SP_178000_G/resolve/main/4x_NMKD-Superscale-SP_178000_G.pth",
+          "sha256": "1d1b0078fe71446e0469d8d4df59e96baa80d83cda600d68237d655830821bcc"
         }
       ]
     },
@@ -31,17 +33,20 @@
         {
           "id": "upscaler-fast_2x-all",
           "path": "models/upscale_models/OmniSR_X2_DIV2K.safetensors",
-          "url": "https://huggingface.co/Acly/Omni-SR/resolve/main/OmniSR_X2_DIV2K.safetensors"
+          "url": "https://huggingface.co/Acly/Omni-SR/resolve/main/OmniSR_X2_DIV2K.safetensors",
+          "sha256": "79408fc23203bf161faa957c4a602cc40521ed2235a72d976bd9d375e6644611"
         },
         {
           "id": "upscaler-fast_3x-all",
           "path": "models/upscale_models/OmniSR_X3_DIV2K.safetensors",
-          "url": "https://huggingface.co/Acly/Omni-SR/resolve/main/OmniSR_X3_DIV2K.safetensors"
+          "url": "https://huggingface.co/Acly/Omni-SR/resolve/main/OmniSR_X3_DIV2K.safetensors",
+          "sha256": "4fb0b68fc314f798d2ddcf1f3d2253045ba3d959d8b9ae270c5a99b9f862ee12"
         },
         {
           "id": "upscaler-fast_4x-all",
           "path": "models/upscale_models/OmniSR_X4_DIV2K.safetensors",
-          "url": "https://huggingface.co/Acly/Omni-SR/resolve/main/OmniSR_X4_DIV2K.safetensors"
+          "url": "https://huggingface.co/Acly/Omni-SR/resolve/main/OmniSR_X4_DIV2K.safetensors",
+          "sha256": "dff25e4ed392cb5cbe534d920e292063a0555df9281c54c5ec321490a2a59832"
         }
       ]
     },
@@ -51,7 +56,8 @@
       "files": [
         {
           "path": "models/controlnet/control_v11p_sd15_inpaint_fp16.safetensors",
-          "url": "https://huggingface.co/comfyanonymous/ControlNet-v1-1_fp16_safetensors/resolve/main/control_v11p_sd15_inpaint_fp16.safetensors"
+          "url": "https://huggingface.co/comfyanonymous/ControlNet-v1-1_fp16_safetensors/resolve/main/control_v11p_sd15_inpaint_fp16.safetensors",
+          "sha256": "677a4fe351edecd40cd0d7cc210a8686b59d4e55207317f12319ef746a7a5a89"
         }
       ]
     },
@@ -61,7 +67,8 @@
       "files": [
         {
           "path": "models/controlnet/control_lora_rank128_v11f1e_sd15_tile_fp16.safetensors",
-          "url": "https://huggingface.co/comfyanonymous/ControlNet-v1-1_fp16_safetensors/resolve/main/control_lora_rank128_v11f1e_sd15_tile_fp16.safetensors"
+          "url": "https://huggingface.co/comfyanonymous/ControlNet-v1-1_fp16_safetensors/resolve/main/control_lora_rank128_v11f1e_sd15_tile_fp16.safetensors",
+          "sha256": "cec00369e99cfed1cec97e1124cf3220df7a99e45354eaa1e3350c485e65154f"
         }
       ]
     },
@@ -71,7 +78,8 @@
       "files": [
         {
           "path": "models/ipadapter/ip-adapter_sd15.safetensors",
-          "url": "https://huggingface.co/h94/IP-Adapter/resolve/main/models/ip-adapter_sd15.safetensors"
+          "url": "https://huggingface.co/h94/IP-Adapter/resolve/main/models/ip-adapter_sd15.safetensors",
+          "sha256": "289b45f16d043d0bf542e45831f971dcdaabe18b656f11e86d9dfba7e9ee3369"
         }
       ]
     },
@@ -81,7 +89,8 @@
       "files": [
         {
           "path": "models/ipadapter/ip-adapter_sdxl_vit-h.safetensors",
-          "url": "https://huggingface.co/h94/IP-Adapter/resolve/main/sdxl_models/ip-adapter_sdxl_vit-h.safetensors"
+          "url": "https://huggingface.co/h94/IP-Adapter/resolve/main/sdxl_models/ip-adapter_sdxl_vit-h.safetensors",
+          "sha256": "ebf05d918348aec7abb02a5e9ecef77e0aaea6914a5c4ea13f50d45eb1681831"
         }
       ]
     },
@@ -91,7 +100,8 @@
       "files": [
         {
           "path": "models/loras/Hyper-SD15-8steps-CFG-lora.safetensors",
-          "url": "https://huggingface.co/ByteDance/Hyper-SD/resolve/main/Hyper-SD15-8steps-CFG-lora.safetensors"
+          "url": "https://huggingface.co/ByteDance/Hyper-SD/resolve/main/Hyper-SD15-8steps-CFG-lora.safetensors",
+          "sha256": "f6123d5b950d5250ab6c33600e27f4dcf71b3099ebf888685e01e9e8117ce482"
         }
       ]
     },
@@ -101,7 +111,8 @@
       "files": [
         {
           "path": "models/loras/Hyper-SDXL-8steps-CFG-lora.safetensors",
-          "url": "https://huggingface.co/ByteDance/Hyper-SD/resolve/main/Hyper-SDXL-8steps-CFG-lora.safetensors"
+          "url": "https://huggingface.co/ByteDance/Hyper-SD/resolve/main/Hyper-SDXL-8steps-CFG-lora.safetensors",
+          "sha256": "55b51334c85061afff5eff7c550b61963c8b8607a5868bbe4f26db49374719b1"
         }
       ]
     },
@@ -112,12 +123,14 @@
         {
           "id": "inpaint-fooocus_head-sdxl",
           "path": "models/inpaint/fooocus_inpaint_head.pth",
-          "url": "https://huggingface.co/lllyasviel/fooocus_inpaint/resolve/main/fooocus_inpaint_head.pth"
+          "url": "https://huggingface.co/lllyasviel/fooocus_inpaint/resolve/main/fooocus_inpaint_head.pth",
+          "sha256": "32f7f838e0c6d8f13437ba8411e77a4688d77a2e34df8857e4ef4d51f6b97692"
         },
         {
           "id": "inpaint-fooocus_patch-sdxl",
           "path": "models/inpaint/inpaint_v26.fooocus.patch",
-          "url": "https://huggingface.co/lllyasviel/fooocus_inpaint/resolve/main/inpaint_v26.fooocus.patch"
+          "url": "https://huggingface.co/lllyasviel/fooocus_inpaint/resolve/main/inpaint_v26.fooocus.patch",
+          "sha256": "f8657a025104e22d70f9c060635d8e8c2196f433871a2f68dc40abd2171f0d59"
         }
       ]
     },
@@ -127,7 +140,8 @@
       "files": [
         {
           "path": "models/inpaint/MAT_Places512_G_fp16.safetensors",
-          "url": "https://huggingface.co/Acly/MAT/resolve/main/MAT_Places512_G_fp16.safetensors"
+          "url": "https://huggingface.co/Acly/MAT/resolve/main/MAT_Places512_G_fp16.safetensors",
+          "sha256": "309dd6ce6e04034dc4b6b15c7bd2a4844d158e03eb2a139e0eca6b366e40c0de"
         }
       ]
     },
@@ -137,7 +151,8 @@
       "files": [
         {
           "path": "models/embeddings/EasyNegative.safetensors",
-          "url": "https://huggingface.co/embed/EasyNegative/resolve/main/EasyNegative.safetensors"
+          "url": "https://huggingface.co/embed/EasyNegative/resolve/main/EasyNegative.safetensors",
+          "sha256": "c74b4e810b030f6b75fde959e2db678c268d07115b85356d3c0138ba5eb42340"
         }
       ]
     }
@@ -149,7 +164,8 @@
       "files": [
         {
           "path": "models/checkpoints/serenity_v21Safetensors.safetensors",
-          "url": "https://huggingface.co/Acly/SD-Checkpoints/resolve/main/serenity_v21Safetensors.safetensors"
+          "url": "https://huggingface.co/Acly/SD-Checkpoints/resolve/main/serenity_v21Safetensors.safetensors",
+          "sha256": "78d625f19db11d0df381e3ca0c2da6343e04572f4a1493982b3a8f37a83e78c8"
         }
       ]
     },
@@ -159,7 +175,8 @@
       "files": [
         {
           "path": "models/checkpoints/dreamshaper_8.safetensors",
-          "url": "https://huggingface.co/Lykon/DreamShaper/resolve/main/DreamShaper_8_pruned.safetensors"
+          "url": "https://huggingface.co/Lykon/DreamShaper/resolve/main/DreamShaper_8_pruned.safetensors",
+          "sha256": "879db523c30d3b9017143d56705015e15a2cb5628762c11d086fed9538abd7fd"
         }
       ]
     },
@@ -169,7 +186,8 @@
       "files": [
         {
           "path": "models/checkpoints/flat2DAnimerge_v45Sharp.safetensors",
-          "url": "https://huggingface.co/Acly/SD-Checkpoints/resolve/main/flat2DAnimerge_v45Sharp.safetensors"
+          "url": "https://huggingface.co/Acly/SD-Checkpoints/resolve/main/flat2DAnimerge_v45Sharp.safetensors",
+          "sha256": "fe95063ba60bc9298d60eb252f98d057039d9a882158afe042f266bdc1b1e528"
         }
       ]
     },
@@ -179,7 +197,8 @@
       "files": [
         {
           "path": "models/checkpoints/RealVisXL_V5.0_fp16.safetensors",
-          "url": "https://huggingface.co/SG161222/RealVisXL_V5.0/resolve/main/RealVisXL_V5.0_fp16.safetensors"
+          "url": "https://huggingface.co/SG161222/RealVisXL_V5.0/resolve/main/RealVisXL_V5.0_fp16.safetensors",
+          "sha256": "6a35a7855770ae9820a3c931d4964c3817b6d9e3c6f9c4dabb5b3a94e5643b80"
         }
       ]
     },
@@ -189,7 +208,8 @@
       "files": [
         {
           "path": "models/checkpoints/zavychromaxl_v80.safetensors",
-          "url": "https://huggingface.co/misri/zavychromaxl_v80/resolve/main/zavychromaxl_v80.safetensors"
+          "url": "https://huggingface.co/misri/zavychromaxl_v80/resolve/main/zavychromaxl_v80.safetensors",
+          "sha256": "1dadb39e403a818c6638a8c3e384437db8bae9fe4a377095592b639d93cc8106"
         }
       ]
     },
@@ -199,7 +219,8 @@
       "files": [
         {
           "path": "models/checkpoints/flux1-dev-fp8.safetensors",
-          "url": "https://huggingface.co/Comfy-Org/flux1-dev/resolve/main/flux1-dev-fp8.safetensors"
+          "url": "https://huggingface.co/Comfy-Org/flux1-dev/resolve/main/flux1-dev-fp8.safetensors",
+          "sha256": "8e91b68084b53a7fc44ed2a3756d821e355ac1a7b6fe29be760c1db532f3d88a"
         }
       ]
     },
@@ -209,7 +230,8 @@
       "files": [
         {
           "path": "models/checkpoints/flux1-schnell-fp8.safetensors",
-          "url": "https://huggingface.co/Comfy-Org/flux1-schnell/resolve/main/flux1-schnell-fp8.safetensors"
+          "url": "https://huggingface.co/Comfy-Org/flux1-schnell/resolve/main/flux1-schnell-fp8.safetensors",
+          "sha256": "ead426278b49030e9da5df862994f25ce94ab2ee4df38b556ddddb3db093bf72"
         }
       ]
     },
@@ -219,7 +241,8 @@
       "files": [
         {
           "path": "models/checkpoints/NoobAI-XL-Vpred-v1.0.safetensors",
-          "url": "https://huggingface.co/Laxhar/noobai-XL-Vpred-1.0/resolve/main/NoobAI-XL-Vpred-v1.0.safetensors"
+          "url": "https://huggingface.co/Laxhar/noobai-XL-Vpred-1.0/resolve/main/NoobAI-XL-Vpred-v1.0.safetensors",
+          "sha256": "ea349eeae87ca8d25ba902c93810f7ca83e5c82f920edf12f273af004ae02819"
         }
       ]
     }
@@ -231,7 +254,8 @@
       "files": [
         {
           "path": "models/upscale_models/HAT_SRx4_ImageNet-pretrain.pth",
-          "url": "https://huggingface.co/Acly/hat/resolve/main/HAT_SRx4_ImageNet-pretrain.pth"
+          "url": "https://huggingface.co/Acly/hat/resolve/main/HAT_SRx4_ImageNet-pretrain.pth",
+          "sha256": "4ee053c42461187846dc0e93aa5abd34591c0725a8e044a59000e92ee215e833"
         }
       ]
     },
@@ -241,7 +265,8 @@
       "files": [
         {
           "path": "models/upscale_models/Real_HAT_GAN_sharper.pth",
-          "url": "https://huggingface.co/Acly/hat/resolve/main/Real_HAT_GAN_sharper.pth"
+          "url": "https://huggingface.co/Acly/hat/resolve/main/Real_HAT_GAN_sharper.pth",
+          "sha256": "5800b67136006eb8cab3b4ed7c8d73b6a195bb18e6cc709b674f9aa069c00271"
         }
       ]
     }
@@ -253,7 +278,8 @@
       "files": [
         {
           "path": "models/controlnet/control_lora_rank128_v11p_sd15_scribble_fp16.safetensors",
-          "url": "https://huggingface.co/comfyanonymous/ControlNet-v1-1_fp16_safetensors/resolve/main/control_lora_rank128_v11p_sd15_scribble_fp16.safetensors"
+          "url": "https://huggingface.co/comfyanonymous/ControlNet-v1-1_fp16_safetensors/resolve/main/control_lora_rank128_v11p_sd15_scribble_fp16.safetensors",
+          "sha256": "f1f0288cd6d490d9976a9f4c36282f3d47cb8e02dc6805aa44b38d4404fe008a"
         }
       ]
     },
@@ -263,7 +289,8 @@
       "files": [
         {
           "path": "models/controlnet/control_v11p_sd15_lineart_fp16.safetensors",
-          "url": "https://huggingface.co/comfyanonymous/ControlNet-v1-1_fp16_safetensors/resolve/main/control_v11p_sd15_lineart_fp16.safetensors"
+          "url": "https://huggingface.co/comfyanonymous/ControlNet-v1-1_fp16_safetensors/resolve/main/control_v11p_sd15_lineart_fp16.safetensors",
+          "sha256": "10559106d1bb8196298b7a81565ede9279295d2b2df15165b9dbe189994def56"
         }
       ]
     },
@@ -273,7 +300,8 @@
       "files": [
         {
           "path": "models/controlnet/control_v11p_sd15_softedge_fp16.safetensors",
-          "url": "https://huggingface.co/comfyanonymous/ControlNet-v1-1_fp16_safetensors/resolve/main/control_v11p_sd15_softedge_fp16.safetensors"
+          "url": "https://huggingface.co/comfyanonymous/ControlNet-v1-1_fp16_safetensors/resolve/main/control_v11p_sd15_softedge_fp16.safetensors",
+          "sha256": "e78fea5b4599fec2ecd7e3f14b171feb290b88200c95d569ec0ff59a19bc3478"
         }
       ]
     },
@@ -283,7 +311,8 @@
       "files": [
         {
           "path": "models/controlnet/control_v11p_sd15_canny_fp16.safetensors",
-          "url": "https://huggingface.co/comfyanonymous/ControlNet-v1-1_fp16_safetensors/resolve/main/control_v11p_sd15_canny_fp16.safetensors"
+          "url": "https://huggingface.co/comfyanonymous/ControlNet-v1-1_fp16_safetensors/resolve/main/control_v11p_sd15_canny_fp16.safetensors",
+          "sha256": "8932b66e15aae835b3490dbf989f56c253104cee08a88bf21283762f557c9f10"
         }
       ]
     },
@@ -293,7 +322,8 @@
       "files": [
         {
           "path": "models/controlnet/control_lora_rank128_v11f1p_sd15_depth_fp16.safetensors",
-          "url": "https://huggingface.co/comfyanonymous/ControlNet-v1-1_fp16_safetensors/resolve/main/control_lora_rank128_v11f1p_sd15_depth_fp16.safetensors"
+          "url": "https://huggingface.co/comfyanonymous/ControlNet-v1-1_fp16_safetensors/resolve/main/control_lora_rank128_v11f1p_sd15_depth_fp16.safetensors",
+          "sha256": "7a0480805947f377985a8c2684b8e52cdd265fcb25b6604ea9409ace08db3d34"
         }
       ]
     },
@@ -303,7 +333,8 @@
       "files": [
         {
           "path": "models/controlnet/control_lora_rank128_v11p_sd15_normalbae_fp16.safetensors",
-          "url": "https://huggingface.co/comfyanonymous/ControlNet-v1-1_fp16_safetensors/resolve/main/control_lora_rank128_v11p_sd15_normalbae_fp16.safetensors"
+          "url": "https://huggingface.co/comfyanonymous/ControlNet-v1-1_fp16_safetensors/resolve/main/control_lora_rank128_v11p_sd15_normalbae_fp16.safetensors",
+          "sha256": "ca84010a8e832d3d2e671c7664ff345f645f3ef7e8359cbca3e2b36d86bcff30"
         }
       ]
     },
@@ -313,7 +344,8 @@
       "files": [
         {
           "path": "models/controlnet/control_lora_rank128_v11p_sd15_openpose_fp16.safetensors",
-          "url": "https://huggingface.co/comfyanonymous/ControlNet-v1-1_fp16_safetensors/resolve/main/control_lora_rank128_v11p_sd15_openpose_fp16.safetensors"
+          "url": "https://huggingface.co/comfyanonymous/ControlNet-v1-1_fp16_safetensors/resolve/main/control_lora_rank128_v11p_sd15_openpose_fp16.safetensors",
+          "sha256": "6c8edde249e6b96f6c9b0516a243d75eb8adc38624efe171a9c8ab5fb1a69608"
         }
       ]
     },
@@ -323,7 +355,8 @@
       "files": [
         {
           "path": "models/controlnet/control_lora_rank128_v11p_sd15_seg_fp16.safetensors",
-          "url": "https://huggingface.co/comfyanonymous/ControlNet-v1-1_fp16_safetensors/resolve/main/control_lora_rank128_v11p_sd15_seg_fp16.safetensors"
+          "url": "https://huggingface.co/comfyanonymous/ControlNet-v1-1_fp16_safetensors/resolve/main/control_lora_rank128_v11p_sd15_seg_fp16.safetensors",
+          "sha256": "11937941597a67150ef0f74aa30f082b1634431080dee609d0231a9a59b7fa4f"
         }
       ]
     },
@@ -333,7 +366,8 @@
       "files": [
         {
           "path": "models/controlnet/control_v1p_sd15_qrcode_monster.safetensors",
-          "url": "https://huggingface.co/monster-labs/control_v1p_sd15_qrcode_monster/resolve/main/control_v1p_sd15_qrcode_monster.safetensors"
+          "url": "https://huggingface.co/monster-labs/control_v1p_sd15_qrcode_monster/resolve/main/control_v1p_sd15_qrcode_monster.safetensors",
+          "sha256": "c7f43f70e266153d12f5e1bb1c9e7be3f4513cf0eef0432661b1331bfe11cadf"
         }
       ]
     },
@@ -344,12 +378,14 @@
         {
           "id": "ip_adapter-face-sd15",
           "path": "models/ipadapter/ip-adapter-faceid-plusv2_sd15.bin",
-          "url": "https://huggingface.co/h94/IP-Adapter-FaceID/resolve/main/ip-adapter-faceid-plusv2_sd15.bin"
+          "url": "https://huggingface.co/h94/IP-Adapter-FaceID/resolve/main/ip-adapter-faceid-plusv2_sd15.bin",
+          "sha256": "26d0d86a1d60d6cc811d3b8862178b461e1eeb651e6fe2b72ba17aa95411e313"
         },
         {
           "id": "lora-face-sd15",
           "path": "models/loras/ip-adapter-faceid-plusv2_sd15_lora.safetensors",
-          "url": "https://huggingface.co/h94/IP-Adapter-FaceID/resolve/main/ip-adapter-faceid-plusv2_sd15_lora.safetensors"
+          "url": "https://huggingface.co/h94/IP-Adapter-FaceID/resolve/main/ip-adapter-faceid-plusv2_sd15_lora.safetensors",
+          "sha256": "70699f0dbfadd47de1f81d263cf4c86bd4b7271d841304af9b340b3a7f38e86a"
         }
       ],
       "requirements": "insightface"
@@ -360,7 +396,8 @@
       "files": [
         {
           "path": "models/controlnet/xinsir-controlnet-union-sdxl-1.0-promax.safetensors",
-          "url": "https://huggingface.co/xinsir/controlnet-union-sdxl-1.0/resolve/main/diffusion_pytorch_model_promax.safetensors"
+          "url": "https://huggingface.co/xinsir/controlnet-union-sdxl-1.0/resolve/main/diffusion_pytorch_model_promax.safetensors",
+          "sha256": "9fae2e50cb431bfcbe05822b59ec2228df545ef27f711dea8949e9f4ed9f7cdc"
         }
       ]
     },
@@ -370,7 +407,8 @@
       "files": [
         {
           "path": "models/controlnet/control_v1p_sdxl_qrcode_monster.safetensors",
-          "url": "https://huggingface.co/monster-labs/control_v1p_sdxl_qrcode_monster/resolve/main/diffusion_pytorch_model.safetensors"
+          "url": "https://huggingface.co/monster-labs/control_v1p_sdxl_qrcode_monster/resolve/main/diffusion_pytorch_model.safetensors",
+          "sha256": "11e49b4e272fabda60094b35be6fd3e215e551211210938e381d27497fd2215c"
         }
       ]
     },
@@ -381,12 +419,14 @@
         {
           "id": "ip_adapter-face-sdxl",
           "path": "models/ipadapter/ip-adapter-faceid-plusv2_sdxl.bin",
-          "url": "https://huggingface.co/h94/IP-Adapter-FaceID/resolve/main/ip-adapter-faceid-plusv2_sdxl.bin"
+          "url": "https://huggingface.co/h94/IP-Adapter-FaceID/resolve/main/ip-adapter-faceid-plusv2_sdxl.bin",
+          "sha256": "c6945d82b543700cc3ccbb98d363b837e9c596281607857c74b713a876daf5fb"
         },
         {
           "id": "lora-face-sdxl",
           "path": "models/loras/ip-adapter-faceid-plusv2_sdxl_lora.safetensors",
-          "url": "https://huggingface.co/h94/IP-Adapter-FaceID/resolve/main/ip-adapter-faceid-plusv2_sdxl_lora.safetensors"
+          "url": "https://huggingface.co/h94/IP-Adapter-FaceID/resolve/main/ip-adapter-faceid-plusv2_sdxl_lora.safetensors",
+          "sha256": "f24b4bb2dad6638a09c00f151cde84991baf374409385bcbab53c1871a30cb7b"
         }
       ],
       "requirements": "insightface"
@@ -428,12 +468,14 @@
         {
           "id": "clip_vision-redux-flux",
           "path": "models/clip_vision/sigclip_vision_patch14_384.safetensors",
-          "url": "https://huggingface.co/Comfy-Org/sigclip_vision_384/resolve/main/sigclip_vision_patch14_384.safetensors"
+          "url": "https://huggingface.co/Comfy-Org/sigclip_vision_384/resolve/main/sigclip_vision_patch14_384.safetensors",
+          "sha256": "1fee501deabac72f0ed17610307d7131e3e9d1e838d0363aa3c2b97a6e03fb33"
         },
         {
           "id": "ip_adapter-reference-flux",
           "path": "models/style_models/flux1-redux-dev.safetensors",
-          "url": "https://files.interstice.cloud/models/flux1-redux-dev.safetensors"
+          "url": "https://files.interstice.cloud/models/flux1-redux-dev.safetensors",
+          "sha256": "a1b3bdcb4bdc58ce04874b9ca776d61fc3e914bb6beab41efb63e4e2694dca45"
         }
       ]
     },
@@ -443,7 +485,8 @@
       "files": [
         {
           "path": "models/controlnet/noob-sdxl-controlnet-scribble_pidinet.fp16.safetensors",
-          "url": "https://huggingface.co/Eugeoter/noob-sdxl-controlnet-scribble_pidinet/resolve/main/diffusion_pytorch_model.fp16.safetensors"
+          "url": "https://huggingface.co/Eugeoter/noob-sdxl-controlnet-scribble_pidinet/resolve/main/diffusion_pytorch_model.fp16.safetensors",
+          "sha256": "6ba55d75e34f63d0538c2dc1006415c495f254624c1c826df7dfaf4bc172ee47"
         }
       ]
     },
@@ -453,7 +496,8 @@
       "files": [
         {
           "path": "models/controlnet/noob-sdxl-controlnet-lineart_anime.fp16.safetensors",
-          "url": "https://huggingface.co/Eugeoter/noob-sdxl-controlnet-lineart_anime/resolve/main/diffusion_pytorch_model.fp16.safetensors"
+          "url": "https://huggingface.co/Eugeoter/noob-sdxl-controlnet-lineart_anime/resolve/main/diffusion_pytorch_model.fp16.safetensors",
+          "sha256": "44eae6a514a60ae426ff966ecdbb9e170ad63d8889456982bb29037df42b86a8"
         }
       ]
     },
@@ -463,7 +507,8 @@
       "files": [
         {
           "path": "models/controlnet/noob-sdxl-controlnet-softedge_hed.fp16.safetensors",
-          "url": "https://huggingface.co/Eugeoter/noob-sdxl-controlnet-softedge_hed/resolve/main/diffusion_pytorch_model.fp16.safetensors"
+          "url": "https://huggingface.co/Eugeoter/noob-sdxl-controlnet-softedge_hed/resolve/main/diffusion_pytorch_model.fp16.safetensors",
+          "sha256": "c540e9bb474d7b090cee5f45017ceba2d58775c71bc0f6eafa410b435b1dfd92"
         }
       ]
     },
@@ -473,7 +518,8 @@
       "files": [
         {
           "path": "models/controlnet/noob_sdxl_controlnet_canny.fp16.safetensors",
-          "url": "https://huggingface.co/Eugeoter/noob-sdxl-controlnet-canny/resolve/main/noob_sdxl_controlnet_canny.fp16.safetensors"
+          "url": "https://huggingface.co/Eugeoter/noob-sdxl-controlnet-canny/resolve/main/noob_sdxl_controlnet_canny.fp16.safetensors",
+          "sha256": "e37bcdb2f4a6d1782daf6a943a326bee6e6d3027c34f6016460a2c937ba9fba0"
         }
       ]
     },
@@ -483,7 +529,8 @@
       "files": [
         {
           "path": "models/controlnet/noob-sdxl-controlnet-depth_midas-v1-1.fp16.safetensors",
-          "url": "https://huggingface.co/Eugeoter/noob-sdxl-controlnet-depth_midas-v1-1/resolve/main/diffusion_pytorch_model.fp16.safetensors"
+          "url": "https://huggingface.co/Eugeoter/noob-sdxl-controlnet-depth_midas-v1-1/resolve/main/diffusion_pytorch_model.fp16.safetensors",
+          "sha256": "678b94ef3260744a1e9e50932ef8895e7f7fabf25eec7fd5cc96298f7220fe50"
         }
       ]
     },
@@ -493,7 +540,8 @@
       "files": [
         {
           "path": "models/controlnet/noob-sdxl-controlnet-normal.fp16.safetensors",
-          "url": "https://huggingface.co/Eugeoter/noob-sdxl-controlnet-normal/resolve/main/diffusion_pytorch_model.fp16.safetensors"
+          "url": "https://huggingface.co/Eugeoter/noob-sdxl-controlnet-normal/resolve/main/diffusion_pytorch_model.fp16.safetensors",
+          "sha256": "bcfc7ea417052dd54125c577d01e9cf7f0e81863ff6a75ce23b44eba1d7fa3d3"
         }
       ]
     },
@@ -503,7 +551,8 @@
       "files": [
         {
           "path": "models/controlnet/noobaiXLControlnet_openposeModel.safetensors",
-          "url": "https://huggingface.co/Laxhar/noob_openpose/resolve/main/openpose_pre.safetensors"
+          "url": "https://huggingface.co/Laxhar/noob_openpose/resolve/main/openpose_pre.safetensors",
+          "sha256": "918cfc4d7def165ea7a06bee10841fe525332515f8a0486c5cb2a171ec40b873"
         }
       ]
     },
@@ -513,7 +562,8 @@
       "files": [
         {
           "path": "models/controlnet/noob-sdxl-controlnet-tile.fp16.safetensors",
-          "url": "https://huggingface.co/Eugeoter/noob-sdxl-controlnet-tile/resolve/main/diffusion_pytorch_model.fp16.safetensors"
+          "url": "https://huggingface.co/Eugeoter/noob-sdxl-controlnet-tile/resolve/main/diffusion_pytorch_model.fp16.safetensors",
+          "sha256": "d6d676f29153357ac8d57727e35b8edc090aa4de57e861b878872ff45c432615"
         }
       ]
     },
@@ -523,7 +573,8 @@
       "files": [
         {
           "path": "models/clip_vision/clip-vision_vit-g.safetensors",
-          "url": "https://huggingface.co/h94/IP-Adapter/resolve/main/sdxl_models/image_encoder/model.safetensors"
+          "url": "https://huggingface.co/h94/IP-Adapter/resolve/main/sdxl_models/image_encoder/model.safetensors",
+          "sha256": "657723e09f46a7c3957df651601029f66b1748afb12b419816330f16ed45d64d"
         }
       ]
     },
@@ -533,7 +584,8 @@
       "files": [
         {
           "path": "models/ipadapter/noobIPAMARK1_mark1.safetensors",
-          "url": "https://huggingface.co/r3gm/noob-ipa/resolve/main/model_G/noobIPAMARK1_mark1.safetensors"
+          "url": "https://huggingface.co/r3gm/noob-ipa/resolve/main/model_G/noobIPAMARK1_mark1.safetensors",
+          "sha256": "5cdb6a00be1b12579745b5bed0c7b83f0869073d8a864fa8cd50a9356601919a"
         }
       ]
     }
@@ -545,7 +597,8 @@
       "files": [
         {
           "path": "custom_nodes/comfyui_controlnet_aux/ckpts/lllyasviel/Annotators/table5_pidinet.pth",
-          "url": "https://huggingface.co/lllyasviel/Annotators/resolve/main/table5_pidinet.pth"
+          "url": "https://huggingface.co/lllyasviel/Annotators/resolve/main/table5_pidinet.pth",
+          "sha256": "80860ac267258b5f27486e0ef152a211d0b08120f62aeb185a050acc30da486c"
         }
       ]
     },
@@ -556,12 +609,14 @@
         {
           "id": "preprocessor-line_art-all",
           "path": "custom_nodes/comfyui_controlnet_aux/ckpts/lllyasviel/Annotators/sk_model.pth",
-          "url": "https://huggingface.co/lllyasviel/Annotators/resolve/main/sk_model.pth"
+          "url": "https://huggingface.co/lllyasviel/Annotators/resolve/main/sk_model.pth",
+          "sha256": "c686ced2a666b4850b4bb6ccf0748031c3eda9f822de73a34b8979970d90f0c6"
         },
         {
           "id": "preprocessor-line_art-all",
           "path": "custom_nodes/comfyui_controlnet_aux/ckpts/lllyasviel/Annotators/sk_model2.pth",
-          "url": "https://huggingface.co/lllyasviel/Annotators/resolve/main/sk_model2.pth"
+          "url": "https://huggingface.co/lllyasviel/Annotators/resolve/main/sk_model2.pth",
+          "sha256": "30a534781061f34e83bb9406b4335da4ff2616c95d22a585c1245aa8363e74e0"
         }
       ]
     },
@@ -571,7 +626,8 @@
       "files": [
         {
           "path": "custom_nodes/comfyui_controlnet_aux/ckpts/TheMistoAI/MistoLine/Anyline/MTEED.pth",
-          "url": "https://huggingface.co/TheMistoAI/MistoLine/resolve/main/Anyline/MTEED.pth"
+          "url": "https://huggingface.co/TheMistoAI/MistoLine/resolve/main/Anyline/MTEED.pth",
+          "sha256": "a3c2d8a8ce9422555c787160bd46362d761325a565333c0e3f6a53e0bae2abdb"
         }
       ]
     },
@@ -581,7 +637,8 @@
       "files": [
         {
           "path": "custom_nodes/comfyui_controlnet_aux/ckpts/depth-anything/Depth-Anything-V2-Base/depth_anything_v2_vitb.pth",
-          "url": "https://huggingface.co/depth-anything/Depth-Anything-V2-Base/resolve/main/depth_anything_v2_vitb.pth"
+          "url": "https://huggingface.co/depth-anything/Depth-Anything-V2-Base/resolve/main/depth_anything_v2_vitb.pth",
+          "sha256": "0d2b7002e62d39d655571c371333340bd88f67ab95050c03591555aa05645328"
         }
       ]
     },
@@ -592,12 +649,14 @@
         {
           "id": "preprocessor-pose-all",
           "path": "custom_nodes/comfyui_controlnet_aux/ckpts/hr16/yolo-nas-fp16/yolo_nas_l_fp16.onnx",
-          "url": "https://huggingface.co/hr16/yolo-nas-fp16/resolve/main/yolo_nas_l_fp16.onnx"
+          "url": "https://huggingface.co/hr16/yolo-nas-fp16/resolve/main/yolo_nas_l_fp16.onnx",
+          "sha256": "c2b758b1caa95d787736853971dbc9c76083080d684148c5cd185b1fd40e37bf"
         },
         {
           "id": "preprocessor-pose-all",
           "path": "custom_nodes/comfyui_controlnet_aux/ckpts/yzd-v/DWPose/dw-ll_ucoco_384.onnx",
-          "url": "https://huggingface.co/yzd-v/DWPose/resolve/main/dw-ll_ucoco_384.onnx"
+          "url": "https://huggingface.co/yzd-v/DWPose/resolve/main/dw-ll_ucoco_384.onnx",
+          "sha256": "724f4ff2439ed61afb86fb8a1951ec39c6220682803b4a8bd4f598cd913b1843"
         }
       ]
     },
@@ -607,7 +666,8 @@
       "files": [
         {
           "path": "custom_nodes/comfyui-tooling-nodes/safetychecker/model.safetensors",
-          "url": "https://huggingface.co/CompVis/stable-diffusion-safety-checker/resolve/refs%2Fpr%2F41/model.safetensors"
+          "url": "https://huggingface.co/CompVis/stable-diffusion-safety-checker/resolve/refs%2Fpr%2F41/model.safetensors",
+          "sha256": "08902f19b1cfebd7c989f152fc0507bef6898c706a91d666509383122324b511"
         }
       ]
     }
@@ -619,7 +679,8 @@
       "files": [
         {
           "path": "models/checkpoints/realisticVisionV51_v51VAE.safetensors",
-          "url": "https://huggingface.co/lllyasviel/fav_models/resolve/main/fav/realisticVisionV51_v51VAE.safetensors"
+          "url": "https://huggingface.co/lllyasviel/fav_models/resolve/main/fav/realisticVisionV51_v51VAE.safetensors",
+          "sha256": "15012c538f503ce2ebfc2c8547b268c75ccdaff7a281db55399940ff1d70e21d"
         }
       ]
     }

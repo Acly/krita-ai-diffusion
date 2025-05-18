@@ -10,6 +10,7 @@ from pathlib import Path
 
 sys.path.append(str(Path(__file__).parent.parent))
 import ai_diffusion
+from ai_diffusion.resources import update_model_checksums
 
 sys.path.append(str(Path(__file__).parent))
 import translation
@@ -48,11 +49,16 @@ def update_server_requirements():
     )
 
 
-def build_package():
+def precheck():
     translation.update_template()
     translation.update_all()
 
     update_server_requirements()
+    update_model_checksums(root / "scripts" / "downloads")
+
+
+def build_package():
+    precheck()
 
     rmtree(package_dir, ignore_errors=True)
     package_dir.mkdir()
@@ -105,3 +111,7 @@ if __name__ == "__main__":
         package = root / f"{package_name}.zip"
         print("Publishing package", str(package))
         asyncio.run(publish_package(package, target))
+
+    elif cmd == "check":
+        print("Performing precheck without building")
+        precheck()

@@ -23,7 +23,7 @@ from argparse import ArgumentParser
 
 sys.path.append(str(Path(__file__).parent.parent))
 from ai_diffusion import resources
-from ai_diffusion.resources import Arch, ResourceKind, ModelResource
+from ai_diffusion.resources import Arch, ResourceKind, ModelResource, VerificationState
 from ai_diffusion.resources import required_models, default_checkpoints, optional_models
 
 try:
@@ -32,6 +32,63 @@ try:
     truststore.inject_into_ssl()
 except ImportError:
     pass
+
+
+def list_models(
+    sd15=False,
+    sdxl=False,
+    flux=False,
+    illu=False,
+    upscalers=False,
+    checkpoints=[],
+    controlnet=False,
+    prefetch=False,
+    deprecated=False,
+    minimal=False,
+    recommended=False,
+    all=False,
+    exclude=[],
+) -> set[ModelResource]:
+    assert sum([minimal, recommended, all]) <= 1, (
+        "Only one of --minimal, --recommended, --all can be specified"
+    )
+
+    versions = [Arch.all]
+    if sd15 or minimal or all:
+        versions.append(Arch.sd15)
+    if sdxl or recommended or all:
+        versions.append(Arch.sdxl)
+    if flux:
+        versions.append(Arch.flux)
+    if illu or all:
+        versions.append(Arch.illu)
+        versions.append(Arch.illu_v)
+
+    models: set[ModelResource] = set()
+    models.update([m for m in default_checkpoints if all or (m.id.identifier in checkpoints)])
+    if minimal or recommended or all or sd15 or sdxl:
+        models.update([m for m in required_models if m.arch in versions])
+    if minimal:
+        models.add(default_checkpoints[0])
+    if recommended:
+        models.update([m for m in default_checkpoints if m.arch is Arch.sdxl])
+    if upscalers or recommended or all:
+        models.update([m for m in required_models if m.kind is ResourceKind.upscaler])
+        models.update(resources.upscale_models)
+    if controlnet or recommended or all:
+        kinds = [ResourceKind.controlnet, ResourceKind.ip_adapter, ResourceKind.clip_vision]
+        models.update([m for m in optional_models if m.kind in kinds and m.arch in versions])
+    if prefetch or all:
+        models.update(resources.prefetch_models)
+    if deprecated:
+        models.update([m for m in resources.deprecated_models if m.arch in versions])
+
+    models = models - set([m for m in models if m.id.string in exclude])
+
+    if len(models) == 0:
+        print("\nNo models selected for download.")
+
+    return models
 
 
 def _progress(name: str, size: int | None, index=0):
@@ -97,70 +154,19 @@ async def download(
                 target_file.with_suffix(".part").rename(target_file)
 
 
-async def main(
+async def download_models(
     destination: Path,
+    models: set[ModelResource],
     verbose=False,
     dry_run=False,
-    sd15=False,
-    sdxl=False,
-    flux=False,
-    illu=False,
-    upscalers=False,
-    checkpoints=[],
-    controlnet=False,
-    prefetch=False,
-    deprecated=False,
-    minimal=False,
-    recommended=False,
-    all=False,
-    exclude=[],
     retry_attempts=5,
     continue_on_error=False,
     parallel_downloads=4,
 ):
-    print(f"Generative AI for Krita - Model download - v{resources.version}")
     verbose = verbose or dry_run
-    assert sum([minimal, recommended, all]) <= 1, (
-        "Only one of --minimal, --recommended, --all can be specified"
-    )
-
-    versions = [Arch.all]
-    if sd15 or minimal or all:
-        versions.append(Arch.sd15)
-    if sdxl or recommended or all:
-        versions.append(Arch.sdxl)
-    if flux:
-        versions.append(Arch.flux)
-    if illu or all:
-        versions.append(Arch.illu)
-        versions.append(Arch.illu_v)
 
     timeout = aiohttp.ClientTimeout(total=None, sock_connect=10, sock_read=60)
     async with aiohttp.ClientSession(timeout=timeout, trust_env=True) as client:
-        models: set[ModelResource] = set()
-        models.update([m for m in default_checkpoints if all or (m.id.identifier in checkpoints)])
-        if minimal or recommended or all or sd15 or sdxl:
-            models.update([m for m in required_models if m.arch in versions])
-        if minimal:
-            models.add(default_checkpoints[0])
-        if recommended:
-            models.update([m for m in default_checkpoints if m.arch is Arch.sdxl])
-        if upscalers or recommended or all:
-            models.update([m for m in required_models if m.kind is ResourceKind.upscaler])
-            models.update(resources.upscale_models)
-        if controlnet or recommended or all:
-            kinds = [ResourceKind.controlnet, ResourceKind.ip_adapter, ResourceKind.clip_vision]
-            models.update([m for m in optional_models if m.kind in kinds and m.arch in versions])
-        if prefetch or all:
-            models.update(resources.prefetch_models)
-        if deprecated:
-            models.update([m for m in resources.deprecated_models if m.arch in versions])
-
-        models = models - set([m for m in models if m.id.string in exclude])
-
-        if len(models) == 0:
-            print("\nNo models selected for download.")
-
         tasks: list[asyncio.Task | None] = [None for _ in range(parallel_downloads)]
         for model in sorted(models, key=lambda m: m.name):
             if verbose:
@@ -183,6 +189,22 @@ async def main(
             )
             tasks[index] = asyncio.create_task(download)
         await asyncio.gather(*[t for t in tasks if t is not None])
+
+
+def verify_models(path: Path, models: set[ModelResource]):
+    for model in models:
+        for status in model.verify(path):
+            if status.state is VerificationState.in_progress:
+                print(f"Verifying {status.file.name}...", end="")
+            elif status.state is VerificationState.verified:
+                print(" OK")
+            elif status.state is VerificationState.mismatch:
+                print(" MISMATCH")
+                print(f"  {status.file.path}")
+                print(f"  Expected SHA256: {status.file.sha256}")
+                print(f"  Actual SHA256:   {status.info}")
+            else:
+                print(f" ERROR ({status.state.name})")
 
 
 if __name__ == "__main__":
@@ -208,6 +230,7 @@ if __name__ == "__main__":
     # fmt: off
     parser.add_argument("-v", "--verbose", action="store_true", help="print URLs and filepaths")
     parser.add_argument("-d", "--dry-run", action="store_true", help="don't actually download anything (but create directories)")
+    parser.add_argument("-c", "--check", action="store_true", help="verify model integrity")
     parser.add_argument("-m", "--minimal", action="store_true", help="download the minimum viable set of models")
     parser.add_argument("-r", "--recommended", action="store_true", help="download a recommended set of models")
     parser.add_argument("-a", "--all", action="store_true", help="download ALL models")
@@ -236,25 +259,33 @@ if __name__ == "__main__":
     if args.checkpoints and args.illu:
         checkpoints += [m.id.identifier for m in default_checkpoints if m.arch is Arch.illu]
         checkpoints += [m.id.identifier for m in default_checkpoints if m.arch is Arch.illu_v]
+
+    print(f"Generative AI for Krita - Model download - v{resources.version}")
+
+    models = list_models(
+        sd15=args.sd15,
+        sdxl=args.sdxl,
+        flux=args.flux,
+        illu=args.illu,
+        upscalers=args.upscalers,
+        checkpoints=checkpoints,
+        controlnet=args.controlnet,
+        prefetch=args.prefetch,
+        deprecated=args.deprecated,
+        minimal=args.minimal,
+        recommended=args.recommended,
+        all=args.all,
+    )
     asyncio.run(
-        main(
-            destination=args.destination,
+        download_models(
+            args.destination,
+            models,
             verbose=args.verbose,
             dry_run=args.dry_run,
-            sd15=args.sd15,
-            sdxl=args.sdxl,
-            flux=args.flux,
-            illu=args.illu,
-            upscalers=args.upscalers,
-            checkpoints=checkpoints,
-            controlnet=args.controlnet,
-            prefetch=args.prefetch,
-            deprecated=args.deprecated,
-            minimal=args.minimal,
-            recommended=args.recommended,
-            all=args.all,
             retry_attempts=args.retry_attempts,
             continue_on_error=args.continue_on_error,
             parallel_downloads=args.jobs,
         )
     )
+    if args.check:
+        verify_models(args.destination, models)
