@@ -15,11 +15,14 @@ from PyQt5.QtWidgets import (
     QFrame,
     QLabel,
     QLineEdit,
+    QMenu,
+    QMessageBox,
     QProgressBar,
     QPushButton,
     QToolButton,
     QScrollArea,
 )
+from ai_diffusion.network import DownloadProgress
 from krita import Krita
 
 from ..settings import Settings, ServerMode, settings
@@ -29,6 +32,7 @@ from ..server import Server, ServerBackend, ServerState
 from ..connection import ConnectionState
 from ..root import root
 from ..localization import translate as _
+from ..util import ensure
 from .. import eventloop, resources, server, util
 from .theme import SignalBlocker, add_header, set_text_clipped, green, grey, red, yellow, highlight
 
@@ -244,8 +248,7 @@ class ServerWidget(QWidget):
         super().__init__(parent)
         self._server = srv
 
-        layout = QVBoxLayout()
-        self.setLayout(layout)
+        layout = QVBoxLayout(self)
 
         add_header(layout, Settings._server_path)
 
@@ -284,6 +287,20 @@ class ServerWidget(QWidget):
         self._launch_button.setMinimumHeight(35)
         self._launch_button.clicked.connect(self._launch)
 
+        self._manage_button = QToolButton(self)
+        self._manage_button.setText(_("Manage"))
+        self._manage_button.setPopupMode(QToolButton.InstantPopup)
+        self._manage_button.setMinimumWidth(150)
+
+        menu = QMenu(self)
+        verify_action = menu.addAction(_("Verify"))
+        ensure(verify_action).triggered.connect(self.verify_models)
+        reinstall_action = menu.addAction(_("Re-install"))
+        ensure(reinstall_action).triggered.connect(self.reinstall)
+        delete_action = menu.addAction(_("Delete"))
+        ensure(delete_action).triggered.connect(self.uninstall)
+        self._manage_button.setMenu(menu)
+
         anchor = _("View log files")
         open_log_button = QLabel(f"<a href='file://{util.log_dir}'>{anchor}</a>", self)
         open_log_button.setToolTip(str(util.log_dir))
@@ -298,6 +315,7 @@ class ServerWidget(QWidget):
 
         buttons_layout = QVBoxLayout()
         buttons_layout.addWidget(self._launch_button)
+        buttons_layout.addWidget(self._manage_button)
         buttons_layout.addWidget(open_log_button, 0, Qt.AlignmentFlag.AlignRight)
 
         launch_layout = QHBoxLayout()
@@ -510,15 +528,17 @@ class ServerWidget(QWidget):
             await self._stop()
 
         self._launch_button.setEnabled(False)
+        self._manage_button.setEnabled(False)
         self._status_label.setStyleSheet(f"color:{highlight};font-weight:bold")
         self._backend_select.setVisible(False)
         self._progress_bar.setVisible(True)
         self._progress_info.setVisible(True)
+        self._progress_info.setText("")
 
     def _handle_progress(self, report: server.InstallationProgress):
         self._status_label.setText(f"{report.stage}...")
         set_text_clipped(self._progress_info, report.message)
-        if report.progress and report.progress.total > 0:
+        if isinstance(report.progress, DownloadProgress) and report.progress.total > 0:
             self._progress_bar.setMaximum(100)
             self._progress_bar.setValue(int(report.progress.value * 100))
             self._progress_bar.setFormat(
@@ -526,17 +546,119 @@ class ServerWidget(QWidget):
                 f" {report.progress.speed:.1f} MB/s"
             )
             self._progress_bar.setTextVisible(True)
-        elif report.progress:  # download, but unknown total size
+        elif isinstance(report.progress, DownloadProgress):  # download, but unknown total size
             self._progress_bar.setMaximum(0)
             self._progress_bar.setValue(0)
             self._progress_bar.setFormat(
                 f"{report.progress.received:.0f} MB - {report.progress.speed:.1f} MB/s"
             )
             self._progress_bar.setTextVisible(True)
+        elif isinstance(report.progress, tuple):
+            self._progress_bar.setMinimum(0)
+            self._progress_bar.setMaximum(report.progress[1])
+            self._progress_bar.setValue(report.progress[0])
+            self._progress_bar.setFormat(f"{report.progress[0]} / {report.progress[1]}")
+            self._progress_bar.setTextVisible(True)
         else:
             self._progress_bar.setMaximum(0)
             self._progress_bar.setValue(0)
             self._progress_bar.setTextVisible(False)
+
+    def verify_models(self):
+        eventloop.run(self._verify_models())
+
+    async def _verify_models(self):
+        await self._prepare_for_install()
+        try:
+            bad_models = await self._server.verify(self._handle_progress)
+
+            if not bad_models:
+                QMessageBox.information(
+                    self,
+                    _("Verification Complete"),
+                    _("All model files were verified successfully."),
+                )
+            else:
+                failed_files = "\n".join([
+                    f"• {status.file.path} - {status.info or status.state.name}"
+                    for status in bad_models
+                ])
+
+                msg_box = QMessageBox(
+                    QMessageBox.Warning,
+                    _("Verification Failed"),
+                    _("The following files failed verification:")
+                    + f"\n\n{failed_files}\n\n"
+                    + _("Would you like to delete and re-download these files?"),
+                    QMessageBox.Yes | QMessageBox.No,
+                    self,
+                )
+
+                if msg_box.exec_() == QMessageBox.Yes:
+                    await self._server.fix_models(bad_models, self._handle_progress)
+        except Exception as e:
+            self.show_error(str(e))
+        finally:
+            self._progress_bar.setVisible(False)
+            self._progress_info.setVisible(False)
+            self.update_ui()
+
+    def reinstall(self):
+        eventloop.run(self._reinstall())
+
+    async def _reinstall(self):
+        msg_box = QMessageBox(
+            QMessageBox.Question,
+            _("Confirm Reinstallation"),
+            _(
+                "This will reinstall the server components while keeping your downloaded models. Continue?"
+            ),
+            QMessageBox.Yes | QMessageBox.No,
+            self,
+        )
+
+        if msg_box.exec_() != QMessageBox.Yes:
+            return
+
+        await self._prepare_for_install()
+        try:
+            await self._server.uninstall(self._handle_progress, delete_models=False)
+            await self._server.install(self._handle_progress)
+            await self._server.download_required(self._handle_progress)
+        except Exception as e:
+            self.show_error(str(e))
+        finally:
+            self.update_ui()
+
+    def uninstall(self):
+        eventloop.run(self._uninstall())
+
+    async def _uninstall(self):
+        msg_box = QMessageBox(
+            QMessageBox.Warning,
+            _("Confirm Deletion"),
+            _("WARNING: This will delete the entire server installation INCLUDING ALL MODELS!")
+            + "\n\n"
+            + _("This action cannot be undone.")
+            + "\n\n"
+            + _("Are you absolutely sure you want to continue?"),
+            QMessageBox.Cancel,
+            self,
+        )
+        msg_box.addButton(_("Delete"), QMessageBox.DestructiveRole)
+        msg_box.setDefaultButton(QMessageBox.Cancel)
+        if msg_box.exec_() != 0:  # Destructive role returns 0
+            return
+
+        await self._prepare_for_install()
+        try:
+            await self._server.uninstall(self._handle_progress, delete_models=True)
+        except Exception as e:
+            self.show_error(str(e))
+        finally:
+            self._progress_bar.setVisible(False)
+            self._progress_info.setVisible(False)
+            self.update_ui()
 
     def update_ui(self):
         self._location_edit.setText(settings.server_path)
@@ -550,28 +672,31 @@ class ServerWidget(QWidget):
         self._progress_info.setVisible(False)
         self._backend_select.setVisible(True)
         self._launch_button.setEnabled(True)
+        self._manage_button.setEnabled(True)
         self._location_edit.setEnabled(True)
 
         state = self._server.state
         if state is ServerState.not_installed:
             self._status_label.setText(_("Server is not installed"))
             self._status_label.setStyleSheet(f"color:{red};font-weight:bold")
+            self._manage_button.setEnabled(False)
         elif state is ServerState.missing_resources:
             self._status_label.setText(_("Server is missing required components"))
             self._status_label.setStyleSheet(f"color:{red};font-weight:bold")
-        elif state is ServerState.installing:
+            self._manage_button.setEnabled(False)
+        elif state in [ServerState.installing, ServerState.verifying, ServerState.uninstalling]:
             self._location_edit.setEnabled(False)
             self._progress_bar.setVisible(True)
             self._progress_info.setVisible(True)
             self._backend_select.setVisible(False)
             self._launch_button.setEnabled(False)
+            self._manage_button.setEnabled(False)
         elif self._server.upgrade_required:
             self._status_label.setText(
                 _("Upgrade required") + f": v{self._server.version} -> v{resources.version}"
             )
             self._status_label.setStyleSheet(f"color:{yellow};font-weight:bold")
             self._launch_button.setText(_("Upgrade"))
-            self._launch_button.setEnabled(True)
         elif state is ServerState.stopped:
             self._status_label.setText(_("Server stopped"))
             self._status_label.setStyleSheet(f"color:{red};font-weight:bold")
@@ -581,6 +706,7 @@ class ServerWidget(QWidget):
             self._status_label.setStyleSheet(f"color:{yellow};font-weight:bold")
             self._launch_button.setText(_("Launch"))
             self._launch_button.setEnabled(False)
+            self._manage_button.setEnabled(False)
             self._location_edit.setEnabled(False)
         elif state is ServerState.running:
             connection_state = root.connection.state
