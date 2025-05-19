@@ -504,10 +504,7 @@ class ComfyClient(Client):
         if len(self._jobs) == 0:
             log.warning(f"Received unknown job {remote_id}")
             return None
-        active = next((j for j in self._jobs if j.remote_id == remote_id), None)
-        if active is not None:
-            return active
-        return None
+        return next((j for j in self._jobs if j.remote_id == remote_id), None)
 
     async def _start_job(self, remote_id: str):
         if self._active is not None:
@@ -520,10 +517,16 @@ class ComfyClient(Client):
             return self._jobs.popleft()
 
         log.warning(f"Started job {remote_id}, but {self._jobs[0]} was expected")
+        if await self._find_job(remote_id) is not None:
+            while len(self._jobs) > 0:
+                job = self._jobs.popleft()
+                if await job.get_remote_id() == remote_id:
+                    return job
+        return None
+
+    async def _find_job(self, remote_id: str):
         for job in self._jobs:
             if await job.get_remote_id() == remote_id:
-                self._active = job
-                self._jobs.remove(job)
                 return job
         return None
 
