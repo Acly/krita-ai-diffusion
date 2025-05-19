@@ -9,7 +9,7 @@ from ai_diffusion import network, server, resources
 from ai_diffusion.style import Arch
 from ai_diffusion.server import Server, ServerState, ServerBackend, InstallationProgress
 from ai_diffusion.resources import VerificationState
-from .config import server_dir
+from .config import test_dir, server_dir
 
 workload_sd15 = [p.name for p in resources.required_models if p.arch is Arch.sd15]
 workload_sd15 += [resources.default_checkpoints[0].name]
@@ -69,10 +69,9 @@ def test_install_and_run(qtapp, pytestconfig, local_download_server):
     def handle_progress(report: InstallationProgress):
         nonlocal last_stage
         assert (
-            report.progress is None
+            not isinstance(report.progress, network.DownloadProgress)
             or report.progress.value == -1
-            or report.progress.value >= 0
-            and report.progress.value <= 1
+            or (report.progress.value >= 0 and report.progress.value <= 1)
         )
         assert report.stage != ""
         if report.progress is None and report.stage != last_stage:
@@ -164,27 +163,32 @@ def test_verify_and_fix(qtapp, pytestconfig, local_download_server):
     qtapp.run(main())
 
 
-def test_uninstall(qtapp, pytestconfig):
+def test_uninstall(qtapp, pytestconfig, local_download_server):
     if not pytestconfig.getoption("--test-install"):
         pytest.skip("Only runs with --test-install")
 
-    server = Server(str(server_dir))
+    temp_server_dir = test_dir / "temp_server"
+    if temp_server_dir.exists():
+        shutil.rmtree(temp_server_dir, ignore_errors=True)
+    server = Server(str(temp_server_dir))
     server.backend = ServerBackend.cpu
-    assert server.state is ServerState.stopped
+    assert server.state is ServerState.not_installed
 
     def handle_progress(report: InstallationProgress):
         print(report.stage, report.message)
 
     async def main():
+        await server.install(handle_progress)
+        await server.download_required(handle_progress)
         await server.uninstall(handle_progress)
         assert server.state is ServerState.not_installed
-        assert (server_dir / "models").exists()
+        assert (temp_server_dir / "models").exists()
         assert server.comfy_dir is None
 
         server.state = ServerState.stopped
         await server.uninstall(handle_progress, delete_models=True)
         assert server.state is ServerState.not_installed
-        assert not server_dir.exists()
+        assert not temp_server_dir.exists()
 
     qtapp.run(main())
 

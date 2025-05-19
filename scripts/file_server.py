@@ -34,10 +34,10 @@ urls = [
 
 async def file_sender(file: Path):
     with open(file, "rb") as f:
-        chunk = f.read(2**12)
+        chunk = f.read(2**14)
         while chunk:
             yield chunk
-            chunk = f.read(2**12)
+            chunk = f.read(2**14)
 
 
 def send_file(file: Path):

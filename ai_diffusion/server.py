@@ -646,6 +646,15 @@ class Server:
         try:
             if self.comfy_dir and self.comfy_dir.exists():
                 cb("Removing ComfyUI")
+                if not delete_models:
+                    try:
+                        safe_remove_dir(self.comfy_dir / "models")
+                    except Exception as e:
+                        raise Exception(
+                            str(e)
+                            + f"\n\nPlease move model files located in\n{self.comfy_dir / 'models'}"
+                            + f"\nto\n{self.path / 'models'}\nand try again."
+                        )
                 remove_subdir(self.comfy_dir, origin=self.path)
 
             venv_dir = self.path / "venv"
@@ -669,7 +678,8 @@ class Server:
                 if model_dir.exists():
                     cb("Removing models")
                     remove_subdir(model_dir, origin=self.path)
-                self.path.rmdir()
+
+                remove_subdir(self.path, origin=self.path)
 
             cb("Finished uninstalling")
         except Exception as e:
@@ -829,9 +839,13 @@ def safe_remove_dir(path: Path, max_size=12 * 1024 * 1024):
         for p in path.rglob("*"):
             if p.is_file():
                 if p.stat().st_size > max_size:
-                    raise Exception(f"Failed to remove {path}: found remaining large file {p}")
+                    raise Exception(
+                        f"Failed to remove {path}: found remaining large file {p.relative_to(path)}"
+                    )
                 if p.suffix == ".safetensors":
-                    raise Exception(f"Failed to remove {path}: found remaining model {p}")
+                    raise Exception(
+                        f"Failed to remove {path}: found remaining model {p.relative_to(path)}"
+                    )
         shutil.rmtree(path, ignore_errors=True)
 
 

@@ -745,7 +745,8 @@ class ServerWidget(QWidget):
     def show_error(self, error: str):
         self._error = error
         if self._error:
-            self._status_label.setText(f"<b>Error:</b> {self._error}")
+            error_text = "<b>Error:</b> " + self._error.replace("\n", "<br>")
+            self._status_label.setText(error_text)
             self._status_label.setStyleSheet(f"color:{red}")
 
     def update_required(self):
