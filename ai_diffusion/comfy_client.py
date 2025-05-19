@@ -529,6 +529,7 @@ class ComfyClient(Client):
         if job is not None:
             while self._jobs[0] != job:
                 self._jobs.popleft()
+            assert self._jobs.popleft() == job
         return job
 
     def _clear_job(self, job_remote_id: str | asyncio.Future | None):
