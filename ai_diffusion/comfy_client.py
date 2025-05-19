@@ -95,8 +95,8 @@ class ComfyClient(Client):
         self._active: Optional[JobInfo] = None
         self._features: ClientFeatures = ClientFeatures()
         self._supported_archs: dict[Arch, list[ResourceId]] = {}
-        self._messages = asyncio.Queue()
-        self._queue = asyncio.Queue()
+        self._messages: asyncio.Queue[ClientMessage] = asyncio.Queue()
+        self._queue: asyncio.Queue[JobInfo] = asyncio.Queue()
         self._jobs: deque[JobInfo] = deque()
         self._is_connected = False
 
@@ -357,15 +357,17 @@ class ComfyClient(Client):
         await self._post("interrupt", {})
 
     async def clear_queue(self):
+        # Make sure changes to all queues are processed before suspending this
+        # function, otherwise it may interfere with subsequent calls to enqueue.
+        self._jobs = deque()
+        tasks = [self._post("queue", {"clear": True})]
         while not self._queue.empty():
             try:
                 job = self._queue.get_nowait()
-                await self._report(ClientEvent.interrupted, job.local_id)
+                tasks.append(self._report(ClientEvent.interrupted, job.local_id))
             except asyncio.QueueEmpty:
                 break
-
-        await self._post("queue", {"clear": True})
-        self._jobs.clear()
+        await asyncio.gather(*tasks)
 
     async def disconnect(self):
         if self._is_connected:
@@ -520,6 +522,7 @@ class ComfyClient(Client):
         log.warning(f"Started job {remote_id}, but {self._jobs[0]} was expected")
         for job in self._jobs:
             if await job.get_remote_id() == remote_id:
+                self._active = job
                 self._jobs.remove(job)
                 return job
         return None
