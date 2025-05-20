@@ -13,5 +13,5 @@ benchmark_dir = test_dir / "benchmark"
 
 default_checkpoint = {
     Arch.sd15: default_checkpoints[0].filename,
-    Arch.sdxl: "juggernautXL_version6Rundiffusion.safetensors",
+    Arch.sdxl: "RealVisXL_V5.0_fp16.safetensors",
 }

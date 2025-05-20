@@ -28,6 +28,22 @@
                     }
                 ]
             }
+        },
+        {
+            "name": "PyTest",
+            "type": "python",
+            "request": "launch",
+            "module": "pytest",
+            "justMyCode": false,
+            "console": "integratedTerminal",
+            "env": {
+                "PYTHONPATH": "${workspaceFolder}"
+            },
+            "args": [
+                "-vs",
+                "tests"
+            ],
+            "cwd": "${workspaceFolder}",
         }
     ]
 }
