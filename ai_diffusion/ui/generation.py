@@ -232,17 +232,22 @@ class HistoryWidget(QListWidget):
                 self.takeItem(i)
 
     def update_selection(self):
+        current = [self._item_data(i) for i in self.selectedItems()]
+        changed = any(i != j for i, j in zip(self._model.jobs.selection, current))
+
         with theme.SignalBlocker(self):
             for i in range(self.count()):
                 item = self.item(i)
                 if item and item.type() == QListWidgetItem.ItemType.UserType:
                     cast(AnimatedListItem, item).stop_animation()
-            self.clearSelection()
+
+            if changed:  # don't mess with widget's state if it already matches
+                self.clearSelection()
 
             for selection in self._model.jobs.selection:
-                item = self._find(selection)
-                if item is not None and not item.isSelected():
-                    item.setSelected(True)
+                if item := self._find(selection):
+                    if changed:
+                        item.setSelected(True)
                     if item.type() == QListWidgetItem.ItemType.UserType:
                         cast(AnimatedListItem, item).start_animation()
 
