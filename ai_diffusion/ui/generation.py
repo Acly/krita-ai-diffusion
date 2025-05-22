@@ -1,11 +1,13 @@
 from __future__ import annotations
 from textwrap import wrap as wrap_text
 from typing import cast
-from PyQt5.QtCore import Qt, QMetaObject, QSize, QPoint, QTimer, QUuid, pyqtSignal
-from PyQt5.QtGui import QGuiApplication, QMouseEvent, QPalette, QColor, QIcon
+from PyQt5.QtCore import Qt, QEvent, QMetaObject, QSize, QPoint, QTimer, QUuid, pyqtSignal
+from PyQt5.QtCore import QItemSelectionModel
+from PyQt5.QtGui import QGuiApplication, QMouseEvent, QKeyEvent, QKeySequence
+from PyQt5.QtGui import QPalette, QColor, QIcon
 from PyQt5.QtWidgets import QAction, QWidget, QVBoxLayout, QHBoxLayout, QPushButton, QProgressBar
 from PyQt5.QtWidgets import QListWidget, QListWidgetItem, QListView, QSizePolicy
-from PyQt5.QtWidgets import QComboBox, QCheckBox, QMenu, QShortcut, QMessageBox, QToolButton
+from PyQt5.QtWidgets import QComboBox, QCheckBox, QMenu, QMessageBox, QToolButton
 
 from ..properties import Binding, Bind, bind, bind_combo, bind_toggle
 from ..image import Bounds, Extent, Image
@@ -83,12 +85,6 @@ class HistoryWidget(QListWidget):
 
         self.setContextMenuPolicy(Qt.ContextMenuPolicy.CustomContextMenu)
         self.customContextMenuRequested.connect(self._show_context_menu)
-
-        widget_context = Qt.ShortcutContext.WidgetShortcut
-        QShortcut(Qt.Key.Key_Delete, self, self._discard_image, self._discard_image, widget_context)
-        QShortcut(
-            Qt.Key.Key_Space, self, self._toggle_selection, self._toggle_selection, widget_context
-        )
 
     @property
     def model_(self):
@@ -339,6 +335,19 @@ class HistoryWidget(QListWidget):
         super().resizeEvent(e)
         self.update_apply_button()
 
+    def event(self, e: QEvent | None):
+        assert e is not None
+        # Disambiguate shortcut events which Krita overrides
+        if e.type() == QEvent.Type.ShortcutOverride:
+            assert isinstance(e, QKeyEvent)
+            if e.matches(QKeySequence.StandardKey.Delete):
+                self._discard_image()
+                e.accept()
+            elif e.key() == Qt.Key.Key_Space:
+                self._toggle_selection()
+                e.accept()
+        return super().event(e)
+
     def _find(self, id: JobQueue.Item):
         items = (ensure(self.item(i)) for i in range(self.count()))
         return next((item for item in items if self._item_data(item) == id), None)
@@ -430,9 +439,12 @@ class HistoryWidget(QListWidget):
 
     def _discard_image(self):
         items = self.selectedItems()
+        next_item = self.row(items[0]) if len(items) > 0 else -1
         for item in items:
             job_id, image_index = self.item_info(item)
             self._model.jobs.discard(job_id, image_index)
+        if next_item >= 0:
+            self.setCurrentRow(next_item, QItemSelectionModel.SelectionFlag.Current)
 
     def _clear_all(self):
         reply = QMessageBox.warning(
