@@ -228,9 +228,9 @@ class Settings(QObject):
 
     apply_behavior_live: ApplyBehavior
     _apply_behavior_live = Setting(
-        "Apply Behavior (Live)",
+        _("Apply Behavior (Live)"),
         ApplyBehavior.replace,
-        "Choose how result images are applied to the canvas in Live mode",
+        _("Choose how result images are applied to the canvas in Live mode"),
     )
 
     apply_region_behavior_live: ApplyRegionBehavior

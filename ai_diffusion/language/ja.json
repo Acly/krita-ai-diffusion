@@ -27,7 +27,7 @@
     "All installed": "すべてインストール済み",
     "Animation": "アニメーション",
     "Apply": "適用",
-    "Apply Behavior": "挙動を適用",
+    "Apply Behavior": "挙動の適用",
     "Are you sure you want to discard all generated images?": "生成された画像をすべて消去してもよろしいですか?",
     "Attempt to filter out images with explicit content": "露骨な表現を含む画像を除外",
     "Authorization could not be confirmed: ": "認証が確認できませんでした: ",
@@ -445,7 +445,7 @@
     "Illustrious/NoobAI XL models": "Illustrious/NoobAI XL モデル",
     "Built-in styles cannot be modified.": "組み込みスタイルは変更できません。",
     "Stable Diffusion 1.5 models": "Stable Diffusion 1.5 モデル",
-    "The base model ecosystem which the selected checkpoint belongs to.": "このモデルが所属するエコシステムを選択して下さい。",
+    "The base model ecosystem which the selected checkpoint belongs to.": "このモデルが属するエコシステムを選択して下さい。",
     "Choose a Diffusion base model to install its basic requirements.": "基本要件をインストールするために、ディフュージョンのベースモデルを選択して下さい。",
     "Stable Diffusion XL models": "Stable Diffusion XL モデル",
     "Select at least one diffusion model. Control models are optional.": "ディフュージョンモデルを一つ以上選択して下さい。ControlNetモデルはオプションです。",
@@ -477,7 +477,9 @@
     "Action to take when an image generation job finishes": "画像生成ジョブが完了したときに実行するアクション",
     "Modify active layer": "選択レイヤーに上書き",
     "Always": "常時",
-    "Selected LoRA model could not be applied. Please make sure it is compatible with the checkpoint base model you are using.": null,
-    "Lean more": null
+    "Selected LoRA model could not be applied. Please make sure it is compatible with the checkpoint base model you are using.": "選択したLoRAモデルが適用できません。使用チェックポイントのベースモデルと互換性があることを確認してください。",
+    "Lean more": "詳細はこちら",
+    "Apply Behavior (Live)": "挙動の適用(ライブ)",
+    "Choose how result images are applied to the canvas in Live mode": "ライブモードで結果画像をキャンバスに適用する方法を選択します"
   }
 }
