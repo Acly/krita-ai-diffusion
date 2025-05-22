@@ -478,7 +478,7 @@
     "Modify active layer": "選択レイヤーに上書き",
     "Always": "常時",
     "Selected LoRA model could not be applied. Please make sure it is compatible with the checkpoint base model you are using.": "選択したLoRAモデルが適用できません。使用チェックポイントのベースモデルと互換性があることを確認してください。",
-    "Lean more": "詳細はこちら",
+    "Learn more": "詳細はこちら",
     "Apply Behavior (Live)": "挙動の適用(ライブ)",
     "Choose how result images are applied to the canvas in Live mode": "ライブモードで結果画像をキャンバスに適用する方法を選択します"
   }

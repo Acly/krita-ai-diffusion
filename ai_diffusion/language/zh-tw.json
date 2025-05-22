@@ -478,6 +478,6 @@
     "Modify active layer": null,
     "Always": null,
     "Selected LoRA model could not be applied. Please make sure it is compatible with the checkpoint base model you are using.": null,
-    "Lean more": null
+    "Learn more": null
   }
 }

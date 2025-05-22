@@ -478,6 +478,6 @@
     "Modify active layer": "修改当前图层",
     "Always": "始终",
     "Selected LoRA model could not be applied. Please make sure it is compatible with the checkpoint base model you are using.": "无法应用所选的 LoRA 模型。请确保它与您使用的基础检查点模型兼容。",
-    "Lean more": "了解更多"
+    "Learn more": "了解更多"
   }
 }

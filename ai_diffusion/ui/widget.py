@@ -908,7 +908,7 @@ class ErrorBox(QFrame):
                     "Selected LoRA model could not be applied. Please make sure it is compatible with the checkpoint base model you are using."
                 )
                 + " <a href='https://docs.interstice.cloud/base-models'>"
-                + _("Lean more")
+                + _("Learn more")
                 + "</a>"
             )
         self._label.setText(text)
