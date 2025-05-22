@@ -144,6 +144,10 @@ def flatten(seq: Sequence[T | list[T]]) -> Generator[T, None, None]:
             yield x
 
 
+def sequence_equal(a: Sequence[T], b: Sequence[T]) -> bool:
+    return len(a) == len(b) and all(x == y for x, y in zip(a, b))
+
+
 def trim_text(text: str, max_length: int) -> str:
     if len(text) > max_length:
         return text[: max_length - 3] + "..."

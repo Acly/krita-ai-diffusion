@@ -17,7 +17,7 @@ from ..style import Styles
 from ..root import root
 from ..workflow import InpaintMode, FillMode
 from ..localization import translate as _
-from ..util import ensure, flatten
+from ..util import ensure, flatten, sequence_equal
 from .widget import WorkspaceSelectWidget, StyleSelectWidget, StrengthWidget, QueueButton
 from .widget import GenerateButton, ErrorBox, create_wide_tool_button
 from .region import RegionPromptWidget
@@ -233,7 +233,7 @@ class HistoryWidget(QListWidget):
 
     def update_selection(self):
         current = [self._item_data(i) for i in self.selectedItems()]
-        changed = any(i != j for i, j in zip(self._model.jobs.selection, current))
+        changed = not sequence_equal(self._model.jobs.selection, current)
 
         with theme.SignalBlocker(self):
             for i in range(self.count()):
