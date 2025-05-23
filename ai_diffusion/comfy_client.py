@@ -118,6 +118,7 @@ class ComfyClient(Client):
             raise Exception(msg)
 
         # Check custom nodes
+        log.info("Checking for required custom nodes...")
         nodes = await client._get("object_info")
         missing = _check_for_missing_nodes(nodes)
         if len(missing) > 0:
@@ -128,6 +129,7 @@ class ComfyClient(Client):
             translation=True,
             languages=await _list_languages(client),
             wave_speed="ApplyFBCacheOnModel" in nodes,
+            gguf="UnetLoaderGGUF" in nodes,
         )
 
         # Check for required and optional model resources
@@ -387,6 +389,8 @@ class ComfyClient(Client):
             )
 
     async def try_inspect(self, folder_name: str) -> dict[str, Any]:
+        if "gguf" in folder_name and not self.features.gguf:
+            return {}
         try:
             return await self._get(f"api/etn/model_info/{folder_name}", timeout=90)
         except NetworkError as e:

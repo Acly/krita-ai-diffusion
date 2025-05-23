@@ -35,7 +35,7 @@ class NetworkError(Exception):
 
     @staticmethod
     def from_reply(reply: QNetworkReply):
-        code = reply.error()  # type: ignore (bug in PyQt5-stubs)
+        code: QNetworkReply.NetworkError = reply.error()  # type: ignore (bug in PyQt5-stubs)
         url = reply.url().toString()
         status = reply.attribute(QNetworkRequest.Attribute.HttpStatusCodeAttribute)
         if reply.isReadable():
@@ -50,17 +50,16 @@ class NetworkError(Exception):
                         return NetworkError(code, f"{text} ({reply.errorString()})", url, status)
                 except Exception:
                     pass
+        if code == QNetworkReply.NetworkError.OperationCanceledError:
+            return NetworkError(
+                code, "Connection timed out, the server took too long to respond", url
+            )
         return NetworkError(code, reply.errorString(), url, status)
 
 
 class OutOfMemoryError(NetworkError):
     def __init__(self, code, msg, url):
         super().__init__(code, msg, url)
-
-
-class Interrupted(Exception):
-    def __init__(self):
-        super().__init__(self, "Operation cancelled")
 
 
 class Disconnected(Exception):
@@ -105,7 +104,7 @@ class RequestManager:
             for key, value in headers:
                 request.setRawHeader(key.encode("utf-8"), value.encode("utf-8"))
         if timeout is not None:
-            request.setTransferTimeout(int(timeout / 1000))
+            request.setTransferTimeout(int(timeout * 1000))
 
         assert method in ["GET", "POST", "PUT"]
         if method == "POST":
