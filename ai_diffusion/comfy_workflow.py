@@ -66,6 +66,8 @@ class ComfyWorkflow:
         existing = _convert_ui_workflow(existing, node_inputs)
         node_map: dict[str, str] = {}
         queue = list(existing.keys())
+        times_queued: dict[str, int] = {}
+        # Re-order nodes such that a nodes inputs are always processed before the node itself.
         while queue:
             id = queue.pop(0)
             node = deepcopy(existing[id])
@@ -74,12 +76,20 @@ class ComfyWorkflow:
                 log.warning(f"Workflow import: Node {id} is not installed, aborting.")
                 return w
             if node_inputs and class_type not in node_inputs:
-                raise ValueError(
+                log.warning(
                     f"Workflow contains a node of type {class_type} which is not installed on the ComfyUI server."
                 )
             edges = [e for e in node["inputs"].values() if isinstance(e, list)]
             if any(e[0] not in node_map for e in edges):
-                queue.append(id)  # requeue node if an input is not yet mapped
+                count = times_queued.setdefault(id, 0)
+                if count > len(existing):
+                    log.warning(
+                        "Failed to import custom workflow, the graph appears to contain a loop."
+                    )
+                    return w
+                # re-queue node if an input is not yet mapped
+                queue.append(id)
+                times_queued[id] += 1
                 continue
 
             for e in edges:

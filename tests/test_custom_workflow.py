@@ -249,6 +249,19 @@ def test_import():
     assert w.guess_sample_count() == 4
 
 
+def test_import_with_loop():
+    graph = {
+        "1": {"class_type": "A", "inputs": {"steps": 4, "float": 1.2, "string": "mouse"}},
+        "2": {"class_type": "B", "inputs": {"in": ["1", 0]}},
+        "3": {"class_type": "C", "inputs": {"in": ["5", 1]}},
+        "4": {"class_type": "D", "inputs": {"in": ["3", 0]}},
+        "5": {"class_type": "E", "inputs": {"in": ["4", 0]}},
+    }
+    w = ComfyWorkflow.import_graph(graph, {})
+    # Currently imports a partial graph, important thing is that it does not hang/crash
+    assert w.node_count > 0
+
+
 def test_import_ui_workflow():
     graph = json.loads((test_dir / "data" / "workflow-ui.json").read_text())
     object_info = json.loads((test_dir / "data" / "object_info.json").read_text())

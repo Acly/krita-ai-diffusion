@@ -1216,8 +1216,13 @@ def expand_custom(
             mapped = outputs.get(input)
             if mapped is not None:
                 return mapped
-            else:
+            elif input.node in nodes:
                 return Output(nodes[input.node], input.output)
+            else:
+                raise Exception(
+                    f"Cannot map input {input.output} for node {input.node}."
+                    + " Make sure the ComfyUI graph does not contain a loop!"
+                )
         return input
 
     def get_param(node: ComfyNode, expected_type: type | tuple[type, type] | None = None):
