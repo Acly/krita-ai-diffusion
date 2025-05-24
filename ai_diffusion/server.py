@@ -244,28 +244,17 @@ class Server:
         elif self.backend is ServerBackend.directml:
             torch_args = ["numpy<2", "torch-directml"]
         elif self.backend is ServerBackend.xpu:
-            torch_args = [
-                "torch==2.6.0",
-                "torchvision==0.21.0",
-                "torchaudio==2.6.0",
-                "--index-url",
-                "https://download.pytorch.org/whl/xpu",
-            ]
+            torch_args = ["torch==2.6.0", "torchvision==0.21.0", "torchaudio==2.6.0"]
+            torch_args += ["--index-url", "https://download.pytorch.org/whl/xpu"]
         await self._pip_install("PyTorch", torch_args, cb)
 
         requirements_txt = Path(__file__).parent / "server_requirements.txt"
         await self._pip_install("ComfyUI", ["-r", str(requirements_txt)], cb)
 
         if self.backend is ServerBackend.xpu:
-            await self._pip_install(
-                "Ipex",
-                [
-                    "intel-extension-for-pytorch==2.6.10+xpu",
-                    "--extra-index-url",
-                    "https://pytorch-extension.intel.com/release-whl/stable/xpu/us/",
-                ],
-                cb,
-            )
+            idx_url = "https://pytorch-extension.intel.com/release-whl/stable/xpu/us/"
+            cmd = ["intel-extension-for-pytorch==2.6.10+xpu", "--extra-index-url", idx_url]
+            await self._pip_install("Ipex", cmd, cb)
 
         requirements_txt = temp_comfy_dir / "requirements.txt"
         await self._pip_install("ComfyUI", ["-r", str(requirements_txt)], cb)
@@ -711,12 +700,12 @@ class Server:
 
     @property
     def upgrade_required(self):
+        gpu_backends = [ServerBackend.cuda, ServerBackend.directml, ServerBackend.xpu]
         backend_mismatch = (
             self._installed_backend is not None
             and self._installed_backend != self.backend
-            and self.backend in [ServerBackend.cuda, ServerBackend.directml]
-            and self._installed_backend
-            in [ServerBackend.cuda, ServerBackend.directml, ServerBackend.cpu]
+            and self.backend in gpu_backends
+            and self._installed_backend in (gpu_backends + [ServerBackend.cpu])
         )
         return (
             self.state is not ServerState.not_installed
