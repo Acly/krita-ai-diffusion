@@ -480,6 +480,23 @@
     "Selected LoRA model could not be applied. Please make sure it is compatible with the checkpoint base model you are using.": "選択したLoRAモデルが適用できません。使用チェックポイントのベースモデルと互換性があることを確認してください。",
     "Learn more": "詳細はこちら",
     "Apply Behavior (Live)": "挙動の適用(ライブ)",
-    "Choose how result images are applied to the canvas in Live mode": "ライブモードで結果画像をキャンバスに適用する方法を選択します"
+    "Choose how result images are applied to the canvas in Live mode": "ライブモードで結果画像をキャンバスに適用する方法を選択します",
+    "All model files were verified successfully.": null,
+    "This will reinstall the server components while keeping your downloaded models. Continue?": null,
+    "WARNING: This will delete the entire server installation INCLUDING ALL MODELS!": null,
+    "Are you absolutely sure you want to continue?": null,
+    "Re-install": null,
+    "This action cannot be undone.": null,
+    "Delete": null,
+    "Manage": null,
+    "The following files failed verification:": null,
+    "Confirm Reinstallation": null,
+    "Verify": null,
+    "Verification Complete": null,
+    "Confirm Deletion": null,
+    "Verification Failed": null,
+    "Use XPU (Intel GPU)": null,
+    "The upscale model used by the document is not available on the server": null,
+    "Would you like to delete and re-download these files?": null
   }
 }

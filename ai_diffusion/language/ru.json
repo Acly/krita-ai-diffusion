@@ -478,6 +478,25 @@
     "Modify active layer": null,
     "Always": null,
     "Selected LoRA model could not be applied. Please make sure it is compatible with the checkpoint base model you are using.": null,
-    "Learn more": null
+    "Learn more": null,
+    "All model files were verified successfully.": null,
+    "This will reinstall the server components while keeping your downloaded models. Continue?": null,
+    "WARNING: This will delete the entire server installation INCLUDING ALL MODELS!": null,
+    "Are you absolutely sure you want to continue?": null,
+    "Re-install": null,
+    "This action cannot be undone.": null,
+    "Apply Behavior (Live)": null,
+    "Delete": null,
+    "Manage": null,
+    "The following files failed verification:": null,
+    "Confirm Reinstallation": null,
+    "Verify": null,
+    "Verification Complete": null,
+    "Confirm Deletion": null,
+    "Verification Failed": null,
+    "Choose how result images are applied to the canvas in Live mode": null,
+    "Use XPU (Intel GPU)": null,
+    "The upscale model used by the document is not available on the server": null,
+    "Would you like to delete and re-download these files?": null
   }
 }
