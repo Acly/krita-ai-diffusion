@@ -124,24 +124,12 @@ See [plugin file locations](#file-locations) for default locations.
 <details>
 <summary id="reinstall-plugin">How do I perform a clean re-install of the Plugin?</summary>
 <p>
-**Version 1.15.0 and later**
-
 Follow the installation instructions, it will delete and replace the previous
 version.
 
-If you want to delete user files (settings, styles, etc.) see [plugin file locations](#file-locations).
-
-**Prior to version 1.15.0**
-
-If you want to keep settings, styles, or the server installation, delete
-everything inside the `ai_diffusion` folder **except**:
-- `.logs`
-- `.server`
-- `styles`
-- `settings.json`
-
-On some platforms folders starting with `.` might be hidden - enable showing
-invisible files in your file browser to see them.
+If you want to re-install the server, you can do this from the Connection settings.
+Choose `Manage` > `Re-install`. This will keep your models and settings, but
+re-download the server software and update it to the latest version.
 </p>
 </details>
 
@@ -207,10 +195,9 @@ it is most likely because one of the model files is corrupt (has not been
 downloaded properly). Try to delete and re-download them in order to fix the
 issue.
 
-To find the model files, open the folder where you installed the server. Model
-files are located in the `models` sub-folders. Deleting the file will allow you
-to redownload them via the installer, or you can do so manually (see the list
-[here](/models)).
+If you are using a managed server installation, you can do this by going to the
+plugin's connection settings and clicking `Manage` > `Verify`. This will 
+automatically check all models and re-download them if necessary.
 </p>
 </details>
 
@@ -272,6 +259,22 @@ when starting the server, you are probably missing some required system DLL.
 You can <ExternalLink href="https://aka.ms/vs/17/release/vc_redist.x64.exe">download them from Microsoft</ExternalLink>.
 
 More information: [https://learn.microsoft.com/en-us/cpp/windows/latest-supported-vc-redist?view=msvc-170#latest-microsoft-visual-c-redistributable-version](https://learn.microsoft.com/en-us/cpp/windows/latest-supported-vc-redist?view=msvc-170#latest-microsoft-visual-c-redistributable-version)
+</p>
+</details>
+
+<details>
+<summary id="filepath-too-long">Windows: [Errno 2] No such file or directory</summary>
+<p>
+If you encounter an error like this:
+```txt wrap
+Server execution error: [Errno 2] No such file or directory:
+'C:\...\AppData\Roaming\krita\ai_diffusion\server\ComfyUI\custom_nodes\comfyui_controlnet_aux\ckpts\...[somefile].incomplete'
+```
+when trying to use control layers, it is likely that the file path is too long.
+
+Some Windows versions have a limit of 260 characters for file paths. To fix this issue:
+* Move the server installation to a shorter path, eg. `C:\KritaAI`
+* Enable long paths in Windows 10/11
 </p>
 </details>
 
