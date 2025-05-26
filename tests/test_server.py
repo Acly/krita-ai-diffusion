@@ -20,7 +20,7 @@ def test_download(qtapp, mode):
     async def main():
         net = QNetworkAccessManager()
         with TemporaryDirectory() as tmp:
-            url = "https://github.com/Acly/krita-ai-diffusion/archive/refs/tags/v0.1.0.zip"
+            url = "https://files.interstice.cloud/plugin/krita_ai_diffusion-1.25.0.zip"
             path = Path(tmp) / "test.zip"
             if mode == "resume":
                 part = Path(tmp) / "test.zip.part"
