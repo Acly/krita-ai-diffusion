@@ -2,19 +2,21 @@
 #    uv pip compile requirements.in ComfyUI/requirements.txt ComfyUI/custom_nodes/comfyui_controlnet_aux/requirements.txt ComfyUI/custom_nodes/comfyui-tooling-nodes/requirements.txt ComfyUI/custom_nodes/ComfyUI-GGUF/requirements.txt ComfyUI/custom_nodes/ComfyUI-Manager/requirements.txt --no-deps -o requirements.txt
 addict==2.4.0
     # via -r ComfyUI/custom_nodes/comfyui_controlnet_aux/requirements.txt
-aiohttp==3.11.16
+aiohttp==3.12.0
     # via
     #   -r ComfyUI/requirements.txt
     #   -r requirements.in
-albumentations==2.0.5
+albumentations==2.0.7
     # via -r ComfyUI/custom_nodes/comfyui_controlnet_aux/requirements.txt
 argostranslate==1.9.6
     # via -r ComfyUI/custom_nodes/comfyui-tooling-nodes/requirements.txt
-av==14.3.0
+av==14.4.0
     # via -r ComfyUI/requirements.txt
 chardet==5.2.0
     # via -r ComfyUI/custom_nodes/ComfyUI-Manager/requirements.txt
-comfyui-frontend-package==1.15.13
+comfyui-frontend-package==1.20.5
+    # via -r ComfyUI/requirements.txt
+comfyui-workflow-templates==0.1.18
     # via -r ComfyUI/requirements.txt
 einops==0.8.1
     # via
@@ -26,29 +28,32 @@ ftfy==6.3.1
     # via -r ComfyUI/custom_nodes/comfyui_controlnet_aux/requirements.txt
 fvcore==0.1.5.post20221221
     # via -r ComfyUI/custom_nodes/comfyui_controlnet_aux/requirements.txt
-gguf==0.14.0
+gguf==0.16.3
     # via -r ComfyUI/custom_nodes/ComfyUI-GGUF/requirements.txt
 gitpython==3.1.44
     # via -r ComfyUI/custom_nodes/ComfyUI-Manager/requirements.txt
-huggingface-hub==0.30.2
+huggingface-hub==0.32.0
     # via
     #   -r ComfyUI/custom_nodes/ComfyUI-Manager/requirements.txt
     #   -r ComfyUI/custom_nodes/comfyui_controlnet_aux/requirements.txt
-importlib-metadata==8.6.1
+importlib-metadata==8.7.0
     # via -r ComfyUI/custom_nodes/comfyui_controlnet_aux/requirements.txt
-insightface==0.7.3
-    # via -r requirements.in
-kornia==0.8.0
+kornia==0.8.1
     # via -r ComfyUI/requirements.txt
-matplotlib==3.10.1
+matplotlib==3.10.3
     # via -r ComfyUI/custom_nodes/comfyui_controlnet_aux/requirements.txt
 matrix-client==0.4.0
     # via -r ComfyUI/custom_nodes/ComfyUI-Manager/requirements.txt
 mediapipe==0.10.21
     # via -r ComfyUI/custom_nodes/comfyui_controlnet_aux/requirements.txt
+numpy==1.26.4
+    # via
+    #   -r ComfyUI/custom_nodes/comfyui_controlnet_aux/requirements.txt
+    #   -r ComfyUI/requirements.txt
+    #   -r requirements.in
 omegaconf==2.3.0
     # via -r ComfyUI/custom_nodes/comfyui_controlnet_aux/requirements.txt
-onnxruntime==1.21.0
+onnxruntime==1.22.0
     # via -r requirements.in
 opencv-python==4.11.0.86
     # via -r ComfyUI/custom_nodes/comfyui_controlnet_aux/requirements.txt
@@ -56,7 +61,13 @@ pillow==11.2.1
     # via
     #   -r ComfyUI/custom_nodes/comfyui_controlnet_aux/requirements.txt
     #   -r ComfyUI/requirements.txt
+protobuf==4.25.7
+    # via
+    #   -r ComfyUI/custom_nodes/ComfyUI-GGUF/requirements.txt
+    #   -r requirements.in
 psutil==7.0.0
+    # via -r ComfyUI/requirements.txt
+pydantic==2.11.5
     # via -r ComfyUI/requirements.txt
 pygithub==2.6.1
     # via -r ComfyUI/custom_nodes/ComfyUI-Manager/requirements.txt
@@ -74,7 +85,7 @@ scikit-image==0.25.2
     # via -r ComfyUI/custom_nodes/comfyui_controlnet_aux/requirements.txt
 scikit-learn==1.6.1
     # via -r ComfyUI/custom_nodes/comfyui_controlnet_aux/requirements.txt
-scipy==1.15.2
+scipy==1.15.3
     # via
     #   -r ComfyUI/custom_nodes/comfyui_controlnet_aux/requirements.txt
     #   -r ComfyUI/requirements.txt
@@ -92,15 +103,15 @@ tokenizers==0.21.1
     # via -r ComfyUI/requirements.txt
 toml==0.10.2
     # via -r ComfyUI/custom_nodes/ComfyUI-Manager/requirements.txt
-torch==2.6.0
+torch==2.7.0
     # via
     #   -r ComfyUI/custom_nodes/comfyui_controlnet_aux/requirements.txt
     #   -r ComfyUI/requirements.txt
-torchaudio==2.6.0
+torchaudio==2.7.0
     # via -r ComfyUI/requirements.txt
 torchsde==0.2.6
     # via -r ComfyUI/requirements.txt
-torchvision==0.21.0
+torchvision==0.22.0
     # via
     #   -r ComfyUI/custom_nodes/comfyui_controlnet_aux/requirements.txt
     #   -r ComfyUI/requirements.txt
@@ -108,21 +119,21 @@ tqdm==4.67.1
     # via
     #   -r ComfyUI/requirements.txt
     #   -r requirements.in
-transformers==4.51.2
+transformers==4.52.3
     # via
     #   -r ComfyUI/custom_nodes/ComfyUI-Manager/requirements.txt
     #   -r ComfyUI/requirements.txt
-trimesh==4.6.6
+trimesh==4.6.10
     # via -r ComfyUI/custom_nodes/comfyui_controlnet_aux/requirements.txt
-typer==0.15.2
+typer==0.15.4
     # via -r ComfyUI/custom_nodes/ComfyUI-Manager/requirements.txt
 typing-extensions==4.13.2
     # via -r ComfyUI/custom_nodes/ComfyUI-Manager/requirements.txt
-uv==0.6.14
+uv==0.7.8
     # via -r ComfyUI/custom_nodes/ComfyUI-Manager/requirements.txt
 yacs==0.1.8
     # via -r ComfyUI/custom_nodes/comfyui_controlnet_aux/requirements.txt
 yapf==0.43.0
     # via -r ComfyUI/custom_nodes/comfyui_controlnet_aux/requirements.txt
-yarl==1.19.0
+yarl==1.20.0
     # via -r ComfyUI/requirements.txt

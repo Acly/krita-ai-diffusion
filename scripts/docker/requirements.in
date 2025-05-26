@@ -1,4 +1,6 @@
 aiohttp 
 tqdm
 onnxruntime
-insightface
+# for mediapipe:
+protobuf>=4.25.3,<5
+numpy<2

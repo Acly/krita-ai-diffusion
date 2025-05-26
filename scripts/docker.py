@@ -69,6 +69,7 @@ def upgrade_python_dependencies():
         "ComfyUI/custom_nodes/ComfyUI-GGUF/requirements.txt",
         "ComfyUI/custom_nodes/ComfyUI-Manager/requirements.txt",
         "--no-deps",
+        "--upgrade",
         "-o",
         "requirements.txt",
     ]
