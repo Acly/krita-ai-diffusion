@@ -455,7 +455,7 @@ class Server:
 
             log.info(f"Starting server with python {' '.join(args)}")
             self._process = await create_process(
-                self._python_cmd, *args, cwd=self.comfy_dir, additional_env=env
+                self._python_cmd, *args, cwd=self.comfy_dir, additional_env=env, is_job=True
             )
 
             assert self._process.stdout is not None

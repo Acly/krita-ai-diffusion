@@ -207,6 +207,7 @@ async def create_process(
     cwd: Path | None = None,
     additional_env: dict | None = None,
     pipe_stderr=False,
+    is_job=False,
 ):
     platform_args = {}
     if is_windows:
@@ -226,13 +227,13 @@ async def create_process(
     p = await asyncio.create_subprocess_exec(
         program, *args, cwd=cwd, stdout=out, stderr=err, env=env, **platform_args
     )
-    if is_windows:
+    if is_windows and is_job:
         try:
             from . import win32
 
             win32.attach_process_to_job(p.pid)
         except Exception as e:
-            client_logger.error(f"Failed to attach process to job: {e}")
+            client_logger.warning(f"Failed to attach process to job: {e}")
     return p
 
 
@@ -250,18 +251,15 @@ async def determine_system_encoding(python_cmd: str):
         return
     try:
         _system_encoding_initialized = True  # only try once
-        result = await asyncio.create_subprocess_exec(
-            python_cmd,
-            "-c",
-            "import locale; print(locale.getpreferredencoding(False))",
-            stdout=asyncio.subprocess.PIPE,
-            stderr=asyncio.subprocess.PIPE,
+        result = await create_process(
+            python_cmd, "-c", "import locale; print(locale.getpreferredencoding(False))"
         )
         out, err = await result.communicate()
         if out:
             enc = out.decode().strip()
             b"test".decode(enc)
             _system_encoding = enc
+            client_logger.info(f"System locale encoding determined: {_system_encoding}")
         else:
             client_logger.warning(f"Failed to determine system locale: {err}")
     except Exception as e:
