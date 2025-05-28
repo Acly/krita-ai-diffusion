@@ -682,7 +682,11 @@ def scale_refine_and_decode(
         upscaler = models.upscale[UpscalerName.default]
 
     # if an canvas deviates both sizes from 1024 huge performance penalty tiled vae decreases it this is intel only
-    if extent.desired.width > 1536 or extent.desired.height > 1536 and Server.backend is ServerBackend.xpu:
+    if (
+        extent.desired.width > 1536 
+        or extent.desired.height > 1536 
+        and Server.backend is ServerBackend.xpu
+    ):
         tiled_vae = True
 
     upscale_model = w.load_upscale_model(upscaler)
