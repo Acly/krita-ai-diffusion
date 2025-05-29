@@ -620,6 +620,8 @@ search_paths: dict[str, list[str]] = {
     resource_id(ResourceKind.text_encoder, Arch.all, "t5"): ["t5"],
     resource_id(ResourceKind.vae, Arch.sd15, "default"): ["vae-ft-mse-840000-ema"],
     resource_id(ResourceKind.vae, Arch.sdxl, "default"): ["sdxl_vae"],
+    resource_id(ResourceKind.vae, Arch.illu, "default"): ["sdxl_vae"],
+    resource_id(ResourceKind.vae, Arch.illu_v, "default"): ["sdxl_vae"],
     resource_id(ResourceKind.vae, Arch.sd3, "default"): ["sd3"],
     resource_id(ResourceKind.vae, Arch.flux, "default"): ["flux", "ae.s"],
 }
