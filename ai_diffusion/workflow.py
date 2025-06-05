@@ -16,7 +16,6 @@ from .files import FileLibrary, FileFormat
 from .style import Style, StyleSettings, SamplerPresets
 from .resolution import ScaledExtent, ScaleMode, TileLayout, get_inpaint_reference
 from .resources import ControlMode, Arch, UpscalerName, ResourceKind, ResourceId
-from .server import Server
 from .settings import PerformanceSettings, ServerBackend
 from .text import merge_prompt, extract_loras
 from .comfy_workflow import ComfyWorkflow, ComfyRunMode, Input, Output, ComfyNode
@@ -685,7 +684,7 @@ def scale_refine_and_decode(
     if (
         extent.desired.width > 1536
         or extent.desired.height > 1536
-        and Server.backend is ServerBackend.xpu
+        and settings.server_backend is ServerBackend.xpu
     ):
         tiled_vae = True
 
