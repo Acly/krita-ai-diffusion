@@ -153,8 +153,9 @@ class ControlLayer(QObject, ObservableProperties):
                 cn_model = models.control.find(self.mode, allow_universal=True)
                 lora_model = models.lora.find(self.mode)
                 if cn_model is None and lora_model is None:
+                    search_arch = Arch.illu if models.arch is Arch.illu_v else models.arch
                     search_path = resources.search_path(
-                        ResourceKind.controlnet, models.arch, self.mode
+                        ResourceKind.controlnet, search_arch, self.mode
                     ) or resources.search_path(ResourceKind.lora, models.arch, self.mode)
                     if search_path:
                         self.error_text = (
