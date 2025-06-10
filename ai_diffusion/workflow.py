@@ -666,7 +666,7 @@ def scale_refine_and_decode(
     If it is a substantial upscale, runs a high-res SD refinement pass.
     Takes latent as input and returns a decoded image."""
 
-    from .root import root # works only if i put it here
+    from .root import root  # works only if i put it here
 
     mode = extent.refinement_scaling
     if mode in [ScaleMode.none, ScaleMode.resize, ScaleMode.upscale_fast]:
@@ -699,7 +699,10 @@ def scale_refine_and_decode(
     if (
         extent.desired.width > 1536
         or extent.desired.height > 1536
-        and (settings.server_backend is ServerBackend.xpu or root.connection.client.device_info.type == "xpu")
+        and (
+            settings.server_backend is ServerBackend.xpu
+            or root.connection.client.device_info.type == "xpu"
+        )
     ):
         tiled_vae = True
 
