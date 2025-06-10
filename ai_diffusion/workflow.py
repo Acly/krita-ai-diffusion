@@ -666,6 +666,8 @@ def scale_refine_and_decode(
     If it is a substantial upscale, runs a high-res SD refinement pass.
     Takes latent as input and returns a decoded image."""
 
+    from .root import root # works only if i put it here
+
     mode = extent.refinement_scaling
     if mode in [ScaleMode.none, ScaleMode.resize, ScaleMode.upscale_fast]:
         decoded = vae_decode(w, vae, latent, tiled_vae)
@@ -680,14 +682,6 @@ def scale_refine_and_decode(
         assert mode is ScaleMode.upscale_quality
         upscaler = models.upscale[UpscalerName.default]
 
-    # if an canvas deviates both sizes from 1024 huge performance penalty tiled vae decreases it this is intel only
-    if (
-        extent.desired.width > 1536
-        or extent.desired.height > 1536
-        and settings.server_backend is ServerBackend.xpu
-    ):
-        tiled_vae = True
-
     upscale_model = w.load_upscale_model(upscaler)
     decoded = vae_decode(w, vae, latent, tiled_vae)
     upscale = w.upscale_image(upscale_model, decoded)
@@ -700,6 +694,15 @@ def scale_refine_and_decode(
         w, model, positive, negative, cond.all_control, extent.desired, vae, models
     )
     result = w.sampler_custom_advanced(model, positive, negative, latent, models.arch, **params)
+
+    # if an canvas deviates both sizes from 1024 huge performance penalty tiled vae decreases it this is intel only
+    if (
+        extent.desired.width > 1536
+        or extent.desired.height > 1536
+        and (settings.server_backend is ServerBackend.xpu or root.connection.client.device_info.type == "xpu")
+    ):
+        tiled_vae = True
+
     image = vae_decode(w, vae, result, tiled_vae)
     return image
 
