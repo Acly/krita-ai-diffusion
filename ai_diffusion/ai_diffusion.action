@@ -4,160 +4,172 @@
         <text>AI Tools: Image Generation</text>
 
         <Action name="ai_diffusion_generate">
-            <icon/>
+            <icon />
             <text>Generate image</text>
-            <whatsThis/>
-            <toolTip/>
-            <iconText/>
+            <whatsThis />
+            <toolTip />
+            <iconText />
             <activationFlags>10000</activationFlags>
             <activationConditions>0</activationConditions>
             <shortcut></shortcut>
             <isCheckable>false</isCheckable>
-            <statusTip/>
+            <statusTip />
         </Action>
         <Action name="ai_diffusion_cancel">
-            <icon/>
+            <icon />
             <text>Cancel current job</text>
-            <whatsThis/>
-            <toolTip/>
-            <iconText/>
+            <whatsThis />
+            <toolTip />
+            <iconText />
             <activationFlags>10000</activationFlags>
             <activationConditions>0</activationConditions>
             <shortcut></shortcut>
             <isCheckable>false</isCheckable>
-            <statusTip/>
+            <statusTip />
         </Action>
-                <Action name="ai_diffusion_cancel_queued">
-            <icon/>
+        <Action name="ai_diffusion_cancel_queued">
+            <icon />
             <text>Cancel queued jobs</text>
-            <whatsThis/>
-            <toolTip/>
-            <iconText/>
+            <whatsThis />
+            <toolTip />
+            <iconText />
             <activationFlags>10000</activationFlags>
             <activationConditions>0</activationConditions>
             <shortcut></shortcut>
             <isCheckable>false</isCheckable>
-            <statusTip/>
+            <statusTip />
         </Action>
-                <Action name="ai_diffusion_cancel_all">
-            <icon/>
+        <Action name="ai_diffusion_cancel_all">
+            <icon />
             <text>Cancel all jobs</text>
-            <whatsThis/>
-            <toolTip/>
-            <iconText/>
+            <whatsThis />
+            <toolTip />
+            <iconText />
             <activationFlags>10000</activationFlags>
             <activationConditions>0</activationConditions>
             <shortcut></shortcut>
             <isCheckable>false</isCheckable>
-            <statusTip/>
+            <statusTip />
         </Action>
         <Action name="ai_diffusion_toggle_preview">
-            <icon/>
+            <icon />
             <text>Toggle preview</text>
-            <whatsThis/>
-            <toolTip/>
-            <iconText/>
+            <whatsThis />
+            <toolTip />
+            <iconText />
             <activationFlags>10000</activationFlags>
             <activationConditions>0</activationConditions>
             <shortcut></shortcut>
             <isCheckable>false</isCheckable>
-            <statusTip/>
+            <statusTip />
         </Action>
         <Action name="ai_diffusion_apply">
-            <icon/>
+            <icon />
             <text>Apply result</text>
-            <whatsThis/>
-            <toolTip/>
-            <iconText/>
+            <whatsThis />
+            <toolTip />
+            <iconText />
             <activationFlags>10000</activationFlags>
             <activationConditions>0</activationConditions>
             <shortcut></shortcut>
             <isCheckable>false</isCheckable>
-            <statusTip/>
+            <statusTip />
         </Action>
         <Action name="ai_diffusion_apply_alternative">
-            <icon/>
+            <icon />
             <text>Apply result (layer)</text>
-            <whatsThis/>
-            <toolTip/>
-            <iconText/>
+            <whatsThis />
+            <toolTip />
+            <iconText />
             <activationFlags>10000</activationFlags>
             <activationConditions>0</activationConditions>
             <shortcut></shortcut>
             <isCheckable>false</isCheckable>
-            <statusTip/>
+            <statusTip />
         </Action>
         <Action name="ai_diffusion_create_region">
-            <icon/>
+            <icon />
             <text>Create region</text>
-            <whatsThis/>
-            <toolTip/>
-            <iconText/>
+            <whatsThis />
+            <toolTip />
+            <iconText />
             <activationFlags>10000</activationFlags>
             <activationConditions>0</activationConditions>
             <shortcut></shortcut>
             <isCheckable>false</isCheckable>
-            <statusTip/>
+            <statusTip />
         </Action>
         <Action name="ai_diffusion_switch_workspace_generation">
-            <icon/>
+            <icon />
             <text>Switch workspace: Generate</text>
-            <whatsThis/>
-            <toolTip/>
-            <iconText/>
+            <whatsThis />
+            <toolTip />
+            <iconText />
             <activationFlags>10000</activationFlags>
             <activationConditions>0</activationConditions>
             <shortcut></shortcut>
             <isCheckable>false</isCheckable>
-            <statusTip/>
+            <statusTip />
         </Action>
         <Action name="ai_diffusion_switch_workspace_upscaling">
-            <icon/>
+            <icon />
             <text>Switch workspace: Upscale</text>
-            <whatsThis/>
-            <toolTip/>
-            <iconText/>
+            <whatsThis />
+            <toolTip />
+            <iconText />
             <activationFlags>10000</activationFlags>
             <activationConditions>0</activationConditions>
             <shortcut></shortcut>
             <isCheckable>false</isCheckable>
-            <statusTip/>
+            <statusTip />
         </Action>
         <Action name="ai_diffusion_switch_workspace_live">
-            <icon/>
+            <icon />
             <text>Switch workspace: Live</text>
-            <whatsThis/>
-            <toolTip/>
-            <iconText/>
+            <whatsThis />
+            <toolTip />
+            <iconText />
             <activationFlags>10000</activationFlags>
             <activationConditions>0</activationConditions>
             <shortcut></shortcut>
             <isCheckable>false</isCheckable>
-            <statusTip/>
+            <statusTip />
+        </Action>
+        <Action name="ai_diffusion_switch_workspace_graph">
+            <icon />
+            <text>Switch workspace: Graph</text>
+            <whatsThis />
+            <toolTip />
+            <iconText />
+            <activationFlags>10000</activationFlags>
+            <activationConditions>0</activationConditions>
+            <shortcut></shortcut>
+            <isCheckable>false</isCheckable>
+            <statusTip />
         </Action>
         <Action name="ai_diffusion_toggle_workspace">
-            <icon/>
+            <icon />
             <text>Toggle workspace</text>
-            <whatsThis/>
-            <toolTip/>
-            <iconText/>
+            <whatsThis />
+            <toolTip />
+            <iconText />
             <activationFlags>10000</activationFlags>
             <activationConditions>0</activationConditions>
             <shortcut></shortcut>
             <isCheckable>false</isCheckable>
-            <statusTip/>
+            <statusTip />
         </Action>
         <Action name="ai_diffusion_settings">
-            <icon/>
+            <icon />
             <text>Show Settings</text>
-            <whatsThis/>
-            <toolTip/>
-            <iconText/>
+            <whatsThis />
+            <toolTip />
+            <iconText />
             <activationFlags>0</activationFlags>
             <activationConditions>0</activationConditions>
             <shortcut></shortcut>
             <isCheckable>false</isCheckable>
-            <statusTip/>
+            <statusTip />
         </Action>
     </Actions>
 </ActionCollection>

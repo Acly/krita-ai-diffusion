@@ -27,3 +27,7 @@ Deploy to Cloudflare Pages:
 npm run build
 npx wrangler pages deploy dist
 ```
+
+## Resources
+
+* Icons: https://icones.js.org/ (download SVG and drop into src/icons)
