@@ -444,6 +444,8 @@ class Server:
             env = {}
             if self.backend is ServerBackend.cpu:
                 args.append("--cpu")
+                if self._installed_backend is ServerBackend.xpu:
+                    env["TORCH_DEVICE_BACKEND_AUTOLOAD"] = "0"  # see #1813
             elif self.backend is ServerBackend.directml:
                 args.append("--directml")
             if settings.server_arguments:
