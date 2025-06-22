@@ -435,13 +435,20 @@ class Model(QObject, ObservableProperties):
             return False
 
     def _get_current_image(self, bounds: Bounds):
-        exclude = None
+        exclude = []
         if self.workspace is not Workspace.live:
             exclude = [  # exclude control layers from projection
                 c.layer for c in self.regions.control if not c.mode.is_part_of_image
             ]
             if self._layer:  # exclude preview layer
                 exclude.append(self._layer)
+
+        if not any(l.is_visible and l not in exclude for l in self.layers.images):
+            warning = _(
+                "Tried to capture the current image, but there are no visible layers! Preview and control layers are not considered to be part of the input image."
+            )
+            raise ValueError(warning)
+
         return self._doc.get_image(bounds, exclude_layers=exclude)
 
     def generate_control_layer(self, control: ControlLayer):
