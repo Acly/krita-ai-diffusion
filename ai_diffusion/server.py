@@ -242,7 +242,7 @@ class Server:
         elif self.backend is ServerBackend.cuda:
             torch_args += ["--index-url", "https://download.pytorch.org/whl/cu128"]
         elif self.backend is ServerBackend.directml:
-            torch_args = ["numpy<2", "torch-directml"]
+            torch_args = ["numpy<2", "torch-directml", "torchvision", "torchaudio"]
         elif self.backend is ServerBackend.xpu:
             torch_args = ["torch==2.6.0", "torchvision==0.21.0", "torchaudio==2.6.0"]
             torch_args += ["--index-url", "https://download.pytorch.org/whl/xpu"]
