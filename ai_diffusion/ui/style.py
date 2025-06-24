@@ -662,6 +662,10 @@ class StylePresets(SettingsTab):
             SwitchSetting(StyleSettings.self_attention_guidance, parent=self),
         )
 
+        self._use_model_clip = add(
+            "use_model_clip", SwitchSetting(StyleSettings.use_model_clip, parent=self)
+        )
+
         self._checkpoint_advanced_widgets = [
             self._arch_select,
             self._vae,
@@ -669,6 +673,7 @@ class StylePresets(SettingsTab):
             self._resolution_spin,
             self._zsnr,
             self._sag,
+            self._use_model_clip,
         ]
         for widget in self._checkpoint_advanced_widgets:
             widget.indent = 1

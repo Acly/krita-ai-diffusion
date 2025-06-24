@@ -84,6 +84,12 @@ class StyleSettings:
         _("Pay more attention to difficult parts of the image. Can improve fine details."),
     )
 
+    use_model_clip = Setting(
+        _("Use CLIP from Model"),
+        False,
+        _("Use the CLIP encoder which is bundled with the main model checkpoint."),
+    )
+
     preferred_resolution = Setting(
         _("Preferred Resolution"), 0, _("Image resolution the checkpoint was trained on")
     )
@@ -121,6 +127,7 @@ class Style:
     v_prediction_zsnr: bool = StyleSettings.v_prediction_zsnr.default
     rescale_cfg: float = StyleSettings.rescale_cfg.default
     self_attention_guidance: bool = StyleSettings.self_attention_guidance.default
+    use_model_clip: bool = StyleSettings.use_model_clip.default
     preferred_resolution: int = StyleSettings.preferred_resolution.default
     sampler: str = StyleSettings.sampler.default
     sampler_steps: int = StyleSettings.sampler_steps.default
@@ -199,6 +206,7 @@ class Style:
             rescale_cfg=self.rescale_cfg,
             loras=[LoraInput.from_dict(l) for l in self.loras if l.get("enabled", True)],
             self_attention_guidance=self.self_attention_guidance,
+            use_model_clip=self.use_model_clip,
         )
         return result
 

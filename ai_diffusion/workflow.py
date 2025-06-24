@@ -94,17 +94,20 @@ def load_checkpoint_with_lora(w: ComfyWorkflow, checkpoint: CheckpointInput, mod
         raise RuntimeError(f"Style checkpoint {checkpoint.checkpoint} not found")
 
     clip, vae = None, None
-    match model_info.format:
-        case FileFormat.checkpoint:
-            model, clip, vae = w.load_checkpoint(model_info.filename)
-        case FileFormat.diffusion:
-            model = w.load_diffusion_model(model_info.filename)
-        case _:
-            raise RuntimeError(
-                f"Style checkpoint {checkpoint.checkpoint} has an unsupported format {model_info.format.name}"
-            )
+    if checkpoint.use_model_clip:
+        model, clip, vae = w.load_checkpoint(model_info.filename)
+    else:
+        match model_info.format:
+            case FileFormat.checkpoint:
+                model, clip, vae = w.load_checkpoint(model_info.filename)
+            case FileFormat.diffusion:
+                model = w.load_diffusion_model(model_info.filename)
+            case _:
+                raise RuntimeError(
+                    f"Style checkpoint {checkpoint.checkpoint} has an unsupported format {model_info.format.name}"
+                )
 
-    if clip is None or arch is Arch.sd3:
+    if (clip is None or arch is Arch.sd3) and not checkpoint.use_model_clip:
         te = models.for_arch(arch).text_encoder
         match arch:
             case Arch.sd15:
@@ -122,7 +125,8 @@ def load_checkpoint_with_lora(w: ComfyWorkflow, checkpoint: CheckpointInput, mod
                 raise RuntimeError(f"No text encoder for model architecture {arch.name}")
 
     if arch.supports_clip_skip and checkpoint.clip_skip != StyleSettings.clip_skip.default:
-        clip = w.clip_set_last_layer(clip, (checkpoint.clip_skip * -1))
+        if clip is not None:
+            clip = w.clip_set_last_layer(clip, (checkpoint.clip_skip * -1))
 
     if checkpoint.vae and checkpoint.vae != StyleSettings.vae.default:
         vae = w.load_vae(checkpoint.vae)
@@ -133,7 +137,8 @@ def load_checkpoint_with_lora(w: ComfyWorkflow, checkpoint: CheckpointInput, mod
         model = w.apply_first_block_cache(model, arch)
 
     for lora in checkpoint.loras:
-        model, clip = w.load_lora(model, clip, lora.name, lora.strength, lora.strength)
+        if clip is not None:
+            model, clip = w.load_lora(model, clip, lora.name, lora.strength, lora.strength)
 
     if arch is Arch.sd3:
         model = w.model_sampling_sd3(model)
@@ -148,11 +153,14 @@ def load_checkpoint_with_lora(w: ComfyWorkflow, checkpoint: CheckpointInput, mod
     if arch.supports_lcm:
         lcm_lora = models.for_arch(arch).lora.find("lcm")
         if lcm_lora and any(l.name == lcm_lora for l in checkpoint.loras):
-            model = w.model_sampling_discrete(model, "lcm")
+            if model is not None:
+                model = w.model_sampling_discrete(model, "lcm")
 
     if arch.supports_attention_guidance and checkpoint.self_attention_guidance:
-        model = w.apply_self_attention_guidance(model)
+        if model is not None:
+            model = w.apply_self_attention_guidance(model)
 
+    assert clip is not None
     return model, Clip(clip, arch), vae
 
 
