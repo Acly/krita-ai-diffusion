@@ -1,5 +1,5 @@
 import argparse
-import regex as re
+import re
 import json
 from pathlib import Path
 

@@ -497,6 +497,7 @@
     "Verification Failed": "検証に失敗",
     "Use XPU (Intel GPU)": "XPUを使用(Intel GPU)",
     "The upscale model used by the document is not available on the server": "ドキュメントで使用されている画像拡大モデルはサーバー上で利用できません",
-    "Would you like to delete and re-download these files?": "これらのファイルを削除して再度ダウンロードしますか？"
+    "Would you like to delete and re-download these files?": "これらのファイルを削除して再度ダウンロードしますか？",
+    "Tried to capture the current image, but there are no visible layers! Preview and control layers are not considered to be part of the input image.": null
   }
 }

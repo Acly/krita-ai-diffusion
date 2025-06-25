@@ -497,6 +497,7 @@
     "Choose how result images are applied to the canvas in Live mode": "Выберите, как применять итоговые изображения к холсту в режиме реального времени",
     "Use XPU (Intel GPU)": "Использовать XPU (Intel GPU)",
     "The upscale model used by the document is not available on the server": "Модель увеличения, используемая документом, недоступна на сервере",
-    "Would you like to delete and re-download these files?": "Хотите удалить и загрузить эти файлы заново?"
+    "Would you like to delete and re-download these files?": "Хотите удалить и загрузить эти файлы заново?",
+    "Tried to capture the current image, but there are no visible layers! Preview and control layers are not considered to be part of the input image.": null
   }
 }
