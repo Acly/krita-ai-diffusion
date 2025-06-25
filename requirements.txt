@@ -21,3 +21,8 @@ pytest-asyncio
 tqdm
 PyQt5
 Pillow
+
+# Service
+ndjson
+ujson
+boto3

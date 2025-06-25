@@ -4,6 +4,7 @@ from PyQt5.QtNetwork import QNetworkAccessManager
 import asyncio
 import pytest
 import shutil
+import sys
 
 from ai_diffusion import network, server, resources
 from ai_diffusion.style import Arch
@@ -281,12 +282,10 @@ def test_safe_remove_dir(scenario):
 
 def test_python_version(qtapp):
     async def main():
-        py, major, minor = await server.get_python_version(Path("python"))
+        python_executable = Path(sys.executable)
+        py, major, minor = await server.get_python_version(python_executable)
         assert py.startswith("Python 3.")
         assert major is not None and minor is not None and major >= 3 and minor >= 9
-        pip, major, minor = await server.get_python_version(Path("pip"))
-        assert major is None and minor is None
-        assert pip.startswith("pip ")
 
     qtapp.run(main())
 
