@@ -78,6 +78,7 @@ class Arch(Enum):
     sdxl = "SD XL"
     sd3 = "SD 3"
     flux = "Flux"
+    flux_k = "Flux Kontext"
     illu = "Illustrious"
     illu_v = "Illustrious v-prediction"
 
@@ -85,7 +86,7 @@ class Arch(Enum):
     all = "All"
 
     @staticmethod
-    def from_string(string: str, model_type: str = "eps"):
+    def from_string(string: str, model_type: str = "eps", filename: str | None = None):
         if string == "sd15":
             return Arch.sd15
         if string == "sdxl" and model_type == "v-prediction":
@@ -94,6 +95,8 @@ class Arch(Enum):
             return Arch.sdxl
         if string == "sd3":
             return Arch.sd3
+        if string == "flux" and filename and "kontext" in filename.lower():
+            return Arch.flux_k
         if string == "flux" or string == "flux-schnell":
             return Arch.flux
         if string == "illu":
@@ -141,9 +144,17 @@ class Arch(Enum):
         return self in [Arch.sd15, Arch.sdxl, Arch.illu, Arch.illu_v]
 
     @property
+    def is_edit(self):  # edit models make changes to input images
+        return self is Arch.flux_k
+
+    @property
     def is_sdxl_like(self):
         # illustrious technically uses sdxl architecture, but has a separate ecosystem
         return self in [Arch.sdxl, Arch.illu, Arch.illu_v]
+
+    @property
+    def is_flux_like(self):
+        return self in [Arch.flux, Arch.flux_k]
 
     @property
     def text_encoders(self):
@@ -154,17 +165,13 @@ class Arch(Enum):
                 return ["clip_l", "clip_g"]
             case Arch.sd3:
                 return ["clip_l", "clip_g"]
-            case Arch.flux:
+            case Arch.flux | Arch.flux_k:
                 return ["clip_l", "t5"]
         raise ValueError(f"Unsupported architecture: {self}")
 
     @staticmethod
     def list():
-        return [Arch.sd15, Arch.sdxl, Arch.sd3, Arch.flux, Arch.illu, Arch.illu_v]
-
-    @staticmethod
-    def list_strings():
-        return ["sd15", "sdxl", "sd3", "flux", "flux-schnell"]
+        return [Arch.sd15, Arch.sdxl, Arch.sd3, Arch.flux, Arch.flux_k, Arch.illu, Arch.illu_v]
 
 
 class ResourceKind(Enum):
@@ -626,6 +633,7 @@ search_paths: dict[str, list[str]] = {
     resource_id(ResourceKind.vae, Arch.illu_v, "default"): ["sdxl_vae"],
     resource_id(ResourceKind.vae, Arch.sd3, "default"): ["sd3"],
     resource_id(ResourceKind.vae, Arch.flux, "default"): ["flux", "ae.s"],
+    resource_id(ResourceKind.vae, Arch.flux_k, "default"): ["flux", "ae.s"],
 }
 # fmt: on
 

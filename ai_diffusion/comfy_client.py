@@ -422,7 +422,7 @@ class ComfyClient(Client):
             parsed = (
                 (
                     filename,
-                    Arch.from_string(info["base_model"], info.get("type", "eps")),
+                    Arch.from_string(info["base_model"], info.get("type", "eps"), filename),
                     info.get("is_inpaint", False),
                     info.get("is_refiner", False),
                 )

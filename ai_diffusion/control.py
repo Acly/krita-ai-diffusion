@@ -108,14 +108,23 @@ class ControlLayer(QObject, ObservableProperties):
 
     def to_api(self, bounds: Bounds | None = None, time: int | None = None):
         assert self.is_supported, "Control layer is not supported"
+        extent = bounds.extent if bounds else self._model.document.extent
         layer = self.layer
         if self.mode.is_ip_adapter and not layer.bounds.is_zero:
             bounds = None  # ignore mask bounds, use layer bounds
+
         image = layer.get_pixels(bounds, time)
+
         if self.mode.is_lines or self.mode is ControlMode.stencil:
             image.make_opaque(background=Qt.GlobalColor.white)
-        if self.mode.is_ip_adapter:
+
+        if self._model.arch.is_edit:
+            if image.extent.height > extent.height:
+                w = (image.extent.width * extent.height) // image.extent.height
+                image = Image.scale(image, Extent(w, extent.height))
+        elif self.mode.is_ip_adapter:
             image = Image.scale(image, self.clip_vision_extent)
+
         strength = self.strength / self.strength_multiplier
         return ControlInput(self.mode, image, strength, (self.start, self.end))
 
@@ -138,7 +147,10 @@ class ControlLayer(QObject, ObservableProperties):
                     )
                     self.error_text = _("The server is missing the ClipVision model") + f" {search}"
                     is_supported = False
-            if self.mode.is_ip_adapter and models.ip_adapter.find(self.mode) is None:
+
+            if self.mode.is_ip_adapter and models.arch is Arch.flux_k:
+                is_supported = True  # Reference images are merged into the conditioning context
+            elif self.mode.is_ip_adapter and models.ip_adapter.find(self.mode) is None:
                 search_path = resources.search_path(ResourceKind.ip_adapter, models.arch, self.mode)
                 if search_path:
                     self.error_text = (
@@ -209,7 +221,8 @@ class ControlLayerList(QObject):
         if layer is None:  # shouldn't be possible, Krita doesn't allow removing all non-mask layers
             log.warning("Trying to add control layer, but document has no suitable layer")
             return
-        control = ControlLayer(self._model, self._last_mode, layer.id, len(self._layers))
+        mode = ControlMode.reference if self._model.arch.is_edit else self._last_mode
+        control = ControlLayer(self._model, mode, layer.id, len(self._layers))
         control.mode_changed.connect(self._update_last_mode)
         self._layers.append(control)
         self.added.emit(control)

@@ -233,7 +233,7 @@ def _base_cost(arch: Arch):
         return 1
     if arch.is_sdxl_like:
         return 2
-    if arch is Arch.flux:
+    if arch.is_flux_like:
         return 4
     return 1
 

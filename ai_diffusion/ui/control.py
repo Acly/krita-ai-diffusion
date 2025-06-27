@@ -182,6 +182,7 @@ class ControlWidget(QWidget):
             control.can_generate_changed.connect(self._update_visibility),
             control.mode_changed.connect(self._update_visibility),
             control.is_pose_vector_changed.connect(self._update_pose_utils),
+            root.active_model.style_changed.connect(self._update_visibility),
         ]
 
     def disconnect_all(self):
@@ -215,16 +216,17 @@ class ControlWidget(QWidget):
     def _update_visibility(self):
         is_small = self.width() < 420
         is_pose = self._control.mode is ControlMode.pose
+        is_edit = root.active_model.arch.is_edit
 
         def controls():
             self.layer_select.setVisible(self._control.is_supported)
-            self.preset_slider.setVisible(self._control.is_supported)
-            self.expand_button.setVisible(self._control.is_supported)
+            self.preset_slider.setVisible(self._control.is_supported and not is_edit)
+            self.expand_button.setVisible(self._control.is_supported and not is_edit)
             self.generate_button.setVisible(self._control.can_generate and is_small)
             self.generate_tool_button.setVisible(self._control.can_generate and not is_small)
             self.add_pose_button.setVisible(is_pose and is_small)
             self.add_pose_tool_button.setVisible(is_pose and not is_small)
-            if not self._control.is_supported:
+            if not self._control.is_supported or is_edit:
                 self.expand_button.setChecked(False)
 
         def error():

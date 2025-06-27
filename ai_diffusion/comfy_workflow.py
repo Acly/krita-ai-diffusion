@@ -284,7 +284,7 @@ class ComfyWorkflow:
         positive: Output,
         negative: Output,
         latent_image: Output,
-        model_version: Arch,
+        arch: Arch,
         sampler="dpmpp_2m_sde_gpu",
         scheduler="normal",
         steps=20,
@@ -294,13 +294,13 @@ class ComfyWorkflow:
     ):
         self.sample_count += steps - start_at_step
 
-        if model_version is Arch.flux:
+        if arch.is_flux_like:
             positive = self.flux_guidance(positive, cfg if cfg > 1 else 3.5)
             guider = self.basic_guider(model, positive)
         else:
             guider = self.cfg_guider(model, positive, negative, cfg)
 
-        sigmas = self.scheduler_sigmas(model, scheduler, steps, model_version)
+        sigmas = self.scheduler_sigmas(model, scheduler, steps, arch)
         if start_at_step > 0:
             _, sigmas = self.split_sigmas(sigmas, start_at_step)
 
@@ -498,7 +498,7 @@ class ComfyWorkflow:
 
     def empty_latent_image(self, extent: Extent, arch: Arch, batch_size=1):
         w, h = extent.width, extent.height
-        if arch in [Arch.sd3, Arch.flux]:
+        if arch in [Arch.sd3, Arch.flux, Arch.flux_k]:
             return self.add("EmptySD3LatentImage", 1, width=w, height=h, batch_size=batch_size)
         return self.add("EmptyLatentImage", 1, width=w, height=h, batch_size=batch_size)
 
@@ -565,6 +565,9 @@ class ComfyWorkflow:
             vae=vae,
             pixels=pixels,
         )
+
+    def reference_latent(self, conditioning: Output, latent: Output):
+        return self.add("ReferenceLatent", 1, conditioning=conditioning, latent=latent)
 
     def background_region(self, conditioning: Output):
         return self.add("ETN_BackgroundRegion", 1, conditioning=conditioning)
@@ -840,6 +843,23 @@ class ComfyWorkflow:
 
     def image_batch_element(self, batch: Output, index: int):
         return self.add("ImageFromBatch", 1, image=batch, batch_index=index, length=1)
+
+    def image_stitch(self, images: list[Output], direction="right"):
+        if len(images) == 1:
+            return images[0]
+        result = images[0]
+        for i in images[1:]:
+            result = self.add(
+                "ImageStitch",
+                1,
+                image1=result,
+                image2=i,
+                direction=direction,
+                match_image_size=False,
+                spacing_width=0,
+                spacing_color="white",
+            )
+        return result
 
     def inpaint_image(self, model: Output, image: Output, mask: Output):
         return self.add(
