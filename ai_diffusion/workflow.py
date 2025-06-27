@@ -616,8 +616,12 @@ def apply_edit_conditioning(
     input_latent: Output,
     control_layers: list[Control],
     vae: Output,
+    arch: Arch,
     tiled_vae: bool,
 ):
+    if not arch.is_edit:
+        return cond
+
     extra_input = [c.image for c in control_layers if c.mode.is_ip_adapter]
     if len(extra_input) == 0:
         return w.reference_latent(cond, input_latent)
@@ -685,6 +689,7 @@ def scale_refine_and_decode(
     If it is a substantial upscale, runs a high-res SD refinement pass.
     Takes latent as input and returns a decoded image."""
 
+    arch = models.arch
     mode = extent.refinement_scaling
     if mode in [ScaleMode.none, ScaleMode.resize, ScaleMode.upscale_fast]:
         decoded = vae_decode(w, vae, latent, tiled_vae)
@@ -718,8 +723,8 @@ def scale_refine_and_decode(
     model, positive, negative = apply_control(
         w, model, positive, negative, cond.all_control, extent.desired, vae, models
     )
-    positive = apply_edit_conditioning(w, positive, upscale, latent, [], vae, tiled_vae)
-    result = w.sampler_custom_advanced(model, positive, negative, latent, models.arch, **params)
+    positive = apply_edit_conditioning(w, positive, upscale, latent, [], vae, arch, tiled_vae)
+    result = w.sampler_custom_advanced(model, positive, negative, latent, arch, **params)
     image = vae_decode(w, vae, result, tiled_vae)
     return image
 
@@ -999,7 +1004,7 @@ def refine(
         w, model, positive, negative, cond.all_control, extent.desired, vae, models
     )
     positive = apply_edit_conditioning(
-        w, positive, in_image, latent, cond.all_control, vae, checkpoint.tiled_vae
+        w, positive, in_image, latent, cond.all_control, vae, models.arch, checkpoint.tiled_vae
     )
     sampler = w.sampler_custom_advanced(
         model, positive, negative, latent_batch, models.arch, **_sampler_params(sampling)
@@ -1051,7 +1056,7 @@ def refine_region(
     else:
         latent = vae_encode(w, vae, in_image, checkpoint.tiled_vae)
         positive = apply_edit_conditioning(
-            w, positive, in_image, latent, cond.all_control, vae, checkpoint.tiled_vae
+            w, positive, in_image, latent, cond.all_control, vae, models.arch, checkpoint.tiled_vae
         )
         latent = w.set_latent_noise_mask(latent, initial_mask)
         inpaint_model = model

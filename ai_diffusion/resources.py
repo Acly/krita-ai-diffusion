@@ -11,7 +11,7 @@ from typing import Any, NamedTuple, Sequence
 version = "1.36.0"
 
 comfy_url = "https://github.com/comfyanonymous/ComfyUI"
-comfy_version = "bd951a714f8c736680fe13e735eee71acf73dd4c"
+comfy_version = "e18f53cca9062cc6b165e16712772437b80333f2"
 
 
 class CustomNode(NamedTuple):
