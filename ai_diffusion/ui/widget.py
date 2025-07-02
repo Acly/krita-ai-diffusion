@@ -885,6 +885,9 @@ class ErrorBox(QFrame):
             self._show_error(error.message)
 
     def _show_error(self, text: str):
+        server_error_prefix = _("Server error")
+        if text.startswith(f"{server_error_prefix}: Validation error:"):
+            text = text[len(server_error_prefix) + 1 :]
         if text.count("\n") > 3:
             lines = text.split("\n")
             n = 1

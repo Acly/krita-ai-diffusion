@@ -208,7 +208,8 @@ class CloudClient(Client):
 
         elif status == "timed_out":
             log.warning(f"{job} timed out")
-            yield ClientMessage(ClientEvent.error, job.local_id, error="job timed out")
+            msg = _("Generation took too long and was cancelled (timeout)")
+            yield ClientMessage(ClientEvent.error, job.local_id, error=msg)
         else:
             log.warning(f"Got unknown job status {status}")
 

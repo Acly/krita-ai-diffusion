@@ -534,7 +534,7 @@ class Model(QObject, ObservableProperties):
             self._finish_job(job, message.event)
         elif message.event is ClientEvent.error:
             self._finish_job(job, message.event)
-            self.report_error(_("Server execution error") + f": {message.error}")
+            self.report_error(_("Server error") + f": {message.error}")
         elif message.event is ClientEvent.payment_required:
             self._finish_job(job, ClientEvent.error)
             assert isinstance(message.error, str) and isinstance(message.result, dict)
