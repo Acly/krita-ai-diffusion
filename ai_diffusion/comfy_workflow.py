@@ -865,6 +865,28 @@ class ComfyWorkflow:
         return self.add(
             "INPAINT_InpaintWithModel", 1, inpaint_model=model, image=image, mask=mask, seed=834729
         )
+    def apply_magcache(
+        self,
+        model: Output,
+        model_type: str = "flux",
+        magcache_thresh: float = 0.24,
+        retention_ratio: float = 0.1,
+        magcache_K: int = 5,
+        start_step: int = 0,
+        end_step: int = -1,
+    ):
+        """Apply MagCache acceleration to Flux models"""
+        return self.add(
+            "MagCache",
+            1,
+            model=model,
+            model_type=model_type,
+            magcache_thresh=magcache_thresh,
+            retention_ratio=retention_ratio,
+            magcache_K=magcache_K,
+            start_step=start_step,
+            end_step=end_step,
+        )
 
     def crop_mask(self, mask: Output, bounds: Bounds):
         return self.add(

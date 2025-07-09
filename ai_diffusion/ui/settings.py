@@ -619,19 +619,57 @@ class PerformanceSettings(SettingsTab):
         self._dynamic_caching.value_changed.connect(self.write)
         self._layout.addWidget(self._dynamic_caching)
 
+        self._magcache_enabled = SwitchSetting(
+            Settings._magcache_enabled, 
+            text=(_("Enabled"), _("Disabled")),
+            parent=self
+        )
+        self._magcache_enabled.value_changed.connect(self.write)
+        self._magcache_enabled.value_changed.connect(self._update_magcache_advanced)
+        self._layout.addWidget(self._magcache_enabled)
+
+
+        self._magcache_advanced = QWidget(self)
+        self._magcache_advanced.setContentsMargins(20, 0, 0, 0)  
+        self._layout.addWidget(self._magcache_advanced)
+        magcache_layout = QVBoxLayout()
+        self._magcache_advanced.setLayout(magcache_layout)
+
+        self._magcache_thresh = SliderSetting(
+            Settings._magcache_thresh, self._magcache_advanced, 0.01, 0.5, "{:.3f}"
+        )
+        self._magcache_thresh.value_changed.connect(self.write)
+        magcache_layout.addWidget(self._magcache_thresh)
+
+        self._magcache_retention_ratio = SliderSetting(
+            Settings._magcache_retention_ratio, self._magcache_advanced, 0.05, 0.5, "{:.2f}"
+        )
+        self._magcache_retention_ratio.value_changed.connect(self.write)
+        magcache_layout.addWidget(self._magcache_retention_ratio)
+
+        self._magcache_K = SpinBoxSetting(
+            Settings._magcache_K, self._magcache_advanced, 1, 10, 1
+        )
+        self._magcache_K.value_changed.connect(self.write)
+        magcache_layout.addWidget(self._magcache_K)
+
         self._layout.addStretch()
 
     def _change_performance_preset(self, index):
         self.write()
         is_custom = settings.performance_preset is PerformancePreset.custom
         self._advanced.setEnabled(is_custom)
-        if (
-            settings.performance_preset is PerformancePreset.auto
-            and root.connection.state is ConnectionState.connected
-        ):
+        
+        if (settings.performance_preset is PerformancePreset.auto and 
+            root.connection.state is ConnectionState.connected):
             apply_performance_preset(settings, root.connection.client.device_info)
+        
         if not is_custom:
             self.read()
+
+    def _update_magcache_advanced(self):
+        enabled = self._magcache_enabled.value
+        self._magcache_advanced.setEnabled(enabled)
 
     def update_client_info(self):
         if root.connection.state is ConnectionState.connected:
@@ -640,12 +678,30 @@ class PerformanceSettings(SettingsTab):
                 _("Device")
                 + f": [{client.device_info.type.upper()}] {client.device_info.name} ({client.device_info.vram} GB)"
             )
-            self._dynamic_caching.enabled = client.features.wave_speed
-            self._dynamic_caching.setToolTip(
-                _("The {node_name} node is not installed.").format(node_name="Comfy-WaveSpeed")
-                if not client.features.wave_speed
-                else ""
-            )
+            
+            has_wave_speed = hasattr(client.features, 'wave_speed') and client.features.wave_speed
+            self._dynamic_caching.enabled = has_wave_speed
+            if not has_wave_speed:
+                self._dynamic_caching.setToolTip(
+                    _("The {node_name} node is not installed.").format(node_name="Comfy-WaveSpeed")
+                )
+            else:
+                self._dynamic_caching.setToolTip("")
+            
+            has_magcache = hasattr(client.features, 'magcache') and client.features.magcache
+            self._magcache_enabled.enabled = has_magcache
+            if not has_magcache:
+                self._magcache_enabled.setToolTip(
+                    _("The {node_name} node is not installed.").format(node_name="MagCache")
+                )
+            else:
+                self._magcache_enabled.setToolTip(_("Accelerate Flux model inference using MagCache"))
+        else:
+            self._device_info.setText(_("Not connected"))
+            self._dynamic_caching.enabled = False
+            self._magcache_enabled.enabled = False
+            self._dynamic_caching.setToolTip(_("Not connected to server"))
+            self._magcache_enabled.setToolTip(_("Not connected to server"))
 
     def _read(self):
         self._history_size.value = settings.history_size
@@ -660,6 +716,14 @@ class PerformanceSettings(SettingsTab):
         self._max_pixel_count.value = settings.max_pixel_count
         self._tiled_vae.value = settings.tiled_vae
         self._dynamic_caching.value = settings.dynamic_caching
+        
+        self._magcache_enabled.value = settings.magcache_enabled
+        self._magcache_thresh.value = settings.magcache_thresh
+        self._magcache_retention_ratio.value = settings.magcache_retention_ratio
+        self._magcache_K.value = settings.magcache_K
+        
+        self._update_magcache_advanced()
+        
         self.update_client_info()
 
     def _write(self):
@@ -673,6 +737,11 @@ class PerformanceSettings(SettingsTab):
             self._performance_preset.currentIndex()
         ]
         settings.dynamic_caching = self._dynamic_caching.value
+        
+        settings.magcache_enabled = self._magcache_enabled.value
+        settings.magcache_thresh = self._magcache_thresh.value
+        settings.magcache_retention_ratio = self._magcache_retention_ratio.value
+        settings.magcache_K = self._magcache_K.value
 
 
 class AboutSettings(SettingsTab):
@@ -943,4 +1012,5 @@ class SettingsDialog(QDialog):
         QDesktopServices.openUrl(QUrl.fromLocalFile(str(util.user_data_dir)))
 
     def _close(self):
+        settings.save()  
         _ = self.close()

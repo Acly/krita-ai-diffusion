@@ -87,6 +87,50 @@ def _sampler_params(sampling: SamplingInput, strength: float | None = None):
     return params
 
 
+def apply_magcache_patch(
+    w: ComfyWorkflow,
+    model: Output,
+    arch: Arch,
+    perf_settings: PerformanceSettings,
+) -> Output:
+    """Apply MagCache as a model patch after model loading"""
+    if not perf_settings.magcache_enabled:
+        return model
+        
+    if arch not in [Arch.flux, Arch.flux_k]:
+        print(f"MagCache not supported for architecture: {arch}")
+        return model
+    
+    print(f"Applying MagCache patch for {arch}")
+    
+    model_type = "flux_kontext" if arch is Arch.flux_k else "flux"
+    
+    if model_type == "flux_kontext":
+        default_thresh = 0.05
+        default_ratio = 0.2
+        default_K = 4
+    else:  # flux
+        default_thresh = 0.24
+        default_ratio = 0.1
+        default_K = 5
+    
+    try:
+        magcache_model = w.apply_magcache(
+            model,
+            model_type=model_type,
+            magcache_thresh=getattr(perf_settings, 'magcache_thresh', default_thresh),
+            retention_ratio=getattr(perf_settings, 'magcache_retention_ratio', default_ratio),
+            magcache_K=getattr(perf_settings, 'magcache_K', default_K),
+            start_step=0,
+            end_step=-1,
+        )
+        print(f"MagCache patch applied successfully with {model_type} settings")
+        return magcache_model
+    except Exception as e:
+        print(f"Failed to apply MagCache patch: {e}")
+        return model
+
+
 def load_checkpoint_with_lora(w: ComfyWorkflow, checkpoint: CheckpointInput, models: ClientModels):
     arch = checkpoint.version
     model_info = models.checkpoints.get(checkpoint.checkpoint)
@@ -749,9 +793,17 @@ def generate(
     sampling: SamplingInput,
     misc: MiscParams,
     models: ModelDict,
+    perf_settings: PerformanceSettings = None,  
 ):
     model, clip, vae = load_checkpoint_with_lora(w, checkpoint, models.all)
+    
+ 
     model = apply_ip_adapter(w, model, cond.control, models)
+    
+    
+    if perf_settings:
+        model = apply_magcache_patch(w, model, models.arch, perf_settings)
+    
     model_orig = copy(model)
     model, regions = apply_attention_mask(w, model, cond, clip, extent.initial)
     model = apply_regional_ip_adapter(w, model, cond.regions, extent.initial, models)
@@ -853,6 +905,7 @@ def inpaint(
     crop_upscale_extent: Extent,
     misc: MiscParams,
     models: ModelDict,
+    perf_settings: PerformanceSettings = None,  
 ):
     target_bounds = params.target_bounds
     extent = ScaledExtent.from_input(images.extent)  # for initial generation with large context
@@ -864,6 +917,11 @@ def inpaint(
 
     model, clip, vae = load_checkpoint_with_lora(w, checkpoint, models.all)
     model = w.differential_diffusion(model)
+    
+    
+    if perf_settings:
+        model = apply_magcache_patch(w, model, models.arch, perf_settings)
+    
     model_orig = copy(model)
 
     upscale_extent = ScaledExtent(  # after crop to the masked region
@@ -990,9 +1048,17 @@ def refine(
     sampling: SamplingInput,
     misc: MiscParams,
     models: ModelDict,
+    perf_settings: PerformanceSettings = None,  
 ):
     model, clip, vae = load_checkpoint_with_lora(w, checkpoint, models.all)
+    
+    
     model = apply_ip_adapter(w, model, cond.control, models)
+    
+    
+    if perf_settings:
+        model = apply_magcache_patch(w, model, models.arch, perf_settings)
+    
     model, regions = apply_attention_mask(w, model, cond, clip, extent.initial)
     model = apply_regional_ip_adapter(w, model, cond.regions, extent.initial, models)
     in_image = w.load_image(image)
@@ -1368,6 +1434,15 @@ def prepare(
     face_weight = median_or_zero(c.strength for c in all_control if c.mode is ControlMode.face)
     if face_weight > 0:
         i.models.loras.append(LoraInput(model_set.lora["face"], 0.65 * face_weight))
+    
+    if perf.magcache_enabled and arch in [Arch.flux, Arch.flux_k]:
+        i.models.magcache_enabled = True
+        i.models.magcache_thresh = perf.magcache_thresh
+        i.models.magcache_retention_ratio = perf.magcache_retention_ratio
+        i.models.magcache_K = perf.magcache_K
+        print(f"MagCache settings added to WorkflowInput for {arch}")
+    else:
+        i.models.magcache_enabled = False
 
     if kind is WorkflowKind.generate:
         assert isinstance(canvas, Extent)
@@ -1468,6 +1543,18 @@ def create(i: WorkflowInput, models: ClientModels, comfy_mode=ComfyRunMode.serve
     """
     workflow = ComfyWorkflow(models.node_inputs, comfy_mode)
     misc = MiscParams(i.batch_count, i.nsfw_filter)
+    
+   
+    perf_settings = PerformanceSettings()
+    if hasattr(i, 'performance_settings'):
+        perf_settings = i.performance_settings
+    else:
+        
+        if hasattr(i.models, 'magcache_enabled'):
+            perf_settings.magcache_enabled = i.models.magcache_enabled
+            perf_settings.magcache_thresh = getattr(i.models, 'magcache_thresh', 0.24)
+            perf_settings.magcache_retention_ratio = getattr(i.models, 'magcache_retention_ratio', 0.1)
+            perf_settings.magcache_K = getattr(i.models, 'magcache_K', 5)
 
     if i.kind is WorkflowKind.generate:
         return generate(
@@ -1478,6 +1565,7 @@ def create(i: WorkflowInput, models: ClientModels, comfy_mode=ComfyRunMode.serve
             ensure(i.sampling),
             misc,
             models.for_arch(ensure(i.models).version),
+            perf_settings,  
         )
     elif i.kind is WorkflowKind.inpaint:
         return inpaint(
@@ -1490,6 +1578,7 @@ def create(i: WorkflowInput, models: ClientModels, comfy_mode=ComfyRunMode.serve
             ensure(i.crop_upscale_extent),
             misc,
             models.for_arch(ensure(i.models).version),
+            perf_settings,  # 傳遞性能設置
         )
     elif i.kind is WorkflowKind.refine:
         return refine(
@@ -1501,6 +1590,7 @@ def create(i: WorkflowInput, models: ClientModels, comfy_mode=ComfyRunMode.serve
             ensure(i.sampling),
             misc,
             models.for_arch(ensure(i.models).version),
+            perf_settings,  # 傳遞性能設置
         )
     elif i.kind is WorkflowKind.refine_region:
         return refine_region(

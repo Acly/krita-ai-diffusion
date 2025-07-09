@@ -130,6 +130,7 @@ class ComfyClient(Client):
             languages=await _list_languages(client),
             wave_speed="ApplyFBCacheOnModel" in nodes,
             gguf="UnetLoaderGGUF" in nodes,
+            magcache="MagCache" in nodes,
         )
 
         # Check for required and optional model resources
@@ -489,6 +490,10 @@ class ComfyClient(Client):
             max_pixel_count=settings.max_pixel_count,
             tiled_vae=settings.tiled_vae,
             dynamic_caching=settings.dynamic_caching and self.features.wave_speed,
+            magcache_enabled=settings.magcache_enabled,
+            magcache_thresh=settings.magcache_thresh,
+            magcache_retention_ratio=settings.magcache_retention_ratio,
+            magcache_K=settings.magcache_K,
         )
 
     async def upload_loras(self, work: WorkflowInput, local_job_id: str):

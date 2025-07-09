@@ -82,7 +82,10 @@ class PerformanceSettings:
     max_pixel_count: int = 6
     dynamic_caching: bool = False
     tiled_vae: bool = False
-
+    magcache_enabled: bool = False
+    magcache_thresh: float = 0.24
+    magcache_retention_ratio: float = 0.1
+    magcache_K: int = 5
 
 class Setting:
     def __init__(self, name: str, default, desc="", help="", items=None):
@@ -290,6 +293,34 @@ class Settings(QObject):
         _("Dynamic Caching"),
         False,
         _("Re-use outputs of previous steps (First Block Cache) to speed up generation."),
+    )
+
+    magcache_enabled: bool
+    _magcache_enabled = Setting(
+        _("MagCache Acceleration"),
+        False,
+        _("Accelerate Flux model inference using MagCache technology."),
+    )
+
+    magcache_thresh: float
+    _magcache_thresh = Setting(
+        _("MagCache Threshold"),
+        0.24,
+        _("Threshold value for MagCache activation (lower values = more aggressive caching)."),
+    )
+
+    magcache_retention_ratio: float
+    _magcache_retention_ratio = Setting(
+        _("Retention Ratio"),
+        0.1,
+        _("Ratio of cached values to retain across timesteps."),
+    )
+
+    magcache_K: int
+    _magcache_K = Setting(
+        _("MagCache K"),
+        5,
+        _("Number of cached timesteps to consider."),
     )
 
     tiled_vae: bool
