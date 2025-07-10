@@ -737,6 +737,8 @@ class WorkspaceSelectWidget(QToolButton):
 
 
 class GenerateButton(QPushButton):
+    ctrl_clicked = pyqtSignal()
+
     def __init__(self, kind: JobKind, parent: QWidget):
         super().__init__(parent)
         self.model = root.active_model
@@ -768,6 +770,17 @@ class GenerateButton(QPushButton):
 
     def leaveEvent(self, a0: QEvent | None):
         self._cost = 0
+
+    def mousePressEvent(self, e: QMouseEvent | None) -> None:
+        if (
+            e is not None
+            and e.button() == Qt.MouseButton.LeftButton
+            and (e.modifiers() & Qt.Modifier.CTRL)
+        ):
+            self.ctrl_clicked.emit()
+            e.accept()
+        else:
+            super().mousePressEvent(e)
 
     def paintEvent(self, a0: QPaintEvent | None) -> None:
         opt = QStyleOption()

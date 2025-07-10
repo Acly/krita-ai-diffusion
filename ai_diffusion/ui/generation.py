@@ -761,6 +761,7 @@ class GenerationWidget(QWidget):
                 self.add_region_button.clicked.connect(model.regions.create_region_group),
                 self.region_prompt.activated.connect(model.generate),
                 self.generate_button.clicked.connect(model.generate),
+                self.generate_button.ctrl_clicked.connect(self.generate_replace),
             ]
             self.region_prompt.regions = model.regions
             self.custom_inpaint.model = model
@@ -852,6 +853,11 @@ class GenerationWidget(QWidget):
 
     def toggle_region_only(self, checked: bool):
         self.model.region_only = checked
+
+    def generate_replace(self):
+        """Replace queued jobs with new generation."""
+        self.model.cancel(queued=True)
+        self.model.generate()
 
     def update_generate_button(self):
         if not self.model.has_document:
