@@ -1,4 +1,5 @@
 import asyncio
+import threading
 from typing import Callable
 from PyQt5.QtCore import QTimer
 
@@ -45,6 +46,13 @@ def stop():
         _loop.close()
     except Exception:
         pass
+
+
+def wait(future: asyncio.Future):
+    event = threading.Event()
+    future.add_done_callback(lambda _: event.set())
+    event.wait()
+    return future.result()
 
 
 async def wait_until(condition: Callable[[], bool], iterations=10, no_error=False):

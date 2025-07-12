@@ -121,6 +121,7 @@ class ModelSync:
         self._slot_index = 0
         self._last_change = 0
         self._save_task: asyncio.Task | None = None
+        self._image_task: asyncio.Future | None = None
         if state_bytes := _find_annotation(model.document, "ui.json"):
             try:
                 self._load(model, state_bytes.data())
@@ -129,6 +130,13 @@ class ModelSync:
                 log.exception(msg)
                 QMessageBox.warning(None, "AI Diffusion Plugin", msg)
         self._track(model)
+
+    def __del__(self):
+        try:
+            if self._image_task is not None and not self._image_task.done():
+                eventloop.wait(self._image_task)
+        except Exception as e:
+            log.warning(f"Persistence: failed to wait for image task completion: {e}")
 
     def _save(self):
         model = self._model
@@ -221,14 +229,23 @@ class ModelSync:
         if job.kind in [JobKind.diffusion, JobKind.animation] and len(job.results) > 0:
             slot = self._slot_index
             self._slot_index += 1
-            image_data, image_offsets = job.results.to_bytes()
-            self._model.document.annotate(f"result{slot}.webp", image_data)
-            self._history.append(
-                _HistoryResult(job.id or "", slot, image_offsets, job.params, job.kind, job.in_use)
-            )
-            self._memory_used[slot] = image_data.size()
-            self._prune()
-            self._save()
+
+            if self._image_task is not None and not self._image_task.done():
+                eventloop.wait(self._image_task)
+            self._image_task = eventloop.run(self._save_result_images(job, slot))
+
+    async def _save_result_images(self, job: Job, slot: int):
+        # run image encoding and compression in a separate thread
+        loop = asyncio.get_running_loop()
+        image_data, image_offsets = await loop.run_in_executor(None, job.results.to_bytes)
+
+        self._model.document.annotate(f"result{slot}.webp", image_data)
+        self._history.append(
+            _HistoryResult(job.id or "", slot, image_offsets, job.params, job.kind, job.in_use)
+        )
+        self._memory_used[slot] = image_data.size()
+        self._prune()
+        self._save()
 
     def _remove_results(self, job: Job):
         index = next((i for i, h in enumerate(self._history) if h.id == job.id), None)
