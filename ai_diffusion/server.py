@@ -95,7 +95,6 @@ class Server:
 
         python_pkg = ["python.exe"] if is_windows else ["python3"]
         python_search_paths = [
-            self.path / "python",
             self.path / "venv" / "bin",
             self.path / "venv" / "Scripts",
         ]
@@ -647,6 +646,12 @@ class Server:
                             + f"\nto\n{self.path / 'models'}\nand try again."
                         )
                 remove_subdir(self.comfy_dir, origin=self.path)
+
+            # Embedded Python might be left-over from older versions, remove it
+            python_dir = self.path / "python"
+            if python_dir.exists():
+                cb("Removing embedded Python")
+                remove_subdir(python_dir, origin=self.path)
 
             venv_dir = self.path / "venv"
             if venv_dir.exists():
