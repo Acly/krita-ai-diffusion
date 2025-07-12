@@ -68,7 +68,6 @@ class PackageGroupWidget(QWidget):
         description: Optional[str] = None,
         is_expanded=True,
         is_checkable=False,
-        initial=PackageState.available,
         parent=None,
     ):
         super().__init__(parent)
@@ -101,7 +100,7 @@ class PackageGroupWidget(QWidget):
             self._layout.addWidget(desc, 1, 0, 1, 2)
 
         self._is_checkable = is_checkable
-        self._items = [self.add_item(p, initial) for p in packages]
+        self._items = [self.add_item(p) for p in packages]
         self._update_visibility()
 
     def _update_visibility(self):
@@ -114,15 +113,19 @@ class PackageGroupWidget(QWidget):
             item.label.setVisible(self._header.isChecked())
             item.status.setVisible(self._header.isChecked())
 
-    def add_item(self, package: str | ModelResource | CustomNode, initial: PackageState):
+    def expand(self):
+        if not self._header.isChecked():
+            self._header.setChecked(True)
+
+    def add_item(self, package: str | ModelResource | CustomNode):
         item = PackageItem()
         item.package = package
-        item.state = initial
+        item.state = PackageState.available
         item.label = QLabel(self._package_name(package), self)
         item.label.setContentsMargins(20, 0, 0, 0)
         if self.is_checkable:
             item.status = QCheckBox(_("Install"), self)
-            item.status.setChecked(initial in [PackageState.selected, PackageState.installed])
+            item.status.setChecked(False)
             item.status.toggled.connect(self._handle_checkbox_toggle)
         else:
             item.status = QLabel(self)
@@ -355,8 +358,7 @@ class ServerWidget(QWidget):
             is_checkable=True,
             parent=self,
         )
-        self._workload_group.values = [PackageState.available, PackageState.selected]
-        self._workload_group.changed.connect(self.update_ui)
+        self._workload_group.changed.connect(self.change_workload)
         package_layout.addWidget(self._workload_group)
 
         optional_models = resources.default_checkpoints + resources.optional_models
@@ -380,6 +382,7 @@ class ServerWidget(QWidget):
                 [m for m in optional_models if m.arch is Arch.sdxl],
                 description=_("Select at least one diffusion model. Control models are optional."),
                 is_checkable=True,
+                is_expanded=False,
                 parent=self,
             ),
             "illu": PackageGroupWidget(
@@ -392,8 +395,10 @@ class ServerWidget(QWidget):
             ),
         }
         # Pre-select a recommended set of models if the server hasn't been installed yet
-        if not self._server.has_comfy and self.selected_workload in [Arch.all, Arch.sdxl]:
+        if not self._server.has_comfy:
+            self._workload_group.values = [PackageState.available, PackageState.selected]
             sdxl_packages = self._packages["sdxl"]
+            sdxl_packages.expand()
             sdxl_packages.workload = Arch.sdxl
             state = [PackageState.selected for _ in sdxl_packages.values]
             state[-2] = PackageState.available  # Stencil is optional
@@ -748,6 +753,11 @@ class ServerWidget(QWidget):
             error_text = "<b>Error:</b> " + self._error.replace("\n", "<br>")
             self._status_label.setText(error_text)
             self._status_label.setStyleSheet(f"color:{red}")
+
+    def change_workload(self):
+        if self.selected_workload is Arch.sd15:
+            self._packages["sd15"].expand()
+        self.update_ui()
 
     def update_required(self):
         has_missing_nodes = any(
