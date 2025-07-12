@@ -598,15 +598,18 @@ def _find_model(
     def sanitize(p):
         return p.replace("\\", "/").lower()
 
-    def match(filename: str, pattern: str):
-        filename = sanitize(filename)
-        pattern = pattern.lower()
-        return all(p in filename for p in pattern.split("*"))
+    matches: list[tuple[str, int]] = []
+    for i, pattern in enumerate(search_paths):
+        for filename in model_list:
+            name = sanitize(filename)
+            pattern = pattern.lower()
+            if all(p in name for p in pattern.split("*")):
+                # prioritize names with "krita" in the path, then earlier matches
+                prio = 0 if "krita" in name else i * 100 + len(name)
+                matches.append((filename, prio))
 
-    matches = (m for p in search_paths for m in model_list if match(m, p))
-    # if there are multiple matches, prefer the one with "krita" in the path
-    prio = sorted(matches, key=lambda m: 0 if "krita" in m else len(m))
-    found = next(iter(prio), None)
+    matches = sorted(matches, key=lambda m: m[1])
+    found, _ = next(iter(matches), (None, -1))
     model_id = identifier.name if isinstance(identifier, Enum) else identifier
     model_name = f"{kind.value} {model_id}"
 
