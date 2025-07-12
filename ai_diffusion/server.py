@@ -259,6 +259,7 @@ class Server:
         await self._pip_install("ComfyUI", ["-r", str(requirements_txt)], cb)
 
         _configure_extra_model_paths(temp_comfy_dir)
+        _create_extra_model_dirs(self.path / "models")
         await rename_extracted_folder("ComfyUI", comfy_dir, resources.comfy_version)
         self.comfy_dir = comfy_dir
         cb("Installing ComfyUI", "Finished installing ComfyUI")
@@ -961,6 +962,26 @@ def _configure_extra_model_paths(comfy_dir: Path):
     if "krita-managed" not in contents:
         log.info(f"Extending {path}")
         path.write_text(contents + _extra_model_paths_yaml)
+
+
+model_dirs = [
+    "checkpoints",
+    "clip_vision",
+    "controlnet",
+    "diffusion_models",
+    "inpaint",
+    "ipadapter",
+    "loras",
+    "style_models",
+    "text_encoders",
+    "upscale_models",
+    "vae",
+]
+
+
+def _create_extra_model_dirs(models_dir: Path):
+    for path in model_dirs:
+        (models_dir / path).mkdir(parents=True, exist_ok=True)
 
 
 def _upgrade_extra_model_paths(src_dir: Path, dst_dir: Path):

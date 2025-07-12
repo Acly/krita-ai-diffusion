@@ -9,6 +9,7 @@ import sys
 from ai_diffusion import network, server, resources
 from ai_diffusion.style import Arch
 from ai_diffusion.server import Server, ServerState, ServerBackend, InstallationProgress
+from ai_diffusion.server import model_dirs
 from ai_diffusion.resources import VerificationState
 from .config import test_dir, server_dir
 
@@ -126,6 +127,19 @@ def test_run_external(qtapp, pytestconfig):
         assert server.state is ServerState.stopped
 
     qtapp.run(main())
+
+
+def test_extra_model_dirs(pytestconfig):
+    if not pytestconfig.getoption("--test-install"):
+        pytest.skip("Only runs with --test-install")
+
+    server = Server(str(server_dir))
+    server.backend = ServerBackend.cpu
+    # Requires test_install_and_run to setup the server
+    assert server.state in [ServerState.stopped]
+
+    for dir in model_dirs:
+        assert (server_dir / "models" / dir).exists()
 
 
 def test_verify_and_fix(qtapp, pytestconfig, local_download_server):
