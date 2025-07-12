@@ -489,7 +489,7 @@ class CustomWorkspace(QObject, ObservableProperties):
                 layer = layers.find(QUuid(param))
                 if layer is None:
                     raise ValueError(f"Input layer for parameter {md.name} not found")
-                if animation:
+                if animation and layer.is_animated:
                     params[md.name] = layer.get_pixel_frames(bounds)
                 else:
                     params[md.name] = layer.get_pixels(bounds)
@@ -499,7 +499,7 @@ class CustomWorkspace(QObject, ObservableProperties):
                 layer = layers.find(QUuid(param))
                 if layer is None:
                     raise ValueError(f"Input layer for parameter {md.name} not found")
-                if animation:
+                if animation and layer.is_animated:
                     params[md.name] = layer.get_mask_frames(bounds)
                 else:
                     params[md.name] = layer.get_mask(bounds)
