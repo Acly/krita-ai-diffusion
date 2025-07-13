@@ -625,33 +625,7 @@ class PerformanceSettings(SettingsTab):
             parent=self
         )
         self._magcache_enabled.value_changed.connect(self.write)
-        self._magcache_enabled.value_changed.connect(self._update_magcache_advanced)
         self._layout.addWidget(self._magcache_enabled)
-
-
-        self._magcache_advanced = QWidget(self)
-        self._magcache_advanced.setContentsMargins(20, 0, 0, 0)  
-        self._layout.addWidget(self._magcache_advanced)
-        magcache_layout = QVBoxLayout()
-        self._magcache_advanced.setLayout(magcache_layout)
-
-        self._magcache_thresh = SliderSetting(
-            Settings._magcache_thresh, self._magcache_advanced, 0.01, 0.5, "{:.3f}"
-        )
-        self._magcache_thresh.value_changed.connect(self.write)
-        magcache_layout.addWidget(self._magcache_thresh)
-
-        self._magcache_retention_ratio = SliderSetting(
-            Settings._magcache_retention_ratio, self._magcache_advanced, 0.05, 0.5, "{:.2f}"
-        )
-        self._magcache_retention_ratio.value_changed.connect(self.write)
-        magcache_layout.addWidget(self._magcache_retention_ratio)
-
-        self._magcache_K = SpinBoxSetting(
-            Settings._magcache_K, self._magcache_advanced, 1, 10, 1
-        )
-        self._magcache_K.value_changed.connect(self.write)
-        magcache_layout.addWidget(self._magcache_K)
 
         self._layout.addStretch()
 
@@ -666,10 +640,6 @@ class PerformanceSettings(SettingsTab):
         
         if not is_custom:
             self.read()
-
-    def _update_magcache_advanced(self):
-        enabled = self._magcache_enabled.value
-        self._magcache_advanced.setEnabled(enabled)
 
     def update_client_info(self):
         if root.connection.state is ConnectionState.connected:
@@ -695,7 +665,7 @@ class PerformanceSettings(SettingsTab):
                     _("The {node_name} node is not installed.").format(node_name="MagCache")
                 )
             else:
-                self._magcache_enabled.setToolTip(_("Accelerate Flux model inference using MagCache"))
+                self._magcache_enabled.setToolTip(_("Accelerate Flux model inference using MagCache. Parameters are automatically configured based on model architecture."))
         else:
             self._device_info.setText(_("Not connected"))
             self._dynamic_caching.enabled = False
@@ -716,13 +686,7 @@ class PerformanceSettings(SettingsTab):
         self._max_pixel_count.value = settings.max_pixel_count
         self._tiled_vae.value = settings.tiled_vae
         self._dynamic_caching.value = settings.dynamic_caching
-        
         self._magcache_enabled.value = settings.magcache_enabled
-        self._magcache_thresh.value = settings.magcache_thresh
-        self._magcache_retention_ratio.value = settings.magcache_retention_ratio
-        self._magcache_K.value = settings.magcache_K
-        
-        self._update_magcache_advanced()
         
         self.update_client_info()
 
@@ -737,11 +701,7 @@ class PerformanceSettings(SettingsTab):
             self._performance_preset.currentIndex()
         ]
         settings.dynamic_caching = self._dynamic_caching.value
-        
         settings.magcache_enabled = self._magcache_enabled.value
-        settings.magcache_thresh = self._magcache_thresh.value
-        settings.magcache_retention_ratio = self._magcache_retention_ratio.value
-        settings.magcache_K = self._magcache_K.value
 
 
 class AboutSettings(SettingsTab):
