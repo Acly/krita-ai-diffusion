@@ -64,11 +64,7 @@ class CheckpointInput:
     dynamic_caching: bool = False
     tiled_vae: bool = False
     magcache_enabled: bool = False
-    magcache_thresh: float = 0.24  
-    magcache_retention_ratio: float = 0.1  
-    magcache_K: int = 5 
-    magcache_start_step: int = 0
-    magcache_end_step: int = -1
+    magcache_thresh: float = 0.24
 
 @dataclass
 class SamplingInput:

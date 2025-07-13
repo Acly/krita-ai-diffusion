@@ -155,28 +155,16 @@ def load_checkpoint_with_lora(w: ComfyWorkflow, checkpoint: CheckpointInput, mod
     if arch.supports_attention_guidance and checkpoint.self_attention_guidance:
         model = w.apply_self_attention_guidance(model)
 
-    # Apply MagCache as a model patch if enabled  
-    if checkpoint.magcache_enabled:
-        if arch in [Arch.flux, Arch.flux_k]:
-            print(f"Applying MagCache patch for {arch}")
-            
-            model_type = "flux_kontext" if arch is Arch.flux_k else "flux"
-            
+    if checkpoint.magcache_enabled and arch in [Arch.flux, Arch.flux_k]:
+            model_type = "flux_kontext" if arch is Arch.flux_k else "flux"            
             try:
                 model = w.apply_magcache(
                     model,
                     model_type=model_type,
                     magcache_thresh=checkpoint.magcache_thresh,
-                    retention_ratio=checkpoint.magcache_retention_ratio,
-                    magcache_K=checkpoint.magcache_K,
-                    start_step=checkpoint.magcache_start_step,
-                    end_step=checkpoint.magcache_end_step,
                 )
-                print(f"MagCache patch applied successfully with {model_type} settings")
-            except Exception as e:
-                print(f"Failed to apply MagCache patch: {e}")
-        else:
-            print(f"MagCache not supported for architecture: {arch}")
+            except Exception:
+                pass 
 
     return model, Clip(clip, arch), vae
 
@@ -1401,14 +1389,9 @@ def prepare(
     if face_weight > 0:
         i.models.loras.append(LoraInput(model_set.lora["face"], 0.65 * face_weight))
     
-    if perf.magcache_enabled and arch in [Arch.flux, Arch.flux_k]:
-        i.models.magcache_enabled = True
+    i.models.magcache_enabled = perf.magcache_enabled and arch in [Arch.flux, Arch.flux_k]
+    if i.models.magcache_enabled:
         i.models.magcache_thresh = perf.magcache_thresh
-        i.models.magcache_retention_ratio = perf.magcache_retention_ratio
-        i.models.magcache_K = perf.magcache_K
-        print(f"MagCache settings added to WorkflowInput for {arch}")
-    else:
-        i.models.magcache_enabled = False
 
     if kind is WorkflowKind.generate:
         assert isinstance(canvas, Extent)

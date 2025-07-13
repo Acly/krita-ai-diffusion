@@ -492,8 +492,6 @@ class ComfyClient(Client):
             dynamic_caching=settings.dynamic_caching and self.features.wave_speed,
             magcache_enabled=settings.magcache_enabled,
             magcache_thresh=settings.magcache_thresh,
-            magcache_retention_ratio=settings.magcache_retention_ratio,
-            magcache_K=settings.magcache_K,
         )
 
     async def upload_loras(self, work: WorkflowInput, local_job_id: str):

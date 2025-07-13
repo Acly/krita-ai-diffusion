@@ -84,8 +84,6 @@ class PerformanceSettings:
     tiled_vae: bool = False
     magcache_enabled: bool = False
     magcache_thresh: float = 0.24
-    magcache_retention_ratio: float = 0.1
-    magcache_K: int = 5
 
 class Setting:
     def __init__(self, name: str, default, desc="", help="", items=None):
@@ -304,23 +302,9 @@ class Settings(QObject):
 
     magcache_thresh: float
     _magcache_thresh = Setting(
-        _("MagCache Threshold"),
+        _("MagCache Strength"),
         0.24,
-        _("Threshold value for MagCache activation (lower values = more aggressive caching)."),
-    )
-
-    magcache_retention_ratio: float
-    _magcache_retention_ratio = Setting(
-        _("Retention Ratio"),
-        0.1,
-        _("Ratio of cached values to retain across timesteps."),
-    )
-
-    magcache_K: int
-    _magcache_K = Setting(
-        _("MagCache K"),
-        5,
-        _("Number of cached timesteps to consider."),
+        _("Strength value for MagCache activation (lower values = more powerful)."),
     )
 
     tiled_vae: bool
@@ -435,6 +419,10 @@ class Settings(QObject):
         if preset not in [PerformancePreset.custom, PerformancePreset.auto]:
             for k, v in self._performance_presets[preset]._asdict().items():
                 self._values[k] = v
+
+    def configure_magcache_for_arch(self, arch_name: str):
+        """Configure MagCache settings for specific architecture."""
+        pass
 
     def _migrate_legacy_settings(self, path: Path):
         if path == self.default_path:

@@ -627,6 +627,12 @@ class PerformanceSettings(SettingsTab):
         self._magcache_enabled.value_changed.connect(self.write)
         self._layout.addWidget(self._magcache_enabled)
 
+        self._magcache_thresh = SliderSetting(
+            Settings._magcache_thresh, self, 0.1, 0.5, "{:.2f}"
+        )
+        self._magcache_thresh.value_changed.connect(self.write)
+        self._layout.addWidget(self._magcache_thresh)
+
         self._layout.addStretch()
 
     def _change_performance_preset(self, index):
@@ -648,30 +654,35 @@ class PerformanceSettings(SettingsTab):
                 _("Device")
                 + f": [{client.device_info.type.upper()}] {client.device_info.name} ({client.device_info.vram} GB)"
             )
+        
+            self._dynamic_caching.enabled = client.features.wave_speed
+            self._dynamic_caching.setToolTip(
+                _("The {node_name} node is not installed.").format(node_name="Comfy-WaveSpeed")
+                if not client.features.wave_speed
+                else ""
+            )
+        
+            self._magcache_enabled.enabled = client.features.magcache
+            self._magcache_enabled.setToolTip(
+                _("The {node_name} node is not installed.").format(node_name="MagCache")
+                if not client.features.magcache
+                else ""
+            )
             
-            has_wave_speed = hasattr(client.features, 'wave_speed') and client.features.wave_speed
-            self._dynamic_caching.enabled = has_wave_speed
-            if not has_wave_speed:
-                self._dynamic_caching.setToolTip(
-                    _("The {node_name} node is not installed.").format(node_name="Comfy-WaveSpeed")
-                )
-            else:
-                self._dynamic_caching.setToolTip("")
-            
-            has_magcache = hasattr(client.features, 'magcache') and client.features.magcache
-            self._magcache_enabled.enabled = has_magcache
-            if not has_magcache:
-                self._magcache_enabled.setToolTip(
-                    _("The {node_name} node is not installed.").format(node_name="MagCache")
-                )
-            else:
-                self._magcache_enabled.setToolTip(_("Accelerate Flux model inference using MagCache. Parameters are automatically configured based on model architecture."))
+            self._magcache_thresh.enabled = client.features.magcache
+            self._magcache_thresh.setToolTip(
+                _("The {node_name} node is not installed.").format(node_name="MagCache")
+                if not client.features.magcache
+                else ""
+            )
         else:
             self._device_info.setText(_("Not connected"))
             self._dynamic_caching.enabled = False
             self._magcache_enabled.enabled = False
+            self._magcache_thresh.enabled = False
             self._dynamic_caching.setToolTip(_("Not connected to server"))
             self._magcache_enabled.setToolTip(_("Not connected to server"))
+            self._magcache_thresh.setToolTip(_("Not connected to server"))
 
     def _read(self):
         self._history_size.value = settings.history_size
@@ -687,6 +698,7 @@ class PerformanceSettings(SettingsTab):
         self._tiled_vae.value = settings.tiled_vae
         self._dynamic_caching.value = settings.dynamic_caching
         self._magcache_enabled.value = settings.magcache_enabled
+        self._magcache_thresh.value = settings.magcache_thresh
         
         self.update_client_info()
 
@@ -702,6 +714,7 @@ class PerformanceSettings(SettingsTab):
         ]
         settings.dynamic_caching = self._dynamic_caching.value
         settings.magcache_enabled = self._magcache_enabled.value
+        settings.magcache_thresh = self._magcache_thresh.value
 
 
 class AboutSettings(SettingsTab):
