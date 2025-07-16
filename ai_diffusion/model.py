@@ -37,6 +37,12 @@ from .resources import ControlMode
 from .resolution import compute_bounds, compute_relative_bounds
 
 
+class QueueMode(Enum):
+    back = 0
+    front = 1
+    replace = 2
+
+
 class Workspace(Enum):
     generation = 0
     upscaling = 1
@@ -95,7 +101,7 @@ class Model(QObject, ObservableProperties):
     seed = Property(0, persist=True)
     fixed_seed = Property(False, persist=True)
     resolution_multiplier = Property(1.0, persist=True)
-    queue_front = Property(False, persist=True)
+    queue_mode = Property(QueueMode.back, persist=True)
     translation_enabled = Property(True, persist=True)
     progress_kind = Property(ProgressKind.generation)
     progress = Property(0.0)
@@ -109,7 +115,7 @@ class Model(QObject, ObservableProperties):
     seed_changed = pyqtSignal(int)
     fixed_seed_changed = pyqtSignal(bool)
     resolution_multiplier_changed = pyqtSignal(float)
-    queue_front_changed = pyqtSignal(bool)
+    queue_mode_changed = pyqtSignal(QueueMode)
     translation_enabled_changed = pyqtSignal(bool)
     progress_kind_changed = pyqtSignal(ProgressKind)
     progress_changed = pyqtSignal(float)
@@ -149,6 +155,14 @@ class Model(QObject, ObservableProperties):
 
     def generate(self):
         """Enqueue image generation for the current setup."""
+        self._generate(self.queue_mode)
+
+    def generate_replace(self):
+        """Enqueue image generation with queue mode set to replace."""
+        self._generate(QueueMode.replace)
+
+    def _generate(self, queue_mode: QueueMode):
+        """Enqueue image generation for the current setup."""
         ok, msg = self._doc.check_color_mode()
         if not ok and msg:
             self.report_error(msg)
@@ -160,7 +174,7 @@ class Model(QObject, ObservableProperties):
             self.report_error(util.log_error(e))
             return
         self.clear_error()
-        jobs = self.enqueue_jobs(input, JobKind.diffusion, job_params, self.batch_count)
+        jobs = self.enqueue_jobs(input, JobKind.diffusion, job_params, self.batch_count, queue_mode)
         eventloop.run(_report_errors(self, jobs))
 
     def _prepare_workflow(self, dryrun=False):
@@ -240,23 +254,35 @@ class Model(QObject, ObservableProperties):
         return input, job_params
 
     async def enqueue_jobs(
-        self, input: WorkflowInput, kind: JobKind, params: JobParams, count: int = 1
+        self,
+        input: WorkflowInput,
+        kind: JobKind,
+        params: JobParams,
+        count: int = 1,
+        queue_mode: QueueMode | None = None,
     ):
         sampling = ensure(input.sampling)
         params.has_mask = input.images is not None and input.images.hires_mask is not None
+        queue_mode = queue_mode or self.queue_mode
+
+        if queue_mode is QueueMode.replace:
+            await self._connection.client.clear_queue()
+            self.clear_queued()
+            queue_mode = QueueMode.back
 
         for i in range(count):
             next_seed = sampling.seed + i * settings.batch_size
             input = replace(input, sampling=replace(sampling, seed=next_seed))
             params.seed = next_seed
             job = self.jobs.add(kind, copy(params))
-            await self._enqueue_job(job, input)
+            front = queue_mode is QueueMode.front
+            await self._enqueue_job(job, input, front=front)
 
-    async def _enqueue_job(self, job: Job, input: WorkflowInput):
+    async def _enqueue_job(self, job: Job, input: WorkflowInput, front: bool = False):
         if not self.jobs.any_executing():
             self.progress = 0.0
         client = self._connection.client
-        job.id = await client.enqueue(input, self.queue_front)
+        job.id = await client.enqueue(input, front)
 
     def _prepare_upscale_image(self, dryrun=False):
         assert not self.arch.is_edit, "Edit models do not support upscaling"
@@ -479,14 +505,16 @@ class Model(QObject, ObservableProperties):
         return job
 
     def cancel(self, active=False, queued=False):
-        if queued:
-            to_remove = [job for job in self.jobs if job.state is JobState.queued]
-            if len(to_remove) > 0:
-                self._connection.clear_queue()
-                for job in to_remove:
-                    self.jobs.remove(job)
+        if queued and self.clear_queued():
+            self._connection.clear_queue()
         if active and self.jobs.any_executing():
             self._connection.interrupt()
+
+    def clear_queued(self):
+        to_remove = [job for job in self.jobs if job.state is JobState.queued]
+        for job in to_remove:
+            self.jobs.remove(job)
+        return len(to_remove) > 0
 
     def report_error(self, error: Error | str):
         if isinstance(error, str):
