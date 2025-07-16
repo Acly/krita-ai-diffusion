@@ -43,7 +43,16 @@ from ..root import root
 from ..client import filter_supported_styles, resolve_arch
 from ..properties import Binding, Bind, bind, bind_combo
 from ..jobs import JobState, JobKind
-from ..model import Model, Workspace, SamplingQuality, ProgressKind, ErrorKind, Error, no_error
+from ..model import (
+    Model,
+    Workspace,
+    SamplingQuality,
+    ProgressKind,
+    ErrorKind,
+    Error,
+    no_error,
+    QueueMode,
+)
 from ..text import edit_attention, select_on_cursor_pos
 from ..localization import translate as _
 from ..util import ensure
@@ -131,11 +140,12 @@ class QueuePopup(QMenu):
         self._layout.addLayout(resolution_multiplier_layout, 2, 1)
 
         enqueue_label = QLabel(_("Enqueue"), self)
-        self._queue_front_combo = QComboBox(self)
-        self._queue_front_combo.addItem(_("in Front (new jobs first)"), True)
-        self._queue_front_combo.addItem(_("at the Back"), False)
+        self._queue_mode_combo = QComboBox(self)
+        self._queue_mode_combo.addItem(_("at the Back"), QueueMode.back)
+        self._queue_mode_combo.addItem(_("in Front (new jobs first)"), QueueMode.front)
+        self._queue_mode_combo.addItem(_("Replace Queue"), QueueMode.replace)
         self._layout.addWidget(enqueue_label, 3, 0)
-        self._layout.addWidget(self._queue_front_combo, 3, 1)
+        self._layout.addWidget(self._queue_mode_combo, 3, 1)
 
         cancel_label = QLabel(_("Cancel"), self)
         self._layout.addWidget(cancel_label, 4, 0)
@@ -171,7 +181,7 @@ class QueuePopup(QMenu):
             self._model.fixed_seed_changed.connect(self._randomize_seed.setEnabled),
             self._randomize_seed.clicked.connect(self._model.generate_seed),
             model.resolution_multiplier_changed.connect(self._update_resolution_multiplier),
-            bind_combo(self._model, "queue_front", self._queue_front_combo),
+            bind_combo(self._model, "queue_mode", self._queue_mode_combo),
             model.jobs.count_changed.connect(self._update_cancel_buttons),
         ]
 
@@ -737,6 +747,8 @@ class WorkspaceSelectWidget(QToolButton):
 
 
 class GenerateButton(QPushButton):
+    ctrl_clicked = pyqtSignal()
+
     def __init__(self, kind: JobKind, parent: QWidget):
         super().__init__(parent)
         self.model = root.active_model
@@ -768,6 +780,18 @@ class GenerateButton(QPushButton):
 
     def leaveEvent(self, a0: QEvent | None):
         self._cost = 0
+
+    def mouseReleaseEvent(self, e: QMouseEvent | None):
+        if (
+            e
+            and e.button() == Qt.MouseButton.LeftButton
+            and bool(e.modifiers() & Qt.KeyboardModifier.ControlModifier)
+        ):
+            self.ctrl_clicked.emit()
+            e.accept()
+            self.setDown(False)
+        else:
+            super().mouseReleaseEvent(e)
 
     def paintEvent(self, a0: QPaintEvent | None) -> None:
         opt = QStyleOption()

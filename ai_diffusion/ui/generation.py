@@ -761,6 +761,7 @@ class GenerationWidget(QWidget):
                 self.add_region_button.clicked.connect(model.regions.create_region_group),
                 self.region_prompt.activated.connect(model.generate),
                 self.generate_button.clicked.connect(model.generate),
+                self.generate_button.ctrl_clicked.connect(model.generate_replace),
             ]
             self.region_prompt.regions = model.regions
             self.custom_inpaint.model = model
