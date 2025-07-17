@@ -82,7 +82,8 @@ class PerformanceSettings:
     max_pixel_count: int = 6
     dynamic_caching: bool = False
     tiled_vae: bool = False
-
+    magcache_enabled: bool = False
+    magcache_thresh: float = 0.24
 
 class Setting:
     def __init__(self, name: str, default, desc="", help="", items=None):
@@ -292,6 +293,20 @@ class Settings(QObject):
         _("Re-use outputs of previous steps (First Block Cache) to speed up generation."),
     )
 
+    magcache_enabled: bool
+    _magcache_enabled = Setting(
+        _("MagCache Acceleration"),
+        False,
+        _("Accelerate Flux model inference using MagCache technology."),
+    )
+
+    magcache_thresh: float
+    _magcache_thresh = Setting(
+        _("MagCache Strength"),
+        0.24,
+        _("Strength value for MagCache activation (lower values = more powerful)."),
+    )
+
     tiled_vae: bool
     _tiled_vae = Setting(
         _("Tiled VAE"),
@@ -404,6 +419,10 @@ class Settings(QObject):
         if preset not in [PerformancePreset.custom, PerformancePreset.auto]:
             for k, v in self._performance_presets[preset]._asdict().items():
                 self._values[k] = v
+
+    def configure_magcache_for_arch(self, arch_name: str):
+        """Configure MagCache settings for specific architecture."""
+        pass
 
     def _migrate_legacy_settings(self, path: Path):
         if path == self.default_path:

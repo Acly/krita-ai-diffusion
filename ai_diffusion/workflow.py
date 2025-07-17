@@ -87,6 +87,8 @@ def _sampler_params(sampling: SamplingInput, strength: float | None = None):
     return params
 
 
+
+
 def load_checkpoint_with_lora(w: ComfyWorkflow, checkpoint: CheckpointInput, models: ClientModels):
     arch = checkpoint.version
     model_info = models.checkpoints.get(checkpoint.checkpoint)
@@ -152,6 +154,17 @@ def load_checkpoint_with_lora(w: ComfyWorkflow, checkpoint: CheckpointInput, mod
 
     if arch.supports_attention_guidance and checkpoint.self_attention_guidance:
         model = w.apply_self_attention_guidance(model)
+
+    if checkpoint.magcache_enabled and arch in [Arch.flux, Arch.flux_k]:
+            model_type = "flux_kontext" if arch is Arch.flux_k else "flux"            
+            try:
+                model = w.apply_magcache(
+                    model,
+                    model_type=model_type,
+                    magcache_thresh=checkpoint.magcache_thresh,
+                )
+            except Exception:
+                pass 
 
     return model, Clip(clip, arch), vae
 
@@ -751,7 +764,10 @@ def generate(
     models: ModelDict,
 ):
     model, clip, vae = load_checkpoint_with_lora(w, checkpoint, models.all)
+    
+ 
     model = apply_ip_adapter(w, model, cond.control, models)
+    
     model_orig = copy(model)
     model, regions = apply_attention_mask(w, model, cond, clip, extent.initial)
     model = apply_regional_ip_adapter(w, model, cond.regions, extent.initial, models)
@@ -864,6 +880,7 @@ def inpaint(
 
     model, clip, vae = load_checkpoint_with_lora(w, checkpoint, models.all)
     model = w.differential_diffusion(model)
+    
     model_orig = copy(model)
 
     upscale_extent = ScaledExtent(  # after crop to the masked region
@@ -992,7 +1009,10 @@ def refine(
     models: ModelDict,
 ):
     model, clip, vae = load_checkpoint_with_lora(w, checkpoint, models.all)
+    
+    
     model = apply_ip_adapter(w, model, cond.control, models)
+    
     model, regions = apply_attention_mask(w, model, cond, clip, extent.initial)
     model = apply_regional_ip_adapter(w, model, cond.regions, extent.initial, models)
     in_image = w.load_image(image)
@@ -1368,6 +1388,10 @@ def prepare(
     face_weight = median_or_zero(c.strength for c in all_control if c.mode is ControlMode.face)
     if face_weight > 0:
         i.models.loras.append(LoraInput(model_set.lora["face"], 0.65 * face_weight))
+    
+    i.models.magcache_enabled = perf.magcache_enabled and arch in [Arch.flux, Arch.flux_k]
+    if i.models.magcache_enabled:
+        i.models.magcache_thresh = perf.magcache_thresh
 
     if kind is WorkflowKind.generate:
         assert isinstance(canvas, Extent)
