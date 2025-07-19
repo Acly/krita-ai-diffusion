@@ -273,6 +273,7 @@ class ClientFeatures(NamedTuple):
     max_control_layers: int = 1000
     wave_speed: bool = False
     gguf: bool = False
+    magcache: bool = False
 
 
 class Client(ABC):
