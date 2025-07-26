@@ -45,6 +45,7 @@ def _sampling_from_style(style: Style, strength: float, is_live: bool):
         scheduler=preset.scheduler,
         cfg_scale=cfg or preset.cfg,
         total_steps=max_steps,
+        cache_threshold=preset.cache_threshold or None
     )
     if strength < 1.0:
         result.total_steps, result.start_step = apply_strength(strength, max_steps, min_steps)
@@ -87,7 +88,7 @@ def _sampler_params(sampling: SamplingInput, strength: float | None = None):
     return params
 
 
-def load_checkpoint_with_lora(w: ComfyWorkflow, checkpoint: CheckpointInput, models: ClientModels):
+def load_checkpoint_with_lora(w: ComfyWorkflow, checkpoint: CheckpointInput, sampling: SamplingInput, models: ClientModels):
     arch = checkpoint.version
     model_info = models.checkpoints.get(checkpoint.checkpoint)
     if model_info is None:
@@ -130,7 +131,7 @@ def load_checkpoint_with_lora(w: ComfyWorkflow, checkpoint: CheckpointInput, mod
         vae = w.load_vae(models.for_arch(arch).vae)
 
     if checkpoint.dynamic_caching and (arch in [Arch.flux, Arch.sd3] or arch.is_sdxl_like):
-        model = w.apply_first_block_cache(model, arch)
+        model = w.apply_first_block_cache(model, arch, sampling.cache_threshold)
 
     for lora in checkpoint.loras:
         model, clip = w.load_lora(model, clip, lora.name, lora.strength, lora.strength)
@@ -750,7 +751,7 @@ def generate(
     misc: MiscParams,
     models: ModelDict,
 ):
-    model, clip, vae = load_checkpoint_with_lora(w, checkpoint, models.all)
+    model, clip, vae = load_checkpoint_with_lora(w, checkpoint, sampling, models.all)
     model = apply_ip_adapter(w, model, cond.control, models)
     model_orig = copy(model)
     model, regions = apply_attention_mask(w, model, cond, clip, extent.initial)
@@ -862,7 +863,7 @@ def inpaint(
         checkpoint.dynamic_caching = False  # doesn't seem to work with Flux fill model
         sampling.cfg_scale = 30  # set Flux guidance to 30 (typical values don't work well)
 
-    model, clip, vae = load_checkpoint_with_lora(w, checkpoint, models.all)
+    model, clip, vae = load_checkpoint_with_lora(w, checkpoint, sampling, models.all)
     model = w.differential_diffusion(model)
     model_orig = copy(model)
 
@@ -991,7 +992,7 @@ def refine(
     misc: MiscParams,
     models: ModelDict,
 ):
-    model, clip, vae = load_checkpoint_with_lora(w, checkpoint, models.all)
+    model, clip, vae = load_checkpoint_with_lora(w, checkpoint, sampling, models.all)
     model = apply_ip_adapter(w, model, cond.control, models)
     model, regions = apply_attention_mask(w, model, cond, clip, extent.initial)
     model = apply_regional_ip_adapter(w, model, cond.regions, extent.initial, models)
@@ -1028,7 +1029,7 @@ def refine_region(
 ):
     extent = ScaledExtent.from_input(images.extent)
 
-    model, clip, vae = load_checkpoint_with_lora(w, checkpoint, models.all)
+    model, clip, vae = load_checkpoint_with_lora(w, checkpoint, sampling, models.all)
     model = w.differential_diffusion(model)
     model = apply_ip_adapter(w, model, cond.control, models)
     model_orig = copy(model)
@@ -1179,7 +1180,7 @@ def upscale_tiled(
             extent.initial, extent.desired.width, sampling.denoise_strength
         )
 
-    model, clip, vae = load_checkpoint_with_lora(w, checkpoint, models.all)
+    model, clip, vae = load_checkpoint_with_lora(w, checkpoint, sampling, models.all)
     model = apply_ip_adapter(w, model, cond.control, models)
 
     in_image = w.load_image(image)
@@ -1298,7 +1299,7 @@ def expand_custom(
                 is_live = node.input("sampler_preset", "auto") == "live"
                 checkpoint_input = style.get_models(models.checkpoints.keys())
                 sampling = _sampling_from_style(style, 1.0, is_live)
-                model, clip, vae = load_checkpoint_with_lora(w, checkpoint_input, models)
+                model, clip, vae = load_checkpoint_with_lora(w, checkpoint_input, sampling, models)
                 outputs[node.output(0)] = model
                 outputs[node.output(1)] = clip.model
                 outputs[node.output(2)] = vae
