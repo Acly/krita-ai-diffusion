@@ -45,7 +45,7 @@ def _sampling_from_style(style: Style, strength: float, is_live: bool):
         scheduler=preset.scheduler,
         cfg_scale=cfg or preset.cfg,
         total_steps=max_steps,
-        cache_threshold=preset.cache_threshold or None
+        cache_threshold=preset.cache_threshold or None,
     )
     if strength < 1.0:
         result.total_steps, result.start_step = apply_strength(strength, max_steps, min_steps)
@@ -88,7 +88,9 @@ def _sampler_params(sampling: SamplingInput, strength: float | None = None):
     return params
 
 
-def load_checkpoint_with_lora(w: ComfyWorkflow, checkpoint: CheckpointInput, sampling: SamplingInput, models: ClientModels):
+def load_checkpoint_with_lora(
+    w: ComfyWorkflow, checkpoint: CheckpointInput, sampling: SamplingInput, models: ClientModels
+):
     arch = checkpoint.version
     model_info = models.checkpoints.get(checkpoint.checkpoint)
     if model_info is None:
