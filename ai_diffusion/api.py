@@ -72,6 +72,7 @@ class SamplingInput:
     scheduler: str
     cfg_scale: float
     total_steps: int
+    cache_threshold: float = 0
     start_step: int = 0
     seed: int = 0
 
