@@ -8,7 +8,7 @@ import re
 import os
 import time
 from typing import Callable, NamedTuple, Optional, Union
-from PyQt5.QtNetwork import QNetworkAccessManager
+from PyQt6.QtNetwork import QNetworkAccessManager
 
 from .settings import settings, ServerBackend
 from . import eventloop, resources

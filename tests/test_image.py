@@ -1,7 +1,7 @@
 import pytest
 import numpy as np
-from PyQt5.QtGui import QImage, qRgba
-from PyQt5.QtCore import Qt, QByteArray
+from PyQt6.QtGui import QImage, qRgba
+from PyQt6.QtCore import Qt, QByteArray
 from PIL import Image as PILImage
 from ai_diffusion.image import Mask, Bounds, Extent, Image, ImageCollection
 from .config import image_dir, result_dir, reference_dir
@@ -109,8 +109,8 @@ def test_image_from_packed_bytes():
 
 @pytest.mark.skip("Benchmark")
 def test_image_compress_speed():
-    from PyQt5.QtGui import QImageWriter
-    from PyQt5.QtCore import QBuffer, QByteArray, QFile, QIODevice
+    from PyQt6.QtGui import QImageWriter
+    from PyQt6.QtCore import QBuffer, QByteArray, QFile, QIODevice
     from timeit import default_timer
 
     img = Image.load("tests/images/beach_1536x1024.webp")

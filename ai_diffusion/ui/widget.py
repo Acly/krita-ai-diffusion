@@ -1,8 +1,9 @@
 from __future__ import annotations
 from typing import Any, Callable, cast
 
-from PyQt5.QtWidgets import (
-    QAction,
+from PyQt6.QtGui import QAction
+
+from PyQt6.QtWidgets import (
     QSlider,
     QWidget,
     QPlainTextEdit,
@@ -22,7 +23,7 @@ from PyQt5.QtWidgets import (
     QFrame,
     QScrollBar,
 )
-from PyQt5.QtGui import (
+from PyQt6.QtGui import (
     QCloseEvent,
     QDesktopServices,
     QGuiApplication,
@@ -35,7 +36,7 @@ from PyQt5.QtGui import (
     QPaintEvent,
     QKeySequence,
 )
-from PyQt5.QtCore import Qt, QMetaObject, QSize, pyqtSignal, QEvent, QUrl
+from PyQt6.QtCore import Qt, QMetaObject, QSize, pyqtSignal, QEvent, QUrl
 from krita import Krita
 
 from ..style import Style, Styles
@@ -272,7 +273,7 @@ class QueueButton(QToolButton):
 
     def sizeHint(self) -> QSize:
         original = super().sizeHint()
-        width = original.height() * 0.75 + self.fontMetrics().width(" 99 ") + 20
+        width = original.height() * 0.75 + self.fontMetrics().horizontalAdvance(" 99 ") + 20
         return QSize(int(width), original.height())
 
     def paintEvent(self, a0):
@@ -719,7 +720,7 @@ class WorkspaceSelectWidget(QToolButton):
 
         self.setToolButtonStyle(Qt.ToolButtonStyle.ToolButtonIconOnly)
         self.setMenu(menu)
-        self.setPopupMode(QToolButton.InstantPopup)
+        self.setPopupMode(QToolButton.ToolButtonPopupMode.InstantPopup)
         self.setToolTip(
             _("Switch between workspaces: image generation, upscaling, live preview and animation.")
         )
@@ -771,7 +772,7 @@ class GenerateButton(QPushButton):
 
     def minimumSizeHint(self):
         fm = self.fontMetrics()
-        return QSize(fm.width(self._operation) + 40, 12 + int(1.3 * fm.height()))
+        return QSize(fm.horizontalAdvance(self._operation) + 40, 12 + int(1.3 * fm.height()))
 
     def enterEvent(self, a0: QEvent | None):
         if client := root.connection.client_if_connected:
@@ -796,7 +797,7 @@ class GenerateButton(QPushButton):
     def paintEvent(self, a0: QPaintEvent | None) -> None:
         opt = QStyleOption()
         opt.initFrom(self)
-        opt.state |= QStyle.StateFlag.State_Sunken if self.isDown() else 0
+        opt.state |= QStyle.StateFlag.State_Sunken if self.isDown() else QStyle.StateFlag.State_None
         painter = QPainter(self)
         fm = self.fontMetrics()
         style = ensure(self.style())
@@ -807,9 +808,9 @@ class GenerateButton(QPushButton):
         )
         rect = self.rect()
         pixmap = self.icon().pixmap(int(fm.height() * 1.3))
-        is_hover = int(opt.state) & QStyle.StateFlag.State_MouseOver
+        is_hover = opt.state & QStyle.StateFlag.State_MouseOver
         element = QStyle.PrimitiveElement.PE_PanelButtonCommand
-        content_width = fm.width(self._operation) + 5 + pixmap.width()
+        content_width = fm.horizontalAdvance(self._operation) + 5 + pixmap.width()
         content_rect = rect.adjusted(int(0.5 * (rect.width() - content_width)), 0, 0, 0)
         style.drawPrimitive(element, opt, painter, self)
         style.drawItemPixmap(painter, content_rect, align, pixmap)
@@ -996,7 +997,7 @@ def _paint_tool_drop_down(widget: QToolButton, text: str | None = None):
     rect = widget.rect()
     pixmap = widget.icon().pixmap(int(rect.height() * 0.75))
     element = QStyle.PrimitiveElement.PE_Widget
-    if int(opt.state) & QStyle.StateFlag.State_MouseOver:
+    if opt.state & QStyle.StateFlag.State_MouseOver:
         element = QStyle.PrimitiveElement.PE_PanelButtonCommand
     style.drawPrimitive(element, opt, painter, widget)
     style.drawItemPixmap(painter, rect.adjusted(4, 0, 0, 0), align, pixmap)

@@ -1,7 +1,7 @@
 from __future__ import annotations
-from PyQt5.QtCore import Qt, QObject, QSize
-from PyQt5.QtGui import QGuiApplication, QPalette, QIcon, QPixmap, QFontMetrics
-from PyQt5.QtWidgets import QVBoxLayout, QLabel, QWidget
+from PyQt6.QtCore import Qt, QObject, QSize
+from PyQt6.QtGui import QGuiApplication, QPalette, QIcon, QPixmap, QFontMetrics
+from PyQt6.QtWidgets import QVBoxLayout, QLabel, QWidget
 from pathlib import Path
 
 from ..files import FileFormat
@@ -21,7 +21,7 @@ grey = "#888" if is_dark else "#606060"
 highlight = "#8df" if is_dark else "#357"
 progress_alt = "#a16207" if is_dark else "#ca8a04"
 active = _palette.color(QPalette.ColorRole.Highlight).name()
-line = _palette.color(QPalette.ColorRole.Background).darker(120).name()
+line = _palette.color(QPalette.ColorRole.Window).darker(120).name()
 line_base = _palette.color(QPalette.ColorRole.Base).darker(120).name()
 
 flat_combo_stylesheet = f"""
