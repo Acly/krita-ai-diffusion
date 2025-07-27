@@ -1,7 +1,7 @@
 from functools import reduce
 import operator
 from typing import Dict, List, NamedTuple, Optional
-from PyQt5.QtCore import QPointF
+from PyQt6.QtCore import QPointF
 
 from .image import Extent
 from .util import batched

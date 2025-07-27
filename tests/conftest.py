@@ -4,7 +4,7 @@ import shutil
 import subprocess
 import dotenv
 from pathlib import Path
-from PyQt5.QtCore import QCoreApplication
+from PyQt6.QtCore import QCoreApplication
 
 sys.path.append(str(Path(__file__).parent.parent))
 from ai_diffusion import eventloop, network, util

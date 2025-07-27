@@ -1,5 +1,5 @@
 from __future__ import annotations
-from PyQt5.QtCore import QObject, pyqtSignal, QUuid, Qt
+from PyQt6.QtCore import QObject, pyqtSignal, QUuid, Qt
 from typing import Any, NamedTuple
 from pathlib import Path
 import json

@@ -1,7 +1,7 @@
 from __future__ import annotations
-from PyQt5.QtCore import Qt
-from PyQt5.QtWidgets import QWidget, QVBoxLayout, QHBoxLayout, QPushButton, QLabel, QStackedWidget
-from PyQt5.QtWidgets import QCheckBox
+from PyQt6.QtCore import Qt
+from PyQt6.QtWidgets import QWidget, QVBoxLayout, QHBoxLayout, QPushButton, QLabel, QStackedWidget
+from PyQt6.QtWidgets import QCheckBox
 from krita import Krita, DockWidget
 import krita
 

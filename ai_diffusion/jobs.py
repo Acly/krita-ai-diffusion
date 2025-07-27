@@ -4,7 +4,7 @@ from dataclasses import dataclass, fields, field
 from datetime import datetime
 from enum import Enum, Flag
 from typing import Any, NamedTuple, TYPE_CHECKING
-from PyQt5.QtCore import QObject, pyqtSignal
+from PyQt6.QtCore import QObject, pyqtSignal
 
 from .image import Bounds, ImageCollection
 from .settings import settings

@@ -2,7 +2,7 @@ import os
 import pytest
 from aiohttp import ClientSession
 from pathlib import Path
-from PyQt5.QtCore import pyqtBoundSignal
+from PyQt6.QtCore import pyqtBoundSignal
 
 from ai_diffusion.util import ZipFile
 from ai_diffusion.updates import AutoUpdate, UpdateState

@@ -1,9 +1,9 @@
 from __future__ import annotations
 
-from PyQt5.QtGui import QResizeEvent
-from PyQt5.QtWidgets import QWidget, QLabel, QSlider, QToolButton, QCheckBox
-from PyQt5.QtWidgets import QComboBox, QHBoxLayout, QVBoxLayout, QGridLayout, QFrame
-from PyQt5.QtCore import Qt, QMetaObject, pyqtSignal
+from PyQt6.QtGui import QResizeEvent
+from PyQt6.QtWidgets import QWidget, QLabel, QSlider, QToolButton, QCheckBox
+from PyQt6.QtWidgets import QComboBox, QHBoxLayout, QVBoxLayout, QGridLayout, QFrame
+from PyQt6.QtCore import Qt, QMetaObject, pyqtSignal
 
 from ..resources import ControlMode
 from ..properties import Binding, bind, bind_combo, bind_toggle

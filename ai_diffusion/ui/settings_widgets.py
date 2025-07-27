@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from enum import Enum
 from typing import Any
-from PyQt5.QtWidgets import (
+from PyQt6.QtWidgets import (
     QVBoxLayout,
     QHBoxLayout,
     QCheckBox,
@@ -17,8 +17,8 @@ from PyQt5.QtWidgets import (
     QScrollArea,
     QFrame,
 )
-from PyQt5.QtCore import Qt, QAbstractItemModel, QSize, pyqtSignal
-from PyQt5.QtGui import QIcon
+from PyQt6.QtCore import Qt, QAbstractItemModel, QSize, pyqtSignal
+from PyQt6.QtGui import QIcon
 
 from ..localization import translate as _
 from ..settings import Setting, settings
@@ -69,7 +69,7 @@ class SettingWidget(QWidget):
         super().__init__(parent)
 
         self._key_label = QLabel(f"<b>{setting.name}</b><br>{setting.desc}")
-        self._key_label.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Preferred)
+        self._key_label.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Preferred)
 
         self._checkbox: QCheckBox | None = None
         self._widget: QWidget | None = None
@@ -441,7 +441,7 @@ class SettingsTab(QWidget):
         scroll = QScrollArea(self)
         scroll.setWidget(inner)
         scroll.setWidgetResizable(True)
-        scroll.setFrameStyle(QFrame.NoFrame)
+        scroll.setFrameStyle(QFrame.Shape.NoFrame)
         scroll.setHorizontalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAlwaysOff)
         frame_layout.addWidget(scroll)
 

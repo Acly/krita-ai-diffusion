@@ -1,6 +1,6 @@
 from __future__ import annotations
 from enum import Enum
-from PyQt5.QtCore import QObject, QUuid, pyqtSignal
+from PyQt6.QtCore import QObject, QUuid, pyqtSignal
 
 from . import eventloop, model, workflow
 from .api import ConditioningInput, RegionInput

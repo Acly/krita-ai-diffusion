@@ -6,8 +6,8 @@ from asyncio import Future
 from datetime import datetime
 from pathlib import Path
 from typing import NamedTuple
-from PyQt5.QtCore import QByteArray, QUrl, QFile, QBuffer
-from PyQt5.QtNetwork import QNetworkAccessManager, QNetworkRequest, QNetworkReply, QSslError
+from PyQt6.QtCore import QByteArray, QUrl, QFile, QBuffer
+from PyQt6.QtNetwork import QNetworkAccessManager, QNetworkRequest, QNetworkReply, QSslError
 
 from .localization import translate as _
 from .util import client_logger as log
@@ -35,7 +35,7 @@ class NetworkError(Exception):
 
     @staticmethod
     def from_reply(reply: QNetworkReply):
-        code: QNetworkReply.NetworkError = reply.error()  # type: ignore (bug in PyQt5-stubs)
+        code: QNetworkReply.NetworkError = reply.error()  # type: ignore (bug in PyQt6-stubs)
         url = reply.url().toString()
         status = reply.attribute(QNetworkRequest.Attribute.HttpStatusCodeAttribute)
         if reply.isReadable():
@@ -96,7 +96,7 @@ class RequestManager:
         self._cleanup()
 
         request = QNetworkRequest(QUrl(url))
-        request.setAttribute(QNetworkRequest.FollowRedirectsAttribute, True)
+        request.setAttribute(QNetworkRequest.Attribute.RedirectPolicyAttribute, True)
         request.setRawHeader(b"ngrok-skip-browser-warning", b"69420")
         if bearer:
             request.setRawHeader(b"Authorization", f"Bearer {bearer}".encode("utf-8"))
@@ -146,7 +146,7 @@ class RequestManager:
         assert isinstance(data, QByteArray)
 
         request = QNetworkRequest(QUrl(url))
-        request.setAttribute(QNetworkRequest.Attribute.FollowRedirectsAttribute, True)
+        request.setAttribute(QNetworkRequest.Attribute.RedirectPolicyAttribute, True)
         if sha256:
             request.setRawHeader(b"x-amz-checksum-sha256", sha256.encode("utf-8"))
         request.setHeader(
@@ -173,7 +173,7 @@ class RequestManager:
     def download(self, url: str):
         self._cleanup()
         request = QNetworkRequest(QUrl(url))
-        request.setAttribute(QNetworkRequest.Attribute.FollowRedirectsAttribute, True)
+        request.setAttribute(QNetworkRequest.Attribute.RedirectPolicyAttribute, True)
         reply = self._net.get(request)
         assert reply is not None, f"Network request for {url} failed: reply is None"
 
@@ -201,7 +201,7 @@ class RequestManager:
     def _finished(self, reply: QNetworkReply):
         future = None
         try:
-            code = reply.error()  # type: ignore (bug in PyQt5-stubs)
+            code = reply.error()  # type: ignore (bug in PyQt6-stubs)
             tracker = self._requests[reply]
             future = tracker.future
             if future.cancelled():
@@ -274,13 +274,13 @@ class DownloadHelper:
 
 async def _try_download(network: QNetworkAccessManager, url: str, path: Path):
     out_file = QFile(str(path) + ".part")
-    if not out_file.open(QFile.ReadWrite | QFile.Append):  # type: ignore
+    if not out_file.open(QFile.OpenModeFlag.ReadWrite | QFile.OpenModeFlag.Append):  # type: ignore
         raise Exception(
             _("Error during download: could not open {path} for writing", path=out_file.fileName())
         )
 
     request = QNetworkRequest(QUrl(_map_host(url)))
-    request.setAttribute(QNetworkRequest.FollowRedirectsAttribute, True)
+    request.setAttribute(QNetworkRequest.Attribute.RedirectPolicyAttribute, True)
     if out_file.size() > 0:
         log.info(f"Found {path}.part, resuming download from {out_file.size()} bytes")
         request.setRawHeader(b"Range", f"bytes={out_file.size()}-".encode("utf-8"))
@@ -302,7 +302,7 @@ async def _try_download(network: QNetworkAccessManager, url: str, path: Path):
         out_file.close()
         if finished_future.cancelled():
             return  # operation was cancelled, discard result
-        if reply.error() == QNetworkReply.NetworkError.NoError:  # type: ignore (bug in PyQt5-stubs)
+        if reply.error() == QNetworkReply.NetworkError.NoError:  # type: ignore (bug in PyQt6-stubs)
             finished_future.set_result(path)
         elif reply.attribute(QNetworkRequest.HttpStatusCodeAttribute) == 416:
             # 416 = Range Not Satisfiable
