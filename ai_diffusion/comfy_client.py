@@ -229,10 +229,13 @@ class ComfyClient(Client):
         }
         self._jobs.append(job)
         try:
-            await self._post("prompt", data)
+            result = await self._post("prompt", data)
+            if result["prompt_id"] != job.id:
+                log.error(f"Prompt ID mismatch: {result['prompt_id']} != {job.id}")
+                raise ValueError("Prompt ID mismatch - Please update ComfyUI to 0.3.45 or later!")
         except Exception as e:
-            if self._jobs[0] == job:
-                self._jobs.popleft()
+            if job in self._jobs:
+                self._jobs.remove(job)
             raise e
 
     async def _listen(self):
