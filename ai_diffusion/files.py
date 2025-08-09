@@ -5,8 +5,8 @@ from enum import Enum, Flag
 from dataclasses import dataclass, asdict
 from pathlib import Path
 from typing import Any, NamedTuple, Sequence, cast
-from PyQt5.QtCore import QAbstractListModel, QSortFilterProxyModel, QModelIndex, Qt
-from PyQt5.QtGui import QIcon
+from PyQt6.QtCore import QAbstractListModel, QSortFilterProxyModel, QModelIndex, Qt
+from PyQt6.QtGui import QIcon
 
 from .util import encode_json, read_json_with_comments, user_data_dir, client_logger as log
 

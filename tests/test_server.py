@@ -1,6 +1,6 @@
 from pathlib import Path
 from tempfile import TemporaryDirectory
-from PyQt5.QtNetwork import QNetworkAccessManager
+from PyQt6.QtNetwork import QNetworkAccessManager
 import asyncio
 import pytest
 import shutil

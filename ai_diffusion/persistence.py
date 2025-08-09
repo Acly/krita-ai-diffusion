@@ -5,9 +5,9 @@ from dataclasses import dataclass, asdict, field
 from enum import Enum
 from typing import Any
 from time import time
-from PyQt5.QtCore import QObject, QByteArray
-from PyQt5.QtGui import QImageReader
-from PyQt5.QtWidgets import QMessageBox
+from PyQt6.QtCore import QObject, QByteArray
+from PyQt6.QtGui import QImageReader
+from PyQt6.QtWidgets import QMessageBox
 
 from .api import InpaintMode, FillMode
 from .image import ImageCollection

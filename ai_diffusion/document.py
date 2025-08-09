@@ -4,7 +4,7 @@ from typing import Literal, cast
 from weakref import WeakValueDictionary
 import krita
 from krita import Krita
-from PyQt5.QtCore import QObject, QUuid, QByteArray, QTimer, pyqtSignal
+from PyQt6.QtCore import QObject, QUuid, QByteArray, QTimer, pyqtSignal
 
 from .image import Extent, Bounds, Mask, Image
 from .layer import Layer, LayerManager, LayerType

@@ -3,9 +3,9 @@ from dataclasses import dataclass
 import csv
 from typing import cast
 
-from PyQt5.QtWidgets import QApplication, QCompleter, QPlainTextEdit, QStyledItemDelegate, QStyle
-from PyQt5.QtGui import QFont, QPalette, QPen, QColor, QFontMetrics, QTextCursor
-from PyQt5.QtCore import Qt, QStringListModel, QSize, QRect, QAbstractProxyModel
+from PyQt6.QtWidgets import QApplication, QCompleter, QPlainTextEdit, QStyledItemDelegate, QStyle
+from PyQt6.QtGui import QFont, QPalette, QPen, QColor, QFontMetrics, QTextCursor
+from PyQt6.QtCore import Qt, QStringListModel, QSize, QRect, QAbstractProxyModel
 
 from ..root import root
 from ..settings import settings

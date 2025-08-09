@@ -1,6 +1,6 @@
 from __future__ import annotations
-from PyQt5.QtCore import QMetaObject, Qt
-from PyQt5.QtWidgets import (
+from PyQt6.QtCore import QMetaObject, Qt
+from PyQt6.QtWidgets import (
     QWidget,
     QVBoxLayout,
     QHBoxLayout,
