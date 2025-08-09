@@ -513,13 +513,13 @@ class ComfyClient(Client):
         if self._jobs[0].id == job_id:
             return self._jobs.popleft()
 
-        log.warning(f"Started job {job_id}, but {self._jobs[0]} was expected")
         job = next((j for j in self._jobs if j.id == job_id), None)
-        # Clear earlier jobs, they've likely been cancelled.
         if job is not None:
-            while self._jobs[0] != job:
-                self._jobs.popleft()
-            assert self._jobs.popleft() == job
+            self._jobs.remove(job)
+            if not job.front:
+                log.warning(f"Started job {job_id}, but {self._jobs[0]} was expected")
+        else:
+            log.warning(f"Cannot start job {job_id}: not found")
         return job
 
     def _clear_job(self, job_id: str):
