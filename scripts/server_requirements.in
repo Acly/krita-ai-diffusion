@@ -30,7 +30,8 @@ av
 importlib_metadata
 huggingface_hub
 scipy
-opencv-python>=4.7.0.72
+# Version fixed because later versions require numpy>2 which conflicts with mediapipe
+opencv-python==4.11.0.86
 filelock
 Pillow
 einops
