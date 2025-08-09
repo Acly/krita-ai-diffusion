@@ -336,7 +336,6 @@
     "Server Management": "Gestione del Server",
     "Server Path": "Percorso del Server",
     "Server URL": "URL del Server",
-    "Server execution error": "Errore di esecuzione del server",
     "Server is missing required components": "Al server mancano i componenti richiesti",
     "Server is not installed": "Il server non è installato",
     "Server is not installed or not running. Click below to start.": "Il server non è installato o non è in esecuzione. Clicca qui sotto per iniziare.",
@@ -501,6 +500,8 @@
     "Tried to capture the current image, but there are no visible layers! Preview and control layers are not considered to be part of the input image.": "Ho provato ad acquisire l'immagine corrente, ma non ci sono livelli visibili. I livelli di anteprima e di controllo non sono considerati parte dell'immagine di ingresso.",
     "Edit (Custom)": "Modifica (Personalizzata)",
     "Edit": "Modifica",
-    "Click to edit a copy": "Fai clic per modificare uno stile"
+    "Replace Queue": null,
+    "Generation took too long and was cancelled (timeout)": null,
+    "Server error": null
   }
 }

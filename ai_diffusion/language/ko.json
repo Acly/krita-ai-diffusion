@@ -273,7 +273,6 @@
     "Server Management": "서버 관리",
     "Server Path": "서버 경로",
     "Server URL": "서버 URL",
-    "Server execution error": "서버 실행 오류",
     "Server is missing required components": "서버에 필요한 구성 요소가 누락되었습니다",
     "Server is not installed": "서버가 설치되지 않았습니다",
     "Server is not installed or not running. Click below to start.": "서버가 설치되지 않았거나 실행되지 않습니다. 시작하려면 아래를 클릭",
@@ -500,6 +499,9 @@
     "Would you like to delete and re-download these files?": null,
     "Tried to capture the current image, but there are no visible layers! Preview and control layers are not considered to be part of the input image.": null,
     "Edit (Custom)": null,
-    "Edit": null
+    "Edit": null,
+    "Replace Queue": null,
+    "Generation took too long and was cancelled (timeout)": null,
+    "Server error": null
   }
 }

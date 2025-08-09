@@ -273,7 +273,6 @@
     "Server Management": "伺服器管理",
     "Server Path": "伺服器路徑",
     "Server URL": "伺服器網址",
-    "Server execution error": "伺服器執行錯誤",
     "Server is missing required components": "伺服器缺少必要的元件",
     "Server is not installed": "尚未安裝伺服器",
     "Server is not installed or not running. Click below to start.": "伺服器尚未安裝或未在執行中。請點選下方以啟動。",
@@ -500,6 +499,9 @@
     "Would you like to delete and re-download these files?": null,
     "Tried to capture the current image, but there are no visible layers! Preview and control layers are not considered to be part of the input image.": null,
     "Edit (Custom)": null,
-    "Edit": null
+    "Edit": null,
+    "Replace Queue": null,
+    "Generation took too long and was cancelled (timeout)": null,
+    "Server error": null
   }
 }
