@@ -435,7 +435,10 @@ class ComfyWorkflow:
         return self.add_cached("UNETLoader", 1, unet_name=model_name, weight_dtype="default")
 
     def load_clip(self, clip_name: str, type: str):
-        return self.add_cached("CLIPLoader", 1, clip_name=clip_name, type=type)
+        node = "CLIPLoader"
+        if clip_name.endswith(".gguf"):
+            node = "CLIPLoaderGGUF"
+        return self.add_cached(node, 1, clip_name=clip_name, type=type)
 
     def load_dual_clip(self, clip_name1: str, clip_name2: str, type: str):
         node = "DualCLIPLoader"
@@ -496,9 +499,14 @@ class ComfyWorkflow:
     def load_fooocus_inpaint(self, head: str, patch: str):
         return self.add_cached("INPAINT_LoadFooocusInpaint", 1, head=head, patch=patch)
 
+    def t5_tokenizer_options(self, clip: Output, min_padding: int, min_length: int):
+        return self.add(
+            "T5TokenizerOptions", 1, clip=clip, min_padding=min_padding, min_length=min_length
+        )
+
     def empty_latent_image(self, extent: Extent, arch: Arch, batch_size=1):
         w, h = extent.width, extent.height
-        if arch in [Arch.sd3, Arch.flux, Arch.flux_k]:
+        if arch in [Arch.sd3, Arch.flux, Arch.flux_k, Arch.chroma]:
             return self.add("EmptySD3LatentImage", 1, width=w, height=h, batch_size=batch_size)
         return self.add("EmptyLatentImage", 1, width=w, height=h, batch_size=batch_size)
 

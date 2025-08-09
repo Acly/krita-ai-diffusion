@@ -8,10 +8,10 @@ from typing import Any, NamedTuple, Sequence
 
 # Version identifier for all the resources defined here. This is used as the server version.
 # It usually follows the plugin version, but not all new plugin versions also require a server update.
-version = "1.36.0"
+version = "1.37.0"
 
 comfy_url = "https://github.com/comfyanonymous/ComfyUI"
-comfy_version = "e18f53cca9062cc6b165e16712772437b80333f2"
+comfy_version = "32a95bba8ac91e8a610c35ce4d9963d2453118c1"
 
 
 class CustomNode(NamedTuple):
@@ -41,7 +41,7 @@ required_custom_nodes = [
         "External Tooling Nodes",
         "comfyui-tooling-nodes",
         "https://github.com/Acly/comfyui-tooling-nodes",
-        "5ef2fddc1ba5fc2dc38286a29f97268be4e25343",
+        "fa84eec8fc63f409cd2241f4919a121125979a3f",
         ["ETN_LoadImageBase64", "ETN_LoadMaskBase64", "ETN_SendImageWebSocket", "ETN_Translate"],
     ),
     CustomNode(
@@ -58,14 +58,14 @@ optional_custom_nodes = [
         "GGUF",
         "ComfyUI-GGUF",
         "https://github.com/city96/ComfyUI-GGUF",
-        "a2b75978fd50c0227a58316619b79d525b88e570",
+        "cf0573351ac260d629d460d97f09b09ac17d3726",
         ["UnetLoaderGGUF", "DualCLIPLoaderGGUF"],
     ),
     CustomNode(
         "WaveSpeed",
         "Comfy-WaveSpeed",
         "https://github.com/chengzeyi/Comfy-WaveSpeed",
-        "16ec6f344f8cecbbf006d374043f85af22b7a51d",
+        "8253745127785d820cff0a9621d1537a5aae5424",
         ["ApplyFBCacheOnModel"],
     ),
 ]
@@ -81,6 +81,7 @@ class Arch(Enum):
     flux_k = "Flux Kontext"
     illu = "Illustrious"
     illu_v = "Illustrious v-prediction"
+    chroma = "Chroma"
 
     auto = "Automatic"
     all = "All"
@@ -103,6 +104,8 @@ class Arch(Enum):
             return Arch.illu
         if string == "illu_v":
             return Arch.illu_v
+        if string == "chroma":
+            return Arch.chroma
         return None
 
     @staticmethod
@@ -167,11 +170,22 @@ class Arch(Enum):
                 return ["clip_l", "clip_g"]
             case Arch.flux | Arch.flux_k:
                 return ["clip_l", "t5"]
+            case Arch.chroma:
+                return ["t5"]
         raise ValueError(f"Unsupported architecture: {self}")
 
     @staticmethod
     def list():
-        return [Arch.sd15, Arch.sdxl, Arch.sd3, Arch.flux, Arch.flux_k, Arch.illu, Arch.illu_v]
+        return [
+            Arch.sd15,
+            Arch.sdxl,
+            Arch.sd3,
+            Arch.flux,
+            Arch.flux_k,
+            Arch.illu,
+            Arch.illu_v,
+            Arch.chroma,
+        ]
 
 
 class ResourceKind(Enum):
@@ -634,6 +648,7 @@ search_paths: dict[str, list[str]] = {
     resource_id(ResourceKind.vae, Arch.sd3, "default"): ["sd3"],
     resource_id(ResourceKind.vae, Arch.flux, "default"): ["flux", "ae.s"],
     resource_id(ResourceKind.vae, Arch.flux_k, "default"): ["flux", "ae.s"],
+    resource_id(ResourceKind.vae, Arch.chroma, "default"): ["flux", "ae.s"],
 }
 # fmt: on
 

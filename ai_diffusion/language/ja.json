@@ -308,7 +308,6 @@
     "Server Management": "サーバー管理",
     "Server Path": "サーバーのパス",
     "Server URL": "サーバーのURL",
-    "Server execution error": "サーバー実行エラー",
     "Server is missing required components": "サーバーに必須なコンポーネントが不足",
     "Server is not installed": "サーバーが未インストール",
     "Server is not installed or not running. Click below to start.": "サーバーがインストールされていないか、実行されていません。以下をクリックして開始して下さい。",
@@ -500,6 +499,9 @@
     "Would you like to delete and re-download these files?": "これらのファイルを削除して再度ダウンロードしますか？",
     "Tried to capture the current image, but there are no visible layers! Preview and control layers are not considered to be part of the input image.": null,
     "Edit (Custom)": null,
-    "Edit": null
+    "Edit": null,
+    "Replace Queue": null,
+    "Generation took too long and was cancelled (timeout)": null,
+    "Server error": null
   }
 }

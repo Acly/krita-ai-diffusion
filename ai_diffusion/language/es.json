@@ -336,7 +336,6 @@
     "Server Management": "Gestión del Servidor",
     "Server Path": "Ruta del Servidor",
     "Server URL": "URL del Servidor",
-    "Server execution error": "Error de ejecución del servidor",
     "Server is missing required components": "Faltan componentes requeridos en el servidor",
     "Server is not installed": "El servidor no está instalado",
     "Server is not installed or not running. Click below to start.": "El servidor no está instalado o no está ejecutándose. Haz clic abajo para iniciar.",
@@ -500,6 +499,9 @@
     "Would you like to delete and re-download these files?": null,
     "Tried to capture the current image, but there are no visible layers! Preview and control layers are not considered to be part of the input image.": null,
     "Edit (Custom)": null,
-    "Edit": null
+    "Edit": null,
+    "Replace Queue": null,
+    "Generation took too long and was cancelled (timeout)": null,
+    "Server error": null
   }
 }

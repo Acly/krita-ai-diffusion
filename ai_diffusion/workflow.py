@@ -121,6 +121,9 @@ def load_checkpoint_with_lora(
                     clip = w.load_dual_clip(te["clip_g"], te["clip_l"], type="sd3")
             case Arch.flux | Arch.flux_k:
                 clip = w.load_dual_clip(te["clip_l"], te["t5"], type="flux")
+            case Arch.chroma:
+                clip = w.load_clip(te["t5"], type="chroma")
+                clip = w.t5_tokenizer_options(clip, min_padding=1, min_length=0)
             case _:
                 raise RuntimeError(f"No text encoder for model architecture {arch.name}")
 

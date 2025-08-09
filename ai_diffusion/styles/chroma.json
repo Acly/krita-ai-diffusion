@@ -1,0 +1,25 @@
+{
+    "name": "Chroma",
+    "version": 1,
+    "architecture": "auto",
+    "checkpoints": [
+        "chroma-unlocked-v50.safetensors",
+        "chroma-unlocked-v50-annealed.safetensors",
+        "chroma-unlocked-v50_float8_e4m3fn_learned_svd.safetensors",
+        "chroma-unlocked-v50-annealed_float8_e4m3fn_learned_svd.safetensors"
+    ],
+    "loras": [],
+    "style_prompt": "{prompt}",
+    "negative_prompt": "low quality, ugly, unfinished, out of focus, deformed, disfigure, blurry, smudged, restricted palette, flat colors",
+    "vae": "Checkpoint Default",
+    "clip_skip": 0,
+    "v_prediction_zsnr": false,
+    "self_attention_guidance": false,
+    "preferred_resolution": 0,
+    "sampler": "Flux - Euler simple",
+    "sampler_steps": 26,
+    "cfg_scale": 4.0,
+    "live_sampler": "Flux - Euler simple",
+    "live_sampler_steps": 26,
+    "live_cfg_scale": 1.0
+}
