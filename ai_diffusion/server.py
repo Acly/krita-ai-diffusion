@@ -16,8 +16,8 @@ from .resources import CustomNode, ModelResource, ModelRequirements, Arch
 from .resources import VerificationStatus, VerificationState
 from .network import download, DownloadProgress
 from .localization import translate as _
-from .util import ZipFile, is_windows, create_process, decode_pipe_bytes, determine_system_encoding
-from .util import client_logger as log, server_logger as server_log
+from .util import ZipFile, create_process, decode_pipe_bytes, determine_system_encoding
+from .util import client_logger as log, server_logger as server_log, is_windows, is_macos
 
 
 _exe = ".exe" if is_windows else ""
@@ -236,7 +236,9 @@ class Server:
         temp_comfy_dir = comfy_dir.parent / f"ComfyUI-{resources.comfy_version}"
 
         torch_args = ["torch~=2.7.0", "torchvision~=0.22.0", "torchaudio~=2.7.0"]
-        if self.backend is ServerBackend.cpu:
+        if is_macos:  # specific versions sometimes don't work (?)
+            torch_args = ["torch", "torchvision", "torchaudio"]
+        elif self.backend is ServerBackend.cpu:
             torch_args += ["--index-url", "https://download.pytorch.org/whl/cpu"]
         elif self.backend is ServerBackend.cuda:
             torch_args += ["--index-url", "https://download.pytorch.org/whl/cu128"]
