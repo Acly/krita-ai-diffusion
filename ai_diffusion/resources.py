@@ -81,6 +81,7 @@ class Arch(Enum):
     flux_k = "Flux Kontext"
     illu = "Illustrious"
     illu_v = "Illustrious v-prediction"
+    chroma = "Chroma"
 
     auto = "Automatic"
     all = "All"
@@ -103,6 +104,8 @@ class Arch(Enum):
             return Arch.illu
         if string == "illu_v":
             return Arch.illu_v
+        if string == "chroma":
+            return Arch.chroma
         return None
 
     @staticmethod
@@ -167,11 +170,22 @@ class Arch(Enum):
                 return ["clip_l", "clip_g"]
             case Arch.flux | Arch.flux_k:
                 return ["clip_l", "t5"]
+            case Arch.chroma:
+                return ["t5"]
         raise ValueError(f"Unsupported architecture: {self}")
 
     @staticmethod
     def list():
-        return [Arch.sd15, Arch.sdxl, Arch.sd3, Arch.flux, Arch.flux_k, Arch.illu, Arch.illu_v]
+        return [
+            Arch.sd15,
+            Arch.sdxl,
+            Arch.sd3,
+            Arch.flux,
+            Arch.flux_k,
+            Arch.illu,
+            Arch.illu_v,
+            Arch.chroma,
+        ]
 
 
 class ResourceKind(Enum):
@@ -634,6 +648,7 @@ search_paths: dict[str, list[str]] = {
     resource_id(ResourceKind.vae, Arch.sd3, "default"): ["sd3"],
     resource_id(ResourceKind.vae, Arch.flux, "default"): ["flux", "ae.s"],
     resource_id(ResourceKind.vae, Arch.flux_k, "default"): ["flux", "ae.s"],
+    resource_id(ResourceKind.vae, Arch.chroma, "default"): ["flux", "ae.s"],
 }
 # fmt: on
 
