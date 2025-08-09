@@ -3,6 +3,9 @@ dynamic = ["version"]
 name = "krita-ai-diffusion"
 requires-python = ">=3.10"
 
+[tool.uv]
+package = false
+
 [tool.ruff]
 target-version = "py311"
 line-length = 100
