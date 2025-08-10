@@ -147,12 +147,11 @@ class Server:
         self._version_file.write_text("incomplete")
 
         has_venv = (self.path / "venv").exists()
-        has_embedded_python = (self.path / "python").exists()
         has_uv = self._uv_cmd is not None
-        if not any((has_venv, has_embedded_python, has_uv)):
+        if not any((has_venv, has_uv)):
             await try_install(self.path / "uv", self._install_uv, network, cb)
 
-        if self.comfy_dir is None or not (has_venv or has_embedded_python):
+        if self.comfy_dir is None or not has_venv:
             python_dir = self.path / "venv"
             await install_if_missing(python_dir, self._create_venv, cb)
         assert self._python_cmd is not None
