@@ -450,6 +450,8 @@ class ServerWidget(QWidget):
             self._server.backend = backend
             settings.server_backend = backend
             settings.save()
+            self._server.check_install()
+            self.update_ui()
 
     def _open_logs(self):
         QDesktopServices.openUrl(QUrl.fromLocalFile(str(util.log_dir)))
@@ -458,7 +460,7 @@ class ServerWidget(QWidget):
         self._error = ""
         if self.requires_install:
             eventloop.run(self._install())
-        elif self._server.upgrade_required:
+        elif self._server.state is ServerState.update_required:
             eventloop.run(self._upgrade())
         elif self._server.state is ServerState.stopped:
             eventloop.run(self._start())
@@ -495,7 +497,7 @@ class ServerWidget(QWidget):
         try:
             await self._prepare_for_install()
 
-            if self._server.upgrade_required:
+            if self._server.state is ServerState.update_required:
                 await self._server.upgrade(self._handle_progress)
 
             if self._server.state in [ServerState.not_installed, ServerState.missing_resources]:
@@ -516,8 +518,7 @@ class ServerWidget(QWidget):
 
     async def _upgrade(self):
         try:
-            assert self._server.state in [ServerState.stopped, ServerState.running]
-            assert self._server.upgrade_required
+            assert self._server.state in [ServerState.update_required, ServerState.running]
 
             await self._prepare_for_install()
             await self._server.upgrade(self._handle_progress)
@@ -696,7 +697,7 @@ class ServerWidget(QWidget):
             self._backend_select.setVisible(False)
             self._launch_button.setEnabled(False)
             self._manage_button.setEnabled(False)
-        elif self._server.upgrade_required:
+        elif state is ServerState.update_required:
             self._status_label.setText(
                 _("Upgrade required") + f": v{self._server.version} -> v{resources.version}"
             )

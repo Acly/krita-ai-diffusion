@@ -31,7 +31,7 @@
         },
         {
             "name": "PyTest",
-            "type": "python",
+            "type": "debugpy",
             "request": "launch",
             "module": "pytest",
             "justMyCode": false,

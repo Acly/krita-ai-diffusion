@@ -108,7 +108,6 @@ class Root(QObject):
             if (
                 settings.server_mode is ServerMode.managed
                 and self._server.state is ServerState.stopped
-                and not self._server.upgrade_required
             ):
                 url = await self._server.start()
                 signal_server_change()

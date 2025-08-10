@@ -6,7 +6,7 @@ from krita import Krita, DockWidget
 import krita
 
 from ..model import Model, Workspace
-from ..server import Server
+from ..server import Server, ServerState
 from ..connection import ConnectionState
 from ..settings import ServerMode, settings
 from ..updates import UpdateState
@@ -133,7 +133,7 @@ class ConnectionWidget(QWidget):
             connection.state is ConnectionState.disconnected
             and settings.server_mode is ServerMode.managed
         ):
-            if self._server.upgrade_required:
+            if self._server.state is ServerState.update_required:
                 self._connect_error.setText(
                     _("Server version is outdated. Click below to upgrade.")
                 )

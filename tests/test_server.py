@@ -62,8 +62,7 @@ def test_install_and_run(qtapp, pytestconfig, local_download_server):
 
     clear_test_server()
 
-    server = Server(str(server_dir))
-    server.backend = ServerBackend.cpu
+    server = Server(str(server_dir), ServerBackend.cpu)
     assert server.state in [ServerState.not_installed, ServerState.missing_resources]
 
     last_stage = ""
@@ -100,7 +99,7 @@ def test_install_and_run(qtapp, pytestconfig, local_download_server):
         with version_file.open("w", encoding="utf-8") as f:
             f.write("1.0.42")
         server.check_install()
-        assert server.upgrade_required
+        assert server.state is ServerState.update_required
         await server.upgrade(handle_progress)
         assert server.state is ServerState.stopped and server.version == resources.version
 
@@ -113,8 +112,7 @@ def test_run_external(qtapp, pytestconfig):
     if not (server_dir / "ComfyUI").exists():
         pytest.skip("ComfyUI installation not found")
 
-    server = Server(str(server_dir))
-    server.backend = ServerBackend.cpu
+    server = Server(str(server_dir), ServerBackend.cpu)
     assert server.has_python
     assert server.state in [ServerState.stopped, ServerState.missing_resources]
 
@@ -133,8 +131,7 @@ def test_extra_model_dirs(pytestconfig):
     if not pytestconfig.getoption("--test-install"):
         pytest.skip("Only runs with --test-install")
 
-    server = Server(str(server_dir))
-    server.backend = ServerBackend.cpu
+    server = Server(str(server_dir), ServerBackend.cpu)
     # Requires test_install_and_run to setup the server
     assert server.state in [ServerState.stopped]
 
@@ -146,8 +143,7 @@ def test_verify_and_fix(qtapp, pytestconfig, local_download_server):
     if not pytestconfig.getoption("--test-install"):
         pytest.skip("Only runs with --test-install")
 
-    server = Server(str(server_dir))
-    server.backend = ServerBackend.cpu
+    server = Server(str(server_dir), ServerBackend.cpu)
     # Requires test_install_and_run to setup the server
     assert server.state in [ServerState.stopped]
 
@@ -185,8 +181,7 @@ def test_uninstall(qtapp, pytestconfig, local_download_server):
     temp_server_dir = test_dir / "temp_server"
     if temp_server_dir.exists():
         shutil.rmtree(temp_server_dir, ignore_errors=True)
-    server = Server(str(temp_server_dir))
-    server.backend = ServerBackend.cpu
+    server = Server(str(temp_server_dir), ServerBackend.cpu)
     assert server.state is ServerState.not_installed
 
     def handle_progress(report: InstallationProgress):

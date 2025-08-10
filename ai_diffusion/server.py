@@ -32,6 +32,7 @@ class ServerState(Enum):
     running = 6
     verifying = 7
     uninstalling = 8
+    update_required = 9
 
 
 class InstallationProgress(NamedTuple):
@@ -61,11 +62,11 @@ class Server:
     _task: Optional[asyncio.Task] = None
     _installed_backend: Optional[ServerBackend] = None
 
-    def __init__(self, path: Optional[str] = None):
+    def __init__(self, path: str | None = None, backend: ServerBackend | None = None):
         self.path = Path(path or settings.server_path)
         if not self.path.is_absolute():
             self.path = Path(__file__).parent / self.path
-        self.backend = settings.server_backend
+        self.backend = backend or settings.server_backend
         self.check_install()
 
     def check_install(self):
@@ -107,7 +108,21 @@ class Server:
         else:
             self._python_cmd = python_path / f"python{_exe}"
 
-        if not (self.has_comfy and self.has_python):
+        gpu_backends = [ServerBackend.cuda, ServerBackend.directml, ServerBackend.xpu]
+        backend_mismatch = (
+            self._installed_backend is not None
+            and self._installed_backend != self.backend
+            and self.backend in gpu_backends
+            and self._installed_backend in (gpu_backends + [ServerBackend.cpu])
+        )
+        update_required = (
+            self.has_comfy
+            and self.version is not None
+            and self.version != "incomplete"
+            and (self.version != resources.version or backend_mismatch or not self.has_python)
+        )
+
+        if not self.has_comfy or not (self.has_python or update_required):
             self.state = ServerState.not_installed
             self.missing_resources = resources.all_resources
             return
@@ -128,6 +143,8 @@ class Server:
         missing_sdxl = find_missing(model_folders, resources.required_models, Arch.sdxl)
         if len(self.missing_resources) > 0 or (len(missing_sd15) > 0 and len(missing_sdxl) > 0):
             self.state = ServerState.missing_resources
+        elif update_required:
+            self.state = ServerState.update_required
         else:
             self.state = ServerState.stopped
         self.missing_resources += missing_sd15 + missing_sdxl
@@ -304,9 +321,11 @@ class Server:
             await self._install_insightface(network, cb)
 
     async def install(self, callback: Callback):
-        assert self.state in [ServerState.not_installed, ServerState.missing_resources] or (
-            self.state is ServerState.stopped and self.upgrade_required
-        )
+        assert self.state in [
+            ServerState.not_installed,
+            ServerState.missing_resources,
+            ServerState.update_required,
+        ]
 
         if not is_windows and self._python_cmd is None:
             raise Exception(
@@ -375,7 +394,7 @@ class Server:
             self.check_install()
 
     async def upgrade(self, callback: Callback):
-        assert self.upgrade_required and self.comfy_dir is not None
+        assert self.state is ServerState.update_required and self.comfy_dir is not None
 
         def info(message: str):
             log.info(message)
@@ -706,22 +725,6 @@ class Server:
         if self.path.is_dir():
             return self.version == "incomplete" or not any(self.path.iterdir())
         return False
-
-    @property
-    def upgrade_required(self):
-        gpu_backends = [ServerBackend.cuda, ServerBackend.directml, ServerBackend.xpu]
-        backend_mismatch = (
-            self._installed_backend is not None
-            and self._installed_backend != self.backend
-            and self.backend in gpu_backends
-            and self._installed_backend in (gpu_backends + [ServerBackend.cpu])
-        )
-        return (
-            self.state is not ServerState.not_installed
-            and self.version is not None
-            and self.version != "incomplete"
-            and (self.version != resources.version or backend_mismatch)
-        )
 
 
 def _find_component(files: list[str], search_paths: list[Path]):

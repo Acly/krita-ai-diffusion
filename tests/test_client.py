@@ -19,8 +19,7 @@ from .config import server_dir, default_checkpoint
 
 @pytest.fixture(scope="session")
 def comfy_server(qtapp):
-    server = Server(str(server_dir))
-    server.backend = ServerBackend.cpu
+    server = Server(str(server_dir), ServerBackend.cpu)
     assert server.state is ServerState.stopped, (
         f"Expected server installation at {server_dir}. To create the default installation run"
         " `pytest tests/test_server.py --test-install`"
