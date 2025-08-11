@@ -2,5 +2,5 @@ tests/images/*.png filter=lfs diff=lfs merge=lfs -text
 tests/references/*.png filter=lfs diff=lfs merge=lfs -text
 scripts/docker/* text eof=lf
 scripts/docker/nginx/* text eof=lf
-*.sh -crlf
-Dockerfile -crlf
+*.sh -text
+Dockerfile -text
