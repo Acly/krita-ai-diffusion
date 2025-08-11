@@ -1,13 +1,13 @@
 from __future__ import annotations
 from textwrap import wrap as wrap_text
 from typing import cast
-from PyQt5.QtCore import Qt, QEvent, QMetaObject, QSize, QPoint, QTimer, QUuid, pyqtSignal
-from PyQt5.QtCore import QItemSelectionModel
-from PyQt5.QtGui import QGuiApplication, QMouseEvent, QKeyEvent, QKeySequence
-from PyQt5.QtGui import QPalette, QColor, QIcon
-from PyQt5.QtWidgets import QAction, QWidget, QVBoxLayout, QHBoxLayout, QPushButton, QProgressBar
-from PyQt5.QtWidgets import QListWidget, QListWidgetItem, QListView, QSizePolicy
-from PyQt5.QtWidgets import QComboBox, QCheckBox, QMenu, QMessageBox, QToolButton
+from PyQt6.QtCore import Qt, QEvent, QMetaObject, QSize, QPoint, QTimer, QUuid, pyqtSignal
+from PyQt6.QtCore import QItemSelectionModel
+from PyQt6.QtGui import QGuiApplication, QMouseEvent, QKeyEvent, QKeySequence
+from PyQt6.QtGui import QPalette, QColor, QIcon, QAction
+from PyQt6.QtWidgets import QWidget, QVBoxLayout, QHBoxLayout, QPushButton, QProgressBar
+from PyQt6.QtWidgets import QListWidget, QListWidgetItem, QListView, QSizePolicy
+from PyQt6.QtWidgets import QComboBox, QCheckBox, QMenu, QMessageBox, QToolButton
 
 from ..properties import Binding, Bind, bind, bind_combo, bind_toggle
 from ..image import Bounds, Extent, Image
@@ -54,13 +54,13 @@ class HistoryWidget(QListWidget):
         self._model = root.active_model
         self._connections = []
 
-        self.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Expanding)
-        self.setResizeMode(QListView.Adjust)
+        self.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Expanding)
+        self.setResizeMode(QListView.ResizeMode.Adjust)
         self.setHorizontalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAlwaysOff)
-        self.setFlow(QListView.LeftToRight)
-        self.setViewMode(QListWidget.IconMode)
+        self.setFlow(QListView.Flow.LeftToRight)
+        self.setViewMode(QListWidget.ViewMode.IconMode)
         self.setIconSize(theme.screen_scale(self, QSize(self._thumb_size, self._thumb_size)))
-        self.setFrameStyle(QListWidget.NoFrame)
+        self.setFrameStyle(QListWidget.Shape.NoFrame)
         self.setStyleSheet(self._list_css)
         self.setSelectionMode(QListWidget.SelectionMode.ExtendedSelection)
         self.setDragEnabled(False)
@@ -260,7 +260,7 @@ class HistoryWidget(QListWidget):
             rect = self.visualItemRect(selected[0])
             font = self._apply_button.fontMetrics()
             context_visible = rect.width() >= 0.6 * self.iconSize().width()
-            apply_text_visible = font.width(_("Apply")) < 0.35 * rect.width()
+            apply_text_visible = font.horizontalAdvance(_("Apply")) < 0.35 * rect.width()
             apply_pos = QPoint(rect.left() + 3, rect.bottom() - self._apply_button.height() - 2)
             if context_visible:
                 cw = self._context_button.width()
@@ -542,7 +542,7 @@ class CustomInpaintWidget(QWidget):
         )
         self.context_combo.setMinimumContentsLength(20)
         self.context_combo.setSizeAdjustPolicy(
-            QComboBox.SizeAdjustPolicy.AdjustToMinimumContentsLength
+            QComboBox.SizeAdjustPolicy.AdjustToMinimumContentsLengthWithIcon
         )
         self.context_combo.currentIndexChanged.connect(self.set_context)
 

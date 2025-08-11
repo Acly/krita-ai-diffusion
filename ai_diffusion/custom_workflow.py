@@ -7,8 +7,8 @@ from copy import copy
 from dataclasses import dataclass
 from typing import Any, Awaitable, Callable, NamedTuple, Literal, TYPE_CHECKING
 from pathlib import Path
-from PyQt5.QtCore import Qt, QObject, QUuid, QAbstractListModel, QSortFilterProxyModel, QModelIndex
-from PyQt5.QtCore import QMetaObject, QTimer, pyqtSignal
+from PyQt6.QtCore import Qt, QObject, QUuid, QAbstractListModel, QSortFilterProxyModel, QModelIndex
+from PyQt6.QtCore import QMetaObject, QTimer, pyqtSignal
 
 from .api import WorkflowInput
 from .client import TextOutput, ClientOutput

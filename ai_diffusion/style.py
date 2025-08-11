@@ -4,7 +4,7 @@ from enum import Enum
 from typing import Iterable, NamedTuple
 import json
 from pathlib import Path
-from PyQt5.QtCore import QObject, pyqtSignal
+from PyQt6.QtCore import QObject, pyqtSignal
 
 from .api import CheckpointInput, LoraInput
 from .settings import Setting, settings

@@ -2,16 +2,16 @@
 from https://stackoverflow.com/a/51825815
 """
 
-from PyQt5.QtCore import QPropertyAnimation, QSize, Qt, pyqtProperty  # type: ignore
-from PyQt5.QtGui import QPainter
-from PyQt5.QtWidgets import QAbstractButton, QSizePolicy
+from PyQt6.QtCore import QPropertyAnimation, QSize, Qt, pyqtProperty  # type: ignore
+from PyQt6.QtGui import QPainter
+from PyQt6.QtWidgets import QAbstractButton, QSizePolicy
 
 
 class SwitchWidget(QAbstractButton):
     def __init__(self, parent=None):
         super().__init__(parent=parent)
         self.setCheckable(True)
-        self.setSizePolicy(QSizePolicy.Fixed, QSizePolicy.Fixed)
+        self.setSizePolicy(QSizePolicy.Policy.Fixed, QSizePolicy.Policy.Fixed)
 
         self._thumb_radius = self.fontMetrics().height() // 2
         self._track_radius = self._thumb_radius + 2
@@ -69,7 +69,7 @@ class SwitchWidget(QAbstractButton):
 
     def paintEvent(self, e):
         p = QPainter(self)
-        p.setRenderHint(QPainter.Antialiasing, True)
+        p.setRenderHint(QPainter.RenderHint.Antialiasing, True)
         p.setPen(Qt.PenStyle.NoPen)
         track_opacity = self._track_opacity
         thumb_opacity = 1.0

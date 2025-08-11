@@ -1,7 +1,7 @@
 import sys
 from pathlib import Path
 from typing import Callable
-from PyQt5.QtWidgets import QAction
+from PyQt6.QtGui import QAction
 from krita import Extension, Krita, DockWidgetFactory, DockWidgetFactoryBase, Window  # type: ignore
 
 from . import eventloop, __version__
@@ -79,5 +79,5 @@ class AIToolsExtension(Extension):
 
 Krita.instance().addExtension(AIToolsExtension(Krita.instance()))
 Krita.instance().addDockWidgetFactory(
-    DockWidgetFactory("imageDiffusion", DockWidgetFactoryBase.DockRight, ImageDiffusionWidget)  # type: ignore
+    DockWidgetFactory("imageDiffusion", DockWidgetFactoryBase.DockPosition.DockRight, ImageDiffusionWidget)  # type: ignore
 )

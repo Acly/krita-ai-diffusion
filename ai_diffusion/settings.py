@@ -5,7 +5,7 @@ import json
 from enum import Enum
 from pathlib import Path
 from typing import NamedTuple, Optional, Any
-from PyQt5.QtCore import QObject, pyqtSignal
+from PyQt6.QtCore import QObject, pyqtSignal
 
 from .util import is_macos, is_windows, user_data_dir, client_logger as log
 from .util import encode_json, read_json_with_comments

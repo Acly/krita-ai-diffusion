@@ -2,7 +2,7 @@ from __future__ import annotations
 from krita import Krita
 
 from typing import Optional
-from PyQt5.QtWidgets import (
+from PyQt6.QtWidgets import (
     QVBoxLayout,
     QHBoxLayout,
     QDialog,
@@ -20,8 +20,8 @@ from PyQt5.QtWidgets import (
     QMessageBox,
     QCheckBox,
 )
-from PyQt5.QtCore import Qt, QMetaObject, QSize, QUrl, pyqtSignal
-from PyQt5.QtGui import QDesktopServices, QGuiApplication, QCursor, QFontMetrics
+from PyQt6.QtCore import Qt, QMetaObject, QSize, QUrl, pyqtSignal
+from PyQt6.QtGui import QDesktopServices, QGuiApplication, QCursor, QFontMetrics
 
 from ..client import Client, User, MissingResources
 from ..cloud_client import CloudClient

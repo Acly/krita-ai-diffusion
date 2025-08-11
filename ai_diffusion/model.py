@@ -8,8 +8,8 @@ from enum import Enum
 from tempfile import TemporaryDirectory
 import time
 from typing import Any, NamedTuple
-from PyQt5.QtCore import QObject, QUuid, pyqtSignal, Qt
-from PyQt5.QtGui import QPainter, QColor, QBrush
+from PyQt6.QtCore import QObject, QUuid, pyqtSignal, Qt
+from PyQt6.QtGui import QPainter, QColor, QBrush
 import uuid
 
 from . import eventloop, workflow, util

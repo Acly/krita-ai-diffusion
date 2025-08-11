@@ -2,8 +2,8 @@ from __future__ import annotations
 from contextlib import contextmanager, nullcontext
 from enum import Enum
 import krita
-from PyQt5.QtCore import QObject, QUuid, QByteArray, QTimer, pyqtSignal
-from PyQt5.QtGui import QImage
+from PyQt6.QtCore import QObject, QUuid, QByteArray, QTimer, pyqtSignal
+from PyQt6.QtGui import QImage
 
 from .image import Extent, Bounds, Image, ImageCollection
 from .util import acquire_elements, ensure, maybe, client_logger as log
