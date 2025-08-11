@@ -619,17 +619,31 @@ class PerformanceSettings(SettingsTab):
         self._dynamic_caching.value_changed.connect(self.write)
         self._layout.addWidget(self._dynamic_caching)
 
+        self._magcache_enabled = SwitchSetting(
+            Settings._magcache_enabled, 
+            text=(_("Enabled"), _("Disabled")),
+            parent=self
+        )
+        self._magcache_enabled.value_changed.connect(self.write)
+        self._layout.addWidget(self._magcache_enabled)
+
+        self._magcache_thresh = SliderSetting(
+            Settings._magcache_thresh, self, 0.1, 0.5, "{:.2f}"
+        )
+        self._magcache_thresh.value_changed.connect(self.write)
+        self._layout.addWidget(self._magcache_thresh)
+
         self._layout.addStretch()
 
     def _change_performance_preset(self, index):
         self.write()
         is_custom = settings.performance_preset is PerformancePreset.custom
         self._advanced.setEnabled(is_custom)
-        if (
-            settings.performance_preset is PerformancePreset.auto
-            and root.connection.state is ConnectionState.connected
-        ):
+        
+        if (settings.performance_preset is PerformancePreset.auto and 
+            root.connection.state is ConnectionState.connected):
             apply_performance_preset(settings, root.connection.client.device_info)
+        
         if not is_custom:
             self.read()
 
@@ -640,12 +654,35 @@ class PerformanceSettings(SettingsTab):
                 _("Device")
                 + f": [{client.device_info.type.upper()}] {client.device_info.name} ({client.device_info.vram} GB)"
             )
+        
             self._dynamic_caching.enabled = client.features.wave_speed
             self._dynamic_caching.setToolTip(
                 _("The {node_name} node is not installed.").format(node_name="Comfy-WaveSpeed")
                 if not client.features.wave_speed
                 else ""
             )
+        
+            self._magcache_enabled.enabled = client.features.magcache
+            self._magcache_enabled.setToolTip(
+                _("The {node_name} node is not installed.").format(node_name="MagCache")
+                if not client.features.magcache
+                else ""
+            )
+            
+            self._magcache_thresh.enabled = client.features.magcache
+            self._magcache_thresh.setToolTip(
+                _("The {node_name} node is not installed.").format(node_name="MagCache")
+                if not client.features.magcache
+                else ""
+            )
+        else:
+            self._device_info.setText(_("Not connected"))
+            self._dynamic_caching.enabled = False
+            self._magcache_enabled.enabled = False
+            self._magcache_thresh.enabled = False
+            self._dynamic_caching.setToolTip(_("Not connected to server"))
+            self._magcache_enabled.setToolTip(_("Not connected to server"))
+            self._magcache_thresh.setToolTip(_("Not connected to server"))
 
     def _read(self):
         self._history_size.value = settings.history_size
@@ -660,6 +697,9 @@ class PerformanceSettings(SettingsTab):
         self._max_pixel_count.value = settings.max_pixel_count
         self._tiled_vae.value = settings.tiled_vae
         self._dynamic_caching.value = settings.dynamic_caching
+        self._magcache_enabled.value = settings.magcache_enabled
+        self._magcache_thresh.value = settings.magcache_thresh
+        
         self.update_client_info()
 
     def _write(self):
@@ -673,6 +713,8 @@ class PerformanceSettings(SettingsTab):
             self._performance_preset.currentIndex()
         ]
         settings.dynamic_caching = self._dynamic_caching.value
+        settings.magcache_enabled = self._magcache_enabled.value
+        settings.magcache_thresh = self._magcache_thresh.value
 
 
 class AboutSettings(SettingsTab):
@@ -943,4 +985,5 @@ class SettingsDialog(QDialog):
         QDesktopServices.openUrl(QUrl.fromLocalFile(str(util.user_data_dir)))
 
     def _close(self):
+        settings.save()  
         _ = self.close()

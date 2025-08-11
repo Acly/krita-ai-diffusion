@@ -68,6 +68,13 @@ optional_custom_nodes = [
         "8253745127785d820cff0a9621d1537a5aae5424",
         ["ApplyFBCacheOnModel"],
     ),
+    CustomNode(
+        "MagCache",
+        "ComfyUI-MagCache",
+        "https://github.com/Zehong-Ma/ComfyUI-MagCache",
+        "7d4e982bf7955498afca891c7094c48a70985537",
+        ["MagCache"],
+    ),
 ]
 
 

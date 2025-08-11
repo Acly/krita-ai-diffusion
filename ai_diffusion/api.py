@@ -40,7 +40,6 @@ class ImageInput:
     def from_extent(e: Extent):
         return ImageInput(ExtentInput(e, e, e, e))
 
-
 @dataclass
 class LoraInput:
     name: str
@@ -64,7 +63,8 @@ class CheckpointInput:
     self_attention_guidance: bool = False
     dynamic_caching: bool = False
     tiled_vae: bool = False
-
+    magcache_enabled: bool = False
+    magcache_thresh: float = 0.24
 
 @dataclass
 class SamplingInput:
