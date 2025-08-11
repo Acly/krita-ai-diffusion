@@ -53,7 +53,6 @@ def precheck():
     translation.update_template()
     translation.update_all()
 
-    update_server_requirements()
     update_model_checksums(root / "scripts" / "downloads")
 
 
@@ -76,6 +75,11 @@ def build_package():
     convert_markdown_to_html(root / "README.md", plugin_dst / "manual.html")
 
     make_archive(str(root / package_name), "zip", package_dir)
+
+    # Do this afterwards to not include untested changes in the package
+    # Option 1: test the dependency changes and do another package build
+    # Option 2: revert the dependency changes, keep stable version for now
+    update_server_requirements()
 
 
 async def publish_package(package_path: Path, target: str):
