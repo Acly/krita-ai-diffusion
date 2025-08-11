@@ -321,6 +321,7 @@ class SamplerPreset(NamedTuple):
     lora: str | None = None
     minimum_steps: int = 4
     hidden: bool = False
+    cache_threshold: float = 0
 
 
 class SamplerPresets:
