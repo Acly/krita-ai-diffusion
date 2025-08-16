@@ -1,7 +1,6 @@
 from enum import Enum, Flag
 from dataclasses import asdict, is_dataclass
 from itertools import islice
-from .jobs import Job
 from pathlib import Path
 from typing import Generator
 import asyncio
@@ -303,7 +302,8 @@ def acquire_elements(l: list[QOBJECT]) -> list[QOBJECT]:
 
 
 # Resave the image with PNG metadata
-def resave_image_with_metadata(img_path: Path, job: Job):
+def resave_image_with_metadata(img_path: Path, job: "Job"):  # noqa: F821
+    # Note above hint: "Job" is a forward reference to avoid circular imports
     # All this method does is call the other two methods, one to format the metadata and the next to add it to the image
     params = job.params
 
