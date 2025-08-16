@@ -1,6 +1,7 @@
 from enum import Enum, Flag
 from dataclasses import asdict, is_dataclass
 from itertools import islice
+from .jobs import Job
 from pathlib import Path
 from typing import Generator
 import asyncio
@@ -12,8 +13,11 @@ import json
 import locale
 import logging
 import logging.handlers
+import re
 import statistics
+import struct
 import zipfile
+import zlib
 from typing import Any, Callable, Iterable, Optional, Sequence, TypeVar
 from PyQt5 import sip
 from PyQt5.QtCore import QObject, QStandardPaths
@@ -296,3 +300,109 @@ def acquire_elements(l: list[QOBJECT]) -> list[QOBJECT]:
         if obj is not None:
             sip.transferback(obj)
     return l
+
+
+# Resave the image with PNG metadata
+def resave_image_with_metadata(img_path: Path, job: Job):
+    # All this method does is call the other two methods, one to format the metadata and the next to add it to the image
+    params = job.params
+
+    metadata_text = _format_like_automatic1111(params)
+
+    _add_png_itxt(img_path, "parameters", metadata_text)
+
+
+def _format_like_automatic1111(params):
+    meta = params.metadata
+
+    prompt = meta.get("prompt", "")
+    neg_prompt = meta.get("negative_prompt", "")
+    sampler_info = meta.get("sampler", "")
+    model = meta.get("checkpoint", "Unknown")
+    seed = params.seed
+    width = params.bounds.width
+    height = params.bounds.height
+    strength = meta.get("strength", None)
+    loras = meta.get("loras", [])
+
+    # Try to extract sampler, steps, and cfg scale from "sampler"
+    match = re.match(r".*?-\s*(.+?)\s*\((\d+)\s*/\s*([\d.]+)\)", sampler_info)
+    if match:
+        sampler, steps, cfg_scale = match.groups()
+    else:
+        sampler, steps, cfg_scale = sampler_info, "Unknown", "Unknown"
+
+    # Embed LoRAs in the prompt
+    lora_tags = ""
+    for lora in loras:
+        if isinstance(lora, dict):
+            name = lora.get("name")
+            weight = lora.get("weight", 1.0)
+        elif isinstance(lora, (list, tuple)) and len(lora) >= 2:
+            name, weight = lora[0], lora[1]
+        else:
+            continue
+        lora_tags += f" <lora:{name}:{weight}>"
+
+    full_prompt = f"{prompt.strip()}{lora_tags}"
+
+    # Construct output
+    lines = []
+    lines.append(f"Prompt: {full_prompt}")
+    lines.append(f"Negative prompt: {neg_prompt}")
+    lines.append(
+        f"Steps: {steps}, Sampler: {sampler}, CFG scale: {cfg_scale}, Seed: {seed}, Size: {width}x{height}, Model hash: unknown, Model: {model}"
+    )
+
+    if strength is not None and strength != 1.0:
+        lines[-1] += f", Denoising strength: {strength}"
+
+    return "\n".join(lines)
+
+
+def _add_png_itxt(img_path, keyword, text):
+    with open(img_path, "rb") as f:
+        png_data = f.read()
+
+    if png_data[:8] != b"\x89PNG\r\n\x1a\n":
+        raise ValueError("Not a valid PNG file")
+
+    offset = 8
+    chunks = []
+    while offset < len(png_data):
+        length = struct.unpack(">I", png_data[offset : offset + 4])[0]
+        chunk_type = png_data[offset + 4 : offset + 8]
+        chunk_data = png_data[offset + 8 : offset + 8 + length]
+        offset += 12 + length
+        chunks.append((chunk_type, chunk_data))
+
+    new_png = bytearray()
+    new_png += b"\x89PNG\r\n\x1a\n"
+
+    for chunk_type, chunk_data in chunks:
+        new_png += struct.pack(">I", len(chunk_data))
+        new_png += chunk_type
+        new_png += chunk_data
+        new_png += struct.pack(">I", zlib.crc32(chunk_type + chunk_data) & 0xFFFFFFFF)
+
+        if chunk_type == b"IHDR":
+            # Insert iTXt chunk after IHDR
+            keyword_bytes = keyword.encode("latin1")
+            text_bytes = text.encode("utf-8")
+            itxt_data = (
+                keyword_bytes
+                + b"\x00"
+                + b"\x00"  # compression flag: 0 (not compressed)
+                + b"\x00"  # compression method: 0
+                + b"\x00"  # language tag: empty
+                + b"\x00"  # translated keyword: empty
+                + text_bytes
+            )
+            crc = zlib.crc32(b"iTXt" + itxt_data) & 0xFFFFFFFF
+            new_png += struct.pack(">I", len(itxt_data))
+            new_png += b"iTXt"
+            new_png += itxt_data
+            new_png += struct.pack(">I", crc)
+
+    with open(img_path, "wb") as f:
+        f.write(new_png)

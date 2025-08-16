@@ -6,11 +6,13 @@ from dataclasses import replace
 from pathlib import Path
 from enum import Enum
 from tempfile import TemporaryDirectory
+from struct import error as struct_error
 import time
 from typing import Any, NamedTuple
 from PyQt5.QtCore import QObject, QUuid, pyqtSignal, Qt
 from PyQt5.QtGui import QPainter, QColor, QBrush
 import uuid
+from zlib import error as zlib_error
 
 from . import eventloop, workflow, util
 from .api import ConditioningInput, ControlInput, WorkflowKind, WorkflowInput, SamplingInput
@@ -1391,4 +1393,23 @@ def _save_job_result(model: Model, job: Job | None, index: int):
     base_image = model._get_current_image(Bounds(0, 0, *model.document.extent))
     result_image = job.results[index]
     base_image.draw_image(result_image, job.params.bounds.offset)
+
+    # save the image to the file and then add the generation metadata afterwards by resaving to avoid having to load Pillow or other image libraries
     base_image.save(path)
+    try:
+        # now resave the image to add the generation metadata
+        util.resave_image_with_metadata(img_path=path, job=job)
+    except (
+        AttributeError,
+        TypeError,
+        KeyError,
+        FileNotFoundError,
+        OSError,
+        IOError,
+        ValueError,
+        struct_error,
+        UnicodeEncodeError,
+        zlib_error,
+        PermissionError,
+    ) as e:
+        model.report_error(f"Failed to save image metadata: {util.log_error(e)}")
