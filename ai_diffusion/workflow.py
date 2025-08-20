@@ -11,7 +11,7 @@ from .api import ControlInput, ImageInput, CheckpointInput, SamplingInput, Workf
 from .api import ExtentInput, InpaintMode, InpaintParams, FillMode, ConditioningInput, WorkflowKind
 from .api import RegionInput, CustomWorkflowInput, UpscaleInput
 from .image import Bounds, Extent, Image, ImageCollection, Mask, multiple_of
-from .client import ClientModels, ModelDict, resolve_arch
+from .client import ClientModels, ModelDict, Quantization, resolve_arch
 from .files import FileLibrary, FileFormat
 from .style import Style, StyleSettings, SamplerPresets
 from .resolution import ScaledExtent, ScaleMode, TileLayout, get_inpaint_reference
@@ -94,11 +94,14 @@ def load_checkpoint_with_lora(w: ComfyWorkflow, checkpoint: CheckpointInput, mod
         raise RuntimeError(f"Style checkpoint {checkpoint.checkpoint} not found")
 
     clip, vae = None, None
-    match model_info.format:
-        case FileFormat.checkpoint:
+    match (model_info.format, model_info.quantization):
+        case (FileFormat.checkpoint, Quantization.none):
             model, clip, vae = w.load_checkpoint(model_info.filename)
-        case FileFormat.diffusion:
+        case (FileFormat.diffusion, Quantization.none):
             model = w.load_diffusion_model(model_info.filename)
+        case (FileFormat.diffusion, Quantization.svdq):
+            cache = 0.12 if checkpoint.dynamic_caching else 0.0
+            model = w.nunchaku_load_diffusion_model(model_info.filename, cache_threshold=cache)
         case _:
             raise RuntimeError(
                 f"Style checkpoint {checkpoint.checkpoint} has an unsupported format {model_info.format.name}"
@@ -132,11 +135,15 @@ def load_checkpoint_with_lora(w: ComfyWorkflow, checkpoint: CheckpointInput, mod
     if vae is None:
         vae = w.load_vae(models.for_arch(arch).vae)
 
-    if checkpoint.dynamic_caching and (arch in [Arch.flux, Arch.sd3] or arch.is_sdxl_like):
+    support_fbc = arch in [Arch.flux, Arch.sd3] or arch.is_sdxl_like
+    if checkpoint.dynamic_caching and support_fbc and model_info.quantization is Quantization.none:
         model = w.apply_first_block_cache(model, arch)
 
     for lora in checkpoint.loras:
-        model, clip = w.load_lora(model, clip, lora.name, lora.strength, lora.strength)
+        if model_info.quantization is Quantization.svdq:
+            model = w.nunchaku_load_lora(model, lora.name, lora.strength)
+        else:
+            model, clip = w.load_lora(model, clip, lora.name, lora.strength, lora.strength)
 
     if arch is Arch.sd3:
         model = w.model_sampling_sd3(model)
@@ -1299,7 +1306,7 @@ def expand_custom(
             case "ETN_KritaStyle":
                 style: Style = get_param(node, Style)
                 is_live = node.input("sampler_preset", "auto") == "live"
-                checkpoint_input = style.get_models(models.checkpoints.keys())
+                checkpoint_input = style.get_models(models.checkpoints)
                 sampling = _sampling_from_style(style, 1.0, is_live)
                 model, clip, vae = load_checkpoint_with_lora(w, checkpoint_input, models)
                 outputs[node.output(0)] = model
@@ -1354,7 +1361,7 @@ def prepare(
         region.loras = [l for l in region.loras if l not in extra_loras]
     i.sampling = _sampling_from_style(style, strength, is_live)
     i.sampling.seed = seed
-    i.models = style.get_models(models.checkpoints.keys())
+    i.models = style.get_models(models.checkpoints)
     i.conditioning.positive += _collect_lora_triggers(i.models.loras, files)
     i.models.loras = unique(i.models.loras + extra_loras, key=lambda l: l.name)
     i.models.dynamic_caching = perf.dynamic_caching

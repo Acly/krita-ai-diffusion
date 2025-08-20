@@ -499,6 +499,16 @@ class ComfyWorkflow:
     def load_fooocus_inpaint(self, head: str, patch: str):
         return self.add_cached("INPAINT_LoadFooocusInpaint", 1, head=head, patch=patch)
 
+    def nunchaku_load_diffusion_model(self, model_path: str, cache_threshold: float):
+        return self.add_cached(
+            "NunchakuFluxDiTLoader", 1, model_path=model_path, cache_threshold=cache_threshold
+        )
+
+    def nunchaku_load_lora(self, model: Output, name: str, strength: float):
+        return self.add(
+            "NunchakuFluxLoraLoader", 1, model=model, lora_name=name, lora_strength=strength
+        )
+
     def t5_tokenizer_options(self, clip: Output, min_padding: int, min_length: int):
         return self.add(
             "T5TokenizerOptions", 1, clip=clip, min_padding=min_padding, min_length=min_length
