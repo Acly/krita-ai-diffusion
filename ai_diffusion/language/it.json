@@ -205,7 +205,7 @@
     "Invalid location: directory is not empty, but no previous installation was found": "Posizione non valida: la directory non è vuota, ma non è stata trovata alcuna installazione precedente",
     "Language": "Lingua",
     "Latest version": "Ultima versione",
-    "Launch": "Inizia",
+    "Launch": "Avvia Server",
     "Let the Krita plugin install and run a local server on your machine": "Lascia che il plugin Krita installi ed esegua un server locale sulla tua macchina",
     "Line Art": "Linea Artistica",
     "Link region": "Regione di collegamento",
@@ -435,7 +435,7 @@
     "Uploading models.": "Carica modelli.",
     "Upscale": "Aumenta Scala",
     "Upscalers (super-resolution)": "Aumenta scala (Super Risoluzione)",
-    "Use CUDA (NVIDIA GPU)": "Utilizzare CUDA (GPU NVIDIA)",
+    "Use CUDA (NVIDIA GPU)": "Utilizza CUDA (GPU NVIDIA)",
     "Use Ctrl+Click to replace the text with a translation immediately.": "Utilizzare Ctrl+clic per sostituire immediatamente il testo con una traduzione.",
     "Use DirectML (GPU)": "Usa DirectML (GPU)",
     "Use MPS (Metal Performance Shader)": "Utilizzare MPS (Metal Performance Shader)",
@@ -500,8 +500,8 @@
     "Tried to capture the current image, but there are no visible layers! Preview and control layers are not considered to be part of the input image.": "Ho provato ad acquisire l'immagine corrente, ma non ci sono livelli visibili. I livelli di anteprima e di controllo non sono considerati parte dell'immagine di ingresso.",
     "Edit (Custom)": "Modifica (Personalizzata)",
     "Edit": "Modifica",
-    "Replace Queue": null,
-    "Generation took too long and was cancelled (timeout)": null,
-    "Server error": null
+    "Replace Queue": "Sostituisci Coda",
+    "Generation took too long and was cancelled (timeout)": "La generazione ha richiesto troppo tempo ed è stata annullata (timeout)",
+    "Server error": "Errore Server"
   }
 }
