@@ -1,5 +1,6 @@
 import ai_diffusion.resources as res
 import json
+from .config import result_dir
 
 
 def test_resources_json():
@@ -12,4 +13,6 @@ def test_resources_json():
     result["deprecated"] = [m.as_dict() for m in res.deprecated_models]
 
     original = res._models_file.read_text()
-    assert json.dumps(result, indent=2) == original
+    result_string = json.dumps(result, indent=2)
+    (result_dir / "resources.json").write_text(result_string)
+    assert result_string == original

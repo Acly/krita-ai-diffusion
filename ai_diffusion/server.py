@@ -100,12 +100,7 @@ class Server:
             self.path / "venv" / "Scripts",
         ]
         python_path = _find_component(python_pkg, python_search_paths)
-        if python_path is None:
-            if not is_windows:
-                self._python_cmd = _find_program(
-                    "python3.12", "python3.11", "python3.10", "python3", "python"
-                )
-        else:
+        if python_path is not None:
             self._python_cmd = python_path / f"python{_exe}"
 
         gpu_backends = [ServerBackend.cuda, ServerBackend.directml, ServerBackend.xpu]
@@ -141,13 +136,16 @@ class Server:
         self.missing_resources += find_missing(model_folders, resources.required_models, Arch.all)
         missing_sd15 = find_missing(model_folders, resources.required_models, Arch.sd15)
         missing_sdxl = find_missing(model_folders, resources.required_models, Arch.sdxl)
-        if len(self.missing_resources) > 0 or (len(missing_sd15) > 0 and len(missing_sdxl) > 0):
+        missing_flux = find_missing(model_folders, resources.required_models, Arch.flux)
+        if len(self.missing_resources) > 0 or (
+            len(missing_sd15) > 0 and len(missing_sdxl) > 0 and len(missing_flux) > 0
+        ):
             self.state = ServerState.missing_resources
         elif update_required:
             self.state = ServerState.update_required
         else:
             self.state = ServerState.stopped
-        self.missing_resources += missing_sd15 + missing_sdxl
+        self.missing_resources += missing_sd15 + missing_sdxl + missing_flux
 
         # Optional resources
         self.missing_resources += find_missing(model_folders, resources.default_checkpoints)
@@ -210,7 +208,7 @@ class Server:
 
     async def _install_uv(self, network: QNetworkAccessManager, cb: InternalCB):
         script_ext = ".ps1" if is_windows else ".sh"
-        url = f"https://astral.sh/uv/0.6.10/install{script_ext}"
+        url = f"https://astral.sh/uv/0.8.12/install{script_ext}"
         script_path = self._cache_dir / f"install_uv{script_ext}"
         await _download_cached("Python", network, url, script_path, cb)
 
@@ -435,7 +433,9 @@ class Server:
         upgrade_comfy_dir.parent.mkdir(exist_ok=True)
         shutil.move(comfy_dir, upgrade_comfy_dir)
         self.comfy_dir = None
+
         try:
+            _clean_embedded_python(self.path, callback)
             await self.install(callback)
         except Exception as e:
             if upgrade_comfy_dir.exists():
@@ -1021,3 +1021,14 @@ def _upgrade_models_dir(src_dir: Path, dst_dir: Path):
             shutil.move(src_dir, dst_dir)
         except Exception as e:
             log.error(f"Could not move model folder to new location: {str(e)}")
+
+
+def _clean_embedded_python(server_dir: Path, cb: Callback):
+    emb_path = server_dir / "python"
+    if is_windows and emb_path.exists():
+        cb(InstallationProgress("Upgrading", message="Removing old embedded Python..."))
+        log.info(f"Found old embedded Python at {emb_path}, removing...")
+        try:
+            remove_subdir(emb_path, origin=server_dir)
+        except Exception as e:
+            log.error(f"Could not remove embedded Python at {emb_path}: {str(e)}")

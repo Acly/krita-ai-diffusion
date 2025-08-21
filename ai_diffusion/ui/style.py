@@ -761,7 +761,11 @@ class StylePresets(SettingsTab):
         self._read_style(self.current_style)
 
     def _open_checkpoints_folder(self):
-        self._open_folder(Path("models/checkpoints"))
+        arch = arch = resolve_arch(self.current_style, root.connection.client_if_connected)
+        if arch.is_flux_like or arch is Arch.chroma:
+            self._open_folder(Path("models/diffusion_models"))
+        else:
+            self._open_folder(Path("models/checkpoints"))
 
     def _open_lora_folder(self):
         self._open_folder(Path("models/loras"))

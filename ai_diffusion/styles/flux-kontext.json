@@ -1,17 +1,15 @@
 {
-    "name": "Flux",
+    "name": "Flux Kontext",
     "version": 1,
     "architecture": "auto",
     "checkpoints": [
-        "svdq-fp4_r32-flux.1-dev.safetensors",
-        "svdq-int4_r32-flux.1-dev.safetensors",
-        "svdq-fp4_r32-flux.1-krea-dev.safetensors",
-        "svdq-int4_r32-flux.1-krea-dev.safetensors",
-        "flux1-dev-fp8.safetensors",
-        "flux1-dev.safetensors"
+        "svdq-fp4_r32-flux.1-kontext-dev.safetensors",
+        "svdq-int4_r32-flux.1-kontext-dev.safetensors",
+        "flux1-dev-kontext_fp8_scaled.safetensors",
+        "flux1-kontext-dev.safetensors"
     ],
     "loras": [],
-    "style_prompt": "photo of {prompt}, atmospheric film still",
+    "style_prompt": "",
     "negative_prompt": "",
     "vae": "Checkpoint Default",
     "clip_skip": 0,

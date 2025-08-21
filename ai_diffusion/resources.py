@@ -370,6 +370,7 @@ class VerificationStatus(NamedTuple):
 class ModelRequirements(Enum):
     none = 0
     insightface = 1
+    cuda = 2
 
 
 class ModelFile(NamedTuple):
@@ -635,6 +636,8 @@ search_paths: dict[str, list[str]] = {
     resource_id(ResourceKind.lora, Arch.sdxl, "lightning"): ["sdxl_lightning_8step_lora"],
     resource_id(ResourceKind.lora, Arch.sd15, "hyper"): ["Hyper-SD15-8steps-CFG-lora"],
     resource_id(ResourceKind.lora, Arch.sdxl, "hyper"): ["Hyper-SDXL-8steps-CFG-lora"],
+    resource_id(ResourceKind.lora, Arch.flux, "turbo"): ["flux.1-turbo"],
+    resource_id(ResourceKind.lora, Arch.flux_k, "turbo"): ["flux.1-turbo"],
     resource_id(ResourceKind.lora, Arch.sd15, ControlMode.face): ["ip-adapter-faceid-plusv2_sd15_lora", "ip-adapter-faceid-plus_sd15_lora"],
     resource_id(ResourceKind.lora, Arch.sdxl, ControlMode.face): ["ip-adapter-faceid-plusv2_sdxl_lora", "ip-adapter-faceid_sdxl_lora"],
     resource_id(ResourceKind.lora, Arch.flux, ControlMode.depth): ["flux1-depth"],

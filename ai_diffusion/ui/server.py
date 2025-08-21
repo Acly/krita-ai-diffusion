@@ -27,7 +27,7 @@ from krita import Krita
 
 from ..settings import Settings, ServerMode, settings
 from ..style import Arch
-from ..resources import ModelResource, CustomNode
+from ..resources import ModelRequirements, ModelResource, CustomNode
 from ..server import Server, ServerBackend, ServerState
 from ..connection import ConnectionState
 from ..root import root
@@ -52,13 +52,6 @@ class PackageItem:
 
 
 class PackageGroupWidget(QWidget):
-    _layout: QGridLayout
-    _items: list[PackageItem]
-    _status: QLabel
-    _desc: Optional[QLabel] = None
-    _workload = Arch.all
-    _is_checkable = False
-
     changed = pyqtSignal()
 
     def __init__(
@@ -71,6 +64,9 @@ class PackageGroupWidget(QWidget):
         parent=None,
     ):
         super().__init__(parent)
+        self._workload = Arch.all
+        self._backend = settings.server_backend
+        self._is_checkable = False
 
         self._layout = QGridLayout()
         self._layout.setContentsMargins(0, 0, 0, 0)
@@ -90,6 +86,7 @@ class PackageGroupWidget(QWidget):
         self._status = QLabel(self)
         self._layout.addWidget(self._status, 0, 1)
 
+        self._desc: QLabel | None = None
         if description:
             desc = self._desc = QLabel(self)
             desc.setText(description)
@@ -100,7 +97,7 @@ class PackageGroupWidget(QWidget):
             self._layout.addWidget(desc, 1, 0, 1, 2)
 
         self._is_checkable = is_checkable
-        self._items = [self.add_item(p) for p in packages]
+        self._items: list[PackageItem] = [self.add_item(p) for p in packages]
         self._update_visibility()
 
     def _update_visibility(self):
@@ -161,7 +158,10 @@ class PackageGroupWidget(QWidget):
                     item.status.setText(_("Not installed"))
                     item.status.setStyleSheet("")
                 elif item.state is PackageState.disabled:
-                    item.status.setText(_("Workload not selected"))
+                    if not self._backend_supports(item):
+                        item.status.setText(_("Not supported"))
+                    else:
+                        item.status.setText(_("Workload not selected"))
                     item.status.setStyleSheet(f"color:{grey}")
                 with SignalBlocker(item.status):
                     item.status.setChecked(
@@ -170,12 +170,22 @@ class PackageGroupWidget(QWidget):
                     item.status.setEnabled(item.state is not PackageState.disabled)
         self._update_status()
 
-    def _update_workload(self, item: PackageItem):
-        enabled = (
+    def _backend_supports(self, item: PackageItem):
+        return (
+            not isinstance(item.package, ModelResource)
+            or item.package.requirements is not ModelRequirements.cuda
+            or self.backend is ServerBackend.cuda
+        )
+
+    def _workload_matches(self, item: PackageItem):
+        return (
             not isinstance(item.package, ModelResource)
             or Arch.match(self._workload, item.package.arch)
-            or item.package.arch not in [Arch.sd15, Arch.sdxl]
+            or item.package.arch not in [Arch.sd15, Arch.sdxl, Arch.flux, Arch.flux_k, Arch.chroma]
         )
+
+    def _update_workload(self, item: PackageItem):
+        enabled = self._backend_supports(item) and self._workload_matches(item)
         if not enabled and item.state in [PackageState.selected, PackageState.available]:
             item.state = PackageState.disabled
         elif enabled and item.state is PackageState.disabled:
@@ -200,6 +210,15 @@ class PackageGroupWidget(QWidget):
     @workload.setter
     def workload(self, workload: Arch):
         self._workload = workload
+        self._update()
+
+    @property
+    def backend(self):
+        return self._backend
+
+    @backend.setter
+    def backend(self, backend: ServerBackend):
+        self._backend = backend
         self._update()
 
     def set_installed(self, installed: list[bool]):
@@ -348,7 +367,7 @@ class ServerWidget(QWidget):
 
         self._workload_group = PackageGroupWidget(
             _("Workloads"),
-            [_("Stable Diffusion 1.5"), _("Stable Diffusion XL")],
+            [_("Stable Diffusion 1.5"), _("Stable Diffusion XL"), "Flux"],
             description=(
                 _("Choose a Diffusion base model to install its basic requirements.")
                 + " <a href='https://docs.interstice.cloud/base-models'>"
@@ -393,6 +412,14 @@ class ServerWidget(QWidget):
                 is_expanded=False,
                 parent=self,
             ),
+            "flux": PackageGroupWidget(
+                _("Flux models"),
+                [m for m in optional_models if m.arch in [Arch.flux, Arch.flux_k, Arch.chroma]],
+                description=_("Select at least one diffusion model. Control models are optional."),
+                is_checkable=True,
+                is_expanded=False,
+                parent=self,
+            ),
         }
         # Pre-select a recommended set of models if the server hasn't been installed yet
         if not self._server.has_comfy:
@@ -405,7 +432,7 @@ class ServerWidget(QWidget):
             state[-1] = PackageState.available  # Face model is optional
             sdxl_packages.values = state
 
-        for group in ["upscalers", "sd15", "sdxl", "illu"]:
+        for group in ["upscalers", "sd15", "sdxl", "illu", "flux"]:
             self._packages[group].changed.connect(self.update_ui)
             package_layout.addWidget(self._packages[group])
 
@@ -758,6 +785,8 @@ class ServerWidget(QWidget):
     def change_workload(self):
         if self.selected_workload is Arch.sd15:
             self._packages["sd15"].expand()
+        elif self.selected_workload is Arch.flux:
+            self._packages["flux"].expand()
         self.update_ui()
 
     def update_required(self):
@@ -781,6 +810,7 @@ class ServerWidget(QWidget):
         workloads = [
             [m for m in resources.required_models if m.arch is Arch.sd15],
             [m for m in resources.required_models if m.arch is Arch.sdxl],
+            [m for m in resources.required_models if m.arch is Arch.flux],
         ]
         self._workload_group.set_installed([self._server.all_installed(w) for w in workloads])
         to_install = [
@@ -792,6 +822,7 @@ class ServerWidget(QWidget):
 
         for widget in self._packages.values():
             widget.workload = self.selected_workload
+            widget.backend = self._server.backend
             widget.set_installed([self._server.is_installed(p) for p in widget.package_names])
 
         to_install += [p for widget in self._packages.values() for p in widget.selected_packages]
@@ -819,4 +850,6 @@ class ServerWidget(QWidget):
             return Arch.sd15
         if selected_or_installed[1]:
             return Arch.sdxl
+        if selected_or_installed[2]:
+            return Arch.flux
         return Arch.auto
