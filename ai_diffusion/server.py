@@ -341,13 +341,6 @@ class Server:
             ServerState.update_required,
         ]
 
-        if not is_windows and self._python_cmd is None:
-            raise Exception(
-                _(
-                    "Python not found. Please install python3, python3-venv via your package manager and restart."
-                )
-            )
-
         def cb(stage: str, message: str | DownloadProgress):
             out_message = ""
             progress = None
