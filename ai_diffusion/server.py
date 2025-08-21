@@ -285,7 +285,12 @@ class Server:
     async def _install_custom_node(
         self, pkg: CustomNode, network: QNetworkAccessManager, cb: InternalCB
     ):
+        if pkg.name == "Nunchaku" and self.backend is not ServerBackend.cuda:
+            return
+        elif pkg.name == "Nunchaku":
+            await self._install_nunchaku(network, cb)
         assert self.comfy_dir is not None
+
         folder = self.comfy_dir / "custom_nodes" / pkg.folder
         resource_url = pkg.url
         if not resource_url.endswith(".zip"):  # git repo URL
@@ -313,6 +318,17 @@ class Server:
             await self._pip_install("FaceID", [str(whl_file)], cb)
         else:
             await self._pip_install("FaceID", ["insightface"], cb)
+
+    async def _install_nunchaku(self, network: QNetworkAccessManager, cb: InternalCB):
+        assert self.comfy_dir is not None and self._python_cmd is not None
+        assert self.backend is ServerBackend.cuda, "Nunchaku only supports CUDA backend"
+        pyver = await get_python_version_string(self._python_cmd)
+        assert "3.12" in pyver, "Nunchaku requires Python 3.12"
+
+        platform = "win_amd64" if is_windows else "linux_x86_64"
+        ver = resources.nunchaku_version  # TODO: replace nightly version string
+        whl_url = f"https://github.com/nunchaku-tech/nunchaku/releases/download/v1.0.0dev20250816/nunchaku-{ver}+torch2.7-cp312-cp312-{platform}.whl"
+        await self._pip_install("Nunchaku", [whl_url], cb)
 
     async def _install_requirements(
         self, requirements: ModelRequirements, network: QNetworkAccessManager, cb: InternalCB
