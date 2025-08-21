@@ -26,7 +26,8 @@ The main goals of this project are:
 * **Inpainting**: Use selections for generative fill, expand, to add or remove objects
 * **Live Painting**: Let AI interpret your canvas in real time for immediate feedback. [Watch Video](https://youtu.be/AF2VyqSApjA?si=Ve5uQJWcNOATtABU)
 * **Upscaling**: Upscale and enrich images to 4k, 8k and beyond without running out of memory.
-* **Diffusion Models**: Supports Stable Diffusion 1.5, and XL. Partial support for [Flux](https://github.com/Acly/krita-ai-diffusion/discussions/1176) and SD3.
+* **Diffusion Models**: Supports Stable Diffusion 1.5, XL, Illustrious and Flux models
+* **Edit Models**: Supports Flux Kontext for instruction-based image editing
 * **ControlNet**: Scribble, Line art, Canny edge, Pose, Depth, Normals, Segmentation, +more
 * **IP-Adapter**: Reference images, Style and composition transfer, Face swap
 * **Regions**: Assign individual text descriptions to image areas defined by layers.

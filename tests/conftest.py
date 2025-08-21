@@ -25,8 +25,10 @@ def pytest_collection_modifyitems(session, config, items: list[pytest.Item]):
         if not item.parent or "test_workflow" not in item.parent.name:
             return 0
         if "cloud" in item.name and "sdxl" in item.name:
-            return 4
+            return 11
         elif "cloud" in item.name:
+            return 10
+        elif "flux" in item.name:
             return 3
         elif "sdxl" in item.name:
             return 2
