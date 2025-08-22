@@ -2,9 +2,9 @@ from __future__ import annotations
 from enum import Enum
 from pathlib import Path
 from typing import Optional
-from PyQt5.QtCore import Qt, QUrl, pyqtSignal
-from PyQt5.QtGui import QDesktopServices
-from PyQt5.QtWidgets import (
+from PyQt6.QtCore import Qt, QUrl, pyqtSignal
+from PyQt6.QtGui import QDesktopServices
+from PyQt6.QtWidgets import (
     QWidget,
     QCheckBox,
     QComboBox,
@@ -311,7 +311,7 @@ class ServerWidget(QWidget):
 
         self._manage_button = QToolButton(self)
         self._manage_button.setText(_("Manage"))
-        self._manage_button.setPopupMode(QToolButton.InstantPopup)
+        self._manage_button.setPopupMode(QToolButton.ToolButtonPopupMode.InstantPopup)
         self._manage_button.setMinimumWidth(150)
 
         menu = QMenu(self)
@@ -353,7 +353,7 @@ class ServerWidget(QWidget):
         scroll = QScrollArea(self)
         scroll.setWidget(package_list)
         scroll.setWidgetResizable(True)
-        scroll.setFrameStyle(QFrame.NoFrame)
+        scroll.setFrameStyle(QFrame.Shape.NoFrame)
         scroll.setHorizontalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAlwaysOff)
         layout.addWidget(scroll, 1)
 

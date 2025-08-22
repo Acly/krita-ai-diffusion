@@ -3,12 +3,12 @@ from pathlib import Path
 from typing import Any, Callable
 
 from krita import Krita
-from PyQt5.QtCore import Qt, pyqtSignal, QMetaObject, QUuid, QUrl, QPoint, QSize
-from PyQt5.QtGui import QFontMetrics, QIcon, QDesktopServices, QPalette
-from PyQt5.QtWidgets import QComboBox, QFileDialog, QFrame, QGridLayout, QHBoxLayout, QMenu
-from PyQt5.QtWidgets import QLabel, QLineEdit, QListWidgetItem, QMessageBox, QSpinBox, QAction
-from PyQt5.QtWidgets import QToolButton, QVBoxLayout, QWidget, QSlider, QDoubleSpinBox
-from PyQt5.QtWidgets import QScrollArea, QTextEdit, QSplitter
+from PyQt6.QtCore import Qt, pyqtSignal, QMetaObject, QUuid, QUrl, QPoint, QSize
+from PyQt6.QtGui import QFontMetrics, QIcon, QDesktopServices, QPalette, QAction
+from PyQt6.QtWidgets import QComboBox, QFileDialog, QFrame, QGridLayout, QHBoxLayout, QMenu
+from PyQt6.QtWidgets import QLabel, QLineEdit, QListWidgetItem, QMessageBox, QSpinBox
+from PyQt6.QtWidgets import QToolButton, QVBoxLayout, QWidget, QSlider, QDoubleSpinBox
+from PyQt6.QtWidgets import QScrollArea, QTextEdit, QSplitter
 
 from ..custom_workflow import CustomParam, ParamKind, SortedWorkflows, WorkflowSource
 from ..custom_workflow import CustomGenerationMode

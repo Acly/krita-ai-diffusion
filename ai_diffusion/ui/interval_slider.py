@@ -14,11 +14,11 @@
 
 from typing import Tuple
 
-from PyQt5.QtCore import pyqtSignal as Signal
+from PyQt6.QtCore import pyqtSignal as Signal
 
-from PyQt5.QtWidgets import QWidget, QStyleOptionSlider, QSizePolicy, QStyle, QSlider
-from PyQt5.QtGui import QPainter, QMouseEvent, QPalette, QBrush
-from PyQt5.QtCore import QRect, Qt, QSize
+from PyQt6.QtWidgets import QWidget, QStyleOptionSlider, QSizePolicy, QStyle, QSlider
+from PyQt6.QtGui import QPainter, QMouseEvent, QPalette, QBrush
+from PyQt6.QtCore import QRect, Qt, QSize
 
 
 # Based on idea and in part the code from

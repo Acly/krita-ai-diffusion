@@ -1,7 +1,7 @@
 from __future__ import annotations
 from enum import Enum
-from PyQt5.QtCore import QObject, pyqtSignal, QUrl
-from PyQt5.QtGui import QDesktopServices
+from PyQt6.QtCore import QObject, pyqtSignal, QUrl
+from PyQt6.QtGui import QDesktopServices
 import asyncio
 
 from .client import Client, ClientMessage, ClientEvent, DeviceInfo, SharedWorkflow, MissingResources

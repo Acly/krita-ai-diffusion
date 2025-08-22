@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from typing import Optional, cast
 from pathlib import Path
-from PyQt5.QtWidgets import (
+from PyQt6.QtWidgets import (
     QVBoxLayout,
     QHBoxLayout,
     QPushButton,
@@ -18,8 +18,8 @@ from PyQt5.QtWidgets import (
     QMessageBox,
     QLineEdit,
 )
-from PyQt5.QtCore import Qt, QUrl, pyqtSignal
-from PyQt5.QtGui import QDesktopServices, QPalette, QColor
+from PyQt6.QtCore import Qt, QUrl, pyqtSignal
+from PyQt6.QtGui import QDesktopServices, QPalette, QColor
 from krita import Krita
 
 from ..client import resolve_arch
@@ -599,7 +599,7 @@ class StylePresets(SettingsTab):
         frame_layout.addLayout(builtin_layout)
 
         frame = QFrame(self)
-        frame.setFrameStyle(QFrame.StyledPanel)
+        frame.setFrameStyle(QFrame.Shape.StyledPanel)
         frame.setLineWidth(1)
         frame.setLayout(frame_layout)
         self._layout.addWidget(frame)

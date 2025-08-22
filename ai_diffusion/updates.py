@@ -6,7 +6,7 @@ from enum import Enum
 from pathlib import Path
 from tempfile import TemporaryDirectory
 from typing import NamedTuple
-from PyQt5.QtCore import QObject, pyqtSignal
+from PyQt6.QtCore import QObject, pyqtSignal
 
 from . import __version__, eventloop
 from .network import RequestManager

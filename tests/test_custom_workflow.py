@@ -2,7 +2,7 @@ import json
 import pytest
 from copy import copy
 from pathlib import Path
-from PyQt5.QtCore import Qt
+from PyQt6.QtCore import Qt
 
 from ai_diffusion.api import CustomWorkflowInput, ImageInput, WorkflowInput
 from ai_diffusion.client import Client, ClientModels, CheckpointInfo, TextOutput

@@ -15,8 +15,8 @@ import logging.handlers
 import statistics
 import zipfile
 from typing import Any, Callable, Iterable, Optional, Sequence, TypeVar
-from PyQt5 import sip
-from PyQt5.QtCore import QObject, QStandardPaths
+from PyQt6 import sip
+from PyQt6.QtCore import QObject, QStandardPaths
 
 T = TypeVar("T")
 R = TypeVar("R")
@@ -35,11 +35,11 @@ def _get_user_data_dir():
         dir.mkdir(exist_ok=True)
         return dir
     try:
-        dir = Path(QStandardPaths.writableLocation(QStandardPaths.AppDataLocation))
+        dir = Path(QStandardPaths.writableLocation(QStandardPaths.StandardLocation.AppDataLocation))
         if dir.exists() and "krita" in dir.name.lower():
             dir = dir / "ai_diffusion"
         else:
-            dir = Path(QStandardPaths.writableLocation(QStandardPaths.GenericDataLocation))
+            dir = Path(QStandardPaths.writableLocation(QStandardPaths.StandardLocation.GenericDataLocation))
             dir = dir / "krita-ai-diffusion"
         dir.mkdir(exist_ok=True)
         return dir

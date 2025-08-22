@@ -1,9 +1,9 @@
 from __future__ import annotations
 from enum import Enum
 from math import sqrt
-from PyQt5.QtGui import QImage, QImageWriter, QImageReader, QPixmap, QIcon, QPainter, QColorSpace
-from PyQt5.QtGui import qRgba, qRed, qGreen, qBlue, qAlpha, qGray
-from PyQt5.QtCore import Qt, QByteArray, QBuffer, QRect, QSize, QFile, QIODevice
+from PyQt6.QtGui import QImage, QImageWriter, QImageReader, QPixmap, QIcon, QPainter, QColorSpace
+from PyQt6.QtGui import qRgba, qRed, qGreen, qBlue, qAlpha, qGray
+from PyQt6.QtCore import Qt, QByteArray, QBuffer, QRect, QSize, QFile, QIODevice
 from typing import Callable, Iterable, SupportsIndex, Tuple, NamedTuple, Union, Optional
 from itertools import product
 from pathlib import Path
@@ -484,11 +484,11 @@ class Image:
             return buffer
         else:
             ptr = ensure(self._qimage.constBits(), "Accessing data of invalid image")
-            return QByteArray(ptr.asstring(self._qimage.byteCount()))
+            return QByteArray(ptr.asstring(self._qimage.sizeInBytes()))
 
     @property
     def size(self):  # in bytes
-        return self._qimage.byteCount()
+        return self._qimage.sizeInBytes()
 
     def to_array(self):
         import numpy as np

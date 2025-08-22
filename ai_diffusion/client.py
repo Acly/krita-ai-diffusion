@@ -2,7 +2,7 @@ from __future__ import annotations
 from abc import ABC, abstractmethod
 from enum import Enum
 from typing import Any, AsyncGenerator, Iterable, NamedTuple
-from PyQt5.QtCore import QObject, pyqtSignal
+from PyQt6.QtCore import QObject, pyqtSignal
 
 from .api import WorkflowInput
 from .image import ImageCollection

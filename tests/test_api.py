@@ -1,4 +1,4 @@
-from PyQt5.QtCore import Qt
+from PyQt6.QtCore import Qt
 
 from ai_diffusion.api import (
     WorkflowInput,

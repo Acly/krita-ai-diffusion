@@ -1,7 +1,7 @@
 from __future__ import annotations
 from enum import Enum
-from PyQt5.QtWidgets import QWidget, QLabel, QToolButton, QHBoxLayout, QVBoxLayout, QFrame, QMenu
-from PyQt5.QtGui import (
+from PyQt6.QtWidgets import QWidget, QLabel, QToolButton, QHBoxLayout, QVBoxLayout, QFrame, QMenu
+from PyQt6.QtGui import (
     QGuiApplication,
     QMouseEvent,
     QResizeEvent,
@@ -11,7 +11,7 @@ from PyQt5.QtGui import (
     QIcon,
     QFontMetrics,
 )
-from PyQt5.QtCore import QObject, QEvent, Qt, QMetaObject, QSize, pyqtSignal
+from PyQt6.QtCore import QObject, QEvent, Qt, QMetaObject, QSize, pyqtSignal
 
 from ..root import root
 from ..client import Client
