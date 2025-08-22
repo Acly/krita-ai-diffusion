@@ -259,17 +259,12 @@ class Server:
         elif self.backend is ServerBackend.directml:
             torch_args = ["numpy<2", "torch-directml", "torchvision", "torchaudio"]
         elif self.backend is ServerBackend.xpu:
-            torch_args = ["torch==2.6.0", "torchvision==0.21.0", "torchaudio==2.6.0"]
+            torch_args = ["torch==2.8.0", "torchvision==0.23.0", "torchaudio==2.8.0"]
             torch_args += ["--index-url", "https://download.pytorch.org/whl/xpu"]
         await self._pip_install("PyTorch", torch_args, cb)
 
         requirements_txt = Path(__file__).parent / "server_requirements.txt"
         await self._pip_install("ComfyUI", ["-r", str(requirements_txt)], cb)
-
-        if self.backend is ServerBackend.xpu:
-            idx_url = "https://pytorch-extension.intel.com/release-whl/stable/xpu/us/"
-            cmd = ["intel-extension-for-pytorch==2.6.10+xpu", "--extra-index-url", idx_url]
-            await self._pip_install("Ipex", cmd, cb)
 
         requirements_txt = temp_comfy_dir / "requirements.txt"
         await self._pip_install("ComfyUI", ["-r", str(requirements_txt)], cb)
