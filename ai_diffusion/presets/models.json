@@ -482,7 +482,7 @@
       "name": "ControlNet Universal (Flux)",
       "files": [
         {
-          "path": "models/FLUX.1-dev-ControlNet-Union-Pro-2.0-fp8.safetensors",
+          "path": "models/controlnet/FLUX.1-dev-ControlNet-Union-Pro-2.0-fp8.safetensors",
           "url": "https://huggingface.co/ABDALLALSWAITI/FLUX.1-dev-ControlNet-Union-Pro-2.0-fp8/resolve/main/diffusion_pytorch_model.safetensors",
           "sha256": "393fc2a298b93ffe39f2db3f0d2ce11dfba62d44b7aa3c1dd3380d4a1be04deb"
         }
