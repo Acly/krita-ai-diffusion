@@ -259,7 +259,6 @@
     "Prompt Line Count": "プロンプト行数",
     "Prompt Translation": "プロンプト翻訳",
     "Prompt translation is active! Click to disable and switch to original input.": "プロンプト翻訳が有効です。クリックすると無効になり、元の入力に切り替わります。",
-    "Python not found. Please install python3, python3-venv via your package manager and restart.": "Pythonが見つかりません。パッケージマネージャーを使用して python3、python3-venv をインストールし、再起動してください。",
     "Quality": "品質",
     "Quality Preset (generate and upscale)": "品質プリセット (生成および画像拡大)",
     "Queued": "待機中",
@@ -502,6 +501,12 @@
     "Edit": null,
     "Replace Queue": null,
     "Generation took too long and was cancelled (timeout)": null,
-    "Server error": null
+    "Server error": null,
+    "Perform certain plugin operations in background threads": null,
+    "Flux models": null,
+    "Not supported": null,
+    "History Format": null,
+    "File format for saving generated images in history": null,
+    "Multi-Threading": null
   }
 }

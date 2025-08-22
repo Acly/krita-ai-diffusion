@@ -281,7 +281,6 @@
     "Prompt Line Count": "Número de Líneas del Prompt",
     "Prompt Translation": "Traducción del Prompt",
     "Prompt translation is active! Click to disable and switch to original input.": "¡La traducción del prompt está activa! Haz clic para deshabilitar y cambiar a la entrada original.",
-    "Python not found. Please install python3, python3-venv via your package manager and restart.": "Python no encontrado. Por favor instala python3, python3-venv a través de tu gestor de paquetes y reinicia.",
     "Quality": "Calidad",
     "Quality Preset (generate and upscale)": "Preset de Calidad (generar y aumentar escala)",
     "Queued": "En cola",
@@ -502,6 +501,12 @@
     "Edit": null,
     "Replace Queue": null,
     "Generation took too long and was cancelled (timeout)": null,
-    "Server error": null
+    "Server error": null,
+    "Perform certain plugin operations in background threads": null,
+    "Flux models": null,
+    "Not supported": null,
+    "History Format": null,
+    "File format for saving generated images in history": null,
+    "Multi-Threading": null
   }
 }
