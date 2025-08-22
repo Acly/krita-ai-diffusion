@@ -68,6 +68,33 @@ class PerformancePreset(Enum):
     custom = _("Custom")
 
 
+class ImageFileFormat(Enum):
+    png = ("png", 85)  # fast, large files
+    png_small = ("png", 50)  # slow, smaller files
+    webp = ("webp", 80)
+    webp_lossless = ("webp", 100)
+    jpeg = ("jpeg", 85)
+
+    @staticmethod
+    def from_extension(filepath: str | Path):
+        extension = Path(filepath).suffix.lower()
+        if extension == ".png":
+            return ImageFileFormat.png_small
+        if extension == ".webp":
+            return ImageFileFormat.webp
+        if extension == ".jpg":
+            return ImageFileFormat.jpeg
+        raise Exception(f"Unsupported image extension: {extension}")
+
+    @property
+    def no_webp_fallback(self):
+        if self is ImageFileFormat.webp_lossless:
+            return ImageFileFormat.png
+        if self is ImageFileFormat.webp:
+            return ImageFileFormat.jpeg
+        return self
+
+
 class PerformancePresetSettings(NamedTuple):
     batch_size: int = 4
     resolution_multiplier: float = 1.0
@@ -98,6 +125,10 @@ class Setting:
         try:
             return EnumType[s]
         except KeyError:
+            log.warning(
+                f"Invalid value '{s}' for setting '{self.name}', using default '{self.default.name}'"
+            )
+            log.info(f"Available options are: {', '.join(EnumType.__members__.keys())}")
             return self.default
 
 
@@ -253,6 +284,20 @@ class Settings(QObject):
         _("Stored History Size"),
         20,
         _("Memory used to store generated images in .kra files on disk"),
+    )
+
+    history_format: ImageFileFormat
+    _history_format = Setting(
+        _("History Format"),
+        ImageFileFormat.webp,
+        _("File format for saving generated images in history"),
+    )
+
+    multi_threading: bool
+    _multi_threading = Setting(
+        _("Multi-Threading"),
+        True,
+        _("Perform certain plugin operations in background threads"),
     )
 
     performance_preset: PerformancePreset
