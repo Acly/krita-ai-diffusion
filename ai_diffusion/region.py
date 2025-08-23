@@ -11,6 +11,7 @@ from .properties import Property, ObservableProperties
 from .jobs import JobRegion
 from .control import ControlLayerList
 from .settings import settings
+from .dynamic_prompts import evaluate_dynamic_prompt
 
 
 class RegionLink(Enum):
@@ -26,6 +27,7 @@ class Region(QObject, ObservableProperties):
 
     _parent: RootRegion
     _layers: list[QUuid]
+    _positive_evaluated: str | None = None  # None indicates not yet evaluated
 
     layer_ids = Property("", persist=True, setter="_set_layer_ids")
     positive = Property("", persist=True)
@@ -142,6 +144,19 @@ class Region(QObject, ObservableProperties):
             if positive == self.positive:
                 self.positive = translated
 
+    @property
+    def positive_evaluated(self) -> str:
+        """Return evaluated version if it exists, otherwise return original"""
+        return self._positive_evaluated if self._positive_evaluated is not None else self.positive
+
+    def evaluate_dynamic_prompt(self):
+        """Evaluate the dynamic prompt and store result. Should only be called once during processing."""
+        self._positive_evaluated = evaluate_dynamic_prompt(self.positive)
+
+    def clear_dynamic_prompt_eval(self):
+        """Clear the evaluated prompt, must be called when processing of dynamic prompt syntax is complete"""
+        self._positive_evaluated = None
+
 
 class RootRegion(QObject, ObservableProperties):
     """Manages a collection of regions, each of which is linked to one or more layers in the document.
@@ -153,6 +168,7 @@ class RootRegion(QObject, ObservableProperties):
     _regions: list[Region]
     _active: Region | None = None
     _active_layer: QUuid | None = None
+    _positive_evaluated: str | None = None  # None indicates not yet evaluated
 
     positive = Property("", persist=True)
     negative = Property("", persist=True)
@@ -344,6 +360,19 @@ class RootRegion(QObject, ObservableProperties):
             if negative == self.negative:
                 self.negative = translated
 
+    @property
+    def positive_evaluated(self) -> str:
+        """Return evaluated version if it exists, otherwise return original"""
+        return self._positive_evaluated if self._positive_evaluated is not None else self.positive
+
+    def evaluate_dynamic_prompt(self):
+        """Evaluate the dynamic prompt and store result. Should only be called once during processing."""
+        self._positive_evaluated = evaluate_dynamic_prompt(self.positive)
+
+    def clear_dynamic_prompt_eval(self):
+        """Clear the evaluated prompt, must be called when processing of dynamic prompt syntax is complete"""
+        self._positive_evaluated = None
+
     def __len__(self):
         return len(self._regions)
 
@@ -368,6 +397,13 @@ def get_region_inpaint_mask(region_layer: Layer, max_extent: Extent, min_size=0)
     return mask_image.to_mask(bounds)
 
 
+def clear_dynamic_prompt_evals(root: RootRegion):
+    """Clear the evaluated prompts for all regions."""
+    root.clear_dynamic_prompt_eval()
+    for region in root._regions:
+        region.clear_dynamic_prompt_eval()
+
+
 def process_regions(
     root: RootRegion,
     bounds: Bounds,
@@ -375,6 +411,10 @@ def process_regions(
     min_coverage=0.02,
     time: int | None = None,
 ):
+    if settings.dynamic_prompts:
+        root.evaluate_dynamic_prompt()
+        for region in root._regions:
+            region.evaluate_dynamic_prompt()
     parent_region = None
     if parent_layer and not parent_layer.is_root:
         parent_region = root.find_linked(parent_layer)
@@ -383,11 +423,11 @@ def process_regions(
     job_info = []
     control = root.control.to_api(bounds, time)
     if parent_layer and parent_region:
-        parent_prompt = parent_region.positive
+        parent_prompt = parent_region.positive_evaluated
         control += parent_region.control.to_api(bounds, time)
         job_info = [JobRegion(parent_layer.id_string, parent_prompt, bounds)]
     result = ConditioningInput(
-        positive=workflow.merge_prompt(parent_prompt, root.positive),
+        positive=workflow.merge_prompt(parent_prompt, root.positive_evaluated),
         negative=root.negative,
         control=control,
     )
@@ -401,6 +441,7 @@ def process_regions(
     layer_regions = ((l, root.find_linked(l, RegionLink.direct)) for l in child_layers)
     layer_regions = [(l, r) for l, r in layer_regions if r is not None]
     if len(layer_regions) == 0:
+        clear_dynamic_prompt_evals(root)
         return result, job_info
 
     # Get region masks. Filter out regions with:
@@ -416,13 +457,14 @@ def process_regions(
         if coverage_rough < 2 * min_coverage:
             continue
 
+        region_positive = region.positive_evaluated
         region_result = RegionInput(
             layer.get_mask(bounds),
             layer_bounds,
-            workflow.merge_prompt(region.positive, root.positive),
+            workflow.merge_prompt(region_positive, root.positive_evaluated),
             control=region.control.to_api(bounds, time),
         )
-        job_params = JobRegion(layer.id_string, region.positive, layer_bounds)
+        job_params = JobRegion(layer.id_string, region_positive, layer_bounds)
         result_regions.append((region_result, job_params))
 
     # Remove from each region mask any overlapping areas from regions above it.
@@ -437,8 +479,9 @@ def process_regions(
         coverage = mask.average()
         if coverage > 0.9 and min_coverage > 0:
             # Single region covers (almost) entire image, don't use regional conditioning.
-            result.positive = region.positive
+            result.positive = region.positive_evaluated
             result.control += region.control
+            clear_dynamic_prompt_evals(root)
             return result, [job_region]
         elif coverage < min_coverage:
             # Region has less than minimum coverage, remove it.
@@ -452,6 +495,7 @@ def process_regions(
 
     # If there are no regions left, don't use regional conditioning.
     if len(result_regions) == 0:
+        clear_dynamic_prompt_evals(root)
         return result, job_info
 
     # If the region(s) don't cover the entire image, add a final region for the remaining area.
@@ -463,5 +507,6 @@ def process_regions(
         job = JobRegion(parent_layer.id_string, "background", bounds, is_background=True)
         result_regions.insert(0, (input, job))
 
+    clear_dynamic_prompt_evals(root)
     result.regions = [r for r, _ in result_regions]
     return result, [j for _, j in result_regions]

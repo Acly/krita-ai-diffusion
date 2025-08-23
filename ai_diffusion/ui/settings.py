@@ -458,6 +458,7 @@ class InterfaceSettings(SettingsTab):
             SwitchSetting(S._show_negative_prompt, (_("Show"), _("Hide")), self),
         )
         self.add("show_steps", SwitchSetting(S._show_steps, parent=self))
+        self.add("dynamic_prompts", SwitchSetting(S._dynamic_prompts, parent=self))
 
         self.add("tag_files", FileListSetting(S._tag_files, files=self._tag_files(), parent=self))
         self._layout.addWidget(self._widgets["tag_files"].list_widget)
