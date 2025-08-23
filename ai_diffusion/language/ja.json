@@ -287,6 +287,7 @@
     "Sampler Settings": "サンプラーの設定",
     "Sampler Steps": "サンプリング・ステップ数",
     "Save Image": "画像を保存",
+    "Save PNG with Metadata": "メタデータ付きの PNG を保存",
     "Save as separate image to the same folder as the document.\\nMust save the document first!": "ドキュメントと同じフォルダに別画像として保存します。\\n先にドキュメントを保存して下さい！",
     "Scale": "倍率",
     "Scaling factor for generation. Values below 1.0 improve performance for high resolution canvas.": "生成時の解像度係数。1.0以下の値は高解像度キャンバスのパフォーマンスが向上します。",

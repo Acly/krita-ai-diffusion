@@ -253,6 +253,7 @@
     "Sampler Settings": "Sampler Ayarları",
     "Sampler Steps": "Sampler Sayısı",
     "Save Image": "Görüntüyü Kaydet",
+    "Save PNG with Metadata": "Meta Verilerle PNG Kaydet",
     "Save as separate image to the same folder as the document.\\nMust save the document first!": "Belge ile aynı klasöre ayrı bir görüntü olarak kaydedin.\\nÖnce belgeyi kaydetmelisiniz!",
     "Scale": "Ölçek",
     "Scaling factor for generation. Values below 1.0 improve performance for high resolution canvas.": "Oluşturma için ölçeklendirme faktörü. 1.0'ın altındaki değerler, yüksek çözünürlüklü tuval için performansı iyileştirir.",

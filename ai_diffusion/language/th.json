@@ -236,6 +236,7 @@
     "Sampler Settings": "การตั้งค่า Sampler",
     "Sampler Steps": "Sampler Steps",
     "Save Image": "บันทึกรูปภาพ",
+    "Save PNG with Metadata": "บันทึก PNG พร้อมเมตาดาต้า",
     "Save as separate image to the same folder as the document.\\nMust save the document first!": "บันทึกเป็นรูปภาพแยกต่างหาก ใน Folder เดียวกับเอกสาร\\nต้องบันทึกเอกสารก่อน!",
     "Scale": "Scale",
     "Scaling factor for generation. Values below 1.0 improve performance for high resolution canvas.": "Scaling factor สำหรับการสร้าง ค่าที่ต่ำกว่า 1.0 จะช่วยปรับปรุงประสิทธิภาพ สำหรับ Canvas ความละเอียดสูง",

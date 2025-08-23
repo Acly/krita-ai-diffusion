@@ -253,6 +253,7 @@
     "Sampler Settings": "샘플러 설정",
     "Sampler Steps": "샘플러 단계",
     "Save Image": "이미지 저장",
+    "Save PNG with Metadata": "메타데이터가 포함된 PNG 저장",
     "Save as separate image to the same folder as the document.\\nMust save the document first!": "문서와 동일한 폴더에 별도의 이미지로 저장합니다.\\n먼저 문서를 저장해야 합니다!",
     "Scale": "스케일",
     "Scaling factor for generation. Values below 1.0 improve performance for high resolution canvas.": "생성을 위한 스케일링 요소. 1.0 미만의 값은 고해상도 캔버스의 성능을 향상시킵니다.",

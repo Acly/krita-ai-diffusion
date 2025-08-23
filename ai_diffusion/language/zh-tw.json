@@ -253,6 +253,7 @@
     "Sampler Settings": "取樣器設定",
     "Sampler Steps": "取樣步驟",
     "Save Image": "儲存影像",
+    "Save PNG with Metadata": "儲存帶有內嵌資料的 PNG",
     "Save as separate image to the same folder as the document.\\nMust save the document first!": "將影像另存為與檔案相同的資料夾中的獨立檔案。\\n請先儲存檔案！",
     "Scale": "縮放",
     "Scaling factor for generation. Values below 1.0 improve performance for high resolution canvas.": "生成的縮放比例。當使用高解析度畫布時，低於 1.0 的值可以提升效能。",

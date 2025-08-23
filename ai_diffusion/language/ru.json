@@ -253,6 +253,7 @@
     "Sampler Settings": "Настройки сэмплера",
     "Sampler Steps": "Шаги сэмплера",
     "Save Image": "Сохранить изображение",
+    "Save PNG with Metadata": "Сохранить PNG с метаданными",
     "Save as separate image to the same folder as the document.\\nMust save the document first!": "Сохранить как отдельное изображение в той же папке, что и документ.\\nСначала необходимо сохранить документ!",
     "Scale": "Масштаб",
     "Scaling factor for generation. Values below 1.0 improve performance for high resolution canvas.": "Коэффициент масштабирования для генерации.<br>Значения ниже 1,0 повышают производительность при работе с холстом высокого разрешения.",

@@ -342,6 +342,7 @@
     "Sampler Settings": null,
     "Sampler Steps": null,
     "Save Image": null,
+	"Save PNG with Metadata": "",
     "Save as separate image to the same folder as the document.\\nMust save the document first!": null,
     "Save workflow to file": null,
     "Scale": null,

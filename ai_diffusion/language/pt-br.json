@@ -253,6 +253,7 @@
     "Sampler Settings": "Configurações de Sampler",
     "Sampler Steps": "Steps do Sampler",
     "Save Image": "Salvar Imagem",
+    "Save PNG with Metadata": "Salvar PNG com Metadados",
     "Save as separate image to the same folder as the document.\\nMust save the document first!": "Salvar como imagem separada na mesma pasta do documento.\\nSalve o documento primeiro!",
     "Scale": "Escala",
     "Scaling factor for generation. Values below 1.0 improve performance for high resolution canvas.": "Fator de redimensão para geração. Valores abaixo de 1.0 melhoram a performance em telas de alta resolução",

@@ -3,6 +3,7 @@ import asyncio
 from copy import copy
 from collections import deque
 from dataclasses import replace
+from io import BytesIO
 from pathlib import Path
 from enum import Enum
 from tempfile import TemporaryDirectory
@@ -21,7 +22,7 @@ from .localization import translate as _
 from .util import clamp, ensure, trim_text, client_logger as log
 from .settings import ApplyBehavior, ApplyRegionBehavior, GenerationFinishedAction, settings
 from .network import NetworkError
-from .image import Extent, Image, Mask, Bounds, DummyImage
+from .image import Extent, Image, Mask, Bounds, DummyImage, ImageFileFormat
 from .client import Client, ClientMessage, ClientEvent, ClientOutput
 from .client import filter_supported_styles, resolve_arch
 from .custom_workflow import CustomWorkspace, WorkflowCollection, CustomGenerationMode
@@ -789,8 +790,8 @@ class Model(QObject, ObservableProperties):
     def generate_seed(self):
         self.seed = workflow.generate_seed()
 
-    def save_result(self, job_id: str, index: int):
-        _save_job_result(self, self.jobs.find(job_id), index)
+    def save_result(self, job_id: str, index: int, with_metadata: bool = False):
+        _save_job_result(self, self.jobs.find(job_id), index, with_metadata)
 
     def resolve_inpaint_mode(self):
         if self.inpaint.mode is InpaintMode.automatic:
@@ -1381,7 +1382,7 @@ async def _report_errors(parent: Model, coro):
         parent.report_error(util.log_error(e))
 
 
-def _save_job_result(model: Model, job: Job | None, index: int):
+def _save_job_result(model: Model, job: Job | None, index: int, with_metadata: bool = False):
     assert job is not None, "Cannot save result, invalid job id"
     assert len(job.results) > index, "Cannot save result, invalid result index"
     assert model.document.filename, "Cannot save result, document is not saved"
@@ -1393,23 +1394,9 @@ def _save_job_result(model: Model, job: Job | None, index: int):
     base_image = model._get_current_image(Bounds(0, 0, *model.document.extent))
     result_image = job.results[index]
     base_image.draw_image(result_image, job.params.bounds.offset)
-
-    # save the image to the file and then add the generation metadata afterwards by resaving to avoid having to load Pillow or other image libraries
-    base_image.save(path)
-    try:
-        # now resave the image to add the generation metadata
-        util.resave_image_with_metadata(img_path=path, job=job)
-    except (
-        AttributeError,
-        TypeError,
-        KeyError,
-        FileNotFoundError,
-        OSError,
-        IOError,
-        ValueError,
-        struct_error,
-        UnicodeEncodeError,
-        zlib_error,
-        PermissionError,
-    ) as e:
-        model.report_error(f"Failed to save image metadata: {util.log_error(e)}")
+    
+    if not with_metadata:
+        base_image.save(path)
+    else:
+        png_bytes = bytes(base_image.to_bytes(ImageFileFormat.png))
+        util.resave_image_with_metadata(png_bytes=png_bytes, img_path=path, params=job.params)

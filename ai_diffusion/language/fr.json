@@ -253,6 +253,7 @@
     "Sampler Settings": "Paramètres de l'échantillonneur",
     "Sampler Steps": "Étapes de l'échantillonneur",
     "Save Image": "Enregistrer l'image",
+    "Save PNG with Metadata": "Enregistrer le PNG avec les métadonnées",
     "Save as separate image to the same folder as the document.\\nMust save the document first!": "Enregistrer comme image distincte dans le même dossier que le document.\\nVous devez d'abord enregistrer le document!",
     "Scale": "Échelle",
     "Scaling factor for generation. Values below 1.0 improve performance for high resolution canvas.": "Facteur d'échelle pour la génération. Les valeurs inférieures à 1.0 améliorent les performances pour les toiles à haute résolution.",

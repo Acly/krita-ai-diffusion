@@ -302,14 +302,9 @@ def acquire_elements(l: list[QOBJECT]) -> list[QOBJECT]:
 
 
 # Resave the image with PNG metadata
-def resave_image_with_metadata(img_path: Path, job: "Job"):  # noqa: F821
-    # Note above hint: "Job" is a forward reference to avoid circular imports
-    # All this method does is call the other two methods, one to format the metadata and the next to add it to the image
-    params = job.params
-
+def resave_image_with_metadata(png_bytes: bytes, img_path: Path, params: "JobParams"):
     metadata_text = _format_like_automatic1111(params)
-
-    _add_png_itxt(img_path, "parameters", metadata_text)
+    _add_png_itxt(img_path, png_bytes, "parameters", metadata_text)
 
 
 def _format_like_automatic1111(params):
@@ -360,9 +355,9 @@ def _format_like_automatic1111(params):
     return "\n".join(lines)
 
 
-def _add_png_itxt(img_path, keyword, text):
-    with open(img_path, "rb") as f:
-        png_data = f.read()
+def _add_png_itxt(img_path, png_data, keyword, text):
+    # with open(img_path, "rb") as f:
+    #     png_data = f.read()
 
     if png_data[:8] != b"\x89PNG\r\n\x1a\n":
         raise ValueError("Not a valid PNG file")

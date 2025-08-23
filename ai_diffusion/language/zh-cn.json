@@ -253,6 +253,7 @@
     "Sampler Settings": "采样器设置",
     "Sampler Steps": "采样器步数",
     "Save Image": "保存图像",
+    "Save PNG with Metadata": "保存带元数据的 PNG",
     "Save as separate image to the same folder as the document.\\nMust save the document first!": "另存为独立图像到与文档相同的文件夹。\\n必须先保存文档！",
     "Scale": "缩放",
     "Scaling factor for generation. Values below 1.0 improve performance for high resolution canvas.": "生成图像的分辨率倍数，如果创建了高分辨画布，可以使用低于1.0的值来提升性能",
