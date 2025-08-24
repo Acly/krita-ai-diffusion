@@ -235,9 +235,13 @@ class ModelSync:
             self._image_task = eventloop.run(self._save_result_images(job, slot))
 
     async def _save_result_images(self, job: Job, slot: int):
-        # run image encoding and compression in a separate thread
-        loop = asyncio.get_running_loop()
-        image_data, image_offsets = await loop.run_in_executor(None, job.results.to_bytes)
+        if settings.multi_threading:
+            loop = asyncio.get_running_loop()
+            image_data, image_offsets = await loop.run_in_executor(
+                None, job.results.to_bytes, settings.history_format
+            )
+        else:
+            image_data, image_offsets = job.results.to_bytes(settings.history_format)
 
         self._model.document.annotate(f"result{slot}.webp", image_data)
         self._history.append(

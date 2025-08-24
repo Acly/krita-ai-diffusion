@@ -14,4 +14,6 @@ benchmark_dir = test_dir / "benchmark"
 default_checkpoint = {
     Arch.sd15: default_checkpoints[0].filename,
     Arch.sdxl: "RealVisXL_V5.0_fp16.safetensors",
+    Arch.flux: "svdq-int4_r32-flux.1-krea-dev.safetensors",
+    Arch.flux_k: "svdq-int4_r32-flux.1-kontext-dev.safetensors",
 }

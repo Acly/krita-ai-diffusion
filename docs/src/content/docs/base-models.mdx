@@ -16,9 +16,10 @@ The plugin supports:
 * [Stable Diffusion 1.5 (SD1.5)](#stable-diffusion-1.5)
 * [Stable Diffusion XL (SDXL)](#stable-diffusion-xl)
 * [Illustrious / NoobAI](#illustrious--noobai)
+* [Flux](#flux)
 
 The following base models have limited support:
-* <ExternalLink href="https://github.com/Acly/krita-ai-diffusion/discussions/1176">Flux</ExternalLink>
+* <ExternalLink href="https://github.com/Acly/krita-ai-diffusion/discussions/1176">Chroma</ExternalLink>
 * <ExternalLink href="https://github.com/Acly/krita-ai-diffusion/discussions/1328">Stable Diffusion 3.5 (SD3.5)</ExternalLink>
 
 ### Stable Diffusion 1.5
@@ -67,6 +68,27 @@ in Style settings ▸ Advanced checkpoint configuration. That's because they can
 distinguished from SDXL models.
 
 The _v-prediction_ models are also supported. They are detected automatically.
+</Aside>
+
+### Flux
+
+Flux is a modern diffusion model architecture with superior text understanding
+and image quality compared to Stable Diffusion. It was released by Black Forest
+Labs in August 2024. It comes in various configurations, with the most capable
+models not freely available. The open-weights models are less flexible and
+favour photographic content.
+
+* Good at understanding natural language
+* Excellent image composition and consistency
+* Relatively large and slow (requires powerful GPU)
+
+The plugin also supports the edit model [Flux Kontext](https://bfl.ai/models/flux-kontext)
+which allows making specific changes to images via text instructions.
+
+<Aside type="tip">
+Models marked `[Nunchaku]` are quantized versions which are smaller and
+much faster. They retain most of the quality, and are available
+for NVIDIA GPUs only.
 </Aside>
 
 ## Installation

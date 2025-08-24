@@ -225,7 +225,6 @@
     "Prompt Line Count": "提示詞行數",
     "Prompt Translation": "提示詞翻譯",
     "Prompt translation is active! Click to disable and switch to original input.": "提示詞翻譯已啟用！點選即可停用並切換回原始輸入。",
-    "Python not found. Please install python3, python3-venv via your package manager and restart.": "找不到 Python。請透過您的套件管理程式安裝 python3、python3-venv，然後重新啟動。",
     "Quality": "品質",
     "Quality Preset (generate and upscale)": "品質預設集（生成和放大）",
     "Queued": "已加入佇列",
@@ -504,6 +503,12 @@
     "Edit": null,
     "Replace Queue": null,
     "Generation took too long and was cancelled (timeout)": null,
-    "Server error": null
+    "Server error": null,
+    "Perform certain plugin operations in background threads": null,
+    "Flux models": null,
+    "Not supported": null,
+    "History Format": null,
+    "File format for saving generated images in history": null,
+    "Multi-Threading": null
   }
 }

@@ -155,6 +155,39 @@
           "sha256": "c74b4e810b030f6b75fde959e2db678c268d07115b85356d3c0138ba5eb42340"
         }
       ]
+    },
+    {
+      "id": "text_encoder-clip_l-flux",
+      "name": "Clip-L",
+      "files": [
+        {
+          "path": "models/text_encoders/clip_l.safetensors",
+          "url": "https://huggingface.co/comfyanonymous/flux_text_encoders/resolve/main/clip_l.safetensors",
+          "sha256": "660c6f5b1abae9dc498ac2d21e1347d2abdb0cf6c0c0c8576cd796491d9a6cdd"
+        }
+      ]
+    },
+    {
+      "id": "text_encoder-t5-flux",
+      "name": "T5-XXL",
+      "files": [
+        {
+          "path": "models/text_encoders/t5-v1_1-xxl-encoder-Q5_K_M.gguf",
+          "url": "https://huggingface.co/city96/t5-v1_1-xxl-encoder-gguf/resolve/main/t5-v1_1-xxl-encoder-Q5_K_M.gguf",
+          "sha256": "b51cbb10b1a7aac6dd1c3b62f0ed908bfd06e0b42d2f3577d43e061361f51dae"
+        }
+      ]
+    },
+    {
+      "id": "vae-flux-flux",
+      "name": "VAE (Flux)",
+      "files": [
+        {
+          "path": "models/vae/flux_vae.safetensors",
+          "url": "https://huggingface.co/Comfy-Org/Lumina_Image_2.0_Repackaged/resolve/main/split_files/vae/ae.safetensors",
+          "sha256": "afc8e28272cd15db3919bacdb6918ce9c1ed22e96cb12c4d5ed0fba823529e38"
+        }
+      ]
     }
   ],
   "checkpoints": [
@@ -214,28 +247,6 @@
       ]
     },
     {
-      "id": "checkpoint-flux_dev-flux",
-      "name": "Flux [dev]",
-      "files": [
-        {
-          "path": "models/checkpoints/flux1-dev-fp8.safetensors",
-          "url": "https://huggingface.co/Comfy-Org/flux1-dev/resolve/main/flux1-dev-fp8.safetensors",
-          "sha256": "8e91b68084b53a7fc44ed2a3756d821e355ac1a7b6fe29be760c1db532f3d88a"
-        }
-      ]
-    },
-    {
-      "id": "checkpoint-flux_schnell-flux",
-      "name": "Flux [schnell]",
-      "files": [
-        {
-          "path": "models/checkpoints/flux1-schnell-fp8.safetensors",
-          "url": "https://huggingface.co/Comfy-Org/flux1-schnell/resolve/main/flux1-schnell-fp8.safetensors",
-          "sha256": "ead426278b49030e9da5df862994f25ce94ab2ee4df38b556ddddb3db093bf72"
-        }
-      ]
-    },
-    {
       "id": "checkpoint-noobai-illu_v",
       "name": "NoobAI XL (Illustrious - Anime)",
       "files": [
@@ -245,6 +256,41 @@
           "sha256": "ea349eeae87ca8d25ba902c93810f7ca83e5c82f920edf12f273af004ae02819"
         }
       ]
+    },
+    {
+      "id": "checkpoint-flux_dev-flux",
+      "name": "Flux Krea",
+      "files": [
+        {
+          "path": "models/diffusion_models/flux1-krea-dev_float8_e4m3fn_learned_svd.safetensors",
+          "url": "https://huggingface.co/Clybius/FLUX.1-Krea-dev-scaled-fp8/resolve/main/flux1-krea-dev_float8_e4m3fn_learned_svd.safetensors",
+          "sha256": "f18a0dae80efb912eed3cde5d4e88cdd4ed0acfe7bc395cb89ac28791e754069"
+        }
+      ]
+    },
+    {
+      "id": "checkpoint-flux_dev_nunchaku-flux",
+      "name": "Flux Krea [Nunchaku]",
+      "files": [
+        {
+          "path": "models/diffusion_models/svdq-int4_r32-flux.1-krea-dev.safetensors",
+          "url": "https://huggingface.co/nunchaku-tech/nunchaku-flux.1-krea-dev/resolve/main/svdq-int4_r32-flux.1-krea-dev.safetensors",
+          "sha256": "c1dffa6bf3ffe935092818c5135bf66e0cdd4a934afc3a8f3e1e99aa74a1ecf5"
+        }
+      ],
+      "requirements": "cuda"
+    },
+    {
+      "id": "checkpoint-flux_kontext_nunchaku-flux",
+      "name": "Flux Kontext [Nunchaku]",
+      "files": [
+        {
+          "path": "models/diffusion_models/svdq-int4_r32-flux.1-kontext-dev.safetensors",
+          "url": "https://huggingface.co/nunchaku-tech/nunchaku-flux.1-kontext-dev/resolve/main/svdq-int4_r32-flux.1-kontext-dev.safetensors",
+          "sha256": "5dceaae1666bd76402bb9e47a9431a51b2b528f921502ee92b90257717acbebb"
+        }
+      ],
+      "requirements": "cuda"
     }
   ],
   "upscale": [
@@ -436,8 +482,9 @@
       "name": "ControlNet Universal (Flux)",
       "files": [
         {
-          "path": "models/FLUX.1-dev-ControlNet-Union-Pro-2.0-fp8.safetensors",
-          "url": "https://huggingface.co/ABDALLALSWAITI/FLUX.1-dev-ControlNet-Union-Pro-2.0-fp8/resolve/main/diffusion_pytorch_model.safetensors"
+          "path": "models/controlnet/FLUX.1-dev-ControlNet-Union-Pro-2.0-fp8.safetensors",
+          "url": "https://huggingface.co/ABDALLALSWAITI/FLUX.1-dev-ControlNet-Union-Pro-2.0-fp8/resolve/main/diffusion_pytorch_model.safetensors",
+          "sha256": "393fc2a298b93ffe39f2db3f0d2ce11dfba62d44b7aa3c1dd3380d4a1be04deb"
         }
       ]
     },
@@ -447,23 +494,14 @@
       "files": [
         {
           "path": "models/controlnet/FLUX.1-dev-Controlnet-Inpainting-Beta.safetensors",
-          "url": "https://huggingface.co/alimama-creative/FLUX.1-dev-Controlnet-Inpainting-Beta/resolve/main/diffusion_pytorch_model.safetensors"
-        }
-      ]
-    },
-    {
-      "id": "controlnet-line_art-flux",
-      "name": "ControlNet Lines (Flux)",
-      "files": [
-        {
-          "path": "models/controlnet/mistoline_flux.dev_v1.safetensors",
-          "url": "https://huggingface.co/TheMistoAI/MistoLine_Flux.dev/resolve/main/mistoline_flux.dev_v1.safetensors"
+          "url": "https://huggingface.co/alimama-creative/FLUX.1-dev-Controlnet-Inpainting-Beta/resolve/main/diffusion_pytorch_model.safetensors",
+          "sha256": "ca46c5f7b5de02caee7c069f2aedbf628af8def8578319ceae3be1588d448448"
         }
       ]
     },
     {
       "id": "ip_adapter-reference-flux",
-      "name": "Reference (Flux)",
+      "name": "Control Reference (Flux)",
       "files": [
         {
           "id": "clip_vision-redux-flux",
@@ -476,6 +514,17 @@
           "path": "models/style_models/flux1-redux-dev.safetensors",
           "url": "https://files.interstice.cloud/models/flux1-redux-dev.safetensors",
           "sha256": "a1b3bdcb4bdc58ce04874b9ca776d61fc3e914bb6beab41efb63e4e2694dca45"
+        }
+      ]
+    },
+    {
+      "id": "lora-turbo-flux",
+      "name": "Turbo LoRA (Flux)",
+      "files": [
+        {
+          "path": "models/loras/FLUX.1-Turbo-Alpha.safetensors",
+          "url": "https://huggingface.co/alimama-creative/FLUX.1-Turbo-Alpha/resolve/main/diffusion_pytorch_model.safetensors",
+          "sha256": "77f7523a5e9c3da6cfc730c6b07461129fa52997ea06168e9ed5312228aa0bff"
         }
       ]
     },
@@ -681,6 +730,17 @@
           "path": "models/checkpoints/realisticVisionV51_v51VAE.safetensors",
           "url": "https://huggingface.co/lllyasviel/fav_models/resolve/main/fav/realisticVisionV51_v51VAE.safetensors",
           "sha256": "15012c538f503ce2ebfc2c8547b268c75ccdaff7a281db55399940ff1d70e21d"
+        }
+      ]
+    },
+    {
+      "id": "checkpoint-flux_schnell-flux",
+      "name": "Flux [schnell]",
+      "files": [
+        {
+          "path": "models/checkpoints/flux1-schnell-fp8.safetensors",
+          "url": "https://huggingface.co/Comfy-Org/flux1-schnell/resolve/main/flux1-schnell-fp8.safetensors",
+          "sha256": "ead426278b49030e9da5df862994f25ce94ab2ee4df38b556ddddb3db093bf72"
         }
       ]
     }

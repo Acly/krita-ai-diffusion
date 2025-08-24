@@ -71,6 +71,9 @@ def default_style(client: Client, sd_ver=Arch.sd15):
 
     style = Style(Path("default.json"))
     style.checkpoints = [checkpoint] + version_checkpoints
+    if sd_ver.is_flux_like:
+        style.sampler = "Flux - Euler simple"
+        style.cfg_scale = 3.5
     return style
 
 
@@ -317,11 +320,16 @@ def test_inpaint_remove_object(qtapp, client):
     run_and_save(qtapp, client, job, "test_inpaint_remove_object", image, mask)
 
 
-@pytest.mark.parametrize("setup", ["sd15", "sdxl"])
+@pytest.mark.parametrize("setup", ["sd15", "sdxl", "flux", "flux_k"])
 def test_refine(qtapp, client, setup):
+    if isinstance(client, CloudClient) and setup in ["flux", "flux_k"]:
+        pytest.skip("Skipping test for CloudClient with flux models")
+
     sdver, extent, strength = {
         "sd15": (Arch.sd15, Extent(768, 508), 0.5),
         "sdxl": (Arch.sdxl, Extent(1111, 741), 0.65),
+        "flux": (Arch.flux, Extent(1111, 741), 0.65),
+        "flux_k": (Arch.flux_k, Extent(1111, 741), 1.0),
     }[setup]
     image = Image.load(image_dir / "beach_1536x1024.webp")
     image = Image.scale(image, extent)
@@ -338,12 +346,16 @@ def test_refine(qtapp, client, setup):
     assert result.extent == extent
 
 
-@pytest.mark.parametrize("setup", ["sd15_0.4", "sd15_0.6", "sdxl_0.7"])
+@pytest.mark.parametrize("setup", ["sd15_0.4", "sd15_0.6", "sdxl_0.7", "flux_0.6"])
 def test_refine_region(qtapp, client, setup):
+    if isinstance(client, CloudClient) and setup in ["flux", "flux_k"]:
+        pytest.skip("Skipping test for CloudClient with flux models")
+
     sdver, strength = {
         "sd15_0.4": (Arch.sd15, 0.4),
         "sd15_0.6": (Arch.sd15, 0.6),
         "sdxl_0.7": (Arch.sdxl, 0.7),
+        "flux_0.6": (Arch.flux, 0.6),
     }[setup]
     image = Image.load(image_dir / "lake_region.webp")
     mask = Mask.load(image_dir / "lake_region_mask.png")
@@ -700,6 +712,35 @@ def test_refine_live(qtapp, client, sdver):
         is_live=True,
     )
     run_and_save(qtapp, client, job, f"test_refine_live_{sdver.name}")
+
+
+def test_edit(qtapp, client):
+    if isinstance(client, CloudClient):
+        pytest.skip("Not available in the cloud")
+
+    image = Image.load(image_dir / "flowers.webp")
+    style = default_style(client, Arch.flux_k)
+    cond = ConditioningInput("turn the image into a minimalistic vector illustration")
+    job = create(WorkflowKind.refine, client, style=style, canvas=image, cond=cond)
+    run_and_save(qtapp, client, job, "test_edit")
+
+
+def test_edit_selection(qtapp, client):
+    if isinstance(client, CloudClient):
+        pytest.skip("Not available in the cloud")
+
+    image = Image.load(image_dir / "flowers.webp")
+    mask = Mask.load(image_dir / "flowers_mask.png")
+    job = create(
+        WorkflowKind.refine_region,
+        client,
+        style=default_style(client, Arch.flux_k),
+        canvas=image,
+        cond=ConditioningInput("make all flowers have yellow blossoms"),
+        mask=mask,
+        inpaint=automatic_inpaint(image.extent, mask.bounds, Arch.flux_k, ""),
+    )
+    run_and_save(qtapp, client, job, "test_edit_selection")
 
 
 def test_refine_max_pixels(qtapp, client):

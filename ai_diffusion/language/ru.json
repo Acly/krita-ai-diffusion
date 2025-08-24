@@ -225,7 +225,6 @@
     "Prompt Line Count": "Количество строк для подсказок",
     "Prompt Translation": "Перевод подсказок",
     "Prompt translation is active! Click to disable and switch to original input.": "Перевод подсказок включен! Нажмите, чтобы отключить и переключиться на исходный ввод.",
-    "Python not found. Please install python3, python3-venv via your package manager and restart.": "Python не найден. Пожалуйста, установите python3, python3-venv через ваш менеджер пакетов и перезапустите.",
     "Quality": "Качество",
     "Quality Preset (generate and upscale)": "Качество (генерация и масштабирование)",
     "Queued": "Очередь",
@@ -504,6 +503,12 @@
     "Edit": null,
     "Replace Queue": null,
     "Generation took too long and was cancelled (timeout)": null,
-    "Server error": null
+    "Server error": null,
+    "Perform certain plugin operations in background threads": null,
+    "Flux models": null,
+    "Not supported": null,
+    "History Format": null,
+    "File format for saving generated images in history": null,
+    "Multi-Threading": null
   }
 }

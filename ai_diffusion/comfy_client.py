@@ -12,7 +12,7 @@ from typing import Any, Optional, Sequence
 from .api import WorkflowInput
 from .client import Client, CheckpointInfo, ClientMessage, ClientEvent, DeviceInfo, ClientModels
 from .client import SharedWorkflow, TranslationPackage, ClientFeatures, TextOutput
-from .client import MissingResources, filter_supported_styles, loras_to_upload
+from .client import Quantization, MissingResources, filter_supported_styles, loras_to_upload
 from .files import FileFormat
 from .image import Image, ImageCollection
 from .network import RequestManager, NetworkError
@@ -413,14 +413,15 @@ class ComfyClient(Client):
                 (
                     filename,
                     Arch.from_string(info["base_model"], info.get("type", "eps"), filename),
+                    Quantization.from_string(info.get("quant", "none")),
                     info.get("is_inpaint", False),
                     info.get("is_refiner", False),
                 )
                 for filename, info in models.items()
             )
             return {
-                filename: CheckpointInfo(filename, arch, model_format)
-                for filename, arch, is_inpaint, is_refiner in parsed
+                filename: CheckpointInfo(filename, arch, model_format, quant)
+                for filename, arch, quant, is_inpaint, is_refiner in parsed
                 if not (arch is None or (is_inpaint and arch is not Arch.flux) or is_refiner)
             }
 
@@ -678,10 +679,15 @@ def _find_loras(model_list: Sequence[str]):
     kind = ResourceKind.lora
     common_loras = list(product(["hyper", "lcm", "face"], [Arch.sd15, Arch.sdxl]))
     sdxl_loras = [("lightning", Arch.sdxl)]
-    flux_loras = [(ControlMode.depth, Arch.flux), (ControlMode.canny_edge, Arch.flux)]
+    flux_loras = [
+        ("turbo", Arch.flux),
+        (ControlMode.depth, Arch.flux),
+        (ControlMode.canny_edge, Arch.flux),
+    ]
+    flux_k_loras = [("turbo", Arch.flux_k)]
     return {
         resource_id(kind, arch, name): _find_model(model_list, kind, arch, name)
-        for name, arch in chain(common_loras, sdxl_loras, flux_loras)
+        for name, arch in chain(common_loras, sdxl_loras, flux_loras, flux_k_loras)
     }
 
 

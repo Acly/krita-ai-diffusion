@@ -80,5 +80,13 @@
         "steps": 20,
         "minimum_steps": 4,
         "cfg": 1.0
+    },
+    "Flux - Turbo": {
+        "sampler": "euler",
+        "scheduler": "simple",
+        "lora": "turbo",
+        "steps": 8,
+        "minimum_steps": 3,
+        "cfg": 1.0
     }
 }

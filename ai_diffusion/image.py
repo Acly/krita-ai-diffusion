@@ -1,5 +1,4 @@
 from __future__ import annotations
-from enum import Enum
 from math import sqrt
 from PyQt5.QtGui import QImage, QImageWriter, QImageReader, QPixmap, QIcon, QPainter, QColorSpace
 from PyQt5.QtGui import qRgba, qRed, qGreen, qBlue, qAlpha, qGray
@@ -8,7 +7,7 @@ from typing import Callable, Iterable, SupportsIndex, Tuple, NamedTuple, Union, 
 from itertools import product
 from pathlib import Path
 
-from .settings import settings
+from .settings import settings, ImageFileFormat
 from .util import clamp, ensure, is_linux, client_logger as log
 
 import struct
@@ -269,33 +268,6 @@ class Bounds(NamedTuple):
 
 def extent_equal(a: QImage, b: QImage):
     return a.width() == b.width() and a.height() == b.height()
-
-
-class ImageFileFormat(Enum):
-    png = ("png", 85)  # fast, large files
-    png_small = ("png", 50)  # slow, smaller files
-    webp = ("webp", 80)
-    webp_lossless = ("webp", 100)
-    jpeg = ("jpeg", 85)
-
-    @staticmethod
-    def from_extension(filepath: str | Path):
-        extension = Path(filepath).suffix.lower()
-        if extension == ".png":
-            return ImageFileFormat.png_small
-        if extension == ".webp":
-            return ImageFileFormat.webp
-        if extension == ".jpg":
-            return ImageFileFormat.jpeg
-        raise Exception(f"Unsupported image extension: {extension}")
-
-    @property
-    def no_webp_fallback(self):
-        if self is ImageFileFormat.webp_lossless:
-            return ImageFileFormat.png
-        if self is ImageFileFormat.webp:
-            return ImageFileFormat.jpeg
-        return self
 
 
 _qt_supports_webp = None

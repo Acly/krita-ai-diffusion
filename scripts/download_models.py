@@ -23,7 +23,8 @@ from argparse import ArgumentParser
 
 sys.path.append(str(Path(__file__).parent.parent))
 from ai_diffusion import resources
-from ai_diffusion.resources import Arch, ResourceKind, ModelResource, VerificationState
+from ai_diffusion.resources import Arch, ModelRequirements, ResourceKind, ModelResource
+from ai_diffusion.resources import VerificationState
 from ai_diffusion.resources import required_models, default_checkpoints, optional_models
 
 try:
@@ -47,6 +48,7 @@ def list_models(
     minimal=False,
     recommended=False,
     all=False,
+    cuda=True,
     exclude=[],
 ) -> set[ModelResource]:
     assert sum([minimal, recommended, all]) <= 1, (
@@ -58,7 +60,7 @@ def list_models(
         versions.append(Arch.sd15)
     if sdxl or recommended or all:
         versions.append(Arch.sdxl)
-    if flux:
+    if flux or all:
         versions.append(Arch.flux)
     if illu or all:
         versions.append(Arch.illu)
@@ -66,7 +68,7 @@ def list_models(
 
     models: set[ModelResource] = set()
     models.update([m for m in default_checkpoints if all or (m.id.identifier in checkpoints)])
-    if minimal or recommended or all or sd15 or sdxl:
+    if minimal or recommended or all or sd15 or sdxl or flux:
         models.update([m for m in required_models if m.arch in versions])
     if minimal:
         models.add(default_checkpoints[0])
@@ -78,12 +80,20 @@ def list_models(
     if controlnet or recommended or all:
         kinds = [ResourceKind.controlnet, ResourceKind.ip_adapter, ResourceKind.clip_vision]
         models.update([m for m in optional_models if m.kind in kinds and m.arch in versions])
+    if flux or all:
+        lora = ResourceKind.lora
+        models.update([m for m in optional_models if m.kind is lora and m.arch is Arch.flux])
     if prefetch or all:
         models.update(resources.prefetch_models)
     if deprecated:
         models.update([m for m in resources.deprecated_models if m.arch in versions])
 
-    models = models - set([m for m in models if m.id.string in exclude])
+    excluded_models = set([
+        m
+        for m in models
+        if (m.id.string in exclude) or (m.requirements is ModelRequirements.cuda and not cuda)
+    ])
+    models = models - excluded_models
 
     if len(models) == 0:
         print("\nNo models selected for download.")
@@ -246,6 +256,7 @@ if __name__ == "__main__":
     parser.add_argument("--deprecated", action="store_true", help="download old models which will be removed in the near future")
     parser.add_argument("--retry-attempts", type=int, default=5, metavar="N", help="number of retry attempts for downloading a model")
     parser.add_argument("--continue-on-error", action="store_true", help="continue downloading models even if an error occurs")
+    parser.add_argument("--no-cuda", action="store_true", help="don't download models which require NVIDIA GPU")
     parser.add_argument("-j", "--jobs", type=int, default=4, metavar="N", help="number of parallel downloads")
     # fmt: on
     args = parser.parse_args()
@@ -275,6 +286,7 @@ if __name__ == "__main__":
         minimal=args.minimal,
         recommended=args.recommended,
         all=args.all,
+        cuda=not args.no_cuda,
     )
     asyncio.run(
         download_models(

@@ -8,10 +8,11 @@ from typing import Any, NamedTuple, Sequence
 
 # Version identifier for all the resources defined here. This is used as the server version.
 # It usually follows the plugin version, but not all new plugin versions also require a server update.
-version = "1.37.0"
+version = "1.38.0"
 
 comfy_url = "https://github.com/comfyanonymous/ComfyUI"
-comfy_version = "32a95bba8ac91e8a610c35ce4d9963d2453118c1"
+comfy_version = "7139d6d93fc7b5481a69b687080bd36f7b531c46"
+nunchaku_version = "1.0.0.dev20250816"
 
 
 class CustomNode(NamedTuple):
@@ -41,7 +42,7 @@ required_custom_nodes = [
         "External Tooling Nodes",
         "comfyui-tooling-nodes",
         "https://github.com/Acly/comfyui-tooling-nodes",
-        "fa84eec8fc63f409cd2241f4919a121125979a3f",
+        "fa46b933297ef8bc8fd760674af27330b24dccd9",
         ["ETN_LoadImageBase64", "ETN_LoadMaskBase64", "ETN_SendImageWebSocket", "ETN_Translate"],
     ),
     CustomNode(
@@ -67,6 +68,13 @@ optional_custom_nodes = [
         "https://github.com/chengzeyi/Comfy-WaveSpeed",
         "8253745127785d820cff0a9621d1537a5aae5424",
         ["ApplyFBCacheOnModel"],
+    ),
+    CustomNode(
+        "Nunchaku",
+        "ComfyUI-nunchaku",
+        "https://github.com/nunchaku-tech/ComfyUI-nunchaku",
+        "ca9e26422a5452b3306012ba2ed305e712a3f7e3",
+        ["NunchakuFluxDiTLoader"],
     ),
 ]
 
@@ -362,6 +370,7 @@ class VerificationStatus(NamedTuple):
 class ModelRequirements(Enum):
     none = 0
     insightface = 1
+    cuda = 2
 
 
 class ModelFile(NamedTuple):
@@ -627,6 +636,8 @@ search_paths: dict[str, list[str]] = {
     resource_id(ResourceKind.lora, Arch.sdxl, "lightning"): ["sdxl_lightning_8step_lora"],
     resource_id(ResourceKind.lora, Arch.sd15, "hyper"): ["Hyper-SD15-8steps-CFG-lora"],
     resource_id(ResourceKind.lora, Arch.sdxl, "hyper"): ["Hyper-SDXL-8steps-CFG-lora"],
+    resource_id(ResourceKind.lora, Arch.flux, "turbo"): ["flux.1-turbo"],
+    resource_id(ResourceKind.lora, Arch.flux_k, "turbo"): ["flux.1-turbo"],
     resource_id(ResourceKind.lora, Arch.sd15, ControlMode.face): ["ip-adapter-faceid-plusv2_sd15_lora", "ip-adapter-faceid-plus_sd15_lora"],
     resource_id(ResourceKind.lora, Arch.sdxl, ControlMode.face): ["ip-adapter-faceid-plusv2_sdxl_lora", "ip-adapter-faceid_sdxl_lora"],
     resource_id(ResourceKind.lora, Arch.flux, ControlMode.depth): ["flux1-depth"],
