@@ -1393,8 +1393,6 @@ def _save_job_result(model: Model, job: Job | None, index: int):
     base_image.draw_image(result_image, job.params.bounds.offset)
 
     if settings.save_a1111_style_metadata:
-        # png_bytes = bytes(base_image.to_bytes(ImageFileFormat.png))
-        # util.resave_image_with_metadata(png_bytes=png_bytes, img_path=path, params=job.params)
         base_image.save_png_with_metadata(filepath=path, params=job.params)
     else:
         base_image.save(path)
