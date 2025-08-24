@@ -184,6 +184,13 @@ class Settings(QObject):
         _("Translate text prompts from the selected language to English"),
     )
 
+    save_a1111_style_metadata: bool
+    _save_a1111_style_metadata = Setting(
+        _("Save Automatic1111-Style Metadata"),
+        False,
+        _("When saving generated images from thumbnails, include Automatic1111-style metadata in the PNG"),
+    )
+
     prompt_line_count: int
     _prompt_line_count = Setting(
         _("Prompt Line Count"), 2, _("Size of the text editor for image descriptions")

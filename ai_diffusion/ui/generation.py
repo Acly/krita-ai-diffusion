@@ -388,16 +388,9 @@ class HistoryWidget(QListWidget):
             menu.addAction(_("Info to Clipboard"), self._info_to_clipboard)
             menu.addSeparator()
             save_action = ensure(menu.addAction(_("Save Image"), self._save_image))
-            save_w_meta_action = ensure(menu.addAction(_("Save PNG with Metadata"), lambda: self._save_image(True)))
             if self._model.document.filename == "":
                 save_action.setEnabled(False)
-                save_w_meta_action.setEnabled(False)
                 save_action.setToolTip(
-                    _(
-                        "Save as separate image to the same folder as the document.\nMust save the document first!"
-                    )
-                )
-                save_w_meta_action.setToolTip(
                     _(
                         "Save as separate image to the same folder as the document.\nMust save the document first!"
                     )
@@ -444,11 +437,11 @@ class HistoryWidget(QListWidget):
         if (job := self.selected_job) and (clipboard := QGuiApplication.clipboard()):
             clipboard.setText(self._job_info(job.params, tooltip_header=False))
 
-    def _save_image(self, with_metadata: bool = False):
+    def _save_image(self):
         items = self.selectedItems()
         for item in items:
             job_id, image_index = self.item_info(item)
-            self._model.save_result(job_id, image_index, with_metadata)
+            self._model.save_result(job_id, image_index)
 
     def _discard_image(self):
         items = self.selectedItems()

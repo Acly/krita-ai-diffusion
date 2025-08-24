@@ -219,3 +219,52 @@ def edit_attention(text: str, positive: bool) -> str:
         if weight == 1.0 and open_bracket == "("
         else f"{open_bracket}{attention_string}:{weight:.1f}{close_bracket}"
     )
+
+# creates the img text metadata for embedding in PNG files in style of Automatic1111
+def create_img_metadata(params: "JobParams"):
+    meta = params.metadata
+
+    prompt = meta.get("prompt", "")
+    neg_prompt = meta.get("negative_prompt", "")
+    sampler_info = meta.get("sampler", "")
+    model = meta.get("checkpoint", "Unknown")
+    seed = params.seed
+    width = params.bounds.width
+    height = params.bounds.height
+    strength = meta.get("strength", None)
+    loras = meta.get("loras", [])
+
+    # Try to extract sampler, steps, and cfg scale from "sampler"
+    match = re.match(r".*?-\s*(.+?)\s*\((\d+)\s*/\s*([\d.]+)\)", sampler_info)
+    if match:
+        sampler, steps, cfg_scale = match.groups()
+    else:
+        sampler, steps, cfg_scale = sampler_info, "Unknown", "Unknown"
+
+    # Embed LoRAs in the prompt
+    lora_tags = ""
+    for lora in loras:
+        if isinstance(lora, dict):
+            name = lora.get("name")
+            weight = lora.get("weight", 0.0)
+        elif isinstance(lora, (list, tuple)) and len(lora) >= 2:
+            name, weight = lora[0], lora[1]
+        else:
+            continue
+        if weight != 0:
+            lora_tags += f" <lora:{name}:{weight}>"
+
+    full_prompt = f"{prompt.strip()}{lora_tags}"
+
+    # Construct output
+    lines = []
+    lines.append(f"Prompt: {full_prompt}")
+    lines.append(f"Negative prompt: {neg_prompt}")
+    lines.append(
+        f"Steps: {steps}, Sampler: {sampler}, CFG scale: {cfg_scale}, Seed: {seed}, Size: {width}x{height}, Model hash: unknown, Model: {model}"
+    )
+
+    if strength is not None and strength != 1.0:
+        lines[-1] += f", Denoising strength: {strength}"
+
+    return "\n".join(lines)

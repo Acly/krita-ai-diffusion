@@ -790,8 +790,8 @@ class Model(QObject, ObservableProperties):
     def generate_seed(self):
         self.seed = workflow.generate_seed()
 
-    def save_result(self, job_id: str, index: int, with_metadata: bool = False):
-        _save_job_result(self, self.jobs.find(job_id), index, with_metadata)
+    def save_result(self, job_id: str, index: int):
+        _save_job_result(self, self.jobs.find(job_id), index)
 
     def resolve_inpaint_mode(self):
         if self.inpaint.mode is InpaintMode.automatic:
@@ -1382,7 +1382,7 @@ async def _report_errors(parent: Model, coro):
         parent.report_error(util.log_error(e))
 
 
-def _save_job_result(model: Model, job: Job | None, index: int, with_metadata: bool = False):
+def _save_job_result(model: Model, job: Job | None, index: int):
     assert job is not None, "Cannot save result, invalid job id"
     assert len(job.results) > index, "Cannot save result, invalid result index"
     assert model.document.filename, "Cannot save result, document is not saved"
@@ -1395,8 +1395,9 @@ def _save_job_result(model: Model, job: Job | None, index: int, with_metadata: b
     result_image = job.results[index]
     base_image.draw_image(result_image, job.params.bounds.offset)
     
-    if not with_metadata:
-        base_image.save(path)
+    if settings.save_a1111_style_metadata:
+        # png_bytes = bytes(base_image.to_bytes(ImageFileFormat.png))
+        # util.resave_image_with_metadata(png_bytes=png_bytes, img_path=path, params=job.params)
+        base_image.save_png_with_metadata(filepath=path, params=job.params)
     else:
-        png_bytes = bytes(base_image.to_bytes(ImageFileFormat.png))
-        util.resave_image_with_metadata(png_bytes=png_bytes, img_path=path, params=job.params)
+        base_image.save(path)
