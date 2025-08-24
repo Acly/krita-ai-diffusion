@@ -1,4 +1,4 @@
-from ai_diffusion.text import merge_prompt, extract_loras, edit_attention, select_on_cursor_pos
+from ai_diffusion.text import merge_prompt, extract_loras, edit_attention, select_on_cursor_pos, create_img_metadata
 from ai_diffusion.api import LoraInput
 from ai_diffusion.files import File, FileCollection
 
@@ -82,6 +82,106 @@ def test_extract_loras_meta():
         "a ship  zap",  # triggers are inserted on auto-complete, not at extraction
         [LoraInput(lora.id, 0.5)],
     )
+
+
+def test_create_img_metadata_sampler_unmatched():
+    class Bounds:
+        width = 256
+        height = 256
+
+    class Params:
+        seed = 42
+        bounds = Bounds()
+        metadata = {
+            "prompt": "Test",
+            "negative_prompt": "",
+            "sampler": "UnknownSampler",
+            "checkpoint": "unknown.ckpt",
+            "loras": [],
+        }
+
+    result = create_img_metadata(Params())
+    assert "Sampler: UnknownSampler" in result
+    assert "Steps: Unknown" in result
+    assert "CFG scale: Unknown" in result
+
+
+def test_create_img_metadata_loras_dict_and_tuple():
+    class Bounds:
+        width = 128
+        height = 128
+
+    class Params:
+        seed = 1
+        bounds = Bounds()
+        metadata = {
+            "prompt": "Prompt",
+            "negative_prompt": "",
+            "sampler": "Euler - euler_a (10 / 5.0)",
+            "checkpoint": "loramodel.ckpt",
+            "loras": [{"name": "lora1", "weight": 0.7}, ("lora2", 0.5), ["lora3", 0.9]],
+        }
+
+    result = create_img_metadata(Params())
+    assert "<lora:lora1:0.7>" in result
+    assert "<lora:lora2:0.5>" in result
+    assert "<lora:lora3:0.9>" in result
+
+
+def test_create_img_metadata_strength_none_and_one():
+    class Bounds:
+        width = 64
+        height = 64
+
+    class ParamsNone:
+        seed = 0
+        bounds = Bounds()
+        metadata = {
+            "prompt": "Prompt",
+            "negative_prompt": "",
+            "sampler": "Euler - euler_a (5 / 2.0)",
+            "checkpoint": "model.ckpt",
+            "strength": None,
+            "loras": [],
+        }
+
+    class ParamsOne:
+        seed = 0
+        bounds = Bounds()
+        metadata = {
+            "prompt": "Prompt",
+            "negative_prompt": "",
+            "sampler": "Euler - euler_a (5 / 2.0)",
+            "checkpoint": "model.ckpt",
+            "strength": 1.0,
+            "loras": [],
+        }
+
+    result_none = create_img_metadata(ParamsNone())
+    result_one = create_img_metadata(ParamsOne())
+    assert "Denoising strength" not in result_none
+    assert "Denoising strength" not in result_one
+
+
+def test_create_img_metadata_missing_metadata_fields():
+    class Bounds:
+        width = 100
+        height = 200
+
+    class Params:
+        seed = 999
+        bounds = Bounds()
+        metadata = {}
+
+    result = create_img_metadata(Params())
+    assert "Prompt: " in result
+    assert "Negative prompt: " in result
+    assert "Steps: Unknown" in result
+    assert "Sampler: " in result
+    assert "CFG scale: Unknown" in result
+    assert "Seed: 999" in result
+    assert "Size: 100x200" in result
+    assert "Model: Unknown" in result
 
 
 class TestEditAttention:
