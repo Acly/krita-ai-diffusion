@@ -348,6 +348,7 @@ def test_downscale():
     result = Image.scale(img, Extent(6, 4))
     assert result.width == 6 and result.height == 4
 
+
 def test_save_png_w_itxt_valid(tmp_path):
     # Create a minimal valid PNG file
     png_header = b"\x89PNG\r\n\x1a\n"
@@ -363,7 +364,9 @@ def test_save_png_w_itxt_valid(tmp_path):
 
     file_path = tmp_path / "test_image.png"
 
-    Image.save_png_w_itxt(img_path=file_path, png_data=png_data, keyword='testkey', text='testvalue')
+    Image.save_png_w_itxt(
+        img_path=file_path, png_data=png_data, keyword="testkey", text="testvalue"
+    )
     # (file_path, "testkey", "testvalue")
 
     # Check that the file still starts with PNG header
@@ -379,9 +382,9 @@ def test_save_png_w_itxt_invalid(tmp_path):
     # Not a PNG file
     file_path = tmp_path / "not_png.txt"
     png_data = b"not a png"
-    
+
     try:
-        Image.save_png_w_itxt(img_path=file_path, png_data=png_data, keyword='key', text='value')
+        Image.save_png_w_itxt(img_path=file_path, png_data=png_data, keyword="key", text="value")
         assert False, "Should have raised ValueError"
     except ValueError as e:
         assert "Not a valid PNG file" in str(e)

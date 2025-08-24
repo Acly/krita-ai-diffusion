@@ -1,7 +1,5 @@
 import asyncio
-import struct
 import sys
-import zlib
 from tempfile import TemporaryDirectory
 from pathlib import Path
 from ai_diffusion import util
@@ -54,29 +52,3 @@ def test_long_path_zip_file():
             zip.extractall(long_path)
         assert (long_path / "test.txt").read_text() == "test"
         assert (long_path / "test2.txt").read_text() == "test2"
-
-        def test_format_like_automatic1111_basic():
-            class Bounds:
-                width = 512
-                height = 768
-
-            class Params:
-                seed = 12345
-                bounds = Bounds()
-                metadata = {
-                    "prompt": "A cat",
-                    "negative_prompt": "dog",
-                    "sampler": "Euler - euler_a (20 / 7.5)",
-                    "checkpoint": "model.ckpt",
-                    "strength": 0.8,
-                    "loras": [],
-                }
-
-            result = util._format_like_automatic1111(Params())
-            assert "Prompt: A cat" in result
-            assert "Negative prompt: dog" in result
-            assert (
-                "Steps: 20, Sampler: euler_a, CFG scale: 7.5, Seed: 12345, Size: 512x768, Model hash: unknown, Model: model.ckpt, Denoising strength: 0.8"
-                in result
-            )
-

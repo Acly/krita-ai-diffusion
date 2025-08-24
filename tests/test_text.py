@@ -1,4 +1,10 @@
-from ai_diffusion.text import merge_prompt, extract_loras, edit_attention, select_on_cursor_pos, create_img_metadata
+from ai_diffusion.text import (
+    merge_prompt,
+    extract_loras,
+    edit_attention,
+    select_on_cursor_pos,
+    create_img_metadata,
+)
 from ai_diffusion.api import LoraInput
 from ai_diffusion.files import File, FileCollection
 
@@ -81,6 +87,32 @@ def test_extract_loras_meta():
     assert extract_loras("a ship <lora:zap> zap", loras) == (
         "a ship  zap",  # triggers are inserted on auto-complete, not at extraction
         [LoraInput(lora.id, 0.5)],
+    )
+
+
+def test_create_img_metadata_basic():
+    class Bounds:
+        width = 512
+        height = 768
+
+    class Params:
+        seed = 12345
+        bounds = Bounds()
+        metadata = {
+            "prompt": "A cat",
+            "negative_prompt": "dog",
+            "sampler": "Euler - euler_a (20 / 7.5)",
+            "checkpoint": "model.ckpt",
+            "strength": 0.8,
+            "loras": [],
+        }
+
+    result = create_img_metadata(Params())
+    assert "Prompt: A cat" in result
+    assert "Negative prompt: dog" in result
+    assert (
+        "Steps: 20, Sampler: euler_a, CFG scale: 7.5, Seed: 12345, Size: 512x768, Model hash: unknown, Model: model.ckpt, Denoising strength: 0.8"
+        in result
     )
 
 

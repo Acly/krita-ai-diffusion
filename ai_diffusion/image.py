@@ -614,7 +614,7 @@ class Image:
         finally:
             file.close()
 
-    def save_png_with_metadata(self, filepath: Union[str, Path], params: "JobParams"):  # noqa F821  to avoid circular import
+    def save_png_with_metadata(self, filepath: Union[str, Path], params: "JobParams"):  # noqa F821  # type: ignore[name-defined]  to avoid circular import
         from .text import (
             create_img_metadata as create_image_metadata,
         )  # to prevent circular import issue if done at top
