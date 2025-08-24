@@ -188,7 +188,9 @@ class Settings(QObject):
     _save_a1111_style_metadata = Setting(
         _("Save Automatic1111-Style Metadata"),
         False,
-        _("When saving generated images from thumbnails, include Automatic1111-style metadata in the PNG"),
+        _(
+            "When saving generated images from thumbnails, include Automatic1111-style metadata in the PNG"
+        ),
     )
 
     prompt_line_count: int

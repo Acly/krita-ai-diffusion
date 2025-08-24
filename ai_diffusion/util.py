@@ -12,7 +12,6 @@ import json
 import locale
 import logging
 import logging.handlers
-import re
 import statistics
 import zipfile
 from typing import Any, Callable, Iterable, Optional, Sequence, TypeVar
@@ -297,4 +296,3 @@ def acquire_elements(l: list[QOBJECT]) -> list[QOBJECT]:
         if obj is not None:
             sip.transferback(obj)
     return l
-

@@ -3,17 +3,14 @@ import asyncio
 from copy import copy
 from collections import deque
 from dataclasses import replace
-from io import BytesIO
 from pathlib import Path
 from enum import Enum
 from tempfile import TemporaryDirectory
-from struct import error as struct_error
 import time
 from typing import Any, NamedTuple
 from PyQt5.QtCore import QObject, QUuid, pyqtSignal, Qt
 from PyQt5.QtGui import QPainter, QColor, QBrush
 import uuid
-from zlib import error as zlib_error
 
 from . import eventloop, workflow, util
 from .api import ConditioningInput, ControlInput, WorkflowKind, WorkflowInput, SamplingInput
@@ -22,7 +19,7 @@ from .localization import translate as _
 from .util import clamp, ensure, trim_text, client_logger as log
 from .settings import ApplyBehavior, ApplyRegionBehavior, GenerationFinishedAction, settings
 from .network import NetworkError
-from .image import Extent, Image, Mask, Bounds, DummyImage, ImageFileFormat
+from .image import Extent, Image, Mask, Bounds, DummyImage
 from .client import Client, ClientMessage, ClientEvent, ClientOutput
 from .client import filter_supported_styles, resolve_arch
 from .custom_workflow import CustomWorkspace, WorkflowCollection, CustomGenerationMode
@@ -1394,7 +1391,7 @@ def _save_job_result(model: Model, job: Job | None, index: int):
     base_image = model._get_current_image(Bounds(0, 0, *model.document.extent))
     result_image = job.results[index]
     base_image.draw_image(result_image, job.params.bounds.offset)
-    
+
     if settings.save_a1111_style_metadata:
         # png_bytes = bytes(base_image.to_bytes(ImageFileFormat.png))
         # util.resave_image_with_metadata(png_bytes=png_bytes, img_path=path, params=job.params)

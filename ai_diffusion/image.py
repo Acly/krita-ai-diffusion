@@ -429,11 +429,9 @@ class Image:
         rhs._qimage.reinterpretAsFormat(QImage.Format.Format_Grayscale8)
         result.reinterpretAsFormat(QImage.Format.Format_Grayscale8)
         return Image(result)
-    
 
     @staticmethod
-    def save_png_w_itxt(img_path:  Union[str, Path], png_data: bytes, keyword: str, text: str):
-
+    def save_png_w_itxt(img_path: Union[str, Path], png_data: bytes, keyword: str, text: str):
         if png_data[:8] != b"\x89PNG\r\n\x1a\n":
             raise ValueError("Not a valid PNG file")
 
@@ -616,13 +614,14 @@ class Image:
         finally:
             file.close()
 
+    def save_png_with_metadata(self, filepath: Union[str, Path], params: "JobParams"):  # noqa F821  to avoid circular import
+        from .text import (
+            create_img_metadata as create_image_metadata,
+        )  # to prevent circular import issue if done at top
 
-    def save_png_with_metadata(self, filepath: Union[str, Path], params: "JobParams"):
-        from .text import create_img_metadata as create_image_metadata  # to prevent circular import issue if done at top
         png_bytes = bytes(self.to_bytes(ImageFileFormat.png))
         metadata_text = create_image_metadata(params)
         self.save_png_w_itxt(filepath, png_bytes, "parameters", metadata_text)
-
 
     def debug_save(self, name):
         if settings.debug_image_folder:
