@@ -1391,4 +1391,8 @@ def _save_job_result(model: Model, job: Job | None, index: int):
     base_image = model._get_current_image(Bounds(0, 0, *model.document.extent))
     result_image = job.results[index]
     base_image.draw_image(result_image, job.params.bounds.offset)
-    base_image.save(path)
+
+    if settings.save_a1111_style_metadata:
+        base_image.save_png_with_metadata(filepath=path, params=job.params)
+    else:
+        base_image.save(path)
