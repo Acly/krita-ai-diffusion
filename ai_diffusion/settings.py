@@ -219,9 +219,7 @@ class Settings(QObject):
     _save_image_metadata = Setting(
         _("Save Image Metadata"),
         False,
-        _(
-            "When saving generated images from thumbnails, include metadata in the PNG"
-        ),
+        _("When saving generated images from thumbnails, include metadata in the PNG"),
     )
 
     prompt_line_count: int

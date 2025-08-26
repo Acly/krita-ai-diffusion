@@ -395,7 +395,7 @@ def test_save_png_with_metadata(tmp_path):
     img = Image.create(Extent(2, 2), Qt.GlobalColor.red)
     file_path = tmp_path / "test_meta.png"
 
-    img.save_png_with_metadata(file_path, 'my test metadata in the png')
+    img.save_png_with_metadata(file_path, "my test metadata in the png")
 
     # Check that the file exists and starts with PNG header
     data = file_path.read_bytes()
