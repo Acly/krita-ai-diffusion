@@ -215,6 +215,13 @@ class Settings(QObject):
         _("Translate text prompts from the selected language to English"),
     )
 
+    save_image_metadata: bool
+    _save_image_metadata = Setting(
+        _("Save Image Metadata"),
+        False,
+        _("When saving generated images from thumbnails, include metadata in the PNG"),
+    )
+
     prompt_line_count: int
     _prompt_line_count = Setting(
         _("Prompt Line Count"), 2, _("Size of the text editor for image descriptions")

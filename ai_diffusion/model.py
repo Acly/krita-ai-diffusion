@@ -35,6 +35,7 @@ from .control import ControlLayer
 from .region import Region, RegionLink, RootRegion, process_regions, get_region_inpaint_mask
 from .resources import ControlMode
 from .resolution import compute_bounds, compute_relative_bounds
+from .text import create_img_metadata
 
 
 class QueueMode(Enum):
@@ -1391,4 +1392,9 @@ def _save_job_result(model: Model, job: Job | None, index: int):
     base_image = model._get_current_image(Bounds(0, 0, *model.document.extent))
     result_image = job.results[index]
     base_image.draw_image(result_image, job.params.bounds.offset)
-    base_image.save(path)
+
+    if settings.save_image_metadata:
+        metadata_text = create_img_metadata(job.params)
+        base_image.save_png_with_metadata(filepath=path, metadata_text=metadata_text)
+    else:
+        base_image.save(path)

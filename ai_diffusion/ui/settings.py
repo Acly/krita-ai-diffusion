@@ -485,6 +485,7 @@ class InterfaceSettings(SettingsTab):
         )
         self.add("new_seed_after_apply", SwitchSetting(S._new_seed_after_apply, parent=self))
         self.add("debug_dump_workflow", SwitchSetting(S._debug_dump_workflow, parent=self))
+        self.add("save_image_metadata", SwitchSetting(S._save_image_metadata, parent=self))
 
         languages = [(lang.name, lang.id) for lang in Localization.available]
         self._widgets["language"].set_items(languages)
