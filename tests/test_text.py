@@ -108,7 +108,7 @@ def test_create_img_metadata_basic():
         metadata=metadata,
         seed=12345,
     )
-    
+
     result = create_img_metadata(job_params)
     assert "Prompt: A cat" in result
     assert "Negative prompt: dog" in result
@@ -119,7 +119,6 @@ def test_create_img_metadata_basic():
 
 
 def test_create_img_metadata_sampler_unmatched():
-
     bounds = Bounds(0, 0, 256, 256)
     metadata = {
         "prompt": "Test",
@@ -144,7 +143,6 @@ def test_create_img_metadata_sampler_unmatched():
 
 def test_create_img_metadata_loras_dict_and_tuple():
     bounds = Bounds(0, 0, 128, 128)
-
 
     metadata = {
         "prompt": "Prompt",
@@ -204,7 +202,6 @@ def test_create_img_metadata_strength_none_and_one():
 
 
 def test_create_img_metadata_missing_metadata_fields():
-
     jp = JobParams(
         bounds=Bounds(0, 0, 100, 200),
         name="test",
