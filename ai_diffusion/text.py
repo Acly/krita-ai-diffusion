@@ -222,8 +222,8 @@ def edit_attention(text: str, positive: bool) -> str:
     )
 
 
-# creates the img text metadata for embedding in PNG files in style of Automatic1111
-def create_img_metadata(params: "JobParams"):  # noqa: F821  # type: ignore[name-defined]  to avoid circular import
+# creates the img text metadata for embedding in PNG files in style like Automatic1111
+def create_img_metadata(params: JobParams):
     meta = params.metadata
 
     prompt = meta.get("prompt", "")
