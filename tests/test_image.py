@@ -395,31 +395,9 @@ def test_save_png_with_metadata(tmp_path):
     img = Image.create(Extent(2, 2), Qt.GlobalColor.red)
     file_path = tmp_path / "test_meta.png"
 
-    class DummyBounds:
-        width = 2
-        height = 2
-
-    class DummyParams:
-        metadata = {
-            "prompt": "test prompt",
-            "negative_prompt": "none",
-            "sampler": "Euler",
-            "checkpoint": "test-model",
-            "strength": 0.8,
-            "loras": [],
-        }
-        seed = 42
-        bounds = DummyBounds()
-
-    img.save_png_with_metadata(file_path, DummyParams())
+    img.save_png_with_metadata(file_path, 'my test metadata in the png')
 
     # Check that the file exists and starts with PNG header
     data = file_path.read_bytes()
     assert data.startswith(b"\x89PNG\r\n\x1a\n")
-    assert b"test prompt" in data
-    assert b"none" in data
-    assert b"Euler" in data
-    assert b"test-model" in data
-    assert b"42" in data
-    assert b"2x2" in data
-    assert b"Denoising strength: 0.8" in data
+    assert b"my test metadata in the png" in data

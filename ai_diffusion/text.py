@@ -7,6 +7,7 @@ from .api import LoraInput
 from .files import FileCollection, FileSource
 from .localization import translate as _
 from .util import client_logger as log
+from .jobs import JobParams
 
 
 class LoraId(NamedTuple):

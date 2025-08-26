@@ -215,12 +215,12 @@ class Settings(QObject):
         _("Translate text prompts from the selected language to English"),
     )
 
-    save_a1111_style_metadata: bool
-    _save_a1111_style_metadata = Setting(
-        _("Save Automatic1111-Style Metadata"),
+    save_image_metadata: bool
+    _save_image_metadata = Setting(
+        _("Save Image Metadata"),
         False,
         _(
-            "When saving generated images from thumbnails, include Automatic1111-style metadata in the PNG"
+            "When saving generated images from thumbnails, include metadata in the PNG"
         ),
     )
 

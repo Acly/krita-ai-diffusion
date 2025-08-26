@@ -8,7 +8,6 @@ from itertools import product
 from pathlib import Path
 
 from .settings import settings, ImageFileFormat
-print("ImageFileFormat defined:", "ImageFileFormat" in globals())
 from .util import clamp, ensure, is_linux, client_logger as log
 
 import struct
@@ -583,13 +582,8 @@ class Image:
         finally:
             file.close()
 
-    def save_png_with_metadata(self, filepath: Union[str, Path], params: "JobParams"):  # noqa F821  # type: ignore[name-defined]  to avoid circular import
-        from .text import (
-            create_img_metadata as create_image_metadata,
-        )  # to prevent circular import issue if done at top
-
+    def save_png_with_metadata(self, filepath: Union[str, Path], metadata_text: str):
         png_bytes = bytes(self.to_bytes(ImageFileFormat.png))
-        metadata_text = create_image_metadata(params)
         self.save_png_w_itxt(filepath, png_bytes, "parameters", metadata_text)
 
     def debug_save(self, name):
