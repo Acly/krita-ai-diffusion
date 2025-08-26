@@ -1,5 +1,4 @@
 import asyncio
-import threading
 from typing import Callable
 from PyQt5.QtCore import QTimer
 
