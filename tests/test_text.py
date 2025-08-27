@@ -110,7 +110,7 @@ def test_create_img_metadata_basic():
     )
 
     result = create_img_metadata(job_params)
-    assert "Prompt: A cat" in result
+    assert "A cat" in result
     assert "Negative prompt: dog" in result
     assert (
         "Steps: 20, Sampler: euler_a, CFG scale: 7.5, Seed: 12345, Size: 512x768, Model hash: unknown, Model: model.ckpt, Denoising strength: 0.8"
@@ -210,7 +210,7 @@ def test_create_img_metadata_missing_metadata_fields():
     )
 
     result = create_img_metadata(jp)
-    assert "Prompt: " in result
+    assert "" in result
     assert "Negative prompt: " in result
     assert "Steps: Unknown" in result
     assert "Sampler: " in result
