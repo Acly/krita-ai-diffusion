@@ -260,7 +260,7 @@ def create_img_metadata(params: JobParams):
 
     # Construct output
     lines = []
-    lines.append(f"Prompt: {full_prompt}")
+    lines.append(full_prompt)
     lines.append(f"Negative prompt: {neg_prompt}")
     lines.append(
         f"Steps: {steps}, Sampler: {sampler}, CFG scale: {cfg_scale}, Seed: {seed}, Size: {width}x{height}, Model hash: unknown, Model: {model}"
