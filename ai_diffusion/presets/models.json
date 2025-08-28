@@ -214,17 +214,6 @@
       ]
     },
     {
-      "id": "checkpoint-flat2d_animerge-sd15",
-      "name": "Flat2D AniMerge (SD1.5 - Cartoon/Anime)",
-      "files": [
-        {
-          "path": "models/checkpoints/flat2DAnimerge_v45Sharp.safetensors",
-          "url": "https://huggingface.co/Acly/SD-Checkpoints/resolve/main/flat2DAnimerge_v45Sharp.safetensors",
-          "sha256": "fe95063ba60bc9298d60eb252f98d057039d9a882158afe042f266bdc1b1e528"
-        }
-      ]
-    },
-    {
       "id": "checkpoint-realvis-sdxl",
       "name": "RealVis (SDXL - Photography)",
       "files": [
@@ -741,6 +730,17 @@
           "path": "models/checkpoints/flux1-schnell-fp8.safetensors",
           "url": "https://huggingface.co/Comfy-Org/flux1-schnell/resolve/main/flux1-schnell-fp8.safetensors",
           "sha256": "ead426278b49030e9da5df862994f25ce94ab2ee4df38b556ddddb3db093bf72"
+        }
+      ]
+    },
+    {
+      "id": "checkpoint-flat2d_animerge-sd15",
+      "name": "Flat2D AniMerge (SD1.5 - Cartoon/Anime)",
+      "files": [
+        {
+          "path": "models/checkpoints/flat2DAnimerge_v45Sharp.safetensors",
+          "url": "https://huggingface.co/Acly/SD-Checkpoints/resolve/main/flat2DAnimerge_v45Sharp.safetensors",
+          "sha256": "fe95063ba60bc9298d60eb252f98d057039d9a882158afe042f266bdc1b1e528"
         }
       ]
     }
