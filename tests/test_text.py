@@ -4,11 +4,28 @@ from ai_diffusion.text import (
     edit_attention,
     select_on_cursor_pos,
     create_img_metadata,
+    strip_prompt_comments,
 )
 from ai_diffusion.api import LoraInput
 from ai_diffusion.files import File, FileCollection
 from ai_diffusion.jobs import JobParams
 from ai_diffusion.image import Bounds
+
+
+def test_strip_prompt_comment():
+    assert strip_prompt_comments("Hello # this is a comment") == "Hello"
+    assert strip_prompt_comments("Hello \\# this is no comment") == "Hello # this is no comment"
+    assert strip_prompt_comments("Hello # this is a comment \\# and this is not") == "Hello"
+
+
+def test_strip_prompt_comments_multiline():
+    prompt = "Hello # comment\nWorld # another comment"
+    expected = "Hello\nWorld"
+    assert strip_prompt_comments(prompt) == expected
+
+    prompt = "Line1 # comment\nLine2 \\# not a comment # comment\n# Line3"
+    expected = "Line1\nLine2 # not a comment"
+    assert strip_prompt_comments(prompt) == expected
 
 
 def test_merge_prompt():

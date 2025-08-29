@@ -21,6 +21,15 @@ class LoraId(NamedTuple):
         return LoraId(original, original.replace("\\", "/").removesuffix(".safetensors"))
 
 
+def strip_prompt_comments(prompt: str):
+    """Strip comments (text after #) from the prompt, unless the # is escaped with a backslash."""
+    lines = prompt.splitlines()
+    stripped_lines = [
+        re.sub(r"(?<!\\)#.*", "", line).replace(r"\#", "#").rstrip() for line in lines
+    ]
+    return "\n".join(stripped_lines).strip()
+
+
 def merge_prompt(prompt: str, style_prompt: str, language: str = ""):
     if language and prompt:
         prompt = f"lang:{language} {prompt} lang:en "
