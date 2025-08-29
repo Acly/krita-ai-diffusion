@@ -105,9 +105,10 @@ async def main(clean=False, upgrade=False):
     check_line_endings()
 
     print("Preparation complete.\n\nTo build run:")
-    print(f"  docker build -t aclysia/sd-comfyui-krita:{version} scripts/docker/")
+    print(f"  docker build -t aclysia/sd-comfyui-krita:{version} scripts/docker/ # nvidia or CPU")
+    print(f"  docker build -t aclysia/sd-comfyui-krita:{version} -f scripts/docker/rocm.Dockerfile scripts/docker/ # rocm")
     print("\nTo test the image:")
-    print(f"  docker run --gpus all -p 3001:3000 -p 8888:8888 aclysia/sd-comfyui-krita:{version}")
+    print(f"  docker run --gpus all -p 3001:3000 -p 8888:8888 aclysia/sd-comfyui-krita:{version} # nvidia or CPU")
     print("\nTo test the image with a local file server:")
     print("  python scripts/file_server.py")
     print(
