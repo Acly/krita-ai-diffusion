@@ -483,6 +483,7 @@ class InterfaceSettings(SettingsTab):
             "apply_region_behavior_live",
             ComboBoxSetting(S._apply_region_behavior_live, parent=self),
         )
+        self.add("prompt_as_layer_name", SwitchSetting(S._prompt_as_layer_name, parent=self))
         self.add("new_seed_after_apply", SwitchSetting(S._new_seed_after_apply, parent=self))
         self.add("debug_dump_workflow", SwitchSetting(S._debug_dump_workflow, parent=self))
         self.add("save_image_metadata", SwitchSetting(S._save_image_metadata, parent=self))
