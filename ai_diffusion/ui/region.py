@@ -89,18 +89,13 @@ class ActiveRegionWidget(QFrame):
 
     focused = pyqtSignal()
 
-    _root: RootRegion
-    _region: RootRegion | Region | None
-    _bindings: list[QMetaObject.Connection]
-    _header_style: PromptHeader
-    _translation_enabled: bool = True
-
     def __init__(self, root: RootRegion, parent: QWidget, header=PromptHeader.full):
         super().__init__(parent)
         self._root = root
-        self._region = root
-        self._bindings = []
+        self._region: RootRegion | Region | None = root
+        self._bindings: list[QMetaObject.Connection] = []
         self._header_style = header
+        self._translation_enabled = True
         self._is_slim = False
 
         self.setObjectName("ActiveRegionWidget")
@@ -220,6 +215,14 @@ class ActiveRegionWidget(QFrame):
                 bind(region, "positive", self.positive, "text"),
                 bind(region, "negative", self.negative, "text"),
             ]
+            if self.is_slim:
+                evt = region.negative_enabled_live_changed
+                self._bindings.append(evt.connect(self.negative.setEnabled))
+                self.negative.setEnabled(region.negative_enabled_live)
+            else:
+                evt = region.negative_enabled_changed
+                self._bindings.append(evt.connect(self.negative.setEnabled))
+                self.negative.setEnabled(region.negative_enabled)
         elif isinstance(region, Region):
             self._root = region.root
             self._bindings = [
