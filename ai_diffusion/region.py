@@ -1,6 +1,6 @@
 from __future__ import annotations
 from enum import Enum
-from PyQt5.QtCore import QObject, QUuid, pyqtSignal
+from PyQt5.QtCore import QObject, QMetaObject, QUuid, pyqtSignal
 
 from . import eventloop, model, workflow
 from .api import ConditioningInput, RegionInput
@@ -11,6 +11,7 @@ from .properties import Property, ObservableProperties
 from .jobs import JobRegion
 from .control import ControlLayerList
 from .settings import settings
+from .style import Style
 
 
 class RegionLink(Enum):
@@ -149,17 +150,16 @@ class RootRegion(QObject, ObservableProperties):
     If there are no regions, the root region is used as a default for the entire document.
     """
 
-    _model: model.Model
-    _regions: list[Region]
-    _active: Region | None = None
-    _active_layer: QUuid | None = None
-
     positive = Property("", persist=True)
     negative = Property("", persist=True)
+    negative_enabled = Property(True)
+    negative_enabled_live = Property(True)
     control: ControlLayerList
 
     positive_changed = pyqtSignal(str)
     negative_changed = pyqtSignal(str)
+    negative_enabled_changed = pyqtSignal(bool)
+    negative_enabled_live_changed = pyqtSignal(bool)
     active_changed = pyqtSignal(Region)
     active_layer_changed = pyqtSignal()
     added = pyqtSignal(Region)
@@ -169,10 +169,15 @@ class RootRegion(QObject, ObservableProperties):
     def __init__(self, model: model.Model):
         super().__init__()
         self._model = model
-        self._regions = []
+        self._regions: list[Region] = []
         self.control = ControlLayerList(model)
+        self._active: Region | None = None
+        self._active_layer: QUuid | None = None
+        self._style_connection: QMetaObject.Connection | None = None
         model.layers.active_changed.connect(self._update_active)
         model.layers.parent_changed.connect(self._update_group)
+        model.style_changed.connect(self._handle_style_changed)
+        self._handle_style_changed(model.style)
 
     def _find_region(self, layer: Layer):
         return next((r for r in self._regions if r.is_linked(layer, RegionLink.direct)), None)
@@ -320,6 +325,20 @@ class RootRegion(QObject, ObservableProperties):
                     if not parent.is_root:
                         region.unlink(layer)
                         region.link(parent)
+
+    def _handle_style_changed(self, style: Style):
+        if self._style_connection:
+            QObject.disconnect(self._style_connection)
+        self._style_connection = style.changed.connect(self._handle_style_update)
+        self._update_negative_enabled()
+
+    def _handle_style_update(self, name: str, value: object):
+        self._update_negative_enabled()
+
+    def _update_negative_enabled(self):
+        supported = self._model.arch.supports_cfg
+        self.negative_enabled = supported and self._model.style.cfg_scale > 1
+        self.negative_enabled_live = supported and self._model.style.live_cfg_scale > 1
 
     def _add(self, layer: Layer):
         region = Region(self, self._model)

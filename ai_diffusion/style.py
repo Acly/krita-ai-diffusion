@@ -1,7 +1,7 @@
 from __future__ import annotations
 from copy import copy
 from enum import Enum
-from typing import Iterable, NamedTuple
+from typing import Any, Iterable, NamedTuple
 import json
 from pathlib import Path
 from PyQt5.QtCore import QObject, pyqtSignal
@@ -107,7 +107,7 @@ class StyleSettings:
     live_cfg_scale = Setting(_("Guidance Strength (CFG Scale)"), 1.8, cfg_scale.desc)
 
 
-class Style:
+class Style(QObject):
     filepath: Path
     version: int = StyleSettings.version.default
     name: str = StyleSettings.name.default
@@ -129,9 +129,18 @@ class Style:
     live_sampler_steps: int = StyleSettings.live_sampler_steps.default
     live_cfg_scale: float = StyleSettings.live_cfg_scale.default
 
+    changed = pyqtSignal(str, object)
+
     def __init__(self, filepath: Path):
-        self.filepath = filepath
-        self.loras = []
+        super().__init__()
+        super().__setattr__("filepath", filepath)
+        super().__setattr__("loras", [])
+
+    def __setattr__(self, name: str, value: Any):
+        current = getattr(self, name)
+        super().__setattr__(name, value)
+        if current != value and name in StyleSettings.__dict__.keys():
+            self.changed.emit(name, value)
 
     @staticmethod
     def load(filepath: Path):

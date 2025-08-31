@@ -155,6 +155,10 @@ class Arch(Enum):
         return self in [Arch.sd15, Arch.sdxl, Arch.illu, Arch.illu_v]
 
     @property
+    def supports_cfg(self):
+        return self not in [Arch.flux, Arch.flux_k]
+
+    @property
     def is_edit(self):  # edit models make changes to input images
         return self is Arch.flux_k
 
