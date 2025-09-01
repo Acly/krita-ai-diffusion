@@ -32,7 +32,8 @@ from ..server import Server, ServerBackend, ServerState
 from ..connection import ConnectionState
 from ..root import root
 from ..localization import translate as _
-from ..util import ensure, get_cuda_devices
+from ..platform import get_cuda_devices
+from ..util import ensure
 from .. import eventloop, resources, server, util
 from .theme import SignalBlocker, add_header, set_text_clipped, green, grey, red, yellow, highlight
 

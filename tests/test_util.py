@@ -3,7 +3,6 @@ import sys
 from tempfile import TemporaryDirectory
 from pathlib import Path
 from ai_diffusion import util
-from ai_diffusion.util import ZipFile
 from ai_diffusion.util import batched, ensure, sanitize_prompt, find_unused_path
 
 
@@ -28,32 +27,3 @@ def test_unused_path():
         assert find_unused_path(file) == Path(dir) / "test-1.txt"
         (Path(dir) / "test-1.txt").touch()
         assert find_unused_path(file) == Path(dir) / "test-2.txt"
-
-
-def test_create_process():
-    async def main():
-        process = await util.create_process(sys.executable, "--version")
-        output = await ensure(process.stdout).read()
-        assert output.decode().startswith("Python")
-        await process.wait()
-        assert process.returncode == 0
-
-    asyncio.run(main())
-
-
-def test_long_path_zip_file():
-    with TemporaryDirectory() as dir:
-        file = Path(dir) / "test.zip"
-        with ZipFile(file, "w") as zip:
-            zip.writestr("test.txt", "test")
-            zip.writestr("test2.txt", "test2")
-        long_path = Path(dir) / ("l" + "o" * 150 + "ng") / ("l" + "o" * 150 + "ng")
-        with ZipFile(file, "r") as zip:
-            zip.extractall(long_path)
-        assert (long_path / "test.txt").read_text() == "test"
-        assert (long_path / "test2.txt").read_text() == "test2"
-
-
-def test_cuda_devices():
-    devices = util.get_cuda_devices()
-    assert len(devices) == 0 or devices[0][0] >= 3

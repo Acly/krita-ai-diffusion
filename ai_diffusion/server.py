@@ -16,8 +16,9 @@ from .resources import CustomNode, ModelResource, ModelRequirements, Arch
 from .resources import VerificationStatus, VerificationState
 from .network import download, DownloadProgress
 from .localization import translate as _
-from .util import ZipFile, create_process, decode_pipe_bytes, determine_system_encoding
-from .util import client_logger as log, server_logger as server_log, is_windows, is_macos
+from .platform import ZipFile, create_process, decode_pipe_bytes, determine_system_encoding
+from .platform import is_windows, is_macos
+from .util import client_logger as log, server_logger as server_log
 
 
 _exe = ".exe" if is_windows else ""
@@ -122,7 +123,7 @@ class Server:
             self.missing_resources = resources.all_resources
             return
 
-        eventloop.run(determine_system_encoding(str(self._python_cmd)))
+        eventloop.run(determine_system_encoding(str(self._python_cmd), log))
 
         assert self.comfy_dir is not None
         missing_nodes = [
@@ -171,7 +172,7 @@ class Server:
             await install_if_missing(python_dir, self._create_venv, cb)
         assert self._python_cmd is not None
         await self._log_python_version()
-        await determine_system_encoding(str(self._python_cmd))
+        await determine_system_encoding(str(self._python_cmd), log)
 
         comfy_dir = self.comfy_dir or self.path / "ComfyUI"
         if not self.has_comfy:

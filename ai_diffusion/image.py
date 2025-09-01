@@ -8,7 +8,8 @@ from itertools import product
 from pathlib import Path
 
 from .settings import settings, ImageFileFormat
-from .util import clamp, ensure, is_linux, client_logger as log
+from .platform import is_linux
+from .util import clamp, ensure, client_logger as log
 
 import struct
 import zlib
