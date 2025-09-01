@@ -225,7 +225,6 @@
     "Prompt Line Count": "Prompt Satır Sayısı",
     "Prompt Translation": "Prompt Çevirisi",
     "Prompt translation is active! Click to disable and switch to original input.": "Prompt çevirisi aktif! Devre dışı bırakmak ve orijinal girişe geçmek için tıklayın.",
-    "Python not found. Please install python3, python3-venv via your package manager and restart.": "Python bulunamadı. Lütfen paket yöneticiniz aracılığıyla python3, python3-venv kurun ve yeniden başlatın.",
     "Quality": "Kalite",
     "Quality Preset (generate and upscale)": "Kalite Önayarı (oluştur ve ölçeklendir)",
     "Queued": "Kuyruğa Alındı",
@@ -502,6 +501,12 @@
     "Edit": null,
     "Replace Queue": null,
     "Generation took too long and was cancelled (timeout)": null,
-    "Server error": null
+    "Server error": null,
+    "Perform certain plugin operations in background threads": null,
+    "Flux models": null,
+    "Not supported": null,
+    "History Format": null,
+    "File format for saving generated images in history": null,
+    "Multi-Threading": null
   }
 }

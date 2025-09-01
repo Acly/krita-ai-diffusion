@@ -1,5 +1,8 @@
 import pytest
 import numpy as np
+import struct
+import zlib
+
 from PyQt5.QtGui import QImage, qRgba
 from PyQt5.QtCore import Qt, QByteArray
 from PIL import Image as PILImage
@@ -344,3 +347,57 @@ def test_downscale():
     img = create_test_image(12, 8)
     result = Image.scale(img, Extent(6, 4))
     assert result.width == 6 and result.height == 4
+
+
+def test_save_png_w_itxt_valid(tmp_path):
+    # Create a minimal valid PNG file
+    png_header = b"\x89PNG\r\n\x1a\n"
+    ihdr_chunk = (
+        b"\x00\x00\x00\rIHDR" + b"\x00\x00\x00\x01" + b"\x00\x00\x00\x01" + b"\x08\x02\x00\x00\x00"
+    )
+    ihdr_crc = struct.pack(
+        ">I",
+        zlib.crc32(b"IHDR" + b"\x00\x00\x00\x01\x00\x00\x00\x01\x08\x02\x00\x00\x00") & 0xFFFFFFFF,
+    )
+    iend_chunk = b"\x00\x00\x00\x00IEND" + struct.pack(">I", zlib.crc32(b"IEND") & 0xFFFFFFFF)
+    png_data = png_header + ihdr_chunk + ihdr_crc + iend_chunk
+
+    file_path = tmp_path / "test_image.png"
+
+    Image.save_png_w_itxt(
+        img_path=file_path, png_data=png_data, keyword="testkey", text="testvalue"
+    )
+    # (file_path, "testkey", "testvalue")
+
+    # Check that the file still starts with PNG header
+    data = file_path.read_bytes()
+    assert data.startswith(png_header)
+    # Check that iTXt chunk is present
+    assert b"iTXt" in data
+    assert b"testkey" in data
+    assert b"testvalue" in data
+
+
+def test_save_png_w_itxt_invalid(tmp_path):
+    # Not a PNG file
+    file_path = tmp_path / "not_png.txt"
+    png_data = b"not a png"
+
+    try:
+        Image.save_png_w_itxt(img_path=file_path, png_data=png_data, keyword="key", text="value")
+        assert False, "Should have raised ValueError"
+    except ValueError as e:
+        assert "Not a valid PNG file" in str(e)
+
+
+def test_save_png_with_metadata(tmp_path):
+    # Create a simple image
+    img = Image.create(Extent(2, 2), Qt.GlobalColor.red)
+    file_path = tmp_path / "test_meta.png"
+
+    img.save_png_with_metadata(file_path, "my test metadata in the png")
+
+    # Check that the file exists and starts with PNG header
+    data = file_path.read_bytes()
+    assert data.startswith(b"\x89PNG\r\n\x1a\n")
+    assert b"my test metadata in the png" in data

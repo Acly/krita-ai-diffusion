@@ -64,7 +64,7 @@ class PackageGroupWidget(QWidget):
         parent=None,
     ):
         super().__init__(parent)
-        self._workload = Arch.all
+        self._workloads: list[Arch] = []
         self._backend = settings.server_backend
         self._is_checkable = False
 
@@ -180,7 +180,7 @@ class PackageGroupWidget(QWidget):
     def _workload_matches(self, item: PackageItem):
         return (
             not isinstance(item.package, ModelResource)
-            or Arch.match(self._workload, item.package.arch)
+            or item.package.arch in self.workloads
             or item.package.arch not in [Arch.sd15, Arch.sdxl, Arch.flux, Arch.flux_k, Arch.chroma]
         )
 
@@ -204,12 +204,12 @@ class PackageGroupWidget(QWidget):
         ]
 
     @property
-    def workload(self):
-        return self._workload
+    def workloads(self):
+        return self._workloads
 
-    @workload.setter
-    def workload(self, workload: Arch):
-        self._workload = workload
+    @workloads.setter
+    def workloads(self, workloads: list[Arch]):
+        self._workloads = workloads
         self._update()
 
     @property
@@ -783,9 +783,9 @@ class ServerWidget(QWidget):
             self._status_label.setStyleSheet(f"color:{red}")
 
     def change_workload(self):
-        if self.selected_workload is Arch.sd15:
+        if self._workload_group.values[0] is PackageState.selected:
             self._packages["sd15"].expand()
-        elif self.selected_workload is Arch.flux:
+        if self._workload_group.values[2] is PackageState.selected:
             self._packages["flux"].expand()
         self.update_ui()
 
@@ -821,7 +821,7 @@ class ServerWidget(QWidget):
         ]
 
         for widget in self._packages.values():
-            widget.workload = self.selected_workload
+            widget.workloads = self.selected_workloads
             widget.backend = self._server.backend
             widget.set_installed([self._server.is_installed(p) for p in widget.package_names])
 
@@ -839,17 +839,16 @@ class ServerWidget(QWidget):
         return install_required or install_optional
 
     @property
-    def selected_workload(self):
+    def selected_workloads(self):
         selected_or_installed = [
             state in [PackageState.selected, PackageState.installed]
             for state in self._workload_group.values
         ]
-        if all(selected_or_installed):
-            return Arch.all
+        result = []
         if selected_or_installed[0]:
-            return Arch.sd15
+            result.append(Arch.sd15)
         if selected_or_installed[1]:
-            return Arch.sdxl
+            result.append(Arch.sdxl)
         if selected_or_installed[2]:
-            return Arch.flux
-        return Arch.auto
+            result.append(Arch.flux)
+        return result

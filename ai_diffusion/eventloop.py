@@ -1,5 +1,4 @@
 import asyncio
-import threading
 from typing import Callable
 from PyQt5.QtCore import QTimer
 
@@ -48,11 +47,8 @@ def stop():
         pass
 
 
-def wait(future: asyncio.Future):
-    event = threading.Event()
-    future.add_done_callback(lambda _: event.set())
-    event.wait()
-    return future.result()
+def run_until_complete(future: asyncio.Future):
+    return _loop.run_until_complete(future)
 
 
 async def wait_until(condition: Callable[[], bool], iterations=10, no_error=False):

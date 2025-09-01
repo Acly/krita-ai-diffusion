@@ -134,7 +134,7 @@ class ModelSync:
     def __del__(self):
         try:
             if self._image_task is not None and not self._image_task.done():
-                eventloop.wait(self._image_task)
+                eventloop.run_until_complete(self._image_task)
         except Exception as e:
             log.warning(f"Persistence: failed to wait for image task completion: {e}")
 
@@ -229,15 +229,20 @@ class ModelSync:
         if job.kind in [JobKind.diffusion, JobKind.animation] and len(job.results) > 0:
             slot = self._slot_index
             self._slot_index += 1
+            self._image_task = eventloop.run(self._save_result_images(job, slot, self._image_task))
 
-            if self._image_task is not None and not self._image_task.done():
-                eventloop.wait(self._image_task)
-            self._image_task = eventloop.run(self._save_result_images(job, slot))
-
-    async def _save_result_images(self, job: Job, slot: int):
-        # run image encoding and compression in a separate thread
-        loop = asyncio.get_running_loop()
-        image_data, image_offsets = await loop.run_in_executor(None, job.results.to_bytes)
+    async def _save_result_images(
+        self, job: Job, slot: int, prev_task: asyncio.Future | None = None
+    ):
+        if prev_task is not None:
+            await prev_task
+        if settings.multi_threading:
+            loop = asyncio.get_running_loop()
+            image_data, image_offsets = await loop.run_in_executor(
+                None, job.results.to_bytes, settings.history_format
+            )
+        else:
+            image_data, image_offsets = job.results.to_bytes(settings.history_format)
 
         self._model.document.annotate(f"result{slot}.webp", image_data)
         self._history.append(

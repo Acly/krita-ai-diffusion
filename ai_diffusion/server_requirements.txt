@@ -19,8 +19,9 @@ matplotlib==3.10.5
 mediapipe==0.10.21
 omegaconf==2.3.0
 opencv-python==4.11.0.86
-peft==0.17.0
+peft==0.17.1
 pillow==11.3.0
+protobuf==4.25.8
 psutil==7.0.0
 python-dateutil==2.9.0.post0
 pyyaml==6.0.2
@@ -36,7 +37,7 @@ tokenizers==0.21.4
 tomli==2.2.1
 torchsde==0.2.6
 tqdm==4.67.1
-transformers==4.55.2
+transformers==4.55.4
 yacs==0.1.8
 yapf==0.43.0
 yarl==1.20.1

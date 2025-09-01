@@ -1344,11 +1344,15 @@ def prepare(
     """
     i = WorkflowInput(kind)
     i.conditioning = cond
-    i.conditioning.positive, extra_loras = extract_loras(i.conditioning.positive, files.loras)
-    i.conditioning.negative = merge_prompt(cond.negative, style.negative_prompt, cond.language)
     i.conditioning.style = style.style_prompt
+    i.conditioning.positive = strip_prompt_comments(cond.positive)
+    i.conditioning.positive, extra_loras = extract_loras(i.conditioning.positive, files.loras)
+    i.conditioning.negative = merge_prompt(
+        strip_prompt_comments(cond.negative), style.negative_prompt, cond.language
+    )
     for idx, region in enumerate(i.conditioning.regions):
         assert region.mask or idx == 0, "Only the first/bottom region can be without a mask"
+        region.positive = strip_prompt_comments(region.positive)
         region.positive, region.loras = extract_loras(region.positive, files.loras)
         region.loras = [l for l in region.loras if l not in extra_loras]
     i.sampling = _sampling_from_style(style, strength, is_live)

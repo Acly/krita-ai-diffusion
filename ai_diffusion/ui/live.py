@@ -1,5 +1,5 @@
 from __future__ import annotations
-from PyQt5.QtCore import QMetaObject, Qt
+from PyQt5.QtCore import QMetaObject, Qt, QTimer, QRectF
 from PyQt5.QtWidgets import (
     QWidget,
     QVBoxLayout,
@@ -8,8 +8,8 @@ from PyQt5.QtWidgets import (
     QLabel,
     QSpinBox,
     QSizePolicy,
-    QProgressBar,
 )
+from PyQt5.QtGui import QPainter, QPen, QFont, QColor
 
 from ..properties import Binding, bind, Bind
 from ..image import Extent, Image
@@ -21,6 +21,63 @@ from .region import ActiveRegionWidget, PromptHeader
 from .widget import WorkspaceSelectWidget, StyleSelectWidget, StrengthWidget
 from .widget import ErrorBox, create_wide_tool_button
 from . import theme
+
+
+class SpinnerWidget(QWidget):
+    def __init__(self, parent: QWidget):
+        super().__init__(parent)
+        self.setFixedSize(48, 20)
+        self.setAttribute(Qt.WidgetAttribute.WA_TransparentForMouseEvents)
+        self.progress = 0
+        self.rotation = 0
+        self.brightness = 0
+        self.brightness_v = 5
+
+        self.timer = QTimer(self)
+        self.timer.timeout.connect(self._update_rotation)
+        self.timer.setInterval(50)  # 20 FPS animation
+
+    def start_animation(self):
+        if not self.timer.isActive():
+            self.brightness = 0
+            self.brightness_v = 5
+            self.timer.start()
+            self.show()
+
+    def stop_animation(self):
+        self.timer.stop()
+        self.hide()
+
+    def set_progress(self, progress: float):
+        self.progress = progress
+        self.update()
+
+    def _update_rotation(self):
+        self.rotation = (self.rotation + 20) % 360
+        self.brightness = self.brightness + self.brightness_v
+        if self.brightness >= 40:
+            self.brightness_v = -5
+        elif self.brightness <= -40:
+            self.brightness_v = 5
+        self.update()
+
+    def paintEvent(self, a0):
+        painter = QPainter(self)
+        painter.setRenderHint(QPainter.RenderHint.Antialiasing)
+        color = QColor(theme.grey)
+        color = color.lighter(100 + self.brightness)
+
+        rect = QRectF(30, 2, 16, 16)
+        painter.setPen(QPen(color, 2))
+        painter.drawArc(rect, self.rotation * 16, 120 * 16)  # 120 degree arc
+
+        font = QFont()
+        font.setPointSize(8)
+        painter.setFont(font)
+        text = f"{int(self.progress * 100)}%"
+        painter.drawText(
+            2, 2, 24, 16, Qt.AlignmentFlag.AlignLeft | Qt.AlignmentFlag.AlignVCenter, text
+        )
 
 
 class LivePreviewArea(QLabel):
@@ -159,25 +216,11 @@ class LiveWidget(QWidget):
         self.error_box = ErrorBox(self)
         layout.addWidget(self.error_box)
 
-        self.progress_bar = QProgressBar(self)
-        self.progress_bar.setTextVisible(True)
-        self.progress_bar.setFormat("Loading %p%")
-        self.progress_bar.setStyleSheet(
-            f"""
-            QProgressBar {{
-                background: transparent;
-                text-align: center;
-            }}
-            QProgressBar::chunk {{
-                background-color: {theme.grey};
-                width: 20px;
-            }}"""
-        )
-        self.progress_bar.setVisible(False)
-        layout.addWidget(self.progress_bar)
-
         self.preview_area = LivePreviewArea(self)
         layout.addWidget(self.preview_area)
+
+        self.spinner = SpinnerWidget(self.preview_area)
+        self.spinner.hide()
 
     @property
     def model(self):
@@ -247,17 +290,22 @@ class LiveWidget(QWidget):
         )
 
     def update_progress(self):
-        if self.model.live.result is None:
-            if self.model.progress > 0:
-                self.progress_bar.setFormat("Loading %p%")
-            else:
-                self.progress_bar.setFormat("Initializing...")
-            self.progress_bar.setValue(int(self.model.progress * 100))
-            self.progress_bar.setVisible(True)
+        if self.model.progress >= 0:
+            self.spinner.set_progress(self.model.progress)
+        if self.model.progress < 1:
+            self.spinner.start_animation()
 
     def show_result(self, image: Image):
-        self.progress_bar.setVisible(False)
+        self.spinner.stop_animation()
         self.preview_area.show_image(image)
+
+    def resizeEvent(self, a0):
+        super().resizeEvent(a0)
+
+        # Position spinner in top-right corner of preview area
+        preview_rect = self.preview_area.geometry()
+        spinner_x = preview_rect.right() - self.spinner.width() - 4
+        self.spinner.move(spinner_x, 4)
 
     def apply_result(self):
         self.model.live.apply_result()

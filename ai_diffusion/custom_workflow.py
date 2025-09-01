@@ -177,6 +177,7 @@ class WorkflowCollection(QAbstractListModel):
                 try:
                     ComfyWorkflow.import_graph(graph, self._node_inputs())
                 except Exception as e:
+                    log.exception(f"Error importing workflow graph from {filepath}")
                     raise RuntimeError(f"This is not a supported workflow file ({e})")
             return self.save_as(filepath.stem, graph)
         except Exception as e:
