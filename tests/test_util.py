@@ -52,3 +52,8 @@ def test_long_path_zip_file():
             zip.extractall(long_path)
         assert (long_path / "test.txt").read_text() == "test"
         assert (long_path / "test2.txt").read_text() == "test2"
+
+
+def test_cuda_devices():
+    devices = util.get_cuda_devices()
+    assert len(devices) == 0 or devices[0][0] >= 3

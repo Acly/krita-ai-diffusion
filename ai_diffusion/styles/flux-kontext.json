@@ -6,6 +6,7 @@
         "svdq-fp4_r32-flux.1-kontext-dev.safetensors",
         "svdq-int4_r32-flux.1-kontext-dev.safetensors",
         "flux1-dev-kontext_fp8_scaled.safetensors",
+        "flux1-kontext-dev-fp8-e4m3fn.safetensors",
         "flux1-kontext-dev.safetensors"
     ],
     "loras": [],

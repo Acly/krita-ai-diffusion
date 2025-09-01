@@ -296,3 +296,94 @@ def acquire_elements(l: list[QOBJECT]) -> list[QOBJECT]:
         if obj is not None:
             sip.transferback(obj)
     return l
+
+
+def _get_cuda_compute_capabilities() -> list[tuple[int, int]]:
+    """
+    Returns a list of (major, minor) compute capability tuples for each CUDA device
+    if the CUDA driver is available and initializes successfully.
+    """
+    import ctypes
+    import ctypes.util
+
+    # candidate library names for Windows and Linux
+    candidates = []
+    if is_windows:
+        candidates = ["nvcuda.dll"]
+    else:
+        # try common sonames; order matters (libcuda.so.1 is usually a stable symlink)
+        candidates = [
+            "libcuda.so.1",
+            "libcuda.so",
+            ctypes.util.find_library("cuda") or "libcuda.so",
+        ]
+
+    lib = None
+    for name in candidates:
+        if not name:
+            continue
+        try:
+            lib = ctypes.CDLL(name)
+            break
+        except OSError:
+            continue
+    if lib is None:
+        return []
+
+    CUDA_SUCCESS = 0
+
+    try:
+        cuInit = lib.cuInit
+        cuInit.argtypes = [ctypes.c_uint]
+        cuInit.restype = ctypes.c_int
+
+        cuDeviceGetCount = lib.cuDeviceGetCount
+        cuDeviceGetCount.argtypes = [ctypes.POINTER(ctypes.c_int)]
+        cuDeviceGetCount.restype = ctypes.c_int
+
+        cuDeviceGet = lib.cuDeviceGet
+        cuDeviceGet.argtypes = [ctypes.POINTER(ctypes.c_int), ctypes.c_int]
+        cuDeviceGet.restype = ctypes.c_int
+
+        cuDeviceComputeCapability = lib.cuDeviceComputeCapability
+        cuDeviceComputeCapability.argtypes = [
+            ctypes.POINTER(ctypes.c_int),
+            ctypes.POINTER(ctypes.c_int),
+            ctypes.c_int,
+        ]
+        cuDeviceComputeCapability.restype = ctypes.c_int
+    except AttributeError:
+        return []
+
+    if cuInit(0) != CUDA_SUCCESS:
+        return []
+
+    count = ctypes.c_int(0)
+    if cuDeviceGetCount(ctypes.byref(count)) != CUDA_SUCCESS:
+        return []
+
+    devices = []
+    for i in range(count.value):
+        dev = ctypes.c_int(0)
+        if cuDeviceGet(ctypes.byref(dev), i) != CUDA_SUCCESS:
+            continue
+        major = ctypes.c_int(0)
+        minor = ctypes.c_int(0)
+        if (
+            cuDeviceComputeCapability(ctypes.byref(major), ctypes.byref(minor), dev.value)
+            != CUDA_SUCCESS
+        ):
+            continue
+        devices.append((int(major.value), int(minor.value)))
+
+    return devices
+
+
+_cuda_device_list = None
+
+
+def get_cuda_devices() -> list[tuple[int, int]]:
+    global _cuda_device_list
+    if _cuda_device_list is None:
+        _cuda_device_list = _get_cuda_compute_capabilities()
+    return _cuda_device_list

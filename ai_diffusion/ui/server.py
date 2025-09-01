@@ -32,7 +32,7 @@ from ..server import Server, ServerBackend, ServerState
 from ..connection import ConnectionState
 from ..root import root
 from ..localization import translate as _
-from ..util import ensure
+from ..util import ensure, get_cuda_devices
 from .. import eventloop, resources, server, util
 from .theme import SignalBlocker, add_header, set_text_clipped, green, grey, red, yellow, highlight
 
@@ -171,11 +171,15 @@ class PackageGroupWidget(QWidget):
         self._update_status()
 
     def _backend_supports(self, item: PackageItem):
-        return (
-            not isinstance(item.package, ModelResource)
-            or item.package.requirements is not ModelRequirements.cuda
-            or self.backend is ServerBackend.cuda
-        )
+        if isinstance(item.package, ModelResource):
+            req = item.package.requirements
+            has_fp4 = any(major >= 10 for major, minor in get_cuda_devices())  # Blackwell and later
+            if self.backend is ServerBackend.cuda and has_fp4:
+                return req not in [ModelRequirements.no_cuda, ModelRequirements.cuda]
+            elif self.backend is ServerBackend.cuda:
+                return req not in [ModelRequirements.no_cuda, ModelRequirements.cuda_fp4]
+            else:
+                return req not in [ModelRequirements.cuda, ModelRequirements.cuda_fp4]
 
     def _workload_matches(self, item: PackageItem):
         return (
@@ -483,9 +487,26 @@ class ServerWidget(QWidget):
     def _open_logs(self):
         QDesktopServices.openUrl(QUrl.fromLocalFile(str(util.log_dir)))
 
+    def _check_cuda_support(self):
+        if self._server.backend is ServerBackend.cuda and not get_cuda_devices():
+            question = _(
+                "The CUDA backend requires a NVIDIA GPU, but no compatible devices were found. Do you want to continue with installation anyway?"
+            )
+            answer = QMessageBox.warning(
+                self,
+                _("No CUDA Devices Found"),
+                question,
+                QMessageBox.Yes | QMessageBox.No,
+                QMessageBox.StandardButton.No,
+            )
+            return answer == QMessageBox.StandardButton.Yes
+        return True
+
     def _launch(self):
         self._error = ""
         if self.requires_install:
+            if not self._check_cuda_support():
+                return
             eventloop.run(self._install())
         elif self._server.state is ServerState.update_required:
             eventloop.run(self._upgrade())

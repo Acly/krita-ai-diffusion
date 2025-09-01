@@ -255,7 +255,8 @@
           "url": "https://huggingface.co/Clybius/FLUX.1-Krea-dev-scaled-fp8/resolve/main/flux1-krea-dev_float8_e4m3fn_learned_svd.safetensors",
           "sha256": "f18a0dae80efb912eed3cde5d4e88cdd4ed0acfe7bc395cb89ac28791e754069"
         }
-      ]
+      ],
+      "requirements": "no_cuda"
     },
     {
       "id": "checkpoint-flux_dev_nunchaku-flux",
@@ -270,6 +271,30 @@
       "requirements": "cuda"
     },
     {
+      "id": "checkpoint-flux_dev_nunchaku_fp4-flux",
+      "name": "Flux Krea [Nunchaku-fp4]",
+      "files": [
+        {
+          "path": "models/diffusion_models/svdq-fp4_r32-flux.1-krea-dev.safetensors",
+          "url": "https://huggingface.co/nunchaku-tech/nunchaku-flux.1-krea-dev/resolve/main/svdq-fp4_r32-flux.1-krea-dev.safetensors",
+          "sha256": "c1dffa6bf3ffe935092818c5135bf66e0cdd4a934afc3a8f3e1e99aa74a1ecf5"
+        }
+      ],
+      "requirements": "cuda_fp4"
+    },
+    {
+      "id": "checkpoint-flux_kontext-flux",
+      "name": "Flux Kontext",
+      "files": [
+        {
+          "path": "models/diffusion_models/flux1-kontext-dev-fp8-e4m3fn.safetensors",
+          "url": "https://huggingface.co/6chan/flux1-kontext-dev-fp8/resolve/main/flux1-kontext-dev-fp8-e4m3fn.safetensors",
+          "sha256": "e7c137d2a8c3d1a7765fc7538f0744eee8f3c58863226124e066c8b781c170df"
+        }
+      ],
+      "requirements": "no_cuda"
+    },
+    {
       "id": "checkpoint-flux_kontext_nunchaku-flux",
       "name": "Flux Kontext [Nunchaku]",
       "files": [
@@ -280,6 +305,18 @@
         }
       ],
       "requirements": "cuda"
+    },
+    {
+      "id": "checkpoint-flux_kontext_nunchaku_fp4-flux",
+      "name": "Flux Kontext [Nunchaku-fp4]",
+      "files": [
+        {
+          "path": "models/diffusion_models/svdq-fp4_r32-flux.1-kontext-dev.safetensors",
+          "url": "https://huggingface.co/nunchaku-tech/nunchaku-flux.1-kontext-dev/resolve/main/svdq-fp4_r32-flux.1-kontext-dev.safetensors",
+          "sha256": "5dceaae1666bd76402bb9e47a9431a51b2b528f921502ee92b90257717acbebb"
+        }
+      ],
+      "requirements": "cuda_fp4"
     }
   ],
   "upscale": [
