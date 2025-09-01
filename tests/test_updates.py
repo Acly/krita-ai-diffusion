@@ -4,7 +4,7 @@ from aiohttp import ClientSession
 from pathlib import Path
 from PyQt5.QtCore import pyqtBoundSignal
 
-from ai_diffusion.util import ZipFile
+from ai_diffusion.platform import ZipFile
 from ai_diffusion.updates import AutoUpdate, UpdateState
 from .conftest import has_local_cloud
 

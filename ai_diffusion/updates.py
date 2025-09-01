@@ -11,7 +11,8 @@ from PyQt5.QtCore import QObject, pyqtSignal
 from . import __version__, eventloop
 from .network import RequestManager
 from .properties import ObservableProperties, Property
-from .util import ZipFile, client_logger as log
+from .platform import ZipFile
+from .util import client_logger as log
 
 
 class UpdateState(Enum):

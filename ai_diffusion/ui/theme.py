@@ -8,7 +8,8 @@ from ..files import FileFormat
 from ..settings import Setting
 from ..style import Arch
 from ..client import Client
-from ..util import is_windows, client_logger as log
+from ..platform import is_windows
+from ..util import client_logger as log
 
 _palette = QGuiApplication.palette()
 is_dark = _palette.color(QPalette.ColorRole.Window).lightness() < 128
