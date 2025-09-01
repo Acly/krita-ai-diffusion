@@ -374,7 +374,9 @@ class VerificationStatus(NamedTuple):
 class ModelRequirements(Enum):
     none = 0
     insightface = 1
-    cuda = 2
+    cuda = 2  # requires CUDA (NVIDIA only)
+    cuda_fp4 = 3  # requires FP4 support (Blackwell)
+    no_cuda = 4  # model alternative for hardware without CUDA support
 
 
 class ModelFile(NamedTuple):
