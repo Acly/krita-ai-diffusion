@@ -1,6 +1,31 @@
-from ai_diffusion.text import merge_prompt, extract_loras, edit_attention, select_on_cursor_pos
+from ai_diffusion.text import (
+    merge_prompt,
+    extract_loras,
+    edit_attention,
+    select_on_cursor_pos,
+    create_img_metadata,
+    strip_prompt_comments,
+)
 from ai_diffusion.api import LoraInput
 from ai_diffusion.files import File, FileCollection
+from ai_diffusion.jobs import JobParams
+from ai_diffusion.image import Bounds
+
+
+def test_strip_prompt_comment():
+    assert strip_prompt_comments("Hello # this is a comment") == "Hello"
+    assert strip_prompt_comments("Hello \\# this is no comment") == "Hello # this is no comment"
+    assert strip_prompt_comments("Hello # this is a comment \\# and this is not") == "Hello"
+
+
+def test_strip_prompt_comments_multiline():
+    prompt = "Hello # comment\nWorld # another comment"
+    expected = "Hello\nWorld"
+    assert strip_prompt_comments(prompt) == expected
+
+    prompt = "Line1 # comment\nLine2 \\# not a comment # comment\n# Line3"
+    expected = "Line1\nLine2 # not a comment"
+    assert strip_prompt_comments(prompt) == expected
 
 
 def test_merge_prompt():
@@ -82,6 +107,134 @@ def test_extract_loras_meta():
         "a ship  zap",  # triggers are inserted on auto-complete, not at extraction
         [LoraInput(lora.id, 0.5)],
     )
+
+
+def test_create_img_metadata_basic():
+    bounds = Bounds(0, 0, 512, 768)
+    metadata = {
+        "prompt": "A cat",
+        "negative_prompt": "dog",
+        "sampler": "Euler - euler_a (20 / 7.5)",
+        "checkpoint": "model.ckpt",
+        "strength": 0.8,
+        "loras": [],
+    }
+    job_params = JobParams(
+        bounds=bounds,
+        name="test",
+        metadata=metadata,
+        seed=12345,
+    )
+
+    result = create_img_metadata(job_params)
+    assert "A cat" in result
+    assert "Negative prompt: dog" in result
+    assert (
+        "Steps: 20, Sampler: euler_a, CFG scale: 7.5, Seed: 12345, Size: 512x768, Model hash: unknown, Model: model.ckpt, Denoising strength: 0.8"
+        in result
+    )
+
+
+def test_create_img_metadata_sampler_unmatched():
+    bounds = Bounds(0, 0, 256, 256)
+    metadata = {
+        "prompt": "Test",
+        "negative_prompt": "",
+        "sampler": "UnknownSampler",
+        "checkpoint": "unknown.ckpt",
+        "loras": [],
+    }
+
+    job_params = JobParams(
+        bounds=bounds,
+        name="test",
+        metadata=metadata,
+        seed=12345,
+    )
+
+    result = create_img_metadata(job_params)
+    assert "Sampler: UnknownSampler" in result
+    assert "Steps: Unknown" in result
+    assert "CFG scale: Unknown" in result
+
+
+def test_create_img_metadata_loras_dict_and_tuple():
+    bounds = Bounds(0, 0, 128, 128)
+
+    metadata = {
+        "prompt": "Prompt",
+        "negative_prompt": "",
+        "sampler": "Euler - euler_a (10 / 5.0)",
+        "checkpoint": "loramodel.ckpt",
+        "loras": [{"name": "lora1", "weight": 0.7}, ("lora2", 0.5), ["lora3", 0.9]],
+    }
+
+    job_params = JobParams(
+        bounds=bounds,
+        name="test",
+        metadata=metadata,
+        seed=0,
+    )
+    result = create_img_metadata(job_params)
+    assert "<lora:lora1:0.7>" in result
+    assert "<lora:lora2:0.5>" in result
+    assert "<lora:lora3:0.9>" in result
+
+
+def test_create_img_metadata_strength_none_and_one():
+    bounds = Bounds(0, 0, 64, 64)
+
+    job_params_none = JobParams(
+        bounds=bounds,
+        name="test",
+        metadata={
+            "prompt": "Prompt",
+            "negative_prompt": "",
+            "sampler": "Euler - euler_a (5 / 2.0)",
+            "checkpoint": "model.ckpt",
+            "strength": None,
+            "loras": [],
+        },
+        seed=12345,
+    )
+
+    job_params_one = JobParams(
+        bounds=bounds,
+        name="test",
+        metadata={
+            "prompt": "Prompt",
+            "negative_prompt": "",
+            "sampler": "Euler - euler_a (5 / 2.0)",
+            "checkpoint": "model.ckpt",
+            "strength": 1.0,
+            "loras": [],
+        },
+        seed=12345,
+    )
+
+    result_none = create_img_metadata(job_params_none)
+    result_one = create_img_metadata(job_params_one)
+    assert "Denoising strength" not in result_none
+    assert "Denoising strength" not in result_one
+
+
+def test_create_img_metadata_missing_metadata_fields():
+    jp = JobParams(
+        bounds=Bounds(0, 0, 100, 200),
+        name="test",
+        metadata={},
+        seed=999,
+    )
+
+    result = create_img_metadata(jp)
+    assert "" in result
+    assert "Negative prompt: " in result
+    assert "Steps: Unknown" in result
+    assert "Sampler: " in result
+    assert "CFG scale: Unknown" in result
+    assert "Seed: 999" in result
+    assert "Size: 100x200" in result
+    assert "Model: Unknown" in result
 
 
 class TestEditAttention:

@@ -214,17 +214,6 @@
       ]
     },
     {
-      "id": "checkpoint-flat2d_animerge-sd15",
-      "name": "Flat2D AniMerge (SD1.5 - Cartoon/Anime)",
-      "files": [
-        {
-          "path": "models/checkpoints/flat2DAnimerge_v45Sharp.safetensors",
-          "url": "https://huggingface.co/Acly/SD-Checkpoints/resolve/main/flat2DAnimerge_v45Sharp.safetensors",
-          "sha256": "fe95063ba60bc9298d60eb252f98d057039d9a882158afe042f266bdc1b1e528"
-        }
-      ]
-    },
-    {
       "id": "checkpoint-realvis-sdxl",
       "name": "RealVis (SDXL - Photography)",
       "files": [
@@ -482,7 +471,7 @@
       "name": "ControlNet Universal (Flux)",
       "files": [
         {
-          "path": "models/FLUX.1-dev-ControlNet-Union-Pro-2.0-fp8.safetensors",
+          "path": "models/controlnet/FLUX.1-dev-ControlNet-Union-Pro-2.0-fp8.safetensors",
           "url": "https://huggingface.co/ABDALLALSWAITI/FLUX.1-dev-ControlNet-Union-Pro-2.0-fp8/resolve/main/diffusion_pytorch_model.safetensors",
           "sha256": "393fc2a298b93ffe39f2db3f0d2ce11dfba62d44b7aa3c1dd3380d4a1be04deb"
         }
@@ -741,6 +730,17 @@
           "path": "models/checkpoints/flux1-schnell-fp8.safetensors",
           "url": "https://huggingface.co/Comfy-Org/flux1-schnell/resolve/main/flux1-schnell-fp8.safetensors",
           "sha256": "ead426278b49030e9da5df862994f25ce94ab2ee4df38b556ddddb3db093bf72"
+        }
+      ]
+    },
+    {
+      "id": "checkpoint-flat2d_animerge-sd15",
+      "name": "Flat2D AniMerge (SD1.5 - Cartoon/Anime)",
+      "files": [
+        {
+          "path": "models/checkpoints/flat2DAnimerge_v45Sharp.safetensors",
+          "url": "https://huggingface.co/Acly/SD-Checkpoints/resolve/main/flat2DAnimerge_v45Sharp.safetensors",
+          "sha256": "fe95063ba60bc9298d60eb252f98d057039d9a882158afe042f266bdc1b1e528"
         }
       ]
     }

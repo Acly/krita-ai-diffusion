@@ -388,7 +388,6 @@ models.checkpoints = {
             ("dreamshaper", Arch.sd15),
             ("realistic_vision", Arch.sd15),
             ("serenity", Arch.sd15),
-            ("flat2d_animerge", Arch.sd15),
             ("realvis", Arch.sdxl),
             ("zavychroma", Arch.sdxl),
             ("flux_schnell", Arch.flux),

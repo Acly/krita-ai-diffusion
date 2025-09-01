@@ -485,6 +485,7 @@ class InterfaceSettings(SettingsTab):
         )
         self.add("new_seed_after_apply", SwitchSetting(S._new_seed_after_apply, parent=self))
         self.add("debug_dump_workflow", SwitchSetting(S._debug_dump_workflow, parent=self))
+        self.add("save_image_metadata", SwitchSetting(S._save_image_metadata, parent=self))
 
         languages = [(lang.name, lang.id) for lang in Localization.available]
         self._widgets["language"].set_items(languages)
@@ -619,6 +620,10 @@ class PerformanceSettings(SettingsTab):
         self._dynamic_caching.value_changed.connect(self.write)
         self._layout.addWidget(self._dynamic_caching)
 
+        self._multi_threading = SwitchSetting(Settings._multi_threading, parent=self)
+        self._multi_threading.value_changed.connect(self.write)
+        self._layout.addWidget(self._multi_threading)
+
         self._layout.addStretch()
 
     def _change_performance_preset(self, index):
@@ -652,6 +657,7 @@ class PerformanceSettings(SettingsTab):
         self._history_size.update_usage(root.active_model.jobs.memory_usage)
         self._history_storage.value = settings.history_storage
         self._history_storage.update_usage(root.get_active_model_used_storage() / (1024**2))
+        self._multi_threading.value = settings.multi_threading
         self._batch_size.value = settings.batch_size
         self._performance_preset.setCurrentIndex(
             list(PerformancePreset).index(settings.performance_preset)
@@ -665,6 +671,7 @@ class PerformanceSettings(SettingsTab):
     def _write(self):
         settings.history_size = self._history_size.value
         settings.history_storage = self._history_storage.value
+        settings.multi_threading = self._multi_threading.value
         settings.batch_size = int(self._batch_size.value)
         settings.resolution_multiplier = self._resolution_multiplier.value
         settings.max_pixel_count = self._max_pixel_count.value

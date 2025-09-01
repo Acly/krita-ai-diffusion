@@ -281,7 +281,6 @@
     "Prompt Line Count": "Nombre de línies de l'indicador",
     "Prompt Translation": "Traducció de l'indicador",
     "Prompt translation is active! Click to disable and switch to original input.": "La traducció de l'indicador està activa! Fes clic per a inhabilitar-la i canviar a l'entrada original.",
-    "Python not found. Please install python3, python3-venv via your package manager and restart.": "No s'ha trobat Python. Instal·la python3, python3-venv a través del teu gestor de paquets i reinicia.",
     "Quality": "Qualitat",
     "Quality Preset (generate and upscale)": "Qualitat predefinida (generar i augmentar escala)",
     "Queued": "En cua",
@@ -502,6 +501,12 @@
     "Edit": null,
     "Replace Queue": null,
     "Generation took too long and was cancelled (timeout)": null,
-    "Server error": null
+    "Server error": null,
+    "Perform certain plugin operations in background threads": null,
+    "Flux models": null,
+    "Not supported": null,
+    "History Format": null,
+    "File format for saving generated images in history": null,
+    "Multi-Threading": null
   }
 }
