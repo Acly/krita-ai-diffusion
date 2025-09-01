@@ -17,7 +17,7 @@ from .style import Style, StyleSettings, SamplerPresets
 from .resolution import ScaledExtent, ScaleMode, TileLayout, get_inpaint_reference
 from .resources import ControlMode, Arch, UpscalerName, ResourceKind, ResourceId
 from .settings import PerformanceSettings
-from .text import merge_prompt, extract_loras
+from .text import merge_prompt, extract_loras, strip_prompt_comments
 from .comfy_workflow import ComfyWorkflow, ComfyRunMode, Input, Output, ComfyNode
 from .localization import translate as _
 from .settings import settings
