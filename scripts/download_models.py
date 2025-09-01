@@ -22,7 +22,7 @@ from tqdm import tqdm
 from argparse import ArgumentParser
 
 sys.path.append(str(Path(__file__).parent.parent))
-from ai_diffusion import resources
+from ai_diffusion import platform, resources
 from ai_diffusion.resources import Arch, ModelRequirements, ResourceKind, ModelResource
 from ai_diffusion.resources import VerificationState
 from ai_diffusion.resources import required_models, default_checkpoints, optional_models
@@ -33,6 +33,14 @@ try:
     truststore.inject_into_ssl()
 except ImportError:
     pass
+
+
+def _match_backend(model: ModelResource, backend: ModelRequirements):
+    if backend is ModelRequirements.cuda:
+        return model.requirements not in [ModelRequirements.cuda_fp4, ModelRequirements.no_cuda]
+    if backend is ModelRequirements.cuda_fp4:
+        return model.requirements not in [ModelRequirements.cuda, ModelRequirements.no_cuda]
+    return model.requirements not in [ModelRequirements.cuda, ModelRequirements.cuda_fp4]
 
 
 def list_models(
@@ -48,7 +56,7 @@ def list_models(
     minimal=False,
     recommended=False,
     all=False,
-    cuda=True,
+    backend=ModelRequirements.no_cuda,
     exclude=[],
 ) -> set[ModelResource]:
     assert sum([minimal, recommended, all]) <= 1, (
@@ -89,9 +97,7 @@ def list_models(
         models.update([m for m in resources.deprecated_models if m.arch in versions])
 
     excluded_models = set([
-        m
-        for m in models
-        if (m.id.string in exclude) or (m.requirements is ModelRequirements.cuda and not cuda)
+        m for m in models if (m.id.string in exclude) or (not _match_backend(m, backend))
     ])
     models = models - excluded_models
 
@@ -256,7 +262,7 @@ if __name__ == "__main__":
     parser.add_argument("--deprecated", action="store_true", help="download old models which will be removed in the near future")
     parser.add_argument("--retry-attempts", type=int, default=5, metavar="N", help="number of retry attempts for downloading a model")
     parser.add_argument("--continue-on-error", action="store_true", help="continue downloading models even if an error occurs")
-    parser.add_argument("--no-cuda", action="store_true", help="don't download models which require NVIDIA GPU")
+    parser.add_argument("--backend", choices=["auto", "cpu", "cuda", "cuda_fp4", "xpu", "rocm"], default="auto", help="filter models for specific hardware")
     parser.add_argument("-j", "--jobs", type=int, default=4, metavar="N", help="number of parallel downloads")
     # fmt: on
     args = parser.parse_args()
@@ -273,6 +279,18 @@ if __name__ == "__main__":
 
     print(f"Generative AI for Krita - Model download - v{resources.version}")
 
+    backend = ModelRequirements.no_cuda
+    if args.backend == "auto":
+        devices = platform.get_cuda_devices()
+        if any(major >= 10 for (major, minor) in devices):  # Blackwell has compute capability 10.x
+            backend = ModelRequirements.cuda_fp4
+        elif len(devices) > 0:
+            backend = ModelRequirements.cuda
+    elif args.backend == "cuda":
+        backend = ModelRequirements.cuda
+    elif args.backend == "cuda_fp4":
+        backend = ModelRequirements.cuda_fp4
+
     models = list_models(
         sd15=args.sd15,
         sdxl=args.sdxl,
@@ -286,7 +304,7 @@ if __name__ == "__main__":
         minimal=args.minimal,
         recommended=args.recommended,
         all=args.all,
-        cuda=not args.no_cuda,
+        backend=backend,
     )
     asyncio.run(
         download_models(

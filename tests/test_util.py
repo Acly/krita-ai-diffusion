@@ -1,9 +1,6 @@
-import asyncio
-import sys
 from tempfile import TemporaryDirectory
 from pathlib import Path
-from ai_diffusion import util
-from ai_diffusion.util import batched, ensure, sanitize_prompt, find_unused_path
+from ai_diffusion.util import batched, sanitize_prompt, find_unused_path
 
 
 def test_batched():
