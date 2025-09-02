@@ -16,7 +16,7 @@ from .files import FileLibrary, FileFormat
 from .style import Style, StyleSettings, SamplerPresets
 from .resolution import ScaledExtent, ScaleMode, TileLayout, get_inpaint_reference
 from .resources import ControlMode, Arch, UpscalerName, ResourceKind, ResourceId
-from .settings import PerformanceSettings, ServerBackend
+from .settings import PerformanceSettings
 from .text import merge_prompt, extract_loras, strip_prompt_comments
 from .comfy_workflow import ComfyWorkflow, ComfyRunMode, Input, Output, ComfyNode
 from .localization import translate as _
@@ -713,14 +713,6 @@ def scale_refine_and_decode(
     else:
         assert mode is ScaleMode.upscale_quality
         upscaler = models.upscale[UpscalerName.default]
-
-    # if an canvas deviates both sizes from 1024 huge performance penalty tiled vae decreases it this is intel only
-    if (
-        extent.desired.width > 1536
-        or extent.desired.height > 1536
-        and settings.server_backend is ServerBackend.xpu
-    ):
-        tiled_vae = True
 
     upscale_model = w.load_upscale_model(upscaler)
     decoded = vae_decode(w, vae, latent, tiled_vae)
