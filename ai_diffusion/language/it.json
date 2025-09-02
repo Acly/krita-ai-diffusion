@@ -205,7 +205,7 @@
     "Invalid location: directory is not empty, but no previous installation was found": "Posizione non valida: la directory non è vuota, ma non è stata trovata alcuna installazione precedente",
     "Language": "Lingua",
     "Latest version": "Ultima versione",
-    "Launch": "Avvia Server",
+    "Launch": "Avvio Server",
     "Let the Krita plugin install and run a local server on your machine": "Lascia che il plugin Krita installi ed esegua un server locale sulla tua macchina",
     "Line Art": "Linea Artistica",
     "Link region": "Regione di collegamento",
@@ -413,7 +413,7 @@
     "The tile/unblur control model is not installed.": "Il modello di controllo mosaico/sfocatura non è installato.",
     "The {node_name} node is not installed.": "Il nodo {node_name} non è installato.",
     "This LoRA is usually added automatically by a Sampler or Control Layer when needed.\\nIt is not required to add it manually here.": "Questo LoRA viene solitamente aggiunto automaticamente da un campionatore o da un livello di controllo quando necessario. Non è necessario aggiungerlo manualmente qui.",
-    "This has a large impact on which kind of content will be generated. To install additional checkpoints, place them into [ComfyUI]/models/checkpoints.": "Ciò ha un impatto significativo sul tipo di contenuto che verrà generato. Per installare checkpoint aggiuntivi, posizionali in [ComfyUI]/models/checkpoints.",
+    "This has a large impact on which kind of content will be generated. To install additional checkpoints, place them into [ComfyUI]/models/checkpoints.": "Ciò ha un impatto significativo sul tipo di contenuto che verrà generato. Per installare i checkpoint aggiuntivi, posizionali in [ComfyUI]/models/checkpoints.",
     "This is a {version} checkpoint, but the {version} workload has not been installed.": "Questo è un checkpoint {version}, ma il carico di lavoro {version} non è stato installato.",
     "Tile Overlap": "Sovrapposizione mosaico",
     "To generate images, the plugin connects to a ComfyUI server": "Per generare immagini, il plugin si connette a un server ComfyUI",
@@ -502,11 +502,11 @@
     "Replace Queue": "Sostituisci Coda",
     "Generation took too long and was cancelled (timeout)": "La generazione ha richiesto troppo tempo ed è stata annullata (timeout)",
     "Server error": "Errore Server",
-    "Perform certain plugin operations in background threads": "Eseguire determinate operazioni del plugin nelle operazioni in background",
-    "Flux models": "Flux (Modello)",
+    "Perform certain plugin operations in background threads": "Esegui determinate operazioni del plugin in background",
+    "Flux models": "Flux (Modelli)",
     "Not supported": "Non Supportato",
-    "History Format": "Formato della Cronologia",
+    "History Format": "Storico Formato",
     "File format for saving generated images in history": "Formato file per salvare le immagini generate nella cronologia",
-    "Multi-Threading": "Multi-Funzioni"
+    "Multi-Threading": "Multi Operazioni"
   }
 }
