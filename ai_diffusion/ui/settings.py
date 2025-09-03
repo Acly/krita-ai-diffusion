@@ -26,7 +26,7 @@ from PyQt5.QtGui import QDesktopServices, QGuiApplication, QCursor, QFontMetrics
 from ..client import Client, User, MissingResources
 from ..cloud_client import CloudClient
 from ..resources import Arch, ResourceId
-from ..settings import Settings, ServerMode, PerformancePreset, settings
+from ..settings import Settings, ServerMode, PerformancePreset, settings, ImageFileFormat
 from ..server import Server
 from ..style import Style
 from ..root import root
@@ -484,8 +484,11 @@ class InterfaceSettings(SettingsTab):
             ComboBoxSetting(S._apply_region_behavior_live, parent=self),
         )
         self.add("new_seed_after_apply", SwitchSetting(S._new_seed_after_apply, parent=self))
+        self.add("save_image_format", ComboBoxSetting(S._save_image_format, parent=self))
         self.add("save_image_metadata", SwitchSetting(S._save_image_metadata, parent=self))
         self.add("debug_dump_workflow", SwitchSetting(S._debug_dump_workflow, parent=self))
+
+        self._widgets["save_image_format"].value_changed.connect(self._update_image_format_widgets)
 
         languages = [(lang.name, lang.id) for lang in Localization.available]
         self._widgets["language"].set_items(languages)
@@ -495,6 +498,10 @@ class InterfaceSettings(SettingsTab):
             self._widgets[w].show_label = False
 
         self._layout.addStretch()
+
+    def read(self):
+        super().read()
+        self._update_image_format_widgets()
 
     def _tag_files(self) -> list[str]:
         plugin_tags_path = util.plugin_dir / "tags"
@@ -523,6 +530,12 @@ class InterfaceSettings(SettingsTab):
         translation.enabled = client is not None
         translation.set_items(languages)
         self.read()
+
+    def _update_image_format_widgets(self):
+        fmt = self._widgets["save_image_format"].value
+        self._widgets["save_image_metadata"].setVisible(
+            fmt is ImageFileFormat.png or fmt is ImageFileFormat.png_small
+        )
 
 
 class HistorySizeWidget(QWidget):
