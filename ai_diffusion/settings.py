@@ -249,22 +249,22 @@ class Settings(QObject):
     save_image_format: ImageFileFormat
     _save_image_format = Setting(
         _("Save Image Format"),
-        ImageFileFormat.png,
+        ImageFileFormat.png_small,
         _("File format for saved images from thumbnails."),
     )
 
     save_image_quality_webp: int
     _save_image_quality_webp = Setting(
-        _("Save Image Quality (WebP)"),
+        "Save Image Quality (WebP)",
         80,
-        _("Quality for WebP encoding (0-100)"),
+        "Quality for WebP encoding (0-100)",
     )
 
     save_image_quality_jpeg: int
     _save_image_quality_jpeg = Setting(
-        _("Save Image Quality (JPEG)"),
+        "Save Image Quality (JPEG)",
         85,
-        _("Quality for JPEG encoding (0-100)"),
+        "Quality for JPEG encoding (0-100)",
     )
 
     save_image_file_name_format: str

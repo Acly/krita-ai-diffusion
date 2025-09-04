@@ -532,10 +532,8 @@ class InterfaceSettings(SettingsTab):
         self.read()
 
     def _update_image_format_widgets(self):
-        fmt = self._widgets["save_image_format"].value
-        self._widgets["save_image_metadata"].setVisible(
-            fmt is ImageFileFormat.png or fmt is ImageFileFormat.png_small
-        )
+        fmt: ImageFileFormat = self._widgets["save_image_format"].value
+        self._widgets["save_image_metadata"].enabled = fmt.extension == "png"
 
 
 class HistorySizeWidget(QWidget):
