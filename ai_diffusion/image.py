@@ -522,11 +522,14 @@ class Image:
         array = np.frombuffer(ptr, np.uint8).reshape(h, w, c)  # type: ignore
         return array.astype(np.float32) / 255
 
-    def write(self, buffer: QIODevice, format=ImageFileFormat.png):
+    def write(
+        self, buffer: QIODevice, format=ImageFileFormat.png, override_quality: int | None = None
+    ):
         # Compression takes time for large images and blocks the UI, might be worth to thread.
         if not qt_supports_webp():
             format = format.no_webp_fallback
-        format_str, quality = format.value
+        format_str = format.extension
+        quality = override_quality if override_quality is not None else format.quality
         writer = QImageWriter(buffer, QByteArray(format_str.encode("utf-8")))
         writer.setQuality(quality)
         result = writer.write(self._qimage)
@@ -573,18 +576,25 @@ class Image:
         painter.drawImage(*offset, image._qimage)
         painter.end()
 
-    def save(self, filepath: Union[str, Path]):
-        fmt = ImageFileFormat.from_extension(filepath)
+    def save(
+        self,
+        filepath: Union[str, Path],
+        format: ImageFileFormat | None = None,
+        quality: int | None = None,
+    ):
+        fmt = format or ImageFileFormat.from_extension(filepath)
         file = QFile(str(filepath))
         if not file.open(QFile.OpenModeFlag.WriteOnly):
             raise Exception(f"Failed to open {filepath} for writing: {file.errorString()}")
         try:
-            self.write(file, fmt)
+            self.write(file, fmt, quality)
         finally:
             file.close()
 
-    def save_png_with_metadata(self, filepath: Union[str, Path], metadata_text: str):
-        png_bytes = bytes(self.to_bytes(ImageFileFormat.png))
+    def save_png_with_metadata(
+        self, filepath: Union[str, Path], metadata_text: str, format: ImageFileFormat | None = None
+    ):
+        png_bytes = bytes(self.to_bytes(format or ImageFileFormat.png))
         self.save_png_w_itxt(filepath, png_bytes, "parameters", metadata_text)
 
     def debug_save(self, name):
