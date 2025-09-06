@@ -446,8 +446,6 @@ class Model(QObject, ObservableProperties):
                 mask, _ = self._doc.create_mask_from_selection()
                 if mask:
                     img_input.hires_mask = mask.to_image(bounds.extent)
-                else:
-                    img_input.hires_mask = Mask.transparent(bounds).to_image()
 
             params = self.custom.collect_parameters(self.layers, bounds, is_anim)
             input = WorkflowInput(

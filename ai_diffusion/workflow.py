@@ -1286,7 +1286,12 @@ def expand_custom(
                 outputs[node.output(2)] = image.height
                 outputs[node.output(3)] = seed
             case "ETN_KritaSelection":
-                outputs[node.output(0)] = w.load_mask(ensure(images.hires_mask))
+                if images.hires_mask:
+                    outputs[node.output(0)] = w.load_mask(images.hires_mask)
+                else:  # fully opaque mask
+                    image = ensure(images.initial_image)
+                    outputs[node.output(0)] = w.solid_mask(image.extent, 1.0)
+                outputs[node.output(1)] = images.hires_mask is not None
             case "ETN_Parameter":
                 outputs[node.output(0)] = get_param(node)
             case "ETN_KritaImageLayer":
