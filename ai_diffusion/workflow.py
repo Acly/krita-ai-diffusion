@@ -487,19 +487,6 @@ def apply_control(
         if control.mode.is_lines:  # ControlNet expects white lines on black background
             image = w.invert_image(image)
 
-        if lora := models.lora.find(control.mode):
-            if control_lora is not None:
-                raise Exception(
-                    _("The following control layers cannot be used together:")
-                    + f" {control_lora.text}, {control.mode.text}"
-                )
-            control_lora = control.mode
-            model = w.load_lora_model(model, lora, control.strength)
-            positive, negative, __ = w.instruct_pix_to_pix_conditioning(
-                positive, negative, vae, image
-            )
-            continue
-
         if cn_model := models.find(control.mode):
             controlnet = w.load_controlnet(cn_model)
         elif cn_model := models.find(ControlMode.universal):
@@ -518,6 +505,19 @@ def apply_control(
             positive, negative = w.apply_controlnet(
                 positive, negative, controlnet, image, vae, control.strength, control.range
             )
+
+        if not cn_model:  # flux depth/canny control lora (low priority, to be removed?)
+            if lora := models.lora.find(control.mode):
+                if control_lora is not None:
+                    raise Exception(
+                        _("The following control layers cannot be used together:")
+                        + f" {control_lora.text}, {control.mode.text}"
+                    )
+                control_lora = control.mode
+                model = w.load_lora_model(model, lora, control.strength)
+                positive, negative, __ = w.instruct_pix_to_pix_conditioning(
+                    positive, negative, vae, image
+                )
 
     positive = apply_style_models(w, positive, control_layers, models)
 
