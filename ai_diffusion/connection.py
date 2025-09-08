@@ -43,6 +43,7 @@ class Connection(QObject, ObservableProperties):
         self._task: asyncio.Task | None = None
         self._workflows: dict[str, dict] = {}
         self._temporary_disconnect = False
+        self.error_kind = ""
         self.missing_resources: MissingResources | None = None
 
         settings.changed.connect(self._handle_settings_changed)
@@ -74,9 +75,12 @@ class Connection(QObject, ObservableProperties):
         eventloop.run(self._sign_in(CloudClient.default_api_url))
 
     async def _connect(self, url: str, mode: ServerMode, access_token=""):
+        if self.state is ConnectionState.connecting:
+            return
         if self.state is ConnectionState.connected:
             await self.disconnect()
         self.error = ""
+        self.error_kind = ""
         self.state = ConnectionState.connecting
         try:
             if mode is ServerMode.cloud:
@@ -95,6 +99,7 @@ class Connection(QObject, ObservableProperties):
             self.models_changed.emit()
         except NetworkError as e:
             self.error = e.message
+            self.error_kind = "network"
             self.state = ConnectionState.error
             if e.status == 401:  # Unauthorized
                 settings.access_token = ""
@@ -103,10 +108,12 @@ class Connection(QObject, ObservableProperties):
             self.error = _(
                 "Connection established, but the server is missing required custom nodes or models."
             )
+            self.error_kind = "missing_resources"
             self.missing_resources = e
             self.state = ConnectionState.error
         except Exception as e:
             self.error = util.log_error(e)
+            self.error_kind = "unknown"
             self.state = ConnectionState.error
 
     def connect(self):

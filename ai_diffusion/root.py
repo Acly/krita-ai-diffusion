@@ -1,7 +1,9 @@
 from __future__ import annotations
 from dataclasses import dataclass
+import itertools
 from typing import Callable
 from PyQt5.QtCore import QObject, pyqtSignal
+import asyncio
 
 from .connection import Connection, ConnectionState
 from .client import ClientMessage
@@ -121,11 +123,17 @@ class Root(QObject):
                 urls = [settings.server_url]
                 if settings.server_mode is ServerMode.undefined:
                     urls.append("127.0.0.1:8000")  # ComfyUI Desktop default port
-                for url in urls:
+                    retries = 1
+                else:
+                    retries = 5
+                for url, retry in itertools.product(urls, range(retries)):
                     await connection._connect(url, ServerMode.external)
                     if connection.state is ConnectionState.connected:
                         settings.server_url = url
                         break
+                    elif connection.error_kind != "network":
+                        break
+                    await asyncio.sleep(5 * (retry + 1))
                 if settings.server_mode is ServerMode.undefined:
                     if connection.state is ConnectionState.connected:
                         settings.server_mode = ServerMode.external
