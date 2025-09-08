@@ -507,6 +507,16 @@
     "Not supported": null,
     "History Format": null,
     "File format for saving generated images in history": null,
-    "Multi-Threading": null
+    "Multi-Threading": null,
+    "When saving generated images from thumbnails, include metadata in the PNG": null,
+    "loras": null,
+    "Save Image Format": null,
+    "The CUDA backend requires a NVIDIA GPU, but no compatible devices were found. Do you want to continue with installation anyway?": null,
+    "filepath": null,
+    "No CUDA Devices Found": null,
+    "The selected Style does not use the negative prompt.": null,
+    "Save Image File Name Template": null,
+    "File format for saved images from thumbnails.": null,
+    "Save Image Metadata": null
   }
 }

@@ -274,9 +274,8 @@ class Settings(QObject):
     _save_image_file_name_format = Setting(
         _("Save Image File Name Template"),
         "{document_name}-generated-{job_timestamp}-{job_index}-{prompt}",
-        _(
-            "Template for naming saved images (without extension). Available keys: {keys}.",
-            keys="{document_name}, {job_timestamp}, {current_timestamp}, {job_index}, {prompt}",
+        "Template for naming saved images (without extension). Available keys: {keys}.".format(
+            keys="{document_name}, {job_timestamp}, {current_timestamp}, {job_index}, {prompt}"
         ),
     )
 
