@@ -619,9 +619,13 @@ class Model(QObject, ObservableProperties):
             self._layer = self.layers.create(name, image, bounds, make_active=False)
             self._layer.is_locked = True
 
-    def hide_preview(self):
+    def hide_preview(self, delete_layer=False):
         if self._layer is not None:
-            self._layer.hide()
+            if delete_layer:
+                self._layer.remove()
+                self._layer = None
+            else:
+                self._layer.hide()
 
     def apply_result(
         self,

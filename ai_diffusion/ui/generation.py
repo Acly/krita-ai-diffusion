@@ -463,6 +463,7 @@ class HistoryWidget(QListWidget):
         if reply == QMessageBox.Yes:
             self._model.jobs.clear()
             self.clear()
+            self._model.hide_preview(delete_layer=True)
 
 
 class AnimatedListItem(QListWidgetItem):
