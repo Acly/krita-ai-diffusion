@@ -542,7 +542,7 @@ class ComfyClient(Client):
                 missing.append(id)
         has_checkpoint = any(cp.arch is sdver for cp in models.checkpoints.values())
         if not has_checkpoint and sdver not in [Arch.illu, Arch.illu_v]:
-            missing.append(ResourceId(ResourceKind.checkpoint, sdver, "Diffusion model checkpoint"))
+            missing.append(ResourceId(ResourceKind.checkpoint, sdver, "model"))
         if len(missing) > 0:
             log.info(f"{sdver.value}: missing {len(missing)} models")
         return missing
@@ -647,12 +647,13 @@ def _find_ip_adapters(model_list: Sequence[str]):
 
 
 def _find_clip_vision_model(model_list: Sequence[str]):
-    clip_vision_sd = ResourceId(ResourceKind.clip_vision, Arch.all, "ip_adapter")
-    model = find_model(model_list, clip_vision_sd)
+    clip_vision_sd15 = ResourceId(ResourceKind.clip_vision, Arch.sd15, "ip_adapter")
+    clip_vision_sdxl = ResourceId(ResourceKind.clip_vision, Arch.sdxl, "ip_adapter")
     clip_vision_flux = ResourceId(ResourceKind.clip_vision, Arch.flux, "redux")
     clip_vision_illu = ResourceId(ResourceKind.clip_vision, Arch.illu, "ip_adapter")
     return {
-        clip_vision_sd.string: model,
+        clip_vision_sd15.string: find_model(model_list, clip_vision_sd15),
+        clip_vision_sdxl.string: find_model(model_list, clip_vision_sdxl),
         clip_vision_flux.string: find_model(model_list, clip_vision_flux),
         clip_vision_illu.string: find_model(model_list, clip_vision_illu),
     }

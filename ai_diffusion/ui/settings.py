@@ -362,7 +362,7 @@ class ConnectionSettings(SettingsTab):
                     return f"{res.name} ({', '.join(f.name for f in res.files)})"
                 return res.name
             if isinstance(id.identifier, str):
-                return id.identifier
+                return f"{id.kind.value} {id.identifier}"
             return f"{id.kind.value} {id.identifier.value}"
 
         text = ""
