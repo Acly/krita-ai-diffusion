@@ -181,6 +181,7 @@ class PackageGroupWidget(QWidget):
                 return req not in [ModelRequirements.no_cuda, ModelRequirements.cuda_fp4]
             else:
                 return req not in [ModelRequirements.cuda, ModelRequirements.cuda_fp4]
+        return True
 
     def _workload_matches(self, item: PackageItem):
         return (
