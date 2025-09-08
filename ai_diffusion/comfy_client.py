@@ -115,7 +115,7 @@ class ComfyClient(Client):
         log.info("Checking for required custom nodes...")
         nodes = await client._get("object_info")
         missing = _check_for_missing_nodes(nodes)
-        if len(missing) > 0:
+        if len(missing) > 0 and settings.check_server_resources:
             raise MissingResources(missing)
 
         client._features = ClientFeatures(
@@ -173,7 +173,7 @@ class ComfyClient(Client):
             arch for arch, miss in client._supported_archs.items() if len(miss) == 0
         ]
         log.info("Supported workloads: " + ", ".join(arch.value for arch in supported_workloads))
-        if len(supported_workloads) == 0:
+        if len(supported_workloads) == 0 and settings.check_server_resources:
             raise MissingResources(client._supported_archs)
 
         # Workarounds for DirectML
@@ -541,7 +541,9 @@ class ComfyClient(Client):
             if models.find(id) is None:
                 missing.append(id)
         has_checkpoint = any(cp.arch is sdver for cp in models.checkpoints.values())
-        if not has_checkpoint and sdver not in [Arch.illu, Arch.illu_v]:
+        if not has_checkpoint and sdver is Arch.illu:  # Illu checkpoints are detected as SDXL
+            has_checkpoint = any(cp.arch is Arch.sdxl for cp in models.checkpoints.values())
+        if not has_checkpoint:
             missing.append(ResourceId(ResourceKind.checkpoint, sdver, "model"))
         if len(missing) > 0:
             log.info(f"{sdver.value}: missing {len(missing)} models")

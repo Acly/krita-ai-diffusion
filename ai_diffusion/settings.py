@@ -205,6 +205,9 @@ class Settings(QObject):
         _("Server Arguments"), "", _("Additional command line arguments passed to the server")
     )
 
+    check_server_resources: bool
+    _check_server_resources = Setting("Refuse connection if nodes or models are missing", True)
+
     selection_grow: int
     _selection_grow = Setting(
         _("Selection Grow"), 5, _("Selection area is expanded by a fraction of its size")
