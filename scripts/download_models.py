@@ -101,6 +101,14 @@ def list_models(
     ])
     models = models - excluded_models
 
+    # Remove duplicate files listed under different IDs (apply to multiple architectures)
+    file_ids = set()
+    for m in list(models):
+        if m.file_id in file_ids:
+            models.remove(m)
+        else:
+            file_ids.add(m.file_id)
+
     if len(models) == 0:
         print("\nNo models selected for download.")
 

@@ -458,6 +458,10 @@ class ModelResource(NamedTuple):
     def arch(self):
         return self.id.arch
 
+    @property
+    def file_id(self):
+        return self.files[0].url  # unique identifier for the file(s)
+
     def __hash__(self):
         return hash(self.id)
 
@@ -599,8 +603,11 @@ def verify_model_integrity(base_dir: Path | None = None):
     if base_dir is None:
         base_dir = Path(__file__).parent.parent.parent
 
+    verified = set()
     for model in all_models():
-        yield from model.verify(base_dir)
+        if model.file_id not in verified:
+            yield from model.verify(base_dir)
+            verified.add(model.file_id)
 
 
 def search_path(kind: ResourceKind, arch: Arch, identifier: ControlMode | UpscalerName | str):
