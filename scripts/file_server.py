@@ -27,9 +27,9 @@ files = {
     for file in m.files
 }
 
-urls = [
+urls = set(
     url_strip(file.url) for m in resources.all_models(include_deprecated=True) for file in m.files
-]
+)
 
 
 async def file_sender(file: Path):
