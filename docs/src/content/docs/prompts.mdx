@@ -58,6 +58,19 @@ Use Ctrl + Up/Down (Arrow key) in the text editor to increase/decrease the
 weight of the word under the cursor. Also works for selections.
 </Aside>
 
+### Comments
+
+Everything following a `#` character is ignored, until the end of the line.
+This is useful for temporarily disabling parts of the prompt.
+
+```
+a songbird on a tree branch # at sunset
+# dark storm clouds
+a sunny day
+```
+The example would send the following text to the model:
+`a songbird on a tree branch a sunny day`
+
 ## LoRA
 
 LoRA models can be added in the Style settings. But they can also be used with a
