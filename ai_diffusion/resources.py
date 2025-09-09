@@ -12,7 +12,7 @@ version = "1.38.0"
 
 comfy_url = "https://github.com/comfyanonymous/ComfyUI"
 comfy_version = "7139d6d93fc7b5481a69b687080bd36f7b531c46"
-nunchaku_version = "1.0.0.dev20250816"
+nunchaku_version = "1.0.0"
 
 
 class CustomNode(NamedTuple):
@@ -73,7 +73,7 @@ optional_custom_nodes = [
         "Nunchaku",
         "ComfyUI-nunchaku",
         "https://github.com/nunchaku-tech/ComfyUI-nunchaku",
-        "ca9e26422a5452b3306012ba2ed305e712a3f7e3",
+        "90fb8ccf455a4bffa5fb832b84e54951d1e2949d",
         ["NunchakuFluxDiTLoader"],
     ),
 ]

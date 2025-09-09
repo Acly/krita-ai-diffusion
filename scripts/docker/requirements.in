@@ -5,3 +5,5 @@ onnxruntime
 protobuf>=4.25.3,<5
 numpy<2
 opencv-python==4.11.0.86
+# Version fixed because argostranslate requires it
+sentencepiece==0.2.0
