@@ -48,18 +48,31 @@ const shortKinds: { [id: string]: string } = {
   node: "node",
 };
 
-function arch(modelId: string) {
-  const [kind, id, arch] = modelId.split("-");
-  return arch;
+function arch(modelId: string | string[]): string {
+  if (modelId instanceof Array) {
+    return modelId.map((id) => arch(id)).join("|");
+  }
+  const [kind, id, arch_] = modelId.split("-");
+  return arch_;
 }
 
-function shortKind(modelId: string) {
+function shortKind(modelId: string | string[]) {
+  if (modelId instanceof Array) {
+    modelId = modelId[0];
+  }
   const [kind, id, arch] = modelId.split("-");
   return Object.keys(shortKinds).includes(kind) ? shortKinds[kind] : kind;
 }
 
 function filename(filepath: string) {
   return filepath.split("/").slice(-1)[0];
+}
+
+function combineId(id: string | string[]): string {
+  if (id instanceof Array) {
+    return id.join("|");
+  }
+  return id;
 }
 
 const optionalModels = [
@@ -139,7 +152,7 @@ const allModels = [
       {
         allModels.map((modelSet) =>
           modelSet.models.map((model) => (
-            <tr id={model.id} data-set={modelSet.set}>
+            <tr id={combineId(model.id)} data-set={modelSet.set}>
               <td>{model.name}</td>
               <td>
                 {model.files.map((file) => (
@@ -182,14 +195,15 @@ const allModels = [
     ) as NodeListOf<HTMLTableRowElement>;
 
     rows.forEach((row) => {
-      const id = row.id;
-      const kind = id.split("-")[0];
-      const arch = id.split("-")[2];
+      const ids = row.id.split("|");
+      const kind = ids[0].split("-")[0];
+      const archs = ids.map((id) => id.split("-")[2]);
       const set = row.getAttribute("data-set")!;
 
       if (
         selected["set"].includes(set) &&
-        (arch === "all" || selected["arch"].includes(arch)) &&
+        (archs.includes("all") ||
+          selected["arch"].some((arch) => archs.includes(arch))) &&
         selected["kind"].includes(kind)
       ) {
         row.style.display = "table-row";

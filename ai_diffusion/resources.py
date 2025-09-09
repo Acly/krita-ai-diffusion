@@ -461,9 +461,15 @@ class ModelResource(NamedTuple):
     def __hash__(self):
         return hash(self.id)
 
-    def as_dict(self):
+    def as_dict(self, ids: list[ResourceId] | None = None):
+        if ids is None:
+            id = self.id.string
+        elif len(ids) == 1:
+            id = ids[0].string
+        else:
+            id = [id.string for id in ids]
         result = {
-            "id": self.id.string,
+            "id": id,
             "name": self.name,
             "files": [f.as_dict(len(self.files) > 1) for f in self.files],
         }
@@ -474,20 +480,40 @@ class ModelResource(NamedTuple):
         return result
 
     @staticmethod
+    def as_list(models: Sequence[ModelResource]):
+        result = []
+        i = 0
+        while i < len(models):
+            m = models[i]
+            ids = [m.id]
+            for j in range(i + 1, len(models)):
+                if m.name == models[j].name:
+                    ids.append(models[j].id)
+                else:
+                    break
+            result.append(m.as_dict(ids))
+            i += len(ids)
+        return result
+
+    @staticmethod
     def from_dict(data: dict[str, Any]):
-        id = ResourceId.parse(data["id"])
-        files = [ModelFile.parse(f, id) for f in data["files"]]
-        alternatives = [Path(p) for p in data.get("alternatives", [])]
-        requirements = (
-            ModelRequirements[data["requirements"]]
-            if "requirements" in data
-            else ModelRequirements.none
-        )
-        return ModelResource(data["name"], id, files, alternatives, requirements)
+        id_list = data["id"]
+        if not isinstance(id_list, list):
+            id_list = [id_list]
+        for id_str in id_list:
+            id = ResourceId.parse(id_str)
+            files = [ModelFile.parse(f, id) for f in data["files"]]
+            alternatives = [Path(p) for p in data.get("alternatives", [])]
+            requirements = (
+                ModelRequirements[data["requirements"]]
+                if "requirements" in data
+                else ModelRequirements.none
+            )
+            yield ModelResource(data["name"], id, files, alternatives, requirements)
 
     @staticmethod
     def from_list(data: list[dict[str, Any]]):
-        return [ModelResource.from_dict(d) for d in data]
+        return [m for d in data for m in ModelResource.from_dict(d)]
 
     def verify(self, base_dir: Path):
         for file in self.files:

@@ -245,6 +245,7 @@ if __name__ == "__main__":
     checkpoint_names = [m.id.identifier for m in resources.default_checkpoints]
     # fmt: off
     parser.add_argument("-v", "--verbose", action="store_true", help="print URLs and filepaths")
+    parser.add_argument("-l", "--list", action="store_true", help="list models to be downloaded and exit")
     parser.add_argument("-d", "--dry-run", action="store_true", help="don't actually download anything (but create directories)")
     parser.add_argument("-c", "--check", action="store_true", help="verify model integrity")
     parser.add_argument("-m", "--minimal", action="store_true", help="download the minimum viable set of models")
@@ -306,6 +307,12 @@ if __name__ == "__main__":
         all=args.all,
         backend=backend,
     )
+    if args.list:
+        for model in sorted(models, key=lambda m: m.name):
+            for file in model.files:
+                print(f"{model.name:32} {file.name}")
+        sys.exit(0)
+
     asyncio.run(
         download_models(
             args.destination,

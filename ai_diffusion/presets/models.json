@@ -1,7 +1,10 @@
 {
   "required": [
     {
-      "id": "clip_vision-ip_adapter-all",
+      "id": [
+        "clip_vision-ip_adapter-sd15",
+        "clip_vision-ip_adapter-sdxl"
+      ],
       "name": "CLIP Vision",
       "files": [
         {
