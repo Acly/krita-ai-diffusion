@@ -131,7 +131,7 @@ class Root(QObject):
                     if connection.state is ConnectionState.connected:
                         settings.server_url = url
                         break
-                    elif connection.error_kind != "network":
+                    elif connection.error_kind != "network" or urls[0] != settings.server_url:
                         break
                     await asyncio.sleep(5 * (retry + 1))
                 if settings.server_mode is ServerMode.undefined:
