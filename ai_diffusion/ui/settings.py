@@ -656,12 +656,6 @@ class PerformanceSettings(SettingsTab):
                 _("Device")
                 + f": [{client.device_info.type.upper()}] {client.device_info.name} ({client.device_info.vram} GB)"
             )
-            self._dynamic_caching.enabled = client.features.wave_speed
-            self._dynamic_caching.setToolTip(
-                _("The {node_name} node is not installed.").format(node_name="Comfy-WaveSpeed")
-                if not client.features.wave_speed
-                else ""
-            )
 
     def _read(self):
         self._history_size.value = settings.history_size

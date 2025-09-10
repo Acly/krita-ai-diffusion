@@ -63,13 +63,6 @@ optional_custom_nodes = [
         ["UnetLoaderGGUF", "DualCLIPLoaderGGUF"],
     ),
     CustomNode(
-        "WaveSpeed",
-        "Comfy-WaveSpeed",
-        "https://github.com/chengzeyi/Comfy-WaveSpeed",
-        "8253745127785d820cff0a9621d1537a5aae5424",
-        ["ApplyFBCacheOnModel"],
-    ),
-    CustomNode(
         "Nunchaku",
         "ComfyUI-nunchaku",
         "https://github.com/nunchaku-tech/ComfyUI-nunchaku",

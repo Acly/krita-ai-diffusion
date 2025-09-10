@@ -122,7 +122,6 @@ class ComfyClient(Client):
             ip_adapter=True,
             translation=True,
             languages=await _list_languages(client),
-            wave_speed="ApplyFBCacheOnModel" in nodes,
             gguf="UnetLoaderGGUF" in nodes,
         )
 
@@ -479,7 +478,7 @@ class ComfyClient(Client):
             resolution_multiplier=settings.resolution_multiplier,
             max_pixel_count=settings.max_pixel_count,
             tiled_vae=settings.tiled_vae,
-            dynamic_caching=settings.dynamic_caching and self.features.wave_speed,
+            dynamic_caching=settings.dynamic_caching,
         )
 
     async def upload_loras(self, work: WorkflowInput, local_job_id: str):

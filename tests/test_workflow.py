@@ -61,6 +61,14 @@ def client(pytestconfig, request, qtapp):
     qtapp.run(client.disconnect())
 
 
+@pytest.fixture()
+def local_client(pytestconfig, qtapp):
+    if pytestconfig.getoption("--ci"):
+        pytest.skip("Diffusion is disabled on CI")
+
+    yield qtapp.run(ComfyClient.connect())
+
+
 default_seed = 1234
 default_perf = PerformanceSettings(batch_size=1)
 
@@ -714,33 +722,27 @@ def test_refine_live(qtapp, client, sdver):
     run_and_save(qtapp, client, job, f"test_refine_live_{sdver.name}")
 
 
-def test_edit(qtapp, client):
-    if isinstance(client, CloudClient):
-        pytest.skip("Not available in the cloud")
-
+def test_edit(qtapp, local_client):
     image = Image.load(image_dir / "flowers.webp")
-    style = default_style(client, Arch.flux_k)
+    style = default_style(local_client, Arch.flux_k)
     cond = ConditioningInput("turn the image into a minimalistic vector illustration")
-    job = create(WorkflowKind.refine, client, style=style, canvas=image, cond=cond)
-    run_and_save(qtapp, client, job, "test_edit")
+    job = create(WorkflowKind.refine, local_client, style=style, canvas=image, cond=cond)
+    run_and_save(qtapp, local_client, job, "test_edit")
 
 
-def test_edit_selection(qtapp, client):
-    if isinstance(client, CloudClient):
-        pytest.skip("Not available in the cloud")
-
+def test_edit_selection(qtapp, local_client):
     image = Image.load(image_dir / "flowers.webp")
     mask = Mask.load(image_dir / "flowers_mask.png")
     job = create(
         WorkflowKind.refine_region,
-        client,
-        style=default_style(client, Arch.flux_k),
+        local_client,
+        style=default_style(local_client, Arch.flux_k),
         canvas=image,
         cond=ConditioningInput("make all flowers have yellow blossoms"),
         mask=mask,
         inpaint=automatic_inpaint(image.extent, mask.bounds, Arch.flux_k, ""),
     )
-    run_and_save(qtapp, client, job, "test_edit_selection")
+    run_and_save(qtapp, local_client, job, "test_edit_selection")
 
 
 def test_refine_max_pixels(qtapp, client):
@@ -797,6 +799,19 @@ def test_outpaint_resolution_multiplier(qtapp, client):
     run_and_save(qtapp, client, job, "test_outpaint_resolution_multiplier", image, mask)
 
 
+@pytest.mark.parametrize("arch", [Arch.sdxl, Arch.flux])
+def test_dynamic_cache(qtapp, local_client, arch):
+    job = create(
+        WorkflowKind.generate,
+        local_client,
+        canvas=Extent(1024, 800),
+        cond=ConditioningInput("a photo of autumn leaves and dead trees"),
+        style=default_style(local_client, arch),
+        perf=PerformanceSettings(dynamic_caching=True),
+    )
+    run_and_save(qtapp, local_client, job, f"test_dynamic_cache_{arch.name}")
+
+
 def test_lora(qtapp, client):
     files = FileLibrary.instance()
     lora = files.loras.add(File.local(test_dir / "data" / "animeoutlineV4_16.safetensors"))
@@ -826,12 +841,10 @@ def test_translation(qtapp, client):
     run_and_save(qtapp, client, job, "test_translation")
 
 
-def test_custom_workflow(qtapp, client: Client):
-    if isinstance(client, CloudClient):
-        pytest.skip("Not supported in cloud")
+def test_custom_workflow(qtapp, local_client: Client):
     workflow_json = test_dir / "data" / "workflow-custom.json"
     workflow_dict = json.loads(workflow_json.read_text())
-    workflow_graph = ComfyWorkflow.import_graph(workflow_dict, client.models.node_inputs)
+    workflow_graph = ComfyWorkflow.import_graph(workflow_dict, local_client.models.node_inputs)
     params = {
         "1. Prompt": "a painting of a forest",
         "2. Detail/2. Steps": 14,
@@ -845,7 +858,7 @@ def test_custom_workflow(qtapp, client: Client):
     )
     assert job.images is not None
     job.images.initial_image = Image.create(Extent(512, 512))
-    run_and_save(qtapp, client, job, "test_custom_workflow")
+    run_and_save(qtapp, local_client, job, "test_custom_workflow")
 
 
 inpaint_benchmark = {

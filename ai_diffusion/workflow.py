@@ -137,7 +137,7 @@ def load_checkpoint_with_lora(w: ComfyWorkflow, checkpoint: CheckpointInput, mod
 
     support_fbc = arch in [Arch.flux, Arch.sd3] or arch.is_sdxl_like
     if checkpoint.dynamic_caching and support_fbc and model_info.quantization is Quantization.none:
-        model = w.apply_first_block_cache(model, arch)
+        model = w.easy_cache(model, arch)
 
     for lora in checkpoint.loras:
         if model_info.quantization is Quantization.svdq:
