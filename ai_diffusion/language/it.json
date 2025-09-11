@@ -124,7 +124,7 @@
     "Documentation and Support": "Documentazione e Supporto",
     "Download and Install": "Scarica e Installa",
     "Downloading package...": "Scarica Pacchetto...",
-    "Dump Workflow": "Flusso di lavoro di scarico",
+    "Dump Workflow": "Scarico Flusso di lavoro",
     "Duplicate the current style": "Duplica lo stile corrente",
     "Dynamic Caching": "Cache Dinamica",
     "Edit custom presets": "Modifica preimpostazioni personalizzate",
@@ -509,14 +509,14 @@
     "File format for saving generated images in history": "Formato file per salvare le immagini generate nella cronologia",
     "Multi-Threading": "Multi Operazioni",
     "When saving generated images from thumbnails, include metadata in the PNG": null,
-    "loras": null,
-    "Save Image Format": null,
-    "The CUDA backend requires a NVIDIA GPU, but no compatible devices were found. Do you want to continue with installation anyway?": null,
-    "filepath": null,
-    "No CUDA Devices Found": null,
-    "The selected Style does not use the negative prompt.": null,
-    "Save Image File Name Template": null,
-    "File format for saved images from thumbnails.": null,
-    "Save Image Metadata": null
+    "loras": "Loras",
+    "Save Image Format": "Salva Immagine in Formato",
+    "The CUDA backend requires a NVIDIA GPU, but no compatible devices were found. Do you want to continue with installation anyway?": "Il backend CUDA richiede una GPU NVIDIA, ma non sono stati trovati dispositivi compatibili. Vuoi continuare comunque con l'installazione?",
+    "filepath": "Percorso File",
+    "No CUDA Devices Found": "Nessun dispositivo CUDA trovato",
+    "The selected Style does not use the negative prompt.": "Lo stile selezionato non utilizza una richiesta negativa.",
+    "Save Image File Name Template": "Salva modello con nome file immagine",
+    "File format for saved images from thumbnails.": "Formato file per le immagini salvate dalle miniature.",
+    "Save Image Metadata": "Salva i metadati dell'immagine"
   }
 }
