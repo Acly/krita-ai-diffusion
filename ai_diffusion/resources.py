@@ -136,6 +136,10 @@ class Arch(Enum):
         return self is Arch.sd15 or self is Arch.flux
 
     @property
+    def supports_regions(self):
+        return self in [Arch.sd15, Arch.sdxl, Arch.illu, Arch.illu_v]
+
+    @property
     def supports_lcm(self):
         return self in [Arch.sd15, Arch.sdxl]
 

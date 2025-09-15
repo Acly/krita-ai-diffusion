@@ -461,17 +461,13 @@ class ActiveRegionWidget(QFrame):
 
 
 class RegionPromptWidget(QWidget):
-    _regions: RootRegion
-    _inactive_regions: list[InactiveRegionWidget]
-    _bindings: list[QMetaObject.Connection]
-
     activated = pyqtSignal()
 
     def __init__(self, parent=None):
         super().__init__(parent)
-        self._regions = root.active_model.regions
-        self._inactive_regions = []
-        self._bindings = []
+        self._regions: RootRegion = root.active_model.regions
+        self._inactive_regions: list[InactiveRegionWidget] = []
+        self._bindings: list[QMetaObject.Connection] = []
 
         self._prompt = ActiveRegionWidget(self._regions, self)
         self._prompt.positive.activated.connect(self.activated)

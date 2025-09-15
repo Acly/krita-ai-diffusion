@@ -653,13 +653,10 @@ class ProgressBar(QProgressBar):
 
 
 class GenerationWidget(QWidget):
-    _model: Model
-    _model_bindings: list[QMetaObject.Connection | Binding]
-
     def __init__(self):
         super().__init__()
-        self._model = root.active_model
-        self._model_bindings = []
+        self._model: Model = root.active_model
+        self._model_bindings: list[QMetaObject.Connection | Binding] = []
 
         layout = QVBoxLayout(self)
         layout.setContentsMargins(0, 2, 2, 0)
@@ -696,6 +693,7 @@ class GenerationWidget(QWidget):
         self.inpaint_mode_button.setArrowType(Qt.ArrowType.DownArrow)
         self.inpaint_mode_button.setFixedHeight(self.generate_button.height() - 2)
         self.inpaint_mode_button.clicked.connect(self.show_inpaint_menu)
+        self.generate_menu = self._create_generate_menu()
         self.inpaint_menu = self._create_inpaint_menu()
         self.refine_menu = self._create_refine_menu()
         self.generate_region_menu = self._create_generate_region_menu()
@@ -734,7 +732,7 @@ class GenerationWidget(QWidget):
         self.history.item_activated.connect(self.apply_result)
         layout.addWidget(self.history)
 
-        self.update_generate_button()
+        self.update_generate_options()
 
     @property
     def model(self):
@@ -751,27 +749,28 @@ class GenerationWidget(QWidget):
                 bind(model, "strength", self.strength_slider, "value"),
                 bind(model, "error", self.error_box, "error", Bind.one_way),
                 bind_toggle(model, "region_only", self.region_mask_button),
-                model.inpaint.mode_changed.connect(self.update_generate_button),
-                model.strength_changed.connect(self.update_generate_button),
-                model.document.selection_bounds_changed.connect(self.update_generate_button),
-                model.document.layers.active_changed.connect(self.update_generate_button),
-                model.regions.active_changed.connect(self.update_generate_button),
-                model.region_only_changed.connect(self.update_generate_button),
-                model.style_changed.connect(self.update_generate_button),
+                model.inpaint.mode_changed.connect(self.update_generate_options),
+                model.strength_changed.connect(self.update_generate_options),
+                model.document.selection_bounds_changed.connect(self.update_generate_options),
+                model.document.layers.active_changed.connect(self.update_generate_options),
+                model.regions.active_changed.connect(self.update_generate_options),
+                model.region_only_changed.connect(self.update_generate_options),
+                model.style_changed.connect(self.update_generate_options),
+                model.edit_mode_changed.connect(self.update_generate_options),
                 self.add_control_button.clicked.connect(model.regions.add_control),
                 self.add_region_button.clicked.connect(model.regions.create_region_group),
                 self.region_prompt.activated.connect(model.generate),
                 self.generate_button.clicked.connect(model.generate),
                 self.generate_button.ctrl_clicked.connect(model.generate_replace),
             ]
-            self.region_prompt.regions = model.regions
+            self.region_prompt.regions = model.active_regions
             self.custom_inpaint.model = model
             self.generate_button.model = model
             self.queue_button.model = model
             self.progress_bar.model = model
             self.strength_slider.model = model
             self.history.model_ = model
-            self.update_generate_button()
+            self.update_generate_options()
 
     def apply_result(self, item: QListWidgetItem):
         job_id, index = self.history.item_info(item)
@@ -787,16 +786,28 @@ class GenerationWidget(QWidget):
         InpaintMode.custom: _("Generate (Custom)"),
     }
 
-    def _mk_action(self, mode: InpaintMode, text: str, icon: str):
+    def _mk_action(self, mode: InpaintMode, text: str, icon: str, is_edit=False):
         action = QAction(text, self)
         action.setIcon(theme.icon(icon))
         action.setIconVisibleInMenu(True)
-        action.triggered.connect(lambda: self.change_inpaint_mode(mode))
+        action.triggered.connect(lambda: self.change_inpaint_mode(mode, is_edit))
         return action
+
+    def _create_generate_menu(self):
+        menu = QMenu(self)
+        menu.addAction(
+            self._mk_action(InpaintMode.automatic, _("Generate"), "workspace-generation")
+        )
+        menu.addAction(self._mk_action(InpaintMode.automatic, _("Edit"), "refine", is_edit=True))
+        return menu
 
     def _create_inpaint_menu(self):
         menu = QMenu(self)
         for mode in InpaintMode:
+            if mode is InpaintMode.custom:
+                menu.addAction(
+                    self._mk_action(InpaintMode.add_object, _("Edit"), "refine", is_edit=True)
+                )
             text = self._inpaint_text[mode]
             menu.addAction(self._mk_action(mode, text, f"inpaint-{mode.name}"))
         return menu
@@ -814,6 +825,7 @@ class GenerationWidget(QWidget):
     def _create_refine_menu(self):
         menu = QMenu(self)
         menu.addAction(self._mk_action(InpaintMode.automatic, _("Refine"), "refine"))
+        menu.addAction(self._mk_action(InpaintMode.automatic, _("Edit"), "refine", is_edit=True))
         menu.addAction(self._mk_action(InpaintMode.custom, _("Refine (Custom)"), "inpaint-custom"))
         return menu
 
@@ -839,36 +851,55 @@ class GenerationWidget(QWidget):
         elif self.model.strength == 1.0:
             if self.model.region_only:
                 menu = self.generate_region_menu
-            else:
+            elif self.model.document.selection_bounds:
                 menu = self.inpaint_menu
+            else:
+                menu = self.generate_menu
         else:
             if self.model.region_only:
                 menu = self.refine_region_menu
             else:
                 menu = self.refine_menu
+                menu.actions()[1].setEnabled(self.model.edit_style is not None)
+
         menu.setFixedWidth(width)
         menu.exec_(self.generate_button.mapToGlobal(pos))
 
-    def change_inpaint_mode(self, mode: InpaintMode):
+    def change_inpaint_mode(self, mode: InpaintMode, is_edit: bool):
         self.model.inpaint.mode = mode
+        self.model.edit_mode = is_edit
 
     def toggle_region_only(self, checked: bool):
         self.model.region_only = checked
 
-    def update_generate_button(self):
+    def update_add_region_button(self):
+        supported = self.model.arch.supports_regions and not self.model.edit_mode
+        self.add_region_button.setEnabled(supported)
+        self.add_region_button.setToolTip(
+            _("Add Region") if supported else _("Regions are not supported for the current model")
+        )
+
+    def update_generate_options(self):
         if not self.model.has_document:
             return
-        has_regions = len(self.model.regions) > 0
-        has_active_region = self.model.regions.is_linked(self.model.layers.active)
+
+        regions = self.model.active_regions
+        self.update_add_region_button()
+        self.region_prompt.regions = regions
+
+        has_regions = len(regions) > 0
+        has_active_region = regions.is_linked(self.model.layers.active)
         is_region_only = has_regions and has_active_region and self.model.region_only
+        is_edit = self.model.arch.is_edit or self.model.edit_mode
+        can_switch_edit = not self.model.arch.is_edit and self.model.edit_style is not None
         self.region_mask_button.setVisible(has_regions)
         self.region_mask_button.setEnabled(has_active_region)
         self.region_mask_button.setIcon(_region_mask_button_icons[is_region_only])
 
         if self.model.document.selection_bounds is None and not is_region_only:
-            self.inpaint_mode_button.setVisible(False)
+            self.inpaint_mode_button.setVisible(can_switch_edit)
             self.custom_inpaint.setVisible(False)
-            if self.model.arch.is_edit:
+            if is_edit:
                 icon = "refine"
                 text = _("Edit")
             elif self.model.strength == 1.0:
@@ -882,7 +913,7 @@ class GenerationWidget(QWidget):
             self.custom_inpaint.setVisible(self.model.inpaint.mode is InpaintMode.custom)
             mode = self.model.resolve_inpaint_mode()
             text = _("Generate")
-            if self.model.arch.is_edit:
+            if is_edit:
                 text = _("Edit")
             elif self.model.strength < 1:
                 text = _("Refine")
@@ -890,7 +921,7 @@ class GenerationWidget(QWidget):
                 text += " " + _("Region")
             if mode is InpaintMode.custom:
                 text += " " + _("(Custom)")
-            if self.model.strength == 1.0 and not self.model.arch.is_edit:
+            if self.model.strength == 1.0 and not is_edit:
                 if mode is InpaintMode.custom:
                     icon = "inpaint-custom"
                 elif is_region_only:

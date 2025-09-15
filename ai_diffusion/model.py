@@ -9,7 +9,7 @@ from enum import Enum
 from tempfile import TemporaryDirectory
 import time
 from typing import Any, NamedTuple
-from PyQt5.QtCore import QObject, QUuid, pyqtSignal, Qt
+from PyQt5.QtCore import QObject, QMetaObject, QUuid, pyqtSignal, Qt
 from PyQt5.QtGui import QPainter, QColor, QBrush
 import uuid
 
@@ -18,13 +18,8 @@ from .api import ConditioningInput, ControlInput, WorkflowKind, WorkflowInput, S
 from .api import InpaintMode, InpaintParams, FillMode, ImageInput, CustomWorkflowInput, UpscaleInput
 from .localization import translate as _
 from .util import clamp, ensure, trim_text, client_logger as log
-from .settings import (
-    ApplyBehavior,
-    ApplyRegionBehavior,
-    GenerationFinishedAction,
-    ImageFileFormat,
-    settings,
-)
+from .settings import ApplyBehavior, ApplyRegionBehavior, GenerationFinishedAction, ImageFileFormat
+from .settings import settings
 from .network import NetworkError
 from .image import Extent, Image, Mask, Bounds, DummyImage
 from .client import Client, ClientMessage, ClientEvent, ClientOutput
@@ -101,10 +96,10 @@ class Model(QObject, ObservableProperties):
     """
 
     workspace = Property(Workspace.generation, setter="set_workspace", persist=True)
-    regions: "RootRegion"
     style = Property(Styles.list().default, setter="set_style", persist=True)
     strength = Property(1.0, persist=True)
     region_only = Property(False, persist=True)
+    edit_mode = Property(False, persist=True)
     batch_count = Property(1, persist=True)
     seed = Property(0, persist=True)
     fixed_seed = Property(False, persist=True)
@@ -119,6 +114,7 @@ class Model(QObject, ObservableProperties):
     style_changed = pyqtSignal(Style)
     strength_changed = pyqtSignal(float)
     region_only_changed = pyqtSignal(bool)
+    edit_mode_changed = pyqtSignal(bool)
     batch_count_changed = pyqtSignal(int)
     seed_changed = pyqtSignal(int)
     fixed_seed_changed = pyqtSignal(bool)
@@ -138,11 +134,13 @@ class Model(QObject, ObservableProperties):
         self.generate_seed()
         self.jobs = JobQueue()
         self.regions = RootRegion(self)
+        self.edit_regions = RootRegion(self)
         self.inpaint = CustomInpaint()
         self.upscale = UpscaleWorkspace(self)
         self.live = LiveWorkspace(self)
         self.animation = AnimationWorkspace(self)
         self.custom = CustomWorkspace(workflows, self._generate_custom, self.jobs)
+        self._style_connection: QMetaObject.Connection | None = None
 
         self.jobs.selection_changed.connect(self.update_preview)
         connection.state_changed.connect(self._init_on_connect)
@@ -790,9 +788,17 @@ class Model(QObject, ObservableProperties):
                 styles = filter_supported_styles(Styles.list().filtered(), client)
                 if style not in styles:
                     return
+            if self._style_connection:
+                QObject.disconnect(self._style_connection)
             self._style = style
+            self._style_connection = style.changed.connect(self._handle_style_changed)
             self.style_changed.emit(style)
             self.modified.emit(self, "style")
+            self.edit_mode = self.edit_mode and self.edit_style is not None
+
+    def _handle_style_changed(self):
+        self.style_changed.emit(self.style)
+        self.edit_mode = self.edit_mode and self.edit_style is not None
 
     def generate_seed(self):
         self.seed = workflow.generate_seed()
@@ -820,6 +826,10 @@ class Model(QObject, ObservableProperties):
             except Exception:
                 log.warning(f"Failed to set preview layer {uid}")
                 self._layer = None
+
+    @property
+    def active_regions(self):
+        return self.edit_regions if self.edit_mode else self.regions
 
     @property
     def preview_layer_id(self):
@@ -863,6 +873,14 @@ class Model(QObject, ObservableProperties):
     @property
     def name(self):
         return Path(self._doc.filename).stem
+
+    @property
+    def edit_style(self) -> Style | None:
+        if self.arch.is_edit:
+            return self.style
+        if s := self.style.linked_edit_style:
+            return Styles.list().find(s)
+        return None
 
 
 class InpaintContext(Enum):

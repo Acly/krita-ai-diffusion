@@ -678,6 +678,10 @@ class StylePresets(SettingsTab):
         add("style_prompt", LineEditSetting(StyleSettings.style_prompt, self))
         add("negative_prompt", LineEditSetting(StyleSettings.negative_prompt, self))
 
+        self._edit_style = add(
+            "linked_edit_style", ComboBoxSetting(StyleSettings.linked_edit_style, parent=self)
+        )
+
         sdesc = _("Configure sampler type, steps and CFG to tweak the quality of generated images.")
         add_header(self._layout, Setting(_("Sampler Settings"), "", sdesc))
 
@@ -812,6 +816,20 @@ class StylePresets(SettingsTab):
                 self._checkpoint_warning.setText("\n".join(warn))
                 self._checkpoint_warning.setVisible(True)
 
+    def _show_edit_style(self, style: Style):
+        arch = resolve_arch(style, root.connection.client_if_connected)
+        self._edit_style.visible = not arch.is_edit
+
+    def _setup_edit_style(self):
+        client = root.connection.client_if_connected
+        edit_styles = [(_("None"), "")]
+        edit_styles.extend(
+            (s.name, s.filename)
+            for s in Styles.list()
+            if s != self.current_style and resolve_arch(s, client).is_edit
+        )
+        self._edit_style.set_items(edit_styles)
+
     def _read_checkpoint(self, style: Style):
         if client := root.connection.client_if_connected:
             checkpoint = style.preferred_checkpoint(client.models.checkpoints.keys())
@@ -819,12 +837,14 @@ class StylePresets(SettingsTab):
         elif style.checkpoints:
             self._checkpoint_select.value = style.checkpoints[0]
         self._set_checkpoint_warning()
+        self._show_edit_style(style)
 
     def _write_checkpoint(self, style: Style):
         value = self._checkpoint_select.value
         if isinstance(value, str) and value != "":
             style.checkpoints = [value]
         self._set_checkpoint_warning()
+        self._show_edit_style(style)
 
     def _toggle_preferred_resolution(self, checked: bool):
         if checked and self._resolution_spin.value == 0:
@@ -890,6 +910,7 @@ class StylePresets(SettingsTab):
         if client := root.connection.client_if_connected:
             default_vae = cast(str, StyleSettings.vae.default)
             self._style_widgets["vae"].set_items([default_vae] + client.models.vae)
+        self._setup_edit_style()
         self._read_style(self.current_style)
 
     def _write(self):

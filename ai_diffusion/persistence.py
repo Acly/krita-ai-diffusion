@@ -150,6 +150,7 @@ class ModelSync:
         state["custom"] = _serialize_custom(model.custom)
         state["history"] = [asdict(h) for h in self._history]
         state["root"] = _serialize(model.regions)
+        state["edit"] = _serialize(model.edit_regions)
         state["control"] = [_serialize(c) for c in model.regions.control]
         state["regions"] = []
         for region in model.regions:
@@ -169,6 +170,7 @@ class ModelSync:
         _deserialize(model.animation, state.get("animation", {}))
         _deserialize_custom(model.custom, state.get("custom", {}), model.name)
         _deserialize(model.regions, state.get("root", {}))
+        _deserialize(model.edit_regions, state.get("edit", {}))
         for control_state in state.get("control", []):
             _deserialize(model.regions.control.emplace(), control_state)
         for region_state in state.get("regions", []):

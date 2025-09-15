@@ -88,6 +88,12 @@ class StyleSettings:
         _("Preferred Resolution"), 0, _("Image resolution the checkpoint was trained on")
     )
 
+    linked_edit_style = Setting(
+        _("Linked Edit Style"),
+        "",
+        _("Select an alternative style to use for for instruction-based editing"),
+    )
+
     sampler = Setting(_("Sampler"), "Default - DPM++ 2M", _("The sampling strategy and scheduler"))
 
     sampler_steps = Setting(
@@ -122,6 +128,7 @@ class Style(QObject):
     rescale_cfg: float = StyleSettings.rescale_cfg.default
     self_attention_guidance: bool = StyleSettings.self_attention_guidance.default
     preferred_resolution: int = StyleSettings.preferred_resolution.default
+    linked_edit_style: str = StyleSettings.linked_edit_style.default
     sampler: str = StyleSettings.sampler.default
     sampler_steps: int = StyleSettings.sampler_steps.default
     cfg_scale: float = StyleSettings.cfg_scale.default
