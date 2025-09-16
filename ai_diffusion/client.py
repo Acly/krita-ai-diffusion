@@ -360,15 +360,17 @@ def resolve_arch(style: Style, client: Client | ClientModels | None = None):
     return arch
 
 
-def filter_supported_styles(styles: Iterable[Style], client: Client | None = None):
+def is_style_supported(style: Style, client: Client | None = None):
     if client:
-        return [
-            style
-            for style in styles
-            if client.supports_arch(resolve_arch(style, client))
+        return (
+            client.supports_arch(resolve_arch(style, client))
             and style.preferred_checkpoint(client.models.checkpoints.keys()) != "not-found"
-        ]
-    return list(styles)
+        )
+    return True
+
+
+def filter_supported_styles(styles: Iterable[Style], client: Client | None = None):
+    return [style for style in styles if is_style_supported(style, client)]
 
 
 def loras_to_upload(workflow: WorkflowInput, client_models: ClientModels):

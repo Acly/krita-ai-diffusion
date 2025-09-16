@@ -22,7 +22,7 @@ from PyQt5.QtCore import Qt, QUrl, pyqtSignal
 from PyQt5.QtGui import QDesktopServices, QPalette, QColor
 from krita import Krita
 
-from ..client import resolve_arch
+from ..client import filter_supported_styles, resolve_arch
 from ..resources import Arch, ResourceId, ResourceKind, search_paths
 from ..settings import Setting, ServerMode, settings
 from ..server import Server
@@ -825,7 +825,7 @@ class StylePresets(SettingsTab):
         edit_styles = [(_("None"), "")]
         edit_styles.extend(
             (s.name, s.filename)
-            for s in Styles.list()
+            for s in filter_supported_styles(Styles.list(), client)
             if s != self.current_style and resolve_arch(s, client).is_edit
         )
         self._edit_style.set_items(edit_styles)

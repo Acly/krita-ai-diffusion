@@ -22,7 +22,7 @@ from .settings import ApplyBehavior, ApplyRegionBehavior, GenerationFinishedActi
 from .settings import settings
 from .network import NetworkError
 from .image import Extent, Image, Mask, Bounds, DummyImage
-from .client import Client, ClientMessage, ClientEvent, ClientOutput
+from .client import Client, ClientMessage, ClientEvent, ClientOutput, is_style_supported
 from .client import filter_supported_styles, resolve_arch
 from .custom_workflow import CustomWorkspace, WorkflowCollection, CustomGenerationMode
 from .document import Document, KritaDocument
@@ -184,14 +184,16 @@ class Model(QObject, ObservableProperties):
         eventloop.run(_report_errors(self, jobs))
 
     def _prepare_workflow(self, dryrun=False):
+        is_edit = self.arch.is_edit or (self.edit_mode and self.edit_style is not None)
         workflow_kind = WorkflowKind.generate
-        if self.strength < 1.0 or self.arch.is_edit:
+        if self.strength < 1.0 or is_edit:
             workflow_kind = WorkflowKind.refine
         client = self._connection.client
         image = None
         inpaint_mode = InpaintMode.fill
         inpaint = None
         extent = self._doc.extent
+        regions = self.active_regions
         region_layer = None
 
         selection_mod = get_selection_modifiers(self.inpaint.mode, self.strength)
@@ -200,7 +202,7 @@ class Model(QObject, ObservableProperties):
         )
         bounds = Bounds(0, 0, *extent)
         if mask is None:  # Check for region inpaint
-            region_layer = self.regions.get_active_region_layer(use_parent=not self.region_only)
+            region_layer = regions.get_active_region_layer(use_parent=not self.region_only)
             if not region_layer.is_root:
                 mask = get_region_inpaint_mask(region_layer, extent)
                 bounds = mask.bounds
@@ -211,7 +213,7 @@ class Model(QObject, ObservableProperties):
             inpaint_mode = self.resolve_inpaint_mode()
 
         if not dryrun:
-            conditioning, job_regions = process_regions(self.regions, bounds, region_layer)
+            conditioning, job_regions = process_regions(regions, bounds, region_layer)
             conditioning.language = self.prompt_translation_language
         else:
             conditioning, job_regions = ConditioningInput("", ""), []
@@ -241,7 +243,7 @@ class Model(QObject, ObservableProperties):
             workflow_kind,
             image or extent,
             conditioning,
-            self.style,
+            self.active_style,
             self.seed if self.fixed_seed else workflow.generate_seed(),
             client.models,
             FileLibrary.instance(),
@@ -251,9 +253,9 @@ class Model(QObject, ObservableProperties):
             inpaint=inpaint,
         )
         job_params = JobParams(bounds, prompt, regions=job_regions)
-        job_params.set_style(self.style, ensure(input.models).checkpoint)
+        job_params.set_style(self.active_style, ensure(input.models).checkpoint)
         job_params.metadata["prompt"] = prompt
-        job_params.metadata["negative_prompt"] = self.regions.negative
+        job_params.metadata["negative_prompt"] = regions.negative
         job_params.metadata["strength"] = self.strength
         if len(job_regions) == 1:
             job_params.metadata["prompt"] = job_params.name = job_regions[0].prompt
@@ -829,7 +831,14 @@ class Model(QObject, ObservableProperties):
 
     @property
     def active_regions(self):
-        return self.edit_regions if self.edit_mode else self.regions
+        is_edit = self.workspace is Workspace.generation and self.edit_mode
+        return self.edit_regions if is_edit else self.regions
+
+    @property
+    def active_style(self):
+        if self.workspace is Workspace.generation and self.edit_mode and self.edit_style:
+            return self.edit_style
+        return self.style
 
     @property
     def preview_layer_id(self):
@@ -878,8 +887,10 @@ class Model(QObject, ObservableProperties):
     def edit_style(self) -> Style | None:
         if self.arch.is_edit:
             return self.style
-        if s := self.style.linked_edit_style:
-            return Styles.list().find(s)
+        if style_id := self.style.linked_edit_style:
+            if style := Styles.list().find(style_id):
+                if is_style_supported(style, self._connection.client_if_connected):
+                    return style
         return None
 
 
