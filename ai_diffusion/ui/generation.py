@@ -798,7 +798,7 @@ class GenerationWidget(QWidget):
         menu.addAction(
             self._mk_action(InpaintMode.automatic, _("Generate"), "workspace-generation")
         )
-        menu.addAction(self._mk_action(InpaintMode.automatic, _("Edit"), "refine", is_edit=True))
+        menu.addAction(self._mk_action(InpaintMode.automatic, _("Edit"), "edit", is_edit=True))
         return menu
 
     def _create_inpaint_menu(self):
@@ -806,7 +806,7 @@ class GenerationWidget(QWidget):
         for mode in InpaintMode:
             if mode is InpaintMode.custom:
                 menu.addAction(
-                    self._mk_action(InpaintMode.add_object, _("Edit"), "refine", is_edit=True)
+                    self._mk_action(InpaintMode.add_object, _("Edit"), "edit", is_edit=True)
                 )
             text = self._inpaint_text[mode]
             menu.addAction(self._mk_action(mode, text, f"inpaint-{mode.name}"))
@@ -825,7 +825,7 @@ class GenerationWidget(QWidget):
     def _create_refine_menu(self):
         menu = QMenu(self)
         menu.addAction(self._mk_action(InpaintMode.automatic, _("Refine"), "refine"))
-        menu.addAction(self._mk_action(InpaintMode.automatic, _("Edit"), "refine", is_edit=True))
+        menu.addAction(self._mk_action(InpaintMode.automatic, _("Edit"), "edit", is_edit=True))
         menu.addAction(self._mk_action(InpaintMode.custom, _("Refine (Custom)"), "inpaint-custom"))
         return menu
 
@@ -839,7 +839,7 @@ class GenerationWidget(QWidget):
 
     def _create_edit_menu(self):
         menu = QMenu(self)
-        menu.addAction(self._mk_action(InpaintMode.automatic, _("Edit"), "refine"))
+        menu.addAction(self._mk_action(InpaintMode.automatic, _("Edit"), "edit"))
         menu.addAction(self._mk_action(InpaintMode.custom, _("Edit (Custom)"), "inpaint-custom"))
         return menu
 
@@ -900,7 +900,7 @@ class GenerationWidget(QWidget):
             self.inpaint_mode_button.setVisible(can_switch_edit)
             self.custom_inpaint.setVisible(False)
             if is_edit:
-                icon = "refine"
+                icon = "edit"
                 text = _("Edit")
             elif self.model.strength == 1.0:
                 icon = "workspace-generation"
@@ -929,13 +929,18 @@ class GenerationWidget(QWidget):
                 else:
                     icon = f"inpaint-{mode.name}"
                     text = self._inpaint_text[mode]
-            else:
+            elif not is_edit:
                 if mode is InpaintMode.custom:
                     icon = "inpaint-custom"
                 elif is_region_only:
                     icon = "refine-region"
                 else:
                     icon = "refine"
+            else:
+                if mode is InpaintMode.custom:
+                    icon = "inpaint-custom"
+                else:
+                    icon = "edit"
 
         self.generate_button.operation = text
         self.generate_button.setIcon(theme.icon(icon))
