@@ -3,6 +3,7 @@
     "version": 1,
     "architecture": "auto",
     "checkpoints": [
+        "Chroma1-HD.safetensors",
         "chroma-unlocked-v50.safetensors",
         "chroma-unlocked-v50-annealed.safetensors",
         "chroma-unlocked-v50_float8_e4m3fn_learned_svd.safetensors",
@@ -16,6 +17,7 @@
     "v_prediction_zsnr": false,
     "self_attention_guidance": false,
     "preferred_resolution": 0,
+    "linked_edit_style": "built-in/flux-kontext.json",
     "sampler": "Flux - Euler simple",
     "sampler_steps": 26,
     "cfg_scale": 4.0,
