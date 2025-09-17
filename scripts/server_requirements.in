@@ -26,6 +26,9 @@ spandrel
 soundfile
 av
 
+# transitive dependencies
+stringzilla
+
 # comfyui_controlnet_aux
 importlib_metadata
 huggingface_hub

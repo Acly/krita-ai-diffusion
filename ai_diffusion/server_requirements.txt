@@ -32,6 +32,7 @@ scipy==1.16.1
 sentencepiece==0.2.0
 soundfile==0.13.1
 spandrel==0.4.1
+stringzilla==3.12.5
 svglib==1.5.1
 tokenizers==0.21.4
 tomli==2.2.1
