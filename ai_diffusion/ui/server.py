@@ -1,4 +1,5 @@
 from __future__ import annotations
+from dataclasses import dataclass
 from enum import Enum
 from pathlib import Path
 from typing import Optional
@@ -45,6 +46,7 @@ class PackageState(Enum):
     disabled = 3
 
 
+@dataclass
 class PackageItem:
     label: QLabel
     status: QLabel | QCheckBox
@@ -101,6 +103,11 @@ class PackageGroupWidget(QWidget):
         self._items: list[PackageItem] = [self.add_item(p) for p in packages]
         self._update_visibility()
 
+    def _update_item_visibility(self, item: PackageItem):
+        supported = self._backend_supports(item)
+        item.label.setVisible(supported and self._header.isChecked())
+        item.status.setVisible(supported and self._header.isChecked())
+
     def _update_visibility(self):
         self._header.setArrowType(
             Qt.ArrowType.DownArrow if self._header.isChecked() else Qt.ArrowType.RightArrow
@@ -108,25 +115,23 @@ class PackageGroupWidget(QWidget):
         if self._desc:
             self._desc.setVisible(self._header.isChecked())
         for item in self._items:
-            item.label.setVisible(self._header.isChecked())
-            item.status.setVisible(self._header.isChecked())
+            self._update_item_visibility(item)
 
     def expand(self):
         if not self._header.isChecked():
             self._header.setChecked(True)
 
     def add_item(self, package: str | ModelResource | CustomNode):
-        item = PackageItem()
-        item.package = package
-        item.state = PackageState.available
-        item.label = QLabel(self._package_name(package), self)
+        item = PackageItem(
+            package=package,
+            state=PackageState.available,
+            label=QLabel(self._package_name(package), self),
+            status=QCheckBox(_("Install"), self) if self.is_checkable else QLabel(self),
+        )
         item.label.setContentsMargins(20, 0, 0, 0)
         if self.is_checkable:
-            item.status = QCheckBox(_("Install"), self)
             item.status.setChecked(False)
             item.status.toggled.connect(self._handle_checkbox_toggle)
-        else:
-            item.status = QLabel(self)
         self._layout.addWidget(item.label, self._layout.rowCount(), 0)
         self._layout.addWidget(item.status, self._layout.rowCount() - 1, 1)
         return item
@@ -147,6 +152,7 @@ class PackageGroupWidget(QWidget):
 
     def _update(self):
         for item in self._items:
+            self._update_item_visibility(item)
             if item.state is PackageState.installed:
                 item.status.setText(_("Installed"))
                 item.status.setStyleSheet(f"color:{green}")
