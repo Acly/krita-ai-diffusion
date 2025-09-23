@@ -31,7 +31,7 @@ layer content more closely.
 
 At this point you might be wondering what to put into a control layer. A great
 way to discover is to automatically derive control layer content form an
-existing image. This is usually the opposite of what you're trying to do (ie.
+existing image. This is usually the reverse of what you're trying to do (ie.
 generating an image with the guidance of control layer content). Here is how:
 
 <Steps>
@@ -44,6 +44,13 @@ generating an image with the guidance of control layer content). Here is how:
 
 4. A new layer will be created with the control layer content. It also becomes the active layer.
 </Steps>
+
+<Aside type="note">
+Generating a control image is always based on the current canvas (all visible layers). 
+
+When you generate the actual image with the control layer, the content of the
+selected layer is used as guidance. It will still work if the layer is hidden.
+</Aside>
 
 ### Advanced options
 
