@@ -104,10 +104,10 @@ def list_models(
     # Remove duplicate files listed under different IDs (apply to multiple architectures)
     file_ids = set()
     for m in list(models):
-        if m.file_id in file_ids:
+        if m.verify in file_ids:
             models.remove(m)
         else:
-            file_ids.add(m.file_id)
+            file_ids.add(m.verify)
 
     if len(models) == 0:
         print("\nNo models selected for download.")
