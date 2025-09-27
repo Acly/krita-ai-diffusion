@@ -460,7 +460,7 @@
           "id": "lora-face-sd15",
           "path": "models/loras/ip-adapter-faceid-plusv2_sd15_lora.safetensors",
           "url": "https://huggingface.co/h94/IP-Adapter-FaceID/resolve/main/ip-adapter-faceid-plusv2_sd15_lora.safetensors",
-          "sha256": "70699f0dbfadd47de1f81d263cf4c86bd4b7271d841304af9b340b3a7f38e86a"
+          "sha256": "8abff87a15a049f3e0186c2e82c1c8e77783baf2cfb63f34c412656052eb57b0"
         }
       ],
       "requirements": "insightface"
