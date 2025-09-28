@@ -24,9 +24,9 @@ from .settings import PerformanceSettings, settings
 from .localization import translate as _
 from .util import client_logger as log
 from .workflow import create as create_workflow
-from . import resources, platform, util
+from . import platform_tools, resources, util
 
-if platform.is_macos:
+if platform_tools.is_macos:
     import os
 
     if "SSL_CERT_FILE" not in os.environ:

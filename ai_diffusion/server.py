@@ -16,8 +16,8 @@ from .resources import CustomNode, ModelResource, ModelRequirements, Arch
 from .resources import VerificationStatus, VerificationState
 from .network import download, DownloadProgress
 from .localization import translate as _
-from .platform import ZipFile, create_process, decode_pipe_bytes, determine_system_encoding
-from .platform import is_windows, is_macos
+from .platform_tools import ZipFile, create_process, decode_pipe_bytes, determine_system_encoding
+from .platform_tools import is_windows, is_macos
 from .util import client_logger as log, server_logger as server_log
 
 

@@ -11,7 +11,7 @@ from PyQt5.QtCore import QObject, pyqtSignal
 from . import __version__, eventloop
 from .network import RequestManager
 from .properties import ObservableProperties, Property
-from .platform import ZipFile
+from .platform_tools import ZipFile
 from .util import client_logger as log
 
 

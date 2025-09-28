@@ -8,7 +8,7 @@ from ..files import FileFormat
 from ..settings import Setting
 from ..style import Arch
 from ..client import Client
-from ..platform import is_windows
+from ..platform_tools import is_windows
 from ..util import client_logger as log
 
 _palette = QGuiApplication.palette()

@@ -22,7 +22,7 @@ from tqdm import tqdm
 from argparse import ArgumentParser
 
 sys.path.append(str(Path(__file__).parent.parent))
-from ai_diffusion import platform, resources
+from ai_diffusion import platform_tools, resources
 from ai_diffusion.resources import Arch, ModelRequirements, ResourceKind, ModelResource
 from ai_diffusion.resources import VerificationState
 from ai_diffusion.resources import required_models, default_checkpoints, optional_models
@@ -290,7 +290,7 @@ if __name__ == "__main__":
 
     backend = ModelRequirements.no_cuda
     if args.backend == "auto":
-        devices = platform.get_cuda_devices()
+        devices = platform_tools.get_cuda_devices()
         if any(major >= 10 for (major, minor) in devices):  # Blackwell has compute capability 10.x
             backend = ModelRequirements.cuda_fp4
         elif len(devices) > 0:

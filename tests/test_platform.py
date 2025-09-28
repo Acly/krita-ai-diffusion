@@ -2,7 +2,7 @@ import asyncio
 from pathlib import Path
 import sys
 from tempfile import TemporaryDirectory
-from ai_diffusion.platform import ZipFile, create_process, get_cuda_devices
+from ai_diffusion.platform_tools import ZipFile, create_process, get_cuda_devices
 from ai_diffusion.util import ensure
 
 

@@ -7,7 +7,7 @@ from pathlib import Path
 from typing import NamedTuple, Optional, Any
 from PyQt5.QtCore import QObject, pyqtSignal
 
-from .platform import is_macos, is_windows
+from .platform_tools import is_macos, is_windows
 from .util import encode_json, read_json_with_comments, user_data_dir, client_logger as log
 from .localization import translate as _
 

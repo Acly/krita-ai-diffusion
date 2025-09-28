@@ -8,7 +8,7 @@ from itertools import product
 from pathlib import Path
 
 from .settings import settings, ImageFileFormat
-from .platform import is_linux
+from .platform_tools import is_linux
 from .util import clamp, ensure, client_logger as log
 
 import struct
