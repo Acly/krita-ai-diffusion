@@ -578,12 +578,12 @@ class PerformanceSettings(SettingsTab):
         super().__init__(_("Performance Settings"))
 
         add_header(self._layout, Settings._history_size)
-        self._history_size = HistorySizeWidget(maximum=10000, step=100, parent=self)
+        self._history_size = HistorySizeWidget(maximum=20000, step=100, parent=self)
         self._history_size.value_changed.connect(self.write)
         self._layout.addWidget(self._history_size)
 
         add_header(self._layout, Settings._history_storage)
-        self._history_storage = HistorySizeWidget(maximum=100, step=5, parent=self)
+        self._history_storage = HistorySizeWidget(maximum=2000, step=5, parent=self)
         self._history_storage.value_changed.connect(self.write)
         self._layout.addWidget(self._history_storage)
 
