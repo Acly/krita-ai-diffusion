@@ -207,22 +207,22 @@ class ModelSync:
 
     def _track_control(self, control: ControlLayer):
         self._save()
-        control.modified.connect(self._save)
+        control.modified.connect(self._save_later)
 
     def _track_control_layers(self, control_layers: ControlLayerList):
         control_layers.added.connect(self._track_control)
-        control_layers.removed.connect(self._save)
+        control_layers.removed.connect(self._save_later)
         for control in control_layers:
             self._track_control(control)
 
     def _track_region(self, region: Region):
-        region.modified.connect(self._save)
+        region.modified.connect(self._save_later)
         self._track_control_layers(region.control)
 
     def _track_regions(self, root_region: RootRegion):
         root_region.added.connect(self._track_region)
-        root_region.removed.connect(self._save)
-        root_region.modified.connect(self._save)
+        root_region.removed.connect(self._save_later)
+        root_region.modified.connect(self._save_later)
         self._track_control_layers(root_region.control)
         for region in root_region:
             self._track_region(region)
@@ -276,8 +276,8 @@ class ModelSync:
             self._save_task = eventloop.run(self._delayed_save())
 
     async def _delayed_save(self):
-        while time() - self._last_change < 0.5:
-            await asyncio.sleep(0.5)
+        while time() - self._last_change < 1.0:
+            await asyncio.sleep(1.0)
             self._save()
 
     @property
