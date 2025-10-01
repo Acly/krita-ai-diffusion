@@ -2,6 +2,7 @@ from __future__ import annotations
 from dataclasses import dataclass
 import os
 import json
+import uuid
 from enum import Enum
 from pathlib import Path
 from typing import NamedTuple, Optional, Any
@@ -207,6 +208,9 @@ class Settings(QObject):
 
     check_server_resources: bool
     _check_server_resources = Setting("Refuse connection if nodes or models are missing", True)
+
+    comfyui_client_id: str
+    _comfyui_client_id = Setting("ComfyUI client ID", str(uuid.uuid4()))
 
     selection_grow: int
     _selection_grow = Setting(

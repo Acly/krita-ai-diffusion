@@ -85,7 +85,7 @@ class ComfyClient(Client):
         self.url = url
         self.models = ClientModels()
         self._requests = RequestManager()
-        self._id = str(uuid.uuid4())
+        self._id = settings.comfyui_client_id
         self._active: Optional[JobInfo] = None
         self._features: ClientFeatures = ClientFeatures()
         self._supported_archs: dict[Arch, list[ResourceId]] = {}
