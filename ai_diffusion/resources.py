@@ -83,6 +83,8 @@ class Arch(Enum):
     illu = "Illustrious"
     illu_v = "Illustrious v-prediction"
     chroma = "Chroma"
+    qwen = "Qwen"
+    qwen_e = "Qwen Edit"
 
     auto = "Automatic"
     all = "All"
@@ -107,6 +109,10 @@ class Arch(Enum):
             return Arch.illu_v
         if string == "chroma":
             return Arch.chroma
+        if string == "qwen" and filename and "edit" in filename.lower():
+            return Arch.qwen_e
+        if string == "qwen":
+            return Arch.qwen
         return None
 
     @staticmethod
@@ -157,7 +163,7 @@ class Arch(Enum):
 
     @property
     def is_edit(self):  # edit models make changes to input images
-        return self is Arch.flux_k
+        return self in [Arch.flux_k, Arch.qwen_e]
 
     @property
     def is_sdxl_like(self):
@@ -181,6 +187,8 @@ class Arch(Enum):
                 return ["clip_l", "t5"]
             case Arch.chroma:
                 return ["t5"]
+            case Arch.qwen | Arch.qwen_e:
+                return ["qwen"]
         raise ValueError(f"Unsupported architecture: {self}")
 
     @staticmethod
@@ -194,6 +202,8 @@ class Arch(Enum):
             Arch.illu,
             Arch.illu_v,
             Arch.chroma,
+            Arch.qwen,
+            Arch.qwen_e,
         ]
 
 
