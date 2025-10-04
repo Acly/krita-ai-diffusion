@@ -100,8 +100,11 @@ def load_checkpoint_with_lora(w: ComfyWorkflow, checkpoint: CheckpointInput, mod
         case (FileFormat.diffusion, Quantization.none):
             model = w.load_diffusion_model(model_info.filename)
         case (FileFormat.diffusion, Quantization.svdq):
-            cache = 0.12 if checkpoint.dynamic_caching else 0.0
-            model = w.nunchaku_load_diffusion_model(model_info.filename, cache_threshold=cache)
+            if model_info.arch in (Arch.flux, Arch.flux_k):
+                cache = 0.12 if checkpoint.dynamic_caching else 0.0
+                model = w.nunchaku_load_flux_diffusion_model(model_info.filename, cache_threshold=cache)
+            elif model_info.arch in (Arch.qwen, Arch.qwen_e):
+                model = w.nunchaku_load_qwen_diffusion_model(model_info.filename, cpu_offload=True, num_blocks_on_gpu=16, use_pin_memory=False)
         case _:
             raise RuntimeError(
                 f"Style checkpoint {checkpoint.checkpoint} has an unsupported format {model_info.format.name}"
@@ -124,6 +127,8 @@ def load_checkpoint_with_lora(w: ComfyWorkflow, checkpoint: CheckpointInput, mod
             case Arch.chroma:
                 clip = w.load_clip(te["t5"], type="chroma")
                 clip = w.t5_tokenizer_options(clip, min_padding=1, min_length=0)
+            case Arch.qwen | Arch.qwen_e:
+                clip = w.load_clip(te["qwen"], type="qwen_image")
             case _:
                 raise RuntimeError(f"No text encoder for model architecture {arch.name}")
 
@@ -141,7 +146,7 @@ def load_checkpoint_with_lora(w: ComfyWorkflow, checkpoint: CheckpointInput, mod
 
     for lora in checkpoint.loras:
         if model_info.quantization is Quantization.svdq:
-            model = w.nunchaku_load_lora(model, lora.name, lora.strength)
+            model = w.nunchaku_load_flux_lora(model, lora.name, lora.strength)
         else:
             model, clip = w.load_lora(model, clip, lora.name, lora.strength, lora.strength)
 
