@@ -499,15 +499,13 @@ class ComfyWorkflow:
     def load_fooocus_inpaint(self, head: str, patch: str):
         return self.add_cached("INPAINT_LoadFooocusInpaint", 1, head=head, patch=patch)
 
-    def nunchaku_load_flux_diffusion_model(
-            self, model_path: str, cache_threshold: float
-    ):
+    def nunchaku_load_flux_diffusion_model(self, model_path: str, cache_threshold: float):
         return self.add_cached(
             "NunchakuFluxDiTLoader", 1, model_path=model_path, cache_threshold=cache_threshold
         )
 
     def nunchaku_load_qwen_diffusion_model(
-            self, model_name: str, cpu_offload: str, num_blocks_on_gpu: int, use_pin_memory: str
+        self, model_name: str, cpu_offload: str, num_blocks_on_gpu: int, use_pin_memory: str
     ):
         return self.add_cached(
             "NunchakuQwenImageDiTLoader",
@@ -602,7 +600,7 @@ class ComfyWorkflow:
         return self.add("ReferenceLatent", 1, conditioning=conditioning, latent=latent)
 
     def text_encode_qwen_image_edit(
-            self, clip: Output, vae: Output | None, image: Output, prompt: str | Output
+        self, clip: Output, vae: Output | None, image: Output, prompt: str | Output
     ):
         return self.add(
             "TextEncodeQwenImageEdit", 1, clip=clip, vae=vae, image=image, prompt=prompt
