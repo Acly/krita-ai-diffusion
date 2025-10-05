@@ -441,14 +441,6 @@ class ServerWidget(QWidget):
                 is_expanded=False,
                 parent=self,
             ),
-            "qwen": PackageGroupWidget(
-                _("Qwen models"),
-                [m for m in optional_models if m.arch in [Arch.qwen, Arch.qwen_e]],
-                description=_("Select at least one diffusion model. Control models are optional."),
-                is_checkable=True,
-                is_expanded=False,
-                parent=self,
-            ),
         }
         # Pre-select a recommended set of models if the server hasn't been installed yet
         if not self._server.has_comfy:
@@ -461,7 +453,7 @@ class ServerWidget(QWidget):
             state[-1] = PackageState.available  # Face model is optional
             sdxl_packages.values = state
 
-        for group in ["upscalers", "sd15", "sdxl", "illu", "flux", "qwen"]:
+        for group in ["upscalers", "sd15", "sdxl", "illu", "flux"]:
             self._packages[group].changed.connect(self.update_ui)
             package_layout.addWidget(self._packages[group])
 

@@ -353,10 +353,6 @@ def resolve_arch(style: Style, client: Client | ClientModels | None = None):
         checkpoint = style.preferred_checkpoint(models.checkpoints.keys())
         if checkpoint != "not-found":
             arch = models.arch_of(checkpoint)
-            if "qwen" in checkpoint:
-                arch = Arch.qwen
-                if "edit" in checkpoint:
-                    arch = Arch.qwen_e
 
     elif style.checkpoints:
         arch = style.architecture.resolve(style.checkpoints[0])
