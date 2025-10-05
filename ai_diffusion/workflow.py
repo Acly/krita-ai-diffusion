@@ -568,8 +568,8 @@ def apply_ip_adapter(
     models: ModelDict,
     mask: Output | None = None,
 ):
-    if models.arch.is_flux_like:
-        return model  # No IP-adapter for Flux, using Style model instead
+    if models.arch.is_flux_like or models.arch.is_qwen_like:
+        return model  # No IP-adapter for Flux or Qwen, using Style model instead
 
     models = models.ip_adapter
 

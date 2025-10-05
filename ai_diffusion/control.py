@@ -148,7 +148,7 @@ class ControlLayer(QObject, ObservableProperties):
                     self.error_text = _("The server is missing the ClipVision model") + f" {search}"
                     is_supported = False
 
-            if self.mode.is_ip_adapter and models.arch is Arch.flux_k:
+            if self.mode.is_ip_adapter and models.arch in (Arch.flux_k, Arch.qwen_e, Arch.qwen_e_p):
                 is_supported = True  # Reference images are merged into the conditioning context
             elif self.mode.is_ip_adapter and models.ip_adapter.find(self.mode) is None:
                 search_path = resources.search_path(ResourceKind.ip_adapter, models.arch, self.mode)
