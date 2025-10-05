@@ -1,0 +1,128 @@
+<?xml version="1.0" encoding="UTF-8" standalone="no"?>
+<svg
+   width="500.00003"
+   height="340.65933"
+   viewBox="0 0 132.29168 90.132784"
+   version="1.1"
+   id="svg866"
+   inkscape:version="1.4.2 (f4327f4, 2025-05-13)"
+   sodipodi:docname="sd-version-qwen-dark.svg"
+   xmlns:inkscape="http://www.inkscape.org/namespaces/inkscape"
+   xmlns:sodipodi="http://sodipodi.sourceforge.net/DTD/sodipodi-0.dtd"
+   xmlns="http://www.w3.org/2000/svg"
+   xmlns:svg="http://www.w3.org/2000/svg"
+   xmlns:rdf="http://www.w3.org/1999/02/22-rdf-syntax-ns#"
+   xmlns:cc="http://creativecommons.org/ns#"
+   xmlns:dc="http://purl.org/dc/elements/1.1/">
+  <defs
+     id="defs860">
+    <rect
+       x="262.14285"
+       y="51.42857"
+       width="107.14285"
+       height="76.964279"
+       id="rect4" />
+    <rect
+       x="343.57144"
+       y="162.85715"
+       width="62.857143"
+       height="61.42857"
+       id="rect3" />
+    <rect
+       x="146.42857"
+       y="167.14285"
+       width="185.71429"
+       height="175"
+       id="rect1" />
+    <rect
+       x="10.958051"
+       y="34.477768"
+       width="110.64958"
+       height="69.490074"
+       id="rect857" />
+  </defs>
+  <sodipodi:namedview
+     id="base"
+     pagecolor="#ffffff"
+     bordercolor="#666666"
+     borderopacity="1.0"
+     inkscape:pageopacity="0.0"
+     inkscape:pageshadow="2"
+     inkscape:zoom="0.9899495"
+     inkscape:cx="309.61175"
+     inkscape:cy="66.164991"
+     inkscape:document-units="mm"
+     inkscape:current-layer="layer1"
+     inkscape:document-rotation="0"
+     showgrid="false"
+     units="px"
+     width="512px"
+     inkscape:window-width="2560"
+     inkscape:window-height="1387"
+     inkscape:window-x="-8"
+     inkscape:window-y="-8"
+     inkscape:window-maximized="1"
+     inkscape:showpageshadow="2"
+     inkscape:pagecheckerboard="0"
+     inkscape:deskcolor="#d1d1d1"
+     showguides="true" />
+  <metadata
+     id="metadata863">
+    <rdf:RDF>
+      <cc:Work
+         rdf:about="">
+        <dc:format>image/svg+xml</dc:format>
+        <dc:type
+           rdf:resource="http://purl.org/dc/dcmitype/StillImage" />
+      </cc:Work>
+    </rdf:RDF>
+  </metadata>
+  <g
+     inkscape:label="Layer 1"
+     inkscape:groupmode="layer"
+     id="layer1"
+     transform="translate(-0.37797615,-0.2413241)">
+    <rect
+       style="fill:#c8c8c8;fill-opacity:1;stroke-width:10.5833;stroke-linecap:round;stroke-linejoin:round"
+       id="rect1431"
+       width="132.29167"
+       height="90.132782"
+       x="0.37797615"
+       y="0.2413241"
+       rx="21.166666"
+       ry="24.035408" />
+    <text
+       xml:space="preserve"
+       style="font-style:normal;font-variant:normal;font-weight:normal;font-stretch:normal;font-size:117.675px;font-family:'Belly Betty';-inkscape-font-specification:'Belly Betty';text-align:start;writing-mode:lr-tb;direction:ltr;text-anchor:start;fill:#000000;stroke-width:2.75803"
+       x="18.595467"
+       y="86.476204"
+       id="text5"><tspan
+         sodipodi:role="line"
+         id="tspan5"
+         style="font-style:normal;font-variant:normal;font-weight:bold;font-stretch:normal;font-family:'Cabin Condensed';-inkscape-font-specification:'Cabin Condensed,  Bold';fill:#3d3d38;fill-opacity:1;stroke-width:2.75803"
+         x="18.595467"
+         y="86.476204">Q</tspan></text>
+    <text
+       xml:space="preserve"
+       style="font-style:normal;font-variant:normal;font-weight:normal;font-stretch:normal;font-size:11.2889px;font-family:'Franklin Gothic Heavy';-inkscape-font-specification:'Franklin Gothic Heavy, ';text-align:start;writing-mode:lr-tb;direction:ltr;text-anchor:start;fill:#000000;stroke-width:0.264583"
+       x="-29.482143"
+       y="100.54166"
+       id="text6"><tspan
+         sodipodi:role="line"
+         id="tspan6"
+         style="stroke-width:0.264583"
+         x="-29.482143"
+         y="100.54166" /></text>
+    <text
+       xml:space="preserve"
+       style="font-style:normal;font-variant:normal;font-weight:normal;font-stretch:normal;font-size:101.699px;font-family:'Franklin Gothic Heavy';-inkscape-font-specification:'Franklin Gothic Heavy, ';text-align:start;writing-mode:lr-tb;direction:ltr;text-anchor:start;fill:#000000;stroke-width:2.38356"
+       x="91.642975"
+       y="88.112129"
+       id="text7"><tspan
+         sodipodi:role="line"
+         style="font-style:normal;font-variant:normal;font-weight:bold;font-stretch:normal;font-family:'Cabin Condensed';-inkscape-font-specification:'Cabin Condensed,  Bold';fill:#3d3d38;fill-opacity:1;stroke-width:2.38356"
+         x="91.642975"
+         y="88.112129"
+         id="tspan8">i</tspan></text>
+  </g>
+</svg>
