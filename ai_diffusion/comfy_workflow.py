@@ -504,11 +504,11 @@ class ComfyWorkflow:
             "NunchakuFluxDiTLoader", 1, model_path=model_path, cache_threshold=cache_threshold
         )
 
-    def nunchaku_load_qwen_diffusion_model(self, model_path: str, cpu_offload: bool, num_blocks_on_gpu: int, use_pin_memory: bool):
+    def nunchaku_load_qwen_diffusion_model(self, model_name: str, cpu_offload: str, num_blocks_on_gpu: int, use_pin_memory: str):
         return self.add_cached(
             "NunchakuQwenImageDiTLoader",
             1,
-            model_path=model_path,
+            model_name=model_name,
             cpu_offload=cpu_offload,
             num_blocks_on_gpu=num_blocks_on_gpu,
             use_pin_memory=use_pin_memory
