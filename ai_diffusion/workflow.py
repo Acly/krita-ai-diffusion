@@ -100,12 +100,12 @@ def load_checkpoint_with_lora(w: ComfyWorkflow, checkpoint: CheckpointInput, mod
         case (FileFormat.diffusion, Quantization.none):
             model = w.load_diffusion_model(model_info.filename)
         case (FileFormat.diffusion, Quantization.svdq):
-            if model_info.arch in (Arch.flux, Arch.flux_k):
+            if model_info.arch.is_flux_like:
                 cache = 0.12 if checkpoint.dynamic_caching else 0.0
                 model = w.nunchaku_load_flux_diffusion_model(
                     model_info.filename, cache_threshold=cache
                 )
-            elif model_info.arch in (Arch.qwen, Arch.qwen_e):
+            elif model_info.arch.is_qwen_like:
                 # WIP #2072 replace by customizable parameters
                 model = w.nunchaku_load_qwen_diffusion_model(
                     model_info.filename,
@@ -139,7 +139,7 @@ def load_checkpoint_with_lora(w: ComfyWorkflow, checkpoint: CheckpointInput, mod
             case Arch.chroma:
                 clip = w.load_clip(te["t5"], type="chroma")
                 clip = w.t5_tokenizer_options(clip, min_padding=1, min_length=0)
-            case Arch.qwen | Arch.qwen_e:
+            case Arch.qwen | Arch.qwen_e | Arch.qwen_e_p:
                 clip = w.load_clip(te["qwen"], type="qwen_image")
             case _:
                 raise RuntimeError(f"No text encoder for model architecture {arch.name}")
@@ -653,18 +653,28 @@ def apply_edit_conditioning(
 
     extra_input = [c.image for c in control_layers if c.mode.is_ip_adapter]
     if len(extra_input) == 0:
-        if arch == Arch.qwen_e:
+        if arch == Arch.qwen_e_p:
+            return w.text_encode_qwen_image_edit_plus(clip, vae, [input_image], positive)
+        elif arch == Arch.qwen_e:
             # Don't use VAE to force the reference latent
             cond = w.text_encode_qwen_image_edit(clip, None, input_image, positive)
         return w.reference_latent(cond, input_latent)
 
-    input = w.image_stitch([input_image] + [i.load(w) for i in extra_input])
-    latent = vae_encode(w, vae, input, tiled_vae)
-    if arch == Arch.qwen_e:
-        # Don't use VAE to force the reference latent
-        cond = w.text_encode_qwen_image_edit(clip, None, input, positive)
-    cond = w.reference_latent(cond, latent)
-    return cond
+    if arch == Arch.qwen_e_p:
+        return w.text_encode_qwen_image_edit_plus(
+            clip,
+            vae,
+            [input_image] + [i.load(w) for i in extra_input],
+            positive,
+        )
+    else:
+        input = w.image_stitch([input_image] + [i.load(w) for i in extra_input])
+        latent = vae_encode(w, vae, input, tiled_vae)
+        if arch == Arch.qwen_e:
+            # Don't use VAE to force the reference latent
+            cond = w.text_encode_qwen_image_edit(clip, None, input, positive)
+        cond = w.reference_latent(cond, latent)
+        return cond
 
 
 def scale(

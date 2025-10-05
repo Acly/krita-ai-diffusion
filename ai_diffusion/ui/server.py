@@ -202,6 +202,7 @@ class PackageGroupWidget(QWidget):
                 Arch.chroma,
                 Arch.qwen,
                 Arch.qwen_e,
+                Arch.qwen_e_p,
             ]
         )
 

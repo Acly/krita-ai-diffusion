@@ -85,6 +85,7 @@ class Arch(Enum):
     chroma = "Chroma"
     qwen = "Qwen"
     qwen_e = "Qwen Edit"
+    qwen_e_p = "Qwen Edit Plus"
 
     auto = "Automatic"
     all = "All"
@@ -109,13 +110,12 @@ class Arch(Enum):
             return Arch.illu_v
         if string == "chroma":
             return Arch.chroma
-        if (
-            string in ("qwen", "qwen_image", "qwen-image")
-            and filename
-            and "edit" in filename.lower()
-        ):
-            return Arch.qwen_e
-        if string in ("qwen", "qwen_image", "qwen-image"):
+        if string == "qwen-image" and filename and "edit" in filename.lower():
+            if "2509" in filename.lower():
+                return Arch.qwen_e_p
+            else:
+                return Arch.qwen_e
+        if string == "qwen-image":
             return Arch.qwen
         return None
 
@@ -167,7 +167,7 @@ class Arch(Enum):
 
     @property
     def is_edit(self):  # edit models make changes to input images
-        return self in [Arch.flux_k, Arch.qwen_e]
+        return self in [Arch.flux_k, Arch.qwen_e, Arch.qwen_e_p]
 
     @property
     def is_sdxl_like(self):
@@ -177,6 +177,10 @@ class Arch(Enum):
     @property
     def is_flux_like(self):
         return self in [Arch.flux, Arch.flux_k]
+
+    @property
+    def is_qwen_like(self):
+        return self in [Arch.qwen, Arch.qwen_e, Arch.qwen_e_p]
 
     @property
     def text_encoders(self):
@@ -191,7 +195,7 @@ class Arch(Enum):
                 return ["clip_l", "t5"]
             case Arch.chroma:
                 return ["t5"]
-            case Arch.qwen | Arch.qwen_e:
+            case Arch.qwen | Arch.qwen_e | Arch.qwen_e_p:
                 return ["qwen"]
         raise ValueError(f"Unsupported architecture: {self}")
 
@@ -208,6 +212,7 @@ class Arch(Enum):
             Arch.chroma,
             Arch.qwen,
             Arch.qwen_e,
+            Arch.qwen_e_p,
         ]
 
 
@@ -714,6 +719,7 @@ search_paths: dict[str, list[str]] = {
     resource_id(ResourceKind.vae, Arch.chroma, "default"): ["flux", "ae.s"],
     resource_id(ResourceKind.vae, Arch.qwen, "default"): ["qwen"],
     resource_id(ResourceKind.vae, Arch.qwen_e, "default"): ["qwen"],
+    resource_id(ResourceKind.vae, Arch.qwen_e_p, "default"): ["qwen"],
 }
 # fmt: on
 

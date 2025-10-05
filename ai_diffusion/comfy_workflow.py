@@ -606,6 +606,24 @@ class ComfyWorkflow:
             "TextEncodeQwenImageEdit", 1, clip=clip, vae=vae, image=image, prompt=prompt
         )
 
+    def text_encode_qwen_image_edit_plus(
+        self, clip: Output, vae: Output | None, images: list[Output], prompt: str | Output
+    ):
+        image1 = images[0] if len(images) > 0 else None
+        image2 = images[1] if len(images) > 1 else None
+        image3 = images[2] if len(images) > 2 else None
+
+        return self.add(
+            "TextEncodeQwenImageEditPlus",
+            1,
+            clip=clip,
+            vae=vae,
+            image1=image1,
+            image2=image2,
+            image3=image3,
+            prompt=prompt,
+        )
+
     def background_region(self, conditioning: Output):
         return self.add("ETN_BackgroundRegion", 1, conditioning=conditioning)
 
