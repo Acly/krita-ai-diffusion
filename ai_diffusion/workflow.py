@@ -654,24 +654,28 @@ def apply_edit_conditioning(
     extra_input = [c.image for c in control_layers if c.mode.is_ip_adapter]
     if len(extra_input) == 0:
         if arch == Arch.qwen_e_p:
-            return w.text_encode_qwen_image_edit_plus(clip, vae, [input_image], positive)
+            cond = w.text_encode_qwen_image_edit_plus(clip, None, [input_image], positive)
         elif arch == Arch.qwen_e:
-            # Don't use VAE to force the reference latent
             cond = w.text_encode_qwen_image_edit(clip, None, input_image, positive)
         return w.reference_latent(cond, input_latent)
 
     if arch == Arch.qwen_e_p:
-        return w.text_encode_qwen_image_edit_plus(
+        extra_images = [i.load(w) for i in extra_input]
+        cond = w.text_encode_qwen_image_edit_plus(
             clip,
-            vae,
-            [input_image] + [i.load(w) for i in extra_input],
+            None,
+            [input_image] + extra_images,
             positive,
         )
+        cond = w.reference_latent(cond, input_latent)
+        for extra_image in extra_images:
+            latent = vae_encode(w, vae, extra_image, tiled_vae)
+            cond = w.reference_latent(cond, latent)
+        return cond
     else:
         input = w.image_stitch([input_image] + [i.load(w) for i in extra_input])
         latent = vae_encode(w, vae, input, tiled_vae)
         if arch == Arch.qwen_e:
-            # Don't use VAE to force the reference latent
             cond = w.text_encode_qwen_image_edit(clip, None, input, positive)
         cond = w.reference_latent(cond, latent)
         return cond
