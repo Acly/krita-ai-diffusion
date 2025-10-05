@@ -766,7 +766,7 @@ class StylePresets(SettingsTab):
 
     def _open_checkpoints_folder(self):
         arch = arch = resolve_arch(self.current_style, root.connection.client_if_connected)
-        if arch.is_flux_like or arch is Arch.chroma:
+        if arch.is_flux_like or arch in (Arch.chroma, Arch.qwen, Arch.qwen_e):
             self._open_folder(Path("models/diffusion_models"))
         else:
             self._open_folder(Path("models/checkpoints"))
