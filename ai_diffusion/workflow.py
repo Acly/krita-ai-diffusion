@@ -635,6 +635,8 @@ def apply_edit_conditioning(
     input_latent: Output,
     control_layers: list[Control],
     vae: Output,
+    clip: Output,
+    positive: str,
     arch: Arch,
     tiled_vae: bool,
 ):
@@ -643,10 +645,16 @@ def apply_edit_conditioning(
 
     extra_input = [c.image for c in control_layers if c.mode.is_ip_adapter]
     if len(extra_input) == 0:
+        if arch == Arch.qwen_e:
+            # Don't use VAE to force the reference latent
+            cond = w.text_encode_qwen_image_edit(clip, None, input_image, positive)
         return w.reference_latent(cond, input_latent)
 
     input = w.image_stitch([input_image] + [i.load(w) for i in extra_input])
     latent = vae_encode(w, vae, input, tiled_vae)
+    if arch == Arch.qwen_e:
+        # Don't use VAE to force the reference latent
+        cond = w.text_encode_qwen_image_edit(clip, None, input, positive)
     cond = w.reference_latent(cond, latent)
     return cond
 
@@ -734,7 +742,7 @@ def scale_refine_and_decode(
     model, positive, negative = apply_control(
         w, model, positive, negative, cond.all_control, extent.desired, vae, models
     )
-    positive = apply_edit_conditioning(w, positive, upscale, latent, [], vae, arch, tiled_vae)
+    positive = apply_edit_conditioning(w, positive, upscale, latent, [], vae, clip.model, cond.positive.text, arch, tiled_vae)
     result = w.sampler_custom_advanced(model, positive, negative, latent, arch, **params)
     image = vae_decode(w, vae, result, tiled_vae)
     return image
@@ -1015,7 +1023,7 @@ def refine(
         w, model, positive, negative, cond.all_control, extent.desired, vae, models
     )
     positive = apply_edit_conditioning(
-        w, positive, in_image, latent, cond.all_control, vae, models.arch, checkpoint.tiled_vae
+        w, positive, in_image, latent, cond.all_control, vae, clip.model, cond.positive.text, models.arch, checkpoint.tiled_vae
     )
     sampler = w.sampler_custom_advanced(
         model, positive, negative, latent_batch, models.arch, **_sampler_params(sampling)
@@ -1067,7 +1075,7 @@ def refine_region(
     else:
         latent = vae_encode(w, vae, in_image, checkpoint.tiled_vae)
         positive = apply_edit_conditioning(
-            w, positive, in_image, latent, cond.all_control, vae, models.arch, checkpoint.tiled_vae
+            w, positive, in_image, latent, cond.all_control, vae, clip.model, cond.positive.text, models.arch, checkpoint.tiled_vae
         )
         latent = w.set_latent_noise_mask(latent, initial_mask)
         inpaint_model = model

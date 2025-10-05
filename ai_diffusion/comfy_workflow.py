@@ -597,6 +597,9 @@ class ComfyWorkflow:
     def reference_latent(self, conditioning: Output, latent: Output):
         return self.add("ReferenceLatent", 1, conditioning=conditioning, latent=latent)
 
+    def text_encode_qwen_image_edit(self, clip: Output, vae: Output | None, image: Output, prompt: str | Output):
+        return self.add("TextEncodeQwenImageEdit", 1, clip=clip, vae=vae, image=image, prompt=prompt)
+
     def background_region(self, conditioning: Output):
         return self.add("ETN_BackgroundRegion", 1, conditioning=conditioning)
 
