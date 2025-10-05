@@ -109,9 +109,9 @@ class Arch(Enum):
             return Arch.illu_v
         if string == "chroma":
             return Arch.chroma
-        if string == "qwen" and filename and "edit" in filename.lower():
+        if string == ("qwen", "qwen_image", "qwen-image") and filename and "edit" in filename.lower():
             return Arch.qwen_e
-        if string == "qwen":
+        if string in ("qwen", "qwen_image", "qwen-image"):
             return Arch.qwen
         return None
 
@@ -699,6 +699,7 @@ search_paths: dict[str, list[str]] = {
     resource_id(ResourceKind.text_encoder, Arch.all, "clip_l"): ["clip_l"],
     resource_id(ResourceKind.text_encoder, Arch.all, "clip_g"): ["clip_g"],
     resource_id(ResourceKind.text_encoder, Arch.all, "t5"): ["t5xxl_fp16", "t5xxl_fp8_e4m3fn", "t5xxl_fp8_e4m3fn_scaled", "t5-v1_1-xxl", "t5"],
+    resource_id(ResourceKind.text_encoder, Arch.all, "qwen"): ["qwen_2.5_vl_7b", "qwen"],
     resource_id(ResourceKind.vae, Arch.sd15, "default"): ["vae-ft-mse-840000-ema"],
     resource_id(ResourceKind.vae, Arch.sdxl, "default"): ["sdxl_vae"],
     resource_id(ResourceKind.vae, Arch.illu, "default"): ["sdxl_vae"],
@@ -707,6 +708,8 @@ search_paths: dict[str, list[str]] = {
     resource_id(ResourceKind.vae, Arch.flux, "default"): ["flux", "ae.s"],
     resource_id(ResourceKind.vae, Arch.flux_k, "default"): ["flux", "ae.s"],
     resource_id(ResourceKind.vae, Arch.chroma, "default"): ["flux", "ae.s"],
+    resource_id(ResourceKind.vae, Arch.qwen, "default"): ["qwen"],
+    resource_id(ResourceKind.vae, Arch.qwen_e, "default"): ["qwen"],
 }
 # fmt: on
 
