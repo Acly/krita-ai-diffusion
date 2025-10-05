@@ -107,7 +107,7 @@ class Quantization(Enum):
     def from_string(s: str, filename: str | None = None):
         if s == "svdq":
             return Quantization.svdq
-        elif "qwen" in filename and "svdq" in filename:
+        elif filename and "qwen" in filename and "svdq" in filename:
             return Quantization.svdq
         else:
             return Quantization.none
