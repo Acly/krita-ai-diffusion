@@ -102,9 +102,17 @@ def load_checkpoint_with_lora(w: ComfyWorkflow, checkpoint: CheckpointInput, mod
         case (FileFormat.diffusion, Quantization.svdq):
             if model_info.arch in (Arch.flux, Arch.flux_k):
                 cache = 0.12 if checkpoint.dynamic_caching else 0.0
-                model = w.nunchaku_load_flux_diffusion_model(model_info.filename, cache_threshold=cache)
+                model = w.nunchaku_load_flux_diffusion_model(
+                    model_info.filename, cache_threshold=cache
+                )
             elif model_info.arch in (Arch.qwen, Arch.qwen_e):
-                model = w.nunchaku_load_qwen_diffusion_model(model_info.filename, cpu_offload="enable", num_blocks_on_gpu=16, use_pin_memory="disable")
+                # WIP #2072 replace by customizable parameters
+                model = w.nunchaku_load_qwen_diffusion_model(
+                    model_info.filename,
+                    cpu_offload="enable",
+                    num_blocks_on_gpu=16,
+                    use_pin_memory="disable",
+                )
             else:
                 raise RuntimeError(
                     f"Style checkpoint {checkpoint.checkpoint} has an unsupported quantized format {model_info.format.name}"
@@ -742,7 +750,19 @@ def scale_refine_and_decode(
     model, positive, negative = apply_control(
         w, model, positive, negative, cond.all_control, extent.desired, vae, models
     )
-    positive = apply_edit_conditioning(w, positive, upscale, latent, [], vae, clip.model, cond.positive.text, arch, tiled_vae)
+    positive = apply_edit_conditioning(
+        w,
+        positive,
+        upscale,
+        latent,
+        [],
+        vae,
+        clip.model,
+        cond.positive.text,
+        arch,
+        tiled_vae,
+    )
+
     result = w.sampler_custom_advanced(model, positive, negative, latent, arch, **params)
     image = vae_decode(w, vae, result, tiled_vae)
     return image
@@ -1023,7 +1043,16 @@ def refine(
         w, model, positive, negative, cond.all_control, extent.desired, vae, models
     )
     positive = apply_edit_conditioning(
-        w, positive, in_image, latent, cond.all_control, vae, clip.model, cond.positive.text, models.arch, checkpoint.tiled_vae
+        w,
+        positive,
+        in_image,
+        latent,
+        cond.all_control,
+        vae,
+        clip.model,
+        cond.positive.text,
+        models.arch,
+        checkpoint.tiled_vae,
     )
     sampler = w.sampler_custom_advanced(
         model, positive, negative, latent_batch, models.arch, **_sampler_params(sampling)
@@ -1075,7 +1104,16 @@ def refine_region(
     else:
         latent = vae_encode(w, vae, in_image, checkpoint.tiled_vae)
         positive = apply_edit_conditioning(
-            w, positive, in_image, latent, cond.all_control, vae, clip.model, cond.positive.text, models.arch, checkpoint.tiled_vae
+            w,
+            positive,
+            in_image,
+            latent,
+            cond.all_control,
+            vae,
+            clip.model,
+            cond.positive.text,
+            models.arch,
+            checkpoint.tiled_vae,
         )
         latent = w.set_latent_noise_mask(latent, initial_mask)
         inpaint_model = model

@@ -109,7 +109,11 @@ class Arch(Enum):
             return Arch.illu_v
         if string == "chroma":
             return Arch.chroma
-        if string in ("qwen", "qwen_image", "qwen-image") and filename and "edit" in filename.lower():
+        if (
+            string in ("qwen", "qwen_image", "qwen-image")
+            and filename
+            and "edit" in filename.lower()
+        ):
             return Arch.qwen_e
         if string in ("qwen", "qwen_image", "qwen-image"):
             return Arch.qwen
