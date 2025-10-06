@@ -303,10 +303,14 @@ class TextPrompt:
         self.text = text
         self.language = language
 
-    def encode(self, w: ComfyWorkflow, clip: Clip, style_prompt: str | None = None):
+    def encode_text(self, style_prompt: str | None = None):
         text = self.text
         if text != "" and style_prompt:
             text = merge_prompt(text, style_prompt, self.language)
+        return text
+
+    def encode(self, w: ComfyWorkflow, clip: Clip, style_prompt: str | None = None):
+        text = self.encode_text(style_prompt)
         if self._output is None or self._clip != clip:
             if text and self.language:
                 text = w.translate(text)
@@ -425,7 +429,36 @@ def encode_text_prompt(
     cond: Conditioning,
     clip: Clip,
     regions: Output | None,
+    input_image: Output | None = None,
+    control_layers: list[Control] | None = None,
+    arch: Arch | None = None,
 ):
+    if arch is not None and arch.is_qwen_like and arch.is_edit:
+        positive = cond.positive.encode_text(cond.style_prompt)
+        negative = cond.negative.encode(w, clip)
+
+        extra_input = [c.image for c in control_layers if c.mode.is_ip_adapter]
+        if len(extra_input) == 0:
+            if arch == Arch.qwen_e_p:
+                positive = w.text_encode_qwen_image_edit_plus(clip.model, None, [input_image], positive)
+            elif arch == Arch.qwen_e:
+                positive = w.text_encode_qwen_image_edit(clip.model, None, input_image, positive)
+
+            return positive, negative
+        elif arch == Arch.qwen_e_p:
+            extra_images = [i.load(w) for i in extra_input]
+            positive = w.text_encode_qwen_image_edit_plus(
+                clip.model,
+                None,
+                [input_image] + extra_images,
+                positive,
+            )
+            return positive, negative
+        else:
+            input = w.image_stitch([input_image] + [i.load(w) for i in extra_input])
+            positive = w.text_encode_qwen_image_edit(clip.model, None, input, positive)
+            return positive, negative
+
     if len(cond.regions) <= 1 or all(len(r.loras) == 0 for r in cond.regions):
         positive = cond.positive.encode(w, clip, cond.style_prompt)
         negative = cond.negative.encode(w, clip)
@@ -642,8 +675,6 @@ def apply_edit_conditioning(
     input_latent: Output,
     control_layers: list[Control],
     vae: Output,
-    clip: Output,
-    positive: str,
     arch: Arch,
     tiled_vae: bool,
 ):
@@ -652,20 +683,10 @@ def apply_edit_conditioning(
 
     extra_input = [c.image for c in control_layers if c.mode.is_ip_adapter]
     if len(extra_input) == 0:
-        if arch == Arch.qwen_e_p:
-            cond = w.text_encode_qwen_image_edit_plus(clip, None, [input_image], positive)
-        elif arch == Arch.qwen_e:
-            cond = w.text_encode_qwen_image_edit(clip, None, input_image, positive)
         return w.reference_latent(cond, input_latent)
 
     if arch == Arch.qwen_e_p:
         extra_images = [i.load(w) for i in extra_input]
-        cond = w.text_encode_qwen_image_edit_plus(
-            clip,
-            None,
-            [input_image] + extra_images,
-            positive,
-        )
         cond = w.reference_latent(cond, input_latent)
         for extra_image in extra_images:
             latent = vae_encode(w, vae, extra_image, tiled_vae)
@@ -674,8 +695,6 @@ def apply_edit_conditioning(
     else:
         input = w.image_stitch([input_image] + [i.load(w) for i in extra_input])
         latent = vae_encode(w, vae, input, tiled_vae)
-        if arch == Arch.qwen_e:
-            cond = w.text_encode_qwen_image_edit(clip, None, input, positive)
         cond = w.reference_latent(cond, latent)
         return cond
 
@@ -759,7 +778,7 @@ def scale_refine_and_decode(
     latent = vae_encode(w, vae, upscale, tiled_vae)
     params = _sampler_params(sampling, strength=0.4)
 
-    positive, negative = encode_text_prompt(w, cond, clip, regions)
+    positive, negative = encode_text_prompt(w, cond, clip, regions, upscale, [], arch)
     model, positive, negative = apply_control(
         w, model, positive, negative, cond.all_control, extent.desired, vae, models
     )
@@ -770,8 +789,6 @@ def scale_refine_and_decode(
         latent,
         [],
         vae,
-        clip.model,
-        cond.positive.text,
         arch,
         tiled_vae,
     )
@@ -1051,7 +1068,7 @@ def refine(
     in_image = scale_to_initial(extent, w, in_image, models)
     latent = vae_encode(w, vae, in_image, checkpoint.tiled_vae)
     latent_batch = w.batch_latent(latent, misc.batch_count)
-    positive, negative = encode_text_prompt(w, cond, clip, regions)
+    positive, negative = encode_text_prompt(w, cond, clip, regions, in_image, cond.all_control, models.arch)
     model, positive, negative = apply_control(
         w, model, positive, negative, cond.all_control, extent.desired, vae, models
     )
@@ -1062,8 +1079,6 @@ def refine(
         latent,
         cond.all_control,
         vae,
-        clip.model,
-        cond.positive.text,
         models.arch,
         checkpoint.tiled_vae,
     )
@@ -1095,13 +1110,14 @@ def refine_region(
     model_orig = copy(model)
     model, regions = apply_attention_mask(w, model, cond, clip, extent.initial)
     model = apply_regional_ip_adapter(w, model, cond.regions, extent.initial, models)
-    positive, negative = encode_text_prompt(w, cond, clip, regions)
 
     in_image = w.load_image(ensure(images.initial_image))
     in_image = scale_to_initial(extent, w, in_image, models)
     in_mask = w.load_mask(ensure(images.hires_mask))
     in_mask = apply_grow_feather(w, in_mask, inpaint)
     initial_mask = scale_to_initial(extent, w, in_mask, models, is_mask=True)
+
+    positive, negative = encode_text_prompt(w, cond, clip, regions, in_image, cond.all_control, models.arch)
 
     if inpaint.use_inpaint_model and models.control.find(ControlMode.inpaint) is not None:
         cond.control.append(inpaint_control(in_image, initial_mask, models.arch))
@@ -1123,8 +1139,6 @@ def refine_region(
             latent,
             cond.all_control,
             vae,
-            clip.model,
-            cond.positive.text,
             models.arch,
             checkpoint.tiled_vae,
         )
