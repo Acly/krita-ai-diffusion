@@ -429,15 +429,15 @@ def encode_text_prompt(
     cond: Conditioning,
     clip: Clip,
     regions: Output | None,
-    input_image: Output | None = None,
-    control_layers: list[Control] | None = None,
-    arch: Arch | None = None,
+    input_image: Output = None,
+    control_layers: list[Control] = None,
+    arch: Arch = None,
 ):
     if arch is not None and input_image is not None and arch.is_qwen_like and arch.is_edit:
         positive = cond.positive.encode_text(cond.style_prompt)
         negative = cond.negative.encode(w, clip)
 
-        extra_input = [c.image for c in control_layers if c.mode.is_ip_adapter]
+        extra_input = [c.image for c in control_layers if c.mode.is_ip_adapter] if control_layers else []
         if len(extra_input) == 0:
             if arch == Arch.qwen_e_p:
                 positive = w.text_encode_qwen_image_edit_plus(clip.model, None, [input_image], positive)
