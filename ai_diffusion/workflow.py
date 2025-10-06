@@ -433,7 +433,7 @@ def encode_text_prompt(
     control_layers: list[Control] | None = None,
     arch: Arch | None = None,
 ):
-    if arch is not None and arch.is_qwen_like and arch.is_edit:
+    if arch is not None and input_image is not None and arch.is_qwen_like and arch.is_edit:
         positive = cond.positive.encode_text(cond.style_prompt)
         negative = cond.negative.encode(w, clip)
 
