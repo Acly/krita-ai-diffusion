@@ -106,11 +106,10 @@ def load_checkpoint_with_lora(w: ComfyWorkflow, checkpoint: CheckpointInput, mod
                     model_info.filename, cache_threshold=cache
                 )
             elif model_info.arch.is_qwen_like:
-                # WIP #2072 replace by customizable parameters
                 model = w.nunchaku_load_qwen_diffusion_model(
                     model_info.filename,
-                    cpu_offload="enable",
-                    num_blocks_on_gpu=16,
+                    cpu_offload="auto",
+                    num_blocks_on_gpu=1,
                     use_pin_memory="disable",
                 )
             else:
