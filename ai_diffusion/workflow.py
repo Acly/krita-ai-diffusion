@@ -438,10 +438,14 @@ def encode_text_prompt(
         negative = cond.negative.encode(w, clip)
 
         assert input_image is not None and arch is not None
-        extra_input = [c.image for c in control_layers if c.mode.is_ip_adapter] if control_layers else []
+        extra_input = (
+            [c.image for c in control_layers if c.mode.is_ip_adapter] if control_layers else []
+        )
         if len(extra_input) == 0:
             if arch == Arch.qwen_e_p:
-                positive = w.text_encode_qwen_image_edit_plus(clip.model, None, [input_image], positive)
+                positive = w.text_encode_qwen_image_edit_plus(
+                    clip.model, None, [input_image], positive
+                )
             else:
                 positive = w.text_encode_qwen_image_edit(clip.model, None, input_image, positive)
 
@@ -1069,7 +1073,9 @@ def refine(
     in_image = scale_to_initial(extent, w, in_image, models)
     latent = vae_encode(w, vae, in_image, checkpoint.tiled_vae)
     latent_batch = w.batch_latent(latent, misc.batch_count)
-    positive, negative = encode_text_prompt(w, cond, clip, regions, in_image, cond.all_control, models.arch)
+    positive, negative = encode_text_prompt(
+        w, cond, clip, regions, in_image, cond.all_control, models.arch
+    )
     model, positive, negative = apply_control(
         w, model, positive, negative, cond.all_control, extent.desired, vae, models
     )
@@ -1118,7 +1124,9 @@ def refine_region(
     in_mask = apply_grow_feather(w, in_mask, inpaint)
     initial_mask = scale_to_initial(extent, w, in_mask, models, is_mask=True)
 
-    positive, negative = encode_text_prompt(w, cond, clip, regions, in_image, cond.all_control, models.arch)
+    positive, negative = encode_text_prompt(
+        w, cond, clip, regions, in_image, cond.all_control, models.arch
+    )
 
     if inpaint.use_inpaint_model and models.control.find(ControlMode.inpaint) is not None:
         cond.control.append(inpaint_control(in_image, initial_mask, models.arch))
