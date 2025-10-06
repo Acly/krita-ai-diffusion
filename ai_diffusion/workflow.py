@@ -430,7 +430,7 @@ def encode_text_prompt(
     clip: Clip,
     regions: Output | None,
     input_image: Output | None = None,
-    control_layers: list[Control] | tuple[Control] = (),
+    control_layers: list[Control] | tuple = (),
     arch: Arch | None = None,
 ):
     if arch is not None and input_image is not None and arch.is_qwen_like and arch.is_edit:
@@ -442,7 +442,7 @@ def encode_text_prompt(
         if len(extra_input) == 0:
             if arch == Arch.qwen_e_p:
                 positive = w.text_encode_qwen_image_edit_plus(clip.model, None, [input_image], positive)
-            elif arch == Arch.qwen_e:
+            else:
                 positive = w.text_encode_qwen_image_edit(clip.model, None, input_image, positive)
 
             return positive, negative
