@@ -75,6 +75,7 @@ class AIToolsExtension(Extension):
             window, "switch_workspace_graph", actions.set_workspace(Workspace.custom)
         )
         self._create_action(window, "toggle_workspace", actions.toggle_workspace)
+        self._create_action(window, "toggle_edit_mode", actions.toggle_edit_mode)
 
 
 Krita.instance().addExtension(AIToolsExtension(Krita.instance()))

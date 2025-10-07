@@ -159,6 +159,18 @@
             <isCheckable>false</isCheckable>
             <statusTip />
         </Action>
+        <Action name="ai_diffusion_toggle_edit_mode">
+            <icon />
+            <text>Toggle edit mode</text>
+            <whatsThis />
+            <toolTip />
+            <iconText />
+            <activationFlags>10000</activationFlags>
+            <activationConditions>0</activationConditions>
+            <shortcut></shortcut>
+            <isCheckable>false</isCheckable>
+            <statusTip />
+        </Action>
         <Action name="ai_diffusion_settings">
             <icon />
             <text>Show Settings</text>

@@ -70,3 +70,8 @@ def toggle_workspace():
         l = list(Workspace)
         next = l[(l.index(model.workspace) + 1) % len(l)]
         model.workspace = next
+
+
+def toggle_edit_mode():
+    if model := root.model_for_active_document():
+        model.edit_mode = not model.edit_mode
