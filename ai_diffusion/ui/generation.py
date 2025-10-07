@@ -757,8 +757,8 @@ class GenerationWidget(QWidget):
                 model.region_only_changed.connect(self.update_generate_options),
                 model.style_changed.connect(self.update_generate_options),
                 model.edit_mode_changed.connect(self.update_generate_options),
-                self.add_control_button.clicked.connect(model.regions.add_control),
-                self.add_region_button.clicked.connect(model.regions.create_region_group),
+                self.add_control_button.clicked.connect(self.add_control),
+                self.add_region_button.clicked.connect(self.add_region),
                 self.region_prompt.activated.connect(model.generate),
                 self.generate_button.clicked.connect(model.generate),
                 self.generate_button.ctrl_clicked.connect(model.generate_replace),
@@ -846,7 +846,7 @@ class GenerationWidget(QWidget):
     def show_inpaint_menu(self):
         width = self.generate_button.width() + self.inpaint_mode_button.width()
         pos = QPoint(0, self.generate_button.height())
-        if self.model.arch.is_edit:
+        if not self.model.edit_mode and self.model.arch.is_edit:
             menu = self.edit_menu
         elif self.model.strength == 1.0:
             if self.model.region_only:
@@ -873,11 +873,17 @@ class GenerationWidget(QWidget):
         self.model.region_only = checked
 
     def update_add_region_button(self):
-        supported = self.model.arch.supports_regions and not self.model.edit_mode
+        supported = self.model.arch.supports_regions
         self.add_region_button.setEnabled(supported)
         self.add_region_button.setToolTip(
             _("Add Region") if supported else _("Regions are not supported for the current model")
         )
+
+    def add_region(self):
+        self.model.active_regions.create_region_group()
+
+    def add_control(self):
+        self.model.active_regions.add_control()
 
     def update_generate_options(self):
         if not self.model.has_document:
@@ -890,8 +896,10 @@ class GenerationWidget(QWidget):
         has_regions = len(regions) > 0
         has_active_region = regions.is_linked(self.model.layers.active)
         is_region_only = has_regions and has_active_region and self.model.region_only
-        is_edit = self.model.arch.is_edit or self.model.edit_mode
-        can_switch_edit = not self.model.arch.is_edit and self.model.edit_style is not None
+        is_edit = self.model.arch.is_edit
+        can_switch_edit = (
+            self.model.style.linked_edit_style != "" and self.model.edit_style is not None
+        )
         self.region_mask_button.setVisible(has_regions)
         self.region_mask_button.setEnabled(has_active_region)
         self.region_mask_button.setIcon(_region_mask_button_icons[is_region_only])

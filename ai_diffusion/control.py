@@ -59,6 +59,7 @@ class ControlLayer(QObject, ObservableProperties):
 
         self.mode_changed.connect(self._update_is_supported)
         model.style_changed.connect(self._update_is_supported)
+        model.edit_mode_changed.connect(self._update_is_supported)
         root.connection.state_changed.connect(self._update_is_supported)
         self.layer_id_changed.connect(self._update_is_pose_vector)
         model.jobs.job_finished.connect(self._update_active_job)
