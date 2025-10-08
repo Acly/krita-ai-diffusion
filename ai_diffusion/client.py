@@ -104,8 +104,10 @@ class Quantization(Enum):
     svdq = 1
 
     @staticmethod
-    def from_string(s: str):
+    def from_string(s: str, filename: str | None = None):
         if s == "svdq":
+            return Quantization.svdq
+        elif filename and "qwen" in filename and "svdq" in filename:
             return Quantization.svdq
         else:
             return Quantization.none
@@ -351,6 +353,7 @@ def resolve_arch(style: Style, client: Client | ClientModels | None = None):
         checkpoint = style.preferred_checkpoint(models.checkpoints.keys())
         if checkpoint != "not-found":
             arch = models.arch_of(checkpoint)
+
     elif style.checkpoints:
         arch = style.architecture.resolve(style.checkpoints[0])
 

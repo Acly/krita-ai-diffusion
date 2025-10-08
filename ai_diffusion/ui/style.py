@@ -765,8 +765,8 @@ class StylePresets(SettingsTab):
         self._read_style(self.current_style)
 
     def _open_checkpoints_folder(self):
-        arch = arch = resolve_arch(self.current_style, root.connection.client_if_connected)
-        if arch.is_flux_like or arch is Arch.chroma:
+        arch = resolve_arch(self.current_style, root.connection.client_if_connected)
+        if arch.is_flux_like or arch == Arch.chroma or arch.is_qwen_like:
             self._open_folder(Path("models/diffusion_models"))
         else:
             self._open_folder(Path("models/checkpoints"))
@@ -883,6 +883,8 @@ class StylePresets(SettingsTab):
             valid_archs = (Arch.auto, Arch.sdxl, Arch.illu, Arch.illu_v)
         elif arch.is_flux_like:
             valid_archs = (Arch.auto, Arch.flux, Arch.flux_k)
+        elif arch.is_qwen_like:
+            valid_archs = (Arch.auto, Arch.qwen, Arch.qwen_e, Arch.qwen_e_p)
         else:
             valid_archs = (Arch.auto, arch)
         with SignalBlocker(self._arch_select):

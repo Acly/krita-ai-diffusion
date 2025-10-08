@@ -412,7 +412,7 @@ class ComfyClient(Client):
                 (
                     filename,
                     Arch.from_string(info["base_model"], info.get("type", "eps"), filename),
-                    Quantization.from_string(info.get("quant", "none")),
+                    Quantization.from_string(info.get("quant", "none"), filename),
                     info.get("is_inpaint", False),
                     info.get("is_refiner", False),
                 )
@@ -625,7 +625,7 @@ def _find_text_encoder_models(model_list: Sequence[str]):
     kind = ResourceKind.text_encoder
     return {
         resource_id(kind, Arch.all, te): _find_model(model_list, kind, Arch.all, te)
-        for te in ["clip_l", "clip_g", "t5"]
+        for te in ["clip_l", "clip_g", "t5", "qwen"]
     }
 
 

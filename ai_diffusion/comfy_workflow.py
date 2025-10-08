@@ -499,12 +499,24 @@ class ComfyWorkflow:
     def load_fooocus_inpaint(self, head: str, patch: str):
         return self.add_cached("INPAINT_LoadFooocusInpaint", 1, head=head, patch=patch)
 
-    def nunchaku_load_diffusion_model(self, model_path: str, cache_threshold: float):
+    def nunchaku_load_flux_diffusion_model(self, model_path: str, cache_threshold: float):
         return self.add_cached(
             "NunchakuFluxDiTLoader", 1, model_path=model_path, cache_threshold=cache_threshold
         )
 
-    def nunchaku_load_lora(self, model: Output, name: str, strength: float):
+    def nunchaku_load_qwen_diffusion_model(
+        self, model_name: str, cpu_offload: str, num_blocks_on_gpu: int, use_pin_memory: str
+    ):
+        return self.add_cached(
+            "NunchakuQwenImageDiTLoader",
+            1,
+            model_name=model_name,
+            cpu_offload=cpu_offload,
+            num_blocks_on_gpu=num_blocks_on_gpu,
+            use_pin_memory=use_pin_memory,
+        )
+
+    def nunchaku_load_flux_lora(self, model: Output, name: str, strength: float):
         return self.add(
             "NunchakuFluxLoraLoader", 1, model=model, lora_name=name, lora_strength=strength
         )
@@ -586,6 +598,31 @@ class ComfyWorkflow:
 
     def reference_latent(self, conditioning: Output, latent: Output):
         return self.add("ReferenceLatent", 1, conditioning=conditioning, latent=latent)
+
+    def text_encode_qwen_image_edit(
+        self, clip: Output, vae: Output | None, image: Output, prompt: str | Output
+    ):
+        return self.add(
+            "TextEncodeQwenImageEdit", 1, clip=clip, vae=vae, image=image, prompt=prompt
+        )
+
+    def text_encode_qwen_image_edit_plus(
+        self, clip: Output, vae: Output | None, images: list[Output], prompt: str | Output
+    ):
+        image1 = images[0] if len(images) > 0 else None
+        image2 = images[1] if len(images) > 1 else None
+        image3 = images[2] if len(images) > 2 else None
+
+        return self.add(
+            "TextEncodeQwenImageEditPlus",
+            1,
+            clip=clip,
+            vae=vae,
+            image1=image1,
+            image2=image2,
+            image3=image3,
+            prompt=prompt,
+        )
 
     def background_region(self, conditioning: Output):
         return self.add("ETN_BackgroundRegion", 1, conditioning=conditioning)
