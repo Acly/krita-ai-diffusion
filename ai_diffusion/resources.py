@@ -726,6 +726,9 @@ search_paths: dict[str, list[str]] = {
 required_resource_ids = set([
     ResourceId(ResourceKind.text_encoder, Arch.sd3, "clip_l"),
     ResourceId(ResourceKind.text_encoder, Arch.sd3, "clip_g"),
+    ResourceId(ResourceKind.text_encoder, Arch.qwen, "qwen"),
+    ResourceId(ResourceKind.text_encoder, Arch.qwen_e, "qwen"),
+    ResourceId(ResourceKind.text_encoder, Arch.qwen_e_p, "qwen"),
     ResourceId(ResourceKind.controlnet, Arch.sd15, ControlMode.inpaint),
     ResourceId(ResourceKind.controlnet, Arch.sd15, ControlMode.blur),
     ResourceId(ResourceKind.ip_adapter, Arch.sd15, ControlMode.reference),
@@ -741,4 +744,7 @@ required_resource_ids = set([
     ResourceId(ResourceKind.inpaint, Arch.sdxl, "fooocus_head"),
     ResourceId(ResourceKind.inpaint, Arch.sdxl, "fooocus_patch"),
     ResourceId(ResourceKind.inpaint, Arch.all, "default"),
+    ResourceId(ResourceKind.vae, Arch.qwen, "default"),
+    ResourceId(ResourceKind.vae, Arch.qwen_e, "default"),
+    ResourceId(ResourceKind.vae, Arch.qwen_e_p, "default"),
 ])

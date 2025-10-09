@@ -412,7 +412,7 @@ class ComfyClient(Client):
                 (
                     filename,
                     Arch.from_string(info["base_model"], info.get("type", "eps"), filename),
-                    Quantization.from_string(info.get("quant", "none"), filename),
+                    Quantization.from_string(info.get("quant", "none")),
                     info.get("is_inpaint", False),
                     info.get("is_refiner", False),
                 )

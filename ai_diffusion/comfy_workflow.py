@@ -504,16 +504,14 @@ class ComfyWorkflow:
             "NunchakuFluxDiTLoader", 1, model_path=model_path, cache_threshold=cache_threshold
         )
 
-    def nunchaku_load_qwen_diffusion_model(
-        self, model_name: str, cpu_offload: str, num_blocks_on_gpu: int, use_pin_memory: str
-    ):
+    def nunchaku_load_qwen_diffusion_model(self, model_name: str, num_blocks_on_gpu=1):
         return self.add_cached(
             "NunchakuQwenImageDiTLoader",
             1,
             model_name=model_name,
-            cpu_offload=cpu_offload,
+            cpu_offload="auto",
             num_blocks_on_gpu=num_blocks_on_gpu,
-            use_pin_memory=use_pin_memory,
+            use_pin_memory="disable",
         )
 
     def nunchaku_load_flux_lora(self, model: Output, name: str, strength: float):
@@ -528,7 +526,7 @@ class ComfyWorkflow:
 
     def empty_latent_image(self, extent: Extent, arch: Arch, batch_size=1):
         w, h = extent.width, extent.height
-        if arch in [Arch.sd3, Arch.flux, Arch.flux_k, Arch.chroma]:
+        if arch.is_flux_like or arch.is_qwen_like or arch in (Arch.sd3, Arch.chroma):
             return self.add("EmptySD3LatentImage", 1, width=w, height=h, batch_size=batch_size)
         return self.add("EmptyLatentImage", 1, width=w, height=h, batch_size=batch_size)
 
