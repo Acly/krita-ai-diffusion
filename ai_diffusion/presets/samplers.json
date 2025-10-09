@@ -27,6 +27,13 @@
         "minimum_steps": 4,
         "cfg": 4.0
     },
+    "Euler beta": {
+        "sampler": "euler",
+        "scheduler": "beta",
+        "steps": 20,
+        "minimum_steps": 4,
+        "cfg": 5.5
+    },
     "Turbo/Lightning Merge - DPM++ SDE": {
         "sampler": "dpmpp_sde_gpu",
         "scheduler": "karras",
