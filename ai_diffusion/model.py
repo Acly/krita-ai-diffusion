@@ -208,7 +208,7 @@ class Model(QObject, ObservableProperties):
                 bounds = mask.bounds
                 inpaint_mode = InpaintMode.add_object
         else:  # Selection inpaint
-            bounds = compute_bounds(extent, mask.bounds if mask else None, self.strength)
+            bounds = compute_bounds(extent, mask.bounds if mask else None, workflow_kind)
             bounds = self.inpaint.get_context(self, mask) or bounds
             inpaint_mode = self.resolve_inpaint_mode()
 

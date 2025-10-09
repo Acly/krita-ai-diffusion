@@ -193,17 +193,7 @@ class PackageGroupWidget(QWidget):
         return (
             not isinstance(item.package, ModelResource)
             or item.package.arch in self.workloads
-            or item.package.arch
-            not in [
-                Arch.sd15,
-                Arch.sdxl,
-                Arch.flux,
-                Arch.flux_k,
-                Arch.chroma,
-                Arch.qwen,
-                Arch.qwen_e,
-                Arch.qwen_e_p,
-            ]
+            or item.package.arch not in Arch.list()
         )
 
     def _update_workload(self, item: PackageItem):

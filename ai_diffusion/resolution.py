@@ -3,14 +3,14 @@ import math
 from enum import Enum
 from typing import NamedTuple, overload
 
-from .api import ExtentInput, ImageInput
+from .api import ExtentInput, ImageInput, WorkflowKind
 from .image import Bounds, Extent, Image, Point, multiple_of
 from .resources import Arch
 from .settings import PerformanceSettings
 from .style import Style
 
 
-def compute_bounds(extent: Extent, mask_bounds: Bounds | None, strength: float):
+def compute_bounds(extent: Extent, mask_bounds: Bounds | None, op: WorkflowKind):
     """Compute the area of the image to use as input for diffusion (context area).
 
     Canvas extent: full size of the canvas
@@ -21,7 +21,7 @@ def compute_bounds(extent: Extent, mask_bounds: Bounds | None, strength: float):
     In many cases diffusion context and mask bounds are the same.
     """
     if mask_bounds is not None:
-        if strength == 1.0:
+        if op is WorkflowKind.inpaint:
             # For 100% strength inpainting get additional surrounding image content for context
             context_padding = max(extent.longest_side // 16, mask_bounds.extent.average_side // 2)
             image_bounds = Bounds.pad(
@@ -145,6 +145,7 @@ class CheckpointResolution(NamedTuple):
     def compute(extent: Extent, arch: Arch, style: Style | None = None):
         arch = Arch.sdxl if arch.is_sdxl_like else arch
         arch = Arch.flux if arch.is_flux_like or arch is Arch.chroma else arch
+        arch = Arch.qwen if arch.is_qwen_like else arch
         if style is None or style.preferred_resolution == 0:
             min_size, max_size, min_pixel_count, max_pixel_count = {
                 Arch.sd15: (512, 768, 512**2, 512 * 768),
@@ -152,8 +153,6 @@ class CheckpointResolution(NamedTuple):
                 Arch.sd3: (512, 1536, 512**2, 1536**2),
                 Arch.flux: (256, 2048, 512**2, 2048**2),
                 Arch.qwen: (256, 2048, 512**2, 2048**2),
-                Arch.qwen_e: (256, 2048, 512**2, 2048**2),
-                Arch.qwen_e_p: (256, 2048, 512**2, 2048**2),
             }[arch]
         else:
             range_offset = multiple_of(round(0.2 * style.preferred_resolution), 8)
@@ -190,6 +189,9 @@ def prepare_diffusion_input(
         mult = 16
     if arch is Arch.sd3:
         mult = 64
+    if arch.is_edit:
+        downscale = False  # Never use 2-pass generation for edit models
+
     min_size, max_size, min_scale, max_scale = CheckpointResolution.compute(desired, arch, style)
 
     if downscale and max_scale < 1 and any(x > max_size for x in desired):
