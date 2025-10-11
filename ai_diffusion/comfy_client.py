@@ -134,7 +134,9 @@ class ComfyClient(Client):
         clip_models = nodes.options("DualCLIPLoader", "clip_name1")
         available_resources.update(_find_text_encoder_models(clip_models))
         clip_gguf_models = nodes.options("DualCLIPLoaderGGUF", "clip_name1")
-        available_resources.update(_find_text_encoder_models(clip_gguf_models))
+        for k, v in _find_text_encoder_models(clip_gguf_models).items():
+            if available_resources.get(k) is None and v is not None:
+                available_resources[k] = v
 
         vae_models = nodes.options("VAELoader", "vae_name")
         available_resources.update(_find_vae_models(vae_models))
