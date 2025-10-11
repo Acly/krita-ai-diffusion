@@ -13,6 +13,7 @@ from .api import WorkflowInput
 from .client import Client, CheckpointInfo, ClientMessage, ClientEvent, DeviceInfo, ClientModels
 from .client import SharedWorkflow, TranslationPackage, ClientFeatures, TextOutput
 from .client import Quantization, MissingResources, filter_supported_styles, loras_to_upload
+from .comfy_workflow import ComfyObjectInfo
 from .files import FileFormat
 from .image import Image, ImageCollection
 from .network import RequestManager, NetworkError
@@ -113,7 +114,7 @@ class ComfyClient(Client):
 
         # Check custom nodes
         log.info("Checking for required custom nodes...")
-        nodes = await client._get("object_info")
+        nodes = ComfyObjectInfo(await client._get("object_info"))
         missing = _check_for_missing_nodes(nodes)
         if len(missing) > 0 and settings.check_server_resources:
             raise MissingResources(missing)
@@ -127,37 +128,36 @@ class ComfyClient(Client):
 
         # Check for required and optional model resources
         models = client.models
-        models.node_inputs = {name: nodes[name]["input"] for name in nodes}
+        models.node_inputs = nodes
         available_resources = client.models.resources = {}
 
-        clip_models = nodes["DualCLIPLoader"]["input"]["required"]["clip_name1"][0]
+        clip_models = nodes.options("DualCLIPLoader", "clip_name1")
         available_resources.update(_find_text_encoder_models(clip_models))
-        if clip_gguf := nodes.get("DualCLIPLoaderGGUF", None):
-            clip_gguf_models = clip_gguf["input"]["required"]["clip_name1"][0]
-            available_resources.update(_find_text_encoder_models(clip_gguf_models))
+        clip_gguf_models = nodes.options("DualCLIPLoaderGGUF", "clip_name1")
+        available_resources.update(_find_text_encoder_models(clip_gguf_models))
 
-        vae_models = nodes["VAELoader"]["input"]["required"]["vae_name"][0]
+        vae_models = nodes.options("VAELoader", "vae_name")
         available_resources.update(_find_vae_models(vae_models))
 
-        control_models = nodes["ControlNetLoader"]["input"]["required"]["control_net_name"][0]
+        control_models = nodes.options("ControlNetLoader", "control_net_name")
         available_resources.update(_find_control_models(control_models))
 
-        clip_vision_models = nodes["CLIPVisionLoader"]["input"]["required"]["clip_name"][0]
+        clip_vision_models = nodes.options("CLIPVisionLoader", "clip_name")
         available_resources.update(_find_clip_vision_model(clip_vision_models))
 
-        ip_adapter_models = nodes["IPAdapterModelLoader"]["input"]["required"]["ipadapter_file"][0]
+        ip_adapter_models = nodes.options("IPAdapterModelLoader", "ipadapter_file")
         available_resources.update(_find_ip_adapters(ip_adapter_models))
 
-        style_models = nodes["StyleModelLoader"]["input"]["required"]["style_model_name"][0]
+        style_models = nodes.options("StyleModelLoader", "style_model_name")
         available_resources.update(_find_style_models(style_models))
 
-        models.upscalers = nodes["UpscaleModelLoader"]["input"]["required"]["model_name"][0]
+        models.upscalers = nodes.options("UpscaleModelLoader", "model_name")
         available_resources.update(_find_upscalers(models.upscalers))
 
-        inpaint_models = nodes["INPAINT_LoadInpaintModel"]["input"]["required"]["model_name"][0]
+        inpaint_models = nodes.options("INPAINT_LoadInpaintModel", "model_name")
         available_resources.update(_find_inpaint_models(inpaint_models))
 
-        loras = nodes["LoraLoader"]["input"]["required"]["lora_name"][0]
+        loras = nodes.options("LoraLoader", "lora_name")
         available_resources.update(_find_loras(loras))
 
         # Retrieve list of checkpoints
@@ -402,9 +402,11 @@ class ComfyClient(Client):
             self.try_inspect("unet_gguf"),
         )
         diffusion_models.update(diffusion_gguf)
-        self._refresh_models(nodes, checkpoints, diffusion_models)
+        self._refresh_models(ComfyObjectInfo(nodes), checkpoints, diffusion_models)
 
-    def _refresh_models(self, nodes: dict, checkpoints: dict | None, diffusion_models: dict | None):
+    def _refresh_models(
+        self, nodes: ComfyObjectInfo, checkpoints: dict | None, diffusion_models: dict | None
+    ):
         models = self.models
 
         def parse_model_info(models: dict, model_format: FileFormat):
@@ -429,16 +431,16 @@ class ComfyClient(Client):
         else:
             models.checkpoints = {
                 filename: CheckpointInfo.deduce_from_filename(filename)
-                for filename in nodes["CheckpointLoaderSimple"]["input"]["required"]["ckpt_name"][0]
+                for filename in nodes.options("CheckpointLoaderSimple", "ckpt_name")
             }
         if diffusion_models:
             models.checkpoints.update(parse_model_info(diffusion_models, FileFormat.diffusion))
 
-        models.vae = nodes["VAELoader"]["input"]["required"]["vae_name"][0]
-        models.loras = nodes["LoraLoader"]["input"]["required"]["lora_name"][0]
+        models.vae = nodes.options("VAELoader", "vae_name")
+        models.loras = nodes.options("LoraLoader", "lora_name")
 
-        if gguf_node := nodes.get("UnetLoaderGGUF", None):
-            for name in gguf_node["input"]["required"]["unet_name"][0]:
+        if "UnetLoaderGGUF" in nodes:
+            for name in nodes.options("UnetLoaderGGUF", "unet_name"):
                 if name not in models.checkpoints:
                     models.checkpoints[name] = CheckpointInfo(name, Arch.flux, FileFormat.diffusion)
         else:
@@ -561,7 +563,7 @@ def websocket_url(url_http: str):
     return url_http.replace("http", "ws", 1)
 
 
-def _check_for_missing_nodes(nodes: dict):
+def _check_for_missing_nodes(nodes: ComfyObjectInfo):
     def missing(node: str, package: CustomNode):
         if node not in nodes:
             log.error(f"Missing required node {node} from package {package.name} ({package.url})")

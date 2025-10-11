@@ -7,7 +7,7 @@ from PyQt5.QtCore import Qt
 from ai_diffusion.api import CustomWorkflowInput, ImageInput, WorkflowInput
 from ai_diffusion.client import Client, ClientModels, CheckpointInfo, TextOutput
 from ai_diffusion.connection import Connection, ConnectionState
-from ai_diffusion.comfy_workflow import ComfyNode, ComfyWorkflow, Output
+from ai_diffusion.comfy_workflow import ComfyNode, ComfyObjectInfo, ComfyWorkflow, Output
 from ai_diffusion.custom_workflow import WorkflowSource, WorkflowCollection
 from ai_diffusion.custom_workflow import SortedWorkflows, CustomWorkspace
 from ai_diffusion.custom_workflow import CustomParam, ParamKind, workflow_parameters
@@ -22,13 +22,13 @@ from .config import test_dir
 
 
 class MockClient(Client):
-    def __init__(self, node_inputs: dict[str, dict]):
+    def __init__(self, node_defs: ComfyObjectInfo):
         self.models = ClientModels()
-        self.models.node_inputs = node_inputs
+        self.models.node_inputs = node_defs
 
     @staticmethod
     async def connect(url: str, access_token: str = "") -> Client:
-        return MockClient({})
+        return MockClient(ComfyObjectInfo({}))
 
     async def enqueue(self, work: WorkflowInput, front: bool = False) -> str:
         return ""
@@ -45,11 +45,11 @@ class MockClient(Client):
 
 def create_mock_connection(
     initial_workflows: dict[str, dict],
-    node_inputs: dict[str, dict] | None = None,
+    node_defs: ComfyObjectInfo | None = None,
     state: ConnectionState = ConnectionState.connected,
 ):
     connection = Connection()
-    connection._client = MockClient(node_inputs or {})
+    connection._client = MockClient(node_defs or ComfyObjectInfo({}))
     connection._workflows = initial_workflows
     connection.state = state
     return connection
@@ -156,7 +156,7 @@ def make_dummy_graph(n: int = 42):
 def test_files(tmp_path: Path):
     collection_folder = tmp_path / "workflows"
 
-    collection = WorkflowCollection(create_mock_connection({}, {}), collection_folder)
+    collection = WorkflowCollection(create_mock_connection({}), collection_folder)
     assert len(collection) == 0
 
     file1 = tmp_path / "file1.json"
@@ -194,7 +194,7 @@ async def dummy_generate(workflow_input):
 
 def test_workspace():
     connection_workflows = {"connection1": make_dummy_graph(42)}
-    connection = create_mock_connection(connection_workflows, {})
+    connection = create_mock_connection(connection_workflows)
     workflows = WorkflowCollection(connection)
 
     jobs = JobQueue()
@@ -241,7 +241,7 @@ def test_import():
         "zak": {"class_type": "C", "inputs": {"in": ["9", 1]}},
         "9": {"class_type": "B", "inputs": {"in": ["4", 0]}},
     }
-    w = ComfyWorkflow.import_graph(graph, {})
+    w = ComfyWorkflow.import_graph(graph, ComfyObjectInfo({}))
     assert w.node(0) == ComfyNode(0, "A", {"steps": 4, "float": 1.2, "string": "mouse"})
     assert w.node(1) == ComfyNode(1, "B", {"in": Output(0, 0)})
     assert w.node(2) == ComfyNode(2, "C", {"in": Output(1, 1)})
@@ -257,7 +257,7 @@ def test_import_with_loop():
         "4": {"class_type": "D", "inputs": {"in": ["3", 0]}},
         "5": {"class_type": "E", "inputs": {"in": ["4", 0]}},
     }
-    w = ComfyWorkflow.import_graph(graph, {})
+    w = ComfyWorkflow.import_graph(graph, ComfyObjectInfo({}))
     # Currently imports a partial graph, important thing is that it does not hang/crash
     assert w.node_count > 0
 
@@ -265,18 +265,27 @@ def test_import_with_loop():
 def test_import_ui_workflow():
     graph = json.loads((test_dir / "data" / "workflow-ui.json").read_text())
     object_info = json.loads((test_dir / "data" / "object_info.json").read_text())
-    node_inputs = {k: v.get("input") for k, v in object_info.items()}
-    result = ComfyWorkflow.import_graph(graph, node_inputs)
+    node_defs = ComfyObjectInfo(object_info)
+    result = ComfyWorkflow.import_graph(graph, node_defs)
 
     expected_graph = json.loads((test_dir / "data" / "workflow-api.json").read_text())
-    expected = ComfyWorkflow.import_graph(expected_graph, {})
+    expected = ComfyWorkflow.import_graph(expected_graph, ComfyObjectInfo({}))
     assert result.root == expected.root
 
 
 def test_parameters():
-    node_inputs = {"ChoiceNode": {"required": {"choice_param": (["a", "b", "c"],)}}}
+    node_defs = ComfyObjectInfo({
+        "ChoiceNode": {"input": {"required": {"choice_param": [["a", "b", "c"], {}]}}},
+        "ChoiceNodeV3": {
+            "input": {
+                "required": {
+                    "choice_param": ["COMBO", {"options": ["a", "b", "c"], "default": "a"}]
+                }
+            }
+        },
+    })
 
-    w = ComfyWorkflow(node_inputs=node_inputs)
+    w = ComfyWorkflow(node_defs)
     w.add("ETN_Parameter", 1, name="int", type="number (integer)", default=4, min=0, max=10)
     w.add("ETN_Parameter", 1, name="bool", type="toggle", default=True)
     w.add("ETN_Parameter", 1, name="number", type="number", default=1.2, min=0.0, max=10.0)
@@ -286,6 +295,8 @@ def test_parameters():
     w.add("ETN_Parameter", 1, name="choice_unconnected", type="choice", default="z")
     choice_param = w.add("ETN_Parameter", 1, name="choice", type="choice", default="c")
     w.add("ChoiceNode", 1, choice_param=choice_param)
+    choice_param_v3 = w.add("ETN_Parameter", 1, name="choice_v3", type="choice", default="c")
+    w.add("ChoiceNodeV3", 1, choice_param=choice_param_v3)
     w.add("ETN_KritaImageLayer", 1, name="image")
     w.add("ETN_KritaMaskLayer", 1, name="mask")
     w.add("ETN_KritaStyle", 9, name="style", sampler_preset="live")  # type: ignore
@@ -299,6 +310,7 @@ def test_parameters():
         CustomParam(ParamKind.prompt_negative, "negative", "n"),
         CustomParam(ParamKind.text, "choice_unconnected", "z"),
         CustomParam(ParamKind.choice, "choice", "c", choices=["a", "b", "c"]),
+        CustomParam(ParamKind.choice, "choice_v3", "c", choices=["a", "b", "c"]),
         CustomParam(ParamKind.image_layer, "image"),
         CustomParam(ParamKind.mask_layer, "mask"),
         CustomParam(ParamKind.style, "style", "live"),
@@ -330,7 +342,7 @@ def test_parameter_order():
 
 def test_text_output():
     connection_workflows = {"connection1": make_dummy_graph(42)}
-    connection = create_mock_connection(connection_workflows, {})
+    connection = create_mock_connection(connection_workflows, ComfyObjectInfo({}))
     workflows = WorkflowCollection(connection)
 
     output_events = []

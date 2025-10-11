@@ -51,19 +51,19 @@ class ComfyNode(NamedTuple):
 class ComfyWorkflow:
     """Builder for workflows which can be sent to the ComfyUI prompt API."""
 
-    def __init__(self, node_inputs: dict | None = None, run_mode=ComfyRunMode.server):
+    def __init__(self, node_defs: ComfyObjectInfo | None = None, run_mode=ComfyRunMode.server):
         self.root: dict[str, dict] = {}
         self.images: dict[str, Image | ImageCollection] = {}
         self.node_count = 0
         self.sample_count = 0
+        self.node_defs = node_defs or ComfyObjectInfo({})
         self._cache: dict[str, Output | Output2 | Output3 | Output4] = {}
-        self._nodes_inputs: dict[str, dict[str, Any]] = node_inputs or {}
         self._run_mode: ComfyRunMode = run_mode
 
     @staticmethod
-    def import_graph(existing: dict, node_inputs: dict):
-        w = ComfyWorkflow(node_inputs)
-        existing = _convert_ui_workflow(existing, node_inputs)
+    def import_graph(existing: dict, node_defs: ComfyObjectInfo):
+        w = ComfyWorkflow(node_defs)
+        existing = _convert_ui_workflow(existing, node_defs)
         node_map: dict[str, str] = {}
         queue = list(existing.keys())
         times_queued: dict[str, int] = {}
@@ -75,7 +75,7 @@ class ComfyWorkflow:
             if class_type is None:
                 log.warning(f"Workflow import: Node {id} is not installed, aborting.")
                 return w
-            if node_inputs and class_type not in node_inputs:
+            if node_defs and class_type not in node_defs:
                 log.warning(
                     f"Workflow contains a node of type {class_type} which is not installed on the ComfyUI server."
                 )
@@ -107,23 +107,10 @@ class ComfyWorkflow:
         return w
 
     def add_default_values(self, node_name: str, args: dict):
-        if node_inputs := _inputs_for_node(self._nodes_inputs, node_name, "required"):
-            for k, v in node_inputs.items():
-                if k not in args:
-                    if len(v) == 1 and isinstance(v[0], list) and len(v[0]) > 0:
-                        # enum type, use first value in list of possible values
-                        args[k] = v[0][0]
-                    elif len(v) > 1 and isinstance(v[1], dict):
-                        # other type, try to access default value
-                        default = v[1].get("default", None)
-                        if default is not None:
-                            args[k] = default
+        if node_inputs := self.node_defs.params(node_name, "required"):
+            node_inputs.update(args)
+            return node_inputs
         return args
-
-    def input_type(self, class_type: str, input_name: str) -> tuple | None:
-        if inputs := _inputs_for_node(self._nodes_inputs, class_type):
-            return inputs.get(input_name)
-        return None
 
     def dump(self, filepath: str | Path):
         filepath = Path(filepath)
@@ -1197,25 +1184,64 @@ class ComfyWorkflow:
         )
 
 
-def _inputs_for_node(node_inputs: dict[str, dict[str, Any]], node_name: str, filter=""):
-    inputs = node_inputs.get(node_name)
-    if inputs is None:
-        return None
-    if filter:
-        return inputs.get(filter)
-    result = inputs.get("required", {})
-    result.update(inputs.get("optional", {}))
-    return result
+# Node descriptions available to the ComfyUI server from /object_info query
+class ComfyObjectInfo:
+    def __init__(self, nodes: dict[str, dict]):
+        self.nodes = nodes
+
+    def __contains__(self, node_class: str):
+        return node_class in self.nodes
+
+    def __bool__(self):
+        return bool(self.nodes)
+
+    def params(self, node_class: str, category=""):
+        result: dict[str, Any] = {}
+        if inputs := self.inputs(node_class, category):
+            for k, v in inputs.items():
+                if len(v) == 1 and isinstance(v[0], list) and len(v[0]) > 0:
+                    # legacy combo type, use first value in list of possible values
+                    result[k] = v[0][0]
+                elif len(v) > 1 and v[0] == "COMBO":
+                    # V3 combo type, use first value in options
+                    options = v[1].get("options", [])
+                    result[k] = options[0] if options else None
+                elif len(v) > 1 and isinstance(v[1], dict):
+                    # other type, try to access default value
+                    result[k] = v[1].get("default", None)
+        return result
+
+    def options(self, node_class: str, param_name: str) -> list[str]:
+        if inputs := self.inputs(node_class, "required"):
+            if param := inputs.get(param_name, None):
+                if param[0] == "COMBO":
+                    return param[1]["options"]
+                elif isinstance(param[0], list):
+                    return param[0]
+        else:
+            log.warning(f"Failed to get {node_class} options for {param_name}")
+        return []
+
+    def inputs(self, node_name: str, category="") -> dict[str, list] | None:
+        node = self.nodes.get(node_name)
+        if node is None:
+            return None
+        inputs = node.get("input", {})
+        if category:
+            return inputs.get(category)
+        result = inputs.get("required", {})
+        result.update(inputs.get("optional", {}))
+        return result
 
 
-def _convert_ui_workflow(w: dict, node_inputs: dict):
+def _convert_ui_workflow(w: dict, node_inputs: ComfyObjectInfo):
     version = w.get("version")
     nodes = w.get("nodes")
     links = w.get("links")
     if not (version and nodes and links):
         return w
 
-    if not node_inputs:
+    if not node_inputs.nodes:
         raise ValueError("An active ComfyUI connection is required to convert a UI workflow file.")
 
     primitives = {}
@@ -1231,7 +1257,7 @@ def _convert_ui_workflow(w: dict, node_inputs: dict):
             continue
 
         inputs = {}
-        fields = _inputs_for_node(node_inputs, type)
+        fields = node_inputs.inputs(type)
         if fields is None:
             raise ValueError(
                 f"Workflow uses node type {type}, but it is not installed on the ComfyUI server."
@@ -1239,7 +1265,9 @@ def _convert_ui_workflow(w: dict, node_inputs: dict):
         widget_count = 0
         for field_name, field in fields.items():
             field_type = field[0]
-            if field_type in ["INT", "FLOAT", "BOOL", "STRING"] or isinstance(field_type, list):
+            if isinstance(field_type, list):
+                field_type = "COMBO"
+            if field_type in ("INT", "FLOAT", "BOOL", "STRING", "COMBO"):
                 values = node["widgets_values"]
                 inputs[field_name] = values[widget_count]
                 widget_count += 1

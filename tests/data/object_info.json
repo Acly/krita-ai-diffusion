@@ -115,12 +115,16 @@
         "input": {
             "required": {
                 "model_name": [
-                    [
-                        "4x_NMKD-Superscale-SP_178000_G.pth",
-                        "OmniSR_X2_DIV2K.safetensors",
-                        "OmniSR_X3_DIV2K.safetensors",
-                        "OmniSR_X4_DIV2K.safetensors"
-                    ]
+                    "COMBO",
+                    {
+                        "multiselect": false,
+                        "options": [
+                            "4x_NMKD-Superscale-SP_178000_G.pth",
+                            "OmniSR_X2_DIV2K.safetensors",
+                            "OmniSR_X3_DIV2K.safetensors",
+                            "OmniSR_X4_DIV2K.safetensors"
+                        ]
+                    }
                 ]
             }
         },

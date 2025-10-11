@@ -340,9 +340,8 @@ def workflow_parameters(w: ComfyWorkflow):
 def _get_choices(w: ComfyWorkflow, node: ComfyNode):
     connected, input_name = next(w.find_connected(node.output()), (None, ""))
     if connected:
-        if input_type := w.input_type(connected.type, input_name):
-            if isinstance(input_type[0], list):
-                return input_type[0]
+        if options := w.node_defs.options(connected.type, input_name):
+            return options
     return None
 
 

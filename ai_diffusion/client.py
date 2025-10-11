@@ -5,6 +5,7 @@ from typing import Any, AsyncGenerator, Iterable, NamedTuple
 from PyQt5.QtCore import QObject, pyqtSignal
 
 from .api import WorkflowInput
+from .comfy_workflow import ComfyObjectInfo
 from .image import ImageCollection
 from .properties import Property, ObservableProperties
 from .files import FileLibrary, FileFormat
@@ -134,10 +135,10 @@ class ClientModels:
     loras: list[str]
     upscalers: list[str]
     resources: dict[str, str | None]
-    node_inputs: dict[str, dict[str, list[str | list | dict]]]
+    node_inputs: ComfyObjectInfo
 
     def __init__(self) -> None:
-        self.node_inputs = {}
+        self.node_inputs = ComfyObjectInfo({})
         self.resources = {}
 
     def resource(
