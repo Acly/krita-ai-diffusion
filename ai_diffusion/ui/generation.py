@@ -691,7 +691,7 @@ class GenerationWidget(QWidget):
 
         self.inpaint_mode_button = QToolButton(self)
         self.inpaint_mode_button.setArrowType(Qt.ArrowType.DownArrow)
-        self.inpaint_mode_button.setFixedHeight(self.generate_button.height() - 2)
+        self.inpaint_mode_button.setFixedHeight(self.generate_button.minimumSizeHint().height() - 3)
         self.inpaint_mode_button.clicked.connect(self.show_inpaint_menu)
         self.generate_menu = self._create_generate_menu()
         self.inpaint_menu = self._create_inpaint_menu()
@@ -872,13 +872,6 @@ class GenerationWidget(QWidget):
     def toggle_region_only(self, checked: bool):
         self.model.region_only = checked
 
-    def update_add_region_button(self):
-        supported = self.model.arch.supports_regions
-        self.add_region_button.setEnabled(supported)
-        self.add_region_button.setToolTip(
-            _("Add Region") if supported else _("Regions are not supported for the current model")
-        )
-
     def add_region(self):
         self.model.active_regions.create_region_group()
 
@@ -890,7 +883,6 @@ class GenerationWidget(QWidget):
             return
 
         regions = self.model.active_regions
-        self.update_add_region_button()
         self.region_prompt.regions = regions
 
         has_regions = len(regions) > 0
