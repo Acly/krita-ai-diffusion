@@ -8,11 +8,11 @@ from typing import Any, NamedTuple, Sequence
 
 # Version identifier for all the resources defined here. This is used as the server version.
 # It usually follows the plugin version, but not all new plugin versions also require a server update.
-version = "1.38.0"
+version = "1.40.0"
 
 comfy_url = "https://github.com/comfyanonymous/ComfyUI"
-comfy_version = "7139d6d93fc7b5481a69b687080bd36f7b531c46"
-nunchaku_version = "1.0.0"
+comfy_version = "637221995f7424a561bd825de3e61ea117dfe1e3"
+nunchaku_version = "1.0.1"
 
 
 class CustomNode(NamedTuple):
@@ -42,7 +42,7 @@ required_custom_nodes = [
         "External Tooling Nodes",
         "comfyui-tooling-nodes",
         "https://github.com/Acly/comfyui-tooling-nodes",
-        "fa46b933297ef8bc8fd760674af27330b24dccd9",
+        "20f8d8ecc9f35550f84da7c41fb704a8f418b2bd",
         ["ETN_LoadImageBase64", "ETN_LoadMaskBase64", "ETN_SendImageWebSocket", "ETN_Translate"],
     ),
     CustomNode(
@@ -59,14 +59,14 @@ optional_custom_nodes = [
         "GGUF",
         "ComfyUI-GGUF",
         "https://github.com/city96/ComfyUI-GGUF",
-        "cf0573351ac260d629d460d97f09b09ac17d3726",
+        "be2a08330d7ec232d684e50ab938870d7529471e",
         ["UnetLoaderGGUF", "DualCLIPLoaderGGUF"],
     ),
     CustomNode(
         "Nunchaku",
         "ComfyUI-nunchaku",
         "https://github.com/nunchaku-tech/ComfyUI-nunchaku",
-        "90fb8ccf455a4bffa5fb832b84e54951d1e2949d",
+        "d3a640a1d0c9f726b7ca3acc28daca8f52d10922",
         ["NunchakuFluxDiTLoader"],
     ),
 ]
