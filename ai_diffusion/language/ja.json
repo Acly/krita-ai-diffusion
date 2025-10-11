@@ -453,7 +453,6 @@
     "No diffusion model checkpoints found": "ディフュージョンモデルのチェックポイントが見つかりません",
     "missing": "欠損",
     "Tile Overlap": "タイルの重なり",
-    "The {node_name} node is not installed.": "{node_name}ノードがインストールされていません。",
     "Resolution": "解像度",
     "Detected base models:": "検出されたベースモデル",
     "Dynamic Caching": "ダイナミックキャッシング",
@@ -517,6 +516,9 @@
     "The selected Style does not use the negative prompt.": null,
     "Save Image File Name Template": null,
     "File format for saved images from thumbnails.": null,
-    "Save Image Metadata": null
+    "Save Image Metadata": null,
+    "Copy to clipboard": null,
+    "Select an alternative style to use for for instruction-based editing": null,
+    "Linked Edit Style": null
   }
 }

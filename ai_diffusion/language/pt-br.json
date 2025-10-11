@@ -453,7 +453,6 @@
     "No diffusion model checkpoints found": null,
     "missing": null,
     "Tile Overlap": null,
-    "The {node_name} node is not installed.": null,
     "Resolution": null,
     "Detected base models:": null,
     "Dynamic Caching": null,
@@ -517,6 +516,9 @@
     "The selected Style does not use the negative prompt.": null,
     "Save Image File Name Template": null,
     "File format for saved images from thumbnails.": null,
-    "Save Image Metadata": null
+    "Save Image Metadata": null,
+    "Copy to clipboard": null,
+    "Select an alternative style to use for for instruction-based editing": null,
+    "Linked Edit Style": null
   }
 }

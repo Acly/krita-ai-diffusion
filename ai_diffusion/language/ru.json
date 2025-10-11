@@ -453,7 +453,6 @@
     "No diffusion model checkpoints found": "Контрольные точки моделей диффузии не найдены",
     "missing": "отсутствует",
     "Tile Overlap": "Перекрытие плиток",
-    "The {node_name} node is not installed.": "Узел {node_name} не установлен.",
     "Resolution": "Разрешение",
     "Detected base models:": "Обнаруженные базовые модели:",
     "Dynamic Caching": "Динамическое кэширование",
@@ -517,6 +516,9 @@
     "The selected Style does not use the negative prompt.": "Выбранный стиль не использует негативный промпт.",
     "Save Image File Name Template": "Шаблон имени файла для сохранения изображений",
     "File format for saved images from thumbnails.": "Формат файла для сохраняемых изображений из миниатюр.",
-    "Save Image Metadata": "Сохранять метаданные изображения"
+    "Save Image Metadata": "Сохранять метаданные изображения",
+    "Copy to clipboard": null,
+    "Select an alternative style to use for for instruction-based editing": null,
+    "Linked Edit Style": null
   }
 }

@@ -453,7 +453,6 @@
     "No diffusion model checkpoints found": "未找到扩散模型检查点",
     "missing": "缺失",
     "Tile Overlap": "平铺重叠",
-    "The {node_name} node is not installed.": "{node_name}节点未安装。",
     "Resolution": "分辨率",
     "Detected base models:": "检测到的基础模型：",
     "Dynamic Caching": "动态缓存",
@@ -517,6 +516,9 @@
     "The selected Style does not use the negative prompt.": null,
     "Save Image File Name Template": null,
     "File format for saved images from thumbnails.": null,
-    "Save Image Metadata": null
+    "Save Image Metadata": null,
+    "Copy to clipboard": null,
+    "Select an alternative style to use for for instruction-based editing": null,
+    "Linked Edit Style": null
   }
 }

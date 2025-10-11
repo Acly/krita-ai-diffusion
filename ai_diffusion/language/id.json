@@ -457,7 +457,6 @@
     "The text encoder for this diffusion model is not installed": "Pengkode teks untuk model difusi ini tidak terpasang",
     "The tile/unblur control model is not installed.": "Model kontrol ubin/hilangkan blur tidak terpasang.",
     "The upscale model used by the document is not available on the server": "Model kelas atas yang digunakan oleh dokumen tidak tersedia di server",
-    "The {node_name} node is not installed.": "Node {node_name} belum terpasang.",
     "This LoRA is usually added automatically by a Sampler or Control Layer when needed.\\nIt is not required to add it manually here.": "LoRA ini biasanya ditambahkan secara otomatis oleh Sampler atau Control Layer bila diperlukan.\\nTidak perlu menambahkannya secara manual di sini.",
     "This action cannot be undone.": "Tindakan ini tidak dapat dibatalkan.",
     "This has a large impact on which kind of content will be generated. To install additional checkpoints, place them into [ComfyUI]/models/checkpoints.": "Hal ini berdampak besar pada jenis konten yang akan dihasilkan. Untuk memasang checkpoint tambahan, tempatkan titik-titik tersebut di [ComfyUI]/models/checkpoints.",
@@ -517,6 +516,9 @@
     "packages require installation": "paket memerlukan instalasi",
     "packages selected": "paket dipilih",
     "supported": "didukung",
-    "{count} jobs queued.": "{count} pekerjaan dalam antrian."
+    "{count} jobs queued.": "{count} pekerjaan dalam antrian.",
+    "Copy to clipboard": null,
+    "Select an alternative style to use for for instruction-based editing": null,
+    "Linked Edit Style": null
   }
 }

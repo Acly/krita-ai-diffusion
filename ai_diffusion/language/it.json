@@ -411,7 +411,6 @@
     "The server is missing the IP-Adapter model": "Al server manca il modello IP-Adapter",
     "The text encoder for this diffusion model is not installed": "Il codificatore di testo per questo modello di diffusione non è installato",
     "The tile/unblur control model is not installed.": "Il modello di controllo mosaico/sfocatura non è installato.",
-    "The {node_name} node is not installed.": "Il nodo {node_name} non è installato.",
     "This LoRA is usually added automatically by a Sampler or Control Layer when needed.\\nIt is not required to add it manually here.": "Questo LoRA viene solitamente aggiunto automaticamente da un campionatore o da un livello di controllo quando necessario. Non è necessario aggiungerlo manualmente qui.",
     "This has a large impact on which kind of content will be generated. To install additional checkpoints, place them into [ComfyUI]/models/checkpoints.": "Ciò ha un impatto significativo sul tipo di contenuto che verrà generato. Per installare i checkpoint aggiuntivi, posizionali in [ComfyUI]/models/checkpoints.",
     "This is a {version} checkpoint, but the {version} workload has not been installed.": "Questo è un checkpoint {version}, ma il carico di lavoro {version} non è stato installato.",
@@ -517,6 +516,9 @@
     "The selected Style does not use the negative prompt.": "Lo stile selezionato non utilizza una richiesta negativa.",
     "Save Image File Name Template": "Salva modello con nome file immagine",
     "File format for saved images from thumbnails.": "Formato file per le immagini salvate dalle miniature.",
-    "Save Image Metadata": "Salva i metadati dell'immagine"
+    "Save Image Metadata": "Salva i metadati dell'immagine",
+    "Copy to clipboard": null,
+    "Select an alternative style to use for for instruction-based editing": null,
+    "Linked Edit Style": null
   }
 }
