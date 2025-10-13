@@ -108,8 +108,11 @@ class ComfyWorkflow:
 
     def add_default_values(self, node_name: str, args: dict):
         if node_inputs := self.node_defs.params(node_name, "required"):
-            node_inputs.update(args)
-            return node_inputs
+            for k, v in node_inputs.items():
+                if v is not None:
+                    args.setdefault(k, v)
+                elif k not in args:
+                    log.warning(f"Node {node_name} missing required input {k} (no default)")
         return args
 
     def dump(self, filepath: str | Path):
@@ -1199,16 +1202,26 @@ class ComfyObjectInfo:
         result: dict[str, Any] = {}
         if inputs := self.inputs(node_class, category):
             for k, v in inputs.items():
-                if len(v) == 1 and isinstance(v[0], list) and len(v[0]) > 0:
+                default = None
+                if len(v) > 1 and isinstance(v[1], dict):
+                    default = v[1].get("default")
+                if default is None and isinstance(v[0], list) and len(v[0]) > 0:
                     # legacy combo type, use first value in list of possible values
-                    result[k] = v[0][0]
-                elif len(v) > 1 and v[0] == "COMBO":
-                    # V3 combo type, use first value in options
-                    options = v[1].get("options", [])
-                    result[k] = options[0] if options else None
-                elif len(v) > 1 and isinstance(v[1], dict):
-                    # other type, try to access default value
-                    result[k] = v[1].get("default", None)
+                    default = v[0][0]
+                if default is None:
+                    match v[0]:
+                        case "INT":
+                            default = 0
+                        case "FLOAT":
+                            default = 0.0
+                        case "BOOL":
+                            default = False
+                        case "STRING":
+                            default = ""
+                        case "COMBO":
+                            if options := v[1].get("options", None):
+                                default = options[0]
+                result[k] = default
         return result
 
     def options(self, node_class: str, param_name: str) -> list[str]:

@@ -48,13 +48,13 @@ def test_inputs_required_and_merged(info: ComfyObjectInfo):
 
 
 def test_params_defaults_for_various_types(info: ComfyObjectInfo):
-    # GrowMask: INT and BOOLEAN provide defaults; MASK has no default and is omitted
+    # GrowMask: INT and BOOLEAN provide defaults
     params = info.params("GrowMask", "required")
-    assert params == {"expand": 0, "tapered_corners": True}
+    assert params == {"expand": 0, "mask": None, "tapered_corners": True}
 
     # ETN_KritaOutput: legacy combo (list of values + default dict), picks default
     params_krita_out = info.params("ETN_KritaOutput", "required")
-    assert params_krita_out == {"format": "PNG"}
+    assert params_krita_out == {"format": "PNG", "images": None}
 
     # UpscaleModelLoader: COMBO v3 picks first from options
     params_upscale = info.params("UpscaleModelLoader", "required")
