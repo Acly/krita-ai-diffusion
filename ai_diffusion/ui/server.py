@@ -190,10 +190,11 @@ class PackageGroupWidget(QWidget):
         return True
 
     def _workload_matches(self, item: PackageItem):
+        archs_with_workload = (Arch.sd15, Arch.sdxl, Arch.flux, Arch.flux_k)
         return (
             not isinstance(item.package, ModelResource)
             or item.package.arch in self.workloads
-            or item.package.arch not in Arch.list()
+            or item.package.arch not in archs_with_workload
         )
 
     def _update_workload(self, item: PackageItem):
