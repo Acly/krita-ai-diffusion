@@ -323,7 +323,7 @@ class TextPrompt:
             else:
                 self._output = w.clip_text_encode(clip.model, text)
 
-            if text == "" and clip.arch is not Arch.sd15:
+            if text == "" and not (clip.arch.is_qwen_like or clip.arch is Arch.sd15):
                 self._output = w.conditioning_zero_out(self._output)
             self._clip = clip
         return self._output
