@@ -507,7 +507,7 @@
     "History Format": "Storico Formato",
     "File format for saving generated images in history": "Formato file per salvare le immagini generate nella cronologia",
     "Multi-Threading": "Multi Operazioni",
-    "When saving generated images from thumbnails, include metadata in the PNG": null,
+    "When saving generated images from thumbnails, include metadata in the PNG": "Quando si salvano le immagini generate dalle miniature, includere i metadati nel PNG",
     "loras": "Loras",
     "Save Image Format": "Salva Immagine in Formato",
     "The CUDA backend requires a NVIDIA GPU, but no compatible devices were found. Do you want to continue with installation anyway?": "Il backend CUDA richiede una GPU NVIDIA, ma non sono stati trovati dispositivi compatibili. Vuoi continuare comunque con l'installazione?",
@@ -517,8 +517,8 @@
     "Save Image File Name Template": "Salva modello con nome file immagine",
     "File format for saved images from thumbnails.": "Formato file per le immagini salvate dalle miniature.",
     "Save Image Metadata": "Salva i metadati dell'immagine",
-    "Copy to clipboard": null,
-    "Select an alternative style to use for for instruction-based editing": null,
-    "Linked Edit Style": null
+    "Copy to clipboard": "Copia negli appunti",
+    "Select an alternative style to use for for instruction-based editing": "Seleziona uno stile alternativo da utilizzare per la modifica basata sulle istruzioni",
+    "Linked Edit Style": "Stile di modifica collegato"
   }
 }
