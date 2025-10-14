@@ -1242,7 +1242,8 @@ class ComfyObjectInfo:
         inputs = node.get("input", {})
         if category:
             return inputs.get(category)
-        result = inputs.get("required", {})
+        result = {}
+        result.update(inputs.get("required", {}))
         result.update(inputs.get("optional", {}))
         return result
 
