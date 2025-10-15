@@ -88,9 +88,13 @@ def apply_strength(strength: float, steps: int, min_steps: int = 0) -> tuple[int
     if steps <= 4:
         return apply_strength_increase(strength, steps, min_steps=min_steps, steps_increase=(0, 1))
     elif steps == 5:
-        return apply_strength_increase(strength, steps, min_steps=min_steps, steps_increase=(-1, 0, 1))
+        return apply_strength_increase(
+            strength, steps, min_steps=min_steps, steps_increase=(-1, 0, 1)
+        )
     elif steps <= 8:
-        return apply_strength_increase(strength, steps, min_steps=min_steps, steps_increase=(-2, -1, 0, 1))
+        return apply_strength_increase(
+            strength, steps, min_steps=min_steps, steps_increase=(-2, -1, 0)
+        )
     start_at_step = round(steps * (1 - strength))
 
     if min_steps and steps - start_at_step < min_steps:
