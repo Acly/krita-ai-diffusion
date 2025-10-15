@@ -52,7 +52,7 @@ def _sampling_from_style(style: Style, strength: float, is_live: bool):
 
 
 def apply_strength_increase(
-        strength: float, steps: int, min_steps: int = 0, steps_increase: int = 1
+    strength: float, steps: int, min_steps: int = 0, steps_increase: int = 1
 ) -> tuple[int, int]:
     strengths = []
     start_at_step = round(steps * (1 - strength))
