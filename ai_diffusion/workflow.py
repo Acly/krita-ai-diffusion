@@ -52,17 +52,17 @@ def _sampling_from_style(style: Style, strength: float, is_live: bool):
 
 
 def apply_strength_increase(
-    strength: float, steps: int, min_steps: int = 0, steps_increase: int = 1
+    strength: float, steps: int, min_steps: int = 0, steps_increase: tuple = (0, 1)
 ) -> tuple[int, int]:
     strengths = []
     start_at_step = round(steps * (1 - strength))
 
-    for i in range(steps_increase + 1):
+    for i in steps_increase:
         true_steps = steps + i
         start_at_step = round(true_steps * (1 - strength))
 
         if min_steps and true_steps - start_at_step < min_steps:
-            true_steps = min(math.floor(min_steps / strength) + i, steps + steps_increase)
+            true_steps = min(math.floor(min_steps / strength) + i, steps + steps_increase[-1])
             start_at_step = true_steps - min_steps
 
         real_strength = (true_steps - start_at_step) / true_steps
@@ -86,7 +86,11 @@ def apply_strength_increase(
 
 def apply_strength(strength: float, steps: int, min_steps: int = 0) -> tuple[int, int]:
     if steps <= 4:
-        return apply_strength_increase(strength, steps, min_steps=min_steps, steps_increase=1)
+        return apply_strength_increase(strength, steps, min_steps=min_steps, steps_increase=(0, 1))
+    elif steps == 5:
+        return apply_strength_increase(strength, steps, min_steps=min_steps, steps_increase=(-1, 0, 1))
+    elif steps <= 8:
+        return apply_strength_increase(strength, steps, min_steps=min_steps, steps_increase=(-2, -1, 0, 1))
     start_at_step = round(steps * (1 - strength))
 
     if min_steps and steps - start_at_step < min_steps:
