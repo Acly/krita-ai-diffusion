@@ -21,7 +21,7 @@ def compute_bounds(extent: Extent, mask_bounds: Bounds | None, op: WorkflowKind)
     In many cases diffusion context and mask bounds are the same.
     """
     if mask_bounds is not None:
-        if op is WorkflowKind.inpaint:
+        if op in (WorkflowKind.generate, WorkflowKind.inpaint):
             # For 100% strength inpainting get additional surrounding image content for context
             context_padding = max(extent.longest_side // 16, mask_bounds.extent.average_side // 2)
             image_bounds = Bounds.pad(
