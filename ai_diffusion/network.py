@@ -98,6 +98,7 @@ class RequestManager:
         request = QNetworkRequest(QUrl(url))
         request.setAttribute(QNetworkRequest.FollowRedirectsAttribute, True)
         request.setRawHeader(b"ngrok-skip-browser-warning", b"69420")
+        request.setRawHeader(b"skip_zrok_interstitial", b"69420")
         if bearer:
             request.setRawHeader(b"Authorization", f"Bearer {bearer}".encode("utf-8"))
         if headers:
