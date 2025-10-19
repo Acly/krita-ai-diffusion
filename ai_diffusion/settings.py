@@ -206,6 +206,9 @@ class Settings(QObject):
         _("Server Arguments"), "", _("Additional command line arguments passed to the server")
     )
 
+    server_authorization: str
+    _server_authorization = Setting("ComfyUI Authorization Token", "")
+
     check_server_resources: bool
     _check_server_resources = Setting("Refuse connection if nodes or models are missing", True)
 

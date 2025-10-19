@@ -83,28 +83,29 @@ class RequestManager:
         self._net.sslErrors.connect(self._handle_ssl_errors)
         self._requests: dict[QNetworkReply, Request] = {}
         self._upload_future: Future[tuple[int, int]] | None = None
+        self._additional_headers: list[tuple[bytes, bytes]] = []
+
+    def add_header(self, key: str, value: str):
+        self._additional_headers.append((key.encode("utf-8"), value.encode("utf-8")))
+
+    def set_auth(self, bearer: str):
+        self.add_header("Authorization", f"Bearer {bearer}")
+
+    def _prepare_request(self, url: str, timeout: float | None = None):
+        request = QNetworkRequest(QUrl(url))
+        request.setAttribute(QNetworkRequest.FollowRedirectsAttribute, True)
+        for key, value in self._additional_headers:
+            request.setRawHeader(key, value)
+        if timeout is not None:
+            request.setTransferTimeout(int(timeout * 1000))
+        return request
 
     def http(
-        self,
-        method,
-        url: str,
-        data: dict | QByteArray | None = None,
-        bearer="",
-        headers: Headers | None = None,
-        timeout: float | None = None,
+        self, method, url: str, data: dict | QByteArray | None = None, timeout: float | None = None
     ):
         self._cleanup()
 
-        request = QNetworkRequest(QUrl(url))
-        request.setAttribute(QNetworkRequest.FollowRedirectsAttribute, True)
-        request.setRawHeader(b"ngrok-skip-browser-warning", b"69420")
-        if bearer:
-            request.setRawHeader(b"Authorization", f"Bearer {bearer}".encode("utf-8"))
-        if headers:
-            for key, value in headers:
-                request.setRawHeader(key.encode("utf-8"), value.encode("utf-8"))
-        if timeout is not None:
-            request.setTransferTimeout(int(timeout * 1000))
+        request = self._prepare_request(url, timeout)
 
         assert method in ["GET", "POST", "PUT"]
         if method == "POST":
@@ -130,11 +131,11 @@ class RequestManager:
         self._requests[reply] = Request(url, future)
         return future
 
-    def get(self, url: str, bearer="", timeout: float | None = None):
-        return self.http("GET", url, bearer=bearer, timeout=timeout)
+    def get(self, url: str, timeout: float | None = None):
+        return self.http("GET", url, timeout=timeout)
 
-    def post(self, url: str, data: dict, bearer=""):
-        return self.http("POST", url, data, bearer=bearer)
+    def post(self, url: str, data: dict):
+        return self.http("POST", url, data)
 
     def put(self, url: str, data: QByteArray | bytes):
         return self.http("PUT", url, data)
@@ -170,10 +171,9 @@ class RequestManager:
                 yield (len(data), len(data))
                 break
 
-    def download(self, url: str):
+    def download(self, url: str, timeout: float | None = None):
         self._cleanup()
-        request = QNetworkRequest(QUrl(url))
-        request.setAttribute(QNetworkRequest.Attribute.FollowRedirectsAttribute, True)
+        request = self._prepare_request(url, timeout)
         reply = self._net.get(request)
         assert reply is not None, f"Network request for {url} failed: reply is None"
 
