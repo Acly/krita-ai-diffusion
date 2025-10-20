@@ -195,6 +195,9 @@ class ComfyClient(Client):
     async def _post(self, op: str, data: dict):
         return await self._requests.post(f"{self.url}/{op}", data)
 
+    async def _put(self, op: str, data: bytes):
+        return await self._requests.put(f"{self.url}/{op}", data)
+
     async def enqueue(self, work: WorkflowInput, front: bool = False):
         job = JobInfo.create(work, front=front)
         await self._queue.put(job)
@@ -217,13 +220,15 @@ class ComfyClient(Client):
             pass
 
     async def _run_job(self, job: JobInfo):
-        await self.upload_loras(job.work, job.id)
         workflow = create_workflow(job.work, self.models)
-        job.node_count = workflow.node_count
-        job.sample_count = workflow.sample_count
         if settings.debug_dump_workflow:
             workflow.dump(util.log_dir)
 
+        await self.upload_images(workflow.images)
+        await self.upload_loras(job.work, job.id)
+
+        job.node_count = workflow.node_count
+        job.sample_count = workflow.sample_count
         data = {
             "prompt": workflow.root,
             "client_id": self._id,
@@ -457,6 +462,15 @@ class ComfyClient(Client):
         except Exception as e:
             log.error(f"Error transferring result image {self.url}/api/etn/image/{id}: {str(e)}")
             raise e
+
+    async def upload_images(self, images: dict[str, Image]):
+        for id, image in images.items():
+            try:
+                data = image.to_bytes()
+                await self._put(f"api/etn/image/{id}", data)
+            except Exception as e:
+                log.error(f"Error uploading image {id}: {str(e)}")
+                raise RuntimeError(f"Error uploading input image to ComfyUI: {str(e)}") from e
 
     async def _transfer_result_images(self, msg: dict) -> list[Image]:
         output = msg["data"]["output"]

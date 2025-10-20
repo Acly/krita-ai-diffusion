@@ -53,7 +53,7 @@ class ComfyWorkflow:
 
     def __init__(self, node_defs: ComfyObjectInfo | None = None, run_mode=ComfyRunMode.server):
         self.root: dict[str, dict] = {}
-        self.images: dict[str, Image | ImageCollection] = {}
+        self.images: dict[str, Image] = {}
         self.node_count = 0
         self.sample_count = 0
         self.node_defs = node_defs or ComfyObjectInfo({})
@@ -122,6 +122,8 @@ class ComfyWorkflow:
         filepath.parent.mkdir(parents=True, exist_ok=True)
         with open(filepath, "w") as f:
             json.dump(self.root, f, indent=4)
+        for id, image in self.images.items():
+            image.save(filepath.parent / f"{id}.png")
 
     @overload
     def add(self, class_type: str, output_count: Literal[1], **inputs) -> Output: ...
@@ -199,7 +201,7 @@ class ComfyWorkflow:
     def __contains__(self, node: ComfyNode):
         return any(n == node for n in self)
 
-    def _add_image(self, image: Image | ImageCollection):
+    def _add_image(self, image: Image):
         id = str(uuid4())
         self.images[id] = image
         return id
@@ -1003,25 +1005,25 @@ class ComfyWorkflow:
         if self._run_mode is ComfyRunMode.runtime:
             return self._load_image_batch(image, self._load_image_runtime, self.batch_image)
         else:
-            return self._load_image_batch(image, self._load_image_base64, self.batch_image)
+            return self._load_image_batch(image, self._load_image_cache, self.batch_image)
 
     def load_mask(self, mask: Image | ImageCollection):
         if self._run_mode is ComfyRunMode.runtime:
             return self._load_image_batch(mask, self._load_mask_runtime, self.batch_mask)
         else:
-            return self._load_image_batch(mask, self._load_mask_base64, self.batch_mask)
+            return self._load_image_batch(mask, self._load_mask_cache, self.batch_mask)
 
     def _load_image_runtime(self, image: Image):
         return self.add("ETN_InjectImage", 1, id=self._add_image(image))
 
-    def _load_image_base64(self, image: Image):
-        return self.add("ETN_LoadImageBase64", 1, image=image.to_base64())
+    def _load_image_cache(self, image: Image):
+        return self.add("ETN_LoadImageCache", 2, id=self._add_image(image))[0]
 
     def _load_mask_runtime(self, mask: Image):
         return self.add("ETN_InjectMask", 1, id=self._add_image(mask))
 
-    def _load_mask_base64(self, mask: Image):
-        return self.add("ETN_LoadMaskBase64", 1, mask=mask.to_base64())
+    def _load_mask_cache(self, mask: Image):
+        return self.add("ETN_LoadImageCache", 2, id=self._add_image(mask))[1]
 
     def _load_image_batch(self, images: Image | ImageCollection, loader, batcher) -> Output:
         if isinstance(images, Image):
@@ -1036,10 +1038,10 @@ class ComfyWorkflow:
     def load_image_and_mask(self, images: Image | ImageCollection):
         assert self._run_mode is ComfyRunMode.server
         if isinstance(images, Image):
-            return self.add("ETN_LoadImageBase64", 2, image=images.to_base64())
+            return self.add("ETN_LoadImageCache", 2, id=self._add_image(images))
         result = None
         for image in images:
-            img, mask = self.add("ETN_LoadImageBase64", 2, image=image.to_base64())
+            img, mask = self.add("ETN_LoadImageCache", 2, id=self._add_image(image))
             if result:
                 result = (self.batch_image(result[0], img), self.batch_mask(result[1], mask))
             else:
@@ -1050,7 +1052,7 @@ class ComfyWorkflow:
     def send_image(self, image: Output):
         if self._run_mode is ComfyRunMode.runtime:
             return self.add("ETN_ReturnImage", 1, images=image)
-        return self.add("ETN_SendImageHTTP", 1, images=image, format="PNG")
+        return self.add("ETN_SaveImageCache", 1, images=image, format="PNG")
 
     def save_image(self, image: Output, prefix: str):
         return self.add("SaveImage", 1, images=image, filename_prefix=prefix)
