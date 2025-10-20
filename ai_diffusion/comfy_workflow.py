@@ -115,6 +115,28 @@ class ComfyWorkflow:
                     log.warning(f"Node {node_name} missing required input {k} (no default)")
         return args
 
+    def embed_images(self):
+        r: dict[str, dict] = {}
+        for id, node in self.root.items():
+            if node["class_type"] == "ETN_LoadImageCache":
+                image_id = node["inputs"]["id"]
+                image = self.images[image_id]
+                is_mask = image.is_mask
+                node = deepcopy(node)
+                node["class_type"] = "ETN_LoadMaskBase64" if is_mask else "ETN_LoadImageBase64"
+                node["inputs"]["image"] = image.to_base64()
+            elif node["class_type"] == "ETN_SaveImageCache":
+                node = deepcopy(node)
+                node["class_type"] = "PreviewImage"
+                del node["inputs"]["format"]
+            r[id] = node
+
+        result = ComfyWorkflow(self.node_defs, self._run_mode)
+        result.root = r
+        result.node_count = self.node_count
+        result.sample_count = self.sample_count
+        return result
+
     def dump(self, filepath: str | Path):
         filepath = Path(filepath)
         if filepath.suffix != ".json":
@@ -203,6 +225,8 @@ class ComfyWorkflow:
 
     def _add_image(self, image: Image):
         id = str(uuid4())
+        if exists := next((k for k, v in self.images.items() if v == image), None):
+            return exists
         self.images[id] = image
         return id
 

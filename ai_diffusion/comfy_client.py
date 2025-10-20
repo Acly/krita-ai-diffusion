@@ -222,7 +222,7 @@ class ComfyClient(Client):
     async def _run_job(self, job: JobInfo):
         workflow = create_workflow(job.work, self.models)
         if settings.debug_dump_workflow:
-            workflow.dump(util.log_dir)
+            workflow.embed_images().dump(util.log_dir)
 
         await self.upload_images(workflow.images)
         await self.upload_loras(job.work, job.id)
