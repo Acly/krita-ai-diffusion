@@ -11,7 +11,7 @@ from ai_diffusion.comfy_workflow import ComfyNode, ComfyObjectInfo, ComfyWorkflo
 from ai_diffusion.custom_workflow import WorkflowSource, WorkflowCollection
 from ai_diffusion.custom_workflow import SortedWorkflows, CustomWorkspace
 from ai_diffusion.custom_workflow import CustomParam, ParamKind, workflow_parameters
-from ai_diffusion.image import Image, Extent, ImageCollection
+from ai_diffusion.image import Image, Extent, ImageCollection, Mask
 from ai_diffusion.jobs import JobQueue, Job, JobKind, JobParams
 from ai_diffusion.style import Style
 from ai_diffusion.resources import Arch
@@ -436,7 +436,7 @@ def test_expand():
 
     input = CustomWorkflowInput(workflow=ext.root, params=params)
     images = ImageInput.from_extent(Extent(4, 4))
-    images.initial_image = Image.create(Extent(4, 4), Qt.GlobalColor.white)
+    images.initial_image = Image.create(Extent(4, 4), Qt.GlobalColor.red)
 
     models = ClientModels()
     models.checkpoints = {
@@ -445,12 +445,16 @@ def test_expand():
 
     w = ComfyWorkflow()
     w = workflow.expand_custom(w, input, images, 123, models)
+
+    def find_img_id(image: Image):
+        return next((id for id, img in w.images.items() if img == image), "not-found")
+
     expected = [
-        ComfyNode(1, "ETN_LoadImageBase64", {"image": images.initial_image.to_base64()}),
+        ComfyNode(1, "ETN_LoadImageCache", {"id": find_img_id(images.initial_image)}),
         ComfyNode(2, "ImageScale", {"image": Output(1, 0), "width": 4, "height": 4}),
         ComfyNode(3, "ETN_KritaOutput", {"images": Output(2, 0)}),
-        ComfyNode(4, "ETN_LoadImageBase64", {"image": params["layer_img"].to_base64()}),
-        ComfyNode(5, "ETN_LoadMaskBase64", {"mask": params["layer_mask"].to_base64()}),
+        ComfyNode(4, "ETN_LoadImageCache", {"id": find_img_id(params["layer_img"])}),
+        ComfyNode(5, "ETN_LoadImageCache", {"id": find_img_id(params["layer_mask"])}),
         ComfyNode(6, "CheckpointLoaderSimple", {"ckpt_name": "checkpoint.safetensors"}),
         ComfyNode(
             7,
@@ -463,7 +467,7 @@ def test_expand():
                 "booly": False,
                 "choicy": "b",
                 "layer_img": Output(4, 0),
-                "layer_mask": Output(5, 0),
+                "layer_mask": Output(5, 1),
                 "model": Output(6, 0),
                 "clip": Output(6, 1),
                 "vae": Output(6, 2),
@@ -491,8 +495,8 @@ def test_expand_animation():
         Image.create(Extent(4, 4), Qt.GlobalColor.white),
     ])
     in_masks = ImageCollection([
-        Image.create(Extent(4, 4), Qt.GlobalColor.black),
-        Image.create(Extent(4, 4), Qt.GlobalColor.white),
+        Mask.rectangle(Bounds(0, 0, 4, 4), 1).to_image(),
+        Mask.rectangle(Bounds(1, 1, 3, 3), 1).to_image(),
     ])
     params = {
         "image": in_images,
@@ -505,18 +509,22 @@ def test_expand_animation():
 
     w = ComfyWorkflow()
     w = workflow.expand_custom(w, input, images, 123, models)
+
+    def find_img_id(image: Image):
+        return next((id for id, img in w.images.items() if img == image), "not-found")
+
     expected = [
-        ComfyNode(1, "ETN_LoadImageBase64", {"image": in_images[0].to_base64()}),
-        ComfyNode(2, "ETN_LoadImageBase64", {"image": in_images[1].to_base64()}),
+        ComfyNode(1, "ETN_LoadImageCache", {"id": find_img_id(in_images[0])}),
+        ComfyNode(2, "ETN_LoadImageCache", {"id": find_img_id(in_images[1])}),
         ComfyNode(3, "ImageBatch", {"image1": Output(1, 0), "image2": Output(2, 0)}),
         ComfyNode(4, "MaskToImage", {"mask": Output(1, 1)}),
         ComfyNode(5, "MaskToImage", {"mask": Output(2, 1)}),
         ComfyNode(6, "ImageBatch", {"image1": Output(4, 0), "image2": Output(5, 0)}),
         ComfyNode(7, "ImageToMask", {"image": Output(6, 0), "channel": "red"}),
-        ComfyNode(8, "ETN_LoadMaskBase64", {"mask": in_masks[0].to_base64()}),
-        ComfyNode(9, "ETN_LoadMaskBase64", {"mask": in_masks[1].to_base64()}),
-        ComfyNode(10, "MaskToImage", {"mask": Output(8, 0)}),
-        ComfyNode(11, "MaskToImage", {"mask": Output(9, 0)}),
+        ComfyNode(8, "ETN_LoadImageCache", {"id": find_img_id(in_masks[0])}),
+        ComfyNode(9, "ETN_LoadImageCache", {"id": find_img_id(in_masks[1])}),
+        ComfyNode(10, "MaskToImage", {"mask": Output(8, 1)}),
+        ComfyNode(11, "MaskToImage", {"mask": Output(9, 1)}),
         ComfyNode(12, "ImageBatch", {"image1": Output(10, 0), "image2": Output(11, 0)}),
         ComfyNode(13, "ImageToMask", {"image": Output(12, 0), "channel": "red"}),
         ComfyNode(
