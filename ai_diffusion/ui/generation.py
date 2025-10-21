@@ -156,6 +156,9 @@ class HistoryWidget(QListWidget):
         "loras": _("LoRA"),
         "sampler": _("Sampler"),
         "seed": _("Seed"),
+        "steps": _("Sampler Steps"),
+        "guidance": _("Guidance Strength (CFG Scale)"),
+        "control": _("Control Layers"),
     }
 
     def _job_info(self, params: JobParams, tooltip_header: bool = True):
@@ -174,19 +177,28 @@ class HistoryWidget(QListWidget):
             if tooltip_header
             else []
         )
+        list_delimiter = " | " if tooltip_header else "\n  "
         for key, value in params.metadata.items():
             if key == "style" and style:
                 value = style.name
             if isinstance(value, list) and len(value) == 0:
                 continue
-            if isinstance(value, list) and isinstance(value[0], dict):
-                value = "\n  ".join(
+            if key == "loras" and isinstance(value, list) and isinstance(value[0], dict):
+                value = list_delimiter.join(
                     (
                         f"{v.get('name')} ({v.get('strength')})"
                         for v in value
                         if v.get("enabled", True)
                     )
                 )
+            if key == "control" and isinstance(value, list) and isinstance(value[0], dict):
+                control_text = [] if tooltip_header else [""]
+                for v in value:
+                    t = f"{v.get('mode')}: {v.get('image', '')[:30]} @{v.get('strength', '?')}"
+                    if not tooltip_header:
+                        t += f" [{v.get('start', 0)}->{v.get('end', 1)}]"
+                    control_text.append(t)
+                value = list_delimiter.join(control_text)
             s = f"{self._job_info_translations.get(key, key)}: {value}"
             if tooltip_header:
                 s = wrap_text(s, 80, subsequent_indent=" ")

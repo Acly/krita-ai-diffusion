@@ -6,6 +6,7 @@ from enum import Enum, Flag
 from typing import Any, NamedTuple, TYPE_CHECKING
 from PyQt5.QtCore import QObject, pyqtSignal
 
+from . import control
 from .image import Bounds, ImageCollection
 from .settings import settings
 from .style import Style
@@ -82,7 +83,21 @@ class JobParams:
         self.metadata["style"] = style.filename
         self.metadata["checkpoint"] = checkpoint
         self.metadata["loras"] = style.loras
-        self.metadata["sampler"] = f"{style.sampler} ({style.sampler_steps} / {style.cfg_scale})"
+        self.metadata["sampler"] = style.sampler
+        self.metadata["steps"] = style.sampler_steps
+        self.metadata["guidance"] = style.cfg_scale
+
+    def set_control(self, control: control.ControlLayerList):
+        self.metadata["control"] = [
+            {
+                "mode": c.mode.text,
+                "strength": c.strength / c.strength_multiplier,
+                "image": c.layer.name,
+                "start": c.start,
+                "end": c.end,
+            }
+            for c in control
+        ]
 
     @property
     def prompt(self):

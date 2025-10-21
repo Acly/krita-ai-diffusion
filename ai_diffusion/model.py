@@ -254,6 +254,7 @@ class Model(QObject, ObservableProperties):
         )
         job_params = JobParams(bounds, prompt, regions=job_regions)
         job_params.set_style(self.active_style, ensure(input.models).checkpoint)
+        job_params.set_control(regions.control)
         job_params.metadata["prompt"] = prompt
         job_params.metadata["negative_prompt"] = regions.negative
         job_params.metadata["strength"] = self.strength

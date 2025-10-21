@@ -237,20 +237,15 @@ def create_img_metadata(params: JobParams):
 
     prompt = meta.get("prompt", "")
     neg_prompt = meta.get("negative_prompt", "")
-    sampler_info = meta.get("sampler", "")
+    sampler = meta.get("sampler", "")
+    steps = meta.get("steps", 0)
+    cfg_scale = meta.get("guidance", 0.0)
     model = meta.get("checkpoint", "Unknown")
     seed = params.seed
     width = params.bounds.width
     height = params.bounds.height
     strength = meta.get("strength", None)
     loras = meta.get("loras", [])
-
-    # Try to extract sampler, steps, and cfg scale from "sampler"
-    match = re.match(r".*?-\s*(.+?)\s*\((\d+)\s*/\s*([\d.]+)\)", sampler_info)
-    if match:
-        sampler, steps, cfg_scale = match.groups()
-    else:
-        sampler, steps, cfg_scale = sampler_info, "Unknown", "Unknown"
 
     # Embed LoRAs in the prompt
     lora_tags = ""
