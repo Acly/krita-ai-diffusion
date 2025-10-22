@@ -117,18 +117,31 @@ class ComfyWorkflow:
 
     def embed_images(self):
         r: dict[str, dict] = {}
+        masks = []
         for id, node in self.root.items():
             if node["class_type"] == "ETN_LoadImageCache":
                 image_id = node["inputs"]["id"]
                 image = self.images[image_id]
                 is_mask = image.is_mask
                 node = deepcopy(node)
-                node["class_type"] = "ETN_LoadMaskBase64" if is_mask else "ETN_LoadImageBase64"
-                node["inputs"]["image"] = image.to_base64()
+                if is_mask:
+                    node["class_type"] = "ETN_LoadMaskBase64"
+                    node["inputs"]["mask"] = image.to_base64()
+                    masks.append(id)
+                else:
+                    node["class_type"] = "ETN_LoadImageBase64"
+                    node["inputs"]["image"] = image.to_base64()
             elif node["class_type"] == "ETN_SaveImageCache":
                 node = deepcopy(node)
                 node["class_type"] = "PreviewImage"
                 del node["inputs"]["format"]
+            else:
+                # Masks are output 1 for LoadImageCache, but output 0 for LoadMaskBase64
+                inputs = node.get("inputs", {})
+                for input_name, input_value in inputs.items():
+                    if isinstance(input_value, list) and input_value[0] in masks:
+                        node = deepcopy(node)
+                        node["inputs"][input_name] = [input_value[0], 0]  # output 0 of same node
             r[id] = node
 
         result = ComfyWorkflow(self.node_defs, self._run_mode)
