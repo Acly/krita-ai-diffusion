@@ -1483,6 +1483,10 @@ def prepare(
     else:
         raise Exception(f"Workflow {kind.name} not supported by this constructor")
 
+    if minfo := models.checkpoints.get(i.models.checkpoint):
+        if minfo.arch.is_qwen_like and minfo.quantization is Quantization.svdq:
+            i.batch_count = 1  # Nunchaku Qwen is broken with batch size > 1 #2114
+
     i.batch_count = 1 if is_live else i.batch_count
     i.nsfw_filter = settings.nsfw_filter
     return i
