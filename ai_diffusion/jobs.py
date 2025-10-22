@@ -6,7 +6,6 @@ from enum import Enum, Flag
 from typing import Any, NamedTuple, TYPE_CHECKING
 from PyQt5.QtCore import QObject, pyqtSignal
 
-from . import control
 from .image import Bounds, ImageCollection
 from .settings import settings
 from .style import Style
@@ -87,7 +86,7 @@ class JobParams:
         self.metadata["steps"] = style.sampler_steps
         self.metadata["guidance"] = style.cfg_scale
 
-    def set_control(self, control: control.ControlLayerList):
+    def set_control(self, control: "control.ControlLayerList"):
         self.metadata["control"] = [
             {
                 "mode": c.mode.text,

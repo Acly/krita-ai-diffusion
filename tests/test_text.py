@@ -114,7 +114,9 @@ def test_create_img_metadata_basic():
     metadata = {
         "prompt": "A cat",
         "negative_prompt": "dog",
-        "sampler": "Euler - euler_a (20 / 7.5)",
+        "sampler": "Euler - euler_a",
+        "steps": 20,
+        "guidance": 7.5,
         "checkpoint": "model.ckpt",
         "strength": 0.8,
         "loras": [],
@@ -130,32 +132,9 @@ def test_create_img_metadata_basic():
     assert "A cat" in result
     assert "Negative prompt: dog" in result
     assert (
-        "Steps: 20, Sampler: euler_a, CFG scale: 7.5, Seed: 12345, Size: 512x768, Model hash: unknown, Model: model.ckpt, Denoising strength: 0.8"
+        "Steps: 20, Sampler: Euler - euler_a, CFG scale: 7.5, Seed: 12345, Size: 512x768, Model hash: unknown, Model: model.ckpt, Denoising strength: 0.8"
         in result
     )
-
-
-def test_create_img_metadata_sampler_unmatched():
-    bounds = Bounds(0, 0, 256, 256)
-    metadata = {
-        "prompt": "Test",
-        "negative_prompt": "",
-        "sampler": "UnknownSampler",
-        "checkpoint": "unknown.ckpt",
-        "loras": [],
-    }
-
-    job_params = JobParams(
-        bounds=bounds,
-        name="test",
-        metadata=metadata,
-        seed=12345,
-    )
-
-    result = create_img_metadata(job_params)
-    assert "Sampler: UnknownSampler" in result
-    assert "Steps: Unknown" in result
-    assert "CFG scale: Unknown" in result
 
 
 def test_create_img_metadata_loras_dict_and_tuple():
@@ -164,7 +143,9 @@ def test_create_img_metadata_loras_dict_and_tuple():
     metadata = {
         "prompt": "Prompt",
         "negative_prompt": "",
-        "sampler": "Euler - euler_a (10 / 5.0)",
+        "sampler": "Euler - euler_a",
+        "steps": 20,
+        "guidance": 7.0,
         "checkpoint": "loramodel.ckpt",
         "loras": [{"name": "lora1", "weight": 0.7}, ("lora2", 0.5), ["lora3", 0.9]],
     }
@@ -190,7 +171,9 @@ def test_create_img_metadata_strength_none_and_one():
         metadata={
             "prompt": "Prompt",
             "negative_prompt": "",
-            "sampler": "Euler - euler_a (5 / 2.0)",
+            "sampler": "Euler - euler_a",
+            "steps": 10,
+            "guidance": 2.0,
             "checkpoint": "model.ckpt",
             "strength": None,
             "loras": [],
@@ -204,7 +187,9 @@ def test_create_img_metadata_strength_none_and_one():
         metadata={
             "prompt": "Prompt",
             "negative_prompt": "",
-            "sampler": "Euler - euler_a (5 / 2.0)",
+            "sampler": "Euler - euler_a",
+            "steps": 10,
+            "guidance": 2.0,
             "checkpoint": "model.ckpt",
             "strength": 1.0,
             "loras": [],
@@ -229,9 +214,9 @@ def test_create_img_metadata_missing_metadata_fields():
     result = create_img_metadata(jp)
     assert "" in result
     assert "Negative prompt: " in result
-    assert "Steps: Unknown" in result
+    assert "Steps: 0" in result
     assert "Sampler: " in result
-    assert "CFG scale: Unknown" in result
+    assert "CFG scale: 0.0" in result
     assert "Seed: 999" in result
     assert "Size: 100x200" in result
     assert "Model: Unknown" in result
