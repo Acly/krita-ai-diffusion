@@ -7,6 +7,7 @@ from dataclasses import dataclass
 from enum import Enum
 from collections import deque
 from itertools import chain, product
+from time import time
 from typing import Any, Optional, Sequence
 
 from .api import WorkflowInput
@@ -164,21 +165,6 @@ class ComfyClient(Client):
         loras = nodes.options("LoraLoader", "lora_name")
         available_resources.update(_find_loras(loras))
 
-        # Retrieve list of checkpoints
-        checkpoints = await client.try_inspect("checkpoints")
-        diffusion_models = await client.try_inspect("diffusion_models")
-        diffusion_models.update(await client.try_inspect("unet_gguf"))
-        client._refresh_models(nodes, checkpoints, diffusion_models)
-
-        # Check supported base models and make sure there is at least one
-        client._supported_archs = {ver: client._check_workload(ver) for ver in Arch.list()}
-        supported_workloads = [
-            arch for arch, miss in client._supported_archs.items() if len(miss) == 0
-        ]
-        log.info("Supported workloads: " + ", ".join(arch.value for arch in supported_workloads))
-        if len(supported_workloads) == 0 and settings.check_server_resources:
-            raise MissingResources(client._supported_archs)
-
         # Workarounds for DirectML
         if client.device_info.type == "privateuseone":
             # OmniSR causes a crash
@@ -186,8 +172,41 @@ class ComfyClient(Client):
                 id = resource_id(ResourceKind.upscaler, Arch.all, UpscalerName.fast_x(n))
                 available_resources[id] = models.default_upscaler
 
-        _ensure_supported_style(client)
         return client
+
+    async def discover_models(self, refresh: bool):
+        if refresh:
+            nodes = ComfyObjectInfo(await self._get("object_info"))
+        else:
+            nodes = self.models.node_inputs
+
+        checkpoints: dict[str, dict] = {}
+        diffusion_models: dict[str, dict] = {}
+        async for status, result in self.try_inspect("checkpoints"):
+            yield status
+            checkpoints.update(result)
+        async for status, result in self.try_inspect("diffusion_models"):
+            yield status
+            diffusion_models.update(result)
+        async for status, result in self.try_inspect("unet_gguf"):
+            yield status
+            diffusion_models.update(result)
+        self._refresh_models(nodes, checkpoints, diffusion_models)
+
+        # Check supported base models and make sure there is at least one
+        self._supported_archs = {ver: self._check_workload(ver) for ver in Arch.list()}
+        supported_workloads = [
+            arch for arch, miss in self._supported_archs.items() if len(miss) == 0
+        ]
+        log.info("Supported workloads: " + ", ".join(arch.value for arch in supported_workloads))
+        if not refresh and len(supported_workloads) == 0 and settings.check_server_resources:
+            raise MissingResources(self._supported_archs)
+
+        _ensure_supported_style(self)
+
+    async def refresh(self):
+        async for __ in self.discover_models(refresh=True):
+            pass
 
     async def _get(self, op: str, timeout: float | None = 60):
         return await self._requests.get(f"{self.url}/{op}", timeout=timeout)
@@ -386,14 +405,26 @@ class ComfyClient(Client):
                 self._unsubscribe_workflows(),
             )
 
-    async def try_inspect(self, folder_name: str) -> dict[str, Any]:
+    async def try_inspect(self, folder_name: str):
         if "gguf" in folder_name and not self.features.gguf:
-            return {}
+            return
         try:
-            return await self._get(f"api/etn/model_info/{folder_name}", timeout=120)
+            log.info(f"Inspecting models at {self.url}/api/etn/model_info/{folder_name}")
+            start, timeout = time(), 180
+            offset, total = 0, 100
+            while offset < total and (time() - start) < timeout:
+                r = await self._get(f"api/etn/model_info/{folder_name}?offset={offset}&limit=8")
+                if "_meta" not in r:  # server doesn't support pagination
+                    yield (Client.DiscoverStatus(folder_name, len(r), len(r)), r)
+                    return
+                total = r["_meta"]["total"]
+                del r["_meta"]
+                yield (Client.DiscoverStatus(folder_name, offset + len(r), total), r)
+                offset += 8
+            if offset < total:
+                log.warning(f"Timeout while inspecting models, received {offset}/{total} entries")
         except NetworkError as e:
             log.error(f"Error while inspecting models in {folder_name}: {str(e)}")
-            return {}
 
     @property
     def queued_count(self):
@@ -402,16 +433,6 @@ class ComfyClient(Client):
     @property
     def is_executing(self):
         return self._active is not None
-
-    async def refresh(self):
-        nodes, checkpoints, diffusion_models, diffusion_gguf = await asyncio.gather(
-            self._get("object_info"),
-            self.try_inspect("checkpoints"),
-            self.try_inspect("diffusion_models"),
-            self.try_inspect("unet_gguf"),
-        )
-        diffusion_models.update(diffusion_gguf)
-        self._refresh_models(ComfyObjectInfo(nodes), checkpoints, diffusion_models)
 
     def _refresh_models(
         self, nodes: ComfyObjectInfo, checkpoints: dict | None, diffusion_models: dict | None

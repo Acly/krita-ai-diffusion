@@ -299,6 +299,7 @@ class ConnectionSettings(SettingsTab):
 
         root.connection.state_changed.connect(self.update_server_status)
         root.connection.error_changed.connect(self.update_server_status)
+        root.connection.progress_changed.connect(self.update_server_status)
         self.update_server_status()
 
     @property
@@ -352,7 +353,7 @@ class ConnectionSettings(SettingsTab):
     def update_server_status(self):
         connection = root.connection
         self._cloud_widget.update_connection_state(connection.state)
-        self._connect_button.setEnabled(connection.state != ConnectionState.connecting)
+        self._connect_button.setEnabled(True)
         self._client_id.setVisible(False)
         if connection.state == ConnectionState.connected:
             self._connection_status.setText(_("Connected"))
@@ -362,6 +363,12 @@ class ConnectionSettings(SettingsTab):
         elif connection.state == ConnectionState.connecting:
             self._connection_status.setText(_("Connecting"))
             self._connection_status.setStyleSheet(f"color: {yellow}; font-weight:bold")
+            self._connect_button.setEnabled(False)
+        elif connection.state == ConnectionState.discover_models:
+            progress = f" ({connection.progress[0]}/{connection.progress[1]})"
+            self._connection_status.setText(_("Discovering models") + progress)
+            self._connection_status.setStyleSheet(f"color: {yellow}; font-weight:bold")
+            self._connect_button.setEnabled(False)
         elif connection.state == ConnectionState.disconnected:
             self._connection_status.setText(_("Disconnected"))
             self._connection_status.setStyleSheet(f"color: {grey}; font-style:italic")

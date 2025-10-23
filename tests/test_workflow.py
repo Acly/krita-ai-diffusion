@@ -31,6 +31,13 @@ client_params = ["local", "cloud"] if service_available else ["local"]
 files = FileLibrary(FileCollection(), FileCollection())
 
 
+async def connect_local():
+    client = await ComfyClient.connect()
+    async for _ in client.discover_models(refresh=False):
+        pass
+    return client
+
+
 async def connect_cloud():
     dotenv.load_dotenv(root_dir / "service" / "web" / ".env.local")
     url = os.environ["TEST_SERVICE_URL"]
@@ -51,7 +58,7 @@ def client(pytestconfig, request, qtapp):
         pytest.skip("Diffusion is disabled on CI")
 
     if request.param == "local":
-        client = qtapp.run(ComfyClient.connect())
+        client = qtapp.run(connect_local())
     else:
         client = qtapp.run(connect_cloud())
     files.loras.update([File.remote(m) for m in client.models.loras], FileSource.remote)
@@ -66,7 +73,7 @@ def local_client(pytestconfig, qtapp):
     if pytestconfig.getoption("--ci"):
         pytest.skip("Diffusion is disabled on CI")
 
-    yield qtapp.run(ComfyClient.connect())
+    yield qtapp.run(connect_local())
 
 
 default_seed = 1234
