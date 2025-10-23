@@ -360,7 +360,7 @@ def resolve_arch(style: Style, client: Client | ClientModels | None = None):
     elif style.checkpoints:
         arch = style.architecture.resolve(style.checkpoints[0])
 
-    if style.architecture.is_sdxl_like and arch.is_sdxl_like:
+    if Arch.is_compatible(style.architecture, arch):
         arch = style.architecture  # user override with compatible arch
 
     return arch

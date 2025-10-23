@@ -131,6 +131,15 @@ class Arch(Enum):
             return True
         return a is b
 
+    @staticmethod
+    def is_compatible(a: Arch, b: Arch):
+        return (
+            a is b
+            or (a.is_sdxl_like and b.is_sdxl_like)
+            or (a.is_flux_like and b.is_flux_like)
+            or (a.is_qwen_like and b.is_qwen_like)
+        )
+
     def matches(self, checkpoint: str):
         # Fallback check if it can't be queried from the server
         xl_in_name = "xl" in checkpoint.lower()
