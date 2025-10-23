@@ -20,18 +20,22 @@ class ConnectionState(Enum):
     connected = 2
     error = 3
 
-    auth_missing = 4
-    auth_requesting = 5
-    auth_pending = 6
-    auth_error = 7
+    discover_models = 10
+
+    auth_missing = 20
+    auth_requesting = 21
+    auth_pending = 22
+    auth_error = 23
 
 
 class Connection(QObject, ObservableProperties):
     state = Property(ConnectionState.disconnected)
     error = Property("")
+    progress = Property((1, 1))
 
     state_changed = pyqtSignal(ConnectionState)
     error_changed = pyqtSignal(str)
+    progress_changed = pyqtSignal(tuple)
     models_changed = pyqtSignal()
     message_received = pyqtSignal(ClientMessage)
     workflow_published = pyqtSignal(str)
@@ -90,6 +94,9 @@ class Connection(QObject, ObservableProperties):
                 self._client = await CloudClient.connect(CloudClient.default_api_url, access_token)
             else:
                 self._client = await ComfyClient.connect(url)
+                self.state = ConnectionState.discover_models
+                async for status in self._client.discover_models(refresh=False):
+                    self.progress = (status.current, status.total)
                 self.missing_resources = self._client.missing_resources
 
             apply_performance_preset(settings, self._client.device_info)

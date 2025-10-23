@@ -50,6 +50,8 @@ def test_connect_bad_url(qtapp, comfy_server):
 def test_cancel(qtapp, comfy_server, cancel_point):
     async def main():
         client = await ComfyClient.connect(comfy_server)
+        async for _ in client.discover_models(refresh=False):
+            pass
         job_id = None
         interrupted = False
         stage = 0
@@ -157,6 +159,8 @@ def check_resolve_sd_version(client: ComfyClient, arch: Arch):
 def test_info(pytestconfig, qtapp, comfy_server):
     async def main():
         client = await ComfyClient.connect(comfy_server)
+        async for _ in client.discover_models(refresh=False):
+            pass
         check_client_info(client)
         await client.refresh()
         check_client_info(client)
