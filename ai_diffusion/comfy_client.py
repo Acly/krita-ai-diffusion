@@ -97,6 +97,7 @@ class ComfyClient(Client):
         self._is_connected = False
 
         self._requests.add_header("ngrok-skip-browser-warning", "69420")
+        self._requests.add_header(b"skip_zrok_interstitial", b"69420")
         if settings.server_authorization:
             self._requests.set_auth(settings.server_authorization)
 
