@@ -363,3 +363,23 @@ check if the file is listed there. If it cannot find it it's in the wrong folder
 or there is an issue with your search paths.
 </p>
 </details>
+
+<details>
+<summary id="connecting-takes-long">Connecting takes a long time or is stuck</summary>
+<p>
+If you see a long delay when connecting, ie.
+* "Connecting" is shown for a long time
+* "Discovering models" takes a long time
+this is likely related to detecting available models. Usually model detectiong is
+a quick process, but in some cases it can take very long. Possible reasons:
+1. You have a very large number of checkpoints or diffusion models
+2. Your model folder is on a slow or remote drive
+3. A virus scanner like Windows Defender is scanning model files
+
+To resolve this, try to reduce the number of models by archieving the ones you
+don't actively use, and make sure they are on a fast drive (SSD). Windows users
+can also try to exclude the model folder from virus scanning. In Windows
+settings search for "Virus & threat protection" > "Manage settings" >
+"Exclusions" > "Add or remove exclusions".
+</p>
+</details>
