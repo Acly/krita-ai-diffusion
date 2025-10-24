@@ -24,7 +24,7 @@ def copy_scripts():
     repo_dir = docker_dir / "krita-ai-diffusion"
     for source_file, target_dir in [
         (root_dir / "ai_diffusion" / "resources.py", repo_dir / "ai_diffusion"),
-        (root_dir / "ai_diffusion" / "platform.py", repo_dir / "ai_diffusion"),
+        (root_dir / "ai_diffusion" / "platform_tools.py", repo_dir / "ai_diffusion"),
         (
             root_dir / "ai_diffusion" / "presets" / "models.json",
             repo_dir / "ai_diffusion" / "presets",
