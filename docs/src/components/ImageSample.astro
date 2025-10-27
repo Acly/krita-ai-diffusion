@@ -1,0 +1,29 @@
+---
+// Display images that were captured at higher DPI and rescale them to their
+// actual screen size. Eg. screenshot of UI at 150% display scale should use
+// `<ImageSample src="screenshot.png" scale={1.5} />`
+
+import { Image } from "astro:assets";
+
+const { src, scale, alt } = Astro.props;
+
+const imageFiles = import.meta.glob<{ default: ImageMetadata }>(
+  "/src/assets/**/*",
+);
+const imgFile = `/src/assets/${src}`;
+if (!(imgFile in imageFiles)) {
+  throw new Error(`Missing image: ${imgFile}`);
+}
+const img = imageFiles[imgFile]();
+const originalWidth = (await img).default.width;
+const imgScale = scale || 1;
+const width = Math.round(originalWidth / imgScale);
+---
+
+<Image
+  src={img}
+  alt={alt || src}
+  width={width}
+  widths={[width, originalWidth]}
+  quality="high"
+/>

@@ -33,6 +33,7 @@ export default defineConfig({
 						{ label: 'Text Prompts', slug: 'prompts' },
 						{ label: 'Control Layers', slug: 'control-layers' },
 						{ label: 'Regions', slug: 'regions' },
+						{ label: 'Edit Models', slug: 'edit-models' },
 						{ label: 'Samplers', slug: 'samplers' },
 						{ label: 'Custom Graphs', slug: 'custom-graph' },
 					],

@@ -1,0 +1,45 @@
+---
+import { Image } from "astro:assets";
+
+const { images, captions } = Astro.props;
+
+function findImage(img: string) {
+  const imageFiles = import.meta.glob<{ default: ImageMetadata }>(
+    "/src/assets/**/*",
+  );
+  const imgFile = `/src/assets/${img}`;
+  if (!(imgFile in imageFiles)) {
+    throw new Error(`Missing image: ${imgFile}`);
+  }
+  return imageFiles[imgFile]();
+}
+---
+
+<div class="image-grid">
+  {
+    images.map((img: string) => (
+      <div>
+        <Image src={findImage(img)} alt={img} />
+        <p>{captions[img]}</p>
+      </div>
+    ))
+  }
+</div>
+
+<style>
+  .image-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(320px, 1fr));
+    gap: 1rem;
+  }
+  .image-grid > div {
+    margin-top: 0 !important;
+    font-size: smaller;
+    color: var(--sl-color-gray-2);
+  }
+  .image-grid p {
+    margin-top: 0.3rem !important;
+    text-align: center;
+    font-style: italic;
+  }
+</style>
