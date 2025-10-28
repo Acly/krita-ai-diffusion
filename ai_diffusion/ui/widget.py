@@ -576,7 +576,7 @@ class StrengthSnapping:
         is_live = self.model.workspace is Workspace.live
         if self.model.workspace is Workspace.animation:
             is_live = self.model.animation.sampling_quality is SamplingQuality.fast
-        return self.model.style.get_steps(is_live=is_live)
+        return self.model.active_style.get_steps(is_live=is_live)
 
     def nearest_percent(self, value: int) -> int | None:
         _, max_steps = self.get_steps()
@@ -675,9 +675,11 @@ class StrengthWidget(QWidget):
     def model(self, model: Model):
         if self._model:
             self._model.style_changed.disconnect(self.update_suffix)
+            self._model.edit_mode_changed.disconnect(self.update_suffix)
             self._model.animation.sampling_quality_changed.disconnect(self.update_suffix)
         self._model = model
         self._model.style_changed.connect(self.update_suffix)
+        self._model.edit_mode_changed.connect(self.update_suffix)
         self._model.animation.sampling_quality_changed.connect(self.update_suffix)
         self._input.snapping = StrengthSnapping(self._model)
         self.update_suffix()

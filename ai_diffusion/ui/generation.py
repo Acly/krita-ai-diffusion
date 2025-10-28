@@ -419,7 +419,7 @@ class HistoryWidget(QListWidget):
 
     def _copy_prompt(self):
         if job := self.selected_job:
-            active = self._model.regions.active_or_root
+            active = self._model.active_regions.active_or_root
             active.positive = job.params.prompt
             if isinstance(active, RootRegion):
                 active.negative = job.params.metadata.get("negative_prompt", "")
