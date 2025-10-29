@@ -33,6 +33,8 @@ class HistoryWidget(QListWidget):
     item_activated = pyqtSignal(QListWidgetItem)
 
     _thumb_size = 96
+    _scroll_recent_ms = 10
+    _misclick_guard_ms = 300
     _applied_icon = Image.load(theme.icon_path / "star.png")
     _list_css = f"""
         QListWidget {{ background-color: transparent; }}
@@ -53,6 +55,19 @@ class HistoryWidget(QListWidget):
         super().__init__(parent)
         self._model = root.active_model
         self._connections = []
+        self._prev_scroll_max = 0
+        self._misclick_guard_active = False
+        self._misclick_guard_timer = QTimer(self)
+        self._misclick_guard_timer.setSingleShot(True)
+        self._misclick_guard_timer.timeout.connect(self._end_misclick_guard)
+        self._scroll_range_changed_recently = False
+        self._scrolled_to_bottom_recently = False
+        self._scroll_range_change_recent_timer = QTimer(self)
+        self._scroll_range_change_recent_timer.setSingleShot(True)
+        self._scroll_range_change_recent_timer.timeout.connect(self._end_scroll_range_change_recent)
+        self._scroll_recent_timer = QTimer(self)
+        self._scroll_recent_timer.setSingleShot(True)
+        self._scroll_recent_timer.timeout.connect(self._end_scroll_recent)
 
         self.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Expanding)
         self.setResizeMode(QListView.Adjust)
@@ -83,6 +98,8 @@ class HistoryWidget(QListWidget):
         self._context_button.setFixedWidth(f.height() + 8)
         if scrollbar := self.verticalScrollBar():
             scrollbar.valueChanged.connect(self.update_apply_button)
+            scrollbar.rangeChanged.connect(self._on_scroll_range_changed)
+            self._prev_scroll_max = scrollbar.maximum()
 
         self.setContextMenuPolicy(Qt.ContextMenuPolicy.CustomContextMenu)
         self.customContextMenuRequested.connect(self._show_context_menu)
@@ -145,6 +162,9 @@ class HistoryWidget(QListWidget):
             self.addItem(item)
 
         if scroll_to_bottom:
+            self._mark_scrolled_to_bottom_recent()
+            if self._scroll_range_changed_recently:
+                self._start_misclick_guard()
             self.scrollToBottom()
 
     _job_info_translations = {
@@ -317,6 +337,9 @@ class HistoryWidget(QListWidget):
         self.clear()
         for job in filter(self.is_finished, self._model.jobs):
             self.add(job)
+        self._mark_scrolled_to_bottom_recent()
+        if self._scroll_range_changed_recently:
+            self._start_misclick_guard()
         self.scrollToBottom()
 
     def item_info(self, item: QListWidgetItem) -> tuple[str, int]:  # job id, image index
@@ -337,6 +360,9 @@ class HistoryWidget(QListWidget):
                 clipboard.setText(prompt)
 
     def mousePressEvent(self, e: QMouseEvent | None):
+        if e is not None and self._misclick_guard_active:
+            e.accept()
+            return
         if (  # make single click deselect current item (usually requires Ctrl+click)
             e is not None
             and e.button() == Qt.MouseButton.LeftButton
@@ -387,6 +413,8 @@ class HistoryWidget(QListWidget):
         return thumb.to_icon()
 
     def _show_context_menu(self, pos: QPoint):
+        if self._misclick_guard_active:
+            return
         item = self.itemAt(pos)
         if item is not None:
             job = self._model.jobs.find(self._item_data(item).job)
@@ -413,9 +441,36 @@ class HistoryWidget(QListWidget):
             menu.exec(self.mapToGlobal(pos))
 
     def _show_context_menu_dropdown(self):
+        if self._misclick_guard_active:
+            return
         pos = self._context_button.pos()
         pos.setY(pos.y() + self._context_button.height())
         self._show_context_menu(pos)
+
+    def _start_misclick_guard(self):
+        self._misclick_guard_active = True
+        self._misclick_guard_timer.start(self._misclick_guard_ms)
+
+    def _end_misclick_guard(self):
+        self._misclick_guard_active = False
+
+    def _mark_scrolled_to_bottom_recent(self):
+        self._scrolled_to_bottom_recently = True
+        self._scroll_recent_timer.start(self._scroll_recent_ms)
+
+    def _end_scroll_recent(self):
+        self._scrolled_to_bottom_recently = False
+
+    def _end_scroll_range_change_recent(self):
+        self._scroll_range_changed_recently = False
+
+    def _on_scroll_range_changed(self, _min: int, _max: int):
+        if _max > self._prev_scroll_max:
+            self._scroll_range_changed_recently = True
+            self._scroll_range_change_recent_timer.start(self._scroll_recent_ms)
+            if self._scrolled_to_bottom_recently:
+                self._start_misclick_guard()
+        self._prev_scroll_max = _max
 
     def _copy_prompt(self):
         if job := self.selected_job:
