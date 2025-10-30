@@ -150,7 +150,7 @@ class PromptAutoComplete:
         self._completer.setCaseSensitivity(Qt.CaseSensitivity.CaseInsensitive)
         self._completer.setWidget(widget)
         self._popup = ensure(self._completer.popup())
-        self._lora_delegate = ensure(self._popup.itemDelegate())
+        self._item_delegate = ensure(self._popup.itemDelegate())
         self._completion_prefix = ""
         self._completion_suffix = ""
 
@@ -216,12 +216,21 @@ class PromptAutoComplete:
         prefix = self._current_text()
         name = prefix.removeprefix("<lora:")
         lora_mode = len(prefix) > len(name)
+        name = prefix.removeprefix("<layer:")
+        layer_mode = len(prefix) > len(name)
 
         if lora_mode:
             self._completer.setModel(self._lora_model)
             self._completion_prefix = name
             self._completion_suffix = ">"
-            self._popup.setItemDelegate(self._lora_delegate)
+            self._popup.setItemDelegate(self._item_delegate)
+        elif layer_mode:
+            layers = root.active_model.document.layers
+            layer_model = QStringListModel([layer.name for layer in layers.images])
+            self._completer.setModel(layer_model)
+            self._completion_prefix = name
+            self._completion_suffix = ">"
+            self._popup.setItemDelegate(self._item_delegate)
         else:
             # fall through to tag search
             self._completion_prefix = prefix = self._current_text(separators="()>,\n").lstrip()
@@ -242,9 +251,12 @@ class PromptAutoComplete:
 
     def _insert_completion(self, completion):
         triggers = ""
-        if self._current_text().startswith("<lora:"):
+        prefix = self._current_text()
+        if prefix.startswith("<lora:"):
             if file := root.files.loras.find(f"{completion}.safetensors"):
                 triggers = " " + file.meta("lora_triggers", "")
+        elif prefix.startswith("<layer:"):
+            pass
         else:  # tag completion
             # escape () in tags so they won't be interpreted as prompt weights
             completion = completion.replace("(", "\\(").replace(")", "\\)")

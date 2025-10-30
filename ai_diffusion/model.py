@@ -37,7 +37,7 @@ from .control import ControlLayer
 from .region import Region, RegionLink, RootRegion, process_regions, get_region_inpaint_mask
 from .resources import ControlMode
 from .resolution import compute_bounds, compute_relative_bounds
-from .text import create_img_metadata
+from .text import create_img_metadata, extract_layers
 
 
 class QueueMode(Enum):
@@ -218,6 +218,9 @@ class Model(QObject, ObservableProperties):
         else:
             conditioning, job_regions = ConditioningInput("", ""), []
 
+        prompt = conditioning.positive  # keep original prompt for metadata
+        self._extract_layers_from_prompt(conditioning)
+
         if mask is not None or workflow_kind is WorkflowKind.refine:
             image = self._get_current_image(bounds) if not dryrun else DummyImage(bounds.extent)
 
@@ -238,7 +241,6 @@ class Model(QObject, ObservableProperties):
                 )
             inpaint.grow, inpaint.feather = selection_mod.apply(selection_bounds)
 
-        prompt = conditioning.positive  # modified in workflow.prepare
         input = workflow.prepare(
             workflow_kind,
             image or extent,
@@ -408,6 +410,7 @@ class Model(QObject, ObservableProperties):
 
         conditioning, job_regions = process_regions(self.regions, bounds)
         conditioning.language = self.prompt_translation_language
+        self._extract_layers_from_prompt(conditioning)
 
         input = workflow.prepare(
             workflow_kind,
@@ -815,6 +818,27 @@ class Model(QObject, ObservableProperties):
                 return workflow.detect_inpaint_mode(self.document.extent, bounds)
             return InpaintMode.fill
         return self.inpaint.mode
+
+    def _extract_layers_from_prompt(self, conditioning: ConditioningInput):
+        """Extract <layer:layer name> statements from prompt and add them as reference control layers."""
+
+        layer_replace = "Picture {}" if self.arch is Arch.qwen_e_p else ""
+        start_index = 2 + sum(1 for c in conditioning.control if c.mode.is_ip_adapter)
+
+        def extract(prompt: str, control: list[ControlInput], start_index: int):
+            prompt, extra_refs = extract_layers(prompt, layer_replace, start_index)
+            for layer_name in extra_refs:
+                uid = next((l.id for l in self._doc.layers.images if l.name == layer_name), None)
+                if uid is None:
+                    raise Exception(_("Layer not found") + f' "{layer_name}"')
+                ctrl = ControlLayer(self, ControlMode.reference, uid, 0)
+                control.append(ctrl.to_api())
+            return prompt
+
+        conditioning.positive = extract(conditioning.positive, conditioning.control, start_index)
+        for r in conditioning.regions:
+            region_index = start_index + sum(1 for c in r.control if c.mode.is_ip_adapter)
+            r.positive = extract(r.positive, r.control, region_index)
 
     def _performance_settings(self, client: Client):
         result = client.performance_settings
