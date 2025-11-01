@@ -1,4 +1,5 @@
 from ai_diffusion.text import (
+    eval_wildcards,
     extract_layers,
     merge_prompt,
     extract_loras,
@@ -130,6 +131,34 @@ def test_extract_layers():
     modified_prompt, layers = extract_layers(prompt, replacement="{}")
     assert modified_prompt == "1 and 2"
     assert layers == ["layer (merged)", "ba<yer:k"]
+
+
+def test_wildcards():
+    prompt = "beg {a1(/#|b} mid {1|2|3} end"
+    evaluated = eval_wildcards(prompt, seed=42)
+    assert evaluated == "beg a1(/# mid 1 end"
+
+    assert eval_wildcards("no {wild|card", seed=42) == "no {wild|card"
+    assert eval_wildcards("no {wildcard}", seed=42) == "no {wildcard}"
+    assert eval_wildcards("no wild|card}", seed=42) == "no wild|card}"
+
+    assert eval_wildcards("{ bla| piong }", seed=5) == "piong"
+    assert eval_wildcards("{ bla| piong }", seed=2) == "bla"
+
+    assert eval_wildcards("start {ab|{12|34}|cd} end", seed=4) == "start 12 end"
+    assert eval_wildcards("start {ab|{12|34}|cd} end", seed=3) == "start cd end"
+
+
+def test_wildcard_distribution():
+    prompt = "beg {a|b|c} mid {1|2|3} end"
+    results: dict[str, int] = {}
+    for seed in range(1000):
+        evaluated = eval_wildcards(prompt, seed)
+        results[evaluated] = results.get(evaluated, 0) + 1
+
+    assert len(results) == 9
+    assert all(count > 50 for count in results.values())
+    assert all(count < 150 for count in results.values())
 
 
 def test_create_img_metadata_basic():

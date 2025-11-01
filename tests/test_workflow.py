@@ -98,7 +98,11 @@ def create(kind: WorkflowKind, client: Client, **kwargs):
     kwargs.setdefault("seed", default_seed)
     kwargs.setdefault("perf", default_perf)
     kwargs.setdefault("files", files)
-    return workflow.prepare(kind, models=client.models, **kwargs)
+
+    prompt = workflow.prepare_prompts(
+        kwargs["cond"], kwargs["style"], kwargs["seed"], Arch.sd15, files
+    )
+    return workflow.prepare(kind, models=client.models, loras=prompt.loras, **kwargs)
 
 
 counter = 0
@@ -204,23 +208,87 @@ def test_prepare_lora():
     style.checkpoints = ["CP"]
     style.loras.append(dict(name="MOTHER_OF_PEARL.safetensors", strength=0.33))
 
+    cond = ConditioningInput("test <lora:PINK_UNICORNS:0.77> baloon <lora:x/FRACTAL> space")
+    result = workflow.prepare_prompts(cond, style, seed=29, arch=Arch.sd15, files=files)
+    assert result.conditioning and result.conditioning.positive == "test  baloon  space crab"
+    assert result.loras
+    assert LoraInput("PINK_UNICORNS.safetensors", 0.77) in result.loras
+    assert LoraInput("x/FRACTAL.safetensors", 0.55) in result.loras
+
     job = workflow.prepare(
         WorkflowKind.generate,
-        canvas=Extent(512, 512),
-        cond=ConditioningInput("test <lora:PINK_UNICORNS:0.77> baloon <lora:x/FRACTAL> space"),
-        style=style,
+        Extent(512, 512),
+        result.conditioning,
+        style,
         seed=29,
+        perf=default_perf,
+        loras=result.loras,
         models=models,
         files=files,
-        perf=default_perf,
     )
-    assert job.conditioning and job.conditioning.positive == "test  baloon  space crab"
-    assert (
-        job.models
-        and LoraInput("PINK_UNICORNS.safetensors", 0.77) in job.models.loras
-        and LoraInput("MOTHER_OF_PEARL.safetensors", 0.33) in job.models.loras
-        and LoraInput("x/FRACTAL.safetensors", 0.55) in job.models.loras
-    )
+    assert job.models and job.models.loras
+    assert LoraInput("MOTHER_OF_PEARL.safetensors", 0.33) in job.models.loras
+    assert LoraInput("PINK_UNICORNS.safetensors", 0.77) in result.loras
+    assert LoraInput("x/FRACTAL.safetensors", 0.55) in result.loras
+
+
+def test_prepare_wildcards():
+    files = FileLibrary(FileCollection(), FileCollection())
+    mask = Mask.rectangle(Bounds(0, 0, 10, 10), feather=0).to_image()
+    style = Style(Path("default.json"))
+    style.checkpoints = []
+    style.style_prompt = "style-beg {prompt} style-end"
+    style.negative_prompt = "neg-beg {prompt} neg-end"
+    cond = ConditioningInput("a {x|y|z} b {100|200|300} c")
+    cond.negative = "{711|pret} +"
+    cond.regions = [
+        RegionInput(mask, Bounds(0, 0, 10, 10), "region {alpha|beta}"),
+    ]
+
+    result = workflow.prepare_prompts(cond, style, seed=1, arch=Arch.sd15, files=files)
+
+    assert result.conditioning is not None
+    assert result.conditioning.positive == "a x b 300 c"
+    assert result.metadata["prompt"] == "a {x|y|z} b {100|200|300} c"
+    assert result.metadata["prompt_eval"] == "a x b 300 c"
+    assert result.metadata["prompt_final"] == "style-beg a x b 300 c style-end"
+
+    assert result.conditioning.negative == "neg-beg 711 + neg-end"
+    assert result.metadata["negative_prompt"] == "{711|pret} +"
+    assert result.metadata["negative_prompt_eval"] == "711 +"
+    assert result.metadata["negative_prompt_final"] == "neg-beg 711 + neg-end"
+
+    assert result.conditioning.regions[0].positive == "region alpha"
+    assert result.metadata["regions"][0]["prompt"] == "region {alpha|beta}"
+    assert result.metadata["regions"][0]["prompt_eval"] == "region alpha"
+
+
+@pytest.mark.parametrize("arch", [Arch.sd15, Arch.qwen_e_p])
+def test_prepare_prompt_layers(arch: Arch):
+    files = FileLibrary(FileCollection(), FileCollection())
+    mask = Mask.rectangle(Bounds(0, 0, 10, 10), feather=0).to_image()
+    style = Style(Path("default.json"))
+    style.checkpoints = []
+    cond = ConditioningInput("prompt <layer:layer1> for <layer:layer2>")
+    cond.regions = [
+        RegionInput(mask, Bounds(0, 0, 10, 10), "region <layer:layer3>"),
+    ]
+
+    result = workflow.prepare_prompts(cond, style, seed=1, arch=arch, files=files)
+    assert result.conditioning is not None
+    assert result.metadata["prompt"] == "prompt <layer:layer1> for <layer:layer2>"
+    assert result.metadata["prompt_eval"] == "prompt <layer:layer1> for <layer:layer2>"
+    if arch is Arch.sd15:
+        assert result.conditioning.positive == "prompt  for"
+        assert result.metadata["prompt_final"] == f"prompt  for, {style.style_prompt}"
+    else:
+        assert result.conditioning.positive == "prompt Picture 2 for Picture 3"
+        assert (
+            result.metadata["prompt_final"]
+            == f"prompt Picture 2 for Picture 3, {style.style_prompt}"
+        )
+    assert result.layers == ["layer1", "layer2"]
+    assert result.region_layers[0] == ["layer3"]
 
 
 @pytest.mark.parametrize("extent", [Extent(256, 256), Extent(800, 800), Extent(512, 1024)])

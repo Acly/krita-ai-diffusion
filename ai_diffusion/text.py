@@ -1,4 +1,5 @@
 from __future__ import annotations
+import random
 import re
 from pathlib import Path
 from typing import Tuple, List, NamedTuple
@@ -44,6 +45,7 @@ def merge_prompt(prompt: str, style_prompt: str, language: str = ""):
 
 _pattern_lora = re.compile(r"<lora:([^:<>]+)(?::(-?[^:<>]*))?>", re.IGNORECASE)
 _pattern_layer = re.compile(r"<layer:([^>]+)>", re.IGNORECASE)
+_pattern_wildcard = re.compile(r"(\{[^{}]+\|[^{}]+\})")
 
 
 def extract_loras(prompt: str, lora_files: FileCollection):
@@ -95,6 +97,23 @@ def extract_layers(prompt: str, replacement="Picture {}", start_index=1):
 
     prompt = _pattern_layer.sub(replace, prompt)
     return prompt.strip(), layer_names
+
+
+def eval_wildcards(text: str, seed: int):
+    rng = random.Random(seed)
+
+    def replace(match: re.Match[str]):
+        wildcard_name = match[1]
+        options = wildcard_name.split("|")
+        return rng.choice(options).strip("{} ")
+
+    for __ in range(10):
+        prev = text
+        text = _pattern_wildcard.sub(replace, text)
+        if text == prev:
+            break
+
+    return text
 
 
 def select_current_parenthesis_block(

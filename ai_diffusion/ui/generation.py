@@ -149,7 +149,9 @@ class HistoryWidget(QListWidget):
 
     _job_info_translations = {
         "prompt": _("Prompt"),
+        "prompt_eval": _("Prompt (Evaluated)"),
         "negative_prompt": _("Negative Prompt"),
+        "negative_prompt_eval": _("Negative Prompt (Evaluated)"),
         "style": _("Style"),
         "strength": _("Strength"),
         "checkpoint": _("Model"),
@@ -179,6 +181,8 @@ class HistoryWidget(QListWidget):
         )
         list_delimiter = " | " if tooltip_header else "\n  "
         for key, value in params.metadata.items():
+            if tooltip_header and key not in self._job_info_translations:
+                continue
             if key == "style" and style:
                 value = style.name
             if isinstance(value, list) and len(value) == 0:
@@ -199,6 +203,10 @@ class HistoryWidget(QListWidget):
                         t += f" [{v.get('start', 0)}->{v.get('end', 1)}]"
                     control_text.append(t)
                 value = list_delimiter.join(control_text)
+            if key == "regions" and isinstance(value, list) and isinstance(value[0], dict):
+                region_text = [""]
+                for v in value:
+                    region_text.append(_("Prompt") + f": {v.get('prompt', '')}")
             s = f"{self._job_info_translations.get(key, key)}: {value}"
             if tooltip_header:
                 s = wrap_text(s, 80, subsequent_indent=" ")

@@ -37,7 +37,7 @@ from .control import ControlLayer
 from .region import Region, RegionLink, RootRegion, process_regions, get_region_inpaint_mask
 from .resources import ControlMode
 from .resolution import compute_bounds, compute_relative_bounds
-from .text import create_img_metadata, extract_layers
+from .text import create_img_metadata
 
 
 class QueueMode(Enum):
@@ -218,8 +218,11 @@ class Model(QObject, ObservableProperties):
         else:
             conditioning, job_regions = ConditioningInput("", ""), []
 
-        prompt = conditioning.positive  # keep original prompt for metadata
-        self._extract_layers_from_prompt(conditioning)
+        seed = self.seed if self.fixed_seed else workflow.generate_seed()
+        conditioning, loras, layers, region_layers, prompt_meta = workflow.prepare_prompts(
+            conditioning, self.style, seed, self.arch, FileLibrary.instance()
+        )
+        self._add_reference_layers(conditioning, layers, region_layers)
 
         if mask is not None or workflow_kind is WorkflowKind.refine:
             image = self._get_current_image(bounds) if not dryrun else DummyImage(bounds.extent)
@@ -252,13 +255,14 @@ class Model(QObject, ObservableProperties):
             self._performance_settings(client),
             mask=mask,
             strength=self.strength,
+            loras=loras,
             inpaint=inpaint,
         )
-        job_params = JobParams(bounds, prompt, regions=job_regions)
+        job_name = prompt_meta.get("prompt_eval", prompt_meta["prompt"])
+        job_params = JobParams(bounds, job_name, regions=job_regions)
         job_params.set_style(self.active_style, ensure(input.models).checkpoint)
         job_params.set_control(regions.control)
-        job_params.metadata["prompt"] = prompt
-        job_params.metadata["negative_prompt"] = regions.negative
+        job_params.metadata.update(prompt_meta)
         job_params.metadata["strength"] = self.strength
         if len(job_regions) == 1:
             job_params.metadata["prompt"] = job_params.name = job_regions[0].prompt
@@ -410,7 +414,10 @@ class Model(QObject, ObservableProperties):
 
         conditioning, job_regions = process_regions(self.regions, bounds)
         conditioning.language = self.prompt_translation_language
-        self._extract_layers_from_prompt(conditioning)
+        conditioning, loras, layers, region_layers, _ = workflow.prepare_prompts(
+            conditioning, self.style, self.seed, self.arch, FileLibrary.instance()
+        )
+        self._add_reference_layers(conditioning, layers, region_layers)
 
         input = workflow.prepare(
             workflow_kind,
@@ -423,6 +430,7 @@ class Model(QObject, ObservableProperties):
             self._performance_settings(client),
             mask=mask,
             strength=self.live.strength,
+            loras=loras,
             inpaint=inpaint if mask else None,
             is_live=True,
         )
@@ -819,26 +827,20 @@ class Model(QObject, ObservableProperties):
             return InpaintMode.fill
         return self.inpaint.mode
 
-    def _extract_layers_from_prompt(self, conditioning: ConditioningInput):
-        """Extract <layer:layer name> statements from prompt and add them as reference control layers."""
-
-        layer_replace = "Picture {}" if self.arch is Arch.qwen_e_p else ""
-        start_index = 2 + sum(1 for c in conditioning.control if c.mode.is_ip_adapter)
-
-        def extract(prompt: str, control: list[ControlInput], start_index: int):
-            prompt, extra_refs = extract_layers(prompt, layer_replace, start_index)
-            for layer_name in extra_refs:
+    def _add_reference_layers(
+        self, cond: ConditioningInput, layers: list[str], region_layers: list[list[str]]
+    ):
+        def add_refs(control: list[ControlInput], layer_names: list[str]):
+            for layer_name in layer_names:
                 uid = next((l.id for l in self._doc.layers.images if l.name == layer_name), None)
                 if uid is None:
                     raise Exception(_("Layer not found") + f' "{layer_name}"')
                 ctrl = ControlLayer(self, ControlMode.reference, uid, 0)
                 control.append(ctrl.to_api())
-            return prompt
 
-        conditioning.positive = extract(conditioning.positive, conditioning.control, start_index)
-        for r in conditioning.regions:
-            region_index = start_index + sum(1 for c in r.control if c.mode.is_ip_adapter)
-            r.positive = extract(r.positive, r.control, region_index)
+        add_refs(cond.control, layers)
+        for region, r_layers in zip(cond.regions, region_layers):
+            add_refs(region.control, r_layers)
 
     def _performance_settings(self, client: Client):
         result = client.performance_settings

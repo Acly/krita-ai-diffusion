@@ -205,7 +205,7 @@ class PromptAutoComplete:
         _tag_model.setTags(unique_tags)
         _tag_files = tag_files
 
-    def _current_text(self, separators=" >\n") -> str:
+    def _current_text(self, separators=" ()>,|{\n") -> str:
         text = self._widget.toPlainText()
         start = pos = cursor_position(text, self._widget.textCursor())
         while pos > 0 and (text[pos - 1] not in separators or pos > 1 and text[pos - 2] == "\\"):
@@ -216,8 +216,10 @@ class PromptAutoComplete:
         prefix = self._current_text()
         name = prefix.removeprefix("<lora:")
         lora_mode = len(prefix) > len(name)
-        name = prefix.removeprefix("<layer:")
-        layer_mode = len(prefix) > len(name)
+        layer_mode = False
+        if not lora_mode:
+            name = prefix.removeprefix("<layer:")
+            layer_mode = len(prefix) > len(name)
 
         if lora_mode:
             self._completer.setModel(self._lora_model)
@@ -233,7 +235,7 @@ class PromptAutoComplete:
             self._popup.setItemDelegate(self._item_delegate)
         else:
             # fall through to tag search
-            self._completion_prefix = prefix = self._current_text(separators="()>,\n").lstrip()
+            self._completion_prefix = prefix = self._current_text(separators="()>,|{\n").lstrip()
             name = prefix.replace("\\(", "(").replace("\\)", ")")
             if not name.startswith("<") and len(name.rstrip()) > 2:
                 self._completer.setModel(_tag_model)
