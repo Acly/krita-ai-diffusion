@@ -243,6 +243,7 @@ def test_prepare_wildcards():
     cond.negative = "{711|pret} +"
     cond.regions = [
         RegionInput(mask, Bounds(0, 0, 10, 10), "region {alpha|beta}"),
+        RegionInput(mask, Bounds(0, 0, 10, 10), "no wildcards"),
     ]
 
     result = workflow.prepare_prompts(cond, style, seed=1, arch=Arch.sd15, files=files)
@@ -262,6 +263,10 @@ def test_prepare_wildcards():
     assert result.metadata["regions"][0]["prompt"] == "region {alpha|beta}"
     assert result.metadata["regions"][0]["prompt_eval"] == "region alpha"
 
+    assert result.conditioning.regions[1].positive == "no wildcards"
+    assert result.metadata["regions"][1]["prompt"] == "no wildcards"
+    assert result.metadata["regions"][1].get("prompt_eval") is None
+
 
 @pytest.mark.parametrize("arch", [Arch.sd15, Arch.qwen_e_p])
 def test_prepare_prompt_layers(arch: Arch):
@@ -272,12 +277,13 @@ def test_prepare_prompt_layers(arch: Arch):
     cond = ConditioningInput("prompt <layer:layer1> for <layer:layer2>")
     cond.regions = [
         RegionInput(mask, Bounds(0, 0, 10, 10), "region <layer:layer3>"),
+        RegionInput(mask, Bounds(0, 0, 10, 10), "region without layer"),
     ]
 
     result = workflow.prepare_prompts(cond, style, seed=1, arch=arch, files=files)
     assert result.conditioning is not None
     assert result.metadata["prompt"] == "prompt <layer:layer1> for <layer:layer2>"
-    assert result.metadata["prompt_eval"] == "prompt <layer:layer1> for <layer:layer2>"
+    assert result.metadata.get("prompt_eval") is None
     if arch is Arch.sd15:
         assert result.conditioning.positive == "prompt  for"
         assert result.metadata["prompt_final"] == f"prompt  for, {style.style_prompt}"
@@ -289,6 +295,7 @@ def test_prepare_prompt_layers(arch: Arch):
         )
     assert result.layers == ["layer1", "layer2"]
     assert result.region_layers[0] == ["layer3"]
+    assert result.region_layers[1] == []
 
 
 @pytest.mark.parametrize("extent", [Extent(256, 256), Extent(800, 800), Extent(512, 1024)])

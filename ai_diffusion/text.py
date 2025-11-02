@@ -270,8 +270,8 @@ def edit_attention(text: str, positive: bool) -> str:
 def create_img_metadata(params: JobParams):
     meta = params.metadata
 
-    prompt = meta.get("prompt", "")
-    neg_prompt = meta.get("negative_prompt", "")
+    prompt = meta.get("prompt_final", meta.get("prompt", ""))
+    neg_prompt = meta.get("negative_prompt_final", meta.get("negative_prompt", ""))
     sampler = meta.get("sampler", "")
     steps = meta.get("steps", 0)
     cfg_scale = meta.get("guidance", 0.0)
