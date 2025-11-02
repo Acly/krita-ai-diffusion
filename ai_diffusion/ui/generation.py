@@ -1,4 +1,5 @@
 from __future__ import annotations
+import json
 from textwrap import wrap as wrap_text
 from typing import cast
 from PyQt5.QtCore import Qt, QEvent, QMetaObject, QSize, QPoint, QTimer, QUuid, pyqtSignal
@@ -163,32 +164,27 @@ class HistoryWidget(QListWidget):
         "control": _("Control Layers"),
     }
 
-    def _job_info(self, params: JobParams, tooltip_header: bool = True):
+    def _job_info(self, params: JobParams):
         title = params.name if params.name != "" else "<no prompt>"
         if len(title) > 70:
             title = title[:66] + "..."
         if params.strength != 1.0:
             title = f"{title} @ {params.strength * 100:.0f}%"
         style = Styles.list().find(params.style)
-        strings: list[str | list[str]] = (
-            [
-                title + "\n",
-                _("Click to toggle preview, double-click to apply."),
-                "",
-            ]
-            if tooltip_header
-            else []
-        )
-        list_delimiter = " | " if tooltip_header else "\n  "
+        strings: list[str | list[str]] = [
+            title + "\n",
+            _("Click to toggle preview, double-click to apply."),
+            "",
+        ]
         for key, value in params.metadata.items():
-            if tooltip_header and key not in self._job_info_translations:
+            if key not in self._job_info_translations:
                 continue
             if key == "style" and style:
                 value = style.name
             if isinstance(value, list) and len(value) == 0:
                 continue
             if key == "loras" and isinstance(value, list) and isinstance(value[0], dict):
-                value = list_delimiter.join(
+                value = " | ".join(
                     (
                         f"{v.get('name')} ({v.get('strength')})"
                         for v in value
@@ -196,20 +192,13 @@ class HistoryWidget(QListWidget):
                     )
                 )
             if key == "control" and isinstance(value, list) and isinstance(value[0], dict):
-                control_text = [] if tooltip_header else [""]
+                control_text = []
                 for v in value:
                     t = f"{v.get('mode')}: {v.get('image', '')[:30]} @{v.get('strength', '?')}"
-                    if not tooltip_header:
-                        t += f" [{v.get('start', 0)}->{v.get('end', 1)}]"
                     control_text.append(t)
-                value = list_delimiter.join(control_text)
-            if key == "regions" and isinstance(value, list) and isinstance(value[0], dict):
-                region_text = [""]
-                for v in value:
-                    region_text.append(_("Prompt") + f": {v.get('prompt', '')}")
+                value = " | ".join(control_text)
             s = f"{self._job_info_translations.get(key, key)}: {value}"
-            if tooltip_header:
-                s = wrap_text(s, 80, subsequent_indent=" ")
+            s = wrap_text(s, 80, subsequent_indent=" ")
             strings.append(s)
         strings.append(_("Seed") + f": {params.seed}")
         return "\n".join(flatten(strings))
@@ -400,6 +389,7 @@ class HistoryWidget(QListWidget):
             job = self._model.jobs.find(self._item_data(item).job)
             menu = QMenu(self)
             menu.addAction(_("Copy Prompt"), self._copy_prompt)
+            menu.addAction(_("Copy Prompt (Evaluated)"), self._copy_prompt_evaluated)
             menu.addAction(_("Copy Strength"), self._copy_strength)
             style_action = ensure(menu.addAction(_("Copy Style"), self._copy_style))
             if job is None or Styles.list().find(job.params.style) is None:
@@ -425,18 +415,26 @@ class HistoryWidget(QListWidget):
         pos.setY(pos.y() + self._context_button.height())
         self._show_context_menu(pos)
 
-    def _copy_prompt(self):
+    def _copy_prompt(self, evaluated=False):
         if job := self.selected_job:
+            positive = "prompt_eval" if evaluated else "prompt"
+            prompt = job.params.metadata.get(positive, job.params.prompt)
             active = self._model.active_regions.active_or_root
-            active.positive = job.params.prompt
+            active.positive = prompt
             if isinstance(active, RootRegion):
-                active.negative = job.params.metadata.get("negative_prompt", "")
+                negative = "negative_prompt_eval" if evaluated else "negative_prompt"
+                active.negative = job.params.metadata.get(
+                    negative, job.params.metadata.get("negative", "")
+                )
 
             if clipboard := QGuiApplication.clipboard():
-                clipboard.setText(job.params.prompt)
+                clipboard.setText(prompt)
 
             if self._model.workspace is Workspace.custom and self._model.document.is_active:
                 self._model.custom.try_set_params(job.params.metadata)
+
+    def _copy_prompt_evaluated(self):
+        self._copy_prompt(evaluated=True)
 
     def _copy_strength(self):
         if job := self.selected_job:
@@ -454,7 +452,12 @@ class HistoryWidget(QListWidget):
 
     def _info_to_clipboard(self):
         if (job := self.selected_job) and (clipboard := QGuiApplication.clipboard()):
-            clipboard.setText(self._job_info(job.params, tooltip_header=False))
+            style = Styles.list().find(job.params.style)
+            data = job.params.metadata.copy()
+            if style:
+                data["style"] = f"{style.name} ({style.filename})"
+            text = json.dumps(data, indent=2)
+            clipboard.setText(text)
 
     def _save_image(self):
         items = self.selectedItems()

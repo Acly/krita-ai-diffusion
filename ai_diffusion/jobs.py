@@ -81,7 +81,6 @@ class JobParams:
     def set_style(self, style: Style, checkpoint: str):
         self.metadata["style"] = style.filename
         self.metadata["checkpoint"] = checkpoint
-        self.metadata["loras"] = style.loras
         self.metadata["sampler"] = style.sampler
         self.metadata["steps"] = style.sampler_steps
         self.metadata["guidance"] = style.cfg_scale

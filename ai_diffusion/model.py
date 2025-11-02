@@ -175,12 +175,14 @@ class Model(QObject, ObservableProperties):
             return
 
         try:
-            input, job_params = self._prepare_workflow()
+            input, job_params, cond_orig = self._prepare_workflow()
         except Exception as e:
             self.report_error(util.log_error(e))
             return
         self.clear_error()
-        jobs = self.enqueue_jobs(input, JobKind.diffusion, job_params, self.batch_count, queue_mode)
+        jobs = self.enqueue_jobs(
+            input, JobKind.diffusion, job_params, cond_orig, self.batch_count, queue_mode
+        )
         eventloop.run(_report_errors(self, jobs))
 
     def _prepare_workflow(self, dryrun=False):
@@ -218,6 +220,7 @@ class Model(QObject, ObservableProperties):
         else:
             conditioning, job_regions = ConditioningInput("", ""), []
 
+        original_conditioning = conditioning
         seed = self.seed if self.fixed_seed else workflow.generate_seed()
         conditioning, loras, layers, region_layers, prompt_meta = workflow.prepare_prompts(
             conditioning, self.style, seed, self.arch, FileLibrary.instance()
@@ -249,7 +252,7 @@ class Model(QObject, ObservableProperties):
             image or extent,
             conditioning,
             self.active_style,
-            self.seed if self.fixed_seed else workflow.generate_seed(),
+            seed,
             client.models,
             FileLibrary.instance(),
             self._performance_settings(client),
@@ -258,21 +261,22 @@ class Model(QObject, ObservableProperties):
             loras=loras,
             inpaint=inpaint,
         )
+        loras = input.models.loras if input.models else []
         job_name = prompt_meta.get("prompt_eval", prompt_meta["prompt"])
         job_params = JobParams(bounds, job_name, regions=job_regions)
         job_params.set_style(self.active_style, ensure(input.models).checkpoint)
         job_params.set_control(regions.control)
         job_params.metadata.update(prompt_meta)
+        job_params.metadata["loras"] = [dict(name=l.name, weight=l.strength) for l in loras]
         job_params.metadata["strength"] = self.strength
-        if len(job_regions) == 1:
-            job_params.metadata["prompt"] = job_params.name = job_regions[0].prompt
-        return input, job_params
+        return input, job_params, original_conditioning
 
     async def enqueue_jobs(
         self,
         input: WorkflowInput,
         kind: JobKind,
         params: JobParams,
+        original_cond: ConditioningInput | None = None,
         count: int = 1,
         queue_mode: QueueMode | None = None,
     ):
@@ -286,9 +290,17 @@ class Model(QObject, ObservableProperties):
             queue_mode = QueueMode.back
 
         for i in range(count):
-            next_seed = sampling.seed + i * settings.batch_size
-            input = replace(input, sampling=replace(sampling, seed=next_seed))
-            params.seed = next_seed
+            seed = sampling.seed + i * settings.batch_size
+            params.seed = seed
+            if i > 0:
+                input = replace(input, sampling=replace(sampling, seed=seed))
+                if original_cond:  # re-evaluate wildcards in prompts after the seed change
+                    next_prompt = workflow.prepare_prompts(
+                        original_cond, self.style, seed, self.arch, FileLibrary.instance()
+                    )
+                    input.conditioning = next_prompt.conditioning
+                    params.metadata = params.metadata | next_prompt.metadata
+                    params.name = params.metadata.get("prompt_eval", params.name)
             job = self.jobs.add(kind, copy(params))
             front = queue_mode is QueueMode.front
             await self._enqueue_job(job, input, front=front)
@@ -365,7 +377,7 @@ class Model(QObject, ObservableProperties):
     def estimate_cost(self, kind=JobKind.diffusion):
         try:
             if kind is JobKind.diffusion:
-                input, _ = self._prepare_workflow(dryrun=True)
+                input, _job, _cond = self._prepare_workflow(dryrun=True)
             elif kind is JobKind.upscaling:
                 input, _ = self._prepare_upscale_image(dryrun=True)
             else:
@@ -477,7 +489,7 @@ class Model(QObject, ObservableProperties):
                 return None
 
             self.clear_error()
-            await self.enqueue_jobs(input, job_kind, job_params, self.batch_count)
+            await self.enqueue_jobs(input, job_kind, job_params, count=self.batch_count)
             return input
 
         except Exception as e:
@@ -1291,12 +1303,18 @@ class AnimationWorkspace(QObject, ObservableProperties):
         bounds = Bounds(0, 0, *m.document.extent)
         conditioning, _ = process_regions(m.regions, bounds, self._model.layers.root, time=time)
         conditioning.language = m.prompt_translation_language
+        conditioning, loras, layers, region_layers, prompt_meta = workflow.prepare_prompts(
+            conditioning, m.style, seed, m.arch, FileLibrary.instance()
+        )
+        m._add_reference_layers(conditioning, layers, region_layers)
+
         return workflow.prepare(
             kind,
             canvas,
             conditioning,
             style=m.style,
             seed=seed,
+            loras=loras,
             perf=m._performance_settings(m._connection.client),
             models=m._connection.client.models,
             files=FileLibrary.instance(),

@@ -1379,10 +1379,11 @@ class PreparedPrompt(NamedTuple):
 def prepare_prompts(
     cond: ConditioningInput, style: Style, seed: int, arch: Arch, files: FileLibrary
 ):
+    cond = copy(cond)
+    cond.regions = [copy(r) for r in cond.regions]
     meta: dict[str, Any] = {
         "prompt": cond.positive,
         "negative_prompt": cond.negative,
-        "regions": [],
     }
     models = style.get_models([])
     layer_replace = "Picture {}" if arch is Arch.qwen_e_p else ""
@@ -1405,6 +1406,7 @@ def prepare_prompts(
     cond.negative = merge_prompt(cond.negative, style.negative_prompt, cond.language)
     meta["negative_prompt_final"] = cond.negative
 
+    meta["regions"] = []
     region_layers: list[list[str]] = []
     for idx, region in enumerate(cond.regions):
         assert region.mask or idx == 0, "Only the first/bottom region can be without a mask"
@@ -1412,13 +1414,17 @@ def prepare_prompts(
 
         region.positive = strip_prompt_comments(region.positive)
         region.positive = eval_wildcards(region.positive, seed)
-        region_meta["prompt_eval"] = region.positive
+        if region.positive != region_meta["prompt"]:
+            region_meta["prompt_eval"] = region.positive
         region.positive, region.loras = extract_loras(region.positive, files.loras)
         region.loras = [l for l in region.loras if l not in extra_loras]
         region_index = start_index + sum(1 for c in region.control if c.mode.is_ip_adapter)
         region.positive, r_layers = extract_layers(region.positive, layer_replace, region_index)
         region_layers.append(r_layers)
         meta["regions"].append(region_meta)
+
+    if len(cond.regions) == 1:
+        meta["prompt"] = meta["regions"][0]["prompt"]
 
     return PreparedPrompt(cond, extra_loras, layers, region_layers, meta)
 
