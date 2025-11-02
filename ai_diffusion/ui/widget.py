@@ -41,18 +41,11 @@ from krita import Krita
 from ..style import Style, Styles
 from ..root import root
 from ..client import filter_supported_styles, resolve_arch
+from ..connection import ConnectionState
 from ..properties import Binding, Bind, bind, bind_combo
 from ..jobs import JobState, JobKind
-from ..model import (
-    Model,
-    Workspace,
-    SamplingQuality,
-    ProgressKind,
-    ErrorKind,
-    Error,
-    no_error,
-    QueueMode,
-)
+from ..model import Model, Workspace, SamplingQuality, ProgressKind, ErrorKind, Error, QueueMode
+from ..model import no_error
 from ..text import edit_attention, select_on_cursor_pos
 from ..localization import translate as _
 from ..util import ensure
@@ -317,12 +310,14 @@ class StyleSelectWidget(QWidget):
         root.connection.state_changed.connect(self.update_styles)
 
     def update_styles(self):
-        comfy = root.connection.client_if_connected
-        self._styles = filter_supported_styles(Styles.list().filtered(), comfy)
+        if root.connection.state is not ConnectionState.connected:
+            return
+        client = root.connection.client_if_connected
+        self._styles = filter_supported_styles(Styles.list().filtered(), client)
         with SignalBlocker(self._combo):
             self._combo.clear()
             for style in self._styles:
-                icon = theme.checkpoint_icon(resolve_arch(style, comfy))
+                icon = theme.checkpoint_icon(resolve_arch(style, client))
                 self._combo.addItem(icon, style.name, style.filename)
             if self._value in self._styles:
                 self._combo.setCurrentText(self._value.name)
