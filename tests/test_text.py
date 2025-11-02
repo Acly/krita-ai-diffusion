@@ -5,7 +5,7 @@ from ai_diffusion.text import (
     select_on_cursor_pos,
     create_img_metadata,
     strip_prompt_comments,
-    _parse_sampler_embeds
+    _parse_sampler_embeds,
 )
 from ai_diffusion.api import LoraInput
 from ai_diffusion.files import File, FileCollection
@@ -222,6 +222,7 @@ def test_create_img_metadata_missing_metadata_fields():
     assert "Size: 100x200" in result
     assert "Model: Unknown" in result
 
+
 def test_create_img_metadata_sampler_embedded():
     bounds = Bounds(0, 0, 832, 1216)
     metadata = {
@@ -247,6 +248,7 @@ def test_create_img_metadata_sampler_embedded():
     assert "Size: 832x1216" in result
     assert "Denoising strength" not in result
 
+
 def test_parse_sampler_embeds():
     assert _parse_sampler_embeds("") == ("", None, None)
     assert _parse_sampler_embeds("Euler") == ("Euler", None, None)
@@ -254,6 +256,7 @@ def test_parse_sampler_embeds():
     assert _parse_sampler_embeds("LCM(13/1.1)") == ("LCM", 13, 1.1)
     assert _parse_sampler_embeds("LCM (13)") == ("LCM", 13, None)
     assert _parse_sampler_embeds("LCM (13,1.1)") == ("LCM", 13, 1.1)
+
 
 class TestEditAttention:
     def test_empty_selection(self):

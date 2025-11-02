@@ -1,7 +1,8 @@
 from __future__ import annotations
 import re
 from pathlib import Path
-from typing import Tuple, List, NamedTuple
+from typing import Tuple, List, NamedTuple, Optional
+
 
 from .api import LoraInput
 from .files import FileCollection, FileSource
@@ -230,6 +231,7 @@ def edit_attention(text: str, positive: bool) -> str:
         else f"{open_bracket}{attention_string}:{weight:.1f}{close_bracket}"
     )
 
+
 # in case a custom sampler is used then it may show steps and cfg in there
 def _parse_sampler_embeds(sampler: str) -> Tuple[str, Optional[int], Optional[float]]:
     """
@@ -265,6 +267,7 @@ def _parse_sampler_embeds(sampler: str) -> Tuple[str, Optional[int], Optional[fl
         steps_in, cfg_in = None, None
 
     return base, steps_in, cfg_in
+
 
 # creates the img text metadata for embedding in PNG files in style like Automatic1111
 def create_img_metadata(params: JobParams):
