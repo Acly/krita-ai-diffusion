@@ -5,6 +5,7 @@ from ai_diffusion.text import (
     select_on_cursor_pos,
     create_img_metadata,
     strip_prompt_comments,
+    _parse_sampler_embeds
 )
 from ai_diffusion.api import LoraInput
 from ai_diffusion.files import File, FileCollection
@@ -221,6 +222,38 @@ def test_create_img_metadata_missing_metadata_fields():
     assert "Size: 100x200" in result
     assert "Model: Unknown" in result
 
+def test_create_img_metadata_sampler_embedded():
+    bounds = Bounds(0, 0, 832, 1216)
+    metadata = {
+        "style": "style-21.json",
+        "checkpoint": "hyphoriaIlluNAI_v001.safetensors",
+        "loras": [],
+        "sampler": "LCM (12 / 6.9)",
+        "prompt": "Meow cat in front of white background with angels",
+        "negative_prompt": "",
+        "strength": 1.0,
+    }
+    job_params = JobParams(
+        bounds=bounds,
+        name="Meow cat in front of white background with angels",
+        metadata=metadata,
+        seed=1632225329,
+    )
+
+    result = create_img_metadata(job_params)
+    assert "Steps: 12" in result
+    assert "Sampler: LCM" in result
+    assert "CFG scale: 6.9" in result
+    assert "Size: 832x1216" in result
+    assert "Denoising strength" not in result
+
+def test_parse_sampler_embeds():
+    assert _parse_sampler_embeds("") == ("", None, None)
+    assert _parse_sampler_embeds("Euler") == ("Euler", None, None)
+    assert _parse_sampler_embeds("LCM (12 / 6.9)") == ("LCM", 12, 6.9)
+    assert _parse_sampler_embeds("LCM(13/1.1)") == ("LCM", 13, 1.1)
+    assert _parse_sampler_embeds("LCM (13)") == ("LCM", 13, None)
+    assert _parse_sampler_embeds("LCM (13,1.1)") == ("LCM", 13, 1.1)
 
 class TestEditAttention:
     def test_empty_selection(self):

@@ -230,6 +230,41 @@ def edit_attention(text: str, positive: bool) -> str:
         else f"{open_bracket}{attention_string}:{weight:.1f}{close_bracket}"
     )
 
+# in case a custom sampler is used then it may show steps and cfg in there
+def _parse_sampler_embeds(sampler: str) -> Tuple[str, Optional[int], Optional[float]]:
+    """
+    Parse a sampler string that may embed values like:
+      "LCM (13 / 1.1)", "LCM(13/1.1)", "LCM (13,1.1)", "LCM (13)"
+    Returns (base_sampler, steps_from_name, cfg_from_name).
+    """
+    if not sampler:
+        return "", None, None
+
+    m = re.match(r"^(?P<base>.+?)\s*\((?P<inside>[^)]*)\)\s*$", sampler.strip())
+    if not m:
+        return sampler.strip(), None, None
+
+    base = m.group("base").strip()
+    inside = m.group("inside").strip()
+
+    # Accept separators "/", "," or whitespace
+    parts = re.split(r"[\/,\s]+", inside)
+    parts = [p for p in parts if p]  # remove empties
+
+    steps_in = None
+    cfg_in = None
+    try:
+        if len(parts) >= 1:
+            # Steps are usually integer; accept float then cast down safely
+            steps_val = float(parts[0])
+            steps_in = int(steps_val)
+        if len(parts) >= 2:
+            cfg_in = float(parts[1])
+    except ValueError:
+        # If parsing fails, just ignore embedded values
+        steps_in, cfg_in = None, None
+
+    return base, steps_in, cfg_in
 
 # creates the img text metadata for embedding in PNG files in style like Automatic1111
 def create_img_metadata(params: JobParams):
@@ -237,15 +272,23 @@ def create_img_metadata(params: JobParams):
 
     prompt = meta.get("prompt", "")
     neg_prompt = meta.get("negative_prompt", "")
-    sampler = meta.get("sampler", "")
-    steps = meta.get("steps", 0)
-    cfg_scale = meta.get("guidance", 0.0)
+    sampler_raw = meta.get("sampler", "")
+    steps_meta = meta.get("steps", 0)
+    cfg_meta = meta.get("guidance", 0.0)
     model = meta.get("checkpoint", "Unknown")
     seed = params.seed
     width = params.bounds.width
     height = params.bounds.height
     strength = meta.get("strength", None)
     loras = meta.get("loras", [])
+
+    # If sampler embeds steps/cfg (e.g., "lcm (13 / 1.1)"), parse and normalize.
+    sampler_base, steps_from_name, cfg_from_name = _parse_sampler_embeds(sampler_raw)
+
+    # Prefer explicit metadata fields when present; otherwise fall back to parsed values.
+    steps = int(steps_meta) if steps_meta else (steps_from_name or 0)
+    cfg_scale = float(cfg_meta) if cfg_meta else (cfg_from_name or 0.0)
+    sampler = sampler_base or sampler_raw  # use stripped base if we parsed it
 
     # Embed LoRAs in the prompt
     lora_tags = ""
