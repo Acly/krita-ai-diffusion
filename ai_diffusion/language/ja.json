@@ -518,6 +518,14 @@
     "File format for saved images from thumbnails.": "サムネイルを保存するときの画像ファイル形式",
     "Save Image Metadata": "画像のメタデータ保存",
     "Select an alternative style to use for for instruction-based editing": "指示ベース編集として使用するスタイルを選択",
-    "Linked Edit Style": "リンクされた編集スタイル"
+    "Linked Edit Style": "リンクされた編集スタイル",
+    "Copy to clipboard": null,
+    "Are you sure you want to discard the selected images?": null,
+    "Negative Prompt (Evaluated)": null,
+    "Layer not found": null,
+    "Prompt (Evaluated)": null,
+    "Control Layers": null,
+    "Copy Prompt (Evaluated)": null,
+    "Discovering models": null
   }
 }

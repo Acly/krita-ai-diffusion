@@ -441,7 +441,6 @@
     "Diffusion Architecture": "擴散架構",
     "The server is missing the ClipVision model": "伺服器缺少 ClipVision 模型",
     "Illustrious/NoobAI XL models": "Illustrious/NoobAI XL 模型",
-
     "Built-in styles cannot be modified.": "內建風格無法修改。",
     "Stable Diffusion 1.5 models": "Stable Diffusion 1.5 模型",
     "The base model ecosystem which the selected checkpoint belongs to.": "所選 checkpoint 所屬的基礎模型生態系統。",
@@ -520,6 +519,13 @@
     "Save Image Metadata": "儲存影像中繼資料",
     "Copy to clipboard": "複製到剪貼簿",
     "Select an alternative style to use for for instruction-based editing": "選取用於基於指令編輯的替代風格",
-    "Linked Edit Style": "連結的編輯風格"
+    "Linked Edit Style": "連結的編輯風格",
+    "Are you sure you want to discard the selected images?": null,
+    "Negative Prompt (Evaluated)": null,
+    "Layer not found": null,
+    "Prompt (Evaluated)": null,
+    "Control Layers": null,
+    "Copy Prompt (Evaluated)": null,
+    "Discovering models": null
   }
 }

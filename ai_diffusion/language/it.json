@@ -519,6 +519,13 @@
     "Save Image Metadata": "Salva i metadati dell'immagine",
     "Copy to clipboard": "Copia negli appunti",
     "Select an alternative style to use for for instruction-based editing": "Seleziona uno stile alternativo da utilizzare per la modifica basata sulle istruzioni",
-    "Linked Edit Style": "Stile di modifica collegato"
+    "Linked Edit Style": "Stile di modifica collegato",
+    "Are you sure you want to discard the selected images?": null,
+    "Negative Prompt (Evaluated)": null,
+    "Layer not found": null,
+    "Prompt (Evaluated)": null,
+    "Control Layers": null,
+    "Copy Prompt (Evaluated)": null,
+    "Discovering models": null
   }
 }

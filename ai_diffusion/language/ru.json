@@ -519,6 +519,13 @@
     "Save Image Metadata": "Сохранять метаданные изображения",
     "Copy to clipboard": null,
     "Select an alternative style to use for for instruction-based editing": null,
-    "Linked Edit Style": null
+    "Linked Edit Style": null,
+    "Are you sure you want to discard the selected images?": null,
+    "Negative Prompt (Evaluated)": null,
+    "Layer not found": null,
+    "Prompt (Evaluated)": null,
+    "Control Layers": null,
+    "Copy Prompt (Evaluated)": null,
+    "Discovering models": null
   }
 }

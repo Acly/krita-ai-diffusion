@@ -519,6 +519,13 @@
     "Save Image Metadata": "Görüntü Meta Verilerini Kaydet",
     "Copy to clipboard": "Panoya kopyala",
     "Select an alternative style to use for for instruction-based editing": "Talimat tabanlı düzenleme için kullanılacak alternatif bir stil seçin",
-    "Linked Edit Style": "Bağlı Düzenleme Stili"
+    "Linked Edit Style": "Bağlı Düzenleme Stili",
+    "Are you sure you want to discard the selected images?": null,
+    "Negative Prompt (Evaluated)": null,
+    "Layer not found": null,
+    "Prompt (Evaluated)": null,
+    "Control Layers": null,
+    "Copy Prompt (Evaluated)": null,
+    "Discovering models": null
   }
 }
