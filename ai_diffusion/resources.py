@@ -11,7 +11,7 @@ from typing import Any, NamedTuple, Sequence
 version = "1.41.0"
 
 comfy_url = "https://github.com/comfyanonymous/ComfyUI"
-comfy_version = "637221995f7424a561bd825de3e61ea117dfe1e3"
+comfy_version = "f2bb3230b796f6a486894fc3b597db2c0b9538c9"
 nunchaku_version = "1.0.1"
 
 
@@ -42,7 +42,7 @@ required_custom_nodes = [
         "External Tooling Nodes",
         "comfyui-tooling-nodes",
         "https://github.com/Acly/comfyui-tooling-nodes",
-        "a088a2dde2ca4a0db9193ac1c01ac77c8b31a70d",
+        "75c632df4bd0808035b95804e74108d59aac97cd",
         ["ETN_LoadImageCache", "ETN_SaveImageCache", "ETN_Translate"],
     ),
     CustomNode(
