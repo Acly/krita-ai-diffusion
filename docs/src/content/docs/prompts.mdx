@@ -3,6 +3,8 @@ title: Text Prompts
 description: How to use text prompts with the Krita AI Diffusion plugin
 ---
 import { Aside } from '@astrojs/starlight/components'
+import ImageSample from '../../components/ImageSample.astro'
+import PluginIcon from '../../components/PluginIcon.astro'
 
 Prompts are the pieces of text you enter to instruct the AI model what to
 generate.
@@ -71,6 +73,32 @@ a sunny day
 The example would send the following text to the model:
 `a songbird on a tree branch a sunny day`
 
+### Wildcards
+
+You can use wildcards to randomly select words or phrases from a list. This is
+useful for initial exploration and experiments. Wildcards are enclosed in curly
+braces like this: `{option 1|option 2|option 3}`. You can have as many options as you
+like. Only one of them is used to generate the image.
+
+Example: `a {red|blue} car is parked {on the street|underneath a tree}`
+
+The actual prompt used will be one of:
+* `a red car is parked on the street`
+* `a red car is parked underneath a tree`
+* `a blue car is parked on the street`
+* `a blue car is parked underneath a tree`
+
+Simply enqueue multiple generations to get some variety. The results will indicate
+which options were selected in the tooltip, and you can copy the "evaluated" prompt
+from the image you like best.
+
+<ImageSample src="prompts/wildcards.webp" alt="Wildcard results showing different selected options" scale={1.5} />
+
+<Aside type="tip">
+Wildcard evaluation depends on the seed. The same fixed seed will always select the
+same options, and generate the same image!
+</Aside>
+
 ## LoRA
 
 LoRA models can be added in the Style settings. But they can also be used with a
@@ -88,6 +116,25 @@ matter. They will be removed from the final prompt.
 
 You will also get auto-completion help when typing to make it easier to select
 the correct file.
+
+## Reference Layers
+
+Layers that should be used as a reference image for generation can be added to
+the text prompt directly. This is equivalent to adding a 
+[Control layer](control-layers#reference-images) and
+choosing the <PluginIcon name="control-reference" simple /> Reference mode.
+
+The syntax is `<layer:your layer name>`. The name must match one of the image
+layers in the current document. Auto-completion is available.
+
+<ImageSample src="prompts/layers.png" alt="Selecting a reference layer in the text prompt" scale={1.5} />
+
+If you are using an [Edit model](edit-models), you can use this to indicate
+which image you are referring to. Currently only the latest Qwen edit model
+supports referring to images in text directly:
+* Example (Qwen Edit 2509): `Put the cat in <layer:cat photo> next to the dog.`
+* Example (other models): `Put the black cat <layer:cat photo> next to the dog.`
+
 
 ## Translation
 
@@ -109,6 +156,11 @@ By default only text entered in the text box for documents is translated:
 * ✓ includes text for regions
 * ✓ includes negative prompts if they're enabled
 * ✖ does **not** include any text from Style settings!
+
+<Aside type="note">
+Chinese models (like Qwen) typically understand both Chinese and English natively.
+It is recommended to use Chinese input without translation.
+</Aside>
 
 ### Language directives
 
