@@ -59,10 +59,10 @@ class CloudClient(Client):
         self._features = enumerate_features({})
 
     async def _get(self, op: str):
-        return await self._requests.get(f"{self.url}/{op}")
+        return await self._requests.get(f"{self.url}/{op}", bearer=self._token)
 
     async def _post(self, op: str, data: dict):
-        return await self._requests.post(f"{self.url}/{op}", data)
+        return await self._requests.post(f"{self.url}/{op}", data, bearer=self._token)
 
     async def sign_in(self):
         client_id = str(uuid.uuid4())
@@ -84,7 +84,6 @@ class CloudClient(Client):
 
         if auth_confirm["status"] == "authorized":
             self._token = auth_confirm["token"]
-            self._requests.set_auth(self._token)
             log.info("Authorization successful")
             yield self._token
         else:
@@ -95,7 +94,6 @@ class CloudClient(Client):
         if not token:
             raise ValueError("Authorization missing for cloud endpoint")
         self._token = token
-        self._requests.set_auth(self._token)
         try:
             user_data = await self._get(f"user?plugin_version={plugin_version}")
         except NetworkError as e:

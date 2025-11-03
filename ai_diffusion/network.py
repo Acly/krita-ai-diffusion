@@ -84,16 +84,20 @@ class RequestManager:
         self._requests: dict[QNetworkReply, Request] = {}
         self._upload_future: Future[tuple[int, int]] | None = None
         self._additional_headers: list[tuple[bytes, bytes]] = []
+        self._bearer_token: str | None = None
 
     def add_header(self, key: str, value: str):
         self._additional_headers.append((key.encode("utf-8"), value.encode("utf-8")))
 
     def set_auth(self, bearer: str):
-        self.add_header("Authorization", f"Bearer {bearer}")
+        self._bearer_token = bearer
 
-    def _prepare_request(self, url: str, timeout: float | None = None):
+    def _prepare_request(self, url: str, timeout: float | None = None, bearer: str | None = None):
         request = QNetworkRequest(QUrl(url))
         request.setAttribute(QNetworkRequest.FollowRedirectsAttribute, True)
+        bearer_token = bearer or self._bearer_token
+        if bearer_token:
+            request.setRawHeader(b"Authorization", f"Bearer {bearer_token}".encode("utf-8"))
         for key, value in self._additional_headers:
             request.setRawHeader(key, value)
         if timeout is not None:
@@ -101,11 +105,16 @@ class RequestManager:
         return request
 
     def http(
-        self, method, url: str, data: dict | QByteArray | None = None, timeout: float | None = None
+        self,
+        method,
+        url: str,
+        data: dict | QByteArray | None = None,
+        timeout: float | None = None,
+        bearer: str | None = None,
     ):
         self._cleanup()
 
-        request = self._prepare_request(url, timeout)
+        request = self._prepare_request(url, timeout, bearer)
 
         assert method in ["GET", "POST", "PUT"]
         if method == "POST":
@@ -131,11 +140,11 @@ class RequestManager:
         self._requests[reply] = Request(url, future)
         return future
 
-    def get(self, url: str, timeout: float | None = None):
-        return self.http("GET", url, timeout=timeout)
+    def get(self, url: str, timeout: float | None = None, bearer: str | None = None):
+        return self.http("GET", url, timeout=timeout, bearer=bearer)
 
-    def post(self, url: str, data: dict):
-        return self.http("POST", url, data)
+    def post(self, url: str, data: dict, bearer: str | None = None):
+        return self.http("POST", url, data, bearer=bearer)
 
     def put(self, url: str, data: QByteArray | bytes):
         return self.http("PUT", url, data)
