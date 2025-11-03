@@ -100,8 +100,9 @@ def create(kind: WorkflowKind, client: Client, **kwargs):
     kwargs.setdefault("files", files)
 
     prompt = workflow.prepare_prompts(
-        kwargs["cond"], kwargs["style"], kwargs["seed"], Arch.sd15, files
+        kwargs["cond"], kwargs["style"], kwargs["seed"], Arch.sd15, kwargs["files"]
     )
+    kwargs["cond"] = prompt.conditioning
     return workflow.prepare(kind, models=client.models, loras=prompt.loras, **kwargs)
 
 
