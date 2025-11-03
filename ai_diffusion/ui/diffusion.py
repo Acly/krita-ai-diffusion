@@ -146,6 +146,9 @@ class ConnectionWidget(QWidget):
             self._connect_status.setText(_("Not signed in. Click below to connect."))
         if connection.state is ConnectionState.connecting:
             self._connect_status.setText(_("Connecting to server..."))
+        if connection.state is ConnectionState.discover_models:
+            progress = f" ({connection.progress[0]}/{connection.progress[1]})"
+            self._connect_status.setText(_("Discovering models") + progress)
         if connection.state is ConnectionState.connected:
             self._connect_status.setText(
                 _(

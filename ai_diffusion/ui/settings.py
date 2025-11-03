@@ -978,7 +978,7 @@ class SettingsDialog(QDialog):
 
     def _update_connection(self):
         self.connection.update_server_status()
-        if root.connection.state == ConnectionState.connected:
+        if root.connection.state is ConnectionState.connected:
             self.interface.update_translation(root.connection.client)
             self.performance.update_client_info()
 
