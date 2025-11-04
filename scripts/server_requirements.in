@@ -33,7 +33,7 @@ stringzilla
 importlib_metadata
 huggingface_hub
 scipy
-# Version fixed because later versions require numpy>2 which conflicts with mediapipe
+# Version pinned because later versions require numpy>2 which conflicts with mediapipe
 opencv-python==4.11.0.86
 protobuf>=4.25.3,<5
 filelock
@@ -43,7 +43,9 @@ pyyaml
 scikit-image
 python-dateutil
 mediapipe
-svglib
+# Version pinned because newer version requires pycairo, which does not provide binary
+# packages on Linux/macOS
+svglib==1.5.1
 fvcore
 yapf
 omegaconf
