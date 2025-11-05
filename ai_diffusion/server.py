@@ -144,6 +144,10 @@ class Server:
             self.state = ServerState.missing_resources
         elif update_required:
             self.state = ServerState.update_required
+        elif self.version == "incomplete":
+            # At this point everything seems to be there, but the version file indicates
+            # that installation did not complete successfully. Best bet is to try and re-install.
+            self.state = ServerState.update_required
         else:
             self.state = ServerState.stopped
         self.missing_resources += missing_sd15 + missing_sdxl + missing_flux
@@ -402,7 +406,8 @@ class Server:
             log.info(message)
             callback(InstallationProgress("Upgrading", message=message))
 
-        info(f"Starting upgrade from {self.version} to {resources.version}")
+        old_version = self.version
+        info(f"Starting upgrade from {old_version} to {resources.version}")
         comfy_dir = self.comfy_dir
         upgrade_dir = self.path / f"upgrade-{resources.version}"
         upgrade_comfy_dir = upgrade_dir / "ComfyUI"
@@ -430,6 +435,7 @@ class Server:
                 log.warning(f"Error during upgrade: {str(e)} - Restoring {upgrade_comfy_dir}")
                 safe_remove_dir(comfy_dir)
                 shutil.move(upgrade_comfy_dir, comfy_dir)
+                self._version_file.write_text(f"{old_version} {self.backend.name}")
             raise e
 
         try:

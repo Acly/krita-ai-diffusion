@@ -275,13 +275,11 @@ class PackageGroupWidget(QWidget):
 
 
 class ServerWidget(QWidget):
-    _server: Server
-    _error = ""
-    _packages: dict[str, PackageGroupWidget]
-
     def __init__(self, srv: Server, parent=None):
         super().__init__(parent)
         self._server = srv
+        self._error = ""
+        self._packages: dict[str, PackageGroupWidget]
 
         layout = QVBoxLayout(self)
 
@@ -755,9 +753,10 @@ class ServerWidget(QWidget):
             self._launch_button.setEnabled(False)
             self._manage_button.setEnabled(False)
         elif state is ServerState.update_required:
-            self._status_label.setText(
-                _("Upgrade required") + f": v{self._server.version} -> v{resources.version}"
-            )
+            text = _("Upgrade required") + f": v{self._server.version} -> v{resources.version}"
+            if self._server.version == "incomplete":
+                text = _("Previous installation is incomplete")
+            self._status_label.setText(text)
             self._status_label.setStyleSheet(f"color:{yellow};font-weight:bold")
             self._launch_button.setText(_("Upgrade"))
         elif state is ServerState.stopped:
