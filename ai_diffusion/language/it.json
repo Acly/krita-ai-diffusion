@@ -520,12 +520,13 @@
     "Copy to clipboard": "Copia negli appunti",
     "Select an alternative style to use for for instruction-based editing": "Seleziona uno stile alternativo da utilizzare per la modifica basata sulle istruzioni",
     "Linked Edit Style": "Stile di modifica collegato",
-    "Are you sure you want to discard the selected images?": null,
-    "Negative Prompt (Evaluated)": null,
-    "Layer not found": null,
-    "Prompt (Evaluated)": null,
-    "Control Layers": null,
-    "Copy Prompt (Evaluated)": null,
-    "Discovering models": null
+    "Are you sure you want to discard the selected images?": "Vuoi davvero eliminare le immagini selezionate?",
+    "Negative Prompt (Evaluated)": "Richiesta Negativa (Valutata)",
+    "Layer not found": "Livello non trovato",
+    "Prompt (Evaluated)": "Richiesta (Valutata)",
+    "Control Layers": "Livello di Controllo",
+    "Copy Prompt (Evaluated)": "Richiesta copia (valutata)",
+    "Discovering models": "Alla scoperta dei modelli",
+    "Previous installation is incomplete": "L'installazione precedente è incompleta"
   }
 }
