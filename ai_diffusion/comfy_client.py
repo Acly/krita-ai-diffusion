@@ -51,6 +51,46 @@ class JobInfo:
         return JobInfo(str(uuid.uuid4()), work, front)
 
 
+class JobQueue:
+    max_size = 2
+
+    def __init__(self):
+        self._jobs: deque[JobInfo] = deque()
+        self._event = asyncio.Event()
+
+    async def put(self, job: JobInfo):
+        while len(self._jobs) >= self.max_size:
+            await self._event.wait()
+        self._jobs.append(job)
+        self._event.clear()
+
+    def remove(self, job: JobInfo):
+        self._jobs.remove(job)
+        self._event.set()
+
+    def clear(self):
+        self._jobs.clear()
+        self._event.set()
+
+    def cleanup(self, job: JobInfo):
+        if job in self._jobs:
+            self.remove(job)
+
+    def peek(self):
+        return self._jobs[0] if self._jobs else None
+
+    def get(self):
+        job = self._jobs.popleft()
+        self._event.set()
+        return job
+
+    def __len__(self):
+        return len(self._jobs)
+
+    def __iter__(self):
+        return iter(self._jobs)
+
+
 class Progress:
     _nodes = 0
     _samples = 0
@@ -93,7 +133,7 @@ class ComfyClient(Client):
         self._supported_archs: dict[Arch, list[ResourceId]] = {}
         self._messages: asyncio.Queue[ClientMessage] = asyncio.Queue()
         self._queue: asyncio.Queue[JobInfo] = asyncio.Queue()
-        self._jobs: deque[JobInfo] = deque()
+        self._jobs = JobQueue()
         self._is_connected = False
 
         self._requests.add_header("ngrok-skip-browser-warning", "69420")
@@ -240,6 +280,8 @@ class ComfyClient(Client):
             pass
 
     async def _run_job(self, job: JobInfo):
+        await self._jobs.put(job)
+
         workflow = create_workflow(job.work, self.models)
         if settings.debug_dump_workflow:
             workflow.embed_images().dump(util.log_dir)
@@ -255,15 +297,13 @@ class ComfyClient(Client):
             "front": job.front,
             "prompt_id": job.id,
         }
-        self._jobs.append(job)
         try:
             result = await self._post("prompt", data)
             if result["prompt_id"] != job.id:
                 log.error(f"Prompt ID mismatch: {result['prompt_id']} != {job.id}")
                 raise ValueError("Prompt ID mismatch - Please update ComfyUI to 0.3.45 or later!")
         except Exception as e:
-            if job in self._jobs:
-                self._jobs.remove(job)
+            self._jobs.cleanup(job)
             raise e
 
     async def _listen(self):
@@ -571,18 +611,19 @@ class ComfyClient(Client):
     def _start_job(self, job_id: str):
         if self._active is not None:
             log.warning(f"Started job {job_id}, but {self._active} was never finished")
-        if len(self._jobs) == 0:
+        front = self._jobs.peek()
+        if front is None:
             log.warning(f"Received unknown job {job_id}")
             return None
 
-        if self._jobs[0].id == job_id:
-            return self._jobs.popleft()
+        if front.id == job_id:
+            return self._jobs.get()
 
         job = next((j for j in self._jobs if j.id == job_id), None)
         if job is not None:
             self._jobs.remove(job)
             if not job.front:
-                log.warning(f"Started job {job_id}, but {self._jobs[0]} was expected")
+                log.warning(f"Started job {job_id}, but {front} was expected")
         else:
             log.warning(f"Cannot start job {job_id}: not found")
         return job
