@@ -39,7 +39,6 @@ if platform_tools.is_macos:
 class JobInfo:
     id: str
     work: WorkflowInput
-    front: bool = False
     node_count: int = 0
     sample_count: int = 0
 
@@ -47,48 +46,77 @@ class JobInfo:
         return f"Job[id={self.id}]"
 
     @staticmethod
-    def create(work: WorkflowInput, front: bool = False):
-        return JobInfo(str(uuid.uuid4()), work, front)
+    def create(work: WorkflowInput):
+        return JobInfo(str(uuid.uuid4()), work)
 
 
-class JobQueue:
-    max_size = 2
+class ClientJobQueue:
+    """Jobs that have been enqueued on client-side but not yet sent to server.
+    Unbounded single-producer/single-consumer queue.
+    Always consumed front to back, but jobs can be prioritized when added."""
 
     def __init__(self):
         self._jobs: deque[JobInfo] = deque()
         self._event = asyncio.Event()
 
-    async def put(self, job: JobInfo):
-        while len(self._jobs) >= self.max_size:
-            await self._event.wait()
-        self._jobs.append(job)
-        self._event.clear()
-
-    def remove(self, job: JobInfo):
-        self._jobs.remove(job)
+    def put(self, job: JobInfo, front: bool = False):
+        if front:
+            self._jobs.appendleft(job)
+        else:
+            self._jobs.append(job)
         self._event.set()
 
-    def clear(self):
-        self._jobs.clear()
-        self._event.set()
-
-    def cleanup(self, job: JobInfo):
-        if job in self._jobs:
-            self.remove(job)
-
-    def peek(self):
-        return self._jobs[0] if self._jobs else None
-
-    def get(self):
+    def _get(self):
         job = self._jobs.popleft()
-        self._event.set()
+        if not self._jobs:
+            self._event.clear()
         return job
+
+    async def get(self):
+        while not self._jobs:
+            await self._event.wait()
+        return self._get()
+
+    def try_get(self):
+        if not self._jobs:
+            return None
+        return self._get()
 
     def __len__(self):
         return len(self._jobs)
 
-    def __iter__(self):
-        return iter(self._jobs)
+
+class QueuedJob:
+    """A slot for a single job that has been sent to the server but hasn't been started."""
+
+    def __init__(self):
+        self._job: JobInfo | None = None
+        self._event = asyncio.Event()
+
+    async def wait(self):
+        if self._job is not None:
+            await self._event.wait()
+
+    def set(self, job: JobInfo):
+        assert self._job is None
+        self._job = job
+        self._event.clear()
+
+    def clear(self):
+        self._job = None
+        self._event.set()
+
+    def peek(self):
+        return self._job
+
+    def get(self):
+        job = self._job
+        self._job = None
+        self._event.set()
+        return job
+
+    def __len__(self):
+        return 1 if self._job is not None else 0
 
 
 class Progress:
@@ -128,12 +156,12 @@ class ComfyClient(Client):
         self.models = ClientModels()
         self._requests = RequestManager()
         self._id = settings.comfyui_client_id
-        self._active: Optional[JobInfo] = None
+        self._active_job: Optional[JobInfo] = None
+        self._waiting_job = QueuedJob()
         self._features: ClientFeatures = ClientFeatures()
         self._supported_archs: dict[Arch, list[ResourceId]] = {}
         self._messages: asyncio.Queue[ClientMessage] = asyncio.Queue()
-        self._queue: asyncio.Queue[JobInfo] = asyncio.Queue()
-        self._jobs = JobQueue()
+        self._queue = ClientJobQueue()
         self._is_connected = False
 
         self._requests.add_header("ngrok-skip-browser-warning", "69420")
@@ -259,8 +287,8 @@ class ComfyClient(Client):
         return await self._requests.put(f"{self.url}/{op}", data)
 
     async def enqueue(self, work: WorkflowInput, front: bool = False):
-        job = JobInfo.create(work, front=front)
-        await self._queue.put(job)
+        job = JobInfo.create(work)
+        self._queue.put(job, front=front)
         return job.id
 
     async def _report(self, event: ClientEvent, job_id: str, value: float = 0, **kwargs):
@@ -270,7 +298,8 @@ class ComfyClient(Client):
         assert self._is_connected
         try:
             while self._is_connected:
-                job = await self._queue.get()
+                await self._waiting_job.wait()  # first wait for slot on server
+                job = await self._queue.get()  # then get highest priority job from queue
                 try:
                     await self._run_job(job)
                 except Exception as e:
@@ -280,8 +309,6 @@ class ComfyClient(Client):
             pass
 
     async def _run_job(self, job: JobInfo):
-        await self._jobs.put(job)
-
         workflow = create_workflow(job.work, self.models)
         if settings.debug_dump_workflow:
             workflow.embed_images().dump(util.log_dir)
@@ -294,16 +321,16 @@ class ComfyClient(Client):
         data = {
             "prompt": workflow.root,
             "client_id": self._id,
-            "front": job.front,
             "prompt_id": job.id,
         }
+        self._waiting_job.set(job)
         try:
             result = await self._post("prompt", data)
             if result["prompt_id"] != job.id:
                 log.error(f"Prompt ID mismatch: {result['prompt_id']} != {job.id}")
                 raise ValueError("Prompt ID mismatch - Please update ComfyUI to 0.3.45 or later!")
         except Exception as e:
-            self._jobs.cleanup(job)
+            self._waiting_job.clear()
             raise e
 
     async def _listen(self):
@@ -320,8 +347,8 @@ class ComfyClient(Client):
                 await self._report(ClientEvent.error, "", error=msg)
             except asyncio.CancelledError:
                 await websocket.close()
-                self._active = None
-                self._jobs.clear()
+                self._active_job = None
+                self._waiting_job.clear()
                 break
             except Exception as e:
                 log.exception("Unhandled exception in websocket listener")
@@ -349,15 +376,14 @@ class ComfyClient(Client):
 
                 if msg["type"] == "execution_start":
                     id = msg["data"]["prompt_id"]
-                    self._active = self._start_job(id)
-                    if self._active is not None:
-                        progress = Progress(self._active)
+                    self._active_job = await self._start_job(id)
+                    if self._active_job is not None:
+                        progress = Progress(self._active_job)
                         images = ImageCollection()
                         result = None
 
                 if msg["type"] == "execution_interrupted":
-                    job = self._get_active_job(msg["data"]["prompt_id"])
-                    if job:
+                    if job := await self._get_active_job(msg["data"]["prompt_id"]):
                         self._clear_job(job.id)
                         await self._report(ClientEvent.interrupted, job.id)
 
@@ -379,14 +405,16 @@ class ComfyClient(Client):
                             )
 
                 elif msg["type"] in ("execution_cached", "executing", "progress"):
-                    if self._active is not None and progress is not None:
+                    if self._active_job is not None and progress is not None:
                         progress.handle(msg)
-                        await self._report(ClientEvent.progress, self._active.id, progress.value)
+                        await self._report(
+                            ClientEvent.progress, self._active_job.id, progress.value
+                        )
                     else:
                         log.warning(f"Received message {msg} but there is no active job")
 
                 if msg["type"] == "executed":
-                    if job := self._get_active_job(msg["data"]["prompt_id"]):
+                    if job := await self._get_active_job(msg["data"]["prompt_id"]):
                         images.append(await self._transfer_result_images(msg))
                         text_output = _extract_text_output(job.id, msg)
                         if text_output is not None:
@@ -396,8 +424,7 @@ class ComfyClient(Client):
                             result = pose_json
 
                 if msg["type"] == "execution_error":
-                    job = self._get_active_job(msg["data"]["prompt_id"])
-                    if job:
+                    if job := await self._get_active_job(msg["data"]["prompt_id"]):
                         error = msg["data"].get("exception_message", "execution_error")
                         traceback = msg["data"].get("traceback", "no traceback")
                         log.error(f"Job {job} failed: {error}\n{traceback}")
@@ -427,12 +454,10 @@ class ComfyClient(Client):
         # Make sure changes to all queues are processed before suspending this
         # function, otherwise it may interfere with subsequent calls to enqueue.
         tasks = [self._post("queue", {"clear": True})]
-        while not self._queue.empty():
-            try:
-                job = self._queue.get_nowait()
-                tasks.append(self._report(ClientEvent.interrupted, job.id))
-            except asyncio.QueueEmpty:
-                break
+        if job := self._waiting_job.get():
+            tasks.append(self._report(ClientEvent.interrupted, job.id))
+        while job := self._queue.try_get():
+            tasks.append(self._report(ClientEvent.interrupted, job.id))
         await asyncio.gather(*tasks)
 
     async def disconnect(self):
@@ -469,11 +494,11 @@ class ComfyClient(Client):
 
     @property
     def queued_count(self):
-        return len(self._jobs) + self._queue.qsize()
+        return len(self._waiting_job) + len(self._queue)
 
     @property
     def is_executing(self):
-        return self._active is not None
+        return self._active_job is not None
 
     def _refresh_models(
         self, nodes: ComfyObjectInfo, checkpoints: dict | None, diffusion_models: dict | None
@@ -598,39 +623,35 @@ class ComfyClient(Client):
             except Exception as e:
                 raise Exception(_("Error during upload of LoRA model") + f" {file.path}: {str(e)}")
 
-    def _get_active_job(self, job_id: str) -> Optional[JobInfo]:
-        if self._active and self._active.id == job_id:
-            return self._active
-        elif self._active:
-            log.warning(f"Received message for job {job_id}, but job {self._active} is active")
-        if len(self._jobs) == 0:
-            log.warning(f"Received unknown job {job_id}")
+    async def _get_active_job(self, job_id: str):
+        if self._active_job and self._active_job.id == job_id:
+            return self._active_job
+
+        # We might have dropped some messages, see if the message matches the next job
+        log.warning(f"Received message for job {job_id}, but active job is {self._active_job}")
+        if next_job := await self._start_job(job_id):
+            return next_job
+        return None
+
+    async def _start_job(self, job_id: str):
+        next_job = self._waiting_job.peek()
+        if next_job is None:
+            log.warning(f"Received unknown job {job_id}, there are no jobs waiting")
             return None
-        return next((j for j in self._jobs if j.id == job_id), None)
-
-    def _start_job(self, job_id: str):
-        if self._active is not None:
-            log.warning(f"Started job {job_id}, but {self._active} was never finished")
-        front = self._jobs.peek()
-        if front is None:
-            log.warning(f"Received unknown job {job_id}")
+        if next_job.id != job_id:
+            log.warning(f"Received unknown job {job_id}, next job is {next_job.id}")
             return None
 
-        if front.id == job_id:
-            return self._jobs.get()
-
-        job = next((j for j in self._jobs if j.id == job_id), None)
-        if job is not None:
-            self._jobs.remove(job)
-            if not job.front:
-                log.warning(f"Started job {job_id}, but {front} was expected")
-        else:
-            log.warning(f"Cannot start job {job_id}: not found")
-        return job
+        next_job = self._waiting_job.get()
+        if self._active_job is not None:
+            log.warning(f"Started job {job_id}, but {self._active_job} was never finished")
+            await self._report(ClientEvent.interrupted, self._active_job.id)
+        self._active_job = next_job
+        return next_job
 
     def _clear_job(self, job_id: str):
-        if self._active is not None and self._active.id == job_id:
-            self._active = None
+        if self._active_job is not None and self._active_job.id == job_id:
+            self._active_job = None
             return True
         return False
 
