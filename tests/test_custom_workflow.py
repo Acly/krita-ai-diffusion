@@ -1,4 +1,5 @@
 import json
+import zlib
 import pytest
 from copy import copy
 from pathlib import Path
@@ -382,6 +383,12 @@ def test_text_output():
     ]
 
 
+def img_id(image: Image):
+    data = image.to_bytes()
+    hash = zlib.crc32(data)
+    return f"{hash:08x}"
+
+
 def test_expand():
     ext = ComfyWorkflow()
     in_img, width, height, seed = ext.add("ETN_KritaCanvas", 4)
@@ -450,11 +457,11 @@ def test_expand():
         return next((id for id, img in w.images.items() if img == image), "not-found")
 
     expected = [
-        ComfyNode(1, "ETN_LoadImageCache", {"id": find_img_id(images.initial_image)}),
+        ComfyNode(1, "ETN_LoadImageCache", {"id": img_id(images.initial_image)}),
         ComfyNode(2, "ImageScale", {"image": Output(1, 0), "width": 4, "height": 4}),
         ComfyNode(3, "ETN_KritaOutput", {"images": Output(2, 0)}),
-        ComfyNode(4, "ETN_LoadImageCache", {"id": find_img_id(params["layer_img"])}),
-        ComfyNode(5, "ETN_LoadImageCache", {"id": find_img_id(params["layer_mask"])}),
+        ComfyNode(4, "ETN_LoadImageCache", {"id": img_id(params["layer_img"])}),
+        ComfyNode(5, "ETN_LoadImageCache", {"id": img_id(params["layer_mask"])}),
         ComfyNode(6, "CheckpointLoaderSimple", {"ckpt_name": "checkpoint.safetensors"}),
         ComfyNode(
             7,
@@ -510,19 +517,16 @@ def test_expand_animation():
     w = ComfyWorkflow()
     w = workflow.expand_custom(w, input, images, 123, models)
 
-    def find_img_id(image: Image):
-        return next((id for id, img in w.images.items() if img == image), "not-found")
-
     expected = [
-        ComfyNode(1, "ETN_LoadImageCache", {"id": find_img_id(in_images[0])}),
-        ComfyNode(2, "ETN_LoadImageCache", {"id": find_img_id(in_images[1])}),
+        ComfyNode(1, "ETN_LoadImageCache", {"id": img_id(in_images[0])}),
+        ComfyNode(2, "ETN_LoadImageCache", {"id": img_id(in_images[1])}),
         ComfyNode(3, "ImageBatch", {"image1": Output(1, 0), "image2": Output(2, 0)}),
         ComfyNode(4, "MaskToImage", {"mask": Output(1, 1)}),
         ComfyNode(5, "MaskToImage", {"mask": Output(2, 1)}),
         ComfyNode(6, "ImageBatch", {"image1": Output(4, 0), "image2": Output(5, 0)}),
         ComfyNode(7, "ImageToMask", {"image": Output(6, 0), "channel": "red"}),
-        ComfyNode(8, "ETN_LoadImageCache", {"id": find_img_id(in_masks[0])}),
-        ComfyNode(9, "ETN_LoadImageCache", {"id": find_img_id(in_masks[1])}),
+        ComfyNode(8, "ETN_LoadImageCache", {"id": img_id(in_masks[0])}),
+        ComfyNode(9, "ETN_LoadImageCache", {"id": img_id(in_masks[1])}),
         ComfyNode(10, "MaskToImage", {"mask": Output(8, 1)}),
         ComfyNode(11, "MaskToImage", {"mask": Output(9, 1)}),
         ComfyNode(12, "ImageBatch", {"image1": Output(10, 0), "image2": Output(11, 0)}),

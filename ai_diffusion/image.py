@@ -342,7 +342,7 @@ class Image:
         return Image.from_bytes(bytes)
 
     @staticmethod
-    def from_bytes(data: QBuffer | QByteArray | memoryview, format: str | None = None):
+    def from_bytes(data: QBuffer | QByteArray | memoryview | bytes, format: str | None = None):
         if isinstance(data, QBuffer):
             buffer = data
         else:
