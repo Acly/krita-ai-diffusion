@@ -313,7 +313,7 @@ class ComfyClient(Client):
         if settings.debug_dump_workflow:
             workflow.embed_images().dump(util.log_dir)
 
-        await self.upload_images(workflow.images)
+        await self.upload_images(workflow.image_data)
         await self.upload_loras(job.work, job.id)
 
         job.node_count = workflow.node_count
@@ -550,10 +550,9 @@ class ComfyClient(Client):
             log.error(f"Error transferring result image {self.url}/api/etn/image/{id}: {str(e)}")
             raise e
 
-    async def upload_images(self, images: dict[str, Image]):
-        for id, image in images.items():
+    async def upload_images(self, image_data: dict[str, bytes]):
+        for id, data in image_data.items():
             try:
-                data = image.to_bytes()
                 await self._put(f"api/etn/image/{id}", data)
             except Exception as e:
                 log.error(f"Error uploading image {id}: {str(e)}")
