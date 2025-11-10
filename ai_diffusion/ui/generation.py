@@ -728,6 +728,7 @@ class GenerationWidget(QWidget):
         self.generate_menu = self._create_generate_menu()
         self.inpaint_menu = self._create_inpaint_menu()
         self.refine_menu = self._create_refine_menu()
+        self.refine_selection_menu = self._create_refine_selection_menu()
         self.generate_region_menu = self._create_generate_region_menu()
         self.refine_region_menu = self._create_refine_region_menu()
         self.edit_menu = self._create_edit_menu()
@@ -858,6 +859,12 @@ class GenerationWidget(QWidget):
         menu = QMenu(self)
         menu.addAction(self._mk_action(InpaintMode.automatic, _("Refine"), "refine"))
         menu.addAction(self._mk_action(InpaintMode.automatic, _("Edit"), "edit", is_edit=True))
+        return menu
+
+    def _create_refine_selection_menu(self):
+        menu = QMenu(self)
+        menu.addAction(self._mk_action(InpaintMode.automatic, _("Refine"), "refine"))
+        menu.addAction(self._mk_action(InpaintMode.automatic, _("Edit"), "edit", is_edit=True))
         menu.addAction(self._mk_action(InpaintMode.custom, _("Refine (Custom)"), "inpaint-custom"))
         return menu
 
@@ -885,11 +892,15 @@ class GenerationWidget(QWidget):
                 menu = self.generate_region_menu
             elif self.model.document.selection_bounds:
                 menu = self.inpaint_menu
+                menu.actions()[-2].setEnabled(self.model.edit_style is not None)
             else:
                 menu = self.generate_menu
         else:
             if self.model.region_only:
                 menu = self.refine_region_menu
+            elif self.model.document.selection_bounds:
+                menu = self.refine_selection_menu
+                menu.actions()[1].setEnabled(self.model.edit_style is not None)
             else:
                 menu = self.refine_menu
                 menu.actions()[1].setEnabled(self.model.edit_style is not None)
