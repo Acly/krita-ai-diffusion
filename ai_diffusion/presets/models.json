@@ -239,6 +239,17 @@
       ]
     },
     {
+      "id": "checkpoint-nova-illu",
+      "name": "Nova Anime XL (Illustrious - Anime)",
+      "files": [
+        {
+          "path": "models/checkpoints/novaAnimeXL_ilV125.safetensors",
+          "url": "https://huggingface.co/Acly/SD-Checkpoints/resolve/main/novaAnimeXL_ilV125.safetensors",
+          "sha256": "bd157e62de731dbd1b5b00a114f5f5c137814ece4e16281b37148b87de7f4d48"
+        }
+      ]
+    },
+    {
       "id": "checkpoint-noobai-illu_v",
       "name": "NoobAI XL (Illustrious - Anime)",
       "files": [
