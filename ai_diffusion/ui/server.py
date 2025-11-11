@@ -1,4 +1,5 @@
 from __future__ import annotations
+from copy import copy
 from dataclasses import dataclass
 from enum import Enum
 from pathlib import Path
@@ -153,6 +154,7 @@ class PackageGroupWidget(QWidget):
     def _update(self):
         for item in self._items:
             self._update_item_visibility(item)
+            self._update_workload(item)
             if item.state is PackageState.installed:
                 item.status.setText(_("Installed"))
                 item.status.setStyleSheet(f"color:{green}")
@@ -160,7 +162,6 @@ class PackageGroupWidget(QWidget):
                 item.status.setText(_("Not installed"))
                 item.status.setStyleSheet("")
             if self.is_checkable:
-                self._update_workload(item)
                 if item.state is PackageState.selected:
                     item.status.setText(_("Not installed"))
                     item.status.setStyleSheet("")
@@ -267,11 +268,201 @@ class PackageGroupWidget(QWidget):
                 item.state = (
                     PackageState.selected if item.status.isChecked() else PackageState.available
                 )
-        self._update_status()
+        self._update()
         self.changed.emit()
 
     def _package_name(self, package: str | ModelResource | CustomNode):
         return package if isinstance(package, str) else package.name
+
+
+class PredefinedPackageTab(QWidget):
+    pass
+
+
+class CustomPackageTab(QWidget):
+    selected_workloads_changed = pyqtSignal()
+    selected_models_changed = pyqtSignal()
+
+    def __init__(self, server: Server, parent=None):
+        super().__init__(parent)
+        self._server = server
+
+        layout = QVBoxLayout()
+        layout.setContentsMargins(0, 0, 0, 0)
+        self.setLayout(layout)
+
+        self._required_group = PackageGroupWidget(
+            _("Core components"),
+            ["Python", "ComfyUI", _("Custom nodes"), _("Required models")],
+            is_expanded=False,
+            parent=self,
+        )
+        layout.addWidget(self._required_group)
+
+        self._workload_group = PackageGroupWidget(
+            _("Workloads"),
+            [_("Stable Diffusion 1.5"), _("Stable Diffusion XL"), "Flux"],
+            description=(
+                _("Choose a Diffusion base model to install its basic requirements.")
+                + " <a href='https://docs.interstice.cloud/base-models'>"
+                + _("Read more about workloads.")
+                + "</a>"
+            ),
+            is_checkable=True,
+            parent=self,
+        )
+        self._workload_group.changed.connect(self._change_workload)
+        layout.addWidget(self._workload_group)
+
+        optional_models = resources.default_checkpoints + resources.optional_models
+        self._packages: dict[str, PackageGroupWidget] = {
+            "upscalers": PackageGroupWidget(
+                _("Upscalers (super-resolution)"),
+                resources.upscale_models,
+                is_checkable=True,
+                parent=self,
+            ),
+            "sd15": PackageGroupWidget(
+                _("Stable Diffusion 1.5 models"),
+                [m for m in optional_models if m.arch is Arch.sd15],
+                description=_("Select at least one diffusion model. Control models are optional."),
+                is_checkable=True,
+                is_expanded=False,
+                parent=self,
+            ),
+            "sdxl": PackageGroupWidget(
+                _("Stable Diffusion XL models"),
+                [m for m in optional_models if m.arch is Arch.sdxl],
+                description=_("Select at least one diffusion model. Control models are optional."),
+                is_checkable=True,
+                is_expanded=False,
+                parent=self,
+            ),
+            "illu": PackageGroupWidget(
+                _("Illustrious/NoobAI XL models"),
+                [m for m in optional_models if m.arch in [Arch.illu, Arch.illu_v]],
+                description=_("Select at least one diffusion model. Control models are optional."),
+                is_checkable=True,
+                is_expanded=False,
+                parent=self,
+            ),
+            "flux": PackageGroupWidget(
+                _("Flux models"),
+                [m for m in optional_models if m.arch in [Arch.flux, Arch.flux_k, Arch.chroma]],
+                description=_("Select at least one diffusion model. Control models are optional."),
+                is_checkable=True,
+                is_expanded=False,
+                parent=self,
+            ),
+        }
+        # Pre-select a recommended set of models if the server hasn't been installed yet
+        # TODO: separate tab for first install, remove this
+        if not self._server.has_comfy:
+            self._workload_group.values = [PackageState.available, PackageState.selected]
+            sdxl_packages = self._packages["sdxl"]
+            sdxl_packages.expand()
+            sdxl_packages.workload = Arch.sdxl
+            state = [PackageState.selected for _ in sdxl_packages.values]
+            state[-2] = PackageState.available  # Stencil is optional
+            state[-1] = PackageState.available  # Face model is optional
+            sdxl_packages.values = state
+
+        for group in ["upscalers", "sd15", "sdxl", "illu", "flux"]:
+            self._packages[group].changed.connect(self._change_models)
+            layout.addWidget(self._packages[group])
+
+        layout.addStretch()
+
+        self.update_installed()
+
+    def update_installed(self):
+        has_missing_nodes = any(
+            node.name in self._server.missing_resources for node in resources.required_custom_nodes
+        )
+        has_missing_models = any(
+            model.name in self._server.missing_resources
+            for model in resources.required_models
+            if model.arch is Arch.all
+        )
+        installed_status = [
+            self._server.has_python,
+            self._server.has_comfy,
+            not has_missing_nodes,
+            not has_missing_models,
+        ]
+        self._required_group.set_installed(installed_status)
+
+        workloads = [
+            [m for m in resources.required_models if m.arch is Arch.sd15],
+            [m for m in resources.required_models if m.arch is Arch.sdxl],
+            [m for m in resources.required_models if m.arch is Arch.flux],
+        ]
+        self._workload_group.set_installed([self._server.all_installed(w) for w in workloads])
+
+        for widget in self._packages.values():
+            widget.workloads = self._selected_workloads(installed=True)
+            widget.backend = self._server.backend
+            widget.set_installed([self._server.is_installed(p) for p in widget.package_names])
+
+    def _change_models(self):
+        self.selected_models_changed.emit()
+
+    def _change_workload(self):
+        for widget in self._packages.values():
+            widget.workloads = self._selected_workloads(installed=True)
+        self.selected_workloads_changed.emit()
+
+    def _selected_workloads(self, installed=False):
+        check = (PackageState.selected,)
+        if installed:
+            check = (PackageState.selected, PackageState.installed)
+        selected_or_installed = [state in check for state in self._workload_group.values]
+        result = []
+        if selected_or_installed[0]:
+            result.append(Arch.sd15)
+        if selected_or_installed[1]:
+            result.append(Arch.sdxl)
+        if selected_or_installed[2]:
+            result.append(Arch.flux)
+        return result
+
+    @property
+    def selected_workloads(self):
+        return self._selected_workloads(installed=False)
+
+    @selected_workloads.setter
+    def selected_workloads(self, value: list[Arch]):
+        cur_states = self._workload_group.values
+        new_states = copy(cur_states)
+        for i, arch in enumerate([Arch.sd15, Arch.sdxl, Arch.flux]):
+            is_selected = cur_states[i] in (PackageState.selected, PackageState.installed)
+            if arch in value and not is_selected:
+                new_states[i] = PackageState.selected
+            elif arch not in value and cur_states[i] is PackageState.selected:
+                new_states[i] = PackageState.available
+        if new_states != cur_states:
+            self._workload_group.values = new_states
+            for widget in self._packages.values():
+                widget.workloads = value
+
+    @property
+    def selected_models(self):
+        return [p for widget in self._packages.values() for p in widget.selected_packages]
+
+    @selected_models.setter
+    def selected_models(self, value: list[str]):
+        for widget in self._packages.values():
+            selected = [p for p in widget.package_names if p in value]
+            states: list[PackageState] = []
+            for state, pkg in zip(widget.values, widget.package_names):
+                if state is PackageState.installed:
+                    states.append(PackageState.installed)
+                elif pkg in selected:
+                    states.append(PackageState.selected)
+                else:
+                    states.append(PackageState.available)
+            if states != widget.values:
+                widget.values = states
 
 
 class ServerWidget(QWidget):
@@ -279,7 +470,8 @@ class ServerWidget(QWidget):
         super().__init__(parent)
         self._server = srv
         self._error = ""
-        self._packages: dict[str, PackageGroupWidget]
+        self._selected_workloads: list[Arch] = []
+        self._selected_models: list[str] = []
 
         layout = QVBoxLayout(self)
 
@@ -356,102 +548,19 @@ class ServerWidget(QWidget):
         launch_layout.addLayout(buttons_layout, 0)
         layout.addLayout(launch_layout)
 
-        package_list = QWidget(self)
-        package_layout = QVBoxLayout()
-        package_layout.setContentsMargins(0, 0, 0, 0)
-        package_list.setLayout(package_layout)
+        self._custom_tab = CustomPackageTab(srv, self)
+        self._custom_tab.selected_workloads_changed.connect(self._update_selections)
+        self._custom_tab.selected_models_changed.connect(self._update_selections)
 
         scroll = QScrollArea(self)
-        scroll.setWidget(package_list)
+        scroll.setWidget(self._custom_tab)
         scroll.setWidgetResizable(True)
         scroll.setFrameStyle(QFrame.NoFrame)
         scroll.setHorizontalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAlwaysOff)
         layout.addWidget(scroll, 1)
 
-        self._required_group = PackageGroupWidget(
-            _("Core components"),
-            ["Python", "ComfyUI", _("Custom nodes"), _("Required models")],
-            is_expanded=False,
-            parent=self,
-        )
-        package_layout.addWidget(self._required_group)
-
-        self._workload_group = PackageGroupWidget(
-            _("Workloads"),
-            [_("Stable Diffusion 1.5"), _("Stable Diffusion XL"), "Flux"],
-            description=(
-                _("Choose a Diffusion base model to install its basic requirements.")
-                + " <a href='https://docs.interstice.cloud/base-models'>"
-                + _("Read more about workloads.")
-                + "</a>"
-            ),
-            is_checkable=True,
-            parent=self,
-        )
-        self._workload_group.changed.connect(self.change_workload)
-        package_layout.addWidget(self._workload_group)
-
-        optional_models = resources.default_checkpoints + resources.optional_models
-        self._packages = {
-            "upscalers": PackageGroupWidget(
-                _("Upscalers (super-resolution)"),
-                resources.upscale_models,
-                is_checkable=True,
-                parent=self,
-            ),
-            "sd15": PackageGroupWidget(
-                _("Stable Diffusion 1.5 models"),
-                [m for m in optional_models if m.arch is Arch.sd15],
-                description=_("Select at least one diffusion model. Control models are optional."),
-                is_checkable=True,
-                is_expanded=False,
-                parent=self,
-            ),
-            "sdxl": PackageGroupWidget(
-                _("Stable Diffusion XL models"),
-                [m for m in optional_models if m.arch is Arch.sdxl],
-                description=_("Select at least one diffusion model. Control models are optional."),
-                is_checkable=True,
-                is_expanded=False,
-                parent=self,
-            ),
-            "illu": PackageGroupWidget(
-                _("Illustrious/NoobAI XL models"),
-                [m for m in optional_models if m.arch in [Arch.illu, Arch.illu_v]],
-                description=_("Select at least one diffusion model. Control models are optional."),
-                is_checkable=True,
-                is_expanded=False,
-                parent=self,
-            ),
-            "flux": PackageGroupWidget(
-                _("Flux models"),
-                [m for m in optional_models if m.arch in [Arch.flux, Arch.flux_k, Arch.chroma]],
-                description=_("Select at least one diffusion model. Control models are optional."),
-                is_checkable=True,
-                is_expanded=False,
-                parent=self,
-            ),
-        }
-        # Pre-select a recommended set of models if the server hasn't been installed yet
-        if not self._server.has_comfy:
-            self._workload_group.values = [PackageState.available, PackageState.selected]
-            sdxl_packages = self._packages["sdxl"]
-            sdxl_packages.expand()
-            sdxl_packages.workload = Arch.sdxl
-            state = [PackageState.selected for _ in sdxl_packages.values]
-            state[-2] = PackageState.available  # Stencil is optional
-            state[-1] = PackageState.available  # Face model is optional
-            sdxl_packages.values = state
-
-        for group in ["upscalers", "sd15", "sdxl", "illu", "flux"]:
-            self._packages[group].changed.connect(self.update_ui)
-            package_layout.addWidget(self._packages[group])
-
-        package_layout.addStretch()
-
         root.connection.state_changed.connect(self.update_ui)
         self.update_ui()
-        self.update_required()
 
     def _change_location(self):
         if settings.server_path != self._location_edit.text():
@@ -460,7 +569,7 @@ class ServerWidget(QWidget):
             settings.server_path = self._location_edit.text()
             settings.save()
             self.update_ui()
-            self.update_required()
+            self._custom_tab.update_installed()
 
     def _select_location(self):
         path = self._server.path
@@ -558,11 +667,15 @@ class ServerWidget(QWidget):
             if self._server.state in [ServerState.not_installed, ServerState.missing_resources]:
                 await self._server.install(self._handle_progress)
                 await self._server.download_required(self._handle_progress)
-            self.update_required()
+            self._custom_tab.update_installed()
 
-            models_to_install = self.update_optional()
+            models_to_install = self.models_to_install
             if len(models_to_install) > 0:
                 await self._server.download(models_to_install, self._handle_progress)
+
+            self.selected_workloads = []
+            self.selected_models = []
+            self._custom_tab.update_installed()
             self.update_ui()
 
             await self._start()
@@ -811,73 +924,46 @@ class ServerWidget(QWidget):
             self._status_label.setText(error_text)
             self._status_label.setStyleSheet(f"color:{red}")
 
-    def change_workload(self):
-        if self._workload_group.values[0] is PackageState.selected:
-            self._packages["sd15"].expand()
-        if self._workload_group.values[2] is PackageState.selected:
-            self._packages["flux"].expand()
+    def _update_selections(self):
+        self.selected_workloads = self._custom_tab.selected_workloads
+        self.selected_models = self._custom_tab.selected_models
         self.update_ui()
-
-    def update_required(self):
-        has_missing_nodes = any(
-            node.name in self._server.missing_resources for node in resources.required_custom_nodes
-        )
-        has_missing_models = any(
-            model.name in self._server.missing_resources
-            for model in resources.required_models
-            if model.arch is Arch.all
-        )
-        installed_status = [
-            self._server.has_python,
-            self._server.has_comfy,
-            not has_missing_nodes,
-            not has_missing_models,
-        ]
-        self._required_group.set_installed(installed_status)
-
-    def update_optional(self):
-        workloads = [
-            [m for m in resources.required_models if m.arch is Arch.sd15],
-            [m for m in resources.required_models if m.arch is Arch.sdxl],
-            [m for m in resources.required_models if m.arch is Arch.flux],
-        ]
-        self._workload_group.set_installed([self._server.all_installed(w) for w in workloads])
-        to_install = [
-            m.name
-            for workload, state in zip(workloads, self._workload_group.values)
-            if state is PackageState.selected
-            for m in workload
-        ]
-
-        for widget in self._packages.values():
-            widget.workloads = self.selected_workloads
-            widget.backend = self._server.backend
-            widget.set_installed([self._server.is_installed(p) for p in widget.package_names])
-
-        to_install += [p for widget in self._packages.values() for p in widget.selected_packages]
-        return to_install
 
     @property
     def requires_install(self):
         state = self._server.state
-        checkpoints_to_install = self.update_optional()
         install_required = state in [ServerState.not_installed, ServerState.missing_resources]
         install_optional = (
-            state in [ServerState.stopped, ServerState.running] and len(checkpoints_to_install) > 0
+            state in [ServerState.stopped, ServerState.running] and len(self.models_to_install) > 0
         )
         return install_required or install_optional
 
     @property
     def selected_workloads(self):
-        selected_or_installed = [
-            state in [PackageState.selected, PackageState.installed]
-            for state in self._workload_group.values
+        return self._selected_workloads
+
+    @selected_workloads.setter
+    def selected_workloads(self, value: list[Arch]):
+        self._selected_workloads = value
+        if self._custom_tab.selected_workloads != value:
+            self._custom_tab.selected_workloads = value
+
+    @property
+    def selected_models(self):
+        return self._selected_models
+
+    @selected_models.setter
+    def selected_models(self, value: list[str]):
+        self._selected_models = value
+        if self._custom_tab.selected_models != value:
+            self._custom_tab.selected_models = value
+
+    @property
+    def models_to_install(self):
+        workload_models = [
+            model.name
+            for workload in self.selected_workloads
+            for model in resources.required_models
+            if model.arch is workload
         ]
-        result = []
-        if selected_or_installed[0]:
-            result.append(Arch.sd15)
-        if selected_or_installed[1]:
-            result.append(Arch.sdxl)
-        if selected_or_installed[2]:
-            result.append(Arch.flux)
-        return result
+        return workload_models + self.selected_models
