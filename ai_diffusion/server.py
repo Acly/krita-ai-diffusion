@@ -720,8 +720,7 @@ class Server:
         return self.comfy_dir is not None
 
     def is_installed(self, package: str | ModelResource | CustomNode):
-        name = package if isinstance(package, str) else package.name
-        return name not in self.missing_resources
+        return _package_id(package) not in self.missing_resources
 
     def all_installed(self, packages: list[str] | list[ModelResource] | list[CustomNode]):
         return all(self.is_installed(p) for p in packages)
@@ -733,6 +732,14 @@ class Server:
         if self.path.is_dir():
             return self.version == "incomplete" or not any(self.path.iterdir())
         return False
+
+
+def _package_id(package: str | ModelResource | CustomNode) -> str:
+    if isinstance(package, ModelResource):
+        return package.id.string
+    elif isinstance(package, CustomNode):
+        return package.name
+    return package
 
 
 def _find_component(files: list[str], search_paths: list[Path]):
@@ -816,7 +823,7 @@ async def install_if_missing(path: Path, installer, *args):
 
 def find_missing(folders: list[Path], resources: list[ModelResource], ver: Arch | None = None):
     return [
-        res.name
+        res.id.string
         for res in resources
         if (not ver or res.arch is ver) and not any(res.exists_in(f) for f in folders)
     ]

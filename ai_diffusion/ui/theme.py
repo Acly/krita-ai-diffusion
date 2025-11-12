@@ -15,9 +15,9 @@ _palette = QGuiApplication.palette()
 is_dark = _palette.color(QPalette.ColorRole.Window).lightness() < 128
 
 base = _palette.color(QPalette.ColorRole.Base).name()
-green = "#3b3" if is_dark else "#292"
-yellow = "#cc3" if is_dark else "#762"
-red = "#d54" if is_dark else "#c33"
+green = "#30b030" if is_dark else "#209020"
+yellow = "#c0c030" if is_dark else "#706020"
+red = "#d07a40" if is_dark else "#c07630"
 grey = "#888" if is_dark else "#606060"
 highlight = "#8df" if is_dark else "#357"
 progress_alt = "#a16207" if is_dark else "#ca8a04"
