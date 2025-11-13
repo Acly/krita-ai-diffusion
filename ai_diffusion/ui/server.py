@@ -410,12 +410,21 @@ class CustomPackageTab(QWidget):
             widget.backend = self._server.backend
             widget.set_installed([self._server.is_installed(p) for p in widget.package_names])
 
+    def update_backend(self):
+        for widget in self._packages.values():
+            widget.backend = self._server.backend
+
+    def _update_workloads(self):
+        workloads = self._selected_workloads(installed=True)
+        for widget in self._packages.values():
+            widget.workloads = workloads
+
     def _change_models(self):
         self.selected_models_changed.emit()
 
     def _change_workload(self):
-        for widget in self._packages.values():
-            widget.workloads = self._selected_workloads(installed=True)
+        self._update_workloads()
+        self.selected_models_changed.emit()
 
     def _selected_workloads(self, installed=False):
         check = (PackageState.selected,)
@@ -446,6 +455,18 @@ class CustomPackageTab(QWidget):
 
     @selected_models.setter
     def selected_models(self, value: list[str]):
+        workloads = _enabled_workloads(value, resources.required_models, self._server)
+        new_states = copy(self._workload_group.values)
+        for i, arch in enumerate([Arch.sd15, Arch.sdxl, Arch.flux]):
+            if new_states[i] is not PackageState.installed:
+                if workloads[arch]:
+                    new_states[i] = PackageState.selected
+                else:
+                    new_states[i] = PackageState.available
+        if new_states != self._workload_group.values:
+            self._workload_group.values = new_states
+            self._update_workloads()
+
         for widget in self._packages.values():
             selected = [p for p in widget.package_names if p in value]
             states: list[PackageState] = []
@@ -458,17 +479,6 @@ class CustomPackageTab(QWidget):
                     states.append(PackageState.available)
             if states != widget.values:
                 widget.values = states
-
-        workloads = _enabled_workloads(value, resources.required_models, self._server)
-        new_states = copy(self._workload_group.values)
-        for i, arch in enumerate([Arch.sd15, Arch.sdxl, Arch.flux]):
-            if new_states[i] is not PackageState.installed:
-                if workloads[arch]:
-                    new_states[i] = PackageState.selected
-                else:
-                    new_states[i] = PackageState.available
-        if new_states != self._workload_group.values:
-            self._workload_group.values = new_states
 
 
 class ModelPropsWidget(QWidget):
@@ -560,12 +570,10 @@ class ModelCheckBox:
         self._state = value
         with SignalBlocker(self.widget):
             if value is PackageState.installed:
-                self.widget.setText(self.label + " - " + _("Installed"))
                 self.widget.setStyleSheet(f"color:{green}")
                 self.widget.setEnabled(False)
                 self.widget.setChecked(True)
             else:
-                self.widget.setText(self.label)
                 self.widget.setStyleSheet("")
                 self.widget.setEnabled(True)
                 self.widget.setChecked(value is PackageState.selected)
@@ -618,7 +626,7 @@ class WorkloadsTab(QWidget):
             ModelCheckBox(
                 "Nova Anime XL - " + _("for Anime and illustration"),
                 Arch.illu,
-                "checkpoint-nova-sdxl",
+                "checkpoint-nova-illu",
                 sdxl_layout,
             ),
         ]
@@ -700,10 +708,11 @@ class WorkloadsTab(QWidget):
             ),
         ]
 
+        layout.addStretch()
+
+        self.update_installed()
         for m in self._models:
             m.widget.toggled.connect(self._change_models)
-
-        layout.addStretch()
 
     @staticmethod
     def add_separator(layout: QVBoxLayout):
@@ -891,6 +900,7 @@ class ServerWidget(QWidget):
             settings.server_backend = backend
             settings.save()
             self._server.check_install()
+            self._custom_tab.update_backend()
             self.update_ui()
 
     def _open_logs(self):
