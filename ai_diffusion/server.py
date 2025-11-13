@@ -384,7 +384,8 @@ class Server:
                 resources.upscale_models,
                 resources.optional_models,
             )
-            to_install = (r for r in all_models if r.name in packages)
+            to_install = [r for r in all_models if r.id.string in packages]
+            assert len(to_install) == len(packages), "Some requested models were not found"
             for resource in to_install:
                 if not resource.exists_in(self.path) and not resource.exists_in(self.comfy_dir):
                     await self._install_requirements(resource.requirements, network, cb)
