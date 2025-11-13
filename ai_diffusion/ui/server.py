@@ -2,8 +2,9 @@ from __future__ import annotations
 from copy import copy
 from dataclasses import dataclass
 from enum import Enum
+from itertools import chain
 from pathlib import Path
-from typing import Optional
+from typing import Iterable, Optional
 from PyQt5.QtCore import Qt, QUrl, pyqtSignal
 from PyQt5.QtGui import QDesktopServices
 from PyQt5.QtWidgets import (
@@ -284,7 +285,7 @@ def _backend_supports(backend: ServerBackend, item: PackageItem | ModelResource)
     return True
 
 
-def _enabled_workloads(selected: list[str], required: list[ModelResource], server: Server):
+def _enabled_workloads(selected: list[str], required: Iterable[ModelResource], server: Server):
     workloads = {
         Arch.sd15: True,
         Arch.sdxl: True,
@@ -722,10 +723,9 @@ class WorkloadsTab(QWidget):
         layout.addWidget(line_sep)
 
     def update_installed(self):
+        all_workload_models = resources.required_models + resources.recommended_models
         workload_installed = {
-            arch: self._server.all_installed([
-                m for m in resources.required_models if m.arch is arch
-            ])
+            arch: self._server.all_installed([m for m in all_workload_models if m.arch is arch])
             for arch in (Arch.sd15, Arch.sdxl, Arch.illu, Arch.flux)
         }
         for m in self._models:
@@ -746,14 +746,15 @@ class WorkloadsTab(QWidget):
             if m.state is PackageState.selected:
                 result.append(m.model_id(self._server.backend))
                 archs.append(m.arch)
-        for m in resources.required_models:
+        for m in chain(resources.required_models, resources.recommended_models):
             if m.arch in archs and not self._server.is_installed(m):
                 result.append(m.id.string)
         return result
 
     @selected_models.setter
     def selected_models(self, value: list[str]):
-        workloads = _enabled_workloads(value, resources.required_models, self._server)
+        workload_models = chain(resources.required_models, resources.recommended_models)
+        workloads = _enabled_workloads(value, workload_models, self._server)
         for m in self._models:
             if m.state is not PackageState.installed:
                 if m.model_id(self._server.backend) in value and workloads[m.arch]:
