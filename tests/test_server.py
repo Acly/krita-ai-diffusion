@@ -13,7 +13,7 @@ from ai_diffusion.server import model_dirs
 from ai_diffusion.resources import VerificationState
 from .config import test_dir, server_dir
 
-workload_sd15 = [p.id.string for p in resources.required_models if p.arch is Arch.sd15]
+workload_sd15 = [p.id.string for p in resources.required_models if p.arch in (Arch.all, Arch.sd15)]
 workload_sd15 += [resources.default_checkpoints[0].id.string]
 
 

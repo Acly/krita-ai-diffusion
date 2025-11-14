@@ -285,14 +285,13 @@ def _backend_supports(backend: ServerBackend, item: PackageItem | ModelResource)
     return True
 
 
+def _filter_by_arch(models: Iterable[ModelResource], archs: Arch | Iterable[Arch]):
+    archs = (archs,) if isinstance(archs, Arch) else archs
+    return [m.id.string for m in models if m.arch in archs]
+
+
 def _enabled_workloads(selected: list[str], required: Iterable[ModelResource], server: Server):
-    workloads = {
-        Arch.sd15: True,
-        Arch.sdxl: True,
-        Arch.illu: True,
-        Arch.flux: True,
-        Arch.all: True,
-    }
+    workloads = {arch: True for arch in Arch}
     for m in required:
         if not (m.id.string in selected or server.is_installed(m)):
             workloads[m.arch] = False
@@ -303,6 +302,8 @@ def _enabled_workloads(selected: list[str], required: Iterable[ModelResource], s
 
 class CustomPackageTab(QWidget):
     title = _("Individual Packages")
+    workloads = (Arch.sd15, Arch.sdxl, Arch.flux)
+    workload_models = resources.required_models
 
     selected_models_changed = pyqtSignal()
 
@@ -399,15 +400,14 @@ class CustomPackageTab(QWidget):
         ]
         self._required_group.set_installed(installed_status)
 
-        workloads = [
-            [m for m in resources.required_models if m.arch is Arch.sd15],
-            [m for m in resources.required_models if m.arch is Arch.sdxl],
-            [m for m in resources.required_models if m.arch is Arch.flux],
-        ]
-        self._workload_group.set_installed([self._server.all_installed(w) for w in workloads])
+        self._workload_group.set_installed([
+            self._server.all_installed(_filter_by_arch(self.workload_models, arch))
+            for arch in self.workloads
+        ])
 
+        installed_workloads = self._selected_workloads(installed=True)
         for widget in self._packages.values():
-            widget.workloads = self._selected_workloads(installed=True)
+            widget.workloads = installed_workloads
             widget.backend = self._server.backend
             widget.set_installed([self._server.is_installed(p) for p in widget.package_names])
 
@@ -432,33 +432,22 @@ class CustomPackageTab(QWidget):
         if installed:
             check = (PackageState.selected, PackageState.installed)
         selected_or_installed = [state in check for state in self._workload_group.values]
-        result = []
-        if selected_or_installed[0]:
-            result.append(Arch.sd15)
-        if selected_or_installed[1]:
-            result.append(Arch.sdxl)
-        if selected_or_installed[2]:
-            result.append(Arch.flux)
-        return result
+        return [arch for arch, selected in zip(self.workloads, selected_or_installed) if selected]
 
     @property
     def selected_models(self):
         selected_workloads = [Arch.all] + self._selected_workloads(installed=False)
-        workload_models = [
-            model.id.string
-            for model in resources.required_models
-            if not self._server.is_installed(model) and model.arch in selected_workloads
-        ]
+        workload_models = _filter_by_arch(self.workload_models, selected_workloads)
         optional_models = [
-            p for widget in self._packages.values() for p in widget.selected_packages
+            model for widget in self._packages.values() for model in widget.selected_packages
         ]
         return workload_models + optional_models
 
     @selected_models.setter
     def selected_models(self, value: list[str]):
-        workloads = _enabled_workloads(value, resources.required_models, self._server)
+        workloads = _enabled_workloads(value, self.workload_models, self._server)
         new_states = copy(self._workload_group.values)
-        for i, arch in enumerate([Arch.sd15, Arch.sdxl, Arch.flux]):
+        for i, arch in enumerate(self.workloads):
             if new_states[i] is not PackageState.installed:
                 if workloads[arch]:
                     new_states[i] = PackageState.selected
@@ -582,6 +571,8 @@ class ModelCheckBox:
 
 class WorkloadsTab(QWidget):
     title = _("Workloads")
+    workloads = (Arch.sdxl, Arch.illu, Arch.flux, Arch.sd15)
+    workload_models = resources.required_models + resources.recommended_models
 
     selected_models_changed = pyqtSignal()
 
@@ -723,11 +714,7 @@ class WorkloadsTab(QWidget):
         layout.addWidget(line_sep)
 
     def update_installed(self):
-        all_workload_models = resources.required_models + resources.recommended_models
-        workload_installed = {
-            arch: self._server.all_installed([m for m in all_workload_models if m.arch is arch])
-            for arch in (Arch.sd15, Arch.sdxl, Arch.illu, Arch.flux)
-        }
+        workload_installed = _enabled_workloads([], self.workload_models, self._server)
         for m in self._models:
             id = m.model_id(self._server.backend)
             if workload_installed[m.arch] and self._server.is_installed(id):
@@ -741,20 +728,19 @@ class WorkloadsTab(QWidget):
     @property
     def selected_models(self):
         result: list[str] = []
-        archs = [Arch.all]
+        archs = set([Arch.all])
         for m in self._models:
             if m.state is PackageState.selected:
                 result.append(m.model_id(self._server.backend))
-                archs.append(m.arch)
-        for m in chain(resources.required_models, resources.recommended_models):
+                archs.add(m.arch)
+        for m in self.workload_models:
             if m.arch in archs and not self._server.is_installed(m):
                 result.append(m.id.string)
         return result
 
     @selected_models.setter
     def selected_models(self, value: list[str]):
-        workload_models = chain(resources.required_models, resources.recommended_models)
-        workloads = _enabled_workloads(value, workload_models, self._server)
+        workloads = _enabled_workloads(value, self.workload_models, self._server)
         for m in self._models:
             if m.state is not PackageState.installed:
                 if m.model_id(self._server.backend) in value and workloads[m.arch]:
