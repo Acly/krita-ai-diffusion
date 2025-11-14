@@ -772,7 +772,7 @@ recommended_resource_ids = [
     ResourceId(ResourceKind.controlnet, Arch.sd15, ControlMode.depth),
     ResourceId(ResourceKind.controlnet, Arch.sd15, ControlMode.pose),
     ResourceId(ResourceKind.controlnet, Arch.sdxl, ControlMode.universal),
-    # ResourceId(ResourceKind.controlnet, Arch.illu, ControlMode.inpaint),
+    ResourceId(ResourceKind.controlnet, Arch.illu, ControlMode.inpaint),
     ResourceId(ResourceKind.controlnet, Arch.illu, ControlMode.scribble),
     ResourceId(ResourceKind.controlnet, Arch.illu, ControlMode.line_art),
     ResourceId(ResourceKind.controlnet, Arch.illu, ControlMode.canny_edge),
