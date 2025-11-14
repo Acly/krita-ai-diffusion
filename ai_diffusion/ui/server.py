@@ -491,8 +491,8 @@ class ModelPropsWidget(QWidget):
         layout = QHBoxLayout()
         self.setLayout(layout)
 
-        size_label = QLabel(f"Download: <b>{size} GB</b>", self)
-        size_label.setToolTip(_("Model file size"))
+        size_label = QLabel(f"Install: <b>{size} GB</b>", self)
+        size_label.setToolTip(_("Minimum download and installation size"))
         layout.addWidget(size_label)
 
         vram_label = QLabel(f"VRAM: <b>{vram} GB</b>", self)
@@ -519,7 +519,7 @@ class ModelPropsWidget(QWidget):
         }[fidelity]
         col = {-1: red, 0: yellow, 1: green, 2: green}[fidelity]
         fidelity_label = QLabel(f"Fidelity: <span style='color:{col}'><b>{text}</b></span>", self)
-        fidelity_label.setToolTip(_("Quality of the generated images"))
+        fidelity_label.setToolTip(_("Visual quality of the generated images"))
         layout.addWidget(fidelity_label)
 
         text = {
@@ -600,7 +600,7 @@ class WorkloadsTab(QWidget):
         sdxl_header = QLabel("<b>SDXL - Stable Diffusion XL</b>", self._pkg_sdxl)
         sdxl_layout.addWidget(sdxl_header)
         sdxl_props = ModelPropsWidget(
-            size=12, vram=6, speed=1, fidelity=1, understanding=0, parent=self
+            size=22, vram=6, speed=1, fidelity=1, understanding=0, parent=self
         )
         sdxl_layout.addWidget(sdxl_props)
         desc = (
@@ -641,7 +641,7 @@ class WorkloadsTab(QWidget):
         flux_header = QLabel("<b>FLUX 1</b>", self._pkg_flux)
         flux_layout.addWidget(flux_header)
         flux_props = ModelPropsWidget(
-            size=22, vram=10, speed=-1, fidelity=2, understanding=1, parent=self
+            size=26, vram=10, speed=-1, fidelity=2, understanding=1, parent=self
         )
         flux_layout.addWidget(flux_props)
         desc = _(
@@ -681,7 +681,7 @@ class WorkloadsTab(QWidget):
         sd15_header = QLabel("<b>SD 1.5 - Stable Diffusion 1.5</b>", self._pkg_sd15)
         sd15_layout.addWidget(sd15_header)
         sd15_props = ModelPropsWidget(
-            size=5, vram=4, speed=2, fidelity=-1, understanding=-1, parent=self
+            size=16, vram=4, speed=2, fidelity=-1, understanding=-1, parent=self
         )
         sd15_layout.addWidget(sd15_props)
         desc = (
@@ -873,6 +873,7 @@ class ServerWidget(QWidget):
             settings.save()
             self.update_ui()
             self._custom_tab.update_installed()
+            self._workloads_tab.update_installed()
 
     def _select_location(self):
         path = self._server.path
@@ -970,7 +971,6 @@ class ServerWidget(QWidget):
 
             if self._server.state in [ServerState.not_installed, ServerState.missing_resources]:
                 await self._server.install(self._handle_progress)
-                await self._server.download_required(self._handle_progress)
             self._custom_tab.update_installed()
 
             if len(self.selected_models) > 0:
@@ -1101,7 +1101,8 @@ class ServerWidget(QWidget):
         try:
             await self._server.uninstall(self._handle_progress, delete_models=False)
             await self._server.install(self._handle_progress)
-            await self._server.download_required(self._handle_progress)
+            if len(self.selected_models) > 0:
+                await self._server.download(self.selected_models, self._handle_progress)
         except Exception as e:
             self.show_error(str(e))
         finally:
@@ -1214,6 +1215,10 @@ class ServerWidget(QWidget):
                     )
                 )
                 self._status_label.setStyleSheet(f"color:{red};font-weight:bold")
+                self._launch_button.setEnabled(False)
+            elif not self._server.has_comfy and len(self.selected_models) == 0:
+                self._status_label.setText(_("Please select models for installation"))
+                self._status_label.setStyleSheet(f"color:{yellow};font-weight:bold")
                 self._launch_button.setEnabled(False)
             else:
                 self._launch_button.setEnabled(True)
