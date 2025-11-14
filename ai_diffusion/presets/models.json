@@ -569,6 +569,17 @@
       ]
     },
     {
+      "id": "controlnet-inpaint-illu",
+      "name": "ControlNet Inpaint (Illustrious)",
+      "files": [
+        {
+          "path": "models/controlnet/noobaiInpainting_v10.fp16.safetensors",
+          "url": "https://huggingface.co/Acly/NoobAI-Inpainting/resolve/main/noobaiInpainting_v10.fp16.safetensors",
+          "sha256": "8b3c2155ec8a49b43a8a32dac39a21b8c09ea60a7afaffe3c7a6fb51313a45d6"
+        }
+      ]
+    },
+    {
       "id": "controlnet-scribble-illu",
       "name": "ControlNet Scribble (Illustrious)",
       "files": [
