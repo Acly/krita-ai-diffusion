@@ -13,8 +13,8 @@ from ai_diffusion.server import model_dirs
 from ai_diffusion.resources import VerificationState
 from .config import test_dir, server_dir
 
-workload_sd15 = [p.name for p in resources.required_models if p.arch is Arch.sd15]
-workload_sd15 += [resources.default_checkpoints[0].name]
+workload_sd15 = [p.id.string for p in resources.required_models if p.arch is Arch.sd15]
+workload_sd15 += [resources.default_checkpoints[0].id.string]
 
 
 @pytest.mark.parametrize("mode", ["from_scratch", "resume"])
@@ -81,8 +81,6 @@ def test_install_and_run(qtapp, pytestconfig, local_download_server):
 
     async def main():
         await server.install(handle_progress)
-        assert server.state is ServerState.missing_resources
-        await server.download_required(handle_progress)
         assert server.state is ServerState.missing_resources
         await server.download(workload_sd15, handle_progress)
         assert server.state is ServerState.stopped and server.version == resources.version
@@ -189,7 +187,7 @@ def test_uninstall(qtapp, pytestconfig, local_download_server):
 
     async def main():
         await server.install(handle_progress)
-        await server.download_required(handle_progress)
+        await server.download(workload_sd15, handle_progress)
         await server.uninstall(handle_progress)
         assert server.state is ServerState.not_installed
         assert (temp_server_dir / "models").exists()
