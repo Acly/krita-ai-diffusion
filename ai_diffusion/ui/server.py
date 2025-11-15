@@ -750,6 +750,8 @@ class WorkloadsTab(QWidget):
 
 
 class ServerWidget(QWidget):
+    state_changed = pyqtSignal()
+
     def __init__(self, srv: Server, parent=None):
         super().__init__(parent)
         self._server = srv
@@ -860,6 +862,7 @@ class ServerWidget(QWidget):
             self.update_ui()
             self._custom_tab.update_installed()
             self._workloads_tab.update_installed()
+            self.state_changed.emit()
 
     def _select_location(self):
         path = self._server.path
@@ -890,6 +893,7 @@ class ServerWidget(QWidget):
             self._server.check_install()
             self._custom_tab.update_backend()
             self.update_ui()
+            self.state_changed.emit()
 
     def _open_logs(self):
         QDesktopServices.openUrl(QUrl.fromLocalFile(str(util.log_dir)))
@@ -929,12 +933,14 @@ class ServerWidget(QWidget):
         try:
             url = await self._server.start()
             self.update_ui()
+            self.state_changed.emit()
             self._status_label.setText(_("Server running - Connecting..."))
             self._status_label.setStyleSheet(f"color:{yellow};font-weight:bold")
             await root.connection._connect(url, ServerMode.managed)
         except Exception as e:
             self.show_error(str(e))
         self.update_ui()
+        self.state_changed.emit()
 
     async def _stop(self):
         self._launch_button.setEnabled(False)
@@ -947,6 +953,7 @@ class ServerWidget(QWidget):
         except Exception as e:
             self.show_error(str(e))
         self.update_ui()
+        self.state_changed.emit()
 
     async def _install(self):
         try:
