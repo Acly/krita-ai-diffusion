@@ -1,6 +1,7 @@
-import ai_diffusion.resources as res
+from itertools import chain
 import json
-from ai_diffusion.resources import ModelResource
+import ai_diffusion.resources as res
+from ai_diffusion.resources import Arch, ModelResource
 from .config import result_dir
 
 
@@ -39,3 +40,12 @@ def test_same_name_same_model():
         for o in res.all_models(include_deprecated=True):
             if m is not o and m.name == o.name:
                 assert all(mf.url == of.url for mf, of in zip(m.files, o.files))
+
+
+def test_resource_ids_exist():
+    ids = chain(res.required_resource_ids, res.recommended_resource_ids)
+    for resource_id in ids:
+        if resource_id.arch in (Arch.sd3, Arch.qwen, Arch.qwen_e, Arch.qwen_e_p):
+            continue  # no model downloads yet
+        model = res.find_resource(resource_id)
+        assert model is not None, f"Resource ID {resource_id} not found"
