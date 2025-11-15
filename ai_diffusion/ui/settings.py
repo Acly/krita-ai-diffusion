@@ -14,21 +14,22 @@ from PyQt5.QtWidgets import (
     QLineEdit,
     QSpinBox,
     QStackedWidget,
-    QRadioButton,
     QComboBox,
     QWidget,
     QMessageBox,
     QCheckBox,
     QToolButton,
+    QStyle,
+    QStyleOption,
 )
 from PyQt5.QtCore import Qt, QMetaObject, QSize, QUrl, pyqtSignal
-from PyQt5.QtGui import QDesktopServices, QGuiApplication, QCursor, QFontMetrics
+from PyQt5.QtGui import QDesktopServices, QGuiApplication, QCursor, QFontMetrics, QPainter, QColor
 
 from ..client import Client, User, MissingResources
 from ..cloud_client import CloudClient
 from ..resources import Arch, ResourceId
 from ..settings import Settings, ServerMode, PerformancePreset, settings, ImageFileFormat
-from ..server import Server
+from ..server import Server, ServerState
 from ..style import Style
 from ..root import root
 from ..connection import ConnectionState, apply_performance_preset
@@ -210,25 +211,170 @@ class CloudWidget(QWidget):
         settings.save()
 
 
+_server_mode_text = {
+    ServerMode.undefined: "Undefined",
+    ServerMode.cloud: _("Online Service"),
+    ServerMode.managed: _("Local Managed Server"),
+    ServerMode.external: _("Custom Server"),
+}
+_server_mode_status = {
+    "signed_out": (_("Signed out"), grey),
+    "not_installed": (_("Not installed"), grey),
+    "not_running": (_("Not running"), grey),
+    "not_connected": (_("Not connected"), grey),
+    "connecting": (_("Connecting"), yellow),
+    "connected": (_("Connected"), green),
+    "error": (_("Error"), red),
+}
+
+
+class ServerModeButton(QPushButton):
+    toggled = pyqtSignal(ServerMode)
+
+    def __init__(self, mode: ServerMode, status: str, parent=None):
+        self._text = _server_mode_text[mode]
+        super().__init__(self._text, parent)
+        self.mode = mode
+        self._status = status
+        self._is_checked = False
+
+        font = QFontMetrics(self.font())
+        self._text_width = font.horizontalAdvance(self._text)
+        max_width = max((font.horizontalAdvance(s[0]) for s in _server_mode_status.values()))
+        self.setMinimumWidth(self._text_width + max_width + 32)
+        self.setFixedHeight(int(1.3 * self.sizeHint().height()))
+
+        self.clicked.connect(self._toggle)
+
+    def _toggle(self):
+        self.toggled.emit(self.mode)
+
+    def setChecked(self, a0: bool):
+        self._is_checked = a0
+        self.update()
+
+    def isChecked(self) -> bool:
+        return self._is_checked
+
+    @property
+    def status(self) -> str:
+        return self._status
+
+    @status.setter
+    def status(self, status: str):
+        self._status = status
+        self.update()
+
+    def paintEvent(self, a0):
+        status_text, color = _server_mode_status.get(self._status, (_("Unknown"), red))
+        opt = QStyleOption()
+        opt.initFrom(self)
+        painter = QPainter(self)
+        style = util.ensure(self.style())
+        if self.isChecked():
+            opt.state |= QStyle.StateFlag.State_Sunken
+        style.drawPrimitive(QStyle.PrimitiveElement.PE_PanelButtonCommand, opt, painter, self)
+
+        rect = self.rect().adjusted(8, 0, -8, 0)
+        align = Qt.AlignmentFlag.AlignLeft | Qt.AlignmentFlag.AlignVCenter
+        bold = self.font()
+        bold.setBold(True)
+        painter.setFont(bold)
+        painter.drawText(rect, align, self._text)
+        rect.setLeft(rect.left() + self._text_width + 12)
+        painter.setPen(QColor(color))
+        painter.setFont(self.font())
+        painter.drawText(rect, align, status_text)
+        painter.end()
+
+
+class ServerModeSelect(QWidget):
+    changed = pyqtSignal(ServerMode)
+
+    def __init__(self, parent=None):
+        super().__init__(parent)
+
+        layout = QHBoxLayout()
+        layout.setContentsMargins(0, 0, 0, 0)
+        self.setLayout(layout)
+
+        self._cloud_button = ServerModeButton(ServerMode.cloud, "signed_out", self)
+        self._managed_button = ServerModeButton(ServerMode.managed, "not_installed", self)
+        self._external_button = ServerModeButton(ServerMode.external, "not_connected", self)
+
+        for button in (self._cloud_button, self._managed_button, self._external_button):
+            button.toggled.connect(self._change_mode)
+
+        layout.addWidget(self._cloud_button)
+        layout.addWidget(self._managed_button)
+        layout.addWidget(self._external_button)
+        layout.addStretch()
+
+    def _change_mode(self, mode: ServerMode):
+        self.mode = mode
+        self.changed.emit(mode)
+
+    @property
+    def mode(self):
+        if self._cloud_button.isChecked():
+            return ServerMode.cloud
+        elif self._managed_button.isChecked():
+            return ServerMode.managed
+        elif self._external_button.isChecked():
+            return ServerMode.external
+        return ServerMode.undefined
+
+    @mode.setter
+    def mode(self, mode: ServerMode):
+        self._cloud_button.setChecked(mode is ServerMode.cloud)
+        self._managed_button.setChecked(mode is ServerMode.managed)
+        self._external_button.setChecked(mode is ServerMode.external)
+
+    def update_status(self, state: ConnectionState, server_state: ServerState):
+        self._cloud_button.status = "signed_out"
+        self._external_button.status = "not_connected"
+        match server_state:
+            case ServerState.not_installed:
+                self._managed_button.status = "not_installed"
+            case ServerState.stopped:
+                self._managed_button.status = "not_running"
+            case _:
+                self._managed_button.status = "not_connected"
+
+        match self.mode, state, server_state:
+            case ServerMode.cloud, ConnectionState.auth_missing | ConnectionState.auth_error, _:
+                self._cloud_button.status = "signed_out"
+            case ServerMode.cloud, ConnectionState.auth_pending, _:
+                self._cloud_button.status = "connecting"
+            case ServerMode.cloud, ConnectionState.connected, _:
+                self._cloud_button.status = "connected"
+            case ServerMode.cloud, ConnectionState.error, _:
+                self._cloud_button.status = "error"
+            case ServerMode.managed, _, ServerState.starting:
+                self._managed_button.status = "connecting"
+            case ServerMode.managed, ConnectionState.connecting, _:
+                self._managed_button.status = "connecting"
+            case ServerMode.managed, ConnectionState.connected, ServerState.running:
+                self._managed_button.status = "connected"
+            case ServerMode.managed, ConnectionState.error, _:
+                self._managed_button.status = "error"
+            case ServerMode.external, ConnectionState.disconnected, _:
+                self._external_button.status = "disconnected"
+            case ServerMode.external, ConnectionState.connecting, _:
+                self._external_button.status = "connecting"
+            case ServerMode.external, ConnectionState.connected, _:
+                self._external_button.status = "connected"
+            case ServerMode.external, ConnectionState.error, _:
+                self._external_button.status = "error"
+
+
 class ConnectionSettings(SettingsTab):
     def __init__(self, server: Server):
         super().__init__(_("Server Configuration"))
+        self._server = server
 
-        self._server_cloud = QRadioButton(_("Online Service"), self)
-        self._server_managed = QRadioButton(_("Local Managed Server"), self)
-        self._server_external = QRadioButton(_("Custom Server (local or remote)"), self)
-        info_cloud = QLabel(_("Generate images via GPU Cloud Service"), self)
-        info_managed = QLabel(
-            _("Let the Krita plugin install and run a local server on your machine"), self
-        )
-        info_external = QLabel(
-            _("Connect to a running ComfyUI instance which you set up and maintain yourself"), self
-        )
-        for button in (self._server_cloud, self._server_managed, self._server_external):
-            button.setStyleSheet("font-weight:bold")
-            button.toggled.connect(self._change_server_mode)
-        for label in (info_cloud, info_managed, info_external):
-            label.setContentsMargins(20, 0, 0, 0)
+        self._server_mode = ServerModeSelect(self)
+        self._server_mode.changed.connect(self._change_server_mode)
 
         self._cloud_widget = CloudWidget(self)
         self._server_widget = ServerWidget(server, self)
@@ -289,36 +435,18 @@ class ConnectionSettings(SettingsTab):
         connection_layout.addWidget(self._client_id)
         connection_layout.addStretch()
 
-        self._layout.addWidget(self._server_managed)
-        self._layout.addWidget(info_managed)
-        self._layout.addWidget(self._server_external)
-        self._layout.addWidget(info_external)
-        self._layout.addWidget(self._server_cloud)
-        self._layout.addWidget(info_cloud)
+        self._layout.addWidget(self._server_mode)
         self._layout.addWidget(self._server_stack)
+
+        self.update_server_status()
+        self._update_server_mode(settings.server_mode)
 
         root.connection.state_changed.connect(self.update_server_status)
         root.connection.error_changed.connect(self.update_server_status)
         root.connection.progress_changed.connect(self.update_server_status)
-        self.update_server_status()
+        self._server_widget.state_changed.connect(self.update_server_status)
 
-    @property
-    def server_mode(self):
-        if self._server_cloud.isChecked():
-            return ServerMode.cloud
-        elif self._server_managed.isChecked():
-            return ServerMode.managed
-        elif self._server_external.isChecked():
-            return ServerMode.external
-        else:
-            return ServerMode.undefined
-
-    @server_mode.setter
-    def server_mode(self, mode: ServerMode):
-        if self.server_mode != mode:
-            self._server_cloud.setChecked(mode is ServerMode.cloud)
-            self._server_managed.setChecked(mode is ServerMode.managed)
-            self._server_external.setChecked(mode is ServerMode.external)
+    def _update_server_mode(self, mode: ServerMode):
         widget = {
             ServerMode.cloud: self._cloud_widget,
             ServerMode.managed: self._server_widget,
@@ -331,20 +459,17 @@ class ConnectionSettings(SettingsTab):
         self._server_widget.update_ui()
 
     def _read(self):
-        self.server_mode = settings.server_mode
+        self._server_mode.mode = settings.server_mode
+        self._server_mode.update_status(root.connection.state, self._server.state)
+        self._update_server_mode(settings.server_mode)
         self._server_url.setText(settings.server_url)
 
     def _write(self):
-        settings.server_mode = self.server_mode
+        settings.server_mode = self._server_mode.mode
         settings.server_url = self._server_url.text()
 
-    def _change_server_mode(self, checked: bool):
-        if self._server_cloud.isChecked():
-            self.server_mode = ServerMode.cloud
-        elif self._server_managed.isChecked():
-            self.server_mode = ServerMode.managed
-        elif self._server_external.isChecked():
-            self.server_mode = ServerMode.external
+    def _change_server_mode(self):
+        self._update_server_mode(self._server_mode.mode)
         self.write()
 
     def _connect(self):
@@ -352,6 +477,7 @@ class ConnectionSettings(SettingsTab):
 
     def update_server_status(self):
         connection = root.connection
+        self._server_mode.update_status(connection.state, self._server.state)
         self._cloud_widget.update_connection_state(connection.state)
         self._connect_button.setEnabled(True)
         self._client_id.setVisible(False)
