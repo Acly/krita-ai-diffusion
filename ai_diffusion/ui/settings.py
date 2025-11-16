@@ -44,6 +44,78 @@ from .style import StylePresets
 from .theme import add_header, logo, red, yellow, green, grey
 
 
+class InitialSetupWidget(QWidget):
+    finished = pyqtSignal(ServerMode)
+
+    def __init__(self, parent=None):
+        super().__init__(parent)
+
+        layout = QVBoxLayout()
+        layout.setContentsMargins(12, 12, 12, 0)
+        self.setLayout(layout)
+
+        label_title = QLabel("<b>" + _("Welcome to Image Generation in Krita") + "</b>", self)
+        label_sub = QLabel(
+            _(
+                "To create images, the plugin needs to connect to a backend server. Please choose one of the options below (you can always switch later)."
+            ),
+            self,
+        )
+        label_sub.setWordWrap(True)
+        layout.addWidget(label_title)
+        layout.addWidget(label_sub)
+        layout.addSpacing(20)
+
+        def add_option(title: str, desc_text: str, button_text: str, mode: ServerMode):
+            header = QLabel("<b>" + title + "</b>", self)
+            desc = QLabel(desc_text, self)
+            desc.setMaximumWidth(600)
+            desc.setWordWrap(True)
+            button = QPushButton(button_text, self)
+            button.setMinimumHeight(int(1.3 * button.sizeHint().height()))
+            button.setMaximumWidth(300)
+            button.clicked.connect(self._choose(mode))
+            layout.addWidget(header)
+            layout.addWidget(desc)
+            layout.addWidget(button)
+            layout.addSpacing(16)
+
+        add_option(
+            _("Option {number}", number=1) + ": " + _("Online Service"),
+            _(
+                "Generate images via {link}. Create an account to get started. No local installation or powerful hardware needed.",
+                link="<a href='https://www.interstice.cloud'>interstice.cloud</a>",
+            ),
+            _("Login or Sign up"),
+            ServerMode.cloud,
+        )
+        add_option(
+            _("Option {number}", number=2) + ": " + _("Local Managed Server"),
+            _(
+                "Install and run a local ComfyUI server on your machine. Installation and updates are performed automatically by the plugin. Requires a compatible GPU (NVIDIA with at least 6GB VRAM recommended)."
+            ),
+            _("Start Installation"),
+            ServerMode.managed,
+        )
+        add_option(
+            _("Option {number}", number=3) + ": " + _("Custom ComfyUI"),
+            _(
+                "Connect to an existing installation of ComfyUI. It can be on the same machine, or a remote machine over the network. You are responsible to setup ComfyUI and install required custom nodes and models.<br><a href='https://docs.interstice.cloud/comfyui-setup'>ComfyUI Setup Guide</a>"
+            ),
+            _("Connect via URL"),
+            ServerMode.external,
+        )
+        layout.addStretch()
+
+    def _choose(self, mode: ServerMode):
+        def handler():
+            settings.server_mode = mode
+            settings.save()
+            self.finished.emit(mode)
+
+        return handler
+
+
 class UserWidget(QFrame):
     _user: User | None = None
     _connections: list[QMetaObject.Connection | Binding]
@@ -276,15 +348,17 @@ class ServerModeButton(QPushButton):
         style.drawPrimitive(QStyle.PrimitiveElement.PE_PanelButtonCommand, opt, painter, self)
 
         rect = self.rect().adjusted(8, 0, -8, 0)
-        align = Qt.AlignmentFlag.AlignLeft | Qt.AlignmentFlag.AlignVCenter
         bold = self.font()
         bold.setBold(True)
         painter.setFont(bold)
-        painter.drawText(rect, align, self._text)
-        rect.setLeft(rect.left() + self._text_width + 12)
+        painter.drawText(
+            rect, Qt.AlignmentFlag.AlignLeft | Qt.AlignmentFlag.AlignVCenter, self._text
+        )
         painter.setPen(QColor(color))
         painter.setFont(self.font())
-        painter.drawText(rect, align, status_text)
+        painter.drawText(
+            rect, Qt.AlignmentFlag.AlignRight | Qt.AlignmentFlag.AlignVCenter, status_text
+        )
         painter.end()
 
 
@@ -376,15 +450,18 @@ class ConnectionSettings(SettingsTab):
         self._server_mode = ServerModeSelect(self)
         self._server_mode.changed.connect(self._change_server_mode)
 
+        self._setup_widget = InitialSetupWidget(self)
         self._cloud_widget = CloudWidget(self)
         self._server_widget = ServerWidget(server, self)
         self._connection_widget = QWidget(self)
         self._server_stack = QStackedWidget(self)
+        self._server_stack.addWidget(self._setup_widget)
         self._server_stack.addWidget(self._cloud_widget)
         self._server_stack.addWidget(self._server_widget)
         self._server_stack.addWidget(self._connection_widget)
 
         connection_layout = QVBoxLayout()
+        connection_layout.setContentsMargins(0, 0, 0, 0)
         self._connection_widget.setLayout(connection_layout)
 
         add_header(connection_layout, Settings._server_url)
@@ -444,14 +521,20 @@ class ConnectionSettings(SettingsTab):
         root.connection.state_changed.connect(self.update_server_status)
         root.connection.error_changed.connect(self.update_server_status)
         root.connection.progress_changed.connect(self.update_server_status)
+        self._setup_widget.finished.connect(self._setup_finished)
         self._server_widget.state_changed.connect(self.update_server_status)
 
+    def _setup_finished(self, mode: ServerMode):
+        self._server_mode.mode = mode
+        self._update_server_mode(mode)
+
     def _update_server_mode(self, mode: ServerMode):
+        self._server_mode.setVisible(mode is not ServerMode.undefined)
         widget = {
             ServerMode.cloud: self._cloud_widget,
             ServerMode.managed: self._server_widget,
             ServerMode.external: self._connection_widget,
-            ServerMode.undefined: self._connection_widget,
+            ServerMode.undefined: self._setup_widget,
         }[mode]
         self._server_stack.setCurrentWidget(widget)
 
@@ -757,9 +840,9 @@ class PerformanceSettings(SettingsTab):
 
         self._advanced = QWidget(self)
         self._advanced.setEnabled(settings.performance_preset is PerformancePreset.custom)
-        self._advanced.setContentsMargins(0, 0, 0, 0)
         self._layout.addWidget(self._advanced)
         advanced_layout = QVBoxLayout()
+        advanced_layout.setContentsMargins(8, 0, 0, 4)
         self._advanced.setLayout(advanced_layout)
 
         self._batch_size = SliderSetting(Settings._batch_size, self._advanced, 1, 16)
@@ -1009,10 +1092,11 @@ class SettingsDialog(QDialog):
         type(self)._instance = self
 
         self.setWindowTitle(_("Configure Image Diffusion"))
-        self.setMinimumSize(QSize(840, 480))
+        self.setMinimumSize(QSize(960, 480))
         if screen := QGuiApplication.screenAt(QCursor.pos()):
             size = screen.availableSize()
-            self.resize(QSize(max(900, int(size.width() * 0.6)), int(size.height() * 0.8)))
+            min_w = min(size.width(), QFontMetrics(self.font()).height() * 50)
+            self.resize(QSize(max(min_w, int(size.width() * 0.6)), int(size.height() * 0.8)))
 
         layout = QHBoxLayout()
         self.setLayout(layout)

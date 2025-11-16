@@ -478,6 +478,7 @@ class ModelPropsWidget(QWidget):
         super().__init__(parent)
 
         layout = QHBoxLayout()
+        layout.setSpacing(4)
         self.setLayout(layout)
 
         size_label = QLabel(f"Install: <b>{size} GB</b>", self)
@@ -759,6 +760,7 @@ class ServerWidget(QWidget):
         self._selected_models: list[str] = []
 
         layout = QVBoxLayout(self)
+        layout.setContentsMargins(0, 0, 0, 0)
 
         add_header(layout, Settings._server_path)
 
