@@ -1335,6 +1335,8 @@ def _convert_ui_workflow(w: dict, node_inputs: ComfyObjectInfo):
                 widget_count += 1
                 if len(values) > widget_count and values[widget_count] in _control_after_generate:
                     widget_count += 1
+                if type == "ETN_Parameter" and widget_count >= len(values):
+                    break  # min/max widgets are not visible for non-numeric parameters
 
             for connection in node["inputs"]:
                 if connection["name"] == field_name and connection["link"] is not None:
