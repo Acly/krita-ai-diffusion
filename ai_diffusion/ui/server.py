@@ -2,7 +2,6 @@ from __future__ import annotations
 from copy import copy
 from dataclasses import dataclass
 from enum import Enum
-from itertools import chain
 from pathlib import Path
 from typing import Iterable, Optional
 from PyQt5.QtCore import Qt, QUrl, pyqtSignal
