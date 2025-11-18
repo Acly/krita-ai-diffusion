@@ -150,6 +150,23 @@ class UserWidget(QFrame):
         image_remaining_layout.addWidget(QLabel(_("Image tokens remaining:"), self), 0)
         image_remaining_layout.addWidget(self._tokens_remaining, 1)
         layout.addLayout(image_remaining_layout)
+        layout.addSpacing(8)
+
+        buy_layout = QHBoxLayout()
+        layout.addLayout(buy_layout)
+
+        self._buy_tokens5000_button = QPushButton(_("Buy Tokens (5000)"), self)
+        self._buy_tokens5000_button.clicked.connect(lambda: self._buy_tokens("5000"))
+        buy_layout.addWidget(self._buy_tokens5000_button, 1)
+
+        self._buy_tokens15000_button = QPushButton(_("Buy Tokens (15000)"), self)
+        self._buy_tokens15000_button.clicked.connect(lambda: self._buy_tokens("15000"))
+        buy_layout.addWidget(self._buy_tokens15000_button, 1)
+
+        self._account_button = QPushButton(_("View Account"), self)
+        self._account_button.setMinimumWidth(200)
+        self._account_button.clicked.connect(self._view_account)
+        layout.addWidget(self._account_button)
 
         self._logout_button = QPushButton(_("Sign out"), self)
         self._logout_button.setMinimumWidth(200)
@@ -180,6 +197,12 @@ class UserWidget(QFrame):
         self._images_generated.setText(str(user.images_generated))
         self._tokens_remaining.setText(str(user.credits))
 
+    def _view_account(self):
+        QDesktopServices.openUrl(QUrl(CloudClient.default_web_url + "/user"))
+
+    def _buy_tokens(self, amount: str):
+        QDesktopServices.openUrl(QUrl(f"{CloudClient.default_web_url}/checkout/tokens{amount}"))
+
     def _logout(self):
         eventloop.run(self._disconnect_and_logout())
 
@@ -199,11 +222,13 @@ class CloudWidget(QWidget):
         self.setLayout(layout)
 
         service_url = CloudClient.default_web_url
-        service_url_text = service_url.removeprefix("https://").removesuffix("/")
-        service_label = QLabel(f"<a href='{service_url}'>{service_url_text}</a>", self)
-        service_label.setStyleSheet("font-size: 12pt")
-        service_label.setTextFormat(Qt.TextFormat.RichText)
+        service_url_text = (
+            service_url.removeprefix("https://").removeprefix("www.").removesuffix("/")
+        )
+        header = QLabel(f"<b>{service_url_text}</b>", self)
+        service_label = QLabel(f"<a href='{service_url}'>Visit Website</a>", self)
         service_label.setOpenExternalLinks(True)
+        layout.addWidget(header)
         layout.addWidget(service_label)
 
         self._connection_status = QLabel(self)
