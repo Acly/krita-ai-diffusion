@@ -115,6 +115,15 @@ def list_models(
     return models
 
 
+def detect_backend():
+    devices = platform_tools.get_cuda_devices()
+    if any(major >= 10 for (major, minor) in devices):  # Blackwell has compute capability 10.x
+        return ModelRequirements.cuda_fp4
+    elif len(devices) > 0:
+        return ModelRequirements.cuda
+    return ModelRequirements.no_cuda
+
+
 def _progress(name: str, size: int | None, index=0):
     return tqdm(total=size, unit="B", unit_scale=True, unit_divisor=1024, desc=name, position=index)
 
@@ -290,11 +299,7 @@ if __name__ == "__main__":
 
     backend = ModelRequirements.no_cuda
     if args.backend == "auto":
-        devices = platform_tools.get_cuda_devices()
-        if any(major >= 10 for (major, minor) in devices):  # Blackwell has compute capability 10.x
-            backend = ModelRequirements.cuda_fp4
-        elif len(devices) > 0:
-            backend = ModelRequirements.cuda
+        backend = detect_backend()
     elif args.backend == "cuda":
         backend = ModelRequirements.cuda
     elif args.backend == "cuda_fp4":
