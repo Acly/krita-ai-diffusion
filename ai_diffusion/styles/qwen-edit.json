@@ -3,6 +3,7 @@
     "version": 1,
     "architecture": "auto",
     "checkpoints": [
+        "Qwen-Image-Edit",
         "qwen_image_edit_2509_bf16.safetensors",
         "qwen_image_edit_2509_fp8_e4m3fn.safetensors",
         "qwen_image_edit_bf16.safetensors",

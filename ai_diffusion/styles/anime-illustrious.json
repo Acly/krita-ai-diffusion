@@ -4,6 +4,7 @@
     "architecture": "illu",
     "checkpoints": [
         "novaAnimeXL_ilV125.safetensors",
+        "Nova-Anime-XL",
         "noobaiXLNAIXL_epsilonPred10Version.safetensors",
         "noobaiXLNAIXL_epsilonPred11Version.safetensors"
     ],

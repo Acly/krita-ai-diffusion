@@ -4,6 +4,7 @@
     "architecture": "auto",
     "checkpoints": [
         "zavychromaxl_v80.safetensors",
+        "ZavyChroma-XL",
         "pixelwave_11.safetensors"
     ],
     "loras": [],
