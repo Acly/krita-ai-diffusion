@@ -5,6 +5,7 @@ description: How to download and install the Generative AI for Krita plugin
 import { Aside, Steps } from '@astrojs/starlight/components';
 import { Icon } from 'astro-icon/components'
 import ExternalLink from '../../components/ExternalLink.astro';
+import ImageSample from '../../components/ImageSample.astro';
 import Soft from '../../components/Soft.astro';
 import Hint from '../../components/Hint.astro';
 
@@ -54,7 +55,7 @@ This is a step-by-step guide for downloading and installing the Generative AI pl
     
     To generate images you also need a backend server. Click Configure to choose between multiple options:
 
-    ![Server options](../../assets/installation/server-options.webp)
+    <ImageSample src="installation/server-options.png" alt="Server options" scale="1.5" />
     
     * **Local Managed Server**
 
@@ -81,7 +82,7 @@ This is a step-by-step guide for downloading and installing the Generative AI pl
     Press the Sign in button. This should open your browser, where you need to
     log in, or sign up for an account.
 
-    ![Sign in](../../assets/installation/sign-in.webp)
+    <ImageSample src="installation/sign-in.png" alt="Sign in" scale="1.5" />
     
     Once done, you should see the confirmation screen and can start generating
     images!
@@ -162,9 +163,11 @@ These steps are only required if you selected **Local Managed Server** as the ba
         <Soft>Keep in mind AI models can be very large, 10GB is a minimum, 50GB+ not unusual depending on optional packages.</Soft>
     2. Choose a backend. CUDA only works for NVIDIA GPUs. Use DirectML for AMD.
         <Soft>Make sure to do this _before_ you install!</Soft>
-    3. Select packages. You need at least one workload and one checkpoint.<br />
-        <Soft>Everything else is optional and will considerably increase download size. You can come back later and add packages at any time.</Soft>
-    4. Click install!
+    3. Select workloads to install.<br />
+        <Soft>Workloads install a set of recommended models along with your choice. Download and installation size will increase the more models you select.</Soft>
+    4. (Optional) Customize packages to install.<br />
+        <Soft>The "Individual Packages" tab allows to select/deselect specific models. You can skip this at first and come back later to install additional packages.</Soft>
+    5. Click install!
     
-    ![Local install](../../assets/installation/local-install.webp)
+    <ImageSample src="installation/local-install.png" alt="Local install" scale="1.5" />
 </Steps>
