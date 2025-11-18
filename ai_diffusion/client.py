@@ -14,7 +14,7 @@ from .settings import PerformanceSettings
 from .resources import ControlMode, ResourceKind, Arch, UpscalerName
 from .resources import CustomNode, ResourceId
 from .localization import translate as _
-from .util import client_logger as log
+from .util import client_logger as log, ensure
 
 
 class ClientEvent(Enum):
@@ -122,6 +122,23 @@ class CheckpointInfo(NamedTuple):
     def name(self):
         return self.filename.removesuffix(".safetensors")
 
+    def to_dict(self):
+        return {
+            "filename": self.filename,
+            "arch": self.arch.name,
+            "format": self.format.name,
+            "quantization": self.quantization.name,
+        }
+
+    @staticmethod
+    def from_dict(data: dict):
+        return CheckpointInfo(
+            data["filename"],
+            ensure(Arch.from_string(data["arch"])),
+            FileFormat[data.get("format", "checkpoint")],
+            Quantization.from_string(data.get("quantization", "none")),
+        )
+
     @staticmethod
     def deduce_from_filename(filename: str):
         return CheckpointInfo(filename, Arch.from_checkpoint_name(filename), FileFormat.checkpoint)
@@ -137,6 +154,18 @@ class ClientModels:
         self.upscalers: list[str] = []
         self.node_inputs = ComfyObjectInfo({})
         self.resources: dict[str, str | None] = {}
+
+    @staticmethod
+    def from_dict(data: dict):
+        models = ClientModels()
+        models.checkpoints = {
+            k: CheckpointInfo.from_dict(v) for k, v in data.get("checkpoints", {}).items()
+        }
+        models.vae = data.get("vae", [])
+        models.loras = data.get("loras", [])
+        models.upscalers = data.get("upscalers", [])
+        models.resources = data.get("resources", {})
+        return models
 
     def resource(
         self, kind: ResourceKind, identifier: ControlMode | UpscalerName | str, arch: Arch
