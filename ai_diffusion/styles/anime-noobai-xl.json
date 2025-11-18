@@ -4,6 +4,7 @@
     "architecture": "auto",
     "checkpoints": [
         "NoobAI-XL-Vpred-v1.0.safetensors",
+        "NoobAI-XL-Vpred",
         "noobaiXLNAIXL_vPred10Version.safetensors"
     ],
     "loras": [],

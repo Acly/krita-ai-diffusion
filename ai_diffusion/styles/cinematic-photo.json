@@ -4,6 +4,7 @@
     "architecture": "auto",
     "checkpoints": [
         "serenity_v21Safetensors.safetensors",
+        "Serenity",
         "realisticVisionV60B1_v60B1VAE.safetensors",
         "realisticVisionV51_v51VAE.safetensors"
     ],

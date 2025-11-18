@@ -3,6 +3,7 @@
     "version": 1,
     "architecture": "auto",
     "checkpoints": [
+        "Qwen-Image",
         "qwen_image_bf16.safetensors",
         "qwen_image_fp8_e4m3fn.safetensors",
         "svdq-fp4_r128-qwen-image.safetensors",
