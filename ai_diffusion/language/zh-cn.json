@@ -520,13 +520,13 @@
     "Copy to clipboard": "复制到剪贴板",
     "Select an alternative style to use for for instruction-based editing": "选择用于基于指令的编辑的替代样式",
     "Linked Edit Style": "链接的编辑样式",
-    "Are you sure you want to discard the selected images?": null,
-    "Negative Prompt (Evaluated)": null,
-    "Layer not found": null,
-    "Prompt (Evaluated)": null,
-    "Control Layers": null,
-    "Copy Prompt (Evaluated)": null,
-    "Discovering models": null,
-    "Previous installation is incomplete": null
+    "Are you sure you want to discard the selected images?": "您确定要丢弃所选图像吗？",
+    "Negative Prompt (Evaluated)": "负面提示词（计算后）",
+    "Layer not found": "找不到图层",
+    "Prompt (Evaluated)": "提示词（计算后）",
+    "Control Layers": "控制图层",
+    "Copy Prompt (Evaluated)": "复制提示词（计算后）",
+    "Discovering models": "探索模型中",
+    "Previous installation is incomplete": "以前的安装不完整"
   }
 }
