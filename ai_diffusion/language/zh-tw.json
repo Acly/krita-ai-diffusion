@@ -520,13 +520,13 @@
     "Copy to clipboard": "複製到剪貼簿",
     "Select an alternative style to use for for instruction-based editing": "選取用於基於指令編輯的替代風格",
     "Linked Edit Style": "連結的編輯風格",
-    "Are you sure you want to discard the selected images?": null,
-    "Negative Prompt (Evaluated)": null,
-    "Layer not found": null,
-    "Prompt (Evaluated)": null,
-    "Control Layers": null,
-    "Copy Prompt (Evaluated)": null,
-    "Discovering models": null,
-    "Previous installation is incomplete": null
+    "Are you sure you want to discard the selected images?": "您確定要捨棄所選的影像嗎？",
+    "Negative Prompt (Evaluated)": "反向提示詞（計算後）",
+    "Layer not found": "找不到圖層",
+    "Prompt (Evaluated)": "提示詞（計算後）",
+    "Control Layers": "控制圖層",
+    "Copy Prompt (Evaluated)": "複製提示詞（計算後）",
+    "Discovering models": "探索模型中",
+    "Previous installation is incomplete": "先前的安裝不完整"
   }
 }
