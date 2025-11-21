@@ -9,8 +9,8 @@
         "noobaiXLNAIXL_epsilonPred11Version.safetensors"
     ],
     "loras": [],
-    "style_prompt": "masterpiece, best quality, amazing quality, 4k, very aesthetic, high resolution, newest, {prompt}",
-    "negative_prompt": "worst quality, worst aesthetic, bad quality, normal quality, average quality, oldest, old, early, very displeasing, displeasing",
+    "style_prompt": "{prompt}, masterpiece, best quality, recent, newest, absurdres, highres",
+    "negative_prompt": "nsfw, explicit, worst quality, worst aesthetic, bad quality, average quality, oldest, old, very displeasing, displeasing",
     "vae": "Checkpoint Default",
     "clip_skip": 0,
     "v_prediction_zsnr": false,
