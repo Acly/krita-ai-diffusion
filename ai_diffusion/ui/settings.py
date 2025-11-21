@@ -100,8 +100,9 @@ class InitialSetupWidget(QWidget):
         add_option(
             _("Option {number}", number=3) + ": " + _("Custom ComfyUI"),
             _(
-                "Connect to an existing installation of ComfyUI. It can be on the same machine, or a remote machine over the network. You are responsible to setup ComfyUI and install required custom nodes and models.<br><a href='https://docs.interstice.cloud/comfyui-setup'>ComfyUI Setup Guide</a>"
-            ),
+                "Connect to an existing installation of ComfyUI. It can be on the same machine, or a remote machine over the network. You are responsible to setup ComfyUI and install required custom nodes and models."
+            )
+            + "<br><a href='https://docs.interstice.cloud/comfyui-setup'>ComfyUI Setup Guide</a>",
             _("Connect via URL"),
             ServerMode.external,
         )
@@ -155,11 +156,11 @@ class UserWidget(QFrame):
         buy_layout = QHBoxLayout()
         layout.addLayout(buy_layout)
 
-        self._buy_tokens5000_button = QPushButton(_("Buy Tokens (5000)"), self)
+        self._buy_tokens5000_button = QPushButton(_("Buy Tokens") + " (5000)", self)
         self._buy_tokens5000_button.clicked.connect(lambda: self._buy_tokens("5000"))
         buy_layout.addWidget(self._buy_tokens5000_button, 1)
 
-        self._buy_tokens15000_button = QPushButton(_("Buy Tokens (15000)"), self)
+        self._buy_tokens15000_button = QPushButton(_("Buy Tokens") + " (15000)", self)
         self._buy_tokens15000_button.clicked.connect(lambda: self._buy_tokens("15000"))
         buy_layout.addWidget(self._buy_tokens15000_button, 1)
 

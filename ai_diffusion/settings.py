@@ -187,8 +187,8 @@ class Settings(QObject):
         _("Server Path"),
         str(user_data_dir / "server"),
         _(
-            "Directory where ComfyUI will be installed. At least 16 GB of free disk space is required for a minimal installation."
-        ),
+            "Directory where ComfyUI will be installed. At least {size} GB of free disk space is required for a minimal installation."
+        ).format(size=16),
     )
 
     server_url: str

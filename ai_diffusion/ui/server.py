@@ -636,7 +636,7 @@ class WorkloadsTab(QWidget):
         )
         flux_layout.addWidget(flux_props)
         desc = _(
-            "Strong base model with consistently high-quality compositions and details. Good understanding of natural language (English). Limited flexibility for certain art styles."
+            "Strong base model with consistent high-quality compositions and details. Good understanding of natural language (English). Limited flexibility for art styles."
         )
         flux_desc = QLabel(desc, self._pkg_flux)
         flux_desc.setWordWrap(True)
