@@ -8,19 +8,17 @@ from base64 import b64encode
 from copy import copy
 from datetime import datetime
 from dataclasses import dataclass
-from itertools import chain
 
 from .api import WorkflowInput
-from .client import Client, ClientEvent, ClientMessage, ClientModels, DeviceInfo, CheckpointInfo
+from .client import Client, ClientEvent, ClientMessage, ClientModels, DeviceInfo
 from .client import ClientFeatures, TranslationPackage, User, loras_to_upload
 from .image import ImageCollection, qt_supports_webp
 from .network import RequestManager, NetworkError
 from .files import File
-from .resources import Arch, ResourceKind, ControlMode, UpscalerName, resource_id
 from .settings import PerformanceSettings, settings
 from .localization import translate as _
 from .util import clamp, ensure, client_logger as log
-from . import resources, __version__ as plugin_version
+from . import __version__ as plugin_version
 
 
 @dataclass
