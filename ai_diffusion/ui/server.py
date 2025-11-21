@@ -648,7 +648,7 @@ class WorkloadsTab(QWidget):
                 (
                     "checkpoint-flux_dev-flux",
                     "checkpoint-flux_dev_nunchaku-flux",
-                    "checkpoinot-flux_dev_nunchaku_fp4-flux",
+                    "checkpoint-flux_dev_nunchaku_fp4-flux",
                 ),
                 flux_layout,
             ),
