@@ -278,9 +278,13 @@ class QueueButton(QToolButton):
             else:
                 self.setToolTip(_("Generating image.") + f" {cancel_msg}")
             count += 1
+        elif count > 0:
+            self.setIcon(theme.icon("queue-waiting"))
+            self.setToolTip(f"{queued_msg} {cancel_msg}")
         else:
             self.setIcon(theme.icon("queue-inactive"))
             self.setToolTip(_("Idle."))
+
         self.setText(f"{count} ")
 
     def sizeHint(self) -> QSize:
