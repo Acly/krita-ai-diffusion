@@ -8,6 +8,7 @@ from base64 import b64encode
 from copy import copy
 from datetime import datetime
 from dataclasses import dataclass
+from typing import Iterable
 
 from .api import WorkflowInput
 from .client import Client, ClientEvent, ClientMessage, ClientModels, DeviceInfo
@@ -220,7 +221,7 @@ class CloudClient(Client):
                 response = await self._post(f"cancel/{job.worker_id}/{job.remote_id}", {})
                 log.info(f"Requested cancellation of {job}: {response}")
 
-    async def clear_queue(self):
+    async def cancel(self, job_ids: Iterable[str]):
         self._queue = asyncio.Queue()
 
     @property

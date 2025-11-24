@@ -285,8 +285,8 @@ class Model(QObject, ObservableProperties):
         queue_mode = queue_mode or self.queue_mode
 
         if queue_mode is QueueMode.replace:
-            await self._connection.client.clear_queue()
-            self.clear_queued()
+            if to_cancel := self.clear_queued():
+                await self._connection.client.cancel(to_cancel)
             queue_mode = QueueMode.back
 
         for i in range(count):
@@ -535,8 +535,9 @@ class Model(QObject, ObservableProperties):
         return job
 
     def cancel(self, active=False, queued=False):
-        if queued and self.clear_queued():
-            self._connection.clear_queue()
+        if queued:
+            if to_cancel := self.clear_queued():
+                self._connection.cancel(to_cancel)
         if active and self.jobs.any_executing():
             self._connection.interrupt()
 
@@ -544,7 +545,7 @@ class Model(QObject, ObservableProperties):
         to_remove = [job for job in self.jobs if job.state is JobState.queued]
         for job in to_remove:
             self.jobs.remove(job)
-        return len(to_remove) > 0
+        return [job.id for job in to_remove if job.id is not None]
 
     def report_error(self, error: Error | str):
         if isinstance(error, str):

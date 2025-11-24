@@ -2,6 +2,7 @@ import json
 import zlib
 import pytest
 from copy import copy
+from typing import Iterable
 from pathlib import Path
 from PyQt5.QtCore import Qt
 
@@ -40,7 +41,7 @@ class MockClient(Client):
     async def interrupt(self):
         pass
 
-    async def clear_queue(self):
+    async def cancel(self, job_ids: Iterable[str]):
         pass
 
 

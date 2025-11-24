@@ -8,7 +8,7 @@ from enum import Enum
 from collections import deque
 from itertools import chain, product
 from time import time
-from typing import Any, Optional, Sequence
+from typing import Any, Iterable, Optional, Sequence
 
 from .api import WorkflowInput
 from .client import Client, CheckpointInfo, ClientMessage, ClientEvent, DeviceInfo, ClientModels
@@ -77,10 +77,10 @@ class ClientJobQueue:
             await self._event.wait()
         return self._get()
 
-    def try_get(self):
-        if not self._jobs:
-            return None
-        return self._get()
+    def remove_by_id(self, job_ids: Iterable[str]):
+        self._jobs = deque(job for job in self._jobs if job.id not in job_ids)
+        if len(self._jobs) == 0:
+            self._event.clear()
 
     def __len__(self):
         return len(self._jobs)
@@ -450,14 +450,16 @@ class ComfyClient(Client):
     async def interrupt(self):
         await self._post("interrupt", {})
 
-    async def clear_queue(self):
+    async def cancel(self, job_ids: Iterable[str]):
         # Make sure changes to all queues are processed before suspending this
         # function, otherwise it may interfere with subsequent calls to enqueue.
-        tasks = [self._post("queue", {"clear": True})]
-        if job := self._waiting_job.get():
-            tasks.append(self._report(ClientEvent.interrupted, job.id))
-        while job := self._queue.try_get():
-            tasks.append(self._report(ClientEvent.interrupted, job.id))
+        tasks = [self._post("queue", {"delete": list(job_ids)})]
+        if job := self._waiting_job.peek():
+            if job.id in job_ids:
+                self._waiting_job.clear()
+        self._queue.remove_by_id(job_ids)
+        for id in job_ids:
+            tasks.append(self._report(ClientEvent.interrupted, id))
         await asyncio.gather(*tasks)
 
     async def disconnect(self):

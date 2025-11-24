@@ -1,5 +1,6 @@
 from __future__ import annotations
 from enum import Enum
+from typing import Iterable
 from PyQt5.QtCore import QObject, pyqtSignal, QUrl
 from PyQt5.QtGui import QDesktopServices
 import asyncio
@@ -143,8 +144,8 @@ class Connection(QObject, ObservableProperties):
     def interrupt(self):
         eventloop.run(self.client.interrupt())
 
-    def clear_queue(self):
-        eventloop.run(self.client.clear_queue())
+    def cancel(self, job_ids: Iterable[str]):
+        eventloop.run(self.client.cancel(job_ids))
 
     def refresh(self):
         async def _refresh():

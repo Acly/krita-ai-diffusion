@@ -68,7 +68,7 @@ def test_cancel(qtapp, comfy_server, cancel_point):
                     assert client.queued_count == 1
                 if not interrupted:
                     if cancel_point == "after_enqueue":
-                        await client.clear_queue()
+                        await client.cancel([job_id])
                         interrupted = True
                     if cancel_point == "after_start" and msg.event is ClientEvent.progress:
                         await client.interrupt()
