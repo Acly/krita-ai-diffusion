@@ -28,11 +28,6 @@ class Root(QObject):
         model: Model
         sync: ModelSync | None = None
 
-    _server: Server
-    _connection: Connection
-    _models: list[PerDocument]
-    _recent: RecentlyUsedSync
-
     model_created = pyqtSignal(Model)
 
     def __init__(self):
@@ -43,7 +38,7 @@ class Root(QObject):
         self._connection = Connection()
         self._files = FileLibrary.load()
         self._workflows = WorkflowCollection(self._connection)
-        self._models = []
+        self._models: list[Root.PerDocument] = []
         self._null_model = Model(Document(), self._connection, self._workflows)
         self._recent = RecentlyUsedSync.from_settings()
         self._auto_update = AutoUpdate()
@@ -77,6 +72,10 @@ class Root(QObject):
         else:
             model.document = doc
         return model
+
+    @property
+    def models(self) -> list[Model]:
+        return [m.model for m in self._models]
 
     @property
     def connection(self) -> Connection:

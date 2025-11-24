@@ -77,9 +77,25 @@ class QueuePopup(QMenu):
         self._layout = QGridLayout()
         self.setLayout(self._layout)
 
+        counts_label = QLabel(_("Jobs"), self)
+        counts_layout = QHBoxLayout()
+        counts_layout.setContentsMargins(0, 0, 0, 0)
+        counts_layout.addWidget(QLabel(_("Document:"), self))
+        self._counts_document = QLabel("0", self)
+        self._counts_document.setStyleSheet(f"color: {theme.highlight}; font-weight: bold;")
+        counts_layout.addWidget(self._counts_document)
+        counts_layout.addWidget(QLabel(_("Total:"), self))
+        counts_layout.addSpacing(4)
+        self._counts_total = QLabel("0", self)
+        self._counts_total.setStyleSheet(f"color: {theme.highlight}; font-weight: bold;")
+        counts_layout.addWidget(self._counts_total)
+        counts_layout.addStretch()
+        self._layout.addWidget(counts_label, 0, 0)
+        self._layout.addLayout(counts_layout, 0, 1)
+
         batch_label = QLabel(_("Batches"), self)
         batch_label.setVisible(supports_batch)
-        self._layout.addWidget(batch_label, 0, 0)
+        self._layout.addWidget(batch_label, 1, 0)
         batch_layout = QHBoxLayout()
         self._batch_slider = QSlider(Qt.Orientation.Horizontal, self)
         self._batch_slider.setMinimum(1)
@@ -92,10 +108,10 @@ class QueuePopup(QMenu):
         self._batch_label.setVisible(supports_batch)
         batch_layout.addWidget(self._batch_slider)
         batch_layout.addWidget(self._batch_label)
-        self._layout.addLayout(batch_layout, 0, 1)
+        self._layout.addLayout(batch_layout, 1, 1)
 
         self._seed_label = QLabel(_("Seed"), self)
-        self._layout.addWidget(self._seed_label, 1, 0)
+        self._layout.addWidget(self._seed_label, 2, 0)
         self._seed_input = QSpinBox(self)
         self._seed_check = QCheckBox(self)
         self._seed_check.setText(_("Fixed"))
@@ -113,7 +129,7 @@ class QueuePopup(QMenu):
         seed_layout.addWidget(self._seed_check)
         seed_layout.addWidget(self._seed_input)
         seed_layout.addWidget(self._randomize_seed)
-        self._layout.addLayout(seed_layout, 1, 1)
+        self._layout.addLayout(seed_layout, 2, 1)
 
         resolution_multiplier_label = QLabel(_("Resolution"), self)
         self._resolution_multiplier_slider = QSlider(Qt.Orientation.Horizontal, self)
@@ -129,19 +145,19 @@ class QueuePopup(QMenu):
         resolution_multiplier_layout = QHBoxLayout()
         resolution_multiplier_layout.addWidget(self._resolution_multiplier_slider)
         resolution_multiplier_layout.addWidget(self._resolution_multiplier_display)
-        self._layout.addWidget(resolution_multiplier_label, 2, 0)
-        self._layout.addLayout(resolution_multiplier_layout, 2, 1)
+        self._layout.addWidget(resolution_multiplier_label, 3, 0)
+        self._layout.addLayout(resolution_multiplier_layout, 3, 1)
 
         enqueue_label = QLabel(_("Enqueue"), self)
         self._queue_mode_combo = QComboBox(self)
         self._queue_mode_combo.addItem(_("at the Back"), QueueMode.back)
         self._queue_mode_combo.addItem(_("in Front (new jobs first)"), QueueMode.front)
         self._queue_mode_combo.addItem(_("Replace Queue"), QueueMode.replace)
-        self._layout.addWidget(enqueue_label, 3, 0)
-        self._layout.addWidget(self._queue_mode_combo, 3, 1)
+        self._layout.addWidget(enqueue_label, 4, 0)
+        self._layout.addWidget(self._queue_mode_combo, 4, 1)
 
         cancel_label = QLabel(_("Cancel"), self)
-        self._layout.addWidget(cancel_label, 4, 0)
+        self._layout.addWidget(cancel_label, 5, 0)
         self._cancel_active = self._create_cancel_button(_("Active"), actions.cancel_active)
         self._cancel_queued = self._create_cancel_button(_("Queued"), actions.cancel_queued)
         self._cancel_all = self._create_cancel_button(_("All"), actions.cancel_all)
@@ -149,7 +165,7 @@ class QueuePopup(QMenu):
         cancel_layout.addWidget(self._cancel_active)
         cancel_layout.addWidget(self._cancel_queued)
         cancel_layout.addWidget(self._cancel_all)
-        self._layout.addLayout(cancel_layout, 4, 1)
+        self._layout.addLayout(cancel_layout, 5, 1)
 
         self._model = root.active_model
 
@@ -175,8 +191,9 @@ class QueuePopup(QMenu):
             self._randomize_seed.clicked.connect(self._model.generate_seed),
             model.resolution_multiplier_changed.connect(self._update_resolution_multiplier),
             bind_combo(self._model, "queue_mode", self._queue_mode_combo),
-            model.jobs.count_changed.connect(self._update_cancel_buttons),
+            model.jobs.count_changed.connect(self._update_job_count),
         ]
+        self._update_job_count()
 
     def _create_cancel_button(self, name: str, action: Callable[[], None]):
         button = QToolButton(self)
@@ -187,12 +204,15 @@ class QueuePopup(QMenu):
         button.clicked.connect(action)
         return button
 
-    def _update_cancel_buttons(self):
+    def _update_job_count(self):
         has_active = self._model.jobs.any_executing()
-        has_queued = self._model.jobs.count(JobState.queued) > 0
+        n_queued = self._model.jobs.count(JobState.queued)
+        n_total = sum(m.jobs.count(JobState.queued) for m in root.models)
+        self._counts_document.setText(str(n_queued + (1 if has_active else 0)))
+        self._counts_total.setText(str(n_total + (1 if has_active else 0)))
         self._cancel_active.setEnabled(has_active)
-        self._cancel_queued.setEnabled(has_queued)
-        self._cancel_all.setEnabled(has_active or has_queued)
+        self._cancel_queued.setEnabled(n_queued > 0)
+        self._cancel_all.setEnabled(has_active or n_queued > 0)
 
     def _update_resolution_multiplier(self):
         slider_value = round(self.model.resolution_multiplier * 10)
@@ -213,7 +233,6 @@ class QueueButton(QToolButton):
     def __init__(self, supports_batch=True, parent: QWidget | None = None):
         super().__init__(parent)
         self._model = root.active_model
-        self._connect_model()
 
         self._popup = QueuePopup(supports_batch)
         popup_action = QWidgetAction(self)
@@ -222,7 +241,7 @@ class QueueButton(QToolButton):
 
         self.setToolButtonStyle(Qt.ToolButtonStyle.ToolButtonTextBesideIcon)
         self.setPopupMode(QToolButton.ToolButtonPopupMode.InstantPopup)
-        self._update()
+        self._connect_model()
 
     @property
     def model(self):
@@ -241,6 +260,7 @@ class QueueButton(QToolButton):
             self._model.jobs.count_changed.connect(self._update),
             self._model.progress_kind_changed.connect(self._update),
         ]
+        self._update()
 
     def _update(self):
         count = self._model.jobs.count(JobState.queued)
