@@ -186,7 +186,7 @@ class HistoryWidget(QListWidget):
             if key == "loras" and isinstance(value, list) and isinstance(value[0], dict):
                 value = " | ".join(
                     (
-                        f"{v.get('name')} ({v.get('strength')})"
+                        f"{v.get('name')} ({v.get('weight', v.get('strength', '?'))})"
                         for v in value
                         if v.get("enabled", True)
                     )
