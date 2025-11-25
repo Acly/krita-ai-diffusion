@@ -233,7 +233,7 @@ class JobQueue(QObject):
 
     def discard(self, job_id: str, index: int):
         job = ensure(self.find(job_id))
-        if len(job.results) <= 1:
+        if len(job.results) <= 1 or job.kind is JobKind.animation:
             self._discard_job(job)
             return
         for i in range(index, len(job.results) - 1):
@@ -246,7 +246,7 @@ class JobQueue(QObject):
         jobs_to_discard = [
             job
             for job in self._entries
-            if job.kind is JobKind.diffusion and job.state is JobState.finished
+            if job.kind in (JobKind.diffusion, JobKind.animation) and job.state is JobState.finished
         ]
         for job in jobs_to_discard:
             self._discard_job(job)
