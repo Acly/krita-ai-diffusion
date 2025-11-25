@@ -59,19 +59,18 @@ class Root(QObject):
         model_entry.sync = ModelSync(model)
         import_prompt_from_file(model)
         self.model_created.emit(model)
-        self.prune_models()
         return model
 
     def model_for_active_document(self) -> Model | None:
-        doc = KritaDocument.active()
-        if doc is None or not doc.is_valid:
-            return None
-        model = next((m.model for m in self._models if m.model.document == doc), None)
-        if model is None:
-            model = self.create_model(doc)
-        else:
-            model.document = doc
-        return model
+        self.prune_models()
+        if doc := KritaDocument.active():
+            model = next((m.model for m in self._models if m.model.document == doc), None)
+            if model is None:
+                model = self.create_model(doc)
+            else:
+                model.document = doc
+            return model
+        return None
 
     @property
     def models(self) -> list[Model]:

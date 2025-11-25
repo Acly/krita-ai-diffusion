@@ -144,9 +144,18 @@ class KritaDocument(Document):
                     id = None  # doc is a copy of other, give it a new ID (see #2164)
                     break
             if id and id in cls._instances:
-                return cls._instances[id]
+                cached = cls._instances[id]
+                if cached._doc in all_docs:  # don't reuse if the document was closed
+                    return cached
             return KritaDocument(doc, id)
         return None
+
+    @classmethod
+    def active_instance(cls) -> KritaDocument | None:
+        if doc := Krita.instance().activeDocument():
+            id = cls._id_from_annotation(doc)
+            if id and id in cls._instances:
+                return cls._instances[id]
 
     @property
     def extent(self):
@@ -313,7 +322,7 @@ class PoseLayers:
         self._timer.start()
 
     def update(self):
-        doc = KritaDocument.active()
+        doc = KritaDocument.active_instance()
         if not doc:
             return
         try:
@@ -328,7 +337,7 @@ class PoseLayers:
         self._update(layer, acquire_elements(layer.shapes()), pose, doc.resolution)
 
     def add_character(self, layer: krita.VectorLayer):
-        doc = KritaDocument.active()
+        doc = KritaDocument.active_instance()
         assert doc is not None
         pose = self._layers.setdefault(layer.uniqueId(), Pose(doc.extent))
         svg = Pose.create_default(doc.extent, pose.people_count).to_svg()
