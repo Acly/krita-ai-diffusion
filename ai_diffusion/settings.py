@@ -286,6 +286,9 @@ class Settings(QObject):
         ),
     )
 
+    confirm_discard_image: bool
+    _confirm_discard_image = Setting("Ask for confirmation when discarding images", True)
+
     prompt_line_count: int
     _prompt_line_count = Setting(
         _("Prompt Line Count"), 2, _("Size of the text editor for image descriptions")
