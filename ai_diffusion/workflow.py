@@ -1271,6 +1271,9 @@ def upscale_tiled(
 
         latent = vae_encode(w, vae, tile_image, checkpoint.tiled_vae)
         latent = w.set_latent_noise_mask(latent, tile_mask)
+        positive = apply_edit_conditioning(
+            w, positive, tile_image, latent, control, vae, models.arch, checkpoint.tiled_vae
+        )
         sampler = w.sampler_custom_advanced(
             tile_model, positive, negative, latent, models.arch, **_sampler_params(sampling)
         )

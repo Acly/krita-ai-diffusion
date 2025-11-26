@@ -1,17 +1,18 @@
 from __future__ import annotations
 import asyncio
+import time
+import weakref
+import uuid
 from copy import copy
 from collections import deque
-from dataclasses import replace
+from dataclasses import dataclass, replace
 from datetime import datetime
 from pathlib import Path
 from enum import Enum
 from tempfile import TemporaryDirectory
-import time
 from typing import Any, NamedTuple
 from PyQt5.QtCore import QObject, QMetaObject, QUuid, pyqtSignal, Qt
 from PyQt5.QtGui import QPainter, QColor, QBrush
-import uuid
 
 from . import eventloop, workflow, util
 from .api import ConditioningInput, ControlInput, WorkflowKind, WorkflowInput, SamplingInput
@@ -312,8 +313,6 @@ class Model(QObject, ObservableProperties):
         job.id = await client.enqueue(input, front)
 
     def _prepare_upscale_image(self, dryrun=False):
-        assert not self.arch.is_edit, "Edit models do not support upscaling"
-
         client = self._connection.client
         extent = self._doc.extent
         image = self._doc.get_image(Bounds(0, 0, *extent)) if not dryrun else DummyImage(extent)
@@ -324,13 +323,17 @@ class Model(QObject, ObservableProperties):
             self.report_error(Error(ErrorKind.warning, msg + f": {params.upscale.model}"))
             self.upscale.upscaler = params.upscale.model = client.models.default_upscaler
         bounds = Bounds(0, 0, *self._doc.extent)
+        sys_prompt = "4k uhd"
+        if self.arch.is_edit:
+            sys_prompt = "Enhance image quality. Preserve original content."
+
         if params.use_prompt and not dryrun:
             conditioning, job_regions = process_regions(self.regions, bounds, min_coverage=0)
             conditioning.language = self.prompt_translation_language
             for region in job_regions:
                 region.bounds = Bounds.scale(region.bounds, params.factor)
         else:
-            conditioning, job_regions = ConditioningInput("4k uhd"), []
+            conditioning, job_regions = ConditioningInput(sys_prompt), []
         models = client.models.for_arch(self.arch)
         has_unblur = models.control.find(ControlMode.blur, allow_universal=True) is not None
         if has_unblur and params.unblur_strength > 0.0:
@@ -978,7 +981,8 @@ class CustomInpaint(QObject, ObservableProperties):
         return None
 
 
-class UpscaleParams(NamedTuple):
+@dataclass(frozen=True)
+class UpscaleParams:
     upscale: UpscaleInput
     factor: float
     use_diffusion: bool
@@ -1019,14 +1023,15 @@ class UpscaleWorkspace(QObject, ObservableProperties):
 
     def __init__(self, model: Model):
         super().__init__()
-        self._model = model
+        self._model = weakref.ref(model)
         self._in_progress = False
         self.use_diffusion_changed.connect(self._update_can_generate)
         self._init_model()
         model._connection.models_changed.connect(self._init_model)
 
     def _init_model(self):
-        if client := self._model._connection.client_if_connected:
+        model = ensure(self._model())
+        if client := model._connection.client_if_connected:
             if self.upscaler not in client.models.upscalers:
                 self.upscaler = client.models.default_upscaler
 
@@ -1046,10 +1051,11 @@ class UpscaleWorkspace(QObject, ObservableProperties):
 
     @property
     def target_extent(self):
-        return self._model.document.extent * self.factor
+        return ensure(self._model()).document.extent * self.factor
 
     @property
     def params(self):
+        model = ensure(self._model())
         overlap = self.tile_overlap if self.tile_overlap_mode is TileOverlapMode.custom else -1
         return UpscaleParams(
             upscale=UpscaleInput(self.upscaler, overlap),
@@ -1057,9 +1063,9 @@ class UpscaleWorkspace(QObject, ObservableProperties):
             use_diffusion=self.use_diffusion,
             unblur_strength=self.unblur_strength,
             use_prompt=self.use_prompt,
-            strength=self.strength,
+            strength=1.0 if model.arch.is_edit else self.strength,
             target_extent=self.target_extent,
-            seed=self._model.seed if self._model.fixed_seed else workflow.generate_seed(),
+            seed=model.seed if model.fixed_seed else workflow.generate_seed(),
         )
 
 
@@ -1127,7 +1133,7 @@ class LiveWorkspace(QObject, ObservableProperties):
 
     def __init__(self, model: Model):
         super().__init__()
-        self._model = model
+        self._model = weakref.ref(model)
         self._scheduler = LiveScheduler()
         self._result: Image | None = None
         self._result_composition: Image | None = None
@@ -1138,19 +1144,23 @@ class LiveWorkspace(QObject, ObservableProperties):
         self._keyframes: list[Path] = []
         model.jobs.job_finished.connect(self.handle_job_finished)
 
+    @property
+    def model(self):
+        return ensure(self._model())
+
     def toggle(self, active: bool):
         if self.is_active != active:
             self._is_active = active
             self.is_active_changed.emit(active)
             if active:
-                eventloop.run(_report_errors(self._model, self._continue_generating()))
+                eventloop.run(_report_errors(self.model, self._continue_generating()))
             else:
                 self.is_recording = False
 
     def toggle_record(self, active: bool):
         if self.is_recording != active:
             if active and not self._start_recording():
-                self._model.report_error(
+                self.model.report_error(
                     _("Cannot save recorded frames, document must be saved first!")
                 )
                 return
@@ -1164,16 +1174,16 @@ class LiveWorkspace(QObject, ObservableProperties):
         if job.kind is JobKind.live_preview:
             if len(job.results) > 0:
                 self.set_result(job.results[0], job.params)
-            self.is_active = self._is_active and self._model.document.is_active
+            self.is_active = self._is_active and self.model.document.is_active
             self._scheduler.notify_generation_finished()
-            eventloop.run(_report_errors(self._model, self._continue_generating()))
+            eventloop.run(_report_errors(self.model, self._continue_generating()))
 
     async def _continue_generating(self):
         while self.is_active:
-            if self._model.document.is_active:
-                new_input, job_params = self._model._prepare_live_workflow()
+            if self.model.document.is_active:
+                new_input, job_params = self.model._prepare_live_workflow()
                 if self._scheduler.should_generate(new_input):
-                    await self._model._generate_live(new_input, job_params)
+                    await self.model._generate_live(new_input, job_params)
                     self._scheduler.notify_generation_started()
                     return
             await asyncio.sleep(self._scheduler.poll_rate)
@@ -1182,7 +1192,7 @@ class LiveWorkspace(QObject, ObservableProperties):
         assert self.result is not None and self._result_params is not None
         params = copy(self._result_params)
         if layer_only and len(self._result_params.regions) > 0:
-            active = Region.link_target(self._model.layers.active).id_string
+            active = Region.link_target(self.model.layers.active).id_string
             if region := next((r for r in params.regions if r.layer_id == active), None):
                 params.regions = [region]
 
@@ -1191,10 +1201,10 @@ class LiveWorkspace(QObject, ObservableProperties):
         if layer_only:
             behavior = ApplyBehavior.layer
             region_behavior = ApplyRegionBehavior.layer_group
-        self._model.apply_result(self.result, params, behavior, region_behavior)
+        self.model.apply_result(self.result, params, behavior, region_behavior)
 
         if settings.new_seed_after_apply:
-            self._model.generate_seed()
+            self.model.generate_seed()
 
     @property
     def result(self):
@@ -1205,7 +1215,7 @@ class LiveWorkspace(QObject, ObservableProperties):
         return self._result_composition
 
     def set_result(self, value: Image, params: JobParams):
-        canvas = self._model._get_current_image(params.bounds)
+        canvas = self.model._get_current_image(params.bounds)
         painter = QPainter(canvas._qimage)
         painter.setCompositionMode(QPainter.CompositionMode.CompositionMode_Multiply)
         painter.setBrush(QBrush(QColor(0, 0, 96, 192), Qt.BrushStyle.DiagCrossPattern))
@@ -1223,7 +1233,7 @@ class LiveWorkspace(QObject, ObservableProperties):
             self._save_frame(value, params.bounds)
 
     def _start_recording(self):
-        doc_filename = self._model.document.filename
+        doc_filename = self.model.document.filename
         if doc_filename:
             path = Path(doc_filename)
             folder = path.parent / f"{path.with_suffix('.live-frames')}"
@@ -1241,7 +1251,7 @@ class LiveWorkspace(QObject, ObservableProperties):
         filename = self._keyframes_folder / f"frame-{self._keyframe_index}.webp"
         self._keyframe_index += 1
 
-        extent = self._model.document.extent
+        extent = self.model.document.extent
         if bounds is not None and bounds.extent != extent:
             image = Image.crop(image, bounds)
         image.save(filename)
@@ -1250,10 +1260,10 @@ class LiveWorkspace(QObject, ObservableProperties):
     def _import_animation(self):
         if len(self._keyframes) == 0:
             return  # button toggled without recording a frame in between
-        self._model.document.import_animation(self._keyframes, self._keyframe_start)
+        self.model.document.import_animation(self._keyframes, self._keyframe_start)
         start, end = self._keyframe_start, self._keyframe_start + len(self._keyframes)
-        prompt = self._model.regions.active_or_root.positive
-        self._model.layers.active.name = f"[Rec] {start}-{end}: {prompt}"
+        prompt = self.model.regions.active_or_root.positive
+        self.model.layers.active.name = f"[Rec] {start}-{end}: {prompt}"
         self._keyframes = []
 
 

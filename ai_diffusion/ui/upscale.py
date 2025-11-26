@@ -140,7 +140,7 @@ class UpscaleWidget(QWidget):
         unblur_layout = QHBoxLayout()
         unblur_layout.addWidget(QLabel(_("Image guidance"), self), 1)
         unblur_layout.addWidget(self.unblur_slider, 3)
-        root.connection.models_changed.connect(self._update_unblur_enabled)
+        root.connection.models_changed.connect(self._update_style)
 
         self.overlap_custom_combo = QComboBox(self)
         self.overlap_custom_combo.addItem(_("Automatic"), TileOverlapMode.auto)
@@ -231,12 +231,12 @@ class UpscaleWidget(QWidget):
                 model.regions.added.connect(self._update_prompt),
                 model.regions.removed.connect(self._update_prompt),
                 model.progress_changed.connect(self.update_progress),
-                model.style_changed.connect(self._update_unblur_enabled),
+                model.style_changed.connect(self._update_style),
             ]
             self.upscale_button.model = model
             self.queue_button.model = model
             self._update_prompt()
-            self._update_unblur_enabled()
+            self._update_style()
             self._update_overlap()
             self.update_progress()
 
@@ -275,20 +275,27 @@ class UpscaleWidget(QWidget):
             self.model.upscale.tile_overlap_mode is TileOverlapMode.custom
         )
 
-    def _update_unblur_enabled(self):
-        has_unblur = False
-        if client := root.connection.client_if_connected:
-            models = client.models.for_arch(self.model.arch)
-            has_unblur = models.control.find(ControlMode.blur, allow_universal=True) is not None
-        self.unblur_slider.setEnabled(has_unblur)
-        if not has_unblur:
-            self.unblur_slider.setToolTip(_("The tile/unblur control model is not installed."))
+    def _update_style(self):
+        arch = self.model.arch
+        if arch.is_edit:
+            tooltip = _("Not supported for edit models")
+            self.strength_slider.setEnabled(False)
+            self.strength_slider.setToolTip(tooltip)
+            self.unblur_slider.setEnabled(False)
+            self.unblur_slider.setToolTip(tooltip)
         else:
-            self.unblur_slider.setToolTip(
-                _(
+            has_unblur = False
+            if client := root.connection.client_if_connected:
+                models = client.models.for_arch(self.model.arch)
+                has_unblur = models.control.find(ControlMode.blur, allow_universal=True) is not None
+            self.unblur_slider.setEnabled(has_unblur)
+            if not has_unblur:
+                tooltip = _("The tile/unblur control model is not installed.")
+            else:
+                tooltip = _(
                     "When enabled, the low resolution image is used as guidance for refining the upscaled image.\nThis produces results which are closer to the original while enhancing local details."
                 )
-            )
+            self.unblur_slider.setToolTip(tooltip)
 
     def _update_prompt(self):
         self.use_prompt_value.setText(_("On") if self.model.upscale.use_prompt else _("Off"))
