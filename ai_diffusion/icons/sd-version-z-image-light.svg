@@ -63,20 +63,16 @@
        rx="21.166666"
        ry="24.035408" />
     <g
-       aria-label="Z-i"
+       aria-label="Zi"
        transform="scale(0.80484602,1.2424737)"
        id="text836"
        style="font-style:normal;font-weight:normal;font-size:15.824px;line-height:1.25;font-family:sans-serif;fill:#c8c8c8;fill-opacity:1;stroke:none;stroke-width:0.264583">
       <path
-         d="M 25,36 H 68 V 47 L 38,73 H 69 V 84 H 24 V 73 L 54,47 H 25 Z"
+         d="M 25,30 H 78 V 43 L 40,73 H 79 V 84 H 24 V 71 L 62,43 H 25 Z"
          style="font-style:normal;font-variant:normal;font-weight:normal;font-stretch:normal;font-size:75.9558px;font-family:Alpenkreuzer;-inkscape-font-specification:Alpenkreuzer;fill:#c8c8c8;fill-opacity:1;stroke-width:0.264583"
          id="path838" />
       <path
-         d="M 78,36 H 90 V 60 H 78 Z"
-         style="font-style:normal;font-variant:normal;font-weight:normal;font-stretch:normal;font-size:75.9558px;font-family:Alpenkreuzer;-inkscape-font-specification:Alpenkreuzer;fill:#c8c8c8;fill-opacity:1;stroke-width:0.264583"
-         id="path839" />
-      <path
-         d="M 99,60 H 153 V 71 H 111 V 84 H 99 Z"
+         d="M 88,30 H 103 V 41 H 88 Z M 88,47 H 103 V 84 H 88 Z"
          style="font-style:normal;font-variant:normal;font-weight:normal;font-stretch:normal;font-size:75.9558px;font-family:Alpenkreuzer;-inkscape-font-specification:Alpenkreuzer;fill:#c8c8c8;fill-opacity:1;stroke-width:0.264583"
          id="path840" />
     </g>
