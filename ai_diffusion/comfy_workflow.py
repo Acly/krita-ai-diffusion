@@ -577,7 +577,7 @@ class ComfyWorkflow:
 
     def empty_latent_image(self, extent: Extent, arch: Arch, batch_size=1):
         w, h = extent.width, extent.height
-        if arch.is_flux_like or arch.is_qwen_like or arch in (Arch.sd3, Arch.chroma):
+        if arch.is_flux_like or arch.is_qwen_like or arch in (Arch.sd3, Arch.chroma, Arch.zimage):
             return self.add("EmptySD3LatentImage", 1, width=w, height=h, batch_size=batch_size)
         return self.add("EmptyLatentImage", 1, width=w, height=h, batch_size=batch_size)
 
