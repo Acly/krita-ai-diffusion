@@ -1,7 +1,6 @@
 from __future__ import annotations
 import math
 from enum import Enum
-from sys import orig_argv
 from typing import NamedTuple, overload
 
 from .api import ExtentInput, ImageInput, WorkflowKind
@@ -145,7 +144,9 @@ class CheckpointResolution(NamedTuple):
     @staticmethod
     def compute(extent: Extent, arch: Arch, style: Style | None = None):
         arch = Arch.sdxl if arch.is_sdxl_like else arch
-        arch = Arch.flux if arch.is_flux_like or arch is Arch.chroma or arch is Arch.zimage else arch
+        arch = (
+            Arch.flux if arch.is_flux_like or arch is Arch.chroma or arch is Arch.zimage else arch
+        )
         arch = Arch.qwen if arch.is_qwen_like else arch
         if style is None or style.preferred_resolution == 0:
             min_size, max_size, min_pixel_count, max_pixel_count = {
