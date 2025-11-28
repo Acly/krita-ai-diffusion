@@ -118,11 +118,7 @@ class Arch(Enum):
                 return Arch.qwen_e
         if string == "qwen-image":
             return Arch.qwen
-        if (
-            string == "unknown"
-            and filename
-            and ("z-image" in filename.lower() or "z_image" in filename.lower())
-        ):
+        if string == "z-image":
             return Arch.zimage
         return None
 
