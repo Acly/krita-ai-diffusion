@@ -1,0 +1,24 @@
+{
+    "name": "Z-Image Turbo",
+    "version": 1,
+    "architecture": "auto",
+    "checkpoints": [
+        "z_image_turbo_bf16.safetensors",
+        "z-image-turbo-fp8-e4m3fn.safetensors",
+        "z-image-turbo-fp8-e5m2.safetensors"
+    ],
+    "loras": [],
+    "style_prompt": "{prompt}",
+    "negative_prompt": "",
+    "vae": "Checkpoint Default",
+    "clip_skip": 0,
+    "v_prediction_zsnr": false,
+    "self_attention_guidance": false,
+    "preferred_resolution": 0,
+    "sampler": "Flux - Euler simple",
+    "sampler_steps": 9,
+    "cfg_scale": 1.0,
+    "live_sampler": "Flux - Euler simple",
+    "live_sampler_steps": 9,
+    "live_cfg_scale": 1.0
+}

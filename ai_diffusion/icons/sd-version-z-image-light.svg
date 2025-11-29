@@ -23,9 +23,9 @@
      borderopacity="1.0"
      inkscape:pageopacity="0.0"
      inkscape:pageshadow="2"
-     inkscape:zoom="1.979899"
-     inkscape:cx="257.27177"
-     inkscape:cy="264.54588"
+     inkscape:zoom="0.70000001"
+     inkscape:cx="417.49649"
+     inkscape:cy="251.00925"
      inkscape:document-units="mm"
      inkscape:current-layer="layer1"
      inkscape:document-rotation="0"
@@ -64,17 +64,19 @@
        ry="24.035408" />
     <g
        aria-label="Zi"
-       transform="scale(0.80484602,1.2424737)"
+       transform="matrix(1.7645196,0,0,2.7239609,-167.30781,-42.430054)"
        id="text836"
-       style="font-style:normal;font-weight:normal;font-size:15.824px;line-height:1.25;font-family:sans-serif;fill:#c8c8c8;fill-opacity:1;stroke:none;stroke-width:0.264583">
-      <path
-         d="M 25,30 H 78 V 43 L 40,73 H 79 V 84 H 24 V 71 L 62,43 H 25 Z"
-         style="font-style:normal;font-variant:normal;font-weight:normal;font-stretch:normal;font-size:75.9558px;font-family:Alpenkreuzer;-inkscape-font-specification:Alpenkreuzer;fill:#c8c8c8;fill-opacity:1;stroke-width:0.264583"
-         id="path838" />
-      <path
-         d="M 88,30 H 103 V 41 H 88 Z M 88,47 H 103 V 84 H 88 Z"
-         style="font-style:normal;font-variant:normal;font-weight:normal;font-stretch:normal;font-size:75.9558px;font-family:Alpenkreuzer;-inkscape-font-specification:Alpenkreuzer;fill:#c8c8c8;fill-opacity:1;stroke-width:0.264583"
-         id="path840" />
+       style="font-style:normal;font-weight:normal;font-size:15.824px;line-height:1.25;font-family:sans-serif;fill:#c8c8c8;fill-opacity:1;stroke:none;stroke-width:0.120684">
+      <g
+         aria-label="Z"
+         transform="scale(1.2424737,0.80484601)"
+         id="text859"
+         style="font-weight:bold;font-size:50.8px;line-height:1.25;font-family:Montserrat;-inkscape-font-specification:'Montserrat Bold';fill:#c8c8c8;fill-opacity:1;stroke-width:0.0319309">
+        <path
+           d="m 97.387308,34.716336 -0.4064,5.8928 h 14.427202 l -16.560802,21.2344 c 0,0 -2.3368,2.4384 -2.3368,4.3688 0,2.032 2.032,3.048 8.737602,3.048 4.4196,0 8.9916,0.508 9.7536,0.508 4.3688,0 8.3312,-0.8636 10.9728,-2.286 l -2.7432,-5.2832 c -2.6416,1.2192 -4.7244,1.6256 -7.8232,1.6256 -3.4036,0 -6.9088,-0.4064 -8.636,-1.2192 l 19.5072,-24.6888 v -3.2512 z"
+           style="font-style:normal;font-variant:normal;font-weight:bold;font-stretch:normal;font-size:50.8px;font-family:Postface;-inkscape-font-specification:'Postface Bold';fill:#c8c8c8;fill-opacity:1;stroke-width:0.0319309"
+           id="path861" />
+      </g>
     </g>
   </g>
 </svg>
