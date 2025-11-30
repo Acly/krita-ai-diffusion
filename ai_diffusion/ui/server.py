@@ -233,12 +233,13 @@ class PackageGroupWidget(QWidget):
         self._update()
 
     def _update_status(self):
-        available = sum(item.state is PackageState.available for item in self._items)
-        if all(item.state is PackageState.installed for item in self._items):
+        items = [i for i in self._items if _backend_supports(self.backend, i)]
+        available = sum(item.state is PackageState.available for item in items)
+        if all(item.state is PackageState.installed for item in items):
             self._status.setText(_("All installed"))
             self._status.setStyleSheet(f"color:{green}")
         elif self.is_checkable:
-            selected = sum(item.state is PackageState.selected for item in self._items)
+            selected = sum(item.state is PackageState.selected for item in items)
             if selected > 0:
                 self._status.setText(
                     f"{selected} of {selected + available} " + _("packages selected")
