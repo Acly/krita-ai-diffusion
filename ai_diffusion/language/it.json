@@ -524,7 +524,6 @@
     "Previous installation is incomplete": "L'installazione precedente è incompleta",
     "Install and run a local ComfyUI server on your machine. Installation and updates are performed automatically by the plugin. Requires a compatible GPU (NVIDIA with at least 6GB VRAM recommended).": null,
     "Individual Packages": "Installa ed esegui un server ComfyUI locale sul tuo computer. L'installazione e gli aggiornamenti vengono eseguiti automaticamente dal plugin. Richiede una GPU compatibile (si consiglia NVIDIA con almeno 6 GB di VRAM).",
-    "P ComfyUI": "Personalizza ComfyUI",
     "Buy Tokens": "Acquista Gettoni",
     "Excellent": "Eccellente",
     "Very Fast": "Molto Veloce",
@@ -564,6 +563,11 @@
     "High": "Alto",
     "Minimum download and installation size": "Dimensioni minime di download e installazione",
     "Connect to an existing installation of ComfyUI. It can be on the same machine, or a remote machine over the network. You are responsible to setup ComfyUI and install required custom nodes and models.": "Connettiti a un'installazione esistente di ComfyUI. Può trovarsi sullo stesso computer o su un computer remoto tramite la rete. Sei responsabile della configurazione di ComfyUI e dell'installazione dei nodi e dei modelli personalizzati richiesti.",
-    "Directory where ComfyUI will be installed. At least {size} GB of free disk space is required for a minimal installation.": "Percorso in cui verrà installato ComfyUI. Per un'installazione minima sono richiesti almeno {size} GB di spazio libero su disco."
+    "Directory where ComfyUI will be installed. At least {size} GB of free disk space is required for a minimal installation.": "Percorso in cui verrà installato ComfyUI. Per un'installazione minima sono richiesti almeno {size} GB di spazio libero su disco.",
+    "Total:": null,
+    "Custom ComfyUI": null,
+    "Not supported for edit models": null,
+    "Document:": null,
+    "Jobs": null
   }
 }

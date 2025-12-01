@@ -512,7 +512,6 @@
     "File format for saved images from thumbnails.": "Формат файла для сохраняемых изображений из миниатюр.",
     "Save Image Metadata": "Сохранять метаданные изображения",
     "Copy to clipboard": "Скопировать в буфер обмена",
-    "Select an alternative style to use for instruction-based editing": "Выберите альтернативный стиль для редактирования на основе инструкций",
     "Linked Edit Style": "Связанный стиль редактирования",
     "Are you sure you want to discard the selected images?": "Вы уверены, что хотите удалить выбранные изображения?",
     "Negative Prompt (Evaluated)": "Негативный промпт (оценённый)",
@@ -564,6 +563,11 @@
     "High": "Высокое",
     "Minimum download and installation size": "Минимальный размер для загрузки и установки",
     "Connect to an existing installation of ComfyUI. It can be on the same machine, or a remote machine over the network. You are responsible to setup ComfyUI and install required custom nodes and models.": "Подключитесь к существующей установке ComfyUI. Это может быть тот же компьютер или удалённая машина по сети. Вы отвечаете за настройку ComfyUI и установку необходимых пользовательских узлов и моделей.",
-    "Directory where ComfyUI will be installed. At least {size} GB of free disk space is required for a minimal installation.": "Каталог, в который будет установлен ComfyUI. Для минимальной установки требуется не менее {size} ГБ свободного места на диске."
+    "Directory where ComfyUI will be installed. At least {size} GB of free disk space is required for a minimal installation.": "Каталог, в который будет установлен ComfyUI. Для минимальной установки требуется не менее {size} ГБ свободного места на диске.",
+    "Select an alternative style to use for for instruction-based editing": null,
+    "Total:": null,
+    "Not supported for edit models": null,
+    "Document:": null,
+    "Jobs": null
   }
 }

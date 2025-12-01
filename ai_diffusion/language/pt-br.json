@@ -564,6 +564,10 @@
     "High": null,
     "Minimum download and installation size": null,
     "Connect to an existing installation of ComfyUI. It can be on the same machine, or a remote machine over the network. You are responsible to setup ComfyUI and install required custom nodes and models.": null,
-    "Directory where ComfyUI will be installed. At least {size} GB of free disk space is required for a minimal installation.": null
+    "Directory where ComfyUI will be installed. At least {size} GB of free disk space is required for a minimal installation.": null,
+    "Total:": null,
+    "Not supported for edit models": null,
+    "Document:": null,
+    "Jobs": null
   }
 }

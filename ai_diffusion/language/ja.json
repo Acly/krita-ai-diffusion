@@ -564,6 +564,10 @@
     "High": "高品質",
     "Minimum download and installation size": "最小ダウンロードおよびインストールサイズ",
     "Connect to an existing installation of ComfyUI. It can be on the same machine, or a remote machine over the network. You are responsible to setup ComfyUI and install required custom nodes and models.": "既存のComfyUIに接続します。同じPC上、またはネットワーク上のリモートPC上でも構いません。ComfyUIのセットアップと必要なカスタムノードおよびモデルのインストールは、あなたの責任となります。",
-    "Directory where ComfyUI will be installed. At least {size} GB of free disk space is required for a minimal installation.": "ComfyUIがインストールされるディレクトリ。最小限のインストールには、少なくとも {size} GBの空きディスク容量が必要です。"
+    "Directory where ComfyUI will be installed. At least {size} GB of free disk space is required for a minimal installation.": "ComfyUIがインストールされるディレクトリ。最小限のインストールには、少なくとも {size} GBの空きディスク容量が必要です。",
+    "Total:": null,
+    "Not supported for edit models": null,
+    "Document:": null,
+    "Jobs": null
   }
 }

@@ -564,6 +564,10 @@
     "High": "高",
     "Minimum download and installation size": "最低下載和安裝大小",
     "Connect to an existing installation of ComfyUI. It can be on the same machine, or a remote machine over the network. You are responsible to setup ComfyUI and install required custom nodes and models.": "連線到已安裝的 ComfyUI。它可以在同一台電腦上，也可以通過網絡連線到遠端電腦。你負責設置 ComfyUI 並安裝所需的自訂節點和模型。",
-    "Directory where ComfyUI will be installed. At least {size} GB of free disk space is required for a minimal installation.": "ComfyUI 將安裝的目錄。最少需要 {size} GB 的可用磁碟空間以進行最小安裝。"
+    "Directory where ComfyUI will be installed. At least {size} GB of free disk space is required for a minimal installation.": "ComfyUI 將安裝的目錄。最少需要 {size} GB 的可用磁碟空間以進行最小安裝。",
+    "Total:": null,
+    "Not supported for edit models": null,
+    "Document:": null,
+    "Jobs": null
   }
 }
