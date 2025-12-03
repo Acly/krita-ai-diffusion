@@ -29,6 +29,7 @@ class ControlLayer(QObject, ObservableProperties):
     is_supported = Property(True)
     is_pose_vector = Property(False)
     can_generate = Property(True)
+    has_range = Property(True)
     has_active_job = Property(False)
     error_text = Property("")
 
@@ -43,6 +44,7 @@ class ControlLayer(QObject, ObservableProperties):
     is_pose_vector_changed = pyqtSignal(bool)
     can_generate_changed = pyqtSignal(bool)
     has_active_job_changed = pyqtSignal(bool)
+    has_range_changed = pyqtSignal(bool)
     error_text_changed = pyqtSignal(str)
     modified = pyqtSignal(QObject, str)
 
@@ -166,6 +168,7 @@ class ControlLayer(QObject, ObservableProperties):
                 cn_model = models.control.find(self.mode, allow_universal=True)
                 patch_model = models.model_patch.find(self.mode, allow_universal=True)
                 lora_model = models.lora.find(self.mode)
+                self.has_range = patch_model is None  # can't set start/end for model patches
                 if cn_model is None and patch_model is None and lora_model is None:
                     search_arch = Arch.illu if models.arch is Arch.illu_v else models.arch
                     search_path = (

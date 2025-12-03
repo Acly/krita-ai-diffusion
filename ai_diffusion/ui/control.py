@@ -142,6 +142,7 @@ class ControlWidget(QWidget):
         self.strength_slider.setPageStep(10)
         self.strength_label = QLabel("1.0", self.extended_widget)
 
+        self.range_label = QLabel(_("Range") + ":", self.extended_widget)
         self.range_slider = IntervalSlider(
             low=0, high=20, minimum=0, maximum=20, parent=self.extended_widget
         )
@@ -154,7 +155,7 @@ class ControlWidget(QWidget):
         slider_layout.addWidget(QLabel(_("Strength") + ":"), 0, 0)
         slider_layout.addWidget(self.strength_slider, 0, 2)
         slider_layout.addWidget(self.strength_label, 0, 3)
-        slider_layout.addWidget(QLabel(_("Range") + ":"), 1, 0)
+        slider_layout.addWidget(self.range_label, 1, 0)
         slider_layout.addWidget(self.range_start_label, 1, 1)
         slider_layout.addWidget(self.range_slider, 1, 2)
         slider_layout.addWidget(self.range_end_label, 1, 3)
@@ -179,6 +180,7 @@ class ControlWidget(QWidget):
             control.has_active_job_changed.connect(self._update_job_active),
             control.error_text_changed.connect(self._set_error),
             control.is_supported_changed.connect(self._update_visibility),
+            control.has_range_changed.connect(self._update_visibility),
             control.can_generate_changed.connect(self._update_visibility),
             control.mode_changed.connect(self._update_visibility),
             control.is_pose_vector_changed.connect(self._update_pose_utils),
@@ -226,6 +228,10 @@ class ControlWidget(QWidget):
             self.generate_tool_button.setVisible(self._control.can_generate and not is_small)
             self.add_pose_button.setVisible(is_pose and is_small)
             self.add_pose_tool_button.setVisible(is_pose and not is_small)
+            self.range_label.setVisible(self._control.has_range)
+            self.range_slider.setVisible(self._control.has_range)
+            self.range_start_label.setVisible(self._control.has_range)
+            self.range_end_label.setVisible(self._control.has_range)
             if not self._control.is_supported or is_edit:
                 self.expand_button.setChecked(False)
 
