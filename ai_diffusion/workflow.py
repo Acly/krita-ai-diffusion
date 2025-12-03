@@ -509,6 +509,7 @@ def apply_control(
     vae: Output,
     models: ModelDict,
 ):
+    patches = models.model_patch
     models = models.control
     control_lora: ControlMode | None = None
     is_illu = models.arch in [Arch.illu, Arch.illu_v]
@@ -526,6 +527,10 @@ def apply_control(
         elif cn_model := models.find(ControlMode.universal):
             controlnet = w.load_controlnet(cn_model)
             controlnet = w.set_controlnet_type(controlnet, control.mode)
+        elif cn_model := patches.find(control.mode, allow_universal=True):
+            patch = w.load_model_patch(cn_model)
+            model = w.apply_diffsynth_controlnet(model, patch, vae, image, control.strength)
+            continue
         else:
             raise Exception(f"ControlNet model not found for mode {control.mode}")
 

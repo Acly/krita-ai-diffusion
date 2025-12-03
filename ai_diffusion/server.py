@@ -955,6 +955,7 @@ krita-managed:
     inpaint: inpaint
     ipadapter: ipadapter
     loras: loras
+    model_patches: model_patches
     style_models: style_models
     text_encoders: text_encoders
     upscale_models: upscale_models
@@ -974,6 +975,15 @@ def _configure_extra_model_paths(comfy_dir: Path):
     if "krita-managed" not in contents:
         log.info(f"Extending {path}")
         path.write_text(contents + _extra_model_paths_yaml)
+    if "model_patches" not in contents:
+        log.info(f"Adding model_patches to {path}")
+        lines = contents.splitlines()
+        new_lines = []
+        for line in lines:
+            new_lines.append(line)
+            if line.strip().startswith("krita-managed:"):
+                new_lines.append("    model_patches: model_patches")
+        path.write_text("\n".join(new_lines))
 
 
 model_dirs = [
@@ -984,6 +994,7 @@ model_dirs = [
     "inpaint",
     "ipadapter",
     "loras",
+    "model_patches",
     "style_models",
     "text_encoders",
     "upscale_models",

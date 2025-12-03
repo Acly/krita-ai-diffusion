@@ -259,6 +259,10 @@ class ModelDict:
         return ModelDict(self._models, ResourceKind.inpaint, Arch.all)
 
     @property
+    def model_patch(self):
+        return ModelDict(self._models, ResourceKind.model_patch, self.arch)
+
+    @property
     def lora(self):
         return ModelDict(self._models, ResourceKind.lora, self.arch)
 

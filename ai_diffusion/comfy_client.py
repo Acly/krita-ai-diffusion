@@ -222,6 +222,9 @@ class ComfyClient(Client):
         ip_adapter_models = nodes.options("IPAdapterModelLoader", "ipadapter_file")
         available_resources.update(_find_ip_adapters(ip_adapter_models))
 
+        model_patches = nodes.options("ModelPatchLoader", "name")
+        available_resources.update(_find_model_patches(model_patches))
+
         style_models = nodes.options("StyleModelLoader", "style_model_name")
         available_resources.update(_find_style_models(style_models))
 
@@ -790,6 +793,11 @@ def _find_clip_vision_model(model_list: Sequence[str]):
         clip_vision_flux.string: find_model(model_list, clip_vision_flux),
         clip_vision_illu.string: find_model(model_list, clip_vision_illu),
     }
+
+
+def _find_model_patches(model_list: Sequence[str]):
+    res = ResourceId(ResourceKind.model_patch, Arch.zimage, ControlMode.universal)
+    return {res.string: _find_model(model_list, res.kind, res.arch, res.identifier)}
 
 
 def _find_style_models(model_list: Sequence[str]):

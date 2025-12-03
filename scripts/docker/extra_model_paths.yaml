@@ -15,3 +15,4 @@ runpod:
     style_models: style_models
     diffusion_models: diffusion_models
     text_encoders: text_encoders
+    model_patches: model_patches

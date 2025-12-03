@@ -164,12 +164,15 @@ class ControlLayer(QObject, ObservableProperties):
                 is_supported = False
             elif self.mode.is_control_net:
                 cn_model = models.control.find(self.mode, allow_universal=True)
+                patch_model = models.model_patch.find(self.mode, allow_universal=True)
                 lora_model = models.lora.find(self.mode)
-                if cn_model is None and lora_model is None:
+                if cn_model is None and patch_model is None and lora_model is None:
                     search_arch = Arch.illu if models.arch is Arch.illu_v else models.arch
-                    search_path = resources.search_path(
-                        ResourceKind.controlnet, search_arch, self.mode
-                    ) or resources.search_path(ResourceKind.lora, models.arch, self.mode)
+                    search_path = (
+                        resources.search_path(ResourceKind.controlnet, search_arch, self.mode)
+                        or resources.search_path(ResourceKind.model_patch, search_arch, self.mode)
+                        or resources.search_path(ResourceKind.lora, models.arch, self.mode)
+                    )
                     if search_path:
                         self.error_text = (
                             _("The ControlNet model is not installed") + f" {search_path}"

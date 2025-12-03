@@ -523,6 +523,9 @@ class ComfyWorkflow:
     def load_style_model(self, model_name: str):
         return self.add_cached("StyleModelLoader", 1, style_model_name=model_name)
 
+    def load_model_patch(self, model_name: str):
+        return self.add_cached("ModelPatchLoader", 1, name=model_name)
+
     def load_lora_model(self, model: Output, lora_name: str, strength: float):
         return self.add(
             "LoraLoaderModelOnly", 1, model=model, lora_name=lora_name, strength_model=strength
@@ -765,6 +768,19 @@ class ComfyWorkflow:
             conditioning=conditioning,
             style_model=style_model,
             clip_vision_output=embeddings,
+        )
+
+    def apply_diffsynth_controlnet(
+        self, model: Output, patch: Output, vae: Output, image: Output, strength: float
+    ):
+        return self.add(
+            "QwenImageDiffsynthControlnet",
+            1,
+            model=model,
+            model_patch=patch,
+            vae=vae,
+            image=image,
+            strength=strength,
         )
 
     def encode_ip_adapter(
