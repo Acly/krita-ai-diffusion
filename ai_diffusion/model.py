@@ -31,7 +31,7 @@ from .layer import Layer, LayerType, RestoreActiveLayer
 from .pose import Pose
 from .style import Style, Styles, Arch
 from .files import FileLibrary
-from .connection import Connection
+from .connection import Connection, ConnectionState
 from .properties import Property, ObservableProperties
 from .jobs import Job, JobKind, JobParams, JobQueue, JobState, JobRegion
 from .control import ControlLayer
@@ -150,6 +150,8 @@ class Model(QObject, ObservableProperties):
         self._init_on_connect()
 
     def _init_on_connect(self):
+        if self._connection.state is not ConnectionState.connected:
+            return
         if client := self._connection.client_if_connected:
             styles = filter_supported_styles(Styles.list().filtered(), client)
             if self.style not in styles and len(styles) > 0:
