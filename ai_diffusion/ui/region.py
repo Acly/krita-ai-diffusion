@@ -11,7 +11,7 @@ from PyQt5.QtGui import (
     QIcon,
     QFontMetrics,
 )
-from PyQt5.QtCore import QObject, QEvent, Qt, QMetaObject, QSize, pyqtSignal
+from PyQt5.QtCore import QObject, QEvent, Qt, QMetaObject, QPoint, QSize, pyqtSignal
 
 from ..root import root
 from ..client import Client
@@ -185,6 +185,12 @@ class ActiveRegionWidget(QFrame):
         )
         self._language_button.clicked.connect(self._toggle_translation_enabled)
 
+        font_height = QFontMetrics(self.font()).height()
+        self._negative_warning = QLabel(self)
+        self._negative_warning.setPixmap(theme.icon("alert").pixmap(font_height, font_height))
+        self._negative_warning.setToolTip(_("The selected Style does not use the negative prompt."))
+        self._negative_warning.setVisible(False)
+
         self._setup_bindings(self._region)
         settings.changed.connect(self.update_settings)
 
@@ -217,12 +223,12 @@ class ActiveRegionWidget(QFrame):
             ]
             if self.is_slim:
                 evt = region.negative_enabled_live_changed
-                self._bindings.append(evt.connect(self.negative.setEnabled))
-                self.negative.setEnabled(region.negative_enabled_live)
+                self._bindings.append(evt.connect(self._show_negative_warning))
+                self._negative_warning.setVisible(not region.negative_enabled_live)
             else:
                 evt = region.negative_enabled_changed
-                self._bindings.append(evt.connect(self.negative.setEnabled))
-                self.negative.setEnabled(region.negative_enabled)
+                self._bindings.append(evt.connect(self._show_negative_warning))
+                self._negative_warning.setVisible(not region.negative_enabled)
         elif isinstance(region, Region):
             self._root = region.root
             self._bindings = [
@@ -424,6 +430,17 @@ class ActiveRegionWidget(QFrame):
             s = QSize(self.fontMetrics().width("EN"), self.fontMetrics().height())
             self._language_button.move(pos.x() - s.width() - 2, pos.y() - s.height() - 2)
             self._language_button.resize(s)
+
+        if self.has_negative:
+            pos = self.negative.geometry().bottomRight()
+            if settings.prompt_translation:
+                pos = pos - QPoint(self._language_button.width() + 4, 0)
+            s = self.fontMetrics().height() + 2
+            self._negative_warning.move(pos.x() - s - 2, pos.y() - s - 2)
+            self._negative_warning.resize(QSize(s, s))
+
+    def _show_negative_warning(self, is_negative_enabled: bool):
+        self._negative_warning.setVisible(not is_negative_enabled)
 
     def _setup_resize_handle(self):
         can_resize = not (isinstance(self._region, Region) and self.is_slim)

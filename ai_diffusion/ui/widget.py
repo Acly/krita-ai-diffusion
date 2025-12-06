@@ -542,11 +542,6 @@ class TextPromptWidget(QPlainTextEdit):
         else:
             self.setFrameStyle(QFrame.Shape.NoFrame)
 
-    def setEnabled(self, a0):
-        super().setEnabled(a0)
-        disabled_hint = _("The selected Style does not use the negative prompt.")
-        self.setToolTip("" if a0 else disabled_hint)
-
     @property
     def has_focus(self):
         return self.hasFocus()
