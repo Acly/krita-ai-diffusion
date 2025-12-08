@@ -338,16 +338,14 @@ class StyleSelectWidget(QWidget):
             return
         client = root.connection.client_if_connected
         self._styles = filter_supported_styles(Styles.list().filtered(), client)
+        if self._value not in self._styles:
+            self._styles.insert(0, self._value)
         with SignalBlocker(self._combo):
             self._combo.clear()
             for style in self._styles:
                 icon = theme.checkpoint_icon(resolve_arch(style, client))
                 self._combo.addItem(icon, style.name, style.filename)
-            if self._value in self._styles:
-                self._combo.setCurrentText(self._value.name)
-            elif len(self._styles) > 0:
-                self._value = self._styles[0]
-                self._combo.setCurrentIndex(0)
+            self._combo.setCurrentText(self._value.name)
 
     def change_style(self):
         style = self._styles[self._combo.currentIndex()]
@@ -372,7 +370,10 @@ class StyleSelectWidget(QWidget):
     def value(self, style: Style):
         if style != self._value:
             self._value = style
-            self._combo.setCurrentText(style.name)
+            if style not in self._styles:
+                self.update_styles()
+            else:
+                self._combo.setCurrentText(style.name)
 
 
 class ResizeHandle(QWidget):

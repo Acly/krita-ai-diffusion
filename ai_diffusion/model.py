@@ -816,10 +816,6 @@ class Model(QObject, ObservableProperties):
 
     def set_style(self, style: Style):
         if style is not self._style:
-            if client := self._connection.client_if_connected:
-                styles = filter_supported_styles(Styles.list().filtered(), client)
-                if style not in styles:
-                    return
             if self._style_connection:
                 QObject.disconnect(self._style_connection)
             self._style = style
