@@ -224,11 +224,11 @@ class ActiveRegionWidget(QFrame):
             if self.is_slim:
                 evt = region.negative_enabled_live_changed
                 self._bindings.append(evt.connect(self._show_negative_warning))
-                self._negative_warning.setVisible(not region.negative_enabled_live)
+                self._show_negative_warning(region.negative_enabled_live)
             else:
                 evt = region.negative_enabled_changed
                 self._bindings.append(evt.connect(self._show_negative_warning))
-                self._negative_warning.setVisible(not region.negative_enabled)
+                self._show_negative_warning(region.negative_enabled)
         elif isinstance(region, Region):
             self._root = region.root
             self._bindings = [
@@ -439,8 +439,8 @@ class ActiveRegionWidget(QFrame):
             self._negative_warning.move(pos.x() - s - 2, pos.y() - s - 2)
             self._negative_warning.resize(QSize(s, s))
 
-    def _show_negative_warning(self, is_negative_enabled: bool):
-        self._negative_warning.setVisible(not is_negative_enabled)
+    def _show_negative_warning(self, support_negative: bool):
+        self._negative_warning.setVisible(settings.show_negative_prompt and not support_negative)
 
     def _setup_resize_handle(self):
         can_resize = not (isinstance(self._region, Region) and self.is_slim)
