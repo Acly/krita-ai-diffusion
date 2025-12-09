@@ -943,7 +943,33 @@ class CustomWorkflowWidget(QWidget):
 
     @popup_on_error
     def _accept_name(self, *args):
-        self.model.custom.save_as(self._workflow_name_edit.text())
+        name = self._workflow_name_edit.text().strip()
+        workspace = self.model.custom
+        overwrite = False
+
+        current = workspace.workflow
+        existing = workspace.workflows.find(name)
+        if (
+            current is not None
+            and current.source is WorkflowSource.remote
+            and existing is not None
+            and existing.source is WorkflowSource.local
+        ):
+            details = f"\n{existing.path}" if existing.path is not None else ""
+            q = QMessageBox.question(
+                self,
+                _("Overwrite Workflow"),
+                _("A workflow named '{name}' already exists. Do you want to overwrite it?").format(
+                    name=name
+                )
+                + details,
+                QMessageBox.Yes | QMessageBox.No,
+                QMessageBox.StandardButton.No,
+            )
+            if q == QMessageBox.StandardButton.Yes:
+                overwrite = True
+
+        workspace.save_as(name, overwrite=overwrite)
         self.is_edit_mode = False
 
     def _cancel_name(self):
