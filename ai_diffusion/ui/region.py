@@ -223,12 +223,10 @@ class ActiveRegionWidget(QFrame):
             ]
             if self.is_slim:
                 evt = region.negative_enabled_live_changed
-                self._bindings.append(evt.connect(self._show_negative_warning))
-                self._show_negative_warning(region.negative_enabled_live)
             else:
                 evt = region.negative_enabled_changed
-                self._bindings.append(evt.connect(self._show_negative_warning))
-                self._show_negative_warning(region.negative_enabled)
+            self._bindings.append(evt.connect(self._show_negative_warning))
+            self._show_negative_warning()
         elif isinstance(region, Region):
             self._root = region.root
             self._bindings = [
@@ -421,6 +419,7 @@ class ActiveRegionWidget(QFrame):
         self.negative.setVisible(self.has_negative)
         self._layout_language_button()
         self._setup_resize_handle()
+        self._show_negative_warning()
 
     def _layout_language_button(self):
         if settings.prompt_translation:
@@ -439,8 +438,11 @@ class ActiveRegionWidget(QFrame):
             self._negative_warning.move(pos.x() - s - 2, pos.y() - s - 2)
             self._negative_warning.resize(QSize(s, s))
 
-    def _show_negative_warning(self, support_negative: bool):
-        self._negative_warning.setVisible(settings.show_negative_prompt and not support_negative)
+    def _show_negative_warning(self):
+        if isinstance(self._region, RootRegion):
+            r = self._region
+            enabled = r.negative_enabled_live if self.is_slim else r.negative_enabled
+            self._negative_warning.setVisible(settings.show_negative_prompt and not enabled)
 
     def _setup_resize_handle(self):
         can_resize = not (isinstance(self._region, Region) and self.is_slim)
