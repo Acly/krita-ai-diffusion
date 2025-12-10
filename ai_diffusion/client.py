@@ -38,12 +38,17 @@ class TextOutput(NamedTuple):
     mime: str
 
 
+class ResizeCommand(NamedTuple):
+    width: int
+    height: int
+
+
 class SharedWorkflow(NamedTuple):
     publisher: str
     workflow: dict
 
 
-ClientOutput = dict | SharedWorkflow | TextOutput
+ClientOutput = dict | SharedWorkflow | TextOutput | ResizeCommand
 
 
 class ClientMessage(NamedTuple):

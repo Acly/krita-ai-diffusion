@@ -12,7 +12,7 @@ from typing import Any, Iterable, Optional, Sequence
 
 from .api import WorkflowInput
 from .client import Client, CheckpointInfo, ClientMessage, ClientEvent, DeviceInfo, ClientModels
-from .client import SharedWorkflow, TranslationPackage, ClientFeatures, TextOutput
+from .client import SharedWorkflow, TranslationPackage, ClientFeatures, TextOutput, ResizeCommand
 from .client import Quantization, MissingResources, filter_supported_styles, loras_to_upload
 from .comfy_workflow import ComfyObjectInfo
 from .files import FileFormat
@@ -918,6 +918,18 @@ def _extract_text_output(job_id: str, msg: dict):
                 text = payload.get("text")
                 name = payload.get("name")
                 mime = payload.get("content-type", mime)
+                # Special case: Krita canvas resize command produced by a tooling node
+                if mime == "application/x-krita-command" and isinstance(text, str):
+                    try:
+                        data = json.loads(text)
+                        if data.get("action") == "resize_canvas":
+                            width = int(data.get("width", 0))
+                            height = int(data.get("height", 0))
+                            if width > 0 and height > 0:
+                                cmd = ResizeCommand(width, height)
+                                return ClientMessage(ClientEvent.output, job_id, result=cmd)
+                    except Exception as e:
+                        log.warning(f"Failed to process Krita command output: {e}")
             elif isinstance(payload, str):
                 text = payload
                 name = f"Node {key}"
