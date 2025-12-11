@@ -6,7 +6,7 @@ from enum import Enum, Flag
 from typing import Any, NamedTuple, TYPE_CHECKING
 from PyQt5.QtCore import QObject, pyqtSignal
 
-from .image import Bounds, ImageCollection
+from .image import Bounds, Extent, ImageCollection
 from .settings import settings
 from .style import Style
 from .util import ensure
@@ -55,6 +55,7 @@ class JobParams:
     has_mask: bool = False
     frame: tuple[int, int, int] = (0, 0, 0)
     animation_id: str = ""
+    resize_canvas: Extent | None = None
 
     @staticmethod
     def from_dict(data: dict[str, Any]):
@@ -69,6 +70,21 @@ class JobParams:
             _move_field(data, "style", data["metadata"])
             _move_field(data, "sampler", data["metadata"])
             _move_field(data, "checkpoint", data["metadata"])
+        if "resize_canvas" in data and data["resize_canvas"] is not None:
+            resize = data["resize_canvas"]
+            try:
+                if isinstance(resize, (list, tuple)) and len(resize) == 2:
+                    data["resize_canvas"] = Extent(int(resize[0]), int(resize[1]))
+                elif isinstance(resize, dict):
+                    width = int(resize.get("width", 0))
+                    height = int(resize.get("height", 0))
+                    data["resize_canvas"] = Extent(width, height)
+                elif isinstance(resize, Extent):
+                    data["resize_canvas"] = resize
+                else:
+                    data["resize_canvas"] = None
+            except Exception:
+                data["resize_canvas"] = None
         return JobParams(**data)
 
     @classmethod
