@@ -1,7 +1,9 @@
 from __future__ import annotations
+import asyncio
 from abc import ABC, abstractmethod
+from collections import deque
 from enum import Enum
-from typing import Any, AsyncGenerator, Iterable, NamedTuple
+from typing import Any, AsyncGenerator, Callable, Generic, Iterable, NamedTuple, TypeVar
 from PyQt5.QtCore import QObject, pyqtSignal
 
 from .api import WorkflowInput
@@ -85,6 +87,48 @@ class DeviceInfo(NamedTuple):
         except Exception as e:
             log.error(f"Could not parse device info {data}: {str(e)}")
             return DeviceInfo("cpu", "unknown", 0)
+
+
+_T = TypeVar("_T")
+
+
+class ClientJobQueue(Generic[_T]):
+    """Jobs that have been enqueued on client-side but not yet sent to server.
+    Unbounded single-producer/single-consumer queue.
+    Always consumed front to back, but jobs can be prioritized when added."""
+
+    def __init__(self):
+        self._jobs: deque[_T] = deque()
+        self._event = asyncio.Event()
+
+    def put(self, job: _T, front: bool = False):
+        if front:
+            self._jobs.appendleft(job)
+        else:
+            self._jobs.append(job)
+        self._event.set()
+
+    def _get(self):
+        job = self._jobs.popleft()
+        if not self._jobs:
+            self._event.clear()
+        return job
+
+    async def get(self):
+        while not self._jobs:
+            await self._event.wait()
+        return self._get()
+
+    def remove_if(self, filter: Callable[[_T], bool]):
+        self._jobs = deque(job for job in self._jobs if not filter(job))
+        if len(self._jobs) == 0:
+            self._event.clear()
+
+    def __len__(self):
+        return len(self._jobs)
+
+    def __iter__(self):
+        return iter(self._jobs)
 
 
 class MissingResources(Exception):
