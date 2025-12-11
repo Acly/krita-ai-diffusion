@@ -6,7 +6,7 @@ from enum import Enum, Flag
 from typing import Any, NamedTuple, TYPE_CHECKING
 from PyQt5.QtCore import QObject, pyqtSignal
 
-from .image import Bounds, Extent, ImageCollection
+from .image import Bounds, ImageCollection
 from .settings import settings
 from .style import Style
 from .util import ensure
@@ -55,7 +55,7 @@ class JobParams:
     has_mask: bool = False
     frame: tuple[int, int, int] = (0, 0, 0)
     animation_id: str = ""
-    resize_canvas: Extent | None = None
+    resize_canvas: bool = False
 
     @staticmethod
     def from_dict(data: dict[str, Any]):
@@ -70,21 +70,24 @@ class JobParams:
             _move_field(data, "style", data["metadata"])
             _move_field(data, "sampler", data["metadata"])
             _move_field(data, "checkpoint", data["metadata"])
-        if "resize_canvas" in data and data["resize_canvas"] is not None:
+        if "resize_canvas" in data:
             resize = data["resize_canvas"]
-            try:
-                if isinstance(resize, (list, tuple)) and len(resize) == 2:
-                    data["resize_canvas"] = Extent(int(resize[0]), int(resize[1]))
-                elif isinstance(resize, dict):
-                    width = int(resize.get("width", 0))
-                    height = int(resize.get("height", 0))
-                    data["resize_canvas"] = Extent(width, height)
-                elif isinstance(resize, Extent):
-                    data["resize_canvas"] = resize
-                else:
-                    data["resize_canvas"] = None
-            except Exception:
-                data["resize_canvas"] = None
+            # Backwards compatibility: accept various legacy forms and coerce to bool.
+            if isinstance(resize, dict):
+                try:
+                    w = int(resize.get("width", 0))
+                    h = int(resize.get("height", 0))
+                    data["resize_canvas"] = w > 0 and h > 0
+                except Exception:
+                    data["resize_canvas"] = False
+            elif isinstance(resize, (list, tuple)) and len(resize) == 2:
+                try:
+                    w, h = int(resize[0]), int(resize[1])
+                    data["resize_canvas"] = w > 0 and h > 0
+                except Exception:
+                    data["resize_canvas"] = False
+            else:
+                data["resize_canvas"] = bool(resize)
         return JobParams(**data)
 
     @classmethod

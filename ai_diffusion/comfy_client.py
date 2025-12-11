@@ -422,6 +422,9 @@ class ComfyClient(Client):
                         text_output = _extract_text_output(job.id, msg)
                         if text_output is not None:
                             await self._messages.put(text_output)
+                        resize_cmd = _extract_resize_output(job.id, msg)
+                        if resize_cmd is not None:
+                            await self._messages.put(resize_cmd)
                         pose_json = _extract_pose_json(msg)
                         if pose_json is not None:
                             result = pose_json
@@ -939,3 +942,27 @@ def _extract_text_output(job_id: str, msg: dict):
     except Exception as e:
         log.warning(f"Error processing message, error={str(e)}, msg={msg}")
     return None
+
+
+def _extract_resize_output(job_id: str, msg: dict):
+    """Extract a Krita canvas resize toggle encoded directly in the UI output."""
+    try:
+        output = msg["data"]["output"]
+        if output is None:
+            return None
+
+        resize = output.get("resize_canvas")
+        if isinstance(resize, list):
+            active = any(bool(item) for item in resize)
+        else:
+            active = bool(resize)
+
+        if not active:
+            return None
+
+        # Use a lightweight dict result; the Krita client will interpret this
+        # as "resize canvas to match image extent" on apply.
+        return ClientMessage(ClientEvent.output, job_id, result={"resize_canvas": True})
+    except Exception as e:
+        log.warning(f"Error processing Krita resize output: {e}, msg={msg}")
+        return None

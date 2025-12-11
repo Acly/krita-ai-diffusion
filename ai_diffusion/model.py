@@ -591,6 +591,8 @@ class Model(QObject, ObservableProperties):
         elif message.event is ClientEvent.output:
             if isinstance(message.result, ResizeCommand):
                 self._apply_resize_command(message.result, job)
+            elif isinstance(message.result, dict) and message.result.get("resize_canvas"):
+                job.params.resize_canvas = True
             else:
                 self.custom.show_output(message.result)
         elif message.event is ClientEvent.finished:
@@ -633,14 +635,14 @@ class Model(QObject, ObservableProperties):
             self.progress = 0
 
     def _apply_resize_command(self, cmd: ResizeCommand, job: Job):
-        """Record a requested canvas resize for this job.
+        """Legacy: record a requested canvas resize for this job.
 
-        The actual resize is applied when showing a preview or applying the result.
+        Newer workflows use a simple resize toggle in the UI output instead.
         """
         try:
             bounds = job.params.bounds
             job.params.bounds = Bounds(bounds.x, bounds.y, cmd.width, cmd.height)
-            job.params.resize_canvas = Extent(cmd.width, cmd.height)
+            job.params.resize_canvas = True
         except Exception as e:
             log.warning(f"Failed to store resize command from custom workflow: {e}")
 
@@ -687,16 +689,17 @@ class Model(QObject, ObservableProperties):
         region_behavior=ApplyRegionBehavior.layer_group,
         prefix="",
     ):
-        if params.resize_canvas is not None:
-            target = params.resize_canvas
+        if params.resize_canvas:
             try:
-                extent = self.document.extent
-                if extent.width != target.width or extent.height != target.height:
-                    self.document.resize_canvas(target.width, target.height)
+                extent = image.extent
+                target_width, target_height = extent.width, extent.height
+                current = self.document.extent
+                if current.width != target_width or current.height != target_height:
+                    self.document.resize_canvas(target_width, target_height)
             except Exception as e:
                 log.warning(f"Failed to resize canvas from custom workflow: {e}")
             finally:
-                params.resize_canvas = None
+                params.resize_canvas = False
 
         bounds = Bounds(*params.bounds.offset, *image.extent)
         if len(params.regions) == 0 or region_behavior is ApplyRegionBehavior.none:
