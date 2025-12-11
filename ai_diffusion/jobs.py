@@ -70,24 +70,6 @@ class JobParams:
             _move_field(data, "style", data["metadata"])
             _move_field(data, "sampler", data["metadata"])
             _move_field(data, "checkpoint", data["metadata"])
-        if "resize_canvas" in data:
-            resize = data["resize_canvas"]
-            # Backwards compatibility: accept various legacy forms and coerce to bool.
-            if isinstance(resize, dict):
-                try:
-                    w = int(resize.get("width", 0))
-                    h = int(resize.get("height", 0))
-                    data["resize_canvas"] = w > 0 and h > 0
-                except Exception:
-                    data["resize_canvas"] = False
-            elif isinstance(resize, (list, tuple)) and len(resize) == 2:
-                try:
-                    w, h = int(resize[0]), int(resize[1])
-                    data["resize_canvas"] = w > 0 and h > 0
-                except Exception:
-                    data["resize_canvas"] = False
-            else:
-                data["resize_canvas"] = bool(resize)
         return JobParams(**data)
 
     @classmethod
