@@ -23,7 +23,14 @@ from .settings import ApplyBehavior, ApplyRegionBehavior, GenerationFinishedActi
 from .settings import settings
 from .network import NetworkError
 from .image import Extent, Image, Mask, Bounds, DummyImage
-from .client import Client, ClientMessage, ClientEvent, ClientOutput, is_style_supported
+from .client import (
+    Client,
+    ClientMessage,
+    ClientEvent,
+    ClientOutput,
+    is_style_supported,
+    ResizeCommand,
+)
 from .client import filter_supported_styles, resolve_arch
 from .custom_workflow import CustomWorkspace, WorkflowCollection, CustomGenerationMode
 from .document import Document, KritaDocument
@@ -582,7 +589,12 @@ class Model(QObject, ObservableProperties):
             self.progress_kind = ProgressKind.upload
             self.progress = message.progress
         elif message.event is ClientEvent.output:
-            self.custom.show_output(message.result)
+            if isinstance(message.result, ResizeCommand):
+                self._apply_resize_command(message.result, job)
+            elif isinstance(message.result, dict) and message.result.get("resize_canvas"):
+                job.params.resize_canvas = True
+            else:
+                self.custom.show_output(message.result)
         elif message.event is ClientEvent.finished:
             if message.error:  # successful jobs may have encountered some warnings
                 self.report_error(Error.from_string(message.error, ErrorKind.warning))
@@ -621,6 +633,18 @@ class Model(QObject, ObservableProperties):
         else:
             self.jobs.notify_cancelled(job)
             self.progress = 0
+
+    def _apply_resize_command(self, cmd: ResizeCommand, job: Job):
+        """Legacy: record a requested canvas resize for this job.
+
+        Newer workflows use a simple resize toggle in the UI output instead.
+        """
+        try:
+            bounds = job.params.bounds
+            job.params.bounds = Bounds(bounds.x, bounds.y, cmd.width, cmd.height)
+            job.params.resize_canvas = True
+        except Exception as e:
+            log.warning(f"Failed to store resize command from custom workflow: {e}")
 
     def update_preview(self):
         if selection := self.jobs.selection:
@@ -665,6 +689,18 @@ class Model(QObject, ObservableProperties):
         region_behavior=ApplyRegionBehavior.layer_group,
         prefix="",
     ):
+        if params.resize_canvas:
+            try:
+                extent = image.extent
+                target_width, target_height = extent.width, extent.height
+                current = self.document.extent
+                if current.width != target_width or current.height != target_height:
+                    self.document.resize_canvas(target_width, target_height)
+            except Exception as e:
+                log.warning(f"Failed to resize canvas from custom workflow: {e}")
+            finally:
+                params.resize_canvas = False
+
         bounds = Bounds(*params.bounds.offset, *image.extent)
         if len(params.regions) == 0 or region_behavior is ApplyRegionBehavior.none:
             if behavior is ApplyBehavior.replace:

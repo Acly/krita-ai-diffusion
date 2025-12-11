@@ -12,7 +12,7 @@ from typing import Any, Iterable, Optional, Sequence
 
 from .api import WorkflowInput
 from .client import Client, CheckpointInfo, ClientMessage, ClientEvent, DeviceInfo, ClientModels
-from .client import SharedWorkflow, TranslationPackage, ClientFeatures, TextOutput
+from .client import SharedWorkflow, TranslationPackage, ClientFeatures, TextOutput, ResizeCommand
 from .client import Quantization, MissingResources, filter_supported_styles, loras_to_upload
 from .comfy_workflow import ComfyObjectInfo
 from .files import FileFormat
@@ -422,6 +422,9 @@ class ComfyClient(Client):
                         text_output = _extract_text_output(job.id, msg)
                         if text_output is not None:
                             await self._messages.put(text_output)
+                        resize_cmd = _extract_resize_output(job.id, msg)
+                        if resize_cmd is not None:
+                            await self._messages.put(resize_cmd)
                         pose_json = _extract_pose_json(msg)
                         if pose_json is not None:
                             result = pose_json
@@ -918,6 +921,18 @@ def _extract_text_output(job_id: str, msg: dict):
                 text = payload.get("text")
                 name = payload.get("name")
                 mime = payload.get("content-type", mime)
+                # Special case: Krita canvas resize command produced by a tooling node
+                if mime == "application/x-krita-command" and isinstance(text, str):
+                    try:
+                        data = json.loads(text)
+                        if data.get("action") == "resize_canvas":
+                            width = int(data.get("width", 0))
+                            height = int(data.get("height", 0))
+                            if width > 0 and height > 0:
+                                cmd = ResizeCommand(width, height)
+                                return ClientMessage(ClientEvent.output, job_id, result=cmd)
+                    except Exception as e:
+                        log.warning(f"Failed to process Krita command output: {e}")
             elif isinstance(payload, str):
                 text = payload
                 name = f"Node {key}"
@@ -927,3 +942,27 @@ def _extract_text_output(job_id: str, msg: dict):
     except Exception as e:
         log.warning(f"Error processing message, error={str(e)}, msg={msg}")
     return None
+
+
+def _extract_resize_output(job_id: str, msg: dict):
+    """Extract a Krita canvas resize toggle encoded directly in the UI output."""
+    try:
+        output = msg["data"]["output"]
+        if output is None:
+            return None
+
+        resize = output.get("resize_canvas")
+        if isinstance(resize, list):
+            active = any(bool(item) for item in resize)
+        else:
+            active = bool(resize)
+
+        if not active:
+            return None
+
+        # Use a lightweight dict result; the Krita client will interpret this
+        # as "resize canvas to match image extent" on apply.
+        return ClientMessage(ClientEvent.output, job_id, result={"resize_canvas": True})
+    except Exception as e:
+        log.warning(f"Error processing Krita resize output: {e}, msg={msg}")
+        return None

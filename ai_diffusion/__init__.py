@@ -13,6 +13,11 @@ if not importlib.util.find_spec(".websockets.src", "ai_diffusion"):
     )
 
 
-# The following imports depend on the code running inside Krita, so the cannot be imported in tests.
-if importlib.util.find_spec("krita"):
-    from .extension import AIToolsExtension as AIToolsExtension
+# The following imports depend on the code running inside Krita, so they cannot be imported in tests.
+_krita_spec = importlib.util.find_spec("krita")
+if _krita_spec is not None:
+    origin = getattr(_krita_spec, "origin", "") or ""
+    # Avoid treating local helper modules named `krita.py` (e.g. tooling nodes)
+    # as the actual Krita application module.
+    if not origin.endswith("krita.py"):
+        from .extension import AIToolsExtension as AIToolsExtension
