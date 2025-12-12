@@ -27,6 +27,7 @@ from .switch import SwitchWidget
 from .widget import TextPromptWidget, WorkspaceSelectWidget, StyleSelectWidget, ErrorBox
 from .settings_widgets import ExpanderButton
 from . import theme
+from .theme import SignalBlocker
 
 
 class LayerSelect(QComboBox):
@@ -93,31 +94,41 @@ class IntParamWidget(QWidget):
         layout.setContentsMargins(0, 0, 0, 0)
         self.setLayout(layout)
 
+        self._slider: QSlider | None = None
         assert param.min is not None and param.max is not None and param.default is not None
         if param.max - param.min <= 200:
-            self._widget = QSlider(Qt.Orientation.Horizontal, parent)
-            self._widget.setMinimumHeight(self._widget.minimumSizeHint().height() + 4)
-            self._widget.valueChanged.connect(self._notify)
-            self._label = QLabel(self)
-            self._label.setFixedWidth(QFontMetrics(self.font()).width("000.00") + 4)
-            self._label.setAlignment(Qt.AlignmentFlag.AlignRight)
+            self._slider = QSlider(Qt.Orientation.Horizontal, parent)
+            self._slider.setMinimumHeight(self._slider.minimumSizeHint().height() + 4)
+            self._slider.valueChanged.connect(self._slider_changed)
+            self._widget = QSpinBox(parent)
+            self._widget.valueChanged.connect(self._input_changed)
+            layout.addWidget(self._slider)
             layout.addWidget(self._widget)
-            layout.addWidget(self._label)
         else:
             self._widget = QSpinBox(parent)
             self._widget.valueChanged.connect(self._notify)
-            self._label = None
             layout.addWidget(self._widget)
 
         min_range = clamp(int(param.min), -(2**31), 2**31 - 1)
         max_range = clamp(int(param.max), -(2**31), 2**31 - 1)
         self._widget.setRange(min_range, max_range)
+        if self._slider is not None:
+            self._slider.setRange(min_range, max_range)
 
         self.value = param.default
 
+    def _slider_changed(self, value: int):
+        with SignalBlocker(self._widget):
+            self._widget.setValue(value)
+        self._notify()
+
+    def _input_changed(self, value: int):
+        if self._slider is not None:
+            with SignalBlocker(self._slider):
+                self._slider.setValue(value)
+        self._notify()
+
     def _notify(self):
-        if self._label:
-            self._label.setText(str(self._widget.value()))
         self.value_changed.emit()
 
     @property
@@ -126,7 +137,13 @@ class IntParamWidget(QWidget):
 
     @value.setter
     def value(self, value: int | float):
-        self._widget.setValue(int(value))
+        v = int(value)
+        v = max(self._widget.minimum(), min(self._widget.maximum(), v))
+        with SignalBlocker(self._widget):
+            self._widget.setValue(v)
+        if self._slider is not None:
+            with SignalBlocker(self._slider):
+                self._slider.setValue(v)
 
 
 class FloatParamWidget(QWidget):
@@ -141,44 +158,55 @@ class FloatParamWidget(QWidget):
         layout.setContentsMargins(0, 0, 0, 0)
         self.setLayout(layout)
 
+        self._slider: QSlider | None = None
         assert param.min is not None and param.max is not None and param.default is not None
         if param.max - param.min <= 100:
-            self._widget = QSlider(Qt.Orientation.Horizontal, parent)
-            self._widget.setRange(round(param.min * 100), round(param.max * 100))
-            self._widget.setMinimumHeight(self._widget.minimumSizeHint().height() + 4)
-            self._widget.valueChanged.connect(self._notify)
-            self._label = QLabel(self)
-            self._label.setFixedWidth(QFontMetrics(self.font()).width("000.00") + 4)
-            self._label.setAlignment(Qt.AlignmentFlag.AlignRight)
+            self._slider = QSlider(Qt.Orientation.Horizontal, parent)
+            self._slider.setRange(round(param.min * 100), round(param.max * 100))
+            self._slider.setMinimumHeight(self._slider.minimumSizeHint().height() + 4)
+            self._slider.valueChanged.connect(self._slider_changed)
+            self._widget = QDoubleSpinBox(parent)
+            self._widget.setRange(param.min, param.max)
+            self._widget.setDecimals(2)
+            self._widget.valueChanged.connect(self._input_changed)
+            layout.addWidget(self._slider)
             layout.addWidget(self._widget)
-            layout.addWidget(self._label)
         else:
             self._widget = QDoubleSpinBox(parent)
             self._widget.setRange(param.min, param.max)
             self._widget.valueChanged.connect(self._notify)
-            self._label = None
             layout.addWidget(self._widget)
 
         self.value = param.default
 
+    def _slider_changed(self, value: int):
+        v = value / 100.0
+        with SignalBlocker(self._widget):
+            self._widget.setValue(v)
+        self._notify()
+
+    def _input_changed(self, value: float):
+        if self._slider is not None:
+            with SignalBlocker(self._slider):
+                self._slider.setValue(round(value * 100))
+        self._notify()
+
     def _notify(self):
-        if self._label:
-            self._label.setText(f"{self.value:.2f}")
         self.value_changed.emit()
 
     @property
     def value(self):
-        if isinstance(self._widget, QSlider):
-            return self._widget.value() / 100
-        else:
-            return self._widget.value()
+        return float(self._widget.value())
 
     @value.setter
     def value(self, value: float | int):
-        if isinstance(self._widget, QSlider):
-            self._widget.setValue(round(value * 100))
-        else:
-            self._widget.setValue(float(value))
+        v = float(value)
+        v = max(self._widget.minimum(), min(self._widget.maximum(), v))
+        with SignalBlocker(self._widget):
+            self._widget.setValue(v)
+        if self._slider is not None:
+            with SignalBlocker(self._slider):
+                self._slider.setValue(round(v * 100))
 
 
 class BoolParamWidget(QWidget):
@@ -943,7 +971,33 @@ class CustomWorkflowWidget(QWidget):
 
     @popup_on_error
     def _accept_name(self, *args):
-        self.model.custom.save_as(self._workflow_name_edit.text())
+        name = self._workflow_name_edit.text().strip()
+        workspace = self.model.custom
+        overwrite = False
+
+        current = workspace.workflow
+        existing = workspace.workflows.find(name)
+        if (
+            current is not None
+            and current.source is WorkflowSource.remote
+            and existing is not None
+            and existing.source is WorkflowSource.local
+        ):
+            details = f"\n{existing.path}" if existing.path is not None else ""
+            q = QMessageBox.question(
+                self,
+                _("Overwrite Workflow"),
+                _("A workflow named '{name}' already exists. Do you want to overwrite it?").format(
+                    name=name
+                )
+                + details,
+                QMessageBox.Yes | QMessageBox.No,
+                QMessageBox.StandardButton.No,
+            )
+            if q == QMessageBox.StandardButton.Yes:
+                overwrite = True
+
+        workspace.save_as(name, overwrite=overwrite)
         self.is_edit_mode = False
 
     def _cancel_name(self):
