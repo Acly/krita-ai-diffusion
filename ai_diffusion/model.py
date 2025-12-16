@@ -591,8 +591,6 @@ class Model(QObject, ObservableProperties):
         elif message.event is ClientEvent.output:
             if isinstance(message.result, ResizeCommand):
                 self._apply_resize_command(message.result, job)
-            elif isinstance(message.result, dict) and message.result.get("resize_canvas"):
-                job.params.resize_canvas = True
             else:
                 self.custom.show_output(message.result)
         elif message.event is ClientEvent.finished:
@@ -635,14 +633,13 @@ class Model(QObject, ObservableProperties):
             self.progress = 0
 
     def _apply_resize_command(self, cmd: ResizeCommand, job: Job):
-        """Legacy: record a requested canvas resize for this job.
-
-        Newer workflows use a simple resize toggle in the UI output instead.
-        """
         try:
-            bounds = job.params.bounds
-            job.params.bounds = Bounds(bounds.x, bounds.y, cmd.width, cmd.height)
             job.params.resize_canvas = True
+            if not cmd.match_image_extent:
+                if cmd.width is None or cmd.height is None:
+                    return
+                bounds = job.params.bounds
+                job.params.bounds = Bounds(bounds.x, bounds.y, cmd.width, cmd.height)
         except Exception as e:
             log.warning(f"Failed to store resize command from custom workflow: {e}")
 

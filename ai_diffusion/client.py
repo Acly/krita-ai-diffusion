@@ -39,8 +39,15 @@ class TextOutput(NamedTuple):
 
 
 class ResizeCommand(NamedTuple):
-    width: int
-    height: int
+    """Request that Krita resizes the canvas when applying a generated result.
+
+    - If `match_image_extent` is True, the canvas is resized to the generated image extent.
+    - Otherwise, `width` and `height` (when provided) specify the target canvas size.
+    """
+
+    match_image_extent: bool = False
+    width: int | None = None
+    height: int | None = None
 
 
 class SharedWorkflow(NamedTuple):

@@ -921,18 +921,6 @@ def _extract_text_output(job_id: str, msg: dict):
                 text = payload.get("text")
                 name = payload.get("name")
                 mime = payload.get("content-type", mime)
-                # Special case: Krita canvas resize command produced by a tooling node
-                if mime == "application/x-krita-command" and isinstance(text, str):
-                    try:
-                        data = json.loads(text)
-                        if data.get("action") == "resize_canvas":
-                            width = int(data.get("width", 0))
-                            height = int(data.get("height", 0))
-                            if width > 0 and height > 0:
-                                cmd = ResizeCommand(width, height)
-                                return ClientMessage(ClientEvent.output, job_id, result=cmd)
-                    except Exception as e:
-                        log.warning(f"Failed to process Krita command output: {e}")
             elif isinstance(payload, str):
                 text = payload
                 name = f"Node {key}"
@@ -960,9 +948,9 @@ def _extract_resize_output(job_id: str, msg: dict):
         if not active:
             return None
 
-        # Use a lightweight dict result; the Krita client will interpret this
-        # as "resize canvas to match image extent" on apply.
-        return ClientMessage(ClientEvent.output, job_id, result={"resize_canvas": True})
+        return ClientMessage(
+            ClientEvent.output, job_id, result=ResizeCommand(match_image_extent=True)
+        )
     except Exception as e:
         log.warning(f"Error processing Krita resize output: {e}, msg={msg}")
         return None
