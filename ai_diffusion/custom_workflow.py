@@ -170,6 +170,17 @@ class WorkflowCollection(QAbstractListModel):
         self._process_workflow(id, WorkflowSource.local, graph, path)
         return id
 
+    def overwrite(self, id: str, graph: dict):
+        existing = self.find(id)
+        if existing is None or existing.source is not WorkflowSource.local or existing.path is None:
+            raise KeyError(f"Workflow {id} cannot be overwritten")
+
+        path = existing.path
+        self._folder.mkdir(exist_ok=True)
+        path.write_text(json.dumps(graph, indent=2))
+        self._process_workflow(id, WorkflowSource.local, graph, path)
+        return id
+
     def import_file(self, filepath: Path):
         try:
             with filepath.open("r") as f:
@@ -431,9 +442,12 @@ class CustomWorkspace(QObject, ObservableProperties):
     def import_file(self, filepath: Path):
         self.workflow_id = self._workflows.import_file(filepath)
 
-    def save_as(self, id: str):
+    def save_as(self, id: str, overwrite: bool = False):
         assert self._graph, "Save as: no workflow selected"
-        self.workflow_id = self._workflows.save_as(id, self._graph.root)
+        if overwrite:
+            self.workflow_id = self._workflows.overwrite(id, self._graph.root)
+        else:
+            self.workflow_id = self._workflows.save_as(id, self._graph.root)
 
     def remove_workflow(self):
         if id := self.workflow_id:
@@ -466,6 +480,10 @@ class CustomWorkspace(QObject, ObservableProperties):
     @property
     def graph(self):
         return self._graph
+
+    @property
+    def workflows(self):
+        return self._workflows
 
     @property
     def metadata(self):
