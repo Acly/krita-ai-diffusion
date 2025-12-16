@@ -12,7 +12,7 @@ from typing import Iterable
 
 from .api import WorkflowInput
 from .client import Client, ClientEvent, ClientMessage, ClientModels, DeviceInfo
-from .client import ClientFeatures, TranslationPackage, User, loras_to_upload
+from .client import ClientFeatures, ClientJobQueue, TranslationPackage, User, loras_to_upload
 from .image import ImageCollection, qt_supports_webp
 from .network import RequestManager, NetworkError
 from .files import File
@@ -28,6 +28,7 @@ class JobInfo:
     work: WorkflowInput
     remote_id: str | None = None
     worker_id: str | None = None
+    cancelled: bool = False
 
     def __str__(self):
         return f"Job[{self.work.kind.name}, local={self.local_id}, remote={self.remote_id}]"
@@ -54,7 +55,7 @@ class CloudClient(Client):
         self._user: User | None = None
         self._current_job: JobInfo | None = None
         self._cancel_requested: bool = False
-        self._queue: asyncio.Queue[JobInfo] = asyncio.Queue()
+        self._queue: ClientJobQueue[JobInfo] = ClientJobQueue()
         self._features = enumerate_features({})
 
     async def _get(self, op: str):
@@ -113,7 +114,7 @@ class CloudClient(Client):
     async def enqueue(self, work: WorkflowInput, front: bool = False):
         apply_limits(work, self.features)
         job = JobInfo(str(uuid.uuid4()), work)
-        await self._queue.put(job)
+        self._queue.put(job, front)
         return job.local_id
 
     async def listen(self):
@@ -122,6 +123,10 @@ class CloudClient(Client):
             try:
                 self._current_job = await self._queue.get()
                 self._cancel_requested = False
+                if self._current_job.cancelled:
+                    yield ClientMessage(ClientEvent.interrupted, self._current_job.local_id)
+                    continue
+
                 async for msg in self._process_job(self._current_job):
                     yield msg
                     if self._cancel_requested:
@@ -222,7 +227,9 @@ class CloudClient(Client):
                 log.info(f"Requested cancellation of {job}: {response}")
 
     async def cancel(self, job_ids: Iterable[str]):
-        self._queue = asyncio.Queue()
+        for job in self._queue:
+            if job.local_id in job_ids:
+                job.cancelled = True
 
     @property
     def user(self):

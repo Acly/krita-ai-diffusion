@@ -5,7 +5,6 @@ import struct
 import uuid
 from dataclasses import dataclass
 from enum import Enum
-from collections import deque
 from itertools import chain, product
 from time import time
 from typing import Any, Iterable, Optional, Sequence
@@ -48,42 +47,6 @@ class JobInfo:
     @staticmethod
     def create(work: WorkflowInput):
         return JobInfo(str(uuid.uuid4()), work)
-
-
-class ClientJobQueue:
-    """Jobs that have been enqueued on client-side but not yet sent to server.
-    Unbounded single-producer/single-consumer queue.
-    Always consumed front to back, but jobs can be prioritized when added."""
-
-    def __init__(self):
-        self._jobs: deque[JobInfo] = deque()
-        self._event = asyncio.Event()
-
-    def put(self, job: JobInfo, front: bool = False):
-        if front:
-            self._jobs.appendleft(job)
-        else:
-            self._jobs.append(job)
-        self._event.set()
-
-    def _get(self):
-        job = self._jobs.popleft()
-        if not self._jobs:
-            self._event.clear()
-        return job
-
-    async def get(self):
-        while not self._jobs:
-            await self._event.wait()
-        return self._get()
-
-    def remove_by_id(self, job_ids: Iterable[str]):
-        self._jobs = deque(job for job in self._jobs if job.id not in job_ids)
-        if len(self._jobs) == 0:
-            self._event.clear()
-
-    def __len__(self):
-        return len(self._jobs)
 
 
 class QueuedJob:
@@ -161,7 +124,7 @@ class ComfyClient(Client):
         self._features: ClientFeatures = ClientFeatures()
         self._supported_archs: dict[Arch, list[ResourceId]] = {}
         self._messages: asyncio.Queue[ClientMessage] = asyncio.Queue()
-        self._queue = ClientJobQueue()
+        self._queue: ClientJobQueue[JobInfo] = ClientJobQueue()
         self._is_connected = False
 
         self._requests.add_header("ngrok-skip-browser-warning", "69420")
@@ -463,7 +426,7 @@ class ComfyClient(Client):
         if job := self._waiting_job.peek():
             if job.id in job_ids:
                 self._waiting_job.clear()
-        self._queue.remove_by_id(job_ids)
+        self._queue.remove_if(lambda j: j.id in job_ids)
         for id in job_ids:
             tasks.append(self._report(ClientEvent.interrupted, id))
         await asyncio.gather(*tasks)
