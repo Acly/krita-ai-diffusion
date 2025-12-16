@@ -634,12 +634,7 @@ class Model(QObject, ObservableProperties):
 
     def _apply_resize_command(self, cmd: ResizeCommand, job: Job):
         try:
-            job.params.resize_canvas = True
-            if not cmd.match_image_extent:
-                if cmd.width is None or cmd.height is None:
-                    return
-                bounds = job.params.bounds
-                job.params.bounds = Bounds(bounds.x, bounds.y, cmd.width, cmd.height)
+            job.params.resize_canvas = bool(cmd.resize_canvas)
         except Exception as e:
             log.warning(f"Failed to store resize command from custom workflow: {e}")
 

@@ -12,7 +12,7 @@ from typing import Any, Iterable, Optional, Sequence
 
 from .api import WorkflowInput
 from .client import Client, CheckpointInfo, ClientMessage, ClientEvent, DeviceInfo, ClientModels
-from .client import SharedWorkflow, TranslationPackage, ClientFeatures, TextOutput, ResizeCommand
+from .client import SharedWorkflow, TranslationPackage, ClientFeatures, ClientJobQueue, TextOutput, ResizeCommand
 from .client import Quantization, MissingResources, filter_supported_styles, loras_to_upload
 from .comfy_workflow import ComfyObjectInfo
 from .files import FileFormat
@@ -948,9 +948,7 @@ def _extract_resize_output(job_id: str, msg: dict):
         if not active:
             return None
 
-        return ClientMessage(
-            ClientEvent.output, job_id, result=ResizeCommand(match_image_extent=True)
-        )
+        return ClientMessage(ClientEvent.output, job_id, result=ResizeCommand(True))
     except Exception as e:
         log.warning(f"Error processing Krita resize output: {e}, msg={msg}")
         return None
