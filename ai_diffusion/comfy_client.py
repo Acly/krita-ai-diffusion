@@ -12,7 +12,14 @@ from typing import Any, Iterable, Optional, Sequence
 
 from .api import WorkflowInput
 from .client import Client, CheckpointInfo, ClientMessage, ClientEvent, DeviceInfo, ClientModels
-from .client import SharedWorkflow, TranslationPackage, ClientFeatures, ClientJobQueue, TextOutput, ResizeCommand
+from .client import (
+    SharedWorkflow,
+    TranslationPackage,
+    ClientFeatures,
+    ClientJobQueue,
+    TextOutput,
+    ResizeCommand,
+)
 from .client import Quantization, MissingResources, filter_supported_styles, loras_to_upload
 from .comfy_workflow import ComfyObjectInfo
 from .files import FileFormat
