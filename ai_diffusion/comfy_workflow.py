@@ -770,16 +770,24 @@ class ComfyWorkflow:
             clip_vision_output=embeddings,
         )
 
-    def apply_diffsynth_controlnet(
-        self, model: Output, patch: Output, vae: Output, image: Output, strength: float
+    def apply_zimage_fun_controlnet(
+        self,
+        model: Output,
+        patch: Output,
+        vae: Output,
+        strength: float,
+        image: Output,
+        mask: Output | None = None,
     ):
         return self.add(
-            "QwenImageDiffsynthControlnet",
+            "ZImageFunControlnet",
             1,
             model=model,
             model_patch=patch,
             vae=vae,
-            image=image,
+            image=image if not mask else None,
+            inpaint_image=image if mask else None,
+            mask=mask,
             strength=strength,
         )
 

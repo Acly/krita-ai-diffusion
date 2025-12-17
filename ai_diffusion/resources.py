@@ -155,7 +155,7 @@ class Arch(Enum):
 
     @property
     def has_controlnet_inpaint(self):
-        return self is Arch.sd15 or self is Arch.flux
+        return self in (Arch.sd15, Arch.flux, Arch.zimage)
 
     @property
     def supports_regions(self):
@@ -355,6 +355,7 @@ class ControlMode(Enum):
             ]
         if arch is Arch.zimage:
             return self in [
+                ControlMode.inpaint,
                 ControlMode.soft_edge,
                 ControlMode.canny_edge,
                 ControlMode.depth,
@@ -727,7 +728,7 @@ search_paths: dict[str, list[str]] = {
     resource_id(ResourceKind.lora, Arch.sdxl, ControlMode.face): ["ip-adapter-faceid-plusv2_sdxl_lora", "ip-adapter-faceid_sdxl_lora"],
     resource_id(ResourceKind.lora, Arch.flux, ControlMode.depth): ["flux1-depth"],
     resource_id(ResourceKind.lora, Arch.flux, ControlMode.canny_edge): ["flux1-canny"],
-    resource_id(ResourceKind.model_patch, Arch.zimage, ControlMode.universal): ["z-image-turbo-fun-controlnet-union"],
+    resource_id(ResourceKind.model_patch, Arch.zimage, ControlMode.universal): ["z-image-turbo-fun-controlnet-union-2.1", "z-image-turbo-fun-controlnet-union"],
     resource_id(ResourceKind.upscaler, Arch.all, UpscalerName.default): [UpscalerName.default.value],
     resource_id(ResourceKind.upscaler, Arch.all, UpscalerName.fast_2x): [UpscalerName.fast_2x.value],
     resource_id(ResourceKind.upscaler, Arch.all, UpscalerName.fast_3x): [UpscalerName.fast_3x.value],

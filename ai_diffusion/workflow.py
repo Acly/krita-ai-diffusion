@@ -519,6 +519,7 @@ def apply_control(
         if control.mode is ControlMode.inpaint and (models.arch is Arch.sd15 or is_illu):
             assert control.mask is not None, "Inpaint control requires a mask"
             image = w.inpaint_preprocessor(image, control.mask.load(w), fill_black=is_illu)
+
         if control.mode.is_lines:  # ControlNet expects white lines on black background
             image = w.invert_image(image)
 
@@ -529,7 +530,11 @@ def apply_control(
             controlnet = w.set_controlnet_type(controlnet, control.mode)
         elif cn_model := patches.find(control.mode, allow_universal=True):
             patch = w.load_model_patch(cn_model)
-            model = w.apply_diffsynth_controlnet(model, patch, vae, image, control.strength)
+            args = dict(image=image)
+            if control.mode is ControlMode.inpaint:
+                assert control.mask is not None, "Inpaint control requires a mask"
+                args["mask"] = control.mask.load(w)
+            model = w.apply_zimage_fun_controlnet(model, patch, vae, control.strength, **args)
             continue
         else:
             raise Exception(f"ControlNet model not found for mode {control.mode}")
@@ -873,7 +878,7 @@ def detect_inpaint(
         )
     elif sd_ver.is_sdxl_like:
         result.use_inpaint_model = strength > 0.8
-    elif sd_ver is Arch.flux:
+    elif sd_ver in (Arch.flux, Arch.zimage):
         result.use_inpaint_model = strength == 1.0
     elif sd_ver is Arch.flux_k:
         result.mode = InpaintMode.custom
@@ -882,9 +887,14 @@ def detect_inpaint(
 
 
 def inpaint_control(image: Output | ImageOutput, mask: Output | ImageOutput, arch: Arch):
-    strength, range = 1.0, (0.0, 1.0)
-    if arch is Arch.flux:
-        strength, range = 0.9, (0.0, 0.5)
+    match arch:
+        case Arch.flux:
+            strength, range = 0.9, (0.0, 0.5)
+        case Arch.zimage:
+            strength, range = 0.5, (0.0, 1.0)
+        case _:
+            strength, range = 1.0, (0.0, 1.0)
+
     if isinstance(image, Output):
         image = ImageOutput(image)
     if isinstance(mask, Output):
@@ -936,8 +946,11 @@ def inpaint(
             Control(ControlMode.reference, ImageOutput(reference), None, 0.5, (0.2, 0.8))
         )
     inpaint_mask = ImageOutput(initial_mask, is_mask=True)
-    if params.use_inpaint_model and models.control.find(ControlMode.inpaint) is not None:
-        cond_base.control.append(inpaint_control(in_image, inpaint_mask, models.arch))
+    if params.use_inpaint_model:
+        controlnet = models.control.find(ControlMode.inpaint)
+        modelpatch = models.model_patch.find(ControlMode.inpaint, allow_universal=True)
+        if controlnet or modelpatch:
+            cond_base.control.append(inpaint_control(in_image, inpaint_mask, models.arch))
     if params.use_condition_mask and len(cond_base.regions) == 0:
         base_prompt = TextPrompt(merge_prompt("", cond_base.style_prompt), cond.language)
         cond_base.regions = [
@@ -1766,9 +1779,9 @@ def _check_server_has_models(
 
 def _check_inpaint_model(inpaint: InpaintParams | None, arch: Arch, models: ClientModels):
     if inpaint and inpaint.use_inpaint_model and arch.has_controlnet_inpaint:
+        if arch in (Arch.flux, Arch.zimage):
+            return  # Optional for now
         if models.for_arch(arch).control.find(ControlMode.inpaint) is None:
-            if arch is Arch.flux:
-                return  # Optional for now, to allow using flux1-fill model instead of inpaint CN
             msg = f"No inpaint model found for {arch.value}."
             res_id = ResourceId(ResourceKind.controlnet, arch, ControlMode.inpaint)
             if res := resources.find_resource(res_id):
