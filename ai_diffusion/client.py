@@ -55,6 +55,7 @@ class ClientMessage(NamedTuple):
     images: ImageCollection | None = None
     result: ClientOutput | None = None
     error: str | None = None
+    message: str | None = None  # Status message (e.g., model loading progress)
 
 
 class User(QObject, ObservableProperties):

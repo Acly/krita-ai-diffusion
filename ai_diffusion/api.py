@@ -20,6 +20,8 @@ class WorkflowKind(Enum):
     upscale_tiled = 5
     control_image = 6
     custom = 7
+    layered_generate = 8  # Generate layered image from prompt
+    layered_segment = 9   # Segment existing image into layers
 
 
 @dataclass
@@ -162,6 +164,16 @@ class CustomWorkflowInput:
 
 
 @dataclass
+class LayeredInput:
+    """Configuration for Qwen Image Layered generation/segmentation."""
+
+    num_layers: int = 4  # Number of layers to generate (2-6)
+    resolution: int = 640  # Resolution bucket (640 or 1024)
+    cfg_normalize: bool = True  # Whether to enable cfg normalization
+    use_en_prompt: bool = True  # Automatic caption language
+
+
+@dataclass
 class WorkflowInput:
     kind: WorkflowKind
     images: ImageInput | None = None
@@ -175,6 +187,7 @@ class WorkflowInput:
     batch_count: int = 1
     nsfw_filter: float = 0.0
     custom_workflow: CustomWorkflowInput | None = None
+    layered: LayeredInput | None = None
 
     @property
     def extent(self):
@@ -218,6 +231,9 @@ class WorkflowInput:
             return 1
         if self.kind is WorkflowKind.upscale_simple:
             return 2
+        if self.kind in (WorkflowKind.layered_generate, WorkflowKind.layered_segment):
+            # Qwen layered is expensive - similar to Flux
+            return 5
 
         def cost_factor(batch: int, extent: Extent, steps: int):
             return batch * extent.pixel_count * math.sqrt(extent.pixel_count) * steps

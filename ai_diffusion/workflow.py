@@ -1593,6 +1593,75 @@ def prepare_create_control_image(
     return i
 
 
+def prepare_layered_generate(
+    prompt: str,
+    negative_prompt: str,
+    extent: Extent,
+    seed: int = -1,
+    num_layers: int = 4,
+    resolution: int = 640,
+    cfg_scale: float = 4.0,
+    steps: int = 50,
+) -> WorkflowInput:
+    """Prepare workflow for Qwen Image Layered generation from prompt."""
+    from .api import LayeredInput
+
+    seed = generate_seed() if seed == -1 else seed
+
+    i = WorkflowInput(WorkflowKind.layered_generate)
+    i.conditioning = ConditioningInput(positive=prompt, negative=negative_prompt)
+    i.sampling = SamplingInput(
+        sampler="euler",
+        scheduler="normal",
+        cfg_scale=cfg_scale,
+        total_steps=steps,
+        seed=seed,
+    )
+    i.layered = LayeredInput(
+        num_layers=num_layers,
+        resolution=resolution,
+    )
+    # Set up extent for result placement
+    extent_input = ExtentInput(extent, extent, extent, extent)
+    i.images = ImageInput(extent_input)
+    return i
+
+
+def prepare_layered_segment(
+    image: Image,
+    bounds: Bounds,
+    seed: int = -1,
+    num_layers: int = 4,
+    resolution: int = 640,
+    cfg_scale: float = 4.0,
+    steps: int = 50,
+) -> WorkflowInput:
+    """Prepare workflow for Qwen Image Layered segmentation of existing image."""
+    from .api import LayeredInput
+
+    seed = generate_seed() if seed == -1 else seed
+
+    i = WorkflowInput(WorkflowKind.layered_segment)
+    i.conditioning = ConditioningInput(positive="", negative="")
+    i.sampling = SamplingInput(
+        sampler="euler",
+        scheduler="normal",
+        cfg_scale=cfg_scale,
+        total_steps=steps,
+        seed=seed,
+    )
+    i.layered = LayeredInput(
+        num_layers=num_layers,
+        resolution=resolution,
+    )
+    # Set up image input
+    extent = image.extent
+    extent_input = ExtentInput(extent, extent, extent, extent)
+    i.images = ImageInput(extent_input, initial_image=image)
+    i.inpaint = InpaintParams(InpaintMode.fill, bounds)
+    return i
+
+
 def create(i: WorkflowInput, models: ClientModels, comfy_mode=ComfyRunMode.server) -> ComfyWorkflow:
     """
     Takes a WorkflowInput object and creates the corresponding ComfyUI workflow prompt.

@@ -30,6 +30,8 @@ class JobKind(Enum):
     animation_batch = 4  # single frame as part of an animation batch
     animation_frame = 5  # just a single frame
     animation = 6  # full animation in one job
+    layered_generate = 7  # Qwen layered generation from prompt
+    layered_segment = 8   # Qwen segmentation into layers
 
 
 @dataclass

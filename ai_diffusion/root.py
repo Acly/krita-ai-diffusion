@@ -9,6 +9,7 @@ from .connection import Connection, ConnectionState
 from .client import ClientMessage
 from .custom_workflow import WorkflowCollection
 from .server import Server, ServerState
+from .diffusers_connection import DiffusersConnection, get_diffusers_connection
 from .document import Document, KritaDocument
 from .model import Model
 from .files import FileFormat, FileLibrary, File, FileSource
@@ -36,6 +37,7 @@ class Root(QObject):
     def init(self):
         self._server = Server(settings.server_path)
         self._connection = Connection()
+        self._diffusers_connection = get_diffusers_connection()
         self._files = FileLibrary.load()
         self._workflows = WorkflowCollection(self._connection)
         self._models: list[Root.PerDocument] = []
@@ -46,6 +48,7 @@ class Root(QObject):
             self._auto_update.check()
         self._connection.message_received.connect(self._handle_message)
         self._connection.models_changed.connect(self._update_files)
+        self._diffusers_connection.message_received.connect(self._handle_message)
 
     def prune_models(self):
         # Remove models for documents that have been closed
@@ -83,6 +86,10 @@ class Root(QObject):
     @property
     def server(self):
         return self._server
+
+    @property
+    def diffusers_connection(self) -> DiffusersConnection:
+        return self._diffusers_connection
 
     @property
     def files(self) -> FileLibrary:

@@ -212,6 +212,63 @@ class Settings(QObject):
     check_server_resources: bool
     _check_server_resources = Setting("Refuse connection if nodes or models are missing", True)
 
+    # Diffusers server settings (for Qwen Image Layered)
+    diffusers_server_url: str
+    _diffusers_server_url = Setting(
+        _("Diffusers Server URL"),
+        "127.0.0.1:8189",
+        _("URL for the diffusers server (Qwen Image Layered). Default is 127.0.0.1:8189."),
+    )
+
+    diffusers_enabled: bool
+    _diffusers_enabled = Setting(
+        _("Enable Diffusers Backend"),
+        False,
+        _("Enable Qwen Image Layered generation via local diffusers server"),
+    )
+
+    diffusers_cpu_offload: bool
+    _diffusers_cpu_offload = Setting(
+        _("Enable CPU Offload"),
+        False,
+        _("Offload model parts to CPU when not in use. Reduces VRAM usage but may be slower."),
+    )
+
+    diffusers_quantization: str
+    _diffusers_quantization = Setting(
+        _("Quantization"),
+        "none",
+        _("Quantization level for reduced VRAM. Options: none, int8, int4"),
+    )
+
+    diffusers_quantize_transformer: bool
+    _diffusers_quantize_transformer = Setting(
+        _("Quantize Transformer"),
+        True,
+        _("Apply quantization to the transformer model."),
+    )
+
+    diffusers_quantize_text_encoder: bool
+    _diffusers_quantize_text_encoder = Setting(
+        _("Quantize Text Encoder"),
+        False,
+        _("Apply quantization to the text encoder."),
+    )
+
+    diffusers_vae_tiling: bool
+    _diffusers_vae_tiling = Setting(
+        _("Enable VAE Tiling"),
+        True,
+        _("Enable VAE tiling for reduced VRAM usage during decoding."),
+    )
+
+    diffusers_ramtorch: bool
+    _diffusers_ramtorch = Setting(
+        _("Enable RamTorch"),
+        False,
+        _("Use RamTorch for automatic CPU/GPU memory swapping. Reduces VRAM usage but slower."),
+    )
+
     comfyui_client_id: str
     _comfyui_client_id = Setting("ComfyUI client ID", str(uuid.uuid4()))
 

@@ -53,6 +53,7 @@ class Workspace(Enum):
     live = 2
     animation = 3
     custom = 4
+    layered = 5  # Qwen Image Layered generation/segmentation
 
 
 class ProgressKind(Enum):
@@ -109,6 +110,7 @@ class Model(QObject, ObservableProperties):
     translation_enabled = Property(True, persist=True)
     progress_kind = Property(ProgressKind.generation)
     progress = Property(0.0)
+    status_message = Property("")  # Status message during job processing
     error = Property(no_error)
 
     workspace_changed = pyqtSignal(Workspace)
@@ -124,6 +126,7 @@ class Model(QObject, ObservableProperties):
     translation_enabled_changed = pyqtSignal(bool)
     progress_kind_changed = pyqtSignal(ProgressKind)
     progress_changed = pyqtSignal(float)
+    status_message_changed = pyqtSignal(str)
     error_changed = pyqtSignal(Error)
     modified = pyqtSignal(QObject, str)
 
@@ -539,6 +542,105 @@ class Model(QObject, ObservableProperties):
         eventloop.run(_report_errors(self, self._enqueue_job(job, input)))
         return job
 
+    def generate_layered(
+        self,
+        prompt: str = "",
+        negative_prompt: str = "",
+        num_layers: int = 4,
+        resolution: int = 640,
+        seed: int = -1,
+    ):
+        """Generate a layered image using Qwen Image Layered.
+
+        Args:
+            prompt: Text prompt for generation (required for generate mode)
+            negative_prompt: Negative prompt
+            num_layers: Number of layers to generate (2-6)
+            resolution: Resolution bucket (640 or 1024)
+            seed: Random seed (-1 for random)
+        """
+        from .diffusers_connection import get_diffusers_connection
+
+        diffusers = get_diffusers_connection()
+        if not diffusers.client_if_connected:
+            self.report_error(_("Diffusers server is not connected"))
+            return
+
+        try:
+            extent = Extent(*self._doc.extent)
+            input = workflow.prepare_layered_generate(
+                prompt=prompt,
+                negative_prompt=negative_prompt,
+                extent=extent,
+                seed=seed,
+                num_layers=num_layers,
+                resolution=resolution,
+            )
+            bounds = Bounds(0, 0, *extent)
+            params = JobParams(bounds, prompt or "Layered", seed=input.sampling.seed)
+            job = self.jobs.add(JobKind.layered_generate, params)
+        except Exception as e:
+            self.report_error(util.log_error(e))
+            return
+
+        self.clear_error()
+        eventloop.run(_report_errors(self, self._enqueue_layered_job(job, input)))
+        return job
+
+    def segment_to_layers(
+        self,
+        num_layers: int = 4,
+        resolution: int = 640,
+        seed: int = -1,
+    ):
+        """Segment the current image into separate layers using Qwen Image Layered.
+
+        Args:
+            num_layers: Number of layers to generate (2-6)
+            resolution: Resolution bucket (640 or 1024)
+            seed: Random seed (-1 for random)
+        """
+        from .diffusers_connection import get_diffusers_connection
+
+        diffusers = get_diffusers_connection()
+        if not diffusers.client_if_connected:
+            self.report_error(_("Diffusers server is not connected"))
+            return
+
+        ok, msg = self._doc.check_color_mode()
+        if not ok and msg:
+            self.report_error(msg)
+            return
+
+        try:
+            bounds = Bounds(0, 0, *self._doc.extent)
+            image = self._doc.get_image(bounds)
+            input = workflow.prepare_layered_segment(
+                image=image,
+                bounds=bounds,
+                seed=seed,
+                num_layers=num_layers,
+                resolution=resolution,
+            )
+            params = JobParams(bounds, "Segmented", seed=input.sampling.seed)
+            job = self.jobs.add(JobKind.layered_segment, params)
+        except Exception as e:
+            self.report_error(util.log_error(e))
+            return
+
+        self.clear_error()
+        eventloop.run(_report_errors(self, self._enqueue_layered_job(job, input)))
+        return job
+
+    async def _enqueue_layered_job(self, job: Job, input: WorkflowInput):
+        """Enqueue a job to the diffusers server."""
+        from .diffusers_connection import get_diffusers_connection
+
+        if not self.jobs.any_executing():
+            self.progress = 0.0
+        client = get_diffusers_connection().client
+        job.id = await client.enqueue(input)
+
     def cancel(self, active=False, queued=False):
         if queued:
             if to_cancel := self.clear_queued():
@@ -577,6 +679,8 @@ class Model(QObject, ObservableProperties):
             self.jobs.notify_started(job)
             self.progress_kind = ProgressKind.generation
             self.progress = message.progress
+            if message.message:
+                self.status_message = message.message
         elif message.event is ClientEvent.upload:
             self.jobs.notify_started(job)
             self.progress_kind = ProgressKind.upload
@@ -593,6 +697,8 @@ class Model(QObject, ObservableProperties):
                 job.control.layer_id = self.add_control_layer(job, message.result).id
             elif job.kind is JobKind.upscaling:
                 self.add_upscale_layer(job)
+            elif job.kind in (JobKind.layered_generate, JobKind.layered_segment):
+                self.add_layered_result(job)
             self._finish_job(job, message.event)
         elif message.event is ClientEvent.interrupted:
             self._finish_job(job, message.event)
@@ -607,6 +713,9 @@ class Model(QObject, ObservableProperties):
     def _finish_job(self, job: Job, event: ClientEvent):
         if job.kind is JobKind.upscaling:
             self.upscale.set_in_progress(False)
+
+        # Clear status message when job finishes
+        self.status_message = ""
 
         if event is ClientEvent.finished:
             self.jobs.notify_finished(job)
@@ -806,6 +915,36 @@ class Model(QObject, ObservableProperties):
             settings.apply_region_behavior,
             "[Upscale] ",
         )
+
+    def add_layered_result(self, job: Job):
+        """Create separate Krita layers for each layer from Qwen Image Layered output."""
+        assert job.kind in (JobKind.layered_generate, JobKind.layered_segment)
+        assert len(job.results) > 0, "Layered job did not produce any images"
+
+        bounds = job.params.bounds
+        seed = job.params.seed
+        name = trim_text(job.params.name, 100)
+
+        # Determine prefix based on job type
+        if job.kind is JobKind.layered_generate:
+            prefix = "[Layered] "
+        else:
+            prefix = "[Segmented] "
+
+        # Create a group layer to hold all the generated layers
+        group_name = f"{prefix}{name} ({seed})"
+        group = self.layers.create_group(group_name)
+
+        # Create a layer for each result image (bottom to top)
+        for i, layer_image in enumerate(job.results):
+            layer_name = f"Layer {i + 1}"
+            # Adjust bounds if the image size differs
+            layer_bounds = Bounds(*bounds.offset, *layer_image.extent)
+            self.layers.create(layer_name, layer_image, layer_bounds, parent=group)
+
+        # Make the group visible and active
+        group.is_visible = True
+        self.layers.active = group
 
     def set_workspace(self, workspace: Workspace):
         if self.workspace is Workspace.live:

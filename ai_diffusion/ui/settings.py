@@ -21,6 +21,7 @@ from PyQt5.QtWidgets import (
     QToolButton,
     QStyle,
     QStyleOption,
+    QGroupBox,
 )
 from PyQt5.QtCore import Qt, QMetaObject, QSize, QUrl, pyqtSignal
 from PyQt5.QtGui import QDesktopServices, QGuiApplication, QCursor, QFontMetrics, QPainter, QColor
@@ -30,6 +31,8 @@ from ..cloud_client import CloudClient
 from ..resources import Arch, ResourceId
 from ..settings import Settings, ServerMode, PerformancePreset, settings, ImageFileFormat
 from ..server import Server, ServerState
+from ..diffusers_server import DiffusersServer, DiffusersServerState, DiffusersHardware
+from ..diffusers_connection import DiffusersConnectionState
 from ..style import Style
 from ..root import root
 from ..connection import ConnectionState, apply_performance_preset
@@ -1092,6 +1095,366 @@ class AboutSettings(SettingsTab):
         settings.auto_update = self._update_checkbox.isChecked()
 
 
+class DiffusersSettings(SettingsTab):
+    """Settings tab for Qwen Image Layered / Diffusers server."""
+
+    def __init__(self):
+        super().__init__(_("Qwen Image Layered (Diffusers)"))
+
+        self._diffusers_server = DiffusersServer()
+        self._diffusers_connection = root.diffusers_connection
+
+        # Header
+        header = QLabel(_("Diffusers Server for Qwen Image Layered"), self)
+        header.setStyleSheet("font-weight: bold; font-size: 14px;")
+        self._layout.addWidget(header)
+
+        description = QLabel(
+            _("This server runs the Qwen Image Layered model for generating or segmenting images into layers. "
+              "It runs separately from the main ComfyUI server."),
+            self
+        )
+        description.setWordWrap(True)
+        description.setStyleSheet(f"color: {grey};")
+        self._layout.addWidget(description)
+        self._layout.addSpacing(10)
+
+        # Enable checkbox
+        self._enable_checkbox = QCheckBox(_("Enable Diffusers Backend"), self)
+        self._enable_checkbox.setToolTip(_("Enable Qwen Image Layered generation via local diffusers server"))
+        self._enable_checkbox.stateChanged.connect(self._on_enable_changed)
+        self._layout.addWidget(self._enable_checkbox)
+        self._layout.addSpacing(10)
+
+        # Server URL
+        url_layout = QHBoxLayout()
+        url_layout.addWidget(QLabel(_("Server URL:"), self))
+        self._server_url = QLineEdit(self)
+        self._server_url.setPlaceholderText("127.0.0.1:8189")
+        self._server_url.textChanged.connect(self.write)
+        url_layout.addWidget(self._server_url)
+        self._layout.addLayout(url_layout)
+        self._layout.addSpacing(10)
+
+        # Hardware selection
+        hardware_layout = QHBoxLayout()
+        hardware_layout.addWidget(QLabel(_("Hardware:"), self))
+        self._hardware_combo = QComboBox(self)
+        self._hardware_combo.setToolTip(_("Select the hardware backend for PyTorch. Auto-detected hardware is shown first."))
+        self._populate_hardware_options()
+        hardware_layout.addWidget(self._hardware_combo)
+        hardware_layout.addStretch()
+        self._layout.addLayout(hardware_layout)
+        self._layout.addSpacing(10)
+
+        # CPU offload checkbox
+        self._cpu_offload_checkbox = QCheckBox(_("Enable CPU Offload"), self)
+        self._cpu_offload_checkbox.setToolTip(
+            _("Offload model parts to CPU when not in use. Reduces VRAM usage but may be slower.")
+        )
+        self._cpu_offload_checkbox.stateChanged.connect(self.write)
+        self._layout.addWidget(self._cpu_offload_checkbox)
+
+        # VAE tiling checkbox
+        self._vae_tiling_checkbox = QCheckBox(_("Enable VAE Tiling"), self)
+        self._vae_tiling_checkbox.setToolTip(
+            _("Enable VAE tiling for reduced VRAM usage during decoding.")
+        )
+        self._vae_tiling_checkbox.stateChanged.connect(self.write)
+        self._layout.addWidget(self._vae_tiling_checkbox)
+
+        # RamTorch checkbox
+        self._ramtorch_checkbox = QCheckBox(_("Enable RamTorch (experimental)"), self)
+        self._ramtorch_checkbox.setToolTip(
+            _("Use RamTorch for automatic CPU/GPU memory swapping. "
+              "Significantly reduces VRAM usage but inference is slower. "
+              "Useful for GPUs with limited VRAM.")
+        )
+        self._ramtorch_checkbox.stateChanged.connect(self.write)
+        self._layout.addWidget(self._ramtorch_checkbox)
+        self._layout.addSpacing(10)
+
+        # Quantization settings
+        quant_group = QGroupBox(_("Quantization (reduces VRAM usage)"), self)
+        quant_layout = QVBoxLayout(quant_group)
+
+        # Quantization level
+        quant_level_layout = QHBoxLayout()
+        quant_level_layout.addWidget(QLabel(_("Level:"), self))
+        self._quantization_combo = QComboBox(self)
+        self._quantization_combo.addItem(_("None"), "none")
+        self._quantization_combo.addItem(_("INT8 (moderate reduction)"), "int8")
+        self._quantization_combo.addItem(_("INT4 (aggressive reduction)"), "int4")
+        self._quantization_combo.setToolTip(
+            _("Quantization reduces VRAM usage but may affect quality. INT4 saves more VRAM than INT8.")
+        )
+        self._quantization_combo.currentIndexChanged.connect(self._on_quantization_changed)
+        quant_level_layout.addWidget(self._quantization_combo)
+        quant_level_layout.addStretch()
+        quant_layout.addLayout(quant_level_layout)
+
+        # Quantize transformer checkbox
+        self._quantize_transformer_checkbox = QCheckBox(_("Quantize Transformer"), self)
+        self._quantize_transformer_checkbox.setToolTip(
+            _("Apply quantization to the transformer model (main VRAM savings).")
+        )
+        self._quantize_transformer_checkbox.stateChanged.connect(self.write)
+        quant_layout.addWidget(self._quantize_transformer_checkbox)
+
+        # Quantize text encoder checkbox
+        self._quantize_text_encoder_checkbox = QCheckBox(_("Quantize Text Encoder"), self)
+        self._quantize_text_encoder_checkbox.setToolTip(
+            _("Apply quantization to the text encoder (smaller VRAM savings).")
+        )
+        self._quantize_text_encoder_checkbox.stateChanged.connect(self.write)
+        quant_layout.addWidget(self._quantize_text_encoder_checkbox)
+
+        self._layout.addWidget(quant_group)
+        self._layout.addSpacing(10)
+
+        # Status display
+        status_layout = QHBoxLayout()
+        status_layout.addWidget(QLabel(_("Status:"), self))
+        self._status_label = QLabel(self)
+        status_layout.addWidget(self._status_label)
+        status_layout.addStretch()
+        self._layout.addLayout(status_layout)
+        self._layout.addSpacing(10)
+
+        # Action buttons
+        button_layout = QHBoxLayout()
+
+        self._install_button = QPushButton(_("Install Server"), self)
+        self._install_button.clicked.connect(self._install_server)
+        button_layout.addWidget(self._install_button)
+
+        self._update_deps_button = QPushButton(_("Update Dependencies"), self)
+        self._update_deps_button.clicked.connect(self._update_dependencies)
+        self._update_deps_button.setToolTip(_("Reinstall/update server dependencies (use after plugin updates)"))
+        button_layout.addWidget(self._update_deps_button)
+
+        self._start_button = QPushButton(_("Start Server"), self)
+        self._start_button.clicked.connect(self._start_server)
+        button_layout.addWidget(self._start_button)
+
+        self._stop_button = QPushButton(_("Stop Server"), self)
+        self._stop_button.clicked.connect(self._stop_server)
+        button_layout.addWidget(self._stop_button)
+
+        self._connect_button = QPushButton(_("Connect"), self)
+        self._connect_button.clicked.connect(self._connect_server)
+        button_layout.addWidget(self._connect_button)
+
+        button_layout.addStretch()
+        self._layout.addLayout(button_layout)
+
+        # Progress/error display
+        self._progress_label = QLabel(self)
+        self._progress_label.setWordWrap(True)
+        self._layout.addWidget(self._progress_label)
+
+        self._layout.addStretch()
+
+        # Connect signals
+        self._diffusers_connection.state_changed.connect(self._update_status)
+        self._diffusers_connection.error_changed.connect(self._update_status)
+
+        self._update_status()
+
+    def _on_enable_changed(self, state):
+        self.write()
+        self._update_status()
+
+    def _on_quantization_changed(self, index):
+        """Update UI when quantization level changes."""
+        quant = self._quantization_combo.currentData()
+        enabled = quant != "none"
+        self._quantize_transformer_checkbox.setEnabled(enabled)
+        self._quantize_text_encoder_checkbox.setEnabled(enabled)
+        self.write()
+
+    def _populate_hardware_options(self):
+        """Populate hardware dropdown with available options."""
+        self._hardware_combo.clear()
+        available = DiffusersHardware.available()
+        detected = DiffusersHardware.detect()
+
+        for hw in available:
+            label = hw.value
+            if hw == detected:
+                label += _(" (Detected)")
+            self._hardware_combo.addItem(label, hw)
+
+        # Select detected hardware by default
+        for i in range(self._hardware_combo.count()):
+            if self._hardware_combo.itemData(i) == detected:
+                self._hardware_combo.setCurrentIndex(i)
+                break
+
+    def _update_status(self):
+        """Update status display and button states."""
+        self._diffusers_server.check_install()
+        server_installed = self._diffusers_server.is_installed
+        server_running = self._diffusers_server.is_running
+        conn_state = self._diffusers_connection.state
+        enabled = settings.diffusers_enabled
+
+        # Update status text
+        if not enabled:
+            self._status_label.setText(_("Disabled"))
+            self._status_label.setStyleSheet(f"color: {grey};")
+        elif not server_installed:
+            self._status_label.setText(_("Server not installed"))
+            self._status_label.setStyleSheet(f"color: {yellow};")
+        elif conn_state == DiffusersConnectionState.connected:
+            self._status_label.setText(_("Connected"))
+            self._status_label.setStyleSheet(f"color: {green}; font-weight: bold;")
+        elif conn_state == DiffusersConnectionState.connecting:
+            self._status_label.setText(_("Connecting..."))
+            self._status_label.setStyleSheet(f"color: {yellow};")
+        elif conn_state == DiffusersConnectionState.server_starting:
+            self._status_label.setText(_("Starting server..."))
+            self._status_label.setStyleSheet(f"color: {yellow};")
+        elif conn_state == DiffusersConnectionState.error:
+            error = self._diffusers_connection.error or _("Unknown error")
+            self._status_label.setText(_("Error") + f": {error}")
+            self._status_label.setStyleSheet(f"color: {red};")
+        elif server_running:
+            self._status_label.setText(_("Server running, not connected"))
+            self._status_label.setStyleSheet(f"color: {yellow};")
+        else:
+            self._status_label.setText(_("Server stopped"))
+            self._status_label.setStyleSheet(f"color: {grey};")
+
+        # Update button states
+        self._install_button.setEnabled(enabled and not server_installed)
+        self._update_deps_button.setEnabled(enabled and server_installed and not server_running)
+        self._start_button.setEnabled(enabled and server_installed and not server_running)
+        self._stop_button.setEnabled(enabled and server_running)
+        self._connect_button.setEnabled(
+            enabled and server_installed and conn_state != DiffusersConnectionState.connected
+        )
+        self._server_url.setEnabled(enabled)
+
+    def _install_server(self):
+        """Install the diffusers server."""
+        selected_hardware = self._hardware_combo.currentData()
+        self._progress_label.setText(_("Installing for {hardware}... This may take several minutes.").format(
+            hardware=selected_hardware.value
+        ))
+        self._install_button.setEnabled(False)
+        self._hardware_combo.setEnabled(False)
+
+        def progress_callback(progress):
+            self._progress_label.setText(f"{progress.stage}: {progress.message}")
+
+        async def do_install():
+            try:
+                await self._diffusers_server.install(progress_callback, hardware=selected_hardware)
+                self._progress_label.setText(_("Installation complete!"))
+            except Exception as e:
+                self._progress_label.setText(_("Installation failed") + f": {e}")
+            self._hardware_combo.setEnabled(True)
+            self._update_status()
+
+        eventloop.run(do_install())
+
+    def _update_dependencies(self):
+        """Update/reinstall server dependencies."""
+        self._progress_label.setText(_("Updating dependencies..."))
+        self._update_deps_button.setEnabled(False)
+
+        def progress_callback(progress):
+            self._progress_label.setText(f"{progress.stage}: {progress.message}")
+
+        async def do_update():
+            try:
+                await self._diffusers_server.update_dependencies(progress_callback)
+                self._progress_label.setText(_("Dependencies updated!"))
+            except Exception as e:
+                self._progress_label.setText(_("Update failed") + f": {e}")
+            self._update_status()
+
+        eventloop.run(do_update())
+
+    def _start_server(self):
+        """Start the diffusers server."""
+        self._progress_label.setText(_("Starting server..."))
+
+        async def do_start():
+            try:
+                await self._diffusers_server.start()
+                self._progress_label.setText(_("Server started"))
+                # Auto-connect after starting
+                await self._diffusers_connection._connect(f"http://{settings.diffusers_server_url}")
+            except Exception as e:
+                self._progress_label.setText(_("Failed to start") + f": {e}")
+            self._update_status()
+
+        eventloop.run(do_start())
+
+    def _stop_server(self):
+        """Stop the diffusers server."""
+        async def do_stop():
+            try:
+                await self._diffusers_connection.disconnect()
+                await self._diffusers_server.stop()
+                self._progress_label.setText(_("Server stopped"))
+            except Exception as e:
+                self._progress_label.setText(_("Failed to stop") + f": {e}")
+            self._update_status()
+
+        eventloop.run(do_stop())
+
+    def _connect_server(self):
+        """Connect to the diffusers server."""
+        url = f"http://{self._server_url.text() or settings.diffusers_server_url}"
+        self._progress_label.setText(_("Connecting..."))
+
+        async def do_connect():
+            try:
+                await self._diffusers_connection._connect(url)
+                self._progress_label.setText(_("Connected"))
+            except Exception as e:
+                self._progress_label.setText(_("Connection failed") + f": {e}")
+            self._update_status()
+
+        eventloop.run(do_connect())
+
+    def _read(self):
+        self._enable_checkbox.setChecked(settings.diffusers_enabled)
+        self._server_url.setText(settings.diffusers_server_url)
+        self._cpu_offload_checkbox.setChecked(settings.diffusers_cpu_offload)
+        self._vae_tiling_checkbox.setChecked(settings.diffusers_vae_tiling)
+        self._ramtorch_checkbox.setChecked(settings.diffusers_ramtorch)
+
+        # Quantization settings
+        quant = settings.diffusers_quantization
+        for i in range(self._quantization_combo.count()):
+            if self._quantization_combo.itemData(i) == quant:
+                self._quantization_combo.setCurrentIndex(i)
+                break
+        self._quantize_transformer_checkbox.setChecked(settings.diffusers_quantize_transformer)
+        self._quantize_text_encoder_checkbox.setChecked(settings.diffusers_quantize_text_encoder)
+
+        # Enable/disable quantization checkboxes based on level
+        enabled = quant != "none"
+        self._quantize_transformer_checkbox.setEnabled(enabled)
+        self._quantize_text_encoder_checkbox.setEnabled(enabled)
+
+        self._update_status()
+
+    def _write(self):
+        settings.diffusers_enabled = self._enable_checkbox.isChecked()
+        settings.diffusers_server_url = self._server_url.text() or "127.0.0.1:8189"
+        settings.diffusers_cpu_offload = self._cpu_offload_checkbox.isChecked()
+        settings.diffusers_vae_tiling = self._vae_tiling_checkbox.isChecked()
+        settings.diffusers_ramtorch = self._ramtorch_checkbox.isChecked()
+        settings.diffusers_quantization = self._quantization_combo.currentData() or "none"
+        settings.diffusers_quantize_transformer = self._quantize_transformer_checkbox.isChecked()
+        settings.diffusers_quantize_text_encoder = self._quantize_text_encoder_checkbox.isChecked()
+
+
 _links_text = """
 <a href='https://www.interstice.cloud'>Website</a><br><br>
 <a href='https://docs.interstice.cloud'>Handbook: Guides and Tips</a><br><br>
@@ -1132,6 +1495,7 @@ class SettingsDialog(QDialog):
         self.diffusion = DiffusionSettings()
         self.interface = InterfaceSettings()
         self.performance = PerformanceSettings()
+        self.diffusers = DiffusersSettings()
         self.about = AboutSettings()
 
         self._stack = QStackedWidget(self)
@@ -1148,6 +1512,7 @@ class SettingsDialog(QDialog):
         create_list_item(_("Diffusion"), self.diffusion)
         create_list_item(_("Interface"), self.interface)
         create_list_item(_("Performance"), self.performance)
+        create_list_item(_("Diffusers"), self.diffusers)
         create_list_item(_("Plugin"), self.about)
 
         self._list.setCurrentRow(0)
@@ -1192,6 +1557,7 @@ class SettingsDialog(QDialog):
         self.diffusion.read()
         self.interface.read()
         self.performance.read()
+        self.diffusers.read()
         self.about.read()
 
     def restore_defaults(self):

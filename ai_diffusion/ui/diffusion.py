@@ -8,6 +8,7 @@ import krita
 from ..model import Model, Workspace
 from ..server import Server, ServerState
 from ..connection import ConnectionState
+from ..diffusers_connection import DiffusersConnectionState
 from ..settings import ServerMode, settings
 from ..updates import UpdateState
 from ..root import root
@@ -18,6 +19,7 @@ from .custom_workflow import CustomWorkflowWidget, CustomWorkflowPlaceholder
 from .upscale import UpscaleWidget
 from .live import LiveWidget
 from .animation import AnimationWidget
+from .layered import LayeredWidget
 
 
 class AutoUpdateWidget(QWidget):
@@ -181,6 +183,24 @@ class WelcomeWidget(QWidget):
         self._update_widget = AutoUpdateWidget(self)
         self._connection_widget = ConnectionWidget(server, self)
 
+        # Layered mode section (for Diffusers backend)
+        self._layered_widget = QWidget(self)
+        layered_layout = QVBoxLayout(self._layered_widget)
+        layered_layout.setContentsMargins(0, 0, 0, 0)
+
+        layered_label = QLabel(
+            _("Or use <b>Layered Mode</b> with the Diffusers backend for Qwen Image Layered generation."),
+            self
+        )
+        layered_label.setWordWrap(True)
+
+        self._layered_button = QPushButton(theme.icon("workspace-generation"), _("Switch to Layered Mode"), self)
+        self._layered_button.setMinimumHeight(32)
+        self._layered_button.clicked.connect(self._switch_to_layered)
+
+        layered_layout.addWidget(layered_label)
+        layered_layout.addWidget(self._layered_button)
+
         info = QLabel(
             "<a href='https://www.interstice.cloud'>Interstice.cloud</a> | "
             + "<a href='https://github.com/Acly/krita-ai-diffusion'>GitHub Project</a> | "
@@ -193,17 +213,35 @@ class WelcomeWidget(QWidget):
         layout.addSpacing(12)
         layout.addWidget(self._update_widget)
         layout.addWidget(self._connection_widget)
+        layout.addSpacing(12)
+        layout.addWidget(self._layered_widget)
         layout.addSpacing(24)
         layout.addWidget(info, 0, Qt.AlignmentFlag.AlignRight)
         layout.addStretch()
 
         self.update_content()
         root.auto_update.state_changed.connect(self.update_content)
+        root.diffusers_connection.state_changed.connect(self.update_content)
+
+    def _switch_to_layered(self):
+        """Switch the active model to layered workspace."""
+        model = root.model_for_active_document()
+        if model is None:
+            # Create a model for the active document if needed
+            doc = Krita.instance().activeDocument()
+            if doc is not None:
+                model = root.model_for_document(doc)
+        if model is not None:
+            model.workspace = Workspace.layered
 
     def update_content(self):
         self._update_widget.update_content()
         self._connection_widget.update_content()
         self._connection_widget.setVisible(not self._update_widget.is_visible)
+        # Show layered option when diffusers is enabled
+        self._layered_widget.setVisible(
+            settings.diffusers_enabled and not self._update_widget.is_visible
+        )
 
     @property
     def requires_update(self):
@@ -221,6 +259,7 @@ class ImageDiffusionWidget(DockWidget):
         self._live = LiveWidget()
         self._custom = CustomWorkflowWidget()
         self._custom_placeholder = CustomWorkflowPlaceholder()
+        self._layered = LayeredWidget()
         self._frame = QStackedWidget(self)
         self._frame.addWidget(self._welcome)
         self._frame.addWidget(self._generation)
@@ -229,9 +268,11 @@ class ImageDiffusionWidget(DockWidget):
         self._frame.addWidget(self._animation)
         self._frame.addWidget(self._custom)
         self._frame.addWidget(self._custom_placeholder)
+        self._frame.addWidget(self._layered)
         self.setWidget(self._frame)
 
         root.connection.state_changed.connect(self.update_content)
+        root.diffusers_connection.state_changed.connect(self.update_content)
         root.auto_update.state_changed.connect(self.update_content)
         root.model_created.connect(self.register_model)
 
@@ -246,9 +287,17 @@ class ImageDiffusionWidget(DockWidget):
     def update_content(self):
         model = root.model_for_active_document()
         connection = root.connection
+        diffusers_connection = root.diffusers_connection
         requires_update = self._welcome.requires_update
         is_cloud = settings.server_mode is ServerMode.cloud
-        if model is None or connection.state is not ConnectionState.connected or requires_update:
+        comfy_connected = connection.state is ConnectionState.connected
+        diffusers_connected = diffusers_connection.state is DiffusersConnectionState.connected
+
+        # Layered workspace can work with just the diffusers connection
+        if model is not None and model.workspace is Workspace.layered:
+            self._layered.model = model
+            self._frame.setCurrentWidget(self._layered)
+        elif model is None or not comfy_connected or requires_update:
             self._frame.setCurrentWidget(self._welcome)
         elif model.workspace is Workspace.generation:
             self._generation.model = model
