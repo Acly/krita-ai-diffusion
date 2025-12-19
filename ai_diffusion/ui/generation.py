@@ -425,7 +425,7 @@ class HistoryWidget(QListWidget):
             if isinstance(active, RootRegion):
                 negative = "negative_prompt_eval" if evaluated else "negative_prompt"
                 active.negative = job.params.metadata.get(
-                    negative, job.params.metadata.get("negative", "")
+                    negative, job.params.metadata.get("negative_prompt", "")
                 )
 
             if clipboard := QGuiApplication.clipboard():
