@@ -13,7 +13,7 @@ import uuid
 from dataclasses import dataclass
 from typing import Iterable
 
-from .api import WorkflowInput, WorkflowKind, LayeredInput
+from .api import WorkflowInput, WorkflowKind, LayeredInput, DiffusersInput, DiffusersMode
 from .client import (
     Client,
     ClientEvent,
@@ -72,8 +72,9 @@ class DiffusersClient(Client):
 
     default_url = "http://127.0.0.1:8189"
 
-    def __init__(self, url: str):
+    def __init__(self, url: str, token: str = ""):
         self.url = url
+        self.token = token
         self.models = ClientModels()
         self.device_info = DeviceInfo("cuda", "Local GPU", 0)
         self._requests = RequestManager()
@@ -101,8 +102,13 @@ class DiffusersClient(Client):
 
     @staticmethod
     async def connect(url: str = default_url, access_token: str = "") -> Client:
-        """Connect to diffusers server and verify it's running."""
-        client = DiffusersClient(url)
+        """Connect to diffusers server and verify it's running.
+
+        Args:
+            url: Server URL (http:// or https://)
+            access_token: Bearer token for authentication (optional)
+        """
+        client = DiffusersClient(url, token=access_token)
         log.info(f"Connecting to diffusers server at {client.url}")
 
         try:
@@ -134,11 +140,15 @@ class DiffusersClient(Client):
 
     async def _get(self, op: str, timeout: float = 30):
         """GET request to server."""
-        return await self._requests.get(f"{self.url}/{op}", timeout=timeout)
+        return await self._requests.get(
+            f"{self.url}/{op}", timeout=timeout, bearer=self.token or None
+        )
 
     async def _post(self, op: str, data: dict):
         """POST request to server."""
-        return await self._requests.post(f"{self.url}/{op}", data)
+        return await self._requests.post(
+            f"{self.url}/{op}", data, bearer=self.token or None
+        )
 
     async def get_model_status(self) -> ModelLoadingStatus:
         """Get current model loading status."""
@@ -163,6 +173,19 @@ class DiffusersClient(Client):
         except Exception as e:
             log.warning(f"Failed to request model load: {e}")
             return False
+
+    async def get_vram_usage(self) -> dict:
+        """Get current VRAM usage from server.
+
+        Returns dict with:
+            - backend: str (cuda, rocm, mps, cpu)
+            - devices: list of dicts with vram_total, vram_used, vram_percent
+        """
+        try:
+            return await self._get("system_stats")
+        except Exception as e:
+            log.warning(f"Failed to get VRAM stats: {e}")
+            return {"devices": [], "backend": "unknown"}
 
     async def enqueue(self, work: WorkflowInput, front: bool = False) -> str:
         """Add a job to the queue."""
@@ -301,10 +324,22 @@ class DiffusersClient(Client):
 
     def _build_request(self, work: WorkflowInput) -> dict:
         """Convert WorkflowInput to diffusers server request format."""
-        request: dict = {}
+        # Use separate paths for layered vs general diffusers to avoid regressions
+        if work.kind in (WorkflowKind.layered_generate, WorkflowKind.layered_segment):
+            return self._build_layered_request(work)
+        else:
+            return self._build_diffusers_request(work)
 
-        # Get layered params or use defaults
+    def _build_layered_request(self, work: WorkflowInput) -> dict:
+        """Build request for Qwen layered generation/segmentation (original format)."""
+        request: dict = {}
         layered = work.layered or LayeredInput()
+
+        # Mode
+        if work.kind == WorkflowKind.layered_generate:
+            request["mode"] = "layered_generate"
+        else:
+            request["mode"] = "layered_segment"
 
         # Prompt
         if work.conditioning:
@@ -334,6 +369,67 @@ class DiffusersClient(Client):
         if work.kind == WorkflowKind.layered_segment and work.images:
             if work.images.initial_image:
                 request["image"] = self._encode_image(work.images.initial_image)
+
+        return request
+
+    def _build_diffusers_request(self, work: WorkflowInput) -> dict:
+        """Build request for general diffusers generation (txt2img, img2img, inpaint)."""
+        request: dict = {}
+        diffusers = work.diffusers or DiffusersInput()
+
+        # Mode
+        mode_map = {
+            WorkflowKind.diffusers_generate: "text_to_image",
+            WorkflowKind.diffusers_img2img: "img2img",
+            WorkflowKind.diffusers_inpaint: "inpaint",
+        }
+        request["mode"] = mode_map.get(work.kind, "text_to_image")
+
+        # Model ID (empty = use server default)
+        request["model_id"] = diffusers.model_id
+
+        # Prompt
+        if work.conditioning:
+            request["prompt"] = work.conditioning.positive
+            request["negative_prompt"] = work.conditioning.negative or ""
+        else:
+            request["prompt"] = ""
+            request["negative_prompt"] = ""
+
+        # Sampling params
+        if work.sampling:
+            request["seed"] = work.sampling.seed
+            request["num_inference_steps"] = work.sampling.total_steps
+            request["guidance_scale"] = work.sampling.cfg_scale
+        else:
+            request["seed"] = -1
+            request["num_inference_steps"] = diffusers.num_inference_steps
+            request["guidance_scale"] = diffusers.guidance_scale
+
+        # Resolution
+        request["width"] = diffusers.width
+        request["height"] = diffusers.height
+
+        # Strength (for img2img/inpaint)
+        request["strength"] = diffusers.strength
+
+        # Input image (for img2img, inpaint)
+        if work.kind in (WorkflowKind.diffusers_img2img, WorkflowKind.diffusers_inpaint):
+            if work.images and work.images.initial_image:
+                request["image"] = self._encode_image(work.images.initial_image)
+
+        # Mask image (for inpaint mode)
+        if work.kind == WorkflowKind.diffusers_inpaint:
+            if work.images and work.images.hires_mask:
+                request["mask"] = self._encode_image(work.images.hires_mask)
+
+        # Optimization settings from preset
+        request["offload"] = diffusers.offload
+        request["quantization"] = diffusers.quantization
+        request["quantize_transformer"] = diffusers.quantize_transformer
+        request["quantize_text_encoder"] = diffusers.quantize_text_encoder
+        request["vae_tiling"] = diffusers.vae_tiling
+        request["ramtorch"] = diffusers.ramtorch
 
         return request
 

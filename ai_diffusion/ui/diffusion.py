@@ -19,7 +19,7 @@ from .custom_workflow import CustomWorkflowWidget, CustomWorkflowPlaceholder
 from .upscale import UpscaleWidget
 from .live import LiveWidget
 from .animation import AnimationWidget
-from .layered import LayeredWidget
+from .diffusers import DiffusersWidget
 
 
 class AutoUpdateWidget(QWidget):
@@ -183,23 +183,23 @@ class WelcomeWidget(QWidget):
         self._update_widget = AutoUpdateWidget(self)
         self._connection_widget = ConnectionWidget(server, self)
 
-        # Layered mode section (for Diffusers backend)
-        self._layered_widget = QWidget(self)
-        layered_layout = QVBoxLayout(self._layered_widget)
-        layered_layout.setContentsMargins(0, 0, 0, 0)
+        # Diffusers mode section (for Diffusers backend)
+        self._diffusers_mode_widget = QWidget(self)
+        diffusers_layout = QVBoxLayout(self._diffusers_mode_widget)
+        diffusers_layout.setContentsMargins(0, 0, 0, 0)
 
-        layered_label = QLabel(
-            _("Or use <b>Layered Mode</b> with the Diffusers backend for Qwen Image Layered generation."),
+        diffusers_label = QLabel(
+            _("Or use <b>Diffusers Mode</b> for txt2img, img2img, inpaint and Qwen layered generation."),
             self
         )
-        layered_label.setWordWrap(True)
+        diffusers_label.setWordWrap(True)
 
-        self._layered_button = QPushButton(theme.icon("workspace-generation"), _("Switch to Layered Mode"), self)
-        self._layered_button.setMinimumHeight(32)
-        self._layered_button.clicked.connect(self._switch_to_layered)
+        self._diffusers_button = QPushButton(theme.icon("workspace-generation"), _("Switch to Diffusers Mode"), self)
+        self._diffusers_button.setMinimumHeight(32)
+        self._diffusers_button.clicked.connect(self._switch_to_diffusers)
 
-        layered_layout.addWidget(layered_label)
-        layered_layout.addWidget(self._layered_button)
+        diffusers_layout.addWidget(diffusers_label)
+        diffusers_layout.addWidget(self._diffusers_button)
 
         info = QLabel(
             "<a href='https://www.interstice.cloud'>Interstice.cloud</a> | "
@@ -214,7 +214,7 @@ class WelcomeWidget(QWidget):
         layout.addWidget(self._update_widget)
         layout.addWidget(self._connection_widget)
         layout.addSpacing(12)
-        layout.addWidget(self._layered_widget)
+        layout.addWidget(self._diffusers_mode_widget)
         layout.addSpacing(24)
         layout.addWidget(info, 0, Qt.AlignmentFlag.AlignRight)
         layout.addStretch()
@@ -223,8 +223,8 @@ class WelcomeWidget(QWidget):
         root.auto_update.state_changed.connect(self.update_content)
         root.diffusers_connection.state_changed.connect(self.update_content)
 
-    def _switch_to_layered(self):
-        """Switch the active model to layered workspace."""
+    def _switch_to_diffusers(self):
+        """Switch the active model to diffusers workspace."""
         model = root.model_for_active_document()
         if model is None:
             # Create a model for the active document if needed
@@ -238,8 +238,8 @@ class WelcomeWidget(QWidget):
         self._update_widget.update_content()
         self._connection_widget.update_content()
         self._connection_widget.setVisible(not self._update_widget.is_visible)
-        # Show layered option when diffusers is enabled
-        self._layered_widget.setVisible(
+        # Show diffusers mode option when diffusers is enabled
+        self._diffusers_mode_widget.setVisible(
             settings.diffusers_enabled and not self._update_widget.is_visible
         )
 
@@ -259,7 +259,7 @@ class ImageDiffusionWidget(DockWidget):
         self._live = LiveWidget()
         self._custom = CustomWorkflowWidget()
         self._custom_placeholder = CustomWorkflowPlaceholder()
-        self._layered = LayeredWidget()
+        self._diffusers = DiffusersWidget()
         self._frame = QStackedWidget(self)
         self._frame.addWidget(self._welcome)
         self._frame.addWidget(self._generation)
@@ -268,7 +268,7 @@ class ImageDiffusionWidget(DockWidget):
         self._frame.addWidget(self._animation)
         self._frame.addWidget(self._custom)
         self._frame.addWidget(self._custom_placeholder)
-        self._frame.addWidget(self._layered)
+        self._frame.addWidget(self._diffusers)
         self.setWidget(self._frame)
 
         root.connection.state_changed.connect(self.update_content)
@@ -293,10 +293,10 @@ class ImageDiffusionWidget(DockWidget):
         comfy_connected = connection.state is ConnectionState.connected
         diffusers_connected = diffusers_connection.state is DiffusersConnectionState.connected
 
-        # Layered workspace can work with just the diffusers connection
+        # Diffusers workspace can work with just the diffusers connection
         if model is not None and model.workspace is Workspace.layered:
-            self._layered.model = model
-            self._frame.setCurrentWidget(self._layered)
+            self._diffusers.model = model
+            self._frame.setCurrentWidget(self._diffusers)
         elif model is None or not comfy_connected or requires_update:
             self._frame.setCurrentWidget(self._welcome)
         elif model.workspace is Workspace.generation:

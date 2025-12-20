@@ -549,6 +549,7 @@ class Model(QObject, ObservableProperties):
         num_layers: int = 4,
         resolution: int = 640,
         seed: int = -1,
+        steps: int = 50,
     ):
         """Generate a layered image using Qwen Image Layered.
 
@@ -558,6 +559,7 @@ class Model(QObject, ObservableProperties):
             num_layers: Number of layers to generate (2-6)
             resolution: Resolution bucket (640 or 1024)
             seed: Random seed (-1 for random)
+            steps: Number of inference steps
         """
         from .diffusers_connection import get_diffusers_connection
 
@@ -575,6 +577,7 @@ class Model(QObject, ObservableProperties):
                 seed=seed,
                 num_layers=num_layers,
                 resolution=resolution,
+                steps=steps,
             )
             bounds = Bounds(0, 0, *extent)
             params = JobParams(bounds, prompt or "Layered", seed=input.sampling.seed)
@@ -592,6 +595,7 @@ class Model(QObject, ObservableProperties):
         num_layers: int = 4,
         resolution: int = 640,
         seed: int = -1,
+        steps: int = 50,
     ):
         """Segment the current image into separate layers using Qwen Image Layered.
 
@@ -599,6 +603,7 @@ class Model(QObject, ObservableProperties):
             num_layers: Number of layers to generate (2-6)
             resolution: Resolution bucket (640 or 1024)
             seed: Random seed (-1 for random)
+            steps: Number of inference steps
         """
         from .diffusers_connection import get_diffusers_connection
 
@@ -621,6 +626,7 @@ class Model(QObject, ObservableProperties):
                 seed=seed,
                 num_layers=num_layers,
                 resolution=resolution,
+                steps=steps,
             )
             params = JobParams(bounds, "Segmented", seed=input.sampling.seed)
             job = self.jobs.add(JobKind.layered_segment, params)
@@ -640,6 +646,89 @@ class Model(QObject, ObservableProperties):
             self.progress = 0.0
         client = get_diffusers_connection().client
         job.id = await client.enqueue(input)
+
+    def generate_diffusers(
+        self,
+        prompt: str = "",
+        negative_prompt: str = "",
+        model_id: str = "",
+        mode: str = "text_to_image",
+        width: int = 1024,
+        height: int = 1024,
+        guidance_scale: float = 7.5,
+        num_steps: int = 30,
+        strength: float = 0.75,
+        seed: int = -1,
+        preset=None,  # DiffusersModelPreset
+    ):
+        """Generate using the diffusers server (txt2img, img2img, inpaint).
+
+        Args:
+            prompt: Text prompt for generation
+            negative_prompt: Negative prompt
+            model_id: HuggingFace model ID or local path (empty = use server default)
+            mode: Generation mode - text_to_image, img2img, inpaint
+            width: Output width
+            height: Output height
+            guidance_scale: CFG scale
+            num_steps: Number of inference steps
+            strength: Denoising strength for img2img/inpaint (0.0-1.0)
+            seed: Random seed (-1 for random)
+            preset: DiffusersModelPreset with optimization settings
+        """
+        from .diffusers_connection import get_diffusers_connection
+
+        diffusers = get_diffusers_connection()
+        if not diffusers.client_if_connected:
+            self.report_error(_("Diffusers server is not connected"))
+            return
+
+        ok, msg = self._doc.check_color_mode()
+        if not ok and msg:
+            self.report_error(msg)
+            return
+
+        try:
+            # Get input image for img2img/inpaint modes
+            image = None
+            mask = None
+            if mode in ("img2img", "image_to_image", "inpaint"):
+                bounds = Bounds(0, 0, *self._doc.extent)
+                image = self._doc.get_image(bounds)
+                if mode == "inpaint":
+                    # Get mask from selection
+                    mask_obj, _ = self._doc.create_mask_from_selection()
+                    if mask_obj:
+                        mask = mask_obj.to_image(bounds.extent)
+                    else:
+                        self.report_error(_("Please make a selection for inpainting"))
+                        return
+
+            input = workflow.prepare_diffusers_generate(
+                prompt=prompt,
+                negative_prompt=negative_prompt,
+                model_id=model_id,
+                mode=mode,
+                width=width,
+                height=height,
+                guidance_scale=guidance_scale,
+                num_steps=num_steps,
+                strength=strength,
+                seed=seed,
+                image=image,
+                mask=mask,
+                preset=preset,
+            )
+            bounds = Bounds(0, 0, width, height)
+            params = JobParams(bounds, prompt or "Diffusers", seed=input.sampling.seed)
+            job = self.jobs.add(JobKind.diffusers, params)
+        except Exception as e:
+            self.report_error(util.log_error(e))
+            return
+
+        self.clear_error()
+        eventloop.run(_report_errors(self, self._enqueue_layered_job(job, input)))
+        return job
 
     def cancel(self, active=False, queued=False):
         if queued:
@@ -699,6 +788,8 @@ class Model(QObject, ObservableProperties):
                 self.add_upscale_layer(job)
             elif job.kind in (JobKind.layered_generate, JobKind.layered_segment):
                 self.add_layered_result(job)
+            elif job.kind is JobKind.diffusers:
+                self.add_diffusers_result(job)
             self._finish_job(job, message.event)
         elif message.event is ClientEvent.interrupted:
             self._finish_job(job, message.event)
@@ -945,6 +1036,29 @@ class Model(QObject, ObservableProperties):
         # Make the group visible and active
         group.is_visible = True
         self.layers.active = group
+
+    def add_diffusers_result(self, job: Job):
+        """Create a layer for diffusers generation result."""
+        assert job.kind is JobKind.diffusers
+        assert len(job.results) > 0, "Diffusers job did not produce any images"
+
+        bounds = job.params.bounds
+        seed = job.params.seed
+        name = trim_text(job.params.name, 100)
+
+        if len(job.results) == 1:
+            # Single image result
+            layer_name = f"[Diffusers] {name} ({seed})"
+            self.layers.create(layer_name, job.results[0], bounds)
+        else:
+            # Multiple images - create a group
+            group_name = f"[Diffusers] {name} ({seed})"
+            group = self.layers.create_group(group_name)
+            for i, layer_image in enumerate(job.results):
+                layer_bounds = Bounds(*bounds.offset, *layer_image.extent)
+                self.layers.create(f"Image {i + 1}", layer_image, layer_bounds, parent=group)
+            group.is_visible = True
+            self.layers.active = group
 
     def set_workspace(self, workspace: Workspace):
         if self.workspace is Workspace.live:

@@ -32,6 +32,7 @@ class JobKind(Enum):
     animation = 6  # full animation in one job
     layered_generate = 7  # Qwen layered generation from prompt
     layered_segment = 8   # Qwen segmentation into layers
+    diffusers = 9         # General diffusers generation (txt2img, img2img, inpaint)
 
 
 @dataclass

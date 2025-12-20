@@ -1662,6 +1662,106 @@ def prepare_layered_segment(
     return i
 
 
+def prepare_diffusers_generate(
+    prompt: str,
+    negative_prompt: str = "",
+    model_id: str = "",
+    mode: str = "text_to_image",
+    width: int = 1024,
+    height: int = 1024,
+    guidance_scale: float = 7.5,
+    num_steps: int = 30,
+    strength: float = 0.75,
+    seed: int = -1,
+    image: Image | None = None,
+    mask: Image | None = None,
+    preset=None,  # DiffusersModelPreset
+) -> WorkflowInput:
+    """Prepare workflow for general diffusers generation (txt2img, img2img, inpaint).
+
+    Args:
+        prompt: Text prompt for generation
+        negative_prompt: Negative prompt
+        model_id: HuggingFace model ID or local path (empty = use server default)
+        mode: Generation mode - text_to_image, img2img, inpaint
+        width: Output width
+        height: Output height
+        guidance_scale: CFG scale
+        num_steps: Number of inference steps
+        strength: Denoising strength for img2img/inpaint (0.0-1.0)
+        seed: Random seed (-1 for random)
+        image: Input image for img2img/inpaint modes
+        mask: Mask image for inpaint mode
+        preset: DiffusersModelPreset with optimization settings
+    """
+    from .api import DiffusersInput, DiffusersMode
+
+    seed = generate_seed() if seed == -1 else seed
+
+    # Map mode string to WorkflowKind
+    mode_to_kind = {
+        "text_to_image": WorkflowKind.diffusers_generate,
+        "img2img": WorkflowKind.diffusers_img2img,
+        "image_to_image": WorkflowKind.diffusers_img2img,
+        "inpaint": WorkflowKind.diffusers_inpaint,
+    }
+    kind = mode_to_kind.get(mode, WorkflowKind.diffusers_generate)
+
+    # Map mode string to DiffusersMode
+    mode_to_diffusers = {
+        "text_to_image": DiffusersMode.text_to_image,
+        "img2img": DiffusersMode.image_to_image,
+        "image_to_image": DiffusersMode.image_to_image,
+        "inpaint": DiffusersMode.inpaint,
+    }
+    diffusers_mode = mode_to_diffusers.get(mode, DiffusersMode.text_to_image)
+
+    i = WorkflowInput(kind)
+    i.conditioning = ConditioningInput(positive=prompt, negative=negative_prompt)
+    i.sampling = SamplingInput(
+        sampler="euler",
+        scheduler="normal",
+        cfg_scale=guidance_scale,
+        total_steps=num_steps,
+        seed=seed,
+    )
+    # Build DiffusersInput with preset optimization settings
+    diffusers_input = DiffusersInput(
+        mode=diffusers_mode,
+        model_id=model_id,
+        width=width,
+        height=height,
+        guidance_scale=guidance_scale,
+        num_inference_steps=num_steps,
+        strength=strength,
+    )
+
+    # Apply preset optimization settings if provided
+    if preset is not None:
+        diffusers_input.offload = preset.offload
+        diffusers_input.quantization = preset.quantization
+        diffusers_input.quantize_transformer = preset.quantize_transformer
+        diffusers_input.quantize_text_encoder = preset.quantize_text_encoder
+        diffusers_input.vae_tiling = preset.vae_tiling
+        diffusers_input.ramtorch = preset.ramtorch
+
+    i.diffusers = diffusers_input
+
+    # Set up extent for result placement
+    extent = Extent(width, height)
+    extent_input = ExtentInput(extent, extent, extent, extent)
+
+    # Handle input image for img2img/inpaint modes
+    if image is not None:
+        i.images = ImageInput(extent_input, initial_image=image)
+        if mask is not None:
+            i.images.hires_mask = mask
+    else:
+        i.images = ImageInput(extent_input)
+
+    return i
+
+
 def create(i: WorkflowInput, models: ClientModels, comfy_mode=ComfyRunMode.server) -> ComfyWorkflow:
     """
     Takes a WorkflowInput object and creates the corresponding ComfyUI workflow prompt.

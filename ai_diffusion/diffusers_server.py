@@ -261,14 +261,26 @@ class DiffusersServer:
         torch_args = self._get_torch_install_args(hardware)
         await self._pip_install("PyTorch", torch_args, cb)
 
+        # Install huggingface-hub first with correct version constraint (diffusers requires <1.0)
+        cb("Installing HuggingFace Hub", "Installing huggingface-hub...")
+        await self._pip_install("HuggingFace Hub", ["huggingface-hub>=0.34.0,<1.0"], cb)
+
         # Install diffusers from git (required for Qwen)
         cb("Installing Diffusers", "Installing diffusers from git...")
-        diffusers_args = ["git+https://github.com/huggingface/diffusers", "huggingface-hub>=0.34.0,<2.0"]
+        diffusers_args = ["git+https://github.com/huggingface/diffusers", "--no-deps"]
         await self._pip_install("Diffusers", diffusers_args, cb)
 
-        # Install transformers from git (released versions have huggingface-hub<1.0 constraint)
-        cb("Installing Transformers", "Installing transformers from git...")
-        await self._pip_install("Transformers", ["git+https://github.com/huggingface/transformers"], cb)
+        # Install diffusers dependencies (excluding huggingface-hub which we pinned)
+        cb("Installing Diffusers deps", "Installing diffusers dependencies...")
+        await self._pip_install("Diffusers deps", ["diffusers[torch]"], cb)
+
+        # Install transformers (stable version compatible with diffusers)
+        cb("Installing Transformers", "Installing transformers...")
+        await self._pip_install("Transformers", ["transformers>=4.45.0,<5.0"], cb)
+
+        # Re-pin huggingface-hub in case transformers upgraded it
+        cb("Fixing HuggingFace Hub", "Ensuring huggingface-hub version...")
+        await self._pip_install("HuggingFace Hub", ["huggingface-hub>=0.34.0,<1.0"], cb)
 
         # Install server dependencies
         cb("Installing Server", "Installing FastAPI and uvicorn...")
@@ -335,9 +347,13 @@ class DiffusersServer:
             cb("Installing Diffusers deps", "Installing diffusers dependencies...")
             await self._pip_install("Diffusers deps", ["diffusers[torch]"], cb)
 
-            # Update transformers from git
-            cb("Updating Transformers", "Updating transformers from git...")
-            await self._pip_install("Transformers", ["git+https://github.com/huggingface/transformers", "--force-reinstall"], cb)
+            # Update transformers (stable version compatible with diffusers)
+            cb("Updating Transformers", "Updating transformers...")
+            await self._pip_install("Transformers", ["transformers>=4.45.0,<5.0", "--force-reinstall"], cb)
+
+            # Re-pin huggingface-hub in case transformers upgraded it
+            cb("Fixing huggingface-hub", "Ensuring huggingface-hub version...")
+            await self._pip_install("huggingface-hub", ["huggingface-hub>=0.34.0,<1.0"], cb)
 
             # Update server dependencies
             cb("Updating Server", "Updating FastAPI and uvicorn...")
@@ -347,6 +363,10 @@ class DiffusersServer:
             # Install/update optimum-quanto for quantization
             cb("Updating Quantization", "Installing/updating optimum-quanto...")
             await self._pip_install("Quantization", ["optimum-quanto", "--upgrade"], cb)
+
+            # Install/update RamTorch for memory optimization
+            cb("Updating RamTorch", "Installing/updating RamTorch...")
+            await self._pip_install("RamTorch", ["ramtorch", "--upgrade"], cb)
 
             # Update server script
             cb("Updating Server Script", "Copying latest diffusers_server.py...")
@@ -385,11 +405,11 @@ class DiffusersServer:
             # Fallback to CPU
             return ["torch", "torchvision", "--index-url", "https://download.pytorch.org/whl/cpu"]
 
-    def _pip_install(self, name: str, args: list[str], cb: InternalCB):
+    async def _pip_install(self, name: str, args: list[str], cb: InternalCB):
         """Install packages using pip via uv."""
         env = {"VIRTUAL_ENV": str(self.path / "venv")}
         cmd = [str(self._uv_cmd), "pip", "install", *args]
-        return self._execute_process(name, cmd, self.path, cb, env=env)
+        return await self._execute_process(name, cmd, self.path, cb, env=env)
 
     async def _execute_process(
         self,
@@ -489,9 +509,13 @@ class DiffusersServer:
                 "--device", device,
             ]
 
-            # Add CPU offload if enabled
+            # Default model
+            if settings.diffusers_default_model:
+                args.extend(["--model", settings.diffusers_default_model])
+
+            # CPU offload mode
             if settings.diffusers_cpu_offload:
-                args.append("--cpu-offload")
+                args.extend(["--offload", "model"])
 
             # VAE tiling
             if settings.diffusers_vae_tiling:
@@ -503,12 +527,6 @@ class DiffusersServer:
             quant = settings.diffusers_quantization
             if quant and quant != "none":
                 args.extend(["--quantization", quant])
-                if settings.diffusers_quantize_transformer:
-                    args.append("--quantize-transformer")
-                else:
-                    args.append("--no-quantize-transformer")
-                if settings.diffusers_quantize_text_encoder:
-                    args.append("--quantize-text-encoder")
 
             # RamTorch for memory-efficient inference
             if settings.diffusers_ramtorch:

@@ -1,15 +1,18 @@
 #!/usr/bin/env python3
 """
-Diffusers Server for Qwen Image Layered Pipeline
+Diffusers Server for General Image Diffusion
 
-A FastAPI server that runs QwenImageLayeredPipeline for generating
-layered images or segmenting existing images into layers.
+A FastAPI server that supports multiple diffusion pipelines including:
+- Text-to-image generation
+- Image-to-image refinement
+- Inpainting
+- Qwen Image Layered generation/segmentation
 
 Usage:
     python diffusers_server.py --port 8189
 
 Endpoints:
-    POST /generate - Submit a generation/segmentation job
+    POST /generate - Submit a generation job
     GET /status/{job_id} - Get job status and results
     POST /interrupt - Interrupt current job
     GET /system_stats - Get GPU/system information
@@ -20,6 +23,7 @@ from __future__ import annotations
 import argparse
 import asyncio
 import base64
+import gc
 import io
 import logging
 import os
@@ -33,12 +37,23 @@ from typing import Any
 import torch
 from PIL import Image
 
+# Enable experimental Flash Attention on AMD GPUs (ROCm)
+os.environ.setdefault("TORCH_ROCM_AOTRITON_ENABLE_EXPERIMENTAL", "1")
+
 # Configure logging
 logging.basicConfig(
     level=logging.INFO,
     format="%(asctime)s - %(name)s - %(levelname)s - %(message)s",
 )
 log = logging.getLogger("diffusers_server")
+
+# Silence noisy loggers
+logging.getLogger("uvicorn").setLevel(logging.WARNING)
+logging.getLogger("uvicorn.access").setLevel(logging.WARNING)
+logging.getLogger("uvicorn.error").setLevel(logging.WARNING)
+logging.getLogger("fastapi").setLevel(logging.WARNING)
+logging.getLogger("httpx").setLevel(logging.WARNING)
+logging.getLogger("httpcore").setLevel(logging.WARNING)
 
 
 class JobStatus(Enum):
@@ -56,177 +71,341 @@ class ModelStatus(Enum):
     error = "error"
 
 
-@dataclass
-class Job:
-    id: str
-    status: JobStatus = JobStatus.pending
-    progress: float = 0.0
-    images: list[str] = field(default_factory=list)  # base64 encoded
-    error: str | None = None
-    params: dict = field(default_factory=dict)
+class PipelineMode(Enum):
+    """Mode for pipeline loading."""
+    text_to_image = "text_to_image"
+    image_to_image = "img2img"
+    inpaint = "inpaint"
+    qwen_layered = "qwen_layered"
 
 
-class DiffusersServer:
-    """Server managing QwenImageLayeredPipeline inference."""
+class PipelineManager:
+    """Manages loading and caching of different pipeline types.
+
+    Adapted from quickdif patterns for pipeline loading, model switching,
+    and quantization.
+    """
 
     def __init__(
         self,
-        model_id: str = "Qwen/Qwen-Image-Layered",
         device: str = "cuda",
-        cpu_offload: bool = False,
+        offload: str = "none",  # none, model, sequential
+        dtype: str = "bf16",  # f16, bf16, f32
+        quantization: str = "none",  # none, int8, int4
         vae_tiling: bool = True,
-        quantization: str = "none",
-        quantize_transformer: bool = True,
-        quantize_text_encoder: bool = False,
         ramtorch: bool = False,
     ):
-        self.model_id = model_id
         self.device = device
-        self.cpu_offload = cpu_offload
-        self.vae_tiling = vae_tiling
+        self.offload = offload
+        self.dtype = dtype
         self.quantization = quantization
-        self.quantize_transformer = quantize_transformer
-        self.quantize_text_encoder = quantize_text_encoder
+        self.vae_tiling = vae_tiling
         self.ramtorch = ramtorch
-        self.pipeline = None
-        self.jobs: dict[str, Job] = {}
-        self.current_job: Job | None = None
-        self._interrupt_requested = False
-        self._lock = threading.Lock()
 
-        # Model loading status
-        self.model_status = ModelStatus.not_loaded
-        self.model_loading_message = ""
-        self.model_loading_progress = 0.0
-        self.model_error = ""
+        self._pipe = None
+        self._model_id: str | None = None
+        self._mode: PipelineMode | None = None
 
-    def load_pipeline(self):
-        """Load the QwenImageLayeredPipeline."""
-        if self.pipeline is not None:
-            return
-        if self.model_status == ModelStatus.loading:
-            # Already loading
-            return
+        # Loading status
+        self.status = ModelStatus.not_loaded
+        self.loading_message = ""
+        self.loading_progress = 0.0
+        self.error_message = ""
 
-        self.model_status = ModelStatus.loading
-        self.model_loading_message = "Checking model cache..."
-        self.model_loading_progress = 0.0
-        self.model_error = ""
+    @property
+    def torch_dtype(self):
+        if self.dtype == "f16":
+            return torch.float16
+        elif self.dtype == "bf16":
+            return torch.bfloat16
+        else:
+            return torch.float32
 
-        log.info(f"Loading pipeline from {self.model_id}...")
+    def unload(self):
+        """Unload the current pipeline to free memory."""
+        if self._pipe is not None:
+            log.info(f"Unloading pipeline for {self._model_id}")
+            del self._pipe
+            self._pipe = None
+            self._model_id = None
+            self._mode = None
+            gc.collect()
+            if torch.cuda.is_available():
+                torch.cuda.empty_cache()
+            self.status = ModelStatus.not_loaded
+
+    def update_settings(
+        self,
+        offload: str | None = None,
+        quantization: str | None = None,
+        vae_tiling: bool | None = None,
+        ramtorch: bool | None = None,
+    ) -> bool:
+        """Update optimization settings. Returns True if pipeline needs reload."""
+        needs_reload = False
+
+        if offload is not None and offload != self.offload:
+            log.info(f"Changing offload: {self.offload} -> {offload}")
+            self.offload = offload
+            needs_reload = True
+
+        if quantization is not None and quantization != self.quantization:
+            log.info(f"Changing quantization: {self.quantization} -> {quantization}")
+            self.quantization = quantization
+            needs_reload = True
+
+        if ramtorch is not None and ramtorch != self.ramtorch:
+            log.info(f"Changing ramtorch: {self.ramtorch} -> {ramtorch}")
+            self.ramtorch = ramtorch
+            needs_reload = True
+
+        # VAE tiling can be changed without reload
+        if vae_tiling is not None and vae_tiling != self.vae_tiling:
+            log.info(f"Changing vae_tiling: {self.vae_tiling} -> {vae_tiling}")
+            self.vae_tiling = vae_tiling
+            if self._pipe is not None and hasattr(self._pipe, 'vae'):
+                if vae_tiling:
+                    self._pipe.vae.enable_tiling()
+                else:
+                    self._pipe.vae.disable_tiling()
+
+        if needs_reload and self._pipe is not None:
+            self.unload()
+
+        return needs_reload
+
+    def get_pipeline(self, model_id: str, mode: PipelineMode):
+        """Get or load a pipeline for the given model and mode.
+
+        If the same model is already loaded but in a different mode,
+        convert it (e.g., txt2img -> img2img).
+        """
+        log.info(f"get_pipeline: requested model={model_id}, mode={mode.value}")
+        log.info(f"get_pipeline: current model={self._model_id}, current mode={self._mode}")
+
+        # Check if we need to reload
+        if self._model_id != model_id:
+            log.info(f"get_pipeline: model changed, reloading")
+            self.unload()
+            self._load_pipeline(model_id, mode)
+        elif self._mode != mode and self._pipe is not None:
+            # Same model, different mode - try to convert
+            self._convert_pipeline_mode(mode)
+
+        return self._pipe
+
+    def _load_pipeline(self, model_id: str, mode: PipelineMode):
+        """Load a pipeline from HuggingFace or local path."""
+        self.status = ModelStatus.loading
+        self.loading_message = "Checking model..."
+        self.loading_progress = 0.0
+
         try:
-            from diffusers import QwenImageLayeredPipeline
-            from huggingface_hub import snapshot_download
-            from huggingface_hub.utils import tqdm as hf_tqdm
-            import functools
+            if mode == PipelineMode.qwen_layered:
+                self._load_qwen_layered(model_id)
+            else:
+                self._load_general_pipeline(model_id, mode)
 
-            # First, download the model with progress tracking
-            self.model_loading_message = "Downloading model files (this may take a while on first run)..."
-            log.info(self.model_loading_message)
+            self._model_id = model_id
+            self._mode = mode
+            self.status = ModelStatus.loaded
+            self.loading_message = "Model loaded successfully"
+            self.loading_progress = 1.0
+            log.info(f"Pipeline loaded: {model_id} ({mode.value})")
 
-            # Use snapshot_download to get progress on initial download
-            # This will use cache if already downloaded
-            try:
-                # Get the cache directory used by diffusers
-                from huggingface_hub import HfFileSystem, hf_hub_download
-                from huggingface_hub.constants import HF_HUB_CACHE
-
-                # Check if model is already cached
-                cache_path = snapshot_download(
-                    self.model_id,
-                    local_files_only=True,
-                )
-                self.model_loading_message = "Model found in cache, loading..."
-                log.info(self.model_loading_message)
-            except Exception:
-                # Model not in cache, need to download
-                self.model_loading_message = "Downloading model (~55GB, first run only)..."
-                log.info(self.model_loading_message)
-
-                # Download with progress tracking
-                def progress_callback(progress_info):
-                    if hasattr(progress_info, 'n') and hasattr(progress_info, 'total'):
-                        if progress_info.total and progress_info.total > 0:
-                            self.model_loading_progress = progress_info.n / progress_info.total
-                            # Update message with downloaded size
-                            downloaded_gb = progress_info.n / (1024**3)
-                            total_gb = progress_info.total / (1024**3)
-                            self.model_loading_message = f"Downloading model: {downloaded_gb:.1f}GB / {total_gb:.1f}GB"
-
-                cache_path = snapshot_download(
-                    self.model_id,
-                )
-                log.info(f"Model downloaded to {cache_path}")
-
-            # Now load the pipeline
-            self.model_loading_message = "Loading model into memory..."
-            self.model_loading_progress = 0.5
-            log.info(self.model_loading_message)
-
-            self.pipeline = QwenImageLayeredPipeline.from_pretrained(
-                self.model_id,
-                torch_dtype=torch.bfloat16,
-            )
-
-            # Apply quantization if requested
-            if self.quantization != "none":
-                self.model_loading_message = f"Applying {self.quantization} quantization..."
-                log.info(self.model_loading_message)
-                self._apply_quantization()
-
-            # Apply RamTorch for memory-efficient inference
-            if self.ramtorch:
-                self.model_loading_message = "Applying RamTorch memory optimization..."
-                log.info(self.model_loading_message)
-                self._apply_ramtorch()
-
-            # Enable VAE tiling for reduced VRAM
-            if self.vae_tiling:
-                log.info("Enabling VAE tiling")
-                self.pipeline.vae.enable_tiling()
-
-            # CPU offload or move to device
-            if self.cpu_offload:
-                self.model_loading_message = "Enabling CPU offload..."
-                log.info("Enabling CPU offload for reduced VRAM usage")
-                self.pipeline.enable_model_cpu_offload()
-            elif not self.ramtorch:
-                # RamTorch handles device placement automatically
-                self.model_loading_message = f"Moving model to {self.device}..."
-                log.info(self.model_loading_message)
-                self.pipeline = self.pipeline.to(self.device)
-
-            self.pipeline.set_progress_bar_config(disable=True)
-            self.model_status = ModelStatus.loaded
-            self.model_loading_message = "Model loaded successfully"
-            self.model_loading_progress = 1.0
-            log.info("Pipeline loaded successfully")
         except Exception as e:
+            self.status = ModelStatus.error
+            self.error_message = str(e)
+            self.loading_message = f"Failed to load: {e}"
             log.error(f"Failed to load pipeline: {e}")
-            self.model_status = ModelStatus.error
-            self.model_error = str(e)
-            self.model_loading_message = f"Failed to load model: {e}"
             raise
 
+    def _load_qwen_layered(self, model_id: str):
+        """Load Qwen Image Layered pipeline."""
+        from diffusers import QwenImageLayeredPipeline
+        from huggingface_hub import snapshot_download
+
+        self.loading_message = "Checking Qwen model cache..."
+        log.info(self.loading_message)
+
+        # Check cache
+        try:
+            snapshot_download(model_id, local_files_only=True)
+            self.loading_message = "Model found in cache, loading..."
+        except Exception:
+            self.loading_message = "Downloading Qwen model (~55GB)..."
+            log.info(self.loading_message)
+            snapshot_download(model_id)
+
+        self.loading_message = "Loading Qwen pipeline..."
+        self.loading_progress = 0.5
+
+        self._pipe = QwenImageLayeredPipeline.from_pretrained(
+            model_id,
+            torch_dtype=self.torch_dtype,
+        )
+
+        self._apply_optimizations()
+
+    def _load_general_pipeline(self, model_id: str, mode: PipelineMode):
+        """Load a general diffusion pipeline (SD, SDXL, Flux, etc.)."""
+        from diffusers import (
+            AutoPipelineForText2Image,
+            AutoPipelineForImage2Image,
+            AutoPipelineForInpainting,
+        )
+
+        self.loading_message = f"Loading {model_id}..."
+        self.loading_progress = 0.3
+
+        pipe_args = {
+            "torch_dtype": self.torch_dtype,
+            "safety_checker": None,
+            "use_safetensors": True,
+        }
+
+        # Handle local safetensor files
+        if model_id.lower().endswith((".safetensors", ".sft")):
+            self._load_from_single_file(model_id, mode, pipe_args)
+        else:
+            # Load from HuggingFace
+            if mode == PipelineMode.inpaint:
+                self._pipe = AutoPipelineForInpainting.from_pretrained(model_id, **pipe_args)
+            elif mode == PipelineMode.image_to_image:
+                self._pipe = AutoPipelineForImage2Image.from_pretrained(model_id, **pipe_args)
+            else:
+                self._pipe = AutoPipelineForText2Image.from_pretrained(model_id, **pipe_args)
+
+        self._apply_optimizations()
+
+    def _load_from_single_file(self, model_path: str, mode: PipelineMode, pipe_args: dict):
+        """Load a pipeline from a single safetensor file."""
+        from diffusers import (
+            StableDiffusionPipeline,
+            StableDiffusionXLPipeline,
+            StableDiffusion3Pipeline,
+            AutoPipelineForImage2Image,
+            AutoPipelineForInpainting,
+        )
+
+        self.loading_message = f"Loading from {model_path}..."
+
+        # Try different pipeline types
+        pipe_classes = [
+            StableDiffusionXLPipeline,
+            StableDiffusionPipeline,
+            StableDiffusion3Pipeline,
+        ]
+
+        pipe = None
+        for cls in pipe_classes:
+            try:
+                pipe = cls.from_single_file(model_path, **pipe_args)
+                if hasattr(pipe, "text_encoder_2") and pipe.text_encoder_2 is None:
+                    continue
+                break
+            except Exception:
+                continue
+
+        if pipe is None:
+            raise ValueError(f"Could not load {model_path} as a diffusion pipeline")
+
+        # Convert to appropriate mode
+        if mode == PipelineMode.image_to_image:
+            pipe = AutoPipelineForImage2Image.from_pipe(pipe)
+        elif mode == PipelineMode.inpaint:
+            pipe = AutoPipelineForInpainting.from_pipe(pipe)
+
+        self._pipe = pipe
+
+    def _convert_pipeline_mode(self, new_mode: PipelineMode):
+        """Convert the current pipeline to a different mode."""
+        from diffusers import AutoPipelineForImage2Image, AutoPipelineForInpainting
+
+        if self._mode == PipelineMode.qwen_layered:
+            # Can't convert Qwen - need full reload
+            log.warning("Cannot convert Qwen pipeline to other modes")
+            return
+
+        log.info(f"Converting pipeline from {self._mode.value} to {new_mode.value}")
+
+        try:
+            if new_mode == PipelineMode.image_to_image:
+                self._pipe = AutoPipelineForImage2Image.from_pipe(self._pipe)
+            elif new_mode == PipelineMode.inpaint:
+                self._pipe = AutoPipelineForInpainting.from_pipe(self._pipe)
+            # txt2img conversion not directly supported, would need reload
+
+            self._mode = new_mode
+        except Exception as e:
+            log.error(f"Failed to convert pipeline: {e}")
+
+    def _apply_optimizations(self):
+        """Apply quantization, offloading, and other optimizations."""
+        if self._pipe is None:
+            return
+
+        # Apply quantization
+        if self.quantization != "none":
+            self.loading_message = f"Applying {self.quantization} quantization..."
+            self.loading_progress = 0.6
+            self._apply_quantization()
+
+        # Apply RamTorch
+        if self.ramtorch:
+            self.loading_message = "Applying RamTorch memory optimization..."
+            self.loading_progress = 0.7
+            self._apply_ramtorch()
+
+        # VAE tiling
+        if self.vae_tiling and hasattr(self._pipe, "vae"):
+            self.loading_message = "Enabling VAE tiling..."
+            log.info("Enabling VAE tiling")
+            self._pipe.vae.enable_tiling()
+
+        # Apply offloading or move to device
+        self.loading_progress = 0.85
+        if self.offload == "model":
+            self.loading_message = "Enabling model CPU offload..."
+            log.info("Enabling model CPU offload")
+            self._pipe.enable_model_cpu_offload()
+        elif self.offload == "sequential":
+            self.loading_message = "Enabling sequential CPU offload..."
+            log.info("Enabling sequential CPU offload")
+            self._pipe.enable_sequential_cpu_offload()
+        elif not self.ramtorch:
+            self.loading_message = f"Moving model to {self.device}..."
+            log.info(f"Moving pipeline to {self.device}")
+            self._pipe = self._pipe.to(self.device)
+
+        # Disable progress bar
+        if hasattr(self._pipe, "set_progress_bar_config"):
+            self._pipe.set_progress_bar_config(disable=True)
+
+        self.loading_progress = 0.95
+
     def _apply_quantization(self):
-        """Apply quantization to model components."""
+        """Apply quantization to pipeline components."""
         try:
             from optimum.quanto import freeze, qint4, qint8, quantize
 
             qtype = qint8 if self.quantization == "int8" else qint4
             log.info(f"Applying {self.quantization} quantization...")
 
-            if self.quantize_transformer and hasattr(self.pipeline, "transformer"):
-                log.info(f"Quantizing transformer with {self.quantization}")
-                quantize(self.pipeline.transformer, qtype)
-                freeze(self.pipeline.transformer)
+            if hasattr(self._pipe, "transformer"):
+                self.loading_message = f"Quantizing transformer to {self.quantization}..."
+                log.info("Quantizing transformer")
+                quantize(self._pipe.transformer, qtype)
+                freeze(self._pipe.transformer)
 
-            if self.quantize_text_encoder and hasattr(self.pipeline, "text_encoder"):
-                log.info(f"Quantizing text encoder with {self.quantization}")
-                quantize(self.pipeline.text_encoder, qtype)
-                freeze(self.pipeline.text_encoder)
+            if hasattr(self._pipe, "unet"):
+                self.loading_message = f"Quantizing UNet to {self.quantization}..."
+                log.info("Quantizing UNet")
+                quantize(self._pipe.unet, qtype)
+                freeze(self._pipe.unet)
 
-            log.info("Quantization applied successfully")
+            self.loading_message = "Quantization complete"
+            log.info("Quantization applied")
         except ImportError:
             log.warning("optimum-quanto not installed, skipping quantization")
         except Exception as e:
@@ -237,54 +416,212 @@ class DiffusersServer:
         try:
             from ramtorch.helpers import replace_linear_with_ramtorch
 
-            log.info("Applying RamTorch to model components...")
+            log.info("Applying RamTorch...")
 
-            # Apply to transformer (main compute component)
-            if hasattr(self.pipeline, "transformer"):
-                log.info("Applying RamTorch to transformer")
-                self.pipeline.transformer = replace_linear_with_ramtorch(
-                    self.pipeline.transformer, rank=0
+            if hasattr(self._pipe, "transformer"):
+                self._pipe.transformer = replace_linear_with_ramtorch(
+                    self._pipe.transformer, device=self.device
                 )
-                self.pipeline.transformer = self.pipeline.transformer.to(self.device)
 
-            # Apply to text encoder
-            if hasattr(self.pipeline, "text_encoder"):
-                log.info("Applying RamTorch to text encoder")
-                self.pipeline.text_encoder = replace_linear_with_ramtorch(
-                    self.pipeline.text_encoder, rank=0
+            if hasattr(self._pipe, "unet"):
+                self._pipe.unet = replace_linear_with_ramtorch(
+                    self._pipe.unet, device=self.device
                 )
-                self.pipeline.text_encoder = self.pipeline.text_encoder.to(self.device)
 
-            # Move VAE to device (usually small enough to fit)
-            if hasattr(self.pipeline, "vae"):
-                self.pipeline.vae = self.pipeline.vae.to(self.device)
+            if hasattr(self._pipe, "text_encoder"):
+                self._pipe.text_encoder = replace_linear_with_ramtorch(
+                    self._pipe.text_encoder, device=self.device
+                )
 
-            log.info("RamTorch applied successfully")
+            if hasattr(self._pipe, "vae"):
+                self._pipe.vae = self._pipe.vae.to(self.device)
+
+            log.info("RamTorch applied")
         except ImportError:
-            log.warning("ramtorch not installed, skipping RamTorch optimization")
+            log.warning("ramtorch not installed, skipping")
         except Exception as e:
             log.error(f"Failed to apply RamTorch: {e}")
 
-    def get_system_stats(self) -> dict:
-        """Get system/GPU information."""
-        devices = []
 
+@dataclass
+class Job:
+    id: str
+    status: JobStatus = JobStatus.pending
+    progress: float = 0.0
+    message: str = ""  # Current status message
+    images: list[str] = field(default_factory=list)  # base64 encoded
+    error: str | None = None
+    params: dict = field(default_factory=dict)
+
+
+class DiffusersServer:
+    """Server managing multiple diffusion pipelines."""
+
+    def __init__(
+        self,
+        default_model: str = "Tongyi-MAI/Z-Image-Turbo",
+        device: str = "cuda",
+        offload: str = "none",
+        dtype: str = "bf16",
+        quantization: str = "none",
+        vae_tiling: bool = True,
+        ramtorch: bool = False,
+    ):
+        self.default_model = default_model
+        self.device = device
+
+        # Create pipeline manager
+        self.pipeline_manager = PipelineManager(
+            device=device,
+            offload=offload,
+            dtype=dtype,
+            quantization=quantization,
+            vae_tiling=vae_tiling,
+            ramtorch=ramtorch,
+        )
+
+        self.jobs: dict[str, Job] = {}
+        self.current_job: Job | None = None
+        self._interrupt_requested = False
+        self._lock = threading.Lock()
+
+    # Proxy model status from pipeline manager
+    @property
+    def model_status(self) -> ModelStatus:
+        return self.pipeline_manager.status
+
+    @property
+    def model_loading_message(self) -> str:
+        return self.pipeline_manager.loading_message
+
+    @property
+    def model_loading_progress(self) -> float:
+        return self.pipeline_manager.loading_progress
+
+    @property
+    def model_error(self) -> str:
+        return self.pipeline_manager.error_message
+
+    def load_pipeline(
+        self,
+        model_id: str | None = None,
+        mode: str = "text_to_image",
+        params: dict | None = None,
+    ):
+        """Load a pipeline for the given model and mode.
+
+        Args:
+            model_id: HuggingFace model ID or local path
+            mode: Generation mode string
+            params: Request params containing optimization settings
+        """
+        model_id = model_id or self.default_model
+        params = params or {}
+
+        # Apply per-request optimization settings
+        self.pipeline_manager.update_settings(
+            offload=params.get("offload"),
+            quantization=params.get("quantization"),
+            vae_tiling=params.get("vae_tiling"),
+            ramtorch=params.get("ramtorch"),
+        )
+
+        # Map mode string to PipelineMode
+        mode_map = {
+            "text_to_image": PipelineMode.text_to_image,
+            "img2img": PipelineMode.image_to_image,
+            "image_to_image": PipelineMode.image_to_image,
+            "inpaint": PipelineMode.inpaint,
+            "layered_generate": PipelineMode.qwen_layered,
+            "layered_segment": PipelineMode.qwen_layered,
+            "qwen_layered": PipelineMode.qwen_layered,
+        }
+        pipeline_mode = mode_map.get(mode, PipelineMode.text_to_image)
+
+        # Qwen layered mode requires specific model
+        if pipeline_mode == PipelineMode.qwen_layered:
+            model_id = "Qwen/Qwen-Image-Layered"
+
+        return self.pipeline_manager.get_pipeline(model_id, pipeline_mode)
+
+    def get_system_stats(self) -> dict:
+        """Get system/GPU information with VRAM usage."""
+        devices = []
+        backend = "cpu"
+
+        # Check for CUDA/ROCm (both use torch.cuda API)
         if torch.cuda.is_available():
+            # Detect if running on ROCm (AMD) vs CUDA (NVIDIA)
+            is_rocm = bool(getattr(torch.version, "hip", None))
+            backend = "rocm" if is_rocm else "cuda"
+
             for i in range(torch.cuda.device_count()):
                 props = torch.cuda.get_device_properties(i)
+                vram_total = props.total_memory
+
+                # Get current VRAM usage
+                vram_used = 0
+                vram_percent = 0.0
+                try:
+                    # torch.cuda.mem_get_info returns (free, total)
+                    free, total = torch.cuda.mem_get_info(i)
+                    vram_used = total - free
+                    vram_percent = (vram_used / total) * 100.0 if total > 0 else 0.0
+                except Exception:
+                    # Fallback to allocated memory (less accurate but works)
+                    try:
+                        vram_used = torch.cuda.memory_allocated(i)
+                        vram_percent = (vram_used / vram_total) * 100.0 if vram_total > 0 else 0.0
+                    except Exception:
+                        pass
+
                 devices.append({
-                    "type": "cuda",
+                    "type": backend,
                     "name": props.name,
-                    "vram_total": props.total_memory,
+                    "vram_total": vram_total,
+                    "vram_used": vram_used,
+                    "vram_percent": round(vram_percent, 1),
                 })
+
+        # Check for Apple MPS
+        elif hasattr(torch.backends, "mps") and torch.backends.mps.is_available():
+            backend = "mps"
+            vram_used = 0
+            vram_total = 0
+            vram_percent = 0.0
+
+            try:
+                # MPS memory functions (available in newer PyTorch)
+                if hasattr(torch.mps, "driver_allocated_memory"):
+                    vram_used = torch.mps.driver_allocated_memory()
+                elif hasattr(torch.mps, "current_allocated_memory"):
+                    vram_used = torch.mps.current_allocated_memory()
+
+                if hasattr(torch.mps, "driver_total_memory"):
+                    vram_total = torch.mps.driver_total_memory()
+                    vram_percent = (vram_used / vram_total) * 100.0 if vram_total > 0 else 0.0
+            except Exception:
+                pass
+
+            devices.append({
+                "type": "mps",
+                "name": "Apple Metal (MPS)",
+                "vram_total": vram_total,
+                "vram_used": vram_used,
+                "vram_percent": round(vram_percent, 1),
+            })
+
         else:
+            # CPU fallback
             devices.append({
                 "type": "cpu",
                 "name": "CPU",
                 "vram_total": 0,
+                "vram_used": 0,
+                "vram_percent": 0.0,
             })
 
-        return {"devices": devices}
+        return {"devices": devices, "backend": backend}
 
     def create_job(self, params: dict) -> Job:
         """Create a new job."""
@@ -309,9 +646,10 @@ class DiffusersServer:
             # Estimate progress based on step
             total_steps = self.current_job.params.get("num_inference_steps", 50)
             self.current_job.progress = min(step / total_steps, 0.99)
+            self.current_job.message = f"Step {step}/{total_steps}"
 
     def run_job(self, job: Job):
-        """Run a generation/segmentation job."""
+        """Run a generation job based on mode."""
         with self._lock:
             if self.current_job is not None:
                 job.status = JobStatus.failed
@@ -323,66 +661,40 @@ class DiffusersServer:
 
         try:
             job.status = JobStatus.processing
-            self.load_pipeline()
-
+            job.message = "Starting..."
             params = job.params
-            inputs: dict[str, Any] = {
-                "generator": torch.Generator(device=self.device).manual_seed(
-                    params.get("seed", 42)
-                ),
-                "true_cfg_scale": params.get("cfg_scale", 4.0),
-                "negative_prompt": params.get("negative_prompt", " "),
-                "num_inference_steps": params.get("num_inference_steps", 50),
-                "num_images_per_prompt": 1,
-                "layers": params.get("layers", 4),
-                "resolution": params.get("resolution", 640),
-                "cfg_normalize": params.get("cfg_normalize", True),
-                "use_en_prompt": params.get("use_en_prompt", True),
-            }
+            mode = params.get("mode", "text_to_image")
+            model_id = params.get("model_id") or self.default_model
 
-            # Handle input image
-            if params.get("image"):
-                # Segmentation mode: use provided image
-                image_data = base64.b64decode(params["image"])
-                image = Image.open(io.BytesIO(image_data)).convert("RGBA")
-                inputs["image"] = image
+            log.info(f"Running job {job.id} mode={mode} model={model_id}")
+
+            if mode == "layered_generate":
+                # 2-stage generation: first txt2img, then Qwen segmentation
+                job.images = self._run_layered_generate(params, model_id, job)
+            elif mode == "layered_segment":
+                # Direct Qwen segmentation of existing image
+                job.message = "Loading Qwen model..."
+                pipeline = self.load_pipeline(model_id, mode, params)
+                job.message = "Segmenting..."
+                job.images = self._run_qwen_layered(pipeline, params, job)
             else:
-                # Generation mode: create a blank/noise image as starting point
-                # The pipeline requires an image for dimension calculation
-                resolution = params.get("resolution", 640)
-                # Create a blank RGBA image
-                image = Image.new("RGBA", (resolution, resolution), (128, 128, 128, 255))
-                inputs["image"] = image
+                # Load appropriate pipeline with per-request optimization settings
+                job.message = "Loading model..."
+                pipeline = self.load_pipeline(model_id, mode, params)
 
-            # Handle prompt for generation mode
-            if params.get("prompt"):
-                inputs["prompt"] = params["prompt"]
-
-            # Add progress callback if supported
-            # Note: Check if pipeline supports callback_on_step_end
-            if hasattr(self.pipeline, "callback_on_step_end"):
-                inputs["callback_on_step_end"] = self._progress_callback
-
-            log.info(f"Running job {job.id} with params: {list(params.keys())}")
-
-            with torch.inference_mode():
-                output = self.pipeline(**inputs)
-
-            # Convert output images to base64
-            # output.images[0] is a list of PIL Images (one per layer)
-            layer_images = output.images[0] if output.images else []
-
-            job.images = []
-            for i, img in enumerate(layer_images):
-                buffer = io.BytesIO()
-                img.save(buffer, format="PNG")
-                b64 = base64.b64encode(buffer.getvalue()).decode("utf-8")
-                job.images.append(b64)
-                log.info(f"Layer {i+1}: {img.size}")
+                # Dispatch to appropriate handler
+                job.message = "Generating..."
+                if mode == "inpaint":
+                    job.images = self._run_inpaint(pipeline, params, job)
+                elif mode in ("img2img", "image_to_image"):
+                    job.images = self._run_img2img(pipeline, params, job)
+                else:
+                    job.images = self._run_txt2img(pipeline, params, job)
 
             job.status = JobStatus.completed
             job.progress = 1.0
-            log.info(f"Job {job.id} completed with {len(job.images)} layers")
+            job.message = "Complete"
+            log.info(f"Job {job.id} completed with {len(job.images)} images")
 
         except InterruptedError:
             job.status = JobStatus.interrupted
@@ -400,6 +712,306 @@ class DiffusersServer:
             with self._lock:
                 self.current_job = None
                 self._interrupt_requested = False
+
+    def _make_progress_callback(self, job: Job, total_steps: int, stage_prefix: str = "", stage_weight: float = 1.0, stage_offset: float = 0.0):
+        """Create a callback function for pipeline progress updates.
+
+        Args:
+            job: The job to update progress on
+            total_steps: Total number of inference steps
+            stage_prefix: Prefix for the message (e.g., "Stage 1: ")
+            stage_weight: How much of the total progress this stage represents (0-1)
+            stage_offset: Starting progress offset for this stage (0-1)
+        """
+        def callback(pipeline, step: int, timestep: int, callback_kwargs: dict):
+            # Calculate progress within this stage
+            step_progress = (step + 1) / total_steps
+            # Apply stage weighting and offset
+            job.progress = stage_offset + (step_progress * stage_weight)
+            job.message = f"{stage_prefix}Step {step + 1}/{total_steps}"
+            return callback_kwargs
+        return callback
+
+    def _run_txt2img(self, pipeline, params: dict, job: Job | None = None) -> list[str]:
+        """Run text-to-image generation."""
+        seed = params.get("seed", 42)
+        if seed < 0:
+            import random
+            seed = random.randint(0, 2**31 - 1)
+
+        # Use CPU generator when offloading is enabled to avoid device mismatch
+        gen_device = "cpu" if self.pipeline_manager.offload != "none" else self.device
+        generator = torch.Generator(device=gen_device).manual_seed(seed)
+
+        num_steps = params.get("num_inference_steps", 30)
+
+        # Build pipeline kwargs
+        pipeline_kwargs = {
+            "prompt": params.get("prompt", ""),
+            "negative_prompt": params.get("negative_prompt", ""),
+            "width": params.get("width", 1024),
+            "height": params.get("height", 1024),
+            "num_inference_steps": num_steps,
+            "guidance_scale": params.get("guidance_scale", 7.5),
+            "generator": generator,
+            "output_type": "pil",
+        }
+
+        # Add progress callback if job provided
+        if job is not None:
+            pipeline_kwargs["callback_on_step_end"] = self._make_progress_callback(job, num_steps)
+
+        output = pipeline(**pipeline_kwargs)
+
+        return [self._encode_image(img) for img in output.images]
+
+    def _run_layered_generate(self, params: dict, model_id: str, job: Job) -> list[str]:
+        """Run 2-stage layered generation: txt2img then Qwen segmentation."""
+        import random
+
+        seed = params.get("seed", 42)
+        if seed < 0:
+            seed = random.randint(0, 2**31 - 1)
+
+        # Get step counts for progress calculation
+        txt2img_steps = params.get("num_inference_steps", 30)
+        qwen_steps = params.get("layered_steps", 50)
+        total_steps = txt2img_steps + qwen_steps
+        txt2img_weight = txt2img_steps / total_steps  # ~0.375 for 30/80
+        qwen_weight = qwen_steps / total_steps  # ~0.625 for 50/80
+
+        # Stage 1: Generate base image with selected model
+        job.message = "Loading generation model..."
+        job.progress = 0.0
+        log.info(f"Stage 1: Loading txt2img model {model_id}")
+        txt2img_pipeline = self.load_pipeline(model_id, "text_to_image", params)
+
+        job.message = "Generating base image..."
+        log.info("Stage 1: Generating base image")
+
+        gen_device = "cpu" if self.pipeline_manager.offload != "none" else self.device
+        generator = torch.Generator(device=gen_device).manual_seed(seed)
+
+        # Stage 1 progress callback (0% to txt2img_weight%)
+        stage1_callback = self._make_progress_callback(
+            job, txt2img_steps, "Generating: ", txt2img_weight, 0.0
+        )
+
+        output = txt2img_pipeline(
+            prompt=params.get("prompt", ""),
+            negative_prompt=params.get("negative_prompt", ""),
+            width=params.get("width", 1024),
+            height=params.get("height", 1024),
+            num_inference_steps=txt2img_steps,
+            guidance_scale=params.get("guidance_scale", 7.5),
+            generator=generator,
+            output_type="pil",
+            callback_on_step_end=stage1_callback,
+        )
+
+        base_image = output.images[0]
+        log.info(f"Stage 1 complete: generated {base_image.size} image")
+
+        # Stage 2: Segment with Qwen
+        job.message = "Loading Qwen model..."
+        job.progress = txt2img_weight
+        log.info("Stage 2: Loading Qwen layered model")
+
+        # Load Qwen pipeline (this will switch models)
+        qwen_pipeline = self.load_pipeline("Qwen/Qwen-Image-Layered", "layered_segment", params)
+
+        job.message = "Segmenting into layers..."
+        log.info("Stage 2: Running Qwen segmentation")
+
+        # Convert base image to RGBA for Qwen
+        base_rgba = base_image.convert("RGBA")
+
+        # Always use CPU generator for Qwen
+        qwen_generator = torch.Generator(device="cpu").manual_seed(seed)
+
+        # Stage 2 progress callback (txt2img_weight% to 100%)
+        stage2_callback = self._make_progress_callback(
+            job, qwen_steps, "Segmenting: ", qwen_weight, txt2img_weight
+        )
+
+        qwen_inputs = {
+            "generator": qwen_generator,
+            "image": base_rgba,
+            "prompt": params.get("prompt", ""),
+            "negative_prompt": params.get("negative_prompt", " "),
+            "true_cfg_scale": params.get("layered_cfg_scale", 4.0),
+            "num_inference_steps": qwen_steps,
+            "num_images_per_prompt": 1,
+            "layers": params.get("layers", 4),
+            "resolution": params.get("resolution", 640),
+            "cfg_normalize": True,
+            "use_en_prompt": True,
+            "callback_on_step_end": stage2_callback,
+        }
+
+        log.info(f"Qwen inputs: layers={qwen_inputs['layers']}, resolution={qwen_inputs['resolution']}, steps={qwen_inputs['num_inference_steps']}")
+        log.info(f"Input image size: {base_rgba.size}")
+
+        with torch.inference_mode():
+            qwen_output = qwen_pipeline(**qwen_inputs)
+
+        layer_images = qwen_output.images[0] if qwen_output.images else []
+        log.info(f"Stage 2 complete: {len(layer_images)} layers")
+
+        # Return base image first, then layers
+        result = [self._encode_image(base_image)]
+        result.extend([self._encode_image(img) for img in layer_images])
+        return result
+
+    def _run_img2img(self, pipeline, params: dict, job: Job | None = None) -> list[str]:
+        """Run image-to-image generation."""
+        seed = params.get("seed", 42)
+        if seed < 0:
+            import random
+            seed = random.randint(0, 2**31 - 1)
+
+        # Use CPU generator when offloading is enabled to avoid device mismatch
+        gen_device = "cpu" if self.pipeline_manager.offload != "none" else self.device
+        generator = torch.Generator(device=gen_device).manual_seed(seed)
+
+        # Decode input image
+        input_image = self._decode_image(params["image"])
+        width = params.get("width", input_image.width)
+        height = params.get("height", input_image.height)
+        input_image = input_image.resize((width, height), Image.Resampling.LANCZOS)
+
+        num_steps = params.get("num_inference_steps", 30)
+
+        pipeline_kwargs = {
+            "prompt": params.get("prompt", ""),
+            "negative_prompt": params.get("negative_prompt", ""),
+            "image": input_image,
+            "strength": params.get("strength", 0.75),
+            "num_inference_steps": num_steps,
+            "guidance_scale": params.get("guidance_scale", 7.5),
+            "generator": generator,
+            "output_type": "pil",
+        }
+
+        if job is not None:
+            pipeline_kwargs["callback_on_step_end"] = self._make_progress_callback(job, num_steps)
+
+        output = pipeline(**pipeline_kwargs)
+
+        return [self._encode_image(img) for img in output.images]
+
+    def _run_inpaint(self, pipeline, params: dict, job: Job | None = None) -> list[str]:
+        """Run inpainting generation."""
+        seed = params.get("seed", 42)
+        if seed < 0:
+            import random
+            seed = random.randint(0, 2**31 - 1)
+
+        # Use CPU generator when offloading is enabled to avoid device mismatch
+        gen_device = "cpu" if self.pipeline_manager.offload != "none" else self.device
+        generator = torch.Generator(device=gen_device).manual_seed(seed)
+
+        # Decode input image and mask
+        input_image = self._decode_image(params["image"])
+        mask_image = self._decode_image(params["mask"])
+
+        width = params.get("width", input_image.width)
+        height = params.get("height", input_image.height)
+        input_image = input_image.resize((width, height), Image.Resampling.LANCZOS)
+        mask_image = mask_image.resize((width, height), Image.Resampling.LANCZOS)
+
+        num_steps = params.get("num_inference_steps", 30)
+
+        pipeline_kwargs = {
+            "prompt": params.get("prompt", ""),
+            "negative_prompt": params.get("negative_prompt", ""),
+            "image": input_image,
+            "mask_image": mask_image,
+            "width": width,
+            "height": height,
+            "strength": params.get("strength", 1.0),
+            "num_inference_steps": num_steps,
+            "guidance_scale": params.get("guidance_scale", 7.5),
+            "generator": generator,
+            "output_type": "pil",
+        }
+
+        if job is not None:
+            pipeline_kwargs["callback_on_step_end"] = self._make_progress_callback(job, num_steps)
+
+        output = pipeline(**pipeline_kwargs)
+
+        return [self._encode_image(img) for img in output.images]
+
+    def _run_qwen_layered(self, pipeline, params: dict, job: Job | None = None) -> list[str]:
+        """Run Qwen Image Layered generation/segmentation."""
+        seed = params.get("seed", 42)
+        if seed < 0:
+            import random
+            seed = random.randint(0, 2**31 - 1)
+
+        # Always use CPU generator for Qwen - it handles device placement internally
+        # and quantization/offloading can cause device mismatches
+        generator = torch.Generator(device="cpu").manual_seed(seed)
+
+        num_steps = params.get("num_inference_steps", 50)
+
+        inputs: dict[str, Any] = {
+            "generator": generator,
+            "true_cfg_scale": params.get("cfg_scale", 4.0),
+            "negative_prompt": params.get("negative_prompt", " "),
+            "num_inference_steps": num_steps,
+            "num_images_per_prompt": 1,
+            "layers": params.get("layers", 4),
+            "resolution": params.get("resolution", 640),
+            "cfg_normalize": params.get("cfg_normalize", True),
+            "use_en_prompt": params.get("use_en_prompt", True),
+        }
+
+        # Add progress callback if job provided
+        if job is not None:
+            inputs["callback_on_step_end"] = self._make_progress_callback(job, num_steps, "Segmenting: ")
+
+        # Handle input image
+        if params.get("image"):
+            image = self._decode_image(params["image"]).convert("RGBA")
+            inputs["image"] = image
+        else:
+            resolution = params.get("resolution", 640)
+            image = Image.new("RGBA", (resolution, resolution), (128, 128, 128, 255))
+            inputs["image"] = image
+
+        if params.get("prompt"):
+            inputs["prompt"] = params["prompt"]
+
+        log.info(f"Qwen inputs: prompt={inputs.get('prompt', 'NONE')}, layers={inputs['layers']}, resolution={inputs['resolution']}, cfg={inputs['true_cfg_scale']}, steps={inputs['num_inference_steps']}")
+        log.info(f"Pipeline type: {type(pipeline).__name__}, device: {self.device}")
+        log.info(f"Input image size: {inputs['image'].size}, mode: {inputs['image'].mode}")
+
+        with torch.inference_mode():
+            output = pipeline(**inputs)
+
+        # Output is list of layers
+        layer_images = output.images[0] if output.images else []
+        log.info(f"Output: {len(layer_images)} layers")
+        for i, img in enumerate(layer_images):
+            log.info(f"  Layer {i}: size={img.size}, mode={img.mode}")
+
+        # Prepend input image as first layer for debugging
+        result = [self._encode_image(inputs['image'])]
+        result.extend([self._encode_image(img) for img in layer_images])
+        return result
+
+    def _encode_image(self, image: Image.Image) -> str:
+        """Encode PIL Image to base64 PNG."""
+        buffer = io.BytesIO()
+        image.save(buffer, format="PNG")
+        return base64.b64encode(buffer.getvalue()).decode("utf-8")
+
+    def _decode_image(self, b64_data: str) -> Image.Image:
+        """Decode base64 string to PIL Image."""
+        image_data = base64.b64decode(b64_data)
+        return Image.open(io.BytesIO(image_data)).convert("RGB")
 
 
 # Global server instance
@@ -439,12 +1051,28 @@ app.add_middleware(
 
 
 class GenerateRequest(BaseModel):
+    # Mode selection
+    mode: str = "text_to_image"  # text_to_image, img2img, inpaint, layered_generate, layered_segment
+    model_id: str = ""  # HuggingFace model ID or local path (empty = use default)
+
+    # Common parameters
     prompt: str | None = None
-    negative_prompt: str = " "
-    image: str | None = None  # base64 encoded
-    seed: int = 42
-    cfg_scale: float = 4.0
-    num_inference_steps: int = 50
+    negative_prompt: str = ""
+    image: str | None = None  # base64 encoded input image (for img2img, inpaint, segment)
+    mask: str | None = None   # base64 encoded mask (for inpaint)
+    seed: int = -1  # -1 = random
+    num_inference_steps: int = 30
+    guidance_scale: float = 7.5
+
+    # Resolution (for txt2img and as target for img2img/inpaint)
+    width: int = 1024
+    height: int = 1024
+
+    # img2img / inpaint specific
+    strength: float = 0.75
+
+    # Qwen layered specific (legacy compatibility)
+    cfg_scale: float = 4.0  # Qwen uses cfg_scale instead of guidance_scale
     layers: int = 4
     resolution: int = 640
     cfg_normalize: bool = True
@@ -469,6 +1097,43 @@ class ModelStatusResponse(BaseModel):
     message: str
     progress: float
     error: str | None = None
+
+
+# Token authentication
+_auth_token: str | None = None
+
+
+def set_auth_token(token: str | None):
+    """Set the authentication token (call before starting server)."""
+    global _auth_token
+    _auth_token = token
+
+
+@app.middleware("http")
+async def auth_middleware(request, call_next):
+    """Verify Bearer token if authentication is enabled."""
+    if _auth_token is not None:
+        # Skip auth for health check
+        if request.url.path == "/health":
+            return await call_next(request)
+
+        auth_header = request.headers.get("Authorization")
+        if not auth_header or not auth_header.startswith("Bearer "):
+            from fastapi.responses import JSONResponse
+            return JSONResponse(
+                status_code=401,
+                content={"detail": "Missing or invalid Authorization header"},
+            )
+
+        token = auth_header[7:]  # Remove "Bearer " prefix
+        if token != _auth_token:
+            from fastapi.responses import JSONResponse
+            return JSONResponse(
+                status_code=401,
+                content={"detail": "Invalid token"},
+            )
+
+    return await call_next(request)
 
 
 @app.on_event("startup")
@@ -515,20 +1180,45 @@ async def generate(request: GenerateRequest, background_tasks: BackgroundTasks):
     """Submit a generation/segmentation job."""
     srv = get_server()
 
-    # Validate request
-    if not request.prompt and not request.image:
+    # Validate request based on mode
+    mode = request.mode
+    if mode == "text_to_image" and not request.prompt:
         raise HTTPException(
             status_code=400,
-            detail="Either 'prompt' or 'image' must be provided",
+            detail="'prompt' is required for text_to_image mode",
         )
+    if mode in ("img2img", "image_to_image") and not request.image:
+        raise HTTPException(
+            status_code=400,
+            detail="'image' is required for img2img mode",
+        )
+    if mode == "inpaint" and (not request.image or not request.mask):
+        raise HTTPException(
+            status_code=400,
+            detail="'image' and 'mask' are required for inpaint mode",
+        )
+    if mode == "layered_segment" and not request.image:
+        raise HTTPException(
+            status_code=400,
+            detail="'image' is required for layered_segment mode",
+        )
+    # Note: layered_generate does NOT require a prompt - it can generate from scratch
 
     params = {
+        "mode": mode,
+        "model_id": request.model_id,
         "prompt": request.prompt,
         "negative_prompt": request.negative_prompt,
         "image": request.image,
+        "mask": request.mask,
         "seed": request.seed,
-        "cfg_scale": request.cfg_scale,
         "num_inference_steps": request.num_inference_steps,
+        "guidance_scale": request.guidance_scale,
+        "width": request.width,
+        "height": request.height,
+        "strength": request.strength,
+        # Qwen layered specific
+        "cfg_scale": request.cfg_scale,
         "layers": request.layers,
         "resolution": request.resolution,
         "cfg_normalize": request.cfg_normalize,
@@ -552,10 +1242,13 @@ async def get_status(job_id: str):
     if job is None:
         raise HTTPException(status_code=404, detail="Job not found")
 
-    # Include model loading message if model is still loading
-    message = None
+    # Include appropriate status message
     if job.status == JobStatus.processing and srv.model_status == ModelStatus.loading:
+        # Model is still loading - show model loading message
         message = srv.model_loading_message
+    else:
+        # Show job progress message (step count, etc.)
+        message = job.message
 
     return StatusResponse(
         status=job.status.value,
@@ -584,45 +1277,77 @@ def main():
     parser = argparse.ArgumentParser(description="Diffusers Server")
     parser.add_argument("--host", default="127.0.0.1", help="Host to bind to")
     parser.add_argument("--port", type=int, default=8189, help="Port to bind to")
-    parser.add_argument("--model", default="Qwen/Qwen-Image-Layered", help="Model ID")
+    parser.add_argument("--model", default="Tongyi-MAI/Z-Image-Turbo",
+                        help="Default model ID (HuggingFace or local path)")
     parser.add_argument("--device", default="cuda", help="Device (cuda/cpu/mps)")
-    parser.add_argument("--cpu-offload", action="store_true", help="Enable CPU offload for reduced VRAM usage")
-    parser.add_argument("--vae-tiling", action="store_true", default=True, help="Enable VAE tiling")
-    parser.add_argument("--no-vae-tiling", action="store_false", dest="vae_tiling", help="Disable VAE tiling")
+    parser.add_argument("--dtype", default="bf16", choices=["f16", "bf16", "f32"],
+                        help="Data type for model weights")
+    parser.add_argument("--offload", default="none", choices=["none", "model", "sequential"],
+                        help="CPU offload mode (none, model, sequential)")
+    parser.add_argument("--vae-tiling", action="store_true", default=True,
+                        help="Enable VAE tiling for large images")
+    parser.add_argument("--no-vae-tiling", action="store_false", dest="vae_tiling",
+                        help="Disable VAE tiling")
     parser.add_argument("--quantization", default="none", choices=["none", "int8", "int4"],
-                        help="Quantization level (none, int8, int4)")
-    parser.add_argument("--quantize-transformer", action="store_true", default=True,
-                        help="Apply quantization to transformer")
-    parser.add_argument("--no-quantize-transformer", action="store_false", dest="quantize_transformer",
-                        help="Don't quantize transformer")
-    parser.add_argument("--quantize-text-encoder", action="store_true",
-                        help="Apply quantization to text encoder")
+                        help="Quantization level (requires optimum-quanto)")
     parser.add_argument("--ramtorch", action="store_true",
-                        help="Enable RamTorch for memory-efficient inference (slower but uses less VRAM)")
-    parser.add_argument("--preload", action="store_true", help="Preload model on startup")
+                        help="Enable RamTorch for memory-efficient inference")
+    parser.add_argument("--preload", action="store_true",
+                        help="Preload default model on startup")
+
+    # Security options
+    parser.add_argument("--token", default=None,
+                        help="Bearer token for authentication (enables auth if set)")
+    parser.add_argument("--ssl-cert", default=None,
+                        help="Path to SSL certificate file for HTTPS")
+    parser.add_argument("--ssl-key", default=None,
+                        help="Path to SSL private key file for HTTPS")
 
     args = parser.parse_args()
 
     global server
     server = DiffusersServer(
-        model_id=args.model,
+        default_model=args.model,
         device=args.device,
-        cpu_offload=args.cpu_offload,
-        vae_tiling=args.vae_tiling,
+        offload=args.offload,
+        dtype=args.dtype,
         quantization=args.quantization,
-        quantize_transformer=args.quantize_transformer,
-        quantize_text_encoder=args.quantize_text_encoder,
+        vae_tiling=args.vae_tiling,
         ramtorch=args.ramtorch,
     )
 
+    # Set up authentication if token provided
+    if args.token:
+        set_auth_token(args.token)
+        log.info("Token authentication enabled")
+
     if args.preload:
+        log.info(f"Preloading model: {args.model}")
         server.load_pipeline()
 
-    log.info(f"Starting server on {args.host}:{args.port}")
+    # Determine protocol
+    use_ssl = args.ssl_cert and args.ssl_key
+    protocol = "https" if use_ssl else "http"
+
+    log.info(f"Starting server on {protocol}://{args.host}:{args.port}")
+    log.info(f"Default model: {args.model}")
+    log.info(f"Device: {args.device}, dtype: {args.dtype}, offload: {args.offload}")
+    if use_ssl:
+        log.info(f"TLS enabled with cert: {args.ssl_cert}")
 
     try:
         import uvicorn
-        uvicorn.run(app, host=args.host, port=args.port, log_level="info")
+
+        uvicorn_kwargs = {
+            "app": app,
+            "host": args.host,
+            "port": args.port,
+            "access_log": False,
+        }
+        if use_ssl:
+            uvicorn_kwargs["ssl_certfile"] = args.ssl_cert
+            uvicorn_kwargs["ssl_keyfile"] = args.ssl_key
+        uvicorn.run(**uvicorn_kwargs)
     except ImportError:
         log.error("uvicorn not installed. Run: pip install uvicorn")
         sys.exit(1)

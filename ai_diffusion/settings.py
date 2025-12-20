@@ -136,6 +136,124 @@ class PerformanceSettings:
     tiled_vae: bool = False
 
 
+class DiffusersOffload(Enum):
+    none = _("None")
+    model = _("Model CPU Offload")
+    sequential = _("Sequential CPU Offload")
+
+
+class DiffusersQuantization(Enum):
+    none = _("None")
+    int8 = _("INT8")
+    int4 = _("INT4")
+
+
+@dataclass
+class DiffusersModelPreset:
+    """Preset configuration for a diffusers model."""
+
+    name: str  # Display name
+    model_id: str  # HuggingFace model ID or local path
+    default_steps: int = 30
+    default_guidance: float = 7.5
+    offload: str = "none"  # none, model, sequential
+    quantization: str = "none"  # none, int8, int4
+    quantize_transformer: bool = True
+    quantize_text_encoder: bool = False
+    vae_tiling: bool = True
+    ramtorch: bool = False
+
+    def to_dict(self) -> dict:
+        return {
+            "name": self.name,
+            "model_id": self.model_id,
+            "default_steps": self.default_steps,
+            "default_guidance": self.default_guidance,
+            "offload": self.offload,
+            "quantization": self.quantization,
+            "quantize_transformer": self.quantize_transformer,
+            "quantize_text_encoder": self.quantize_text_encoder,
+            "vae_tiling": self.vae_tiling,
+            "ramtorch": self.ramtorch,
+        }
+
+    @staticmethod
+    def from_dict(data: dict) -> "DiffusersModelPreset":
+        return DiffusersModelPreset(
+            name=data.get("name", "Unknown"),
+            model_id=data.get("model_id", ""),
+            default_steps=data.get("default_steps", 30),
+            default_guidance=data.get("default_guidance", 7.5),
+            offload=data.get("offload", "none"),
+            quantization=data.get("quantization", "none"),
+            quantize_transformer=data.get("quantize_transformer", True),
+            quantize_text_encoder=data.get("quantize_text_encoder", False),
+            vae_tiling=data.get("vae_tiling", True),
+            ramtorch=data.get("ramtorch", False),
+        )
+
+
+# Default presets
+DEFAULT_DIFFUSERS_PRESETS = [
+    DiffusersModelPreset(
+        name="Z-Image-Turbo (Fast)",
+        model_id="Tongyi-MAI/Z-Image-Turbo",
+        default_steps=8,
+        default_guidance=1.0,
+        offload="none",
+        quantization="none",
+    ),
+    DiffusersModelPreset(
+        name="Z-Image-Turbo (Low VRAM)",
+        model_id="Tongyi-MAI/Z-Image-Turbo",
+        default_steps=8,
+        default_guidance=1.0,
+        offload="model",
+        quantization="int8",
+    ),
+    DiffusersModelPreset(
+        name="FLUX.1-dev",
+        model_id="black-forest-labs/FLUX.1-dev",
+        default_steps=30,
+        default_guidance=3.5,
+        offload="none",
+        quantization="none",
+    ),
+    DiffusersModelPreset(
+        name="FLUX.1-dev (Low VRAM)",
+        model_id="black-forest-labs/FLUX.1-dev",
+        default_steps=30,
+        default_guidance=3.5,
+        offload="model",
+        quantization="int8",
+    ),
+    DiffusersModelPreset(
+        name="SDXL",
+        model_id="stabilityai/stable-diffusion-xl-base-1.0",
+        default_steps=30,
+        default_guidance=7.5,
+        offload="none",
+        quantization="none",
+    ),
+    DiffusersModelPreset(
+        name="SD 3.5 Large",
+        model_id="stabilityai/stable-diffusion-3.5-large",
+        default_steps=30,
+        default_guidance=4.5,
+        offload="none",
+        quantization="none",
+    ),
+    DiffusersModelPreset(
+        name="Qwen Layered",
+        model_id="Qwen/Qwen-Image-Layered",
+        default_steps=50,
+        default_guidance=4.0,
+        offload="model",
+        quantization="none",
+    ),
+]
+
+
 class Setting:
     def __init__(self, name: str, default, desc="", help="", items=None):
         self.name = name
@@ -267,6 +385,63 @@ class Settings(QObject):
         _("Enable RamTorch"),
         False,
         _("Use RamTorch for automatic CPU/GPU memory swapping. Reduces VRAM usage but slower."),
+    )
+
+    diffusers_default_model: str
+    _diffusers_default_model = Setting(
+        _("Default Model"),
+        "Tongyi-MAI/Z-Image-Turbo",
+        _("Default HuggingFace model ID for diffusers generation."),
+    )
+
+    diffusers_default_width: int
+    _diffusers_default_width = Setting(_("Default Width"), 1024, _("Default output width"))
+
+    diffusers_default_height: int
+    _diffusers_default_height = Setting(_("Default Height"), 1024, _("Default output height"))
+
+    diffusers_guidance_scale: float
+    _diffusers_guidance_scale = Setting(
+        _("Guidance Scale"), 1.0, _("Default CFG/guidance scale")
+    )
+
+    diffusers_num_steps: int
+    _diffusers_num_steps = Setting(
+        _("Inference Steps"), 8, _("Default number of inference steps")
+    )
+
+    diffusers_last_mode: str
+    _diffusers_last_mode = Setting(
+        _("Last Mode"), "text_to_image", _("Last used diffusers mode")
+    )
+
+    diffusers_server_token: str
+    _diffusers_server_token = Setting(
+        _("Server Token"),
+        "",
+        _("Bearer token for authentication with external diffusers server (optional)"),
+    )
+
+    diffusers_server_use_tls: bool
+    _diffusers_server_use_tls = Setting(
+        _("Use TLS/HTTPS"),
+        False,
+        _("Use HTTPS instead of HTTP when connecting to the diffusers server"),
+    )
+
+    # Diffusers model presets stored as list of dicts
+    diffusers_model_presets: list
+    _diffusers_model_presets = Setting(
+        _("Model Presets"),
+        [],  # Empty = use defaults
+        _("Custom model presets for diffusers generation"),
+    )
+
+    diffusers_selected_preset: str
+    _diffusers_selected_preset = Setting(
+        _("Selected Preset"),
+        "Z-Image-Turbo (Fast)",
+        _("Currently selected model preset"),
     )
 
     comfyui_client_id: str
@@ -580,6 +755,60 @@ class Settings(QObject):
         if preset not in [PerformancePreset.custom, PerformancePreset.auto]:
             for k, v in self._performance_presets[preset]._asdict().items():
                 self._values[k] = v
+
+    def get_diffusers_presets(self) -> list[DiffusersModelPreset]:
+        """Get all diffusers model presets (defaults + custom)."""
+        # Start with defaults
+        presets = list(DEFAULT_DIFFUSERS_PRESETS)
+
+        # Add custom presets from settings
+        custom_presets = self._values.get("diffusers_model_presets", [])
+        for data in custom_presets:
+            presets.append(DiffusersModelPreset.from_dict(data))
+
+        return presets
+
+    def get_diffusers_preset(self, name: str) -> DiffusersModelPreset | None:
+        """Get a specific preset by name."""
+        for preset in self.get_diffusers_presets():
+            if preset.name == name:
+                return preset
+        return None
+
+    def get_selected_diffusers_preset(self) -> DiffusersModelPreset | None:
+        """Get the currently selected preset."""
+        return self.get_diffusers_preset(self.diffusers_selected_preset)
+
+    def add_diffusers_preset(self, preset: DiffusersModelPreset):
+        """Add a custom preset."""
+        custom_presets = list(self._values.get("diffusers_model_presets", []))
+        # Remove existing with same name
+        custom_presets = [p for p in custom_presets if p.get("name") != preset.name]
+        custom_presets.append(preset.to_dict())
+        self._values["diffusers_model_presets"] = custom_presets
+        self.save()
+
+    def remove_diffusers_preset(self, name: str) -> bool:
+        """Remove a custom preset by name. Returns True if removed."""
+        # Can't remove default presets
+        for default in DEFAULT_DIFFUSERS_PRESETS:
+            if default.name == name:
+                return False
+
+        custom_presets = list(self._values.get("diffusers_model_presets", []))
+        new_presets = [p for p in custom_presets if p.get("name") != name]
+        if len(new_presets) < len(custom_presets):
+            self._values["diffusers_model_presets"] = new_presets
+            self.save()
+            return True
+        return False
+
+    def is_default_diffusers_preset(self, name: str) -> bool:
+        """Check if a preset is a default (non-removable) preset."""
+        for default in DEFAULT_DIFFUSERS_PRESETS:
+            if default.name == name:
+                return True
+        return False
 
     def _migrate_legacy_settings(self, path: Path):
         if path == self.default_path:

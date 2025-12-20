@@ -22,6 +22,18 @@ class WorkflowKind(Enum):
     custom = 7
     layered_generate = 8  # Generate layered image from prompt
     layered_segment = 9   # Segment existing image into layers
+    diffusers_generate = 10  # General diffusers text-to-image
+    diffusers_img2img = 11   # General diffusers image-to-image
+    diffusers_inpaint = 12   # General diffusers inpainting
+
+
+class DiffusersMode(Enum):
+    """Mode for diffusers generation."""
+    text_to_image = 0
+    image_to_image = 1
+    inpaint = 2
+    layered_generate = 3
+    layered_segment = 4
 
 
 @dataclass
@@ -174,6 +186,31 @@ class LayeredInput:
 
 
 @dataclass
+class DiffusersInput:
+    """Configuration for general diffusers generation."""
+
+    mode: DiffusersMode = DiffusersMode.text_to_image
+    model_id: str = ""  # HuggingFace model ID or local path
+    width: int = 1024
+    height: int = 1024
+    guidance_scale: float = 7.5
+    num_inference_steps: int = 30
+    strength: float = 0.75  # For img2img/inpaint modes
+    # Qwen-specific params (for backwards compatibility)
+    num_layers: int = 4
+    resolution: int = 640
+    cfg_normalize: bool = True
+    use_en_prompt: bool = True
+    # Optimization settings from preset
+    offload: str = "none"  # none, model, sequential
+    quantization: str = "none"  # none, int8, int4
+    quantize_transformer: bool = True
+    quantize_text_encoder: bool = False
+    vae_tiling: bool = True
+    ramtorch: bool = False
+
+
+@dataclass
 class WorkflowInput:
     kind: WorkflowKind
     images: ImageInput | None = None
@@ -188,6 +225,7 @@ class WorkflowInput:
     nsfw_filter: float = 0.0
     custom_workflow: CustomWorkflowInput | None = None
     layered: LayeredInput | None = None
+    diffusers: DiffusersInput | None = None
 
     @property
     def extent(self):
@@ -234,6 +272,13 @@ class WorkflowInput:
         if self.kind in (WorkflowKind.layered_generate, WorkflowKind.layered_segment):
             # Qwen layered is expensive - similar to Flux
             return 5
+        if self.kind in (
+            WorkflowKind.diffusers_generate,
+            WorkflowKind.diffusers_img2img,
+            WorkflowKind.diffusers_inpaint,
+        ):
+            # General diffusers - cost depends on model (assume SDXL-like)
+            return 3
 
         def cost_factor(batch: int, extent: Extent, steps: int):
             return batch * extent.pixel_count * math.sqrt(extent.pixel_count) * steps

@@ -87,7 +87,7 @@ class DiffusersConnection(QObject, ObservableProperties):
             self.state = DiffusersConnectionState.server_not_installed
         return self._server
 
-    async def _connect(self, url: str):
+    async def _connect(self, url: str, token: str = ""):
         """Connect to diffusers server."""
         if self.state is DiffusersConnectionState.connecting:
             return
@@ -98,29 +98,28 @@ class DiffusersConnection(QObject, ObservableProperties):
         self.state = DiffusersConnectionState.connecting
 
         try:
-            self._client = await DiffusersClient.connect(url)
+            self._client = await DiffusersClient.connect(url, access_token=token)
 
             if self._task is None:
                 self._task = eventloop._loop.create_task(self._handle_messages())
 
-            # Check if model needs to be loaded
+            # Check current model status but don't auto-load
+            # User will trigger load when they generate
             model_status = await self._client.get_model_status()
             if model_status.is_loaded:
                 self.state = DiffusersConnectionState.connected
-                util.client_logger.info(f"Connected to diffusers server at {url}")
-            else:
-                # Start model loading and monitor progress
+                util.client_logger.info(f"Connected to diffusers server at {url}, model ready")
+            elif model_status.is_loading:
+                # Model is already loading (e.g. from previous session)
                 self.state = DiffusersConnectionState.loading_model
-                self.model_loading_message = model_status.message or _("Starting model load...")
-                self.model_loading_progress = model_status.progress
-                util.client_logger.info(f"Connected, waiting for model to load")
-
-                # Request model load if not already loading
-                if not model_status.is_loading:
-                    await self._client.request_model_load()
-
-                # Start QTimer to poll model loading status
+                self._model_loading_message = model_status.message or _("Loading model...")
+                self._model_loading_progress = model_status.progress
+                util.client_logger.info(f"Connected, model already loading")
                 self._start_model_poll_timer()
+            else:
+                # Model not loaded - connect anyway, will load on first generate
+                self.state = DiffusersConnectionState.connected
+                util.client_logger.info(f"Connected to diffusers server at {url}, model not loaded yet")
 
         except Exception as e:
             self.error = util.log_error(e)
@@ -153,8 +152,8 @@ class DiffusersConnection(QObject, ObservableProperties):
             try:
                 model_status = await self._client.get_model_status()
 
-                self.model_loading_message = model_status.message
-                self.model_loading_progress = model_status.progress
+                self._model_loading_message = model_status.message
+                self._model_loading_progress = model_status.progress
                 self.model_loading_changed.emit(model_status.message, model_status.progress)
 
                 util.client_logger.info(
@@ -178,8 +177,10 @@ class DiffusersConnection(QObject, ObservableProperties):
 
     def connect(self):
         """Connect to diffusers server (async wrapper)."""
-        url = f"http://{settings.diffusers_server_url}"
-        eventloop.run(self._connect(url))
+        protocol = "https" if settings.diffusers_server_use_tls else "http"
+        url = f"{protocol}://{settings.diffusers_server_url}"
+        token = settings.diffusers_server_token or ""
+        eventloop.run(self._connect(url, token))
 
     async def _start_server_and_connect(self, progress_callback: Callable | None = None):
         """Start managed server and connect to it."""
@@ -229,8 +230,9 @@ class DiffusersConnection(QObject, ObservableProperties):
 
         self._client = None
         self.error = ""
-        self.model_loading_message = ""
-        self.model_loading_progress = 0.0
+        # Set directly to avoid triggering non-existent _changed signals
+        self._model_loading_message = ""
+        self._model_loading_progress = 0.0
         self.state = DiffusersConnectionState.disconnected
         util.client_logger.info("Disconnected from diffusers server")
 
