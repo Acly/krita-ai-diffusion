@@ -338,6 +338,13 @@ class DiffusersWidget(QWidget):
         self.generate_button.clicked.connect(self._generate)
         layout.addWidget(self.generate_button)
 
+        # Stop button (hidden by default)
+        self.stop_button = QPushButton(_("Stop Generation"), self)
+        self.stop_button.setMinimumHeight(32)
+        self.stop_button.clicked.connect(self._stop_generation)
+        self.stop_button.setVisible(False)
+        layout.addWidget(self.stop_button)
+
         # Progress bar
         self.progress_bar = QProgressBar(self)
         self.progress_bar.setMinimum(0)
@@ -541,6 +548,7 @@ class DiffusersWidget(QWidget):
             self.connect_button.setEnabled(True)
             self.disconnect_button.setVisible(False)
             self.generate_button.setEnabled(False)
+            self._reset_buttons()  # Hide stop button, show generate button
             self._stop_vram_polling()
 
     def _update_model_loading(self, message: str, progress: float):
@@ -594,6 +602,10 @@ class DiffusersWidget(QWidget):
         if model is None:
             return
 
+        # Show stop button, hide generate button
+        self.generate_button.setVisible(False)
+        self.stop_button.setVisible(True)
+
         mode = self.mode_combo.currentData()
 
         if mode in (DiffusersMode.layered_generate, DiffusersMode.layered_segment):
@@ -604,9 +616,13 @@ class DiffusersWidget(QWidget):
             seed = self.layered_seed_spin.value()
 
             if mode == DiffusersMode.layered_generate:
-                # Prompt is optional for layered generate
+                # Layered Generate needs both txt2img params and Qwen params
                 prompt = self.prompt_input.toPlainText().strip()
                 negative_prompt = self.negative_prompt_input.toPlainText().strip()
+
+                # Get txt2img settings for base image generation
+                preset = self._get_current_preset()
+                model_id = preset.model_id if preset else ""
 
                 model.generate_layered(
                     prompt=prompt,
@@ -615,6 +631,13 @@ class DiffusersWidget(QWidget):
                     resolution=resolution,
                     seed=seed,
                     steps=steps,
+                    # Base image generation params
+                    model_id=model_id,
+                    width=self.width_spin.value(),
+                    height=self.height_spin.value(),
+                    guidance_scale=self.guidance_spin.value(),
+                    num_steps=self.steps_spin.value(),
+                    preset=preset,
                 )
             else:
                 model.segment_to_layers(
@@ -659,6 +682,27 @@ class DiffusersWidget(QWidget):
                 preset=preset,  # Pass full preset for optimization settings
             )
 
+    def _stop_generation(self):
+        """Stop the current generation."""
+        from .. import eventloop
+
+        async def do_stop():
+            client = self._diffusers.client_if_connected
+            if client:
+                try:
+                    await client.interrupt()
+                except Exception as e:
+                    from ..util import client_logger as log
+                    log.warning(f"Failed to interrupt generation: {e}")
+
+        eventloop.run(do_stop())
+        self._reset_buttons()
+
+    def _reset_buttons(self):
+        """Reset generate/stop button visibility."""
+        self.generate_button.setVisible(True)
+        self.stop_button.setVisible(False)
+
     @property
     def model(self):
         return self._model
@@ -688,11 +732,15 @@ class DiffusersWidget(QWidget):
         else:
             self.progress_bar.setMaximum(100)
             self.progress_bar.setValue(int(progress * 100))
+            # Reset buttons when complete
+            if progress >= 1.0:
+                self._reset_buttons()
 
     def _update_error(self, error):
         """Update error display."""
         if error and error.message:
             self.error_box.error = error
+            self._reset_buttons()  # Also reset on error
         else:
             self.error_box.reset()
 

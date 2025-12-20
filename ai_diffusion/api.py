@@ -183,6 +183,22 @@ class LayeredInput:
     resolution: int = 640  # Resolution bucket (640 or 1024)
     cfg_normalize: bool = True  # Whether to enable cfg normalization
     use_en_prompt: bool = True  # Automatic caption language
+    # Base image generation params (for 2-stage layered_generate)
+    model_id: str = ""  # HuggingFace model ID for base image
+    width: int = 1024  # Width for base image
+    height: int = 1024  # Height for base image
+    guidance_scale: float = 7.5  # Guidance for base image
+    num_steps: int = 30  # Steps for base image generation
+    # txt2img optimization settings (from model preset)
+    offload: str = "none"  # CPU offload mode
+    quantization: str = "none"  # Quantization mode
+    vae_tiling: bool = True  # VAE tiling
+    ramtorch: bool = False  # RamTorch memory optimization
+    # Qwen optimization settings (from global diffusers settings)
+    qwen_offload: str = "none"
+    qwen_quantization: str = "none"
+    qwen_vae_tiling: bool = True
+    qwen_ramtorch: bool = False
 
 
 @dataclass

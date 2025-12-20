@@ -31,6 +31,10 @@ from .resources import Arch
 from .settings import PerformanceSettings, settings
 from .util import client_logger as log
 
+# Version marker to verify code is being loaded
+_CLIENT_VERSION = "2025-12-20-v2"
+log.info(f"diffusers_client module loaded: {_CLIENT_VERSION}")
+
 
 @dataclass
 class JobInfo:
@@ -332,6 +336,7 @@ class DiffusersClient(Client):
 
     def _build_layered_request(self, work: WorkflowInput) -> dict:
         """Build request for Qwen layered generation/segmentation (original format)."""
+        log.info(f"_build_layered_request called: kind={work.kind}, sampling={work.sampling}")
         request: dict = {}
         layered = work.layered or LayeredInput()
 
@@ -349,15 +354,17 @@ class DiffusersClient(Client):
             request["prompt"] = ""
             request["negative_prompt"] = " "
 
-        # Sampling params
+        # Sampling params (for Qwen stage)
         if work.sampling:
             request["seed"] = work.sampling.seed
             request["cfg_scale"] = work.sampling.cfg_scale
-            request["num_inference_steps"] = work.sampling.total_steps
+            request["layered_steps"] = work.sampling.total_steps  # Qwen steps
+            log.info(f"Layered request: layered_steps={work.sampling.total_steps}")
         else:
             request["seed"] = 42
             request["cfg_scale"] = 4.0
-            request["num_inference_steps"] = 50
+            request["layered_steps"] = 50
+            log.info("Layered request: using default layered_steps=50")
 
         # Layered params
         request["layers"] = layered.num_layers
@@ -365,11 +372,32 @@ class DiffusersClient(Client):
         request["cfg_normalize"] = layered.cfg_normalize
         request["use_en_prompt"] = layered.use_en_prompt
 
+        # Base image generation params (for layered_generate 2-stage process)
+        if work.kind == WorkflowKind.layered_generate:
+            request["model_id"] = layered.model_id
+            request["width"] = layered.width
+            request["height"] = layered.height
+            request["guidance_scale"] = layered.guidance_scale
+            request["num_inference_steps"] = layered.num_steps  # txt2img steps
+            # txt2img optimization settings (from model preset)
+            request["offload"] = layered.offload
+            request["quantization"] = layered.quantization
+            request["vae_tiling"] = layered.vae_tiling
+            request["ramtorch"] = layered.ramtorch
+            # Qwen optimization settings (from global diffusers settings)
+            request["qwen_offload"] = layered.qwen_offload
+            request["qwen_quantization"] = layered.qwen_quantization
+            request["qwen_vae_tiling"] = layered.qwen_vae_tiling
+            request["qwen_ramtorch"] = layered.qwen_ramtorch
+
         # Input image for segmentation mode
         if work.kind == WorkflowKind.layered_segment and work.images:
             if work.images.initial_image:
                 request["image"] = self._encode_image(work.images.initial_image)
 
+        # Log final request (excluding image data)
+        log_request = {k: v for k, v in request.items() if k != "image"}
+        log.info(f"Final layered request: {log_request}")
         return request
 
     def _build_diffusers_request(self, work: WorkflowInput) -> dict:

@@ -94,6 +94,7 @@ class PipelineManager:
         quantization: str = "none",  # none, int8, int4
         vae_tiling: bool = True,
         ramtorch: bool = False,
+        cache_on_cpu: bool = True,  # Keep one pipeline cached on CPU
     ):
         self.device = device
         self.offload = offload
@@ -101,10 +102,16 @@ class PipelineManager:
         self.quantization = quantization
         self.vae_tiling = vae_tiling
         self.ramtorch = ramtorch
+        self.cache_on_cpu = cache_on_cpu
 
         self._pipe = None
         self._model_id: str | None = None
         self._mode: PipelineMode | None = None
+
+        # CPU cache for one pipeline
+        self._cached_pipe = None
+        self._cached_model_id: str | None = None
+        self._cached_mode: PipelineMode | None = None
 
         # Loading status
         self.status = ModelStatus.not_loaded
@@ -122,10 +129,34 @@ class PipelineManager:
             return torch.float32
 
     def unload(self):
-        """Unload the current pipeline to free memory."""
+        """Unload the current pipeline - move to CPU cache if enabled, otherwise delete."""
         if self._pipe is not None:
-            log.info(f"Unloading pipeline for {self._model_id}")
-            del self._pipe
+            if self.cache_on_cpu:
+                # Move current pipeline to CPU cache
+                log.info(f"Moving pipeline {self._model_id} to CPU cache")
+
+                # First, clear the old cache if it exists
+                if self._cached_pipe is not None:
+                    log.info(f"Clearing cached pipeline {self._cached_model_id}")
+                    del self._cached_pipe
+                    self._cached_pipe = None
+                    self._cached_model_id = None
+                    self._cached_mode = None
+
+                # Move current pipeline to CPU
+                try:
+                    self._pipe.to("cpu")
+                    self._cached_pipe = self._pipe
+                    self._cached_model_id = self._model_id
+                    self._cached_mode = self._mode
+                    log.info(f"Pipeline {self._model_id} cached on CPU")
+                except Exception as e:
+                    log.warning(f"Failed to cache pipeline on CPU: {e}, deleting instead")
+                    del self._pipe
+            else:
+                log.info(f"Unloading pipeline for {self._model_id}")
+                del self._pipe
+
             self._pipe = None
             self._model_id = None
             self._mode = None
@@ -133,6 +164,16 @@ class PipelineManager:
             if torch.cuda.is_available():
                 torch.cuda.empty_cache()
             self.status = ModelStatus.not_loaded
+
+    def clear_cache(self):
+        """Clear the CPU cache completely."""
+        if self._cached_pipe is not None:
+            log.info(f"Clearing CPU cache for {self._cached_model_id}")
+            del self._cached_pipe
+            self._cached_pipe = None
+            self._cached_model_id = None
+            self._cached_mode = None
+            gc.collect()
 
     def update_settings(
         self,
@@ -179,20 +220,77 @@ class PipelineManager:
 
         If the same model is already loaded but in a different mode,
         convert it (e.g., txt2img -> img2img).
+        Checks CPU cache before loading from scratch.
         """
         log.info(f"get_pipeline: requested model={model_id}, mode={mode.value}")
         log.info(f"get_pipeline: current model={self._model_id}, current mode={self._mode}")
+        if self._cached_model_id:
+            log.info(f"get_pipeline: cached model={self._cached_model_id}, cached mode={self._cached_mode}")
 
-        # Check if we need to reload
-        if self._model_id != model_id:
-            log.info(f"get_pipeline: model changed, reloading")
-            self.unload()
-            self._load_pipeline(model_id, mode)
-        elif self._mode != mode and self._pipe is not None:
-            # Same model, different mode - try to convert
-            self._convert_pipeline_mode(mode)
+        # Already loaded?
+        if self._model_id == model_id:
+            if self._mode != mode and self._pipe is not None:
+                # Same model, different mode - try to convert
+                self._convert_pipeline_mode(mode)
+            return self._pipe
+
+        # Need different model - check cache first
+        if self._cached_model_id == model_id:
+            log.info(f"get_pipeline: restoring {model_id} from CPU cache")
+            # Move current to cache, restore cached to active
+            self.unload()  # This will cache the current pipe
+            self._restore_from_cache(mode)
+            return self._pipe
+
+        # Not in cache - need to load fresh
+        log.info(f"get_pipeline: model changed, loading fresh")
+        self.unload()
+        self._load_pipeline(model_id, mode)
 
         return self._pipe
+
+    def _restore_from_cache(self, mode: PipelineMode):
+        """Restore a pipeline from CPU cache to GPU."""
+        if self._cached_pipe is None:
+            return
+
+        log.info(f"Restoring pipeline {self._cached_model_id} from CPU cache")
+        self.status = ModelStatus.loading
+        self.loading_message = "Restoring from cache..."
+
+        try:
+            # Move cached pipeline to GPU
+            device = self.device if self.offload == "none" else "cpu"
+            self._cached_pipe.to(device)
+
+            self._pipe = self._cached_pipe
+            self._model_id = self._cached_model_id
+            self._mode = self._cached_mode
+
+            self._cached_pipe = None
+            self._cached_model_id = None
+            self._cached_mode = None
+
+            # Apply offloading if needed
+            if self.offload == "model":
+                self._pipe.enable_model_cpu_offload()
+            elif self.offload == "sequential":
+                self._pipe.enable_sequential_cpu_offload()
+
+            # Handle mode conversion if needed
+            if self._mode != mode:
+                self._convert_pipeline_mode(mode)
+
+            self.status = ModelStatus.loaded
+            self.loading_message = "Restored from cache"
+            log.info(f"Pipeline {self._model_id} restored from cache")
+
+        except Exception as e:
+            log.warning(f"Failed to restore from cache: {e}, loading fresh")
+            self._cached_pipe = None
+            self._cached_model_id = None
+            self._cached_mode = None
+            self._load_pipeline(self._cached_model_id, mode)
 
     def _load_pipeline(self, model_id: str, mode: PipelineMode):
         """Load a pipeline from HuggingFace or local path."""
@@ -466,6 +564,7 @@ class DiffusersServer:
         quantization: str = "none",
         vae_tiling: bool = True,
         ramtorch: bool = False,
+        cache_on_cpu: bool = True,
     ):
         self.default_model = default_model
         self.device = device
@@ -478,6 +577,7 @@ class DiffusersServer:
             quantization=quantization,
             vae_tiling=vae_tiling,
             ramtorch=ramtorch,
+            cache_on_cpu=cache_on_cpu,
         )
 
         self.jobs: dict[str, Job] = {}
@@ -713,6 +813,11 @@ class DiffusersServer:
                 self.current_job = None
                 self._interrupt_requested = False
 
+    def _check_interrupt(self):
+        """Check if interrupt was requested and raise if so."""
+        if self._interrupt_requested:
+            raise InterruptedError("Job interrupted by user")
+
     def _make_progress_callback(self, job: Job, total_steps: int, stage_prefix: str = "", stage_weight: float = 1.0, stage_offset: float = 0.0):
         """Create a callback function for pipeline progress updates.
 
@@ -724,6 +829,11 @@ class DiffusersServer:
             stage_offset: Starting progress offset for this stage (0-1)
         """
         def callback(pipeline, step: int, timestep: int, callback_kwargs: dict):
+            # Check for interrupt request
+            if self._interrupt_requested:
+                pipeline._interrupt = True  # Signal pipeline to stop
+                raise InterruptedError("Job interrupted by user")
+
             # Calculate progress within this stage
             step_progress = (step + 1) / total_steps
             # Apply stage weighting and offset
@@ -734,6 +844,8 @@ class DiffusersServer:
 
     def _run_txt2img(self, pipeline, params: dict, job: Job | None = None) -> list[str]:
         """Run text-to-image generation."""
+        self._check_interrupt()
+
         seed = params.get("seed", 42)
         if seed < 0:
             import random
@@ -776,16 +888,28 @@ class DiffusersServer:
         # Get step counts for progress calculation
         txt2img_steps = params.get("num_inference_steps", 30)
         qwen_steps = params.get("layered_steps", 50)
+        log.info(f"Layered generate params: layered_steps={params.get('layered_steps')}, num_inference_steps={params.get('num_inference_steps')}, using txt2img={txt2img_steps}, qwen={qwen_steps}")
         total_steps = txt2img_steps + qwen_steps
         txt2img_weight = txt2img_steps / total_steps  # ~0.375 for 30/80
         qwen_weight = qwen_steps / total_steps  # ~0.625 for 50/80
 
         # Stage 1: Generate base image with selected model
+        self._check_interrupt()  # Check before loading model
         job.message = "Loading generation model..."
         job.progress = 0.0
         log.info(f"Stage 1: Loading txt2img model {model_id}")
-        txt2img_pipeline = self.load_pipeline(model_id, "text_to_image", params)
 
+        # Use txt2img optimization settings from model preset
+        txt2img_params = {
+            "offload": params.get("offload"),
+            "quantization": params.get("quantization"),
+            "vae_tiling": params.get("vae_tiling"),
+            "ramtorch": params.get("ramtorch"),
+        }
+        log.info(f"Stage 1 optimization: offload={txt2img_params['offload']}, quant={txt2img_params['quantization']}")
+        txt2img_pipeline = self.load_pipeline(model_id, "text_to_image", txt2img_params)
+
+        self._check_interrupt()  # Check after loading model
         job.message = "Generating base image..."
         log.info("Stage 1: Generating base image")
 
@@ -812,14 +936,27 @@ class DiffusersServer:
         base_image = output.images[0]
         log.info(f"Stage 1 complete: generated {base_image.size} image")
 
+        # Check interrupt between stages
+        self._check_interrupt()
+
         # Stage 2: Segment with Qwen
         job.message = "Loading Qwen model..."
         job.progress = txt2img_weight
         log.info("Stage 2: Loading Qwen layered model")
 
-        # Load Qwen pipeline (this will switch models)
-        qwen_pipeline = self.load_pipeline("Qwen/Qwen-Image-Layered", "layered_segment", params)
+        # Use Qwen optimization settings from global diffusers settings
+        qwen_params = {
+            "offload": params.get("qwen_offload"),
+            "quantization": params.get("qwen_quantization"),
+            "vae_tiling": params.get("qwen_vae_tiling"),
+            "ramtorch": params.get("qwen_ramtorch"),
+        }
+        log.info(f"Stage 2 optimization: offload={qwen_params['offload']}, quant={qwen_params['quantization']}")
 
+        # Load Qwen pipeline (this will switch models)
+        qwen_pipeline = self.load_pipeline("Qwen/Qwen-Image-Layered", "layered_segment", qwen_params)
+
+        self._check_interrupt()  # Check after loading Qwen
         job.message = "Segmenting into layers..."
         log.info("Stage 2: Running Qwen segmentation")
 
@@ -865,6 +1002,8 @@ class DiffusersServer:
 
     def _run_img2img(self, pipeline, params: dict, job: Job | None = None) -> list[str]:
         """Run image-to-image generation."""
+        self._check_interrupt()
+
         seed = params.get("seed", 42)
         if seed < 0:
             import random
@@ -902,6 +1041,8 @@ class DiffusersServer:
 
     def _run_inpaint(self, pipeline, params: dict, job: Job | None = None) -> list[str]:
         """Run inpainting generation."""
+        self._check_interrupt()
+
         seed = params.get("seed", 42)
         if seed < 0:
             import random
@@ -945,6 +1086,8 @@ class DiffusersServer:
 
     def _run_qwen_layered(self, pipeline, params: dict, job: Job | None = None) -> list[str]:
         """Run Qwen Image Layered generation/segmentation."""
+        self._check_interrupt()
+
         seed = params.get("seed", 42)
         if seed < 0:
             import random
@@ -954,7 +1097,9 @@ class DiffusersServer:
         # and quantization/offloading can cause device mismatches
         generator = torch.Generator(device="cpu").manual_seed(seed)
 
-        num_steps = params.get("num_inference_steps", 50)
+        # Qwen steps come from layered_steps, fallback to num_inference_steps for compatibility
+        num_steps = params.get("layered_steps", params.get("num_inference_steps", 50))
+        log.info(f"Qwen steps: layered_steps={params.get('layered_steps')}, num_inference_steps={params.get('num_inference_steps')}, using={num_steps}")
 
         inputs: dict[str, Any] = {
             "generator": generator,
@@ -1077,6 +1222,21 @@ class GenerateRequest(BaseModel):
     resolution: int = 640
     cfg_normalize: bool = True
     use_en_prompt: bool = True
+    layered_steps: int | None = None  # Qwen inference steps (separate from txt2img num_inference_steps)
+
+    # txt2img optimization settings (from model preset)
+    offload: str | None = None  # none, model, sequential
+    quantization: str | None = None  # none, int8, int4
+    quantize_transformer: bool | None = None
+    quantize_text_encoder: bool | None = None
+    vae_tiling: bool | None = None
+    ramtorch: bool | None = None
+
+    # Qwen optimization settings (from global diffusers settings)
+    qwen_offload: str | None = None
+    qwen_quantization: str | None = None
+    qwen_vae_tiling: bool | None = None
+    qwen_ramtorch: bool | None = None
 
 
 class GenerateResponse(BaseModel):
@@ -1223,6 +1383,19 @@ async def generate(request: GenerateRequest, background_tasks: BackgroundTasks):
         "resolution": request.resolution,
         "cfg_normalize": request.cfg_normalize,
         "use_en_prompt": request.use_en_prompt,
+        "layered_steps": request.layered_steps,
+        # txt2img optimization settings (from model preset)
+        "offload": request.offload,
+        "quantization": request.quantization,
+        "quantize_transformer": request.quantize_transformer,
+        "quantize_text_encoder": request.quantize_text_encoder,
+        "vae_tiling": request.vae_tiling,
+        "ramtorch": request.ramtorch,
+        # Qwen optimization settings (from global diffusers settings)
+        "qwen_offload": request.qwen_offload,
+        "qwen_quantization": request.qwen_quantization,
+        "qwen_vae_tiling": request.qwen_vae_tiling,
+        "qwen_ramtorch": request.qwen_ramtorch,
     }
 
     job = srv.create_job(params)
@@ -1292,6 +1465,10 @@ def main():
                         help="Quantization level (requires optimum-quanto)")
     parser.add_argument("--ramtorch", action="store_true",
                         help="Enable RamTorch for memory-efficient inference")
+    parser.add_argument("--cache-on-cpu", action="store_true", default=True,
+                        help="Cache one pipeline on CPU when switching models (default: enabled)")
+    parser.add_argument("--no-cache-on-cpu", action="store_false", dest="cache_on_cpu",
+                        help="Disable CPU pipeline caching")
     parser.add_argument("--preload", action="store_true",
                         help="Preload default model on startup")
 
@@ -1314,6 +1491,7 @@ def main():
         quantization=args.quantization,
         vae_tiling=args.vae_tiling,
         ramtorch=args.ramtorch,
+        cache_on_cpu=args.cache_on_cpu,
     )
 
     # Set up authentication if token provided

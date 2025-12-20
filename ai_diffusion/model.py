@@ -550,26 +550,48 @@ class Model(QObject, ObservableProperties):
         resolution: int = 640,
         seed: int = -1,
         steps: int = 50,
+        # Base image generation params (for 2-stage generation)
+        model_id: str = "",
+        width: int = 1024,
+        height: int = 1024,
+        guidance_scale: float = 7.5,
+        num_steps: int = 30,
+        preset=None,
     ):
-        """Generate a layered image using Qwen Image Layered.
+        """Generate a layered image using 2-stage process: txt2img then Qwen segmentation.
 
         Args:
-            prompt: Text prompt for generation (required for generate mode)
+            prompt: Text prompt for generation
             negative_prompt: Negative prompt
             num_layers: Number of layers to generate (2-6)
-            resolution: Resolution bucket (640 or 1024)
+            resolution: Qwen resolution bucket (640 or 1024)
             seed: Random seed (-1 for random)
-            steps: Number of inference steps
+            steps: Number of Qwen inference steps
+            model_id: Model ID for base image generation
+            width: Width for base image
+            height: Height for base image
+            guidance_scale: Guidance scale for base image
+            num_steps: Number of steps for base image generation
+            preset: Model preset with optimization settings
         """
         from .diffusers_connection import get_diffusers_connection
+        from .settings import settings
 
         diffusers = get_diffusers_connection()
         if not diffusers.client_if_connected:
             self.report_error(_("Diffusers server is not connected"))
             return
 
+        # Get global Qwen optimization settings
+        qwen_settings = {
+            "offload": "model" if settings.diffusers_cpu_offload else "none",
+            "quantization": settings.diffusers_quantization,
+            "vae_tiling": settings.diffusers_vae_tiling,
+            "ramtorch": settings.diffusers_ramtorch,
+        }
+
         try:
-            extent = Extent(*self._doc.extent)
+            extent = Extent(width, height)
             input = workflow.prepare_layered_generate(
                 prompt=prompt,
                 negative_prompt=negative_prompt,
@@ -578,6 +600,14 @@ class Model(QObject, ObservableProperties):
                 num_layers=num_layers,
                 resolution=resolution,
                 steps=steps,
+                # Base image generation params
+                model_id=model_id,
+                width=width,
+                height=height,
+                guidance_scale=guidance_scale,
+                num_steps=num_steps,
+                preset=preset,
+                qwen_settings=qwen_settings,
             )
             bounds = Bounds(0, 0, *extent)
             params = JobParams(bounds, prompt or "Layered", seed=input.sampling.seed)

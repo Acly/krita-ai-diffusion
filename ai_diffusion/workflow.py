@@ -1602,8 +1602,16 @@ def prepare_layered_generate(
     resolution: int = 640,
     cfg_scale: float = 4.0,
     steps: int = 50,
+    # Base image generation params
+    model_id: str = "",
+    width: int = 1024,
+    height: int = 1024,
+    guidance_scale: float = 7.5,
+    num_steps: int = 30,
+    preset=None,
+    qwen_settings=None,  # Global Qwen optimization settings
 ) -> WorkflowInput:
-    """Prepare workflow for Qwen Image Layered generation from prompt."""
+    """Prepare workflow for 2-stage layered generation: txt2img then Qwen segmentation."""
     from .api import LayeredInput
 
     seed = generate_seed() if seed == -1 else seed
@@ -1617,12 +1625,52 @@ def prepare_layered_generate(
         total_steps=steps,
         seed=seed,
     )
+
+    # Extract txt2img preset settings if provided
+    offload = "none"
+    quantization = "none"
+    vae_tiling = True
+    ramtorch = False
+    if preset is not None:
+        offload = getattr(preset, "offload", "none") or "none"
+        quantization = getattr(preset, "quantization", "none") or "none"
+        vae_tiling = getattr(preset, "vae_tiling", True)
+        ramtorch = getattr(preset, "ramtorch", False)
+
+    # Extract Qwen optimization settings (from global diffusers settings)
+    qwen_offload = "none"
+    qwen_quantization = "none"
+    qwen_vae_tiling = True
+    qwen_ramtorch = False
+    if qwen_settings is not None:
+        qwen_offload = qwen_settings.get("offload", "none") or "none"
+        qwen_quantization = qwen_settings.get("quantization", "none") or "none"
+        qwen_vae_tiling = qwen_settings.get("vae_tiling", True)
+        qwen_ramtorch = qwen_settings.get("ramtorch", False)
+
     i.layered = LayeredInput(
         num_layers=num_layers,
         resolution=resolution,
+        # Base image generation params
+        model_id=model_id,
+        width=width,
+        height=height,
+        guidance_scale=guidance_scale,
+        num_steps=num_steps,
+        # txt2img optimization settings (from preset)
+        offload=offload,
+        quantization=quantization,
+        vae_tiling=vae_tiling,
+        ramtorch=ramtorch,
+        # Qwen optimization settings (from global settings)
+        qwen_offload=qwen_offload,
+        qwen_quantization=qwen_quantization,
+        qwen_vae_tiling=qwen_vae_tiling,
+        qwen_ramtorch=qwen_ramtorch,
     )
-    # Set up extent for result placement
-    extent_input = ExtentInput(extent, extent, extent, extent)
+    # Set up extent for result placement (use base image dimensions)
+    result_extent = Extent(width, height)
+    extent_input = ExtentInput(result_extent, result_extent, result_extent, result_extent)
     i.images = ImageInput(extent_input)
     return i
 
