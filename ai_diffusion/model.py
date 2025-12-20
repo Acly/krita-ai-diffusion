@@ -107,6 +107,7 @@ class Model(QObject, ObservableProperties):
     resolution_multiplier = Property(1.0, persist=True)
     queue_mode = Property(QueueMode.back, persist=True)
     translation_enabled = Property(True, persist=True)
+    layer_count = Property(4, persist=True)
     progress_kind = Property(ProgressKind.generation)
     progress = Property(0.0)
     error = Property(no_error)
@@ -263,12 +264,14 @@ class Model(QObject, ObservableProperties):
             strength=self.strength,
             loras=loras,
             inpaint=inpaint,
+            layer_count=self.layer_count,
         )
         loras = input.models.loras if input.models else []
         job_name = prompt_meta.get("prompt_eval", prompt_meta["prompt"])
         job_params = JobParams(bounds, job_name, regions=job_regions)
         job_params.set_style(self.active_style, ensure(input.models).checkpoint)
         job_params.set_control(regions.control)
+        job_params.is_layered = self.arch is Arch.qwen_l
         job_params.metadata.update(prompt_meta)
         job_params.metadata["loras"] = [dict(name=l.name, weight=l.strength) for l in loras]
         job_params.metadata["strength"] = self.strength
@@ -754,6 +757,9 @@ class Model(QObject, ObservableProperties):
 
         if job.kind is JobKind.animation and len(job.results) > 1:
             self.apply_animation(job)
+        elif job.params.is_layered and len(job.results) > 1:
+            for i, image in enumerate(job.results):
+                self.apply_result(image, job.params, prefix=f"[Layer {i + 1}] ")
         else:
             self.apply_result(
                 job.results[index],

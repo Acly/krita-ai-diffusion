@@ -130,24 +130,26 @@ class HistoryWidget(QListWidget):
             self.addItem(header)
 
         if job.kind is JobKind.diffusion:
-            for i, img in enumerate(job.results):
-                item = QListWidgetItem(self._image_thumbnail(job, i), None)  # type: ignore (text can be None)
-                item.setData(Qt.ItemDataRole.UserRole, job.id)
-                item.setData(Qt.ItemDataRole.UserRole + 1, i)
-                item.setData(Qt.ItemDataRole.ToolTipRole, self._job_info(job.params))
-                self.addItem(item)
+            if job.params.is_layered:
+                self._add_item(job, QListWidgetItem(self._image_thumbnail(job, 0), None))
+            else:
+                for i, img in enumerate(job.results):
+                    self._add_item(job, QListWidgetItem(self._image_thumbnail(job, i), None))
 
         if job.kind is JobKind.animation:
             item = AnimatedListItem([
                 self._image_thumbnail(job, i) for i in range(len(job.results))
             ])
-            item.setData(Qt.ItemDataRole.UserRole, job.id)
-            item.setData(Qt.ItemDataRole.UserRole + 1, 0)
-            item.setData(Qt.ItemDataRole.ToolTipRole, self._job_info(job.params))
-            self.addItem(item)
+            self._add_item(job, item)
 
         if scroll_to_bottom:
             self.scrollToBottom()
+
+    def _add_item(self, job: Job, item: QListWidgetItem):
+        item.setData(Qt.ItemDataRole.UserRole, job.id)
+        item.setData(Qt.ItemDataRole.UserRole + 1, 0)
+        item.setData(Qt.ItemDataRole.ToolTipRole, self._job_info(job.params))
+        self.addItem(item)
 
     _job_info_translations = {
         "prompt": _("Prompt"),

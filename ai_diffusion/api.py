@@ -36,6 +36,7 @@ class ImageInput:
     initial_image: Image | None = None
     hires_image: Image | None = None
     hires_mask: Image | None = None
+    layer_count: int = 1
 
     @staticmethod
     def from_extent(e: Extent):

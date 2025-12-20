@@ -53,6 +53,7 @@ class JobParams:
     metadata: dict[str, Any] = field(default_factory=dict)
     seed: int = 0
     has_mask: bool = False
+    is_layered: bool = False
     frame: tuple[int, int, int] = (0, 0, 0)
     animation_id: str = ""
 

@@ -86,6 +86,7 @@ class Arch(Enum):
     qwen = "Qwen"
     qwen_e = "Qwen Edit"
     qwen_e_p = "Qwen Edit Plus"
+    qwen_l = "Qwen Layered"
     zimage = "Z-Image"
 
     auto = "Automatic"
@@ -116,6 +117,8 @@ class Arch(Enum):
                 return Arch.qwen_e_p
             else:
                 return Arch.qwen_e
+        if string == "qwen-image" and filename and "layered" in filename.lower():
+            return Arch.qwen_l
         if string == "qwen-image":
             return Arch.qwen
         if string == "z-image":
@@ -179,7 +182,7 @@ class Arch(Enum):
 
     @property
     def is_edit(self):  # edit models make changes to input images
-        return self in [Arch.flux_k, Arch.qwen_e, Arch.qwen_e_p]
+        return self in [Arch.flux_k, Arch.qwen_e, Arch.qwen_e_p, Arch.qwen_l]
 
     @property
     def is_sdxl_like(self):
@@ -192,7 +195,7 @@ class Arch(Enum):
 
     @property
     def is_qwen_like(self):
-        return self in [Arch.qwen, Arch.qwen_e, Arch.qwen_e_p]
+        return self in [Arch.qwen, Arch.qwen_e, Arch.qwen_e_p, Arch.qwen_l]
 
     @property
     def text_encoders(self):
@@ -207,7 +210,7 @@ class Arch(Enum):
                 return ["clip_l", "t5"]
             case Arch.chroma:
                 return ["t5"]
-            case Arch.qwen | Arch.qwen_e | Arch.qwen_e_p:
+            case Arch.qwen | Arch.qwen_e | Arch.qwen_e_p | Arch.qwen_l:
                 return ["qwen"]
             case Arch.zimage:
                 return ["qwen_3"]
@@ -227,6 +230,7 @@ class Arch(Enum):
             Arch.qwen,
             Arch.qwen_e,
             Arch.qwen_e_p,
+            Arch.qwen_l,
             Arch.zimage,
         ]
 
@@ -752,6 +756,7 @@ search_paths: dict[str, list[str]] = {
     resource_id(ResourceKind.vae, Arch.qwen, "default"): ["qwen"],
     resource_id(ResourceKind.vae, Arch.qwen_e, "default"): ["qwen"],
     resource_id(ResourceKind.vae, Arch.qwen_e_p, "default"): ["qwen"],
+    resource_id(ResourceKind.vae, Arch.qwen_l, "default"): ["qwen_image_layered_vae"],
     resource_id(ResourceKind.vae, Arch.zimage, "default"): ["z-image", "ae.s"],
 }
 # fmt: on
