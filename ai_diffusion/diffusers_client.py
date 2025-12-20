@@ -390,6 +390,11 @@ class DiffusersClient(Client):
             request["qwen_vae_tiling"] = layered.qwen_vae_tiling
             request["qwen_ramtorch"] = layered.qwen_ramtorch
 
+        # Sampler settings (for both layered_generate and layered_segment)
+        request["sampler"] = layered.sampler
+        request["sampler_order"] = layered.sampler_order
+        request["schedule"] = layered.schedule
+
         # Input image for segmentation mode
         if work.kind == WorkflowKind.layered_segment and work.images:
             if work.images.initial_image:
@@ -458,6 +463,11 @@ class DiffusersClient(Client):
         request["quantize_text_encoder"] = diffusers.quantize_text_encoder
         request["vae_tiling"] = diffusers.vae_tiling
         request["ramtorch"] = diffusers.ramtorch
+
+        # Sampler settings
+        request["sampler"] = diffusers.sampler
+        request["sampler_order"] = diffusers.sampler_order
+        request["schedule"] = diffusers.schedule
 
         return request
 

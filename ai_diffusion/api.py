@@ -199,6 +199,10 @@ class LayeredInput:
     qwen_quantization: str = "none"
     qwen_vae_tiling: bool = True
     qwen_ramtorch: bool = False
+    # Sampler settings (via skrample)
+    sampler: str = "default"  # default, euler, dpm, sdpm, adams, unipc, unip, spc
+    sampler_order: int = 2  # Solver order for higher-order samplers (1-9)
+    schedule: str = "default"  # default, beta, sigmoid, karras
 
 
 @dataclass
@@ -224,6 +228,10 @@ class DiffusersInput:
     quantize_text_encoder: bool = False
     vae_tiling: bool = True
     ramtorch: bool = False
+    # Sampler settings (via skrample)
+    sampler: str = "default"  # default, euler, dpm, sdpm, adams, unipc, unip, spc
+    sampler_order: int = 2  # Solver order for higher-order samplers (1-9)
+    schedule: str = "default"  # default, beta, sigmoid, karras
 
 
 @dataclass

@@ -1610,6 +1610,9 @@ def prepare_layered_generate(
     num_steps: int = 30,
     preset=None,
     qwen_settings=None,  # Global Qwen optimization settings
+    sampler: str = "default",
+    sampler_order: int = 2,
+    schedule: str = "default",
 ) -> WorkflowInput:
     """Prepare workflow for 2-stage layered generation: txt2img then Qwen segmentation."""
     from .api import LayeredInput
@@ -1667,6 +1670,10 @@ def prepare_layered_generate(
         qwen_quantization=qwen_quantization,
         qwen_vae_tiling=qwen_vae_tiling,
         qwen_ramtorch=qwen_ramtorch,
+        # Sampler settings
+        sampler=sampler,
+        sampler_order=sampler_order,
+        schedule=schedule,
     )
     # Set up extent for result placement (use base image dimensions)
     result_extent = Extent(width, height)
@@ -1683,6 +1690,9 @@ def prepare_layered_segment(
     resolution: int = 640,
     cfg_scale: float = 4.0,
     steps: int = 50,
+    sampler: str = "default",
+    sampler_order: int = 2,
+    schedule: str = "default",
 ) -> WorkflowInput:
     """Prepare workflow for Qwen Image Layered segmentation of existing image."""
     from .api import LayeredInput
@@ -1701,6 +1711,9 @@ def prepare_layered_segment(
     i.layered = LayeredInput(
         num_layers=num_layers,
         resolution=resolution,
+        sampler=sampler,
+        sampler_order=sampler_order,
+        schedule=schedule,
     )
     # Set up image input
     extent = image.extent
@@ -1724,6 +1737,9 @@ def prepare_diffusers_generate(
     image: Image | None = None,
     mask: Image | None = None,
     preset=None,  # DiffusersModelPreset
+    sampler: str = "default",
+    sampler_order: int = 2,
+    schedule: str = "default",
 ) -> WorkflowInput:
     """Prepare workflow for general diffusers generation (txt2img, img2img, inpaint).
 
@@ -1792,6 +1808,11 @@ def prepare_diffusers_generate(
         diffusers_input.quantize_text_encoder = preset.quantize_text_encoder
         diffusers_input.vae_tiling = preset.vae_tiling
         diffusers_input.ramtorch = preset.ramtorch
+
+    # Apply sampler settings
+    diffusers_input.sampler = sampler
+    diffusers_input.sampler_order = sampler_order
+    diffusers_input.schedule = schedule
 
     i.diffusers = diffusers_input
 

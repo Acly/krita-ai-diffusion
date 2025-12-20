@@ -557,6 +557,9 @@ class Model(QObject, ObservableProperties):
         guidance_scale: float = 7.5,
         num_steps: int = 30,
         preset=None,
+        sampler: str = "default",
+        sampler_order: int = 2,
+        schedule: str = "default",
     ):
         """Generate a layered image using 2-stage process: txt2img then Qwen segmentation.
 
@@ -573,6 +576,9 @@ class Model(QObject, ObservableProperties):
             guidance_scale: Guidance scale for base image
             num_steps: Number of steps for base image generation
             preset: Model preset with optimization settings
+            sampler: Sampling method (default, euler, dpm, etc.)
+            sampler_order: Solver order for higher-order samplers (1-9)
+            schedule: Schedule modifier (default, beta, sigmoid, karras)
         """
         from .diffusers_connection import get_diffusers_connection
         from .settings import settings
@@ -608,6 +614,9 @@ class Model(QObject, ObservableProperties):
                 num_steps=num_steps,
                 preset=preset,
                 qwen_settings=qwen_settings,
+                sampler=sampler,
+                sampler_order=sampler_order,
+                schedule=schedule,
             )
             bounds = Bounds(0, 0, *extent)
             params = JobParams(bounds, prompt or "Layered", seed=input.sampling.seed)
@@ -626,6 +635,9 @@ class Model(QObject, ObservableProperties):
         resolution: int = 640,
         seed: int = -1,
         steps: int = 50,
+        sampler: str = "default",
+        sampler_order: int = 2,
+        schedule: str = "default",
     ):
         """Segment the current image into separate layers using Qwen Image Layered.
 
@@ -634,6 +646,9 @@ class Model(QObject, ObservableProperties):
             resolution: Resolution bucket (640 or 1024)
             seed: Random seed (-1 for random)
             steps: Number of inference steps
+            sampler: Sampler name (default, euler, dpm, sdpm, adams, unipc, unip, spc)
+            sampler_order: Solver order for higher-order samplers (1-9)
+            schedule: Schedule modifier (default, beta, sigmoid, karras)
         """
         from .diffusers_connection import get_diffusers_connection
 
@@ -657,6 +672,9 @@ class Model(QObject, ObservableProperties):
                 num_layers=num_layers,
                 resolution=resolution,
                 steps=steps,
+                sampler=sampler,
+                sampler_order=sampler_order,
+                schedule=schedule,
             )
             params = JobParams(bounds, "Segmented", seed=input.sampling.seed)
             job = self.jobs.add(JobKind.layered_segment, params)
@@ -690,6 +708,9 @@ class Model(QObject, ObservableProperties):
         strength: float = 0.75,
         seed: int = -1,
         preset=None,  # DiffusersModelPreset
+        sampler: str = "default",
+        sampler_order: int = 2,
+        schedule: str = "default",
     ):
         """Generate using the diffusers server (txt2img, img2img, inpaint).
 
@@ -705,6 +726,9 @@ class Model(QObject, ObservableProperties):
             strength: Denoising strength for img2img/inpaint (0.0-1.0)
             seed: Random seed (-1 for random)
             preset: DiffusersModelPreset with optimization settings
+            sampler: Sampling method (default, euler, dpm, etc.)
+            sampler_order: Solver order for higher-order samplers (1-9)
+            schedule: Schedule modifier (default, beta, sigmoid, karras)
         """
         from .diffusers_connection import get_diffusers_connection
 
@@ -748,6 +772,9 @@ class Model(QObject, ObservableProperties):
                 image=image,
                 mask=mask,
                 preset=preset,
+                sampler=sampler,
+                sampler_order=sampler_order,
+                schedule=schedule,
             )
             bounds = Bounds(0, 0, width, height)
             params = JobParams(bounds, prompt or "Diffusers", seed=input.sampling.seed)

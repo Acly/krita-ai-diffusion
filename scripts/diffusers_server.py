@@ -55,6 +55,19 @@ logging.getLogger("fastapi").setLevel(logging.WARNING)
 logging.getLogger("httpx").setLevel(logging.WARNING)
 logging.getLogger("httpcore").setLevel(logging.WARNING)
 
+# Try to import skrample for custom samplers
+try:
+    from skrample.diffusers import sampling as sk_sampling
+    from skrample.diffusers import SkrampleWrapperScheduler
+    # StructuredMultistep is the base class for higher-order samplers (DPM, Adams, UniPC, UniP)
+    StructuredMultistep = sk_sampling.StructuredMultistep
+    SKRAMPLE_AVAILABLE = True
+    log.info("skrample available for custom samplers")
+except ImportError:
+    SKRAMPLE_AVAILABLE = False
+    StructuredMultistep = None
+    log.warning("skrample not installed - custom samplers disabled")
+
 
 class JobStatus(Enum):
     pending = "pending"
@@ -842,6 +855,79 @@ class DiffusersServer:
             return callback_kwargs
         return callback
 
+    def _apply_skrample_sampler(self, pipeline, sampler: str, order: int = 2, schedule: str = "default"):
+        """Apply skrample sampler wrapper to the pipeline scheduler.
+
+        Returns the original scheduler so it can be restored after generation.
+        """
+        if not SKRAMPLE_AVAILABLE:
+            log.debug("skrample not available, using default scheduler")
+            return None
+
+        if (sampler == "default" or sampler is None) and (schedule == "default" or schedule is None):
+            log.debug("Using default scheduler (no skrample)")
+            return None
+
+        # Map sampler names to skrample sampler classes
+        sampler_map = {
+            "euler": (sk_sampling.Euler, {}),
+            "dpm": (sk_sampling.DPM, {"add_noise": False}),
+            "sdpm": (sk_sampling.DPM, {"add_noise": True}),
+            "adams": (sk_sampling.Adams, {}),
+            "unipc": (sk_sampling.UniPC, {}),
+            "unip": (sk_sampling.UniP, {}),
+            "spc": (sk_sampling.SPC, {}),
+        }
+
+        # Determine sampler class and props
+        sampler_class = None
+        sampler_props = {}
+        if sampler and sampler != "default" and sampler in sampler_map:
+            sampler_class, sampler_props = sampler_map[sampler]
+
+            # Apply order for higher-order samplers (StructuredMultistep subclasses)
+            if StructuredMultistep is not None and issubclass(sampler_class, StructuredMultistep):
+                max_order = sampler_class.max_order()
+                if order > max_order:
+                    log.warning(f"Order {order} exceeds {sampler_class.__name__} max order {max_order}, clamping")
+                    order = max_order
+                sampler_props["order"] = order
+
+        # Build schedule modifiers list
+        from skrample import scheduling
+        schedule_modifiers = []
+        if schedule and schedule != "default":
+            schedule_map = {
+                "beta": (scheduling.Beta, {"alpha": 0.6, "beta": 0.6}),
+                "sigmoid": (scheduling.SigmoidCDF, {}),
+                "karras": (scheduling.Karras, {}),
+            }
+            if schedule in schedule_map:
+                mod_class, mod_props = schedule_map[schedule]
+                schedule_modifiers.append((mod_class, mod_props))
+                log.info(f"Using schedule modifier: {mod_class.__name__}")
+
+        if sampler_class:
+            log.info(f"Using skrample {sampler_class.__name__}" + (f" with order={order}" if "order" in sampler_props else ""))
+        elif schedule_modifiers:
+            log.info(f"Using default sampler with schedule modifier")
+
+        # Save original scheduler
+        original_scheduler = pipeline.scheduler
+
+        # Wrap with skrample
+        try:
+            pipeline.scheduler = SkrampleWrapperScheduler.from_diffusers_config(
+                original_scheduler,
+                sampler=sampler_class,
+                sampler_props=sampler_props,
+                schedule_modifiers=schedule_modifiers,
+            )
+            return original_scheduler
+        except Exception as e:
+            log.warning(f"Failed to apply skrample sampler: {e}")
+            return None
+
     def _run_txt2img(self, pipeline, params: dict, job: Job | None = None) -> list[str]:
         """Run text-to-image generation."""
         self._check_interrupt()
@@ -857,25 +943,36 @@ class DiffusersServer:
 
         num_steps = params.get("num_inference_steps", 30)
 
-        # Build pipeline kwargs
-        pipeline_kwargs = {
-            "prompt": params.get("prompt", ""),
-            "negative_prompt": params.get("negative_prompt", ""),
-            "width": params.get("width", 1024),
-            "height": params.get("height", 1024),
-            "num_inference_steps": num_steps,
-            "guidance_scale": params.get("guidance_scale", 7.5),
-            "generator": generator,
-            "output_type": "pil",
-        }
+        # Apply skrample sampler if requested
+        sampler = params.get("sampler", "default")
+        sampler_order = params.get("sampler_order", 2)
+        schedule = params.get("schedule", "default")
+        original_scheduler = self._apply_skrample_sampler(pipeline, sampler, sampler_order, schedule)
 
-        # Add progress callback if job provided
-        if job is not None:
-            pipeline_kwargs["callback_on_step_end"] = self._make_progress_callback(job, num_steps)
+        try:
+            # Build pipeline kwargs
+            pipeline_kwargs = {
+                "prompt": params.get("prompt", ""),
+                "negative_prompt": params.get("negative_prompt", ""),
+                "width": params.get("width", 1024),
+                "height": params.get("height", 1024),
+                "num_inference_steps": num_steps,
+                "guidance_scale": params.get("guidance_scale", 7.5),
+                "generator": generator,
+                "output_type": "pil",
+            }
 
-        output = pipeline(**pipeline_kwargs)
+            # Add progress callback if job provided
+            if job is not None:
+                pipeline_kwargs["callback_on_step_end"] = self._make_progress_callback(job, num_steps)
 
-        return [self._encode_image(img) for img in output.images]
+            output = pipeline(**pipeline_kwargs)
+
+            return [self._encode_image(img) for img in output.images]
+        finally:
+            # Restore original scheduler if we changed it
+            if original_scheduler is not None:
+                pipeline.scheduler = original_scheduler
 
     def _run_layered_generate(self, params: dict, model_id: str, job: Job) -> list[str]:
         """Run 2-stage layered generation: txt2img then Qwen segmentation."""
@@ -916,22 +1013,33 @@ class DiffusersServer:
         gen_device = "cpu" if self.pipeline_manager.offload != "none" else self.device
         generator = torch.Generator(device=gen_device).manual_seed(seed)
 
+        # Apply skrample sampler for Stage 1 if requested
+        sampler = params.get("sampler", "default")
+        sampler_order = params.get("sampler_order", 2)
+        schedule = params.get("schedule", "default")
+        original_scheduler = self._apply_skrample_sampler(txt2img_pipeline, sampler, sampler_order, schedule)
+
         # Stage 1 progress callback (0% to txt2img_weight%)
         stage1_callback = self._make_progress_callback(
             job, txt2img_steps, "Generating: ", txt2img_weight, 0.0
         )
 
-        output = txt2img_pipeline(
-            prompt=params.get("prompt", ""),
-            negative_prompt=params.get("negative_prompt", ""),
-            width=params.get("width", 1024),
-            height=params.get("height", 1024),
-            num_inference_steps=txt2img_steps,
-            guidance_scale=params.get("guidance_scale", 7.5),
-            generator=generator,
-            output_type="pil",
-            callback_on_step_end=stage1_callback,
-        )
+        try:
+            output = txt2img_pipeline(
+                prompt=params.get("prompt", ""),
+                negative_prompt=params.get("negative_prompt", ""),
+                width=params.get("width", 1024),
+                height=params.get("height", 1024),
+                num_inference_steps=txt2img_steps,
+                guidance_scale=params.get("guidance_scale", 7.5),
+                generator=generator,
+                output_type="pil",
+                callback_on_step_end=stage1_callback,
+            )
+        finally:
+            # Restore original scheduler
+            if original_scheduler is not None:
+                txt2img_pipeline.scheduler = original_scheduler
 
         base_image = output.images[0]
         log.info(f"Stage 1 complete: generated {base_image.size} image")
@@ -960,45 +1068,62 @@ class DiffusersServer:
         job.message = "Segmenting into layers..."
         log.info("Stage 2: Running Qwen segmentation")
 
-        # Convert base image to RGBA for Qwen
-        base_rgba = base_image.convert("RGBA")
+        # Apply skrample sampler for Stage 2 (Qwen) if requested
+        qwen_original_scheduler = self._apply_skrample_sampler(qwen_pipeline, sampler, sampler_order, schedule)
 
-        # Always use CPU generator for Qwen
-        qwen_generator = torch.Generator(device="cpu").manual_seed(seed)
+        try:
+            # Convert base image to RGBA for Qwen
+            base_rgba = base_image.convert("RGBA")
+            original_size = base_rgba.size
+            resolution = params.get("resolution", 640)
 
-        # Stage 2 progress callback (txt2img_weight% to 100%)
-        stage2_callback = self._make_progress_callback(
-            job, qwen_steps, "Segmenting: ", qwen_weight, txt2img_weight
-        )
+            # Scale image to fit within resolution bucket while preserving aspect ratio
+            scaled_image = self._scale_to_resolution(base_rgba, resolution)
 
-        qwen_inputs = {
-            "generator": qwen_generator,
-            "image": base_rgba,
-            "prompt": params.get("prompt", ""),
-            "negative_prompt": params.get("negative_prompt", " "),
-            "true_cfg_scale": params.get("layered_cfg_scale", 4.0),
-            "num_inference_steps": qwen_steps,
-            "num_images_per_prompt": 1,
-            "layers": params.get("layers", 4),
-            "resolution": params.get("resolution", 640),
-            "cfg_normalize": True,
-            "use_en_prompt": True,
-            "callback_on_step_end": stage2_callback,
-        }
+            # Always use CPU generator for Qwen
+            qwen_generator = torch.Generator(device="cpu").manual_seed(seed)
 
-        log.info(f"Qwen inputs: layers={qwen_inputs['layers']}, resolution={qwen_inputs['resolution']}, steps={qwen_inputs['num_inference_steps']}")
-        log.info(f"Input image size: {base_rgba.size}")
+            # Stage 2 progress callback (txt2img_weight% to 100%)
+            stage2_callback = self._make_progress_callback(
+                job, qwen_steps, "Segmenting: ", qwen_weight, txt2img_weight
+            )
 
-        with torch.inference_mode():
-            qwen_output = qwen_pipeline(**qwen_inputs)
+            qwen_inputs = {
+                "generator": qwen_generator,
+                "image": scaled_image,
+                "prompt": params.get("prompt", ""),
+                "negative_prompt": params.get("negative_prompt", " "),
+                "true_cfg_scale": params.get("layered_cfg_scale", 4.0),
+                "num_inference_steps": qwen_steps,
+                "num_images_per_prompt": 1,
+                "layers": params.get("layers", 4),
+                "resolution": resolution,
+                "cfg_normalize": True,
+                "use_en_prompt": True,
+                "callback_on_step_end": stage2_callback,
+            }
 
-        layer_images = qwen_output.images[0] if qwen_output.images else []
-        log.info(f"Stage 2 complete: {len(layer_images)} layers")
+            log.info(f"Qwen inputs: layers={qwen_inputs['layers']}, resolution={qwen_inputs['resolution']}, steps={qwen_inputs['num_inference_steps']}")
+            log.info(f"Input image size: {scaled_image.size}, original: {original_size}")
 
-        # Return base image first, then layers
-        result = [self._encode_image(base_image)]
-        result.extend([self._encode_image(img) for img in layer_images])
-        return result
+            with torch.inference_mode():
+                qwen_output = qwen_pipeline(**qwen_inputs)
+
+            layer_images = qwen_output.images[0] if qwen_output.images else []
+            log.info(f"Stage 2 complete: {len(layer_images)} layers")
+
+            # Scale layers back to original size if we scaled down
+            if original_size != scaled_image.size:
+                log.info(f"Scaling layers back to original size: {original_size}")
+                layer_images = [img.resize(original_size, Image.Resampling.LANCZOS) for img in layer_images]
+
+            # Return base image first, then layers
+            result = [self._encode_image(base_image)]
+            result.extend([self._encode_image(img) for img in layer_images])
+            return result
+        finally:
+            if qwen_original_scheduler is not None:
+                qwen_pipeline.scheduler = qwen_original_scheduler
 
     def _run_img2img(self, pipeline, params: dict, job: Job | None = None) -> list[str]:
         """Run image-to-image generation."""
@@ -1021,23 +1146,33 @@ class DiffusersServer:
 
         num_steps = params.get("num_inference_steps", 30)
 
-        pipeline_kwargs = {
-            "prompt": params.get("prompt", ""),
-            "negative_prompt": params.get("negative_prompt", ""),
-            "image": input_image,
-            "strength": params.get("strength", 0.75),
-            "num_inference_steps": num_steps,
-            "guidance_scale": params.get("guidance_scale", 7.5),
-            "generator": generator,
-            "output_type": "pil",
-        }
+        # Apply skrample sampler if requested
+        sampler = params.get("sampler", "default")
+        sampler_order = params.get("sampler_order", 2)
+        schedule = params.get("schedule", "default")
+        original_scheduler = self._apply_skrample_sampler(pipeline, sampler, sampler_order, schedule)
 
-        if job is not None:
-            pipeline_kwargs["callback_on_step_end"] = self._make_progress_callback(job, num_steps)
+        try:
+            pipeline_kwargs = {
+                "prompt": params.get("prompt", ""),
+                "negative_prompt": params.get("negative_prompt", ""),
+                "image": input_image,
+                "strength": params.get("strength", 0.75),
+                "num_inference_steps": num_steps,
+                "guidance_scale": params.get("guidance_scale", 7.5),
+                "generator": generator,
+                "output_type": "pil",
+            }
 
-        output = pipeline(**pipeline_kwargs)
+            if job is not None:
+                pipeline_kwargs["callback_on_step_end"] = self._make_progress_callback(job, num_steps)
 
-        return [self._encode_image(img) for img in output.images]
+            output = pipeline(**pipeline_kwargs)
+
+            return [self._encode_image(img) for img in output.images]
+        finally:
+            if original_scheduler is not None:
+                pipeline.scheduler = original_scheduler
 
     def _run_inpaint(self, pipeline, params: dict, job: Job | None = None) -> list[str]:
         """Run inpainting generation."""
@@ -1063,26 +1198,36 @@ class DiffusersServer:
 
         num_steps = params.get("num_inference_steps", 30)
 
-        pipeline_kwargs = {
-            "prompt": params.get("prompt", ""),
-            "negative_prompt": params.get("negative_prompt", ""),
-            "image": input_image,
-            "mask_image": mask_image,
-            "width": width,
-            "height": height,
-            "strength": params.get("strength", 1.0),
-            "num_inference_steps": num_steps,
-            "guidance_scale": params.get("guidance_scale", 7.5),
-            "generator": generator,
-            "output_type": "pil",
-        }
+        # Apply skrample sampler if requested
+        sampler = params.get("sampler", "default")
+        sampler_order = params.get("sampler_order", 2)
+        schedule = params.get("schedule", "default")
+        original_scheduler = self._apply_skrample_sampler(pipeline, sampler, sampler_order, schedule)
 
-        if job is not None:
-            pipeline_kwargs["callback_on_step_end"] = self._make_progress_callback(job, num_steps)
+        try:
+            pipeline_kwargs = {
+                "prompt": params.get("prompt", ""),
+                "negative_prompt": params.get("negative_prompt", ""),
+                "image": input_image,
+                "mask_image": mask_image,
+                "width": width,
+                "height": height,
+                "strength": params.get("strength", 1.0),
+                "num_inference_steps": num_steps,
+                "guidance_scale": params.get("guidance_scale", 7.5),
+                "generator": generator,
+                "output_type": "pil",
+            }
 
-        output = pipeline(**pipeline_kwargs)
+            if job is not None:
+                pipeline_kwargs["callback_on_step_end"] = self._make_progress_callback(job, num_steps)
 
-        return [self._encode_image(img) for img in output.images]
+            output = pipeline(**pipeline_kwargs)
+
+            return [self._encode_image(img) for img in output.images]
+        finally:
+            if original_scheduler is not None:
+                pipeline.scheduler = original_scheduler
 
     def _run_qwen_layered(self, pipeline, params: dict, job: Job | None = None) -> list[str]:
         """Run Qwen Image Layered generation/segmentation."""
@@ -1101,51 +1246,75 @@ class DiffusersServer:
         num_steps = params.get("layered_steps", params.get("num_inference_steps", 50))
         log.info(f"Qwen steps: layered_steps={params.get('layered_steps')}, num_inference_steps={params.get('num_inference_steps')}, using={num_steps}")
 
-        inputs: dict[str, Any] = {
-            "generator": generator,
-            "true_cfg_scale": params.get("cfg_scale", 4.0),
-            "negative_prompt": params.get("negative_prompt", " "),
-            "num_inference_steps": num_steps,
-            "num_images_per_prompt": 1,
-            "layers": params.get("layers", 4),
-            "resolution": params.get("resolution", 640),
-            "cfg_normalize": params.get("cfg_normalize", True),
-            "use_en_prompt": params.get("use_en_prompt", True),
-        }
+        # Apply skrample sampler if requested
+        sampler = params.get("sampler", "default")
+        sampler_order = params.get("sampler_order", 2)
+        schedule = params.get("schedule", "default")
+        original_scheduler = self._apply_skrample_sampler(pipeline, sampler, sampler_order, schedule)
 
-        # Add progress callback if job provided
-        if job is not None:
-            inputs["callback_on_step_end"] = self._make_progress_callback(job, num_steps, "Segmenting: ")
+        try:
+            inputs: dict[str, Any] = {
+                "generator": generator,
+                "true_cfg_scale": params.get("cfg_scale", 4.0),
+                "negative_prompt": params.get("negative_prompt", " "),
+                "num_inference_steps": num_steps,
+                "num_images_per_prompt": 1,
+                "layers": params.get("layers", 4),
+                "resolution": params.get("resolution", 640),
+                "cfg_normalize": params.get("cfg_normalize", True),
+                "use_en_prompt": params.get("use_en_prompt", True),
+            }
 
-        # Handle input image
-        if params.get("image"):
-            image = self._decode_image(params["image"]).convert("RGBA")
-            inputs["image"] = image
-        else:
+            # Add progress callback if job provided
+            if job is not None:
+                inputs["callback_on_step_end"] = self._make_progress_callback(job, num_steps, "Segmenting: ")
+
+            # Handle input image
+            original_size = None
             resolution = params.get("resolution", 640)
-            image = Image.new("RGBA", (resolution, resolution), (128, 128, 128, 255))
-            inputs["image"] = image
+            if params.get("image"):
+                image = self._decode_image(params["image"]).convert("RGBA")
+                original_size = image.size
+                # Scale image to fit within resolution bucket while preserving aspect ratio
+                image = self._scale_to_resolution(image, resolution)
+                inputs["image"] = image
+            else:
+                image = Image.new("RGBA", (resolution, resolution), (128, 128, 128, 255))
+                inputs["image"] = image
 
-        if params.get("prompt"):
-            inputs["prompt"] = params["prompt"]
+            if params.get("prompt"):
+                inputs["prompt"] = params["prompt"]
 
-        log.info(f"Qwen inputs: prompt={inputs.get('prompt', 'NONE')}, layers={inputs['layers']}, resolution={inputs['resolution']}, cfg={inputs['true_cfg_scale']}, steps={inputs['num_inference_steps']}")
-        log.info(f"Pipeline type: {type(pipeline).__name__}, device: {self.device}")
-        log.info(f"Input image size: {inputs['image'].size}, mode: {inputs['image'].mode}")
+            log.info(f"Qwen inputs: prompt={inputs.get('prompt', 'NONE')}, layers={inputs['layers']}, resolution={inputs['resolution']}, cfg={inputs['true_cfg_scale']}, steps={inputs['num_inference_steps']}")
+            log.info(f"Pipeline type: {type(pipeline).__name__}, device: {self.device}")
+            log.info(f"Input image size: {inputs['image'].size}, mode: {inputs['image'].mode}, original: {original_size}")
 
-        with torch.inference_mode():
-            output = pipeline(**inputs)
+            with torch.inference_mode():
+                output = pipeline(**inputs)
 
-        # Output is list of layers
-        layer_images = output.images[0] if output.images else []
-        log.info(f"Output: {len(layer_images)} layers")
-        for i, img in enumerate(layer_images):
-            log.info(f"  Layer {i}: size={img.size}, mode={img.mode}")
+            # Output is list of layers
+            layer_images = output.images[0] if output.images else []
+            log.info(f"Output: {len(layer_images)} layers")
 
-        # Prepend input image as first layer for debugging
-        result = [self._encode_image(inputs['image'])]
-        result.extend([self._encode_image(img) for img in layer_images])
-        return result
+            # Scale layers back to original size if we scaled down
+            if original_size and original_size != inputs['image'].size:
+                log.info(f"Scaling layers back to original size: {original_size}")
+                layer_images = [img.resize(original_size, Image.Resampling.LANCZOS) for img in layer_images]
+
+            for i, img in enumerate(layer_images):
+                log.info(f"  Layer {i}: size={img.size}, mode={img.mode}")
+
+            # Prepend input image as first layer for debugging (use original size)
+            if original_size:
+                original_image = self._decode_image(params["image"]).convert("RGBA")
+                result = [self._encode_image(original_image)]
+            else:
+                result = [self._encode_image(inputs['image'])]
+            result.extend([self._encode_image(img) for img in layer_images])
+            return result
+        finally:
+            if original_scheduler is not None:
+                pipeline.scheduler = original_scheduler
 
     def _encode_image(self, image: Image.Image) -> str:
         """Encode PIL Image to base64 PNG."""
@@ -1157,6 +1326,26 @@ class DiffusersServer:
         """Decode base64 string to PIL Image."""
         image_data = base64.b64decode(b64_data)
         return Image.open(io.BytesIO(image_data)).convert("RGB")
+
+    def _scale_to_resolution(self, image: Image.Image, resolution: int) -> Image.Image:
+        """Scale image to fit within resolution bucket while preserving aspect ratio.
+
+        The longest side will be scaled to match the resolution.
+        """
+        width, height = image.size
+        longest_side = max(width, height)
+
+        if longest_side <= resolution:
+            # Image already fits, no scaling needed
+            return image
+
+        # Calculate scale factor
+        scale = resolution / longest_side
+        new_width = int(width * scale)
+        new_height = int(height * scale)
+
+        log.info(f"Scaling image from {width}x{height} to {new_width}x{new_height} (resolution={resolution})")
+        return image.resize((new_width, new_height), Image.Resampling.LANCZOS)
 
 
 # Global server instance
@@ -1237,6 +1426,11 @@ class GenerateRequest(BaseModel):
     qwen_quantization: str | None = None
     qwen_vae_tiling: bool | None = None
     qwen_ramtorch: bool | None = None
+
+    # Sampler settings (via skrample)
+    sampler: str | None = None  # default, euler, dpm, sdpm, adams, unipc, unip, spc
+    sampler_order: int | None = None  # Solver order for higher-order samplers (1-9)
+    schedule: str | None = None  # default, beta, sigmoid, karras
 
 
 class GenerateResponse(BaseModel):
@@ -1396,6 +1590,10 @@ async def generate(request: GenerateRequest, background_tasks: BackgroundTasks):
         "qwen_quantization": request.qwen_quantization,
         "qwen_vae_tiling": request.qwen_vae_tiling,
         "qwen_ramtorch": request.qwen_ramtorch,
+        # Sampler settings
+        "sampler": request.sampler,
+        "sampler_order": request.sampler_order,
+        "schedule": request.schedule,
     }
 
     job = srv.create_job(params)

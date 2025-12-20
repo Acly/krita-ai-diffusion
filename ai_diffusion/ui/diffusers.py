@@ -226,29 +226,80 @@ class DiffusersWidget(QWidget):
         settings_layout.addWidget(self.custom_resolution_widget)
 
         # Guidance scale
-        guidance_layout = QHBoxLayout()
-        guidance_layout.addWidget(QLabel(_("Guidance:"), self))
+        self.guidance_layout = QHBoxLayout()
+        self.guidance_label = QLabel(_("Guidance:"), self)
+        self.guidance_layout.addWidget(self.guidance_label)
         self.guidance_spin = QDoubleSpinBox(self)
         self.guidance_spin.setMinimum(1.0)
         self.guidance_spin.setMaximum(30.0)
         self.guidance_spin.setSingleStep(0.5)
         self.guidance_spin.setValue(1.0)
         self.guidance_spin.setToolTip(_("CFG scale / guidance scale"))
-        guidance_layout.addWidget(self.guidance_spin)
-        guidance_layout.addStretch()
-        settings_layout.addLayout(guidance_layout)
+        self.guidance_layout.addWidget(self.guidance_spin)
+        self.guidance_layout.addStretch()
+        settings_layout.addLayout(self.guidance_layout)
 
         # Steps
-        steps_layout = QHBoxLayout()
-        steps_layout.addWidget(QLabel(_("Steps:"), self))
+        self.steps_layout = QHBoxLayout()
+        self.steps_label = QLabel(_("Steps:"), self)
+        self.steps_layout.addWidget(self.steps_label)
         self.steps_spin = QSpinBox(self)
         self.steps_spin.setMinimum(1)
         self.steps_spin.setMaximum(150)
         self.steps_spin.setValue(8)
         self.steps_spin.setToolTip(_("Number of inference steps"))
-        steps_layout.addWidget(self.steps_spin)
-        steps_layout.addStretch()
-        settings_layout.addLayout(steps_layout)
+        self.steps_layout.addWidget(self.steps_spin)
+        self.steps_layout.addStretch()
+        settings_layout.addLayout(self.steps_layout)
+
+        # Sampler
+        sampler_layout = QHBoxLayout()
+        sampler_layout.addWidget(QLabel(_("Sampler:"), self))
+        self.sampler_combo = QComboBox(self)
+        self.sampler_combo.addItem(_("Default"), "default")
+        self.sampler_combo.addItem("Euler", "euler")
+        self.sampler_combo.addItem("DPM", "dpm")
+        self.sampler_combo.addItem("DPM SDE", "sdpm")
+        self.sampler_combo.addItem("Adams", "adams")
+        self.sampler_combo.addItem("UniPC", "unipc")
+        self.sampler_combo.addItem("UniP", "unip")
+        self.sampler_combo.addItem("SPC", "spc")
+        self.sampler_combo.setCurrentIndex(0)
+        self.sampler_combo.setToolTip(_("Sampling method (via skrample)"))
+        self.sampler_combo.currentIndexChanged.connect(self._update_sampler_order)
+        sampler_layout.addWidget(self.sampler_combo)
+        sampler_layout.addStretch()
+        settings_layout.addLayout(sampler_layout)
+
+        # Sampler Order (for higher-order samplers)
+        self.order_layout = QHBoxLayout()
+        self.order_label = QLabel(_("Order:"), self)
+        self.order_layout.addWidget(self.order_label)
+        self.order_spin = QSpinBox(self)
+        self.order_spin.setMinimum(1)
+        self.order_spin.setMaximum(9)
+        self.order_spin.setValue(2)
+        self.order_spin.setToolTip(_("Solver order (higher = potentially better quality, but may be unstable)"))
+        self.order_layout.addWidget(self.order_spin)
+        self.order_layout.addStretch()
+        settings_layout.addLayout(self.order_layout)
+        # Hide order by default, show when sampler supports it
+        self._set_order_visible(False)
+
+        # Schedule modifier
+        self.schedule_layout = QHBoxLayout()
+        self.schedule_label = QLabel(_("Schedule:"), self)
+        self.schedule_layout.addWidget(self.schedule_label)
+        self.schedule_combo = QComboBox(self)
+        self.schedule_combo.addItem(_("Default"), "default")
+        self.schedule_combo.addItem("Beta", "beta")
+        self.schedule_combo.addItem("Sigmoid", "sigmoid")
+        self.schedule_combo.addItem("Karras", "karras")
+        self.schedule_combo.setCurrentIndex(0)
+        self.schedule_combo.setToolTip(_("Schedule modifier (via skrample)"))
+        self.schedule_layout.addWidget(self.schedule_combo)
+        self.schedule_layout.addStretch()
+        settings_layout.addLayout(self.schedule_layout)
 
         # Strength (for img2img/inpaint)
         self.strength_layout = QHBoxLayout()
@@ -267,17 +318,18 @@ class DiffusersWidget(QWidget):
         settings_layout.addLayout(self.strength_layout)
 
         # Seed
-        seed_layout = QHBoxLayout()
-        seed_layout.addWidget(QLabel(_("Seed:"), self))
+        self.seed_layout = QHBoxLayout()
+        self.seed_label = QLabel(_("Seed:"), self)
+        self.seed_layout.addWidget(self.seed_label)
         self.seed_spin = QSpinBox(self)
         self.seed_spin.setMinimum(-1)
         self.seed_spin.setMaximum(2147483647)
         self.seed_spin.setValue(-1)
         self.seed_spin.setSpecialValueText(_("Random"))
         self.seed_spin.setToolTip(_("Random seed (-1 for random)"))
-        seed_layout.addWidget(self.seed_spin)
-        seed_layout.addStretch()
-        settings_layout.addLayout(seed_layout)
+        self.seed_layout.addWidget(self.seed_spin)
+        self.seed_layout.addStretch()
+        settings_layout.addLayout(self.seed_layout)
 
         layout.addWidget(self.settings_group)
 
@@ -418,7 +470,8 @@ class DiffusersWidget(QWidget):
         # Layered Segment only needs layered settings (it uses existing image)
         self.model_group.setVisible(not is_segment)  # Show for Generate, hide for Segment
         self.layered_group.setVisible(is_layered)
-        self.settings_group.setVisible(not is_segment)  # Show for Generate, hide for Segment
+        # Settings group: always show (contains sampler controls needed for all modes)
+        self.settings_group.setVisible(True)
         # Layered Generate needs prompt (generates from text), Layered Segment doesn't (uses existing image)
         self.prompt_group.setVisible(not is_segment)
         self.prompt_group.setEnabled(not is_segment)
@@ -439,8 +492,14 @@ class DiffusersWidget(QWidget):
         self.custom_resolution_widget.setVisible(show_resolution and is_custom)
 
         # Layered Segment uses fixed values; Layered Generate can use custom guidance/steps
-        self.guidance_spin.setEnabled(not is_segment)
-        self.steps_spin.setEnabled(not is_segment)
+        # Hide guidance and steps entirely for segment mode (they're in layered_group)
+        self.guidance_spin.setVisible(not is_segment)
+        self.guidance_label.setVisible(not is_segment)
+        self.steps_spin.setVisible(not is_segment)
+        self.steps_label.setVisible(not is_segment)
+        # Hide the main seed control for segment mode (layered_group has its own seed)
+        self.seed_spin.setVisible(not is_segment)
+        self.seed_label.setVisible(not is_segment)
 
         # Show strength slider only for img2img/inpaint
         for i in range(self.strength_layout.count()):
@@ -459,6 +518,18 @@ class DiffusersWidget(QWidget):
             self.generate_button.setText(_("Generate Layers"))
         elif mode == DiffusersMode.layered_segment:
             self.generate_button.setText(_("Segment to Layers"))
+
+    def _set_order_visible(self, visible: bool):
+        """Show/hide the order control."""
+        self.order_label.setVisible(visible)
+        self.order_spin.setVisible(visible)
+
+    def _update_sampler_order(self):
+        """Update order spinner visibility based on selected sampler."""
+        sampler = self.sampler_combo.currentData()
+        # Higher-order samplers: DPM, Adams, UniPC, UniP, SPC
+        high_order_samplers = {"dpm", "sdpm", "adams", "unipc", "unip", "spc"}
+        self._set_order_visible(sampler in high_order_samplers)
 
     def _on_resolution_changed(self):
         """Handle resolution preset change."""
@@ -638,6 +709,9 @@ class DiffusersWidget(QWidget):
                     guidance_scale=self.guidance_spin.value(),
                     num_steps=self.steps_spin.value(),
                     preset=preset,
+                    sampler=self.sampler_combo.currentData(),
+                    sampler_order=self.order_spin.value(),
+                    schedule=self.schedule_combo.currentData(),
                 )
             else:
                 model.segment_to_layers(
@@ -645,6 +719,9 @@ class DiffusersWidget(QWidget):
                     resolution=resolution,
                     seed=seed,
                     steps=steps,
+                    sampler=self.sampler_combo.currentData(),
+                    sampler_order=self.order_spin.value(),
+                    schedule=self.schedule_combo.currentData(),
                 )
         else:
             # General diffusers generation
@@ -680,6 +757,9 @@ class DiffusersWidget(QWidget):
                 strength=self.strength_slider.value() / 100.0,
                 seed=seed,
                 preset=preset,  # Pass full preset for optimization settings
+                sampler=self.sampler_combo.currentData(),
+                sampler_order=self.order_spin.value(),
+                schedule=self.schedule_combo.currentData(),
             )
 
     def _stop_generation(self):
