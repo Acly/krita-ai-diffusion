@@ -718,6 +718,57 @@ class StrengthWidget(QWidget):
         self._input.setSuffix(f"% ({steps - start_at_step}/{steps})")
 
 
+class LayerCountWidget(QWidget):
+    value_changed = pyqtSignal(int)
+
+    def __init__(self, parent=None):
+        super().__init__(parent)
+        self._value = 4
+
+        self._layout = QHBoxLayout()
+        self._layout.setContentsMargins(0, 0, 0, 0)
+        self.setLayout(self._layout)
+
+        self._slider = QSlider(Qt.Orientation.Horizontal, self)
+        self._slider.setMinimum(1)
+        self._slider.setMaximum(10)
+        self._slider.setValue(self._value)
+        self._slider.setSingleStep(1)
+        self._slider.valueChanged.connect(self._notify_changed)
+
+        self._input = QSpinBox(self)
+        self._input.setPrefix(_("Layers") + ": ")
+        self._input.setMinimum(1)
+        self._input.setMaximum(10)
+        self._input.setValue(self._value)
+        self._input.valueChanged.connect(self._notify_changed)
+
+        self._layout.addWidget(self._slider)
+        self._layout.addWidget(self._input)
+
+    def _notify_changed(self, value: int):
+        if value != self._value:
+            self._value = value
+            self._update()
+            self.value_changed.emit(self._value)
+
+    def _update(self):
+        with SignalBlocker(self._slider), SignalBlocker(self._input):
+            self._slider.setValue(self._value)
+            self._input.setValue(self._value)
+
+    @property
+    def value(self):
+        return self._value
+
+    @value.setter
+    def value(self, value: int):
+        if value == self._value:
+            return
+        self._value = value
+        self._update()
+
+
 class WorkspaceSelectWidget(QToolButton):
     _icons = {
         Workspace.generation: theme.icon("workspace-generation"),

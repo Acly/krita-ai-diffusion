@@ -21,8 +21,8 @@ from ..workflow import InpaintMode, FillMode
 from ..localization import translate as _
 from ..resources import Arch
 from ..util import ensure, flatten, sequence_equal
-from .widget import WorkspaceSelectWidget, StyleSelectWidget, StrengthWidget, QueueButton
-from .widget import GenerateButton, ErrorBox, create_wide_tool_button
+from .widget import LayerCountWidget, WorkspaceSelectWidget, StyleSelectWidget, StrengthWidget
+from .widget import GenerateButton, QueueButton, ErrorBox, create_wide_tool_button
 from .region import RegionPromptWidget
 from . import theme
 
@@ -710,12 +710,15 @@ class GenerationWidget(QWidget):
         layout.addWidget(self.region_prompt)
 
         self.strength_slider = StrengthWidget(parent=self)
+        self.layer_count_widget = LayerCountWidget(self)
+        self.layer_count_widget.setVisible(False)
         self.add_region_button = create_wide_tool_button("region-add", _("Add Region"), self)
         self.add_control_button = create_wide_tool_button(
             "control-add", _("Add Control Layer"), self
         )
         strength_layout = QHBoxLayout()
         strength_layout.addWidget(self.strength_slider)
+        strength_layout.addWidget(self.layer_count_widget)
         strength_layout.addWidget(self.add_control_button)
         strength_layout.addWidget(self.add_region_button)
         layout.addLayout(strength_layout)
@@ -784,6 +787,7 @@ class GenerationWidget(QWidget):
                 bind(model, "workspace", self.workspace_select, "value", Bind.one_way),
                 bind(model, "style", self.style_select, "value"),
                 bind(model, "strength", self.strength_slider, "value"),
+                bind(model, "layer_count", self.layer_count_widget, "value"),
                 bind(model, "error", self.error_box, "error", Bind.one_way),
                 bind_toggle(model, "region_only", self.region_mask_button),
                 model.inpaint.mode_changed.connect(self.update_generate_options),
@@ -929,13 +933,17 @@ class GenerationWidget(QWidget):
         if not self.model.has_document:
             return
 
+        arch = self.model.arch
+        self.strength_slider.setVisible(arch is not Arch.qwen_l)
+        self.layer_count_widget.setVisible(arch is Arch.qwen_l)
+
         regions = self.model.active_regions
         self.region_prompt.regions = regions
 
         has_regions = len(regions) > 0
         has_active_region = regions.is_linked(self.model.layers.active)
         is_region_only = has_regions and has_active_region and self.model.region_only
-        is_edit = self.model.arch.is_edit
+        is_edit = arch.is_edit
         can_switch_edit = (
             self.model.style.linked_edit_style != "" and self.model.edit_style is not None
         )
