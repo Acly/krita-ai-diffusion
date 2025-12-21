@@ -8,10 +8,10 @@ from typing import Any, NamedTuple, Sequence
 
 # Version identifier for all the resources defined here. This is used as the server version.
 # It usually follows the plugin version, but not all new plugin versions also require a server update.
-version = "1.43.0"
+version = "1.44.0"
 
 comfy_url = "https://github.com/comfyanonymous/ComfyUI"
-comfy_version = "f8b981ae9a5676311624bbafa636a1874db79459"
+comfy_version = "807538fe6c66bca8c91edbad14414fb4e109cbde"
 nunchaku_version = "1.0.1"
 
 
@@ -42,7 +42,7 @@ required_custom_nodes = [
         "External Tooling Nodes",
         "comfyui-tooling-nodes",
         "https://github.com/Acly/comfyui-tooling-nodes",
-        "02202529129dd33d0622dcc72d0550d10bf40d62",
+        "22cfd71f951d19ead5a3f0915a4cf7b7979dc41e",
         ["ETN_LoadImageCache", "ETN_SaveImageCache", "ETN_Translate"],
     ),
     CustomNode(
