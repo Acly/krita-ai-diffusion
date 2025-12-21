@@ -568,6 +568,9 @@
     "Total:": "总计:",
     "Not supported for edit models": "编辑类模型不支持",
     "Document:": "当前文档:",
-    "Jobs": "任务数"
+    "Jobs": "任务数",
+    "Overwrite Workflow": null,
+    "A workflow named '{name}' already exists. Do you want to overwrite it?": null,
+    "Layers": null
   }
 }

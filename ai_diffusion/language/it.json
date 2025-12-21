@@ -568,6 +568,9 @@
     "Custom ComfyUI": "Personalizza ComfyUI",
     "Not supported for edit models": "Non supportato per i modelli di modifica",
     "Document:": null,
-    "Jobs": "Lavoro"
+    "Jobs": "Lavoro",
+    "Overwrite Workflow": null,
+    "A workflow named '{name}' already exists. Do you want to overwrite it?": null,
+    "Layers": null
   }
 }
