@@ -633,10 +633,7 @@ class Model(QObject, ObservableProperties):
             self.progress = 0
 
     def _apply_resize_command(self, cmd: ResizeCommand, job: Job):
-        try:
-            job.params.resize_canvas = bool(cmd.resize_canvas)
-        except Exception as e:
-            log.warning(f"Failed to store resize command from custom workflow: {e}")
+        job.params.resize_canvas = cmd.resize_canvas
 
     def update_preview(self):
         if selection := self.jobs.selection:
@@ -681,17 +678,8 @@ class Model(QObject, ObservableProperties):
         region_behavior=ApplyRegionBehavior.layer_group,
         prefix="",
     ):
-        if params.resize_canvas:
-            try:
-                extent = image.extent
-                target_width, target_height = extent.width, extent.height
-                current = self.document.extent
-                if current.width != target_width or current.height != target_height:
-                    self.document.resize_canvas(target_width, target_height)
-            except Exception as e:
-                log.warning(f"Failed to resize canvas from custom workflow: {e}")
-            finally:
-                params.resize_canvas = False
+        if params.resize_canvas and self.document.extent != image.extent:
+            self.document.resize_canvas(*image.extent)
 
         bounds = Bounds(*params.bounds.offset, *image.extent)
         if len(params.regions) == 0 or region_behavior is ApplyRegionBehavior.none:

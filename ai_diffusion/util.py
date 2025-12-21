@@ -22,11 +22,7 @@ plugin_dir = dir = Path(__file__).parent
 
 
 def _get_user_data_dir():
-    spec = importlib.util.find_spec("krita")
-    origin = getattr(spec, "origin", "") if spec is not None else ""
-    # Treat local helper modules named `krita.py` as "no Krita" so tests and
-    # non-Krita environments use a local appdata directory.
-    if spec is None or (origin and origin.endswith("krita.py")):
+    if importlib.util.find_spec("krita") is None:
         dir = plugin_dir.parent / ".appdata"
         dir.mkdir(exist_ok=True)
         return dir
