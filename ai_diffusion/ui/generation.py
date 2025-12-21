@@ -134,7 +134,7 @@ class HistoryWidget(QListWidget):
                 self._add_item(job, QListWidgetItem(self._image_thumbnail(job, 0), None))
             else:
                 for i, img in enumerate(job.results):
-                    self._add_item(job, QListWidgetItem(self._image_thumbnail(job, i), None))
+                    self._add_item(job, QListWidgetItem(self._image_thumbnail(job, i), None), i)
 
         if job.kind is JobKind.animation:
             item = AnimatedListItem([
@@ -145,9 +145,9 @@ class HistoryWidget(QListWidget):
         if scroll_to_bottom:
             self.scrollToBottom()
 
-    def _add_item(self, job: Job, item: QListWidgetItem):
+    def _add_item(self, job: Job, item: QListWidgetItem, index=0):
         item.setData(Qt.ItemDataRole.UserRole, job.id)
-        item.setData(Qt.ItemDataRole.UserRole + 1, 0)
+        item.setData(Qt.ItemDataRole.UserRole + 1, index)
         item.setData(Qt.ItemDataRole.ToolTipRole, self._job_info(job.params))
         self.addItem(item)
 
