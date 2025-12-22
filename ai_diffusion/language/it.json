@@ -523,7 +523,7 @@
     "Discovering models": "Alla scoperta dei modelli",
     "Previous installation is incomplete": "L'installazione precedente è incompleta",
     "Install and run a local ComfyUI server on your machine. Installation and updates are performed automatically by the plugin. Requires a compatible GPU (NVIDIA with at least 6GB VRAM recommended).": null,
-    "Individual Packages": "Pacchetti Individuali",
+    "Individual Packages": "Pacchetti Singoli",
     "Buy Tokens": "Acquista Gettoni",
     "Excellent": "Eccellente",
     "Very Fast": "Molto Veloce",
@@ -567,10 +567,10 @@
     "Total:": "Totale",
     "Custom ComfyUI": "Personalizza ComfyUI",
     "Not supported for edit models": "Non supportato per i modelli di modifica",
-    "Document:": null,
+    "Document:": "Documento",
     "Jobs": "Lavoro",
-    "Overwrite Workflow": null,
-    "A workflow named '{name}' already exists. Do you want to overwrite it?": null,
-    "Layers": null
+    "Overwrite Workflow": "Sovrascrivi Workflow",
+    "A workflow named '{name}' already exists. Do you want to overwrite it?": "Esiste già un flusso di lavoro denominato '{name}'. Vuoi sovrascriverlo?",
+    "Layers": "Strati"
   }
 }
