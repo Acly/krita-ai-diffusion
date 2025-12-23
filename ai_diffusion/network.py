@@ -280,6 +280,11 @@ class DownloadHelper:
     def final(self):
         return DownloadProgress(self._initial + self._received, self._initial + self._total, 0, 1)
 
+    def seconds_since_last_update(self):
+        if self._time is None:
+            return 0
+        return (datetime.now() - self._time).total_seconds()
+
 
 async def _try_download(network: QNetworkAccessManager, url: str, path: Path):
     out_file = QFile(str(path) + ".part")
@@ -326,8 +331,17 @@ async def _try_download(network: QNetworkAccessManager, url: str, path: Path):
         await asyncio.wait([progress_future, finished_future], return_when=asyncio.FIRST_COMPLETED)
         if progress_future.done():
             progress = progress_future.result()
-            progress_future = asyncio.get_running_loop().create_future()
             yield progress
+            await asyncio.sleep(0.1)  # don't starve UI
+            progress_future = asyncio.get_running_loop().create_future()
+
+        if progress_helper.seconds_since_last_update() > 30:
+            reply.abort()
+            raise NetworkError(
+                QNetworkReply.NetworkError.TimeoutError,
+                "Connection timed out, the server took too long to respond",
+                url,
+            )
 
     if e := finished_future.exception():
         raise e
@@ -349,6 +363,7 @@ async def download(network: QNetworkAccessManager, url: str, path: Path):
             elif e.code in [
                 QNetworkReply.NetworkError.RemoteHostClosedError,
                 QNetworkReply.NetworkError.TemporaryNetworkFailureError,
+                QNetworkReply.NetworkError.TimeoutError,
             ]:
                 log.warning(f"Download interrupted: {e}")
                 if retry == 1:
