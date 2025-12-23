@@ -11,7 +11,7 @@ from ai_diffusion.style import Arch
 from ai_diffusion.server import Server, ServerState, ServerBackend, InstallationProgress
 from ai_diffusion.server import model_dirs
 from ai_diffusion.resources import VerificationState
-from .config import test_dir, server_dir
+from .config import server_dir
 
 workload_sd15 = [p.id.string for p in resources.required_models if p.arch in (Arch.all, Arch.sd15)]
 workload_sd15 += [resources.default_checkpoints[0].id.string]
@@ -176,7 +176,7 @@ def test_uninstall(qtapp, pytestconfig, local_download_server):
     if not pytestconfig.getoption("--test-install"):
         pytest.skip("Only runs with --test-install")
 
-    temp_server_dir = test_dir / "temp_server"
+    temp_server_dir = server_dir.parent / "temp-server"
     if temp_server_dir.exists():
         shutil.rmtree(temp_server_dir, ignore_errors=True)
     server = Server(str(temp_server_dir), ServerBackend.cpu)

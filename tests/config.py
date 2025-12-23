@@ -1,10 +1,14 @@
+import os
+
 from pathlib import Path
 from ai_diffusion.resources import Arch, default_checkpoints
+
+_server_dir_env = os.getenv("AI_DIFFUSION_TEST_SERVER_DIR")
 
 
 test_dir = Path(__file__).parent
 root_dir = test_dir.parent
-server_dir = test_dir / "server"
+server_dir = Path(_server_dir_env) if _server_dir_env else test_dir / "server"
 data_dir = test_dir / "data"
 image_dir = test_dir / "images"
 result_dir = test_dir / "results"
