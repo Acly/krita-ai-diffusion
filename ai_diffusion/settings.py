@@ -25,6 +25,7 @@ class ServerBackend(Enum):
     cuda = (_("Use CUDA (NVIDIA GPU)"), not is_macos)
     mps = (_("Use MPS (Metal Performance Shader)"), is_macos)
     directml = (_("Use DirectML (GPU)"), is_windows)
+    rocm = (_("Use ROCm[HIP] (AMD GPU)"), True)
     xpu = (_("Use XPU (Intel GPU)"), not is_macos)
 
     @staticmethod
