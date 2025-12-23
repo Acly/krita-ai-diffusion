@@ -224,7 +224,8 @@ class Server:
                 log.warning(f"powershell command not found, trying to find it at {cmd[0]}")
                 await _execute_process("Python", cmd, self.path, cb, env=env)
         else:
-            cmd = ["/bin/sh", str(script_path)]
+            sh = _find_program("sh") or Path("/bin/sh")
+            cmd = [str(sh), str(script_path)]
             await _execute_process("Python", cmd, self.path, cb, env=env)
 
         self._uv_cmd = self.path / "uv" / ("uv" + _exe)
