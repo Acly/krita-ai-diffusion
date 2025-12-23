@@ -329,12 +329,6 @@ class Server:
             await self._install_insightface(network, cb)
 
     async def install(self, callback: Callback):
-        assert self.state in [
-            ServerState.not_installed,
-            ServerState.missing_resources,
-            ServerState.update_required,
-        ]
-
         def cb(stage: str, message: str | DownloadProgress):
             out_message = ""
             progress = None
@@ -348,27 +342,32 @@ class Server:
             callback(InstallationProgress(stage, progress, out_message))
 
         try:
+            assert self.state in (
+                ServerState.not_installed,
+                ServerState.missing_resources,
+                ServerState.update_required,
+            )
+
             await self._install(cb)
         except Exception as e:
-            log.exception(str(e))
-            log.error("Installation failed")
+            log.exception(f"Installation failed: {e}")
             self.state = ServerState.stopped
             self.check_install()
             raise Exception(parse_common_errors(str(e)))
 
     async def download(self, packages: list[str], callback: Callback):
-        assert self.comfy_dir, "Must install ComfyUI before downloading models"
-        network = QNetworkAccessManager()
-        prev_state = self.state
-        self.state = ServerState.installing
-
         def cb(stage: str, message: str | DownloadProgress):
             if isinstance(message, str):
                 log.info(message)
             progress = message if isinstance(message, DownloadProgress) else None
             callback(InstallationProgress(stage, progress))
 
+        prev_state = self.state
         try:
+            assert self.comfy_dir, "Must install ComfyUI before downloading models"
+            network = QNetworkAccessManager()
+            self.state = ServerState.installing
+
             all_models = chain(
                 resources.required_models,
                 resources.default_checkpoints,
@@ -387,7 +386,7 @@ class Server:
                         target_file.parent.mkdir(parents=True, exist_ok=True)
                         await _download_cached(resource.name, network, file.url, target_file, cb)
         except Exception as e:
-            log.exception(str(e))
+            log.exception(f"Download failed: {e}")
             raise e
         finally:
             self.state = prev_state
@@ -457,13 +456,14 @@ class Server:
             )
 
     async def start(self, port: int | None = None):
-        assert self.state in [ServerState.stopped, ServerState.missing_resources]
-        assert self._python_cmd
-        await self._log_python_version()
-
-        self.state = ServerState.starting
         last_line = ""
+
         try:
+            assert self.state in [ServerState.stopped, ServerState.missing_resources]
+            assert self._python_cmd
+            await self._log_python_version()
+            self.state = ServerState.starting
+
             args = ["-su", "main.py"]
             env = {}
             if self.backend is ServerBackend.cpu:
@@ -520,10 +520,10 @@ class Server:
         return self.url
 
     async def run(self):
-        assert self.state is ServerState.running
-        assert self._process and self._process.stdout
-
         try:
+            assert self.state is ServerState.running
+            assert self._process and self._process.stdout
+
             async for line in self._process.stdout:
                 server_log.info(decode_pipe_bytes(line).strip())
 
@@ -542,8 +542,8 @@ class Server:
         self._process = None
 
     async def stop(self):
-        assert self.state is ServerState.running
         try:
+            assert self.state is ServerState.running
             if self._process and self._task:
                 log.info("Stopping server")
                 self._process.terminate()
@@ -562,10 +562,10 @@ class Server:
             pass
 
     async def verify(self, callback: Callback):
-        assert self.state in [ServerState.stopped, ServerState.missing_resources]
-
-        self.state = ServerState.verifying
         try:
+            assert self.state in [ServerState.stopped, ServerState.missing_resources]
+            self.state = ServerState.verifying
+
             loop = asyncio.get_running_loop()
             result = await asyncio.to_thread(self._verify, callback, loop)
             for status in result:
@@ -629,7 +629,7 @@ class Server:
                     remove_file(filepath)
                     await _download_cached(status.file.name, network, status.file.url, filepath, cb)
         except Exception as e:
-            log.exception(str(e))
+            log.exception(f"Error while replacing corrupted models: {e}")
             raise e
         finally:
             self.state = prev_state
@@ -637,26 +637,30 @@ class Server:
 
     async def uninstall(self, callback: Callback, delete_models=False):
         log.info(f"Uninstalling server at {self.path}")
-        assert self.state in [ServerState.stopped, ServerState.missing_resources]
-
-        self.state = ServerState.uninstalling
         try:
+            assert self.state in (
+                ServerState.stopped,
+                ServerState.missing_resources,
+                ServerState.update_required,
+            )
+            self.state = ServerState.uninstalling
             loop = asyncio.get_running_loop()
+
             await asyncio.to_thread(self._uninstall, callback, delete_models, loop)
         except Exception as e:
-            log.exception(f"Error during server uninstall: {str(e)}")
+            log.exception(f"Error during server uninstall: {e}")
             raise e
         finally:
             self.state = ServerState.stopped
             self.check_install()
 
     def _uninstall(self, callback: Callback, delete_models: bool, loop: asyncio.AbstractEventLoop):
-        assert self.state is ServerState.uninstalling
-
         def cb(msg: str):
             loop.call_soon_threadsafe(callback, InstallationProgress("Uninstalling", message=msg))
 
         try:
+            assert self.state is ServerState.uninstalling
+
             if self.comfy_dir and self.comfy_dir.exists():
                 cb("Removing ComfyUI")
                 if not delete_models:
@@ -702,7 +706,7 @@ class Server:
 
             cb("Finished uninstalling")
         except Exception as e:
-            log.exception(f"Error during server uninstall: {str(e)}")
+            log.exception(f"Error during server uninstall: {e}")
             raise e
 
     @property
