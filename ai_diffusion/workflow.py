@@ -105,6 +105,8 @@ def load_checkpoint_with_lora(w: ComfyWorkflow, checkpoint: CheckpointInput, mod
                 model = w.nunchaku_load_flux_diffusion_model(
                     model_info.filename, cache_threshold=cache
                 )
+            elif model_info.arch == Arch.zimage:
+                model = w.nunchaku_load_zimage_diffusion_model(model_info.filename)
             elif model_info.arch.is_qwen_like:
                 model = w.nunchaku_load_qwen_diffusion_model(model_info.filename)
             else:

@@ -568,6 +568,16 @@ class ComfyWorkflow:
             use_pin_memory="disable",
         )
 
+    def nunchaku_load_zimage_diffusion_model(self, model_name: str, num_blocks_on_gpu=1):
+        return self.add_cached(
+            "NunchakuZImageDiTLoader",
+            1,
+            model_name=model_name,
+            cpu_offload="auto",
+            num_blocks_on_gpu=num_blocks_on_gpu,
+            use_pin_memory="disable",
+        )
+
     def nunchaku_load_flux_lora(self, model: Output, name: str, strength: float):
         return self.add(
             "NunchakuFluxLoraLoader", 1, model=model, lora_name=name, lora_strength=strength
