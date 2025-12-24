@@ -348,6 +348,7 @@
     "Use CUDA (NVIDIA GPU)": "Использовать CUDA (NVIDIA GPU)",
     "Use Ctrl+Click to replace the text with a translation immediately.": "Ctrl+Нажатие, чтобы немедленно заменить текст переводом.",
     "Use DirectML (GPU)": "Использовать DirectML (GPU)",
+    "Use ROCm[HIP] (AMD GPU)": "Использовать ROCm[HIP] (AMD GPU)",
     "Use MPS (Metal Performance Shader)": "Использовать MPS (Metal Performance Shader)",
     "Use Prompt": "Использовать подсказки",
     "Use custom values": "Использовать пользовательские значения",
