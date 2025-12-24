@@ -50,6 +50,10 @@ class Document(QObject):
     def resize(self, extent: Extent):
         raise NotImplementedError
 
+    def resize_canvas(self, width: int, height: int):
+        """Resize the underlying canvas if supported by the implementation."""
+        pass
+
     def annotate(self, key: str, value: QByteArray):
         pass
 
@@ -229,6 +233,9 @@ class KritaDocument(Document):
     def resize(self, extent: Extent):
         res = self._doc.resolution()
         self._doc.scaleImage(extent.width, extent.height, res, res, "Bilinear")
+
+    def resize_canvas(self, width: int, height: int):
+        self._doc.resizeImage(0, 0, width, height)
 
     def annotate(self, key: str, value: QByteArray):
         self._doc.setAnnotation(f"ai_diffusion/{key}", f"AI Diffusion Plugin: {key}", value)

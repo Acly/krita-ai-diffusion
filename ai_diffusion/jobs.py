@@ -56,6 +56,7 @@ class JobParams:
     is_layered: bool = False
     frame: tuple[int, int, int] = (0, 0, 0)
     animation_id: str = ""
+    resize_canvas: bool = False
 
     @staticmethod
     def from_dict(data: dict[str, Any]):
