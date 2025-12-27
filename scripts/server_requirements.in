@@ -10,7 +10,7 @@
 # ComfyUI
 torchsde
 einops
-transformers>=4.28.1
+transformers>=4.54
 tokenizers>=0.13.3
 sentencepiece
 safetensors>=0.4.2
@@ -65,8 +65,8 @@ argostranslate
 sentencepiece==0.2.0
 
 # Nunchaku
-diffusers>=0.34
+diffusers>=0.36
 accelerate
 huggingface_hub
 tomli
-peft>=0.15
+peft>=0.17

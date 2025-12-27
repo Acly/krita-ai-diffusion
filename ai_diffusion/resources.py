@@ -8,11 +8,11 @@ from typing import Any, NamedTuple, Sequence
 
 # Version identifier for all the resources defined here. This is used as the server version.
 # It usually follows the plugin version, but not all new plugin versions also require a server update.
-version = "1.44.0"
+version = "1.45.0"
 
 comfy_url = "https://github.com/comfyanonymous/ComfyUI"
 comfy_version = "807538fe6c66bca8c91edbad14414fb4e109cbde"
-nunchaku_version = "1.0.1"
+nunchaku_version = "1.1.0"
 
 
 class CustomNode(NamedTuple):
@@ -66,7 +66,7 @@ optional_custom_nodes = [
         "Nunchaku",
         "ComfyUI-nunchaku",
         "https://github.com/nunchaku-tech/ComfyUI-nunchaku",
-        "d3a640a1d0c9f726b7ca3acc28daca8f52d10922",
+        "930bc2266a4f3277e16be75e67c11875d20a01c6",
         ["NunchakuFluxDiTLoader"],
     ),
 ]

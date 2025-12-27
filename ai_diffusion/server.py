@@ -249,7 +249,7 @@ class Server:
         await _extract_archive("ComfyUI", archive_path, comfy_dir.parent, cb)
         temp_comfy_dir = comfy_dir.parent / f"ComfyUI-{resources.comfy_version}"
 
-        torch_args = ["torch==2.8.0", "torchvision==0.23.0", "torchaudio==2.8.0"]
+        torch_args = ["torch==2.9.1", "torchvision==0.24.1", "torchaudio==2.9.1"]
         if is_macos:  # specific versions sometimes don't work (?)
             torch_args = ["torch", "torchvision", "torchaudio"]
         elif self.backend is ServerBackend.cpu:
@@ -319,7 +319,7 @@ class Server:
 
         platform = "win_amd64" if is_windows else "linux_x86_64"
         ver = resources.nunchaku_version
-        whl_url = f"https://github.com/nunchaku-tech/nunchaku/releases/download/v{ver}/nunchaku-{ver}+torch2.8-cp312-cp312-{platform}.whl"
+        whl_url = f"https://github.com/nunchaku-tech/nunchaku/releases/download/v{ver}/nunchaku-{ver}+torch2.9-cp312-cp312-{platform}.whl"
         await self._pip_install("Nunchaku", [whl_url], cb)
 
     async def _install_requirements(
