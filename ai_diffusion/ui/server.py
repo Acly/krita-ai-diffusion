@@ -1134,7 +1134,8 @@ class ServerWidget(QWidget):
             self.update_ui()
 
     def update_ui(self):
-        self._location_edit.setText(settings.server_path)
+        if self._location_edit.text() != settings.server_path:
+            self._location_edit.setText(settings.server_path)
         backends = ServerBackend.supported()
         try:
             index = backends.index(settings.server_backend)
