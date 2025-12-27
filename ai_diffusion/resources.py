@@ -94,6 +94,7 @@ class Arch(Enum):
 
     @staticmethod
     def from_string(string: str, model_type: str = "eps", filename: str | None = None):
+        filename = filename.lower() if filename else ""
         if string == "sd15":
             return Arch.sd15
         if string == "sdxl" and model_type == "v-prediction":
@@ -102,7 +103,7 @@ class Arch(Enum):
             return Arch.sdxl
         if string == "sd3":
             return Arch.sd3
-        if string == "flux" and filename and "kontext" in filename.lower():
+        if string == "flux" and "kontext" in filename:
             return Arch.flux_k
         if string == "flux" or string == "flux-schnell":
             return Arch.flux
@@ -112,12 +113,12 @@ class Arch(Enum):
             return Arch.illu_v
         if string == "chroma":
             return Arch.chroma
-        if string == "qwen-image" and filename and "edit" in filename.lower():
-            if "2509" in filename.lower():
+        if string == "qwen-image" and "edit" in filename:
+            if "2509" in filename or "2511" in filename:
                 return Arch.qwen_e_p
             else:
                 return Arch.qwen_e
-        if string == "qwen-image" and filename and "layered" in filename.lower():
+        if string == "qwen-image" and "layered" in filename:
             return Arch.qwen_l
         if string == "qwen-image":
             return Arch.qwen
