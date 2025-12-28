@@ -1121,8 +1121,8 @@ class SettingsDialog(QDialog):
         self.setMinimumSize(QSize(960, 480))
         if screen := QGuiApplication.screenAt(QCursor.pos()):
             size = screen.availableSize()
-            min_w = min(size.width(), QFontMetrics(self.font()).height() * 50)
-            self.resize(QSize(max(min_w, int(size.width() * 0.6)), int(size.height() * 0.8)))
+            min_w = min(size.width(), QFontMetrics(self.font()).width("M") * 100)
+            self.resize(QSize(min_w, int(size.height() * 0.8)))
 
         layout = QHBoxLayout()
         self.setLayout(layout)
