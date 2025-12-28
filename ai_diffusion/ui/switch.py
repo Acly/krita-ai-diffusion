@@ -24,21 +24,6 @@ class SwitchWidget(QAbstractButton):
         }
         self._offset = self._base_offset
 
-        palette = self.palette()
-        self._thumb_color = {
-            True: palette.text(),
-            False: palette.light(),
-        }
-        self._track_color = {
-            True: palette.highlight(),
-            False: palette.dark(),
-        }
-        self._text_color = {
-            True: palette.highlight().color(),
-            False: palette.dark().color(),
-        }
-        self._track_opacity = 1
-
     @pyqtProperty(int)
     def offset(self):  # type: ignore
         return self._offset
@@ -68,18 +53,19 @@ class SwitchWidget(QAbstractButton):
         self.offset = self._end_offset[self.isChecked()]()
 
     def paintEvent(self, e):
+        palette = self.palette()
         p = QPainter(self)
         p.setRenderHint(QPainter.Antialiasing, True)
         p.setPen(Qt.PenStyle.NoPen)
-        track_opacity = self._track_opacity
+        track_opacity = 1.0
         thumb_opacity = 1.0
         if self.isEnabled():
-            track_brush = self._track_color[self.isChecked()]
-            thumb_brush = self._thumb_color[self.isChecked()]
+            track_brush = palette.highlight() if self.isChecked() else palette.dark()
+            thumb_brush = palette.text() if self.isChecked() else palette.light()
         else:
-            track_opacity *= 0.8
-            track_brush = self.palette().shadow()
-            thumb_brush = self.palette().mid()
+            track_opacity = 0.8
+            track_brush = palette.shadow()
+            thumb_brush = palette.mid()
 
         p.setBrush(track_brush)
         p.setOpacity(track_opacity)
