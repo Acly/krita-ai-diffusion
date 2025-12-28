@@ -43,13 +43,11 @@ class LoraItem(QWidget):
     changed = pyqtSignal()
     removed = pyqtSignal(QWidget)
 
-    def __init__(self, name_filter: str, parent=None):
+    def __init__(self, loras: FileFilter, parent=None):
         super().__init__(parent)
         self.setContentsMargins(0, 0, 0, 0)
 
-        self._loras = FileFilter(root.files.loras)
-        self._loras.available_only = True
-        self._loras.name_prefix = name_filter
+        self._loras = loras
         self._current: File | None = None
 
         completer = QCompleter(self._loras)
@@ -261,11 +259,22 @@ class LoraItem(QWidget):
         self._enabled.setChecked(v.get("enabled", True))
         self._update()
 
-    def apply_filter(self, name_filter: str):
-        with SignalBlocker(self._select):
-            self._loras.name_prefix = name_filter
+    def start_apply_filter(self):
+        self._select.blockSignals(True)
+
+    def apply_filter(self):
+        # filter available items _without_ changing current selection
         if self._current and self._current.id != self._select.currentData():
             self._select.setEditText(self._current.name)
+        self._select.blockSignals(False)
+
+    def reset(self):
+        self._current = None
+        self.strength = 1.0
+        self._enabled.setChecked(True)
+        self._select.setCurrentIndex(0)
+        if self._loras.rowCount() > 0:
+            self._select_lora()
 
     def _show_lora_warnings(self, lora: File):
         if client := root.connection.client_if_connected:
@@ -300,11 +309,11 @@ class LoraList(QWidget):
     open_folder_button: Optional[QToolButton] = None
     last_filter = "All"
 
-    _items: list[LoraItem]
-
     def __init__(self, setting: Setting, parent=None):
         super().__init__(parent)
-        self._items = []
+        self._items: list[LoraItem] = []
+        self._loras = FileFilter(root.files.loras)
+        self._loras.available_only = True
 
         self._layout = QVBoxLayout()
         self._layout.setContentsMargins(0, 0, 0, 0)
@@ -356,21 +365,30 @@ class LoraList(QWidget):
 
     def _add_item(self, lora: dict | File | None = None):
         assert self._item_list is not None
-        item = LoraItem(self.filter_prefix, parent=self)
+        for i in self._items:
+            if not i.isVisible():
+                item = i  # reuse existing item to avoid cost of creating new ones
+                item.setVisible(True)
+                break
+        else:
+            item = LoraItem(self._loras, parent=self)
+            item.changed.connect(self._update_item)
+            item.removed.connect(self._remove_item)
+            self._items.append(item)
+
         if isinstance(lora, dict):
             item.value = lora
         elif isinstance(lora, File):
             item.value = dict(name=lora.id, strength=1.0)
-        item.changed.connect(self._update_item)
-        item.removed.connect(self._remove_item)
-        self._items.append(item)
+        else:
+            item.reset()
         self._item_list.addWidget(item)
         self.value_changed.emit()
 
     def _remove_item(self, item: QWidget):
-        self._items.remove(item)
+        # removing and creating items is slow, hiding allows reuse
+        item.setVisible(False)
         self._item_list.removeWidget(item)
-        item.deleteLater()
         self.value_changed.emit()
 
     def _update_item(self):
@@ -395,7 +413,10 @@ class LoraList(QWidget):
     def _set_filtered_names(self):
         LoraList.last_filter = self.filter
         for item in self._items:
-            item.apply_filter(self.filter_prefix)
+            item.start_apply_filter()
+        self._loras.name_prefix = self.filter_prefix
+        for item in self._items:
+            item.apply_filter()
 
     def _upload_lora(self):
         filepath = QFileDialog.getOpenFileName(
@@ -422,12 +443,12 @@ class LoraList(QWidget):
 
     @property
     def value(self):
-        return [item.value for item in self._items]
+        return [item.value for item in self._items if item.isVisible()]
 
     @value.setter
     def value(self, v):
-        while not len(self._items) == 0:
-            self._remove_item(self._items[-1])
+        for item in self._items:
+            self._remove_item(item)
         for lora in v:
             self._add_item(lora)
 
