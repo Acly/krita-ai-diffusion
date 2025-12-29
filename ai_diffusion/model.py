@@ -23,15 +23,8 @@ from .settings import ApplyBehavior, ApplyRegionBehavior, GenerationFinishedActi
 from .settings import settings
 from .network import NetworkError
 from .image import Extent, Image, Mask, Bounds, DummyImage
-from .client import (
-    Client,
-    ClientMessage,
-    ClientEvent,
-    ClientOutput,
-    is_style_supported,
-    ResizeCommand,
-)
-from .client import filter_supported_styles, resolve_arch
+from .client import Client, ClientMessage, ClientEvent, ClientOutput, ResizeCommand
+from .client import is_style_supported, filter_supported_styles, resolve_arch
 from .custom_workflow import CustomWorkspace, WorkflowCollection, CustomGenerationMode
 from .document import Document, KritaDocument
 from .layer import Layer, LayerType, RestoreActiveLayer
@@ -597,10 +590,7 @@ class Model(QObject, ObservableProperties):
             self.progress_kind = ProgressKind.upload
             self.progress = message.progress
         elif message.event is ClientEvent.output:
-            if isinstance(message.result, ResizeCommand):
-                self._apply_resize_command(message.result, job)
-            else:
-                self.custom.show_output(message.result)
+            self.custom.handle_output(job, message.result)
         elif message.event is ClientEvent.finished:
             if message.error:  # successful jobs may have encountered some warnings
                 self.report_error(Error.from_string(message.error, ErrorKind.warning))
@@ -639,9 +629,6 @@ class Model(QObject, ObservableProperties):
         else:
             self.jobs.notify_cancelled(job)
             self.progress = 0
-
-    def _apply_resize_command(self, cmd: ResizeCommand, job: Job):
-        job.params.resize_canvas = cmd.resize_canvas
 
     def update_preview(self):
         if selection := self.jobs.selection:

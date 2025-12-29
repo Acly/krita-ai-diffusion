@@ -11,15 +11,9 @@ from typing import Any, Iterable, Optional, Sequence
 
 from .api import WorkflowInput
 from .client import Client, CheckpointInfo, ClientMessage, ClientEvent, DeviceInfo, ClientModels
-from .client import (
-    SharedWorkflow,
-    TranslationPackage,
-    ClientFeatures,
-    ClientJobQueue,
-    TextOutput,
-    ResizeCommand,
-)
-from .client import Quantization, MissingResources, filter_supported_styles, loras_to_upload
+from .client import SharedWorkflow, TranslationPackage, ClientFeatures, ClientJobQueue, TextOutput
+from .client import ResizeCommand, Quantization, MissingResources
+from .client import filter_supported_styles, loras_to_upload
 from .comfy_workflow import ComfyObjectInfo
 from .files import FileFormat
 from .image import Image, ImageCollection
@@ -909,16 +903,15 @@ def _extract_resize_output(job_id: str, msg: dict):
         if output is None:
             return None
 
-        resize = output.get("resize_canvas")
-        if isinstance(resize, list):
-            active = any(bool(item) for item in resize)
-        else:
-            active = bool(resize)
-
-        if not active:
+        info = output.get("info")
+        if isinstance(info, list):
+            info = info[0]
+        if not isinstance(info, dict):
             return None
 
-        return ClientMessage(ClientEvent.output, job_id, result=ResizeCommand(True))
+        resize_canvas = info.get("resize_canvas", False)
+
+        return ClientMessage(ClientEvent.output, job_id, result=ResizeCommand(resize_canvas))
     except Exception as e:
         log.warning(f"Error processing Krita resize output: {e}, msg={msg}")
         return None

@@ -11,7 +11,7 @@ from PyQt5.QtCore import Qt, QObject, QUuid, QAbstractListModel, QSortFilterProx
 from PyQt5.QtCore import QMetaObject, QTimer, pyqtSignal
 
 from .api import WorkflowInput
-from .client import TextOutput, ClientOutput
+from .client import TextOutput, ClientOutput, ResizeCommand
 from .comfy_workflow import ComfyWorkflow, ComfyNode
 from .connection import Connection, ConnectionState
 from .image import Bounds, Image
@@ -552,11 +552,13 @@ class CustomWorkspace(QObject, ObservableProperties):
             self._workflows.rowsInserted.disconnect(self._switch_workflow_bind)
             self._switch_workflow_bind = None
 
-    def show_output(self, output: ClientOutput | None):
+    def handle_output(self, job: Job, output: ClientOutput | None):
         if isinstance(output, TextOutput):
             self._new_outputs.append(output.key)
             self.outputs[output.key] = output
             self.outputs_changed.emit(self.outputs)
+        elif isinstance(output, ResizeCommand):
+            job.params.resize_canvas = output.resize_canvas
 
     def _handle_job_finished(self, job: Job):
         to_remove = [k for k in self.outputs.keys() if k not in self._new_outputs]
