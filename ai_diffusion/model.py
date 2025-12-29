@@ -23,7 +23,7 @@ from .settings import ApplyBehavior, ApplyRegionBehavior, GenerationFinishedActi
 from .settings import settings
 from .network import NetworkError
 from .image import Extent, Image, Mask, Bounds, DummyImage
-from .client import Client, ClientMessage, ClientEvent, ClientOutput, ResizeCommand
+from .client import Client, ClientMessage, ClientEvent, ClientOutput
 from .client import is_style_supported, filter_supported_styles, resolve_arch
 from .custom_workflow import CustomWorkspace, WorkflowCollection, CustomGenerationMode
 from .document import Document, KritaDocument

@@ -40,7 +40,16 @@ class TextOutput(NamedTuple):
     mime: str
 
 
-class ResizeCommand(NamedTuple):
+class OutputBatchMode(Enum):
+    default = 0
+    images = 1
+    animation = 2
+    layers = 3
+
+
+class JobInfoOutput(NamedTuple):
+    name: str = ""
+    batch_mode: OutputBatchMode = OutputBatchMode.default
     resize_canvas: bool = False
 
 
@@ -49,7 +58,7 @@ class SharedWorkflow(NamedTuple):
     workflow: dict
 
 
-ClientOutput = dict | SharedWorkflow | TextOutput | ResizeCommand
+ClientOutput = dict | SharedWorkflow | TextOutput | JobInfoOutput
 
 
 class ClientMessage(NamedTuple):

@@ -11,7 +11,7 @@ from PyQt5.QtCore import Qt, QObject, QUuid, QAbstractListModel, QSortFilterProx
 from PyQt5.QtCore import QMetaObject, QTimer, pyqtSignal
 
 from .api import WorkflowInput
-from .client import TextOutput, ClientOutput, ResizeCommand
+from .client import OutputBatchMode, TextOutput, ClientOutput, JobInfoOutput
 from .comfy_workflow import ComfyWorkflow, ComfyNode
 from .connection import Connection, ConnectionState
 from .image import Bounds, Image
@@ -557,8 +557,18 @@ class CustomWorkspace(QObject, ObservableProperties):
             self._new_outputs.append(output.key)
             self.outputs[output.key] = output
             self.outputs_changed.emit(self.outputs)
-        elif isinstance(output, ResizeCommand):
+        elif isinstance(output, JobInfoOutput):
             job.params.resize_canvas = output.resize_canvas
+            if output.name:
+                job.params.name = output.name
+            match output.batch_mode:
+                case OutputBatchMode.images:
+                    job.kind = JobKind.diffusion
+                case OutputBatchMode.animation:
+                    job.kind = JobKind.animation
+                case OutputBatchMode.layers:
+                    job.kind = JobKind.diffusion
+                    job.params.is_layered = True
 
     def _handle_job_finished(self, job: Job):
         to_remove = [k for k in self.outputs.keys() if k not in self._new_outputs]

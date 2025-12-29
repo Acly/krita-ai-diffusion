@@ -7,7 +7,14 @@ from pathlib import Path
 from PyQt5.QtCore import Qt
 
 from ai_diffusion.api import CustomWorkflowInput, ImageInput, WorkflowInput
-from ai_diffusion.client import Client, ClientModels, CheckpointInfo, TextOutput
+from ai_diffusion.client import (
+    Client,
+    ClientModels,
+    CheckpointInfo,
+    JobInfoOutput,
+    OutputBatchMode,
+    TextOutput,
+)
 from ai_diffusion.connection import Connection, ConnectionState
 from ai_diffusion.comfy_workflow import ComfyNode, ComfyObjectInfo, ComfyWorkflow, Output
 from ai_diffusion.custom_workflow import WorkflowSource, WorkflowCollection
@@ -360,18 +367,21 @@ def test_text_output():
     ]
 
     jobs = JobQueue()
+    job_params = JobParams(Bounds(0, 0, 1, 1), "test")
+    job1 = Job("job1", JobKind.diffusion, job_params)
+    job2 = Job("job2", JobKind.diffusion, job_params)
+
     workspace = CustomWorkspace(workflows, dummy_generate, jobs)
     workspace.outputs_changed.connect(on_output)
-    workspace.show_output(text_messages[0])
-    workspace.show_output(text_messages[1])
+    workspace.handle_output(job1, text_messages[0])
+    workspace.handle_output(job1, text_messages[1])
     assert workspace.outputs == {"1": text_messages[0], "2": text_messages[1]}
 
-    job_params = JobParams(Bounds(0, 0, 1, 1), "test")
-    jobs.job_finished.emit(Job("job1", JobKind.diffusion, job_params))
+    jobs.job_finished.emit(job1)
 
-    workspace.show_output(text_messages[3])
-    workspace.show_output(text_messages[2])
-    jobs.job_finished.emit(Job("job2", JobKind.diffusion, job_params))
+    workspace.handle_output(job2, text_messages[3])
+    workspace.handle_output(job2, text_messages[2])
+    jobs.job_finished.emit(job2)
     assert workspace.outputs == {"1": text_messages[3], "3": text_messages[2]}
 
     assert output_events == [
@@ -382,6 +392,34 @@ def test_text_output():
         {"1": text_messages[3], "2": text_messages[1], "3": text_messages[2]},  # show_output(2)
         {"1": text_messages[3], "3": text_messages[2]},  # job_finished(job2)
     ]
+
+
+def test_job_info_output():
+    job = Job("job1", JobKind.diffusion, JobParams(Bounds(0, 0, 1, 1), "test"))
+    job_anim = Job("job2", JobKind.animation, JobParams(Bounds(0, 0, 1, 1), "test"))
+    output1 = JobInfoOutput(name="Name1", batch_mode=OutputBatchMode.images, resize_canvas=True)
+    output2 = JobInfoOutput(name="Name2", batch_mode=OutputBatchMode.animation, resize_canvas=False)
+    output3 = JobInfoOutput(name="Name3", batch_mode=OutputBatchMode.layers, resize_canvas=True)
+
+    workspace = CustomWorkspace(
+        WorkflowCollection(create_mock_connection({})), dummy_generate, JobQueue()
+    )
+
+    workspace.handle_output(job, output1)
+    assert job.params.resize_canvas is True
+    assert job.params.name == "Name1"
+    assert job.kind == JobKind.diffusion
+
+    workspace.handle_output(job, output2)
+    assert job.params.resize_canvas is False
+    assert job.params.name == "Name2"
+    assert job.kind == JobKind.animation
+
+    workspace.handle_output(job_anim, output3)
+    assert job_anim.params.resize_canvas is True
+    assert job_anim.params.name == "Name3"
+    assert job_anim.kind == JobKind.diffusion
+    assert job_anim.params.is_layered is True
 
 
 def img_id(image: Image):
