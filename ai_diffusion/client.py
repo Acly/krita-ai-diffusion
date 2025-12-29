@@ -40,12 +40,16 @@ class TextOutput(NamedTuple):
     mime: str
 
 
+class ResizeCommand(NamedTuple):
+    resize_canvas: bool = False
+
+
 class SharedWorkflow(NamedTuple):
     publisher: str
     workflow: dict
 
 
-ClientOutput = dict | SharedWorkflow | TextOutput
+ClientOutput = dict | SharedWorkflow | TextOutput | ResizeCommand
 
 
 class ClientMessage(NamedTuple):
