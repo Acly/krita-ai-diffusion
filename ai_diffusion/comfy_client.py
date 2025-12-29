@@ -125,7 +125,7 @@ class ComfyClient(Client):
         self.url = url
         self.models = ClientModels()
         self._requests = RequestManager()
-        self._id = settings.comfyui_client_id
+        self._id = str(uuid.uuid4())
         self._active_job: Optional[JobInfo] = None
         self._waiting_job = QueuedJob()
         self._features: ClientFeatures = ClientFeatures()
