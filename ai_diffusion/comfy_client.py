@@ -16,7 +16,7 @@ from .client import JobInfoOutput, OutputBatchMode, Quantization, MissingResourc
 from .client import filter_supported_styles, loras_to_upload
 from .comfy_workflow import ComfyObjectInfo
 from .files import FileFormat
-from .image import Image, ImageCollection
+from .image import Image, ImageCollection, Point
 from .network import RequestManager, NetworkError
 from .websockets.src import websockets
 from .style import Styles
@@ -24,7 +24,7 @@ from .resources import ControlMode, ResourceId, ResourceKind, Arch
 from .resources import CustomNode, UpscalerName, resource_id
 from .settings import PerformanceSettings, settings
 from .localization import translate as _
-from .util import client_logger as log
+from .util import client_logger as log, parse_enum
 from .workflow import create as create_workflow
 from . import platform_tools, resources, util
 
@@ -906,7 +906,8 @@ def _extract_job_info_output(job_id: str, msg: dict):
             if isinstance(info, dict):
                 result = JobInfoOutput(
                     name=info.get("name", ""),
-                    batch_mode=OutputBatchMode[info.get("batch_mode", "default")],
+                    offset=Point(info.get("offset_x", 0), info.get("offset_y", 0)),
+                    batch_mode=parse_enum(OutputBatchMode, info.get("batch_mode", "default")),
                     resize_canvas=info.get("resize_canvas", False),
                 )
                 return ClientMessage(ClientEvent.output, job_id, result=result)

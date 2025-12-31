@@ -74,6 +74,10 @@ class Extent(NamedTuple):
         return a if a.width * a.height > b.width * b.height else b
 
     @staticmethod
+    def min(a: "Extent", b: "Extent"):
+        return Extent(min(a.width, b.width), min(a.height, b.height))
+
+    @staticmethod
     def ratio(a: "Extent", b: "Extent"):
         return sqrt(a.pixel_count / b.pixel_count)
 

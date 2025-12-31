@@ -16,6 +16,7 @@ from PyQt5.QtCore import QObject, QStandardPaths
 
 T = TypeVar("T")
 R = TypeVar("R")
+E = TypeVar("E", bound=Enum)
 QOBJECT = TypeVar("QOBJECT", bound=QObject)
 
 plugin_dir = dir = Path(__file__).parent
@@ -90,6 +91,15 @@ def log_error(error: Exception):
 def ensure(value: Optional[T], msg="") -> T:
     assert value is not None, msg or "a value is required"
     return value
+
+
+def parse_enum(enum_class: type[E], value: str, default: E | None = None) -> E:
+    try:
+        return enum_class[value]
+    except KeyError:
+        if default is not None:
+            return default
+        raise ValueError(f"Invalid value '{value}' for enum {enum_class.__name__}")
 
 
 def maybe(func: Callable[[T], R], value: Optional[T]) -> Optional[R]:

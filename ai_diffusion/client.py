@@ -8,7 +8,7 @@ from PyQt5.QtCore import QObject, pyqtSignal
 
 from .api import WorkflowInput
 from .comfy_workflow import ComfyObjectInfo
-from .image import ImageCollection
+from .image import ImageCollection, Point
 from .properties import Property, ObservableProperties
 from .files import FileLibrary, FileFormat
 from .style import Style
@@ -49,6 +49,7 @@ class OutputBatchMode(Enum):
 
 class JobInfoOutput(NamedTuple):
     name: str = ""
+    offset: Point = Point(0, 0)
     batch_mode: OutputBatchMode = OutputBatchMode.default
     resize_canvas: bool = False
 

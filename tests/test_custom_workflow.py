@@ -349,6 +349,43 @@ def test_parameter_order():
     ]
 
 
+def test_prepare_mask():
+    connection_workflows = {"connection1": make_dummy_graph(42)}
+    connection = create_mock_connection(connection_workflows)
+    workflows = WorkflowCollection(connection)
+
+    jobs = JobQueue()
+    workspace = CustomWorkspace(workflows, dummy_generate, jobs)
+
+    mask = Mask.rectangle(Bounds(10, 10, 40, 40), 0)
+    canvas_bounds = Bounds(0, 0, 100, 100)
+    selection_bounds = Bounds(12, 12, 34, 34)
+    selection_node = ComfyNode(0, "ETN_Selection", {"context": "automatic", "padding": 3})
+
+    prepared_mask, bounds = workspace.prepare_mask(
+        selection_node, copy(mask), selection_bounds, canvas_bounds
+    )
+    assert bounds == Bounds(6, 6, 48, 48)  # mask.bounds + padding // multiple of 8
+    assert prepared_mask is not None
+    assert prepared_mask.bounds == Bounds(4, 4, 40, 40)
+
+    selection_node.inputs["context"] = "mask_bounds"
+    prepared_mask, bounds = workspace.prepare_mask(
+        selection_node, copy(mask), selection_bounds, canvas_bounds
+    )
+    assert bounds == Bounds(9, 9, 40, 40)  # selection_bounds + padding // multiple of 8
+    assert prepared_mask is not None
+    assert prepared_mask.bounds == Bounds(1, 1, 40, 40)
+
+    selection_node.inputs["context"] = "entire_image"
+    prepared_mask, bounds = workspace.prepare_mask(
+        selection_node, copy(mask), selection_bounds, canvas_bounds
+    )
+    assert bounds == canvas_bounds
+    assert prepared_mask is not None
+    assert prepared_mask.bounds == mask.bounds
+
+
 def test_text_output():
     connection_workflows = {"connection1": make_dummy_graph(42)}
     connection = create_mock_connection(connection_workflows, ComfyObjectInfo({}))
@@ -490,10 +527,7 @@ def test_expand():
     }
 
     w = ComfyWorkflow()
-    w = workflow.expand_custom(w, input, images, 123, models)
-
-    def find_img_id(image: Image):
-        return next((id for id, img in w.images.items() if img == image), "not-found")
+    w = workflow.expand_custom(w, input, images, Bounds(0, 0, 4, 4), 123, models)
 
     expected = [
         ComfyNode(1, "ETN_LoadImageCache", {"id": img_id(images.initial_image)}),
@@ -554,7 +588,7 @@ def test_expand_animation():
     models = ClientModels()
 
     w = ComfyWorkflow()
-    w = workflow.expand_custom(w, input, images, 123, models)
+    w = workflow.expand_custom(w, input, images, Bounds(0, 0, 4, 4), 123, models)
 
     expected = [
         ComfyNode(1, "ETN_LoadImageCache", {"id": img_id(in_images[0])}),
@@ -577,6 +611,56 @@ def test_expand_animation():
                 "image": Output(3, 0),
                 "image_alpha": Output(7, 0),
                 "mask": Output(13, 0),
+            },
+        ),
+    ]
+    for node in expected:
+        assert node in w, f"Node {node} not found in\n{json.dumps(w.root, indent=2)}"
+
+
+def test_expand_selection():
+    ext = ComfyWorkflow()
+    select, select_active, off_x, off_y = ext.add(
+        "ETN_KritaSelection", 4, context="automatic", padding=2
+    )
+    canvas, width, height, seed = ext.add("ETN_KritaCanvas", 4)
+    ext.add(
+        "Sink",
+        1,
+        image=canvas,
+        width=width,
+        height=height,
+        mask=select,
+        has_selection=select_active,
+        offset_x=off_x,
+        offset_y=off_y,
+    )
+
+    params = {}
+    input = CustomWorkflowInput(workflow=ext.root, params=params)
+    images = ImageInput.from_extent(Extent(8, 16))
+    images.initial_image = Image.create(Extent(8, 16), Qt.GlobalColor.red)
+    images.hires_mask = Image.create(Extent(8, 16), Qt.GlobalColor.green)
+    bounds = Bounds(2, 3, 8, 16)  # selection from (2,2) to (6,6)
+    models = ClientModels()
+
+    w = ComfyWorkflow()
+    w = workflow.expand_custom(w, input, images, bounds, 123, models)
+
+    expected = [
+        ComfyNode(1, "ETN_LoadImageCache", {"id": img_id(images.hires_mask)}),
+        ComfyNode(2, "ETN_LoadImageCache", {"id": img_id(images.initial_image)}),
+        ComfyNode(
+            3,
+            "Sink",
+            {
+                "image": Output(2, 0),
+                "width": 8,
+                "height": 16,
+                "mask": Output(1, 1),
+                "has_selection": True,
+                "offset_x": 2,
+                "offset_y": 3,
             },
         ),
     ]

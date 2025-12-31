@@ -123,6 +123,13 @@ class InpaintMode(Enum):
     custom = 6
 
 
+class InpaintContext(Enum):
+    automatic = 0
+    mask_bounds = 1
+    entire_image = 2
+    layer_bounds = 3
+
+
 class FillMode(Enum):
     none = 0
     neutral = 1

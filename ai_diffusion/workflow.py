@@ -1328,6 +1328,7 @@ def expand_custom(
     w: ComfyWorkflow,
     input: CustomWorkflowInput,
     images: ImageInput,
+    bounds: Bounds,
     seed: int,
     models: ClientModels,
 ):
@@ -1373,6 +1374,8 @@ def expand_custom(
                     image = ensure(images.initial_image)
                     outputs[node.output(0)] = w.solid_mask(image.extent, 1.0)
                 outputs[node.output(1)] = images.hires_mask is not None
+                outputs[node.output(2)] = bounds.x
+                outputs[node.output(3)] = bounds.y
             case "ETN_Parameter":
                 outputs[node.output(0)] = get_param(node)
             case "ETN_KritaImageLayer":
@@ -1689,7 +1692,14 @@ def create(i: WorkflowInput, models: ClientModels, comfy_mode=ComfyRunMode.serve
         )
     elif i.kind is WorkflowKind.custom:
         seed = ensure(i.sampling).seed
-        return expand_custom(workflow, ensure(i.custom_workflow), ensure(i.images), seed, models)
+        return expand_custom(
+            workflow,
+            ensure(i.custom_workflow),
+            ensure(i.images),
+            ensure(i.inpaint).target_bounds,
+            seed,
+            models,
+        )
     else:
         raise ValueError(f"Unsupported workflow kind: {i.kind}")
 

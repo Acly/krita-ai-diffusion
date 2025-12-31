@@ -10,7 +10,7 @@ from typing import Any
 from ai_diffusion import workflow
 from ai_diffusion.api import LoraInput, WorkflowKind, WorkflowInput, ControlInput, RegionInput
 from ai_diffusion.api import InpaintMode, FillMode, ConditioningInput, CustomWorkflowInput
-from ai_diffusion.api import SamplingInput, ImageInput, UpscaleInput
+from ai_diffusion.api import SamplingInput, ImageInput, UpscaleInput, InpaintParams
 from ai_diffusion.client import ClientModels, CheckpointInfo
 from ai_diffusion.comfy_client import ComfyClient
 from ai_diffusion.cloud_client import CloudClient
@@ -937,6 +937,7 @@ def test_custom_workflow(qtapp, local_client: Client):
         WorkflowKind.custom,
         images=ImageInput.from_extent(Extent(512, 512)),
         sampling=SamplingInput("custom", "custom", 1, 1000, seed=1234),
+        inpaint=InpaintParams(InpaintMode.fill, Bounds(0, 0, 512, 512)),
         custom_workflow=CustomWorkflowInput(workflow_graph.root, params),
     )
     assert job.images is not None

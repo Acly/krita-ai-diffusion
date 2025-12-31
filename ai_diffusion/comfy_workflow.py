@@ -1352,6 +1352,12 @@ class ComfyObjectInfo:
         result.update(inputs.get("optional", {}))
         return result
 
+    def outputs(self, node_name: str) -> list[str]:
+        node = self.nodes.get(node_name)
+        if node is None:
+            return []
+        return node.get("output_name", [])
+
 
 def _convert_ui_workflow(w: dict, node_inputs: ComfyObjectInfo):
     version = w.get("version")
