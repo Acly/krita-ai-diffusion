@@ -1,0 +1,855 @@
+{
+  "id": "15c22d70-6a58-426f-8548-447d02989a70",
+  "revision": 0,
+  "last_node_id": 13,
+  "last_link_id": 25,
+  "nodes": [
+    {
+      "id": 6,
+      "type": "CLIPTextEncode",
+      "pos": [
+        791.8872777150626,
+        -1216.0175651402787
+      ],
+      "size": [
+        218.659765625,
+        88
+      ],
+      "flags": {
+        "collapsed": false
+      },
+      "order": 6,
+      "mode": 0,
+      "inputs": [
+        {
+          "name": "clip",
+          "type": "CLIP",
+          "link": 4
+        },
+        {
+          "name": "text",
+          "type": "STRING",
+          "widget": {
+            "name": "text"
+          },
+          "link": 1
+        }
+      ],
+      "outputs": [
+        {
+          "name": "CONDITIONING",
+          "type": "CONDITIONING",
+          "links": [
+            5
+          ]
+        }
+      ],
+      "properties": {
+        "Node name for S&R": "CLIPTextEncode"
+      },
+      "widgets_values": [
+        ""
+      ]
+    },
+    {
+      "id": 7,
+      "type": "CLIPTextEncode",
+      "pos": [
+        799.0506103556539,
+        -1083.4939711175912
+      ],
+      "size": [
+        218.659765625,
+        88
+      ],
+      "flags": {
+        "collapsed": false
+      },
+      "order": 5,
+      "mode": 0,
+      "inputs": [
+        {
+          "name": "clip",
+          "type": "CLIP",
+          "link": 3
+        },
+        {
+          "name": "text",
+          "type": "STRING",
+          "widget": {
+            "name": "text"
+          },
+          "link": 2
+        }
+      ],
+      "outputs": [
+        {
+          "name": "CONDITIONING",
+          "type": "CONDITIONING",
+          "links": [
+            6
+          ]
+        }
+      ],
+      "properties": {
+        "Node name for S&R": "CLIPTextEncode"
+      },
+      "widgets_values": [
+        ""
+      ]
+    },
+    {
+      "id": 9,
+      "type": "INPAINT_VAEEncodeInpaintConditioning",
+      "pos": [
+        1059.0836841635166,
+        -1092.0900112758484
+      ],
+      "size": [
+        269.8404296875,
+        106
+      ],
+      "flags": {},
+      "order": 7,
+      "mode": 0,
+      "inputs": [
+        {
+          "name": "positive",
+          "type": "CONDITIONING",
+          "link": 5
+        },
+        {
+          "name": "negative",
+          "type": "CONDITIONING",
+          "link": 6
+        },
+        {
+          "name": "vae",
+          "type": "VAE",
+          "link": 7
+        },
+        {
+          "name": "pixels",
+          "type": "IMAGE",
+          "link": 11
+        },
+        {
+          "name": "mask",
+          "type": "MASK",
+          "link": 8
+        }
+      ],
+      "outputs": [
+        {
+          "name": "positive",
+          "type": "CONDITIONING",
+          "links": [
+            17
+          ]
+        },
+        {
+          "name": "negative",
+          "type": "CONDITIONING",
+          "links": [
+            18
+          ]
+        },
+        {
+          "name": "latent_inpaint",
+          "type": "LATENT",
+          "links": null
+        },
+        {
+          "name": "latent_samples",
+          "type": "LATENT",
+          "links": [
+            16
+          ]
+        }
+      ],
+      "properties": {
+        "Node name for S&R": "INPAINT_VAEEncodeInpaintConditioning"
+      }
+    },
+    {
+      "id": 2,
+      "type": "ETN_KritaCanvas",
+      "pos": [
+        897.9062950302985,
+        -790.5089386566723
+      ],
+      "size": [
+        200,
+        100
+      ],
+      "flags": {},
+      "order": 0,
+      "mode": 0,
+      "inputs": [],
+      "outputs": [
+        {
+          "name": "image",
+          "type": "IMAGE",
+          "links": [
+            11
+          ]
+        },
+        {
+          "name": "width",
+          "type": "INT",
+          "links": null
+        },
+        {
+          "name": "height",
+          "type": "INT",
+          "links": null
+        },
+        {
+          "name": "seed",
+          "type": "INT",
+          "links": [
+            12
+          ]
+        }
+      ],
+      "properties": {
+        "Node name for S&R": "ETN_KritaCanvas"
+      }
+    },
+    {
+      "id": 4,
+      "type": "ETN_KritaStyle",
+      "pos": [
+        494.60443695432474,
+        -1004.696041395224
+      ],
+      "size": [
+        228.45204217822948,
+        242
+      ],
+      "flags": {},
+      "order": 1,
+      "mode": 0,
+      "inputs": [],
+      "outputs": [
+        {
+          "name": "model",
+          "type": "MODEL",
+          "links": [
+            19
+          ]
+        },
+        {
+          "name": "clip",
+          "type": "CLIP",
+          "links": [
+            3,
+            4
+          ]
+        },
+        {
+          "name": "vae",
+          "type": "VAE",
+          "links": [
+            7,
+            21
+          ]
+        },
+        {
+          "name": "positive prompt",
+          "type": "STRING",
+          "links": null
+        },
+        {
+          "name": "negative prompt",
+          "type": "STRING",
+          "links": [
+            2
+          ]
+        },
+        {
+          "name": "sampler name",
+          "type": "COMBO",
+          "links": [
+            13
+          ]
+        },
+        {
+          "name": "scheduler",
+          "type": "COMBO",
+          "links": [
+            14
+          ]
+        },
+        {
+          "name": "steps",
+          "type": "INT",
+          "links": null
+        },
+        {
+          "name": "guidance",
+          "type": "FLOAT",
+          "links": null
+        }
+      ],
+      "properties": {
+        "Node name for S&R": "ETN_KritaStyle"
+      },
+      "widgets_values": [
+        "Style",
+        "auto"
+      ]
+    },
+    {
+      "id": 5,
+      "type": "ETN_Parameter",
+      "pos": [
+        500.3351577195232,
+        -1155.128335925287
+      ],
+      "size": [
+        215.55785214062666,
+        106
+      ],
+      "flags": {},
+      "order": 2,
+      "mode": 0,
+      "inputs": [],
+      "outputs": [
+        {
+          "name": "value",
+          "type": "STRING",
+          "links": [
+            1
+          ]
+        }
+      ],
+      "properties": {
+        "Node name for S&R": "ETN_Parameter"
+      },
+      "widgets_values": [
+        "Prompt",
+        "prompt (positive)",
+        ""
+      ]
+    },
+    {
+      "id": 1,
+      "type": "ETN_KritaSelection",
+      "pos": [
+        494.6044369543247,
+        -722.4564314538102
+      ],
+      "size": [
+        227.7356815878079,
+        142
+      ],
+      "flags": {},
+      "order": 3,
+      "mode": 0,
+      "inputs": [],
+      "outputs": [
+        {
+          "name": "mask",
+          "type": "MASK",
+          "links": [
+            8,
+            25
+          ]
+        },
+        {
+          "name": "active",
+          "type": "BOOLEAN",
+          "links": null
+        },
+        {
+          "name": "offset x",
+          "type": "INT",
+          "links": [
+            9
+          ]
+        },
+        {
+          "name": "offset y",
+          "type": "INT",
+          "links": [
+            10
+          ]
+        }
+      ],
+      "properties": {
+        "Node name for S&R": "ETN_KritaSelection"
+      },
+      "widgets_values": [
+        "automatic",
+        0
+      ]
+    },
+    {
+      "id": 11,
+      "type": "ETN_Parameter",
+      "pos": [
+        1190.174529678999,
+        -895.8117183501175
+      ],
+      "size": [
+        248.50967416187416,
+        154
+      ],
+      "flags": {
+        "collapsed": true
+      },
+      "order": 4,
+      "mode": 0,
+      "inputs": [],
+      "outputs": [
+        {
+          "name": "value",
+          "type": "FLOAT",
+          "links": [
+            15
+          ]
+        }
+      ],
+      "properties": {
+        "Node name for S&R": "ETN_Parameter"
+      },
+      "widgets_values": [
+        "Strength",
+        "number",
+        1,
+        0,
+        1
+      ]
+    },
+    {
+      "id": 12,
+      "type": "VAEDecode",
+      "pos": [
+        1278.2848874764013,
+        -851.3984547984719
+      ],
+      "size": [
+        140,
+        46
+      ],
+      "flags": {},
+      "order": 9,
+      "mode": 0,
+      "inputs": [
+        {
+          "name": "samples",
+          "type": "LATENT",
+          "link": 20
+        },
+        {
+          "name": "vae",
+          "type": "VAE",
+          "link": 21
+        }
+      ],
+      "outputs": [
+        {
+          "name": "IMAGE",
+          "type": "IMAGE",
+          "links": [
+            23
+          ]
+        }
+      ],
+      "properties": {
+        "Node name for S&R": "VAEDecode"
+      }
+    },
+    {
+      "id": 13,
+      "type": "ETN_ApplyMaskToImage",
+      "pos": [
+        1458.8037119610162,
+        -833.4899045860916
+      ],
+      "size": [
+        178.8951171875,
+        46
+      ],
+      "flags": {},
+      "order": 10,
+      "mode": 0,
+      "inputs": [
+        {
+          "name": "image",
+          "type": "IMAGE",
+          "link": 23
+        },
+        {
+          "name": "mask",
+          "type": "MASK",
+          "link": 25
+        }
+      ],
+      "outputs": [
+        {
+          "name": "masked",
+          "type": "IMAGE",
+          "links": [
+            24
+          ]
+        }
+      ],
+      "properties": {
+        "Node name for S&R": "ETN_ApplyMaskToImage"
+      }
+    },
+    {
+      "id": 3,
+      "type": "ETN_KritaOutput",
+      "pos": [
+        1324.8474787365774,
+        -736.7833426722565
+      ],
+      "size": [
+        270,
+        154
+      ],
+      "flags": {},
+      "order": 11,
+      "mode": 0,
+      "inputs": [
+        {
+          "name": "images",
+          "type": "IMAGE",
+          "link": 24
+        },
+        {
+          "name": "x",
+          "type": "INT",
+          "widget": {
+            "name": "x"
+          },
+          "link": 9
+        },
+        {
+          "name": "y",
+          "type": "INT",
+          "widget": {
+            "name": "y"
+          },
+          "link": 10
+        }
+      ],
+      "outputs": [],
+      "properties": {
+        "Node name for S&R": "ETN_KritaOutput"
+      },
+      "widgets_values": [
+        0,
+        0,
+        "",
+        "default",
+        false
+      ]
+    },
+    {
+      "id": 8,
+      "type": "KSampler",
+      "pos": [
+        1369.9770208995549,
+        -1170.171525755065
+      ],
+      "size": [
+        270,
+        262
+      ],
+      "flags": {},
+      "order": 8,
+      "mode": 0,
+      "inputs": [
+        {
+          "name": "model",
+          "type": "MODEL",
+          "link": 19
+        },
+        {
+          "name": "positive",
+          "type": "CONDITIONING",
+          "link": 17
+        },
+        {
+          "name": "negative",
+          "type": "CONDITIONING",
+          "link": 18
+        },
+        {
+          "name": "latent_image",
+          "type": "LATENT",
+          "link": 16
+        },
+        {
+          "name": "seed",
+          "type": "INT",
+          "widget": {
+            "name": "seed"
+          },
+          "link": 12
+        },
+        {
+          "name": "sampler_name",
+          "type": "COMBO",
+          "widget": {
+            "name": "sampler_name"
+          },
+          "link": 13
+        },
+        {
+          "name": "scheduler",
+          "type": "COMBO",
+          "widget": {
+            "name": "scheduler"
+          },
+          "link": 14
+        },
+        {
+          "name": "denoise",
+          "type": "FLOAT",
+          "widget": {
+            "name": "denoise"
+          },
+          "link": 15
+        }
+      ],
+      "outputs": [
+        {
+          "name": "LATENT",
+          "type": "LATENT",
+          "links": [
+            20
+          ]
+        }
+      ],
+      "properties": {
+        "Node name for S&R": "KSampler"
+      },
+      "widgets_values": [
+        0,
+        "randomize",
+        20,
+        5,
+        "euler",
+        "simple",
+        1
+      ]
+    }
+  ],
+  "links": [
+    [
+      1,
+      5,
+      0,
+      6,
+      1,
+      "STRING"
+    ],
+    [
+      2,
+      4,
+      4,
+      7,
+      1,
+      "STRING"
+    ],
+    [
+      3,
+      4,
+      1,
+      7,
+      0,
+      "CLIP"
+    ],
+    [
+      4,
+      4,
+      1,
+      6,
+      0,
+      "CLIP"
+    ],
+    [
+      5,
+      6,
+      0,
+      9,
+      0,
+      "CONDITIONING"
+    ],
+    [
+      6,
+      7,
+      0,
+      9,
+      1,
+      "CONDITIONING"
+    ],
+    [
+      7,
+      4,
+      2,
+      9,
+      2,
+      "VAE"
+    ],
+    [
+      8,
+      1,
+      0,
+      9,
+      4,
+      "MASK"
+    ],
+    [
+      9,
+      1,
+      2,
+      3,
+      1,
+      "INT"
+    ],
+    [
+      10,
+      1,
+      3,
+      3,
+      2,
+      "INT"
+    ],
+    [
+      11,
+      2,
+      0,
+      9,
+      3,
+      "IMAGE"
+    ],
+    [
+      12,
+      2,
+      3,
+      8,
+      4,
+      "INT"
+    ],
+    [
+      13,
+      4,
+      5,
+      8,
+      5,
+      "COMBO"
+    ],
+    [
+      14,
+      4,
+      6,
+      8,
+      6,
+      "COMBO"
+    ],
+    [
+      15,
+      11,
+      0,
+      8,
+      7,
+      "FLOAT"
+    ],
+    [
+      16,
+      9,
+      3,
+      8,
+      3,
+      "LATENT"
+    ],
+    [
+      17,
+      9,
+      0,
+      8,
+      1,
+      "CONDITIONING"
+    ],
+    [
+      18,
+      9,
+      1,
+      8,
+      2,
+      "CONDITIONING"
+    ],
+    [
+      19,
+      4,
+      0,
+      8,
+      0,
+      "MODEL"
+    ],
+    [
+      20,
+      8,
+      0,
+      12,
+      0,
+      "LATENT"
+    ],
+    [
+      21,
+      4,
+      2,
+      12,
+      1,
+      "VAE"
+    ],
+    [
+      23,
+      12,
+      0,
+      13,
+      0,
+      "IMAGE"
+    ],
+    [
+      24,
+      13,
+      0,
+      3,
+      0,
+      "IMAGE"
+    ],
+    [
+      25,
+      1,
+      0,
+      13,
+      1,
+      "MASK"
+    ]
+  ],
+  "groups": [],
+  "config": {},
+  "extra": {
+    "workflowRendererVersion": "LG",
+    "ds": {
+      "scale": 1.1167815779424783,
+      "offset": [
+        -275.40301503053826,
+        1466.2008379564268
+      ]
+    },
+    "frontendVersion": "1.35.9",
+    "VHS_latentpreview": false,
+    "VHS_latentpreviewrate": 0,
+    "VHS_MetadataImage": true,
+    "VHS_KeepIntermediate": true
+  },
+  "version": 0.4
+}

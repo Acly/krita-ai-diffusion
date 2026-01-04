@@ -5,6 +5,7 @@ description: Documentation for nodes to create custom graphs in ComfyUI
 
 import { Aside } from '@astrojs/starlight/components'
 import PluginIcon from '../../components/PluginIcon.astro'
+import ImageSample from '../../components/ImageSample.astro'
 
 Custom graphs allow you to design node graphs in ComfyUI and run them from
 Krita. Images, layers, selections and masks can be exchanged, and important
@@ -92,7 +93,7 @@ This section focuses on special nodes that are used to interact with Krita.
 
 ### Output
 
-![Krita Output node](../../assets/custom-graph/krita-output.png)
+<ImageSample src="custom-graph/krita-output.png" alt="Krita Output node" scale={1.25} />
 
 The most important node is `Krita Output`. It enables workflow synchronization
 and allows Krita to receive images. Simply use it as a sink node for your
@@ -101,6 +102,18 @@ results in place of nodes like `Save Image` or `Preview Image`.
 Technically no other nodes are needed to use a workflow from Krita. You can also
 have multiple outputs, or pass batches of images to the output node, although in
 _Live_ mode only the first result will be shown.
+
+##### Inputs
+
+* `images`: The image to send to Krita. Can be a single image or a batch.
+* `offset x/y`: *(Optional)* Offset in pixels at which to insert images into the canvas.
+* `name`: *(Optional)* Name of the Krita layer that is created when the result is applied.
+* `batch mode`: *(Optional)* How batches of images are interpreted.
+  * `images`: Each image is a separate result.
+  * `animation`: Each image becomes a frame in an animation.
+  * `layers`: All images are applied, each as a separate layer.
+  * `default`: Either `images` or `animation` depending on the generation mode selected in Krita.
+* `resize canvas`: *(Optional)* Resize the Krita canvas to match when the image is applied.
 
 ### Canvas
 
@@ -159,9 +172,30 @@ Individual layers can be used inside custom workflows. The `Krita Image Layer`
 node will add a UI widget to select an RGB layer, while `Krita Mask Layer` is
 for selection and transparency masks.
 
+#### Selection Context
+
+<ImageSample src="custom-graph/krita-selection.png" alt="Krita Selection node" scale={1.25} />
+
 You can build inpaint workflows similar to the ones integrated in the Plugin by
 reading the current selection with the `Krita Selection` node. The selection can
-be used like a mask.
+be used like a mask. Use the selection context to limit the input image and mask
+to an area around the selection. Check the [examples section](#example-workflows) 
+for a workflow.
+
+##### Inputs
+
+* `context`: Defines the crop size of the input image and mask. Affects `Krita Canvas` and `Krita Selection` outputs. Does not affect individual layers.
+  * `entire image`: The entire canvas is used. Offsets are 0.
+  * `mask bounds`: The tight bounding box of the selection defines the image crop size.
+  * `automatic`: The bounding box of the selection is extended according to Krita settings.
+* `padding`: Number of pixels to extend the crop area on each side.
+
+##### Outputs
+
+* `mask`: The selection as a transparency mask. If there is no selection all pixels are 1.
+* `active`: Boolean value indicating whether there is an active selection.
+* `offset x/y`: Offset of the cropped area in pixels. Typically this is
+  connected to the offset inputs of the `Krita Output` node.
 
 
 ### Style
@@ -213,4 +247,7 @@ current view only.
 
 ## Example Workflows
 
-* [Custom Workflow Example.json](/resources/krita-custom-workflow.json)
+To view the samples, download the workflow .json file and drag it into ComfyUI's web UI.
+
+* Custom Workflow Example: [krita-custom-workflow.json](/resources/krita-custom-workflow.json)
+* Inpaint with Selection: [krita-inpaint-workflow.json](/resources/krita-inpaint-workflow.json)
