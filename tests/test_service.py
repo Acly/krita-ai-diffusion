@@ -1,10 +1,5 @@
 from pathlib import Path
 import pytest
-import subprocess
-import os
-import sys
-import asyncio
-import dotenv
 
 from ai_diffusion.api import WorkflowInput, WorkflowKind, ControlInput, ImageInput, CheckpointInput
 from ai_diffusion.api import SamplingInput, ConditioningInput, ExtentInput, RegionInput
@@ -13,52 +8,8 @@ from ai_diffusion.cloud_client import CloudClient, enumerate_features, apply_lim
 from ai_diffusion.image import Extent, Image, Bounds
 from ai_diffusion.resources import ControlMode, Arch
 from ai_diffusion.util import ensure
-from .conftest import has_local_cloud
-from .config import root_dir, test_dir, result_dir
-
-pod_main = root_dir / "service" / "pod" / "pod.py"
-run_dir = test_dir / "pod"
-
-
-@pytest.fixture(scope="module")
-def pod_server(qtapp, pytestconfig):
-    async def serve(process: asyncio.subprocess.Process):
-        try:
-            async for line in ensure(process.stdout):
-                print(line.decode("utf-8"), end="")
-        except asyncio.CancelledError:
-            process.terminate()
-            await process.wait()
-
-    async def start():
-        env = os.environ.copy()
-        args = ["-u", "-Xutf8", str(pod_main), "--rp_serve_api"]
-        process = await asyncio.create_subprocess_exec(
-            sys.executable,
-            *args,
-            env=env,
-            stdout=subprocess.PIPE,
-            stderr=subprocess.STDOUT,
-        )
-        async for line in ensure(process.stdout):
-            text = line.decode("utf-8")
-            print(text[:80], end="")
-            if "Uvicorn running" in text:
-                break
-
-        return process, asyncio.create_task(serve(process))
-
-    async def stop(process, task):
-        process.terminate()
-        task.cancel()
-        await process.communicate()
-
-    if not pytestconfig.getoption("--pod-process") or pytestconfig.getoption("--ci"):
-        yield None  # For using local docker image or deployed serverless endpoint
-    else:
-        process, task = qtapp.run(start())
-        yield process
-        qtapp.run(stop(process, task))
+from .conftest import CloudService
+from .config import test_dir, result_dir
 
 
 async def receive_images(client: Client, work: WorkflowInput):
@@ -74,16 +25,18 @@ async def receive_images(client: Client, work: WorkflowInput):
     assert False, "Connection closed without receiving images"
 
 
+async def connect_cloud(service: CloudService):
+    user = await service.create_user("workflow-tester")
+    return await CloudClient.connect(service.url, user["token"])
+
+
 @pytest.fixture()
-def cloud_client(pytestconfig, qtapp, pod_server):
+def cloud_client(pytestconfig, qtapp, cloud_service: CloudService):
     if pytestconfig.getoption("--ci"):
         pytest.skip("Diffusion is disabled on CI")
-    if not has_local_cloud:
-        pytest.skip("Local cloud service not found")
-    dotenv.load_dotenv(root_dir / "service" / "web" / ".env.local")
-    url = os.environ["TEST_SERVICE_URL"]
-    token = os.environ["TEST_SERVICE_TOKEN"]
-    return qtapp.run(CloudClient.connect(url, token))
+    if not cloud_service.enabled:
+        pytest.skip("Cloud service not running")
+    return qtapp.run(connect_cloud(cloud_service))
 
 
 def run_and_save(

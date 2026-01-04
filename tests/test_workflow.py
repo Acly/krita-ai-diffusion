@@ -1,8 +1,6 @@
 import itertools
 import pytest
-import dotenv
 import json
-import os
 from datetime import datetime
 from pathlib import Path
 from typing import Any
@@ -25,6 +23,7 @@ from ai_diffusion.pose import Pose
 from ai_diffusion.workflow import detect_inpaint
 from . import config
 from .config import root_dir, test_dir, image_dir, result_dir, reference_dir, default_checkpoint
+from .conftest import CloudService
 
 service_available = (root_dir / "service" / "web" / ".env.local").exists()
 client_params = ["local", "cloud"] if service_available else ["local"]
@@ -38,29 +37,22 @@ async def connect_local():
     return client
 
 
-async def connect_cloud():
-    dotenv.load_dotenv(root_dir / "service" / "web" / ".env.local")
-    url = os.environ["TEST_SERVICE_URL"]
-    token = os.environ.get("TEST_SERVICE_TOKEN", "")
-    if not token:
-        client = CloudClient(url)
-        sign_in = client.sign_in()
-        auth_url = await anext(sign_in)
-        print("\nSign-in required:", auth_url)
-        token = await anext(sign_in)
-        print("\nToken received:", token, "\n")
-    return await CloudClient.connect(url, token)
+async def connect_cloud(service: CloudService):
+    user = await service.create_user("workflow-tester")
+    return await CloudClient.connect(service.url, user["token"])
 
 
 @pytest.fixture(params=client_params)
-def client(pytestconfig, request, qtapp):
+def client(pytestconfig, request, qtapp, cloud_service: CloudService):
     if pytestconfig.getoption("--ci"):
         pytest.skip("Diffusion is disabled on CI")
 
     if request.param == "local":
         client = qtapp.run(connect_local())
     else:
-        client = qtapp.run(connect_cloud())
+        if not cloud_service.enabled:
+            pytest.skip("Cloud service not running")
+        client = qtapp.run(connect_cloud(cloud_service))
     files.loras.update([File.remote(m) for m in client.models.loras], FileSource.remote)
 
     yield client

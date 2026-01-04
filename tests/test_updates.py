@@ -6,7 +6,7 @@ from PyQt5.QtCore import pyqtBoundSignal
 
 from ai_diffusion.platform_tools import ZipFile
 from ai_diffusion.updates import AutoUpdate, UpdateState
-from .conftest import has_local_cloud
+from .conftest import CloudService
 
 
 class SignalObserver:
@@ -27,15 +27,14 @@ def http_session(service_url: str):
     return ClientSession(service_url, headers=headers)
 
 
-def test_auto_update(qtapp, tmp_path: Path):
-    if not has_local_cloud:
-        pytest.skip("No local cloud service found")
-    qtapp.run(run_auto_update_test(tmp_path))
+def test_auto_update(qtapp, cloud_service: CloudService, tmp_path: Path):
+    if not cloud_service.enabled:
+        pytest.skip("Cloud service not running")
+    qtapp.run(run_auto_update_test(cloud_service, tmp_path))
 
 
-async def run_auto_update_test(tmp_path: Path):
-    service_url = os.environ["TEST_SERVICE_URL"]
-    async with http_session(service_url) as session:
+async def run_auto_update_test(service: CloudService, tmp_path: Path):
+    async with http_session(service.url) as session:
         last_version = new_version = "666.6.6"
 
         # Get the latest plugin version (set from previous test)
@@ -56,7 +55,7 @@ async def run_auto_update_test(tmp_path: Path):
         updater = AutoUpdate(
             current_version=last_version,
             plugin_dir=install_dir,
-            api_url=service_url,
+            api_url=service.url,
         )
         assert updater.state is UpdateState.unknown
 
@@ -105,11 +104,10 @@ async def run_auto_update_test(tmp_path: Path):
         assert install_test_file.read_text() == "if you're feeling orange, try flying a kite"
 
 
-async def test_authorization():
-    if not has_local_cloud:
-        pytest.skip("No local cloud service found")
-    service_url = os.environ["TEST_SERVICE_URL"]
-    async with ClientSession(service_url) as session:
+async def test_authorization(cloud_service: CloudService):
+    if not cloud_service.enabled:
+        pytest.skip("Cloud service not running")
+    async with ClientSession(cloud_service.url) as session:
         # Version check is public
         async with session.get("/plugin/latest?version=1.2.3") as response:
             assert response.status == 200

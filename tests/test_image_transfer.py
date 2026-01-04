@@ -1,11 +1,11 @@
 from base64 import b64decode
 from PIL import Image
 from datetime import datetime
-import os
 import pytest
 
 from ai_diffusion.image import ImageCollection, Image as ImageWrapper
 from ai_diffusion.cloud_client import CloudClient
+from tests.conftest import CloudService
 from .config import root_dir, test_dir
 
 if (root_dir / "service" / "pod" / "lib").exists():
@@ -56,16 +56,18 @@ if (root_dir / "service" / "pod" / "lib").exists():
         qtapp.run(main())
 
     @pytest.mark.parametrize("mode", ["b64", "transfer"])
-    def test_receive(qtapp, mode: str):
+    def test_receive(qtapp, cloud_service: CloudService, mode: str):
+        if not cloud_service.enabled:
+            pytest.skip("Cloud service not running")
+
         max_b64_size = max_b64_size_config[mode]
         images = [ImageWrapper.load(test_dir / "images" / f) for f in ("cat.webp", "pegonia.webp")]
         bytes, offsets = ImageCollection(images).to_bytes()
         input = {"image_data": {"bytes": bytes, "offsets": offsets}}
 
         async def main():
-            url = os.environ["TEST_SERVICE_URL"]
-            token = os.environ.get("TEST_SERVICE_TOKEN", "")
-            client = await CloudClient.connect(url, token)
+            user = await cloud_service.create_user("image-transfer-test")
+            client = await CloudClient.connect(cloud_service.url, user["token"])
             await client.send_images(input, max_inline_size=max_b64_size)
 
             if mode == "transfer":

@@ -1,9 +1,14 @@
+import asyncio
+import aiohttp
 import sys
+import psutil
 import pytest
+import os
 import shutil
 import subprocess
 import dotenv
 from pathlib import Path
+from typing import Any
 from PyQt5.QtCore import QCoreApplication
 
 sys.path.append(str(Path(__file__).parent.parent))
@@ -15,7 +20,7 @@ root_dir = Path(__file__).parent.parent
 
 def pytest_addoption(parser):
     parser.addoption("--test-install", action="store_true")
-    parser.addoption("--pod-process", action="store_true")
+    parser.addoption("--cloud", action="store_true")
     parser.addoption("--ci", action="store_true")
     parser.addoption("--benchmark", action="store_true")
 
@@ -95,3 +100,110 @@ has_local_cloud = (root_dir / "service").exists()
 
 if has_local_cloud:
     dotenv.load_dotenv(root_dir / "service" / "web" / ".env.local")
+
+
+class CloudService:
+    def __init__(self, loop: QtTestApp, enabled=True):
+        self.loop = loop
+        self.dir = root_dir / "service"
+        self.log_dir = result_dir / "logs"
+        self.log_dir.mkdir(exist_ok=True)
+        self.url = os.environ["TEST_SERVICE_URL"]
+        self.coord_proc: asyncio.subprocess.Process | None = None
+        self.coord_log = None
+        self.worker_proc: asyncio.subprocess.Process | None = None
+        self.worker_task: asyncio.Task | None = None
+        self.worker_log = None
+        self.enabled = enabled
+
+    async def serve(self, process: asyncio.subprocess.Process, log_file):
+        try:
+            async for line in util.ensure(process.stdout):
+                print(line.decode("utf-8"), end="", file=log_file, flush=True)
+        except asyncio.CancelledError:
+            pass
+
+    async def launch_coordinator(self):
+        assert self.coord_proc is None, "Coordinator already running"
+        self.coord_log = open(self.log_dir / "api.log", "w", encoding="utf-8")
+        npm = shutil.which("npm")
+        assert npm is not None, "npm not found in PATH"
+        args = [npm, "run", "dev"]
+        self.coord_proc = await asyncio.create_subprocess_exec(
+            *args,
+            cwd=self.dir / "api",
+            stdout=self.coord_log,
+            stderr=asyncio.subprocess.STDOUT,
+        )
+
+    async def launch_worker(self):
+        assert self.worker_proc is None, "Worker already running"
+        self.worker_log = open(self.log_dir / "worker.log", "w", encoding="utf-8")
+        workerpy = str(self.dir / "pod" / "worker.py")
+        config = str(self.dir / "pod" / "_var" / "worker.json")
+        args = ["-u", "-Xutf8", workerpy, config]
+        self.worker_proc = await asyncio.create_subprocess_exec(
+            sys.executable,
+            *args,
+            cwd=self.dir / "pod",
+            stdout=subprocess.PIPE,
+            stderr=subprocess.STDOUT,
+        )
+        assert self.worker_proc.stdout is not None
+        async for line in self.worker_proc.stdout:
+            text = line.decode("utf-8")
+            print(text[:80], end="", file=self.worker_log, flush=True)
+            if "Uvicorn running" in text:
+                break
+
+        self.worker_task = asyncio.create_task(self.serve(self.worker_proc, self.worker_log))
+
+    async def start(self):
+        if not self.enabled or not has_local_cloud:
+            return
+        try:
+            await self.launch_coordinator()
+            await self.launch_worker()
+        except Exception as e:
+            await self.stop()
+            raise e
+
+    async def stop(self):
+        if self.worker_task:
+            self.worker_task.cancel()
+            await self.worker_task
+        if self.worker_proc:
+            self.worker_proc.terminate()
+            await self.worker_proc.wait()
+        if self.coord_proc:
+            children = psutil.Process(self.coord_proc.pid).children(recursive=True)
+            for child in children:
+                child.terminate()
+            self.coord_proc.terminate()
+            await self.coord_proc.wait()
+
+    async def create_user(self, username: str) -> dict[str, Any]:
+        assert self.enabled, "Cloud service is not enabled"
+        async with aiohttp.ClientSession() as session:
+            async with session.post(
+                f"{self.url}/admin/user/create",
+                json={"name": username},
+            ) as response:
+                response.raise_for_status()
+                result = await response.json()
+                if "error" in result:
+                    raise Exception(result["error"])
+                return result
+
+    def __enter__(self):
+        self.loop.run(self.start())
+        return self
+
+    def __exit__(self, exc_type, exc, tb):
+        self.loop.run(self.stop())
+
+
+@pytest.fixture(scope="session")
+def cloud_service(qtapp, pytestconfig):
+    with CloudService(qtapp, pytestconfig.getoption("--cloud")) as service:
+        yield service
