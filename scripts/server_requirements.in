@@ -63,6 +63,8 @@ gguf
 argostranslate
 # Version fixed because argostranslate requires it
 sentencepiece==0.2.0
+# argostranslate uses pip to install stuff on demand but doesn't depend on it
+pip
 
 # Nunchaku
 diffusers>=0.36
