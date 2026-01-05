@@ -108,13 +108,13 @@ class CloudService:
         self.dir = root_dir / "service"
         self.log_dir = result_dir / "logs"
         self.log_dir.mkdir(exist_ok=True)
-        self.url = os.environ["TEST_SERVICE_URL"]
+        self.url = os.environ.get("TEST_SERVICE_URL", "http://localhost:8787")
         self.coord_proc: asyncio.subprocess.Process | None = None
         self.coord_log = None
         self.worker_proc: asyncio.subprocess.Process | None = None
         self.worker_task: asyncio.Task | None = None
         self.worker_log = None
-        self.enabled = enabled
+        self.enabled = has_local_cloud and enabled
 
     async def serve(self, process: asyncio.subprocess.Process, log_file):
         try:
