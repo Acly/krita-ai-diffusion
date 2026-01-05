@@ -18,6 +18,7 @@ markdown
 numpy
 pytest
 pytest-asyncio
+psutil
 tqdm
 PyQt5
 Pillow

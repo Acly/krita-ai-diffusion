@@ -11,7 +11,7 @@ from typing import Any, NamedTuple, Sequence
 version = "1.45.0"
 
 comfy_url = "https://github.com/comfyanonymous/ComfyUI"
-comfy_version = "807538fe6c66bca8c91edbad14414fb4e109cbde"
+comfy_version = "f59f71cf34067d46713f6243312f7f0b360d061f"
 nunchaku_version = "1.1.0"
 
 
