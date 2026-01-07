@@ -7,6 +7,7 @@ import os
 import shutil
 import subprocess
 import dotenv
+import json
 from pathlib import Path
 from typing import Any
 from PyQt5.QtCore import QCoreApplication
@@ -123,9 +124,25 @@ class CloudService:
         except asyncio.CancelledError:
             pass
 
+    async def check(self, url: str, token: str | None = None) -> bool:
+        try:
+            timeout = aiohttp.ClientTimeout(total=1.0)
+            headers = {}
+            if token:
+                headers["Authorization"] = f"Bearer {token}"
+            async with aiohttp.ClientSession(timeout=timeout, headers=headers) as session:
+                async with session.get(url) as response:
+                    return response.status == 200
+        except (aiohttp.ClientError, asyncio.TimeoutError):
+            return False
+
     async def launch_coordinator(self):
         assert self.coord_proc is None, "Coordinator already running"
         self.coord_log = open(self.log_dir / "api.log", "w", encoding="utf-8")
+        if await self.check(f"{self.url}/health"):
+            print(f"Coordinator running in external process at {self.url}", file=self.coord_log)
+            return
+
         npm = shutil.which("npm")
         assert npm is not None, "npm not found in PATH"
         args = [npm, "run", "dev"]
@@ -138,10 +155,18 @@ class CloudService:
 
     async def launch_worker(self):
         assert self.worker_proc is None, "Worker already running"
+        config = self.dir / "pod" / "_var" / "worker.json"
+        assert config.exists(), "Worker config not found"
+        config_dict = json.loads(config.read_text(encoding="utf-8"))
+        worker_url = config_dict["public_url"]
+        admin_secret = config_dict["admin_secret"]
         self.worker_log = open(self.log_dir / "worker.log", "w", encoding="utf-8")
+        if await self.check(f"{worker_url}/health", token=admin_secret):
+            print(f"Worker running in external process at {worker_url}", file=self.worker_log)
+            return
+
         workerpy = str(self.dir / "pod" / "worker.py")
-        config = str(self.dir / "pod" / "_var" / "worker.json")
-        args = ["-u", "-Xutf8", workerpy, config]
+        args = ["-u", "-Xutf8", workerpy, str(config)]
         self.worker_proc = await asyncio.create_subprocess_exec(
             sys.executable,
             *args,
@@ -175,7 +200,7 @@ class CloudService:
         if self.worker_proc:
             self.worker_proc.terminate()
             await self.worker_proc.wait()
-        if self.coord_proc:
+        if self.coord_proc and self.coord_proc.pid:
             children = psutil.Process(self.coord_proc.pid).children(recursive=True)
             for child in children:
                 child.terminate()
