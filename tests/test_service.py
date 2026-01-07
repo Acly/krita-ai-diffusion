@@ -1,4 +1,6 @@
+import asyncio
 from pathlib import Path
+from timeit import default_timer as timer
 import pytest
 
 from ai_diffusion.api import WorkflowInput, WorkflowKind, ControlInput, ImageInput, CheckpointInput
@@ -30,7 +32,7 @@ async def connect_cloud(service: CloudService):
     return await CloudClient.connect(service.url, user["token"])
 
 
-@pytest.fixture()
+@pytest.fixture(scope="module")
 def cloud_client(pytestconfig, qtapp, cloud_service: CloudService):
     if pytestconfig.getoption("--ci"):
         pytest.skip("Diffusion is disabled on CI")
@@ -55,13 +57,22 @@ def run_and_save(
     return results[0]
 
 
-def create_simple_workflow():
+def create_simple_workflow(prompt="fluffy ball", input: Image | None = None):
+    start = 0
+    images = ImageInput.from_extent(Extent(512, 512))
+    if input:
+        images.initial_image = input
+        images.hires_image = input
+        start = 4
+
     return WorkflowInput(
-        WorkflowKind.generate,
-        images=ImageInput.from_extent(Extent(512, 512)),
+        WorkflowKind.generate if input is None else WorkflowKind.refine,
+        images=images,
         models=CheckpointInput("dreamshaper_8.safetensors"),
-        sampling=SamplingInput("dpmpp_2m", "normal", cfg_scale=5.0, total_steps=20),
-        conditioning=ConditioningInput("fluffy ball"),
+        sampling=SamplingInput(
+            "dpmpp_2m", "normal", cfg_scale=5.0, total_steps=20, start_step=start
+        ),
+        conditioning=ConditioningInput(prompt),
         batch_count=2,
     )
 
@@ -178,3 +189,44 @@ def test_features_limits():
     assert work.conditioning and len(work.conditioning.control) == 2
     assert work.conditioning and len(work.conditioning.regions[0].control) == 2
     assert work.models and work.models.self_attention_guidance is False
+
+
+def test_multiple_jobs(pytestconfig, qtapp, cloud_service: CloudService):
+    if not pytestconfig.getoption("--benchmark"):
+        pytest.skip("Only runs with --benchmark")
+    if not cloud_service.enabled:
+        pytest.skip("Cloud service not running")
+
+    async def create_client(i: int):
+        user = await cloud_service.create_user(f"multi-job-tester-{i}")
+        return await CloudClient.connect(cloud_service.url, user["token"])
+
+    input_image = Image.load(test_dir / "images" / "flowers.webp")
+    input_image = Image.scale(input_image, Extent(512, 512))
+    prompts = [
+        "potted flowers, red petals, sunlight",
+        "potted flowers, blue petals, dawn",
+        "potted flowers, yellow petals, sunlight",
+        "potted flowers, purple petals, night",
+        "potted flowers, orange petals, sunset",
+    ]
+
+    async def run_job(client: CloudClient, index: int):
+        workflow = create_simple_workflow(prompt=prompts[index], input=input_image)
+        images = await receive_images(client, workflow)
+        images.append(await receive_images(client, workflow))
+        for i, result in enumerate(images):
+            filename = result_dir / f"cloud_multi_user{index}_image{i}.png"
+            result.save(filename)
+
+    async def main():
+        clients = await asyncio.gather(*(create_client(i) for i in range(5)))
+        await asyncio.gather(*(run_job(client, i) for i, client in enumerate(clients)))
+
+    start_time = timer()
+
+    qtapp.run(main())
+
+    end_time = timer()
+    duration = end_time - start_time
+    print(f"Completed 5 x 2 jobs in {duration:.2f} seconds", end=" ")
