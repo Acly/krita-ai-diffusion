@@ -1,4 +1,5 @@
 import asyncio
+import aiohttp
 from pathlib import Path
 from timeit import default_timer as timer
 import pytest
@@ -57,16 +58,20 @@ def run_and_save(
     return results[0]
 
 
-def create_simple_workflow(prompt="fluffy ball", input: Image | None = None):
+def create_simple_workflow(prompt="fluffy ball", input: Image | Extent | None = None):
     start = 0
-    images = ImageInput.from_extent(Extent(512, 512))
-    if input:
+    if isinstance(input, Image):
+        images = ImageInput.from_extent(input.extent)
         images.initial_image = input
         images.hires_image = input
         start = 4
+    elif isinstance(input, Extent):
+        images = ImageInput.from_extent(input)
+    else:
+        images = ImageInput.from_extent(Extent(512, 512))
 
     return WorkflowInput(
-        WorkflowKind.generate if input is None else WorkflowKind.refine,
+        WorkflowKind.generate if images.initial_image is None else WorkflowKind.refine,
         images=images,
         models=CheckpointInput("dreamshaper_8.safetensors"),
         sampling=SamplingInput(
@@ -230,3 +235,38 @@ def test_multiple_jobs(pytestconfig, qtapp, cloud_service: CloudService):
     end_time = timer()
     duration = end_time - start_time
     print(f"Completed 5 x 2 jobs in {duration:.2f} seconds", end=" ")
+
+
+def test_error_workflow(qtapp, cloud_client: CloudClient):
+    workflow = create_simple_workflow()
+    workflow.kind = WorkflowKind.refine  # Error: refine requires an input image
+    with pytest.raises(Exception, match="failed"):
+        run_and_save(qtapp, cloud_client, workflow, "error_workflow")
+
+
+def test_job_timeout(pytestconfig, qtapp, cloud_service: CloudService):
+    if not cloud_service.enabled:
+        pytest.skip("Cloud service not running")
+
+    async def main():
+        user = await cloud_service.create_user("timeout-tester")
+        client = await CloudClient.connect(cloud_service.url, user["token"])
+        big_workflow = create_simple_workflow(input=Extent(2048, 1536))
+
+        await cloud_service.set_worker_job_timeout(5)
+
+        with pytest.raises(Exception, match="timeout"):
+            await receive_images(client, big_workflow)
+
+        # Worker should be restarted and accept new jobs
+        for _attempt in range(5):
+            try:
+                await cloud_service.set_worker_job_timeout(480)
+                break
+            except aiohttp.ClientConnectionError:
+                await asyncio.sleep(2)  # Wait for worker to be back up
+        small_workflow = create_simple_workflow()
+        images = await receive_images(client, small_workflow)
+        assert len(images) == 2
+
+    qtapp.run(main())

@@ -115,6 +115,8 @@ class CloudService:
         self.worker_proc: asyncio.subprocess.Process | None = None
         self.worker_task: asyncio.Task | None = None
         self.worker_log = None
+        self.worker_url = ""
+        self.worker_secret = ""
         self.enabled = has_local_cloud and enabled
 
     async def serve(self, process: asyncio.subprocess.Process, log_file):
@@ -158,11 +160,11 @@ class CloudService:
         config = self.dir / "pod" / "_var" / "worker.json"
         assert config.exists(), "Worker config not found"
         config_dict = json.loads(config.read_text(encoding="utf-8"))
-        worker_url = config_dict["public_url"]
-        admin_secret = config_dict["admin_secret"]
+        self.worker_url = config_dict["public_url"]
+        self.worker_secret = config_dict["admin_secret"]
         self.worker_log = open(self.log_dir / "worker.log", "w", encoding="utf-8")
-        if await self.check(f"{worker_url}/health", token=admin_secret):
-            print(f"Worker running in external process at {worker_url}", file=self.worker_log)
+        if await self.check(f"{self.worker_url}/health", token=self.worker_secret):
+            print(f"Worker running in external process at {self.worker_url}", file=self.worker_log)
             return
 
         workerpy = str(self.dir / "pod" / "worker.py")
@@ -219,6 +221,17 @@ class CloudService:
                 if "error" in result:
                     raise Exception(result["error"])
                 return result
+
+    async def set_worker_job_timeout(self, timeout: int):
+        headers = {
+            "Authorization": f"Bearer {self.worker_secret}",
+            "Content-Type": "application/json",
+        }
+        async with aiohttp.ClientSession(headers=headers) as session:
+            async with session.post(
+                f"{self.worker_url}/configure", json={"job_timeout": timeout}
+            ) as response:
+                response.raise_for_status()
 
     def __enter__(self):
         self.loop.run(self.start())
