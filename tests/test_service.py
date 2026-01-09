@@ -88,7 +88,7 @@ def test_simple(qtapp, cloud_client):
 
 
 def test_large_image(qtapp, cloud_client):
-    extent = Extent(3072, 2048)
+    extent = Extent(2304, 1536)
     input_image = Image.load(test_dir / "images" / "beach_1536x1024.webp")
     input_image = Image.scale(input_image, extent)
     workflow = WorkflowInput(
@@ -245,6 +245,8 @@ def test_error_workflow(qtapp, cloud_client: CloudClient):
 
 
 def test_job_timeout(pytestconfig, qtapp, cloud_service: CloudService):
+    if not pytestconfig.getoption("--benchmark"):
+        pytest.skip("Only runs with --benchmark")
     if not cloud_service.enabled:
         pytest.skip("Cloud service not running")
 

@@ -155,14 +155,21 @@ class CloudService:
             stderr=asyncio.subprocess.STDOUT,
         )
 
-    async def launch_worker(self):
-        assert self.worker_proc is None, "Worker already running"
+    async def launch_worker(self, job_timeout=480):
+        if self.worker_proc and self.worker_proc.returncode is None:
+            return
         config = self.dir / "pod" / "_var" / "worker.json"
         assert config.exists(), "Worker config not found"
         config_dict = json.loads(config.read_text(encoding="utf-8"))
         self.worker_url = config_dict["public_url"]
         self.worker_secret = config_dict["admin_secret"]
-        self.worker_log = open(self.log_dir / "worker.log", "w", encoding="utf-8")
+        if config_dict["job_timeout"] != job_timeout:
+            config_dict["job_timeout"] = job_timeout
+            config.write_text(json.dumps(config_dict), encoding="utf-8")
+
+        if self.worker_log is None:
+            self.worker_log = open(self.log_dir / "worker.log", "w", encoding="utf-8")
+
         if await self.check(f"{self.worker_url}/health", token=self.worker_secret):
             print(f"Worker running in external process at {self.worker_url}", file=self.worker_log)
             return
@@ -223,15 +230,20 @@ class CloudService:
                 return result
 
     async def set_worker_job_timeout(self, timeout: int):
-        headers = {
-            "Authorization": f"Bearer {self.worker_secret}",
-            "Content-Type": "application/json",
-        }
-        async with aiohttp.ClientSession(headers=headers) as session:
-            async with session.post(
-                f"{self.worker_url}/configure", json={"job_timeout": timeout}
-            ) as response:
-                response.raise_for_status()
+        if self.worker_proc is not None:
+            self.worker_proc.terminate()
+            await self.worker_proc.wait()
+            await self.launch_worker(job_timeout=timeout)
+        else:  # running in external process which will restart itself automatically
+            headers = {
+                "Authorization": f"Bearer {self.worker_secret}",
+                "Content-Type": "application/json",
+            }
+            async with aiohttp.ClientSession(headers=headers) as session:
+                async with session.post(
+                    f"{self.worker_url}/configure", json={"job_timeout": timeout}
+                ) as response:
+                    response.raise_for_status()
 
     def __enter__(self):
         self.loop.run(self.start())
