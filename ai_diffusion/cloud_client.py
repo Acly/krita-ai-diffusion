@@ -179,7 +179,7 @@ class CloudClient(Client):
 
         status = response["status"].lower()
         while status == "in_queue" or status == "in_progress":
-            response = await self._post(f"status/{job.worker_id}/{job.remote_id}", {})
+            response = await self._post(f"status/{job.remote_id}", {})
             status = response["status"].lower()
 
             if status == "in_queue":
