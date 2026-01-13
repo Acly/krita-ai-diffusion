@@ -165,11 +165,9 @@ class ControlLayer(QObject, ObservableProperties):
                     self.error_text = _("IP-Adapter is not supported by this GPU")
                 is_supported = False
             elif self.mode.is_control_net:
-                cn_model = models.control.find(self.mode, allow_universal=True)
-                patch_model = models.model_patch.find(self.mode, allow_universal=True)
-                lora_model = models.lora.find(self.mode)
-                self.has_range = patch_model is None  # can't set start/end for model patches
-                if cn_model is None and patch_model is None and lora_model is None:
+                model = models.find_control(self.mode)
+                self.has_range = model == models.model_patch.find(self.mode, True)
+                if model is None:
                     search_arch = Arch.illu if models.arch is Arch.illu_v else models.arch
                     search_path = (
                         resources.search_path(ResourceKind.controlnet, search_arch, self.mode)

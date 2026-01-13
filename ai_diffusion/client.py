@@ -289,6 +289,14 @@ class ModelDict:
                 result = self.find(ControlMode.universal)
         return result
 
+    def find_control(self, mode: ControlMode, allow_universal=True):
+        return (
+            self.control.find(mode, allow_universal)
+            or self.model_patch.find(mode, allow_universal)
+            or self.ip_adapter.find(mode)
+            or self.lora.find(mode)
+        )
+
     def for_version(self, arch: Arch):
         return ModelDict(self._models, self.kind, arch)
 

@@ -763,8 +763,11 @@ def _find_clip_vision_model(model_list: Sequence[str]):
 
 
 def _find_model_patches(model_list: Sequence[str]):
-    res = ResourceId(ResourceKind.model_patch, Arch.zimage, ControlMode.universal)
-    return {res.string: _find_model(model_list, res.kind, res.arch, res.identifier)}
+    res = [
+        ResourceId(ResourceKind.model_patch, Arch.zimage, ControlMode.universal),
+        ResourceId(ResourceKind.model_patch, Arch.zimage, ControlMode.blur),
+    ]
+    return {r.string: _find_model(model_list, r.kind, r.arch, r.identifier) for r in res}
 
 
 def _find_style_models(model_list: Sequence[str]):

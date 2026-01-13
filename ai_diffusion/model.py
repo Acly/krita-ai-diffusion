@@ -346,7 +346,7 @@ class Model(QObject, ObservableProperties):
         else:
             conditioning, job_regions = ConditioningInput(sys_prompt), []
         models = client.models.for_arch(self.arch)
-        has_unblur = models.control.find(ControlMode.blur, allow_universal=True) is not None
+        has_unblur = models.find_control(ControlMode.blur) is not None
         if has_unblur and params.unblur_strength > 0.0:
             control = ControlInput(ControlMode.blur, None, params.unblur_strength)
             conditioning.control.append(control)

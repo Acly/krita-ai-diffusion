@@ -287,7 +287,7 @@ class UpscaleWidget(QWidget):
             has_unblur = False
             if client := root.connection.client_if_connected:
                 models = client.models.for_arch(self.model.arch)
-                has_unblur = models.control.find(ControlMode.blur, allow_universal=True) is not None
+                has_unblur = models.find_control(ControlMode.blur) is not None
             self.unblur_slider.setEnabled(has_unblur)
             if not has_unblur:
                 tooltip = _("The tile/unblur control model is not installed.")
