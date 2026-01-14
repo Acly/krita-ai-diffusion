@@ -81,6 +81,10 @@ def default_style(client: Client, sd_ver=Arch.sd15):
     if sd_ver.is_flux_like:
         style.sampler = "Flux - Euler simple"
         style.cfg_scale = 3.5
+    if sd_ver is Arch.zimage:
+        style.sampler = "Flux - Euler simple"
+        style.cfg_scale = 1.0
+        style.sampler_steps = 8
     return style
 
 
@@ -1011,13 +1015,14 @@ def test_inpaint_benchmark(pytestconfig, qtapp, client):
     seeds = [4213, 897281]
     prompt_modes = ["prompt", "noprompt"]
     scenarios = inpaint_benchmark.keys()
-    sdvers = [Arch.sd15, Arch.sdxl]
+    sdvers = [Arch.zimage]
     runs = itertools.product(sdvers, scenarios, prompt_modes, seeds)
 
     for sdver, scenario, prompt_mode, seed in runs:
         mode, _, _ = inpaint_benchmark[scenario]
         prompt_required = mode in [InpaintMode.add_object, InpaintMode.replace_background]
-        if prompt_required and prompt_mode == "noprompt":
+        noprompt_supported = sdver is not Arch.zimage
+        if (not noprompt_supported or prompt_required) and prompt_mode == "noprompt":
             continue
 
         print("-", scenario, "|", sdver.name, "|", prompt_mode, "|", seed)
