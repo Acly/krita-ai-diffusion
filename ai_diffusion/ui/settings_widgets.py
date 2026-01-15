@@ -18,7 +18,7 @@ from PyQt5.QtWidgets import (
     QFrame,
 )
 from PyQt5.QtCore import Qt, QAbstractItemModel, QSize, pyqtSignal
-from PyQt5.QtGui import QIcon
+from PyQt5.QtGui import QIcon, QFontMetrics
 
 from ..localization import translate as _
 from ..settings import Setting, settings
@@ -256,7 +256,8 @@ class SliderSetting(SettingWidget):
         self._slider.setSingleStep(1)
         self._slider.valueChanged.connect(self._change_value)
         self._label = QLabel(str(self._slider.value()), self)
-        self._label.setMinimumWidth(16)
+        fm = QFontMetrics(self._label.font())
+        self._label.setMinimumWidth(fm.width("555 px"))
         slider_layout.addWidget(self._slider)
         slider_layout.addWidget(self._label)
         self.set_widget(slider_widget)
