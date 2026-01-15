@@ -337,7 +337,6 @@ class ControlMode(Enum):
         """True if this control mode is covered by univeral control-net."""
         if arch.is_sdxl_like:
             return self in [
-                ControlMode.inpaint,
                 ControlMode.scribble,
                 ControlMode.line_art,
                 ControlMode.soft_edge,

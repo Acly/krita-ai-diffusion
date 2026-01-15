@@ -662,8 +662,8 @@ class DiffusionSettings(SettingsTab):
         super().__init__(_("Diffusion Settings"))
 
         S = Settings
-        self.add("selection_grow", SliderSetting(S._selection_grow, self, 0, 25, "{} %"))
         self.add("selection_feather", SliderSetting(S._selection_feather, self, 0, 25, "{} %"))
+        self.add("selection_blend", SliderSetting(S._selection_blend, self, 0, 100, "{} px"))
         self.add("selection_padding", SliderSetting(S._selection_padding, self, 0, 25, "{} %"))
         self.add("nsfw_filter", ComboBoxSetting(S._nsfw_filter, parent=self))
 

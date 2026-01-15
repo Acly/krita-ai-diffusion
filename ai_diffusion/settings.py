@@ -211,19 +211,33 @@ class Settings(QObject):
     check_server_resources: bool
     _check_server_resources = Setting("Refuse connection if nodes or models are missing", True)
 
-    selection_grow: int
-    _selection_grow = Setting(
-        _("Selection Grow"), 5, _("Selection area is expanded by a fraction of its size")
-    )
-
     selection_feather: int
     _selection_feather = Setting(
-        _("Selection Feather"), 5, _("The border is blurred by a fraction of selection size")
+        _("Selection Feather"),
+        10,
+        _("The border is expanded and blurred by a fraction of selection size"),
+    )
+
+    selection_min_transition: int
+    _selection_min_transition = Setting(
+        "Selection minimum feather", 32, "Minimum smooth grow (feathering) in pixels for denoising"
+    )
+
+    selection_grow_offset: int
+    _selection_grow_offset = Setting(
+        "Selection Grow Offset",
+        4,
+        "Apply binary grow/dilation in pixels to denoise mask before smooth grow (feathering)",
+    )
+
+    selection_blend: int
+    _selection_blend = Setting(
+        _("Selection Blend"), 25, _("Transition area for alpha blending the result image")
     )
 
     selection_padding: int
     _selection_padding = Setting(
-        _("Selection Padding"), 7, _("Minimum additional padding around the selection area")
+        _("Selection Padding"), 6, _("Minimum additional padding around the selection area")
     )
 
     nsfw_filter: float

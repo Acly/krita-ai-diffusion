@@ -747,20 +747,21 @@ class Mask:
         return Mask(bounds, QByteArray(bytes(bounds.width * bounds.height)))
 
     @staticmethod
-    def rectangle(bounds: Bounds, feather=0):
+    def rectangle(bounds: Bounds, context: Bounds):
         # Note: for testing only, where Krita selection is not available
-        m = [255 for i in range(bounds.width * bounds.height)]
-        if feather > 0:
-            for x, y in product(range(bounds.width), range(bounds.height)):
-                l = min(0, x - feather) * -1
-                t = min(0, y - feather) * -1
-                r = max(0, x + feather + 1 - bounds.width)
-                b = max(0, y + feather + 1 - bounds.height)
-                alpha = (
-                    64 * l // feather + 64 * t // feather + 64 * r // feather + 64 * b // feather
-                )
-                m[y * bounds.width + x] = 255 - alpha
-        return Mask(bounds, QByteArray(bytes(m)))
+        m = []
+        for y in range(context.height):
+            for x in range(context.width):
+                if (
+                    x >= bounds.x
+                    and x < bounds.x + bounds.width
+                    and y >= bounds.y
+                    and y < bounds.y + bounds.height
+                ):
+                    m.append(255)
+                else:
+                    m.append(0)
+        return Mask(context, QByteArray(bytes(m)))
 
     @staticmethod
     def load(filepath: Union[str, Path]):

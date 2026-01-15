@@ -256,6 +256,7 @@ class Model(QObject, ObservableProperties):
                     inpaint_mode, mask.bounds, arch, pos, ctrl, strength
                 )
             inpaint.grow, inpaint.feather = selection_mod.apply(selection_bounds)
+            inpaint.blend = settings.selection_blend
 
         input = workflow.prepare(
             workflow_kind,
@@ -418,11 +419,12 @@ class Model(QObject, ObservableProperties):
         inpaint = InpaintParams(InpaintMode.fill, Bounds(0, 0, *extent))
 
         image = None
-        selection_mod = get_selection_modifiers(inpaint.mode, strength, is_live=True)
+        selection_mod = get_selection_modifiers(inpaint.mode, strength)
         mask, selection_bounds = self._doc.create_mask_from_selection(
             selection_mod.padding, min_size=min_mask_size, square=True
         )
         inpaint.grow, inpaint.feather = selection_mod.apply(selection_bounds)
+        inpaint.blend = settings.selection_blend
 
         bounds = Bounds(0, 0, *self._doc.extent)
         region_layer = self.regions.get_active_region_layer(use_parent=False)
@@ -431,6 +433,7 @@ class Model(QObject, ObservableProperties):
             free_space = mask.bounds.extent - region_layer.compute_bounds().extent
             inpaint.grow = clamp(free_space.shortest_side // 2, 8, 128)
             inpaint.feather = inpaint.grow // 2
+            inpaint.blend = max(inpaint.feather // 2, 15)
 
         if mask is not None:
             workflow_kind = WorkflowKind.refine_region
@@ -481,7 +484,7 @@ class Model(QObject, ObservableProperties):
             mask = None
 
             if selection_node := next(wf.find(type="ETN_KritaSelection"), None):
-                mods = get_selection_modifiers(InpaintMode.fill, self.strength, is_live)
+                mods = get_selection_modifiers(InpaintMode.fill, self.strength)
                 mask, select_bounds = self._doc.create_mask_from_selection(mods.padding, 8, 256)
                 mask, bounds = self.custom.prepare_mask(selection_node, mask, select_bounds, bounds)
 
@@ -1448,38 +1451,32 @@ class AnimationWorkspace(QObject, ObservableProperties):
 
 
 class SelectionModifiers(NamedTuple):
-    grow: float
     feather: float
     padding: float
     invert: bool
 
     def apply(self, selection_bounds: Bounds | None):
-        if selection_bounds is None:
+        if selection_bounds is None or settings.selection_feather == 0:
             return 0, 0
         size_factor = selection_bounds.extent.diagonal
-        return int(self.grow * size_factor), int(self.feather * size_factor)
+        feather = max(int(self.feather * size_factor), settings.selection_min_transition)
+        grow = settings.selection_grow_offset + feather // 2
+        return grow, feather
 
 
-def get_selection_modifiers(inpaint_mode: InpaintMode, strength: float, is_live=False):
-    grow = settings.selection_grow / 100 if not is_live else settings.selection_feather / 200
+def get_selection_modifiers(inpaint_mode: InpaintMode, strength: float):
     feather = settings.selection_feather / 100
     padding = settings.selection_padding / 100
     invert = False
 
-    if inpaint_mode is InpaintMode.remove_object and strength == 1.0:
-        # avoid leaving any border pixels of the object to be removed within the
-        # area where the mask is 1.0, it will confuse inpainting models
-        feather = min(feather, grow * 0.5)
-
     if inpaint_mode is InpaintMode.replace_background and strength == 1.0:
         # only minimal grow/feather as there is often no desired transition between
         # forground object and background (to be replaced by something else entirely)
-        grow = min(grow, 0.01)
         feather = min(feather, 0.01)
         invert = True
 
-    padding = padding + grow + 0.5 * feather
-    return SelectionModifiers(grow, feather, padding, invert)
+    padding = padding + feather
+    return SelectionModifiers(feather, padding, invert)
 
 
 async def _report_errors(parent: Model, coro):

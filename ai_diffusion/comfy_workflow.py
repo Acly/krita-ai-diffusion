@@ -1079,19 +1079,20 @@ class ComfyWorkflow:
     def solid_mask(self, extent: Extent, value=1.0):
         return self.add("SolidMask", 1, width=extent.width, height=extent.height, value=value)
 
+    def threshold_mask(self, mask: Output, threshold: float):
+        return self.add("ThresholdMask", 1, mask=mask, value=threshold)
+
     def fill_masked(self, image: Output, mask: Output, mode="neutral", falloff: int = 0):
         return self.add("INPAINT_MaskedFill", 1, image=image, mask=mask, fill=mode, falloff=falloff)
 
     def blur_masked(self, image: Output, mask: Output, blur: int, falloff: int = 0):
         return self.add("INPAINT_MaskedBlur", 1, image=image, mask=mask, blur=blur, falloff=falloff)
 
-    def expand_mask(self, mask: Output, grow: int, blur: int):
-        return self.add("INPAINT_ExpandMask", 1, mask=mask, grow=grow, blur=blur)
+    def expand_mask(self, mask: Output, grow: int, blur: int, kernel="gaussian"):
+        return self.add("INPAINT_ExpandMask", 1, mask=mask, grow=grow, blur=blur, blur_type=kernel)
 
-    def denoise_to_compositing_mask(self, mask: Output, offset=0.05, threshold=0.35):
-        return self.add(
-            "INPAINT_DenoiseToCompositingMask", 1, mask=mask, offset=offset, threshold=threshold
-        )
+    def shrink_mask(self, mask: Output, shrink: int, blur: int):
+        return self.add("INPAINT_ShrinkMask", 1, mask=mask, shrink=shrink, blur=blur)
 
     def apply_mask(self, image: Output, mask: Output):
         return self.add("ETN_ApplyMaskToImage", 1, image=image, mask=mask)

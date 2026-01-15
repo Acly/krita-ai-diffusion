@@ -547,7 +547,9 @@ def apply_control(
             args = dict(image=image)
             if control.mode is ControlMode.inpaint:
                 assert control.mask is not None, "Inpaint control requires a mask"
-                args["mask"] = control.mask.load(w)
+                mask = control.mask.load(w)
+                mask = w.threshold_mask(mask, 0.0)
+                args["mask"] = mask
             model = w.apply_zimage_fun_controlnet(model, patch, vae, control.strength, **args)
             continue
         else:
@@ -858,8 +860,15 @@ def fill_masked(w: ComfyWorkflow, image: Output, mask: Output, fill: FillMode, m
 
 
 def apply_grow_feather(w: ComfyWorkflow, mask: Output, inpaint: InpaintParams):
-    if inpaint.grow or inpaint.feather:
-        mask = w.expand_mask(mask, inpaint.grow, inpaint.feather)
+    if inpaint.grow > 0 or inpaint.feather > 0:
+        mask = w.expand_mask(mask, inpaint.grow, inpaint.feather, kernel="linear")
+    return mask
+
+
+def denoise_to_compositing_mask(w: ComfyWorkflow, mask: Output, inpaint: InpaintParams):
+    mask = w.threshold_mask(mask, 0.0)
+    if inpaint.blend > 0:
+        mask = w.shrink_mask(mask, inpaint.blend // 2, inpaint.blend)
     return mask
 
 
@@ -931,7 +940,7 @@ def inpaint(
     target_bounds = params.target_bounds
     extent = ScaledExtent.from_input(images.extent)  # for initial generation with large context
 
-    is_inpaint_model = params.use_inpaint_model and models.control.find(ControlMode.inpaint) is None
+    is_inpaint_model = params.use_inpaint_model and models.find_control(ControlMode.inpaint) is None
     if is_inpaint_model and models.arch is Arch.flux:
         checkpoint.dynamic_caching = False  # doesn't seem to work with Flux fill model
         sampling.cfg_scale = 30  # set Flux guidance to 30 (typical values don't work well)
@@ -961,11 +970,8 @@ def inpaint(
             Control(ControlMode.reference, ImageOutput(reference), None, 0.5, (0.2, 0.8))
         )
     inpaint_mask = ImageOutput(initial_mask, is_mask=True)
-    if params.use_inpaint_model:
-        controlnet = models.control.find(ControlMode.inpaint)
-        modelpatch = models.model_patch.find(ControlMode.inpaint, allow_universal=True)
-        if controlnet or modelpatch:
-            cond_base.control.append(inpaint_control(in_image, inpaint_mask, models.arch))
+    if params.use_inpaint_model and models.find_control(ControlMode.inpaint):
+        cond_base.control.append(inpaint_control(in_image, inpaint_mask, models.arch))
     if params.use_condition_mask and len(cond_base.regions) == 0:
         base_prompt = TextPrompt(merge_prompt("", cond_base.style_prompt), cond.language)
         cond_base.regions = [
@@ -1052,7 +1058,7 @@ def inpaint(
         out_image = scale_to_target(cropped_extent, w, out_image, models)
 
     out_image = w.nsfw_filter(out_image, sensitivity=misc.nsfw_filter)
-    compositing_mask = w.denoise_to_compositing_mask(cropped_mask)
+    compositing_mask = denoise_to_compositing_mask(w, cropped_mask, params)
     out_masked = w.apply_mask(out_image, compositing_mask)
     w.send_image(out_masked)
     return w
@@ -1153,7 +1159,7 @@ def refine_region(
     if extent.target != inpaint.target_bounds.extent:
         out_image = w.crop_image(out_image, inpaint.target_bounds)
         in_mask = w.crop_mask(in_mask, inpaint.target_bounds)
-    compositing_mask = w.denoise_to_compositing_mask(in_mask)
+    compositing_mask = denoise_to_compositing_mask(w, in_mask, inpaint)
     out_masked = w.apply_mask(out_image, compositing_mask)
     w.send_image(out_masked)
     return w

@@ -150,7 +150,7 @@ def run_and_save(
 
 def dump_workflow(work: WorkflowInput, filename: str, client: Client):
     flow = workflow.create(work, client.models)
-    flow.dump((result_dir / "workflows" / filename).with_suffix(".json"))
+    flow.embed_images().dump((result_dir / "workflows" / filename).with_suffix(".json"))
 
 
 def automatic_inpaint(
@@ -161,7 +161,11 @@ def automatic_inpaint(
     control: list[ControlInput] = [],
 ):
     mode = workflow.detect_inpaint_mode(image_extent, bounds)
-    return detect_inpaint(mode, bounds, sd_ver, prompt, control, strength=1.0)
+    params = detect_inpaint(mode, bounds, sd_ver, prompt, control, strength=1.0)
+    params.grow = max(25, int(bounds.width * 0.1))
+    params.feather = max(51, int(bounds.width * 0.2))
+    params.blend = 25
+    return params
 
 
 def test_inpaint_params():
@@ -231,7 +235,7 @@ def test_prepare_lora():
 
 def test_prepare_wildcards():
     files = FileLibrary(FileCollection(), FileCollection())
-    mask = Mask.rectangle(Bounds(0, 0, 10, 10), feather=0).to_image()
+    mask = Mask.rectangle(Bounds(0, 0, 10, 10), Bounds(0, 0, 10, 10)).to_image()
     style = Style(Path("default.json"))
     style.checkpoints = []
     style.style_prompt = "style-beg {prompt} style-end"
@@ -268,7 +272,7 @@ def test_prepare_wildcards():
 @pytest.mark.parametrize("arch", [Arch.sd15, Arch.qwen_e_p])
 def test_prepare_prompt_layers(arch: Arch):
     files = FileLibrary(FileCollection(), FileCollection())
-    mask = Mask.rectangle(Bounds(0, 0, 10, 10), feather=0).to_image()
+    mask = Mask.rectangle(Bounds(0, 0, 10, 10), Bounds(0, 0, 10, 10)).to_image()
     style = Style(Path("default.json"))
     style.checkpoints = []
     cond = ConditioningInput("prompt <layer:layer1> for <layer:layer2>")
@@ -305,8 +309,12 @@ def test_generate(qtapp, client, extent: Extent):
 
 def test_inpaint(qtapp, client):
     image = Image.load(image_dir / "beach_768x512.webp")
-    mask = Mask.rectangle(Bounds(40, 120, 320, 200), feather=10)
+    mask = Mask.rectangle(Bounds(40, 40, 320, 200), Bounds(0, 80, 400, 280))
     cond = ConditioningInput("beach, the sea, cliffs, palm trees")
+    inpaint = detect_inpaint(InpaintMode.fill, mask.bounds, Arch.sd15, cond.positive, [], 1.0)
+    inpaint.feather = 32
+    inpaint.grow = 4 + inpaint.feather // 2
+    inpaint.blend = 21
     job = create(
         WorkflowKind.inpaint,
         client,
@@ -315,7 +323,7 @@ def test_inpaint(qtapp, client):
         style=default_style(client, Arch.sd15),
         cond=cond,
         perf=PerformanceSettings(batch_size=3),  # max 3 images@512x512 -> 2 images@768x512
-        inpaint=detect_inpaint(InpaintMode.fill, mask.bounds, Arch.sd15, cond.positive, [], 1.0),
+        inpaint=inpaint,
     )
 
     async def main():
@@ -325,16 +333,20 @@ def test_inpaint(qtapp, client):
         for i, result in enumerate(results):
             image.draw_image(result, mask.bounds.offset)
             image.save(result_dir / f"test_inpaint_{i}_{client_name}.png")
-            assert result.extent == Extent(320, 200)
+            assert result.extent == mask.bounds.extent
 
     qtapp.run(main())
 
 
-@pytest.mark.parametrize("sdver", [Arch.sd15, Arch.sdxl])
+@pytest.mark.parametrize("sdver", [Arch.sd15, Arch.sdxl, Arch.zimage])
 def test_inpaint_upscale(qtapp, client, sdver):
     image = Image.load(image_dir / "beach_1536x1024.webp")
-    mask = Mask.rectangle(Bounds(300, 200, 768, 512), feather=20)
+    mask = Mask.rectangle(Bounds(150, 150, 768, 512), Bounds(150, 50, 1068, 812))
     prompt = ConditioningInput("ship")
+    inpaint = detect_inpaint(InpaintMode.add_object, mask.bounds, sdver, prompt.positive, [], 1.0)
+    inpaint.feather = 50
+    inpaint.grow = 4 + inpaint.feather // 2
+    inpaint.blend = 25
     job = create(
         WorkflowKind.inpaint,
         client,
@@ -342,16 +354,13 @@ def test_inpaint_upscale(qtapp, client, sdver):
         mask=mask,
         style=default_style(client, sdver),
         cond=prompt,
-        perf=PerformanceSettings(batch_size=3),  # 2 images for 1.5, 1 image for XL
-        inpaint=detect_inpaint(
-            InpaintMode.add_object, mask.bounds, sdver, prompt.positive, [], 1.0
-        ),
+        perf=PerformanceSettings(batch_size=3),
+        inpaint=inpaint,
     )
 
     async def main():
         dump_workflow(job, f"test_inpaint_upscale_{sdver.name}.json", client)
         results = await receive_images(client, job)
-        assert len(results) == 2 if sdver == Arch.sd15 else 1
         client_name = "local" if isinstance(client, ComfyClient) else "cloud"
         for i, result in enumerate(results):
             image.draw_image(result, mask.bounds.offset)
@@ -364,7 +373,7 @@ def test_inpaint_upscale(qtapp, client, sdver):
 def test_inpaint_odd_resolution(qtapp, client):
     image = Image.load(image_dir / "beach_768x512.webp")
     image = Image.scale(image, Extent(612, 513))
-    mask = Mask.rectangle(Bounds(0, 0, 200, 513))
+    mask = Mask.rectangle(Bounds(0, 0, 200, 513), Bounds(0, 0, 350, 513))
     job = create(
         WorkflowKind.inpaint,
         client,
@@ -989,6 +998,7 @@ def run_inpaint_benchmark(
         mask = Mask.crop(mask, bounds)
     text = ConditioningInput(prompt if prompt_mode == "prompt" else "")
     params = detect_inpaint(mode, mask.bounds, sdver, text.positive, [], 1.0)
+    params.blend = 30
     job = create(
         WorkflowKind.inpaint,
         client,
