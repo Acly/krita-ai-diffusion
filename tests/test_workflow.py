@@ -621,7 +621,8 @@ def test_control_scribble(qtapp, client, op):
         crop_image = Image.crop(inpaint_image, mask.bounds)
         control[0].image = Image.crop(scribble_image, mask.bounds)
         crop_mask = Mask(Bounds(0, 0, 256, 512), mask.image)
-        params = params = automatic_inpaint(crop_image.extent, crop_mask.bounds)
+        params = automatic_inpaint(crop_image.extent, crop_mask.bounds)
+        params.grow = params.feather = 0
         args = dict(kind=kind, canvas=crop_image, mask=crop_mask, strength=0.7, inpaint=params)
     else:  # op == "inpaint_upscale":
         control[0].image = Image.scale(scribble_image, Extent(1024, 1024))

@@ -324,7 +324,9 @@ class TextPrompt:
         images: list[Output] | None = None,
     ):
         text = self.text
-        if text != "" and style_prompt:
+        if text == "" and clip and clip.arch is Arch.zimage:
+            text = "."  # Z-Image requires non-empty prompt
+        if text != "" and style_prompt is not None:
             text = merge_prompt(text, style_prompt, self.language)
 
         if self._output is None or self._clip != clip:
