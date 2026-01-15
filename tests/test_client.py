@@ -5,6 +5,7 @@ import pytest
 from ai_diffusion import eventloop, resources
 from ai_diffusion.api import WorkflowInput, WorkflowKind, LoraInput
 from ai_diffusion.api import CheckpointInput, ImageInput, SamplingInput, ConditioningInput
+from ai_diffusion.platform_tools import get_cuda_devices
 from ai_diffusion.resources import ControlMode
 from ai_diffusion.network import NetworkError
 from ai_diffusion.image import Extent
@@ -19,12 +20,17 @@ from .config import server_dir, default_checkpoint
 
 @pytest.fixture(scope="session")
 def comfy_server(qtapp):
-    server = Server(str(server_dir), ServerBackend.cpu)
+    backend = ServerBackend.cpu
+    if len(get_cuda_devices()) > 0:
+        backend = ServerBackend.cuda
+
+    server = Server(str(server_dir), backend)
     assert server.state is ServerState.stopped, (
         f"Expected server installation at {server_dir}. To create the default installation run"
         " `pytest tests/test_server.py --test-install`"
     )
-    yield qtapp.run(server.start(port=8189))
+    qtapp.run(server.start(port=8189))
+    yield server
     qtapp.run(server.stop())
 
 
@@ -47,9 +53,10 @@ def test_connect_bad_url(qtapp, comfy_server):
 
 
 @pytest.mark.parametrize("cancel_point", ["after_enqueue", "after_start", "after_sampling"])
-def test_cancel(qtapp, comfy_server, cancel_point):
+def test_cancel(qtapp, comfy_server: Server, cancel_point):
     async def main():
-        client = await ComfyClient.connect(comfy_server)
+        assert comfy_server.url is not None
+        client = await ComfyClient.connect(comfy_server.url)
         async for _ in client.discover_models(refresh=False):
             pass
         job_id = None
@@ -64,7 +71,7 @@ def test_cancel(qtapp, comfy_server, cancel_point):
                 assert msg.event is not ClientEvent.finished
                 assert msg.job_id == job_id or msg.job_id == ""
                 if not job_id:
-                    job_id = await client.enqueue(make_default_work(steps=200))
+                    job_id = await client.enqueue(make_default_work(steps=1000))
                     assert client.queued_count == 1
                 if not interrupted:
                     if cancel_point == "after_enqueue":
@@ -99,13 +106,14 @@ def test_cancel(qtapp, comfy_server, cancel_point):
     qtapp.run(main())
 
 
-def test_disconnect(qtapp, comfy_server):
+def test_disconnect(qtapp, comfy_server: Server):
     async def listen(client: ComfyClient):
         async for msg in client.listen():
             assert msg.event is ClientEvent.connected
 
     async def main():
-        client = await ComfyClient.connect(comfy_server)
+        assert comfy_server.url is not None
+        client = await ComfyClient.connect(comfy_server.url)
         task = eventloop._loop.create_task(listen(client))
         task.cancel()
         with pytest.raises(asyncio.CancelledError):
@@ -156,9 +164,15 @@ def check_resolve_sd_version(client: ComfyClient, arch: Arch):
     assert resolve_arch(style, None) == arch
 
 
-def test_info(pytestconfig, qtapp, comfy_server):
+def check_nunchaku(server: Server, client: ComfyClient):
+    if server.backend is ServerBackend.cuda:
+        assert "NunchakuFluxDiTLoader" in client.models.node_inputs.nodes
+
+
+def test_info(pytestconfig, qtapp, comfy_server: Server):
     async def main():
-        client = await ComfyClient.connect(comfy_server)
+        assert comfy_server.url is not None
+        client = await ComfyClient.connect(comfy_server.url)
         async for _ in client.discover_models(refresh=False):
             pass
         check_client_info(client)
@@ -166,11 +180,12 @@ def test_info(pytestconfig, qtapp, comfy_server):
         check_client_info(client)
         check_resolve_sd_version(client, Arch.sd15)
         # check_resolve_sd_version(client, Arch.sdxl) # no SDXL checkpoint in default installation
+        check_nunchaku(comfy_server, client)
 
     qtapp.run(main())
 
 
-def test_upload_lora(qtapp, comfy_server, tmp_path: Path):
+def test_upload_lora(qtapp, comfy_server: Server, tmp_path: Path):
     lora_path = tmp_path / "test-lora.safetensors"
     lora_path.write_bytes(b"testdata" * 1024 * 1024)
 
@@ -178,7 +193,8 @@ def test_upload_lora(qtapp, comfy_server, tmp_path: Path):
     file = files.loras.add(File.local(lora_path, compute_hash=True))
 
     async def main():
-        client = await ComfyClient.connect(comfy_server)
+        assert comfy_server.url is not None
+        client = await ComfyClient.connect(comfy_server.url)
         if file.id in client.models.loras:
             client.models.loras.remove(file.id)
 

@@ -7,6 +7,7 @@ import shutil
 import sys
 
 from ai_diffusion import network, server, resources
+from ai_diffusion.platform_tools import get_cuda_devices
 from ai_diffusion.style import Arch
 from ai_diffusion.server import Server, ServerState, ServerBackend, InstallationProgress
 from ai_diffusion.server import model_dirs
@@ -48,6 +49,12 @@ def clear_test_server():
     server_dir.mkdir(exist_ok=True)
 
 
+def get_backend():
+    if len(get_cuda_devices()) > 0:
+        return ServerBackend.cuda
+    return ServerBackend.cpu
+
+
 def test_install_and_run(qtapp, pytestconfig, local_download_server):
     """Test installing and running ComfyUI server from scratch.
     * Takes a while, only runs with --test-install
@@ -62,7 +69,7 @@ def test_install_and_run(qtapp, pytestconfig, local_download_server):
 
     clear_test_server()
 
-    server = Server(str(server_dir), ServerBackend.cpu)
+    server = Server(str(server_dir), get_backend())
     assert server.state in [ServerState.not_installed, ServerState.missing_resources]
 
     last_stage = ""
@@ -110,7 +117,7 @@ def test_run_external(qtapp, pytestconfig):
     if not (server_dir / "ComfyUI").exists():
         pytest.skip("ComfyUI installation not found")
 
-    server = Server(str(server_dir), ServerBackend.cpu)
+    server = Server(str(server_dir), get_backend())
     assert server.has_python
     assert server.state in [ServerState.stopped, ServerState.missing_resources]
 
@@ -129,7 +136,7 @@ def test_extra_model_dirs(pytestconfig):
     if not pytestconfig.getoption("--test-install"):
         pytest.skip("Only runs with --test-install")
 
-    server = Server(str(server_dir), ServerBackend.cpu)
+    server = Server(str(server_dir), get_backend())
     # Requires test_install_and_run to setup the server
     assert server.state in [ServerState.stopped]
 
@@ -141,7 +148,7 @@ def test_verify_and_fix(qtapp, pytestconfig, local_download_server):
     if not pytestconfig.getoption("--test-install"):
         pytest.skip("Only runs with --test-install")
 
-    server = Server(str(server_dir), ServerBackend.cpu)
+    server = Server(str(server_dir), get_backend())
     # Requires test_install_and_run to setup the server
     assert server.state in [ServerState.stopped]
 
@@ -179,7 +186,7 @@ def test_uninstall(qtapp, pytestconfig, local_download_server):
     temp_server_dir = server_dir.parent / "temp-server"
     if temp_server_dir.exists():
         shutil.rmtree(temp_server_dir, ignore_errors=True)
-    server = Server(str(temp_server_dir), ServerBackend.cpu)
+    server = Server(str(temp_server_dir), get_backend())
     assert server.state is ServerState.not_installed
 
     def handle_progress(report: InstallationProgress):
