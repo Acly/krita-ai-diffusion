@@ -4,7 +4,6 @@ from PyQt5.QtGui import QImage, QImageWriter, QImageReader, QPixmap, QIcon, QPai
 from PyQt5.QtGui import qRgba, qRed, qGreen, qBlue, qAlpha, qGray
 from PyQt5.QtCore import Qt, QByteArray, QBuffer, QRect, QSize, QFile, QIODevice
 from typing import Callable, Iterable, SupportsIndex, Tuple, NamedTuple, Union, Optional
-from itertools import product
 from pathlib import Path
 
 from .settings import settings, ImageFileFormat

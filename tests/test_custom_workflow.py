@@ -357,7 +357,7 @@ def test_prepare_mask():
     jobs = JobQueue()
     workspace = CustomWorkspace(workflows, dummy_generate, jobs)
 
-    mask = Mask.rectangle(Bounds(10, 10, 40, 40), 0)
+    mask = Mask.rectangle(Bounds(10, 10, 40, 40), Bounds(10, 10, 40, 40))
     canvas_bounds = Bounds(0, 0, 100, 100)
     selection_bounds = Bounds(12, 12, 34, 34)
     selection_node = ComfyNode(0, "ETN_Selection", {"context": "automatic", "padding": 3})
@@ -575,8 +575,8 @@ def test_expand_animation():
         Image.create(Extent(4, 4), Qt.GlobalColor.white),
     ])
     in_masks = ImageCollection([
-        Mask.rectangle(Bounds(0, 0, 4, 4), 1).to_image(),
-        Mask.rectangle(Bounds(1, 1, 3, 3), 1).to_image(),
+        Mask.rectangle(Bounds(0, 0, 4, 4), Bounds(0, 0, 4, 4)).to_image(),
+        Mask.rectangle(Bounds(1, 1, 3, 3), Bounds(1, 1, 3, 3)).to_image(),
     ])
     params = {
         "image": in_images,
