@@ -12,7 +12,6 @@ version = "1.46.0"
 
 comfy_url = "https://github.com/comfyanonymous/ComfyUI"
 comfy_version = "f59f71cf34067d46713f6243312f7f0b360d061f"
-nunchaku_version = "1.1.0"
 
 
 class CustomNode(NamedTuple):
@@ -49,8 +48,8 @@ required_custom_nodes = [
         "Inpaint Nodes",
         "comfyui-inpaint-nodes",
         "https://github.com/Acly/comfyui-inpaint-nodes",
-        "b9039c22de926919f26b7242cfa4da00d8b6fbec",
-        ["INPAINT_LoadFooocusInpaint", "INPAINT_ApplyFooocusInpaint", "INPAINT_ExpandMask"],
+        "4ebbdc840db881c50a38965aa7955b76cec2a4c5",
+        ["INPAINT_LoadFooocusInpaint", "INPAINT_ShrinkMask", "INPAINT_ExpandMask"],
     ),
 ]
 
@@ -66,7 +65,7 @@ optional_custom_nodes = [
         "Nunchaku",
         "ComfyUI-nunchaku",
         "https://github.com/nunchaku-tech/ComfyUI-nunchaku",
-        "930bc2266a4f3277e16be75e67c11875d20a01c6",
+        "90999af9c26e4a40927fb26c028ece8875ac25b3",
         ["NunchakuFluxDiTLoader"],
     ),
 ]

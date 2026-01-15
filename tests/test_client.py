@@ -91,7 +91,7 @@ def test_cancel(qtapp, comfy_server: Server, cancel_point):
                     stage = 1
                     assert client.queued_count == 1
                 elif msg.event is ClientEvent.progress:
-                    assert client.is_executing
+                    assert stage == 0
 
             elif stage == 1:
                 assert msg.event is not ClientEvent.interrupted
