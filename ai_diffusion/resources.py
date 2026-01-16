@@ -79,7 +79,8 @@ class Arch(Enum):
     sd3 = "SD 3"
     flux = "Flux"
     flux_k = "Flux Kontext"
-    flux2 = "Flux 2 Klein 4B"
+    flux2_4b = "Flux 2 Klein 4B"
+    flux2_9b = "Flux 2 Klein 9B"
     illu = "Illustrious"
     illu_v = "Illustrious v-prediction"
     chroma = "Chroma"
@@ -108,7 +109,9 @@ class Arch(Enum):
         if string == "flux" or string == "flux-schnell":
             return Arch.flux
         if string == "flux2" and model_type == "klein-4b":
-            return Arch.flux2
+            return Arch.flux2_4b
+        if string == "flux2" and model_type == "klein-9b":
+            return Arch.flux2_9b
         if string == "illu":
             return Arch.illu
         if string == "illu_v":
@@ -189,7 +192,7 @@ class Arch(Enum):
 
     @property
     def supports_edit(self):  # includes text-to-image models that can also edit
-        return self.is_edit or self is Arch.flux2
+        return self.is_edit or self.is_flux2
 
     @property
     def is_sdxl_like(self):
@@ -199,6 +202,10 @@ class Arch(Enum):
     @property
     def is_flux_like(self):
         return self in [Arch.flux, Arch.flux_k]
+
+    @property
+    def is_flux2(self):
+        return self in [Arch.flux2_4b, Arch.flux2_9b]
 
     @property
     def is_qwen_like(self):
@@ -215,12 +222,16 @@ class Arch(Enum):
                 return ["clip_l", "clip_g"]
             case Arch.flux | Arch.flux_k:
                 return ["clip_l", "t5"]
+            case Arch.flux2_4b:
+                return ["qwen_3_4b"]
+            case Arch.flux2_9b:
+                return ["qwen_3_8b"]
             case Arch.chroma:
                 return ["t5"]
             case Arch.qwen | Arch.qwen_e | Arch.qwen_e_p | Arch.qwen_l:
                 return ["qwen"]
-            case Arch.zimage | Arch.flux2:
-                return ["qwen_3"]
+            case Arch.zimage:
+                return ["qwen_3_4b"]
         raise ValueError(f"Unsupported architecture: {self}")
 
     @staticmethod
@@ -231,7 +242,8 @@ class Arch(Enum):
             Arch.sd3,
             Arch.flux,
             Arch.flux_k,
-            Arch.flux2,
+            Arch.flux2_4b,
+            Arch.flux2_9b,
             Arch.illu,
             Arch.illu_v,
             Arch.chroma,
@@ -752,7 +764,8 @@ search_paths: dict[str, list[str]] = {
     resource_id(ResourceKind.text_encoder, Arch.all, "clip_g"): ["clip_g"],
     resource_id(ResourceKind.text_encoder, Arch.all, "t5"): ["t5xxl_fp16", "t5xxl_fp8_e4m3fn", "t5xxl_fp8_e4m3fn_scaled", "t5-v1_1-xxl", "t5"],
     resource_id(ResourceKind.text_encoder, Arch.all, "qwen"): ["qwen_2.5_vl_7b", "qwen_2", "qwen-2", "qwen"],
-    resource_id(ResourceKind.text_encoder, Arch.all, "qwen_3"): ["qwen_3_4b", "qwen3-4b", "qwen_3", "qwen-3"],
+    resource_id(ResourceKind.text_encoder, Arch.all, "qwen_3_4b"): ["qwen_3_4b", "qwen3-4b", "qwen_3", "qwen-3"],
+    resource_id(ResourceKind.text_encoder, Arch.all, "qwen_3_8b"): ["qwen_3_8b", "qwen3-8b"],
     resource_id(ResourceKind.vae, Arch.sd15, "default"): ["vae-ft-mse-840000-ema"],
     resource_id(ResourceKind.vae, Arch.sdxl, "default"): ["sdxl_vae"],
     resource_id(ResourceKind.vae, Arch.illu, "default"): ["sdxl_vae"],
@@ -760,7 +773,8 @@ search_paths: dict[str, list[str]] = {
     resource_id(ResourceKind.vae, Arch.sd3, "default"): ["sd3"],
     resource_id(ResourceKind.vae, Arch.flux, "default"): ["flux-", "flux_", "flux/", "flux1", "ae.s"],
     resource_id(ResourceKind.vae, Arch.flux_k, "default"): ["flux-", "flux_", "flux/", "flux1", "ae.s"],
-    resource_id(ResourceKind.vae, Arch.flux2, "default"): ["flux2"],
+    resource_id(ResourceKind.vae, Arch.flux2_4b, "default"): ["flux2"],
+    resource_id(ResourceKind.vae, Arch.flux2_9b, "default"): ["flux2"],
     resource_id(ResourceKind.vae, Arch.chroma, "default"): ["flux-", "flux_", "flux/", "flux1", "ae.s"],
     resource_id(ResourceKind.vae, Arch.qwen, "default"): ["qwen"],
     resource_id(ResourceKind.vae, Arch.qwen_e, "default"): ["qwen"],

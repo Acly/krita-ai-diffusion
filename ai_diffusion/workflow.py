@@ -133,15 +133,17 @@ def load_checkpoint_with_lora(w: ComfyWorkflow, checkpoint: CheckpointInput, mod
                     clip = w.load_dual_clip(te["clip_g"], te["clip_l"], type="sd3")
             case Arch.flux | Arch.flux_k:
                 clip = w.load_dual_clip(te["clip_l"], te["t5"], type="flux")
-            case Arch.flux2:
-                clip = w.load_clip(te["qwen_3"], type="flux2")
+            case Arch.flux2_4b:
+                clip = w.load_clip(te["qwen_3_4b"], type="flux2")
+            case Arch.flux2_9b:
+                clip = w.load_clip(te["qwen_3_8b"], type="flux2")
             case Arch.chroma:
                 clip = w.load_clip(te["t5"], type="chroma")
                 clip = w.t5_tokenizer_options(clip, min_padding=1, min_length=0)
             case Arch.qwen | Arch.qwen_e | Arch.qwen_e_p | Arch.qwen_l:
                 clip = w.load_clip(te["qwen"], type="qwen_image")
             case Arch.zimage:
-                clip = w.load_clip(te["qwen_3"], type="lumina2")
+                clip = w.load_clip(te["qwen_3_4b"], type="lumina2")
             case _:
                 raise RuntimeError(f"No text encoder for model architecture {arch.name}")
 
@@ -701,7 +703,7 @@ def apply_reference_conditioning(
     extra_input = (c.image for c in cond.all_control if c.mode.is_ip_adapter)
     extra_images = [i.load(w) for i in extra_input]
     match arch:
-        case Arch.flux2 | Arch.qwen_e_p:
+        case Arch.flux2_4b | Arch.flux2_9b | Arch.qwen_e_p:
             if cond.edit_reference and input_latent:
                 positive = w.reference_latent(positive, input_latent)
             for extra_image in extra_images:
@@ -1455,7 +1457,7 @@ def prepare_prompts(
         "negative_prompt": cond.negative,
     }
     models = style.get_models([])
-    layer_replace = "Picture {}" if arch in (Arch.qwen_e_p, Arch.flux2) else ""
+    layer_replace = "Picture {}" if arch is Arch.qwen_e_p or arch.is_flux2 else ""
 
     cond.style = style.style_prompt
     cond.positive = strip_prompt_comments(cond.positive)

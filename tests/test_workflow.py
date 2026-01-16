@@ -85,7 +85,7 @@ def default_style(client: Client, sd_ver=Arch.sd15):
         style.sampler = "Flux - Euler simple"
         style.cfg_scale = 1.0
         style.sampler_steps = 8
-    if sd_ver is Arch.flux2:
+    if sd_ver.is_flux2:
         style.sampler = "Flux 2 - Euler"
         style.cfg_scale = 1.0
         style.sampler_steps = 4
@@ -815,7 +815,7 @@ def test_refine_live(qtapp, client, sdver):
     run_and_save(qtapp, client, job, f"test_refine_live_{sdver.name}")
 
 
-@pytest.mark.parametrize("arch", [Arch.flux_k, Arch.flux2])
+@pytest.mark.parametrize("arch", [Arch.flux_k, Arch.flux2_4b])
 def test_edit(qtapp, local_client, arch):
     image = Image.load(image_dir / "flowers.webp")
     style = default_style(local_client, arch)
@@ -825,7 +825,7 @@ def test_edit(qtapp, local_client, arch):
     run_and_save(qtapp, local_client, job, f"test_edit_{arch.name}")
 
 
-@pytest.mark.parametrize("arch", [Arch.flux_k, Arch.flux2])
+@pytest.mark.parametrize("arch", [Arch.flux_k, Arch.flux2_4b])
 def test_edit_selection(qtapp, local_client, arch):
     image = Image.load(image_dir / "flowers.webp")
     mask = Mask.load(image_dir / "flowers_mask.png")
