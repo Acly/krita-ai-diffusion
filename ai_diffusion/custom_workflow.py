@@ -13,6 +13,7 @@ from PyQt5.QtCore import QMetaObject, QTimer, pyqtSignal
 from .api import WorkflowInput, InpaintContext
 from .client import OutputBatchMode, TextOutput, ClientOutput, JobInfoOutput
 from .comfy_workflow import ComfyWorkflow, ComfyNode
+from .localization import translate as _
 from .connection import Connection, ConnectionState
 from .image import Bounds, Image, Mask
 from .jobs import Job, JobParams, JobQueue, JobKind
@@ -373,6 +374,7 @@ class CustomWorkspace(QObject, ObservableProperties):
     has_result = Property(False)
     outputs = Property({})
     params_ui_height = Property(100, persist=True)
+    validation_error = Property("")
 
     workflow_id_changed = pyqtSignal(str)
     graph_changed = pyqtSignal()
@@ -383,6 +385,7 @@ class CustomWorkspace(QObject, ObservableProperties):
     has_result_changed = pyqtSignal(bool)
     outputs_changed = pyqtSignal(dict)
     params_ui_height_changed = pyqtSignal(int)
+    validation_error_changed = pyqtSignal(str)
     modified = pyqtSignal(QObject, str)
 
     _live_poll_rate = 0.1
@@ -419,9 +422,19 @@ class CustomWorkspace(QObject, ObservableProperties):
         if wf.id == self._workflow_id:
             self._workflow = wf
             self._graph = self._workflow.workflow
+            self._validate_workflow(self._graph)
             self._metadata = list(workflow_parameters(self._graph))
             self.params = _coerce(self.params, self._metadata)
             self.graph_changed.emit()
+
+    def _validate_workflow(self, wf: ComfyWorkflow):
+        style_and_prompt_node_count = sum(1 for _ in wf.find(type="ETN_KritaStyleAndPrompt"))
+        if style_and_prompt_node_count > 1:
+            self.validation_error = _(
+                "Workflow contains multiple `Krita Style & Prompt` nodes. Only one is allowed since prompts sync across workspaces."
+            )
+        else:
+            self.validation_error = ""
 
     def _set_workflow_id(self, id: str):
         if self._workflow_id == id:
