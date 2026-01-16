@@ -183,7 +183,7 @@ def prepare_diffusion_input(
 
     # The checkpoint may require a different resolution than what is requested.
     mult = 8
-    if arch.is_flux_like or arch in (Arch.chroma, Arch.flux2):
+    if arch.is_flux_like or arch is Arch.chroma or arch.is_flux2:
         mult = 16
     if arch is Arch.sd3:
         mult = 64
