@@ -13,6 +13,7 @@ from PyQt5.QtCore import QMetaObject, QTimer, pyqtSignal
 from .api import WorkflowInput, InpaintContext
 from .client import OutputBatchMode, TextOutput, ClientOutput, JobInfoOutput
 from .comfy_workflow import ComfyWorkflow, ComfyNode
+from .localization import translate as _
 from .connection import Connection, ConnectionState
 from .image import Bounds, Image, Mask
 from .jobs import Job, JobParams, JobQueue, JobKind
@@ -250,6 +251,8 @@ class ParamKind(Enum):
     prompt_negative = 7
     choice = 8
     style = 9
+    synced_prompt_positive = 10
+    synced_prompt_negative = 11
 
 
 class CustomParam(NamedTuple):
@@ -304,6 +307,19 @@ def workflow_parameters(w: ComfyWorkflow):
             case ("ETN_KritaStyle", _):
                 name = node.input("name", "Style")
                 yield CustomParam(ParamKind.style, name, node.input("sampler_preset", "auto"))
+            case ("ETN_KritaPromptStyle", _):
+                name = node.input("name", "Style")
+                yield CustomParam(ParamKind.style, name, node.input("sampler_preset", "auto"))
+                yield CustomParam(
+                    ParamKind.synced_prompt_positive,
+                    f"{name}/positive_prompt",
+                    default=node.input("positive_prompt", "")
+                )
+                yield CustomParam(
+                    ParamKind.synced_prompt_negative,
+                    f"{name}/negative_prompt",
+                    default=node.input("negative_prompt", "")
+                )
             case ("ETN_KritaImageLayer", _):
                 name = node.input("name", "Image")
                 yield CustomParam(ParamKind.image_layer, name)
@@ -373,6 +389,7 @@ class CustomWorkspace(QObject, ObservableProperties):
     has_result = Property(False)
     outputs = Property({})
     params_ui_height = Property(100, persist=True)
+    validation_error = Property("")
 
     workflow_id_changed = pyqtSignal(str)
     graph_changed = pyqtSignal()
@@ -383,6 +400,7 @@ class CustomWorkspace(QObject, ObservableProperties):
     has_result_changed = pyqtSignal(bool)
     outputs_changed = pyqtSignal(dict)
     params_ui_height_changed = pyqtSignal(int)
+    validation_error_changed = pyqtSignal(str)
     modified = pyqtSignal(QObject, str)
 
     _live_poll_rate = 0.1
@@ -419,9 +437,20 @@ class CustomWorkspace(QObject, ObservableProperties):
         if wf.id == self._workflow_id:
             self._workflow = wf
             self._graph = self._workflow.workflow
+            self._validate_workflow(self._graph)
             self._metadata = list(workflow_parameters(self._graph))
             self.params = _coerce(self.params, self._metadata)
             self.graph_changed.emit()
+
+    def _validate_workflow(self, wf: ComfyWorkflow):
+        prompt_style_count = sum(1 for _ in wf.find(type="ETN_KritaPromptStyle"))
+        if prompt_style_count > 1:
+            self.validation_error = _(
+                "Workflow contains multiple Krita Prompt Style nodes. "
+                "Only one is allowed since prompts sync across workspaces."
+            )
+        else:
+            self.validation_error = ""
 
     def _set_workflow_id(self, id: str):
         if self._workflow_id == id:
@@ -496,7 +525,7 @@ class CustomWorkspace(QObject, ObservableProperties):
                 return str(self.params[param.name])
         return self.workflow_id or "Custom Workflow"
 
-    def collect_parameters(self, layers: "LayerManager", bounds: Bounds, animation=False):
+    def collect_parameters(self, layers: "LayerManager", bounds: Bounds, animation=False, model=None):
         params = copy(self.params)
         for md in self.metadata:
             param = params.get(md.name)
@@ -526,6 +555,12 @@ class CustomWorkspace(QObject, ObservableProperties):
                 if style is None:
                     raise ValueError(f"Style {param} not found")
                 params[md.name] = style
+            elif md.kind is ParamKind.synced_prompt_positive:
+                if model is not None:
+                    params[md.name] = model.regions.positive
+            elif md.kind is ParamKind.synced_prompt_negative:
+                if model is not None:
+                    params[md.name] = model.regions.negative
             elif param is None:
                 raise ValueError(f"Parameter {md.name} not found")
 

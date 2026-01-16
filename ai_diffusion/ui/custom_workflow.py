@@ -25,6 +25,7 @@ from .generation import GenerateButton, ProgressBar, QueueButton, HistoryWidget
 from .live import LivePreviewArea
 from .switch import SwitchWidget
 from .widget import TextPromptWidget, WorkspaceSelectWidget, StyleSelectWidget, ErrorBox
+from .region import ActiveRegionWidget, PromptHeader
 from .settings_widgets import ExpanderButton
 from . import theme
 from .theme import SignalBlocker
@@ -475,6 +476,8 @@ class WorkflowParamsWidget(QWidget):
         current_group: tuple[str, GroupHeader | None, list[CustomParamWidget]] = ("", None, [])
 
         for p in params:
+            if p.kind in (ParamKind.synced_prompt_positive, ParamKind.synced_prompt_negative):
+                continue
             group, expander, group_widgets = current_group
             if p.group != group:
                 self._create_group(expander, group_widgets)
@@ -699,6 +702,13 @@ class CustomWorkflowWidget(QWidget):
         self._params_scroll.setWidgetResizable(True)
         self._params_scroll.setFrameShape(QFrame.Shape.NoFrame)
         self._params_scroll.setHorizontalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAlwaysOff)
+        
+        self._prompt_widget = ActiveRegionWidget(
+            self._model.regions, self, header=PromptHeader.none
+        )
+        self._prompt_widget.setVisible(False)  # Hidden until workflow has synced prompts
+        self._prompt_widget.positive.activated.connect(self._generate)
+        self._prompt_widget.negative.activated.connect(self._generate)
 
         self._bottom = QWidget(self)
 
@@ -771,6 +781,7 @@ class CustomWorkflowWidget(QWidget):
         header_layout.addWidget(self._workflow_select_widgets)
         header_layout.addWidget(self._workflow_edit_widgets)
         layout.addLayout(header_layout)
+        layout.addWidget(self._prompt_widget)
         layout.addWidget(self._splitter)
         actions_layout = QHBoxLayout()
         actions_layout.setSpacing(0)
@@ -822,6 +833,7 @@ class CustomWorkflowWidget(QWidget):
             self._queue_button.model = model
             self._progress_bar.model = model
             self._history.model_ = model
+            self._prompt_widget.region = model.regions
             self._update_current_workflow()
             self._update_ui()
             self._set_params_height(model.custom.params_ui_height)
@@ -874,11 +886,18 @@ class CustomWorkflowWidget(QWidget):
         if not self.model.custom.workflow:
             self._save_workflow_button.setEnabled(False)
             self._delete_workflow_button.setEnabled(False)
+            self._prompt_widget.setVisible(False)
             return
         self._save_workflow_button.setEnabled(True)
         self._delete_workflow_button.setEnabled(
             self.model.custom.workflow.source is WorkflowSource.local
         )
+
+        has_synced_prompts = any(
+            p.kind in (ParamKind.synced_prompt_positive, ParamKind.synced_prompt_negative)
+            for p in self.model.custom.metadata
+        )
+        self._prompt_widget.setVisible(has_synced_prompts)
 
         if self._params_widget:
             self._params_scroll.setWidget(None)

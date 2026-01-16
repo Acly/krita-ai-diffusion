@@ -149,6 +149,7 @@ class Model(QObject, ObservableProperties):
         self.jobs.selection_changed.connect(self.update_preview)
         connection.state_changed.connect(self._init_on_connect)
         connection.error_changed.connect(self._forward_error)
+        self.custom.validation_error_changed.connect(self._forward_validation_error)
         Styles.list().changed.connect(self._init_on_connect)
         self._init_on_connect()
 
@@ -164,6 +165,12 @@ class Model(QObject, ObservableProperties):
 
     def _forward_error(self, error: str):
         self.report_error(error if error else no_error)
+
+    def _forward_validation_error(self, error: str):
+        if error:
+            self.report_error(Error(ErrorKind.warning, error))
+        else:
+            self.clear_error()
 
     def generate(self):
         """Enqueue image generation for the current setup."""
@@ -492,7 +499,8 @@ class Model(QObject, ObservableProperties):
             img_input.initial_image = self._get_current_image(bounds)
             img_input.hires_mask = mask.to_image(bounds.extent) if mask else None
 
-            params = self.custom.collect_parameters(self.layers, canvas_bounds, is_anim)
+            params = self.custom.collect_parameters(self.layers, canvas_bounds, is_anim, model=self)
+            
             input = WorkflowInput(
                 WorkflowKind.custom,
                 img_input,
@@ -500,7 +508,14 @@ class Model(QObject, ObservableProperties):
                 inpaint=InpaintParams(InpaintMode.fill, bounds),
                 custom_workflow=CustomWorkflowInput(wf.root, params),
             )
-            job_params = JobParams(bounds, self.custom.job_name, metadata=self.custom.params)
+            
+            prompt_meta = {}
+            if prompt_style_node := next(wf.find(type="ETN_KritaPromptStyle"), None):
+                prompt_meta = self._prepare_prompt_style(prompt_style_node, params, seed) 
+            metadata: dict[str, Any] = dict(self.custom.params)
+            metadata.update(prompt_meta)
+            
+            job_params = JobParams(bounds, self.custom.job_name, metadata=metadata)
             job_kind = {
                 CustomGenerationMode.regular: JobKind.diffusion,
                 CustomGenerationMode.live: JobKind.live_preview,
@@ -517,6 +532,34 @@ class Model(QObject, ObservableProperties):
         except Exception as e:
             self.report_error(util.log_error(e))
             return False
+        
+    def _prepare_prompt_style(self, node, params: dict[str, Any], seed: int) -> dict[str, Any]:
+        """ Prepare prompts for ETN_KritaPromptStyle node.
+        Results passed to workflow.py through params.
+        Returns metadata for job history (Copy Prompt, Copy Style, etc.).
+        """
+        style_name = node.input("name", "Style")
+        style: Style | None = params.get(style_name)
+        
+        if style is None:
+            return {}
+        
+        positive = params.get(f"{style_name}/positive_prompt", "")
+        negative = params.get(f"{style_name}/negative_prompt", "")
+        
+        cond = ConditioningInput(positive, negative)
+        arch = resolve_arch(style, self._connection.client_if_connected)
+        prepared = workflow.prepare_prompts(cond, style, seed, arch, FileLibrary.instance())
+        
+        params[f"{style_name}/_prepared"] = {
+            "positive_final": prepared.metadata["prompt_final"],
+            "negative_final": prepared.metadata["negative_prompt_final"],
+            "loras": prepared.loras,
+        }
+        
+        meta = dict(prepared.metadata)
+        meta["style"] = style.filename
+        return meta
 
     def _get_current_image(self, bounds: Bounds):
         exclude = []
