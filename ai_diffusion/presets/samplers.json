@@ -96,7 +96,7 @@
         "minimum_steps": 3,
         "cfg": 1.0
     },
-    "Flux2 - Euler": {
+    "Flux 2 - Euler": {
         "sampler": "euler",
         "scheduler": "flux2",
         "steps": 20,

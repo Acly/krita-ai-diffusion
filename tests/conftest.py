@@ -34,6 +34,8 @@ def pytest_collection_modifyitems(session, config, items: list[pytest.Item]):
             return 11
         elif "cloud" in item.name:
             return 10
+        elif "flux2" in item.name:
+            return 4
         elif "flux" in item.name:
             return 3
         elif "sdxl" in item.name:

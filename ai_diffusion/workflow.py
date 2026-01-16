@@ -397,6 +397,7 @@ class Conditioning:
     control: list[Control] = field(default_factory=list)
     regions: list[Region] = field(default_factory=list)
     style_prompt: str = ""
+    edit_reference: bool = False
 
     @staticmethod
     def from_input(i: ConditioningInput):
@@ -406,6 +407,7 @@ class Conditioning:
             [Control.from_input(c) for c in i.control],
             [Region.from_input(r, idx, i.language) for idx, r in enumerate(i.regions)],
             i.style,
+            i.edit_reference,
         )
 
     def copy(self):
@@ -415,6 +417,7 @@ class Conditioning:
             [copy(c) for c in self.control],
             [r.copy() for r in self.regions],
             self.style_prompt,
+            self.edit_reference,
         )
 
     def downscale(self, original: Extent, target: Extent):
@@ -614,8 +617,8 @@ def apply_ip_adapter(
     models: ModelDict,
     mask: Output | None = None,
 ):
-    if models.arch.is_flux_like or models.arch.is_qwen_like:
-        return model  # No IP-adapter for Flux or Qwen, using Style model instead
+    if not (models.arch is Arch.sd15 or models.arch.is_sdxl_like):
+        return model
 
     models = models.ip_adapter
 
@@ -682,35 +685,39 @@ def apply_regional_ip_adapter(
     return model
 
 
-def apply_edit_conditioning(
+def apply_reference_conditioning(
     w: ComfyWorkflow,
-    cond: Output,
-    input_image: Output,
-    input_latent: Output,
-    control_layers: list[Control],
+    positive: Output,
+    input_image: Output | None,
+    input_latent: Output | None,
+    cond: Conditioning,
     vae: Output,
     arch: Arch,
     tiled_vae: bool,
 ):
-    if not arch.is_edit:
-        return cond
+    if not arch.supports_edit:
+        return positive
 
-    extra_input = [c.image for c in control_layers if c.mode.is_ip_adapter]
-    if len(extra_input) == 0:
-        return w.reference_latent(cond, input_latent)
+    extra_input = (c.image for c in cond.all_control if c.mode.is_ip_adapter)
+    extra_images = [i.load(w) for i in extra_input]
+    match arch:
+        case Arch.flux2 | Arch.qwen_e_p:
+            if cond.edit_reference and input_latent:
+                positive = w.reference_latent(positive, input_latent)
+            for extra_image in extra_images:
+                latent = vae_encode(w, vae, extra_image, tiled_vae)
+                positive = w.reference_latent(positive, latent)
+        case Arch.flux_k | Arch.qwen_e:
+            if len(extra_images) > 0:
+                if cond.edit_reference and input_image:
+                    extra_images.insert(0, input_image)
+                input = w.image_stitch(extra_images)
+                latent = vae_encode(w, vae, input, tiled_vae)
+                positive = w.reference_latent(positive, latent)
+            elif cond.edit_reference and input_latent:
+                positive = w.reference_latent(positive, input_latent)
 
-    if arch == Arch.qwen_e_p:
-        extra_images = [i.load(w) for i in extra_input]
-        cond = w.reference_latent(cond, input_latent)
-        for extra_image in extra_images:
-            latent = vae_encode(w, vae, extra_image, tiled_vae)
-            cond = w.reference_latent(cond, latent)
-        return cond
-    else:
-        input = w.image_stitch([input_image] + [i.load(w) for i in extra_input])
-        latent = vae_encode(w, vae, input, tiled_vae)
-        cond = w.reference_latent(cond, latent)
-        return cond
+    return positive
 
 
 def scale(
@@ -796,7 +803,9 @@ def scale_refine_and_decode(
     model, positive, negative = apply_control(
         w, model, positive, negative, cond.all_control, extent.desired, vae, models
     )
-    positive = apply_edit_conditioning(w, positive, upscale, latent, [], vae, arch, tiled_vae)
+    positive = apply_reference_conditioning(
+        w, positive, upscale, latent, cond, vae, arch, tiled_vae
+    )
     result = w.sampler_custom_advanced(model, positive, negative, latent, arch, **params)
     image = vae_decode(w, vae, result, tiled_vae)
     return image
@@ -833,6 +842,9 @@ def generate(
     positive, negative = encode_prompt(w, cond, clip, regions)
     model, positive, negative = apply_control(
         w, model, positive, negative, cond.all_control, extent.initial, vae, models
+    )
+    positive = apply_reference_conditioning(
+        w, positive, None, None, cond, vae, models.arch, checkpoint.tiled_vae
     )
     sample_params = _sampler_params(sampling, extent.initial)
     out_latent = w.sampler_custom_advanced(
@@ -1092,8 +1104,8 @@ def refine(
     model, positive, negative = apply_control(
         w, model, positive, negative, cond.all_control, extent.desired, vae, models
     )
-    positive = apply_edit_conditioning(
-        w, positive, in_image, latent, cond.all_control, vae, models.arch, checkpoint.tiled_vae
+    positive = apply_reference_conditioning(
+        w, positive, in_image, latent, cond, vae, models.arch, checkpoint.tiled_vae
     )
     sampler_params = _sampler_params(sampling, extent.desired)
     sampler = w.sampler_custom_advanced(
@@ -1147,8 +1159,8 @@ def refine_region(
         inpaint_model = w.apply_fooocus_inpaint(model, inpaint_patch, latent_inpaint)
     else:
         latent = vae_encode(w, vae, in_image, checkpoint.tiled_vae)
-        positive = apply_edit_conditioning(
-            w, positive, in_image, latent, cond.all_control, vae, models.arch, checkpoint.tiled_vae
+        positive = apply_reference_conditioning(
+            w, positive, in_image, latent, cond, vae, models.arch, checkpoint.tiled_vae
         )
         latent = w.set_latent_noise_mask(latent, initial_mask)
         inpaint_model = model
@@ -1321,8 +1333,8 @@ def upscale_tiled(
 
         latent = vae_encode(w, vae, tile_image, checkpoint.tiled_vae)
         latent = w.set_latent_noise_mask(latent, tile_mask)
-        positive = apply_edit_conditioning(
-            w, positive, tile_image, latent, control, vae, models.arch, checkpoint.tiled_vae
+        positive = apply_reference_conditioning(
+            w, positive, tile_image, latent, tile_cond, vae, models.arch, checkpoint.tiled_vae
         )
         sampler_params = _sampler_params(sampling, layout.bounds(i).extent)
         sampler = w.sampler_custom_advanced(
@@ -1443,7 +1455,7 @@ def prepare_prompts(
         "negative_prompt": cond.negative,
     }
     models = style.get_models([])
-    layer_replace = "Picture {}" if arch is Arch.qwen_e_p else ""
+    layer_replace = "Picture {}" if arch in (Arch.qwen_e_p, Arch.flux2) else ""
 
     cond.style = style.style_prompt
     cond.positive = strip_prompt_comments(cond.positive)

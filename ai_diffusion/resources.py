@@ -79,7 +79,7 @@ class Arch(Enum):
     sd3 = "SD 3"
     flux = "Flux"
     flux_k = "Flux Kontext"
-    flux2 = "Flux 2"
+    flux2 = "Flux 2 Klein 4B"
     illu = "Illustrious"
     illu_v = "Illustrious v-prediction"
     chroma = "Chroma"
@@ -107,7 +107,7 @@ class Arch(Enum):
             return Arch.flux_k
         if string == "flux" or string == "flux-schnell":
             return Arch.flux
-        if string == "flux2":
+        if string == "flux2" and model_type == "klein-4b":
             return Arch.flux2
         if string == "illu":
             return Arch.illu
@@ -186,6 +186,10 @@ class Arch(Enum):
     @property
     def is_edit(self):  # edit models make changes to input images
         return self in [Arch.flux_k, Arch.qwen_e, Arch.qwen_e_p, Arch.qwen_l]
+
+    @property
+    def supports_edit(self):  # includes text-to-image models that can also edit
+        return self.is_edit or self is Arch.flux2
 
     @property
     def is_sdxl_like(self):
@@ -748,7 +752,7 @@ search_paths: dict[str, list[str]] = {
     resource_id(ResourceKind.text_encoder, Arch.all, "clip_g"): ["clip_g"],
     resource_id(ResourceKind.text_encoder, Arch.all, "t5"): ["t5xxl_fp16", "t5xxl_fp8_e4m3fn", "t5xxl_fp8_e4m3fn_scaled", "t5-v1_1-xxl", "t5"],
     resource_id(ResourceKind.text_encoder, Arch.all, "qwen"): ["qwen_2.5_vl_7b", "qwen_2", "qwen-2", "qwen"],
-    resource_id(ResourceKind.text_encoder, Arch.all, "qwen_3"): ["qwen_3_4b", "qwen_3", "qwen-3"],
+    resource_id(ResourceKind.text_encoder, Arch.all, "qwen_3"): ["qwen_3_4b", "qwen3-4b", "qwen_3", "qwen-3"],
     resource_id(ResourceKind.vae, Arch.sd15, "default"): ["vae-ft-mse-840000-ema"],
     resource_id(ResourceKind.vae, Arch.sdxl, "default"): ["sdxl_vae"],
     resource_id(ResourceKind.vae, Arch.illu, "default"): ["sdxl_vae"],

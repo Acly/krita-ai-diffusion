@@ -141,6 +141,7 @@ class ControlLayer(QObject, ObservableProperties):
         is_supported = True
         if client := root.connection.client_if_connected:
             models = client.models.for_arch(self._model.arch)
+
             if self.mode.is_ip_adapter and models.arch in [Arch.illu, Arch.illu_v]:
                 resid = resource_id(ResourceKind.clip_vision, Arch.illu, "ip_adapter")
                 has_clip_vision = client.models.resources.get(resid, None) is not None
@@ -151,7 +152,7 @@ class ControlLayer(QObject, ObservableProperties):
                     self.error_text = _("The server is missing the ClipVision model") + f" {search}"
                     is_supported = False
 
-            if self.mode.is_ip_adapter and models.arch.is_edit:
+            if self.mode.is_ip_adapter and models.arch.supports_edit:
                 is_supported = True  # Reference images are merged into the conditioning context
             elif self.mode.is_ip_adapter and models.ip_adapter.find(self.mode) is None:
                 search_path = resources.search_path(ResourceKind.ip_adapter, models.arch, self.mode)
