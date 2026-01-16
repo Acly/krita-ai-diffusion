@@ -73,7 +73,7 @@ def snap_to_percent(steps: int, start_at_step: int, max_steps: int) -> int | Non
     return round((steps - start_at_step) * 100 / steps)
 
 
-def _sampler_params(sampling: SamplingInput, strength: float | None = None):
+def _sampler_params(sampling: SamplingInput, extent: Extent, strength: float | None = None):
     params: dict[str, Any] = dict(
         sampler=sampling.sampler,
         scheduler=sampling.scheduler,
@@ -81,6 +81,7 @@ def _sampler_params(sampling: SamplingInput, strength: float | None = None):
         start_at_step=sampling.start_step,
         cfg=sampling.cfg_scale,
         seed=sampling.seed,
+        extent=extent,
     )
     if strength is not None:
         params["steps"], params["start_at_step"] = apply_strength(strength, sampling.total_steps)
@@ -132,6 +133,8 @@ def load_checkpoint_with_lora(w: ComfyWorkflow, checkpoint: CheckpointInput, mod
                     clip = w.load_dual_clip(te["clip_g"], te["clip_l"], type="sd3")
             case Arch.flux | Arch.flux_k:
                 clip = w.load_dual_clip(te["clip_l"], te["t5"], type="flux")
+            case Arch.flux2:
+                clip = w.load_clip(te["qwen_3"], type="flux2")
             case Arch.chroma:
                 clip = w.load_clip(te["t5"], type="chroma")
                 clip = w.t5_tokenizer_options(clip, min_padding=1, min_length=0)
@@ -324,8 +327,6 @@ class TextPrompt:
         images: list[Output] | None = None,
     ):
         text = self.text
-        if text == "" and clip and clip.arch is Arch.zimage:
-            text = "."  # Z-Image requires non-empty prompt
         if text != "" and style_prompt is not None:
             text = merge_prompt(text, style_prompt, self.language)
 
@@ -341,7 +342,7 @@ class TextPrompt:
             else:
                 self._output = w.clip_text_encode(clip.model, text)
 
-            if text == "" and not (clip.arch.is_qwen_like or clip.arch is Arch.sd15):
+            if text == "" and (clip.arch.is_sdxl_like or style_prompt is None):
                 self._output = w.conditioning_zero_out(self._output)
             self._clip = clip
         return self._output
@@ -789,7 +790,7 @@ def scale_refine_and_decode(
     upscale = w.upscale_image(upscale_model, decoded)
     upscale = w.scale_image(upscale, extent.desired)
     latent = vae_encode(w, vae, upscale, tiled_vae)
-    params = _sampler_params(sampling, strength=0.4)
+    params = _sampler_params(sampling, extent.desired, strength=0.4)
 
     positive, negative = encode_prompt(w, cond, clip, regions)
     model, positive, negative = apply_control(
@@ -833,8 +834,9 @@ def generate(
     model, positive, negative = apply_control(
         w, model, positive, negative, cond.all_control, extent.initial, vae, models
     )
+    sample_params = _sampler_params(sampling, extent.initial)
     out_latent = w.sampler_custom_advanced(
-        model, positive, negative, latent, models.arch, **_sampler_params(sampling)
+        model, positive, negative, latent, models.arch, **sample_params
     )
     out_image = scale_refine_and_decode(
         extent, w, cond, sampling, out_latent, model_orig, clip, vae, models, checkpoint.tiled_vae
@@ -1005,8 +1007,9 @@ def inpaint(
         inpaint_model = model
 
     latent = w.batch_latent(latent, misc.batch_count)
+    sampler_params = _sampler_params(sampling, extent.initial)
     out_latent = w.sampler_custom_advanced(
-        inpaint_model, positive, negative, latent, models.arch, **_sampler_params(sampling)
+        inpaint_model, positive, negative, latent, models.arch, **sampler_params
     )
 
     if extent.refinement_scaling in [ScaleMode.upscale_small, ScaleMode.upscale_quality]:
@@ -1018,7 +1021,7 @@ def inpaint(
         upscale_mask = cropped_mask
         if crop_upscale_extent != target_bounds.extent:
             upscale_mask = w.scale_mask(cropped_mask, crop_upscale_extent)
-        sampler_params = _sampler_params(sampling, strength=0.4)
+        sampler_params = _sampler_params(sampling, upscale_extent.desired, strength=0.4)
         upscale_model = w.load_upscale_model(upscaler)
         upscale = vae_decode(w, vae, out_latent, checkpoint.tiled_vae)
         upscale = w.crop_image(upscale, initial_bounds)
@@ -1092,8 +1095,9 @@ def refine(
     positive = apply_edit_conditioning(
         w, positive, in_image, latent, cond.all_control, vae, models.arch, checkpoint.tiled_vae
     )
+    sampler_params = _sampler_params(sampling, extent.desired)
     sampler = w.sampler_custom_advanced(
-        model, positive, negative, latent_batch, models.arch, **_sampler_params(sampling)
+        model, positive, negative, latent_batch, models.arch, **sampler_params
     )
     sampler = pack_latent_layers(w, sampler, misc)
     out_image = vae_decode(w, vae, sampler, checkpoint.tiled_vae)
@@ -1150,8 +1154,9 @@ def refine_region(
         inpaint_model = model
 
     latent = w.batch_latent(latent, misc.batch_count)
+    sampler_params = _sampler_params(sampling, extent.initial)
     out_latent = w.sampler_custom_advanced(
-        inpaint_model, positive, negative, latent, models.arch, **_sampler_params(sampling)
+        inpaint_model, positive, negative, latent, models.arch, **sampler_params
     )
     out_image = scale_refine_and_decode(
         extent, w, cond, sampling, out_latent, model_orig, clip, vae, models, checkpoint.tiled_vae
@@ -1319,8 +1324,9 @@ def upscale_tiled(
         positive = apply_edit_conditioning(
             w, positive, tile_image, latent, control, vae, models.arch, checkpoint.tiled_vae
         )
+        sampler_params = _sampler_params(sampling, layout.bounds(i).extent)
         sampler = w.sampler_custom_advanced(
-            tile_model, positive, negative, latent, models.arch, **_sampler_params(sampling)
+            tile_model, positive, negative, latent, models.arch, **sampler_params
         )
         tile_result = vae_decode(w, vae, sampler, checkpoint.tiled_vae)
         out_image = w.merge_image_tile(out_image, tile_layout, i, tile_result)

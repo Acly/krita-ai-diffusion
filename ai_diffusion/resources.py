@@ -11,7 +11,7 @@ from typing import Any, NamedTuple, Sequence
 version = "1.46.0"
 
 comfy_url = "https://github.com/comfyanonymous/ComfyUI"
-comfy_version = "f59f71cf34067d46713f6243312f7f0b360d061f"
+comfy_version = "732b707397922dbbec5ed04ecca3c773c878c64e"
 
 
 class CustomNode(NamedTuple):
@@ -79,6 +79,7 @@ class Arch(Enum):
     sd3 = "SD 3"
     flux = "Flux"
     flux_k = "Flux Kontext"
+    flux2 = "Flux 2"
     illu = "Illustrious"
     illu_v = "Illustrious v-prediction"
     chroma = "Chroma"
@@ -106,6 +107,8 @@ class Arch(Enum):
             return Arch.flux_k
         if string == "flux" or string == "flux-schnell":
             return Arch.flux
+        if string == "flux2":
+            return Arch.flux2
         if string == "illu":
             return Arch.illu
         if string == "illu_v":
@@ -212,7 +215,7 @@ class Arch(Enum):
                 return ["t5"]
             case Arch.qwen | Arch.qwen_e | Arch.qwen_e_p | Arch.qwen_l:
                 return ["qwen"]
-            case Arch.zimage:
+            case Arch.zimage | Arch.flux2:
                 return ["qwen_3"]
         raise ValueError(f"Unsupported architecture: {self}")
 
@@ -224,6 +227,7 @@ class Arch(Enum):
             Arch.sd3,
             Arch.flux,
             Arch.flux_k,
+            Arch.flux2,
             Arch.illu,
             Arch.illu_v,
             Arch.chroma,
@@ -752,6 +756,7 @@ search_paths: dict[str, list[str]] = {
     resource_id(ResourceKind.vae, Arch.sd3, "default"): ["sd3"],
     resource_id(ResourceKind.vae, Arch.flux, "default"): ["flux-", "flux_", "flux/", "flux1", "ae.s"],
     resource_id(ResourceKind.vae, Arch.flux_k, "default"): ["flux-", "flux_", "flux/", "flux1", "ae.s"],
+    resource_id(ResourceKind.vae, Arch.flux2, "default"): ["flux2"],
     resource_id(ResourceKind.vae, Arch.chroma, "default"): ["flux-", "flux_", "flux/", "flux1", "ae.s"],
     resource_id(ResourceKind.vae, Arch.qwen, "default"): ["qwen"],
     resource_id(ResourceKind.vae, Arch.qwen_e, "default"): ["qwen"],

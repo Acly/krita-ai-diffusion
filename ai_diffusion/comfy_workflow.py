@@ -336,12 +336,13 @@ class ComfyWorkflow:
         negative: Output,
         latent_image: Output,
         arch: Arch,
-        sampler="dpmpp_2m_sde_gpu",
+        sampler="euler",
         scheduler="normal",
         steps=20,
         start_at_step=0,
         cfg=7.0,
         seed=-1,
+        extent=Extent(1024, 1024),
     ):
         self.sample_count += steps - start_at_step
 
@@ -351,7 +352,7 @@ class ComfyWorkflow:
         else:
             guider = self.cfg_guider(model, positive, negative, cfg)
 
-        sigmas = self.scheduler_sigmas(model, scheduler, steps, arch)
+        sigmas = self.scheduler_sigmas(model, scheduler, steps, arch, extent)
         if start_at_step > 0:
             _, sigmas = self.split_sigmas(sigmas, start_at_step)
 
@@ -366,12 +367,12 @@ class ComfyWorkflow:
         )[1]
 
     def scheduler_sigmas(
-        self, model: Output, scheduler="normal", steps=20, model_version=Arch.sdxl
+        self, model: Output, scheduler="normal", steps=20, arch=Arch.sdxl, extent=Extent(1024, 1024)
     ):
         if scheduler in ("align_your_steps", "ays"):
-            assert model_version is Arch.sd15 or model_version.is_sdxl_like
+            assert arch is Arch.sd15 or arch.is_sdxl_like
 
-            if model_version is Arch.sd15:
+            if arch is Arch.sd15:
                 model_type = "SD1"
             else:
                 model_type = "SDXL"
@@ -409,6 +410,14 @@ class ComfyWorkflow:
                 sigma_min=0.0291675,
                 mu=0.0,
                 beta=0.5,
+            )
+        elif scheduler == "flux2":
+            return self.add(
+                "Flux2Scheduler",
+                output_count=1,
+                steps=steps,
+                width=extent.width,
+                height=extent.height,
             )
         else:
             return self.add(
@@ -592,7 +601,10 @@ class ComfyWorkflow:
         w, h = extent.width, extent.height
         if arch.is_flux_like or arch.is_qwen_like or arch in (Arch.sd3, Arch.chroma, Arch.zimage):
             return self.add("EmptySD3LatentImage", 1, width=w, height=h, batch_size=batch_size)
-        return self.add("EmptyLatentImage", 1, width=w, height=h, batch_size=batch_size)
+        if arch is Arch.flux2:
+            return self.add("EmptyFlux2LatentImage", 1, width=w, height=h, batch_size=batch_size)
+        else:
+            return self.add("EmptyLatentImage", 1, width=w, height=h, batch_size=batch_size)
 
     def empty_latent_layers(self, extent: Extent, layer_count: int, batch_size=1):
         w, h = extent.width, extent.height
