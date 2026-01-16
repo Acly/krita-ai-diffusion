@@ -85,6 +85,10 @@ def default_style(client: Client, sd_ver=Arch.sd15):
         style.sampler = "Flux - Euler simple"
         style.cfg_scale = 1.0
         style.sampler_steps = 8
+    if sd_ver is Arch.flux2:
+        style.sampler = "Flux 2 - Euler"
+        style.cfg_scale = 1.0
+        style.sampler_steps = 4
     return style
 
 
@@ -811,27 +815,32 @@ def test_refine_live(qtapp, client, sdver):
     run_and_save(qtapp, client, job, f"test_refine_live_{sdver.name}")
 
 
-def test_edit(qtapp, local_client):
+@pytest.mark.parametrize("arch", [Arch.flux_k, Arch.flux2])
+def test_edit(qtapp, local_client, arch):
     image = Image.load(image_dir / "flowers.webp")
-    style = default_style(local_client, Arch.flux_k)
+    style = default_style(local_client, arch)
     cond = ConditioningInput("turn the image into a minimalistic vector illustration")
+    cond.edit_reference = True
     job = create(WorkflowKind.refine, local_client, style=style, canvas=image, cond=cond)
-    run_and_save(qtapp, local_client, job, "test_edit")
+    run_and_save(qtapp, local_client, job, f"test_edit_{arch.name}")
 
 
-def test_edit_selection(qtapp, local_client):
+@pytest.mark.parametrize("arch", [Arch.flux_k, Arch.flux2])
+def test_edit_selection(qtapp, local_client, arch):
     image = Image.load(image_dir / "flowers.webp")
     mask = Mask.load(image_dir / "flowers_mask.png")
+    cond = ConditioningInput("make all flowers have yellow blossoms")
+    cond.edit_reference = True
     job = create(
         WorkflowKind.refine_region,
         local_client,
-        style=default_style(local_client, Arch.flux_k),
+        style=default_style(local_client, arch),
         canvas=image,
-        cond=ConditioningInput("make all flowers have yellow blossoms"),
+        cond=cond,
         mask=mask,
-        inpaint=automatic_inpaint(image.extent, mask.bounds, Arch.flux_k, ""),
+        inpaint=automatic_inpaint(image.extent, mask.bounds, arch, ""),
     )
-    run_and_save(qtapp, local_client, job, "test_edit_selection")
+    run_and_save(qtapp, local_client, job, f"test_edit_selection_{arch.name}")
 
 
 def test_refine_max_pixels(qtapp, client):
