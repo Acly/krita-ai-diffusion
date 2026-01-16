@@ -204,6 +204,9 @@ class Server:
         env = None
         if self._uv_cmd is not None:
             env = {"VIRTUAL_ENV": str(self.path / "venv")}
+            if is_linux:  # Restrict concurrency to improve robustness #2232 #2201
+                env["UV_CONCURRENT_DOWNLOADS"] = "2"
+                env["UV_CONCURRENT_INSTALLS"] = "2"
             cmd = [self._uv_cmd, "pip", "install", *args]
         else:
             cmd = [self._python_cmd, "-su", "-m", "pip", "install", *args]
@@ -211,7 +214,7 @@ class Server:
 
     async def _install_uv(self, network: QNetworkAccessManager, cb: InternalCB):
         script_ext = ".ps1" if is_windows else ".sh"
-        url = f"https://astral.sh/uv/0.8.12/install{script_ext}"
+        url = f"https://astral.sh/uv/0.9.26/install{script_ext}"
         script_path = self._cache_dir / f"install_uv{script_ext}"
         await _download_cached("Python", network, url, script_path, cb)
 
