@@ -1407,6 +1407,34 @@ def expand_custom(
                 outputs[node.output(6)] = sampling.scheduler
                 outputs[node.output(7)] = sampling.total_steps
                 outputs[node.output(8)] = sampling.cfg_scale
+            
+            case "ETN_KritaPromptStyle":
+                style: Style = get_param(node, Style)
+                style_name = node.input("name", "Style")
+                is_live = node.input("sampler_preset", "auto") == "live"
+                
+                # Get pre-prepared prompt data from model.py
+                prepared_data = input.params.get(f"{style_name}/_prepared")
+                if not prepared_data:
+                    raise Exception(f"ETN_KritaPromptStyle '{style_name}' missing prepared data")
+                
+                checkpoint_input = style.get_models(models.checkpoints)
+                checkpoint_input.loras = unique(
+                    checkpoint_input.loras + prepared_data["loras"], key=lambda l: l.name
+                )
+                
+                sampling = _sampling_from_style(style, 1.0, is_live)
+                model, clip, vae = load_checkpoint_with_lora(w, checkpoint_input, models)
+                
+                outputs[node.output(0)] = model
+                outputs[node.output(1)] = clip.model
+                outputs[node.output(2)] = vae
+                outputs[node.output(3)] = prepared_data["positive_final"]
+                outputs[node.output(4)] = prepared_data["negative_final"]
+                outputs[node.output(5)] = sampling.sampler
+                outputs[node.output(6)] = sampling.scheduler
+                outputs[node.output(7)] = sampling.total_steps
+                outputs[node.output(8)] = sampling.cfg_scale
             case _:
                 mapped_inputs = {k: map_input(v) for k, v in node.inputs.items()}
                 mapped = ComfyNode(node.id, node.type, mapped_inputs)
