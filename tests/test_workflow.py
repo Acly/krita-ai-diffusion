@@ -843,6 +843,17 @@ def test_edit_selection(qtapp, local_client, arch):
     run_and_save(qtapp, local_client, job, f"test_edit_selection_{arch.name}")
 
 
+def test_edit_reference(qtapp, local_client):
+    image = Image.load(image_dir / "flowers.webp")
+    ref_image = Image.load(image_dir / "cat.webp")
+    style = default_style(local_client, Arch.flux2_4b)
+    cond = ConditioningInput("put the cat in the flower pot")
+    cond.control = [ControlInput(ControlMode.reference, ref_image, 1.0)]
+    cond.edit_reference = True
+    job = create(WorkflowKind.refine, local_client, style=style, canvas=image, cond=cond)
+    run_and_save(qtapp, local_client, job, "test_edit_reference")
+
+
 def test_refine_max_pixels(qtapp, client):
     perf_settings = PerformanceSettings(max_pixel_count=1)  # million pixels
     image = Image.load(image_dir / "lake_1536x1024.webp")

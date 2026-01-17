@@ -18,7 +18,8 @@ from .resolution import ScaledExtent, ScaleMode, TileLayout, get_inpaint_referen
 from .resources import ControlMode, Arch, UpscalerName, ResourceKind, ResourceId
 from .settings import PerformanceSettings
 from .text import eval_wildcards, extract_layers, merge_prompt, extract_loras, strip_prompt_comments
-from .comfy_workflow import ComfyWorkflow, ComfyRunMode, Input, Output, ComfyNode
+from .comfy_workflow import ComfyWorkflow, ComfyRunMode, Input, Output, ConditioningOutput
+from .comfy_workflow import ComfyNode
 from .localization import translate as _
 from .settings import settings
 from .util import ensure, median_or_zero, unique
@@ -469,7 +470,7 @@ def encode_prompt(
     if len(cond.regions) <= 1 or all(len(r.loras) == 0 for r in cond.regions):
         positive = cond.positive.encode(w, clip, cond.style_prompt, ref_images)
         negative = cond.negative.encode(w, clip)
-        return positive, negative
+        return ConditioningOutput(positive, negative)
 
     assert regions is not None
     positive = None
@@ -485,7 +486,7 @@ def encode_prompt(
         )
 
     assert positive is not None and negative is not None
-    return positive, negative
+    return ConditioningOutput(positive, negative)
 
 
 def apply_attention_mask(
@@ -524,8 +525,7 @@ def apply_attention_mask(
 def apply_control(
     w: ComfyWorkflow,
     model: Output,
-    positive: Output,
-    negative: Output,
+    prompt: ConditioningOutput,
     control_layers: list[Control],
     shape: Extent | ImageReshape,
     vae: Output,
@@ -566,12 +566,12 @@ def apply_control(
         if control.mode is ControlMode.inpaint and models.arch is Arch.flux:
             assert control.mask is not None, "Inpaint control requires a mask"
             mask = control.mask.load(w)
-            positive, negative = w.apply_controlnet_inpainting(
-                positive, negative, controlnet, vae, image, mask, control.strength, control.range
+            prompt = w.apply_controlnet_inpainting(
+                prompt, controlnet, vae, image, mask, control.strength, control.range
             )
         else:
-            positive, negative = w.apply_controlnet(
-                positive, negative, controlnet, image, vae, control.strength, control.range
+            prompt = w.apply_controlnet(
+                prompt, controlnet, image, vae, control.strength, control.range
             )
 
         if not cn_model:  # flux depth/canny control lora (low priority, to be removed?)
@@ -583,13 +583,11 @@ def apply_control(
                     )
                 control_lora = control.mode
                 model = w.load_lora_model(model, lora, control.strength)
-                positive, negative, __ = w.instruct_pix_to_pix_conditioning(
-                    positive, negative, vae, image
-                )
+                prompt, __ = w.instruct_pix_to_pix_conditioning(prompt, vae, image)
 
-    positive = apply_style_models(w, positive, control_layers, models)
+    positive = apply_style_models(w, prompt.positive, control_layers, models)
 
-    return model, positive, negative
+    return model, ConditioningOutput(positive, prompt.negative)
 
 
 def apply_style_models(
@@ -689,7 +687,7 @@ def apply_regional_ip_adapter(
 
 def apply_reference_conditioning(
     w: ComfyWorkflow,
-    positive: Output,
+    prompt: ConditioningOutput,
     input_image: Output | None,
     input_latent: Output | None,
     cond: Conditioning,
@@ -698,28 +696,35 @@ def apply_reference_conditioning(
     tiled_vae: bool,
 ):
     if not arch.supports_edit:
-        return positive
+        return prompt
 
     extra_input = (c.image for c in cond.all_control if c.mode.is_ip_adapter)
     extra_images = [i.load(w) for i in extra_input]
+
+    def add_ref(prompt: ConditioningOutput, latent: Output):
+        return ConditioningOutput(
+            w.reference_latent(prompt.positive, latent),
+            w.reference_latent(prompt.negative, latent),
+        )
+
     match arch:
         case Arch.flux2_4b | Arch.flux2_9b | Arch.qwen_e_p:
             if cond.edit_reference and input_latent:
-                positive = w.reference_latent(positive, input_latent)
+                prompt = add_ref(prompt, input_latent)
             for extra_image in extra_images:
                 latent = vae_encode(w, vae, extra_image, tiled_vae)
-                positive = w.reference_latent(positive, latent)
+                prompt = add_ref(prompt, latent)
         case Arch.flux_k | Arch.qwen_e:
             if len(extra_images) > 0:
                 if cond.edit_reference and input_image:
                     extra_images.insert(0, input_image)
                 input = w.image_stitch(extra_images)
                 latent = vae_encode(w, vae, input, tiled_vae)
-                positive = w.reference_latent(positive, latent)
+                prompt = add_ref(prompt, latent)
             elif cond.edit_reference and input_latent:
-                positive = w.reference_latent(positive, input_latent)
+                prompt = add_ref(prompt, input_latent)
 
-    return positive
+    return prompt
 
 
 def scale(
@@ -801,14 +806,10 @@ def scale_refine_and_decode(
     latent = vae_encode(w, vae, upscale, tiled_vae)
     params = _sampler_params(sampling, extent.desired, strength=0.4)
 
-    positive, negative = encode_prompt(w, cond, clip, regions)
-    model, positive, negative = apply_control(
-        w, model, positive, negative, cond.all_control, extent.desired, vae, models
-    )
-    positive = apply_reference_conditioning(
-        w, positive, upscale, latent, cond, vae, arch, tiled_vae
-    )
-    result = w.sampler_custom_advanced(model, positive, negative, latent, arch, **params)
+    prompt = encode_prompt(w, cond, clip, regions)
+    model, prompt = apply_control(w, model, prompt, cond.all_control, extent.desired, vae, models)
+    prompt = apply_reference_conditioning(w, prompt, upscale, latent, cond, vae, arch, tiled_vae)
+    result = w.sampler_custom_advanced(model, prompt, latent, arch, **params)
     image = vae_decode(w, vae, result, tiled_vae)
     return image
 
@@ -841,17 +842,13 @@ def generate(
     model, regions = apply_attention_mask(w, model, cond, clip, extent.initial)
     model = apply_regional_ip_adapter(w, model, cond.regions, extent.initial, models)
     latent = w.empty_latent_image(extent.initial, models.arch, misc.batch_count)
-    positive, negative = encode_prompt(w, cond, clip, regions)
-    model, positive, negative = apply_control(
-        w, model, positive, negative, cond.all_control, extent.initial, vae, models
-    )
-    positive = apply_reference_conditioning(
-        w, positive, None, None, cond, vae, models.arch, checkpoint.tiled_vae
+    prompt = encode_prompt(w, cond, clip, regions)
+    model, prompt = apply_control(w, model, prompt, cond.all_control, extent.initial, vae, models)
+    prompt = apply_reference_conditioning(
+        w, prompt, None, None, cond, vae, models.arch, checkpoint.tiled_vae
     )
     sample_params = _sampler_params(sampling, extent.initial)
-    out_latent = w.sampler_custom_advanced(
-        model, positive, negative, latent, models.arch, **sample_params
-    )
+    out_latent = w.sampler_custom_advanced(model, prompt, latent, models.arch, **sample_params)
     out_image = scale_refine_and_decode(
         extent, w, cond, sampling, out_latent, model_orig, clip, vae, models, checkpoint.tiled_vae
     )
@@ -1000,19 +997,19 @@ def inpaint(
 
     model = apply_ip_adapter(w, model, cond_base.control, models)
     model = apply_regional_ip_adapter(w, model, cond_base.regions, extent.initial, models)
-    positive, negative = encode_prompt(w, cond_base, clip, regions)
-    model, positive, negative = apply_control(
-        w, model, positive, negative, cond_base.all_control, extent.initial, vae, models
+    prompt = encode_prompt(w, cond_base, clip, regions)
+    model, prompt = apply_control(
+        w, model, prompt, cond_base.all_control, extent.initial, vae, models
     )
     if params.use_inpaint_model and models.arch is Arch.sdxl:
-        positive, negative, latent_inpaint, latent = w.vae_encode_inpaint_conditioning(
-            vae, in_image, initial_mask, positive, negative
+        prompt, latent_inpaint, latent = w.vae_encode_inpaint_conditioning(
+            vae, in_image, initial_mask, prompt
         )
         inpaint_patch = w.load_fooocus_inpaint(**models.fooocus_inpaint)
         inpaint_model = w.apply_fooocus_inpaint(model, inpaint_patch, latent_inpaint)
     elif is_inpaint_model:
-        positive, negative, latent_inpaint, latent = w.vae_encode_inpaint_conditioning(
-            vae, in_image, initial_mask, positive, negative
+        prompt, latent_inpaint, latent = w.vae_encode_inpaint_conditioning(
+            vae, in_image, initial_mask, prompt
         )
         inpaint_model = model
     else:
@@ -1023,7 +1020,7 @@ def inpaint(
     latent = w.batch_latent(latent, misc.batch_count)
     sampler_params = _sampler_params(sampling, extent.initial)
     out_latent = w.sampler_custom_advanced(
-        inpaint_model, positive, negative, latent, models.arch, **sampler_params
+        inpaint_model, prompt, latent, models.arch, **sampler_params
     )
 
     if extent.refinement_scaling in [ScaleMode.upscale_small, ScaleMode.upscale_quality]:
@@ -1050,16 +1047,16 @@ def inpaint(
 
         model, regions = apply_attention_mask(w, model, cond_upscale, clip, shape)
         model = apply_regional_ip_adapter(w, model, cond_upscale.regions, shape, models)
-        positive_up, negative_up = encode_prompt(w, cond_upscale, clip, regions)
+        prompt_up = encode_prompt(w, cond_upscale, clip, regions)
 
         if params.use_inpaint_model and models.control.find(ControlMode.inpaint) is not None:
             hires_image = ImageOutput(images.hires_image)
             cond_upscale.control.append(inpaint_control(hires_image, upscale_mask, models.arch))
-        model, positive_up, negative_up = apply_control(
-            w, model, positive_up, negative_up, cond_upscale.all_control, shape, vae, models
+        model, prompt_up = apply_control(
+            w, model, prompt_up, cond_upscale.all_control, shape, vae, models
         )
         out_latent = w.sampler_custom_advanced(
-            model, positive_up, negative_up, latent, models.arch, **sampler_params
+            model, prompt_up, latent, models.arch, **sampler_params
         )
         out_image = vae_decode(w, vae, out_latent, checkpoint.tiled_vae)
         out_image = scale_to_target(upscale_extent, w, out_image, models)
@@ -1102,17 +1099,13 @@ def refine(
     latent = vae_encode(w, vae, in_image, checkpoint.tiled_vae)
     latent_batch = w.batch_latent(latent, misc.batch_count)
     latent_batch = setup_latent_layers(w, latent_batch, extent.desired, misc.layer_count)
-    positive, negative = encode_prompt(w, cond, clip, regions, in_image)
-    model, positive, negative = apply_control(
-        w, model, positive, negative, cond.all_control, extent.desired, vae, models
-    )
-    positive = apply_reference_conditioning(
-        w, positive, in_image, latent, cond, vae, models.arch, checkpoint.tiled_vae
+    prompt = encode_prompt(w, cond, clip, regions, in_image)
+    model, prompt = apply_control(w, model, prompt, cond.all_control, extent.desired, vae, models)
+    prompt = apply_reference_conditioning(
+        w, prompt, in_image, latent, cond, vae, models.arch, checkpoint.tiled_vae
     )
     sampler_params = _sampler_params(sampling, extent.desired)
-    sampler = w.sampler_custom_advanced(
-        model, positive, negative, latent_batch, models.arch, **sampler_params
-    )
+    sampler = w.sampler_custom_advanced(model, prompt, latent_batch, models.arch, **sampler_params)
     sampler = pack_latent_layers(w, sampler, misc)
     out_image = vae_decode(w, vae, sampler, checkpoint.tiled_vae)
     out_image = w.nsfw_filter(out_image, sensitivity=misc.nsfw_filter)
@@ -1146,23 +1139,21 @@ def refine_region(
     in_mask = apply_grow_feather(w, in_mask, inpaint)
     initial_mask = scale_to_initial(extent, w, in_mask, models, is_mask=True)
 
-    positive, negative = encode_prompt(w, cond, clip, regions, in_image)
+    prompt = encode_prompt(w, cond, clip, regions, in_image)
 
     if inpaint.use_inpaint_model and models.control.find(ControlMode.inpaint) is not None:
         cond.control.append(inpaint_control(in_image, initial_mask, models.arch))
-    model, positive, negative = apply_control(
-        w, model, positive, negative, cond.all_control, extent.initial, vae, models
-    )
+    model, prompt = apply_control(w, model, prompt, cond.all_control, extent.initial, vae, models)
     if inpaint.use_inpaint_model and models.arch is Arch.sdxl:
-        positive, negative, latent_inpaint, latent = w.vae_encode_inpaint_conditioning(
-            vae, in_image, initial_mask, positive, negative
+        prompt, latent_inpaint, latent = w.vae_encode_inpaint_conditioning(
+            vae, in_image, initial_mask, prompt
         )
         inpaint_patch = w.load_fooocus_inpaint(**models.fooocus_inpaint)
         inpaint_model = w.apply_fooocus_inpaint(model, inpaint_patch, latent_inpaint)
     else:
         latent = vae_encode(w, vae, in_image, checkpoint.tiled_vae)
-        positive = apply_reference_conditioning(
-            w, positive, in_image, latent, cond, vae, models.arch, checkpoint.tiled_vae
+        prompt = apply_reference_conditioning(
+            w, prompt, in_image, latent, cond, vae, models.arch, checkpoint.tiled_vae
         )
         latent = w.set_latent_noise_mask(latent, initial_mask)
         inpaint_model = model
@@ -1170,7 +1161,7 @@ def refine_region(
     latent = w.batch_latent(latent, misc.batch_count)
     sampler_params = _sampler_params(sampling, extent.initial)
     out_latent = w.sampler_custom_advanced(
-        inpaint_model, positive, negative, latent, models.arch, **sampler_params
+        inpaint_model, prompt, latent, models.arch, **sampler_params
     )
     out_image = scale_refine_and_decode(
         extent, w, cond, sampling, out_latent, model_orig, clip, vae, models, checkpoint.tiled_vae
@@ -1326,21 +1317,19 @@ def upscale_tiled(
         tile_cond.regions = [r for r in regions if r is not None]
         tile_model, regions = apply_attention_mask(w, model, tile_cond, clip)
         tile_model = apply_regional_ip_adapter(w, tile_model, tile_cond.regions, no_reshape, models)
-        positive, negative = encode_prompt(w, tile_cond, clip, regions)
+        prompt = encode_prompt(w, tile_cond, clip, regions)
 
         control = [tiled_control(c, i) for c in tile_cond.all_control]
-        tile_model, positive, negative = apply_control(
-            w, tile_model, positive, negative, control, no_reshape, vae, models
-        )
+        tile_model, prompt = apply_control(w, tile_model, prompt, control, no_reshape, vae, models)
 
         latent = vae_encode(w, vae, tile_image, checkpoint.tiled_vae)
         latent = w.set_latent_noise_mask(latent, tile_mask)
-        positive = apply_reference_conditioning(
-            w, positive, tile_image, latent, tile_cond, vae, models.arch, checkpoint.tiled_vae
+        prompt = apply_reference_conditioning(
+            w, prompt, tile_image, latent, tile_cond, vae, models.arch, checkpoint.tiled_vae
         )
         sampler_params = _sampler_params(sampling, layout.bounds(i).extent)
         sampler = w.sampler_custom_advanced(
-            tile_model, positive, negative, latent, models.arch, **sampler_params
+            tile_model, prompt, latent, models.arch, **sampler_params
         )
         tile_result = vae_decode(w, vae, sampler, checkpoint.tiled_vae)
         out_image = w.merge_image_tile(out_image, tile_layout, i, tile_result)
