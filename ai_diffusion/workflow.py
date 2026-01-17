@@ -1439,6 +1439,30 @@ class PreparedPrompt(NamedTuple):
     metadata: dict[str, Any]
 
 
+_control_instructions = {
+    ControlMode.style: "Apply the style from image {}.",
+    ControlMode.composition: "Maintain the structure and composition from image {}.",
+    ControlMode.face: "Keep the face from image {}.",
+    ControlMode.scribble: "Follow the sketch in image {}.",
+    ControlMode.line_art: "Fill in colors for the line drawing in image {}.",
+    ControlMode.canny_edge: "Match the edge map in image {}.",
+    ControlMode.depth: "Match the depth map in image {}.",
+    ControlMode.pose: "Match the pose in image {}.",
+}
+
+
+def build_control_instructions(cond: ConditioningInput):
+    offset = 2 if cond.edit_reference else 1
+    instructions = ""
+    for i, control in enumerate(cond.control):
+        if instruction := _control_instructions.get(control.mode):
+            instructions += instruction.format(offset + i) + "\n"
+            control.mode = ControlMode.reference
+    if instructions:
+        return f"{instructions}\n{cond.positive}"
+    return cond.positive
+
+
 def prepare_prompts(
     cond: ConditioningInput, style: Style, seed: int, arch: Arch, files: FileLibrary, is_live=False
 ):
@@ -1449,7 +1473,11 @@ def prepare_prompts(
         "negative_prompt": cond.negative,
     }
     models = style.get_models([])
-    layer_replace = "Picture {}" if arch is Arch.qwen_e_p or arch.is_flux2 else ""
+    layer_replace = {
+        Arch.flux2_4b: "image {}",
+        Arch.flux2_9b: "image {}",
+        Arch.qwen_e_p: "Picture {}",
+    }.get(arch, "")
 
     cond.style = style.style_prompt
     cond.positive = strip_prompt_comments(cond.positive)
@@ -1460,6 +1488,8 @@ def prepare_prompts(
     start_index = 2 + sum(1 for c in cond.control if c.mode.is_ip_adapter)
     cond.positive, layers = extract_layers(cond.positive, layer_replace, start_index)
     cond.positive += _collect_lora_triggers(models.loras, files)
+    if arch.is_flux2:
+        cond.positive = build_control_instructions(cond)
     meta["prompt_final"] = merge_prompt(cond.positive, cond.style, cond.language)
 
     cfg = style.live_cfg_scale if is_live else style.cfg_scale

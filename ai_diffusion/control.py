@@ -121,12 +121,13 @@ class ControlLayer(QObject, ObservableProperties):
         if self.mode.is_lines or self.mode is ControlMode.stencil:
             image.make_opaque(background=Qt.GlobalColor.white)
 
-        if self._model.arch.is_edit:
-            if image.extent.height > extent.height:
-                w = (image.extent.width * extent.height) // image.extent.height
-                image = Image.scale(image, Extent(w, extent.height))
-        elif self.mode.is_ip_adapter:
-            image = Image.scale(image, self.clip_vision_extent)
+        if self.mode.is_ip_adapter:
+            if self._model.arch.supports_edit:
+                if image.extent.height > extent.height:
+                    w = (image.extent.width * extent.height) // image.extent.height
+                    image = Image.scale(image, Extent(w, extent.height))
+            else:
+                image = Image.scale(image, self.clip_vision_extent)
 
         strength = self.strength / self.strength_multiplier
         return ControlInput(self.mode, image, strength, (self.start, self.end))
@@ -165,6 +166,10 @@ class ControlLayer(QObject, ObservableProperties):
                 if not client.features.ip_adapter:
                     self.error_text = _("IP-Adapter is not supported by this GPU")
                 is_supported = False
+            elif self.mode.is_control_net and models.arch.supports_edit:
+                is_supported = self.mode.can_substitute_instruction(models.arch)
+                if not is_supported:
+                    self.error_text = _("Not supported for") + f" {models.arch.value}"
             elif self.mode.is_control_net:
                 model = models.find_control(self.mode)
                 self.has_range = model == models.model_patch.find(self.mode, True)

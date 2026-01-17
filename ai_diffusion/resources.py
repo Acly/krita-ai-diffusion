@@ -386,6 +386,21 @@ class ControlMode(Enum):
             ]
         return False
 
+    def can_substitute_instruction(self, arch: Arch):
+        """True if this control mode is covered by instruction-following edit models."""
+        if arch.is_flux2:
+            return self in [
+                ControlMode.style,
+                ControlMode.composition,
+                ControlMode.face,
+                ControlMode.scribble,
+                ControlMode.line_art,
+                ControlMode.canny_edge,
+                ControlMode.depth,
+                ControlMode.pose,
+            ]
+        return False
+
 
 def resource_id(kind: ResourceKind, arch: Arch, identifier: ControlMode | UpscalerName | str):
     if isinstance(identifier, Enum):

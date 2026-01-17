@@ -218,7 +218,7 @@ class ControlWidget(QWidget):
     def _update_visibility(self):
         is_small = self.width() < 420
         is_pose = self._control.mode is ControlMode.pose
-        is_edit = root.active_model.arch.is_edit
+        is_edit = root.active_model.arch.supports_edit
 
         def controls():
             self.layer_select.setVisible(self._control.is_supported)

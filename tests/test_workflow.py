@@ -325,6 +325,23 @@ def test_prepare_prompt_layers(arch: Arch):
     assert result.region_layers[1] == []
 
 
+def test_prepare_prompt_instructions():
+    files = FileLibrary(FileCollection(), FileCollection())
+    style = Style(Path("default.json"))
+    style.checkpoints = []
+    cond = ConditioningInput("base prompt")
+    cond.control = [
+        ControlInput(ControlMode.style, Image.create(Extent(4, 4))),
+        ControlInput(ControlMode.pose, Image.create(Extent(4, 4))),
+    ]
+    cond.edit_reference = True
+
+    result = workflow.prepare_prompts(cond, style, seed=1, arch=Arch.flux2_4b, files=files)
+    assert result.conditioning is not None
+    expected_prompt = "Apply the style from image 2.\nMatch the pose in image 3.\n\nbase prompt"
+    assert result.conditioning.positive == expected_prompt
+
+
 @pytest.mark.parametrize("extent", [Extent(256, 256), Extent(800, 800), Extent(512, 1024)])
 def test_generate(qtapp, client, extent: Extent):
     prompt = ConditioningInput("ship")
