@@ -780,7 +780,7 @@ search_paths: dict[str, list[str]] = {
     resource_id(ResourceKind.vae, Arch.qwen_e, "default"): ["qwen"],
     resource_id(ResourceKind.vae, Arch.qwen_e_p, "default"): ["qwen"],
     resource_id(ResourceKind.vae, Arch.qwen_l, "default"): ["qwen_image_layered_vae"],
-    resource_id(ResourceKind.vae, Arch.zimage, "default"): ["z-image", "ae.s"],
+    resource_id(ResourceKind.vae, Arch.zimage, "default"): ["z-image", "flux-", "flux_", "flux/", "flux1", "ae.s"],
 }
 # fmt: on
 
