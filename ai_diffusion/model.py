@@ -193,12 +193,11 @@ class Model(QObject, ObservableProperties):
 
     def _prepare_workflow(self, dryrun=False):
         arch = self.arch
-        is_edit = arch.is_edit
         workflow_kind = WorkflowKind.generate
         strength = self.strength
         if arch is Arch.qwen_l:
             strength = 1.0
-        if strength < 1.0 or is_edit:
+        if strength < 1.0 or self.is_editing:
             workflow_kind = WorkflowKind.refine
         client = self._connection.client
         image = None
@@ -409,7 +408,7 @@ class Model(QObject, ObservableProperties):
     def _prepare_live_workflow(self):
         strength = self.live.strength
         workflow_kind = WorkflowKind.generate
-        if strength < 1.0 or self.arch.is_edit:
+        if strength < 1.0 or self.is_editing:
             workflow_kind = WorkflowKind.refine
         client = self._connection.client
         min_mask_size = 512 if self.arch is Arch.sd15 else 800
@@ -444,7 +443,7 @@ class Model(QObject, ObservableProperties):
         conditioning, job_regions = process_regions(self.regions, bounds)
         conditioning.language = self.prompt_translation_language
         conditioning, loras, layers, region_layers, _ = workflow.prepare_prompts(
-            conditioning, self.style, self.seed, self.arch, FileLibrary.instance()
+            conditioning, self.style, self.seed, self.arch, FileLibrary.instance(), is_live=True
         )
         self._add_reference_layers(conditioning, layers, region_layers)
 
@@ -845,11 +844,11 @@ class Model(QObject, ObservableProperties):
             self._style_connection = style.changed.connect(self._handle_style_changed)
             self.style_changed.emit(style)
             self.modified.emit(self, "style")
-            self.edit_mode = self.edit_mode and self.edit_style is not None
+            self.edit_mode = self.edit_mode and self.can_edit
 
     def _handle_style_changed(self):
         self.style_changed.emit(self.style)
-        self.edit_mode = self.edit_mode and self.edit_style is not None
+        self.edit_mode = self.edit_mode and self.can_edit
 
     def generate_seed(self):
         self.seed = workflow.generate_seed()
@@ -878,6 +877,8 @@ class Model(QObject, ObservableProperties):
         add_refs(cond.control, layers)
         for region, r_layers in zip(cond.regions, region_layers):
             add_refs(region.control, r_layers)
+
+        cond.edit_reference = self.is_editing
 
     def _performance_settings(self, client: Client):
         result = client.performance_settings
@@ -950,13 +951,21 @@ class Model(QObject, ObservableProperties):
     @property
     def edit_style(self) -> Style | None:
         style_arch = resolve_arch(self.style, self._connection.client_if_connected)
-        if style_arch.is_edit:
+        if style_arch.supports_edit:
             return self.style
         if style_id := self.style.linked_edit_style:
             if style := Styles.list().find(style_id):
                 if is_style_supported(style, self._connection.client_if_connected):
                     return style
         return None
+
+    @property
+    def can_edit(self):
+        return self.edit_style is not None
+
+    @property
+    def is_editing(self):
+        return self.arch.is_edit or (self.can_edit and self.edit_mode)
 
 
 class CustomInpaint(QObject, ObservableProperties):
@@ -1323,13 +1332,14 @@ class AnimationWorkspace(QObject, ObservableProperties):
         m = self._model
 
         kind = WorkflowKind.generate
-        if m.strength < 1.0 or m.arch.is_edit:
+        if m.strength < 1.0 or m.is_editing:
             kind = WorkflowKind.refine
         bounds = Bounds(0, 0, *m.document.extent)
+        is_live = self.sampling_quality is SamplingQuality.fast
         conditioning, _ = process_regions(m.regions, bounds, self._model.layers.root, time=time)
         conditioning.language = m.prompt_translation_language
         conditioning, loras, layers, region_layers, prompt_meta = workflow.prepare_prompts(
-            conditioning, m.style, seed, m.arch, FileLibrary.instance()
+            conditioning, m.style, seed, m.arch, FileLibrary.instance(), is_live
         )
         m._add_reference_layers(conditioning, layers, region_layers)
 
@@ -1344,7 +1354,7 @@ class AnimationWorkspace(QObject, ObservableProperties):
             models=m._connection.client.models,
             files=FileLibrary.instance(),
             strength=m.strength,
-            is_live=self.sampling_quality is SamplingQuality.fast,
+            is_live=is_live,
         )
 
     async def _generate_frame(self):

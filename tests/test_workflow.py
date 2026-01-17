@@ -85,6 +85,10 @@ def default_style(client: Client, sd_ver=Arch.sd15):
         style.sampler = "Flux - Euler simple"
         style.cfg_scale = 1.0
         style.sampler_steps = 8
+    if sd_ver.is_flux2:
+        style.sampler = "Flux 2 - Euler"
+        style.cfg_scale = 1.0
+        style.sampler_steps = 4
     return style
 
 
@@ -233,6 +237,28 @@ def test_prepare_lora():
     assert LoraInput("x/FRACTAL.safetensors", 0.55) in result.loras
 
 
+def test_prepare_negative():
+    files = FileLibrary(FileCollection(), FileCollection())
+    style = Style(Path("default.json"))
+    style.checkpoints = []
+    style.negative_prompt = "neg-beg {prompt} neg-end"
+    style.cfg_scale = 5.0
+    style.live_cfg_scale = 1.0
+    cond = ConditioningInput("positive prompt")
+    cond.negative = "piong"
+
+    result = workflow.prepare_prompts(cond, style, seed=1, arch=Arch.sd15, files=files)
+    assert result.conditioning.negative == "neg-beg piong neg-end"
+    assert result.metadata["negative_prompt"] == "piong"
+    assert result.metadata["negative_prompt_final"] == "neg-beg piong neg-end"
+
+    # CFG=1.0 -> empty negative prompt
+    live = workflow.prepare_prompts(cond, style, 1, Arch.sd15, files, is_live=True)
+    assert live.conditioning.negative == ""
+    assert live.metadata["negative_prompt"] == "piong"
+    assert live.metadata["negative_prompt_final"] == ""
+
+
 def test_prepare_wildcards():
     files = FileLibrary(FileCollection(), FileCollection())
     mask = Mask.rectangle(Bounds(0, 0, 10, 10), Bounds(0, 0, 10, 10)).to_image()
@@ -297,6 +323,23 @@ def test_prepare_prompt_layers(arch: Arch):
     assert result.layers == ["layer1", "layer2"]
     assert result.region_layers[0] == ["layer3"]
     assert result.region_layers[1] == []
+
+
+def test_prepare_prompt_instructions():
+    files = FileLibrary(FileCollection(), FileCollection())
+    style = Style(Path("default.json"))
+    style.checkpoints = []
+    cond = ConditioningInput("base prompt")
+    cond.control = [
+        ControlInput(ControlMode.style, Image.create(Extent(4, 4))),
+        ControlInput(ControlMode.pose, Image.create(Extent(4, 4))),
+    ]
+    cond.edit_reference = True
+
+    result = workflow.prepare_prompts(cond, style, seed=1, arch=Arch.flux2_4b, files=files)
+    assert result.conditioning is not None
+    expected_prompt = "Apply the style from image 2.\nMatch the pose in image 3.\n\nbase prompt"
+    assert result.conditioning.positive == expected_prompt
 
 
 @pytest.mark.parametrize("extent", [Extent(256, 256), Extent(800, 800), Extent(512, 1024)])
@@ -811,27 +854,43 @@ def test_refine_live(qtapp, client, sdver):
     run_and_save(qtapp, client, job, f"test_refine_live_{sdver.name}")
 
 
-def test_edit(qtapp, local_client):
+@pytest.mark.parametrize("arch", [Arch.flux_k, Arch.flux2_4b])
+def test_edit(qtapp, local_client, arch):
     image = Image.load(image_dir / "flowers.webp")
-    style = default_style(local_client, Arch.flux_k)
+    style = default_style(local_client, arch)
     cond = ConditioningInput("turn the image into a minimalistic vector illustration")
+    cond.edit_reference = True
     job = create(WorkflowKind.refine, local_client, style=style, canvas=image, cond=cond)
-    run_and_save(qtapp, local_client, job, "test_edit")
+    run_and_save(qtapp, local_client, job, f"test_edit_{arch.name}")
 
 
-def test_edit_selection(qtapp, local_client):
+@pytest.mark.parametrize("arch", [Arch.flux_k, Arch.flux2_4b])
+def test_edit_selection(qtapp, local_client, arch):
     image = Image.load(image_dir / "flowers.webp")
     mask = Mask.load(image_dir / "flowers_mask.png")
+    cond = ConditioningInput("make all flowers have yellow blossoms")
+    cond.edit_reference = True
     job = create(
         WorkflowKind.refine_region,
         local_client,
-        style=default_style(local_client, Arch.flux_k),
+        style=default_style(local_client, arch),
         canvas=image,
-        cond=ConditioningInput("make all flowers have yellow blossoms"),
+        cond=cond,
         mask=mask,
-        inpaint=automatic_inpaint(image.extent, mask.bounds, Arch.flux_k, ""),
+        inpaint=automatic_inpaint(image.extent, mask.bounds, arch, ""),
     )
-    run_and_save(qtapp, local_client, job, "test_edit_selection")
+    run_and_save(qtapp, local_client, job, f"test_edit_selection_{arch.name}")
+
+
+def test_edit_reference(qtapp, local_client):
+    image = Image.load(image_dir / "flowers.webp")
+    ref_image = Image.load(image_dir / "cat.webp")
+    style = default_style(local_client, Arch.flux2_4b)
+    cond = ConditioningInput("put the cat in the flower pot")
+    cond.control = [ControlInput(ControlMode.reference, ref_image, 1.0)]
+    cond.edit_reference = True
+    job = create(WorkflowKind.refine, local_client, style=style, canvas=image, cond=cond)
+    run_and_save(qtapp, local_client, job, "test_edit_reference")
 
 
 def test_refine_max_pixels(qtapp, client):

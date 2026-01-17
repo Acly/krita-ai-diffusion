@@ -727,7 +727,7 @@ def _find_text_encoder_models(model_list: Sequence[str]):
     kind = ResourceKind.text_encoder
     return {
         resource_id(kind, Arch.all, te): _find_model(model_list, kind, Arch.all, te)
-        for te in ["clip_l", "clip_g", "t5", "qwen", "qwen_3"]
+        for te in ["clip_l", "clip_g", "t5", "qwen", "qwen_3_4b", "qwen_3_8b"]
     }
 
 

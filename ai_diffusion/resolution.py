@@ -144,18 +144,14 @@ class CheckpointResolution(NamedTuple):
     @staticmethod
     def compute(extent: Extent, arch: Arch, style: Style | None = None):
         arch = Arch.sdxl if arch.is_sdxl_like else arch
-        arch = (
-            Arch.flux if arch.is_flux_like or arch is Arch.chroma or arch is Arch.zimage else arch
-        )
-        arch = Arch.qwen if arch.is_qwen_like else arch
         if style is None or style.preferred_resolution == 0:
-            min_size, max_size, min_pixel_count, max_pixel_count = {
+            res = {
                 Arch.sd15: (512, 768, 512**2, 512 * 768),
                 Arch.sdxl: (640, 1280, 800**2, 1024**2),
                 Arch.sd3: (512, 1536, 512**2, 1536**2),
-                Arch.flux: (256, 2048, 512**2, 2048**2),
-                Arch.qwen: (256, 2048, 512**2, 2048**2),
-            }[arch]
+            }
+            default = (256, 2048, 512**2, 2048**2)
+            min_size, max_size, min_pixel_count, max_pixel_count = res.get(arch, default)
         else:
             range_offset = multiple_of(round(0.2 * style.preferred_resolution), 8)
             min_size = style.preferred_resolution - range_offset
@@ -187,7 +183,7 @@ def prepare_diffusion_input(
 
     # The checkpoint may require a different resolution than what is requested.
     mult = 8
-    if arch.is_flux_like or arch is Arch.chroma:
+    if arch.is_flux_like or arch is Arch.chroma or arch.is_flux2:
         mult = 16
     if arch is Arch.sd3:
         mult = 64

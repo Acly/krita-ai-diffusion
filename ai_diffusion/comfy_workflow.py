@@ -29,6 +29,11 @@ Output4 = Tuple[Output, Output, Output, Output]
 Input = int | float | bool | str | Output
 
 
+class ConditioningOutput(NamedTuple):
+    positive: Output
+    negative: Output
+
+
 class ComfyNode(NamedTuple):
     id: int
     type: str
@@ -270,8 +275,7 @@ class ComfyWorkflow:
     def ksampler(
         self,
         model: Output,
-        positive: Output,
-        negative: Output,
+        cond: ConditioningOutput,
         latent_image: Output,
         sampler="dpmpp_2m_sde_gpu",
         scheduler="normal",
@@ -288,8 +292,8 @@ class ComfyWorkflow:
             sampler_name=sampler,
             scheduler=scheduler,
             model=model,
-            positive=positive,
-            negative=negative,
+            positive=cond.positive,
+            negative=cond.negative,
             latent_image=latent_image,
             steps=steps,
             cfg=cfg,
@@ -299,8 +303,7 @@ class ComfyWorkflow:
     def ksampler_advanced(
         self,
         model: Output,
-        positive: Output,
-        negative: Output,
+        cond: ConditioningOutput,
         latent_image: Output,
         sampler="dpmpp_2m_sde_gpu",
         scheduler="normal",
@@ -318,8 +321,8 @@ class ComfyWorkflow:
             sampler_name=sampler,
             scheduler=scheduler,
             model=model,
-            positive=positive,
-            negative=negative,
+            positive=cond.positive,
+            negative=cond.negative,
             latent_image=latent_image,
             steps=steps,
             start_at_step=start_at_step,
@@ -332,26 +335,28 @@ class ComfyWorkflow:
     def sampler_custom_advanced(
         self,
         model: Output,
-        positive: Output,
-        negative: Output,
+        cond: ConditioningOutput,
         latent_image: Output,
         arch: Arch,
-        sampler="dpmpp_2m_sde_gpu",
+        sampler="euler",
         scheduler="normal",
         steps=20,
         start_at_step=0,
         cfg=7.0,
         seed=-1,
+        extent=Extent(1024, 1024),
     ):
         self.sample_count += steps - start_at_step
 
         if arch.is_flux_like:
-            positive = self.flux_guidance(positive, cfg if cfg > 1 else 3.5)
+            positive = self.flux_guidance(cond.positive, cfg if cfg > 1 else 3.5)
             guider = self.basic_guider(model, positive)
+        elif cfg == 1.0:
+            guider = self.basic_guider(model, cond.positive)
         else:
-            guider = self.cfg_guider(model, positive, negative, cfg)
+            guider = self.cfg_guider(model, cond, cfg)
 
-        sigmas = self.scheduler_sigmas(model, scheduler, steps, arch)
+        sigmas = self.scheduler_sigmas(model, scheduler, steps, arch, extent)
         if start_at_step > 0:
             _, sigmas = self.split_sigmas(sigmas, start_at_step)
 
@@ -366,12 +371,12 @@ class ComfyWorkflow:
         )[1]
 
     def scheduler_sigmas(
-        self, model: Output, scheduler="normal", steps=20, model_version=Arch.sdxl
+        self, model: Output, scheduler="normal", steps=20, arch=Arch.sdxl, extent=Extent(1024, 1024)
     ):
         if scheduler in ("align_your_steps", "ays"):
-            assert model_version is Arch.sd15 or model_version.is_sdxl_like
+            assert arch is Arch.sd15 or arch.is_sdxl_like
 
-            if model_version is Arch.sd15:
+            if arch is Arch.sd15:
                 model_type = "SD1"
             else:
                 model_type = "SDXL"
@@ -410,6 +415,14 @@ class ComfyWorkflow:
                 mu=0.0,
                 beta=0.5,
             )
+        elif scheduler == "flux2":
+            return self.add(
+                "Flux2Scheduler",
+                output_count=1,
+                steps=steps,
+                width=extent.width,
+                height=extent.height,
+            )
         else:
             return self.add(
                 "BasicScheduler",
@@ -431,13 +444,13 @@ class ComfyWorkflow:
     def basic_guider(self, model: Output, positive: Output):
         return self.add("BasicGuider", 1, model=model, conditioning=positive)
 
-    def cfg_guider(self, model: Output, positive: Output, negative: Output, cfg=7.0):
+    def cfg_guider(self, model: Output, cond: ConditioningOutput, cfg=7.0):
         return self.add(
             "CFGGuider",
             output_count=1,
             model=model,
-            positive=positive,
-            negative=negative,
+            positive=cond.positive,
+            negative=cond.negative,
             cfg=cfg,
         )
 
@@ -592,7 +605,10 @@ class ComfyWorkflow:
         w, h = extent.width, extent.height
         if arch.is_flux_like or arch.is_qwen_like or arch in (Arch.sd3, Arch.chroma, Arch.zimage):
             return self.add("EmptySD3LatentImage", 1, width=w, height=h, batch_size=batch_size)
-        return self.add("EmptyLatentImage", 1, width=w, height=h, batch_size=batch_size)
+        if arch.is_flux2:
+            return self.add("EmptyFlux2LatentImage", 1, width=w, height=h, batch_size=batch_size)
+        else:
+            return self.add("EmptyLatentImage", 1, width=w, height=h, batch_size=batch_size)
 
     def empty_latent_layers(self, extent: Extent, layer_count: int, batch_size=1):
         w, h = extent.width, extent.height
@@ -657,16 +673,17 @@ class ComfyWorkflow:
         return self.add("ConditioningZeroOut", 1, conditioning=conditioning)
 
     def instruct_pix_to_pix_conditioning(
-        self, positive: Output, negative: Output, vae: Output, pixels: Output
+        self, cond: ConditioningOutput, vae: Output, pixels: Output
     ):
-        return self.add(
+        pos, neg, model = self.add(
             "InstructPixToPixConditioning",
             3,
-            positive=positive,
-            negative=negative,
+            positive=cond.positive,
+            negative=cond.negative,
             vae=vae,
             pixels=pixels,
         )
+        return ConditioningOutput(pos, neg), model
 
     def reference_latent(self, conditioning: Output, latent: Output):
         return self.add("ReferenceLatent", 1, conditioning=conditioning, latent=latent)
@@ -712,31 +729,31 @@ class ComfyWorkflow:
 
     def apply_controlnet(
         self,
-        positive: Output,
-        negative: Output,
+        cond: ConditioningOutput,
         controlnet: Output,
         image: Output,
         vae: Output,
         strength=1.0,
         range: tuple[float, float] = (0.0, 1.0),
     ):
-        return self.add(
-            "ControlNetApplyAdvanced",
-            2,
-            positive=positive,
-            negative=negative,
-            control_net=controlnet,
-            image=image,
-            vae=vae,
-            strength=strength,
-            start_percent=range[0],
-            end_percent=range[1],
+        return ConditioningOutput(
+            *self.add(
+                "ControlNetApplyAdvanced",
+                2,
+                positive=cond.positive,
+                negative=cond.negative,
+                control_net=controlnet,
+                image=image,
+                vae=vae,
+                strength=strength,
+                start_percent=range[0],
+                end_percent=range[1],
+            )
         )
 
     def apply_controlnet_inpainting(
         self,
-        positive: Output,
-        negative: Output,
+        cond: ConditioningOutput,
         controlnet: Output,
         vae: Output,
         image: Output,
@@ -744,18 +761,20 @@ class ComfyWorkflow:
         strength=1.0,
         range: tuple[float, float] = (0.0, 1.0),
     ):
-        return self.add(
-            "ControlNetInpaintingAliMamaApply",
-            2,
-            positive=positive,
-            negative=negative,
-            control_net=controlnet,
-            vae=vae,
-            image=image,
-            mask=mask,
-            strength=strength,
-            start_percent=range[0],
-            end_percent=range[1],
+        return ConditioningOutput(
+            *self.add(
+                "ControlNetInpaintingAliMamaApply",
+                2,
+                positive=cond.positive,
+                negative=cond.negative,
+                control_net=controlnet,
+                vae=vae,
+                image=image,
+                mask=mask,
+                strength=strength,
+                start_percent=range[0],
+                end_percent=range[1],
+            )
         )
 
     def set_controlnet_type(self, controlnet: Output, mode: ControlMode):
@@ -894,17 +913,18 @@ class ComfyWorkflow:
         return self.add("INPAINT_ApplyFooocusInpaint", 1, model=model, patch=patch, latent=latent)
 
     def vae_encode_inpaint_conditioning(
-        self, vae: Output, image: Output, mask: Output, positive: Output, negative: Output
+        self, vae: Output, image: Output, mask: Output, cond: ConditioningOutput
     ):
-        return self.add(
+        pos, neg, latent_inpaint, latent = self.add(
             "INPAINT_VAEEncodeInpaintConditioning",
             4,
             vae=vae,
             pixels=image,
             mask=mask,
-            positive=positive,
-            negative=negative,
+            positive=cond.positive,
+            negative=cond.negative,
         )
+        return ConditioningOutput(pos, neg), latent_inpaint, latent
 
     def vae_encode(self, vae: Output, image: Output):
         return self.add("VAEEncode", 1, vae=vae, pixels=image)
