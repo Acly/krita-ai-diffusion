@@ -21,6 +21,7 @@ from ai_diffusion.client import Client, ClientEvent
 from ai_diffusion.style import Arch, Style
 from ai_diffusion.pose import Pose
 from ai_diffusion.workflow import detect_inpaint
+from ai_diffusion.util import ensure
 from . import config
 from .config import root_dir, test_dir, image_dir, result_dir, reference_dir, default_checkpoint
 from .conftest import CloudService
@@ -481,6 +482,8 @@ def test_refine(qtapp, client, setup):
         strength=strength,
         perf=PerformanceSettings(batch_size=1, max_pixel_count=2),
     )
+    if sdver.is_edit:
+        ensure(job.conditioning).edit_reference = True
     result = run_and_save(qtapp, client, job, f"test_refine_{setup}")
     assert result.extent == extent
 
