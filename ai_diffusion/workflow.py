@@ -469,7 +469,10 @@ def encode_prompt(
 
     if len(cond.regions) <= 1 or all(len(r.loras) == 0 for r in cond.regions):
         positive = cond.positive.encode(w, clip, cond.style_prompt, ref_images)
-        negative = cond.negative.encode(w, clip)
+        if cond.negative.text != "":
+            negative = cond.negative.encode(w, clip)
+        else:
+            negative = w.conditioning_zero_out(positive)
         return ConditioningOutput(positive, negative)
 
     assert regions is not None
@@ -1437,7 +1440,7 @@ class PreparedPrompt(NamedTuple):
 
 
 def prepare_prompts(
-    cond: ConditioningInput, style: Style, seed: int, arch: Arch, files: FileLibrary
+    cond: ConditioningInput, style: Style, seed: int, arch: Arch, files: FileLibrary, is_live=False
 ):
     cond = copy(cond)
     cond.regions = [copy(r) for r in cond.regions]
@@ -1459,11 +1462,15 @@ def prepare_prompts(
     cond.positive += _collect_lora_triggers(models.loras, files)
     meta["prompt_final"] = merge_prompt(cond.positive, cond.style, cond.language)
 
-    cond.negative = strip_prompt_comments(cond.negative)
-    cond.negative = eval_wildcards(cond.negative, seed)
-    if cond.negative != meta["negative_prompt"]:
-        meta["negative_prompt_eval"] = cond.negative
-    cond.negative = merge_prompt(cond.negative, style.negative_prompt, cond.language)
+    cfg = style.live_cfg_scale if is_live else style.cfg_scale
+    if cfg == 1.0:
+        cond.negative = ""  # CFG 1 does not use negative prompt
+    else:
+        cond.negative = strip_prompt_comments(cond.negative)
+        cond.negative = eval_wildcards(cond.negative, seed)
+        if cond.negative != meta["negative_prompt"]:
+            meta["negative_prompt_eval"] = cond.negative
+        cond.negative = merge_prompt(cond.negative, style.negative_prompt, cond.language)
     meta["negative_prompt_final"] = cond.negative
 
     meta["regions"] = []

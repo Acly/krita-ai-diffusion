@@ -351,6 +351,8 @@ class ComfyWorkflow:
         if arch.is_flux_like:
             positive = self.flux_guidance(cond.positive, cfg if cfg > 1 else 3.5)
             guider = self.basic_guider(model, positive)
+        elif cfg == 1.0:
+            guider = self.basic_guider(model, cond.positive)
         else:
             guider = self.cfg_guider(model, cond, cfg)
 

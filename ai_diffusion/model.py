@@ -443,7 +443,7 @@ class Model(QObject, ObservableProperties):
         conditioning, job_regions = process_regions(self.regions, bounds)
         conditioning.language = self.prompt_translation_language
         conditioning, loras, layers, region_layers, _ = workflow.prepare_prompts(
-            conditioning, self.style, self.seed, self.arch, FileLibrary.instance()
+            conditioning, self.style, self.seed, self.arch, FileLibrary.instance(), is_live=True
         )
         self._add_reference_layers(conditioning, layers, region_layers)
 
@@ -1335,10 +1335,11 @@ class AnimationWorkspace(QObject, ObservableProperties):
         if m.strength < 1.0 or m.is_editing:
             kind = WorkflowKind.refine
         bounds = Bounds(0, 0, *m.document.extent)
+        is_live = self.sampling_quality is SamplingQuality.fast
         conditioning, _ = process_regions(m.regions, bounds, self._model.layers.root, time=time)
         conditioning.language = m.prompt_translation_language
         conditioning, loras, layers, region_layers, prompt_meta = workflow.prepare_prompts(
-            conditioning, m.style, seed, m.arch, FileLibrary.instance()
+            conditioning, m.style, seed, m.arch, FileLibrary.instance(), is_live
         )
         m._add_reference_layers(conditioning, layers, region_layers)
 
@@ -1353,7 +1354,7 @@ class AnimationWorkspace(QObject, ObservableProperties):
             models=m._connection.client.models,
             files=FileLibrary.instance(),
             strength=m.strength,
-            is_live=self.sampling_quality is SamplingQuality.fast,
+            is_live=is_live,
         )
 
     async def _generate_frame(self):
