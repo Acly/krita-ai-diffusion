@@ -237,6 +237,28 @@ def test_prepare_lora():
     assert LoraInput("x/FRACTAL.safetensors", 0.55) in result.loras
 
 
+def test_prepare_negative():
+    files = FileLibrary(FileCollection(), FileCollection())
+    style = Style(Path("default.json"))
+    style.checkpoints = []
+    style.negative_prompt = "neg-beg {prompt} neg-end"
+    style.cfg_scale = 5.0
+    style.live_cfg_scale = 1.0
+    cond = ConditioningInput("positive prompt")
+    cond.negative = "piong"
+
+    result = workflow.prepare_prompts(cond, style, seed=1, arch=Arch.sd15, files=files)
+    assert result.conditioning.negative == "neg-beg piong neg-end"
+    assert result.metadata["negative_prompt"] == "piong"
+    assert result.metadata["negative_prompt_final"] == "neg-beg piong neg-end"
+
+    # CFG=1.0 -> empty negative prompt
+    live = workflow.prepare_prompts(cond, style, 1, Arch.sd15, files, is_live=True)
+    assert live.conditioning.negative == ""
+    assert live.metadata["negative_prompt"] == "piong"
+    assert live.metadata["negative_prompt_final"] == ""
+
+
 def test_prepare_wildcards():
     files = FileLibrary(FileCollection(), FileCollection())
     mask = Mask.rectangle(Bounds(0, 0, 10, 10), Bounds(0, 0, 10, 10)).to_image()
