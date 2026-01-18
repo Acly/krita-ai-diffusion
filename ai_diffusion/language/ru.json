@@ -258,9 +258,7 @@
     "Select Directory": "Выбрать каталог",
     "Selection Bounds": "Граница выделения",
     "Selection Feather": "Растушёвка выделения",
-    "Selection Grow": "Увеличение выделения",
     "Selection Padding": "Заполнение выделения",
-    "Selection area is expanded by a fraction of its size": "Область выделения расширена на долю своего размера",
     "Server Arguments": "Аргументы сервера",
     "Server Backend": "Серверная часть",
     "Server Configuration": "Конфигурация сервера",
@@ -320,10 +318,8 @@
     "The NSFW filter is a basic tool to exclude explicit content from generated images. It is NOT a guarantee and may not catch all inappropriate content. Please use responsibly and always review the generated images.": "Фильтр NSFW - это базовый инструмент для исключения откровенного контента из созданных изображений. Он не является гарантией и не может выявить весь неприемлемый контент. Пожалуйста, используйте его ответственно и всегда просматривайте сгенерированные изображения.",
     "The VAE '{vae}' used by style '{style}' is not available on the server": "VAE '{vae}' для стиля '{style}' не доступна на сервере",
     "The active layer does not contain an animation.": "Активный слой не содержит анимации.",
-    "The border is blurred by a fraction of selection size": "Размытие границы на долю от выбранного размера",
     "The checkpoint '{checkpoint}' used by style '{style}' is not available on the server": "Модель '{checkpoint}' для стиля '{style}' не доступна на сервере",
     "The checkpoint used by this style is not installed.": "Модель для этого стиля не установлена",
-    "The following ComfyUI custom nodes are missing": "Следующие пользовательские узлы для ComfyUI отсутствуют",
     "The login data is incorrect, please sign in again.": "Логин неверный, пожалуйста, войдите в систему еще раз.",
     "The sampling strategy and scheduler": "The sampling strategy and scheduler",
     "The seed controls the random part of the output. A fixed seed value will always produce the same result for the same inputs.": "Начальное число контроля для разных частей выходных данных. Фиксированное начальное число всегда будет давать один и тот же результат для одних и тех же входных данных",
@@ -571,6 +567,11 @@
     "Jobs": null,
     "Overwrite Workflow": null,
     "A workflow named '{name}' already exists. Do you want to overwrite it?": null,
-    "Layers": null
+    "Layers": null,
+    "The following ComfyUI custom nodes are missing or too old": null,
+    "Selection Blend": null,
+    "Transition area for alpha blending the result image": null,
+    "If nodes are still missing, check the ComfyUI output at startup for errors.": null,
+    "The border is expanded and blurred by a fraction of selection size": null
   }
 }

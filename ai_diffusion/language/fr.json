@@ -258,9 +258,7 @@
     "Select Directory": "Sélectionner un répertoire",
     "Selection Bounds": "Limites de sélection",
     "Selection Feather": "Plume de sélection",
-    "Selection Grow": "Agrandir la sélection",
     "Selection Padding": "Marge de sélection",
-    "Selection area is expanded by a fraction of its size": "La zone de sélection est agrandie par une fraction de sa taille",
     "Server Arguments": "Arguments du serveur",
     "Server Backend": "Backend du serveur",
     "Server Configuration": "Configuration du serveur",
@@ -320,10 +318,8 @@
     "The NSFW filter is a basic tool to exclude explicit content from generated images. It is NOT a guarantee and may not catch all inappropriate content. Please use responsibly and always review the generated images.": "Le filtre NSFW est un outil de base pour exclure le contenu explicite des images générées. Ce n'est PAS une garantie et il peut ne pas capturer tout le contenu inapproprié. Veuillez l'utiliser de manière responsable et toujours revoir les images générées.",
     "The VAE '{vae}' used by style '{style}' is not available on the server": "Le VAE '{vae}' utilisé par le style '{style}' n'est pas disponible sur le serveur",
     "The active layer does not contain an animation.": "La couche active ne contient pas d'animation.",
-    "The border is blurred by a fraction of selection size": "La bordure est floutée par une fraction de la taille de la sélection",
     "The checkpoint '{checkpoint}' used by style '{style}' is not available on the server": "Le checkpoint '{checkpoint}' utilisé par le style '{style}' n'est pas disponible sur le serveur",
     "The checkpoint used by this style is not installed.": "Le checkpoint utilisé par ce style n'est pas installé.",
-    "The following ComfyUI custom nodes are missing": "Les nœuds personnalisés ComfyUI suivants manquent",
     "The login data is incorrect, please sign in again.": "Les données de connexion sont incorrectes, veuillez vous reconnecter.",
     "The sampling strategy and scheduler": "La stratégie d'échantillonnage et le planificateur",
     "The seed controls the random part of the output. A fixed seed value will always produce the same result for the same inputs.": "La graine contrôle la partie aléatoire de la sortie. Une valeur de graine fixe produira toujours le même résultat pour les mêmes entrées.",
@@ -571,6 +567,11 @@
     "Jobs": null,
     "Overwrite Workflow": null,
     "A workflow named '{name}' already exists. Do you want to overwrite it?": null,
-    "Layers": null
+    "Layers": null,
+    "The following ComfyUI custom nodes are missing or too old": null,
+    "Selection Blend": null,
+    "Transition area for alpha blending the result image": null,
+    "If nodes are still missing, check the ComfyUI output at startup for errors.": null,
+    "The border is expanded and blurred by a fraction of selection size": null
   }
 }

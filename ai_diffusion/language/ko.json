@@ -258,9 +258,7 @@
     "Select Directory": "디렉터리 선택",
     "Selection Bounds": "선택 경계",
     "Selection Feather": "선택 피더",
-    "Selection Grow": "선택 확장",
     "Selection Padding": "선택 패딩",
-    "Selection area is expanded by a fraction of its size": "선택 영역이 크기의 일부로 확장됩니다",
     "Server Arguments": "서버 인수",
     "Server Backend": "서버 백엔드",
     "Server Configuration": "서버 구성",
@@ -320,10 +318,8 @@
     "The NSFW filter is a basic tool to exclude explicit content from generated images. It is NOT a guarantee and may not catch all inappropriate content. Please use responsibly and always review the generated images.": "NSFW 필터는 생성된 이미지에서 음란 콘텐츠를 제외하는 기본 도구입니다. 보장이 아니며 모든 부적절한 콘텐츠를 잡지 못할 수 있습니다. 책임감 있게 사용하고 생성된 이미지를 항상 검토하세요.",
     "The VAE '{vae}' used by style '{style}' is not available on the server": "스타일 '{style}'에서 사용하는 VAE '{vae}'가 서버에 없습니다",
     "The active layer does not contain an animation.": "활성 레이어에 애니메이션이 포함되어 있지 않습니다.",
-    "The border is blurred by a fraction of selection size": "테두리가 선택 크기의 일부로 흐릿해집니다",
     "The checkpoint '{checkpoint}' used by style '{style}' is not available on the server": "스타일 '{style}'에서 사용하는 체크포인트 '{checkpoint}'가 서버에 없습니다",
     "The checkpoint used by this style is not installed.": "이 스타일에서 사용하는 체크포인트가 설치되지 않았습니다.",
-    "The following ComfyUI custom nodes are missing": "다음 ComfyUI 사용자 지정 노드가 누락되었습니다",
     "The login data is incorrect, please sign in again.": "로그인 데이터가 잘못되었습니다. 다시 로그인하세요.",
     "The sampling strategy and scheduler": "샘플링 전략 및 스케줄러",
     "The seed controls the random part of the output. A fixed seed value will always produce the same result for the same inputs.": "시드는 출력의 무작위 부분을 제어합니다. 고정된 시드 값은 동일한 입력에 대해 항상 동일한 결과를 생성합니다.",
@@ -571,6 +567,11 @@
     "Jobs": null,
     "Overwrite Workflow": null,
     "A workflow named '{name}' already exists. Do you want to overwrite it?": null,
-    "Layers": null
+    "Layers": null,
+    "The following ComfyUI custom nodes are missing or too old": null,
+    "Selection Blend": null,
+    "Transition area for alpha blending the result image": null,
+    "If nodes are still missing, check the ComfyUI output at startup for errors.": null,
+    "The border is expanded and blurred by a fraction of selection size": null
   }
 }

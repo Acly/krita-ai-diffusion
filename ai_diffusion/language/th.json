@@ -241,9 +241,7 @@
     "Select Directory": "เลือก Directory",
     "Selection Bounds": "ขอบเขต Selection",
     "Selection Feather": "ความฟุ้ง Selection",
-    "Selection Grow": "ขยาย Selection",
     "Selection Padding": "ระยะการมองออกจาก Selection",
-    "Selection area is expanded by a fraction of its size": "ขยายพื้นที่ Selection ออกไป เป็นเศษส่วนของขนาด",
     "Server Arguments": "Server Arguments",
     "Server Backend": "Server Backend",
     "Server Configuration": "การกำหนดค่า Server",
@@ -301,10 +299,8 @@
     "The NSFW filter is a basic tool to exclude explicit content from generated images. It is NOT a guarantee and may not catch all inappropriate content. Please use responsibly and always review the generated images.": "ตัวกรอง NSFW เป็นเครื่องมือพื้นฐาน ในการแยกเนื้อหา 18+ ออกจากรูปภาพที่สร้างขึ้น โดยที่ ตัวกรองนี้ ไม่รับประกัน และอาจไม่สามารถตรวจจับเนื้อหาที่ไม่เหมาะสมทั้งหมดได้ โปรดใช้ด้วยความรับผิดชอบ และตรวจสอบรูปภาพที่สร้างขึ้นเสมอ",
     "The VAE '{vae}' used by style '{style}' is not available on the server": "VAE '{vae}' ที่ใช้โดย Style '{style}' ไม่พร้อมใช้งานบน Server",
     "The active layer does not contain an animation.": "Layer ที่ใช้งานอยู่ ไม่มีแอนิเมชั่น",
-    "The border is blurred by a fraction of selection size": "ขอบ Selection เบลอ เป็นเศษส่วนของขนาด Selection",
     "The checkpoint '{checkpoint}' used by style '{style}' is not available on the server": "Checkpoint '{checkpoint}' ที่ใช้โดย Style '{style}' ไม่พร้อมใช้งานบน Server",
     "The checkpoint used by this style is not installed.": "ไม่ได้ติดตั้ง Checkpoint ที่ใช้โดย Style นี้",
-    "The following ComfyUI custom nodes are missing": "ComfyUI custom nodes ต่อไปนี้ ขาดหายไป",
     "The login data is incorrect, please sign in again.": "ข้อมูลการเข้าสู่ระบบไม่ถูกต้อง โปรดลงชื่อเข้าใช้ใหม่อีกครั้ง",
     "The sampling strategy and scheduler": "The sampling strategy and scheduler",
     "The seed controls the random part of the output. A fixed seed value will always produce the same result for the same inputs.": "ชุดตัวเลข Noise ควบคุมส่วนสุ่มของผลลัพธ์ ชุดตัวเลข Noise คงที่ จะสร้างผลลัพธ์เดียวกันเสมอ สำหรับ input เดียวกัน",
@@ -571,6 +567,11 @@
     "Jobs": null,
     "Overwrite Workflow": null,
     "A workflow named '{name}' already exists. Do you want to overwrite it?": null,
-    "Layers": null
+    "Layers": null,
+    "The following ComfyUI custom nodes are missing or too old": null,
+    "Selection Blend": null,
+    "Transition area for alpha blending the result image": null,
+    "If nodes are still missing, check the ComfyUI output at startup for errors.": null,
+    "The border is expanded and blurred by a fraction of selection size": null
   }
 }

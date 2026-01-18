@@ -258,9 +258,7 @@
     "Select Directory": "Dizin Seç",
     "Selection Bounds": "Seçim Sınırları",
     "Selection Feather": "Seçim Yumuşatma",
-    "Selection Grow": "Seçim Büyütme",
     "Selection Padding": "Seçim Dolgusu",
-    "Selection area is expanded by a fraction of its size": "Seçim alanı boyutunun bir kısmı kadar genişletilir",
     "Server Arguments": "Sunucu Argümanları",
     "Server Backend": "Sunucu Arka Ucu",
     "Server Configuration": "Sunucu Yapılandırması",
@@ -320,10 +318,8 @@
     "The NSFW filter is a basic tool to exclude explicit content from generated images. It is NOT a guarantee and may not catch all inappropriate content. Please use responsibly and always review the generated images.": "NSFW filtresi, oluşturulan görüntülerden açık içeriği çıkarmak için temel bir araçtır. Bu bir garanti DEĞİLDİR ve tüm uygunsuz içeriği yakalamayabilir. Lütfen sorumlu bir şekilde kullanın ve oluşturulan görüntüleri her zaman gözden geçirin.",
     "The VAE '{vae}' used by style '{style}' is not available on the server": "'{style}' stili tarafından kullanılan VAE '{vae}' sunucuda mevcut değil",
     "The active layer does not contain an animation.": "Aktif katman bir animasyon içermiyor.",
-    "The border is blurred by a fraction of selection size": "Kenarlık, seçim boyutunun bir kısmı kadar bulanıklaştırılır",
     "The checkpoint '{checkpoint}' used by style '{style}' is not available on the server": "'{style}' stili tarafından kullanılan checkpoint '{checkpoint}' sunucuda mevcut değil",
     "The checkpoint used by this style is not installed.": "Bu stil tarafından kullanılan checkpoint kurulu değil.",
-    "The following ComfyUI custom nodes are missing": "Aşağıdaki ComfyUI özel düğümleri eksik",
     "The login data is incorrect, please sign in again.": "Giriş bilgileri yanlış, lütfen tekrar giriş yapın.",
     "The sampling strategy and scheduler": "Sampling stratejisi ve scheduler",
     "The seed controls the random part of the output. A fixed seed value will always produce the same result for the same inputs.": "Seed, çıktının rastgele kısmını kontrol eder. Sabit bir Seed değeri, aynı girdiler için her zaman aynı sonucu üretecektir.",
@@ -571,6 +567,11 @@
     "Jobs": null,
     "Overwrite Workflow": null,
     "A workflow named '{name}' already exists. Do you want to overwrite it?": null,
-    "Layers": null
+    "Layers": null,
+    "The following ComfyUI custom nodes are missing or too old": null,
+    "Selection Blend": null,
+    "Transition area for alpha blending the result image": null,
+    "If nodes are still missing, check the ComfyUI output at startup for errors.": null,
+    "The border is expanded and blurred by a fraction of selection size": null
   }
 }

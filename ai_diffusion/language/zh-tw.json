@@ -258,9 +258,7 @@
     "Select Directory": "選擇目錄",
     "Selection Bounds": "選取範圍",
     "Selection Feather": "選取範圍羽化",
-    "Selection Grow": "選取範圍擴展",
     "Selection Padding": "選取範圍邊距",
-    "Selection area is expanded by a fraction of its size": "選取區域會按比例擴展",
     "Server Arguments": "伺服器參數",
     "Server Backend": "伺服器後端",
     "Server Configuration": "伺服器設定",
@@ -320,10 +318,8 @@
     "The NSFW filter is a basic tool to exclude explicit content from generated images. It is NOT a guarantee and may not catch all inappropriate content. Please use responsibly and always review the generated images.": "NSFW 敏感過濾器是一個基本工具，用於排除生成影像中的限制級內容。它並不能保證一定會攔截所有不適當的內容。請抱持負責任的態度使用，並務必仔細檢查生成的影像。",
     "The VAE '{vae}' used by style '{style}' is not available on the server": "伺服器上沒有風格「{style}」使用的 VAE「{vae}」",
     "The active layer does not contain an animation.": "目前的圖層不包含動畫。",
-    "The border is blurred by a fraction of selection size": "邊框會依選取範圍大小的一小部分進行模糊處理",
     "The checkpoint '{checkpoint}' used by style '{style}' is not available on the server": "伺服器上沒有風格「{style}」使用的 checkpoint「{checkpoint}」",
     "The checkpoint used by this style is not installed.": "尚未安裝此風格使用的 checkpoint。",
-    "The following ComfyUI custom nodes are missing": "缺少下列 ComfyUI 自訂節點",
     "The login data is incorrect, please sign in again.": "登入資訊不正確，請重新登入。",
     "The sampling strategy and scheduler": "取樣策略和排程器",
     "The seed controls the random part of the output. A fixed seed value will always produce the same result for the same inputs.": "種子值會控制輸出的隨機部分。對於相同的輸入，固定的種子值將始終產生相同的結果。",
@@ -571,6 +567,11 @@
     "Jobs": "任務數",
     "Overwrite Workflow": null,
     "A workflow named '{name}' already exists. Do you want to overwrite it?": null,
-    "Layers": null
+    "Layers": null,
+    "The following ComfyUI custom nodes are missing or too old": null,
+    "Selection Blend": null,
+    "Transition area for alpha blending the result image": null,
+    "If nodes are still missing, check the ComfyUI output at startup for errors.": null,
+    "The border is expanded and blurred by a fraction of selection size": null
   }
 }

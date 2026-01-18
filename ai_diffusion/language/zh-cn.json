@@ -258,9 +258,7 @@
     "Select Directory": "选择目录",
     "Selection Bounds": "选择区域",
     "Selection Feather": "选区羽化",
-    "Selection Grow": "选区扩展",
     "Selection Padding": "选区填充",
-    "Selection area is expanded by a fraction of its size": "选择区域会按比例扩展",
     "Server Arguments": "服务器参数",
     "Server Backend": "服务器后端",
     "Server Configuration": "服务器配置",
@@ -320,10 +318,8 @@
     "The NSFW filter is a basic tool to exclude explicit content from generated images. It is NOT a guarantee and may not catch all inappropriate content. Please use responsibly and always review the generated images.": "NSFW(敏感) 过滤器是从生成的图像中排除显式内容的基本工具。这不是一种保证，可能无法捕捉到所有不恰当的内容。请负责任地使用并始终查看生成的图像。",
     "The VAE '{vae}' used by style '{style}' is not available on the server": "风格 '{style}' 使用的 VAE '{vae}' 在服务器上不可用",
     "The active layer does not contain an animation.": "当前活动层不包含动画。",
-    "The border is blurred by a fraction of selection size": "边界被模糊，模糊程度是选择区域大小的一部分",
     "The checkpoint '{checkpoint}' used by style '{style}' is not available on the server": "风格 '{style}' 使用的 checkpoint '{checkpoint}' 在服务器上不可用",
     "The checkpoint used by this style is not installed.": "此风格使用的 checkpoint 未安装。",
-    "The following ComfyUI custom nodes are missing": "以下ComfyUI自定义节点缺失",
     "The login data is incorrect, please sign in again.": "登录数据不正确，请重新登录。",
     "The sampling strategy and scheduler": "采样策略和调度器",
     "The seed controls the random part of the output. A fixed seed value will always produce the same result for the same inputs.": "种子控制输出的随机部分。固定的种子值对于相同的输入总是会产生相同的结果。",
@@ -571,6 +567,11 @@
     "Jobs": "任务数",
     "Overwrite Workflow": null,
     "A workflow named '{name}' already exists. Do you want to overwrite it?": null,
-    "Layers": null
+    "Layers": null,
+    "The following ComfyUI custom nodes are missing or too old": null,
+    "Selection Blend": null,
+    "Transition area for alpha blending the result image": null,
+    "If nodes are still missing, check the ComfyUI output at startup for errors.": null,
+    "The border is expanded and blurred by a fraction of selection size": null
   }
 }

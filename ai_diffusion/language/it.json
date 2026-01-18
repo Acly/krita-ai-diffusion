@@ -320,9 +320,7 @@
     "Select LoRA file": "Selezionare archivo LoRA",
     "Selection Bounds": "Limiti della selezione",
     "Selection Feather": "Seleziona Leggera",
-    "Selection Grow": "Espandi Selezione",
     "Selection Padding": "Seleziona Riempimento",
-    "Selection area is expanded by a fraction of its size": "L'area di selezione viene espansa di una frazione della sua dimensione",
     "Server Arguments": "Argomenti del Server",
     "Server Backend": "Backend del Server",
     "Server Configuration": "Configurazione del Server",
@@ -391,11 +389,9 @@
     "The VAE for this diffusion model is not installed": "Il VAE per questo modello di diffusione non è installato",
     "The active layer does not contain an animation.": "Il livello attivo non contiene un'animazione.",
     "The base model ecosystem which the selected checkpoint belongs to.": "L'ecosistema del modello di base a cui appartiene il checkpoint selezionato.",
-    "The border is blurred by a fraction of selection size": "Il bordo è sfocato di una frazione della dimensione della selezione",
     "The checkpoint '{checkpoint}' used by style '{style}' is not available on the server": "Il checkpoint '{checkpoint}' utilizzato dallo stile '{style}' non è disponibile sul server",
     "The checkpoint used by this style is not installed.": "Il checkpoint utilizzato da questo stile non è installato.",
     "The file is too large to be uploaded. Files up to a size of {size} MB are supported.": "Il file è troppo grande per essere caricato. Sono supportati file fino a una dimensione di {size} MB..",
-    "The following ComfyUI custom nodes are missing": "Mancano i seguenti nodi personalizzati ComfyUI",
     "The following control layers cannot be used together:": "I seguenti livelli di controllo non possono essere utilizzati insieme:",
     "The login data is incorrect, please sign in again.": "I dati di accesso non sono corretti, accedi di nuovo.",
     "The sampling strategy and scheduler": "La strategia di campionamento e la pianificazione",
@@ -571,6 +567,11 @@
     "Jobs": "Lavoro",
     "Overwrite Workflow": "Sovrascrivi Workflow",
     "A workflow named '{name}' already exists. Do you want to overwrite it?": "Esiste già un flusso di lavoro denominato '{name}'. Vuoi sovrascriverlo?",
-    "Layers": "Strati"
+    "Layers": "Strati",
+    "The following ComfyUI custom nodes are missing or too old": null,
+    "Selection Blend": null,
+    "Transition area for alpha blending the result image": null,
+    "If nodes are still missing, check the ComfyUI output at startup for errors.": null,
+    "The border is expanded and blurred by a fraction of selection size": null
   }
 }

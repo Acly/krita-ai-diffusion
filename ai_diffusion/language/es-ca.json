@@ -320,9 +320,7 @@
     "Select LoRA file": "Seleccionar fitxer LoRA",
     "Selection Bounds": "Límits de selecció",
     "Selection Feather": "Suavitzat de selecció",
-    "Selection Grow": "Expandir selecció",
     "Selection Padding": "Farciment de selecció",
-    "Selection area is expanded by a fraction of its size": "L'àrea de selecció s'expandix per una fracció de la seua grandària",
     "Server Arguments": "Arguments del servidor",
     "Server Backend": "Fons del servidor",
     "Server Configuration": "Configuració del servidor",
@@ -391,11 +389,9 @@
     "The VAE for this diffusion model is not installed": "El VAE per a este model de difusió no està instal·lat",
     "The active layer does not contain an animation.": "La capa activa no conté cap animació.",
     "The base model ecosystem which the selected checkpoint belongs to.": "L'ecosistema del model base al qual pertany el punt de control seleccionat.",
-    "The border is blurred by a fraction of selection size": "La vora es desenfoca per una fracció de la grandària de selecció",
     "The checkpoint '{checkpoint}' used by style '{style}' is not available on the server": "El punt de control '{checkpoint}' usat per l'estil '{style}' no està disponible en el servidor",
     "The checkpoint used by this style is not installed.": "El punt de control usat per este estil no està instal·lat.",
     "The file is too large to be uploaded. Files up to a size of {size} MB are supported.": "El fitxer és massa gran per a ser carregat. S'admeten fitxers de fins a {size} MB.",
-    "The following ComfyUI custom nodes are missing": "Falten els nodes personalitzats de ComfyUI següents",
     "The following control layers cannot be used together:": "Les capes de control següents no poden usar-se juntes:",
     "The login data is incorrect, please sign in again.": "Les dades d'inici de sessió són incorrectes, torna a iniciar sessió.",
     "The sampling strategy and scheduler": "L'estratègia de mostratge i programador",
@@ -571,6 +567,11 @@
     "Jobs": null,
     "Overwrite Workflow": null,
     "A workflow named '{name}' already exists. Do you want to overwrite it?": null,
-    "Layers": null
+    "Layers": null,
+    "The following ComfyUI custom nodes are missing or too old": null,
+    "Selection Blend": null,
+    "Transition area for alpha blending the result image": null,
+    "If nodes are still missing, check the ComfyUI output at startup for errors.": null,
+    "The border is expanded and blurred by a fraction of selection size": null
   }
 }

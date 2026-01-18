@@ -361,9 +361,7 @@
     "Selected LoRA model could not be applied. Please make sure it is compatible with the checkpoint base model you are using.": "Model LoRA yang dipilih tidak dapat diterapkan. Pastikan model tersebut kompatibel dengan model dasar checkpoints yang Anda gunakan.",
     "Selection Bounds": "Batas Seleksi",
     "Selection Feather": "Seleksi Bulu",
-    "Selection Grow": "Seleksi Tumbuh",
     "Selection Padding": "Pengisian Seleksi",
-    "Selection area is expanded by a fraction of its size": "Area seleksi diperluas sebagian kecil dari ukurannya",
     "Server Arguments": "Argumen Server",
     "Server Backend": null,
     "Server Configuration": "Konfigurasi Server",
@@ -434,11 +432,9 @@
     "The VAE for this diffusion model is not installed": "VAE untuk model difusi ini tidak terpasang",
     "The active layer does not contain an animation.": "Lapisan aktif tidak berisi animasi.",
     "The base model ecosystem which the selected checkpoint belongs to.": "Ekosistem model dasar tempat checkpoint yang dipilih berada.",
-    "The border is blurred by a fraction of selection size": "Batasnya kabur karena sebagian kecil ukuran seleksi",
     "The checkpoint '{checkpoint}' used by style '{style}' is not available on the server": "checkpoint '{checkpoint}' yang digunakan oleh gaya '{style}' tidak tersedia di server",
     "The checkpoint used by this style is not installed.": "checkpoint yang digunakan oleh gaya ini tidak terpasang.",
     "The file is too large to be uploaded. Files up to a size of {size} MB are supported.": "Berkas terlalu besar untuk diunggah. Berkas hingga ukuran {size} MB didukung.",
-    "The following ComfyUI custom nodes are missing": "Node kustom ComfyUI berikut hilang",
     "The following control layers cannot be used together:": "Lapisan kontrol berikut tidak dapat digunakan bersama-sama:",
     "The following files failed verification:": "File berikut gagal verifikasi:",
     "The login data is incorrect, please sign in again.": "Data login salah, silakan masuk lagi.",
@@ -571,6 +567,11 @@
     "Jobs": null,
     "Overwrite Workflow": null,
     "A workflow named '{name}' already exists. Do you want to overwrite it?": null,
-    "Layers": null
+    "Layers": null,
+    "The following ComfyUI custom nodes are missing or too old": null,
+    "Selection Blend": null,
+    "Transition area for alpha blending the result image": null,
+    "If nodes are still missing, check the ComfyUI output at startup for errors.": null,
+    "The border is expanded and blurred by a fraction of selection size": null
   }
 }

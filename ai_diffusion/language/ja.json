@@ -293,9 +293,7 @@
     "Select LoRA file": "LoRAファイルを選択",
     "Selection Bounds": "選択範囲",
     "Selection Feather": "選択範囲のぼかし",
-    "Selection Grow": "選択範囲の拡大",
     "Selection Padding": "選択範囲の余白",
-    "Selection area is expanded by a fraction of its size": "選択領域を指定サイズだけ拡大します",
     "Server Arguments": "サーバーの引数",
     "Server Backend": "サーバーのバックエンド",
     "Server Configuration": "サーバー構成",
@@ -358,11 +356,9 @@
     "The VAE '{vae}' used by style '{style}' is not available on the server": "スタイル '{style}' で使用される VAE '{vae}' はサーバー上で利用できません",
     "The VAE for this diffusion model is not installed": "このディフュージョンモデルのVAEはインストールされていません",
     "The active layer does not contain an animation.": "選択レイヤーにはアニメーションが含まれていません。",
-    "The border is blurred by a fraction of selection size": "境界に指定サイズのぼかしを行います",
     "The checkpoint '{checkpoint}' used by style '{style}' is not available on the server": "スタイル '{style}' で使用されるチェックポイント '{checkpoint}' はサーバー上で利用できません",
     "The checkpoint used by this style is not installed.": "このスタイルで使用されるチェックポイントはインストールされていません。",
     "The file is too large to be uploaded. Files up to a size of {size} MB are supported.": "ファイルが大きすぎるためアップロードできません。最大 {size} MB までのファイルがサポートされます。",
-    "The following ComfyUI custom nodes are missing": "次のComfyUIカスタムノードが見つかりません",
     "The login data is incorrect, please sign in again.": "ログイン情報が正しくありません。再ログインしてください。",
     "The sampling strategy and scheduler": "サンプリング方針とスケジューラ",
     "The seed controls the random part of the output. A fixed seed value will always produce the same result for the same inputs.": "シードは出力のランダム成分を制御します。固定のシード値では、同じ入力に対して常に同じ結果が生成されます。",
@@ -571,6 +567,11 @@
     "Jobs": null,
     "Overwrite Workflow": null,
     "A workflow named '{name}' already exists. Do you want to overwrite it?": null,
-    "Layers": null
+    "Layers": null,
+    "The following ComfyUI custom nodes are missing or too old": null,
+    "Selection Blend": null,
+    "Transition area for alpha blending the result image": null,
+    "If nodes are still missing, check the ComfyUI output at startup for errors.": null,
+    "The border is expanded and blurred by a fraction of selection size": null
   }
 }

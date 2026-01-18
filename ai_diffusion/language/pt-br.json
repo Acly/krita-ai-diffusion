@@ -258,9 +258,7 @@
     "Select Directory": "Selecionar diretório",
     "Selection Bounds": "Limites de Seleção",
     "Selection Feather": "Seleção leve",
-    "Selection Grow": "Aumentar Seleção",
     "Selection Padding": "Preenchimento de Seleção",
-    "Selection area is expanded by a fraction of its size": "A área de seleção é aumentada numa fração do seu tamanho",
     "Server Arguments": "Argumentos del Servidor",
     "Server Backend": "Backend do Servidor",
     "Server Configuration": "Configuração do Servidor",
@@ -320,10 +318,8 @@
     "The NSFW filter is a basic tool to exclude explicit content from generated images. It is NOT a guarantee and may not catch all inappropriate content. Please use responsibly and always review the generated images.": "O filtro NSFW é uma ferramenta básica para excluir conteúdo explícito das imagens geradas. NÃO é uma garantia e pode não detectar todo o conteúdo inapropriado. Use-o de maneira responsável e revise sempre as imagens geradas.",
     "The VAE '{vae}' used by style '{style}' is not available on the server": "O VAE '{vae}' usado pelo estilo '{style}' não está disponível no servidor.",
     "The active layer does not contain an animation.": "A camada ativa não contém uma animação.",
-    "The border is blurred by a fraction of selection size": "A borda está enevoada por uma fração do tamanho da seleção",
     "The checkpoint '{checkpoint}' used by style '{style}' is not available on the server": "O Checkpoint '{checkpoint}' usado pelo estilo '{style}', não está disponível no servidor",
     "The checkpoint used by this style is not installed.": "O Checkpoint usado por este estilo não está instalado.",
-    "The following ComfyUI custom nodes are missing": "O seguinte ComfyUI Custom Nodes não foi encontrado",
     "The login data is incorrect, please sign in again.": "Os dados de inicio de sessão são incorretos, por favor, tente novamente",
     "The sampling strategy and scheduler": "Estratégia de Sampling y Scheduler",
     "The seed controls the random part of the output. A fixed seed value will always produce the same result for the same inputs.": "A semente controla a parte aleatória da saída. Um valor fixo de semente, produz sempre o mesmo resultado para as mesmas entradas.",
@@ -571,6 +567,11 @@
     "Jobs": null,
     "Overwrite Workflow": null,
     "A workflow named '{name}' already exists. Do you want to overwrite it?": null,
-    "Layers": null
+    "Layers": null,
+    "The following ComfyUI custom nodes are missing or too old": null,
+    "Selection Blend": null,
+    "Transition area for alpha blending the result image": null,
+    "If nodes are still missing, check the ComfyUI output at startup for errors.": null,
+    "The border is expanded and blurred by a fraction of selection size": null
   }
 }
