@@ -38,7 +38,7 @@ RUN uv venv /venv --python python3.12
 # Install Python dependencies
 COPY ./requirements.txt /requirements.txt
 RUN uv pip install --no-cache -r requirements.txt
-RUN uv pip install --no-cache https://github.com/nunchaku-tech/nunchaku/releases/download/v1.0.0/nunchaku-1.0.0+torch2.8-cp312-cp312-linux_x86_64.whl
+RUN uv pip install --no-cache https://github.com/nunchaku-tech/nunchaku/releases/download/v1.2.0/nunchaku-1.2.0+torch2.8-cp312-cp312-linux_x86_64.whl
 
 # Install ComfyUI
 COPY ./ComfyUI /ComfyUI/

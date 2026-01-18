@@ -41,7 +41,7 @@ required_custom_nodes = [
         "External Tooling Nodes",
         "comfyui-tooling-nodes",
         "https://github.com/Acly/comfyui-tooling-nodes",
-        "9d2e03e8d54f2da69cb6f63a0cc0d9dc1ff31cd8",
+        "2d14a03ad84d88ca27993e281fbc56aa1b9c4036",
         ["ETN_LoadImageCache", "ETN_SaveImageCache", "ETN_Translate"],
     ),
     CustomNode(
