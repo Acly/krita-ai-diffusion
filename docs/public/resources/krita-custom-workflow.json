@@ -1,14 +1,16 @@
 {
+  "id": "351baa06-915a-43e3-a1a2-eb5f385a7835",
+  "revision": 0,
   "last_node_id": 13,
   "last_link_id": 22,
   "nodes": [
     {
       "id": 5,
       "type": "EmptyLatentImage",
-      "pos": {
-        "0": 272,
-        "1": 558
-      },
+      "pos": [
+        272,
+        558
+      ],
       "size": [
         315,
         106
@@ -20,28 +22,28 @@
         {
           "name": "width",
           "type": "INT",
-          "link": 16,
           "widget": {
             "name": "width"
-          }
+          },
+          "link": 16
         },
         {
           "name": "height",
           "type": "INT",
-          "link": 17,
           "widget": {
             "name": "height"
-          }
+          },
+          "link": 17
         }
       ],
       "outputs": [
         {
           "name": "LATENT",
           "type": "LATENT",
+          "slot_index": 0,
           "links": [
             2
-          ],
-          "slot_index": 0
+          ]
         }
       ],
       "properties": {
@@ -56,13 +58,13 @@
     {
       "id": 7,
       "type": "CLIPTextEncode",
-      "pos": {
-        "0": 358,
-        "1": 429
-      },
+      "pos": [
+        358,
+        429
+      ],
       "size": [
-        210,
-        76
+        218.659765625,
+        88
       ],
       "flags": {},
       "order": 5,
@@ -78,10 +80,10 @@
         {
           "name": "CONDITIONING",
           "type": "CONDITIONING",
+          "slot_index": 0,
           "links": [
             6
-          ],
-          "slot_index": 0
+          ]
         }
       ],
       "properties": {
@@ -94,10 +96,10 @@
     {
       "id": 12,
       "type": "ETN_KritaCanvas",
-      "pos": {
-        "0": 13,
-        "1": 563
-      },
+      "pos": [
+        13,
+        563
+      ],
       "size": [
         200,
         100
@@ -115,42 +117,43 @@
         {
           "name": "width",
           "type": "INT",
+          "slot_index": 1,
           "links": [
             16
-          ],
-          "slot_index": 1
+          ]
         },
         {
           "name": "height",
           "type": "INT",
+          "slot_index": 2,
           "links": [
             17
-          ],
-          "slot_index": 2
+          ]
         },
         {
           "name": "seed",
           "type": "INT",
+          "slot_index": 3,
           "links": [
             18
-          ],
-          "slot_index": 3
+          ]
         }
       ],
       "properties": {
         "Node name for S&R": "ETN_KritaCanvas"
-      }
+      },
+      "widgets_values": []
     },
     {
       "id": 3,
       "type": "KSampler",
-      "pos": {
-        "0": 623,
-        "1": 214
-      },
+      "pos": [
+        623,
+        214
+      ],
       "size": [
         232.8821539941447,
-        218
+        262
       ],
       "flags": {},
       "order": 6,
@@ -179,52 +182,52 @@
         {
           "name": "seed",
           "type": "INT",
-          "link": 18,
           "widget": {
             "name": "seed"
-          }
-        },
-        {
-          "name": "cfg",
-          "type": "FLOAT",
-          "link": 22,
-          "widget": {
-            "name": "cfg"
-          }
-        },
-        {
-          "name": "sampler_name",
-          "type": "COMBO",
-          "link": 15,
-          "widget": {
-            "name": "sampler_name"
-          }
-        },
-        {
-          "name": "scheduler",
-          "type": "COMBO",
-          "link": 14,
-          "widget": {
-            "name": "scheduler"
-          }
+          },
+          "link": 18
         },
         {
           "name": "steps",
           "type": "INT",
-          "link": 13,
           "widget": {
             "name": "steps"
-          }
+          },
+          "link": 13
+        },
+        {
+          "name": "cfg",
+          "type": "FLOAT",
+          "widget": {
+            "name": "cfg"
+          },
+          "link": 22
+        },
+        {
+          "name": "sampler_name",
+          "type": "COMBO",
+          "widget": {
+            "name": "sampler_name"
+          },
+          "link": 15
+        },
+        {
+          "name": "scheduler",
+          "type": "COMBO",
+          "widget": {
+            "name": "scheduler"
+          },
+          "link": 14
         }
       ],
       "outputs": [
         {
           "name": "LATENT",
           "type": "LATENT",
+          "slot_index": 0,
           "links": [
             7
-          ],
-          "slot_index": 0
+          ]
         }
       ],
       "properties": {
@@ -243,14 +246,14 @@
     {
       "id": 8,
       "type": "VAEDecode",
-      "pos": {
-        "0": 895,
-        "1": 215
-      },
-      "size": {
-        "0": 210,
-        "1": 46
-      },
+      "pos": [
+        895,
+        215
+      ],
+      "size": [
+        210,
+        46
+      ],
       "flags": {},
       "order": 7,
       "mode": 0,
@@ -270,10 +273,10 @@
         {
           "name": "IMAGE",
           "type": "IMAGE",
+          "slot_index": 0,
           "links": [
             10
-          ],
-          "slot_index": 0
+          ]
         }
       ],
       "properties": {
@@ -282,15 +285,187 @@
       "widgets_values": []
     },
     {
+      "id": 6,
+      "type": "CLIPTextEncode",
+      "pos": [
+        371,
+        133
+      ],
+      "size": [
+        218.659765625,
+        88
+      ],
+      "flags": {},
+      "order": 4,
+      "mode": 0,
+      "inputs": [
+        {
+          "name": "clip",
+          "type": "CLIP",
+          "link": 11
+        },
+        {
+          "name": "text",
+          "type": "STRING",
+          "widget": {
+            "name": "text"
+          },
+          "link": 21
+        }
+      ],
+      "outputs": [
+        {
+          "name": "CONDITIONING",
+          "type": "CONDITIONING",
+          "slot_index": 0,
+          "links": [
+            4
+          ]
+        }
+      ],
+      "properties": {
+        "Node name for S&R": "CLIPTextEncode"
+      },
+      "widgets_values": [
+        "beautiful scenery nature glass bottle landscape, , purple galaxy bottle,"
+      ]
+    },
+    {
+      "id": 13,
+      "type": "ETN_Parameter",
+      "pos": [
+        10,
+        -11
+      ],
+      "size": [
+        315,
+        154
+      ],
+      "flags": {},
+      "order": 1,
+      "mode": 0,
+      "inputs": [],
+      "outputs": [
+        {
+          "name": "value",
+          "type": "STRING",
+          "slot_index": 0,
+          "links": [
+            21
+          ]
+        }
+      ],
+      "properties": {
+        "Node name for S&R": "ETN_Parameter"
+      },
+      "widgets_values": [
+        "Prompt",
+        "prompt (positive)",
+        "beautiful scenery nature glass bottle landscape, , purple galaxy bottle,"
+      ]
+    },
+    {
+      "id": 11,
+      "type": "ETN_KritaStyle",
+      "pos": [
+        4,
+        196
+      ],
+      "size": [
+        262.6581870519956,
+        242
+      ],
+      "flags": {},
+      "order": 2,
+      "mode": 0,
+      "inputs": [],
+      "outputs": [
+        {
+          "name": "model",
+          "type": "MODEL",
+          "slot_index": 0,
+          "links": [
+            19
+          ]
+        },
+        {
+          "name": "clip",
+          "type": "CLIP",
+          "slot_index": 1,
+          "links": [
+            11,
+            12
+          ]
+        },
+        {
+          "name": "vae",
+          "type": "VAE",
+          "slot_index": 2,
+          "links": [
+            20
+          ]
+        },
+        {
+          "name": "positive prompt",
+          "type": "STRING",
+          "links": null
+        },
+        {
+          "name": "negative prompt",
+          "type": "STRING",
+          "links": null
+        },
+        {
+          "name": "sampler name",
+          "type": "COMBO",
+          "slot_index": 5,
+          "links": [
+            15
+          ]
+        },
+        {
+          "name": "scheduler",
+          "type": "COMBO",
+          "slot_index": 6,
+          "links": [
+            14
+          ]
+        },
+        {
+          "name": "steps",
+          "type": "INT",
+          "slot_index": 7,
+          "links": [
+            13
+          ]
+        },
+        {
+          "name": "guidance",
+          "type": "FLOAT",
+          "slot_index": 8,
+          "links": [
+            22
+          ]
+        }
+      ],
+      "properties": {
+        "Node name for S&R": "ETN_KritaStyle"
+      },
+      "widgets_values": [
+        "Style",
+        "auto"
+      ]
+    },
+    {
       "id": 10,
       "type": "ETN_KritaOutput",
-      "pos": {
-        "0": 893,
-        "1": 321
-      },
+      "pos": [
+        893,
+        321
+      ],
       "size": [
         210,
-        120
+        154
       ],
       "flags": {},
       "order": 8,
@@ -307,181 +482,11 @@
         "Node name for S&R": "ETN_KritaOutput"
       },
       "widgets_values": [
-        "PNG"
-      ]
-    },
-    {
-      "id": 6,
-      "type": "CLIPTextEncode",
-      "pos": {
-        "0": 371,
-        "1": 133
-      },
-      "size": [
-        210,
-        54
-      ],
-      "flags": {},
-      "order": 4,
-      "mode": 0,
-      "inputs": [
-        {
-          "name": "clip",
-          "type": "CLIP",
-          "link": 11
-        },
-        {
-          "name": "text",
-          "type": "STRING",
-          "link": 21,
-          "widget": {
-            "name": "text"
-          }
-        }
-      ],
-      "outputs": [
-        {
-          "name": "CONDITIONING",
-          "type": "CONDITIONING",
-          "links": [
-            4
-          ],
-          "slot_index": 0
-        }
-      ],
-      "properties": {
-        "Node name for S&R": "CLIPTextEncode"
-      },
-      "widgets_values": [
-        "beautiful scenery nature glass bottle landscape, , purple galaxy bottle,"
-      ]
-    },
-    {
-      "id": 13,
-      "type": "ETN_Parameter",
-      "pos": {
-        "0": 10,
-        "1": -11
-      },
-      "size": {
-        "0": 315,
-        "1": 154
-      },
-      "flags": {},
-      "order": 1,
-      "mode": 0,
-      "inputs": [],
-      "outputs": [
-        {
-          "name": "value",
-          "type": "STRING",
-          "links": [
-            21
-          ],
-          "slot_index": 0
-        }
-      ],
-      "properties": {
-        "Node name for S&R": "ETN_Parameter"
-      },
-      "widgets_values": [
-        "Prompt",
-        "prompt (positive)",
-        "",
         0,
-        0
-      ]
-    },
-    {
-      "id": 11,
-      "type": "ETN_KritaStyle",
-      "pos": {
-        "0": 4,
-        "1": 196
-      },
-      "size": [
-        262.6581870519956,
-        242
-      ],
-      "flags": {},
-      "order": 2,
-      "mode": 0,
-      "inputs": [],
-      "outputs": [
-        {
-          "name": "model",
-          "type": "MODEL",
-          "links": [
-            19
-          ],
-          "slot_index": 0
-        },
-        {
-          "name": "clip",
-          "type": "CLIP",
-          "links": [
-            11,
-            12
-          ],
-          "slot_index": 1
-        },
-        {
-          "name": "vae",
-          "type": "VAE",
-          "links": [
-            20
-          ],
-          "slot_index": 2
-        },
-        {
-          "name": "positive prompt",
-          "type": "STRING",
-          "links": null
-        },
-        {
-          "name": "negative prompt",
-          "type": "STRING",
-          "links": null
-        },
-        {
-          "name": "sampler name",
-          "type": "COMBO",
-          "links": [
-            15
-          ],
-          "slot_index": 5
-        },
-        {
-          "name": "scheduler",
-          "type": "COMBO",
-          "links": [
-            14
-          ],
-          "slot_index": 6
-        },
-        {
-          "name": "steps",
-          "type": "INT",
-          "links": [
-            13
-          ],
-          "slot_index": 7
-        },
-        {
-          "name": "guidance",
-          "type": "FLOAT",
-          "links": [
-            22
-          ],
-          "slot_index": 8
-        }
-      ],
-      "properties": {
-        "Node name for S&R": "ETN_KritaStyle"
-      },
-      "widgets_values": [
-        "Style",
-        "auto"
+        0,
+        "",
+        "default",
+        false
       ]
     }
   ],
@@ -547,7 +552,7 @@
       11,
       7,
       3,
-      8,
+      5,
       "INT"
     ],
     [
@@ -555,7 +560,7 @@
       11,
       6,
       3,
-      7,
+      8,
       "COMBO"
     ],
     [
@@ -563,7 +568,7 @@
       11,
       5,
       3,
-      6,
+      7,
       "COMBO"
     ],
     [
@@ -619,7 +624,7 @@
       11,
       8,
       3,
-      5,
+      6,
       "FLOAT"
     ]
   ],
@@ -629,10 +634,16 @@
     "ds": {
       "scale": 1,
       "offset": [
-        413.3418129480044,
-        117.96950009209382
+        379.7417152917544,
+        300.3694634710001
       ]
-    }
+    },
+    "workflowRendererVersion": "LG",
+    "frontendVersion": "1.36.14",
+    "VHS_latentpreview": false,
+    "VHS_latentpreviewrate": 0,
+    "VHS_MetadataImage": true,
+    "VHS_KeepIntermediate": true
   },
   "version": 0.4
 }
