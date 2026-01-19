@@ -204,7 +204,14 @@ class Style(QObject):
         return self.filepath.name
 
     def preferred_checkpoint(self, available_checkpoints: Iterable[str]):
-        return next((c for c in self.checkpoints if c in available_checkpoints), "not-found")
+        def sanitize(p):
+            return p.replace("\\", "/").lower()
+
+        available = {sanitize(cp): cp for cp in available_checkpoints}
+        for cp in self.checkpoints:
+            if found := available.get(sanitize(cp)):
+                return found
+        return "not-found"
 
     def get_models(self, available_checkpoints: Iterable[str]):
         result = CheckpointInput(

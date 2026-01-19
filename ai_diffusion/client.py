@@ -178,7 +178,7 @@ class CheckpointInfo(NamedTuple):
 
     @property
     def name(self):
-        return self.filename.removesuffix(".safetensors")
+        return self.filename.removesuffix(".safetensors").replace("\\", "/")
 
     def to_dict(self):
         return {
