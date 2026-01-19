@@ -172,7 +172,7 @@ class ControlLayer(QObject, ObservableProperties):
                     self.error_text = _("Not supported for") + f" {models.arch.value}"
             elif self.mode.is_control_net:
                 model = models.find_control(self.mode)
-                self.has_range = model == models.model_patch.find(self.mode, True)
+                self.has_range = model == models.control.find(self.mode, True)
                 if model is None:
                     search_arch = Arch.illu if models.arch is Arch.illu_v else models.arch
                     search_path = (
