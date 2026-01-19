@@ -48,8 +48,8 @@ required_custom_nodes = [
         "Inpaint Nodes",
         "comfyui-inpaint-nodes",
         "https://github.com/Acly/comfyui-inpaint-nodes",
-        "4ebbdc840db881c50a38965aa7955b76cec2a4c5",
-        ["INPAINT_LoadFooocusInpaint", "INPAINT_ShrinkMask", "INPAINT_ExpandMask"],
+        "ab62c98d408186324eeb7baff32a31dd7961ea64",
+        ["INPAINT_LoadFooocusInpaint", "INPAINT_ShrinkMask", "INPAINT_StabilizeMask"],
     ),
 ]
 

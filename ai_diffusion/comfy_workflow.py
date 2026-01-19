@@ -1114,6 +1114,9 @@ class ComfyWorkflow:
     def shrink_mask(self, mask: Output, shrink: int, blur: int):
         return self.add("INPAINT_ShrinkMask", 1, mask=mask, shrink=shrink, blur=blur)
 
+    def stabilize_mask(self, mask: Output, epsilon=0.01):
+        return self.add("INPAINT_StabilizeMask", 1, mask=mask, epsilon=epsilon)
+
     def apply_mask(self, image: Output, mask: Output):
         return self.add("ETN_ApplyMaskToImage", 1, image=image, mask=mask)
 

@@ -759,7 +759,9 @@ def scale_to_initial(
     extent: ScaledExtent, w: ComfyWorkflow, image: Output, models: ModelDict, is_mask=False
 ):
     if is_mask and extent.target != extent.initial:
-        return w.scale_mask(image, extent.initial)
+        result = w.scale_mask(image, extent.initial)
+        result = w.stabilize_mask(result)
+        return result
     elif not is_mask:
         return scale(extent.input, extent.initial, extent.initial_scaling, w, image, models)
     else:
