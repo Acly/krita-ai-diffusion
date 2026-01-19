@@ -1111,8 +1111,10 @@ class ComfyWorkflow:
     def expand_mask(self, mask: Output, grow: int, blur: int, kernel="gaussian"):
         return self.add("INPAINT_ExpandMask", 1, mask=mask, grow=grow, blur=blur, blur_type=kernel)
 
-    def shrink_mask(self, mask: Output, shrink: int, blur: int):
-        return self.add("INPAINT_ShrinkMask", 1, mask=mask, shrink=shrink, blur=blur)
+    def shrink_mask(self, mask: Output, shrink: int, blur: int, kernel="gaussian"):
+        return self.add(
+            "INPAINT_ShrinkMask", 1, mask=mask, shrink=shrink, blur=blur, blur_type=kernel
+        )
 
     def stabilize_mask(self, mask: Output, epsilon=0.01):
         return self.add("INPAINT_StabilizeMask", 1, mask=mask, epsilon=epsilon)
