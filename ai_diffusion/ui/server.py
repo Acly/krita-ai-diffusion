@@ -1037,6 +1037,7 @@ class ServerWidget(QWidget):
             self._progress_bar.setTextVisible(False)
 
     def verify_models(self):
+        self._error = ""
         eventloop.run(self._verify_models())
 
     async def _verify_models(self):
@@ -1076,6 +1077,7 @@ class ServerWidget(QWidget):
             self.update_ui()
 
     def reinstall(self):
+        self._error = ""
         eventloop.run(self._reinstall())
 
     async def _reinstall(self):
@@ -1104,6 +1106,7 @@ class ServerWidget(QWidget):
             self.update_ui()
 
     def uninstall(self):
+        self._error = ""
         eventloop.run(self._uninstall())
 
     async def _uninstall(self):
