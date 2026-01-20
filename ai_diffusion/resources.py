@@ -48,6 +48,7 @@ required_custom_nodes = [
         "Inpaint Nodes",
         "comfyui-inpaint-nodes",
         "https://github.com/Acly/comfyui-inpaint-nodes",
+        # !! Remove workaround in comfy_workflow.py when updating !!
         "ab62c98d408186324eeb7baff32a31dd7961ea64",
         ["INPAINT_LoadFooocusInpaint", "INPAINT_ShrinkMask", "INPAINT_StabilizeMask"],
     ),
