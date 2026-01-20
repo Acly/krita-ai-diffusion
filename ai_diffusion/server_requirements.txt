@@ -17,6 +17,7 @@ importlib-metadata==8.7.1
 kornia==0.8.2
 matplotlib==3.10.8
 mediapipe==0.10.31
+numpy==1.26.4
 omegaconf==2.3.0
 opencv-python==4.11.0.86
 peft==0.18.1
@@ -39,7 +40,7 @@ tokenizers==0.22.2
 tomli==2.4.0
 torchsde==0.2.6
 tqdm==4.67.1
-transformers==4.57.5
+transformers==4.57.6
 yacs==0.1.8
 yapf==0.43.0
 yarl==1.22.0
