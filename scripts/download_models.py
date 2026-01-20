@@ -47,6 +47,7 @@ def list_models(
     sd15=False,
     sdxl=False,
     flux=False,
+    flux2=False,
     illu=False,
     upscalers=False,
     checkpoints=[],
@@ -70,6 +71,8 @@ def list_models(
         versions.append(Arch.sdxl)
     if flux or all:
         versions.append(Arch.flux)
+    if flux2 or all:
+        versions.append(Arch.flux2_4b)
     if illu or all:
         versions.append(Arch.illu)
         versions.append(Arch.illu_v)
@@ -272,6 +275,7 @@ if __name__ == "__main__":
     parser.add_argument("--sdxl", action="store_true", help="[Workload] everything needed to run SDXL (no checkpoints)")
     parser.add_argument("--illu", action="store_true", help="[Workload] everything needed to run Illustrious-SDXL (no checkpoints)")
     parser.add_argument("--flux", action="store_true", help="[Workload] everything needed to run Flux (no checkpoints)")
+    parser.add_argument("--flux2", action="store_true", help="[Workload] everything needed to run Flux 2 (no checkpoints)")
     parser.add_argument("--checkpoints", action="store_true", dest="checkpoints", help="download all checkpoints for selected workloads")
     parser.add_argument("--controlnet", action="store_true", help="download ControlNet models for selected workloads")
     parser.add_argument("--checkpoint", action="append", choices=checkpoint_names, dest="checkpoint_list", help="download a specific checkpoint (can specify multiple times)")
@@ -291,6 +295,8 @@ if __name__ == "__main__":
         checkpoints += [m.id.identifier for m in default_checkpoints if m.arch is Arch.sdxl]
     if args.checkpoints and args.flux:
         checkpoints += [m.id.identifier for m in default_checkpoints if m.arch is Arch.flux]
+    if args.checkpoints and args.flux2:
+        checkpoints += [m.id.identifier for m in default_checkpoints if m.arch is Arch.flux2_4b]
     if args.checkpoints and args.illu:
         checkpoints += [m.id.identifier for m in default_checkpoints if m.arch is Arch.illu]
         checkpoints += [m.id.identifier for m in default_checkpoints if m.arch is Arch.illu_v]
@@ -309,6 +315,7 @@ if __name__ == "__main__":
         sd15=args.sd15,
         sdxl=args.sdxl,
         flux=args.flux,
+        flux2=args.flux2,
         illu=args.illu,
         upscalers=args.upscalers,
         checkpoints=checkpoints,

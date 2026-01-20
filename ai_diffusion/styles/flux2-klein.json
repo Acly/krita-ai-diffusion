@@ -6,7 +6,7 @@
         "flux-2-klein-4b-nvfp4.safetensors",
         "flux-2-klein-4b-fp8.safetensors",
         "flux-2-klein-4b.safetensors",
-        "Flux 2 Klein"
+        "Flux-2-Klein-4B"
     ],
     "loras": [],
     "style_prompt": "",

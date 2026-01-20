@@ -191,6 +191,28 @@
           "sha256": "afc8e28272cd15db3919bacdb6918ce9c1ed22e96cb12c4d5ed0fba823529e38"
         }
       ]
+    },
+    {
+      "id": "text_encoder-qwen_3_4b-flux2_4b",
+      "name": "Qwen 3 4B",
+      "files": [
+        {
+          "path": "models/text_encoders/Qwen3-4B-Q4_K_M.gguf",
+          "url": "https://huggingface.co/unsloth/Qwen3-4B-GGUF/resolve/main/Qwen3-4B-Q4_K_M.gguf",
+          "sha256": "f6f851777709861056efcdad3af01da38b31223a3ba26e61a4f8bf3a2195813a"
+        }
+      ]
+    },
+    {
+      "id": "vae-flux2-flux2_4b",
+      "name": "VAE (Flux 2)",
+      "files": [
+        {
+          "path": "models/vae/flux2-vae.safetensors",
+          "url": "https://huggingface.co/Comfy-Org/vae-text-encorder-for-flux-klein-4b/resolve/main/split_files/vae/flux2-vae.safetensors",
+          "sha256": "868fe7b343cc8f3a19dbcfcafbc3d5f888802be3f89bd81b65b3621a066ce8f3"
+        }
+      ]
     }
   ],
   "checkpoints": [
@@ -331,6 +353,17 @@
         }
       ],
       "requirements": "cuda_fp4"
+    },
+    {
+      "id": "checkpoint-bf16-flux2_4b",
+      "name": "Flux 2 Klein 4B",
+      "files": [
+        {
+          "path": "models/diffusion_models/flux-2-klein-4b.safetensors",
+          "url": "https://huggingface.co/black-forest-labs/FLUX.2-klein-4B/resolve/main/flux-2-klein-4b.safetensors",
+          "sha256": "ec3d4e733a771f61c052fb4856c48b336c55eaf2c65487c2a1faeb9bbda7a343"
+        }
+      ]
     }
   ],
   "upscale": [
