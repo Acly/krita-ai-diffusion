@@ -568,10 +568,10 @@
     "Overwrite Workflow": "Sovrascrivi Workflow",
     "A workflow named '{name}' already exists. Do you want to overwrite it?": "Esiste già un flusso di lavoro denominato '{name}'. Vuoi sovrascriverlo?",
     "Layers": "Strati",
-    "The following ComfyUI custom nodes are missing or too old": null,
-    "Selection Blend": null,
-    "Transition area for alpha blending the result image": null,
-    "If nodes are still missing, check the ComfyUI output at startup for errors.": null,
-    "The border is expanded and blurred by a fraction of selection size": null
+    "The following ComfyUI custom nodes are missing or too old": "I seguenti nodi personalizzati ComfyUI sono mancanti o troppo vecchi",
+    "Selection Blend": "Seleziona Miscelazione",
+    "Transition area for alpha blending the result image": "Area di transizione per la fusione alfa dell'immagine risultante",
+    "If nodes are still missing, check the ComfyUI output at startup for errors.": "Se i nodi risultano ancora mancanti, controllare l'output di ComfyUI all'avvio per eventuali errori.",
+    "The border is expanded and blurred by a fraction of selection size": "Il bordo viene espanso e sfocato di una frazione della dimensione della selezione"
   }
 }
