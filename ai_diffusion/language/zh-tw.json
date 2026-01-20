@@ -257,7 +257,7 @@
     "Segment": "區段 (Segment)",
     "Select Directory": "選擇目錄",
     "Selection Bounds": "選取範圍",
-    "Selection Feather": "選取範圍羽化",
+    "Selection Feather": "選取範圍向外羽化",
     "Selection Padding": "選取範圍邊距",
     "Server Arguments": "伺服器參數",
     "Server Backend": "伺服器後端",
@@ -565,13 +565,13 @@
     "Not supported for edit models": "編輯類模型不適用",
     "Document:": "本文件:",
     "Jobs": "任務數",
-    "Overwrite Workflow": null,
-    "A workflow named '{name}' already exists. Do you want to overwrite it?": null,
-    "Layers": null,
-    "The following ComfyUI custom nodes are missing or too old": null,
-    "Selection Blend": null,
-    "Transition area for alpha blending the result image": null,
-    "If nodes are still missing, check the ComfyUI output at startup for errors.": null,
-    "The border is expanded and blurred by a fraction of selection size": null
+    "Overwrite Workflow": "覆蓋工作流程",
+    "A workflow named '{name}' already exists. Do you want to overwrite it?": "名為 '{name}' 的工作流程已存在。您想要覆蓋它嗎？",
+    "Layers": "圖層數",
+    "The following ComfyUI custom nodes are missing or too old": "以下 ComfyUI 自訂節點缺失或過舊",
+    "Selection Blend": "選取範圖向內透明混合",
+    "Transition area for alpha blending the result image": "結果影像的透明混合過渡區域",
+    "If nodes are still missing, check the ComfyUI output at startup for errors.": "如果仍然缺少節點，請檢查 ComfyUI 啟動時的輸出以獲得錯誤訊息。",
+    "The border is expanded and blurred by a fraction of selection size": "按選取大小百分比向外羽化擴展"
   }
 }
