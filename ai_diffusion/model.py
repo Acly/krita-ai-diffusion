@@ -27,7 +27,7 @@ from .image import Extent, Image, Mask, Bounds, DummyImage
 from .client import Client, ClientMessage, ClientEvent, ClientOutput
 from .client import is_style_supported, filter_supported_styles, resolve_arch
 from .custom_workflow import CustomWorkspace, WorkflowCollection, CustomGenerationMode
-from .document import Document, KritaDocument
+from .document import Document, KritaDocument, SelectionModifiers
 from .layer import Layer, LayerType, RestoreActiveLayer
 from .pose import Pose
 from .style import Style, Styles, Arch
@@ -207,10 +207,8 @@ class Model(QObject, ObservableProperties):
         regions = self.active_regions
         region_layer = None
 
-        selection_mod = get_selection_modifiers(self.inpaint.mode, strength)
-        mask, selection_bounds = self._doc.create_mask_from_selection(
-            selection_mod.padding, invert=selection_mod.invert, min_size=256
-        )
+        smod = get_selection_modifiers(arch, self.inpaint.mode, strength)
+        mask, selection_bounds = self._doc.create_mask_from_selection(smod)
         bounds = Bounds(0, 0, *extent)
         if mask is None:  # Check for region inpaint
             region_layer = regions.get_active_region_layer(use_parent=not self.region_only)
@@ -254,7 +252,7 @@ class Model(QObject, ObservableProperties):
                 inpaint = workflow.detect_inpaint(
                     inpaint_mode, mask.bounds, arch, pos, ctrl, strength
                 )
-            inpaint.grow, inpaint.feather = selection_mod.apply(selection_bounds)
+            inpaint.grow, inpaint.feather = get_selection_pre_process(selection_bounds, smod)
             inpaint.blend = settings.selection_blend
 
         input = workflow.prepare(
@@ -418,11 +416,9 @@ class Model(QObject, ObservableProperties):
         inpaint = InpaintParams(InpaintMode.fill, Bounds(0, 0, *extent))
 
         image = None
-        selection_mod = get_selection_modifiers(inpaint.mode, strength)
-        mask, selection_bounds = self._doc.create_mask_from_selection(
-            selection_mod.padding, min_size=min_mask_size, square=True
-        )
-        inpaint.grow, inpaint.feather = selection_mod.apply(selection_bounds)
+        smod = get_selection_modifiers(self.arch, inpaint.mode, strength, min_mask_size)
+        mask, selection_bounds = self._doc.create_mask_from_selection(smod)
+        inpaint.grow, inpaint.feather = get_selection_pre_process(selection_bounds, smod)
         inpaint.blend = settings.selection_blend
 
         bounds = Bounds(0, 0, *self._doc.extent)
@@ -483,8 +479,8 @@ class Model(QObject, ObservableProperties):
             mask = None
 
             if selection_node := next(wf.find(type="ETN_KritaSelection"), None):
-                mods = get_selection_modifiers(InpaintMode.fill, self.strength)
-                mask, select_bounds = self._doc.create_mask_from_selection(mods.padding, 8, 256)
+                mods = get_selection_modifiers(Arch.sdxl, InpaintMode.fill, self.strength)
+                mask, select_bounds = self._doc.create_mask_from_selection(mods)
                 mask, bounds = self.custom.prepare_mask(selection_node, mask, select_bounds, bounds)
 
             img_input = ImageInput.from_extent(bounds.extent)
@@ -535,14 +531,15 @@ class Model(QObject, ObservableProperties):
         return self._doc.get_image(bounds, exclude_layers=exclude)
 
     def generate_control_layer(self, control: ControlLayer):
-        ok, msg = self._doc.check_color_mode()
+        doc = self.document
+        ok, msg = doc.check_color_mode()
         if not ok and msg:
             self.report_error(msg)
             return
 
         try:
-            image = self._doc.get_image(Bounds(0, 0, *self._doc.extent))
-            mask, _ = self.document.create_mask_from_selection(padding=0.25, multiple=64)
+            image = doc.get_image(Bounds(0, 0, *self._doc.extent))
+            mask, _ = doc.create_mask_from_selection(SelectionModifiers(pad_rel=0.25, multiple=64))
             bounds = mask.bounds if mask else None
             perf = self._performance_settings(self._connection.client)
             input = workflow.prepare_create_control_image(image, control.mode, perf, bounds)
@@ -1460,21 +1457,7 @@ class AnimationWorkspace(QObject, ObservableProperties):
             self.target_image_changed.emit(image)
 
 
-class SelectionModifiers(NamedTuple):
-    feather: float
-    padding: float
-    invert: bool
-
-    def apply(self, selection_bounds: Bounds | None):
-        if selection_bounds is None or settings.selection_feather == 0:
-            return 0, 0
-        size_factor = selection_bounds.extent.diagonal
-        feather = max(int(self.feather * size_factor), settings.selection_min_transition)
-        grow = settings.selection_grow_offset + feather // 2
-        return grow, feather
-
-
-def get_selection_modifiers(inpaint_mode: InpaintMode, strength: float):
+def get_selection_modifiers(arch: Arch, inpaint_mode: InpaintMode, strength: float, min_size=256):
     feather = settings.selection_feather / 100
     padding = settings.selection_padding / 100
     invert = False
@@ -1485,8 +1468,25 @@ def get_selection_modifiers(inpaint_mode: InpaintMode, strength: float):
         feather = min(feather, 0.01)
         invert = True
 
-    padding = padding + feather
-    return SelectionModifiers(feather, padding, invert)
+    return SelectionModifiers(
+        pad_rel=padding + feather,
+        pad_min_px=settings.selection_min_transition + settings.selection_grow_offset + 8,
+        size_min_px=min_size,
+        multiple=arch.latent_compression_factor,
+        invert=invert,
+    )
+
+
+def get_selection_pre_process(bounds: Bounds | None, mods: SelectionModifiers):
+    if bounds is None or settings.selection_feather == 0:
+        return 0, 0
+    feather_rel = settings.selection_feather / 100
+    size_factor = bounds.extent.diagonal
+    feather = max(int(feather_rel * size_factor), settings.selection_min_transition)
+    if mods.invert:
+        feather = min(feather, 8)
+    grow = settings.selection_grow_offset + feather // 2
+    return grow, feather
 
 
 async def _report_errors(parent: Model, coro):

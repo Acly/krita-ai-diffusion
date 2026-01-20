@@ -235,6 +235,10 @@ class Arch(Enum):
                 return ["qwen_3_4b"]
         raise ValueError(f"Unsupported architecture: {self}")
 
+    @property
+    def latent_compression_factor(self):
+        return 16 if self.is_flux2 else 8
+
     @staticmethod
     def list():
         return [
