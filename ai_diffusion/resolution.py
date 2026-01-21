@@ -142,7 +142,7 @@ class CheckpointResolution(NamedTuple):
     max_scale: float
 
     @staticmethod
-    def compute(extent: Extent, arch: Arch, style: Style | None = None):
+    def compute(extent: Extent, arch: Arch, style: Style | None = None, inpaint=False):
         arch = Arch.sdxl if arch.is_sdxl_like else arch
         if style is None or style.preferred_resolution == 0:
             res = {
@@ -151,6 +151,9 @@ class CheckpointResolution(NamedTuple):
                 Arch.sd3: (512, 1536, 512**2, 1536**2),
             }
             default = (256, 2048, 512**2, 2048**2)
+            if inpaint:
+                # Inpaint models for Flux/Z-Image only work reliably around 1MP
+                default = (640, 1280, 512**2, 1024**2)
             min_size, max_size, min_pixel_count, max_pixel_count = res.get(arch, default)
         else:
             range_offset = multiple_of(round(0.2 * style.preferred_resolution), 8)
@@ -177,20 +180,19 @@ def prepare_diffusion_input(
     style: Style,
     perf: PerformanceSettings,
     downscale=True,
+    inpaint=False,
 ):
     # Take settings into account to compute the desired resolution for diffusion.
     desired = apply_resolution_settings(extent, perf)
 
     # The checkpoint may require a different resolution than what is requested.
-    mult = 8
-    if arch.is_flux_like or arch is Arch.chroma or arch.is_flux2:
-        mult = 16
-    if arch is Arch.sd3:
-        mult = 64
+    mult = arch.latent_compression_factor
     if arch.is_edit:
         downscale = False  # Never use 2-pass generation for edit models
 
-    min_size, max_size, min_scale, max_scale = CheckpointResolution.compute(desired, arch, style)
+    min_size, max_size, min_scale, max_scale = CheckpointResolution.compute(
+        desired, arch, style, inpaint
+    )
 
     if downscale and max_scale < 1 and any(x > max_size for x in desired):
         # Desired resolution is larger than the maximum size. Do 2 passes:
@@ -225,17 +227,17 @@ def prepare_diffusion_input(
 
 
 def prepare_extent(
-    extent: Extent, sd_ver: Arch, style: Style, perf: PerformanceSettings, downscale=True
+    extent: Extent, arch: Arch, style: Style, perf: PerformanceSettings, downscale=True
 ):
-    scaled, _, batch = prepare_diffusion_input(extent, None, sd_ver, style, perf, downscale)
+    scaled, _, batch = prepare_diffusion_input(extent, None, arch, style, perf, downscale)
     return ImageInput(scaled.as_input), batch
 
 
 def prepare_image(
-    image: Image, sd_ver: Arch, style: Style, perf: PerformanceSettings, downscale=True
+    image: Image, arch: Arch, style: Style, perf: PerformanceSettings, downscale=True, inpaint=False
 ):
     scaled, out_image, batch = prepare_diffusion_input(
-        image.extent, image, sd_ver, style, perf, downscale
+        image.extent, image, arch, style, perf, downscale, inpaint
     )
     assert out_image is not None
     return ImageInput(scaled.as_input, out_image), batch

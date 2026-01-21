@@ -143,6 +143,14 @@ def test_prepare_highres(input, expected_initial, expected_desired):
     )
 
 
+def test_prepare_hightres_inpaint():
+    input = Extent(3000, 2000)
+    image = Image.create(input)
+    r, _ = resolution.prepare_image(image, Arch.flux, dummy_style, perf, inpaint=True)
+    assert r.extent.initial == Extent(1256, 840)
+    assert r.extent.desired == input
+
+
 @pytest.mark.parametrize(
     "input,expected",
     [

@@ -237,7 +237,7 @@ class Arch(Enum):
 
     @property
     def latent_compression_factor(self):
-        return 16 if self.is_flux2 else 8
+        return 16 if self.is_flux2 or self is Arch.sd3 else 8
 
     @staticmethod
     def list():

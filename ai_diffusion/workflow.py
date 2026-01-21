@@ -1580,7 +1580,9 @@ def prepare(
 
     elif kind is WorkflowKind.inpaint:
         assert isinstance(canvas, Image) and mask and inpaint and style
-        i.images, _ = resolution.prepare_image(canvas, arch, style, perf)
+        i.images, _ = resolution.prepare_image(
+            canvas, arch, style, perf, inpaint=inpaint.use_inpaint_model
+        )
         i.images.hires_mask = mask.to_image(canvas.extent)
         upscale_extent, _ = resolution.prepare_extent(
             mask.bounds.extent, arch, style, perf, downscale=False
