@@ -15,8 +15,10 @@ from .util import acquire_elements
 
 
 class SelectionModifiers(NamedTuple):
+    feather_rel: float = 0.0
+    feather_min_px: int = 0
     pad_rel: float = 0.0
-    pad_min_px: int = 0
+    pad_offset_px: int = 0
     size_min_px: int = 0
     multiple: int = 8
     square: bool = False
@@ -206,7 +208,9 @@ class KritaDocument(Document):
         )
         original_bounds = Bounds.clamp(original_bounds, self.extent)
         size_factor = original_bounds.extent.diagonal
-        pad_px = max(int(mod.pad_rel * size_factor), mod.pad_min_px)
+        pad_px = max(int(mod.feather_rel * size_factor), mod.feather_min_px)
+        pad_px += mod.pad_offset_px
+        pad_px += int(mod.pad_rel * size_factor)
 
         if mod.invert:
             selection.invert()

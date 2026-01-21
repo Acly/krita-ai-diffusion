@@ -1459,7 +1459,6 @@ class AnimationWorkspace(QObject, ObservableProperties):
 
 def get_selection_modifiers(arch: Arch, inpaint_mode: InpaintMode, strength: float, min_size=256):
     feather = settings.selection_feather / 100
-    padding = settings.selection_padding / 100
     invert = False
 
     if inpaint_mode is InpaintMode.replace_background and strength == 1.0:
@@ -1469,8 +1468,10 @@ def get_selection_modifiers(arch: Arch, inpaint_mode: InpaintMode, strength: flo
         invert = True
 
     return SelectionModifiers(
-        pad_rel=padding + feather,
-        pad_min_px=settings.selection_min_transition + settings.selection_grow_offset + 8,
+        feather_rel=feather,
+        feather_min_px=settings.selection_min_transition,
+        pad_rel=settings.selection_padding / 100,
+        pad_offset_px=settings.selection_grow_offset,
         size_min_px=min_size,
         multiple=arch.latent_compression_factor,
         invert=invert,
@@ -1480,11 +1481,10 @@ def get_selection_modifiers(arch: Arch, inpaint_mode: InpaintMode, strength: flo
 def get_selection_pre_process(bounds: Bounds | None, mods: SelectionModifiers):
     if bounds is None or settings.selection_feather == 0:
         return 0, 0
-    feather_rel = settings.selection_feather / 100
     size_factor = bounds.extent.diagonal
-    feather = max(int(feather_rel * size_factor), settings.selection_min_transition)
-    if mods.invert:
-        feather = min(feather, 8)
+    feather = int(mods.feather_rel * size_factor)
+    if not mods.invert:
+        feather = max(feather, mods.feather_min_px)
     grow = settings.selection_grow_offset + feather // 2
     return grow, feather
 
