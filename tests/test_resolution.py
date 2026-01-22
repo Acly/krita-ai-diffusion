@@ -126,7 +126,7 @@ def test_inpaint_context(area, expected_extent, expected_crop: tuple[int, int] |
     "input,expected_initial,expected_desired",
     [
         (Extent(1536, 600), Extent(1008, 392), Extent(1536, 600)),
-        (Extent(400, 1024), Extent(392, 1008), Extent(400, 1024)),
+        (Extent(400, 1024), Extent(400, 1024), Extent(400, 1024)),
         (Extent(777, 999), Extent(560, 712), Extent(784, 1000)),
     ],
 )

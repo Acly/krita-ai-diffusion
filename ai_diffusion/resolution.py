@@ -194,8 +194,8 @@ def prepare_diffusion_input(
         desired, arch, style, inpaint
     )
 
-    if downscale and max_scale < 1 and any(x > max_size for x in desired):
-        # Desired resolution is larger than the maximum size. Do 2 passes:
+    if downscale and max_scale < 0.9 and any(x > max_size for x in desired):
+        # Desired resolution is significantly larger than the maximum size. Do 2 passes:
         # first pass at checkpoint resolution, then upscale to desired resolution and refine.
         input = initial = (desired * max_scale).multiple_of(mult)
         desired = desired.multiple_of(mult)
