@@ -17,6 +17,7 @@ tests/data/*.safetensors
 tests/server
 tests/results
 tests/benchmark
+tests/images/inpaint
 krita_ai_diffusion*.zip
 TODO.md
 .idea
