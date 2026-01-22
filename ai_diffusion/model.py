@@ -1467,9 +1467,11 @@ def get_selection_modifiers(arch: Arch, inpaint_mode: InpaintMode, strength: flo
         feather = min(feather, 0.01)
         invert = True
 
+    strength = max(0.5, min(1.0, strength))
+
     return SelectionModifiers(
-        feather_rel=feather,
-        feather_min_px=settings.selection_min_transition,
+        feather_rel=feather * strength,
+        feather_min_px=int(settings.selection_min_transition * strength),
         pad_rel=settings.selection_padding / 100,
         pad_offset_px=settings.selection_grow_offset,
         size_min_px=min_size,
