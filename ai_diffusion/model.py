@@ -44,7 +44,7 @@ from .control import ControlLayer
 from .region import Region, RegionLink, RootRegion, process_regions, get_region_inpaint_mask
 from .resources import ControlMode
 from .resolution import compute_bounds, compute_relative_bounds
-from .text import create_img_metadata
+from .text import create_img_metadata, extract_layers
 
 
 class QueueMode(Enum):
@@ -239,12 +239,12 @@ class Model(QObject, ObservableProperties):
         else:
             conditioning, job_regions = ConditioningInput("", ""), []
 
-        original_conditioning = conditioning
         seed = self.seed if self.fixed_seed else workflow.generate_seed()
-        conditioning, loras, layers, region_layers, prompt_meta = workflow.prepare_prompts(
+        original_conditioning = conditioning
+        conditioning = self._add_reference_layers(conditioning)
+        conditioning, loras, prompt_meta = workflow.prepare_prompts(
             conditioning, self.style, seed, arch, FileLibrary.instance()
         )
-        self._add_reference_layers(conditioning, layers, region_layers)
 
         if mask is not None or workflow_kind is WorkflowKind.refine:
             image = self._get_current_image(bounds) if not dryrun else DummyImage(bounds.extent)
@@ -448,10 +448,10 @@ class Model(QObject, ObservableProperties):
 
         conditioning, job_regions = process_regions(self.regions, bounds)
         conditioning.language = self.prompt_translation_language
-        conditioning, loras, layers, region_layers, _ = workflow.prepare_prompts(
+        conditioning = self._add_reference_layers(conditioning)
+        conditioning, loras, _ = workflow.prepare_prompts(
             conditioning, self.style, self.seed, self.arch, FileLibrary.instance(), is_live=True
         )
-        self._add_reference_layers(conditioning, layers, region_layers)
 
         input = workflow.prepare(
             workflow_kind,
@@ -925,9 +925,7 @@ class Model(QObject, ObservableProperties):
             return InpaintMode.fill
         return self.inpaint.mode
 
-    def _add_reference_layers(
-        self, cond: ConditioningInput, layers: list[str], region_layers: list[list[str]]
-    ):
+    def _add_reference_layers(self, cond: ConditioningInput):
         def add_refs(control: list[ControlInput], layer_names: list[str]):
             for layer_name in layer_names:
                 uid = next((l.id for l in self._doc.layers.images if l.name == layer_name), None)
@@ -936,11 +934,15 @@ class Model(QObject, ObservableProperties):
                 ctrl = ControlLayer(self, ControlMode.reference, uid, 0)
                 control.append(ctrl.to_api())
 
+        _prompt, layers = extract_layers(cond.positive)
         add_refs(cond.control, layers)
-        for region, r_layers in zip(cond.regions, region_layers):
-            add_refs(region.control, r_layers)
+
+        for region in cond.regions:
+            _prompt, region_layers = extract_layers(region.positive)
+            add_refs(region.control, region_layers)
 
         cond.edit_reference = self.is_editing
+        return cond
 
     def _performance_settings(self, client: Client):
         result = client.performance_settings
@@ -1400,10 +1402,10 @@ class AnimationWorkspace(QObject, ObservableProperties):
         is_live = self.sampling_quality is SamplingQuality.fast
         conditioning, _ = process_regions(m.regions, bounds, self._model.layers.root, time=time)
         conditioning.language = m.prompt_translation_language
-        conditioning, loras, layers, region_layers, prompt_meta = workflow.prepare_prompts(
+        conditioning = m._add_reference_layers(conditioning)
+        conditioning, loras, prompt_meta = workflow.prepare_prompts(
             conditioning, m.style, seed, m.arch, FileLibrary.instance(), is_live
         )
-        m._add_reference_layers(conditioning, layers, region_layers)
 
         return workflow.prepare(
             kind,

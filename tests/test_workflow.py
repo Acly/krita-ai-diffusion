@@ -323,9 +323,6 @@ def test_prepare_prompt_layers(arch: Arch):
             result.metadata["prompt_final"]
             == f"prompt Picture 2 for Picture 3, {style.style_prompt}"
         )
-    assert result.layers == ["layer1", "layer2"]
-    assert result.region_layers[0] == ["layer3"]
-    assert result.region_layers[1] == []
 
 
 def test_prepare_prompt_instructions():

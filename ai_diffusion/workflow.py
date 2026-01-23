@@ -1449,8 +1449,6 @@ def expand_custom(
 class PreparedPrompt(NamedTuple):
     conditioning: ConditioningInput
     loras: list[LoraInput]
-    layers: list[str]
-    region_layers: list[list[str]]
     metadata: dict[str, Any]
 
 
@@ -1501,7 +1499,7 @@ def prepare_prompts(
         meta["prompt_eval"] = cond.positive
     cond.positive, extra_loras = extract_loras(cond.positive, files.loras)
     start_index = 2 + sum(1 for c in cond.control if c.mode.is_ip_adapter)
-    cond.positive, layers = extract_layers(cond.positive, layer_replace, start_index)
+    cond.positive, _layers = extract_layers(cond.positive, layer_replace, start_index)
     cond.positive += _collect_lora_triggers(models.loras, files)
     if arch.is_flux2:
         cond.positive = build_control_instructions(cond)
@@ -1519,7 +1517,6 @@ def prepare_prompts(
     meta["negative_prompt_final"] = cond.negative
 
     meta["regions"] = []
-    region_layers: list[list[str]] = []
     for idx, region in enumerate(cond.regions):
         assert region.mask or idx == 0, "Only the first/bottom region can be without a mask"
         region_meta: dict[str, Any] = {"prompt": region.positive}
@@ -1531,14 +1528,13 @@ def prepare_prompts(
         region.positive, region.loras = extract_loras(region.positive, files.loras)
         region.loras = [l for l in region.loras if l not in extra_loras]
         region_index = start_index + sum(1 for c in region.control if c.mode.is_ip_adapter)
-        region.positive, r_layers = extract_layers(region.positive, layer_replace, region_index)
-        region_layers.append(r_layers)
+        region.positive, _layers = extract_layers(region.positive, layer_replace, region_index)
         meta["regions"].append(region_meta)
 
     if len(cond.regions) == 1:
         meta["prompt"] = meta["regions"][0]["prompt"]
 
-    return PreparedPrompt(cond, extra_loras, layers, region_layers, meta)
+    return PreparedPrompt(cond, extra_loras, meta)
 
 
 def prepare(
