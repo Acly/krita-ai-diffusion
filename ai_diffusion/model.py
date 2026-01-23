@@ -264,8 +264,7 @@ class Model(QObject, ObservableProperties):
                 inpaint = workflow.detect_inpaint(
                     inpaint_mode, mask.bounds, arch, pos, ctrl, strength
                 )
-            inpaint.grow, inpaint.feather = get_selection_pre_process(selection_bounds, smod)
-            inpaint.blend = settings.selection_blend
+            inpaint = calc_selection_pre_process(inpaint, selection_bounds, smod)
 
         input = workflow.prepare(
             workflow_kind,
@@ -430,8 +429,7 @@ class Model(QObject, ObservableProperties):
         image = None
         smod = get_selection_modifiers(self.arch, inpaint.mode, strength, min_mask_size)
         mask, selection_bounds = self._doc.create_mask_from_selection(smod)
-        inpaint.grow, inpaint.feather = get_selection_pre_process(selection_bounds, smod)
-        inpaint.blend = settings.selection_blend
+        inpaint = calc_selection_pre_process(inpaint, selection_bounds, smod)
 
         bounds = Bounds(0, 0, *self._doc.extent)
         region_layer = self.regions.get_active_region_layer(use_parent=False)
@@ -1547,15 +1545,29 @@ def get_selection_modifiers(arch: Arch, inpaint_mode: InpaintMode, strength: flo
     )
 
 
-def get_selection_pre_process(bounds: Bounds | None, mods: SelectionModifiers):
+def calc_selection_pre_process(
+    inpaint: InpaintParams, bounds: Bounds | None, mods: SelectionModifiers
+):
+    """
+    Computes the parameters grow, feather and blend for mask processing in the workflow:
+    * denoise_mask = selection -> dilate(size=grow) -> blur(size=feather)
+    * composite_mask = denoise_mask -> erode(size=blend/2) -> blur(size=blend)
+    Both masks should always be fully opaque inside the original selection mask.
+    """
+    inpaint = copy(inpaint)
     if bounds is None or settings.selection_feather == 0:
-        return 0, 0
+        inpaint.feather = 0
+        inpaint.grow = 0
+        inpaint.blend = 0
+        return inpaint
+
     size_factor = bounds.extent.diagonal
-    feather = int(mods.feather_rel * size_factor)
+    inpaint.feather = int(mods.feather_rel * size_factor)
     if not mods.invert:
-        feather = max(feather, mods.feather_min_px)
-    grow = settings.selection_grow_offset + feather // 2
-    return grow, feather
+        inpaint.feather = max(inpaint.feather, mods.feather_min_px)
+    inpaint.grow = settings.selection_grow_offset + inpaint.feather // 2
+    inpaint.blend = min(settings.selection_blend, inpaint.grow + inpaint.feather // 2)
+    return inpaint
 
 
 async def _report_errors(parent: Model, coro):
