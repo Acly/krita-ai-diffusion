@@ -182,7 +182,7 @@
       ]
     },
     {
-      "id": "vae-flux-flux",
+      "id": "vae-default-flux",
       "name": "VAE (Flux)",
       "files": [
         {
@@ -204,7 +204,7 @@
       ]
     },
     {
-      "id": "vae-flux2-flux2_4b",
+      "id": "vae-default-flux2_4b",
       "name": "VAE (Flux 2)",
       "files": [
         {
