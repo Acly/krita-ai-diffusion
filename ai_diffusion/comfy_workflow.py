@@ -1109,12 +1109,6 @@ class ComfyWorkflow:
         return self.add("INPAINT_MaskedBlur", 1, image=image, mask=mask, blur=blur, falloff=falloff)
 
     def expand_mask(self, mask: Output, grow: int, blur: int, kernel="gaussian"):
-        if self._run_mode is ComfyRunMode.server:
-            from .settings import settings, ServerMode
-
-            if settings.server_mode is ServerMode.managed and kernel == "linear":
-                blur = blur // 2  # bug in current version of comfyui-inpaint-nodes
-
         return self.add("INPAINT_ExpandMask", 1, mask=mask, grow=grow, blur=blur, blur_type=kernel)
 
     def shrink_mask(self, mask: Output, shrink: int, blur: int, kernel="gaussian"):
