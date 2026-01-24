@@ -218,6 +218,20 @@ Some samplers like _AlignYourSteps_ are not available as names
 and need to be modeled in the workflow explicitly.
 </Aside>
 
+#### Style & Prompt
+
+<ImageSample src="custom-graph/krita-style-prompt.png" alt="Krita Style & Prompt node" scale={1.25} />
+
+This node is similar to `Krita Style` but includes a prompt widget and pulls
+in most of the plugin's text processing features:
+* Positive and negative prompt inputs
+* Merges style prompts with prompt inputs
+* Adds LoRA referenced via `<lora:...>` tags in the prompt
+* Evaluates wildcards in the prompt (eg. `{black|white}`)
+* Synchronized with style and prompt inputs in Generate/Live/etc. workspaces
+* Limited to 1 node per workflow
+
+
 ### Send Text
 
 ![Send Text node](../../assets/custom-graph/send-text.png)

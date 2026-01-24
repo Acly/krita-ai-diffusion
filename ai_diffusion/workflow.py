@@ -36,7 +36,7 @@ def generate_seed():
     return random.randint(0, 2**31 - 1)
 
 
-def _sampling_from_style(style: Style, strength: float, is_live: bool):
+def sampling_from_style(style: Style, strength: float, is_live: bool):
     sampler_name = style.live_sampler if is_live else style.sampler
     cfg = style.live_cfg_scale if is_live else style.cfg_scale
     min_steps, max_steps = style.get_steps(is_live=is_live)
@@ -1409,7 +1409,7 @@ def expand_custom(
                 style: Style = get_param(node, Style)
                 is_live = node.input("sampler_preset", "auto") == "live"
                 checkpoint_input = style.get_models(models.checkpoints)
-                sampling = _sampling_from_style(style, 1.0, is_live)
+                sampling = sampling_from_style(style, 1.0, is_live)
                 model, clip, vae = load_checkpoint_with_lora(w, checkpoint_input, models)
                 outputs[node.output(0)] = model
                 outputs[node.output(1)] = clip.model
@@ -1561,7 +1561,7 @@ def prepare(
     """
     i = WorkflowInput(kind)
     i.conditioning = cond
-    i.sampling = _sampling_from_style(style, strength, is_live)
+    i.sampling = sampling_from_style(style, strength, is_live)
     i.sampling.seed = seed
     i.models = style.get_models(models.checkpoints)
     i.models.loras = unique(i.models.loras + (loras or []), key=lambda l: l.name)

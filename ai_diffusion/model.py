@@ -494,14 +494,32 @@ class Model(QObject, ObservableProperties):
             img_input.hires_mask = mask.to_image(bounds.extent) if mask else None
 
             params = self.custom.collect_parameters(self.layers, canvas_bounds, is_anim)
-            custom_input = CustomWorkflowInput(wf.root, params)
 
-            style_and_prompt_node = next(wf.find(type="ETN_KritaStyleAndPrompt"), None)
-            prompt_meta: dict[str, Any] = {}
-            if style_and_prompt_node is not None:
-                custom_input, prompt_meta = self._prepare_style_and_prompt(
-                    style_and_prompt_node, seed, custom_input
+            custom_input = CustomWorkflowInput(wf.root, params)
+            metadata: dict[str, Any] = dict(self.custom.params)
+            job_params = JobParams(bounds, self.custom.job_name, metadata=metadata)
+
+            style_node = next(wf.find(type="ETN_KritaStyleAndPrompt"), None)
+            if style_node is not None:
+                style = self.style
+                is_live = style_node.input("sampler_preset", "auto") == "live"
+                custom_input.models = style.get_models(self._connection.client.models.checkpoints)
+                custom_input.sampling = workflow.sampling_from_style(style, 1.0, is_live)
+
+                cond = ConditioningInput(self.regions.positive, self.regions.negative)
+                arch = resolve_arch(style, self._connection.client_if_connected)
+                prepared = workflow.prepare_prompts(cond, style, seed, arch, FileLibrary.instance())
+                custom_input.positive_evaluated = prepared.metadata["prompt_final"]
+                custom_input.negative_evaluated = prepared.metadata["negative_prompt_final"]
+                custom_input.models.loras = unique(
+                    custom_input.models.loras + prepared.loras, key=lambda l: l.name
                 )
+
+                job_params.set_style(self.style, custom_input.models.checkpoint)
+                metadata.update(prepared.metadata)
+                metadata["loras"] = [
+                    dict(name=l.name, weight=l.strength) for l in custom_input.models.loras
+                ]
 
             input = WorkflowInput(
                 WorkflowKind.custom,
@@ -510,16 +528,6 @@ class Model(QObject, ObservableProperties):
                 inpaint=InpaintParams(InpaintMode.fill, bounds),
                 custom_workflow=custom_input,
             )
-
-            metadata: dict[str, Any] = dict(self.custom.params)
-            metadata.update(prompt_meta)
-            job_params = JobParams(bounds, self.custom.job_name, metadata=metadata)
-            if style_and_prompt_node is not None:
-                models = ensure(custom_input.models)
-                job_params.set_style(self.style, models.checkpoint)
-                job_params.metadata["loras"] = [
-                    dict(name=l.name, weight=l.strength) for l in models.loras
-                ]
             job_kind = {
                 CustomGenerationMode.regular: JobKind.diffusion,
                 CustomGenerationMode.live: JobKind.live_preview,
@@ -536,33 +544,6 @@ class Model(QObject, ObservableProperties):
         except Exception as e:
             self.report_error(util.log_error(e))
             return False
-
-    def _prepare_style_and_prompt(
-        self, style_and_prompt_node: Any, seed: int, custom_input: CustomWorkflowInput
-    ) -> tuple[CustomWorkflowInput, dict[str, Any]]:
-        """Prepare prompts and models for ETN_KritaStyleAndPrompt node.
-        Returns updated CustomWorkflowInput with evaluated prompts, models, sampling, and metadata for job history.
-        """
-        style = self.style
-        is_live = style_and_prompt_node.input("sampler_preset", "auto") == "live"
-        checkpoint_input = style.get_models(self._connection.client.models.checkpoints)
-        sampling = workflow._sampling_from_style(style, 1.0, is_live)
-
-        cond = ConditioningInput(self.regions.positive, self.regions.negative)
-        arch = resolve_arch(style, self._connection.client_if_connected)
-        prepared = workflow.prepare_prompts(cond, style, seed, arch, FileLibrary.instance())
-
-        merged_loras = unique(checkpoint_input.loras + prepared.loras, key=lambda l: l.name)
-        checkpoint_input.loras = merged_loras
-
-        custom_input = replace(
-            custom_input,
-            positive_evaluated=prepared.metadata["prompt_final"],
-            negative_evaluated=prepared.metadata["negative_prompt_final"],
-            models=checkpoint_input,
-            sampling=sampling,
-        )
-        return custom_input, prepared.metadata
 
     def _get_current_image(self, bounds: Bounds):
         exclude = []
