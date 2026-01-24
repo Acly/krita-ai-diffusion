@@ -443,6 +443,8 @@ class ActiveRegionWidget(QFrame):
             r = self._region
             enabled = r.negative_enabled_live if self.is_slim else r.negative_enabled
             self._negative_warning.setVisible(settings.show_negative_prompt and not enabled)
+        else:
+            self._negative_warning.setVisible(False)
 
     def _setup_resize_handle(self):
         can_resize = not (isinstance(self._region, Region) and self.is_slim)
