@@ -73,22 +73,24 @@ default_seed = 1234
 default_perf = PerformanceSettings(batch_size=1)
 
 
-def default_style(client: Client, sd_ver=Arch.sd15):
-    version_checkpoints = [c for c in client.models.checkpoints if sd_ver.matches(c)]
-    checkpoint = default_checkpoint[sd_ver]
+def default_style(client: Client, arch=Arch.sd15):
+    version_checkpoints = [
+        name for name, cp in client.models.checkpoints.items() if cp.arch is arch
+    ]
+    checkpoint = default_checkpoint[arch]
 
     style = Style(Path("default.json"))
     style.checkpoints = [checkpoint] + version_checkpoints
-    if not sd_ver.is_sdxl_like:
+    if not arch.is_sdxl_like:
         style.style_prompt = ""
-    if sd_ver.is_flux_like:
+    if arch.is_flux_like:
         style.sampler = "Flux - Euler simple"
         style.cfg_scale = 3.5
-    if sd_ver is Arch.zimage:
+    if arch is Arch.zimage:
         style.sampler = "Flux - Euler simple"
         style.cfg_scale = 1.0
         style.sampler_steps = 8
-    if sd_ver.is_flux2:
+    if arch.is_flux2:
         style.sampler = "Flux 2 - Euler"
         style.cfg_scale = 1.0
         style.sampler_steps = 5
@@ -381,7 +383,7 @@ def test_inpaint(qtapp, client):
     qtapp.run(main())
 
 
-@pytest.mark.parametrize("sdver", [Arch.sd15, Arch.sdxl, Arch.zimage])
+@pytest.mark.parametrize("sdver", [Arch.sd15, Arch.sdxl, Arch.zimage, Arch.flux2_4b])
 def test_inpaint_upscale(qtapp, client, sdver):
     image = Image.load(image_dir / "beach_1536x1024.webp")
     mask = Mask.rectangle(Bounds(150, 150, 768, 512), Bounds(150, 50, 1068, 812))
@@ -459,7 +461,7 @@ def test_inpaint_remove_object(qtapp, client):
     run_and_save(qtapp, client, job, "test_inpaint_remove_object", image, mask)
 
 
-@pytest.mark.parametrize("setup", ["sd15", "sdxl", "flux", "flux_k"])
+@pytest.mark.parametrize("setup", ["sd15", "sdxl", "flux", "flux_k", "flux2"])
 def test_refine(qtapp, client, setup):
     if isinstance(client, CloudClient) and setup in ["flux", "flux_k"]:
         pytest.skip("Skipping test for CloudClient with flux models")
@@ -469,6 +471,7 @@ def test_refine(qtapp, client, setup):
         "sdxl": (Arch.sdxl, Extent(1111, 741), 0.65),
         "flux": (Arch.flux, Extent(1111, 741), 0.65),
         "flux_k": (Arch.flux_k, Extent(1111, 741), 1.0),
+        "flux2": (Arch.flux2_4b, Extent(1111, 741), 1.0),
     }[setup]
     image = Image.load(image_dir / "beach_1536x1024.webp")
     image = Image.scale(image, extent)
@@ -481,7 +484,7 @@ def test_refine(qtapp, client, setup):
         strength=strength,
         perf=PerformanceSettings(batch_size=1, max_pixel_count=2),
     )
-    if sdver.is_edit:
+    if sdver.supports_edit:
         ensure(job.conditioning).edit_reference = True
     result = run_and_save(qtapp, client, job, f"test_refine_{setup}")
     assert result.extent == extent
@@ -857,42 +860,46 @@ def test_refine_live(qtapp, client, sdver):
 
 
 @pytest.mark.parametrize("arch", [Arch.flux_k, Arch.flux2_4b])
-def test_edit(qtapp, local_client, arch):
+def test_edit(qtapp, client, arch):
+    if isinstance(client, CloudClient) and arch is Arch.flux_k:
+        pytest.skip("Flux Kontext not supported on Cloud")
     image = Image.load(image_dir / "flowers.webp")
-    style = default_style(local_client, arch)
+    style = default_style(client, arch)
     cond = ConditioningInput("turn the image into a minimalistic vector illustration")
     cond.edit_reference = True
-    job = create(WorkflowKind.refine, local_client, style=style, canvas=image, cond=cond)
-    run_and_save(qtapp, local_client, job, f"test_edit_{arch.name}")
+    job = create(WorkflowKind.refine, client, style=style, canvas=image, cond=cond)
+    run_and_save(qtapp, client, job, f"test_edit_{arch.name}")
 
 
 @pytest.mark.parametrize("arch", [Arch.flux_k, Arch.flux2_4b])
-def test_edit_selection(qtapp, local_client, arch):
+def test_edit_selection(qtapp, client, arch):
+    if isinstance(client, CloudClient) and arch is Arch.flux_k:
+        pytest.skip("Flux Kontext not supported on Cloud")
     image = Image.load(image_dir / "flowers.webp")
     mask = Mask.load(image_dir / "flowers_mask.png")
     cond = ConditioningInput("make all flowers have yellow blossoms")
     cond.edit_reference = True
     job = create(
         WorkflowKind.refine_region,
-        local_client,
-        style=default_style(local_client, arch),
+        client,
+        style=default_style(client, arch),
         canvas=image,
         cond=cond,
         mask=mask,
         inpaint=automatic_inpaint(image.extent, mask.bounds, arch, ""),
     )
-    run_and_save(qtapp, local_client, job, f"test_edit_selection_{arch.name}")
+    run_and_save(qtapp, client, job, f"test_edit_selection_{arch.name}")
 
 
-def test_edit_reference(qtapp, local_client):
+def test_edit_reference(qtapp, client):
     image = Image.load(image_dir / "flowers.webp")
     ref_image = Image.load(image_dir / "cat.webp")
-    style = default_style(local_client, Arch.flux2_4b)
+    style = default_style(client, Arch.flux2_4b)
     cond = ConditioningInput("put the cat in the flower pot")
     cond.control = [ControlInput(ControlMode.reference, ref_image, 1.0)]
     cond.edit_reference = True
-    job = create(WorkflowKind.refine, local_client, style=style, canvas=image, cond=cond)
-    run_and_save(qtapp, local_client, job, "test_edit_reference")
+    job = create(WorkflowKind.refine, client, style=style, canvas=image, cond=cond)
+    run_and_save(qtapp, client, job, "test_edit_reference")
 
 
 def test_refine_max_pixels(qtapp, client):
