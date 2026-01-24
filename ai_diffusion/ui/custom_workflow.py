@@ -25,6 +25,7 @@ from .generation import GenerateButton, ProgressBar, QueueButton, HistoryWidget
 from .live import LivePreviewArea
 from .switch import SwitchWidget
 from .widget import TextPromptWidget, WorkspaceSelectWidget, StyleSelectWidget, ErrorBox
+from .region import ActiveRegionWidget, PromptHeader
 from .settings_widgets import ExpanderButton
 from . import theme
 from .theme import SignalBlocker
@@ -700,6 +701,16 @@ class CustomWorkflowWidget(QWidget):
         self._params_scroll.setFrameShape(QFrame.Shape.NoFrame)
         self._params_scroll.setHorizontalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAlwaysOff)
 
+        self._style_widget = StyleSelectWidget(self)
+        self._style_widget.setVisible(False)  # Hidden until workflow has synced style
+
+        self._prompt_widget = ActiveRegionWidget(
+            self._model.regions, self, header=PromptHeader.none
+        )
+        self._prompt_widget.setVisible(False)  # Hidden until workflow has synced prompts
+        self._prompt_widget.positive.activated.connect(self._generate)
+        self._prompt_widget.negative.activated.connect(self._generate)
+
         self._bottom = QWidget(self)
 
         self._generate_button = GenerateButton(JobKind.diffusion, self._bottom)
@@ -771,6 +782,8 @@ class CustomWorkflowWidget(QWidget):
         header_layout.addWidget(self._workflow_select_widgets)
         header_layout.addWidget(self._workflow_edit_widgets)
         layout.addLayout(header_layout)
+        layout.addWidget(self._style_widget)
+        layout.addWidget(self._prompt_widget)
         layout.addWidget(self._splitter)
         actions_layout = QHBoxLayout()
         actions_layout.setSpacing(0)
@@ -808,6 +821,7 @@ class CustomWorkflowWidget(QWidget):
             self._model = model
             self._model_bindings = [
                 bind(model, "workspace", self._workspace_select, "value", Bind.one_way),
+                bind(model, "style", self._style_widget, "value"),
                 bind(model, "error", self._error_box, "error", Bind.one_way),
                 bind_combo(model.custom, "workflow_id", self._workflow_select, Bind.one_way),
                 bind(model.custom, "outputs", self._outputs, "value", Bind.one_way),
@@ -822,6 +836,7 @@ class CustomWorkflowWidget(QWidget):
             self._queue_button.model = model
             self._progress_bar.model = model
             self._history.model_ = model
+            self._prompt_widget.region = model.regions
             self._update_current_workflow()
             self._update_ui()
             self._set_params_height(model.custom.params_ui_height)
@@ -874,11 +889,20 @@ class CustomWorkflowWidget(QWidget):
         if not self.model.custom.workflow:
             self._save_workflow_button.setEnabled(False)
             self._delete_workflow_button.setEnabled(False)
+            self._style_widget.setVisible(False)
+            self._prompt_widget.setVisible(False)
             return
         self._save_workflow_button.setEnabled(True)
         self._delete_workflow_button.setEnabled(
             self.model.custom.workflow.source is WorkflowSource.local
         )
+
+        graph = self.model.custom.graph
+        has_synced_style_and_prompt = (
+            graph is not None and next(graph.find(type="ETN_KritaStyleAndPrompt"), None) is not None
+        )
+        self._style_widget.setVisible(has_synced_style_and_prompt)
+        self._prompt_widget.setVisible(has_synced_style_and_prompt)
 
         if self._params_widget:
             self._params_scroll.setWidget(None)

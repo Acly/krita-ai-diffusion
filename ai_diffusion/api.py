@@ -169,6 +169,10 @@ class UpscaleInput:
 class CustomWorkflowInput:
     workflow: dict
     params: dict[str, Any]
+    positive_evaluated: str = ""
+    negative_evaluated: str = ""
+    models: CheckpointInput | None = None
+    sampling: SamplingInput | None = None
 
 
 @dataclass
