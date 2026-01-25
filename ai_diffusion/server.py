@@ -218,7 +218,7 @@ class Server:
         script_path = self._cache_dir / f"install_uv{script_ext}"
         await _download_cached("Python", network, url, script_path, cb)
 
-        env = {"UV_INSTALL_DIR": str(self.path / "uv")}
+        env = {"UV_UNMANAGED_INSTALL": str(self.path / "uv")}
         if is_windows:
             if "PSModulePath" in os.environ:
                 del os.environ["PSModulePath"]  # Don't inherit this from parent process
