@@ -6,6 +6,7 @@ from enum import Enum, Flag
 from typing import Any, NamedTuple, TYPE_CHECKING
 from PyQt5.QtCore import QObject, pyqtSignal
 
+from .api import InpaintMode
 from .image import Bounds, ImageCollection
 from .settings import settings
 from .style import Style
@@ -54,6 +55,7 @@ class JobParams:
     seed: int = 0
     has_mask: bool = False
     is_layered: bool = False
+    inpaint_mode: InpaintMode | None = None
     frame: tuple[int, int, int] = (0, 0, 0)
     animation_id: str = ""
     resize_canvas: bool = False

@@ -209,7 +209,7 @@ class Model(QObject, ObservableProperties):
             workflow_kind = WorkflowKind.refine
         client = self._connection.client
         image = None
-        inpaint_mode = InpaintMode.fill
+        inpaint_mode: InpaintMode | None = None
         inpaint = None
         extent = self._doc.extent
         regions = self.active_regions
@@ -219,6 +219,7 @@ class Model(QObject, ObservableProperties):
         mask, selection_bounds = self._doc.create_mask_from_selection(smod)
         bounds = Bounds(0, 0, *extent)
         if mask is None:  # Check for region inpaint
+            inpaint_mode = InpaintMode.fill
             region_layer = regions.get_active_region_layer(use_parent=not self.region_only)
             if not region_layer.is_root:
                 mask = get_region_inpaint_mask(region_layer, extent)
@@ -236,10 +237,11 @@ class Model(QObject, ObservableProperties):
             conditioning, job_regions = ConditioningInput("", ""), []
 
         seed = self.seed if self.fixed_seed else workflow.generate_seed()
+        if not dryrun:
+            conditioning = self._add_reference_layers(conditioning)
         original_conditioning = conditioning
-        conditioning = self._add_reference_layers(conditioning)
         conditioning, loras, prompt_meta = workflow.prepare_prompts(
-            conditioning, self.style, seed, arch, FileLibrary.instance()
+            conditioning, self.style, seed, arch, inpaint_mode
         )
 
         if mask is not None or workflow_kind is WorkflowKind.refine:
@@ -256,9 +258,8 @@ class Model(QObject, ObservableProperties):
             if inpaint_mode is InpaintMode.custom:
                 inpaint = self.inpaint.get_params(mask)
             else:
-                pos, ctrl = conditioning.positive, conditioning.control
                 inpaint = workflow.detect_inpaint(
-                    inpaint_mode, mask.bounds, arch, pos, ctrl, strength
+                    inpaint_mode, mask.bounds, arch, conditioning, strength
                 )
             inpaint = calc_selection_pre_process(inpaint, selection_bounds, smod)
 
@@ -282,6 +283,7 @@ class Model(QObject, ObservableProperties):
         job_params = JobParams(bounds, job_name, regions=job_regions)
         job_params.set_style(self.active_style, ensure(input.models).checkpoint)
         job_params.set_control(regions.control)
+        job_params.inpaint_mode = inpaint_mode
         job_params.is_layered = arch is Arch.qwen_l
         job_params.metadata.update(prompt_meta)
         job_params.metadata["loras"] = [dict(name=l.name, weight=l.strength) for l in loras]
@@ -313,7 +315,7 @@ class Model(QObject, ObservableProperties):
                 input = replace(input, sampling=replace(sampling, seed=seed))
                 if original_cond:  # re-evaluate wildcards in prompts after the seed change
                     next_prompt = workflow.prepare_prompts(
-                        original_cond, self.style, seed, self.arch, FileLibrary.instance()
+                        original_cond, self.style, seed, self.arch, params.inpaint_mode
                     )
                     input.conditioning = next_prompt.conditioning
                     params.metadata = params.metadata | next_prompt.metadata
@@ -446,7 +448,7 @@ class Model(QObject, ObservableProperties):
         conditioning.language = self.prompt_translation_language
         conditioning = self._add_reference_layers(conditioning)
         conditioning, loras, _ = workflow.prepare_prompts(
-            conditioning, self.style, self.seed, self.arch, FileLibrary.instance(), is_live=True
+            conditioning, self.style, self.seed, self.arch, is_live=True
         )
 
         input = workflow.prepare(
@@ -508,7 +510,7 @@ class Model(QObject, ObservableProperties):
 
                 cond = ConditioningInput(self.regions.positive, self.regions.negative)
                 arch = resolve_arch(style, self._connection.client_if_connected)
-                prepared = workflow.prepare_prompts(cond, style, seed, arch, FileLibrary.instance())
+                prepared = workflow.prepare_prompts(cond, style, seed, arch)
                 custom_input.positive_evaluated = prepared.metadata["prompt_final"]
                 custom_input.negative_evaluated = prepared.metadata["negative_prompt_final"]
                 custom_input.models.loras = unique(
@@ -1371,7 +1373,7 @@ class AnimationWorkspace(QObject, ObservableProperties):
         conditioning.language = m.prompt_translation_language
         conditioning = m._add_reference_layers(conditioning)
         conditioning, loras, prompt_meta = workflow.prepare_prompts(
-            conditioning, m.style, seed, m.arch, FileLibrary.instance(), is_live
+            conditioning, m.style, seed, m.arch, is_live=is_live
         )
 
         return workflow.prepare(
