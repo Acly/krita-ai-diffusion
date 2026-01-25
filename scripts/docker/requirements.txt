@@ -60,7 +60,7 @@ matplotlib==3.10.8
     # via -r ComfyUI/custom_nodes/comfyui_controlnet_aux/requirements.txt
 matrix-nio==0.25.2
     # via -r ComfyUI/custom_nodes/ComfyUI-Manager/requirements.txt
-mediapipe==0.10.31
+mediapipe==0.10.32
     # via -r ComfyUI/custom_nodes/comfyui_controlnet_aux/requirements.txt
 numpy==1.26.4
     # via
@@ -105,7 +105,7 @@ pyyaml==6.0.3
     # via
     #   -r ComfyUI/custom_nodes/comfyui_controlnet_aux/requirements.txt
     #   -r ComfyUI/requirements.txt
-rich==14.2.0
+rich==14.3.1
     # via -r ComfyUI/custom_nodes/ComfyUI-Manager/requirements.txt
 safetensors==0.7.0
     # via -r ComfyUI/requirements.txt
@@ -125,7 +125,7 @@ sentencepiece==0.2.0
     #   -r requirements.in
 spandrel==0.4.1
     # via -r ComfyUI/requirements.txt
-sqlalchemy==2.0.45
+sqlalchemy==2.0.46
     # via -r ComfyUI/requirements.txt
 svglib==1.5.1
     # via

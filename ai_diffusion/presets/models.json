@@ -805,39 +805,5 @@
       ]
     }
   ],
-  "deprecated": [
-    {
-      "id": "checkpoint-realistic_vision-sd15",
-      "name": "Realistic Vision (SD1.5 - Photography)",
-      "files": [
-        {
-          "path": "models/checkpoints/realisticVisionV51_v51VAE.safetensors",
-          "url": "https://huggingface.co/lllyasviel/fav_models/resolve/main/fav/realisticVisionV51_v51VAE.safetensors",
-          "sha256": "15012c538f503ce2ebfc2c8547b268c75ccdaff7a281db55399940ff1d70e21d"
-        }
-      ]
-    },
-    {
-      "id": "checkpoint-flux_schnell-flux",
-      "name": "Flux [schnell]",
-      "files": [
-        {
-          "path": "models/checkpoints/flux1-schnell-fp8.safetensors",
-          "url": "https://huggingface.co/Comfy-Org/flux1-schnell/resolve/main/flux1-schnell-fp8.safetensors",
-          "sha256": "ead426278b49030e9da5df862994f25ce94ab2ee4df38b556ddddb3db093bf72"
-        }
-      ]
-    },
-    {
-      "id": "checkpoint-flat2d_animerge-sd15",
-      "name": "Flat2D AniMerge (SD1.5 - Cartoon/Anime)",
-      "files": [
-        {
-          "path": "models/checkpoints/flat2DAnimerge_v45Sharp.safetensors",
-          "url": "https://huggingface.co/Acly/SD-Checkpoints/resolve/main/flat2DAnimerge_v45Sharp.safetensors",
-          "sha256": "fe95063ba60bc9298d60eb252f98d057039d9a882158afe042f266bdc1b1e528"
-        }
-      ]
-    }
-  ]
+  "deprecated": []
 }
