@@ -26,12 +26,7 @@ from .network import NetworkError
 from .image import Extent, Image, Mask, Bounds, DummyImage
 from .client import Client, ClientMessage, ClientEvent, ClientOutput
 from .client import is_style_supported, filter_supported_styles, resolve_arch
-from .custom_workflow import (
-    CustomWorkspace,
-    WorkflowCollection,
-    CustomGenerationMode,
-    ComfyWorkflow,
-)
+from .custom_workflow import CustomWorkspace, WorkflowCollection, CustomGenerationMode
 from .document import Document, KritaDocument, SelectionModifiers
 from .layer import Layer, LayerType, RestoreActiveLayer
 from .pose import Pose
@@ -73,6 +68,7 @@ class ErrorKind(Enum):
     insufficient_funds = 201
     warning = 300
     incompatible_lora = 301
+    validation_warning = 302
 
     @property
     def is_warning(self):
@@ -173,8 +169,8 @@ class Model(QObject, ObservableProperties):
 
     def _forward_validation_error(self, error: str):
         if error:
-            self.report_error(Error(ErrorKind.warning, error))
-        else:
+            self.report_error(Error(ErrorKind.validation_warning, error))
+        elif self.error.kind is ErrorKind.validation_warning:
             self.clear_error()
 
     def generate(self):
@@ -498,15 +494,13 @@ class Model(QObject, ObservableProperties):
             img_input.hires_mask = mask.to_image(bounds.extent) if mask else None
 
             params = self.custom.collect_parameters(self.layers, canvas_bounds, is_anim)
-
-            has_synced_style_and_prompt = (
-                next(wf.find(type="ETN_KritaStyleAndPrompt"), None) is not None
-            )
             custom_input = CustomWorkflowInput(wf.root, params)
-            prompt_meta = {}
-            if has_synced_style_and_prompt:
-                custom_input, prompt_meta = self._prepare_synced_style_and_prompt(
-                    params, seed, custom_input, wf
+
+            style_and_prompt_node = next(wf.find(type="ETN_KritaStyleAndPrompt"), None)
+            prompt_meta: dict[str, Any] = {}
+            if style_and_prompt_node is not None:
+                custom_input, prompt_meta = self._prepare_style_and_prompt(
+                    style_and_prompt_node, seed, custom_input
                 )
 
             input = WorkflowInput(
@@ -519,8 +513,13 @@ class Model(QObject, ObservableProperties):
 
             metadata: dict[str, Any] = dict(self.custom.params)
             metadata.update(prompt_meta)
-
             job_params = JobParams(bounds, self.custom.job_name, metadata=metadata)
+            if style_and_prompt_node is not None:
+                models = ensure(custom_input.models)
+                job_params.set_style(self.style, models.checkpoint)
+                job_params.metadata["loras"] = [
+                    dict(name=l.name, weight=l.strength) for l in models.loras
+                ]
             job_kind = {
                 CustomGenerationMode.regular: JobKind.diffusion,
                 CustomGenerationMode.live: JobKind.live_preview,
@@ -538,28 +537,18 @@ class Model(QObject, ObservableProperties):
             self.report_error(util.log_error(e))
             return False
 
-    def _prepare_synced_style_and_prompt(
-        self,
-        params: dict[str, Any],
-        seed: int,
-        custom_input: CustomWorkflowInput,
-        wf: ComfyWorkflow,
+    def _prepare_style_and_prompt(
+        self, style_and_prompt_node: Any, seed: int, custom_input: CustomWorkflowInput
     ) -> tuple[CustomWorkflowInput, dict[str, Any]]:
         """Prepare prompts and models for ETN_KritaStyleAndPrompt node.
         Returns updated CustomWorkflowInput with evaluated prompts, models, sampling, and metadata for job history.
         """
         style = self.style
-
-        style_node = next(wf.find(type="ETN_KritaStyleAndPrompt"), None)
-        is_live = style_node.input("sampler_preset", "auto") == "live" if style_node else False
-
+        is_live = style_and_prompt_node.input("sampler_preset", "auto") == "live"
         checkpoint_input = style.get_models(self._connection.client.models.checkpoints)
         sampling = workflow._sampling_from_style(style, 1.0, is_live)
 
-        positive = self.regions.positive
-        negative = self.regions.negative
-
-        cond = ConditioningInput(positive, negative)
+        cond = ConditioningInput(self.regions.positive, self.regions.negative)
         arch = resolve_arch(style, self._connection.client_if_connected)
         prepared = workflow.prepare_prompts(cond, style, seed, arch, FileLibrary.instance())
 
@@ -573,10 +562,7 @@ class Model(QObject, ObservableProperties):
             models=checkpoint_input,
             sampling=sampling,
         )
-
-        meta = dict(prepared.metadata)
-        meta["style"] = style.filename
-        return custom_input, meta
+        return custom_input, prepared.metadata
 
     def _get_current_image(self, bounds: Bounds):
         exclude = []
