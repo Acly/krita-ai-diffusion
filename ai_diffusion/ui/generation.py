@@ -551,6 +551,10 @@ class CustomInpaintWidget(QWidget):
             )
         )
 
+        self.edit_mode_switch = QCheckBox(self)
+        self.edit_mode_switch.setText(_("Edit"))
+        self.edit_mode_switch.setToolTip(_("Edit canvas with text instructions"))
+
         self.fill_mode_combo = QComboBox(self)
         fill_icon = theme.icon("fill")
         self.fill_mode_combo.addItem(theme.icon("fill-empty"), _("None"), FillMode.none)
@@ -588,7 +592,8 @@ class CustomInpaintWidget(QWidget):
         layout.setContentsMargins(0, 0, 0, 0)
         layout.addWidget(self.use_inpaint_button)
         layout.addWidget(self.use_prompt_focus_button)
-        layout.addWidget(self.fill_mode_combo)
+        layout.addWidget(self.edit_mode_switch)
+        layout.addWidget(self.fill_mode_combo, 1)
         layout.addWidget(self.context_combo, 1)
         self.setLayout(layout)
 
@@ -605,9 +610,11 @@ class CustomInpaintWidget(QWidget):
                 bind_combo(model.inpaint, "fill", self.fill_mode_combo),
                 bind_toggle(model.inpaint, "use_inpaint", self.use_inpaint_button),
                 bind_toggle(model.inpaint, "use_prompt_focus", self.use_prompt_focus_button),
+                bind_toggle(model, "edit_mode", self.edit_mode_switch),
                 model.style_changed.connect(self.update_widgets_enabled),
                 model.strength_changed.connect(self.update_widgets_enabled),
                 model.layers.changed.connect(self.update_context_layers),
+                model.edit_mode_changed.connect(self.update_widgets_enabled),
             ]
             self.update_widgets_enabled()
             self.update_context_layers()
@@ -615,9 +622,10 @@ class CustomInpaintWidget(QWidget):
 
     def update_widgets_enabled(self):
         arch = self._model.arch
-        self.fill_mode_combo.setEnabled(self.model.strength == 1.0)
+        self.fill_mode_combo.setEnabled(self.model.strength == 1.0 and not self.model.is_editing)
         self.use_inpaint_button.setEnabled(arch.is_sdxl_like or arch.has_controlnet_inpaint)
-        self.use_prompt_focus_button.setEnabled(arch is Arch.sd15 or arch.is_sdxl_like)
+        self.use_prompt_focus_button.setVisible(arch is Arch.sd15 or arch.is_sdxl_like)
+        self.edit_mode_switch.setEnabled(self.model.can_toggle_edit)
 
     def update_context_layers(self):
         current = self.context_combo.currentData()
@@ -828,7 +836,7 @@ class GenerationWidget(QWidget):
         InpaintMode.custom: _("Generate (Custom)"),
     }
 
-    def _mk_action(self, mode: InpaintMode, text: str, icon: str, is_edit=False):
+    def _mk_action(self, mode: InpaintMode, text: str, icon: str, is_edit: bool | None = False):
         action = QAction(text, self)
         action.setIcon(theme.icon(icon))
         action.setIconVisibleInMenu(True)
@@ -845,13 +853,18 @@ class GenerationWidget(QWidget):
 
     def _create_inpaint_menu(self):
         menu = QMenu(self)
-        for mode in InpaintMode:
-            if mode is InpaintMode.custom:
-                menu.addAction(
-                    self._mk_action(InpaintMode.add_object, _("Edit"), "edit", is_edit=True)
-                )
-            text = self._inpaint_text[mode]
-            menu.addAction(self._mk_action(mode, text, f"inpaint-{mode.name}"))
+
+        def add(mode: InpaintMode, text: str, icon: str, is_edit: bool | None = False):
+            text = text or self._inpaint_text[mode]
+            menu.addAction(self._mk_action(mode, text, icon, is_edit))
+
+        add(InpaintMode.automatic, "", "inpaint-automatic")
+        add(InpaintMode.fill, "", "inpaint-fill")
+        add(InpaintMode.expand, "", "inpaint-expand")
+        add(InpaintMode.remove_object, "", "inpaint-remove_object")
+        add(InpaintMode.replace_background, "", "inpaint-replace_background")
+        add(InpaintMode.add_object, _("Edit"), "edit", is_edit=True)
+        add(InpaintMode.custom, "", "inpaint-custom", is_edit=None)
         return menu
 
     def _create_generate_region_menu(self):
@@ -860,7 +873,9 @@ class GenerationWidget(QWidget):
             self._mk_action(InpaintMode.automatic, _("Generate Region"), "generate-region")
         )
         menu.addAction(
-            self._mk_action(InpaintMode.custom, _("Generate Region (Custom)"), "inpaint-custom")
+            self._mk_action(
+                InpaintMode.custom, _("Generate Region (Custom)"), "inpaint-custom", is_edit=None
+            )
         )
         return menu
 
@@ -874,7 +889,11 @@ class GenerationWidget(QWidget):
         menu = QMenu(self)
         menu.addAction(self._mk_action(InpaintMode.automatic, _("Refine"), "refine"))
         menu.addAction(self._mk_action(InpaintMode.automatic, _("Edit"), "edit", is_edit=True))
-        menu.addAction(self._mk_action(InpaintMode.custom, _("Refine (Custom)"), "inpaint-custom"))
+        menu.addAction(
+            self._mk_action(
+                InpaintMode.custom, _("Refine (Custom)"), "inpaint-custom", is_edit=None
+            )
+        )
         return menu
 
     def _create_refine_region_menu(self):
@@ -917,9 +936,10 @@ class GenerationWidget(QWidget):
         menu.setFixedWidth(width)
         menu.exec_(self.generate_button.mapToGlobal(pos))
 
-    def change_inpaint_mode(self, mode: InpaintMode, is_edit: bool):
+    def change_inpaint_mode(self, mode: InpaintMode, is_edit: bool | None):
         self.model.inpaint.mode = mode
-        self.model.edit_mode = is_edit
+        if is_edit is not None:
+            self.model.edit_mode = is_edit
 
     def toggle_region_only(self, checked: bool):
         self.model.region_only = checked
@@ -945,14 +965,12 @@ class GenerationWidget(QWidget):
         has_active_region = regions.is_linked(self.model.layers.active)
         is_region_only = has_regions and has_active_region and self.model.region_only
         is_edit = self.model.is_editing
-        base_arch = resolve_arch(self.model.style, root.connection.client_if_connected)
-        can_switch_edit = self.model.can_edit and not base_arch.is_edit
         self.region_mask_button.setVisible(has_regions)
         self.region_mask_button.setEnabled(has_active_region)
         self.region_mask_button.setIcon(_region_mask_button_icons[is_region_only])
 
         if self.model.document.selection_bounds is None and not is_region_only:
-            self.inpaint_mode_button.setVisible(can_switch_edit)
+            self.inpaint_mode_button.setVisible(self.model.can_toggle_edit)
             self.custom_inpaint.setVisible(False)
             if is_edit:
                 icon = "edit"

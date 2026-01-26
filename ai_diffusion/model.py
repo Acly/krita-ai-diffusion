@@ -256,7 +256,7 @@ class Model(QObject, ObservableProperties):
             bounds, mask.bounds = compute_relative_bounds(bounds, mask.bounds)
 
             if inpaint_mode is InpaintMode.custom:
-                inpaint = self.inpaint.get_params(mask)
+                inpaint = self.inpaint.get_params(mask, self.is_editing)
             else:
                 inpaint = workflow.detect_inpaint(
                     inpaint_mode, mask.bounds, arch, conditioning, strength
@@ -875,11 +875,11 @@ class Model(QObject, ObservableProperties):
             self._style_connection = style.changed.connect(self._handle_style_changed)
             self.style_changed.emit(style)
             self.modified.emit(self, "style")
-            self.edit_mode = self.edit_mode and self.can_edit
+            self.edit_mode = self.is_editing
 
     def _handle_style_changed(self):
         self.style_changed.emit(self.style)
-        self.edit_mode = self.edit_mode and self.can_edit
+        self.edit_mode = self.is_editing
 
     def generate_seed(self):
         self.seed = workflow.generate_seed()
@@ -997,6 +997,11 @@ class Model(QObject, ObservableProperties):
         return self.edit_style is not None
 
     @property
+    def can_toggle_edit(self):
+        style_arch = resolve_arch(self.style, self._connection.client_if_connected)
+        return not style_arch.is_edit and self.can_edit
+
+    @property
     def is_editing(self):
         return self.arch.is_edit or (self.can_edit and self.edit_mode)
 
@@ -1017,8 +1022,9 @@ class CustomInpaint(QObject, ObservableProperties):
     context_layer_id_changed = pyqtSignal(QUuid)
     modified = pyqtSignal(QObject, str)
 
-    def get_params(self, mask: Mask):
-        params = InpaintParams(self.mode, mask.bounds, self.fill)
+    def get_params(self, mask: Mask, is_editing: bool):
+        fill = FillMode.none if is_editing else self.fill
+        params = InpaintParams(self.mode, mask.bounds, fill)
         params.use_inpaint_model = self.use_inpaint
         params.use_condition_mask = self.use_prompt_focus
         return params
