@@ -1284,11 +1284,12 @@ def upscale_tiled(
     models: ModelDict,
 ):
     upscale_factor = extent.initial.width / extent.input.width
+    multiple = models.arch.latent_compression_factor
     if upscale.tile_overlap >= 0:
-        layout = TileLayout(extent.initial, extent.desired.width, upscale.tile_overlap)
+        layout = TileLayout(extent.initial, extent.desired.width, upscale.tile_overlap, multiple)
     else:
         layout = TileLayout.from_denoise_strength(
-            extent.initial, extent.desired.width, sampling.denoise_strength
+            extent.initial, extent.desired.width, sampling.denoise_strength, multiple
         )
 
     model, clip, vae = load_checkpoint_with_lora(w, checkpoint, models.all)
@@ -1302,7 +1303,9 @@ def upscale_tiled(
         upscaled = in_image
     if extent.input != extent.initial:
         upscaled = w.scale_image(upscaled, extent.initial)
-    tile_layout = w.create_tile_layout(upscaled, layout.min_size, layout.padding, layout.blending)
+    tile_layout = w.create_tile_layout(
+        upscaled, layout.min_size, layout.padding, layout.blending, multiple
+    )
 
     def tiled_control(control: Control, index: int):
         img = control.image.load(w, extent.initial, default_image=in_image)
@@ -1341,7 +1344,7 @@ def upscale_tiled(
         prompt = apply_reference_conditioning(
             w, prompt, tile_image, latent, tile_cond, vae, models.arch, checkpoint.tiled_vae
         )
-        sampler_params = _sampler_params(sampling, layout.bounds(i).extent)
+        sampler_params = _sampler_params(sampling, bounds.extent)
         sampler = w.sampler_custom_advanced(
             tile_model, prompt, latent, models.arch, **sampler_params
         )
@@ -1660,12 +1663,15 @@ def prepare(
         target_extent = canvas.extent * upscale_factor
         if style.preferred_resolution > 0:
             tile_size = style.preferred_resolution
+        elif arch is Arch.sd15:
+            tile_size = 800
         else:
-            tile_size = 1024 if arch.is_sdxl_like else 800
+            tile_size = 1024
         tile_size = max(tile_size, target_extent.longest_side // 12)  # max 12x12 tiles total
-        tile_size = multiple_of(tile_size - 128, 8)
+        tile_size = multiple_of(tile_size - 128, arch.latent_compression_factor)
         tile_size = Extent(tile_size, tile_size)
-        extent = ExtentInput(canvas.extent, target_extent.multiple_of(8), tile_size, target_extent)
+        initial_extent = target_extent.multiple_of(arch.latent_compression_factor)
+        extent = ExtentInput(canvas.extent, initial_extent, tile_size, target_extent)
         i.images = ImageInput(extent, canvas)
         assert upscale is not None
         i.upscale = upscale

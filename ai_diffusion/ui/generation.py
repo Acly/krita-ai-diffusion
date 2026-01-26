@@ -12,7 +12,6 @@ from PyQt5.QtWidgets import QComboBox, QCheckBox, QMenu, QMessageBox, QToolButto
 
 from ..properties import Binding, Bind, bind, bind_combo, bind_toggle
 from ..image import Bounds, Extent, Image
-from ..client import resolve_arch
 from ..jobs import Job, JobQueue, JobState, JobKind, JobParams
 from ..model import Model, InpaintContext, RootRegion, ProgressKind, Workspace
 from ..style import Styles

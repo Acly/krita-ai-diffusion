@@ -354,13 +354,28 @@ tile_layouts = {
             {"start": Point(512, 512), "end": Point(1024, 1024)},
         ],
     },
+    "multiple-16": {
+        "extent": Extent(1472, 512),
+        "min_tile_size": 512,
+        "padding": 32,
+        "multiple": 16,
+        "tile_count": (3, 1),
+        "tile_size": (544, 512),
+        "tiles": [
+            {"start": Point(0, 0), "end": Point(544, 512)},
+            {"start": Point(480, 0), "end": Point(1024, 512)},
+            {"start": Point(960, 0), "end": Point(1472, 512)},
+        ],
+    },
 }
 
 
 @pytest.mark.parametrize("test_set", tile_layouts.keys())
 def test_tile_layout(test_set):
     params = tile_layouts[test_set]
-    layout = TileLayout(params["extent"], params["min_tile_size"], params["padding"])
+    layout = TileLayout(
+        params["extent"], params["min_tile_size"], params["padding"], params.get("multiple", 8)
+    )
     assert layout.tile_count == params["tile_count"]
     assert layout.tile_extent == params["tile_size"]
     assert layout.total_tiles == len(params["tiles"])

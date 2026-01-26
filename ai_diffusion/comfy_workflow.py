@@ -1186,7 +1186,9 @@ class ComfyWorkflow:
     def save_image(self, image: Output, prefix: str):
         return self.add("SaveImage", 1, images=image, filename_prefix=prefix)
 
-    def create_tile_layout(self, image: Output, tile_size: int, padding: int, blending: int):
+    def create_tile_layout(
+        self, image: Output, tile_size: int, padding: int, blending: int, multiple: int
+    ):
         return self.add(
             "ETN_TileLayout",
             1,
@@ -1194,6 +1196,7 @@ class ComfyWorkflow:
             min_tile_size=tile_size,
             padding=padding,
             blending=blending,
+            multiple=multiple,
         )
 
     def extract_image_tile(self, image: Output, layout: Output, index: int):

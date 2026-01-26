@@ -280,10 +280,10 @@ class TileLayout:
     blending: int
     tile_count: Extent
 
-    def __init__(self, extent: Extent, min_tile_size: int, padding: int):
+    def __init__(self, extent: Extent, min_tile_size: int, padding: int, multiple: int):
         self.image_extent = extent
         self.min_size = min_tile_size
-        self.padding = padding
+        self.padding = multiple_of(padding, multiple)
         self.blending = max(1, self.padding // 16) * 8 if padding > 0 else 0
         self.tile_count = (self.image_extent // (min_tile_size - 2 * self.padding)).at_least(1)
 
@@ -292,12 +292,12 @@ class TileLayout:
             math.ceil(padded.width / self.tile_count.width),
             math.ceil(padded.height / self.tile_count.height),
         )
-        self.tile_extent = tile_extent.multiple_of(8)
+        self.tile_extent = tile_extent.multiple_of(multiple)
 
     @staticmethod
-    def from_denoise_strength(extent: Extent, min_tile_size: int, strength: float):
-        padding = round((16 + 64 * strength) / 8) * 8
-        return TileLayout(extent, min_tile_size, padding)
+    def from_denoise_strength(extent: Extent, min_tile_size: int, strength: float, multiple: int):
+        padding = multiple_of(round(16 + 64 * strength), multiple)
+        return TileLayout(extent, min_tile_size, padding, multiple)
 
     @property
     def total_tiles(self):
