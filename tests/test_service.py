@@ -133,6 +133,7 @@ cost_params = {
     "upscaled-invalid": (Arch.sd15, 1, 512, 512, 10),
     "illustrious": (Arch.illu, 2, 1024, 1024, 20),
     "illustrious-v": (Arch.illu_v, 2, 1024, 1024, 20),
+    "flux2": (Arch.flux2_4b, 2, 1024, 1024, 4),
 }
 
 

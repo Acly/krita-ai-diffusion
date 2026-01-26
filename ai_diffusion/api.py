@@ -248,7 +248,7 @@ def _base_cost(arch: Arch):
         return 1
     if arch.is_sdxl_like:
         return 2
-    if arch.is_flux_like or arch is Arch.chroma:
+    if arch.is_flux_like or arch.is_flux2 or arch is Arch.zimage:
         return 4
     return 1
 

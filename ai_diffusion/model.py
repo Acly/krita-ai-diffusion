@@ -403,7 +403,7 @@ class Model(QObject, ObservableProperties):
                 input, _ = self._prepare_upscale_image(dryrun=True)
             else:
                 return 0
-            return input.cost
+            return input.cost * self.batch_count
         except Exception as e:
             util.client_logger.warning(f"Failed to estimate workflow cost: {type(e)} {str(e)}")
             return 0
