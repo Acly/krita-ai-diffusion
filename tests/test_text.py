@@ -1,4 +1,7 @@
 from ai_diffusion.text import (
+    char16_len,
+    char16_index_to_str_index,
+    str_index_to_char16_index,
     eval_wildcards,
     extract_layers,
     merge_prompt,
@@ -12,6 +15,55 @@ from ai_diffusion.api import LoraInput
 from ai_diffusion.files import File, FileCollection
 from ai_diffusion.jobs import JobParams
 from ai_diffusion.image import Bounds
+
+
+def test_char16_len():
+    assert char16_len("hello") == 5
+    assert char16_len("a") == 1
+    assert char16_len("") == 0
+    assert char16_len("😀") == 2
+    assert char16_len("hello😀") == 7
+    assert char16_len("😀😀") == 4
+    assert char16_len("a😀b") == 4
+    assert char16_len("café") == 4
+
+
+def test_char16_index_to_str_index():
+    text = "a😀b"
+    assert char16_index_to_str_index(text, 0) == 0
+    assert char16_index_to_str_index(text, 1) == 1
+    assert char16_index_to_str_index(text, 3) == 2
+    assert char16_index_to_str_index(text, 4) == 3
+
+
+def test_str_index_to_char16_index():
+    text = "a😀b"
+    assert str_index_to_char16_index(text, 0) == 0
+    assert str_index_to_char16_index(text, 1) == 1
+    assert str_index_to_char16_index(text, 2) == 3
+    assert str_index_to_char16_index(text, 3) == 4
+
+
+def test_roundtrip_conversion():
+    text = "hello😀world"
+    for i in range(len(text)):
+        c16_index = str_index_to_char16_index(text, i)
+        str_index = char16_index_to_str_index(text, c16_index)
+        assert str_index == i
+
+
+def test_char16_index_to_str_index_cjk():
+    text = "你好"
+    assert char16_index_to_str_index(text, 0) == 0
+    assert char16_index_to_str_index(text, 1) == 1
+    assert char16_index_to_str_index(text, 2) == 2
+
+
+def test_str_index_to_char16_index_cjk():
+    text = "你好"
+    assert str_index_to_char16_index(text, 0) == 0
+    assert str_index_to_char16_index(text, 1) == 1
+    assert str_index_to_char16_index(text, 2) == 2
 
 
 def test_strip_prompt_comment():

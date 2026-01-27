@@ -10,6 +10,7 @@ from PyQt5.QtCore import Qt, QStringListModel, QSize, QRect, QAbstractProxyModel
 from ..root import root
 from ..settings import settings
 from ..files import FileFilter
+from ..text import char16_index_to_str_index
 from ..util import ensure, plugin_dir, user_data_dir
 
 
@@ -40,11 +41,7 @@ class TagListModel(QStringListModel):
 
 
 def cursor_position(text: str, cursor: QTextCursor):
-    pos_c16 = cursor.position()  # counted as 2-byte characters
-    bytes_utf16 = text.encode("utf-16")
-    byte_pos = 2 + pos_c16 * 2  # utf-16 text starts with 2-byte BOM
-    text_until_pos = bytes_utf16[:byte_pos].decode("utf-16")
-    return len(text_until_pos)
+    return char16_index_to_str_index(text, cursor.position())
 
 
 class TagCompleterDelegate(QStyledItemDelegate):

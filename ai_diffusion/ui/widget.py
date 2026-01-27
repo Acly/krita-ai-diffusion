@@ -47,6 +47,7 @@ from ..jobs import JobState, JobKind
 from ..model import Model, Workspace, SamplingQuality, ProgressKind, ErrorKind, Error, QueueMode
 from ..model import no_error
 from ..text import edit_attention, select_on_cursor_pos
+from ..text import char16_len, str_index_to_char16_index, char16_index_to_str_index
 from ..localization import translate as _
 from ..util import ensure
 from ..workflow import apply_strength, snap_to_percent
@@ -566,18 +567,20 @@ class TextPromptWidget(QPlainTextEdit):
             text = self.toPlainText()
 
             if cursor.hasSelection():
-                start = cursor.selectionStart()
-                end = cursor.selectionEnd()
+                start = char16_index_to_str_index(text, cursor.selectionStart())
+                end = char16_index_to_str_index(text, cursor.selectionEnd())
             else:
-                start, end = select_on_cursor_pos(text, cursor.position())
+                pos = char16_index_to_str_index(text, cursor.position())
+                start, end = select_on_cursor_pos(text, pos)
 
             target_text = text[start:end]
             text_after_edit = edit_attention(target_text, event.key() == Qt.Key.Key_Up)
             text = text[:start] + text_after_edit + text[end:]
             self.setPlainText(text)
+            start_c16 = str_index_to_char16_index(text, start)
             cursor = self.textCursor()
-            cursor.setPosition(min(start + len(text_after_edit), len(text)))
-            cursor.setPosition(min(start, len(text)), QTextCursor.KeepAnchor)
+            cursor.setPosition(min(start_c16 + char16_len(text_after_edit), char16_len(text)))
+            cursor.setPosition(min(start_c16, char16_len(text)), QTextCursor.KeepAnchor)
             self.setTextCursor(cursor)
 
 

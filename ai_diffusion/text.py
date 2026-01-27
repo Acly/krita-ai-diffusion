@@ -10,6 +10,27 @@ from .localization import translate as _
 from .util import client_logger as log
 from .jobs import JobParams
 
+# Functions to convert between position in Python str objects (unicode) and
+# index in QString char16 arrays (used in eg. QTextCursor).
+
+
+def char16_len(text: str):
+    return len(text.encode("utf-16")) // 2 - 1  # subtract BOM
+
+
+def char16_index_to_str_index(text: str, c16_index: int):
+    bytes_utf16 = text.encode("utf-16")
+    byte_pos = 2 + c16_index * 2  # utf-16 text starts with 2-byte BOM
+    text_until_pos = bytes_utf16[:byte_pos].decode("utf-16")
+    return len(text_until_pos)
+
+
+def str_index_to_char16_index(text: str, index: int):
+    return char16_len(text[:index])
+
+
+# Prompt processing utilities
+
 
 class LoraId(NamedTuple):
     file: str
