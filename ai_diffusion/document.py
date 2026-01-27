@@ -128,14 +128,14 @@ class KritaDocument(Document):
                 QByteArray(self._id.encode("utf-8")),
             )
         self._instances[self._id] = self
+        self._layers = LayerManager(krita_document)
+        self._selection_bounds: Bounds | None = None
+        self._current_time: int = 0
 
         self._poller = QTimer()
         self._poller.setInterval(20)
         self._poller.timeout.connect(self._poll)
         self._poller.start()
-        self._layers = LayerManager(krita_document)
-        self._selection_bounds: Bounds | None = None
-        self._current_time: int = 0
 
     @staticmethod
     def _id_from_annotation(doc: krita.Document) -> str | None:
