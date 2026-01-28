@@ -249,6 +249,9 @@ class CloudClient(Client):
                 if output := response.get("output", None):
                     progress = output.get("progress", progress)
                 await self._report(ClientEvent.progress, job.local_id, progress)
+
+            if job.state is JobState.cancelled:
+                break
             await asyncio.sleep(_poll_interval)
 
         if status == "completed":
@@ -260,7 +263,7 @@ class CloudClient(Client):
             await self._report(ClientEvent.error, job.local_id, error=err_msg)
             job.state = JobState.finalized
 
-        elif status == "cancelled":
+        elif status == "cancelled" or job.state is JobState.cancelled:
             log.info(f"{job} was cancelled")
             await self._report(ClientEvent.interrupted, job.local_id)
             job.state = JobState.finalized
@@ -310,11 +313,14 @@ class CloudClient(Client):
         await self._messages.put(ClientMessage(event, job_id, value, **kwargs))
 
     async def interrupt(self):
+        if job := self._exec_send.current_job:
+            job.state = JobState.cancelled
         if job := self._exec_generate.current_job:
             if job.remote_id and job.worker_id:
                 response = await self._post(f"cancel/{job.worker_id}/{job.remote_id}", {})
                 log.info(f"Requested cancellation of {job}: {response}")
                 job.state = JobState.cancelled
+        # If a job is in the receive stage, we let it finish normally.
 
     async def cancel(self, job_ids: Iterable[str]):
         for executor in (self._exec_send, self._exec_generate, self._exec_receive):
