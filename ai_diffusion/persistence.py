@@ -204,6 +204,7 @@ class ModelSync:
         model.jobs.result_used.connect(self._save_later)
         model.jobs.selection_changed.connect(self._save_later)
         self._track_regions(model.regions)
+        self._track_regions(model.edit_regions)
 
     def _track_control(self, control: ControlLayer):
         self._save()
