@@ -467,6 +467,9 @@ class Settings(QObject):
     document_defaults: dict[str, Any]
     _document_defaults = Setting(_("Document Defaults"), {}, _("Recently used document settings"))
 
+    last_news: str
+    _last_news = Setting("Last seen news digest", "")
+
     # Folder where intermediate images are stored for debug purposes (default: None)
     debug_image_folder = os.environ.get("KRITA_AI_DIFFUSION_DEBUG_IMAGE")
 

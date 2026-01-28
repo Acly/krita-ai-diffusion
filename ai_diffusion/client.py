@@ -1,5 +1,6 @@
 from __future__ import annotations
 import asyncio
+import hashlib
 from abc import ABC, abstractmethod
 from collections import deque
 from enum import Enum
@@ -84,6 +85,16 @@ class User(QObject, ObservableProperties):
         super().__init__()
         self.id = id
         self.name = name
+
+
+class News(NamedTuple):
+    text: str
+    digest: str
+
+    @staticmethod
+    def create(text: str):
+        digest = hashlib.sha256(text.encode("utf-8")).hexdigest()[:16]
+        return News(text, digest)
 
 
 class DeviceInfo(NamedTuple):
@@ -424,6 +435,10 @@ class Client(ABC):
 
     @property
     def user(self) -> User | None:
+        return None
+
+    @property
+    def news(self) -> News | None:
         return None
 
     @property

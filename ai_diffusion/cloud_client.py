@@ -11,7 +11,7 @@ from dataclasses import dataclass
 from typing import Iterable
 
 from .api import WorkflowInput
-from .client import Client, ClientEvent, ClientMessage, ClientModels, DeviceInfo
+from .client import Client, ClientEvent, ClientMessage, ClientModels, DeviceInfo, News
 from .client import ClientFeatures, ClientJobQueue, TranslationPackage, User, loras_to_upload
 from .image import ImageCollection, qt_supports_webp
 from .network import RequestManager, NetworkError
@@ -53,6 +53,7 @@ class CloudClient(Client):
         self._requests = RequestManager()
         self._token: str = ""
         self._user: User | None = None
+        self._news: News | None = None
         self._current_job: JobInfo | None = None
         self._cancel_requested: bool = False
         self._queue: ClientJobQueue[JobInfo] = ClientJobQueue()
@@ -106,6 +107,9 @@ class CloudClient(Client):
         self._user.images_generated = user_data["images_generated"]
         self._user.credits = user_data["credits"]
         self._features = enumerate_features(user_data)
+        if news_text := user_data.get("news"):
+            self._news = News.create(news_text)
+
         model_data = await self._get("plugin/resources")
         self.models = ClientModels.from_dict(model_data)
         log.info(f"Connected to {self.url}, user: {self._user.id}")
@@ -234,6 +238,10 @@ class CloudClient(Client):
     @property
     def user(self):
         return self._user
+
+    @property
+    def news(self):
+        return self._news
 
     @property
     def performance_settings(self):

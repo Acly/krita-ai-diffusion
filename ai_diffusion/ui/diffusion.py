@@ -1,5 +1,5 @@
 from __future__ import annotations
-from PyQt5.QtCore import Qt
+from PyQt5.QtCore import Qt, pyqtSignal
 from PyQt5.QtWidgets import QWidget, QVBoxLayout, QHBoxLayout, QPushButton, QLabel, QStackedWidget
 from PyQt5.QtWidgets import QCheckBox
 from krita import Krita, DockWidget
@@ -162,7 +162,50 @@ class ConnectionWidget(QWidget):
         Krita.instance().action("ai_diffusion_settings").trigger()
 
 
+class NewsWidget(QWidget):
+    accepted = pyqtSignal()
+
+    def __init__(self, parent: QWidget):
+        super().__init__(parent)
+        self._digest = ""
+
+        self._news_text = QLabel(self)
+        self._news_text.setWordWrap(True)
+        self._news_text.setOpenExternalLinks(True)
+
+        self._ok_button = QPushButton(_("Ok"), self)
+        self._ok_button.setMinimumHeight(32)
+        self._ok_button.clicked.connect(self._mark_news_seen)
+
+        news_layout = QVBoxLayout()
+        news_layout.addWidget(self._news_text)
+        news_layout.addSpacing(12)
+        news_layout.addWidget(self._ok_button)
+        self.setLayout(news_layout)
+
+        self.update_content()
+
+    def update_content(self):
+        if client := root.connection.client_if_connected:
+            if news := client.news:
+                if self._digest != news.digest:
+                    self._news_text.setText(news.text)
+                    self._digest = news.digest
+
+    @property
+    def has_news(self):
+        return self._digest != "" and self._digest != settings.last_news
+
+    def _mark_news_seen(self):
+        settings.last_news = self._digest
+        settings.save()
+        self.update_content()
+        self.accepted.emit()
+
+
 class WelcomeWidget(QWidget):
+    accepted = pyqtSignal()
+
     def __init__(self, server: Server):
         super().__init__()
 
@@ -179,6 +222,9 @@ class WelcomeWidget(QWidget):
         header_layout.addWidget(header_text)
 
         self._update_widget = AutoUpdateWidget(self)
+        self._news_widget = NewsWidget(self)
+        self._news_widget.accepted.connect(self.update_content)
+        self._news_widget.accepted.connect(self.accepted)
         self._connection_widget = ConnectionWidget(server, self)
 
         info = QLabel(
@@ -192,6 +238,7 @@ class WelcomeWidget(QWidget):
         layout.addLayout(header_layout)
         layout.addSpacing(12)
         layout.addWidget(self._update_widget)
+        layout.addWidget(self._news_widget)
         layout.addWidget(self._connection_widget)
         layout.addSpacing(24)
         layout.addWidget(info, 0, Qt.AlignmentFlag.AlignRight)
@@ -202,12 +249,20 @@ class WelcomeWidget(QWidget):
 
     def update_content(self):
         self._update_widget.update_content()
+        self._news_widget.update_content()
         self._connection_widget.update_content()
-        self._connection_widget.setVisible(not self._update_widget.is_visible)
+        has_update = self._update_widget.is_visible
+        has_news = self._news_widget.has_news
+        self._news_widget.setVisible(has_news and not has_update)
+        self._connection_widget.setVisible(not (has_update or has_news))
 
     @property
     def requires_update(self):
         return self._update_widget.is_visible
+
+    @property
+    def has_news(self):
+        return self._news_widget.has_news
 
 
 class ImageDiffusionWidget(DockWidget):
@@ -231,6 +286,7 @@ class ImageDiffusionWidget(DockWidget):
         self._frame.addWidget(self._custom_placeholder)
         self.setWidget(self._frame)
 
+        self._welcome.accepted.connect(self.update_content)
         root.connection.state_changed.connect(self.update_content)
         root.auto_update.state_changed.connect(self.update_content)
         root.model_created.connect(self.register_model)
@@ -244,11 +300,14 @@ class ImageDiffusionWidget(DockWidget):
         self.update_content()
 
     def update_content(self):
+        self._welcome.update_content()
         model = root.model_for_active_document()
         connection = root.connection
+        is_connected = connection.state is ConnectionState.connected
         requires_update = self._welcome.requires_update
+        has_news = self._welcome.has_news
         is_cloud = settings.server_mode is ServerMode.cloud
-        if model is None or connection.state is not ConnectionState.connected or requires_update:
+        if model is None or not is_connected or requires_update or has_news:
             self._frame.setCurrentWidget(self._welcome)
         elif model.workspace is Workspace.generation:
             self._generation.model = model
