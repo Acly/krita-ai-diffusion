@@ -8,24 +8,30 @@ from ai_diffusion.api import WorkflowInput, WorkflowKind, ControlInput, ImageInp
 from ai_diffusion.api import SamplingInput, ConditioningInput, ExtentInput, RegionInput
 from ai_diffusion.client import Client, ClientEvent
 from ai_diffusion.cloud_client import CloudClient, enumerate_features, apply_limits
-from ai_diffusion.image import Extent, Image, Bounds
+from ai_diffusion.image import Extent, Image, Bounds, ImageCollection
 from ai_diffusion.resources import ControlMode, Arch
 from ai_diffusion.util import ensure
 from .conftest import CloudService
 from .config import test_dir, result_dir
 
 
-async def receive_images(client: Client, work: WorkflowInput):
+async def receive_images(client: Client, work: WorkflowInput | list[WorkflowInput]):
     job_id = None
+    images = ImageCollection()
+    if not isinstance(work, list):
+        work = [work]
     async for msg in client.listen():
         if job_id is None:
-            job_id = await client.enqueue(work)
-        if msg.event is ClientEvent.finished and msg.job_id == job_id:
+            job_id = [await client.enqueue(w) for w in work]
+        if msg.event is ClientEvent.finished and msg.job_id in job_id:
             assert msg.images is not None
-            return msg.images
+            images.append(msg.images)
+            job_id.remove(msg.job_id)
+            if len(job_id) == 0:
+                await client.disconnect()
         if msg.event is ClientEvent.error:
             raise Exception(msg.error)
-    assert False, "Connection closed without receiving images"
+    return images
 
 
 async def connect_cloud(service: CloudService):
@@ -39,7 +45,10 @@ def cloud_client(pytestconfig, qtapp, cloud_service: CloudService):
         pytest.skip("Diffusion is disabled on CI")
     if not cloud_service.enabled:
         pytest.skip("Cloud service not running")
-    return qtapp.run(connect_cloud(cloud_service))
+
+    client = qtapp.run(connect_cloud(cloud_service))
+    yield client
+    qtapp.run(client.disconnect())
 
 
 def run_and_save(
@@ -219,8 +228,7 @@ def test_multiple_jobs(pytestconfig, qtapp, cloud_service: CloudService):
 
     async def run_job(client: CloudClient, index: int):
         workflow = create_simple_workflow(prompt=prompts[index], input=input_image)
-        images = await receive_images(client, workflow)
-        images.append(await receive_images(client, workflow))
+        images = await receive_images(client, [workflow, workflow])
         for i, result in enumerate(images):
             filename = result_dir / f"cloud_multi_user{index}_image{i}.png"
             result.save(filename)
