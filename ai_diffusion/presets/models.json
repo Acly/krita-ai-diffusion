@@ -355,13 +355,13 @@
       "requirements": "cuda_fp4"
     },
     {
-      "id": "checkpoint-bf16-flux2_4b",
+      "id": "checkpoint-fp8-flux2_4b",
       "name": "Flux 2 Klein 4B",
       "files": [
         {
-          "path": "models/diffusion_models/flux-2-klein-4b.safetensors",
-          "url": "https://huggingface.co/black-forest-labs/FLUX.2-klein-4B/resolve/main/flux-2-klein-4b.safetensors",
-          "sha256": "ec3d4e733a771f61c052fb4856c48b336c55eaf2c65487c2a1faeb9bbda7a343"
+          "path": "models/diffusion_models/flux-2-klein-4b-fp8.safetensors",
+          "url": "https://huggingface.co/black-forest-labs/FLUX.2-klein-4b-fp8/resolve/main/flux-2-klein-4b-fp8.safetensors",
+          "sha256": "97ed34fe0567e436200f2faee3939b88f2b5d99f8af2a4dc16532c4245c0ccb6"
         }
       ]
     }
