@@ -16,14 +16,14 @@ The plugin supports:
 * [Stable Diffusion 1.5 (SD1.5)](#stable-diffusion-1.5)
 * [Stable Diffusion XL (SDXL)](#stable-diffusion-xl)
 * [Illustrious / NoobAI](#illustrious--noobai)
-* [Flux 1](#flux)
+* [Flux 1](#flux-1)
+* [Flux 2](#flux-2)
+* [Z-Image](#z-image)
 
 The following base models have limited support:
 * <ExternalLink href="https://github.com/Acly/krita-ai-diffusion/discussions/1176">Chroma</ExternalLink>
 * <ExternalLink href="https://github.com/Acly/krita-ai-diffusion/discussions/1328">Stable Diffusion 3.5 (SD3.5)</ExternalLink>
 * <ExternalLink href="https://github.com/Acly/krita-ai-diffusion/discussions/2081">Qwen Image</ExternalLink>
-* <ExternalLink href="https://github.com/Acly/krita-ai-diffusion/discussions/2188">Z-Image</ExternalLink>
-* <ExternalLink href="https://github.com/Acly/krita-ai-diffusion/discussions/2279">Flux 2 [klein]</ExternalLink>
 
 ### Stable Diffusion 1.5
 
@@ -73,7 +73,7 @@ distinguished from SDXL models.
 The _v-prediction_ models are also supported. They are detected automatically.
 </Aside>
 
-### Flux
+### Flux 1
 
 Flux is a modern diffusion model architecture with superior text understanding
 and image quality compared to Stable Diffusion. It was released by Black Forest
@@ -93,6 +93,34 @@ Models marked `[Nunchaku]` are quantized versions which are smaller and
 much faster. They retain most of the quality, and are available
 for NVIDIA GPUs only.
 </Aside>
+
+### Flux 2
+
+Flux 2 is the successor to Flux with improved quality of image details.
+The instruction-based edit capabilities are integrated into the main model,
+and recognize more complex instructions.
+
+The plugin supports the "Klein" variants of Flux 2, which are small optimized
+versions suitable for consumer-grade GPUs. They are faster and more lightweight
+than Flux 1 despite their superior capabilities. Sometimes they struggle with
+image continuity, eg. wrong anatomy or inconsistent objects.
+
+Flux 2 Klein also comes as a larger "9B" variant which requires more VRAM
+but produces higher quality results. It is supported by the plugin as well,
+but must be [downloaded manually](https://huggingface.co/black-forest-labs/FLUX.2-klein-9B).
+
+### Z-Image
+
+Z-Image is a medium-sized diffusion model, somewhere between Flux 1 and Flux 2
+4B in terms of memory requirements and speed. The "Turbo" variant has made
+a large impact by delivering extremely convincing realistic images with
+reasonable performance. It has good text understanding in Chinese and English.
+
+There is also a "Base" variant of Z-Image which is not as heavily tuned towards
+photographic content. It can produce a much wider variety of styles, but
+images are less consistent and generation time is much slower. You can
+[download it manually](https://huggingface.co/Comfy-Org/z_image/blob/main/split_files/diffusion_models/z_image_bf16.safetensors)
+if you want to experiment.
 
 ## Installation
 
