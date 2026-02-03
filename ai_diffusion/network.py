@@ -286,6 +286,13 @@ class DownloadHelper:
         return (datetime.now() - self._time).total_seconds()
 
 
+def _write_file_chunks(file: QFile, reply: QNetworkReply):
+    chunk_size = 4 * (1024**2)
+    while not reply.atEnd():
+        data = reply.read(chunk_size)
+        file.write(data)
+
+
 async def _try_download(network: QNetworkAccessManager, url: str, path: Path):
     out_file = QFile(str(path) + ".part")
     if not out_file.open(QFile.ReadWrite | QFile.Append):  # type: ignore
@@ -306,13 +313,13 @@ async def _try_download(network: QNetworkAccessManager, url: str, path: Path):
     progress_helper = DownloadHelper(resume_from=out_file.size())
 
     def handle_progress(bytes_received, bytes_total):
-        out_file.write(reply.readAll())
+        _write_file_chunks(out_file, reply)
         result = progress_helper.update(bytes_received, bytes_total)
         if not progress_future.done():
             progress_future.set_result(result)
 
     def handle_finished():
-        out_file.write(reply.readAll())
+        _write_file_chunks(out_file, reply)
         out_file.close()
         if finished_future.cancelled():
             return  # operation was cancelled, discard result
