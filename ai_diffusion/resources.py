@@ -127,7 +127,7 @@ class Arch(Enum):
             return Arch.qwen_l
         if string == "qwen-image":
             return Arch.qwen
-        if string == "z-image":
+        if string == "z-image" or string == "zimage":
             return Arch.zimage
         return None
 

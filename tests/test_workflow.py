@@ -405,9 +405,6 @@ def test_inpaint(qtapp, client):
 
 @pytest.mark.parametrize("sdver", [Arch.sd15, Arch.sdxl, Arch.zimage, Arch.flux2_4b])
 def test_inpaint_upscale(qtapp, client, sdver):
-    if isinstance(client, CloudClient) and sdver is Arch.zimage:
-        pytest.skip("Skipping test for CloudClient with z-image model")
-
     image = Image.load(image_dir / "beach_1536x1024.webp")
     mask = Mask.rectangle(Bounds(150, 150, 768, 512), Bounds(150, 50, 1068, 812))
     prompt = ConditioningInput("ship")
@@ -707,6 +704,21 @@ def test_control_scribble(qtapp, client, op):
         run_and_save(qtapp, client, job, f"test_control_scribble_{op}", inpaint_image, mask)
     else:
         run_and_save(qtapp, client, job, f"test_control_scribble_{op}")
+
+
+@pytest.mark.parametrize("arch", [Arch.sdxl, Arch.zimage])
+def test_control_lines(qtapp, client, arch: Arch):
+    lines_image = Image.load(image_dir / "truck_landscape_lines.webp")
+    control = [ControlInput(ControlMode.soft_edge, lines_image, 0.7)]
+    prompt = ConditioningInput("truck in a snowy landscape, tundra", control=control)
+    job = create(
+        WorkflowKind.generate,
+        client,
+        canvas=Extent(1024, 1024),
+        cond=prompt,
+        style=default_style(client, arch),
+    )
+    run_and_save(qtapp, client, job, f"test_control_lines_{arch.name}")
 
 
 def test_control_canny_downscale(qtapp, client):
