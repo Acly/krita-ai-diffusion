@@ -339,7 +339,7 @@ async def _try_download(network: QNetworkAccessManager, url: str, path: Path):
         if progress_future.done():
             progress = progress_future.result()
             yield progress
-            await asyncio.sleep(0.1)  # don't starve UI
+            await asyncio.sleep(0.02)  # don't starve UI
             progress_future = asyncio.get_running_loop().create_future()
 
         if progress_helper.seconds_since_last_update() > 30:

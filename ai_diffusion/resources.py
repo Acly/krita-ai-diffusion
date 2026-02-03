@@ -431,9 +431,8 @@ class ResourceId(NamedTuple):
         kind, identifier, arch = string.split("-")
         kind = ResourceKind[kind]
         arch = Arch[arch]
-        if kind in [ResourceKind.controlnet, ResourceKind.ip_adapter, ResourceKind.preprocessor]:
-            if identifier in ControlMode.__members__:
-                identifier = ControlMode[identifier]
+        if identifier in ControlMode.__members__:
+            identifier = ControlMode[identifier]
         elif kind == ResourceKind.upscaler:
             identifier = UpscalerName[identifier]
         return ResourceId(kind, arch, identifier)
@@ -809,6 +808,7 @@ required_resource_ids = set([
     ResourceId(ResourceKind.text_encoder, Arch.qwen, "qwen"),
     ResourceId(ResourceKind.text_encoder, Arch.qwen_e, "qwen"),
     ResourceId(ResourceKind.text_encoder, Arch.qwen_e_p, "qwen"),
+    ResourceId(ResourceKind.text_encoder, Arch.zimage, "qwen_3_4b"),
     ResourceId(ResourceKind.text_encoder, Arch.flux2_4b, "qwen_3_4b"),
     ResourceId(ResourceKind.text_encoder, Arch.flux2_9b, "qwen_3_8b"),
     ResourceId(ResourceKind.controlnet, Arch.sd15, ControlMode.inpaint),
@@ -829,6 +829,7 @@ required_resource_ids = set([
     ResourceId(ResourceKind.vae, Arch.qwen, "default"),
     ResourceId(ResourceKind.vae, Arch.qwen_e, "default"),
     ResourceId(ResourceKind.vae, Arch.qwen_e_p, "default"),
+    ResourceId(ResourceKind.vae, Arch.zimage, "default"),
     ResourceId(ResourceKind.vae, Arch.flux2_4b, "default"),
     ResourceId(ResourceKind.vae, Arch.flux2_9b, "default"),
 ])
@@ -852,5 +853,7 @@ recommended_resource_ids = [
     ResourceId(ResourceKind.controlnet, Arch.flux, ControlMode.inpaint),
     ResourceId(ResourceKind.controlnet, Arch.flux, ControlMode.universal),
     ResourceId(ResourceKind.lora, Arch.flux, "turbo"),
+    ResourceId(ResourceKind.model_patch, Arch.zimage, ControlMode.universal),
+    ResourceId(ResourceKind.model_patch, Arch.zimage, ControlMode.blur),
 ]
 recommended_models = [get_resource(rid) for rid in recommended_resource_ids]

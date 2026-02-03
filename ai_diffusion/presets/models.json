@@ -182,7 +182,10 @@
       ]
     },
     {
-      "id": "vae-default-flux",
+      "id": [
+        "vae-default-flux",
+        "vae-default-zimage"
+      ],
       "name": "VAE (Flux)",
       "files": [
         {
@@ -193,7 +196,10 @@
       ]
     },
     {
-      "id": "text_encoder-qwen_3_4b-flux2_4b",
+      "id": [
+        "text_encoder-qwen_3_4b-flux2_4b",
+        "text_encoder-qwen_3_4b-zimage"
+      ],
       "name": "Qwen 3 4B",
       "files": [
         {
@@ -362,6 +368,17 @@
           "path": "models/diffusion_models/flux-2-klein-4b-fp8.safetensors",
           "url": "https://huggingface.co/black-forest-labs/FLUX.2-klein-4b-fp8/resolve/main/flux-2-klein-4b-fp8.safetensors",
           "sha256": "97ed34fe0567e436200f2faee3939b88f2b5d99f8af2a4dc16532c4245c0ccb6"
+        }
+      ]
+    },
+    {
+      "id": "checkpoint-turbo_fp8-zimage",
+      "name": "Z-Image Turbo",
+      "files": [
+        {
+          "path": "models/diffusion_models/z_image_turbo_fp8_e4m3fn.safetensors",
+          "url": "https://huggingface.co/drbaph/Z-Image-Turbo-FP8/resolve/main/z_image_turbo_fp8_e4m3fn.safetensors",
+          "sha256": "56c06ad6cb80941e8203d3e248a16ad1263499ba870f2c1931aa724fdc7c25d3"
         }
       ]
     }
@@ -719,6 +736,28 @@
           "path": "models/ipadapter/noobIPAMARK1_mark1.safetensors",
           "url": "https://huggingface.co/r3gm/noob-ipa/resolve/main/model_G/noobIPAMARK1_mark1.safetensors",
           "sha256": "5cdb6a00be1b12579745b5bed0c7b83f0869073d8a864fa8cd50a9356601919a"
+        }
+      ]
+    },
+    {
+      "id": "model_patch-universal-zimage",
+      "name": "ControlNet Universal (Z-Image)",
+      "files": [
+        {
+          "path": "models/model_patches/Z-Image-Turbo-Fun-Controlnet-Union-2.1-lite-2601-8steps.safetensors",
+          "url": "https://huggingface.co/alibaba-pai/Z-Image-Turbo-Fun-Controlnet-Union-2.1/resolve/main/Z-Image-Turbo-Fun-Controlnet-Union-2.1-lite-2601-8steps.safetensors",
+          "sha256": "aa428bc857b0095cddb52cd1acd7c0c6ada4c57658ec0ed39cd64280355b39cf"
+        }
+      ]
+    },
+    {
+      "id": "model_patch-blur-zimage",
+      "name": "ControlNet Unblur (Z-Image)",
+      "files": [
+        {
+          "path": "models/model_patches/Z-Image-Turbo-Fun-Controlnet-Tile-2.1-lite-2601-8steps.safetensors",
+          "url": "https://huggingface.co/alibaba-pai/Z-Image-Turbo-Fun-Controlnet-Union-2.1/resolve/main/Z-Image-Turbo-Fun-Controlnet-Tile-2.1-lite-2601-8steps.safetensors",
+          "sha256": "880bf452b060abfcbccedee56f8d3dbf8aed2cb0311b599210361b414fc8f2fd"
         }
       ]
     }
