@@ -1,21 +1,77 @@
-torch==2.8.0
-torchvision==0.23.0
-torchaudio==2.8.0
+torch
+torchvision
+torchaudio
 
-aiohttp 
-tqdm
-onnxruntime
-transformers
-# huggingface-hub pinned because transformers requires it
-huggingface-hub<1.0
-# for mediapipe:
-protobuf>=4.25.3,<5
+# pinned for mediapipe:
 numpy<2
+
+# ComfyUI
+torchsde
+einops
+transformers>=4.54
+tokenizers>=0.13.3
+sentencepiece
+safetensors>=0.4.2
+aiohttp>=3.11.8
+yarl>=1.18.0
+pyyaml
+Pillow
+scipy
+tqdm
+psutil
+kornia>=0.7.1
+spandrel
+soundfile
+av>=14.2.0
+pydantic~=2.0
+pydantic-settings~=2.0
+alembic
+SQLAlchemy
+comfy-kitchen>=0.2.7
+comfy-aimdo>=0.1.7
+requests
+
+comfyui-frontend-package==1.37.11
+comfyui-workflow-templates==0.8.27
+comfyui-embedded-docs==0.4.0
+
+# transitive dependencies
+stringzilla
+
+# comfyui_controlnet_aux
+onnxruntime
+importlib_metadata
+huggingface_hub
+scipy
+# Version pinned because later versions require numpy>2 which conflicts with mediapipe
 opencv-python==4.11.0.86
-# Version fixed because argostranslate requires it:
-sentencepiece==0.2.0
-# For argostranslate -> spaCy (to download models):
-pip
+protobuf>=4.25.3,<5
+filelock
+Pillow
+einops
+pyyaml
+scikit-image
+python-dateutil
+mediapipe
 # Version pinned because newer version requires pycairo, which does not provide binary
 # packages on Linux/macOS
 svglib==1.5.1
+fvcore
+yapf
+omegaconf
+ftfy
+addict
+yacs
+albumentations
+scikit-learn
+matplotlib
+
+# ComfyUI-GGUF
+gguf
+
+# comfyui-tooling-nodes
+argostranslate
+# Version fixed because argostranslate requires it
+sentencepiece==0.2.0
+# argostranslate uses pip to install stuff on demand but doesn't depend on it
+pip

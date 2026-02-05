@@ -92,7 +92,12 @@ def list_models(
         models.update([m for m in required_models if m.kind is ResourceKind.upscaler])
         models.update(resources.upscale_models)
     if controlnet or recommended or all:
-        kinds = [ResourceKind.controlnet, ResourceKind.ip_adapter, ResourceKind.clip_vision]
+        kinds = [
+            ResourceKind.controlnet,
+            ResourceKind.ip_adapter,
+            ResourceKind.clip_vision,
+            ResourceKind.model_patch,
+        ]
         models.update([m for m in optional_models if m.kind in kinds and m.arch in versions])
     if flux or all:
         lora = ResourceKind.lora
