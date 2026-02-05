@@ -45,7 +45,7 @@ def test_same_name_same_model():
 def test_resource_ids_exist():
     ids = chain(res.required_resource_ids, res.recommended_resource_ids)
     for resource_id in ids:
-        if resource_id.arch in (Arch.sd3, Arch.qwen, Arch.qwen_e, Arch.qwen_e_p):
+        if resource_id.arch in (Arch.sd3, Arch.qwen, Arch.qwen_e, Arch.qwen_e_p, Arch.flux2_9b):
             continue  # no model downloads yet
         model = res.find_resource(resource_id)
         assert model is not None, f"Resource ID {resource_id} not found"
