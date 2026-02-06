@@ -143,6 +143,7 @@ cost_params = {
     "illustrious": (Arch.illu, 2, 1024, 1024, 20),
     "illustrious-v": (Arch.illu_v, 2, 1024, 1024, 20),
     "flux2": (Arch.flux2_4b, 2, 1024, 1024, 4),
+    "zimage": (Arch.zimage, 2, 1024, 1024, 9),
 }
 
 
