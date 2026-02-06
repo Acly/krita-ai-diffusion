@@ -8,10 +8,10 @@ from typing import Any, NamedTuple, Sequence
 
 # Version identifier for all the resources defined here. This is used as the server version.
 # It usually follows the plugin version, but not all new plugin versions also require a server update.
-version = "1.48.0"
+version = "1.47.0"
 
 comfy_url = "https://github.com/comfyanonymous/ComfyUI"
-comfy_version = "b0d9708974f50fce7d2448ac84e9260c87f7ade3"
+comfy_version = "cb459573c8fa025bbf9ecf312f6af376d659f567"
 
 
 class CustomNode(NamedTuple):
