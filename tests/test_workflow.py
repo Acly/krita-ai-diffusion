@@ -832,8 +832,6 @@ def test_style_composition_sdxl(qtapp, client):
 
 @pytest.mark.parametrize("sdver", [Arch.sd15, Arch.sdxl])
 def test_ip_adapter_face(qtapp, client, sdver):
-    if isinstance(client, CloudClient):
-        pytest.skip("IP-adapter FaceID is not available in the cloud")
     extent = Extent(650, 650) if sdver == Arch.sd15 else Extent(1024, 1024)
     image = Image.load(image_dir / "face.webp")
     cond = ConditioningInput("portrait photo of a woman at a garden party")
