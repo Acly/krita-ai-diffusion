@@ -82,7 +82,7 @@ def list_models(
 
     models: set[ModelResource] = set()
     models.update([m for m in default_checkpoints if all or (m.id.identifier in checkpoints)])
-    if minimal or recommended or all or sd15 or sdxl or flux:
+    if len(versions) > 1:
         models.update([m for m in required_models if m.arch in versions])
     if minimal:
         models.add(default_checkpoints[0])
