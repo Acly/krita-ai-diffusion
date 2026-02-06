@@ -431,7 +431,7 @@ class CustomWorkspace(QObject, ObservableProperties):
         style_and_prompt_node_count = sum(1 for _ in wf.find(type="ETN_KritaStyleAndPrompt"))
         if style_and_prompt_node_count > 1:
             self.validation_error = _(
-                "Workflow contains multiple `Krita Style & Prompt` nodes. Only one is allowed since prompts sync across workspaces."
+                "Workflow contains multiple 'Krita Style & Prompt' nodes, but only one is allowed."
             )
         else:
             self.validation_error = ""

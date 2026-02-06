@@ -572,6 +572,13 @@
     "Selection Blend": null,
     "Transition area for alpha blending the result image": null,
     "If nodes are still missing, check the ComfyUI output at startup for errors.": null,
-    "The border is expanded and blurred by a fraction of selection size": null
+    "The border is expanded and blurred by a fraction of selection size": null,
+    "Edit canvas with text instructions": null,
+    "Flux 2 models": null,
+    "Compact generation and edit model": null,
+    "Versatile model with sharp details. Can generate and edit images with instructions. Sometimes struggles with image continuity.": null,
+    "Z-Image models": null,
+    "Powerful and efficient model for stronger hardware. Good understanding of natural language (Chinese and English). The Turbo variant is fast and heavily tuned for realistic results.": null,
+    "Workflow contains multiple 'Krita Style & Prompt' nodes, but only one is allowed.": null
   }
 }

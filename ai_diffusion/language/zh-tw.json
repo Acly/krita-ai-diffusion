@@ -572,6 +572,13 @@
     "Selection Blend": "選取範圖向內透明混合",
     "Transition area for alpha blending the result image": "結果影像的透明混合過渡區域",
     "If nodes are still missing, check the ComfyUI output at startup for errors.": "如果仍然缺少節點，請檢查 ComfyUI 啟動時的輸出以獲得錯誤訊息。",
-    "The border is expanded and blurred by a fraction of selection size": "按選取大小百分比向外羽化擴展"
+    "The border is expanded and blurred by a fraction of selection size": "按選取大小百分比向外羽化擴展",
+    "Edit canvas with text instructions": null,
+    "Flux 2 models": null,
+    "Compact generation and edit model": null,
+    "Versatile model with sharp details. Can generate and edit images with instructions. Sometimes struggles with image continuity.": null,
+    "Z-Image models": null,
+    "Powerful and efficient model for stronger hardware. Good understanding of natural language (Chinese and English). The Turbo variant is fast and heavily tuned for realistic results.": null,
+    "Workflow contains multiple 'Krita Style & Prompt' nodes, but only one is allowed.": null
   }
 }
