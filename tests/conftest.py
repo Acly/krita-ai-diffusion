@@ -208,7 +208,7 @@ class CloudService:
         if self.worker_task:
             self.worker_task.cancel()
             await self.worker_task
-        if self.worker_proc:
+        if self.worker_proc and self.worker_proc.returncode is None:
             self.worker_proc.terminate()
             await self.worker_proc.wait()
         if self.coord_proc and self.coord_proc.pid:
