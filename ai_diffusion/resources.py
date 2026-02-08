@@ -164,7 +164,7 @@ class Arch(Enum):
 
     @property
     def has_controlnet_inpaint(self):
-        return self in (Arch.sd15, Arch.flux, Arch.zimage)
+        return self in (Arch.sd15, Arch.flux, Arch.zimage, Arch.qwen)
 
     @property
     def supports_regions(self):
@@ -358,7 +358,7 @@ class ControlMode(Enum):
 
     def can_substitute_universal(self, arch: Arch):
         """True if this control mode is covered by univeral control-net."""
-        if arch.is_sdxl_like:
+        if arch.is_sdxl_like or arch is Arch.qwen:
             return self in [
                 ControlMode.scribble,
                 ControlMode.line_art,
@@ -710,10 +710,12 @@ search_paths: dict[str, list[str]] = {
     resource_id(ResourceKind.controlnet, Arch.sd15, ControlMode.inpaint): ["control_v11p_sd15_inpaint"],
     resource_id(ResourceKind.controlnet, Arch.flux, ControlMode.inpaint): ["flux.1-dev-controlnet-inpaint"],
     resource_id(ResourceKind.controlnet, Arch.illu, ControlMode.inpaint): ["noobaiinpainting"],
+    resource_id(ResourceKind.controlnet, Arch.qwen, ControlMode.inpaint): ["Qwen-Image-InstantX-ControlNet-Inpainting"],
     resource_id(ResourceKind.controlnet, Arch.sdxl, ControlMode.universal): ["union-sdxl", "xinsirunion"],
     resource_id(ResourceKind.controlnet, Arch.illu, ControlMode.universal): ["union-sdxl", "xinsirunion"],
     resource_id(ResourceKind.controlnet, Arch.illu_v, ControlMode.universal): ["union-sdxl", "xinsirunion"],
     resource_id(ResourceKind.controlnet, Arch.flux, ControlMode.universal): ["flux.1-dev-controlnet-union-pro-2.0", "flux.1-dev-controlnet-union-pro", "flux.1-dev-controlnet-union", "flux1devcontrolnetunion"],
+    resource_id(ResourceKind.controlnet, Arch.qwen, ControlMode.universal): ["Qwen-Image-InstantX-ControlNet-Union"],
     resource_id(ResourceKind.controlnet, Arch.sd15, ControlMode.scribble): ["control_v11p_sd15_scribble", "control_lora_rank128_v11p_sd15_scribble"],
     resource_id(ResourceKind.controlnet, Arch.sdxl, ControlMode.scribble): ["xinsirscribble", "scribble-sdxl", "mistoline_fp16", "mistoline_rank", "control-lora-sketch-rank", "sai_xl_sketch_"],
     resource_id(ResourceKind.controlnet, Arch.illu, ControlMode.scribble): ["noob-sdxl-controlnet-scribble_pidinet", "noobaixlcontrolnet_epsscribble", "noob-sdxl-controlnet-scribble"],
