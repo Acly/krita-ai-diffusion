@@ -109,6 +109,7 @@ class CloudService:
     def __init__(self, loop: QtTestApp, enabled=True):
         self.loop = loop
         self.dir = root_dir / "service"
+        self.workspace = Path(os.environ.get("INTERSTICE_WORKSPACE", self.dir / "pod" / "_var"))
         self.log_dir = result_dir / "logs"
         self.log_dir.mkdir(exist_ok=True)
         self.url = os.environ.get("TEST_SERVICE_URL", "http://localhost:8787")
@@ -119,6 +120,7 @@ class CloudService:
         self.worker_log = None
         self.worker_url = ""
         self.worker_secret = ""
+        self._worker_config_default = self.read_worker_config()
         self.enabled = has_local_cloud and enabled
 
     async def serve(self, process: asyncio.subprocess.Process, log_file):
@@ -157,18 +159,23 @@ class CloudService:
             stderr=asyncio.subprocess.STDOUT,
         )
 
-    async def launch_worker(self, job_timeout=480):
+    def read_worker_config(self):
+        config = self.workspace / "worker.json"
+        assert config.exists(), "Worker config not found"
+        return json.loads(config.read_text(encoding="utf-8"))
+
+    async def launch_worker(self, update_config=None):
         if self.worker_proc and self.worker_proc.returncode is None:
             return
-        config = self.dir / "pod" / "_var" / "worker.json"
-        assert config.exists(), "Worker config not found"
-        config_dict = json.loads(config.read_text(encoding="utf-8"))
-        self.worker_url = config_dict["public_url"]
-        self.worker_secret = config_dict["admin_secret"]
-        if config_dict["job_timeout"] != job_timeout:
-            config_dict["job_timeout"] = job_timeout
-            config.write_text(json.dumps(config_dict), encoding="utf-8")
 
+        config_file = self.workspace / "worker.json"
+        config = self.read_worker_config()
+        if update_config is not None:
+            config.update(update_config)
+            config_file.write_text(json.dumps(config), encoding="utf-8")
+
+        self.worker_url = config["public_url"]
+        self.worker_secret = config["admin_secret"]
         if self.worker_log is None:
             self.worker_log = open(self.log_dir / "worker.log", "w", encoding="utf-8")
 
@@ -177,7 +184,7 @@ class CloudService:
             return
 
         workerpy = str(self.dir / "pod" / "worker.py")
-        args = ["-u", "-Xutf8", workerpy, str(config)]
+        args = ["-u", "-Xutf8", workerpy, str(config_file)]
         self.worker_proc = await asyncio.create_subprocess_exec(
             sys.executable,
             *args,
@@ -231,20 +238,19 @@ class CloudService:
                     raise Exception(result["error"])
                 return result
 
-    async def set_worker_job_timeout(self, timeout: int):
+    async def update_worker_config(self, config: dict[str, Any] | None = None):
+        config = config or self._worker_config_default
         if self.worker_proc is not None:
             self.worker_proc.terminate()
             await self.worker_proc.wait()
-            await self.launch_worker(job_timeout=timeout)
+            await self.launch_worker(update_config=config)
         else:  # running in external process which will restart itself automatically
             headers = {
                 "Authorization": f"Bearer {self.worker_secret}",
                 "Content-Type": "application/json",
             }
             async with aiohttp.ClientSession(headers=headers) as session:
-                async with session.post(
-                    f"{self.worker_url}/configure", json={"job_timeout": timeout}
-                ) as response:
+                async with session.post(f"{self.worker_url}/configure", json=config) as response:
                     response.raise_for_status()
 
     def __enter__(self):
