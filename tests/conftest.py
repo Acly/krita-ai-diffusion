@@ -120,8 +120,8 @@ class CloudService:
         self.worker_log = None
         self.worker_url = ""
         self.worker_secret = ""
-        self._worker_config_default = self.read_worker_config()
         self.enabled = has_local_cloud and enabled
+        self._worker_config_default = self.read_worker_config()
 
     async def serve(self, process: asyncio.subprocess.Process, log_file):
         try:
@@ -159,10 +159,12 @@ class CloudService:
             stderr=asyncio.subprocess.STDOUT,
         )
 
-    def read_worker_config(self):
-        config = self.workspace / "worker.json"
-        assert config.exists(), "Worker config not found"
-        return json.loads(config.read_text(encoding="utf-8"))
+    def read_worker_config(self) -> dict[str, Any]:
+        if self.enabled:
+            config = self.workspace / "worker.json"
+            assert config.exists(), "Worker config not found"
+            return json.loads(config.read_text(encoding="utf-8"))
+        return {}
 
     async def launch_worker(self, update_config=None):
         if self.worker_proc and self.worker_proc.returncode is None:
