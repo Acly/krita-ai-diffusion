@@ -293,10 +293,13 @@
       "name": "Flux Krea",
       "files": [
         {
-          "path": "models/diffusion_models/flux1-krea-dev_float8_e4m3fn_learned_svd.safetensors",
-          "url": "https://huggingface.co/Clybius/FLUX.1-Krea-dev-scaled-fp8/resolve/main/flux1-krea-dev_float8_e4m3fn_learned_svd.safetensors",
-          "sha256": "f18a0dae80efb912eed3cde5d4e88cdd4ed0acfe7bc395cb89ac28791e754069"
+          "path": "models/diffusion_models/flux1-krea-dev_fp8_scaled.safetensors",
+          "url": "https://huggingface.co/Comfy-Org/FLUX.1-Krea-dev_ComfyUI/resolve/main/split_files/diffusion_models/flux1-krea-dev_fp8_scaled.safetensors",
+          "sha256": "b17a8c21703c4d6ffb0e300dd920eff3cfd35c9a72a1abaf107e3788e408b8d8"
         }
+      ],
+      "alternatives": [
+        "models/diffusion_models/flux1-krea-dev_float8_e4m3fn_learned_svd.safetensors"
       ],
       "requirements": "no_cuda"
     },
@@ -329,10 +332,13 @@
       "name": "Flux Kontext",
       "files": [
         {
-          "path": "models/diffusion_models/flux1-kontext-dev-fp8-e4m3fn.safetensors",
-          "url": "https://huggingface.co/6chan/flux1-kontext-dev-fp8/resolve/main/flux1-kontext-dev-fp8-e4m3fn.safetensors",
-          "sha256": "e7c137d2a8c3d1a7765fc7538f0744eee8f3c58863226124e066c8b781c170df"
+          "path": "models/diffusion_models/flux1-dev-kontext_fp8_scaled.safetensors",
+          "url": "https://huggingface.co/Comfy-Org/flux1-kontext-dev_ComfyUI/resolve/main/split_files/diffusion_models/flux1-dev-kontext_fp8_scaled.safetensors",
+          "sha256": "630ba795ec64283b4230ea23cf79406c2c68b7c578229ed139f30043eadb30a2"
         }
+      ],
+      "alternatives": [
+        "models/diffusion_models/flux1-kontext-dev-fp8-e4m3fn.safetensors"
       ],
       "requirements": "no_cuda"
     },
