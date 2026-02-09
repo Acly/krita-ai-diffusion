@@ -570,15 +570,15 @@
     "Layers": "レイヤー",
     "The following ComfyUI custom nodes are missing or too old": "次のComfyUIカスタムノードが見つからないか古すぎます",
     "Selection Blend": "境界線のなじませ",
-    "Transition area for alpha blending the result image": "生成された画像を合成する際に、境界線をなじませる（透過させる）領域の幅",
+    "Transition area for alpha blending the result image": "生成された画像を合成する際に、境界線を透過でなじませる領域の幅",
     "If nodes are still missing, check the ComfyUI output at startup for errors.": "それでもノードが見つからない場合は、起動時に ComfyUI 出力でエラーを確認してください。",
     "The border is expanded and blurred by a fraction of selection size": "選択範囲のサイズに応じて、その境界線を指定した割合で拡張し、ぼかします",
-    "Edit canvas with text instructions": null,
-    "Flux 2 models": null,
-    "Compact generation and edit model": null,
-    "Versatile model with sharp details. Can generate and edit images with instructions. Sometimes struggles with image continuity.": null,
-    "Z-Image models": null,
-    "Powerful and efficient model for stronger hardware. Good understanding of natural language (Chinese and English). The Turbo variant is fast and heavily tuned for realistic results.": null,
-    "Workflow contains multiple 'Krita Style & Prompt' nodes, but only one is allowed.": null
+    "Edit canvas with text instructions": "テキスト指示でキャンバスを編集",
+    "Flux 2 models": "Flux 2モデル",
+    "Compact generation and edit model": "コンパクトな生成と編集のモデル",
+    "Versatile model with sharp details. Can generate and edit images with instructions. Sometimes struggles with image continuity.": "シャープなディテールを備えた多用途モデル。指示に従って画像の生成と編集が可能です。画像の連続性に問題が生じる場合があります。",
+    "Z-Image models": "Z-Imageモデル",
+    "Powerful and efficient model for stronger hardware. Good understanding of natural language (Chinese and English). The Turbo variant is fast and heavily tuned for realistic results.": "強力なハードウェア向けに設計された高性能かつ効率的なモデル。自然言語（中国語と英語）を良好に理解します。Turbo版はとくに高速で、リアルな結果を得るために高度に調整されています。",
+    "Workflow contains multiple 'Krita Style & Prompt' nodes, but only one is allowed.": "ワークフローには複数の'Krita Style & Prompt'ノードが含まれていますが、許容されるのは一つのみです。"
   }
 }
