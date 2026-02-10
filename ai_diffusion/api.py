@@ -138,6 +138,7 @@ class FillMode(Enum):
     border = 3
     replace = 4
     inpaint = 5
+    green = 6
 
 
 @dataclass

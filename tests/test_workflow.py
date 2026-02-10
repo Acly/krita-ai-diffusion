@@ -934,6 +934,28 @@ def test_edit_reference(qtapp, client):
     run_and_save(qtapp, client, job, "test_edit_reference")
 
 
+def test_flux2_outpaint_lora(qtapp, client):
+    image = Image.load(image_dir / "beach_1536x1024.webp")
+    mask = Mask.rectangle(Bounds(0, 0, 480, 1024), Bounds(0, 0, 768, 1024))
+    style = default_style(client, Arch.flux2_4b)
+    cond = ConditioningInput("")
+    cond, _, md = workflow.prepare_prompts(cond, style, 1, Arch.flux2_4b, InpaintMode.expand)
+    inpaint = workflow.detect_inpaint(InpaintMode.expand, mask.bounds, Arch.flux2_4b, cond, 1.0)
+    inpaint.grow = 40
+    inpaint.feather = 37
+    inpaint.blend = 17
+    job = create(
+        WorkflowKind.inpaint,
+        client,
+        canvas=image,
+        mask=mask,
+        cond=cond,
+        inpaint=inpaint,
+        style=style,
+    )
+    run_and_save(qtapp, client, job, "test_flux2_outpaint_lora", image, mask)
+
+
 def test_refine_max_pixels(qtapp, client):
     perf_settings = PerformanceSettings(max_pixel_count=1)  # million pixels
     image = Image.load(image_dir / "lake_1536x1024.webp")

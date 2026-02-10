@@ -797,9 +797,10 @@ def _find_loras(model_list: Sequence[str]):
         (ControlMode.canny_edge, Arch.flux),
     ]
     flux_k_loras = [("turbo", Arch.flux_k)]
+    flux2_loras = [(ControlMode.inpaint, Arch.flux2_4b)]
     return {
         resource_id(kind, arch, name): _find_model(model_list, kind, arch, name)
-        for name, arch in chain(common_loras, sdxl_loras, flux_loras, flux_k_loras)
+        for name, arch in chain(common_loras, sdxl_loras, flux_loras, flux_k_loras, flux2_loras)
     }
 
 

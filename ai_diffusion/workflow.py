@@ -563,6 +563,17 @@ def apply_control(
                 args["mask"] = mask
             model = w.apply_zimage_fun_controlnet(model, patch, vae, control.strength, **args)
             continue
+        elif cn_model := models.lora.find(control.mode):
+            if control_lora is not None:
+                raise Exception(
+                    _("The following control layers cannot be used together:")
+                    + f" {control_lora.text}, {control.mode.text}"
+                )
+            control_lora = control.mode
+            model = w.load_lora_model(model, cn_model, control.strength)
+            if models.arch.is_flux_like:  # flux depth/canny control lora (to be removed?)
+                prompt, __ = w.instruct_pix_to_pix_conditioning(prompt, vae, image)
+            continue
         else:
             raise Exception(f"ControlNet model not found for mode {control.mode}")
 
@@ -576,17 +587,6 @@ def apply_control(
             prompt = w.apply_controlnet(
                 prompt, controlnet, image, vae, control.strength, control.range
             )
-
-        if not cn_model:  # flux depth/canny control lora (low priority, to be removed?)
-            if lora := models.lora.find(control.mode):
-                if control_lora is not None:
-                    raise Exception(
-                        _("The following control layers cannot be used together:")
-                        + f" {control_lora.text}, {control.mode.text}"
-                    )
-                control_lora = control.mode
-                model = w.load_lora_model(model, lora, control.strength)
-                prompt, __ = w.instruct_pix_to_pix_conditioning(prompt, vae, image)
 
     positive = apply_style_models(w, prompt.positive, control_layers, models)
 
@@ -861,7 +861,9 @@ def generate(
     return w
 
 
-def fill_masked(w: ComfyWorkflow, image: Output, mask: Output, fill: FillMode, models: ModelDict):
+def fill_masked(
+    w: ComfyWorkflow, image: Output, mask: Output, fill: FillMode, models: ModelDict, extent: Extent
+):
     if fill is FillMode.blur:
         return w.blur_masked(image, mask, 65, falloff=9)
     elif fill is FillMode.border:
@@ -874,6 +876,10 @@ def fill_masked(w: ComfyWorkflow, image: Output, mask: Output, fill: FillMode, m
         return w.inpaint_image(model, image, mask)
     elif fill is FillMode.replace:
         return w.fill_masked(image, mask, "neutral")
+    elif fill is FillMode.green:
+        green_image = w.empty_image(extent, 65280)
+        mask = w.threshold_mask(mask, 0.99)
+        return w.composite_image_masked(green_image, image, mask)
     return image
 
 
@@ -899,18 +905,21 @@ def detect_inpaint(
 ):
     assert mode is not InpaintMode.automatic
     result = InpaintParams(mode, bounds)
-    match mode, cond.edit_reference:
-        case InpaintMode.fill, False:
+    match mode, arch, cond.edit_reference:
+        case InpaintMode.fill, _, False:
             result.fill = FillMode.blur
-        case InpaintMode.expand, False:
+        case InpaintMode.expand, _, False:
             result.fill = FillMode.border
-        case InpaintMode.add_object, False:
+        case InpaintMode.add_object, _, False:
             result.fill = FillMode.neutral
-        case InpaintMode.remove_object, False:
+        case InpaintMode.remove_object, _, False:
             result.fill = FillMode.inpaint
-        case InpaintMode.replace_background, False:
+        case InpaintMode.replace_background, _, False:
             result.fill = FillMode.replace
-        case _, True:
+        case InpaintMode.fill | InpaintMode.expand, Arch.flux2_4b, True:
+            result.fill = FillMode.green
+            result.use_inpaint_model = True
+        case _, _, True:
             result.fill = FillMode.none
 
     is_ref_mode = mode in [InpaintMode.fill, InpaintMode.expand]
@@ -1002,7 +1011,7 @@ def inpaint(
             Region(ImageOutput(None), Bounds(0, 0, *extent.initial), base_prompt, []),
             Region(inpaint_mask, initial_bounds, cond_base.positive, []),
         ]
-    in_image = fill_masked(w, in_image, initial_mask, params.fill, models)
+    in_image = fill_masked(w, in_image, initial_mask, params.fill, models, extent.initial)
 
     model = apply_ip_adapter(w, model, cond_base.control, models)
     model = apply_regional_ip_adapter(w, model, cond_base.regions, extent.initial, models)
@@ -1482,6 +1491,9 @@ def build_instructions(cond: ConditioningInput, arch: Arch, inpaint: InpaintMode
 
     if not cond.edit_reference and arch.supports_edit:
         match inpaint:
+            case InpaintMode.fill | InpaintMode.expand:
+                if arch is Arch.flux2_4b:  # requires outpaint Lora for good results
+                    instructions += "Fill the green spaces according to the image.\n"
             case InpaintMode.add_object:
                 instructions += "Add the object to the scene.\n"
             case InpaintMode.remove_object:
@@ -1537,6 +1549,8 @@ def prepare_prompts(
     cond.positive += _collect_lora_triggers(models.loras, files)
     if arch.is_flux2:
         cond.positive = build_instructions(cond, arch, inpaint)
+    if cond.positive == "" and inpaint is InpaintMode.remove_object:
+        cond.positive = "background scenery"
     meta["prompt_final"] = merge_prompt(cond.positive, cond.style, cond.language)
 
     cfg = style.live_cfg_scale if is_live else style.cfg_scale
@@ -1638,8 +1652,6 @@ def prepare(
         scaling = ScaledExtent.from_input(i.images.extent).refinement_scaling
         if scaling in [ScaleMode.upscale_small, ScaleMode.upscale_quality]:
             i.images.hires_image = Image.crop(canvas, i.inpaint.target_bounds)
-        if inpaint.mode is InpaintMode.remove_object and i.conditioning.positive == "":
-            i.conditioning.positive = "background scenery"
 
     elif kind is WorkflowKind.refine:
         assert isinstance(canvas, Image) and style
@@ -1911,12 +1923,18 @@ def _check_server_has_models(
 
 
 def _check_inpaint_model(inpaint: InpaintParams | None, arch: Arch, models: ClientModels):
-    if inpaint and inpaint.use_inpaint_model and arch.has_controlnet_inpaint:
-        if arch in (Arch.flux, Arch.zimage):
-            return  # Optional for now
-        if models.for_arch(arch).control.find(ControlMode.inpaint) is None:
+    if inpaint and inpaint.use_inpaint_model:
+        res_id: ResourceId | None = None
+        if arch.has_controlnet_inpaint:
+            if arch in (Arch.flux, Arch.zimage):
+                return  # Optional for now
+            if models.for_arch(arch).control.find(ControlMode.inpaint) is None:
+                res_id = ResourceId(ResourceKind.controlnet, arch, ControlMode.inpaint)
+        elif arch is Arch.flux2_4b:
+            if models.for_arch(arch).lora.find(ControlMode.inpaint) is None:
+                res_id = ResourceId(ResourceKind.lora, arch, ControlMode.inpaint)
+        if res_id:
             msg = f"No inpaint model found for {arch.value}."
-            res_id = ResourceId(ResourceKind.controlnet, arch, ControlMode.inpaint)
             if res := resources.find_resource(res_id):
                 msg += f" Missing '{res.filename}' in folder '{res.folder}'."
             raise ValueError(msg)

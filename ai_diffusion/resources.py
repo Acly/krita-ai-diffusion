@@ -771,6 +771,7 @@ search_paths: dict[str, list[str]] = {
     resource_id(ResourceKind.lora, Arch.sdxl, ControlMode.face): ["ip-adapter-faceid-plusv2_sdxl_lora", "ip-adapter-faceid_sdxl_lora"],
     resource_id(ResourceKind.lora, Arch.flux, ControlMode.depth): ["flux1-depth"],
     resource_id(ResourceKind.lora, Arch.flux, ControlMode.canny_edge): ["flux1-canny"],
+    resource_id(ResourceKind.lora, Arch.flux2_4b, ControlMode.inpaint): ["4b-outpaint-lora"],
     resource_id(ResourceKind.model_patch, Arch.zimage, ControlMode.universal): ["z-image-turbo-fun-controlnet-union-2.1", "z-image-turbo-fun-controlnet-union"],
     resource_id(ResourceKind.model_patch, Arch.zimage, ControlMode.blur): ["z-image-turbo-fun-controlnet-tile-2.1", "z-image-turbo-fun-controlnet-tile"],
     resource_id(ResourceKind.upscaler, Arch.all, UpscalerName.default): [UpscalerName.default.value],
