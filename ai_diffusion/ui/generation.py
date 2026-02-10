@@ -860,6 +860,7 @@ class GenerationWidget(QWidget):
         add(InpaintMode.automatic, "", "inpaint-automatic")
         add(InpaintMode.fill, "", "inpaint-fill")
         add(InpaintMode.expand, "", "inpaint-expand")
+        add(InpaintMode.add_object, "", "inpaint-add_object")
         add(InpaintMode.remove_object, "", "inpaint-remove_object")
         add(InpaintMode.replace_background, "", "inpaint-replace_background")
         add(InpaintMode.add_object, _("Edit"), "edit", is_edit=True)
