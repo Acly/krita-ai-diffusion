@@ -219,6 +219,17 @@
           "sha256": "868fe7b343cc8f3a19dbcfcafbc3d5f888802be3f89bd81b65b3621a066ce8f3"
         }
       ]
+    },
+    {
+      "id": "lora-inpaint-flux2_4b",
+      "name": "Outpaint LoRA (Flux 2)",
+      "files": [
+        {
+          "path": "models/loras/flux-2-klein-4B-outpaint-lora.safetensors",
+          "url": "https://huggingface.co/fal/flux-2-klein-4B-outpaint-lora/resolve/main/LyNiaZ53Tudg0J6sT8Xbx_pytorch_lora_weights_comfy_converted.safetensors",
+          "sha256": "b8a5142b40f2e24aa1f5cfd0710323188836f49ea70b15b5f85b1e364316bc5b"
+        }
+      ]
     }
   ],
   "checkpoints": [

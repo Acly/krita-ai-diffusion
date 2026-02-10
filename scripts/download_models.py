@@ -293,7 +293,7 @@ if __name__ == "__main__":
     parser.add_argument("--deprecated", action="store_true", help="download old models which will be removed in the near future")
     parser.add_argument("--retry-attempts", type=int, default=5, metavar="N", help="number of retry attempts for downloading a model")
     parser.add_argument("--continue-on-error", action="store_true", help="continue downloading models even if an error occurs")
-    parser.add_argument("--backend", choices=["auto", "cpu", "cuda", "cuda_fp4", "xpu", "rocm"], default="auto", help="filter models for specific hardware")
+    parser.add_argument("--backend", choices=["auto", "cpu", "cuda", "cuda_fp4", "xpu", "rocm", "mps"], default="auto", help="filter models for specific hardware")
     parser.add_argument("-j", "--jobs", type=int, default=4, metavar="N", help="number of parallel downloads")
     # fmt: on
     args = parser.parse_args()
