@@ -367,19 +367,32 @@
       "requirements": "cuda_fp4"
     },
     {
+      "id": "checkpoint-q6_k-flux2_4b",
+      "name": "Flux 2 Klein 4B [Q6_K]",
+      "files": [
+        {
+          "path": "models/diffusion_models/flux-2-klein-4b-Q6_K.gguf",
+          "url": "https://huggingface.co/unsloth/FLUX.2-klein-4B-GGUF/resolve/main/flux-2-klein-4b-Q6_K.gguf",
+          "sha256": "fb3b5430d9229f982616c7db084deff1db5035d0cb6558f2d4f704cfe5e609e2"
+        }
+      ],
+      "requirements": "no_cuda"
+    },
+    {
       "id": "checkpoint-fp8-flux2_4b",
-      "name": "Flux 2 Klein 4B",
+      "name": "Flux 2 Klein 4B [fp8]",
       "files": [
         {
           "path": "models/diffusion_models/flux-2-klein-4b-fp8.safetensors",
           "url": "https://huggingface.co/black-forest-labs/FLUX.2-klein-4b-fp8/resolve/main/flux-2-klein-4b-fp8.safetensors",
           "sha256": "97ed34fe0567e436200f2faee3939b88f2b5d99f8af2a4dc16532c4245c0ccb6"
         }
-      ]
+      ],
+      "requirements": "cuda"
     },
     {
       "id": "checkpoint-turbo_fp8-zimage",
-      "name": "Z-Image Turbo",
+      "name": "Z-Image Turbo [fp8]",
       "files": [
         {
           "path": "models/diffusion_models/z_image_turbo_fp8_e4m3fn.safetensors",

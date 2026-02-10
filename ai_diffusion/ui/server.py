@@ -667,7 +667,7 @@ class WorkloadsTab(QWidget):
             ModelCheckBox(
                 "Flux.2 [klein] 4B - " + _("Compact generation and edit model"),
                 Arch.flux2_4b,
-                "checkpoint-fp8-flux2_4b",
+                ("checkpoint-fp8-flux2_4b", "checkpoint-q6_k-flux2_4b"),
                 flux2_layout,
             ),
         ]
