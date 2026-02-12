@@ -1077,7 +1077,7 @@ inpaint_benchmark: dict[str, tuple[InpaintMode, str, Bounds | None]] = {
     "apple-tree": (
         InpaintMode.expand,
         "children's illustration showing kids next to an apple tree with a ladder",
-        Bounds(0, 480, 1024, 1024 - 480),
+        Bounds(0, 416, 1024, 1024 - 416),
     ),
     "girl-cornfield": (
         InpaintMode.expand,
@@ -1101,7 +1101,7 @@ inpaint_benchmark: dict[str, tuple[InpaintMode, str, Bounds | None]] = {
         None,
     ),
     "woman-travel": (
-        InpaintMode.add_object,
+        InpaintMode.fill,
         "photo of a woman in a trenchcoat at a brisk walk. she is pulling a trolley suitcase. it is spring, she is walking alongside a brick wall trimmed by a victorian style fence. tree branches can be seen reaching over the wall, with early blossom buds. the woman is seen in profile, she has long hair. her clothes are fashionable and she is wearing sunglasses.",
         Bounds(275, 400, 1024 - 275, 1280 - 400),
     ),
@@ -1117,23 +1117,26 @@ def run_inpaint_benchmark(
     mask = Mask.load(image_dir / "inpaint" / f"{scenario}-mask.webp")
     if bounds:
         mask = Mask.crop(mask, bounds)
-    text = ConditioningInput(prompt if prompt_mode == "prompt" else "")
-    params = detect_inpaint(mode, mask.bounds, sdver, text, 1.0)
+    cond = ConditioningInput(prompt if prompt_mode == "prompt" else "")
+    style = default_style(client, sdver)
+    cond, _, md = workflow.prepare_prompts(cond, style, 1, sdver, mode)
+    params = detect_inpaint(mode, mask.bounds, sdver, cond, 1.0)
     params.blend = 30
     params.feather = min(81, max(33, int(0.1 * mask.bounds.extent.diagonal)))
     params.grow = 4 + params.feather // 2
     job = create(
         WorkflowKind.inpaint,
         client,
-        style=default_style(client, sdver),
+        style=style,
         canvas=image,
         mask=mask,
-        cond=text,
+        cond=cond,
         inpaint=params,
         seed=seed,
     )
     result_name = f"benchmark_inpaint_{scenario}_{sdver.name}_{prompt_mode}_{seed}"
     run_and_save(qtapp, client, job, result_name, image, mask, output_dir=out_dir)
+    return result_name, md
 
 
 def test_inpaint_benchmark(pytestconfig, qtapp, client):
@@ -1150,15 +1153,30 @@ def test_inpaint_benchmark(pytestconfig, qtapp, client):
     scenarios = inpaint_benchmark.keys()
     sdvers = [Arch.sdxl, Arch.zimage, Arch.flux2_4b]
     runs = itertools.product(sdvers, scenarios, prompt_modes, seeds)
+    meta = {}
 
     for sdver, scenario, prompt_mode, seed in runs:
-        mode, _, _ = inpaint_benchmark[scenario]
+        mode, prompt, bounds = inpaint_benchmark[scenario]
         prompt_required = mode in [InpaintMode.add_object, InpaintMode.replace_background]
         if prompt_required and prompt_mode == "noprompt":
             continue
 
         print("-", scenario, "|", sdver.name, "|", prompt_mode, "|", seed)
-        run_inpaint_benchmark(qtapp, client, sdver, prompt_mode, scenario, seed, output_dir)
+        result_name, md = run_inpaint_benchmark(
+            qtapp, client, sdver, prompt_mode, scenario, seed, output_dir
+        )
+        meta[result_name] = {
+            "arch": sdver.name,
+            "user_prompt": prompt if prompt_mode == "prompt" else "",
+            "full_prompt": md["prompt_final"],
+            "scenario": scenario,
+            "image": f"{scenario}-image.webp",
+            "mask": f"{scenario}-mask.webp",
+            "seed": seed,
+            "mode": mode.name,
+            "bounds": [bounds.x, bounds.y, bounds.width, bounds.height] if bounds else None,
+        }
+    (output_dir / "meta.json").write_text(json.dumps(meta, indent=4))
 
 
 # def test_reproduce(qtapp, client: Client):
