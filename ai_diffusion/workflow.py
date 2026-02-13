@@ -1551,7 +1551,9 @@ def prepare_prompts(
         cond.positive = build_instructions(cond, arch, inpaint)
     if cond.positive == "" and inpaint is InpaintMode.remove_object:
         cond.positive = "background scenery"
-    meta["prompt_final"] = merge_prompt(cond.positive, cond.style, cond.language)
+    meta["prompt_final"] = cond.positive
+    if cond.positive != "":
+        meta["prompt_final"] = merge_prompt(cond.positive, cond.style, cond.language)
 
     cfg = style.live_cfg_scale if is_live else style.cfg_scale
     if cfg == 1.0:

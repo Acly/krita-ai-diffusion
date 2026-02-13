@@ -547,7 +547,7 @@ def generate_html(
                     row_class = ""
 
                 html_parts.append(f'                        <td class="{col_class} {row_class}">\n')
-                html_parts.append(f'                            <div class="image-cell">\n')
+                html_parts.append('                            <div class="image-cell">\n')
 
                 if image_name in col["results"]:
                     # Find the matching result (by prompt and seed only, arch is column-specific)
@@ -559,9 +559,8 @@ def generate_html(
 
                     if matching_results:
                         result_path = matching_results[0]["path"]
-                        alt = html.escape(
-                            meta.get("full_prompt", f"{col['bench_name']} ({col['arch']})")
-                        )
+                        result_meta = matching_results[0].get("meta", {})
+                        alt = f"{col['bench_name']} ({col['arch']})"
                         try:
                             with Image.open(result_path) as result_img:
                                 # Save result image as WebP
@@ -571,32 +570,32 @@ def generate_html(
                                     f"{Path(result_path).stem.replace('benchmark_inpaint', col['bench_name'])}.webp",
                                 )
                                 result_img_path = f"./benchmark_images/{result_filename}"
-                                full_prompt = html.escape(meta.get("full_prompt", ""))
+                                full_prompt = result_meta.get("full_prompt", "")
+                                full_prompt = html.escape(full_prompt or "(no prompt)")
                                 html_parts.append(
-                                    f'                                <div class="image-container">\n'
+                                    '                                <div class="image-container">\n'
                                 )
                                 html_parts.append(
                                     f'                                    <img src="{result_img_path}" alt="{alt}">\n'
                                 )
-                                if full_prompt:
-                                    html_parts.append(
-                                        f'                                    <div class="image-overlay">{full_prompt}</div>\n'
-                                    )
-                                html_parts.append(f"                                </div>\n")
+                                html_parts.append(
+                                    f'                                    <div class="image-overlay">{full_prompt}</div>\n'
+                                )
+                                html_parts.append("                                </div>\n")
                         except Exception as e:
                             html_parts.append(
                                 f"                                <p>Error loading image: {e}</p>\n"
                             )
                     else:
                         html_parts.append(
-                            f'                                <p style="color: #999;">No matching result</p>\n'
+                            '                                <p style="color: #999;">No matching result</p>\n'
                         )
                 else:
                     html_parts.append(
-                        f'                                <p style="color: #999;">Not available</p>\n'
+                        '                                <p style="color: #999;">Not available</p>\n'
                     )
 
-                html_parts.append(f"                            </div>\n")
+                html_parts.append("                            </div>\n")
                 html_parts.append("                        </td>\n")
 
             html_parts.append("                    </tr>\n")
