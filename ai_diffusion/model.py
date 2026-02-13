@@ -681,7 +681,13 @@ class Model(QObject, ObservableProperties):
         if job.kind is JobKind.animation:
             return  # don't show animation preview on canvas (it's slow and clumsy)
 
-        name = f"[{name_prefix}] {trim_text(job.params.name, 77)}"
+        layer_name = ""
+        if settings.prompt_as_layer_name:
+            if job.params.name == "":
+                layer_name = "<no prompt>"
+            else:
+                layer_name = trim_text(job.params.name, 77)
+        name = f"[{name_prefix}] {layer_name} ({job.params.seed})"
         image = job.results[index]
         bounds = job.params.bounds
         if image.extent != bounds.extent:
@@ -720,7 +726,13 @@ class Model(QObject, ObservableProperties):
             if behavior is ApplyBehavior.replace:
                 self.layers.update_layer_image(self.layers.active, image, bounds)
             else:
-                name = f"{prefix}{trim_text(params.name, 200)} ({params.seed})"
+                layer_name = ""
+                if settings.prompt_as_layer_name:
+                    if params.name == "":
+                        layer_name = "<no prompt>"
+                    else:
+                        layer_name = trim_text(params.name, 200)
+                name = f"{prefix}{layer_name} ({params.seed})"
                 pos = self.layers.active if behavior is ApplyBehavior.layer_active else None
                 self.layers.create(name, image, bounds, above=pos)
         else:  # apply to regions
@@ -832,7 +844,13 @@ class Model(QObject, ObservableProperties):
             self.document.import_animation(frames, self.document.playback_time_range[0])
 
         async def _set_layer_name():
-            self.layers.active.name = f"[Animation] {trim_text(job.params.name, 200)}"
+            layer_name = ""
+            if settings.prompt_as_layer_name:
+                if job.params.name == "":
+                    layer_name = "<no prompt>"
+                else:
+                    layer_name = trim_text(job.params.name, 200)
+            self.layers.active.name = f"[Animation] {layer_name}"
 
         eventloop.run(_set_layer_name())
 
