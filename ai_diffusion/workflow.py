@@ -883,6 +883,13 @@ def fill_masked(
     return image
 
 
+def apply_grow(w: ComfyWorkflow, mask: Output, inpaint: InpaintParams):
+    grow = inpaint.grow - inpaint.feather // 2
+    if grow > 0:
+        mask = w.expand_mask(mask, grow, 0)
+    return mask
+
+
 def apply_grow_feather(w: ComfyWorkflow, mask: Output, inpaint: InpaintParams):
     if inpaint.grow > 0 or inpaint.feather > 0:
         mask = w.expand_mask(mask, inpaint.grow, inpaint.feather, kernel="linear")
@@ -989,10 +996,10 @@ def inpaint(
     in_image = w.load_image(ensure(images.initial_image))
     in_image = scale_to_initial(extent, w, in_image, models)
     in_mask = w.load_mask(ensure(images.hires_mask))
-    in_mask = apply_grow_feather(w, in_mask, params)
-    initial_mask = scale_to_initial(extent, w, in_mask, models, is_mask=True)
-    initial_mask = w.stabilize_mask(initial_mask)
-    cropped_mask = w.crop_mask(in_mask, target_bounds)
+    inpaint_mask = apply_grow_feather(w, in_mask, params)
+    cropped_mask = w.crop_mask(inpaint_mask, target_bounds)
+    inpaint_mask = scale_to_initial(extent, w, inpaint_mask, models, is_mask=True)
+    inpaint_mask = w.stabilize_mask(inpaint_mask)
 
     cond_base = cond.copy()
     model, regions = apply_attention_mask(w, model, cond_base, clip, extent.initial)
@@ -1002,16 +1009,18 @@ def inpaint(
         cond_base.control.append(
             Control(ControlMode.reference, ImageOutput(reference), None, 0.5, (0.2, 0.8))
         )
-    inpaint_mask = ImageOutput(initial_mask, is_mask=True)
+    control_mask = ImageOutput(inpaint_mask, is_mask=True)
     if params.use_inpaint_model and models.find_control(ControlMode.inpaint):
-        cond_base.control.append(inpaint_control(in_image, inpaint_mask, models.arch))
+        cond_base.control.append(inpaint_control(in_image, control_mask, models.arch))
     if params.use_condition_mask and len(cond_base.regions) == 0:
         base_prompt = TextPrompt(merge_prompt("", cond_base.style_prompt), cond.language)
         cond_base.regions = [
             Region(ImageOutput(None), Bounds(0, 0, *extent.initial), base_prompt, []),
-            Region(inpaint_mask, initial_bounds, cond_base.positive, []),
+            Region(control_mask, initial_bounds, cond_base.positive, []),
         ]
-    in_image = fill_masked(w, in_image, initial_mask, params.fill, models, extent.initial)
+    fill_mask = apply_grow(w, in_mask, params)
+    fill_mask = scale_to_initial(extent, w, fill_mask, models, is_mask=True)
+    in_image = fill_masked(w, in_image, fill_mask, params.fill, models, extent.initial)
 
     model = apply_ip_adapter(w, model, cond_base.control, models)
     model = apply_regional_ip_adapter(w, model, cond_base.regions, extent.initial, models)
@@ -1022,18 +1031,18 @@ def inpaint(
 
     if params.use_inpaint_model and models.arch is Arch.sdxl:
         prompt, latent_inpaint, latent = w.vae_encode_inpaint_conditioning(
-            vae, in_image, initial_mask, prompt
+            vae, in_image, inpaint_mask, prompt
         )
         inpaint_patch = w.load_fooocus_inpaint(**models.fooocus_inpaint)
         inpaint_model = w.apply_fooocus_inpaint(model, inpaint_patch, latent_inpaint)
     elif is_inpaint_model:
         prompt, latent_inpaint, latent = w.vae_encode_inpaint_conditioning(
-            vae, in_image, initial_mask, prompt
+            vae, in_image, inpaint_mask, prompt
         )
         inpaint_model = model
     else:
         latent = vae_encode(w, vae, in_image, checkpoint.tiled_vae)
-        latent = w.set_latent_noise_mask(latent, initial_mask)
+        latent = w.set_latent_noise_mask(latent, inpaint_mask)
         inpaint_model = model
 
     prompt = apply_reference_conditioning(
