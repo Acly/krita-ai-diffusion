@@ -6,6 +6,7 @@ import * as models from "../content/data/models.json";
 interface Filter {
   name: string;
   checked: boolean;
+  visible?: boolean;
 }
 
 const sets: { [id: string]: Filter } = {
@@ -16,9 +17,10 @@ const sets: { [id: string]: Filter } = {
 const archs: { [id: string]: Filter } = {
   sd15: { name: "SD1.5", checked: false },
   sdxl: { name: "SDXL", checked: true },
-  sd35: { name: "SD3.5", checked: false },
-  flux: { name: "Flux", checked: false },
   illu: { name: "Illustrious", checked: false },
+  flux: { name: "Flux", checked: false },
+  flux2_4b: { name: "Flux 2 4B", checked: false },
+  zimage: { name: "Z-Image", checked: false },
 };
 
 const kinds: { [id: string]: Filter } = {
@@ -31,6 +33,7 @@ const kinds: { [id: string]: Filter } = {
   text_encoder: { name: "Text Encoder", checked: true },
   vae: { name: "VAE", checked: true },
   inpaint: { name: "Inpaint", checked: true },
+  model_patch: { name: "Patch", checked: true, visible: false },
 };
 
 const shortKinds: { [id: string]: string } = {
@@ -45,6 +48,7 @@ const shortKinds: { [id: string]: string } = {
   inpaint: "inp",
   embedding: "emb",
   preprocessor: "pp",
+  model_patch: "patch",
   node: "node",
 };
 
@@ -127,7 +131,7 @@ const allModels = [
       <ul>
         {
           Object.keys(kinds).map((kind) => (
-            <li>
+            <li style={kinds[kind].visible === false ? "display: none;" : ""}>
               <input
                 id={`kind-${kind}`}
                 type="checkbox"
