@@ -57,16 +57,16 @@ This is a step-by-step guide for downloading and installing the Generative AI pl
 
     <ImageSample src="installation/server-options.png" alt="Server options" scale="1.5" />
     
+    * **Online Service**
+
+        Create an account and generate images on cloud GPU workers.<br />
+        This requires no installation or hardware on your end. [Pricing and Terms](https://www.interstice.cloud/service)
+
     * **Local Managed Server**
 
         The Plugin will download and install the server on your system.<br />
         Requires a powerful GPU!
         Continue reading [below](#local-server-installation) for details.
-
-    * **Online Service**
-
-        Create an account and generate images on cloud GPU workers.<br />
-        This requires no installation or hardware on your end. [Pricing and Terms](https://www.interstice.cloud/service)
 
     * **Custom Server**
 
@@ -116,11 +116,7 @@ These steps are only required if you selected **Local Managed Server** as the ba
         <tbody>
             <tr>
                 <td><Icon name="bootstrap/nvidia" /> NVIDIA</td>
-                <td>GTX 1060 6GB or better.<br /><Soft>You may encounter issues and limitations on older cards.</Soft></td>
-            </tr>
-            <tr>
-                <td><Icon name="bootstrap/amd" /> AMD</td>
-                <td>12GB VRAM or more. Slow with limited feature set.<br /><Soft>Custom install required for Linux.</Soft></td>
+                <td>GTX 1060 6GB or better.</td>
             </tr>
             <tr>
                 <td><Icon name="bootstrap/apple" /> Apple</td>
@@ -131,8 +127,13 @@ These steps are only required if you selected **Local Managed Server** as the ba
                 <td>Intel Arc Graphics cards, 8GB or better.</td>
             </tr>
             <tr>
-                <td>CPU</td>
-                <td>Works, but is very slow.</td>
+                <td><Soft><Icon name="bootstrap/amd" /> AMD</Soft></td>
+                <td><Soft>Not supported by managed installation.<br />
+                Please <ExternalLink href="https://www.comfy.org/download">install ComfyUI</ExternalLink> separately, then [connect it to the plugin](/comfyui-setup).</Soft></td>
+            </tr>
+            <tr>
+                <td><Soft>CPU</Soft></td>
+                <td><Soft>Works, but is very slow.</Soft></td>
             </tr>
         </tbody>
     </table>
@@ -161,7 +162,7 @@ These steps are only required if you selected **Local Managed Server** as the ba
 
     1. Choose a path where to install.<br />
         <Soft>Keep in mind AI models can be very large, 10GB is a minimum, 50GB+ not unusual depending on optional packages.</Soft>
-    2. Choose a backend. CUDA only works for NVIDIA GPUs. Use DirectML for AMD.
+    2. Choose a backend. CUDA only works for NVIDIA GPUs.
         <Soft>Make sure to do this _before_ you install!</Soft>
     3. Select workloads to install.<br />
         <Soft>Workloads install a set of recommended models along with your choice. Download and installation size will increase the more models you select.</Soft>
