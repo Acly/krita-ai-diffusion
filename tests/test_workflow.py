@@ -103,7 +103,6 @@ def create(kind: WorkflowKind, client: Client, **kwargs):
     kwargs.setdefault("seed", default_seed)
     kwargs.setdefault("perf", default_perf)
     kwargs.setdefault("files", files)
-    kwargs.setdefault("color_match", 1.0)
 
     prompt = workflow.prepare_prompts(
         kwargs["cond"], kwargs["style"], kwargs["seed"], Arch.sd15, kwargs["files"]
@@ -937,7 +936,7 @@ def test_edit_reference(qtapp, client):
 
 def test_flux2_outpaint_lora(qtapp, client):
     image = Image.load(image_dir / "beach_1536x1024.webp")
-    mask = Mask.rectangle(Bounds(0, 0, 480, 1024), Bounds(0, 0, 768, 1024))
+    mask = Mask.rectangle(Bounds(0, 0, 400, 1024), Bounds(0, 0, 880, 1024))
     style = default_style(client, Arch.flux2_4b)
     cond = ConditioningInput("")
     cond, _, md = workflow.prepare_prompts(cond, style, 1, Arch.flux2_4b, InpaintMode.expand)

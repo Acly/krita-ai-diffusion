@@ -824,8 +824,6 @@ required_resource_ids = set([
     ResourceId(ResourceKind.lora, Arch.sdxl, "hyper"),
     ResourceId(ResourceKind.upscaler, Arch.all, UpscalerName.default),
     ResourceId(ResourceKind.upscaler, Arch.all, UpscalerName.fast_2x),
-    ResourceId(ResourceKind.upscaler, Arch.all, UpscalerName.fast_3x),
-    ResourceId(ResourceKind.upscaler, Arch.all, UpscalerName.fast_4x),
     ResourceId(ResourceKind.inpaint, Arch.sdxl, "fooocus_head"),
     ResourceId(ResourceKind.inpaint, Arch.sdxl, "fooocus_patch"),
     ResourceId(ResourceKind.inpaint, Arch.all, "default"),

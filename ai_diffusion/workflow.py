@@ -1092,7 +1092,8 @@ def inpaint(
             model, prompt_up, latent, models.arch, **sampler_params
         )
         out_image = vae_decode(w, vae, out_latent, checkpoint.tiled_vae)
-        out_image = w.color_match(out_image, upscale, upscale_mask, misc.color_match)
+        input_cropped = w.crop_image(in_image, initial_bounds)
+        out_image = w.color_match(out_image, input_cropped, upscale_mask, misc.color_match)
         out_image = scale_to_target(upscale_extent, w, out_image, models)
     else:
         desired_bounds = extent.convert(target_bounds, "target", "desired")
