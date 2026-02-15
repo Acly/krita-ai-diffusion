@@ -1050,6 +1050,20 @@ class ComfyWorkflow:
             "INPAINT_InpaintWithModel", 1, inpaint_model=model, image=image, mask=mask, seed=834729
         )
 
+    def color_match(
+        self, target: Output, reference: Output, exclude_mask: Output | None = None, strength=1.0
+    ):
+        if strength <= 0.0:
+            return target
+        return self.add(
+            "INPAINT_ColorMatch",
+            1,
+            target=target,
+            reference=reference,
+            exclude_mask=exclude_mask,
+            strength=strength,
+        )
+
     def crop_mask(self, mask: Output, bounds: Bounds):
         return self.add(
             "CropMask",

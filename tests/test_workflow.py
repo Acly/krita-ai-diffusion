@@ -103,6 +103,7 @@ def create(kind: WorkflowKind, client: Client, **kwargs):
     kwargs.setdefault("seed", default_seed)
     kwargs.setdefault("perf", default_perf)
     kwargs.setdefault("files", files)
+    kwargs.setdefault("color_match", 1.0)
 
     prompt = workflow.prepare_prompts(
         kwargs["cond"], kwargs["style"], kwargs["seed"], Arch.sd15, kwargs["files"]

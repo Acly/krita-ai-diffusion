@@ -240,6 +240,13 @@ class Settings(QObject):
         _("Selection Padding"), 6, _("Minimum additional padding around the selection area")
     )
 
+    color_match: bool
+    _color_match = Setting(
+        _("Color Match"),
+        True,
+        _("Match peripheral colors and brightness with existing content. Requires a selection."),
+    )
+
     nsfw_filter: float
     _nsfw_filter = Setting(
         _("NSFW Filter"), 0.0, _("Attempt to filter out images with explicit content")

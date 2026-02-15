@@ -188,6 +188,7 @@ class WorkflowInput:
     upscale: UpscaleInput | None = None
     control_mode: ControlMode = ControlMode.reference
     batch_count: int = 1
+    color_match: float = 0.0
     nsfw_filter: float = 0.0
     custom_workflow: CustomWorkflowInput | None = None
 

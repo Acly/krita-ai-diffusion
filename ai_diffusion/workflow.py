@@ -827,6 +827,7 @@ def ensure_minimum_extent(w: ComfyWorkflow, image: Output, extent: Extent, min_e
 class MiscParams(NamedTuple):
     batch_count: int
     layer_count: int
+    color_match: float
     nsfw_filter: float
 
 
@@ -1091,6 +1092,7 @@ def inpaint(
             model, prompt_up, latent, models.arch, **sampler_params
         )
         out_image = vae_decode(w, vae, out_latent, checkpoint.tiled_vae)
+        out_image = w.color_match(out_image, upscale, upscale_mask, misc.color_match)
         out_image = scale_to_target(upscale_extent, w, out_image, models)
     else:
         desired_bounds = extent.convert(target_bounds, "target", "desired")
@@ -1099,6 +1101,7 @@ def inpaint(
             desired_extent, desired_extent, desired_extent, target_bounds.extent
         )
         out_image = vae_decode(w, vae, out_latent, checkpoint.tiled_vae)
+        out_image = w.color_match(out_image, in_image, inpaint_mask, misc.color_match)
         out_image = scale(
             extent.initial, extent.desired, extent.refinement_scaling, w, out_image, models
         )
@@ -1198,6 +1201,7 @@ def refine_region(
     out_image = scale_refine_and_decode(
         extent, w, cond, sampling, out_latent, model_orig, clip, vae, models, checkpoint.tiled_vae
     )
+    out_image = w.color_match(out_image, in_image, initial_mask, misc.color_match)
     out_image = w.nsfw_filter(out_image, sensitivity=misc.nsfw_filter)
     out_image = scale_to_target(extent, w, out_image, models)
     if extent.target != inpaint.target_bounds.extent:
@@ -1713,6 +1717,7 @@ def prepare(
 
     i.batch_count = 1 if is_live else i.batch_count
     i.images.layer_count = layer_count if arch is Arch.qwen_l else 1
+    i.color_match = 1.0 if settings.color_match else 0.0
     i.nsfw_filter = settings.nsfw_filter
     return i
 
@@ -1748,7 +1753,8 @@ def create(i: WorkflowInput, models: ClientModels, comfy_mode=ComfyRunMode.serve
     This should be a pure function, the workflow is entirely defined by the input.
     """
     workflow = ComfyWorkflow(models.node_inputs, comfy_mode)
-    misc = MiscParams(i.batch_count, i.images.layer_count if i.images else 1, i.nsfw_filter)
+    layer_count = i.images.layer_count if i.images else 1
+    misc = MiscParams(i.batch_count, layer_count, i.color_match, i.nsfw_filter)
 
     if i.kind is WorkflowKind.generate:
         return generate(
