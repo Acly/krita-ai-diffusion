@@ -1,7 +1,7 @@
 ---
 import { Image } from "astro:assets";
 
-const { images, captions } = Astro.props;
+const { images, captions, layout } = Astro.props;
 
 function findImage(img: string) {
   const imageFiles = import.meta.glob<{ default: ImageMetadata }>(
@@ -13,9 +13,14 @@ function findImage(img: string) {
   }
   return imageFiles[imgFile]();
 }
+
+let gridStyle = "grid-template-columns: repeat(auto-fit, minmax(320px, 1fr))";
+if (layout === "row") {
+  gridStyle = "grid-template-columns: repeat(3, 1fr)";
+}
 ---
 
-<div class="image-grid">
+<div class="image-grid" style={gridStyle}>
   {
     images.map((img: string) => (
       <div>
@@ -29,7 +34,6 @@ function findImage(img: string) {
 <style>
   .image-grid {
     display: grid;
-    grid-template-columns: repeat(auto-fit, minmax(320px, 1fr));
     gap: 1rem;
   }
   .image-grid > div {

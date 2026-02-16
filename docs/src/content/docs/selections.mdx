@@ -3,7 +3,10 @@ title: Selection Fill
 description: Guide to working with selection inpainting in Krita AI Diffusion
 ---
 
+import { Aside } from '@astrojs/starlight/components'
 import PluginIcon from '../../components/PluginIcon.astro'
+import ImageSample from '../../components/ImageSample.astro'
+import ImageGrid from '../../components/ImageGrid.astro'
 
 Using selections to modify parts of the image is a key feature of the plugin. It
 allows you to apply AI generation exactly where you want. You can work on an
@@ -139,4 +142,74 @@ In custom generation menu, select your mask as context. You can reuse it any tim
 
 ![custom-inpaint-context-menu](https://github.com/Acly/krita-ai-diffusion/assets/6485914/c79a6009-1fa3-4173-b123-592c4afc2cfc)
 
+
+## Selection settings
+
+Your selection defines a basic mask where new content is generated. To make
+it more robust and allow changes to be integrated with the rest of the image,
+the mask is usually processed by the plugin before it is used. This section goes
+into more detail and shows how diffusion settings influence the mask.
+
+### Mask types
+
+<ImageGrid layout="row" images={[
+  "selections/masks-selection.webp",
+  "selections/masks-denoising.webp",
+  "selections/masks-alpha.webp"]}
+  captions={{
+    "selections/masks-selection.webp": "Selection",
+    "selections/masks-denoising.webp": "Denoising mask",
+    "selections/masks-alpha.webp": "Blend mask (blue)"
+  }}
+  />
+
+The plugin derives two masks from the original selection, which are used for
+different purposes.
+* The <span style="color: #cd5c12; font-weight: bold;">red area</span> corresponds to the original
+  selection. It always receives changes at full strength (the value
+  configured via the strength slider).
+* The <span style="color: #d97706; font-weight: bold;">orange area</span> is a tiny offset, which
+  helps to avoid issues with outlines of objects when the selection is a bit too
+  tight. It also receives changes at full strength.
+* The <span style="color: #94bc16; font-weight: bold;">green/yellow area</span> visualizes how
+  strength gradually decreases towards the edges. The green inner areas are
+  generated at higher strength (more denoising steps), while the yellow outer
+  areas are generated at low strength. Remember that generation happens in
+  multiple steps: the sections further away from the selection remain completely
+  unchanged initially and are only included in the final fine tuning steps.
+* The <span style="color: #3b82f6; font-weight: bold;">blue area</span> is the blend mask. It is
+  independent from generation, and only used to perform alpha composition of the
+  result with the original image. At the inner edge of the blue area (dark blue)
+  100% of the result will be applied. Towards the outer edge (light blue) it becomes
+  gradually more transparent.
+
+_Note: with typical settings the masks are significantly smaller than in this
+visualization._
+
+### Settings
+
+<ImageSample src="selections/masks-settings.webp" scale={1.25} alt="Mask settings" />
+
+In the Diffusion settings there are two values that influence the masks:
+* **Selection Feather**: this controls the falloff area of the denoising mask
+  (green/yellow area). It is defined in percent relative to the selection size.
+* **Selection Blend**: this controls the size of the blend mask (blue area). It
+  is defined in absolute pixels.
+
+If both of these are set to 0, all automatic mask processing is disabled.
+This can make sense if you want to have full control over the selection mask.
+
+<Aside type="note">
+The transition area (green/yellow) is scaled according to the **strength**! At 100% strength
+it has the full size defined by the settings, but at 50% strength it will be only half as big.
+Low strength refinement usually blends well on its own, and uses minimal feathering. 
+</Aside>
+
+There are two more settings which can currently only be configured by editing
+`settings.json`. You can find the file via the link at the bottom of the
+Settings dialog. The settings are:
+* **selection_min_transition**: minimum size in pixels of the transition area
+  (green/yellow).
+* **selection_grow_offset**: size in pixels of the orange offset area. This is
+  usually a very small value.
 
