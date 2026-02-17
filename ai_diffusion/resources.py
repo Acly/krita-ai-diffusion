@@ -8,10 +8,10 @@ from typing import Any, NamedTuple, Sequence
 
 # Version identifier for all the resources defined here. This is used as the server version.
 # It usually follows the plugin version, but not all new plugin versions also require a server update.
-version = "1.47.0"
+version = "1.48.0"
 
 comfy_url = "https://github.com/comfyanonymous/ComfyUI"
-comfy_version = "cb459573c8fa025bbf9ecf312f6af376d659f567"
+comfy_version = "fe52843fe55b92dedaabff684294dd7a115d2204"
 
 
 class CustomNode(NamedTuple):
@@ -48,7 +48,7 @@ required_custom_nodes = [
         "Inpaint Nodes",
         "comfyui-inpaint-nodes",
         "https://github.com/Acly/comfyui-inpaint-nodes",
-        "b02942210daad35db71f654038cebd541e81fe17",
+        "d74ecec6c377073a6885697f07a019d050f0d545",
         ["INPAINT_LoadFooocusInpaint", "INPAINT_ShrinkMask", "INPAINT_StabilizeMask"],
     ),
 ]
