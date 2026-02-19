@@ -360,6 +360,13 @@ class Settings(QObject):
         "Apply Region Behavior (Live)", ApplyRegionBehavior.replace
     )
 
+    prompt_as_layer_name: bool
+    _prompt_as_layer_name = Setting(
+        _("Prompt as Layer Name"),
+        True,
+        _("Use the positive prompt as the layer name for the preview layer and new layers"),
+    )
+
     show_builtin_styles: bool
     _show_builtin_styles = Setting(_("Show pre-installed styles"), True)
 
