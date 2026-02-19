@@ -22,7 +22,8 @@ class AIToolsExtension(Extension):
         super().__init__(parent)
         log.info(f"Extension initialized, Version: {__version__}, Python: {sys.version}")
 
-        debugpy_path = Path(__file__).parent / "debugpy" / "src"
+        extension_dir = Path(__file__).parent
+        debugpy_path = extension_dir / "debugpy" / "src"
         if debugpy_path.exists():
             try:
                 sys.path.insert(0, str(debugpy_path))
@@ -32,6 +33,13 @@ class AIToolsExtension(Extension):
                 log.info("Developer mode: debugpy listening on port 5678")
             except ImportError:
                 pass
+
+        pykrita_dir = extension_dir.parent
+        if pykrita_dir.name != "pykrita" and not (pykrita_dir / ".git").exists():
+            log.warning(
+                "Plugin is not installed in a 'pykrita' directory, this may break user files "
+                f"and settings. Detected installation path is: {pykrita_dir}"
+            )
 
         eventloop.setup()
         settings.load()

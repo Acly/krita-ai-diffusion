@@ -307,7 +307,7 @@ class Styles(QObject):
         self._list = [s for s in styles if s is not None]
         self._list.sort(key=lambda s: s.name)
         if len(self._list) == 0:
-            self.create("default")
+            self.create("default.json")
         else:
             self.changed.emit()
 
