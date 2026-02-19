@@ -2,7 +2,7 @@ from enum import Enum, Flag
 from dataclasses import asdict, is_dataclass
 from itertools import islice
 from pathlib import Path
-from typing import Generator
+from typing import Any, Callable, Iterable, Optional, Sequence, TypeVar, Generator
 import importlib.util
 import os
 import sys
@@ -10,7 +10,7 @@ import json
 import logging
 import logging.handlers
 import statistics
-from typing import Any, Callable, Iterable, Optional, Sequence, TypeVar
+
 from PyQt5 import sip
 from PyQt5.QtCore import QObject, QStandardPaths
 

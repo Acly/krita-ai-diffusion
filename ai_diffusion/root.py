@@ -1,9 +1,12 @@
 from __future__ import annotations
-from dataclasses import dataclass
+import asyncio
 import itertools
+import re
+import sys
+from pathlib import Path
+from dataclasses import dataclass
 from typing import Callable
 from PyQt5.QtCore import QObject, pyqtSignal
-import asyncio
 
 from .connection import Connection, ConnectionState
 from .client import ClientMessage
@@ -17,6 +20,7 @@ from .updates import AutoUpdate
 from .ui.theme import checkpoint_icon
 from .settings import ServerMode, settings
 from .util import client_logger as log
+from . import platform_tools, util
 
 
 class Root(QObject):
@@ -182,3 +186,69 @@ class Root(QObject):
 
 
 root = Root()
+
+
+def _read_log(log_path: Path, last_n: int = 1000):
+    try:
+        with open(log_path, "r", encoding="utf-8") as f:
+            lines = f.readlines()[-last_n:]
+            return "".join(reversed(lines))
+    except Exception as e:
+        return f"Failed to read log file {log_path}: {e}"
+
+
+def collect_diagnostics(redact_user=True):
+    import platform
+    from . import __version__
+
+    try:
+        from krita import Krita
+
+        krita_version = Krita.instance().version()
+    except Exception:
+        krita_version = "Unknown"
+
+    out = "Krita AI Diffusion Plugin Diagnostics\n"
+    out += "-------------------------------------\n"
+    out += f"Plugin Version: {__version__}\n"
+    out += f"Krita Version: {krita_version}\n"
+    out += f"Python Version: {sys.version}\n"
+    out += "-------------------------------------\n"
+    out += "System Information:\n"
+    out += f"  Platform: {platform.system()} {platform.release()}\n"
+    out += f"  Architecture: {platform.machine()}\n"
+    out += f"  Processor: {platform.processor()}\n"
+    out += f"  CUDA Capability: {', '.join(f'{a}.{b}' for a, b in platform_tools.get_cuda_devices())}\n"
+    out += "-------------------------------------\n"
+    out += "Path Configuration:\n"
+    out += f"  Plugin Directory: {util.plugin_dir}\n"
+    out += f"  User Data Directory: {util.user_data_dir}\n"
+    out += "-------------------------------------\n"
+    out += "Settings:\n"
+    for name, value in settings:
+        if name in ("access_token", "server_authorization") or value == settings.access_token:
+            value = "<redacted>"
+        out += f"  {name}: {value}\n"
+    out += "-------------------------------------\n"
+    out += "Client Log:\n"
+    out += _read_log(util.log_dir / "client.log", last_n=300)
+    if settings.server_mode is ServerMode.managed:
+        out += "\n-------------------------------------\n"
+        out += "Server Log:\n"
+        out += _read_log(util.log_dir / "server.log", last_n=300)
+
+    if redact_user:
+        user_name = None
+        if platform_tools.is_windows:
+            pattern = r"[A-Z]:\\Users\\(.*)\\AppData\\"
+            if match := re.search(pattern, str(util.user_data_dir.absolute())):
+                user_name = match.group(1)
+        else:
+            pattern = r"/home/(.*)/\.local/share"
+            if match := re.search(pattern, str(util.user_data_dir.absolute())):
+                user_name = match.group(1)
+
+        if user_name:
+            out = out.replace(user_name, "<redacted>")
+
+    return out[: 65536 - 5000]  # GitHub issue body limit is 65536 characters

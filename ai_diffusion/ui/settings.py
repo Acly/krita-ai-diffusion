@@ -2,27 +2,13 @@ from __future__ import annotations
 from krita import Krita
 
 from typing import Optional
-from PyQt5.QtWidgets import (
-    QVBoxLayout,
-    QHBoxLayout,
-    QDialog,
-    QPushButton,
-    QFrame,
-    QLabel,
-    QListWidget,
-    QListWidgetItem,
-    QLineEdit,
-    QSpinBox,
-    QStackedWidget,
-    QComboBox,
-    QWidget,
-    QMessageBox,
-    QCheckBox,
-    QStyle,
-    QStyleOption,
-)
+from PyQt5.QtWidgets import QTextEdit, QVBoxLayout, QHBoxLayout, QDialog, QPushButton, QFrame
+from PyQt5.QtWidgets import QLabel, QListWidget, QListWidgetItem, QLineEdit, QSpinBox
+from PyQt5.QtWidgets import QStackedWidget, QComboBox, QWidget, QMessageBox
+from PyQt5.QtWidgets import QCheckBox, QStyle, QStyleOption
 from PyQt5.QtCore import Qt, QMetaObject, QSize, QUrl, pyqtSignal
-from PyQt5.QtGui import QDesktopServices, QGuiApplication, QCursor, QFontMetrics, QPainter, QColor
+from PyQt5.QtGui import QDesktopServices, QFontDatabase, QGuiApplication, QCursor, QFontMetrics
+from PyQt5.QtGui import QPainter, QColor
 
 from ..client import Client, User, MissingResources
 from ..cloud_client import CloudClient
@@ -30,7 +16,7 @@ from ..resources import Arch, ResourceId
 from ..settings import Settings, ServerMode, PerformancePreset, settings, ImageFileFormat
 from ..server import Server, ServerState
 from ..style import Style
-from ..root import root
+from ..root import root, collect_diagnostics
 from ..connection import ConnectionState, apply_performance_preset
 from ..updates import UpdateState
 from ..properties import Binding
@@ -979,6 +965,18 @@ class AboutSettings(SettingsTab):
         self._update_button.setMinimumWidth(font_height * 6)
         self._update_button.clicked.connect(self._run_update)
 
+        sys_header = QLabel(_("System Information"), self)
+        sys_header.setFont(large)
+        sys_desc = QLabel(_("Please attach this information when reporting issues!"), self)
+        sys_desc.setFont(italic)
+        sys_button = QPushButton(_("Collect Diagnostics"), self)
+        sys_button.setMinimumWidth(font_height * 6)
+        sys_button.clicked.connect(self._collect_diagnostics)
+        anchor = _("View log files")
+        open_log_button = QLabel(f"<a href='file://{util.log_dir}'>{anchor}</a>", self)
+        open_log_button.setToolTip(str(util.log_dir))
+        open_log_button.linkActivated.connect(self._open_logs)
+
         doc_header = QLabel(_("Documentation and Support"), self)
         doc_header.setFont(large)
 
@@ -1006,6 +1004,11 @@ class AboutSettings(SettingsTab):
         update_layout.addWidget(self._update_button)
         update_layout.addStretch()
         self._layout.addLayout(update_layout)
+        self._layout.addSpacing(20)
+        self._layout.addWidget(sys_header)
+        self._layout.addWidget(sys_desc)
+        self._layout.addWidget(sys_button, alignment=Qt.AlignmentFlag.AlignLeft)
+        self._layout.addWidget(open_log_button)
         self._layout.addSpacing(20)
         self._layout.addWidget(doc_header)
         self._layout.addSpacing(5)
@@ -1069,11 +1072,36 @@ class AboutSettings(SettingsTab):
     def _write(self):
         settings.auto_update = self._update_checkbox.isChecked()
 
+    def _collect_diagnostics(self):
+        diagnostics = collect_diagnostics()
+        clipboard = QGuiApplication.clipboard()
+        if clipboard is not None:
+            clipboard.setText(diagnostics)
+
+        window = QDialog(self)
+        window.setWindowTitle(_("Diagnostics Information"))
+        layout = QVBoxLayout()
+        text = QTextEdit(window)
+        text.setReadOnly(True)
+        text.setText(diagnostics)
+        text.setFont(QFontDatabase.systemFont(QFontDatabase.SystemFont.SmallestReadableFont))
+        if clipboard is not None:
+            msg = _("System information has been copied to the clipboard.")
+            layout.addWidget(QLabel("✔️ " + msg))
+        layout.addSpacing(6)
+        layout.addWidget(text)
+        window.setLayout(layout)
+        window.resize(min(self.width(), 800), 640)
+        window.exec_()
+
+    def _open_logs(self):
+        QDesktopServices.openUrl(QUrl.fromLocalFile(str(util.log_dir)))
+
 
 _links_text = """
 <a href='https://www.interstice.cloud'>Website</a><br><br>
 <a href='https://docs.interstice.cloud'>Handbook: Guides and Tips</a><br><br>
-<a href='https://github.com/Acly/krita-ai-diffusion'>GitHub</a><br><br>
+<a href='https://github.com/Acly/krita-ai-diffusion'>GitHub</a>
 """
 
 _contact_text = """

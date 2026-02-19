@@ -544,6 +544,9 @@ class Settings(QObject):
             for k, v in self._performance_presets[preset]._asdict().items():
                 self._values[k] = v
 
+    def __iter__(self):
+        return iter(self._values.items())
+
     def _migrate_legacy_settings(self, path: Path):
         if path == self.default_path:
             legacy_path = Path(__file__).parent / "settings.json"
