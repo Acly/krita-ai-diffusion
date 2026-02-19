@@ -438,6 +438,7 @@ class Server:
                 safe_remove_dir(comfy_dir)
                 shutil.move(upgrade_comfy_dir, comfy_dir)
                 self._version_file.write_text(f"{old_version} {self.backend.name}")
+                self.check_install()
             raise e
 
         try:
