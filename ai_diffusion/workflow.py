@@ -7,9 +7,9 @@ import math
 import random
 
 from . import resolution, resources
-from .api import ControlInput, ImageInput, CheckpointInput, SamplingInput, WorkflowInput, LoraInput
+from .api import ControlInput, CustomStyleInput, ImageInput, CheckpointInput, SamplingInput
 from .api import ExtentInput, InpaintMode, InpaintParams, FillMode, ConditioningInput, WorkflowKind
-from .api import RegionInput, CustomWorkflowInput, UpscaleInput
+from .api import RegionInput, WorkflowInput, CustomWorkflowInput, UpscaleInput, LoraInput
 from .image import Bounds, Extent, Image, ImageCollection, Mask, multiple_of
 from .client import ClientModels, ModelDict, Quantization, resolve_arch
 from .files import FileLibrary, FileFormat
@@ -1442,21 +1442,17 @@ def expand_custom(
             case "ETN_KritaMaskLayer":
                 outputs[node.output(0)] = w.load_mask(get_param(node, (Image, ImageCollection)))
             case "ETN_KritaStyle":
-                style: Style = get_param(node, Style)
-                is_live = node.input("sampler_preset", "auto") == "live"
-                checkpoint_input = style.get_models(models.checkpoints)
-                sampling = sampling_from_style(style, 1.0, is_live)
-                model, clip, vae = load_checkpoint_with_lora(w, checkpoint_input, models)
+                style: CustomStyleInput = get_param(node, CustomStyleInput)
+                model, clip, vae = load_checkpoint_with_lora(w, style.models, models)
                 outputs[node.output(0)] = model
                 outputs[node.output(1)] = clip.model
                 outputs[node.output(2)] = vae
-                outputs[node.output(3)] = style.style_prompt
+                outputs[node.output(3)] = style.positive_prompt
                 outputs[node.output(4)] = style.negative_prompt
-                outputs[node.output(5)] = sampling.sampler
-                outputs[node.output(6)] = sampling.scheduler
-                outputs[node.output(7)] = sampling.total_steps
-                outputs[node.output(8)] = sampling.cfg_scale
-
+                outputs[node.output(5)] = style.sampling.sampler
+                outputs[node.output(6)] = style.sampling.scheduler
+                outputs[node.output(7)] = style.sampling.total_steps
+                outputs[node.output(8)] = style.sampling.cfg_scale
             case "ETN_KritaStyleAndPrompt":
                 checkpoint_input = ensure(input.models)
                 sampling = ensure(input.sampling)

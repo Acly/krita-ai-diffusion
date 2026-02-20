@@ -6,15 +6,9 @@ from typing import Iterable
 from pathlib import Path
 from PyQt5.QtCore import Qt
 
-from ai_diffusion.api import CustomWorkflowInput, ImageInput, WorkflowInput
-from ai_diffusion.client import (
-    Client,
-    ClientModels,
-    CheckpointInfo,
-    JobInfoOutput,
-    OutputBatchMode,
-    TextOutput,
-)
+from ai_diffusion.api import CustomWorkflowInput, CustomStyleInput, ImageInput, WorkflowInput
+from ai_diffusion.client import Client, ClientModels, CheckpointInfo, JobInfoOutput
+from ai_diffusion.client import OutputBatchMode, TextOutput
 from ai_diffusion.connection import Connection, ConnectionState
 from ai_diffusion.comfy_workflow import ComfyNode, ComfyObjectInfo, ComfyWorkflow, Output
 from ai_diffusion.custom_workflow import WorkflowSource, WorkflowCollection
@@ -479,7 +473,7 @@ def test_expand():
     choicy = ext.add("ETN_Parameter", 1, name="choicy", type="choice", default="c")
     layer_img = ext.add("ETN_KritaImageLayer", 1, name="layer_img")
     layer_mask = ext.add("ETN_KritaMaskLayer", 1, name="layer_mask")
-    stylie = ext.add("ETN_KritaStyle", 9, name="style", sampler_preset="live")  # type: ignore
+    stylie = ext.add("ETN_KritaStyle", 9, name="style", sampler_preset="auto")  # type: ignore
     ext.add(
         "Sink",
         1,
@@ -506,6 +500,19 @@ def test_expand():
     style.checkpoints = ["checkpoint.safetensors"]
     style.style_prompt = "bee hive"
     style.negative_prompt = "pigoon"
+
+    models = ClientModels()
+    models.checkpoints = {
+        "checkpoint.safetensors": CheckpointInfo("checkpoint.safetensors", Arch.sd15)
+    }
+
+    style_input = CustomStyleInput(
+        models=style.get_models(models.checkpoints),
+        sampling=workflow.sampling_from_style(style, 1.0, False),
+        positive_prompt=style.style_prompt,
+        negative_prompt=style.negative_prompt,
+    )
+
     params = {
         "inty": 7,
         "numby": 3.4,
@@ -514,17 +521,12 @@ def test_expand():
         "choicy": "b",
         "layer_img": Image.create(Extent(4, 4), Qt.GlobalColor.black),
         "layer_mask": Image.create(Extent(4, 4), Qt.GlobalColor.white),
-        "style": style,
+        "style": style_input,
     }
 
     input = CustomWorkflowInput(workflow=ext.root, params=params)
     images = ImageInput.from_extent(Extent(4, 4))
     images.initial_image = Image.create(Extent(4, 4), Qt.GlobalColor.red)
-
-    models = ClientModels()
-    models.checkpoints = {
-        "checkpoint.safetensors": CheckpointInfo("checkpoint.safetensors", Arch.sd15)
-    }
 
     w = ComfyWorkflow()
     w = workflow.expand_custom(w, input, images, Bounds(0, 0, 4, 4), 123, models)
@@ -553,10 +555,10 @@ def test_expand():
                 "vae": Output(6, 2),
                 "positive": "bee hive",
                 "negative": "pigoon",
-                "sampler": "euler",
-                "scheduler": "sgm_uniform",
-                "steps": 6,
-                "guidance": 1.8,
+                "sampler": "dpmpp_2m",
+                "scheduler": "karras",
+                "steps": 20,
+                "guidance": 7.0,
             },
         ),
     ]

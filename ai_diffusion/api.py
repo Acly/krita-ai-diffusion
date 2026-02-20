@@ -167,6 +167,14 @@ class UpscaleInput:
 
 
 @dataclass
+class CustomStyleInput:
+    models: CheckpointInput
+    sampling: SamplingInput
+    positive_prompt: str
+    negative_prompt: str
+
+
+@dataclass
 class CustomWorkflowInput:
     workflow: dict
     params: dict[str, Any]

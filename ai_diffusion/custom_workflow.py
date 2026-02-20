@@ -10,8 +10,8 @@ from pathlib import Path
 from PyQt5.QtCore import Qt, QObject, QUuid, QAbstractListModel, QSortFilterProxyModel, QModelIndex
 from PyQt5.QtCore import QMetaObject, QTimer, pyqtSignal
 
-from .api import WorkflowInput, InpaintContext
-from .client import OutputBatchMode, TextOutput, ClientOutput, JobInfoOutput
+from .api import CustomStyleInput, WorkflowInput, InpaintContext
+from .client import ClientModels, OutputBatchMode, TextOutput, ClientOutput, JobInfoOutput
 from .comfy_workflow import ComfyWorkflow, ComfyNode
 from .localization import translate as _
 from .connection import Connection, ConnectionState
@@ -19,6 +19,7 @@ from .image import Bounds, Image, Mask
 from .jobs import Job, JobParams, JobQueue, JobKind
 from .properties import Property, ObservableProperties
 from .style import Styles
+from .workflow import sampling_from_style
 from .util import base_type_match, parse_enum, user_data_dir, client_logger as log
 from .ui import theme
 from . import eventloop
@@ -509,7 +510,14 @@ class CustomWorkspace(QObject, ObservableProperties):
                 return str(self.params[param.name])
         return self.workflow_id or "Custom Workflow"
 
-    def collect_parameters(self, layers: "LayerManager", bounds: Bounds, animation=False):
+    def collect_parameters(
+        self,
+        layers: "LayerManager",
+        bounds: Bounds,
+        models: ClientModels,
+        is_live: bool,
+        is_animation: bool,
+    ):
         params = copy(self.params)
         for md in self.metadata:
             param = params.get(md.name)
@@ -520,7 +528,7 @@ class CustomWorkspace(QObject, ObservableProperties):
                 layer = layers.find(QUuid(param))
                 if layer is None:
                     raise ValueError(f"Input layer for parameter {md.name} not found")
-                if animation and layer.is_animated:
+                if is_animation and layer.is_animated:
                     params[md.name] = layer.get_pixel_frames(bounds)
                 else:
                     params[md.name] = layer.get_pixels(bounds)
@@ -530,7 +538,7 @@ class CustomWorkspace(QObject, ObservableProperties):
                 layer = layers.find(QUuid(param))
                 if layer is None:
                     raise ValueError(f"Input layer for parameter {md.name} not found")
-                if animation and layer.is_animated:
+                if is_animation and layer.is_animated:
                     params[md.name] = layer.get_mask_frames(bounds)
                 else:
                     params[md.name] = layer.get_mask(bounds)
@@ -538,7 +546,18 @@ class CustomWorkspace(QObject, ObservableProperties):
                 style = Styles.list().find(str(param))
                 if style is None:
                     raise ValueError(f"Style {param} not found")
-                params[md.name] = style
+                if md.default == "regular":
+                    use_live_sampling = False
+                elif md.default == "live":
+                    use_live_sampling = True
+                else:  # auto
+                    use_live_sampling = is_live
+                params[md.name] = CustomStyleInput(
+                    style.get_models(models.checkpoints),
+                    sampling_from_style(style, 1.0, use_live_sampling),
+                    style.style_prompt,
+                    style.negative_prompt,
+                )
             elif param is None:
                 raise ValueError(f"Parameter {md.name} not found")
 

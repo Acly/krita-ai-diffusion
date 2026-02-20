@@ -479,6 +479,7 @@ class Model(QObject, ObservableProperties):
 
         try:
             wf = ensure(self.custom.graph)
+            client = self._connection.client
             is_live = self.custom.mode is CustomGenerationMode.live
             is_anim = self.custom.mode is CustomGenerationMode.animation
             seed = self.seed if is_live or self.fixed_seed else workflow.generate_seed()
@@ -495,7 +496,9 @@ class Model(QObject, ObservableProperties):
             img_input.initial_image = self._get_current_image(bounds)
             img_input.hires_mask = mask.to_image(bounds.extent) if mask else None
 
-            params = self.custom.collect_parameters(self.layers, canvas_bounds, is_anim)
+            params = self.custom.collect_parameters(
+                self.layers, canvas_bounds, client.models, is_live, is_anim
+            )
 
             custom_input = CustomWorkflowInput(wf.root, params)
             metadata: dict[str, Any] = dict(self.custom.params)
@@ -505,11 +508,11 @@ class Model(QObject, ObservableProperties):
             if style_node is not None:
                 style = self.style
                 is_live = style_node.input("sampler_preset", "auto") == "live"
-                custom_input.models = style.get_models(self._connection.client.models.checkpoints)
+                custom_input.models = style.get_models(client.models.checkpoints)
                 custom_input.sampling = workflow.sampling_from_style(style, 1.0, is_live)
 
                 cond = ConditioningInput(self.regions.positive, self.regions.negative)
-                arch = resolve_arch(style, self._connection.client_if_connected)
+                arch = resolve_arch(style, client)
                 prepared = workflow.prepare_prompts(cond, style, seed, arch)
                 custom_input.positive_evaluated = prepared.metadata["prompt_final"]
                 custom_input.negative_evaluated = prepared.metadata["negative_prompt_final"]
