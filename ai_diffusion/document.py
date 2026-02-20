@@ -171,6 +171,7 @@ class KritaDocument(Document):
             id = cls._id_from_annotation(doc)
             if id and id in cls._instances:
                 return cls._instances[id]
+        return None
 
     @property
     def extent(self):
