@@ -1,3 +1,4 @@
+import math
 from functools import wraps
 from pathlib import Path
 from typing import Any, Callable
@@ -161,13 +162,18 @@ class FloatParamWidget(QWidget):
 
         self._slider: QSlider | None = None
         assert param.min is not None and param.max is not None and param.default is not None
-        if param.max - param.min <= 100:
+        delta = abs(param.max - param.min)
+        step = round(delta / 20, math.ceil(-math.log10(delta / 20)))
+        if 0.1 <= delta <= 100:
             self._slider = QSlider(Qt.Orientation.Horizontal, parent)
             self._slider.setRange(round(param.min * 100), round(param.max * 100))
+            self._slider.setSingleStep(round(step * 50))
+            self._slider.setPageStep(round(step * 200))
             self._slider.setMinimumHeight(self._slider.minimumSizeHint().height() + 4)
             self._slider.valueChanged.connect(self._slider_changed)
             self._widget = QDoubleSpinBox(parent)
             self._widget.setRange(param.min, param.max)
+            self._widget.setSingleStep(step)
             self._widget.setDecimals(2)
             self._widget.valueChanged.connect(self._input_changed)
             layout.addWidget(self._slider)
@@ -175,6 +181,8 @@ class FloatParamWidget(QWidget):
         else:
             self._widget = QDoubleSpinBox(parent)
             self._widget.setRange(param.min, param.max)
+            self._widget.setSingleStep(step)
+            self._widget.setDecimals(max(0, math.ceil(-math.log10(delta / 100))))
             self._widget.valueChanged.connect(self._notify)
             layout.addWidget(self._widget)
 
