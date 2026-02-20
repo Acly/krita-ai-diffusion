@@ -1,0 +1,41 @@
+---
+import { Icon } from "astro-icon/components";
+
+const { id } = Astro.props;
+---
+
+<details>
+  <summary id={id}>
+    <slot name="summary" />
+    <a class="summary-anchor-link" href={"#" + id}>
+      <Icon name="awesome/chain" />
+    </a>
+  </summary>
+  <slot />
+</details>
+
+<style>
+  .summary-anchor-link {
+    margin-left: 0.5em;
+    opacity: 0.5;
+  }
+  .summary-anchor-link:hover {
+    opacity: 0.8;
+  }
+  .summary-anchor-link > svg {
+    width: 0.75em;
+    height: 0.75em;
+  }
+</style>
+
+<script>
+  document.addEventListener("click", (e) => {
+    const target = e.target as HTMLElement;
+    const link = target.closest(".summary-anchor-link") as HTMLAnchorElement;
+    if (link) {
+      e.preventDefault();
+      const url = new URL(link.href);
+      navigator.clipboard.writeText(url.href);
+    }
+  });
+</script>

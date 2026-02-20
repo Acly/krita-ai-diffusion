@@ -1,0 +1,41 @@
+---
+
+---
+
+<script is:inline>
+  (() => {
+    if (window.__commonIssuesDetailsLinks) {
+      return;
+    }
+    window.__commonIssuesDetailsLinks = true;
+
+    const openFromHash = () => {
+      const id = decodeURIComponent(window.location.hash.slice(1));
+      if (!id) {
+        return;
+      }
+
+      const summary = document.getElementById(id);
+      if (!summary) {
+        return;
+      }
+
+      const details = summary.closest("details");
+      if (details) {
+        details.open = true;
+      }
+    };
+
+    const onReady = () => {
+      openFromHash();
+    };
+
+    if (document.readyState === "loading") {
+      document.addEventListener("DOMContentLoaded", onReady);
+    } else {
+      onReady();
+    }
+
+    window.addEventListener("hashchange", openFromHash);
+  })();
+</script>
