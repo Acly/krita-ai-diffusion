@@ -131,8 +131,7 @@ class Layer(QObject):
     def bounds(self):
         # In Krita layer bounds can be larger than the image - this property clamps them
         bounds = Bounds.from_qrect(self._node.bounds())
-        bounds = Bounds.restrict(bounds, Bounds(0, 0, *self._manager.image_extent))
-        return bounds
+        return Bounds.restrict(bounds, Bounds(0, 0, *self._manager.image_extent))
 
     @property
     def parent_layer(self):
@@ -483,8 +482,7 @@ class LayerManager(QObject):
         node = doc.createNode(name, "paintlayer")
         if img and bounds:
             node.setPixelData(img.data, *bounds)
-        layer = self._insert(node, parent, above, make_active)
-        return layer
+        return self._insert(node, parent, above, make_active)
 
     def _insert(
         self,

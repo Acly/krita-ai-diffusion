@@ -175,7 +175,7 @@ class Bounds(NamedTuple):
             return b
 
         def apply(x):
-            return int(round(x * scale))
+            return round(x * scale)
 
         return Bounds(apply(b.x), apply(b.y), apply(b.width), apply(b.height))
 
@@ -320,7 +320,7 @@ class Image:
 
     @staticmethod
     def from_packed_bytes(data: QByteArray, extent: Extent, channels=4):
-        assert channels == 4 or channels == 1
+        assert channels in {4, 1}
         stride = extent.width * channels
         format = QImage.Format.Format_ARGB32 if channels == 4 else QImage.Format.Format_Grayscale8
         qimg = QImage(data, extent.width, extent.height, stride, format)

@@ -306,9 +306,8 @@ class RootRegion(QObject, ObservableProperties):
 
     def _update_active(self):
         layer, changed = self._get_active_layer()
-        if layer and changed:
-            if region := self.find_linked(layer):
-                self.active = region
+        if layer and changed and (region := self.find_linked(layer)):
+            self.active = region
 
     def _track_layer(self, region: Region | None):
         if region and region.first_layer:
@@ -323,10 +322,9 @@ class RootRegion(QObject, ObservableProperties):
         """If a layer is moved into a group, promote the region to non-destructive apply workflow."""
         if layer.type is not LayerType.group:
             if region := self.find_linked(layer, RegionLink.direct):
-                if parent := layer.parent_layer:
-                    if not parent.is_root:
-                        region.unlink(layer)
-                        region.link(parent)
+                if (parent := layer.parent_layer) and not parent.is_root:
+                    region.unlink(layer)
+                    region.link(parent)
 
     def _handle_style_changed(self, style: Style):
         if self._style_connection:

@@ -194,15 +194,14 @@ class NewsWidget(QWidget):
         self.update_content()
 
     def update_content(self):
-        if client := root.connection.client_if_connected:
-            if news := client.news:
-                if self._digest != news.digest:
-                    self._news_text.setText(news.text)
-                    self._digest = news.digest
+        if (client := root.connection.client_if_connected) and (news := client.news):
+            if self._digest != news.digest:
+                self._news_text.setText(news.text)
+                self._digest = news.digest
 
     @property
     def has_news(self):
-        return self._digest != "" and self._digest != settings.last_news
+        return self._digest not in ("", settings.last_news)
 
     def _mark_news_seen(self):
         settings.last_news = self._digest

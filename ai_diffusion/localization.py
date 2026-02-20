@@ -30,7 +30,9 @@ class Localization:
     available: list[Language]
     current: "Localization"
 
-    def __init__(self, id: str = "en", name: str = "English", translations: dict = {}):
+    def __init__(self, id: str = "en", name: str = "English", translations: dict | None = None):
+        if translations is None:
+            translations = {}
         self._id = id
         self._name = name
         self._translations = translations

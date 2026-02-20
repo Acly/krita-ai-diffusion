@@ -312,7 +312,7 @@ class Model(QObject, ObservableProperties):
         job_params.inpaint_mode = inpaint_mode
         job_params.is_layered = arch is Arch.qwen_l
         job_params.metadata.update(prompt_meta)
-        job_params.metadata["loras"] = [dict(name=l.name, weight=l.strength) for l in loras]
+        job_params.metadata["loras"] = [{"name": l.name, "weight": l.strength} for l in loras]
         job_params.metadata["strength"] = strength
         return input, job_params, original_conditioning
 
@@ -549,7 +549,7 @@ class Model(QObject, ObservableProperties):
                 job_params.set_style(self.style, custom_input.models.checkpoint)
                 metadata.update(prepared.metadata)
                 metadata["loras"] = [
-                    dict(name=l.name, weight=l.strength) for l in custom_input.models.loras
+                    {"name": l.name, "weight": l.strength} for l in custom_input.models.loras
                 ]
 
             input = WorkflowInput(
@@ -616,9 +616,8 @@ class Model(QObject, ObservableProperties):
         return job
 
     def cancel(self, active=False, queued=False):
-        if queued:
-            if to_cancel := self.clear_queued():
-                self._connection.cancel(to_cancel)
+        if queued and (to_cancel := self.clear_queued()):
+            self._connection.cancel(to_cancel)
         if active and self.jobs.any_executing():
             self._connection.interrupt()
 
@@ -1407,7 +1406,7 @@ class AnimationWorkspace(QObject, ObservableProperties):
         conditioning, _ = process_regions(m.regions, bounds, self._model.layers.root, time=time)
         conditioning.language = m.prompt_translation_language
         conditioning = m._add_reference_layers(conditioning)
-        conditioning, loras, prompt_meta = workflow.prepare_prompts(
+        conditioning, loras, _prompt_meta = workflow.prepare_prompts(
             conditioning, m.style, seed, m.arch, is_live=is_live
         )
 

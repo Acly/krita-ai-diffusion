@@ -807,14 +807,16 @@ class WorkloadsTab(QWidget):
     @property
     def selected_models(self):
         result: list[str] = []
-        archs = set([Arch.all])
+        archs = {Arch.all}
         for m in self._models:
             if m.state is PackageState.selected:
                 result.append(m.model_id(self._server.backend))
                 archs.add(m.arch)
-        for m in self.workload_models:
-            if m.arch in archs and not self._server.is_installed(m):
-                result.append(m.id.string)
+        result.extend(
+            m.id.string
+            for m in self.workload_models
+            if m.arch in archs and not self._server.is_installed(m)
+        )
         return result
 
     @selected_models.setter

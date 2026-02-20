@@ -407,9 +407,8 @@ class StyleParamWidget(QWidget):
 
     @value.setter
     def value(self, value: str):
-        if value != self.value:
-            if style := Styles.list().find(value):
-                self._style_select.value = style
+        if value != self.value and (style := Styles.list().find(value)):
+            self._style_select.value = style
 
 
 CustomParamWidget = (
@@ -618,8 +617,7 @@ class WorkflowOutputsWidget(QWidget):
                 value = QTextEdit(widget)
                 value.setFrameShape(QFrame.Shape.StyledPanel)
                 value.setStyleSheet(
-                    "QTextEdit { background: transparent; border-left: 1px solid %s; padding-left: 2px; }"
-                    % theme.line
+                    f"QTextEdit {{ background: transparent; border-left: 1px solid {theme.line}; padding-left: 2px; }}"
                 )
                 value.setReadOnly(True)
                 match output.mime:

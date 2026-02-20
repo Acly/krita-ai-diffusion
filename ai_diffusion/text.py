@@ -81,7 +81,7 @@ def extract_loras(prompt: str, lora_files: FileCollection):
             if file.source is not FileSource.unavailable:
                 lora_filename = Path(file.id).stem.lower()
                 lora_normalized = file.name.lower()
-                if input == lora_filename or input == lora_normalized:
+                if input in (lora_filename, lora_normalized):
                     lora_file = file
                     break
 

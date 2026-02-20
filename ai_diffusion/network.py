@@ -376,7 +376,7 @@ async def download(network: QNetworkAccessManager, url: str, path: Path):
             ]:
                 log.warning(f"Download interrupted: {e}")
                 if retry == 1:
-                    raise e
+                    raise
                 await asyncio.sleep(1)
             else:
                 raise NetworkError(e.code, _("Failed to download") + f" {url}: {e.message}", url)

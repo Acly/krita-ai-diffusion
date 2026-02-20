@@ -59,7 +59,7 @@ def list_models(
     illu=False,
     zimage=False,
     upscalers=False,
-    checkpoints=[],
+    checkpoints=None,
     controlnet=False,
     prefetch=False,
     deprecated=False,
@@ -67,8 +67,12 @@ def list_models(
     recommended=False,
     all=False,
     backend=ModelRequirements.no_cuda,
-    exclude=[],
+    exclude=None,
 ) -> set[ModelResource]:
+    if exclude is None:
+        exclude = []
+    if checkpoints is None:
+        checkpoints = []
     assert sum([minimal, recommended, all]) <= 1, (
         "Only one of --minimal, --recommended, --all can be specified"
     )
@@ -115,9 +119,9 @@ def list_models(
     if deprecated:
         models.update([m for m in resources.deprecated_models if m.arch in versions])
 
-    excluded_models = set([
+    excluded_models = {
         m for m in models if (m.id.string in exclude) or (not _match_backend(m, backend))
-    ])
+    }
     models = models - excluded_models
 
     # Remove duplicate files listed under different IDs (apply to multiple architectures)

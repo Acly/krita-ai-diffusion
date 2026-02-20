@@ -95,15 +95,15 @@ def snap_to_percent(steps: int, start_at_step: int, max_steps: int) -> int | Non
 
 
 def _sampler_params(sampling: SamplingInput, extent: Extent, strength: float | None = None):
-    params: dict[str, Any] = dict(
-        sampler=sampling.sampler,
-        scheduler=sampling.scheduler,
-        steps=sampling.total_steps,
-        start_at_step=sampling.start_step,
-        cfg=sampling.cfg_scale,
-        seed=sampling.seed,
-        extent=extent,
-    )
+    params: dict[str, Any] = {
+        "sampler": sampling.sampler,
+        "scheduler": sampling.scheduler,
+        "steps": sampling.total_steps,
+        "start_at_step": sampling.start_step,
+        "cfg": sampling.cfg_scale,
+        "seed": sampling.seed,
+        "extent": extent,
+    }
     if strength is not None:
         params["steps"], params["start_at_step"] = apply_strength(strength, sampling.total_steps)
     return params
@@ -575,7 +575,7 @@ def apply_control(
             controlnet = w.set_controlnet_type(controlnet, control.mode)
         elif cn_model := patches.find(control.mode, allow_universal=True):
             patch = w.load_model_patch(cn_model)
-            args = dict(image=image)
+            args = {"image": image}
             if control.mode is ControlMode.inpaint:
                 assert control.mask is not None, "Inpaint control requires a mask"
                 mask = control.mask.load(w)
@@ -771,8 +771,7 @@ def scale(
         factor = max(2, min(4, math.ceil(math.sqrt(ratio))))
         upscale_model = w.load_upscale_model(models.upscale[UpscalerName.fast_x(factor)])
         image = w.upscale_image(upscale_model, image)
-        image = w.scale_image(image, target)
-        return image
+        return w.scale_image(image, target)
 
 
 def scale_to_initial(
@@ -833,8 +832,7 @@ def scale_refine_and_decode(
     model, prompt = apply_control(w, model, prompt, cond.all_control, extent.desired, vae, models)
     prompt = apply_reference_conditioning(w, prompt, upscale, latent, cond, vae, arch, tiled_vae)
     result = w.sampler_custom_advanced(model, prompt, latent, arch, **params)
-    image = vae_decode(w, vae, result, tiled_vae)
-    return image
+    return vae_decode(w, vae, result, tiled_vae)
 
 
 def ensure_minimum_extent(w: ComfyWorkflow, image: Output, extent: Extent, min_extent: int):

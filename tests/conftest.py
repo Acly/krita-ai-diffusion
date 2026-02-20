@@ -211,9 +211,9 @@ class CloudService:
         try:
             await self.launch_coordinator()
             await self.launch_worker()
-        except Exception as e:
+        except Exception:
             await self.stop()
-            raise e
+            raise
 
     async def stop(self):
         if self.worker_task:

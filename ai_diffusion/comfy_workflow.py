@@ -253,7 +253,7 @@ class ComfyWorkflow:
         return self.sample_count
 
     def __iter__(self):
-        return iter(self.node(int(k)) for k in self.root.keys())
+        return iter(self.node(int(k)) for k in self.root)
 
     def __contains__(self, node: ComfyNode):
         return any(n == node for n in self)
@@ -1253,8 +1253,8 @@ class ComfyWorkflow:
         )
 
     def estimate_pose(self, image: Output, resolution: int):
-        feat = dict(detect_hand="enable", detect_body="enable", detect_face="enable")
-        mdls = dict(bbox_detector="yolox_l.onnx", pose_estimator="dw-ll_ucoco_384.onnx")
+        feat = {"detect_hand": "enable", "detect_body": "enable", "detect_face": "enable"}
+        mdls = {"bbox_detector": "yolox_l.onnx", "pose_estimator": "dw-ll_ucoco_384.onnx"}
         if self._run_mode is ComfyRunMode.runtime:
             # use smaller model, but it requires onnxruntime, see #630
             mdls["bbox_detector"] = "yolo_nas_l_fp16.onnx"

@@ -108,7 +108,7 @@ class Arch(Enum):
             return Arch.sd3
         if string == "flux" and "kontext" in filename:
             return Arch.flux_k
-        if string == "flux" or string == "flux-schnell":
+        if string in {"flux", "flux-schnell"}:
             return Arch.flux
         if string == "flux2_4b" or (string == "flux2" and model_type == "klein-4b"):
             return Arch.flux2_4b
@@ -129,7 +129,7 @@ class Arch(Enum):
             return Arch.qwen_l
         if string == "qwen-image":
             return Arch.qwen
-        if string == "z-image" or string == "zimage":
+        if string in {"z-image", "zimage"}:
             return Arch.zimage
         return None
 
@@ -807,7 +807,7 @@ search_paths: dict[str, list[str]] = {
 }
 # fmt: on
 
-required_resource_ids = set([
+required_resource_ids = {
     ResourceId(ResourceKind.text_encoder, Arch.sd3, "clip_l"),
     ResourceId(ResourceKind.text_encoder, Arch.sd3, "clip_g"),
     ResourceId(ResourceKind.text_encoder, Arch.qwen, "qwen"),
@@ -835,7 +835,7 @@ required_resource_ids = set([
     ResourceId(ResourceKind.vae, Arch.zimage, "default"),
     ResourceId(ResourceKind.vae, Arch.flux2_4b, "default"),
     ResourceId(ResourceKind.vae, Arch.flux2_9b, "default"),
-])
+}
 
 recommended_resource_ids = [
     ResourceId(ResourceKind.controlnet, Arch.sd15, ControlMode.scribble),

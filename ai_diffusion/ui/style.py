@@ -250,10 +250,12 @@ class LoraItem(QWidget):
     @property
     def value(self):
         if self._current is None:
-            return dict(name="", strength=1.0, enabled=True)
-        return dict(
-            name=self._current.id, strength=self.strength, enabled=self._enabled.isChecked()
-        )
+            return {"name": "", "strength": 1.0, "enabled": True}
+        return {
+            "name": self._current.id,
+            "strength": self.strength,
+            "enabled": self._enabled.isChecked(),
+        }
 
     @value.setter
     def value(self, v: dict):
@@ -389,7 +391,7 @@ class LoraList(QWidget):
         if isinstance(lora, dict):
             item.value = lora
         elif isinstance(lora, File):
-            item.value = dict(name=lora.id, strength=1.0)
+            item.value = {"name": lora.id, "strength": 1.0}
         else:
             item.reset()
         self._item_list.addWidget(item)

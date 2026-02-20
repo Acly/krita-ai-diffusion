@@ -85,7 +85,7 @@ class ImageFileFormat(Enum):
             return ImageFileFormat.png_small
         if extension == ".webp":
             return ImageFileFormat.webp
-        if extension == ".jpg" or extension == ".jpeg":
+        if extension in {".jpg", ".jpeg"}:
             return ImageFileFormat.jpeg
         raise Exception(f"Unsupported image extension: {extension}")
 
@@ -337,7 +337,7 @@ class Settings(QObject):
     tag_files: list[str]
     _tag_files = Setting(
         _("Tag Auto-Completion"),
-        list(),
+        [],
         _("Enable text completion for tags from the selected files"),
     )
 

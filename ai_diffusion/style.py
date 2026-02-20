@@ -149,7 +149,7 @@ class Style(QObject):
     def __setattr__(self, name: str, value: Any):
         current = getattr(self, name)
         super().__setattr__(name, value)
-        if current != value and name in StyleSettings.__dict__.keys():
+        if current != value and name in StyleSettings.__dict__:
             self.changed.emit(name, value)
 
     @staticmethod
@@ -217,7 +217,7 @@ class Style(QObject):
         return "not-found"
 
     def get_models(self, available_checkpoints: Iterable[str]):
-        result = CheckpointInput(
+        return CheckpointInput(
             checkpoint=self.preferred_checkpoint(available_checkpoints),
             vae=self.vae,
             clip_skip=self.clip_skip,
@@ -226,7 +226,6 @@ class Style(QObject):
             loras=[LoraInput.from_dict(l) for l in self.loras if l.get("enabled", True)],
             self_attention_guidance=self.self_attention_guidance,
         )
-        return result
 
     def get_steps(self, is_live: bool) -> tuple[int, int]:
         sampler_name = self.live_sampler if is_live else self.sampler
@@ -302,8 +301,7 @@ class Styles(QObject):
 
     def find_style_files(self):
         for folder in (self.builtin_folder, self.user_folder):
-            for file in folder.rglob("*.json"):
-                yield file
+            yield from folder.rglob("*.json")
 
     def reload(self):
         styles = (Style.load(f) for f in self.find_style_files())
@@ -425,7 +423,7 @@ class SamplerPresets:
     def names(self):
         def is_visible(name: str, preset: SamplerPreset):
             return not preset.hidden or any(
-                s.live_sampler == name or s.sampler == name for s in Styles.list()
+                name in (s.live_sampler, s.sampler) for s in Styles.list()
             )
 
         return [name for name, preset in self._presets.items() if is_visible(name, preset)]

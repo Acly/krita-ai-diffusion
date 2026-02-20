@@ -482,9 +482,8 @@ class HistoryWidget(QListWidget):
             self._model.strength = job.params.strength
 
     def _copy_style(self):
-        if job := self.selected_job:
-            if style := Styles.list().find(job.params.style):
-                self._model.style = style
+        if (job := self.selected_job) and (style := Styles.list().find(job.params.style)):
+            self._model.style = style
 
     def _copy_seed(self):
         if job := self.selected_job:

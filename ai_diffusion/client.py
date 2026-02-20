@@ -110,7 +110,7 @@ class DeviceInfo(NamedTuple):
         try:
             name = data["devices"][0]["name"]
             name = name.split(":")[1] if ":" in name else name
-            vram = int(round(data["devices"][0]["vram_total"] / (1024**3)))
+            vram = round(data["devices"][0]["vram_total"] / (1024**3))
             return DeviceInfo(data["devices"][0]["type"], name, vram)
         except Exception as e:
             log.error(f"Could not parse device info {data}: {e!s}")
@@ -353,10 +353,10 @@ class ModelDict:
     @property
     def fooocus_inpaint(self):
         assert self.arch is Arch.sdxl
-        return dict(
-            head=self._models.resource(ResourceKind.inpaint, "fooocus_head", Arch.sdxl),
-            patch=self._models.resource(ResourceKind.inpaint, "fooocus_patch", Arch.sdxl),
-        )
+        return {
+            "head": self._models.resource(ResourceKind.inpaint, "fooocus_head", Arch.sdxl),
+            "patch": self._models.resource(ResourceKind.inpaint, "fooocus_patch", Arch.sdxl),
+        }
 
     @property
     def all(self):

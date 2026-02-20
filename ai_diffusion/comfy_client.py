@@ -321,9 +321,9 @@ class ComfyClient(Client):
             if result["prompt_id"] != job.id:
                 log.error(f"Prompt ID mismatch: {result['prompt_id']} != {job.id}")
                 raise ValueError("Prompt ID mismatch - Please update ComfyUI to 0.3.45 or later!")
-        except Exception as e:
+        except Exception:
             self._waiting_job.clear()
-            raise e
+            raise
 
     async def _listen(self):
         url = websocket_url(self.url)
@@ -449,12 +449,10 @@ class ComfyClient(Client):
         # Make sure changes to all queues are processed before suspending this
         # function, otherwise it may interfere with subsequent calls to enqueue.
         tasks = [self._post("queue", {"delete": list(job_ids)})]
-        if job := self._waiting_job.peek():
-            if job.id in job_ids:
-                self._waiting_job.clear()
+        if (job := self._waiting_job.peek()) and job.id in job_ids:
+            self._waiting_job.clear()
         self._queue.remove_if(lambda j: j.id in job_ids)
-        for id in job_ids:
-            tasks.append(self._report(ClientEvent.interrupted, id))
+        tasks.extend(self._report(ClientEvent.interrupted, id) for id in job_ids)
         await asyncio.gather(*tasks)
 
     async def disconnect(self):
@@ -545,7 +543,7 @@ class ComfyClient(Client):
             return Image.from_bytes(data)
         except Exception as e:
             log.error(f"Error transferring result image {self.url}/api/etn/image/{id}: {e!s}")
-            raise e
+            raise
 
     async def upload_images(self, image_data: dict[str, bytes]):
         for id, data in image_data.items():
@@ -682,7 +680,7 @@ def websocket_url(url_http: str):
 
 
 def websocket_args(auth_token: str):
-    args: dict[str, Any] = dict(max_size=2**30, ping_timeout=60)
+    args: dict[str, Any] = {"max_size": 2**30, "ping_timeout": 60}
     if auth_token:
         args["extra_headers"] = {"Authorization": f"Bearer {auth_token}"}
     return args

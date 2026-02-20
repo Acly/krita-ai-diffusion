@@ -70,9 +70,8 @@ class PropertyImpl(property):
         signal = getattr(instance, f"{self.name}_changed")
         signal.emit(value)
 
-        if self.persist:
-            if modified_signal := getattr(instance, "modified", None):
-                modified_signal.emit(instance, self.name)
+        if self.persist and (modified_signal := getattr(instance, "modified", None)):
+            modified_signal.emit(instance, self.name)
 
 
 class Binding(NamedTuple):

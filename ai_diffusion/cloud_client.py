@@ -115,19 +115,19 @@ class CloudClient(Client):
         client_id = str(uuid.uuid4())
         info = f"Generative AI for Krita [Device: {platform.node()}]"
         log.info(f"Sending authorization request for {info} to {self.url}")
-        init = await self._post("auth/initiate", dict(client_id=client_id, client_info=info))
+        init = await self._post("auth/initiate", {"client_id": client_id, "client_info": info})
 
         sign_in_url = f"{self.default_web_url}{init['url']}"
         log.info(f"Waiting for completion of authorization at {sign_in_url}")
         yield sign_in_url
 
-        auth_confirm = await self._post("auth/confirm", dict(client_id=client_id))
+        auth_confirm = await self._post("auth/confirm", {"client_id": client_id})
         time = datetime.now()
         while auth_confirm["status"] == "not-found":
             if (datetime.now() - time).seconds > 300:
                 raise TimeoutError(_("Sign-in attempt timed out after 5 minutes"))
             await asyncio.sleep(2)
-            auth_confirm = await self._post("auth/confirm", dict(client_id=client_id))
+            auth_confirm = await self._post("auth/confirm", {"client_id": client_id})
 
         if auth_confirm["status"] == "authorized":
             self._token = auth_confirm["token"]
@@ -148,7 +148,7 @@ class CloudClient(Client):
             self._token = ""
             if e.status == 401:
                 e.message = _("The login data is incorrect, please sign in again.")
-            raise e
+            raise
         self._user = User(user_data["id"], user_data["name"])
         self._user.images_generated = user_data["images_generated"]
         self._user.credits = user_data["credits"]
@@ -250,7 +250,7 @@ class CloudClient(Client):
         await self._report(ClientEvent.progress, job.local_id, 0)
 
         status = response["status"].lower()
-        while status == "in_queue" or status == "in_progress":
+        while status in {"in_queue", "in_progress"}:
             response = await self._post(f"status/{job.remote_id}", {})
             status = response["status"].lower()
 
@@ -328,11 +328,10 @@ class CloudClient(Client):
     async def interrupt(self):
         if job := self._exec_send.current_job:
             job.state = JobState.cancelled
-        if job := self._exec_generate.current_job:
-            if job.remote_id and job.worker_id:
-                response = await self._post(f"cancel/{job.worker_id}/{job.remote_id}", {})
-                log.info(f"Requested cancellation of {job}: {response}")
-                job.state = JobState.cancelled
+        if (job := self._exec_generate.current_job) and job.remote_id and job.worker_id:
+            response = await self._post(f"cancel/{job.worker_id}/{job.remote_id}", {})
+            log.info(f"Requested cancellation of {job}: {response}")
+            job.state = JobState.cancelled
         # If a job is in the receive stage, we let it finish normally.
 
     async def cancel(self, job_ids: Iterable[str]):
@@ -385,7 +384,7 @@ class CloudClient(Client):
 
     async def _upload_lora(self, lora: File):
         assert lora.path and lora.hash and lora.size
-        upload = await self._post("upload/lora", dict(hash=lora.hash, size=lora.size))
+        upload = await self._post("upload/lora", {"hash": lora.hash, "size": lora.size})
         if upload["status"] == "too-large":
             max_size = int(upload.get("max", 0)) / (1024 * 1024)
             raise ValueError(

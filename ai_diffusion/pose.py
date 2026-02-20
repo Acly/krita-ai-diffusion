@@ -137,7 +137,7 @@ def parse_id(string: str):
 
 
 def get_connected_bones(joint_id: int):
-    return [i for i, (a, b) in enumerate(bone_connection) if a == joint_id or b == joint_id]
+    return [i for i, (a, b) in enumerate(bone_connection) if joint_id in (a, b)]
 
 
 class Shape:
@@ -253,11 +253,11 @@ class Pose:
             return None
 
         width, height = self.extent.width, self.extent.height
-        bones_to_draw = set(
+        bones_to_draw = {
             BoneIndex(index.person, connected_bone)
             for index in changed
             for connected_bone in get_connected_bones(index.joint)
-        )
+        }
         new_bones = (
             f'<svg xmlns="http://www.w3.org/2000/svg" width="{width}" height="{height}"'
             f' viewBox="0 0 {width} {height}">'

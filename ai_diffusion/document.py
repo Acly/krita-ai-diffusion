@@ -328,8 +328,7 @@ def _selection_is_entire_document(selection: krita.Selection, extent: Extent):
     if bounds.width + bounds.x < extent.width or bounds.height + bounds.y < extent.height:
         return False
     mask = selection.pixelData(*bounds)
-    is_opaque = all(x == b"\xff" for x in mask)
-    return is_opaque
+    return all(x == b"\xff" for x in mask)
 
 
 class PoseLayers:

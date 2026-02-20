@@ -639,7 +639,7 @@ def test_expand_selection():
     select, select_active, off_x, off_y = ext.add(
         "ETN_KritaSelection", 4, context="automatic", padding=2
     )
-    canvas, width, height, seed = ext.add("ETN_KritaCanvas", 4)
+    canvas, width, height, _seed = ext.add("ETN_KritaCanvas", 4)
     ext.add(
         "Sink",
         1,

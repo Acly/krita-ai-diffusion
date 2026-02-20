@@ -401,7 +401,7 @@ class Server:
             )
             to_install = [r for r in all_models if r.id.string in packages]
             if len(to_install) != len(packages):
-                not_found = set(packages) - set(r.id.string for r in to_install)
+                not_found = set(packages) - {r.id.string for r in to_install}
                 raise Exception("Some requested models were not found: " + ", ".join(not_found))
             for resource in to_install:
                 if not resource.exists_in(self.path) and not resource.exists_in(self.comfy_dir):
@@ -412,7 +412,7 @@ class Server:
                         await _download_cached(resource.name, network, file.url, target_file, cb)
         except Exception as e:
             log.exception(f"Download failed: {e}")
-            raise e
+            raise
         finally:
             self.state = prev_state
             self.check_install()
@@ -455,7 +455,7 @@ class Server:
                 shutil.move(upgrade_comfy_dir, comfy_dir)
                 self._version_file.write_text(f"{old_version} {self.backend.name}")
                 self.check_install()
-            raise e
+            raise
 
         try:
             _upgrade_models_dir(upgrade_comfy_dir / "models", self.path / "models")
@@ -521,7 +521,7 @@ class Server:
             log.exception(f"Error during server start: {e!s}")
             if self._process is None:
                 self.state = ServerState.stopped
-                raise e
+                raise
 
         if self.state != ServerState.running:
             error = "Process exited unexpectedly"
@@ -600,7 +600,7 @@ class Server:
             return result
         except Exception as e:
             log.exception(f"Error during server verification: {e!s}")
-            raise e
+            raise
         finally:
             self.state = ServerState.stopped
 
@@ -655,7 +655,7 @@ class Server:
                     await _download_cached(status.file.name, network, status.file.url, filepath, cb)
         except Exception as e:
             log.exception(f"Error while replacing corrupted models: {e}")
-            raise e
+            raise
         finally:
             self.state = prev_state
             self.check_install()
@@ -674,7 +674,7 @@ class Server:
             await asyncio.to_thread(self._uninstall, callback, delete_models, loop)
         except Exception as e:
             log.exception(f"Error during server uninstall: {e}")
-            raise e
+            raise
         finally:
             self.state = ServerState.stopped
             self.check_install()
@@ -732,7 +732,7 @@ class Server:
             cb("Finished uninstalling")
         except Exception as e:
             log.exception(f"Error during server uninstall: {e}")
-            raise e
+            raise
 
     @property
     def has_python(self):
@@ -832,11 +832,11 @@ async def try_install(path: Path, installer, *args):
     already_exists = path.exists()
     try:
         await installer(*args)
-    except Exception as e:
+    except Exception:
         # Revert installation so it may be attempted again
         if not already_exists:
             shutil.rmtree(path, ignore_errors=True)
-        raise e
+        raise
 
 
 async def install_if_missing(path: Path, installer, *args):
@@ -893,7 +893,7 @@ def remove_subdir(path: Path, *, origin: Path):
     errors = []
 
     def handle_error(func, path, excinfo):
-        type, value, traceback = excinfo
+        type, value, _traceback = excinfo
         if type is FileNotFoundError:
             return
         log.warning(f"Failed to remove {path}: [{type}] {value}")
@@ -920,7 +920,7 @@ def remove_file(path: Path):
             raise Exception(f"Failed to remove {path}: file still exists")
         except Exception as e:
             log.warning(f"Failed to remove {path}: {e!s}")
-            raise e
+            raise
 
 
 async def get_python_version_string(python_cmd: Path, *args: str):

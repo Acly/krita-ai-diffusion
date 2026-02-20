@@ -865,9 +865,8 @@ class GenerateButton(QPushButton):
         return QSize(fm.width(self._operation) + 40, 12 + int(1.3 * fm.height()))
 
     def enterEvent(self, a0: QEvent | None):
-        if client := root.connection.client_if_connected:
-            if client.user:
-                self._cost = self.model.estimate_cost(self._kind)
+        if (client := root.connection.client_if_connected) and client.user:
+            self._cost = self.model.estimate_cost(self._kind)
 
     def leaveEvent(self, a0: QEvent | None):
         self._cost = 0

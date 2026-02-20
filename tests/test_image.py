@@ -237,7 +237,6 @@ def test_pad_square():
     "input,expected",
     [
         (Bounds(-1, 3, 5, 9), Bounds(0, 1, 4, 9)),
-        (Bounds(-1, 3, 5, 9), Bounds(0, 1, 4, 9)),
         (Bounds(2, 3, 2, 5), Bounds(2, 3, 2, 5)),
     ],
 )

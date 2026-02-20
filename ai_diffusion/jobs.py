@@ -81,7 +81,7 @@ class JobParams:
     def equal_ignore_seed(cls, a: JobParams | None, b: JobParams | None):
         if a is None or b is None:
             return a is b
-        field_names = (f.name for f in fields(cls) if not f.name == "seed")
+        field_names = (f.name for f in fields(cls) if f.name != "seed")
         return all(getattr(a, name) == getattr(b, name) for name in field_names)
 
     def set_style(self, style: Style, checkpoint: str):

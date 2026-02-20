@@ -12,6 +12,7 @@ an HTML page with side-by-side comparisons of input images and benchmark results
 import argparse
 import html
 import json
+import sys
 from collections import defaultdict
 from pathlib import Path
 
@@ -497,7 +498,7 @@ def generate_html(
             continue
 
         # Get all unique (prompt, seed) combinations from first available column
-        first_col_results = results_by_column[list(results_by_column.keys())[0]]
+        first_col_results = results_by_column[next(iter(results_by_column.keys()))]
         sorted_results = sorted(
             first_col_results,
             key=lambda x: (x["prompt"], x["seed"]),
@@ -734,4 +735,4 @@ Example usage:
 
 
 if __name__ == "__main__":
-    exit(main())
+    sys.exit(main())

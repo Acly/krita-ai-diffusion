@@ -78,7 +78,7 @@ def test_cancel(qtapp, comfy_server: Server, cancel_point):
 
             elif stage == 0:
                 assert msg.event is not ClientEvent.finished
-                assert msg.job_id == job_id or msg.job_id == ""
+                assert msg.job_id in (job_id, "")
                 if not job_id:
                     job_id = await client.enqueue(make_default_work(steps=1000))
                     assert client.queued_count == 1
@@ -104,7 +104,7 @@ def test_cancel(qtapp, comfy_server: Server, cancel_point):
 
             elif stage == 1:
                 assert msg.event is not ClientEvent.interrupted
-                assert msg.job_id == job_id or msg.job_id == ""
+                assert msg.job_id in (job_id, "")
                 if msg.event is ClientEvent.finished:
                     assert msg.images is not None and len(msg.images) > 0
                     assert msg.images[0].extent == Extent(320, 320)

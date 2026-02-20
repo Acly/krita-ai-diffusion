@@ -357,7 +357,7 @@ class ActiveRegionWidget(QFrame):
         return settings.show_negative_prompt and isinstance(self._region, RootRegion)
 
     def update_settings(self, key: str, value):
-        if key == "prompt_line_count" or key == "prompt_line_count_live":
+        if key in {"prompt_line_count", "prompt_line_count_live"}:
             self._update_prompt_widgets()
         elif key == "show_negative_prompt":
             self.negative.text = ""

@@ -90,7 +90,7 @@ class WorkflowCollection(QAbstractListModel):
                 except Exception as e:
                     log.exception(f"Error loading workflow from {file}: {e}")
 
-            for wf in self._connection.workflows.keys():
+            for wf in self._connection.workflows:
                 self._process_remote_workflow(wf)
 
             self.loaded.emit()
@@ -363,9 +363,8 @@ def workflow_parameters(w: ComfyWorkflow):
 
 def _get_choices(w: ComfyWorkflow, node: ComfyNode):
     connected, input_name = next(w.find_connected(node.output()), (None, ""))
-    if connected:
-        if options := w.node_defs.options(connected.type, input_name):
-            return options
+    if connected and (options := w.node_defs.options(connected.type, input_name)):
+        return options
     return None
 
 
@@ -639,7 +638,7 @@ class CustomWorkspace(QObject, ObservableProperties):
                     job.params.is_layered = True
 
     def _handle_job_finished(self, job: Job):
-        to_remove = [k for k in self.outputs.keys() if k not in self._new_outputs]
+        to_remove = [k for k in self.outputs if k not in self._new_outputs]
         for key in to_remove:
             del self.outputs[key]
         if len(to_remove) > 0:
