@@ -26,6 +26,7 @@ from .client import (
     MissingResources,
     OutputBatchMode,
     Quantization,
+    ServerError,
     SharedWorkflow,
     TextOutput,
     TranslationPackage,
@@ -174,7 +175,7 @@ class ComfyClient(Client):
                 pass
         except Exception as e:
             msg = _("Could not establish websocket connection at") + f" {wsurl}: {e!s}"
-            raise Exception(msg)
+            raise ServerError(msg)
 
         # Check custom nodes
         log.info("Checking for required custom nodes...")
@@ -615,7 +616,7 @@ class ComfyClient(Client):
 
                 await self.refresh()
             except Exception as e:
-                raise Exception(_("Error during upload of LoRA model") + f" {file.path}: {e!s}")
+                raise ServerError(_("Error during upload of LoRA model") + f" {file.path}: {e!s}")
 
     async def _get_active_job(self, job_id: str):
         if self._active_job and self._active_job.id == job_id:
@@ -859,7 +860,7 @@ def _ensure_supported_style(client: Client):
         if checkpoint is None:
             log.warning("No checkpoints found for any of the supported workloads!")
             if len(client.models.checkpoints) == 0:
-                raise Exception(_("No diffusion model checkpoints found"))
+                raise RuntimeError(_("No diffusion model checkpoints found"))
             return
         log.info(f"No supported styles found, creating default style with checkpoint {checkpoint}")
         default = next((s for s in Styles.list() if s.filename == "default.json"), None)

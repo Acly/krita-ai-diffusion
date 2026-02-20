@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import json
 from textwrap import wrap as wrap_text
-from typing import cast
+from typing import ClassVar, cast
 
 from PyQt5.QtCore import (
     QEvent,
@@ -191,7 +191,7 @@ class HistoryWidget(QListWidget):
         item.setData(Qt.ItemDataRole.ToolTipRole, self._job_info(job.params))
         self.addItem(item)
 
-    _job_info_translations = {
+    _job_info_translations: ClassVar[dict[str, str]] = {
         "prompt": _("Prompt"),
         "prompt_eval": _("Prompt (Evaluated)"),
         "negative_prompt": _("Negative Prompt"),
@@ -862,7 +862,7 @@ class GenerationWidget(QWidget):
         job_id, index = self.history.item_info(item)
         self.model.apply_generated_result(job_id, index)
 
-    _inpaint_text = {
+    _inpaint_text: ClassVar[dict[InpaintMode, str]] = {
         InpaintMode.automatic: _("Default (Auto-detect)"),
         InpaintMode.fill: _("Fill"),
         InpaintMode.expand: _("Expand"),

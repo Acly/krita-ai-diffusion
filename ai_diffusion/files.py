@@ -99,7 +99,7 @@ class FileCollection(QAbstractListModel):
         self._files: list[File] = []
         self.load()
 
-    def rowCount(self, parent=QModelIndex()):
+    def rowCount(self, parent: QModelIndex | None = None):
         return len(self._files)
 
     def data(self, index: QModelIndex, role: int = 0):

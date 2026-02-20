@@ -30,10 +30,11 @@ def load_input_image(image_name: str, images_dir: Path) -> tuple[Image.Image, Im
     try:
         image = Image.open(image_path).convert("RGBA")
         mask = Image.open(mask_path).convert("L")
-        return image, mask
     except Exception as e:
         print(f"Warning: Failed to load {image_name}: {e}")
         return None
+    else:
+        return image, mask
 
 
 def overlay_mask_on_image(
@@ -725,13 +726,13 @@ Example usage:
 
     try:
         generate_html(benchmark_dirs, output_path, images_dir)
-        return 0
     except Exception as e:
         print(f"Error: {e}")
         import traceback
 
         traceback.print_exc()
         return 1
+    return 0
 
 
 if __name__ == "__main__":

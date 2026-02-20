@@ -585,7 +585,7 @@ def apply_control(
             continue
         elif cn_model := models.lora.find(control.mode):
             if control_lora is not None:
-                raise Exception(
+                raise RuntimeError(
                     _("The following control layers cannot be used together:")
                     + f" {control_lora.text}, {control.mode.text}"
                 )
@@ -595,7 +595,7 @@ def apply_control(
                 prompt, __ = w.instruct_pix_to_pix_conditioning(prompt, vae, image)
             continue
         else:
-            raise Exception(f"ControlNet model not found for mode {control.mode}")
+            raise RuntimeError(f"ControlNet model not found for mode {control.mode}")
 
         if control.mode is ControlMode.inpaint and models.arch is Arch.flux:
             assert control.mask is not None, "Inpaint control requires a mask"
@@ -672,7 +672,7 @@ def apply_ip_adapter(
 
         for control in control_layers:
             if len(embeds) >= 5:
-                raise Exception(_("Too many control layers of type") + f" '{mode.text}' (max 5)")
+                raise RuntimeError(_("Too many control layers of type") + f" '{mode.text}' (max 5)")
             img = control.image.load(w)
             embeds.append(w.encode_ip_adapter(img, control.strength, ip_adapter, clip_vision)[0])
             range = (min(range[0], control.range[0]), max(range[1], control.range[1]))
@@ -1419,7 +1419,7 @@ def expand_custom(
             elif input.node in nodes:
                 return Output(nodes[input.node], input.output)
             else:
-                raise Exception(
+                raise RuntimeError(
                     f"Cannot map input {input.output} for node {input.node}."
                     + " Make sure the ComfyUI graph does not contain a loop!"
                 )
@@ -1429,9 +1429,9 @@ def expand_custom(
         name = node.input("name", "")
         value = input.params.get(name)
         if value is None:
-            raise Exception(f"Missing required parameter '{name}' for custom workflow")
+            raise RuntimeError(f"Missing required parameter '{name}' for custom workflow")
         if expected_type and not isinstance(value, expected_type):
-            raise Exception(f"Parameter '{name}' must be of type {expected_type}")
+            raise RuntimeError(f"Parameter '{name}' must be of type {expected_type}")
         return value
 
     for node in custom:
@@ -1723,7 +1723,7 @@ def prepare(
         i.batch_count = 1
 
     else:
-        raise Exception(f"Workflow {kind.name} not supported by this constructor")
+        raise ValueError(f"Workflow {kind.name} not supported by this constructor")
 
     if minfo := models.checkpoints.get(i.models.checkpoint):
         if minfo.arch.is_qwen_like and minfo.quantization is Quantization.svdq:

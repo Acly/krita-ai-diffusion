@@ -53,7 +53,7 @@ async def create_process(
             from . import win32
 
             win32.attach_process_to_job(p.pid)
-        except Exception:
+        except Exception:  # noqa
             pass
     return p
 

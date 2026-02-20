@@ -236,17 +236,17 @@ def test_install_if_missing(qtapp):
 def test_try_install(qtapp):
     async def install_func(target: Path):
         target.mkdir()
-        raise Exception("test")
+        raise ValueError("test")
 
     async def main():
         with TemporaryDirectory() as tmp:
             target = Path(tmp) / "test"
-            with pytest.raises(Exception):
+            with pytest.raises(ValueError):
                 await server.install_if_missing(target, install_func, target)
             assert not target.exists()
 
             target.mkdir()
-            with pytest.raises(Exception):
+            with pytest.raises(ValueError):
                 await server.try_install(target, install_func, target)
             assert target.exists()
 

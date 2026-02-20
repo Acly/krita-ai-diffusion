@@ -378,7 +378,7 @@ class Image:
         if loader.read(img):
             return Image(img)
         else:
-            raise Exception(f"Failed to load image from buffer: {loader.errorString()}")
+            raise RuntimeError(f"Failed to load image from buffer: {loader.errorString()}")
 
     @staticmethod
     def from_pil(pil_image):
@@ -561,7 +561,7 @@ class Image:
                 global _qt_supports_webp
                 _qt_supports_webp = False
                 self.write(buffer, format.no_webp_fallback)
-            raise Exception(f"Failed to write image to buffer: {writer.errorString()} {info}")
+            raise RuntimeError(f"Failed to write image to buffer: {writer.errorString()} {info}")
 
     def to_bytes(self, format=ImageFileFormat.png):
         byte_array = QByteArray()
@@ -604,7 +604,7 @@ class Image:
         fmt = format or ImageFileFormat.from_extension(filepath)
         file = QFile(str(filepath))
         if not file.open(QFile.OpenModeFlag.WriteOnly):
-            raise Exception(f"Failed to open {filepath} for writing: {file.errorString()}")
+            raise RuntimeError(f"Failed to open {filepath} for writing: {file.errorString()}")
         try:
             self.write(file, fmt, quality)
         finally:

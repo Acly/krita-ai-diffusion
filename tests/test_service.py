@@ -41,7 +41,7 @@ async def receive_images(client: Client, work: WorkflowInput | list[WorkflowInpu
             if len(job_id) == 0:
                 await client.disconnect()
         if msg.event is ClientEvent.error:
-            raise Exception(msg.error)
+            raise RuntimeError(msg.error)
     return images
 
 

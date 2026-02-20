@@ -8,7 +8,7 @@ from base64 import b64encode
 from collections.abc import Iterable
 from copy import copy
 from dataclasses import dataclass, field
-from datetime import datetime
+from datetime import datetime, timezone
 from enum import Enum
 from typing import Any
 
@@ -23,6 +23,7 @@ from .client import (
     ClientModels,
     DeviceInfo,
     News,
+    ServerError,
     TranslationPackage,
     User,
     loras_to_upload,
@@ -122,9 +123,9 @@ class CloudClient(Client):
         yield sign_in_url
 
         auth_confirm = await self._post("auth/confirm", {"client_id": client_id})
-        time = datetime.now()
+        time = datetime.now(timezone.utc)
         while auth_confirm["status"] == "not-found":
-            if (datetime.now() - time).seconds > 300:
+            if (datetime.now(timezone.utc) - time).seconds > 300:
                 raise TimeoutError(_("Sign-in attempt timed out after 5 minutes"))
             await asyncio.sleep(2)
             auth_confirm = await self._post("auth/confirm", {"client_id": client_id})
@@ -403,9 +404,11 @@ class CloudClient(Client):
                 yield sent / max(total, 1)
         except NetworkError as e:
             log.error(f"LoRA model upload failed [{e.status}]: {e.message}")
-            raise Exception(_("Connection error during upload of LoRA model") + f" {lora.name}")
+            raise ServerError(
+                _("Connection error during upload of LoRA model") + f" {lora.name}"
+            ) from e
         except Exception as e:
-            raise Exception(_("Error during upload of LoRA model") + f" {lora.name}") from e
+            raise ServerError(_("Error during upload of LoRA model") + f" {lora.name}") from e
 
     async def receive_images(self, images: dict):
         offsets = images.get("offsets")

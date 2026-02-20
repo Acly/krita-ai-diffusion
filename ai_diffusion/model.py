@@ -7,7 +7,7 @@ import weakref
 from collections import deque
 from copy import copy
 from dataclasses import dataclass, replace
-from datetime import datetime
+from datetime import datetime, timezone
 from enum import Enum
 from pathlib import Path
 from tempfile import TemporaryDirectory
@@ -570,11 +570,12 @@ class Model(QObject, ObservableProperties):
 
             self.clear_error()
             await self.enqueue_jobs(input, job_kind, job_params, count=self.batch_count)
-            return input
 
         except Exception as e:
             self.report_error(util.log_error(e))
             return False
+        else:
+            return input
 
     def _get_current_image(self, bounds: Bounds):
         exclude = []
@@ -927,7 +928,7 @@ class Model(QObject, ObservableProperties):
             for layer_name in layer_names:
                 uid = next((l.id for l in self._doc.layers.images if l.name == layer_name), None)
                 if uid is None:
-                    raise Exception(_("Layer not found") + f' "{layer_name}"')
+                    raise KeyError(_("Layer not found") + f' "{layer_name}"')
                 ctrl = ControlLayer(self, ControlMode.reference, uid, 0)
                 control.append(ctrl.to_api())
 
@@ -1587,7 +1588,7 @@ def _save_job_result(model: Model, job: Job | None, index: int):
     assert len(job.results) > index, "Cannot save result, invalid result index"
     assert model.document.filename, "Cannot save result, document is not saved"
     timestamp = job.timestamp.strftime("%Y%m%d-%H%M%S")
-    cur_timestamp = datetime.now().strftime("%Y%m%d-%H%M%S")
+    cur_timestamp = datetime.now(timezone.utc).strftime("%Y%m%d-%H%M%S")
     prompt = util.sanitize_prompt(job.params.name)
     path = Path(model.document.filename)
     name_template = (

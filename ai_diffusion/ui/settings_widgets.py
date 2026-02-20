@@ -392,10 +392,13 @@ class LineEditSetting(QWidget):
         self._edit.setText(v)
 
 
+_default_switch_labels = (_("On"), _("Off"))
+
+
 class SwitchSetting(SettingWidget):
     _text: tuple[str, str]
 
-    def __init__(self, setting: Setting, text=(_("On"), _("Off")), parent=None):
+    def __init__(self, setting: Setting, text=_default_switch_labels, parent=None):
         super().__init__(setting, parent)
         self._text = text
 

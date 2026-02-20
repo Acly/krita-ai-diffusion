@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 from collections.abc import Callable
-from typing import Any, cast
+from typing import Any, ClassVar, cast
 
 from krita import Krita
 from PyQt5.QtCore import QEvent, QMetaObject, QSize, Qt, QUrl, pyqtSignal
@@ -10,6 +10,7 @@ from PyQt5.QtGui import (
     QDesktopServices,
     QFontMetrics,
     QGuiApplication,
+    QIcon,
     QKeyEvent,
     QKeySequence,
     QMouseEvent,
@@ -788,7 +789,7 @@ class LayerCountWidget(QWidget):
 
 
 class WorkspaceSelectWidget(QToolButton):
-    _icons = {
+    _icons: ClassVar[dict[Workspace, QIcon]] = {
         Workspace.generation: theme.icon("workspace-generation"),
         Workspace.upscaling: theme.icon("workspace-upscaling"),
         Workspace.live: theme.icon("workspace-live"),

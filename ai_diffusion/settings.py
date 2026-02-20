@@ -5,7 +5,7 @@ import os
 from dataclasses import dataclass
 from enum import Enum
 from pathlib import Path
-from typing import Any, NamedTuple
+from typing import Any, ClassVar, NamedTuple
 
 from PyQt5.QtCore import QObject, pyqtSignal
 
@@ -87,7 +87,7 @@ class ImageFileFormat(Enum):
             return ImageFileFormat.webp
         if extension in {".jpg", ".jpeg"}:
             return ImageFileFormat.jpeg
-        raise Exception(f"Unsupported image extension: {extension}")
+        raise ValueError(f"Unsupported image extension: {extension}")
 
     @property
     def extension(self):
@@ -438,7 +438,7 @@ class Settings(QObject):
         _("Conserve memory by processing output images in smaller tiles."),
     )
 
-    _performance_presets = {
+    _performance_presets: ClassVar[dict[PerformancePreset, PerformancePresetSettings]] = {
         PerformancePreset.cpu: PerformancePresetSettings(
             batch_size=1,
             resolution_multiplier=1.0,

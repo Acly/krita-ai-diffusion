@@ -627,9 +627,7 @@ class ConnectionSettings(SettingsTab):
             text = (
                 _("The following ComfyUI custom nodes are missing or too old")
                 + ":<ul>"
-                + "\n".join(
-                    f"<li>{p.name} <a href='{p.url}'>{p.url}</a></li>" for p in res.missing
-                )
+                + "\n".join(f"<li>{p.name} <a href='{p.url}'>{p.url}</a></li>" for p in res.missing)
                 + "</ul>"
                 + _(
                     "Please install or update the custom node package, then restart the server and try again."

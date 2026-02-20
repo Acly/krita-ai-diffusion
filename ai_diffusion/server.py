@@ -378,7 +378,7 @@ class Server:
             log.exception(f"Installation failed: {e}")
             self.state = ServerState.stopped
             self.check_install()
-            raise Exception(parse_common_errors(str(e)))
+            raise RuntimeError(parse_common_errors(str(e)))
 
     async def download(self, packages: list[str], callback: Callback):
         def cb(stage: str, message: str | DownloadProgress):
@@ -402,7 +402,7 @@ class Server:
             to_install = [r for r in all_models if r.id.string in packages]
             if len(to_install) != len(packages):
                 not_found = set(packages) - {r.id.string for r in to_install}
-                raise Exception("Some requested models were not found: " + ", ".join(not_found))
+                raise ValueError("Some requested models were not found: " + ", ".join(not_found))
             for resource in to_install:
                 if not resource.exists_in(self.path) and not resource.exists_in(self.comfy_dir):
                     await self._install_requirements(resource.requirements, network, cb)
@@ -435,7 +435,7 @@ class Server:
         ]
         info(f"Backing up {comfy_dir} to {upgrade_comfy_dir}")
         if upgrade_comfy_dir.exists():
-            raise Exception(
+            raise RuntimeError(
                 _(
                     "Backup folder {dir} already exists! Please make sure it does not contain any valuable data such as checkpoints or other models you downloaded. Then delete the folder and try again.",
                     dir=upgrade_comfy_dir,
@@ -474,7 +474,7 @@ class Server:
             info(message=f"Finished upgrade to {resources.version}")
         except Exception as e:
             log.error(f"Error during upgrade: {e!s}")
-            raise Exception(
+            raise RuntimeError(
                 _("Error during model migration")
                 + f": {e!s}\n"
                 + _("Some models remain in")
@@ -539,7 +539,7 @@ class Server:
             ret = self._process.returncode
             self._process = None
             error_msg = parse_common_errors(error, ret)
-            raise Exception(_("Error during server startup") + f": {error_msg}")
+            raise RuntimeError(_("Error during server startup") + f": {error_msg}")
 
         self._task = asyncio.create_task(self.run())
         assert self.url is not None
@@ -597,10 +597,11 @@ class Server:
                 log.warning(f"File verification failed for {status.file.path}: {status.state.name}")
                 if status.state is VerificationState.mismatch:
                     log.info(f"-- expected sha256: {status.file.sha256} but got: {status.info}")
-            return result
         except Exception as e:
             log.exception(f"Error during server verification: {e!s}")
             raise
+        else:
+            return result
         finally:
             self.state = ServerState.stopped
 
@@ -692,7 +693,7 @@ class Server:
                     try:
                         safe_remove_dir(self.comfy_dir / "models")
                     except Exception as e:
-                        raise Exception(
+                        raise RuntimeError(
                             str(e)
                             + f"\n\nPlease move model files located in\n{self.comfy_dir / 'models'}"
                             + f"\nto\n{self.path / 'models'}\nand try again."
@@ -732,7 +733,7 @@ class Server:
             cb("Finished uninstalling")
         except Exception as e:
             log.exception(f"Error during server uninstall: {e}")
-            raise
+            raise RuntimeError(f"Error during server uninstall: {e}")
 
     @property
     def has_python(self):
@@ -825,7 +826,7 @@ async def _execute_process(
     if process.returncode != 0:
         if errlog == "":
             errlog = f"Process exited with code {process.returncode}"
-        raise Exception(_("Error during installation") + f": {errlog}")
+        raise RuntimeError(_("Error during installation") + f": {errlog}")
 
 
 async def try_install(path: Path, installer, *args):
@@ -856,17 +857,17 @@ async def rename_extracted_folder(name: str, path: Path, suffix: str):
     if path.exists() and path.is_dir() and not any(path.iterdir()):
         path.rmdir()
     elif path.exists():
-        raise Exception(f"Error during {name} installation: target folder {path} already exists")
+        raise RuntimeError(f"Error during {name} installation: target folder {path} already exists")
 
     extracted_folder = path.parent / f"{path.name}-{suffix}"
     if not extracted_folder.exists():
-        raise Exception(
+        raise RuntimeError(
             f"Error during {name} installation: folder {extracted_folder} does not exist"
         )
     for tries in range(3):  # Because Windows, or virus scanners, or something #515
         try:
             extracted_folder.rename(path)
-            return
+            return  # noqa
         except Exception as e:
             log.warning(f"Rename failed during {name} installation: {e!s} - retrying...")
             await asyncio.sleep(1)
@@ -878,11 +879,11 @@ def safe_remove_dir(path: Path, max_size=12 * 1024 * 1024):
         for p in path.rglob("*"):
             if p.is_file():
                 if p.stat().st_size > max_size:
-                    raise Exception(
+                    raise RuntimeError(
                         f"Failed to remove {path}: found remaining large file {p.relative_to(path)}"
                     )
                 if p.suffix == ".safetensors":
-                    raise Exception(
+                    raise RuntimeError(
                         f"Failed to remove {path}: found remaining model {p.relative_to(path)}"
                     )
         shutil.rmtree(path, ignore_errors=True)
@@ -917,7 +918,7 @@ def remove_file(path: Path):
                 if not path.exists():
                     return
                 time.sleep(0.1)
-            raise Exception(f"Failed to remove {path}: file still exists")
+            raise RuntimeError(f"Failed to remove {path}: file still exists")
         except Exception as e:
             log.warning(f"Failed to remove {path}: {e!s}")
             raise
@@ -1000,7 +1001,7 @@ def _configure_extra_model_paths(comfy_dir: Path):
     if not path.exists() and example.exists():
         example.rename(path)
     if not path.exists():
-        raise Exception(f"Could not find or create extra_model_paths.yaml in {comfy_dir}")
+        raise RuntimeError(f"Could not find or create extra_model_paths.yaml in {comfy_dir}")
     contents = path.read_text()
     if "krita-managed" not in contents:
         log.info(f"Extending {path}")

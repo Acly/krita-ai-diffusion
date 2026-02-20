@@ -4,7 +4,7 @@ import asyncio
 import json
 import os
 from asyncio import Future
-from datetime import datetime
+from datetime import datetime, timezone
 from pathlib import Path
 from typing import NamedTuple
 
@@ -50,7 +50,7 @@ class NetworkError(Exception):
                     text = reply.readAll().data().decode("utf-8")
                     if text:
                         return NetworkError(code, f"{text} ({reply.errorString()})", url, status)
-                except Exception:
+                except Exception:  # noqa
                     pass
         if code == QNetworkReply.NetworkError.OperationCanceledError:
             return NetworkError(
@@ -264,7 +264,7 @@ class DownloadHelper:
         received = received_bytes / 10**6
         total = total_bytes / 10**6
         diff = received - self._received
-        now = datetime.now()
+        now = datetime.now(timezone.utc)
         speed = 0
         self._received = received
         self._total = max(self._total, total)
@@ -285,7 +285,7 @@ class DownloadHelper:
     def seconds_since_last_update(self):
         if self._time is None:
             return 0
-        return (datetime.now() - self._time).total_seconds()
+        return (datetime.now(timezone.utc) - self._time).total_seconds()
 
 
 def _write_file_chunks(file: QFile, reply: QNetworkReply):
@@ -298,7 +298,7 @@ def _write_file_chunks(file: QFile, reply: QNetworkReply):
 async def _try_download(network: QNetworkAccessManager, url: str, path: Path):
     out_file = QFile(str(path) + ".part")
     if not out_file.open(QFile.ReadWrite | QFile.Append):  # type: ignore
-        raise Exception(
+        raise RuntimeError(
             _("Error during download: could not open {path} for writing", path=out_file.fileName())
         )
 
@@ -381,7 +381,7 @@ async def download(network: QNetworkAccessManager, url: str, path: Path):
             else:
                 raise NetworkError(e.code, _("Failed to download") + f" {url}: {e.message}", url)
         except Exception as e:
-            raise Exception(_("Failed to download") + f" {url}: {e}") from e
+            raise RuntimeError(_("Failed to download") + f" {url}: {e}") from e
 
         log.info(f"Retrying download of {url}, {retry - 1} attempts left")
 

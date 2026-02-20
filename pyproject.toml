@@ -7,7 +7,7 @@ requires-python = ">=3.10"
 package = false
 
 [tool.ruff]
-target-version = "py311"
+target-version = "py310"
 line-length = 100
 preview = true
 extend-exclude = [
@@ -17,7 +17,7 @@ extend-exclude = [
 ]
 
 [tool.ruff.lint]
-ignore = ["E741"]
+ignore = ["E741", "BLE001", "SIM102", "T100"]
 
 [tool.black]
 line-length = 100

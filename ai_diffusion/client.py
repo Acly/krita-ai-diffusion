@@ -5,6 +5,7 @@ import hashlib
 from abc import ABC, abstractmethod
 from collections import deque
 from collections.abc import AsyncGenerator, Callable, Iterable
+from dataclasses import dataclass, field
 from enum import Enum
 from typing import Any, Generic, NamedTuple, TypeVar
 
@@ -21,6 +22,10 @@ from .settings import PerformanceSettings
 from .style import Style
 from .util import client_logger as log
 from .util import ensure
+
+
+class ServerError(Exception):
+    pass
 
 
 class ClientEvent(Enum):
@@ -245,7 +250,7 @@ class ClientModels:
         id = ResourceId(kind, arch, identifier)
         model = self.find(id)
         if model is None:
-            raise Exception(f"{id.name} not found")
+            raise KeyError(f"{id.name} not found")
         return model
 
     def find(self, id: ResourceId):
@@ -389,10 +394,11 @@ class TranslationPackage(NamedTuple):
         return [TranslationPackage.from_dict(item) for item in data]
 
 
-class ClientFeatures(NamedTuple):
+@dataclass(frozen=True)
+class ClientFeatures:
     ip_adapter: bool = True
     translation: bool = True
-    languages: list[TranslationPackage] = []
+    languages: list[TranslationPackage] = field(default_factory=list)
     max_upload_size: int = 0
     max_control_layers: int = 1000
     gguf: bool = False

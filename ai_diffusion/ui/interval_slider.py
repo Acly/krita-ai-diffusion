@@ -257,7 +257,8 @@ class IntervalSlider(QWidget):
 
         # Draw handles
         self.opt.subControls = QStyle.SubControl.SC_SliderHandle
-        for self.opt.sliderPosition in self._pos:
+        for p in self._pos:
+            self.opt.sliderPosition = p
             style.drawComplexControl(QStyle.ComplexControl.CC_Slider, self.opt, painter)
 
     def sizeHint(self) -> QSize:

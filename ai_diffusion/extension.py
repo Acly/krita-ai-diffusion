@@ -16,11 +16,10 @@ from .util import client_logger as log
 
 
 class AIToolsExtension(Extension):
-    _actions: dict[str, QAction] = {}
-    _settings_dialog: SettingsDialog
-
     def __init__(self, parent):
         super().__init__(parent)
+        self._actions: dict[str, QAction] = {}
+
         log.info(f"Extension initialized, Version: {__version__}, Python: {sys.version}")
 
         extension_dir = Path(__file__).parent

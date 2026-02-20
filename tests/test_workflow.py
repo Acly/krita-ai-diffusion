@@ -141,7 +141,7 @@ async def receive_images(client: Client, work: WorkflowInput):
             assert msg.images is not None
             return msg.images
         if msg.event is ClientEvent.error and msg.job_id == job_id:
-            raise Exception(msg.error)
+            raise RuntimeError(msg.error)
     assert False, "Connection closed without receiving images"
 
 
@@ -797,7 +797,7 @@ def test_create_open_pose_vector(qtapp, client: Client):
                 (result_dir / image_name).write_text(result)
                 return
             if msg.event is ClientEvent.error and msg.job_id == job_id:
-                raise Exception(msg.error)
+                raise RuntimeError(msg.error)
         assert False, "Connection closed without receiving images"
 
     qtapp.run(main())

@@ -124,7 +124,7 @@ class WorkflowCollection(QAbstractListModel):
             graph = json.load(f)
             self._process_workflow(file.stem, WorkflowSource.local, graph, file)
 
-    def rowCount(self, parent=QModelIndex()):
+    def rowCount(self, parent: QModelIndex | None = None):
         return len(self._workflows)
 
     def data(self, index: QModelIndex, role: int = 0):

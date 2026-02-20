@@ -332,10 +332,9 @@ def _selection_is_entire_document(selection: krita.Selection, extent: Extent):
 
 
 class PoseLayers:
-    _layers: dict[str, Pose] = {}
-    _timer = QTimer()
-
     def __init__(self):
+        self._layers: dict[str, Pose] = {}
+        self._timer = QTimer()
         self._timer.setInterval(500)
         self._timer.timeout.connect(self.update)
         self._timer.start()

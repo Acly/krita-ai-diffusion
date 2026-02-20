@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from enum import Enum
+from functools import partial
 
 from PyQt5.QtCore import QEvent, QMetaObject, QObject, QPoint, QSize, Qt, pyqtSignal
 from PyQt5.QtGui import (
@@ -331,12 +332,12 @@ class ActiveRegionWidget(QFrame):
                 if len(name) > 20:
                     name = name[:17] + "..."
 
-                def link():
-                    region.link(active_layer)
-                    self.region = region
+                def link(r: Region):
+                    r.link(active_layer)
+                    self.region = r
 
                 action = ensure(menu.addAction(name))
-                action.triggered.connect(link)
+                action.triggered.connect(partial(link, region))
 
         pos = self._link_region_button.rect().bottomLeft()
         menu.exec_(self._link_region_button.mapToGlobal(pos))
@@ -402,9 +403,8 @@ class ActiveRegionWidget(QFrame):
             self._language_button.setText(lang.upper())
             if enabled:
                 text = self._lang_help_enabled
-                if client := root.connection.client_if_connected:
-                    if client.features.translation:
-                        text += "\n" + self._lang_help_translate
+                if (client := root.connection.client_if_connected) and client.features.translation:
+                    text += "\n" + self._lang_help_translate
             else:
                 text = self._lang_help_disabled
             self._language_button.setToolTip(text)

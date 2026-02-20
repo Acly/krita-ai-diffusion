@@ -36,9 +36,10 @@ def _get_user_data_dir():
             dir = Path(QStandardPaths.writableLocation(QStandardPaths.GenericDataLocation))
             dir = dir / "krita-ai-diffusion"
         dir.mkdir(exist_ok=True)
-        return dir
     except Exception:
         return Path(__file__).parent
+    else:
+        return dir
 
 
 user_data_dir = _get_user_data_dir()

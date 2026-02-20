@@ -202,7 +202,7 @@ async def download(
         if not dry_run:
             async with client.get(url) as resp:
                 resp.raise_for_status()
-                with open(target_file.with_suffix(".part"), "wb") as fd:
+                with open(target_file.with_suffix(".part"), "wb") as fd:  # noqa
                     with _progress(model.name, resp.content_length, index) as pbar:
                         async for chunk, is_end in resp.content.iter_chunks():
                             fd.write(chunk)

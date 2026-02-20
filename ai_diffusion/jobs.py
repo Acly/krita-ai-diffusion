@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from collections import deque
 from dataclasses import dataclass, field, fields
-from datetime import datetime
+from datetime import datetime, timezone
 from enum import Enum, Flag
 from typing import TYPE_CHECKING, Any, NamedTuple
 
@@ -130,7 +130,7 @@ class Job:
         self.id = id
         self.kind = kind
         self.params = params
-        self.timestamp = datetime.now()
+        self.timestamp = datetime.now(timezone.utc)
         self.results = ImageCollection()
         self.in_use = {}
 

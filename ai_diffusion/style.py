@@ -184,10 +184,11 @@ class Style(QObject):
             )
             if "sd_checkpoint" in cfg:
                 style.checkpoints = [cfg["sd_checkpoint"]]
-            return style
         except json.JSONDecodeError as e:
             log.warning(f"Failed to load style {filepath}: {e}")
             return None
+        else:
+            return style
 
     def save(self):
         cfg = {

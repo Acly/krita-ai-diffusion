@@ -138,15 +138,17 @@ class CloudService:
             headers = {}
             if token:
                 headers["Authorization"] = f"Bearer {token}"
-            async with aiohttp.ClientSession(timeout=timeout, headers=headers) as session:
-                async with session.get(url) as response:
-                    return response.status == 200
+            async with (
+                aiohttp.ClientSession(timeout=timeout, headers=headers) as session,
+                session.get(url) as response,
+            ):
+                return response.status == 200
         except (TimeoutError, aiohttp.ClientError):
             return False
 
     async def launch_coordinator(self):
         assert self.coord_proc is None, "Coordinator already running"
-        self.coord_log = open(self.log_dir / "api.log", "w", encoding="utf-8")
+        self.coord_log = open(self.log_dir / "api.log", "w", encoding="utf-8")  # noqa
         if await self.check(f"{self.url}/health"):
             print(f"Coordinator running in external process at {self.url}", file=self.coord_log)
             return
@@ -181,7 +183,7 @@ class CloudService:
         self.worker_url = config["public_url"]
         self.worker_secret = config["admin_secret"]
         if self.worker_log is None:
-            self.worker_log = open(self.log_dir / "worker.log", "w", encoding="utf-8")
+            self.worker_log = open(self.log_dir / "worker.log", "w", encoding="utf-8")  # noqa
 
         if await self.check(f"{self.worker_url}/health", token=self.worker_secret):
             print(f"Worker running in external process at {self.worker_url}", file=self.worker_log)
@@ -231,14 +233,17 @@ class CloudService:
 
     async def create_user(self, username: str) -> dict[str, Any]:
         assert self.enabled, "Cloud service is not enabled"
-        async with aiohttp.ClientSession() as session, session.post(
-            f"{self.url}/admin/user/create",
-            json={"name": username},
-        ) as response:
+        async with (
+            aiohttp.ClientSession() as session,
+            session.post(
+                f"{self.url}/admin/user/create",
+                json={"name": username},
+            ) as response,
+        ):
             response.raise_for_status()
             result = await response.json()
             if "error" in result:
-                raise Exception(result["error"])
+                raise RuntimeError(result["error"])
             return result
 
     async def update_worker_config(self, config: dict[str, Any] | None = None):
@@ -252,9 +257,11 @@ class CloudService:
                 "Authorization": f"Bearer {self.worker_secret}",
                 "Content-Type": "application/json",
             }
-            async with aiohttp.ClientSession(headers=headers) as session:
-                async with session.post(f"{self.worker_url}/configure", json=config) as response:
-                    response.raise_for_status()
+            async with (
+                aiohttp.ClientSession(headers=headers) as session,
+                session.post(f"{self.worker_url}/configure", json=config) as response,
+            ):
+                response.raise_for_status()
 
     def __enter__(self):
         self.loop.run(self.start())

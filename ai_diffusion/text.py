@@ -88,7 +88,7 @@ def extract_loras(prompt: str, lora_files: FileCollection):
         if not lora_file:
             error = _("LoRA not found") + f": {input}"
             log.warning(error)
-            raise Exception(error)
+            raise KeyError(error)
 
         lora_strength: float = lora_file.meta("lora_strength", 1.0)
         if match[2]:
@@ -97,7 +97,7 @@ def extract_loras(prompt: str, lora_files: FileCollection):
             except ValueError:
                 error = _("Invalid LoRA strength for") + f" {input}: {lora_strength}"
                 log.warning(error)
-                raise Exception(error)
+                raise ValueError(error)
 
         loras.append(LoraInput(lora_file.id, lora_strength))
         return ""

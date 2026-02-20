@@ -346,7 +346,7 @@ class ComfyWorkflow:
         start_at_step=0,
         cfg=7.0,
         seed=-1,
-        extent=Extent(1024, 1024),
+        extent: Extent | None = None,
     ):
         self.sample_count += steps - start_at_step
 
@@ -373,7 +373,12 @@ class ComfyWorkflow:
         )[1]
 
     def scheduler_sigmas(
-        self, model: Output, scheduler="normal", steps=20, arch=Arch.sdxl, extent=Extent(1024, 1024)
+        self,
+        model: Output,
+        scheduler="normal",
+        steps=20,
+        arch=Arch.sdxl,
+        extent: Extent | None = None,
     ):
         if scheduler in ("align_your_steps", "ays"):
             assert arch is Arch.sd15 or arch.is_sdxl_like
@@ -418,6 +423,7 @@ class ComfyWorkflow:
                 beta=0.5,
             )
         elif scheduler == "flux2":
+            extent = extent or Extent(1024, 1024)
             return self.add(
                 "Flux2Scheduler",
                 output_count=1,

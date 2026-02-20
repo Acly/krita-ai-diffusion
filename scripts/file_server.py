@@ -8,6 +8,7 @@ import sys
 from pathlib import Path
 from urllib.parse import unquote as url_unquote
 
+import anyio
 from aiohttp import web
 
 sys.path.append(str(Path(__file__).parent.parent))
@@ -33,11 +34,11 @@ urls = {
 
 
 async def file_sender(file: Path):
-    with open(file, "rb") as f:
-        chunk = f.read(2**14)
+    async with await anyio.open_file(file, "rb") as f:
+        chunk = await f.read(2**14)
         while chunk:
             yield chunk
-            chunk = f.read(2**14)
+            chunk = await f.read(2**14)
 
 
 def send_file(file: Path):

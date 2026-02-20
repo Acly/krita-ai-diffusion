@@ -2,6 +2,7 @@ from __future__ import annotations
 
 from contextlib import contextmanager, nullcontext
 from enum import Enum
+from typing import ClassVar
 
 import krita
 from PyQt5.QtCore import QByteArray, QObject, QTimer, QUuid, pyqtSignal
@@ -539,8 +540,8 @@ class LayerManager(QObject):
         layer.remove_later()
         return replacement
 
-    _image_types = [t.value for t in LayerType if t.is_image]
-    _mask_types = [t.value for t in LayerType if t.is_mask]
+    _image_types: ClassVar[list[str]] = [t.value for t in LayerType if t.is_image]
+    _mask_types: ClassVar[list[str]] = [t.value for t in LayerType if t.is_mask]
 
     @property
     def all(self) -> list[Layer]:

@@ -58,7 +58,7 @@ class Localization:
                 lang = json.load(f)
                 return Localization(id, lang["name"], lang["translations"])
         except Exception as e:
-            raise Exception(f"Could not load language file for {id} at {filepath}: {e}")
+            raise RuntimeError(f"Could not load language file for {id} at {filepath}: {e}")
 
     @staticmethod
     def init(settings_path: Path | None = None):
