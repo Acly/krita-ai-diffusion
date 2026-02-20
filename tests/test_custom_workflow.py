@@ -461,8 +461,9 @@ def img_id(image: Image):
 
 def test_expand():
     ext = ComfyWorkflow()
-    in_img, width, height, seed = ext.add("ETN_KritaCanvas", 4)
-    scaled = ext.add("ImageScale", 1, image=in_img, width=width, height=height)
+    in_img, width, height, seed, in_mask = ext.add("ETN_KritaCanvas", 5)  # type: ignore
+    rgba = ext.apply_mask(in_img, in_mask)
+    scaled = ext.add("ImageScale", 1, image=rgba, width=width, height=height)
     ext.add("ETN_KritaOutput", 1, images=scaled)
     inty = ext.add(
         "ETN_Parameter", 1, name="inty", type="number (integer)", default=4, min=0, max=10
@@ -533,13 +534,14 @@ def test_expand():
 
     expected = [
         ComfyNode(1, "ETN_LoadImageCache", {"id": img_id(images.initial_image)}),
-        ComfyNode(2, "ImageScale", {"image": Output(1, 0), "width": 4, "height": 4}),
-        ComfyNode(3, "ETN_KritaOutput", {"images": Output(2, 0)}),
-        ComfyNode(4, "ETN_LoadImageCache", {"id": img_id(params["layer_img"])}),
-        ComfyNode(5, "ETN_LoadImageCache", {"id": img_id(params["layer_mask"])}),
-        ComfyNode(6, "CheckpointLoaderSimple", {"ckpt_name": "checkpoint.safetensors"}),
+        ComfyNode(2, "ETN_ApplyMaskToImage", {"image": Output(1, 0), "mask": Output(1, 1)}),
+        ComfyNode(3, "ImageScale", {"image": Output(2, 0), "width": 4, "height": 4}),
+        ComfyNode(4, "ETN_KritaOutput", {"images": Output(3, 0)}),
+        ComfyNode(5, "ETN_LoadImageCache", {"id": img_id(params["layer_img"])}),
+        ComfyNode(6, "ETN_LoadImageCache", {"id": img_id(params["layer_mask"])}),
+        ComfyNode(7, "CheckpointLoaderSimple", {"ckpt_name": "checkpoint.safetensors"}),
         ComfyNode(
-            7,
+            8,
             "Sink",
             {
                 "seed": 123,
@@ -548,11 +550,11 @@ def test_expand():
                 "texty": "cat",
                 "booly": False,
                 "choicy": "b",
-                "layer_img": Output(4, 0),
-                "layer_mask": Output(5, 1),
-                "model": Output(6, 0),
-                "clip": Output(6, 1),
-                "vae": Output(6, 2),
+                "layer_img": Output(5, 0),
+                "layer_mask": Output(6, 1),
+                "model": Output(7, 0),
+                "clip": Output(7, 1),
+                "vae": Output(7, 2),
                 "positive": "bee hive",
                 "negative": "pigoon",
                 "sampler": "dpmpp_2m",

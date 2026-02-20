@@ -1420,10 +1420,12 @@ def expand_custom(
         match node.type:
             case "ETN_KritaCanvas":
                 image = ensure(images.initial_image)
-                outputs[node.output(0)] = w.load_image(image)
+                image_out, mask_out = w.load_image_and_mask(image)
+                outputs[node.output(0)] = image_out
                 outputs[node.output(1)] = image.width
                 outputs[node.output(2)] = image.height
                 outputs[node.output(3)] = seed
+                outputs[node.output(4)] = mask_out
             case "ETN_KritaSelection":
                 if images.hires_mask:
                     outputs[node.output(0)] = w.load_mask(images.hires_mask)
