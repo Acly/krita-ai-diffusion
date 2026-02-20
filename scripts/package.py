@@ -1,12 +1,13 @@
 import asyncio
-import aiohttp
-import sys
-import dotenv
 import os
 import subprocess
-from markdown import markdown
-from shutil import rmtree, copy, copytree, ignore_patterns, make_archive
+import sys
 from pathlib import Path
+from shutil import copy, copytree, ignore_patterns, make_archive, rmtree
+
+import aiohttp
+import dotenv
+from markdown import markdown
 
 sys.path.append(str(Path(__file__).parent.parent))
 import ai_diffusion

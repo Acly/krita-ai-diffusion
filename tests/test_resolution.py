@@ -1,13 +1,14 @@
-import pytest
 from pathlib import Path
+
+import pytest
 
 from ai_diffusion import resolution, workflow
 from ai_diffusion.api import InpaintMode
 from ai_diffusion.image import Bounds, Extent, Image, Point
-from ai_diffusion.resolution import ScaledExtent, ScaleMode, CheckpointResolution, TileLayout
+from ai_diffusion.resolution import CheckpointResolution, ScaledExtent, ScaleMode, TileLayout
 from ai_diffusion.resources import Arch
-from ai_diffusion.style import Style
 from ai_diffusion.settings import PerformanceSettings
+from ai_diffusion.style import Style
 
 from .config import data_dir
 

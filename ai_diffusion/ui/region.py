@@ -1,30 +1,32 @@
 from __future__ import annotations
-from enum import Enum
-from PyQt5.QtWidgets import QWidget, QLabel, QToolButton, QHBoxLayout, QVBoxLayout, QFrame, QMenu
-from PyQt5.QtGui import (
-    QGuiApplication,
-    QMouseEvent,
-    QResizeEvent,
-    QPixmap,
-    QImage,
-    QPainter,
-    QIcon,
-    QFontMetrics,
-)
-from PyQt5.QtCore import QObject, QEvent, Qt, QMetaObject, QPoint, QSize, pyqtSignal
 
-from ..root import root
+from enum import Enum
+
+from PyQt5.QtCore import QEvent, QMetaObject, QObject, QPoint, QSize, Qt, pyqtSignal
+from PyQt5.QtGui import (
+    QFontMetrics,
+    QGuiApplication,
+    QIcon,
+    QImage,
+    QMouseEvent,
+    QPainter,
+    QPixmap,
+    QResizeEvent,
+)
+from PyQt5.QtWidgets import QFrame, QHBoxLayout, QLabel, QMenu, QToolButton, QVBoxLayout, QWidget
+
 from ..client import Client
-from ..image import Bounds
-from ..properties import Binding, bind
 from ..document import LayerType
-from ..region import Region, RootRegion, RegionLink, translate_prompt
+from ..image import Bounds
 from ..localization import translate as _
+from ..properties import Binding, bind
+from ..region import Region, RegionLink, RootRegion, translate_prompt
+from ..root import root
 from ..util import ensure
-from .control import ControlListWidget
-from .widget import TextPromptWidget
-from .settings import settings
 from . import theme
+from .control import ControlListWidget
+from .settings import settings
+from .widget import TextPromptWidget
 
 
 class InactiveRegionWidget(QFrame):

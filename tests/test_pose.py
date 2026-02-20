@@ -1,13 +1,14 @@
 import pytest
+
 from ai_diffusion.image import Extent
 from ai_diffusion.pose import (
-    Pose,
     BoneIndex,
     JointIndex,
     Point,
+    Pose,
     Shape,
-    parse_id,
     get_connected_bones,
+    parse_id,
 )
 
 

@@ -1,16 +1,18 @@
 from __future__ import annotations
+
 from pathlib import Path
 from typing import Literal, NamedTuple, cast
 from uuid import uuid4
 from weakref import WeakValueDictionary
+
 import krita
 from krita import Krita
-from PyQt5.QtCore import QObject, QByteArray, QTimer, pyqtSignal
+from PyQt5.QtCore import QByteArray, QObject, QTimer, pyqtSignal
 
-from .image import Extent, Bounds, Mask, Image
+from .image import Bounds, Extent, Image, Mask
 from .layer import Layer, LayerManager, LayerType
-from .pose import Pose
 from .localization import translate as _
+from .pose import Pose
 from .util import acquire_elements
 
 
@@ -63,7 +65,6 @@ class Document(QObject):
 
     def resize_canvas(self, width: int, height: int):
         """Resize the underlying canvas if supported by the implementation."""
-        pass
 
     def annotate(self, key: str, value: QByteArray):
         pass

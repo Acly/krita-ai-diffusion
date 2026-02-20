@@ -1,20 +1,20 @@
-from ai_diffusion.text import (
-    char16_len,
-    char16_index_to_str_index,
-    str_index_to_char16_index,
-    eval_wildcards,
-    extract_layers,
-    merge_prompt,
-    extract_loras,
-    edit_attention,
-    select_on_cursor_pos,
-    create_img_metadata,
-    strip_prompt_comments,
-)
 from ai_diffusion.api import LoraInput
 from ai_diffusion.files import File, FileCollection
-from ai_diffusion.jobs import JobParams
 from ai_diffusion.image import Bounds
+from ai_diffusion.jobs import JobParams
+from ai_diffusion.text import (
+    char16_index_to_str_index,
+    char16_len,
+    create_img_metadata,
+    edit_attention,
+    eval_wildcards,
+    extract_layers,
+    extract_loras,
+    merge_prompt,
+    select_on_cursor_pos,
+    str_index_to_char16_index,
+    strip_prompt_comments,
+)
 
 
 def test_char16_len():

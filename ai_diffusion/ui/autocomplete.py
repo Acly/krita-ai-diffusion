@@ -1,15 +1,15 @@
-from enum import Enum
-from dataclasses import dataclass
 import csv
+from dataclasses import dataclass
+from enum import Enum
 from typing import cast
 
-from PyQt5.QtWidgets import QApplication, QCompleter, QPlainTextEdit, QStyledItemDelegate, QStyle
-from PyQt5.QtGui import QFont, QPalette, QPen, QColor, QFontMetrics, QTextCursor
-from PyQt5.QtCore import Qt, QStringListModel, QSize, QRect, QAbstractProxyModel
+from PyQt5.QtCore import QAbstractProxyModel, QRect, QSize, QStringListModel, Qt
+from PyQt5.QtGui import QColor, QFont, QFontMetrics, QPalette, QPen, QTextCursor
+from PyQt5.QtWidgets import QApplication, QCompleter, QPlainTextEdit, QStyle, QStyledItemDelegate
 
+from ..files import FileFilter
 from ..root import root
 from ..settings import settings
-from ..files import FileFilter
 from ..text import char16_index_to_str_index
 from ..util import ensure, plugin_dir, user_data_dir
 

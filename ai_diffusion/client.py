@@ -1,23 +1,26 @@
 from __future__ import annotations
+
 import asyncio
 import hashlib
 from abc import ABC, abstractmethod
 from collections import deque
+from collections.abc import AsyncGenerator, Callable, Iterable
 from enum import Enum
-from typing import Any, AsyncGenerator, Callable, Generic, Iterable, NamedTuple, TypeVar
+from typing import Any, Generic, NamedTuple, TypeVar
+
 from PyQt5.QtCore import QObject, pyqtSignal
 
 from .api import WorkflowInput
 from .comfy_workflow import ComfyObjectInfo
+from .files import FileFormat, FileLibrary
 from .image import ImageCollection, Point
-from .properties import Property, ObservableProperties
-from .files import FileLibrary, FileFormat
-from .style import Style
-from .settings import PerformanceSettings
-from .resources import ControlMode, ResourceKind, Arch, UpscalerName
-from .resources import CustomNode, ResourceId
 from .localization import translate as _
-from .util import client_logger as log, ensure
+from .properties import ObservableProperties, Property
+from .resources import Arch, ControlMode, CustomNode, ResourceId, ResourceKind, UpscalerName
+from .settings import PerformanceSettings
+from .style import Style
+from .util import client_logger as log
+from .util import ensure
 
 
 class ClientEvent(Enum):
@@ -110,7 +113,7 @@ class DeviceInfo(NamedTuple):
             vram = int(round(data["devices"][0]["vram_total"] / (1024**3)))
             return DeviceInfo(data["devices"][0]["type"], name, vram)
         except Exception as e:
-            log.error(f"Could not parse device info {data}: {str(e)}")
+            log.error(f"Could not parse device info {data}: {e!s}")
             return DeviceInfo("cpu", "unknown", 0)
 
 

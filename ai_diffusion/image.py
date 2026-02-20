@@ -1,17 +1,33 @@
 from __future__ import annotations
-from math import sqrt
-from PyQt5.QtGui import QImage, QImageWriter, QImageReader, QPixmap, QIcon, QPainter, QColorSpace
-from PyQt5.QtGui import qRgba, qRed, qGreen, qBlue, qAlpha, qGray
-from PyQt5.QtCore import Qt, QByteArray, QBuffer, QRect, QSize, QFile, QIODevice
-from typing import Callable, Iterable, SupportsIndex, Tuple, NamedTuple, Union, Optional
-from pathlib import Path
-
-from .settings import settings, ImageFileFormat
-from .platform_tools import is_linux
-from .util import clamp, ensure, client_logger as log
 
 import struct
 import zlib
+from collections.abc import Callable, Iterable
+from math import sqrt
+from pathlib import Path
+from typing import NamedTuple, SupportsIndex
+
+from PyQt5.QtCore import QBuffer, QByteArray, QFile, QIODevice, QRect, QSize, Qt
+from PyQt5.QtGui import (
+    QColorSpace,
+    QIcon,
+    QImage,
+    QImageReader,
+    QImageWriter,
+    QPainter,
+    QPixmap,
+    qAlpha,
+    qBlue,
+    qGray,
+    qGreen,
+    qRed,
+    qRgba,
+)
+
+from .platform_tools import is_linux
+from .settings import ImageFileFormat, settings
+from .util import clamp, ensure
+from .util import client_logger as log
 
 
 def multiple_of(number, multiple):
@@ -69,21 +85,21 @@ class Extent(NamedTuple):
         return Extent(qsize.width(), qsize.height())
 
     @staticmethod
-    def largest(a: "Extent", b: "Extent"):
+    def largest(a: Extent, b: Extent):
         return a if a.width * a.height > b.width * b.height else b
 
     @staticmethod
-    def min(a: "Extent", b: "Extent"):
+    def min(a: Extent, b: Extent):
         return Extent(min(a.width, b.width), min(a.height, b.height))
 
     @staticmethod
-    def ratio(a: "Extent", b: "Extent"):
+    def ratio(a: Extent, b: Extent):
         return sqrt(a.pixel_count / b.pixel_count)
 
     def __add__(self, other):
         return Extent(self.width + other.width, self.height + other.height)
 
-    def __sub__(self, other: "Extent"):
+    def __sub__(self, other: Extent):
         return Extent(self.width - other.width, self.height - other.height)
 
     def __mul__(self, scale: float | SupportsIndex):
@@ -103,7 +119,7 @@ class Point(NamedTuple):
         x, y = other[0], other[1]
         return Point(self.x + x, self.y + y)
 
-    def __sub__(self, other: "Point"):
+    def __sub__(self, other: Point):
         return Point(self.x - other.x, self.y - other.y)
 
     def __mul__(self, other):
@@ -154,7 +170,7 @@ class Bounds(NamedTuple):
         return x >= 0 and x < self.width and y >= 0 and y < self.height
 
     @staticmethod
-    def scale(b: "Bounds", scale: float):
+    def scale(b: Bounds, scale: float):
         if scale == 1:
             return b
 
@@ -164,7 +180,7 @@ class Bounds(NamedTuple):
         return Bounds(apply(b.x), apply(b.y), apply(b.width), apply(b.height))
 
     @staticmethod
-    def pad(bounds: "Bounds", padding: int, min_size=0, multiple=8, square=False):
+    def pad(bounds: Bounds, padding: int, min_size=0, multiple=8, square=False):
         """Grow bounds by adding `padding` evenly on all side. Add additional padding if the area
         is still smaller than `min_size` and ensure the result is a multiple of `multiple`.
         If `square` is set, works towards making width and height balanced.
@@ -187,7 +203,7 @@ class Bounds(NamedTuple):
         return Bounds(new_x, new_y, new_width, new_height)
 
     @staticmethod
-    def clamp(bounds: "Bounds", extent: Extent):
+    def clamp(bounds: Bounds, extent: Extent):
         """Clamp mask bounds to be inside an image region. Bounds extent should remain unchanged,
         unless it is larger than the image extent.
         """
@@ -204,7 +220,7 @@ class Bounds(NamedTuple):
         return Bounds(x, y, width, height)
 
     @staticmethod
-    def restrict(bounds: "Bounds", within: "Bounds"):
+    def restrict(bounds: Bounds, within: Bounds):
         """Restrict bounds to be inside another bounds."""
         x = max(within.x, bounds.x)
         y = max(within.y, bounds.y)
@@ -213,7 +229,7 @@ class Bounds(NamedTuple):
         return Bounds(x, y, width, height)
 
     @staticmethod
-    def expand(bounds: "Bounds", include: "Bounds"):
+    def expand(bounds: Bounds, include: Bounds):
         """Expand bounds to include another bounds."""
         x = min(bounds.x, include.x)
         y = min(bounds.y, include.y)
@@ -222,7 +238,7 @@ class Bounds(NamedTuple):
         return Bounds(x, y, width, height)
 
     @staticmethod
-    def apply_crop(bounds: "Bounds", image_bounds: "Bounds"):
+    def apply_crop(bounds: Bounds, image_bounds: Bounds):
         """Adjust bounds area after the image has been cropped."""
         x = bounds.x - image_bounds.x
         y = bounds.y - image_bounds.y
@@ -230,19 +246,19 @@ class Bounds(NamedTuple):
         return Bounds.clamp(result, image_bounds.extent)
 
     @staticmethod
-    def at_least(bounds: "Bounds", min_size: int):
+    def at_least(bounds: Bounds, min_size: int):
         """Return bounds with width and height being at least `min_size`."""
         return Bounds(bounds.x, bounds.y, max(bounds.width, min_size), max(bounds.height, min_size))
 
     @staticmethod
-    def minimum_size(bounds: "Bounds", min_size: int, max_extent: Extent):
+    def minimum_size(bounds: Bounds, min_size: int, max_extent: Extent):
         """Return bounds extended to a minimum size if they still fit."""
         if any(x < min_size for x in max_extent):
             return None  # doesn't fit, image too small
         return Bounds.clamp(Bounds.at_least(bounds, min_size), max_extent)
 
     @staticmethod
-    def intersection(a: "Bounds", b: "Bounds"):
+    def intersection(a: Bounds, b: Bounds):
         x = max(a.x, b.x)
         y = max(a.y, b.y)
         width = min(a.x + a.width, b.x + b.width) - x
@@ -250,7 +266,7 @@ class Bounds(NamedTuple):
         return Bounds(x, y, max(0, width), max(0, height))
 
     @staticmethod
-    def union(a: "Bounds", b: "Bounds"):
+    def union(a: Bounds, b: Bounds):
         x = min(a.x, b.x)
         y = min(a.y, b.y)
         width = max(a.x + a.width, b.x + b.width) - x
@@ -261,7 +277,7 @@ class Bounds(NamedTuple):
     def area(self):
         return self.width * self.height
 
-    def relative_to(self, reference: "Bounds"):
+    def relative_to(self, reference: Bounds):
         """Return bounds relative to another bounds."""
         return Bounds(self.x - reference.x, self.y - reference.y, self.width, self.height)
 
@@ -289,7 +305,7 @@ class Image:
         self._qimage = qimage
 
     @staticmethod
-    def load(filepath: Union[str, Path]):
+    def load(filepath: str | Path):
         image = QImage()
         success = image.load(str(filepath))
         assert success, f"Failed to load image {filepath}"
@@ -311,7 +327,7 @@ class Image:
         return Image(qimg)
 
     @staticmethod
-    def copy(image: "Image"):
+    def copy(image: Image):
         return Image(QImage(image._qimage))
 
     @property
@@ -373,7 +389,7 @@ class Image:
         return Image(qimage)
 
     @staticmethod
-    def scale(img: "Image", target: Extent):
+    def scale(img: Image, target: Extent):
         if isinstance(img, DummyImage):
             return DummyImage(target)
         if img.extent == target:
@@ -384,15 +400,15 @@ class Image:
         return Image(scaled)
 
     @staticmethod
-    def scale_to_fit(img: "Image", target: Extent):
+    def scale_to_fit(img: Image, target: Extent):
         return Image.scale(img, img.extent.scale_keep_aspect(target))
 
     @staticmethod
-    def crop(img: "Image", bounds: Bounds):
+    def crop(img: Image, bounds: Bounds):
         return Image(img._qimage.copy(*bounds))
 
     @staticmethod
-    def _mask_op(lhs: "Image", rhs: "Image", mode: QPainter.CompositionMode):
+    def _mask_op(lhs: Image, rhs: Image, mode: QPainter.CompositionMode):
         assert extent_equal(lhs._qimage, rhs._qimage)
         assert lhs.is_mask and rhs.is_mask
         result = lhs._qimage.copy()
@@ -407,7 +423,7 @@ class Image:
         return Image(result)
 
     @staticmethod
-    def save_png_w_itxt(img_path: Union[str, Path], png_data: bytes, keyword: str, text: str):
+    def save_png_w_itxt(img_path: str | Path, png_data: bytes, keyword: str, text: str):
         if png_data[:8] != b"\x89PNG\r\n\x1a\n":
             raise ValueError("Not a valid PNG file")
 
@@ -451,15 +467,15 @@ class Image:
                     ihdr_inserted = True
 
     @classmethod
-    def mask_subtract(cls, lhs: "Image", rhs: "Image"):
+    def mask_subtract(cls, lhs: Image, rhs: Image):
         return cls._mask_op(rhs, lhs, QPainter.CompositionMode.CompositionMode_SourceOut)
 
     @classmethod
-    def mask_add(cls, lhs: "Image", rhs: "Image"):
+    def mask_add(cls, lhs: Image, rhs: Image):
         return cls._mask_op(lhs, rhs, QPainter.CompositionMode.CompositionMode_SourceOver)
 
     @staticmethod
-    def compare(img_a: "Image", img_b: "Image"):
+    def compare(img_a: Image, img_b: Image):
         assert extent_equal(img_a._qimage, img_b._qimage)
         import numpy as np
 
@@ -475,7 +491,7 @@ class Image:
         else:
             return qGray(c)
 
-    def set_pixel(self, x: int, y: int, color: Tuple[int, int, int, int]):
+    def set_pixel(self, x: int, y: int, color: tuple[int, int, int, int]):
         # Note: this is slow, only used for testing
         r, g, b, a = color
         self._qimage.setPixel(x, y, qRgba(r, g, b, a))
@@ -570,7 +586,7 @@ class Image:
         assert self.is_mask
         return Mask(bounds or Bounds(0, 0, *self.extent), self._qimage)
 
-    def draw_image(self, image: "Image", offset: tuple[int, int] = (0, 0), keep_alpha=False):
+    def draw_image(self, image: Image, offset: tuple[int, int] = (0, 0), keep_alpha=False):
         mode = QPainter.CompositionMode.CompositionMode_SourceOver
         if keep_alpha:
             mode = QPainter.CompositionMode.CompositionMode_SourceAtop
@@ -581,7 +597,7 @@ class Image:
 
     def save(
         self,
-        filepath: Union[str, Path],
+        filepath: str | Path,
         format: ImageFileFormat | None = None,
         quality: int | None = None,
     ):
@@ -595,7 +611,7 @@ class Image:
             file.close()
 
     def save_png_with_metadata(
-        self, filepath: Union[str, Path], metadata_text: str, format: ImageFileFormat | None = None
+        self, filepath: str | Path, metadata_text: str, format: ImageFileFormat | None = None
     ):
         png_bytes = bytes(self.to_bytes(format or ImageFileFormat.png))
         self.save_png_w_itxt(filepath, png_bytes, "parameters", metadata_text)
@@ -643,12 +659,12 @@ class DummyImage(Image):
 class ImageCollection:
     _items: list[Image]
 
-    def __init__(self, items: Optional[Iterable[Image]] = None):
+    def __init__(self, items: Iterable[Image] | None = None):
         self._items = []
         if items is not None:
             self.append(items)
 
-    def append(self, items: Union[Image, Iterable[Image]]):
+    def append(self, items: Image | Iterable[Image]):
         if isinstance(items, ImageCollection):
             self._items.extend(items)
         elif isinstance(items, Image):
@@ -672,7 +688,7 @@ class ImageCollection:
     def remove(self, index: int):
         return self._items.pop(index)
 
-    def save(self, filepath: Union[Path, str]):
+    def save(self, filepath: Path | str):
         filepath = Path(filepath)
         suffix = filepath.suffix
         filepath = filepath.with_suffix("")
@@ -732,7 +748,7 @@ class ImageCollection:
 
 
 class Mask:
-    def __init__(self, bounds: Bounds, data: Union[QImage, QByteArray]):
+    def __init__(self, bounds: Bounds, data: QImage | QByteArray):
         self.bounds = bounds
         if isinstance(data, QImage):
             self.image: QImage = data
@@ -763,7 +779,7 @@ class Mask:
         return Mask(context, QByteArray(bytes(m)))
 
     @staticmethod
-    def load(filepath: Union[str, Path]):
+    def load(filepath: str | Path):
         mask = QImage()
         success = mask.load(str(filepath))
         assert success, f"Failed to load mask {filepath}"
@@ -772,7 +788,7 @@ class Mask:
         return Mask(Bounds(0, 0, mask.width(), mask.height()), mask)
 
     @staticmethod
-    def crop(mask: "Mask", bounds: Bounds):
+    def crop(mask: Mask, bounds: Bounds):
         return Mask(bounds, mask.image.copy(*bounds))
 
     def value(self, x: int, y: int):
@@ -784,7 +800,7 @@ class Mask:
         e = self.bounds.extent
         return [self.value(x, y) for y in range(e.height) for x in range(e.width)]
 
-    def to_image(self, extent: Optional[Extent] = None):
+    def to_image(self, extent: Extent | None = None):
         if extent is None:
             return Image(self.image)
         img = QImage(extent.width, extent.height, QImage.Format_Grayscale8)

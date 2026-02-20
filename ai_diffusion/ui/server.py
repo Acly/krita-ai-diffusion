@@ -1,44 +1,47 @@
 from __future__ import annotations
+
+from collections.abc import Iterable
 from copy import copy
 from dataclasses import dataclass
 from enum import Enum
 from pathlib import Path
-from typing import Iterable, Optional
+
+from krita import Krita
 from PyQt5.QtCore import Qt, QUrl, pyqtSignal
 from PyQt5.QtGui import QDesktopServices
 from PyQt5.QtWidgets import (
-    QWidget,
     QCheckBox,
     QComboBox,
-    QHBoxLayout,
-    QVBoxLayout,
-    QGridLayout,
     QFileDialog,
     QFrame,
+    QGridLayout,
+    QHBoxLayout,
     QLabel,
     QLineEdit,
     QMenu,
     QMessageBox,
     QProgressBar,
     QPushButton,
-    QToolButton,
     QScrollArea,
     QTabWidget,
+    QToolButton,
+    QVBoxLayout,
+    QWidget,
 )
-from ai_diffusion.network import DownloadProgress
-from krita import Krita
 
-from ..settings import Settings, ServerMode, settings
-from ..style import Arch
-from ..resources import ModelRequirements, ModelResource, CustomNode, ResourceId
-from ..server import Server, ServerBackend, ServerState
+from ai_diffusion.network import DownloadProgress
+
+from .. import eventloop, resources, server, util
 from ..connection import ConnectionState
-from ..root import root
 from ..localization import translate as _
 from ..platform_tools import get_cuda_devices
+from ..resources import CustomNode, ModelRequirements, ModelResource, ResourceId
+from ..root import root
+from ..server import Server, ServerBackend, ServerState
+from ..settings import ServerMode, Settings, settings
+from ..style import Arch
 from ..util import ensure
-from .. import eventloop, resources, server, util
-from .theme import SignalBlocker, add_header, set_text_clipped, green, grey, red, yellow, highlight
+from .theme import SignalBlocker, add_header, green, grey, highlight, red, set_text_clipped, yellow
 
 
 class PackageState(Enum):
@@ -63,7 +66,7 @@ class PackageGroupWidget(QWidget):
         self,
         name: str,
         packages: list[str] | list[ModelResource] | list[CustomNode],
-        description: Optional[str] = None,
+        description: str | None = None,
         is_expanded=True,
         is_checkable=False,
         parent=None,

@@ -1,26 +1,28 @@
 from __future__ import annotations
+
 import asyncio
 import itertools
 import re
 import sys
-from pathlib import Path
+from collections.abc import Callable
 from dataclasses import dataclass
-from typing import Callable
+from pathlib import Path
+
 from PyQt5.QtCore import QObject, pyqtSignal
 
-from .connection import Connection, ConnectionState
-from .client import ClientMessage
-from .custom_workflow import WorkflowCollection
-from .server import Server, ServerState
-from .document import Document, KritaDocument
-from .model import Model
-from .files import FileFormat, FileLibrary, File, FileSource
-from .persistence import ModelSync, RecentlyUsedSync, import_prompt_from_file
-from .updates import AutoUpdate
-from .ui.theme import checkpoint_icon
-from .settings import ServerMode, settings
-from .util import client_logger as log
 from . import platform_tools, util
+from .client import ClientMessage
+from .connection import Connection, ConnectionState
+from .custom_workflow import WorkflowCollection
+from .document import Document, KritaDocument
+from .files import File, FileFormat, FileLibrary, FileSource
+from .model import Model
+from .persistence import ModelSync, RecentlyUsedSync, import_prompt_from_file
+from .server import Server, ServerState
+from .settings import ServerMode, settings
+from .ui.theme import checkpoint_icon
+from .updates import AutoUpdate
+from .util import client_logger as log
 
 
 class Root(QObject):
@@ -199,6 +201,7 @@ def _read_log(log_path: Path, last_n: int = 1000):
 
 def collect_diagnostics(redact_user=True):
     import platform
+
     from . import __version__
 
     try:

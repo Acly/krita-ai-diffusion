@@ -10,10 +10,11 @@ import argparse
 import hashlib
 import os
 import sys
+from pathlib import Path
+
+import boto3
 import dotenv
 import requests
-import boto3
-from pathlib import Path
 from botocore.exceptions import ClientError
 
 root_dir = Path(__file__).parent.parent
@@ -71,8 +72,7 @@ def load_manifest() -> dict[str, str]:
 def save_manifest(manifest: dict[str, str]) -> None:
     MANIFEST_FILE.parent.mkdir(parents=True, exist_ok=True)
     with open(MANIFEST_FILE, "w") as f:
-        for local_filepath, sha256 in sorted(manifest.items()):
-            f.write(f"{local_filepath} {sha256}\n")
+        f.writelines(f"{local_filepath} {sha256}\n" for local_filepath, sha256 in sorted(manifest.items()))
 
 
 def download_images() -> None:

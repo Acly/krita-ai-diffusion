@@ -1,16 +1,18 @@
 from __future__ import annotations
-from PyQt5.QtCore import QObject, pyqtSignal, QUuid, Qt
-from typing import Any, NamedTuple
-from pathlib import Path
-import json
 
-from . import model, jobs, resources, util
+import json
+from pathlib import Path
+from typing import Any, NamedTuple
+
+from PyQt5.QtCore import QObject, Qt, QUuid, pyqtSignal
+
+from . import jobs, model, resources, util
 from .api import ControlInput
-from .layer import Layer, LayerType
-from .resources import ControlMode, ResourceKind, Arch, resource_id
-from .properties import Property, ObservableProperties
 from .image import Bounds, Extent, Image
+from .layer import Layer, LayerType
 from .localization import translate as _
+from .properties import ObservableProperties, Property
+from .resources import Arch, ControlMode, ResourceKind, resource_id
 from .util import client_logger as log
 
 
@@ -213,11 +215,11 @@ class ControlLayerList(QObject):
     added = pyqtSignal(ControlLayer)
     removed = pyqtSignal(ControlLayer)
 
-    _model: "model.Model"
+    _model: model.Model
     _layers: list[ControlLayer]
     _last_mode = ControlMode.scribble
 
-    def __init__(self, model: "model.Model"):
+    def __init__(self, model: model.Model):
         super().__init__()
         self._model = model
         self._layers = []

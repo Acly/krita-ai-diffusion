@@ -14,18 +14,26 @@ Usage:
 """
 
 import asyncio
-import aiohttp
 import os
 import sys
-from pathlib import Path
-from tqdm import tqdm
 from argparse import ArgumentParser
+from pathlib import Path
+
+import aiohttp
+from tqdm import tqdm
 
 sys.path.append(str(Path(__file__).parent.parent))
 from ai_diffusion import platform_tools, resources
-from ai_diffusion.resources import Arch, ModelRequirements, ResourceKind, ModelResource
-from ai_diffusion.resources import VerificationState
-from ai_diffusion.resources import required_models, default_checkpoints, optional_models
+from ai_diffusion.resources import (
+    Arch,
+    ModelRequirements,
+    ModelResource,
+    ResourceKind,
+    VerificationState,
+    default_checkpoints,
+    optional_models,
+    required_models,
+)
 
 try:
     import truststore

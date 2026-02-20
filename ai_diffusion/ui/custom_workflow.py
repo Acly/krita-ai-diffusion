@@ -1,35 +1,59 @@
 import math
+from collections.abc import Callable
 from functools import wraps
 from pathlib import Path
-from typing import Any, Callable
+from typing import Any
 
 from krita import Krita
-from PyQt5.QtCore import Qt, pyqtSignal, QMetaObject, QUuid, QUrl, QPoint, QSize
-from PyQt5.QtGui import QFontMetrics, QIcon, QDesktopServices, QPalette
-from PyQt5.QtWidgets import QComboBox, QFileDialog, QFrame, QGridLayout, QHBoxLayout, QMenu
-from PyQt5.QtWidgets import QLabel, QLineEdit, QListWidgetItem, QMessageBox, QSpinBox, QAction
-from PyQt5.QtWidgets import QToolButton, QVBoxLayout, QWidget, QSlider, QDoubleSpinBox
-from PyQt5.QtWidgets import QScrollArea, QTextEdit, QSplitter
+from PyQt5.QtCore import QMetaObject, QPoint, QSize, Qt, QUrl, QUuid, pyqtSignal
+from PyQt5.QtGui import QDesktopServices, QFontMetrics, QIcon, QPalette
+from PyQt5.QtWidgets import (
+    QAction,
+    QComboBox,
+    QDoubleSpinBox,
+    QFileDialog,
+    QFrame,
+    QGridLayout,
+    QHBoxLayout,
+    QLabel,
+    QLineEdit,
+    QListWidgetItem,
+    QMenu,
+    QMessageBox,
+    QScrollArea,
+    QSlider,
+    QSpinBox,
+    QSplitter,
+    QTextEdit,
+    QToolButton,
+    QVBoxLayout,
+    QWidget,
+)
 
-from ..custom_workflow import CustomParam, ParamKind, SortedWorkflows, WorkflowSource
-from ..custom_workflow import CustomGenerationMode
 from ..client import TextOutput
+from ..custom_workflow import (
+    CustomGenerationMode,
+    CustomParam,
+    ParamKind,
+    SortedWorkflows,
+    WorkflowSource,
+)
 from ..jobs import JobKind
+from ..localization import translate as _
 from ..model import Model
-from ..properties import Binding, Bind, bind, bind_combo
-from ..style import Styles
+from ..properties import Bind, Binding, bind, bind_combo
 from ..root import root
 from ..settings import settings
-from ..localization import translate as _
-from ..util import ensure, clamp, base_type_match
-from .generation import GenerateButton, ProgressBar, QueueButton, HistoryWidget
+from ..style import Styles
+from ..util import base_type_match, clamp, ensure
+from . import theme
+from .generation import GenerateButton, HistoryWidget, ProgressBar, QueueButton
 from .live import LivePreviewArea
-from .switch import SwitchWidget
-from .widget import TextPromptWidget, WorkspaceSelectWidget, StyleSelectWidget, ErrorBox
 from .region import ActiveRegionWidget, PromptHeader
 from .settings_widgets import ExpanderButton
-from . import theme
+from .switch import SwitchWidget
 from .theme import SignalBlocker
+from .widget import ErrorBox, StyleSelectWidget, TextPromptWidget, WorkspaceSelectWidget
 
 
 class LayerSelect(QComboBox):
@@ -138,7 +162,7 @@ class IntParamWidget(QWidget):
         return self._widget.value()
 
     @value.setter
-    def value(self, value: int | float):
+    def value(self, value: float):
         v = int(value)
         v = max(self._widget.minimum(), min(self._widget.maximum(), v))
         with SignalBlocker(self._widget):
@@ -208,7 +232,7 @@ class FloatParamWidget(QWidget):
         return float(self._widget.value())
 
     @value.setter
-    def value(self, value: float | int):
+    def value(self, value: float):
         v = float(value)
         v = max(self._widget.minimum(), min(self._widget.maximum(), v))
         with SignalBlocker(self._widget):

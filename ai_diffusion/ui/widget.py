@@ -1,60 +1,75 @@
 from __future__ import annotations
-from typing import Any, Callable, cast
 
-from PyQt5.QtWidgets import (
-    QAction,
-    QSlider,
-    QWidget,
-    QPlainTextEdit,
-    QLabel,
-    QMenu,
-    QSpinBox,
-    QToolButton,
-    QComboBox,
-    QHBoxLayout,
-    QSizePolicy,
-    QStyle,
-    QStyleOption,
-    QWidgetAction,
-    QCheckBox,
-    QGridLayout,
-    QPushButton,
-    QFrame,
-    QScrollBar,
-)
+from collections.abc import Callable
+from typing import Any, cast
+
+from krita import Krita
+from PyQt5.QtCore import QEvent, QMetaObject, QSize, Qt, QUrl, pyqtSignal
 from PyQt5.QtGui import (
     QCloseEvent,
     QDesktopServices,
-    QGuiApplication,
     QFontMetrics,
+    QGuiApplication,
     QKeyEvent,
+    QKeySequence,
     QMouseEvent,
-    QPalette,
-    QTextCursor,
     QPainter,
     QPaintEvent,
-    QKeySequence,
+    QPalette,
+    QTextCursor,
 )
-from PyQt5.QtCore import Qt, QMetaObject, QSize, pyqtSignal, QEvent, QUrl
-from krita import Krita
+from PyQt5.QtWidgets import (
+    QAction,
+    QCheckBox,
+    QComboBox,
+    QFrame,
+    QGridLayout,
+    QHBoxLayout,
+    QLabel,
+    QMenu,
+    QPlainTextEdit,
+    QPushButton,
+    QScrollBar,
+    QSizePolicy,
+    QSlider,
+    QSpinBox,
+    QStyle,
+    QStyleOption,
+    QToolButton,
+    QWidget,
+    QWidgetAction,
+)
 
-from ..style import Style, Styles
-from ..root import root
 from ..client import filter_supported_styles, resolve_arch
 from ..connection import ConnectionState
-from ..properties import Binding, Bind, bind, bind_combo
-from ..jobs import JobState, JobKind
-from ..model import Model, Workspace, SamplingQuality, ProgressKind, ErrorKind, Error, QueueMode
-from ..model import no_error
-from ..text import edit_attention, select_on_cursor_pos
-from ..text import char16_len, str_index_to_char16_index, char16_index_to_str_index
+from ..jobs import JobKind, JobState
 from ..localization import translate as _
+from ..model import (
+    Error,
+    ErrorKind,
+    Model,
+    ProgressKind,
+    QueueMode,
+    SamplingQuality,
+    Workspace,
+    no_error,
+)
+from ..properties import Bind, Binding, bind, bind_combo
+from ..root import root
+from ..settings import Settings, settings
+from ..style import Style, Styles
+from ..text import (
+    char16_index_to_str_index,
+    char16_len,
+    edit_attention,
+    select_on_cursor_pos,
+    str_index_to_char16_index,
+)
 from ..util import ensure
 from ..workflow import apply_strength, snap_to_percent
-from ..settings import Settings, settings
+from . import actions, theme
 from .autocomplete import PromptAutoComplete
 from .theme import SignalBlocker
-from . import actions, theme
 
 
 class QueuePopup(QMenu):

@@ -1,29 +1,42 @@
 import itertools
-import pytest
 import json
 from datetime import datetime
 from pathlib import Path
 from typing import Any
 
+import pytest
+
 from ai_diffusion import workflow
-from ai_diffusion.api import LoraInput, WorkflowKind, WorkflowInput, ControlInput, RegionInput
-from ai_diffusion.api import InpaintMode, FillMode, ConditioningInput, CustomWorkflowInput
-from ai_diffusion.api import SamplingInput, ImageInput, UpscaleInput, InpaintParams
-from ai_diffusion.client import ClientModels, CheckpointInfo
-from ai_diffusion.comfy_client import ComfyClient
+from ai_diffusion.api import (
+    ConditioningInput,
+    ControlInput,
+    CustomWorkflowInput,
+    FillMode,
+    ImageInput,
+    InpaintMode,
+    InpaintParams,
+    LoraInput,
+    RegionInput,
+    SamplingInput,
+    UpscaleInput,
+    WorkflowInput,
+    WorkflowKind,
+)
+from ai_diffusion.client import CheckpointInfo, Client, ClientEvent, ClientModels
 from ai_diffusion.cloud_client import CloudClient
+from ai_diffusion.comfy_client import ComfyClient
 from ai_diffusion.comfy_workflow import ComfyWorkflow
-from ai_diffusion.files import FileLibrary, FileCollection, File, FileSource
+from ai_diffusion.files import File, FileCollection, FileLibrary, FileSource
+from ai_diffusion.image import Bounds, Extent, Image, ImageCollection, Mask
+from ai_diffusion.pose import Pose
 from ai_diffusion.resources import ControlMode
 from ai_diffusion.settings import PerformanceSettings
-from ai_diffusion.image import Mask, Bounds, Extent, Image, ImageCollection
-from ai_diffusion.client import Client, ClientEvent
 from ai_diffusion.style import Arch, Style
-from ai_diffusion.pose import Pose
-from ai_diffusion.workflow import detect_inpaint
 from ai_diffusion.util import ensure
+from ai_diffusion.workflow import detect_inpaint
+
 from . import config
-from .config import root_dir, test_dir, image_dir, result_dir, reference_dir, default_checkpoint
+from .config import default_checkpoint, image_dir, reference_dir, result_dir, root_dir, test_dir
 from .conftest import CloudService
 
 service_available = (root_dir / "service" / "web" / ".env.local").exists()

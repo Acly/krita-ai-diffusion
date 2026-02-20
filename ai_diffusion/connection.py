@@ -1,18 +1,20 @@
 from __future__ import annotations
-from enum import Enum
-from typing import Iterable
-from PyQt5.QtCore import QObject, pyqtSignal, QUrl
-from PyQt5.QtGui import QDesktopServices
-import asyncio
 
-from .client import Client, ClientMessage, ClientEvent, DeviceInfo, SharedWorkflow, MissingResources
-from .comfy_client import ComfyClient
+import asyncio
+from collections.abc import Iterable
+from enum import Enum
+
+from PyQt5.QtCore import QObject, QUrl, pyqtSignal
+from PyQt5.QtGui import QDesktopServices
+
+from . import eventloop, util
+from .client import Client, ClientEvent, ClientMessage, DeviceInfo, MissingResources, SharedWorkflow
 from .cloud_client import CloudClient
-from .network import NetworkError
-from .settings import Settings, ServerMode, PerformancePreset, settings
-from .properties import Property, ObservableProperties
+from .comfy_client import ComfyClient
 from .localization import translate as _
-from . import util, eventloop
+from .network import NetworkError
+from .properties import ObservableProperties, Property
+from .settings import PerformancePreset, ServerMode, Settings, settings
 
 
 class ConnectionState(Enum):

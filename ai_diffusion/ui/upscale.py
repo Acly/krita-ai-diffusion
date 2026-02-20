@@ -1,30 +1,36 @@
-from PyQt5.QtCore import Qt, QMetaObject, QEvent, pyqtSignal
+from PyQt5.QtCore import QEvent, QMetaObject, Qt, pyqtSignal
 from PyQt5.QtGui import QCursor
 from PyQt5.QtWidgets import (
-    QWidget,
-    QVBoxLayout,
-    QHBoxLayout,
-    QProgressBar,
-    QLabel,
     QComboBox,
-    QSlider,
-    QSpinBox,
     QDoubleSpinBox,
     QGroupBox,
+    QHBoxLayout,
+    QLabel,
+    QProgressBar,
+    QSlider,
+    QSpinBox,
+    QVBoxLayout,
+    QWidget,
 )
 
-from ..properties import Binding, Bind, bind, bind_combo, bind_toggle
-from ..resources import ControlMode, UpscalerName
-from ..model import Model, TileOverlapMode
 from ..jobs import JobKind
 from ..localization import translate as _
+from ..model import Model, TileOverlapMode
+from ..properties import Bind, Binding, bind, bind_combo, bind_toggle
+from ..resources import ControlMode, UpscalerName
 from ..root import root
-from .theme import SignalBlocker, set_text_clipped
-from .widget import WorkspaceSelectWidget, StyleSelectWidget, StrengthWidget, QueueButton
-from .widget import GenerateButton, ErrorBox
+from . import theme
 from .settings_widgets import WarningIcon
 from .switch import SwitchWidget
-from . import theme
+from .theme import SignalBlocker, set_text_clipped
+from .widget import (
+    ErrorBox,
+    GenerateButton,
+    QueueButton,
+    StrengthWidget,
+    StyleSelectWidget,
+    WorkspaceSelectWidget,
+)
 
 
 class FactorWidget(QWidget):
@@ -76,7 +82,7 @@ class FactorWidget(QWidget):
             self.update_target_extent()
             self.value_changed.emit(value)
 
-    def change_factor_slider(self, value: int | float):
+    def change_factor_slider(self, value: float):
         rounded = round(value / 50) * 50
         if rounded != value:
             self.slider.setValue(rounded)

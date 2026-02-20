@@ -12,14 +12,11 @@
 #
 # [GPL-3.0]: https://www.gnu.org/licenses/gpl-3.0.en.html
 
-from typing import Tuple
 
+from PyQt5.QtCore import QRect, QSize, Qt
 from PyQt5.QtCore import pyqtSignal as Signal
-
-from PyQt5.QtWidgets import QWidget, QStyleOptionSlider, QSizePolicy, QStyle, QSlider
-from PyQt5.QtGui import QPainter, QMouseEvent, QPalette, QBrush
-from PyQt5.QtCore import QRect, Qt, QSize
-
+from PyQt5.QtGui import QBrush, QMouseEvent, QPainter, QPalette
+from PyQt5.QtWidgets import QSizePolicy, QSlider, QStyle, QStyleOptionSlider, QWidget
 
 # Based on idea and in part the code from
 # https://stackoverflow.com/questions/47342158/porting-range-slider-widget-to-pyqt5
@@ -60,7 +57,7 @@ class IntervalSlider(QWidget):
     rangeChanged = Signal((int, int))  # notifier for setMinimum/setMaximum
     intervalChanged = Signal((int, int))  # setRange, slider move (when tracking)
     sliderPressed = Signal(int)  # argument is handle id (see above)
-    sliderMoved = Signal(int, int)  #
+    sliderMoved = Signal(int, int)
     sliderReleased = Signal(int)
 
     def __init__(self, low=1, high=8, minimum=0, maximum=10, parent: QWidget | None = None, **args):
@@ -91,7 +88,7 @@ class IntervalSlider(QWidget):
         if orientation != Qt.Orientation.Horizontal:
             raise ValueError("IntervalSlider supports only horizontal direction")
 
-    def sliderPosition(self) -> Tuple[int, int]:
+    def sliderPosition(self) -> tuple[int, int]:
         """
         Current position of sliders.
         This is the same as `interval` if tracking is enabled.
@@ -112,7 +109,7 @@ class IntervalSlider(QWidget):
         self.sliderMoved.emit(self.LowHandle, low)
         self.sliderMoved.emit(self.HighHandle, high)
 
-    def interval(self) -> Tuple[int, int]:
+    def interval(self) -> tuple[int, int]:
         """Current interval"""
         return self._interval
 

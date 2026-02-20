@@ -1,15 +1,18 @@
 from __future__ import annotations
-from dataclasses import dataclass
-import os
+
 import json
+import os
+from dataclasses import dataclass
 from enum import Enum
 from pathlib import Path
-from typing import NamedTuple, Optional, Any
+from typing import Any, NamedTuple
+
 from PyQt5.QtCore import QObject, pyqtSignal
 
-from .platform_tools import is_macos, is_windows
-from .util import encode_json, read_json_with_comments, user_data_dir, client_logger as log
 from .localization import translate as _
+from .platform_tools import is_macos, is_windows
+from .util import client_logger as log
+from .util import encode_json, read_json_with_comments, user_data_dir
 
 
 class ServerMode(Enum):
@@ -511,12 +514,12 @@ class Settings(QObject):
         if not init:
             self.server_mode = ServerMode.managed
 
-    def save(self, path: Optional[Path] = None):
+    def save(self, path: Path | None = None):
         path = self.default_path or path
         with open(path, "w") as file:
             file.write(json.dumps(self._values, default=encode_json, indent=4))
 
-    def load(self, path: Optional[Path] = None):
+    def load(self, path: Path | None = None):
         path = self.default_path or path
         self._migrate_legacy_settings(path)
         if not path.exists():

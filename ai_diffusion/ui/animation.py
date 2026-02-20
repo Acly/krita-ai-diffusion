@@ -1,27 +1,35 @@
 from __future__ import annotations
-from PyQt5.QtCore import Qt, QMetaObject
+
+from PyQt5.QtCore import QMetaObject, Qt
 from PyQt5.QtWidgets import (
-    QWidget,
-    QVBoxLayout,
-    QHBoxLayout,
     QComboBox,
-    QPushButton,
-    QProgressBar,
+    QHBoxLayout,
     QLabel,
+    QProgressBar,
+    QPushButton,
     QRadioButton,
     QSizePolicy,
+    QVBoxLayout,
+    QWidget,
 )
 
-from ..properties import Binding, bind, bind_combo, bind_toggle, Bind
-from ..model import Model
 from ..image import Extent, Image
+from ..localization import translate as _
+from ..model import Model
+from ..properties import Bind, Binding, bind, bind_combo, bind_toggle
 from ..root import root
 from ..settings import settings
-from ..localization import translate as _
 from . import theme
 from .control import ControlListWidget
-from .widget import WorkspaceSelectWidget, StyleSelectWidget, TextPromptWidget, StrengthWidget
-from .widget import QueueButton, ErrorBox, create_wide_tool_button
+from .widget import (
+    ErrorBox,
+    QueueButton,
+    StrengthWidget,
+    StyleSelectWidget,
+    TextPromptWidget,
+    WorkspaceSelectWidget,
+    create_wide_tool_button,
+)
 
 
 class AnimationWidget(QWidget):

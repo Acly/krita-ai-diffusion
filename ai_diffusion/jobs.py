@@ -1,9 +1,11 @@
 from __future__ import annotations
+
 from collections import deque
-from dataclasses import dataclass, fields, field
+from dataclasses import dataclass, field, fields
 from datetime import datetime
 from enum import Enum, Flag
-from typing import Any, NamedTuple, TYPE_CHECKING
+from typing import TYPE_CHECKING, Any, NamedTuple
+
 from PyQt5.QtCore import QObject, pyqtSignal
 
 from .api import InpaintMode
@@ -89,7 +91,7 @@ class JobParams:
         self.metadata["steps"] = style.sampler_steps
         self.metadata["guidance"] = style.cfg_scale
 
-    def set_control(self, control: "control.ControlLayerList"):
+    def set_control(self, control: control.ControlLayerList):
         self.metadata["control"] = [
             {
                 "mode": c.mode.text,
@@ -119,7 +121,7 @@ class Job:
     kind: JobKind
     state = JobState.queued
     params: JobParams
-    control: "control.ControlLayer | None" = None
+    control: control.ControlLayer | None = None
     timestamp: datetime
     results: ImageCollection
     in_use: dict[int, bool]
@@ -160,7 +162,7 @@ class JobQueue(QObject):
     def add(self, kind: JobKind, params: JobParams):
         return self.add_job(Job(None, kind, params))
 
-    def add_control(self, control: "control.ControlLayer", bounds: Bounds):
+    def add_control(self, control: control.ControlLayer, bounds: Bounds):
         job = Job(None, JobKind.control_layer, JobParams(bounds, f"[Control] {control.mode.text}"))
         job.control = control
         return self.add_job(job)

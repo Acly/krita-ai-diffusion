@@ -1,13 +1,16 @@
 from __future__ import annotations
+
 from contextlib import contextmanager, nullcontext
 from enum import Enum
+
 import krita
-from PyQt5.QtCore import QObject, QUuid, QByteArray, QTimer, pyqtSignal
+from PyQt5.QtCore import QByteArray, QObject, QTimer, QUuid, pyqtSignal
 from PyQt5.QtGui import QImage
 
-from .image import Extent, Bounds, Image, ImageCollection
-from .util import acquire_elements, ensure, maybe, client_logger as log
 from . import eventloop
+from .image import Bounds, Extent, Image, ImageCollection
+from .util import acquire_elements, ensure, maybe
+from .util import client_logger as log
 
 
 class LayerType(Enum):
@@ -201,7 +204,7 @@ class Layer(QObject):
         bounds = bounds or self.bounds
         time_range = range(doc.playBackStartTime(), doc.playBackEndTime() + 1)
         return ImageCollection(
-            (fn(bounds, time) for time in time_range if self._node.hasKeyframeAtTime(time))
+            fn(bounds, time) for time in time_range if self._node.hasKeyframeAtTime(time)
         )
 
     def get_pixel_frames(self, bounds: Bounds | None = None):

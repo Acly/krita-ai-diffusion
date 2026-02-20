@@ -1,45 +1,71 @@
 from __future__ import annotations
+
 import asyncio
 import time
-import weakref
 import uuid
-from copy import copy
+import weakref
 from collections import deque
+from copy import copy
 from dataclasses import dataclass, replace
 from datetime import datetime
-from pathlib import Path
 from enum import Enum
+from pathlib import Path
 from tempfile import TemporaryDirectory
 from typing import Any, NamedTuple
-from PyQt5.QtCore import QObject, QMetaObject, QUuid, pyqtSignal, Qt
-from PyQt5.QtGui import QPainter, QColor, QBrush
 
-from . import eventloop, workflow, util
-from .api import ConditioningInput, ControlInput, WorkflowKind, WorkflowInput, SamplingInput
-from .api import FillMode, ImageInput, CustomWorkflowInput, UpscaleInput
-from .api import InpaintMode, InpaintContext, InpaintParams
-from .localization import translate as _
-from .util import clamp, ensure, unique, trim_text, client_logger as log
-from .settings import ApplyBehavior, ApplyRegionBehavior, GenerationFinishedAction, ImageFileFormat
-from .settings import settings
-from .network import NetworkError
-from .image import Extent, Image, Mask, Bounds, DummyImage
-from .client import Client, ClientMessage, ClientEvent, ClientOutput
-from .client import is_style_supported, filter_supported_styles, resolve_arch
-from .custom_workflow import CustomWorkspace, WorkflowCollection, CustomGenerationMode
-from .document import Document, KritaDocument, SelectionModifiers
-from .layer import Layer, LayerType, RestoreActiveLayer
-from .pose import Pose
-from .style import Style, Styles, Arch
-from .files import FileLibrary
+from PyQt5.QtCore import QMetaObject, QObject, Qt, QUuid, pyqtSignal
+from PyQt5.QtGui import QBrush, QColor, QPainter
+
+from . import eventloop, util, workflow
+from .api import (
+    ConditioningInput,
+    ControlInput,
+    CustomWorkflowInput,
+    FillMode,
+    ImageInput,
+    InpaintContext,
+    InpaintMode,
+    InpaintParams,
+    SamplingInput,
+    UpscaleInput,
+    WorkflowInput,
+    WorkflowKind,
+)
+from .client import (
+    Client,
+    ClientEvent,
+    ClientMessage,
+    ClientOutput,
+    filter_supported_styles,
+    is_style_supported,
+    resolve_arch,
+)
 from .connection import Connection, ConnectionState
-from .properties import Property, ObservableProperties
-from .jobs import Job, JobKind, JobParams, JobQueue, JobState, JobRegion
 from .control import ControlLayer
-from .region import Region, RegionLink, RootRegion, process_regions, get_region_inpaint_mask
-from .resources import ControlMode
+from .custom_workflow import CustomGenerationMode, CustomWorkspace, WorkflowCollection
+from .document import Document, KritaDocument, SelectionModifiers
+from .files import FileLibrary
+from .image import Bounds, DummyImage, Extent, Image, Mask
+from .jobs import Job, JobKind, JobParams, JobQueue, JobRegion, JobState
+from .layer import Layer, LayerType, RestoreActiveLayer
+from .localization import translate as _
+from .network import NetworkError
+from .pose import Pose
+from .properties import ObservableProperties, Property
+from .region import Region, RegionLink, RootRegion, get_region_inpaint_mask, process_regions
 from .resolution import compute_bounds, compute_relative_bounds
+from .resources import ControlMode
+from .settings import (
+    ApplyBehavior,
+    ApplyRegionBehavior,
+    GenerationFinishedAction,
+    ImageFileFormat,
+    settings,
+)
+from .style import Arch, Style, Styles
 from .text import create_img_metadata, extract_layers
+from .util import clamp, ensure, trim_text, unique
+from .util import client_logger as log
 
 
 class QueueMode(Enum):
@@ -405,7 +431,7 @@ class Model(QObject, ObservableProperties):
                 return 0
             return input.cost * self.batch_count
         except Exception as e:
-            util.client_logger.warning(f"Failed to estimate workflow cost: {type(e)} {str(e)}")
+            util.client_logger.warning(f"Failed to estimate workflow cost: {type(e)} {e!s}")
             return 0
 
     def generate_live(self):

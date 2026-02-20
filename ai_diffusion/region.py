@@ -1,15 +1,17 @@
 from __future__ import annotations
+
 from enum import Enum
-from PyQt5.QtCore import QObject, QMetaObject, QUuid, pyqtSignal
+
+from PyQt5.QtCore import QMetaObject, QObject, QUuid, pyqtSignal
 
 from . import eventloop, model, workflow
 from .api import ConditioningInput, RegionInput
 from .client import Client
-from .image import Image, Bounds, Extent
-from .document import Layer, LayerType
-from .properties import Property, ObservableProperties
-from .jobs import JobRegion
 from .control import ControlLayerList
+from .document import Layer, LayerType
+from .image import Bounds, Extent, Image
+from .jobs import JobRegion
+from .properties import ObservableProperties, Property
 from .settings import settings
 from .style import Style
 

@@ -2,23 +2,24 @@ from __future__ import annotations
 
 from enum import Enum
 from typing import Any
+
+from PyQt5.QtCore import QAbstractItemModel, QSize, Qt, pyqtSignal
+from PyQt5.QtGui import QFontMetrics, QIcon
 from PyQt5.QtWidgets import (
-    QVBoxLayout,
-    QHBoxLayout,
     QCheckBox,
+    QComboBox,
+    QFrame,
+    QHBoxLayout,
     QLabel,
     QLineEdit,
+    QScrollArea,
     QSizePolicy,
+    QSlider,
     QSpinBox,
     QToolButton,
-    QComboBox,
-    QSlider,
+    QVBoxLayout,
     QWidget,
-    QScrollArea,
-    QFrame,
 )
-from PyQt5.QtCore import Qt, QAbstractItemModel, QSize, pyqtSignal
-from PyQt5.QtGui import QIcon, QFontMetrics
 
 from ..localization import translate as _
 from ..settings import Setting, settings
@@ -237,8 +238,8 @@ class SliderSetting(SettingWidget):
         self,
         setting: Setting,
         parent=None,
-        minimum: int | float = 0,
-        maximum: int | float = 100,
+        minimum: float = 0,
+        maximum: float = 100,
         format="{}",
     ):
         super().__init__(setting, parent)
@@ -276,7 +277,7 @@ class SliderSetting(SettingWidget):
         return x if not self._is_float else x / self.multiplier
 
     @value.setter
-    def value(self, v: int | float):
+    def value(self, v: float):
         x = int(v) if not self._is_float else round(v * self.multiplier)
         self._slider.setValue(x)
 

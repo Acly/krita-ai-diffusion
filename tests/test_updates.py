@@ -1,11 +1,13 @@
 import os
+from pathlib import Path
+
 import pytest
 from aiohttp import ClientSession
-from pathlib import Path
 from PyQt5.QtCore import pyqtBoundSignal
 
 from ai_diffusion.platform_tools import ZipFile
 from ai_diffusion.updates import AutoUpdate, UpdateState
+
 from .conftest import CloudService
 
 

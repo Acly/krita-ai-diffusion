@@ -1,17 +1,17 @@
+import hashlib
 import os
 import shutil
-import hashlib
-
 from enum import Enum
 from pathlib import Path
 from tempfile import TemporaryDirectory
 from typing import NamedTuple
+
 from PyQt5.QtCore import QObject, pyqtSignal
 
 from . import __version__, eventloop
 from .network import RequestManager
-from .properties import ObservableProperties, Property
 from .platform_tools import ZipFile
+from .properties import ObservableProperties, Property
 from .util import client_logger as log
 
 

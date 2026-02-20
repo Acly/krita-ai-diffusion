@@ -1,15 +1,15 @@
 from PyQt5.QtCore import Qt
 
 from ai_diffusion.api import (
-    WorkflowInput,
-    WorkflowKind,
+    ConditioningInput,
     ControlInput,
     ExtentInput,
     ImageInput,
-    ConditioningInput,
     RegionInput,
+    WorkflowInput,
+    WorkflowKind,
 )
-from ai_diffusion.image import Extent, Image, ImageFileFormat, Bounds
+from ai_diffusion.image import Bounds, Extent, Image, ImageFileFormat
 from ai_diffusion.resources import ControlMode
 from ai_diffusion.util import ensure
 

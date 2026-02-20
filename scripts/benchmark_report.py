@@ -1,6 +1,7 @@
 import sys
-from PIL import Image
 from pathlib import Path
+
+from PIL import Image
 
 prefixes = [
     "benchmark_inpaint_apple-tree",

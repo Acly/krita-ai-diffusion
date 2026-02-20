@@ -1,15 +1,17 @@
 from __future__ import annotations
-from PyQt5.QtCore import Qt, QObject, QSize
-from PyQt5.QtGui import QGuiApplication, QPalette, QIcon, QPixmap, QFontMetrics
-from PyQt5.QtWidgets import QVBoxLayout, QLabel, QWidget
+
 from pathlib import Path
 
-from ..files import FileFormat
-from ..settings import Setting
-from ..style import Arch
+from PyQt5.QtCore import QObject, QSize, Qt
+from PyQt5.QtGui import QFontMetrics, QGuiApplication, QIcon, QPalette, QPixmap
+from PyQt5.QtWidgets import QLabel, QVBoxLayout, QWidget
+
 from ..client import Client
+from ..files import FileFormat
 from ..localization import translate as _
 from ..platform_tools import is_windows
+from ..settings import Setting
+from ..style import Arch
 from ..util import client_logger as log
 
 _palette = QGuiApplication.palette()

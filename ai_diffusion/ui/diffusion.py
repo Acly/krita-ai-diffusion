@@ -1,23 +1,31 @@
 from __future__ import annotations
-from PyQt5.QtCore import Qt, pyqtSignal
-from PyQt5.QtWidgets import QWidget, QVBoxLayout, QHBoxLayout, QPushButton, QLabel, QStackedWidget
-from PyQt5.QtWidgets import QCheckBox
-from krita import Krita, DockWidget
-import krita
 
-from ..model import Model, Workspace
-from ..server import Server, ServerState
+import krita
+from krita import DockWidget, Krita
+from PyQt5.QtCore import Qt, pyqtSignal
+from PyQt5.QtWidgets import (
+    QCheckBox,
+    QHBoxLayout,
+    QLabel,
+    QPushButton,
+    QStackedWidget,
+    QVBoxLayout,
+    QWidget,
+)
+
 from ..connection import ConnectionState
+from ..localization import translate as _
+from ..model import Model, Workspace
+from ..root import root
+from ..server import Server, ServerState
 from ..settings import ServerMode, settings
 from ..updates import UpdateState
-from ..root import root
-from ..localization import translate as _
 from . import theme
-from .generation import GenerationWidget
-from .custom_workflow import CustomWorkflowWidget, CustomWorkflowPlaceholder
-from .upscale import UpscaleWidget
-from .live import LiveWidget
 from .animation import AnimationWidget
+from .custom_workflow import CustomWorkflowPlaceholder, CustomWorkflowWidget
+from .generation import GenerationWidget
+from .live import LiveWidget
+from .upscale import UpscaleWidget
 
 
 class AutoUpdateWidget(QWidget):

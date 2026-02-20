@@ -1,6 +1,7 @@
-from functools import reduce
 import operator
-from typing import Dict, List, NamedTuple, Optional
+from functools import reduce
+from typing import NamedTuple
+
 from PyQt5.QtCore import QPointF
 
 from .image import Extent
@@ -163,7 +164,7 @@ class Shape:
 
 class Pose:
     people_count: int
-    joints: Dict[JointIndex, Point]
+    joints: dict[JointIndex, Point]
 
     _extent: Extent
     _stroke_width = 4.0
@@ -173,7 +174,7 @@ class Pose:
         self,
         extent: Extent,
         people_count=0,
-        joint_positions: Optional[Dict[JointIndex, Point]] = None,
+        joint_positions: dict[JointIndex, Point] | None = None,
     ):
         self.extent = extent
         self.people_count = people_count
@@ -194,7 +195,7 @@ class Pose:
             pose = pose[0]  # Newer version of DWPose return a list of pose dicts
         extent = Extent(pose["canvas_width"], pose["canvas_height"])
 
-        def parse_keypoints(person: int, keypoints: List[float]):
+        def parse_keypoints(person: int, keypoints: list[float]):
             assert len(keypoints) // 3 == joint_count, "Invalid keypoint count in OpenPose JSON"
             return {
                 JointIndex(person, joint): Point(x, y)
@@ -211,11 +212,11 @@ class Pose:
         self.joints = {i: Point(p.x * s.x, p.y * s.y) for i, p in self.joints.items()}
         self.extent = target
 
-    def update(self, shapes: List[Shape], resolution=1.0):
+    def update(self, shapes: list[Shape], resolution=1.0):
         changed = set()
         duplicates = set()
-        bones: Dict[BoneIndex, Shape] = {}
-        new_people: Dict[int, int] = {}
+        bones: dict[BoneIndex, Shape] = {}
+        new_people: dict[int, int] = {}
 
         def update_position(index, position):
             self.joints[index] = position

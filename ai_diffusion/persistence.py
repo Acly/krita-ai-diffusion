@@ -1,27 +1,30 @@
 from __future__ import annotations
+
 import asyncio
 import json
-from dataclasses import dataclass, asdict, field
+from dataclasses import asdict, dataclass, field
 from enum import Enum
-from typing import Any
 from time import time
-from PyQt5.QtCore import QObject, QByteArray
+from typing import Any
+
+from PyQt5.QtCore import QByteArray, QObject
 from PyQt5.QtGui import QImageReader
 from PyQt5.QtWidgets import QMessageBox
 
-from .api import InpaintMode, FillMode
-from .image import ImageCollection
-from .model import Model, InpaintContext
-from .custom_workflow import CustomWorkspace
-from .control import ControlLayer, ControlLayerList
-from .region import RootRegion, Region
-from .jobs import Job, JobKind, JobParams, JobQueue
-from .style import Style, Styles
-from .properties import serialize, deserialize
-from .settings import settings
-from .localization import translate as _
-from .util import client_logger as log, encode_json
 from . import eventloop
+from .api import FillMode, InpaintMode
+from .control import ControlLayer, ControlLayerList
+from .custom_workflow import CustomWorkspace
+from .image import ImageCollection
+from .jobs import Job, JobKind, JobParams, JobQueue
+from .localization import translate as _
+from .model import InpaintContext, Model
+from .properties import deserialize, serialize
+from .region import Region, RootRegion
+from .settings import settings
+from .style import Style, Styles
+from .util import client_logger as log
+from .util import encode_json
 
 # Version of the persistence format, increment when there are breaking changes
 version = 1

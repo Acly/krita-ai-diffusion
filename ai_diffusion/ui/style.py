@@ -1,42 +1,52 @@
 from __future__ import annotations
 
-from typing import Optional, cast
 from pathlib import Path
+from typing import cast
+
+from krita import Krita
+from PyQt5.QtCore import Qt, QUrl, pyqtSignal
+from PyQt5.QtGui import QColor, QDesktopServices, QPalette
 from PyQt5.QtWidgets import (
-    QVBoxLayout,
-    QHBoxLayout,
-    QPushButton,
     QCheckBox,
-    QFrame,
-    QLabel,
-    QSpinBox,
-    QToolButton,
     QComboBox,
-    QWidget,
     QCompleter,
     QFileDialog,
-    QMessageBox,
+    QFrame,
+    QHBoxLayout,
+    QLabel,
     QLineEdit,
+    QMessageBox,
+    QPushButton,
+    QSpinBox,
+    QToolButton,
+    QVBoxLayout,
+    QWidget,
 )
-from PyQt5.QtCore import Qt, QUrl, pyqtSignal
-from PyQt5.QtGui import QDesktopServices, QPalette, QColor
-from krita import Krita
 
 from ..client import filter_supported_styles, resolve_arch
-from ..resources import Arch, ResourceId, ResourceKind, search_paths
-from ..settings import Setting, ServerMode, settings
-from ..server import Server
-from ..files import File, FileFilter, FileSource, FileFormat
-from ..style import Style, Styles, StyleSettings, SamplerPresets
+from ..files import File, FileFilter, FileFormat, FileSource
 from ..localization import translate as _
+from ..resources import Arch, ResourceId, ResourceKind, search_paths
 from ..root import root
-from .settings_widgets import ExpanderButton, SpinBoxSetting, SliderSetting, SwitchSetting
-from .settings_widgets import ComboBoxSetting, TextSetting, LineEditSetting, SettingWidget
-from .settings_widgets import SettingsTab, WarningIcon
-from .widget import create_framed_label
-from .theme import SignalBlocker, add_header, icon
-from .switch import SwitchWidget
+from ..server import Server
+from ..settings import ServerMode, Setting, settings
+from ..style import SamplerPresets, Style, Styles, StyleSettings
 from . import theme
+from .settings_widgets import (
+    ComboBoxSetting,
+    ExpanderButton,
+    LineEditSetting,
+    SettingsTab,
+    SettingWidget,
+    SliderSetting,
+    SpinBoxSetting,
+    SwitchSetting,
+    TextSetting,
+    WarningIcon,
+)
+from .switch import SwitchWidget
+from .theme import SignalBlocker, add_header, icon
+from .widget import create_framed_label
 
 
 class LoraItem(QWidget):
@@ -306,7 +316,7 @@ _special_lora_warning = _(
 class LoraList(QWidget):
     value_changed = pyqtSignal()
 
-    open_folder_button: Optional[QToolButton] = None
+    open_folder_button: QToolButton | None = None
     last_filter = "All"
 
     def __init__(self, setting: Setting, parent=None):

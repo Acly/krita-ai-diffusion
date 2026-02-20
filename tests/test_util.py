@@ -1,6 +1,7 @@
-from tempfile import TemporaryDirectory
 from pathlib import Path
-from ai_diffusion.util import batched, sanitize_prompt, find_unused_path
+from tempfile import TemporaryDirectory
+
+from ai_diffusion.util import batched, find_unused_path, sanitize_prompt
 
 
 def test_batched():

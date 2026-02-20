@@ -1,15 +1,16 @@
-from enum import Enum, Flag
-from dataclasses import asdict, is_dataclass
-from itertools import islice
-from pathlib import Path
-from typing import Any, Callable, Iterable, Optional, Sequence, TypeVar, Generator
 import importlib.util
-import os
-import sys
 import json
 import logging
 import logging.handlers
+import os
 import statistics
+import sys
+from collections.abc import Callable, Generator, Iterable, Sequence
+from dataclasses import asdict, is_dataclass
+from enum import Enum, Flag
+from itertools import islice
+from pathlib import Path
+from typing import Any, TypeVar
 
 from PyQt5 import sip
 from PyQt5.QtCore import QObject, QStandardPaths
@@ -88,7 +89,7 @@ def log_error(error: Exception):
     return message
 
 
-def ensure(value: Optional[T], msg="") -> T:
+def ensure(value: T | None, msg="") -> T:
     assert value is not None, msg or "a value is required"
     return value
 
@@ -102,7 +103,7 @@ def parse_enum(enum_class: type[E], value: str, default: E | None = None) -> E:
         raise ValueError(f"Invalid value '{value}' for enum {enum_class.__name__}")
 
 
-def maybe(func: Callable[[T], R], value: Optional[T]) -> Optional[R]:
+def maybe(func: Callable[[T], R], value: T | None) -> R | None:
     if value is not None:
         return func(value)
     return None

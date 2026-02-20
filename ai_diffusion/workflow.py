@@ -1,27 +1,47 @@
 from __future__ import annotations
 
+import math
+import random
 from copy import copy
 from dataclasses import dataclass, field
 from typing import Any, NamedTuple
-import math
-import random
 
 from . import resolution, resources
-from .api import ControlInput, CustomStyleInput, ImageInput, CheckpointInput, SamplingInput
-from .api import ExtentInput, InpaintMode, InpaintParams, FillMode, ConditioningInput, WorkflowKind
-from .api import RegionInput, WorkflowInput, CustomWorkflowInput, UpscaleInput, LoraInput
-from .image import Bounds, Extent, Image, ImageCollection, Mask, multiple_of
+from .api import (
+    CheckpointInput,
+    ConditioningInput,
+    ControlInput,
+    CustomStyleInput,
+    CustomWorkflowInput,
+    ExtentInput,
+    FillMode,
+    ImageInput,
+    InpaintMode,
+    InpaintParams,
+    LoraInput,
+    RegionInput,
+    SamplingInput,
+    UpscaleInput,
+    WorkflowInput,
+    WorkflowKind,
+)
 from .client import ClientModels, ModelDict, Quantization, resolve_arch
-from .files import FileLibrary, FileFormat
-from .style import Style, StyleSettings, SamplerPresets
-from .resolution import ScaledExtent, ScaleMode, TileLayout, get_inpaint_reference
-from .resources import ControlMode, Arch, UpscalerName, ResourceKind, ResourceId
-from .settings import PerformanceSettings
-from .text import eval_wildcards, extract_layers, merge_prompt, extract_loras, strip_prompt_comments
-from .comfy_workflow import ComfyWorkflow, ComfyRunMode, Input, Output, ConditioningOutput
-from .comfy_workflow import ComfyNode
+from .comfy_workflow import (
+    ComfyNode,
+    ComfyRunMode,
+    ComfyWorkflow,
+    ConditioningOutput,
+    Input,
+    Output,
+)
+from .files import FileFormat, FileLibrary
+from .image import Bounds, Extent, Image, ImageCollection, Mask, multiple_of
 from .localization import translate as _
-from .settings import settings
+from .resolution import ScaledExtent, ScaleMode, TileLayout, get_inpaint_reference
+from .resources import Arch, ControlMode, ResourceId, ResourceKind, UpscalerName
+from .settings import PerformanceSettings, settings
+from .style import SamplerPresets, Style, StyleSettings
+from .text import eval_wildcards, extract_layers, extract_loras, merge_prompt, strip_prompt_comments
 from .util import ensure, median_or_zero, unique
 
 

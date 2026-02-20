@@ -1,32 +1,61 @@
 from __future__ import annotations
+
 from krita import Krita
+from PyQt5.QtCore import QMetaObject, QSize, Qt, QUrl, pyqtSignal
+from PyQt5.QtGui import (
+    QColor,
+    QCursor,
+    QDesktopServices,
+    QFontDatabase,
+    QFontMetrics,
+    QGuiApplication,
+    QPainter,
+)
+from PyQt5.QtWidgets import (
+    QCheckBox,
+    QComboBox,
+    QDialog,
+    QFrame,
+    QHBoxLayout,
+    QLabel,
+    QLineEdit,
+    QListWidget,
+    QListWidgetItem,
+    QMessageBox,
+    QPushButton,
+    QSpinBox,
+    QStackedWidget,
+    QStyle,
+    QStyleOption,
+    QTextEdit,
+    QVBoxLayout,
+    QWidget,
+)
 
-from typing import Optional
-from PyQt5.QtWidgets import QTextEdit, QVBoxLayout, QHBoxLayout, QDialog, QPushButton, QFrame
-from PyQt5.QtWidgets import QLabel, QListWidget, QListWidgetItem, QLineEdit, QSpinBox
-from PyQt5.QtWidgets import QStackedWidget, QComboBox, QWidget, QMessageBox
-from PyQt5.QtWidgets import QCheckBox, QStyle, QStyleOption
-from PyQt5.QtCore import Qt, QMetaObject, QSize, QUrl, pyqtSignal
-from PyQt5.QtGui import QDesktopServices, QFontDatabase, QGuiApplication, QCursor, QFontMetrics
-from PyQt5.QtGui import QPainter, QColor
-
-from ..client import Client, User, MissingResources
+from .. import __version__, eventloop, resources, util
+from ..client import Client, MissingResources, User
 from ..cloud_client import CloudClient
-from ..resources import Arch, ResourceId
-from ..settings import Settings, ServerMode, PerformancePreset, settings, ImageFileFormat
-from ..server import Server, ServerState
-from ..style import Style
-from ..root import root, collect_diagnostics
 from ..connection import ConnectionState, apply_performance_preset
-from ..updates import UpdateState
+from ..localization import Localization
+from ..localization import translate as _
 from ..properties import Binding
-from ..localization import Localization, translate as _
-from .. import resources, eventloop, util, __version__
+from ..resources import Arch, ResourceId
+from ..root import collect_diagnostics, root
+from ..server import Server, ServerState
+from ..settings import ImageFileFormat, PerformancePreset, ServerMode, Settings, settings
+from ..style import Style
+from ..updates import UpdateState
 from .server import ServerWidget
-from .settings_widgets import SpinBoxSetting, SliderSetting, SwitchSetting
-from .settings_widgets import SettingsTab, ComboBoxSetting, FileListSetting
+from .settings_widgets import (
+    ComboBoxSetting,
+    FileListSetting,
+    SettingsTab,
+    SliderSetting,
+    SpinBoxSetting,
+    SwitchSetting,
+)
 from .style import StylePresets
-from .theme import add_header, logo, red, yellow, green, grey
+from .theme import add_header, green, grey, logo, red, yellow
 
 
 class InitialSetupWidget(QWidget):
@@ -323,7 +352,7 @@ class ServerModeButton(QPushButton):
 
         font = QFontMetrics(self.font())
         self._text_width = font.horizontalAdvance(self._text)
-        max_width = max((font.horizontalAdvance(s[0]) for s in _server_mode_status.values()))
+        max_width = max(font.horizontalAdvance(s[0]) for s in _server_mode_status.values())
         self.setMinimumWidth(self._text_width + max_width + 32)
         self.setFixedHeight(int(1.3 * self.sizeHint().height()))
 
@@ -599,7 +628,7 @@ class ConnectionSettings(SettingsTab):
                 _("The following ComfyUI custom nodes are missing or too old")
                 + ":<ul>"
                 + "\n".join(
-                    (f"<li>{p.name} <a href='{p.url}'>{p.url}</a></li>" for p in res.missing)
+                    f"<li>{p.name} <a href='{p.url}'>{p.url}</a></li>" for p in res.missing
                 )
                 + "</ul>"
                 + _(
@@ -613,7 +642,7 @@ class ConnectionSettings(SettingsTab):
             basic = util.unique(basic, key=lambda m: m.string)
             if len(basic) > 0:
                 text = _("Missing common models (required)") + ":\n<ul>"
-                text += "\n".join((f"<li>{model_name(m, True)}</li>" for m in basic))
+                text += "\n".join(f"<li>{model_name(m, True)}</li>" for m in basic)
                 text += "</ul>"
             text += _("Detected base models:") + "\n<ul>"
             for arch, missing in res.missing.items():
@@ -1115,7 +1144,7 @@ class SettingsDialog(QDialog):
     _instance = None
 
     @classmethod
-    def instance(cls) -> "SettingsDialog":
+    def instance(cls) -> SettingsDialog:
         assert cls._instance is not None
         return cls._instance
 
@@ -1205,7 +1234,7 @@ class SettingsDialog(QDialog):
         settings.save()
         self.read()
 
-    def show(self, style: Optional[Style] = None):
+    def show(self, style: Style | None = None):
         self.read()
         self.connection.update_ui()
         super().show()

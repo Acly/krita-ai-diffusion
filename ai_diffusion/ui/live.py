@@ -1,26 +1,32 @@
 from __future__ import annotations
-from PyQt5.QtCore import QMetaObject, Qt, QTimer, QRectF
-from PyQt5.QtWidgets import (
-    QWidget,
-    QVBoxLayout,
-    QHBoxLayout,
-    QToolButton,
-    QLabel,
-    QSpinBox,
-    QSizePolicy,
-)
-from PyQt5.QtGui import QPainter, QPen, QFont, QColor
 
-from ..properties import Binding, bind, Bind
+from PyQt5.QtCore import QMetaObject, QRectF, Qt, QTimer
+from PyQt5.QtGui import QColor, QFont, QPainter, QPen
+from PyQt5.QtWidgets import (
+    QHBoxLayout,
+    QLabel,
+    QSizePolicy,
+    QSpinBox,
+    QToolButton,
+    QVBoxLayout,
+    QWidget,
+)
+
 from ..image import Extent, Image
-from ..model import Model
 from ..localization import translate as _
+from ..model import Model
+from ..properties import Bind, Binding, bind
 from ..root import root
+from . import theme
 from .control import ControlListWidget
 from .region import ActiveRegionWidget, PromptHeader
-from .widget import WorkspaceSelectWidget, StyleSelectWidget, StrengthWidget
-from .widget import ErrorBox, create_wide_tool_button
-from . import theme
+from .widget import (
+    ErrorBox,
+    StrengthWidget,
+    StyleSelectWidget,
+    WorkspaceSelectWidget,
+    create_wide_tool_button,
+)
 
 
 class SpinnerWidget(QWidget):

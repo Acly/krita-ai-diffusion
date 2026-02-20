@@ -1,18 +1,29 @@
 import asyncio
-import aiohttp
 from pathlib import Path
 from timeit import default_timer as timer
+
+import aiohttp
 import pytest
 
-from ai_diffusion.api import WorkflowInput, WorkflowKind, ControlInput, ImageInput, CheckpointInput
-from ai_diffusion.api import SamplingInput, ConditioningInput, ExtentInput, RegionInput
+from ai_diffusion.api import (
+    CheckpointInput,
+    ConditioningInput,
+    ControlInput,
+    ExtentInput,
+    ImageInput,
+    RegionInput,
+    SamplingInput,
+    WorkflowInput,
+    WorkflowKind,
+)
 from ai_diffusion.client import Client, ClientEvent
-from ai_diffusion.cloud_client import CloudClient, enumerate_features, apply_limits
-from ai_diffusion.image import Extent, Image, Bounds, ImageCollection
-from ai_diffusion.resources import ControlMode, Arch
+from ai_diffusion.cloud_client import CloudClient, apply_limits, enumerate_features
+from ai_diffusion.image import Bounds, Extent, Image, ImageCollection
+from ai_diffusion.resources import Arch, ControlMode
 from ai_diffusion.util import ensure
+
+from .config import result_dir, test_dir
 from .conftest import CloudService
-from .config import test_dir, result_dir
 
 
 async def receive_images(client: Client, work: WorkflowInput | list[WorkflowInput]):

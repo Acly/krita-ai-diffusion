@@ -1,30 +1,70 @@
 from __future__ import annotations
+
 import json
 from textwrap import wrap as wrap_text
 from typing import cast
-from PyQt5.QtCore import Qt, QEvent, QMetaObject, QSize, QPoint, QTimer, QUuid, pyqtSignal
-from PyQt5.QtCore import QItemSelectionModel
-from PyQt5.QtGui import QGuiApplication, QMouseEvent, QKeyEvent, QKeySequence
-from PyQt5.QtGui import QPalette, QColor, QIcon
-from PyQt5.QtWidgets import QAction, QWidget, QVBoxLayout, QHBoxLayout, QPushButton, QProgressBar
-from PyQt5.QtWidgets import QListWidget, QListWidgetItem, QListView, QSizePolicy
-from PyQt5.QtWidgets import QComboBox, QCheckBox, QMenu, QMessageBox, QToolButton
 
-from ..properties import Binding, Bind, bind, bind_combo, bind_toggle
+from PyQt5.QtCore import (
+    QEvent,
+    QItemSelectionModel,
+    QMetaObject,
+    QPoint,
+    QSize,
+    Qt,
+    QTimer,
+    QUuid,
+    pyqtSignal,
+)
+from PyQt5.QtGui import (
+    QColor,
+    QGuiApplication,
+    QIcon,
+    QKeyEvent,
+    QKeySequence,
+    QMouseEvent,
+    QPalette,
+)
+from PyQt5.QtWidgets import (
+    QAction,
+    QCheckBox,
+    QComboBox,
+    QHBoxLayout,
+    QListView,
+    QListWidget,
+    QListWidgetItem,
+    QMenu,
+    QMessageBox,
+    QProgressBar,
+    QPushButton,
+    QSizePolicy,
+    QToolButton,
+    QVBoxLayout,
+    QWidget,
+)
+
 from ..image import Bounds, Extent, Image
-from ..jobs import Job, JobQueue, JobState, JobKind, JobParams
-from ..model import Model, InpaintContext, RootRegion, ProgressKind, Workspace
-from ..style import Styles
-from ..settings import settings
-from ..root import root
-from ..workflow import InpaintMode, FillMode
+from ..jobs import Job, JobKind, JobParams, JobQueue, JobState
 from ..localization import translate as _
+from ..model import InpaintContext, Model, ProgressKind, RootRegion, Workspace
+from ..properties import Bind, Binding, bind, bind_combo, bind_toggle
 from ..resources import Arch
+from ..root import root
+from ..settings import settings
+from ..style import Styles
 from ..util import ensure, flatten, sequence_equal
-from .widget import LayerCountWidget, WorkspaceSelectWidget, StyleSelectWidget, StrengthWidget
-from .widget import GenerateButton, QueueButton, ErrorBox, create_wide_tool_button
-from .region import RegionPromptWidget
+from ..workflow import FillMode, InpaintMode
 from . import theme
+from .region import RegionPromptWidget
+from .widget import (
+    ErrorBox,
+    GenerateButton,
+    LayerCountWidget,
+    QueueButton,
+    StrengthWidget,
+    StyleSelectWidget,
+    WorkspaceSelectWidget,
+    create_wide_tool_button,
+)
 
 
 class HistoryWidget(QListWidget):
@@ -188,11 +228,9 @@ class HistoryWidget(QListWidget):
                 continue
             if key == "loras" and isinstance(value, list) and isinstance(value[0], dict):
                 value = " | ".join(
-                    (
-                        f"{v.get('name')} ({v.get('weight', v.get('strength', '?'))})"
-                        for v in value
-                        if v.get("enabled", True)
-                    )
+                    f"{v.get('name')} ({v.get('weight', v.get('strength', '?'))})"
+                    for v in value
+                    if v.get("enabled", True)
                 )
             if key == "control" and isinstance(value, list) and isinstance(value[0], dict):
                 control_text = []

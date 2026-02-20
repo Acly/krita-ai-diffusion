@@ -5,22 +5,35 @@ import os
 import platform
 import uuid
 from base64 import b64encode
+from collections.abc import Iterable
 from copy import copy
+from dataclasses import dataclass, field
 from datetime import datetime
 from enum import Enum
-from dataclasses import dataclass, field
-from typing import Any, Iterable
+from typing import Any
 
-from .api import WorkflowInput
-from .client import Client, ClientEvent, ClientMessage, ClientModels, DeviceInfo, News
-from .client import ClientFeatures, ClientJobQueue, TranslationPackage, User, loras_to_upload
-from .image import ImageCollection, qt_supports_webp
-from .network import RequestManager, NetworkError
-from .files import File
-from .settings import PerformanceSettings, settings
-from .localization import translate as _
-from .util import clamp, ensure, client_logger as log
 from . import __version__ as plugin_version
+from .api import WorkflowInput
+from .client import (
+    Client,
+    ClientEvent,
+    ClientFeatures,
+    ClientJobQueue,
+    ClientMessage,
+    ClientModels,
+    DeviceInfo,
+    News,
+    TranslationPackage,
+    User,
+    loras_to_upload,
+)
+from .files import File
+from .image import ImageCollection, qt_supports_webp
+from .localization import translate as _
+from .network import NetworkError, RequestManager
+from .settings import PerformanceSettings, settings
+from .util import clamp, ensure
+from .util import client_logger as log
 
 
 class JobState(Enum):

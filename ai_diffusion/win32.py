@@ -1,6 +1,6 @@
 import ctypes
-from ctypes import byref, sizeof
 import functools
+from ctypes import byref, sizeof
 
 
 class IO_COUNTERS(ctypes.Structure):

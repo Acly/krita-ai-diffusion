@@ -1,6 +1,6 @@
 import argparse
-import re
 import json
+import re
 from pathlib import Path
 
 source_dir = Path(__file__).parent.parent / "ai_diffusion"

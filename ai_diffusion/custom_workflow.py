@@ -1,28 +1,39 @@
 import asyncio
 import json
 import re
-
-from enum import Enum
+from collections.abc import Awaitable, Callable
 from copy import copy
 from dataclasses import dataclass
-from typing import Any, Awaitable, Callable, NamedTuple, Literal, TYPE_CHECKING
+from enum import Enum
 from pathlib import Path
-from PyQt5.QtCore import Qt, QObject, QUuid, QAbstractListModel, QSortFilterProxyModel, QModelIndex
-from PyQt5.QtCore import QMetaObject, QTimer, pyqtSignal
+from typing import TYPE_CHECKING, Any, Literal, NamedTuple
 
-from .api import CustomStyleInput, WorkflowInput, InpaintContext
-from .client import ClientModels, OutputBatchMode, TextOutput, ClientOutput, JobInfoOutput
-from .comfy_workflow import ComfyWorkflow, ComfyNode
-from .localization import translate as _
+from PyQt5.QtCore import (
+    QAbstractListModel,
+    QMetaObject,
+    QModelIndex,
+    QObject,
+    QSortFilterProxyModel,
+    Qt,
+    QTimer,
+    QUuid,
+    pyqtSignal,
+)
+
+from . import eventloop
+from .api import CustomStyleInput, InpaintContext, WorkflowInput
+from .client import ClientModels, ClientOutput, JobInfoOutput, OutputBatchMode, TextOutput
+from .comfy_workflow import ComfyNode, ComfyWorkflow
 from .connection import Connection, ConnectionState
 from .image import Bounds, Image, Mask
-from .jobs import Job, JobParams, JobQueue, JobKind
-from .properties import Property, ObservableProperties
+from .jobs import Job, JobKind, JobParams, JobQueue
+from .localization import translate as _
+from .properties import ObservableProperties, Property
 from .style import Styles
-from .workflow import sampling_from_style
-from .util import base_type_match, parse_enum, user_data_dir, client_logger as log
 from .ui import theme
-from . import eventloop
+from .util import base_type_match, parse_enum, user_data_dir
+from .util import client_logger as log
+from .workflow import sampling_from_style
 
 if TYPE_CHECKING:
     from .layer import LayerManager

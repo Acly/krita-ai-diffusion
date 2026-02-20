@@ -5,9 +5,10 @@
 """
 
 import sys
-from aiohttp import web
 from pathlib import Path
 from urllib.parse import unquote as url_unquote
+
+from aiohttp import web
 
 sys.path.append(str(Path(__file__).parent.parent))
 from ai_diffusion import resources

@@ -3,12 +3,13 @@ ComfyUI with all required custom nodes and models.
 """
 
 import asyncio
-import sys
 import shutil
 import subprocess
-import requests
-from pathlib import Path
+import sys
 from itertools import chain
+from pathlib import Path
+
+import requests
 
 sys.path.append(str(Path(__file__).parent.parent))
 import ai_diffusion

@@ -1,10 +1,10 @@
+from collections.abc import Sequence
 from copy import copy
 from enum import Enum
-from typing import Any, NamedTuple, Sequence, TypeVar, Generic
+from typing import Any, Generic, NamedTuple, TypeVar
 
-from PyQt5.QtCore import QObject, QMetaObject, QUuid, pyqtBoundSignal
+from PyQt5.QtCore import QMetaObject, QObject, QUuid, pyqtBoundSignal
 from PyQt5.QtWidgets import QComboBox
-
 
 T = TypeVar("T")
 

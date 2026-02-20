@@ -1,16 +1,17 @@
 import sys
+from collections.abc import Callable
 from pathlib import Path
-from typing import Callable
-from PyQt5.QtWidgets import QAction
-from krita import Extension, Krita, DockWidgetFactory, DockWidgetFactoryBase, Window  # type: ignore
 
-from . import eventloop, __version__
-from .settings import settings
+from krita import DockWidgetFactory, DockWidgetFactoryBase, Extension, Krita, Window  # type: ignore
+from PyQt5.QtWidgets import QAction
+
+from . import __version__, eventloop
 from .model import Workspace
+from .root import root
+from .settings import settings
 from .ui import actions
 from .ui.diffusion import ImageDiffusionWidget
 from .ui.settings import SettingsDialog
-from .root import root
 from .util import client_logger as log
 
 

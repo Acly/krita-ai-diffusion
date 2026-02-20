@@ -1,6 +1,6 @@
 import os
-
 from pathlib import Path
+
 from ai_diffusion.resources import Arch, default_checkpoints
 
 _server_dir_env = os.getenv("AI_DIFFUSION_TEST_SERVER_DIR")

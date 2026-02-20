@@ -1,13 +1,15 @@
-import pytest
-import numpy as np
 import struct
 import zlib
 
-from PyQt5.QtGui import QImage, qRgba
-from PyQt5.QtCore import Qt, QByteArray
+import numpy as np
+import pytest
 from PIL import Image as PILImage
-from ai_diffusion.image import Mask, Bounds, Extent, Image, ImageCollection
-from .config import image_dir, result_dir, reference_dir
+from PyQt5.QtCore import QByteArray, Qt
+from PyQt5.QtGui import QImage, qRgba
+
+from ai_diffusion.image import Bounds, Extent, Image, ImageCollection, Mask
+
+from .config import image_dir, reference_dir, result_dir
 
 
 def test_extent_compare():
@@ -112,9 +114,10 @@ def test_image_from_packed_bytes():
 
 @pytest.mark.skip("Benchmark")
 def test_image_compress_speed():
-    from PyQt5.QtGui import QImageWriter
-    from PyQt5.QtCore import QBuffer, QByteArray, QFile, QIODevice
     from timeit import default_timer
+
+    from PyQt5.QtCore import QBuffer, QByteArray, QFile, QIODevice
+    from PyQt5.QtGui import QImageWriter
 
     img = Image.load("tests/images/beach_1536x1024.webp")
 
@@ -139,8 +142,9 @@ def test_image_compress_speed():
         file.write(byte_array)
         file.close()
 
-    from PIL import Image as PILImage
     from io import BytesIO
+
+    from PIL import Image as PILImage
 
     print("\nPillow (lossless)")
 

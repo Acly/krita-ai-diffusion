@@ -1,9 +1,9 @@
 import json
-from tempfile import TemporaryDirectory
 from pathlib import Path
+from tempfile import TemporaryDirectory
 
-from ai_diffusion.settings import PerformancePreset, Settings, Setting, ServerMode
-from ai_diffusion.style import Style, Styles, StyleSettings, SamplerPreset, SamplerPresets
+from ai_diffusion.settings import PerformancePreset, ServerMode, Setting, Settings
+from ai_diffusion.style import SamplerPreset, SamplerPresets, Style, Styles, StyleSettings
 from ai_diffusion.style import legacy_map as style_legacy_map
 
 

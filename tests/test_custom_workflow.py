@@ -1,25 +1,37 @@
 import json
 import zlib
-import pytest
+from collections.abc import Iterable
 from copy import copy
-from typing import Iterable
 from pathlib import Path
+
+import pytest
 from PyQt5.QtCore import Qt
 
-from ai_diffusion.api import CustomWorkflowInput, CustomStyleInput, ImageInput, WorkflowInput
-from ai_diffusion.client import Client, ClientModels, CheckpointInfo, JobInfoOutput
-from ai_diffusion.client import OutputBatchMode, TextOutput
-from ai_diffusion.connection import Connection, ConnectionState
-from ai_diffusion.comfy_workflow import ComfyNode, ComfyObjectInfo, ComfyWorkflow, Output
-from ai_diffusion.custom_workflow import WorkflowSource, WorkflowCollection
-from ai_diffusion.custom_workflow import SortedWorkflows, CustomWorkspace
-from ai_diffusion.custom_workflow import CustomParam, ParamKind, workflow_parameters
-from ai_diffusion.image import Image, Extent, ImageCollection, Mask
-from ai_diffusion.jobs import JobQueue, Job, JobKind, JobParams
-from ai_diffusion.style import Style
-from ai_diffusion.resources import Arch
-from ai_diffusion.image import Bounds
 from ai_diffusion import workflow
+from ai_diffusion.api import CustomStyleInput, CustomWorkflowInput, ImageInput, WorkflowInput
+from ai_diffusion.client import (
+    CheckpointInfo,
+    Client,
+    ClientModels,
+    JobInfoOutput,
+    OutputBatchMode,
+    TextOutput,
+)
+from ai_diffusion.comfy_workflow import ComfyNode, ComfyObjectInfo, ComfyWorkflow, Output
+from ai_diffusion.connection import Connection, ConnectionState
+from ai_diffusion.custom_workflow import (
+    CustomParam,
+    CustomWorkspace,
+    ParamKind,
+    SortedWorkflows,
+    WorkflowCollection,
+    WorkflowSource,
+    workflow_parameters,
+)
+from ai_diffusion.image import Bounds, Extent, Image, ImageCollection, Mask
+from ai_diffusion.jobs import Job, JobKind, JobParams, JobQueue
+from ai_diffusion.resources import Arch
+from ai_diffusion.style import Style
 
 from .config import test_dir
 

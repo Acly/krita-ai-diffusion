@@ -1,15 +1,17 @@
 from __future__ import annotations
+
+import json
+import zlib
 from copy import deepcopy
 from enum import Enum
 from pathlib import Path
-from typing import NamedTuple, Tuple, Literal, TypeVar, overload, Any
+from typing import Any, Literal, NamedTuple, TypeVar, overload
 from uuid import uuid4
-import json
-import zlib
 
 from .image import Bounds, Extent, Image, ImageCollection
 from .resources import Arch, ControlMode
-from .util import base_type_match, client_logger as log
+from .util import base_type_match
+from .util import client_logger as log
 
 
 class ComfyRunMode(Enum):
@@ -23,9 +25,9 @@ class Output(NamedTuple):
 
 
 T = TypeVar("T")
-Output2 = Tuple[Output, Output]
-Output3 = Tuple[Output, Output, Output]
-Output4 = Tuple[Output, Output, Output, Output]
+Output2 = tuple[Output, Output]
+Output3 = tuple[Output, Output, Output]
+Output4 = tuple[Output, Output, Output, Output]
 Input = int | float | bool | str | Output
 
 
@@ -211,7 +213,7 @@ class ComfyWorkflow:
     @overload
     def add_cached(self, class_type: str, output_count: Literal[3], **inputs) -> Output3: ...
 
-    def add_cached(self, class_type: str, output_count: Literal[1] | Literal[3], **inputs):
+    def add_cached(self, class_type: str, output_count: Literal[1, 3], **inputs):
         key = class_type + str(inputs)
         result = self._cache.get(key, None)
         if result is None:

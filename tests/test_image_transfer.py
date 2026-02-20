@@ -1,11 +1,14 @@
 from base64 import b64decode
-from PIL import Image
 from datetime import datetime
-import pytest
 
-from ai_diffusion.image import ImageCollection, Image as ImageWrapper
+import pytest
+from PIL import Image
+
 from ai_diffusion.cloud_client import CloudClient
+from ai_diffusion.image import Image as ImageWrapper
+from ai_diffusion.image import ImageCollection
 from tests.conftest import CloudService
+
 from .config import root_dir, test_dir
 
 if (root_dir / "service" / "pod" / "lib").exists():
@@ -13,8 +16,7 @@ if (root_dir / "service" / "pod" / "lib").exists():
     import requests
 
     dotenv.load_dotenv(root_dir / "service" / "web" / ".env.local")
-    from service.pod.lib import image_transfer
-    from service.pod.lib import log
+    from service.pod.lib import image_transfer, log
 
     max_b64_size_config = {
         "transfer": 100_000,  # use R2 for images > 100kb -> will use R2

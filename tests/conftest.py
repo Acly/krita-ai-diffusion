@@ -1,19 +1,21 @@
 import asyncio
-import aiohttp
-import sys
-import psutil
-import pytest
+import json
 import os
 import shutil
 import subprocess
-import dotenv
-import json
+import sys
 from pathlib import Path
 from typing import Any
+
+import aiohttp
+import dotenv
+import psutil
+import pytest
 from PyQt5.QtCore import QCoreApplication
 
 sys.path.append(str(Path(__file__).parent.parent))
 from ai_diffusion import eventloop, network, util
+
 from .config import result_dir
 
 root_dir = Path(__file__).parent.parent
@@ -139,7 +141,7 @@ class CloudService:
             async with aiohttp.ClientSession(timeout=timeout, headers=headers) as session:
                 async with session.get(url) as response:
                     return response.status == 200
-        except (aiohttp.ClientError, asyncio.TimeoutError):
+        except (TimeoutError, aiohttp.ClientError):
             return False
 
     async def launch_coordinator(self):
@@ -229,16 +231,15 @@ class CloudService:
 
     async def create_user(self, username: str) -> dict[str, Any]:
         assert self.enabled, "Cloud service is not enabled"
-        async with aiohttp.ClientSession() as session:
-            async with session.post(
-                f"{self.url}/admin/user/create",
-                json={"name": username},
-            ) as response:
-                response.raise_for_status()
-                result = await response.json()
-                if "error" in result:
-                    raise Exception(result["error"])
-                return result
+        async with aiohttp.ClientSession() as session, session.post(
+            f"{self.url}/admin/user/create",
+            json={"name": username},
+        ) as response:
+            response.raise_for_status()
+            result = await response.json()
+            if "error" in result:
+                raise Exception(result["error"])
+            return result
 
     async def update_worker_config(self, config: dict[str, Any] | None = None):
         config = config or self._worker_config_default

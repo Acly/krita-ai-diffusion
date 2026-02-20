@@ -1,4 +1,5 @@
 from __future__ import annotations
+
 import asyncio
 import json
 import os
@@ -6,8 +7,9 @@ from asyncio import Future
 from datetime import datetime
 from pathlib import Path
 from typing import NamedTuple
-from PyQt5.QtCore import QByteArray, QUrl, QFile, QBuffer
-from PyQt5.QtNetwork import QNetworkAccessManager, QNetworkRequest, QNetworkReply, QSslError
+
+from PyQt5.QtCore import QBuffer, QByteArray, QFile, QUrl
+from PyQt5.QtNetwork import QNetworkAccessManager, QNetworkReply, QNetworkRequest, QSslError
 
 from .localization import translate as _
 from .util import client_logger as log
@@ -97,7 +99,7 @@ class RequestManager:
         request.setAttribute(QNetworkRequest.FollowRedirectsAttribute, True)
         bearer_token = bearer or self._bearer_token
         if bearer_token:
-            request.setRawHeader(b"Authorization", f"Bearer {bearer_token}".encode("utf-8"))
+            request.setRawHeader(b"Authorization", f"Bearer {bearer_token}".encode())
         for key, value in self._additional_headers:
             request.setRawHeader(key, value)
         if timeout is not None:
@@ -304,7 +306,7 @@ async def _try_download(network: QNetworkAccessManager, url: str, path: Path):
     request.setAttribute(QNetworkRequest.FollowRedirectsAttribute, True)
     if out_file.size() > 0:
         log.info(f"Found {path}.part, resuming download from {out_file.size()} bytes")
-        request.setRawHeader(b"Range", f"bytes={out_file.size()}-".encode("utf-8"))
+        request.setRawHeader(b"Range", f"bytes={out_file.size()}-".encode())
     reply = network.get(request)
     assert reply is not None, f"Network request for {url} failed: reply is None"
 

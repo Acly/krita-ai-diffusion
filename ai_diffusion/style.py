@@ -1,17 +1,20 @@
 from __future__ import annotations
+
+import json
+from collections.abc import Iterable
 from copy import copy
 from enum import Enum
-from typing import Any, Iterable, NamedTuple
-import json
 from pathlib import Path
+from typing import Any, NamedTuple
+
 from PyQt5.QtCore import QObject, pyqtSignal
 
 from .api import CheckpointInput, LoraInput
-from .settings import Setting, settings
-from .resources import Arch
 from .localization import translate as _
-from .util import encode_json, find_unused_path, read_json_with_comments
-from .util import plugin_dir, user_data_dir, client_logger as log
+from .resources import Arch
+from .settings import Setting, settings
+from .util import client_logger as log
+from .util import encode_json, find_unused_path, plugin_dir, read_json_with_comments, user_data_dir
 
 
 class StyleSettings:

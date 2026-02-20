@@ -1,17 +1,18 @@
-from pathlib import Path
-from tempfile import TemporaryDirectory
-from PyQt5.QtNetwork import QNetworkAccessManager
 import asyncio
-import pytest
 import shutil
 import sys
+from pathlib import Path
+from tempfile import TemporaryDirectory
 
-from ai_diffusion import network, server, resources
+import pytest
+from PyQt5.QtNetwork import QNetworkAccessManager
+
+from ai_diffusion import network, resources, server
 from ai_diffusion.platform_tools import get_cuda_devices
-from ai_diffusion.style import Arch
-from ai_diffusion.server import Server, ServerState, ServerBackend, InstallationProgress
-from ai_diffusion.server import model_dirs
 from ai_diffusion.resources import VerificationState
+from ai_diffusion.server import InstallationProgress, Server, ServerBackend, ServerState, model_dirs
+from ai_diffusion.style import Arch
+
 from .config import server_dir
 
 workload_sd15 = [p.id.string for p in resources.required_models if p.arch in (Arch.all, Arch.sd15)]

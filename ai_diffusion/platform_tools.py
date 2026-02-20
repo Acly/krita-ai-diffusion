@@ -4,9 +4,8 @@ import os
 import subprocess
 import sys
 import zipfile
-from pathlib import Path
 from logging import Logger
-
+from pathlib import Path
 
 is_windows = sys.platform.startswith("win")
 is_macos = sys.platform == "darwin"
@@ -14,8 +13,8 @@ is_linux = not is_windows and not is_macos
 
 
 if is_linux:
-    import signal
     import ctypes
+    import signal
 
     libc = ctypes.CDLL("libc.so.6")
 

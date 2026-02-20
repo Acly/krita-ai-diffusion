@@ -10,10 +10,11 @@ an HTML page with side-by-side comparisons of input images and benchmark results
 """
 
 import argparse
-import json
 import html
-from pathlib import Path
+import json
 from collections import defaultdict
+from pathlib import Path
+
 from PIL import Image
 
 
