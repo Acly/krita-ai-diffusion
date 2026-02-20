@@ -112,6 +112,24 @@ The full path depends on OS and how Krita was installed. You can find it via the
 </p>
 </Details>
 
+<Details id="additional-files">
+<span slot="summary">Where are files cached? Why is space on C: drive required?</span>
+<p>
+Even when installing the plugin and server on a different drive, significant space
+is used on the system drive (C:) during installation for temporary files and caches.
+If you are running out of space, you can control the locations of these files by setting environment variables:
+</p>
+
+| Cache | Default Location (Windows) |  Purpose | Environment Variable |
+|-------|------------------|--------------|-------|
+| HuggingFace | `%USERPROFILE%\.cache\huggingface` | Model cache | `HF_HOME` |
+| uv | `%LOCALAPPDATA%\uv\cache` |  Python packages | `UV_CACHE_DIR` |
+| pip | `%LOCALAPPDATA%\pip\cache` |  Python packages | `PIP_CACHE_DIR` |
+
+It is okay to delete the contents of these folders to free up space. Important files
+will be re-downloaded as needed.
+</Details>
+
 <Details id="relocate-server">
 <span slot="summary">How do I relocate my server installation?</span>
 <p>
