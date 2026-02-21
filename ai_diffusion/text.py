@@ -9,6 +9,7 @@ from .api import LoraInput
 from .files import FileCollection, FileSource
 from .jobs import JobParams
 from .localization import translate as _
+from .util import PluginError
 from .util import client_logger as log
 
 # Functions to convert between position in Python str objects (unicode) and
@@ -88,7 +89,7 @@ def extract_loras(prompt: str, lora_files: FileCollection):
         if not lora_file:
             error = _("LoRA not found") + f": {input}"
             log.warning(error)
-            raise KeyError(error)
+            raise PluginError(error)
 
         lora_strength: float = lora_file.meta("lora_strength", 1.0)
         if match[2]:

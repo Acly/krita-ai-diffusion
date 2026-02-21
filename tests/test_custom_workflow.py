@@ -32,6 +32,7 @@ from ai_diffusion.image import Bounds, Extent, Image, ImageCollection, Mask
 from ai_diffusion.jobs import Job, JobKind, JobParams, JobQueue
 from ai_diffusion.resources import Arch
 from ai_diffusion.style import Style
+from ai_diffusion.util import PluginError
 
 from .config import test_dir
 
@@ -199,7 +200,7 @@ def test_files(tmp_path: Path):
 
     bad_file = tmp_path / "bad.json"
     bad_file.write_text("bad json")
-    with pytest.raises(RuntimeError):
+    with pytest.raises(PluginError):
         collection.import_file(bad_file)
 
 

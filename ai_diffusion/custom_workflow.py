@@ -31,7 +31,7 @@ from .localization import translate as _
 from .properties import ObservableProperties, Property
 from .style import Styles
 from .ui import theme
-from .util import base_type_match, parse_enum, user_data_dir
+from .util import PluginError, base_type_match, parse_enum, user_data_dir
 from .util import client_logger as log
 from .workflow import sampling_from_style
 
@@ -186,7 +186,7 @@ class WorkflowCollection(QAbstractListModel):
     def overwrite(self, id: str, graph: dict):
         existing = self.find(id)
         if existing is None or existing.source is not WorkflowSource.local or existing.path is None:
-            raise KeyError(f"Workflow {id} cannot be overwritten")
+            raise PluginError(f"Workflow {id} cannot be overwritten")
 
         path = existing.path
         self._folder.mkdir(exist_ok=True)
@@ -202,10 +202,10 @@ class WorkflowCollection(QAbstractListModel):
                     ComfyWorkflow.import_graph(graph, self._node_inputs())
                 except Exception as e:
                     log.exception(f"Error importing workflow graph from {filepath}")
-                    raise RuntimeError(f"This is not a supported workflow file ({e})")
+                    raise PluginError(f"This is not a supported workflow file ({e})")
             return self.save_as(filepath.stem, graph)
         except Exception as e:
-            raise RuntimeError(f"Error importing workflow from {filepath}: {e}")
+            raise PluginError(f"Error importing workflow from {filepath}: {e}")
 
     def find_index(self, id: str):
         for i, wf in enumerate(self._workflows):
@@ -222,7 +222,7 @@ class WorkflowCollection(QAbstractListModel):
     def get(self, id: str):
         result = self.find(id)
         if result is None:
-            raise KeyError(f"Workflow {id} not found")
+            raise PluginError(f"Workflow {id} not found")
         return result
 
     def __getitem__(self, index: int):

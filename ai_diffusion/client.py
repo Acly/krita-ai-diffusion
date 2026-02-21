@@ -20,8 +20,8 @@ from .properties import ObservableProperties, Property
 from .resources import Arch, ControlMode, CustomNode, ResourceId, ResourceKind, UpscalerName
 from .settings import PerformanceSettings
 from .style import Style
+from .util import PluginError, ensure
 from .util import client_logger as log
-from .util import ensure
 
 
 class ServerError(Exception):
@@ -250,7 +250,7 @@ class ClientModels:
         id = ResourceId(kind, arch, identifier)
         model = self.find(id)
         if model is None:
-            raise KeyError(f"{id.name} not found")
+            raise PluginError(f"{id.name} not found")
         return model
 
     def find(self, id: ResourceId):

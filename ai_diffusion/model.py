@@ -64,7 +64,7 @@ from .settings import (
 )
 from .style import Arch, Style, Styles
 from .text import create_img_metadata, extract_layers
-from .util import clamp, ensure, trim_text, unique
+from .util import PluginError, clamp, ensure, trim_text, unique
 from .util import client_logger as log
 
 
@@ -928,7 +928,7 @@ class Model(QObject, ObservableProperties):
             for layer_name in layer_names:
                 uid = next((l.id for l in self._doc.layers.images if l.name == layer_name), None)
                 if uid is None:
-                    raise KeyError(_("Layer not found") + f' "{layer_name}"')
+                    raise PluginError(_("Layer not found") + f' "{layer_name}"')
                 ctrl = ControlLayer(self, ControlMode.reference, uid, 0)
                 control.append(ctrl.to_api())
 

@@ -13,6 +13,7 @@ from .layer import Layer, LayerType
 from .localization import translate as _
 from .properties import ObservableProperties, Property
 from .resources import Arch, ControlMode, ResourceKind, resource_id
+from .util import PluginError
 from .util import client_logger as log
 
 
@@ -306,7 +307,7 @@ class ControlPresets:
         all = versions.get("all", None)
         presets = versions.get(arch.name, all)
         if presets is None:
-            raise KeyError(f"No control strength presets found for {mode} and {arch}")
+            raise PluginError(f"No control strength presets found for {mode} and {arch}")
         return [ControlParams.from_dict(p) for p in presets]
 
     def interpolate(self, mode: ControlMode, arch: Arch, value: float):

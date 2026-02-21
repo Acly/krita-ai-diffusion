@@ -23,6 +23,10 @@ QOBJECT = TypeVar("QOBJECT", bound=QObject)
 plugin_dir = dir = Path(__file__).parent
 
 
+class PluginError(Exception):
+    pass
+
+
 def _get_user_data_dir():
     if importlib.util.find_spec("krita") is None:
         dir = plugin_dir.parent / ".appdata"
