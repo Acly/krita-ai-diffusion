@@ -17,7 +17,7 @@ extend-exclude = [
 ]
 
 [tool.ruff.lint]
-ignore = ["E741", "BLE001", "SIM102", "T100"]
+ignore = ["E741", "EXE001", "BLE001", "SIM102", "T100"]
 
 [tool.black]
 line-length = 100

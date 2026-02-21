@@ -12,6 +12,7 @@ uv
 
 # Testing
 aiohttp
+anyio
 truststore
 python-dotenv
 markdown

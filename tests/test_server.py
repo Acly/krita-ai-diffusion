@@ -246,7 +246,7 @@ def test_try_install(qtapp):
             assert not target.exists()
 
             target.mkdir()
-            with pytest.raises(ValueError):
+            with pytest.raises(FileExistsError):
                 await server.try_install(target, install_func, target)
             assert target.exists()
 

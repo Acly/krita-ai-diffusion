@@ -72,7 +72,9 @@ def load_manifest() -> dict[str, str]:
 def save_manifest(manifest: dict[str, str]) -> None:
     MANIFEST_FILE.parent.mkdir(parents=True, exist_ok=True)
     with open(MANIFEST_FILE, "w") as f:
-        f.writelines(f"{local_filepath} {sha256}\n" for local_filepath, sha256 in sorted(manifest.items()))
+        f.writelines(
+            f"{local_filepath} {sha256}\n" for local_filepath, sha256 in sorted(manifest.items())
+        )
 
 
 def download_images() -> None:
