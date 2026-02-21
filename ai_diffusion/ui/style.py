@@ -59,6 +59,7 @@ class LoraItem(QWidget):
 
         self._loras = loras
         self._current: File | None = None
+        self._is_active = True
 
         completer = QCompleter(self._loras)
         completer.setCaseSensitivity(Qt.CaseSensitivity.CaseInsensitive)
@@ -260,7 +261,8 @@ class LoraItem(QWidget):
     @value.setter
     def value(self, v: dict):
         new_value = root.files.loras.find(v["name"]) or File.remote(v["name"])
-        if self._current is None or new_value.id != self._current.id:
+        ui_name = self._select.currentText()
+        if self._current is None or new_value.id != self._current.id or ui_name != new_value.name:
             self._current = new_value
             index = self._select.findData(new_value.id)
             if index >= 0:
@@ -270,6 +272,16 @@ class LoraItem(QWidget):
         self.strength = v["strength"]
         self._enabled.setChecked(v.get("enabled", True))
         self._update()
+
+    @property
+    def is_active(self):
+        """False if item is kept alive for reuse but not displayed."""
+        return self._is_active
+
+    @is_active.setter
+    def is_active(self, value: bool):
+        self._is_active = value
+        self.setVisible(value)  # isVisible() can be False depending on UI state, even if active
 
     def start_apply_filter(self):
         self._select.blockSignals(True)
@@ -378,9 +390,9 @@ class LoraList(QWidget):
     def _add_item(self, lora: dict | File | None = None):
         assert self._item_list is not None
         for i in self._items:
-            if not i.isVisible():
+            if not i.is_active:
                 item = i  # reuse existing item to avoid cost of creating new ones
-                item.setVisible(True)
+                item.is_active = True
                 break
         else:
             item = LoraItem(self._loras, parent=self)
@@ -399,7 +411,7 @@ class LoraList(QWidget):
 
     def _remove_item(self, item: QWidget):
         # removing and creating items is slow, hiding allows reuse
-        item.setVisible(False)
+        item.is_active = False
         self._item_list.removeWidget(item)
         self.value_changed.emit()
 
@@ -455,10 +467,10 @@ class LoraList(QWidget):
 
     @property
     def value(self):
-        return [item.value for item in self._items if item.isVisible()]
+        return [item.value for item in self._items if item.is_active]
 
     @value.setter
-    def value(self, v):
+    def value(self, v: list[dict | File]):
         for item in self._items:
             self._remove_item(item)
         for lora in v:
