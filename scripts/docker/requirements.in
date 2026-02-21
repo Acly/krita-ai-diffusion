@@ -8,7 +8,7 @@ numpy<2
 # ComfyUI
 torchsde
 einops
-transformers>=4.54
+transformers>=4.50.3
 tokenizers>=0.13.3
 sentencepiece
 safetensors>=0.4.2
@@ -21,19 +21,18 @@ tqdm
 psutil
 kornia>=0.7.1
 spandrel
-soundfile
-av>=14.2.0
 pydantic~=2.0
 pydantic-settings~=2.0
 alembic
 SQLAlchemy
+av>=14.2.0
 comfy-kitchen>=0.2.7
-comfy-aimdo>=0.1.7
+comfy-aimdo>=0.1.8
 requests
 
-comfyui-frontend-package==1.37.11
-comfyui-workflow-templates==0.8.27
-comfyui-embedded-docs==0.4.0
+comfyui-frontend-package==1.38.14
+comfyui-workflow-templates==0.8.42
+comfyui-embedded-docs==0.4.1
 
 # transitive dependencies
 stringzilla
