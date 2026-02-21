@@ -579,6 +579,13 @@
     "Versatile model with sharp details. Can generate and edit images with instructions. Sometimes struggles with image continuity.": "Modello versatile con dettagli nitidi. Può generare e modificare immagini seguendo le istruzioni. A volte presenta difficoltà con la continuità delle immagini.",
     "Z-Image models": "Z-Image models",
     "Powerful and efficient model for stronger hardware. Good understanding of natural language (Chinese and English). The Turbo variant is fast and heavily tuned for realistic results.": "Modello potente ed efficiente per hardware più potente. Ottima comprensione del linguaggio naturale (cinese e inglese). La variante Turbo è veloce e ottimizzata per risultati realistici.",
-    "Workflow contains multiple 'Krita Style & Prompt' nodes, but only one is allowed.": "Il flusso di lavoro contiene più nodi 'Krita Style e Prompt', ma ne è consentito solo uno."
+    "Workflow contains multiple 'Krita Style & Prompt' nodes, but only one is allowed.": "Il flusso di lavoro contiene più nodi 'Krita Style e Prompt', ma ne è consentito solo uno.",
+    "Color Match": null,
+    "Collect Diagnostics": null,
+    "Match peripheral colors and brightness with existing content. Requires a selection.": null,
+    "System information has been copied to the clipboard.": null,
+    "System Information": null,
+    "Please attach this information when reporting issues!": null,
+    "Diagnostics Information": null
   }
 }

@@ -579,6 +579,13 @@
     "Versatile model with sharp details. Can generate and edit images with instructions. Sometimes struggles with image continuity.": "シャープなディテールを備えた多用途モデル。指示に従って画像の生成と編集が可能です。画像の連続性に問題が生じる場合があります。",
     "Z-Image models": "Z-Imageモデル",
     "Powerful and efficient model for stronger hardware. Good understanding of natural language (Chinese and English). The Turbo variant is fast and heavily tuned for realistic results.": "強力なハードウェア向けに設計された高性能かつ効率的なモデル。自然言語（中国語と英語）を良好に理解します。Turbo版はとくに高速で、リアルな結果を得るために高度に調整されています。",
-    "Workflow contains multiple 'Krita Style & Prompt' nodes, but only one is allowed.": "ワークフローには複数の'Krita Style & Prompt'ノードが含まれていますが、許容されるのは一つのみです。"
+    "Workflow contains multiple 'Krita Style & Prompt' nodes, but only one is allowed.": "ワークフローには複数の'Krita Style & Prompt'ノードが含まれていますが、許容されるのは一つのみです。",
+    "Color Match": null,
+    "Collect Diagnostics": null,
+    "Match peripheral colors and brightness with existing content. Requires a selection.": null,
+    "System information has been copied to the clipboard.": null,
+    "System Information": null,
+    "Please attach this information when reporting issues!": null,
+    "Diagnostics Information": null
   }
 }

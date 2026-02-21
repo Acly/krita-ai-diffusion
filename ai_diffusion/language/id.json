@@ -579,6 +579,13 @@
     "Versatile model with sharp details. Can generate and edit images with instructions. Sometimes struggles with image continuity.": null,
     "Z-Image models": null,
     "Powerful and efficient model for stronger hardware. Good understanding of natural language (Chinese and English). The Turbo variant is fast and heavily tuned for realistic results.": null,
-    "Workflow contains multiple 'Krita Style & Prompt' nodes, but only one is allowed.": null
+    "Workflow contains multiple 'Krita Style & Prompt' nodes, but only one is allowed.": null,
+    "Color Match": null,
+    "Collect Diagnostics": null,
+    "Match peripheral colors and brightness with existing content. Requires a selection.": null,
+    "System information has been copied to the clipboard.": null,
+    "System Information": null,
+    "Please attach this information when reporting issues!": null,
+    "Diagnostics Information": null
   }
 }
