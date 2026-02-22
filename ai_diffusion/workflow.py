@@ -145,7 +145,7 @@ def load_checkpoint_with_lora(w: ComfyWorkflow, checkpoint: CheckpointInput, mod
         match arch:
             case Arch.sd15:
                 clip = w.load_clip(te["clip_l"], "stable_diffusion")
-            case Arch.sdxl | Arch.illu | Arch.illu_v:
+            case Arch.sdxl | Arch.illu | Arch.illu_v | Arch.illu_rf:
                 clip = w.load_dual_clip(te["clip_g"], te["clip_l"], type="sdxl")
             case Arch.sd3:
                 if te.find("t5"):
@@ -188,7 +188,7 @@ def load_checkpoint_with_lora(w: ComfyWorkflow, checkpoint: CheckpointInput, mod
         else:
             model, clip = w.load_lora(model, clip, lora.name, lora.strength, lora.strength)
 
-    if arch is Arch.sd3:
+    if arch is Arch.sd3 or arch is Arch.illu_rf:
         model = w.model_sampling_sd3(model)
 
     if checkpoint.v_prediction_zsnr:

@@ -90,6 +90,7 @@ class Arch(Enum):
     flux2_9b = "Flux 2 Klein 9B"
     illu = "Illustrious"
     illu_v = "Illustrious v-prediction"
+    illu_rf = "Illustrious Rectified Flow"
     chroma = "Chroma"
     qwen = "Qwen"
     qwen_e = "Qwen Edit"
@@ -103,6 +104,8 @@ class Arch(Enum):
     @staticmethod
     def from_string(string: str, model_type: str = "eps", filename: str | None = None):
         filename = filename.lower() if filename else ""
+        if filename == "chenkinnoobxlv02_v02.safetensors":
+            return Arch.illu_rf
         if string == "sd15":
             return Arch.sd15
         if string == "sdxl" and model_type == "v-prediction":
@@ -123,6 +126,8 @@ class Arch(Enum):
             return Arch.illu
         if string == "illu_v":
             return Arch.illu_v
+        if string == "illu_rf":
+            return Arch.illu_rf
         if string == "chroma":
             return Arch.chroma
         if string == "qwen-image" and "edit" in filename:
@@ -175,7 +180,7 @@ class Arch(Enum):
 
     @property
     def supports_regions(self):
-        return self in [Arch.sd15, Arch.sdxl, Arch.illu, Arch.illu_v]
+        return self in [Arch.sd15, Arch.sdxl, Arch.illu, Arch.illu_v, Arch.illu_rf]
 
     @property
     def supports_lcm(self):
@@ -183,11 +188,11 @@ class Arch(Enum):
 
     @property
     def supports_clip_skip(self):
-        return self in [Arch.sd15, Arch.sdxl, Arch.illu, Arch.illu_v]
+        return self in [Arch.sd15, Arch.sdxl, Arch.illu, Arch.illu_v, Arch.illu_rf]
 
     @property
     def supports_attention_guidance(self):
-        return self in [Arch.sd15, Arch.sdxl, Arch.illu, Arch.illu_v]
+        return self in [Arch.sd15, Arch.sdxl, Arch.illu, Arch.illu_v, Arch.illu_rf]
 
     @property
     def supports_cfg(self):
@@ -204,7 +209,7 @@ class Arch(Enum):
     @property
     def is_sdxl_like(self):
         # illustrious technically uses sdxl architecture, but has a separate ecosystem
-        return self in [Arch.sdxl, Arch.illu, Arch.illu_v]
+        return self in [Arch.sdxl, Arch.illu, Arch.illu_v, Arch.illu_rf]
 
     @property
     def is_flux_like(self):
@@ -223,7 +228,7 @@ class Arch(Enum):
         match self:
             case Arch.sd15:
                 return ["clip_l"]
-            case Arch.sdxl | Arch.illu | Arch.illu_v:
+            case Arch.sdxl | Arch.illu | Arch.illu_v | Arch.illu_rf:
                 return ["clip_l", "clip_g"]
             case Arch.sd3:
                 return ["clip_l", "clip_g"]
@@ -257,6 +262,7 @@ class Arch(Enum):
             Arch.flux2_9b,
             Arch.illu,
             Arch.illu_v,
+            Arch.illu_rf,
             Arch.chroma,
             Arch.qwen,
             Arch.qwen_e,
@@ -721,6 +727,7 @@ search_paths: dict[str, list[str]] = {
     resource_id(ResourceKind.controlnet, Arch.sdxl, ControlMode.universal): ["union-sdxl", "xinsirunion"],
     resource_id(ResourceKind.controlnet, Arch.illu, ControlMode.universal): ["union-sdxl", "xinsirunion"],
     resource_id(ResourceKind.controlnet, Arch.illu_v, ControlMode.universal): ["union-sdxl", "xinsirunion"],
+    resource_id(ResourceKind.controlnet, Arch.illu_rf, ControlMode.universal): ["union-sdxl", "xinsirunion"],
     resource_id(ResourceKind.controlnet, Arch.flux, ControlMode.universal): ["flux.1-dev-controlnet-union-pro-2.0", "flux.1-dev-controlnet-union-pro", "flux.1-dev-controlnet-union", "flux1devcontrolnetunion"],
     resource_id(ResourceKind.controlnet, Arch.qwen, ControlMode.universal): ["qwen-image-instantx-controlnet-union"],
     resource_id(ResourceKind.controlnet, Arch.sd15, ControlMode.scribble): ["control_v11p_sd15_scribble", "control_lora_rank128_v11p_sd15_scribble"],
@@ -798,6 +805,7 @@ search_paths: dict[str, list[str]] = {
     resource_id(ResourceKind.vae, Arch.sdxl, "default"): ["sdxl_vae"],
     resource_id(ResourceKind.vae, Arch.illu, "default"): ["sdxl_vae"],
     resource_id(ResourceKind.vae, Arch.illu_v, "default"): ["sdxl_vae"],
+    resource_id(ResourceKind.vae, Arch.illu_rf, "default"): ["sdxl_vae"],
     resource_id(ResourceKind.vae, Arch.sd3, "default"): ["sd3"],
     resource_id(ResourceKind.vae, Arch.flux, "default"): ["flux-", "flux_", "flux/", "flux1", "ae.s"],
     resource_id(ResourceKind.vae, Arch.flux_k, "default"): ["flux-", "flux_", "flux/", "flux1", "ae.s"],

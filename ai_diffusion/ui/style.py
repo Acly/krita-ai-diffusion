@@ -925,7 +925,7 @@ class StylePresets(SettingsTab):
     def _enable_checkpoint_advanced(self):
         arch = resolve_arch(self.current_style, root.connection.client_if_connected)
         if arch.is_sdxl_like:
-            valid_archs = (Arch.auto, Arch.sdxl, Arch.illu, Arch.illu_v)
+            valid_archs = (Arch.auto, Arch.sdxl, Arch.illu, Arch.illu_v, Arch.illu_rf)
         elif arch.is_flux_like:
             valid_archs = (Arch.auto, Arch.flux, Arch.flux_k)
         elif arch.is_qwen_like:
