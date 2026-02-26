@@ -277,6 +277,12 @@ class CloudClient(Client):
             await self._report(ClientEvent.error, job.local_id, error=err_msg)
             job.state = JobState.finalized
 
+        elif status == "violation":
+            err_msg = response.get("error", "content violation")
+            log.warning(f"{job} was aborted: {err_msg}")
+            await self._report(ClientEvent.error, job.local_id, error=err_msg)
+            job.state = JobState.finalized
+
         elif status == "cancelled" or job.state is JobState.cancelled:
             log.info(f"{job} was cancelled")
             await self._report(ClientEvent.interrupted, job.local_id)

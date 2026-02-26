@@ -229,6 +229,15 @@ class WorkflowInput:
         return self.extent.desired
 
     @property
+    def merged_prompt(self):
+        if not self.conditioning:
+            return ""
+        prompt = self.conditioning.style + " " + self.conditioning.positive
+        for region in self.conditioning.regions:
+            prompt += "\n" + region.positive
+        return prompt
+
+    @property
     def passes_count(self):
         if self.kind is WorkflowKind.upscale_tiled:
             tile_count_w = math.ceil(self.extent.target.width / self.extent.desired.width)

@@ -582,6 +582,18 @@ class Image:
     def to_icon(self):
         return QIcon(self.to_pixmap())
 
+    def to_pil(self):
+        from PIL import Image as PILImage
+
+        self.to_numpy_format()
+        w, h = self.extent
+        c = 4 if self.is_rgba else 1
+        bits = self._qimage.constBits()
+        assert bits is not None, "Accessing data of invalid image"
+        ptr = bits.asarray(w * h * c)
+        mode = "RGBA" if self.is_rgba else "L"
+        return PILImage.frombuffer(mode, (w, h), ptr, "raw", mode, 0, 1)  # type: ignore
+
     def to_mask(self, bounds: Bounds | None = None):
         assert self.is_mask
         return Mask(bounds or Bounds(0, 0, *self.extent), self._qimage)
