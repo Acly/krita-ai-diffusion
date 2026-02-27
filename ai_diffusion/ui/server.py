@@ -371,7 +371,7 @@ class CustomPackageTab(QWidget):
             ),
             "illu": PackageGroupWidget(
                 _("Illustrious/NoobAI XL models"),
-                [m for m in optional_models if m.arch in [Arch.illu, Arch.illu_v]],
+                [m for m in optional_models if m.arch in [Arch.illu, Arch.illu_v, Arch.illu_rf]],
                 is_checkable=True,
                 is_expanded=False,
                 parent=self,

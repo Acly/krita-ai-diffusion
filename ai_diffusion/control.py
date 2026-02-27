@@ -146,7 +146,7 @@ class ControlLayer(QObject, ObservableProperties):
         if client := root.connection.client_if_connected:
             models = client.models.for_arch(self._model.arch)
 
-            if self.mode.is_ip_adapter and models.arch in [Arch.illu, Arch.illu_v]:
+            if self.mode.is_ip_adapter and models.arch in [Arch.illu, Arch.illu_v, Arch.illu_rf]:
                 resid = resource_id(ResourceKind.clip_vision, Arch.illu, "ip_adapter")
                 has_clip_vision = client.models.resources.get(resid, None) is not None
                 if not has_clip_vision:
@@ -177,7 +177,9 @@ class ControlLayer(QObject, ObservableProperties):
                 model = models.find_control(self.mode)
                 self.has_range = model == models.control.find(self.mode, True)
                 if model is None:
-                    search_arch = Arch.illu if models.arch is Arch.illu_v else models.arch
+                    search_arch = (
+                        Arch.illu if models.arch in (Arch.illu_v, Arch.illu_rf) else models.arch
+                    )
                     search_path = (
                         resources.search_path(ResourceKind.controlnet, search_arch, self.mode)
                         or resources.search_path(ResourceKind.model_patch, search_arch, self.mode)
