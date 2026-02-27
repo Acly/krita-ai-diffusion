@@ -26,8 +26,8 @@ The main goals of this project are:
 * **Inpainting**: Use selections for generative fill, expand, to add or remove objects
 * **Live Painting**: Let AI interpret your canvas in real time for immediate feedback. [Watch Video](https://youtu.be/AF2VyqSApjA?si=Ve5uQJWcNOATtABU)
 * **Upscaling**: Upscale and enrich images to 4k, 8k and beyond without running out of memory.
-* **Diffusion Models**: Supports Stable Diffusion 1.5, XL, Illustrious and Flux models
-* **Edit Models**: Supports Flux Kontext for instruction-based image editing
+* **Diffusion Models**: Flux 2, Z-Image, Stable Diffusion 1.5, XL, Illustrious
+* **Edit Models**: Make modifications to images via text instructions
 * **ControlNet**: Scribble, Line art, Canny edge, Pose, Depth, Normals, Segmentation, +more
 * **IP-Adapter**: Reference images, Style and composition transfer, Face swap
 * **Regions**: Assign individual text descriptions to image areas defined by layers.
@@ -55,7 +55,7 @@ insufficient memory!
 <table>
 <tr><td>NVIDIA GPU</td><td>supported via CUDA (Windows/Linux)</td></tr>
 <tr><td>AMD GPU</td><td>supported but requires custom ComfyUI setup</td></tr>
-<tr><td>Apple Silicon</td><td>community support, MPS on macOS 14+</td></tr>
+<tr><td>Apple Silicon</td><td>MPS (Apple Silicon) on macOS 14+</td></tr>
 <tr><td>CPU</td><td>supported, but very slow</td></tr>
 <tr><td>XPU</td><td>supported, may see performance issues (Windows/Linux)</td></tr>
 </table>
@@ -67,7 +67,6 @@ insufficient memory!
 1. [Download the plugin](https://github.com/Acly/krita-ai-diffusion/releases/latest).
 2. Start Krita and install the plugin via Tools ▸ Scripts ▸ Import Python Plugin from File...
     * Point it to the ZIP archive you downloaded in the previous step.
-    * ⚠ _This will delete any previous install of the plugin._ If you are updating from 1.14 or older please read [updating to a new version](https://docs.interstice.cloud/common-issues#update-plugin).
     * Check [Krita's official documentation](https://docs.krita.org/en/user_manual/python_scripting/install_custom_python_plugin.html) for more options.
 3. Restart Krita and create a new document or open an existing image.
 4. To show the plugin docker: Settings ‣ Dockers ‣ AI Image Generation.
@@ -91,7 +90,9 @@ Please check the list of [required extensions and models](https://docs.interstic
 
 ### _Optional:_ Object selection tools (Segmentation)
 
-If you're looking for a way to easily select objects in the image, there is a [separate plugin](https://github.com/Acly/krita-ai-tools) which adds AI segmentation tools.
+If you're looking for a way to easily select objects or remove background in the
+image, there is a [separate plugin](https://github.com/Acly/krita-ai-tools)
+which adds AI segmentation tools.
 
 
 ## Contributing
