@@ -9,17 +9,22 @@ Usage:
 import argparse
 import hashlib
 import sys
+import typing
 from pathlib import Path
 
 import boto3
 import requests
 from botocore.exceptions import ClientError
 
-from service.pod.lib.environment import Config
-
 root_dir = Path(__file__).parent.parent
 image_dir = root_dir / "tests" / "images"
-config = Config.from_env()
+
+if not typing.TYPE_CHECKING:
+    from service.pod.lib.environment import Config
+
+    config = Config.from_env()
+else:
+    config: typing.Any = None  # type: ignore
 
 MANIFEST_FILE = image_dir / "manifest.txt"
 BASE_URL = "https://lfs.interstice.cloud"

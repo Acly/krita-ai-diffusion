@@ -14,10 +14,14 @@ extend-exclude = [
     "ai_diffusion/websockets",
     "ai_diffusion/debugpy",
     "krita.pyi",
+    "*.md",
 ]
 
 [tool.ruff.lint]
 ignore = ["E741", "EXE001", "BLE001", "SIM102", "T100"]
+
+[tool.ruff.format]
+docstring-code-format = false
 
 [tool.black]
 line-length = 100

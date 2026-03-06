@@ -11,7 +11,6 @@ from markdown import markdown
 sys.path.append(str(Path(__file__).parent.parent))
 import ai_diffusion
 from ai_diffusion.resources import update_model_checksums
-from service.pod.lib.environment import Config
 
 sys.path.append(str(Path(__file__).parent))
 import translation
@@ -90,6 +89,8 @@ def build_package():
 
 
 async def publish_package(package_path: Path, target: str):
+    from service.pod.lib.environment import Config  # type: ignore
+
     config = Config.from_env()
     service_url = os.environ.get("TEST_SERVICE_URL", "http://localhost:8787")
     if target == "production":
