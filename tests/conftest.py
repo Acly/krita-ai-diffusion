@@ -8,7 +8,6 @@ from pathlib import Path
 from typing import Any
 
 import aiohttp
-import dotenv
 import psutil
 import pytest
 from PyQt5.QtCore import QCoreApplication
@@ -103,9 +102,6 @@ def local_download_server():
 
 has_local_cloud = (root_dir / "service").exists()
 
-if has_local_cloud:
-    dotenv.load_dotenv(root_dir / "service" / "web" / ".env.local")
-
 
 class CloudService:
     def __init__(self, loop: QtTestApp, enabled=True):
@@ -121,9 +117,9 @@ class CloudService:
         self.worker_task: asyncio.Task | None = None
         self.worker_log = None
         self.worker_url = ""
-        self.worker_secret = ""
         self.enabled = has_local_cloud and enabled
         self._worker_config_default = self.read_worker_config()
+        self._worker_secret = ""
 
     async def serve(self, process: asyncio.subprocess.Process, log_file):
         try:
@@ -181,11 +177,10 @@ class CloudService:
             config_file.write_text(json.dumps(config), encoding="utf-8")
 
         self.worker_url = config["public_url"]
-        self.worker_secret = config["admin_secret"]
         if self.worker_log is None:
             self.worker_log = open(self.log_dir / "worker.log", "w", encoding="utf-8")  # noqa
 
-        if await self.check(f"{self.worker_url}/health", token=self.worker_secret):
+        if await self.check(f"{self.worker_url}/health", token=self.worker_secret()):
             print(f"Worker running in external process at {self.worker_url}", file=self.worker_log)
             return
 
@@ -262,6 +257,14 @@ class CloudService:
                 session.post(f"{self.worker_url}/configure", json=config) as response,
             ):
                 response.raise_for_status()
+
+    def worker_secret(self):
+        if not self._worker_secret:
+            from service.pod.lib.environment import Config
+
+            self._worker_secret = Config.from_env().secrets.interstice_infra_token
+            assert self._worker_secret, "Worker secret not set"
+        return self._worker_secret
 
     def __enter__(self):
         self.loop.run(self.start())

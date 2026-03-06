@@ -6,12 +6,12 @@ from pathlib import Path
 from shutil import copy, copytree, ignore_patterns, make_archive, rmtree
 
 import aiohttp
-import dotenv
 from markdown import markdown
 
 sys.path.append(str(Path(__file__).parent.parent))
 import ai_diffusion
 from ai_diffusion.resources import update_model_checksums
+from service.pod.lib.environment import Config
 
 sys.path.append(str(Path(__file__).parent))
 import translation
@@ -90,12 +90,11 @@ def build_package():
 
 
 async def publish_package(package_path: Path, target: str):
-    dotenv.load_dotenv(root / "service" / "web" / ".env.local")
-    service_url = os.environ["TEST_SERVICE_URL"]
+    config = Config.from_env()
+    service_url = os.environ.get("TEST_SERVICE_URL", "http://localhost:8787")
     if target == "production":
         service_url = "https://api.interstice.cloud"
-    service_token = os.environ["INTERSTICE_INFRA_TOKEN"]
-    headers = {"Authorization": f"Bearer {service_token}"}
+    headers = {"Authorization": f"Bearer {config.secrets.interstice_infra_token}"}
 
     archive_data = package_path.read_bytes()
     async with aiohttp.ClientSession(service_url, headers=headers) as session:

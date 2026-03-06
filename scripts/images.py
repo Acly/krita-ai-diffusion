@@ -8,27 +8,21 @@ Usage:
 
 import argparse
 import hashlib
-import os
 import sys
 from pathlib import Path
 
 import boto3
-import dotenv
 import requests
 from botocore.exceptions import ClientError
 
+from service.pod.lib.environment import Config
+
 root_dir = Path(__file__).parent.parent
 image_dir = root_dir / "tests" / "images"
-
-if (root_dir / "service").exists():
-    dotenv.load_dotenv(root_dir / "service" / "web" / ".env.local")
+config = Config.from_env()
 
 MANIFEST_FILE = image_dir / "manifest.txt"
 BASE_URL = "https://lfs.interstice.cloud"
-CF_ACCOUNT_ID = os.getenv("CF_ACCOUNT_ID")
-R2_ACCESS_KEY_ID = os.getenv("R2_ACCESS_KEY_ID")
-R2_SECRET_ACCESS_KEY = os.getenv("R2_SECRET_ACCESS_KEY")
-R2_REGION = os.getenv("R2_REGION")
 BUCKET_NAME = "lfs"
 REPO_NAME = "krita-ai-diffusion"
 
@@ -131,10 +125,6 @@ def download_images() -> None:
 
 
 def upload_images() -> None:
-    if not CF_ACCOUNT_ID or not R2_ACCESS_KEY_ID or not R2_SECRET_ACCESS_KEY or not R2_REGION:
-        print("Missing credentials.")
-        return
-
     manifest = load_manifest()
 
     if not image_dir.exists():
@@ -151,10 +141,10 @@ def upload_images() -> None:
 
     r2_client = boto3.client(
         "s3",
-        endpoint_url=f"https://{CF_ACCOUNT_ID}.r2.cloudflarestorage.com",
-        aws_access_key_id=R2_ACCESS_KEY_ID,
-        aws_secret_access_key=R2_SECRET_ACCESS_KEY,
-        region_name=R2_REGION,
+        endpoint_url=f"https://{config.secrets.cf_account_id}.r2.cloudflarestorage.com",
+        aws_access_key_id=config.secrets.r2_access_key_id,
+        aws_secret_access_key=config.secrets.r2_secret_access_key,
+        region_name=config.secrets.r2_region,
     )
 
     upload_count = 0
