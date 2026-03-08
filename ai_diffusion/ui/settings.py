@@ -644,7 +644,7 @@ class ConnectionSettings(SettingsTab):
                 text += "</ul>"
             text += _("Detected base models:") + "\n<ul>"
             for arch, missing in res.missing.items():
-                if arch in [Arch.all, Arch.illu_v]:
+                if arch in [Arch.all, Arch.illu_v, Arch.illu_rf]:
                     continue
                 text += f"<li><b>{arch.value}</b>: "
                 if len(missing) == 0:
