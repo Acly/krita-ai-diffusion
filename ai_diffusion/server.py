@@ -124,7 +124,7 @@ class Server:
         if python_path is not None:
             self._python_cmd = python_path / f"python{_exe}"
 
-        gpu_backends = [ServerBackend.cuda, ServerBackend.directml, ServerBackend.xpu]
+        gpu_backends = [ServerBackend.cuda, ServerBackend.directml, ServerBackend.rocm, ServerBackend.xpu]
         backend_mismatch = (
             self._installed_backend is not None
             and self._installed_backend != self.backend
@@ -285,6 +285,8 @@ class Server:
             torch_args += ["--index-url", "https://download.pytorch.org/whl/cu128"]
         elif self.backend is ServerBackend.directml:
             torch_args = ["numpy<2", "torch-directml", "torchvision", "torchaudio"]
+        elif self.backend is ServerBackend.rocm:
+            torch_args = ["--index-url", "https://rocm.nightlies.amd.com/v2/gfx110X-all/", "rocm[libraries,devel]", "torch", "torchvision", "torchaudio"]
         elif self.backend is ServerBackend.xpu:
             torch_args += ["--index-url", "https://download.pytorch.org/whl/xpu"]
         await self._pip_install("PyTorch", ["-U"] + torch_args, cb)
