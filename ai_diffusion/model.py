@@ -446,6 +446,7 @@ class Model(QObject, ObservableProperties):
         client = self._connection.client
         min_mask_size = 512 if self.arch is Arch.sd15 else 800
         extent = self._doc.extent
+        regions = self.active_regions
         region_layer = None
         job_regions: list[JobRegion] = []
         inpaint = InpaintParams(InpaintMode.fill, Bounds(0, 0, *extent))
@@ -456,7 +457,7 @@ class Model(QObject, ObservableProperties):
         inpaint = calc_selection_pre_process(inpaint, selection_bounds, smod)
 
         bounds = Bounds(0, 0, *self._doc.extent)
-        region_layer = self.regions.get_active_region_layer(use_parent=False)
+        region_layer = regions.get_active_region_layer(use_parent=False)
         if mask is None and region_layer.bounds != bounds:
             mask = get_region_inpaint_mask(region_layer, extent, min_size=min_mask_size)
             free_space = mask.bounds.extent - region_layer.compute_bounds().extent
@@ -470,7 +471,7 @@ class Model(QObject, ObservableProperties):
         if mask is not None or workflow_kind is WorkflowKind.refine:
             image = self._get_current_image(bounds)
 
-        conditioning, job_regions = process_regions(self.regions, bounds)
+        conditioning, job_regions = process_regions(regions, bounds)
         conditioning.language = self.prompt_translation_language
         conditioning = self._add_reference_layers(conditioning)
         conditioning, loras, _ = workflow.prepare_prompts(
@@ -958,12 +959,16 @@ class Model(QObject, ObservableProperties):
 
     @property
     def active_regions(self):
-        is_edit = self.workspace is Workspace.generation and self.edit_mode
+        is_edit = self.workspace in (Workspace.generation, Workspace.live) and self.edit_mode
         return self.edit_regions if is_edit else self.regions
 
     @property
     def active_style(self):
-        if self.workspace is Workspace.generation and self.edit_mode and self.edit_style:
+        if (
+            self.workspace in (Workspace.generation, Workspace.live)
+            and self.edit_mode
+            and self.edit_style
+        ):
             return self.edit_style
         return self.style
 
