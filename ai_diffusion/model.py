@@ -1432,7 +1432,7 @@ class AnimationWorkspace(QObject, ObservableProperties):
 
     async def _generate_frame(self):
         m = self._model
-        requires_image = m.strength < 1.0 or m.arch.is_edit
+        requires_image = m.strength < 1.0 or m.is_editing
         bounds = Bounds(0, 0, *m.document.extent)
         canvas = m._get_current_image(bounds) if requires_image else bounds.extent
         seed = m.seed if m.fixed_seed else workflow.generate_seed()
@@ -1443,7 +1443,7 @@ class AnimationWorkspace(QObject, ObservableProperties):
     def generate_batch(self):
         m = self._model
         doc = m.document
-        requires_image = m.strength < 1.0 or m.arch.is_edit
+        requires_image = m.strength < 1.0 or m.is_editing
         if requires_image and not m.layers.active.is_animated:
             m.report_error(_("The active layer does not contain an animation."))
             return
@@ -1473,7 +1473,7 @@ class AnimationWorkspace(QObject, ObservableProperties):
         for frame in range(start_frame, end_frame + 1):
             if layer.node.hasKeyframeAtTime(frame) or m.strength == 1.0:
                 canvas: Image | Extent = extent
-                if m.strength < 1.0 or m.arch.is_edit:
+                if m.strength < 1.0 or m.is_editing:
                     canvas = layer.get_pixels(time=frame)
 
                 inputs = self._prepare_input(canvas, seed, frame)
