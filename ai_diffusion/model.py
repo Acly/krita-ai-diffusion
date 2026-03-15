@@ -469,7 +469,7 @@ class Model(QObject, ObservableProperties):
             workflow_kind = WorkflowKind.refine_region
             bounds, mask.bounds = compute_relative_bounds(mask.bounds, mask.bounds)
         if mask is not None or workflow_kind is WorkflowKind.refine:
-            image = self._get_current_image(bounds)
+            image = self._get_current_image(bounds, exclude_internal=False)
 
         conditioning, job_regions = process_regions(regions, bounds)
         conditioning.language = self.prompt_translation_language
@@ -520,7 +520,7 @@ class Model(QObject, ObservableProperties):
                 mask, bounds = self.custom.prepare_mask(selection_node, mask, select_bounds, bounds)
 
             img_input = ImageInput.from_extent(bounds.extent)
-            img_input.initial_image = self._get_current_image(bounds)
+            img_input.initial_image = self._get_current_image(bounds, exclude_internal=not is_live)
             img_input.hires_mask = mask.to_image(bounds.extent) if mask else None
 
             params = self.custom.collect_parameters(
@@ -578,9 +578,9 @@ class Model(QObject, ObservableProperties):
         else:
             return input
 
-    def _get_current_image(self, bounds: Bounds):
+    def _get_current_image(self, bounds: Bounds, exclude_internal=True):
         exclude = []
-        if self.workspace is not Workspace.live:
+        if exclude_internal:
             exclude = [  # exclude control layers from projection
                 c.layer for c in self.regions.control if not c.mode.is_part_of_image
             ]
@@ -1311,7 +1311,7 @@ class LiveWorkspace(QObject, ObservableProperties):
         return self._result_composition
 
     def set_result(self, value: Image, params: JobParams):
-        canvas = self.model._get_current_image(params.bounds)
+        canvas = self.model._get_current_image(params.bounds, exclude_internal=False)
         painter = QPainter(canvas._qimage)
         painter.setCompositionMode(QPainter.CompositionMode.CompositionMode_Multiply)
         painter.setBrush(QBrush(QColor(0, 0, 96, 192), Qt.BrushStyle.DiagCrossPattern))
