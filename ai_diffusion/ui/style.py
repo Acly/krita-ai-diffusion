@@ -863,7 +863,7 @@ class StylePresets(SettingsTab):
 
     def _show_edit_style(self, style: Style):
         arch = resolve_arch(style, root.connection.client_if_connected)
-        self._edit_style.visible = not arch.is_edit
+        self._edit_style.visible = not arch.supports_edit
 
     def _setup_edit_style(self):
         client = root.connection.client_if_connected
@@ -871,7 +871,7 @@ class StylePresets(SettingsTab):
         edit_styles.extend(
             (s.name, s.filename)
             for s in filter_supported_styles(Styles.list(), client)
-            if s != self.current_style and resolve_arch(s, client).is_edit
+            if s != self.current_style and resolve_arch(s, client).supports_edit
         )
         self._edit_style.set_items(edit_styles)
 
