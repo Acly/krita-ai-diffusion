@@ -251,6 +251,34 @@ def test_workspace():
     assert workspace.params == {"param2": 23, "param3": 7}
 
 
+def test_workspace_no_connection():
+    connection = create_mock_connection({}, state=ConnectionState.disconnected)
+    workflows = WorkflowCollection(connection)
+    jobs = JobQueue()
+    workspace = CustomWorkspace(workflows, dummy_generate, jobs)
+
+    doc_graph = {
+        "1": {
+            "class_type": "ETN_Parameter",
+            "inputs": {
+                "name": "param2",
+                "type": "number (integer)",
+                "default": 23,
+                "min": 5,
+                "max": 95,
+            },
+        }
+    }
+    # store embedded graph, but don't make it active yet (disconnected)
+    workspace.set_graph("unicorn", doc_graph, document_name="doc1")
+    assert workspace.workflow_id == "unicorn"
+
+    # connecting should trigger workflows.loaded and set the embedded workflow as active
+    # since a workflow named "unicorn" doesn't exist
+    connection.state = ConnectionState.connected
+    assert workspace.workflow_id == "Embedded Workflow (doc1)"
+
+
 def test_import():
     graph = {
         "4": {"class_type": "A", "inputs": {"steps": 4, "float": 1.2, "string": "mouse"}},
