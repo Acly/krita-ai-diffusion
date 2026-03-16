@@ -18,14 +18,19 @@ class ObservableProperties:
         properties = {
             name: attr for name, attr in cls.__dict__.items() if isinstance(attr, Property)
         }
-        for name, property in properties.items():
-            setattr(cls, f"_{name}", _copy_reference_types(property.default_value))
+        for name, prop in properties.items():
             getter, setter = None, None
-            if property.getter is not None:
-                getter = getattr(cls, property.getter)
-            if property.setter is not None:
-                setter = getattr(cls, property.setter)
-            setattr(cls, name, PropertyImpl(name, getter, setter, property.persist))
+            if prop.getter is not None:
+                getter = getattr(cls, prop.getter)
+            if prop.setter is not None:
+                setter = getattr(cls, prop.setter)
+            setattr(cls, name, PropertyImpl(name, getter, setter, prop.default_value, prop.persist))
+
+    def __init__(self):
+        super().__init__()
+        for name, attr in self.__class__.__dict__.items():
+            if isinstance(attr, PropertyImpl):
+                setattr(self, f"_{name}", _copy_reference_types(attr.default_value))
 
 
 class Property(Generic[T]):
@@ -50,12 +55,10 @@ class Property(Generic[T]):
 class PropertyImpl(property):
     """Property implementation: gets/sets a value, and emits a signal when it changes."""
 
-    name: str
-    persist: bool
-
-    def __init__(self, name: str, getter, setter, persist: bool):
+    def __init__(self, name: str, getter, setter, default_value, persist: bool):
         super().__init__(getter or self._getter, setter or self._setter)
         self.name = name
+        self.default_value = default_value
         self.persist = persist
 
     def _getter(self, instance):
