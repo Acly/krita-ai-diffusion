@@ -332,6 +332,8 @@ def _deserialize_custom(custom: CustomWorkspace, data: dict[str, Any], document_
     graph = data.get("graph", None)
     if workflow_id and graph:
         custom.set_graph(workflow_id, graph, document_name)
+        if params := data.get("params"):  # old documents, replaced by workflow_params
+            custom.workflow_params[workflow_id] = params
 
 
 def _find_annotation(document, name: str):

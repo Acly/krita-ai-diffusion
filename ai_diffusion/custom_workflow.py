@@ -383,7 +383,7 @@ class CustomGenerationMode(Enum):
 
 class CustomWorkspace(QObject, ObservableProperties):
     workflow_id = Property("", setter="_set_workflow_id")
-    params = Property({}, persist=True)
+    workflow_params = Property({}, persist=True)
     mode = Property(CustomGenerationMode.regular, setter="_set_mode", persist=True)
     is_live = Property(False, setter="toggle_live")
     has_result = Property(False)
@@ -392,8 +392,8 @@ class CustomWorkspace(QObject, ObservableProperties):
     validation_error = Property("")
 
     workflow_id_changed = pyqtSignal(str)
+    workflow_params_changed = pyqtSignal(dict)
     graph_changed = pyqtSignal()
-    params_changed = pyqtSignal(dict)
     mode_changed = pyqtSignal(CustomGenerationMode)
     is_live_changed = pyqtSignal(bool)
     result_available = pyqtSignal(Image)
@@ -424,6 +424,16 @@ class CustomWorkspace(QObject, ObservableProperties):
         workflows.dataChanged.connect(self._update_workflow)
         workflows.loaded.connect(self._set_default_workflow)
         self._set_default_workflow()
+
+    @property
+    def params(self) -> dict:
+        return self.workflow_params.get(self.workflow_id, {})
+
+    @params.setter
+    def params(self, params: dict):
+        self.workflow_params[self.workflow_id] = params
+        self.workflow_params_changed.emit(self.workflow_params)
+        self.modified.emit(self, "workflow_params")
 
     def _set_default_workflow(self):
         if not self.workflow_id and len(self._workflows) > 0:
