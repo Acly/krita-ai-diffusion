@@ -82,6 +82,17 @@ def test_strip_prompt_comments_multiline():
     assert strip_prompt_comments(prompt) == expected
 
 
+def test_strip_prompt_comments_hex_color():
+    assert (
+        strip_prompt_comments("A color code #FF5733 should not be stripped")
+        == "A color code #FF5733 should not be stripped"
+    )
+    assert (
+        strip_prompt_comments("A color code with comment #ff5733 # this is a comment")
+        == "A color code with comment #ff5733"
+    )
+
+
 def test_merge_prompt():
     assert merge_prompt("a", "b") == "a, b"
     assert merge_prompt("", "b") == "b"

@@ -45,12 +45,17 @@ class LoraId(NamedTuple):
         return LoraId(original, original.replace("\\", "/").removesuffix(".safetensors"))
 
 
+_pattern_comment = re.compile(r"(?<!\\)#(?![0-9a-fA-F]{6}).*")
+_pattern_lora = re.compile(r"<lora:([^:<>]+)(?::(-?[^:<>]*))?>", re.IGNORECASE)
+_pattern_layer = re.compile(r"<layer:([^>]+)>", re.IGNORECASE)
+_pattern_wildcard = re.compile(r"(\{[^{}]+\|[^{}]+\})")
+
+
 def strip_prompt_comments(prompt: str):
-    """Strip comments (text after #) from the prompt, unless the # is escaped with a backslash."""
+    """Strip comments (text after #) from the prompt, unless the # is escaped with a backslash,
+    or it's a hex color code."""
     lines = prompt.splitlines()
-    stripped_lines = [
-        re.sub(r"(?<!\\)#.*", "", line).replace(r"\#", "#").rstrip() for line in lines
-    ]
+    stripped_lines = [_pattern_comment.sub("", line).replace(r"\#", "#").rstrip() for line in lines]
     return "\n".join(stripped_lines).strip()
 
 
@@ -64,11 +69,6 @@ def merge_prompt(prompt: str, style_prompt: str, language: str = ""):
     elif prompt == "":
         return style_prompt
     return f"{prompt}, {style_prompt}"
-
-
-_pattern_lora = re.compile(r"<lora:([^:<>]+)(?::(-?[^:<>]*))?>", re.IGNORECASE)
-_pattern_layer = re.compile(r"<layer:([^>]+)>", re.IGNORECASE)
-_pattern_wildcard = re.compile(r"(\{[^{}]+\|[^{}]+\})")
 
 
 def extract_loras(prompt: str, lora_files: FileCollection):
