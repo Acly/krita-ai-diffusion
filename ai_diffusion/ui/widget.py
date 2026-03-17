@@ -7,6 +7,7 @@ from krita import Krita
 from PyQt5.QtCore import QEvent, QMetaObject, QSize, Qt, QUrl, pyqtSignal
 from PyQt5.QtGui import (
     QCloseEvent,
+    QColor,
     QDesktopServices,
     QFontMetrics,
     QGuiApplication,
@@ -17,6 +18,8 @@ from PyQt5.QtGui import (
     QPainter,
     QPaintEvent,
     QPalette,
+    QSyntaxHighlighter,
+    QTextCharFormat,
     QTextCursor,
 )
 from PyQt5.QtWidgets import (
@@ -63,6 +66,11 @@ from ..text import (
     char16_index_to_str_index,
     char16_len,
     edit_attention,
+    pattern_comment,
+    pattern_layer,
+    pattern_lora,
+    pattern_weight_expr,
+    pattern_wildcard,
     select_on_cursor_pos,
     str_index_to_char16_index,
 )
@@ -393,6 +401,66 @@ class StyleSelectWidget(QWidget):
                 self._combo.setCurrentText(style.name)
 
 
+class PromptHighlighter(QSyntaxHighlighter):
+    def __init__(self, parent):
+        super().__init__(parent)
+
+        self._comment_fmt = QTextCharFormat()
+        self._comment_fmt.setForeground(QColor(theme.grey))
+        self._comment_fmt.setFontItalic(True)
+
+        self._weight_fmt = QTextCharFormat()
+        self._weight_fmt.setForeground(QColor(theme.red))
+
+        self._keyword_fmt = QTextCharFormat()
+        self._keyword_fmt.setForeground(QColor(theme.strong_highlight))
+
+        self._grey_fmt = QTextCharFormat()
+        self._grey_fmt.setForeground(QColor(theme.grey))
+
+    def highlightBlock(self, text: str | None):
+        if text is None:
+            return
+        comment_start = len(text)
+        m = pattern_comment.search(text)
+        if m:
+            comment_start = m.start()
+            self.setFormat(m.start(), m.end() - m.start(), self._comment_fmt)
+
+        for m in pattern_weight_expr.finditer(text):
+            if m.start(1) < comment_start:
+                self.setFormat(m.start(), 1, self._grey_fmt)
+                self.setFormat(m.start(1), m.end(1) - m.start(1), self._weight_fmt)
+                self.setFormat(m.end(1), 1, self._grey_fmt)
+
+        for m in pattern_lora.finditer(text):
+            if m.start() < comment_start:
+                # keyword "lora" starts at m.start()+1 (after '<'), length 4
+                self.setFormat(m.start(), 1, self._grey_fmt)
+                self.setFormat(m.start() + 1, 4, self._keyword_fmt)
+                self.setFormat(m.end(1), 1, self._grey_fmt)
+                if m.group(2):
+                    self.setFormat(m.start(2), m.end(2) - m.start(2), self._weight_fmt)
+                    self.setFormat(m.end(2), 1, self._grey_fmt)
+
+        for m in pattern_layer.finditer(text):
+            if m.start() < comment_start:
+                # keyword "layer" starts at m.start()+1 (after '<'), length 5
+                self.setFormat(m.start(), 1, self._grey_fmt)
+                self.setFormat(m.start() + 1, 5, self._keyword_fmt)
+                self.setFormat(m.end(1), 1, self._grey_fmt)
+
+        for m in pattern_wildcard.finditer(text):
+            if m.start() < comment_start:
+                wildcard_text = m.group(0)
+                wildcard_start = m.start()
+                self.setFormat(wildcard_start, 1, self._keyword_fmt)
+                for i, char in enumerate(wildcard_text):
+                    if char == "|":
+                        self.setFormat(wildcard_start + i, 1, self._keyword_fmt)
+                self.setFormat(wildcard_start + len(wildcard_text) - 1, 1, self._keyword_fmt)
+
+
 class ResizeHandle(QWidget):
     """A small resize handle that appears at the bottom of the prompt widget."""
 
@@ -448,6 +516,7 @@ class TextPromptWidget(QPlainTextEdit):
         self._completer = PromptAutoComplete(self)
         self.textChanged.connect(self.notify_text_changed)
 
+        self._highlighter = PromptHighlighter(self.document())
         self._resize_handle: ResizeHandle | None = None
 
         palette: QPalette = self.palette()

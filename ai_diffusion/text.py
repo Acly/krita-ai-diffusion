@@ -45,17 +45,18 @@ class LoraId(NamedTuple):
         return LoraId(original, original.replace("\\", "/").removesuffix(".safetensors"))
 
 
-_pattern_comment = re.compile(r"(?<!\\)#(?![0-9a-fA-F]{6}).*")
-_pattern_lora = re.compile(r"<lora:([^:<>]+)(?::(-?[^:<>]*))?>", re.IGNORECASE)
-_pattern_layer = re.compile(r"<layer:([^>]+)>", re.IGNORECASE)
-_pattern_wildcard = re.compile(r"(\{[^{}]+\|[^{}]+\})")
+pattern_comment = re.compile(r"(?<!\\)#(?![0-9a-fA-F]{6}).*")
+pattern_lora = re.compile(r"<lora:([^:<>]+)(?::(-?[^:<>]*))?>", re.IGNORECASE)
+pattern_layer = re.compile(r"<layer:([^>]+)>", re.IGNORECASE)
+pattern_weight_expr = re.compile(r"\([^:()]+:(-?[\d.]+)\)")
+pattern_wildcard = re.compile(r"(\{[^{}]+\|[^{}]+\})")
 
 
 def strip_prompt_comments(prompt: str):
     """Strip comments (text after #) from the prompt, unless the # is escaped with a backslash,
     or it's a hex color code."""
     lines = prompt.splitlines()
-    stripped_lines = [_pattern_comment.sub("", line).replace(r"\#", "#").rstrip() for line in lines]
+    stripped_lines = [pattern_comment.sub("", line).replace(r"\#", "#").rstrip() for line in lines]
     return "\n".join(stripped_lines).strip()
 
 
@@ -103,7 +104,7 @@ def extract_loras(prompt: str, lora_files: FileCollection):
         loras.append(LoraInput(lora_file.id, lora_strength))
         return ""
 
-    prompt = _pattern_lora.sub(replace, prompt)
+    prompt = pattern_lora.sub(replace, prompt)
     return prompt.strip(), loras
 
 
@@ -118,7 +119,7 @@ def extract_layers(prompt: str, replacement="Picture {}", start_index=1):
         layer_names.append(match[1])
         return replacement_text
 
-    prompt = _pattern_layer.sub(replace, prompt)
+    prompt = pattern_layer.sub(replace, prompt)
     return prompt.strip(), layer_names
 
 
@@ -132,7 +133,7 @@ def eval_wildcards(text: str, seed: int):
 
     for __ in range(10):
         prev = text
-        text = _pattern_wildcard.sub(replace, text)
+        text = pattern_wildcard.sub(replace, text)
         if text == prev:
             break
 
