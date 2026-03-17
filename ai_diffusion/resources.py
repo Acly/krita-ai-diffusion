@@ -390,6 +390,7 @@ class ControlMode(Enum):
         if arch is Arch.zimage:
             return self in [
                 ControlMode.inpaint,
+                ControlMode.scribble,
                 ControlMode.soft_edge,
                 ControlMode.canny_edge,
                 ControlMode.depth,
