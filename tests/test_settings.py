@@ -3,7 +3,14 @@ from pathlib import Path
 from tempfile import TemporaryDirectory
 
 from ai_diffusion.settings import PerformancePreset, ServerMode, Setting, Settings
-from ai_diffusion.style import SamplerPreset, SamplerPresets, Style, Styles, StyleSettings
+from ai_diffusion.style import (
+    SamplerPreset,
+    SamplerPresets,
+    Style,
+    Styles,
+    StyleSettings,
+    sort_recent_styles,
+)
 from ai_diffusion.style import legacy_map as style_legacy_map
 
 
@@ -196,3 +203,53 @@ def test_sampler_preset_conversion():
     presets = SamplerPresets()
     for old, new in style_legacy_map.items():
         assert presets[old] == presets[new]
+
+
+def _make_style(tmp_path, filename: str, name: str) -> Style:
+    style = Style(tmp_path / filename)
+    style.name = name
+    return style
+
+
+def test_sort_recent_styles(tmp_path):
+    a = _make_style(tmp_path, "alpha.json", "Alpha")
+    b = _make_style(tmp_path, "beta.json", "Beta")
+    c = _make_style(tmp_path, "gamma.json", "Gamma")
+    d = _make_style(tmp_path, "delta.json", "Delta")
+    all_styles = [a, b, c, d]  # alphabetical order
+
+    # Normal case: 2 recent styles at the top
+    recent, remaining = sort_recent_styles(all_styles, ["gamma.json", "alpha.json"], 2)
+    assert recent == [c, a]
+    assert remaining == [b, d]
+
+    # count=0: feature disabled, all styles go to remaining
+    recent, remaining = sort_recent_styles(all_styles, ["gamma.json", "alpha.json"], 0)
+    assert recent == []
+    assert remaining == all_styles
+
+    # Empty recent list
+    recent, remaining = sort_recent_styles(all_styles, [], 3)
+    assert recent == []
+    assert remaining == all_styles
+
+    # count larger than number of recent matches
+    recent, remaining = sort_recent_styles(all_styles, ["beta.json"], 5)
+    assert recent == [b]
+    assert remaining == [a, c, d]
+
+    # Recent list contains a filename not in styles (silently ignored)
+    recent, remaining = sort_recent_styles(all_styles, ["missing.json", "delta.json"], 3)
+    assert recent == [d]
+    assert remaining == [a, b, c]
+
+    # All styles in recent list
+    filenames = [s.filename for s in all_styles]
+    recent, remaining = sort_recent_styles(all_styles, filenames, 10)
+    assert recent == all_styles
+    assert remaining == []
+
+    # Recency order is preserved (most recent first)
+    recent, remaining = sort_recent_styles(all_styles, ["delta.json", "beta.json"], 2)
+    assert recent == [d, b]
+    assert remaining == [a, c]

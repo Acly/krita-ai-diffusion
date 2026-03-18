@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from collections.abc import Callable
+from itertools import chain
 from typing import Any, ClassVar, cast
 
 from krita import Krita
@@ -61,7 +62,7 @@ from ..model import (
 from ..properties import Bind, Binding, bind, bind_combo
 from ..root import root
 from ..settings import Settings, settings
-from ..style import Style, Styles
+from ..style import Style, Styles, sort_recent_styles
 from ..text import (
     char16_index_to_str_index,
     char16_len,
@@ -322,14 +323,12 @@ class QueueButton(QToolButton):
 
 
 class StyleSelectWidget(QWidget):
-    _value: Style
-    _styles: list[Style]
-
     value_changed = pyqtSignal(Style)
     quality_changed = pyqtSignal(SamplingQuality)
 
     def __init__(self, parent: QWidget | None, show_quality=False):
         super().__init__(parent)
+        self._styles: list[Style] = []
         self._value = Styles.list().default
 
         layout = QHBoxLayout(self)
@@ -348,39 +347,65 @@ class StyleSelectWidget(QWidget):
             self._quality_combo.currentIndexChanged.connect(self.change_quality)
             layout.addWidget(self._quality_combo, 1)
 
-        settings = QToolButton(self)
-        settings.setIcon(theme.icon("settings"))
-        settings.setAutoRaise(True)
-        settings.clicked.connect(self.show_settings)
-        layout.addWidget(settings)
+        settings_btn = QToolButton(self)
+        settings_btn.setIcon(theme.icon("settings"))
+        settings_btn.setAutoRaise(True)
+        settings_btn.clicked.connect(self.show_settings)
+        layout.addWidget(settings_btn)
 
         Styles.list().changed.connect(self.update_styles)
         Styles.list().name_changed.connect(self.update_styles)
         root.connection.state_changed.connect(self.update_styles)
+        settings.changed.connect(self._on_settings_changed)
 
     def update_styles(self):
         if root.connection.state is not ConnectionState.connected:
             return
         client = root.connection.client_if_connected
-        self._styles = filter_supported_styles(Styles.list().filtered(), client)
-        if self._value not in self._styles:
-            self._styles.insert(0, self._value)
+        filtered = filter_supported_styles(Styles.list().filtered(), client)
+        recent, remaining = sort_recent_styles(
+            filtered, settings.recent_styles, settings.recent_styles_count
+        )
+        if self._value not in chain(recent, remaining):
+            recent.insert(0, self._value)
+        self._styles = recent + remaining
         with SignalBlocker(self._combo):
             self._combo.clear()
-            for style in self._styles:
+            for style in recent:
+                icon = theme.checkpoint_icon(resolve_arch(style, client))
+                self._combo.addItem(icon, style.name, style.filename)
+            if recent and remaining:
+                self._combo.insertSeparator(len(recent))
+            for style in remaining:
                 icon = theme.checkpoint_icon(resolve_arch(style, client))
                 self._combo.addItem(icon, style.name, style.filename)
             self._combo.setCurrentText(self._value.name)
 
     def change_style(self):
-        style = self._styles[self._combo.currentIndex()]
-        if style != self._value:
-            self._value = style
-            self.value_changed.emit(style)
+        filename = self._combo.currentData()
+        if filename is None:
+            return  # separator item selected
+        style = next((s for s in self._styles if s.filename == filename), None)
+        if style is None or style == self._value:
+            return
+        self._value = style
+        self.value_changed.emit(style)
+        self._track_style_usage(style)
 
     def change_quality(self):
         quality = SamplingQuality(self._quality_combo.currentData())
         self.quality_changed.emit(quality)
+
+    def _track_style_usage(self, style: Style):
+        if count := settings.recent_styles_count:
+            recent = [f for f in settings.recent_styles if f != style.filename]
+            recent.insert(0, style.filename)
+            settings.recent_styles = recent[:count]
+            self.update_styles()
+
+    def _on_settings_changed(self, name: str, value: object):
+        if name == "recent_styles_count":
+            self.update_styles()
 
     def show_settings(self):
         from .settings import SettingsDialog

@@ -366,6 +366,16 @@ class Settings(QObject):
     show_builtin_styles: bool
     _show_builtin_styles = Setting(_("Show pre-installed styles"), True)
 
+    recent_styles_count: int
+    _recent_styles_count = Setting(
+        _("Recent Styles"),
+        4,
+        _("Number of most recently used styles to show at the top of the style list"),
+    )
+
+    recent_styles: list[str]
+    _recent_styles = Setting("Recent Styles", [])
+
     history_size: int
     _history_size = Setting(
         _("Active History Size"),

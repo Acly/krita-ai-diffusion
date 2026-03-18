@@ -338,6 +338,15 @@ class Styles(QObject):
         return iter(self._list)
 
 
+def sort_recent_styles(styles: list[Style], recent_filenames: list[str], count: int):
+    if count == 0 or not recent_filenames:
+        return [], list(styles)
+    style_map = {s.filename: s for s in styles}
+    recent = [style_map[f] for f in recent_filenames[:count] if f in style_map]
+    remaining = [s for s in styles if s not in recent]
+    return recent, remaining
+
+
 class SamplerPreset(NamedTuple):
     sampler: str
     scheduler: str
