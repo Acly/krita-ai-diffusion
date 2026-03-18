@@ -18,8 +18,7 @@
     "@astro-community/astro-embed-youtube": "^0.5.6",
     "@astrojs/starlight": "^0.30.3",
     "astro": "^5.0.2",
-    "astro-icon": "^1.1.5",
-    "sharp": "^0.32.5"
+    "astro-icon": "^1.1.5"
   },
   "devDependencies": {
     "tsx": "^4.19.2"
