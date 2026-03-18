@@ -373,7 +373,7 @@ class StyleSelectWidget(QWidget):
             self._combo.clear()
             for style in recent:
                 icon = theme.checkpoint_icon(resolve_arch(style, client))
-                self._combo.addItem(icon, style.name, style.filename)
+                self._combo.addItem(icon, f"{style.name} ★", style.filename)
             if recent and remaining:
                 self._combo.insertSeparator(len(recent))
             for style in remaining:
@@ -390,21 +390,13 @@ class StyleSelectWidget(QWidget):
             return
         self._value = style
         self.value_changed.emit(style)
-        self._track_style_usage(style)
 
     def change_quality(self):
         quality = SamplingQuality(self._quality_combo.currentData())
         self.quality_changed.emit(quality)
 
-    def _track_style_usage(self, style: Style):
-        if count := settings.recent_styles_count:
-            recent = [f for f in settings.recent_styles if f != style.filename]
-            recent.insert(0, style.filename)
-            settings.recent_styles = recent[:count]
-            self.update_styles()
-
     def _on_settings_changed(self, name: str, value: object):
-        if name == "recent_styles_count":
+        if "recent_styles" in name:
             self.update_styles()
 
     def show_settings(self):

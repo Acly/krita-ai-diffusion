@@ -350,6 +350,9 @@ class Model(QObject, ObservableProperties):
             front = queue_mode is QueueMode.front
             await self._enqueue_job(job, input, front=front)
 
+        if self.workspace is not Workspace.custom:
+            self._track_style_usage(self.style)
+
     async def _enqueue_job(self, job: Job, input: WorkflowInput, front: bool = False):
         if not self.jobs.any_executing():
             self.progress = 0.0
@@ -971,6 +974,13 @@ class Model(QObject, ObservableProperties):
         ):
             return self.edit_style
         return self.style
+
+    def _track_style_usage(self, style: Style):
+        if count := settings.recent_styles_count:
+            recent = [f for f in settings.recent_styles if f != style.filename]
+            recent.insert(0, style.filename)
+            settings.recent_styles = recent[:count]
+            settings.save()
 
     @property
     def preview_layer_id(self):
