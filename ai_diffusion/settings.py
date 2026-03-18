@@ -374,7 +374,15 @@ class Settings(QObject):
     )
 
     recent_styles: list[str]
-    _recent_styles = Setting("Recent Styles", [])
+    _recent_styles = Setting(
+        "Recent Styles",
+        [
+            "built-in/edit-flux2.json",
+            "built-in/anime-illustrious.json",
+            "built-in/cinematic-photo-zimage.json",
+            "built-in/digital-artwork-xl.json",
+        ],
+    )
 
     history_size: int
     _history_size = Setting(

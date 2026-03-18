@@ -18,6 +18,7 @@
     "v_prediction_zsnr": false,
     "self_attention_guidance": false,
     "preferred_resolution": 0,
+    "linked_edit_style": "built-in/edit-flux2.json",
     "sampler": "Default - DPM++ 2M",
     "sampler_steps": 20,
     "cfg_scale": 7.0,
