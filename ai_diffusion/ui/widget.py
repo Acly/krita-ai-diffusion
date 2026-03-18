@@ -984,20 +984,21 @@ class GenerateButton(QPushButton):
         )
         rect = self.rect()
         pixmap = self.icon().pixmap(int(fm.height() * 1.3))
+        pixmap_width = int(pixmap.width() / pixmap.devicePixelRatioF())
         is_hover = int(opt.state) & QStyle.StateFlag.State_MouseOver
         element = QStyle.PrimitiveElement.PE_PanelButtonCommand
-        content_width = fm.width(self._operation) + 5 + pixmap.width()
+        content_width = fm.width(self._operation) + 5 + pixmap_width
         content_rect = rect.adjusted(int(0.5 * (rect.width() - content_width)), 0, 0, 0)
         style.drawPrimitive(element, opt, painter, self)
         style.drawItemPixmap(painter, content_rect, align, pixmap)
-        content_rect = content_rect.adjusted(pixmap.width() + 5, 0, 0, 0)
+        content_rect = content_rect.adjusted(pixmap_width + 5, 0, 0, 0)
         style.drawItemText(painter, content_rect, align, self.palette(), True, self._operation)
 
         cost_width = 0
         if is_hover and self._cost > 0:
             pixmap = self._cost_icon.pixmap(fm.height())
             text_width = fm.width(str(self._cost))
-            cost_width = text_width + 16 + pixmap.width()
+            cost_width = text_width + 16 + pixmap_width
             cost_rect = rect.adjusted(rect.width() - cost_width, 0, 0, 0)
             painter.setOpacity(0.3)
             painter.drawLine(
@@ -1012,14 +1013,14 @@ class GenerateButton(QPushButton):
         seed_width = 0
         if is_hover and self.model.fixed_seed:
             pixmap = self._seed_icon.pixmap(fm.height())
-            seed_width = pixmap.width() + 4
+            seed_width = pixmap_width + 4
             seed_rect = rect.adjusted(rect.width() - cost_width - seed_width, 0, 0, 0)
             style.drawItemPixmap(painter, seed_rect, align, pixmap)
 
         if is_hover and self.model.resolution_multiplier != 1.0:
             pixmap = self._resolution_icon.pixmap(fm.height())
             resolution_rect = rect.adjusted(
-                rect.width() - cost_width - seed_width - pixmap.width() - 4, 0, 0, 0
+                rect.width() - cost_width - seed_width - pixmap_width - 4, 0, 0, 0
             )
             style.drawItemPixmap(painter, resolution_rect, align, pixmap)
 
@@ -1172,13 +1173,14 @@ def _paint_tool_drop_down(widget: QToolButton, text: str | None = None):
     )
     rect = widget.rect()
     pixmap = widget.icon().pixmap(int(rect.height() * 0.75))
+    pixmap_width = int(pixmap.width() / pixmap.devicePixelRatioF())
     element = QStyle.PrimitiveElement.PE_Widget
     if int(opt.state) & QStyle.StateFlag.State_MouseOver:
         element = QStyle.PrimitiveElement.PE_PanelButtonCommand
     style.drawPrimitive(element, opt, painter, widget)
     style.drawItemPixmap(painter, rect.adjusted(4, 0, 0, 0), align, pixmap)
     if text:
-        text_rect = rect.adjusted(pixmap.width() + 4, 0, 0, 0)
+        text_rect = rect.adjusted(pixmap_width + 4, 0, 0, 0)
         style.drawItemText(painter, text_rect, align, widget.palette(), True, text)
     painter.translate(int(0.5 * rect.width() - 10), 0)
     style.drawPrimitive(QStyle.PrimitiveElement.PE_IndicatorArrowDown, opt, painter)
