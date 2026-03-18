@@ -580,12 +580,12 @@
     "Z-Image models": "Z-Imageモデル",
     "Powerful and efficient model for stronger hardware. Good understanding of natural language (Chinese and English). The Turbo variant is fast and heavily tuned for realistic results.": "強力なハードウェア向けに設計された高性能かつ効率的なモデル。自然言語（中国語と英語）を良好に理解します。Turbo版はとくに高速で、リアルな結果を得るために高度に調整されています。",
     "Workflow contains multiple 'Krita Style & Prompt' nodes, but only one is allowed.": "ワークフローには複数の'Krita Style & Prompt'ノードが含まれていますが、許容されるのは一つのみです。",
-    "Color Match": null,
-    "Collect Diagnostics": null,
-    "Match peripheral colors and brightness with existing content. Requires a selection.": null,
-    "System information has been copied to the clipboard.": null,
-    "System Information": null,
-    "Please attach this information when reporting issues!": null,
-    "Diagnostics Information": null
+    "Color Match": "色合わせ",
+    "Collect Diagnostics": "診断情報を収集",
+    "Match peripheral colors and brightness with existing content. Requires a selection.": "既存コンテンツに合わせて周辺部の色と明るさを調整します。範囲選択が必要です。",
+    "System information has been copied to the clipboard.": "システム情報がクリップボードにコピーされました。",
+    "System Information": "システム情報",
+    "Please attach this information when reporting issues!": "問題を報告する際にはこの情報を添付してください！",
+    "Diagnostics Information": "診断情報"
   }
 }
