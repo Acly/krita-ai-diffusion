@@ -365,7 +365,7 @@ class TextPrompt:
             else:
                 self._output = w.clip_text_encode(clip.model, text)
 
-            if text == "" and (clip.arch.is_sdxl_like or style_prompt is None):
+            if text == "" and clip.arch.is_sdxl_like:
                 self._output = w.conditioning_zero_out(self._output)
             self._clip = clip
         return self._output
@@ -416,17 +416,18 @@ class Region:
 @dataclass
 class Conditioning:
     positive: TextPrompt
-    negative: TextPrompt
+    negative: TextPrompt | None
     control: list[Control] = field(default_factory=list)
     regions: list[Region] = field(default_factory=list)
     style_prompt: str = ""
     edit_reference: bool = False
 
     @staticmethod
-    def from_input(i: ConditioningInput):
+    def from_input(i: ConditioningInput, sampling: SamplingInput | None):
+        has_negative = sampling and sampling.cfg_scale > 1
         return Conditioning(
             TextPrompt(i.positive, i.language),
-            TextPrompt(i.negative, i.language),
+            TextPrompt(i.negative, i.language) if has_negative else None,
             [Control.from_input(c) for c in i.control],
             [Region.from_input(r, idx, i.language) for idx, r in enumerate(i.regions)],
             i.style,
@@ -489,10 +490,7 @@ def encode_prompt(
 
     if len(cond.regions) <= 1 or all(len(r.loras) == 0 for r in cond.regions):
         positive = cond.positive.encode(w, clip, cond.style_prompt, ref_images)
-        if cond.negative.text != "":
-            negative = cond.negative.encode(w, clip)
-        else:
-            negative = w.conditioning_zero_out(positive)
+        negative = cond.negative.encode(w, clip) if cond.negative else positive
         return ConditioningOutput(positive, negative)
 
     assert regions is not None
@@ -502,7 +500,11 @@ def encode_prompt(
 
     for i, region in enumerate(cond.regions):
         region_positive = region.encode_prompt(w, clip, cond.style_prompt)
-        region_negative = cond.negative.encode(w, region.patch_clip(w, clip))
+        region_negative = (
+            cond.negative.encode(w, region.patch_clip(w, clip))
+            if cond.negative
+            else region_positive  # placeholder, won't be used
+        )
         mask = w.mask_batch_element(region_masks, i)
         positive, negative = w.combine_masked_conditioning(
             region_positive, region_negative, positive, negative, mask
@@ -1778,7 +1780,7 @@ def create(i: WorkflowInput, models: ClientModels, comfy_mode=ComfyRunMode.serve
             workflow,
             ensure(i.models),
             ScaledExtent.from_input(i.extent),
-            Conditioning.from_input(ensure(i.conditioning)),
+            Conditioning.from_input(ensure(i.conditioning), i.sampling),
             ensure(i.sampling),
             misc,
             models.for_arch(ensure(i.models).version),
@@ -1788,7 +1790,7 @@ def create(i: WorkflowInput, models: ClientModels, comfy_mode=ComfyRunMode.serve
             workflow,
             ensure(i.images),
             ensure(i.models),
-            Conditioning.from_input(ensure(i.conditioning)),
+            Conditioning.from_input(ensure(i.conditioning), i.sampling),
             ensure(i.sampling),
             ensure(i.inpaint),
             ensure(i.crop_upscale_extent),
@@ -1801,7 +1803,7 @@ def create(i: WorkflowInput, models: ClientModels, comfy_mode=ComfyRunMode.serve
             i.image,
             ScaledExtent.from_input(i.extent),
             ensure(i.models),
-            Conditioning.from_input(ensure(i.conditioning)),
+            Conditioning.from_input(ensure(i.conditioning), i.sampling),
             ensure(i.sampling),
             misc,
             models.for_arch(ensure(i.models).version),
@@ -1811,7 +1813,7 @@ def create(i: WorkflowInput, models: ClientModels, comfy_mode=ComfyRunMode.serve
             workflow,
             ensure(i.images),
             ensure(i.models),
-            Conditioning.from_input(ensure(i.conditioning)),
+            Conditioning.from_input(ensure(i.conditioning), i.sampling),
             ensure(i.sampling),
             ensure(i.inpaint),
             misc,
@@ -1825,7 +1827,7 @@ def create(i: WorkflowInput, models: ClientModels, comfy_mode=ComfyRunMode.serve
             i.image,
             i.extent,
             ensure(i.models),
-            Conditioning.from_input(ensure(i.conditioning)),
+            Conditioning.from_input(ensure(i.conditioning), i.sampling),
             ensure(i.sampling),
             ensure(i.upscale),
             misc,
