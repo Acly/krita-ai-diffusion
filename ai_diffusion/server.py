@@ -194,7 +194,10 @@ class Server:
 
         comfy_dir = self.comfy_dir or self.path / "ComfyUI"
         if not self.has_comfy:
-            await try_install(comfy_dir, self._install_comfy, comfy_dir, network, cb)
+            await try_install(comfy_dir, self._extract_comfy, comfy_dir, network, cb)
+        
+        # Ensure dependencies (PyTorch etc) are installed for the current backend
+        await self._install_dependencies(comfy_dir, cb)
 
         for pkg in chain(resources.required_custom_nodes, resources.optional_custom_nodes):
             dir = comfy_dir / "custom_nodes" / pkg.folder
@@ -265,13 +268,20 @@ class Server:
         else:
             self._python_cmd = self.path / "venv" / "bin" / "python3"
 
-    async def _install_comfy(self, comfy_dir: Path, network: QNetworkAccessManager, cb: InternalCB):
+    async def _extract_comfy(self, comfy_dir: Path, network: QNetworkAccessManager, cb: InternalCB):
         url = f"{resources.comfy_url}/archive/{resources.comfy_version}.zip"
         archive_path = self._cache_dir / f"ComfyUI-{resources.comfy_version}.zip"
         await _download_cached("ComfyUI", network, url, archive_path, cb)
         await _extract_archive("ComfyUI", archive_path, comfy_dir.parent, cb)
         temp_comfy_dir = comfy_dir.parent / f"ComfyUI-{resources.comfy_version}"
 
+        _configure_extra_model_paths(temp_comfy_dir)
+        _create_extra_model_dirs(self.path / "models")
+        await rename_extracted_folder("ComfyUI", comfy_dir, resources.comfy_version)
+        self.comfy_dir = comfy_dir
+        cb("Installing ComfyUI", "Finished extracting ComfyUI")
+
+    async def _install_dependencies(self, comfy_dir: Path, cb: InternalCB):
         torch_args = [
             f"torch=={torch_version}",
             f"torchvision=={torchvision_version}",
@@ -292,14 +302,8 @@ class Server:
         requirements_txt = Path(__file__).parent / "server_requirements.txt"
         await self._pip_install("ComfyUI", ["-r", str(requirements_txt)], cb)
 
-        requirements_txt = temp_comfy_dir / "requirements.txt"
+        requirements_txt = comfy_dir / "requirements.txt"
         await self._pip_install("ComfyUI", ["-r", str(requirements_txt)], cb)
-
-        _configure_extra_model_paths(temp_comfy_dir)
-        _create_extra_model_dirs(self.path / "models")
-        await rename_extracted_folder("ComfyUI", comfy_dir, resources.comfy_version)
-        self.comfy_dir = comfy_dir
-        cb("Installing ComfyUI", "Finished installing ComfyUI")
 
     async def _install_custom_node(
         self, pkg: CustomNode, network: QNetworkAccessManager, cb: InternalCB
@@ -425,6 +429,11 @@ class Server:
             callback(InstallationProgress("Upgrading", message=message))
 
         old_version = self.version
+        if old_version == resources.version:
+            info(f"Target version {resources.version} already installed, updating dependencies")
+            await self.install(callback)
+            return
+
         info(f"Starting upgrade from {old_version} to {resources.version}")
         comfy_dir = self.comfy_dir
         upgrade_dir = self.path / f"upgrade-{resources.version}"
@@ -754,7 +763,9 @@ class Server:
         if not self.path.exists():
             return True
         if self.path.is_dir():
-            return self.version == "incomplete" or not any(self.path.iterdir())
+            # If everything was detected except the version file, it might be an existing setup.
+            # Allow install anyway as it's non-destructive (venv and ComfyUI folder).
+            return True
         return False
 
 
