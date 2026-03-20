@@ -16,6 +16,7 @@ from PyQt5.QtGui import (
     QKeyEvent,
     QKeySequence,
     QMouseEvent,
+    QPaintDevice,
     QPainter,
     QPaintEvent,
     QPalette,
@@ -924,6 +925,13 @@ class WorkspaceSelectWidget(QToolButton):
         return action
 
 
+def _get_width_dip(s: QPaintDevice):
+    # get device-indpendent width for things like QPixmap, which report their size in physical pixels
+    if ratio := s.devicePixelRatioF():
+        return int(s.width() / ratio)
+    return s.width()
+
+
 class GenerateButton(QPushButton):
     ctrl_clicked = pyqtSignal()
 
@@ -984,7 +992,7 @@ class GenerateButton(QPushButton):
         )
         rect = self.rect()
         pixmap = self.icon().pixmap(int(fm.height() * 1.3))
-        pixmap_width = int(pixmap.width() / pixmap.devicePixelRatioF())
+        pixmap_width = _get_width_dip(pixmap)
         is_hover = int(opt.state) & QStyle.StateFlag.State_MouseOver
         element = QStyle.PrimitiveElement.PE_PanelButtonCommand
         content_width = fm.width(self._operation) + 5 + pixmap_width
@@ -1173,14 +1181,13 @@ def _paint_tool_drop_down(widget: QToolButton, text: str | None = None):
     )
     rect = widget.rect()
     pixmap = widget.icon().pixmap(int(rect.height() * 0.75))
-    pixmap_width = int(pixmap.width() / pixmap.devicePixelRatioF())
     element = QStyle.PrimitiveElement.PE_Widget
     if int(opt.state) & QStyle.StateFlag.State_MouseOver:
         element = QStyle.PrimitiveElement.PE_PanelButtonCommand
     style.drawPrimitive(element, opt, painter, widget)
     style.drawItemPixmap(painter, rect.adjusted(4, 0, 0, 0), align, pixmap)
     if text:
-        text_rect = rect.adjusted(pixmap_width + 4, 0, 0, 0)
+        text_rect = rect.adjusted(_get_width_dip(pixmap) + 4, 0, 0, 0)
         style.drawItemText(painter, text_rect, align, widget.palette(), True, text)
     painter.translate(int(0.5 * rect.width() - 10), 0)
     style.drawPrimitive(QStyle.PrimitiveElement.PE_IndicatorArrowDown, opt, painter)
