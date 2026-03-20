@@ -574,9 +574,17 @@ class ComfyWorkflow:
     def load_fooocus_inpaint(self, head: str, patch: str):
         return self.add_cached("INPAINT_LoadFooocusInpaint", 1, head=head, patch=patch)
 
-    def nunchaku_load_flux_diffusion_model(self, model_path: str, cache_threshold: float):
+    def nunchaku_load_flux_diffusion_model(
+        self, model_path: str, cache_threshold: float, num_blocks_on_gpu=1
+    ):
         return self.add_cached(
-            "NunchakuFluxDiTLoader", 1, model_path=model_path, cache_threshold=cache_threshold
+            "NunchakuFluxDiTLoader",
+            1,
+            model_path=model_path,
+            cache_threshold=cache_threshold,
+            cpu_offload="auto",
+            num_blocks_on_gpu=num_blocks_on_gpu,
+            use_pin_memory="disable",
         )
 
     def nunchaku_load_qwen_diffusion_model(self, model_name: str, num_blocks_on_gpu=1):
