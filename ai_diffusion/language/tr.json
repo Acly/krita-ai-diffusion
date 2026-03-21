@@ -586,6 +586,10 @@
     "System information has been copied to the clipboard.": null,
     "System Information": null,
     "Please attach this information when reporting issues!": null,
-    "Diagnostics Information": null
+    "Diagnostics Information": null,
+    "Switch to generate mode": null,
+    "Recent Styles": null,
+    "Switch to edit mode": null,
+    "Number of most recently used styles to show at the top of the style list": null
   }
 }

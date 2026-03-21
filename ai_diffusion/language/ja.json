@@ -586,6 +586,10 @@
     "System information has been copied to the clipboard.": "システム情報がクリップボードにコピーされました。",
     "System Information": "システム情報",
     "Please attach this information when reporting issues!": "問題を報告する際にはこの情報を添付してください！",
-    "Diagnostics Information": "診断情報"
+    "Diagnostics Information": "診断情報",
+    "Switch to generate mode": null,
+    "Recent Styles": null,
+    "Switch to edit mode": null,
+    "Number of most recently used styles to show at the top of the style list": null
   }
 }

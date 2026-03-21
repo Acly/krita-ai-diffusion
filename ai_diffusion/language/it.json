@@ -586,6 +586,10 @@
     "System information has been copied to the clipboard.": "Le informazioni di sistema sono state copiate negli appunti.",
     "System Information": "Informazioni di sistema",
     "Please attach this information when reporting issues!": "Si prega di allegare queste informazioni quando si segnalano problemi!",
-    "Diagnostics Information": "Informazioni diagnostiche"
+    "Diagnostics Information": "Informazioni diagnostiche",
+    "Switch to generate mode": null,
+    "Recent Styles": null,
+    "Switch to edit mode": null,
+    "Number of most recently used styles to show at the top of the style list": null
   }
 }
