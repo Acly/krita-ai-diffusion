@@ -587,9 +587,9 @@
     "System Information": "Informazioni di sistema",
     "Please attach this information when reporting issues!": "Si prega di allegare queste informazioni quando si segnalano problemi!",
     "Diagnostics Information": "Informazioni diagnostiche",
-    "Switch to generate mode": null,
-    "Recent Styles": null,
-    "Switch to edit mode": null,
-    "Number of most recently used styles to show at the top of the style list": null
+    "Switch to generate mode": "Passa alla modalità di generazione",
+    "Recent Styles": "Stili Recenti",
+    "Switch to edit mode": "Passa alla modalità modifica",
+    "Number of most recently used styles to show at the top of the style list": "Numero di stili più utilizzati di recente da visualizzare in cima all'elenco degli stili"
   }
 }
