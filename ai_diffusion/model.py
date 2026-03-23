@@ -245,13 +245,12 @@ class Model(QObject, ObservableProperties):
         mask, selection_bounds = self._doc.create_mask_from_selection(smod)
         bounds = Bounds(0, 0, *extent)
         if mask is None:  # Check for region inpaint
-            inpaint_mode = InpaintMode.fill
             region_layer = regions.get_active_region_layer(use_parent=not self.region_only)
             if not region_layer.is_root:
                 mask = get_region_inpaint_mask(region_layer, extent)
                 bounds = mask.bounds
                 inpaint_mode = InpaintMode.add_object
-        else:  # Selection inpaint
+        else:  # Selection inpaint or refine
             bounds = compute_bounds(extent, mask.bounds if mask else None, workflow_kind)
             bounds = self.inpaint.get_context(self, mask) or bounds
             inpaint_mode = self.resolve_inpaint_mode()
@@ -267,7 +266,7 @@ class Model(QObject, ObservableProperties):
             conditioning = self._add_reference_layers(conditioning)
         original_conditioning = conditioning
         conditioning, loras, prompt_meta = workflow.prepare_prompts(
-            conditioning, self.style, seed, arch, inpaint_mode
+            conditioning, self.style, seed, arch, inpaint_mode if strength == 1.0 else None
         )
 
         if mask is not None or workflow_kind is WorkflowKind.refine:
@@ -281,6 +280,7 @@ class Model(QObject, ObservableProperties):
 
             bounds, mask.bounds = compute_relative_bounds(bounds, mask.bounds)
 
+            assert inpaint_mode is not None
             if inpaint_mode is InpaintMode.custom:
                 inpaint = self.inpaint.get_params(mask, self.is_editing)
             else:
