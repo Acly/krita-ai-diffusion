@@ -24,7 +24,7 @@
                 "pathMappings": [
                     {
                         "localRoot": "${workspaceFolder}",
-                        "remoteRoot": "~/.local/share/krita/pykrita"
+                        "remoteRoot": "${env:HOME}/.local/share/krita/pykrita"
                     }
                 ]
             }
