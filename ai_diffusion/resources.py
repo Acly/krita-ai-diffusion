@@ -10,7 +10,7 @@ from typing import Any, NamedTuple
 
 # Version identifier for all the resources defined here. This is used as the server version.
 # It usually follows the plugin version, but not all new plugin versions also require a server update.
-version = "1.49.0"
+version = "1.49.1"
 
 comfy_url = "https://github.com/comfyanonymous/ComfyUI"
 comfy_version = "a11f68dd3b5393b6afc37e01c91fa84963d2668a"
