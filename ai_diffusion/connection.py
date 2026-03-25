@@ -96,7 +96,7 @@ class Connection(QObject, ObservableProperties):
                     return
                 self._client = await CloudClient.connect(CloudClient.default_api_url, access_token)
             else:
-                self._client = await ComfyClient.connect(url)
+                self._client = await ComfyClient.connect(url, access_token)
                 self.state = ConnectionState.discover_models
                 async for status in self._client.discover_models(refresh=False):
                     self.progress = (status.current, status.total)

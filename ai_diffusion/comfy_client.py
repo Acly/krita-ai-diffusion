@@ -683,7 +683,7 @@ def websocket_url(url_http: str):
 def websocket_args(auth_token: str):
     args: dict[str, Any] = {"max_size": 2**30, "ping_timeout": 60}
     if auth_token:
-        args["extra_headers"] = {"Authorization": f"Bearer {auth_token}"}
+        args["additional_headers"] = {"Authorization": f"Bearer {auth_token}"}
     return args
 
 
