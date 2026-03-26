@@ -1091,12 +1091,13 @@ def test_custom_workflow(qtapp, local_client: Client):
         "2. Detail/2. Steps": 14,
         "2. Detail/4. CFG": 3.5,
     }
+    bounds = Bounds(0, 0, 512, 512)
     job = WorkflowInput(
         WorkflowKind.custom,
         images=ImageInput.from_extent(Extent(512, 512)),
         sampling=SamplingInput("custom", "custom", 1, 1000, seed=1234),
-        inpaint=InpaintParams(InpaintMode.fill, Bounds(0, 0, 512, 512)),
-        custom_workflow=CustomWorkflowInput(workflow_graph.root, params),
+        inpaint=InpaintParams(InpaintMode.fill, bounds),
+        custom_workflow=CustomWorkflowInput(workflow_graph.root, params, bounds),
     )
     assert job.images is not None
     job.images.initial_image = Image.create(Extent(512, 512))

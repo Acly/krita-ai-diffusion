@@ -514,6 +514,7 @@ class Model(QObject, ObservableProperties):
             is_anim = self.custom.mode is CustomGenerationMode.animation
             seed = self.seed if is_live or self.fixed_seed else workflow.generate_seed()
             canvas_bounds = Bounds(0, 0, *self._doc.extent)
+            select_bounds = None
             bounds = canvas_bounds
             mask = None
 
@@ -521,6 +522,9 @@ class Model(QObject, ObservableProperties):
                 mods = get_selection_modifiers(Arch.sdxl, InpaintMode.fill, self.strength)
                 mask, select_bounds = self._doc.create_mask_from_selection(mods)
                 mask, bounds = self.custom.prepare_mask(selection_node, mask, select_bounds, bounds)
+
+            if select_bounds is None:
+                select_bounds = canvas_bounds
 
             img_input = ImageInput.from_extent(bounds.extent)
             img_input.initial_image = self._get_current_image(bounds, exclude_internal=not is_live)
@@ -530,7 +534,8 @@ class Model(QObject, ObservableProperties):
                 self.layers, canvas_bounds, client.models, is_live, is_anim
             )
 
-            custom_input = CustomWorkflowInput(wf.root, params)
+            custom_input = CustomWorkflowInput(wf.root, params, select_bounds)
+
             metadata: dict[str, Any] = dict(self.custom.params)
             job_params = JobParams(bounds, self.custom.job_name, metadata=metadata)
 
