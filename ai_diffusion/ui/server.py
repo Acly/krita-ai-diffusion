@@ -1249,12 +1249,16 @@ class ServerWidget(QWidget):
             self._launch_button.setEnabled(False)
             self._manage_button.setEnabled(False)
         elif state is ServerState.update_required:
-            text = _("Upgrade required") + f": v{self._server.version} -> v{resources.version}"
-            if self._server.version == "incomplete":
-                text = _("Previous installation is incomplete")
-            self._status_label.setText(text)
+            if self._server.version == resources.version:
+                self._status_label.setText(_("Update required (backend changed)"))
+                self._launch_button.setText(_("Update"))
+            else:
+                text = _("Upgrade required") + f": v{self._server.version} -> v{resources.version}"
+                if self._server.version == "incomplete":
+                    text = _("Previous installation is incomplete")
+                self._status_label.setText(text)
+                self._launch_button.setText(_("Upgrade"))
             self._status_label.setStyleSheet(f"color:{yellow};font-weight:bold")
-            self._launch_button.setText(_("Upgrade"))
         elif state is ServerState.stopped:
             self._status_label.setText(_("Server stopped"))
             self._status_label.setStyleSheet(f"color:{red};font-weight:bold")

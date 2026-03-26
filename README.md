@@ -21,6 +21,10 @@ The main goals of this project are:
 
 [![Watch video demo](media/screenshot-video-preview.webp)](https://youtu.be/Ly6USRwTHe0 "Watch video demo")
 
+## Changelog
+
+See the [CHANGELOG.md](./CHANGELOG.md) for a timeline of changes and detailed release notes.
+
 ## <a name="features"></a> Features
 
 * **Inpainting**: Use selections for generative fill, expand, to add or remove objects
