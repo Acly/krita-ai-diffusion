@@ -53,7 +53,10 @@ def icon(name: str):
 def checkpoint_icon(arch: Arch, format: FileFormat | None = None, client: Client | None = None):
     if client:
         if not client.supports_arch(arch):
-            return icon("warning")
+            if arch is Arch.sdxl and client.supports_arch(Arch.illu):
+                arch = Arch.illu  # assume SDXL models are Illustrious if SDXL isn't supported
+            else:
+                return icon("warning")
         if format is FileFormat.diffusion and not client.models.for_arch(arch).has_te_vae:
             return icon("warning")
     if arch is Arch.sd15:
