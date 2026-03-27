@@ -44,7 +44,7 @@ class Localization:
                 translation = translation.format(**kwargs)
             except Exception as e:
                 log.error(f"Failed to format translation for {key}: {e}")
-                translation = key.format(**kwargs)
+                translation = key
         return translation
 
     @property
