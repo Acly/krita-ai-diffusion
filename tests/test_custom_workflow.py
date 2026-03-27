@@ -566,7 +566,7 @@ def test_expand():
         "style": style_input,
     }
 
-    input = CustomWorkflowInput(workflow=ext.root, params=params)
+    input = CustomWorkflowInput(workflow=ext.root, params=params, selection_bounds=Bounds(0, 0, width, height))
     images = ImageInput.from_extent(Extent(4, 4))
     images.initial_image = Image.create(Extent(4, 4), Qt.GlobalColor.red)
 
@@ -628,7 +628,7 @@ def test_expand_animation():
         "mask": in_masks,
     }
 
-    input = CustomWorkflowInput(workflow=ext.root, params=params)
+    input = CustomWorkflowInput(workflow=ext.root, params=params, selection_bounds=Bounds(0, 0, 4, 4))
     images = ImageInput.from_extent(Extent(4, 4))
     models = ClientModels()
 
@@ -682,11 +682,11 @@ def test_expand_selection():
     )
 
     params = {}
-    input = CustomWorkflowInput(workflow=ext.root, params=params)
+    bounds = Bounds(2, 3, 8, 16)  # selection from (2,2) to (6,6)
+    input = CustomWorkflowInput(workflow=ext.root, params=params, selection_bounds=bounds)
     images = ImageInput.from_extent(Extent(8, 16))
     images.initial_image = Image.create(Extent(8, 16), Qt.GlobalColor.red)
     images.hires_mask = Image.create(Extent(8, 16), Qt.GlobalColor.green)
-    bounds = Bounds(2, 3, 8, 16)  # selection from (2,2) to (6,6)
     models = ClientModels()
 
     w = ComfyWorkflow()

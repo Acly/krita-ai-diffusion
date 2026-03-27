@@ -178,6 +178,7 @@ class CustomStyleInput:
 class CustomWorkflowInput:
     workflow: dict
     params: dict[str, Any]
+    selection_bounds: Bounds
     positive_evaluated: str = ""
     negative_evaluated: str = ""
     models: CheckpointInput | None = None
