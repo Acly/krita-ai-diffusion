@@ -1033,6 +1033,9 @@ class ComfyWorkflow:
     def batch_image(self, batch: Output, image: Output):
         return self.add("ImageBatch", 1, image1=batch, image2=image)
 
+    def unbatch_image(self, image: Output):
+        return self.add("RebatchImages", 1, images=image, batch_size=1)
+
     def image_batch_element(self, batch: Output, index: int):
         return self.add("ImageFromBatch", 1, image=batch, batch_index=index, length=1)
 
@@ -1112,6 +1115,10 @@ class ComfyWorkflow:
         image_batch = self.mask_to_image(batch)
         image = self.mask_to_image(mask)
         return self.image_to_mask(self.batch_image(image_batch, image))
+
+    def unbatch_mask(self, mask: Output):
+        image = self.mask_to_image(mask)
+        return self.image_to_mask(self.unbatch_image(image))
 
     def mask_batch_element(self, mask_batch: Output, index: int):
         image_batch = self.mask_to_image(mask_batch)

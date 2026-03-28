@@ -1467,8 +1467,8 @@ def expand_custom(
             case "ETN_KritaGroupLayer":
                 layer: CustomLayerInput = get_param(node, CustomLayerInput)
                 img, mask = w.load_image_and_mask(layer.images)
-                outputs[node.output(0)] = img
-                outputs[node.output(1)] = mask
+                outputs[node.output(0)] = w.unbatch_image(img)
+                outputs[node.output(1)] = w.unbatch_mask(mask)
                 outputs[node.output(2)] = w.send_list_str(layer.names)
             case "ETN_KritaStyle":
                 style: CustomStyleInput = get_param(node, CustomStyleInput)
