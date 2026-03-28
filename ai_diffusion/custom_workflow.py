@@ -21,11 +21,11 @@ from PyQt5.QtCore import (
 )
 
 from . import eventloop
-from .api import CustomStyleInput, CustomLayerInput, InpaintContext, WorkflowInput
+from .api import CustomLayerInput, CustomStyleInput, InpaintContext, WorkflowInput
 from .client import ClientModels, ClientOutput, JobInfoOutput, OutputBatchMode, TextOutput
 from .comfy_workflow import ComfyNode, ComfyWorkflow
 from .connection import Connection, ConnectionState
-from .image import Bounds, Image, Mask, ImageCollection
+from .image import Bounds, Image, ImageCollection, Mask
 from .jobs import Job, JobKind, JobParams, JobQueue
 from .localization import translate as _
 from .properties import ObservableProperties, Property
