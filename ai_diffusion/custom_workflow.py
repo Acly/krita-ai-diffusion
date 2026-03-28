@@ -21,11 +21,11 @@ from PyQt5.QtCore import (
 )
 
 from . import eventloop
-from .api import CustomStyleInput, InpaintContext, WorkflowInput
+from .api import CustomLayerInput, CustomStyleInput, InpaintContext, WorkflowInput
 from .client import ClientModels, ClientOutput, JobInfoOutput, OutputBatchMode, TextOutput
 from .comfy_workflow import ComfyNode, ComfyWorkflow
 from .connection import Connection, ConnectionState
-from .image import Bounds, Image, Mask
+from .image import Bounds, Image, ImageCollection, Mask
 from .jobs import Job, JobKind, JobParams, JobQueue
 from .localization import translate as _
 from .properties import ObservableProperties, Property
@@ -259,14 +259,15 @@ class SortedWorkflows(QSortFilterProxyModel):
 class ParamKind(Enum):
     image_layer = 0
     mask_layer = 1
-    number_int = 2
-    number_float = 3
-    toggle = 4
-    text = 5
-    prompt_positive = 6
-    prompt_negative = 7
-    choice = 8
-    style = 9
+    group_layer = 2
+    number_int = 3
+    number_float = 4
+    toggle = 5
+    text = 6
+    prompt_positive = 7
+    prompt_negative = 8
+    choice = 9
+    style = 10
 
 
 class CustomParam(NamedTuple):
@@ -327,6 +328,9 @@ def workflow_parameters(w: ComfyWorkflow):
             case ("ETN_KritaMaskLayer", _):
                 name = node.input("name", "Mask")
                 yield CustomParam(ParamKind.mask_layer, name)
+            case ("ETN_KritaGroupLayer", _):
+                name = node.input("name", "Group")
+                yield CustomParam(ParamKind.group_layer, name)
             case ("ETN_Parameter", "number (integer)"):
                 name = node.input("name", "Parameter")
                 default = node.input("default", 0)
@@ -565,6 +569,7 @@ class CustomWorkspace(QObject, ObservableProperties):
                     params[md.name] = layer.get_pixel_frames(bounds)
                 else:
                     params[md.name] = layer.get_pixels(bounds)
+
             elif md.kind is ParamKind.mask_layer:
                 if param is None and len(layers.masks) > 0:
                     param = layers.masks[0].id
@@ -575,6 +580,24 @@ class CustomWorkspace(QObject, ObservableProperties):
                     params[md.name] = layer.get_mask_frames(bounds)
                 else:
                     params[md.name] = layer.get_mask(bounds)
+
+            elif md.kind is ParamKind.group_layer:
+                if param is None and len(layers.images) > 0:
+                    param = layers.images[0].id
+                layer = layers.find(QUuid(param))
+                if layer is None:
+                    raise ValueError(f"Input layer for parameter {md.name} not found")
+
+                children = list(layer.get_child_images(bounds))
+
+                names = [name for (name, image) in children]
+                images = [image for (name, image) in children]
+
+                params[md.name] = CustomLayerInput(
+                    ImageCollection(images),
+                    names,
+                )
+
             elif md.kind is ParamKind.style:
                 style = Styles.list().find(str(param))
                 if style is None:
