@@ -642,7 +642,7 @@ class ConnectionSettings(SettingsTab):
                 text = _("Missing common models (required)") + ":\n<ul>"
                 text += "\n".join(f"<li>{model_name(m, True)}</li>" for m in basic)
                 text += "</ul>"
-            text += _("Detected base models:") + "\n<ul>"
+            text += _("Detected workloads for the following base models:") + "\n<ul>"
             for arch, missing in res.missing.items():
                 if arch in [Arch.all, Arch.illu_v]:
                     continue
