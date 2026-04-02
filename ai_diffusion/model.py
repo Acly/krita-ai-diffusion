@@ -516,7 +516,6 @@ class Model(QObject, ObservableProperties):
             is_anim = self.custom.mode is CustomGenerationMode.animation
             seed = self.seed if is_live or self.fixed_seed else workflow.generate_seed()
             canvas_bounds = Bounds(0, 0, *self._doc.extent)
-            select_bounds = None
             bounds = canvas_bounds
             mask = None
 
