@@ -1,10 +1,13 @@
+import asyncio
 import hashlib
 import os
 import shutil
 from enum import Enum
+from http.client import HTTPSConnection
 from pathlib import Path
 from tempfile import TemporaryDirectory
 from typing import NamedTuple
+from urllib.parse import urljoin, urlparse
 
 from PyQt5.QtCore import QObject, pyqtSignal
 
@@ -35,6 +38,7 @@ class UpdatePackage(NamedTuple):
 
 class AutoUpdate(QObject, ObservableProperties):
     default_api_url = os.getenv("INTERSTICE_URL", "https://api.interstice.cloud")
+    max_redirects = 5
 
     state = Property(UpdateState.unknown)
     latest_version = Property("")
@@ -54,6 +58,7 @@ class AutoUpdate(QObject, ObservableProperties):
         self.plugin_dir = plugin_dir or Path(__file__).parent.parent
         self.current_version = current_version or __version__
         self.api_url = api_url or self.default_api_url
+        self._trusted_update_hosts = self._collect_trusted_update_hosts(self.api_url)
         self._package: UpdatePackage | None = None
         self._temp_dir: TemporaryDirectory | None = None
         self._request_manager: RequestManager | None = None
@@ -87,10 +92,12 @@ class AutoUpdate(QObject, ObservableProperties):
             self.state = UpdateState.failed_check
             self.error = "Plugin update package is incomplete"
         else:
+            package_url = result["url"]
+            self._validate_download_url(package_url)
             log.info(f"New plugin version available: {self.latest_version}")
             self._package = UpdatePackage(
                 version=self.latest_version,
-                url=result["url"],
+                url=package_url,
                 sha256=result["sha256"],
             )
             self.state = UpdateState.available
@@ -105,9 +112,10 @@ class AutoUpdate(QObject, ObservableProperties):
 
         self._temp_dir = TemporaryDirectory()
         archive_path = Path(self._temp_dir.name) / f"krita_ai_diffusion-{self.latest_version}.zip"
-        log.info(f"Downloading plugin update {self._package.url}")
+        download_url = await asyncio.to_thread(self._resolve_download_url, self._package.url)
+        log.info(f"Downloading plugin update {download_url}")
         self.state = UpdateState.downloading
-        archive_data = await self._net.download(self._package.url)
+        archive_data = await self._net.download(download_url)
 
         sha256 = hashlib.sha256(archive_data).hexdigest()
         if sha256 != self._package.sha256:
@@ -125,6 +133,57 @@ class AutoUpdate(QObject, ObservableProperties):
         shutil.copytree(source_dir, self.plugin_dir, dirs_exist_ok=True)
         self.current_version = self.latest_version
         self.state = UpdateState.restart_required
+
+    @staticmethod
+    def _collect_trusted_update_hosts(api_url: str):
+        hosts = {
+            host.strip().lower()
+            for host in os.getenv("INTERSTICE_UPDATE_HOSTS", "").split(",")
+            if host.strip()
+        }
+        api_host = urlparse(api_url).hostname
+        if api_host:
+            hosts.add(api_host.lower())
+        return hosts
+
+    def _validate_download_url(self, url: str):
+        parsed_url = urlparse(url)
+        host = parsed_url.hostname.lower() if parsed_url.hostname else None
+        if parsed_url.scheme != "https":
+            raise RuntimeError("Plugin update URL must use HTTPS")
+        if host is None or host not in self._trusted_update_hosts:
+            raise RuntimeError("Plugin update URL host is not trusted")
+        return parsed_url
+
+    def _resolve_download_url(self, url: str):
+        current_url = url
+        current_parsed = self._validate_download_url(current_url)
+        for _ in range(self.max_redirects):
+            path = current_parsed.path or "/"
+            if current_parsed.query:
+                path = f"{path}?{current_parsed.query}"
+            connection = HTTPSConnection(current_parsed.hostname, current_parsed.port, timeout=10)
+            try:
+                connection.request("GET", path)
+                response = connection.getresponse()
+                if response.status in {301, 302, 303, 307, 308}:
+                    redirect_url = response.getheader("Location")
+                    if not redirect_url:
+                        raise RuntimeError("Plugin update URL redirect is missing location")
+                    redirected_url = urljoin(current_url, redirect_url)
+                    redirected_parsed = self._validate_download_url(redirected_url)
+                    if (
+                        redirected_parsed.scheme != current_parsed.scheme
+                        or redirected_parsed.hostname != current_parsed.hostname
+                    ):
+                        raise RuntimeError("Plugin update URL redirect changed host or scheme")
+                    current_url = redirected_url
+                    current_parsed = redirected_parsed
+                    continue
+                return current_url
+            finally:
+                connection.close()
+        raise RuntimeError("Plugin update URL has too many redirects")
 
     @property
     def is_available(self):
