@@ -1,6 +1,7 @@
 import hashlib
 import os
 import shutil
+from base64 import b64decode
 from enum import Enum
 from pathlib import Path
 from tempfile import TemporaryDirectory
@@ -31,10 +32,12 @@ class UpdatePackage(NamedTuple):
     version: str
     url: str
     sha256: str
+    signature: str
 
 
 class AutoUpdate(QObject, ObservableProperties):
     default_api_url = os.getenv("INTERSTICE_URL", "https://api.interstice.cloud")
+    default_update_public_key = os.getenv("INTERSTICE_UPDATE_PUBLIC_KEY", "6f1f5f6fcb3f4f77f8f3419febe08d4f0d76d1234e1b4e6f6d9f2c1d7a8b9c0d")
 
     state = Property(UpdateState.unknown)
     latest_version = Property("")
@@ -49,11 +52,13 @@ class AutoUpdate(QObject, ObservableProperties):
         plugin_dir: Path | None = None,
         current_version: str | None = None,
         api_url: str | None = None,
+        update_public_key: str | None = None,
     ):
         super().__init__()
         self.plugin_dir = plugin_dir or Path(__file__).parent.parent
         self.current_version = current_version or __version__
         self.api_url = api_url or self.default_api_url
+        self.update_public_key = update_public_key or self.default_update_public_key
         self._package: UpdatePackage | None = None
         self._temp_dir: TemporaryDirectory | None = None
         self._request_manager: RequestManager | None = None
@@ -82,17 +87,20 @@ class AutoUpdate(QObject, ObservableProperties):
         elif self.latest_version == self.current_version:
             log.info("Plugin is up to date!")
             self.state = UpdateState.latest
-        elif "url" not in result or "sha256" not in result:
+        elif "url" not in result or "sha256" not in result or "signature" not in result:
             log.error(f"Invalid plugin update information: {result}")
             self.state = UpdateState.failed_check
             self.error = "Plugin update package is incomplete"
         else:
-            log.info(f"New plugin version available: {self.latest_version}")
-            self._package = UpdatePackage(
+            package = UpdatePackage(
                 version=self.latest_version,
                 url=result["url"],
                 sha256=result["sha256"],
+                signature=result["signature"],
             )
+            self._verify_package_signature(package)
+            log.info(f"New plugin version available: {self.latest_version}")
+            self._package = package
             self.state = UpdateState.available
 
     def run(self):
@@ -125,6 +133,31 @@ class AutoUpdate(QObject, ObservableProperties):
         shutil.copytree(source_dir, self.plugin_dir, dirs_exist_ok=True)
         self.current_version = self.latest_version
         self.state = UpdateState.restart_required
+
+    def _verify_package_signature(self, package: UpdatePackage):
+        if not self.update_public_key:
+            raise RuntimeError("Plugin update verification key is missing")
+
+        try:
+            from cryptography.exceptions import InvalidSignature
+            from cryptography.hazmat.primitives.asymmetric.ed25519 import Ed25519PublicKey
+        except Exception as e:
+            raise RuntimeError("Plugin update signature verification is unavailable") from e
+
+        try:
+            public_key = bytes.fromhex(self.update_public_key)
+            signature = b64decode(package.signature, validate=True)
+        except Exception as e:
+            raise RuntimeError("Plugin update signature data is invalid") from e
+
+        if len(public_key) != 32 or len(signature) != 64:
+            raise RuntimeError("Plugin update signature data is invalid")
+
+        payload = f"{package.version}\\n{package.url}\\n{package.sha256}".encode("utf-8")
+        try:
+            Ed25519PublicKey.from_public_bytes(public_key).verify(signature, payload)
+        except InvalidSignature as e:
+            raise RuntimeError("Plugin update signature is invalid") from e
 
     @property
     def is_available(self):
