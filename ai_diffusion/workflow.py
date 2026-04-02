@@ -1455,10 +1455,11 @@ def expand_custom(
                 outputs[node.output(1)] = images.hires_mask is not None
                 outputs[node.output(2)] = bounds.x
                 outputs[node.output(3)] = bounds.y
-                outputs[node.output(4)] = input.selection_bounds.x
-                outputs[node.output(5)] = input.selection_bounds.y
-                outputs[node.output(6)] = input.selection_bounds.width
-                outputs[node.output(7)] = input.selection_bounds.height
+            case "ETN_KritaSelectionBounds":
+                outputs[node.output(0)] = input.selection_bounds.x
+                outputs[node.output(1)] = input.selection_bounds.y
+                outputs[node.output(2)] = input.selection_bounds.width
+                outputs[node.output(3)] = input.selection_bounds.height
             case "ETN_Parameter":
                 outputs[node.output(0)] = get_param(node)
             case "ETN_KritaImageLayer":

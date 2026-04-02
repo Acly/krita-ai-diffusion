@@ -50,9 +50,12 @@ class Document(QObject):
     def check_color_mode(self) -> tuple[Literal[True], None] | tuple[Literal[False], str]:
         return True, None
 
+    def user_selection_bounds(self) -> Bounds | None:
+        raise NotImplementedError
+
     def create_mask_from_selection(
-        self, mod: SelectionModifiers
-    ) -> tuple[Mask, Bounds] | tuple[None, None]:
+        self, selection_bounds: Bounds | None, mod: SelectionModifiers
+    ) -> Mask | None:
         raise NotImplementedError
 
     def get_image(
@@ -196,20 +199,25 @@ class KritaDocument(Document):
             return False, msg_fmt.format("depth", "8-bit integer", depth)
         return True, None
 
-    def create_mask_from_selection(self, mod: SelectionModifiers):
+    def user_selection_bounds(self):
         user_selection = self._doc.selection()
         if not user_selection:
-            return None, None
+            return None
 
         if _selection_is_entire_document(user_selection, self.extent):
-            return None, None
+            return None
 
-        selection = user_selection.duplicate()
-        original_bounds = Bounds(
-            selection.x(), selection.y(), selection.width(), selection.height()
+        bounds = Bounds(
+            user_selection.x(), user_selection.y(), user_selection.width(), user_selection.height()
         )
-        original_bounds = Bounds.clamp(original_bounds, self.extent)
-        size_factor = original_bounds.extent.diagonal
+        return Bounds.clamp(bounds, self.extent)
+
+    def create_mask_from_selection(self, selection_bounds: Bounds | None, mod: SelectionModifiers):
+        if selection_bounds is None:
+            return None
+
+        selection = self._doc.selection().duplicate()
+        size_factor = selection_bounds.extent.diagonal
         pad_px = max(int(mod.feather_rel * size_factor), mod.feather_min_px)
         pad_px += mod.pad_offset_px
         pad_px += int(mod.pad_rel * size_factor)
@@ -223,7 +231,7 @@ class KritaDocument(Document):
         )
         bounds = Bounds.clamp(bounds, self.extent)
         data = selection.pixelData(*bounds)
-        return Mask(bounds, data), original_bounds
+        return Mask(bounds, data)
 
     def get_image(self, bounds: Bounds | None = None, exclude_layers: list[Layer] | None = None):
         excluded: list[Layer] = []

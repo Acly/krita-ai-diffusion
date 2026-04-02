@@ -242,7 +242,8 @@ class Model(QObject, ObservableProperties):
         region_layer = None
 
         smod = get_selection_modifiers(arch, self.inpaint.mode, strength)
-        mask, selection_bounds = self._doc.create_mask_from_selection(smod)
+        selection_bounds = self._doc.user_selection_bounds()
+        mask = self._doc.create_mask_from_selection(selection_bounds, smod)
         bounds = Bounds(0, 0, *extent)
         if mask is None:  # Check for region inpaint
             region_layer = regions.get_active_region_layer(use_parent=not self.region_only)
@@ -456,7 +457,8 @@ class Model(QObject, ObservableProperties):
 
         image = None
         smod = get_selection_modifiers(self.arch, inpaint.mode, strength, min_mask_size)
-        mask, selection_bounds = self._doc.create_mask_from_selection(smod)
+        selection_bounds = self._doc.user_selection_bounds()
+        mask = self._doc.create_mask_from_selection(selection_bounds, smod)
         inpaint = calc_selection_pre_process(inpaint, selection_bounds, smod)
 
         bounds = Bounds(0, 0, *self._doc.extent)
@@ -518,9 +520,11 @@ class Model(QObject, ObservableProperties):
             bounds = canvas_bounds
             mask = None
 
+            select_bounds = self._doc.user_selection_bounds()
+
             if selection_node := next(wf.find(type="ETN_KritaSelection"), None):
                 mods = get_selection_modifiers(Arch.sdxl, InpaintMode.fill, self.strength)
-                mask, select_bounds = self._doc.create_mask_from_selection(mods)
+                mask = self._doc.create_mask_from_selection(select_bounds, mods)
                 mask, bounds = self.custom.prepare_mask(selection_node, mask, select_bounds, bounds)
 
             if select_bounds is None:
@@ -612,7 +616,8 @@ class Model(QObject, ObservableProperties):
 
         try:
             image = doc.get_image(Bounds(0, 0, *self._doc.extent))
-            mask, _ = doc.create_mask_from_selection(SelectionModifiers(pad_rel=0.25, multiple=64))
+            selection_bounds = doc.user_selection_bounds()
+            mask = doc.create_mask_from_selection(selection_bounds, SelectionModifiers(pad_rel=0.25, multiple=64))
             bounds = mask.bounds if mask else None
             perf = self._performance_settings(self._connection.client)
             input = workflow.prepare_create_control_image(image, control.mode, perf, bounds)
