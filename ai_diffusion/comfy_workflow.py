@@ -1207,7 +1207,7 @@ class ComfyWorkflow:
         assert result is not None
         return result
 
-    def send_list_str(self, list: list[str]):
+    def send_list(self, list: list[Input]):
         output = self.add("ETN_ListEmpty", 1)
 
         for item in list:

@@ -1466,7 +1466,7 @@ def expand_custom(
                     mask = w.unbatch_mask(mask)
                 outputs[node.output(0)] = img
                 outputs[node.output(1)] = mask
-                outputs[node.output(2)] = w.send_list_str(layer.names)
+                outputs[node.output(2)] = w.send_list(layer.names)
             case "ETN_KritaMaskLayer":
                 outputs[node.output(0)] = w.load_mask(get_param(node, (Image, ImageCollection)))
             case "ETN_KritaStyle":
