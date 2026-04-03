@@ -42,7 +42,12 @@ from .client import (
 )
 from .connection import Connection, ConnectionState
 from .control import ControlLayer
-from .custom_workflow import CustomGenerationMode, CustomWorkspace, WorkflowCollection
+from .custom_workflow import (
+    CustomGenerationMode,
+    CustomWorkspace,
+    WorkflowCollection,
+    get_inpaint_context,
+)
 from .document import Document, KritaDocument, SelectionModifiers
 from .files import FileLibrary
 from .image import Bounds, DummyImage, Extent, Image, Mask
@@ -518,7 +523,8 @@ class Model(QObject, ObservableProperties):
             mask = None
 
             if selection_node := next(wf.find(type="ETN_KritaSelection"), None):
-                mods = get_selection_modifiers(Arch.sdxl, InpaintMode.fill, self.strength)
+                ctx = get_inpaint_context(selection_node)
+                mods = get_selection_modifiers(ctx, InpaintMode.fill, self.strength)
                 mask, select_bounds = self._doc.create_mask_from_selection(mods)
                 mask, bounds = self.custom.prepare_mask(selection_node, mask, select_bounds, bounds)
 
@@ -1543,7 +1549,9 @@ class AnimationWorkspace(QObject, ObservableProperties):
             self.target_image_changed.emit(image)
 
 
-def get_selection_modifiers(arch: Arch, inpaint_mode: InpaintMode, strength: float, min_size=256):
+def get_selection_modifiers(
+    arch: Arch | InpaintContext, inpaint_mode: InpaintMode, strength: float, min_size=256
+):
     feather = settings.selection_feather / 100
     invert = False
 
@@ -1553,13 +1561,22 @@ def get_selection_modifiers(arch: Arch, inpaint_mode: InpaintMode, strength: flo
         feather = min(feather, 0.01)
         invert = True
 
+    if isinstance(arch, InpaintContext):
+        if arch is InpaintContext.mask_bounds:
+            min_size = 0
+            multiple = 1
+        else:
+            multiple = 8
+    else:
+        multiple = arch.latent_compression_factor
+
     return SelectionModifiers(
         feather_rel=feather * strength,
         feather_min_px=round(settings.selection_min_transition * strength),
         pad_rel=settings.selection_padding / 100,
         pad_offset_px=settings.selection_grow_offset,
         size_min_px=min_size,
-        multiple=arch.latent_compression_factor,
+        multiple=multiple,
         invert=invert,
     )
 

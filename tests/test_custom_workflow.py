@@ -395,7 +395,7 @@ def test_prepare_mask():
     mask = Mask.rectangle(Bounds(10, 10, 40, 40), Bounds(10, 10, 40, 40))
     canvas_bounds = Bounds(0, 0, 100, 100)
     selection_bounds = Bounds(12, 12, 34, 34)
-    selection_node = ComfyNode(0, "ETN_Selection", {"context": "automatic", "padding": 3})
+    selection_node = ComfyNode(0, "ETN_KritaSelection", {"context": "automatic", "padding": 3})
 
     prepared_mask, bounds = workspace.prepare_mask(
         selection_node, copy(mask), selection_bounds, canvas_bounds

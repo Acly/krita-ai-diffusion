@@ -372,6 +372,12 @@ def _get_choices(w: ComfyWorkflow, node: ComfyNode):
     return None
 
 
+def get_inpaint_context(node: ComfyNode):
+    assert node.type == "ETN_KritaSelection"
+    ctx = node.input("context", "entire_image").replace(" ", "_")
+    return parse_enum(InpaintContext, ctx)
+
+
 ImageGenerator = Callable[[WorkflowInput | None], Awaitable[None | Literal[False] | WorkflowInput]]
 
 
@@ -603,18 +609,17 @@ class CustomWorkspace(QObject, ObservableProperties):
         mask_bounds: Bounds | None,
         canvas_bounds: Bounds,
     ):
-        ctx = selection_node.input("context", "entire_image").replace(" ", "_")
         pad = selection_node.input("padding", 0)
         if mask and mask_bounds:
-            match parse_enum(InpaintContext, ctx):
+            match get_inpaint_context(selection_node):
                 case InpaintContext.entire_image:
                     bounds = canvas_bounds
                 case InpaintContext.automatic:
                     bounds = Bounds.pad(mask.bounds, pad)
                 case InpaintContext.mask_bounds:
                     bounds = Bounds.pad(mask_bounds, pad)
-                case _:
-                    raise ValueError(f"Invalid inpaint context: {ctx}")
+                case other:
+                    raise ValueError(f"Invalid inpaint context: {other}")
             bounds = Bounds.clamp(bounds, canvas_bounds.extent)
             mask.bounds = mask.bounds.relative_to(bounds)
             return mask, bounds
