@@ -53,7 +53,7 @@ def detect_inpaint_mode(extent: Extent, area: Bounds):
 
 def generate_seed():
     # Currently only using 32 bit because Qt widgets don't support int64
-    return random.randint(0, 2**31 - 1)
+    return random.randint(0, 2**32 - 1)
 
 
 def sampling_from_style(style: Style, strength: float, is_live: bool):

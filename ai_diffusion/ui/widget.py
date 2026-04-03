@@ -28,6 +28,7 @@ from PyQt5.QtWidgets import (
     QAction,
     QCheckBox,
     QComboBox,
+    QDoubleSpinBox,
     QFrame,
     QGridLayout,
     QHBoxLayout,
@@ -139,11 +140,12 @@ class QueuePopup(QMenu):
 
         self._seed_label = QLabel(_("Seed"), self)
         self._layout.addWidget(self._seed_label, 2, 0)
-        self._seed_input = QSpinBox(self)
+        self._seed_input = QDoubleSpinBox(self)
         self._seed_check = QCheckBox(self)
         self._seed_check.setText(_("Fixed"))
         self._seed_input.setMinimum(0)
-        self._seed_input.setMaximum(2**31 - 1)
+        self._seed_input.setMaximum(2**32 - 1)
+        self._seed_input.setDecimals(0)
         self._seed_input.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Preferred)
         self._seed_input.setToolTip(
             _(
@@ -205,12 +207,16 @@ class QueuePopup(QMenu):
         Binding.disconnect_all(self._connections)
         self._model = model
         self._randomize_seed.setEnabled(self._model.fixed_seed)
+        self._seed_input.setValue(self._model.seed)
         self._seed_input.setEnabled(self._model.fixed_seed)
         self._batch_label.setText(str(self._model.batch_count))
         self._connections = [
             bind(self._model, "batch_count", self._batch_slider, "value"),
             model.batch_count_changed.connect(lambda v: self._batch_label.setText(str(v))),
-            bind(self._model, "seed", self._seed_input, "value"),
+            self._model.seed_changed.connect(lambda: self._seed_input.setValue(self._model.seed)),
+            self._seed_input.valueChanged.connect(
+                lambda: setattr(self._model, "seed", int(self._seed_input.value()))
+            ),
             bind(self._model, "fixed_seed", self._seed_check, "checked", Bind.one_way),
             self._seed_check.toggled.connect(lambda v: setattr(self._model, "fixed_seed", v)),
             self._model.fixed_seed_changed.connect(self._seed_input.setEnabled),
