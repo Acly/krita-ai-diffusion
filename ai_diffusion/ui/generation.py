@@ -859,7 +859,7 @@ class GenerationWidget(QWidget):
             self.update_generate_options()
 
     def apply_result(self, item: QListWidgetItem):
-        if settings.preview_double_click:
+        if settings.preview_double_click_apply:
             job_id, index = self.history.item_info(item)
             self.model.apply_generated_result(job_id, index)
 

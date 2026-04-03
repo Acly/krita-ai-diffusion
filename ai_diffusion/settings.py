@@ -363,8 +363,8 @@ class Settings(QObject):
         "Apply Region Behavior (Live)", ApplyRegionBehavior.replace
     )
 
-    preview_double_click: bool
-    _preview_double_click = Setting(
+    preview_double_click_apply: bool
+    _preview_double_click_apply = Setting(
         _("Double Click"), True, _("Enable double clicking the preview to apply it.")
     )
 
