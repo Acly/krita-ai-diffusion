@@ -429,8 +429,6 @@ def _create_param_widget(param: CustomParam, parent: "WorkflowParamsWidget") -> 
             return LayerSelect("image", parent)
         case ParamKind.mask_layer:
             return LayerSelect("mask", parent)
-        case ParamKind.group_layer:
-            return LayerSelect("image", parent)
         case ParamKind.number_int:
             return IntParamWidget(param, parent)
         case ParamKind.number_float:

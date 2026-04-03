@@ -176,8 +176,9 @@ class CustomStyleInput:
 
 @dataclass
 class CustomLayerInput:
-    images: ImageCollection
+    images: Image | ImageCollection
     names: list[str]
+    is_batch: bool
 
 
 @dataclass
