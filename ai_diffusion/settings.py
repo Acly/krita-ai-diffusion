@@ -363,6 +363,11 @@ class Settings(QObject):
         "Apply Region Behavior (Live)", ApplyRegionBehavior.replace
     )
 
+    enable_double_click: bool
+    _enable_double_click = Setting(
+        _("Double Click"), True, _("Enable double clicking the preview to apply it.")
+    )
+
     show_builtin_styles: bool
     _show_builtin_styles = Setting(_("Show pre-installed styles"), True)
 

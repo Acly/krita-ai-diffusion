@@ -965,8 +965,9 @@ class CustomWorkflowWidget(QWidget):
         self.model.custom.params_ui_height = self._splitter.sizes()[0]
 
     def apply_result(self, item: QListWidgetItem):
-        job_id, index = self._history.item_info(item)
-        self.model.apply_generated_result(job_id, index)
+        if settings.enable_double_click:
+            job_id, index = self._history.item_info(item)
+            self.model.apply_generated_result(job_id, index)
 
     def apply_live_result(self):
         image, params = self.model.custom.live_result

@@ -859,8 +859,9 @@ class GenerationWidget(QWidget):
             self.update_generate_options()
 
     def apply_result(self, item: QListWidgetItem):
-        job_id, index = self.history.item_info(item)
-        self.model.apply_generated_result(job_id, index)
+        if settings.enable_double_click:
+            job_id, index = self.history.item_info(item)
+            self.model.apply_generated_result(job_id, index)
 
     _inpaint_text: ClassVar[dict[InpaintMode, str]] = {
         InpaintMode.automatic: _("Default (Auto-detect)"),
