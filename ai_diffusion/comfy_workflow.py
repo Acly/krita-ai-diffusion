@@ -1208,6 +1208,9 @@ class ComfyWorkflow:
         return result
 
     def send_list(self, list: list[Input]):
+        if len(list) == 1:
+            return list[0]
+
         output = self.add("ETN_ListEmpty", 1)
 
         for item in list:
