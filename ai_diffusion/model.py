@@ -722,9 +722,7 @@ class Model(QObject, ObservableProperties):
 
         name = f"[{name_prefix}] {trim_text(job.params.name, 77)}"
         image = job.results[index]
-        bounds = job.params.bounds
-        if image.extent != bounds.extent:
-            image = Image.crop(image, Bounds(0, 0, *Extent.min(bounds.extent, image.extent)))
+        bounds = Bounds(*job.params.bounds.offset, *image.extent)
         if self._layer and self._layer.was_removed:
             self._layer = None  # layer was removed by user
         if self._layer is not None:
