@@ -119,6 +119,10 @@ class AutoUpdate(QObject, ObservableProperties):
         log.info(f"Extracting plugin archive into {source_dir}")
         self.state = UpdateState.installing
         with ZipFile(archive_path) as zip_file:
+            for info in zip_file.infolist():
+                target = (source_dir / info.filename).resolve()
+                if not target.is_relative_to(source_dir.resolve()):
+                    raise RuntimeError(f"Zip entry escapes target directory: {info.filename}")
             zip_file.extractall(source_dir)
 
         log.info(f"Installing new plugin version to {self.plugin_dir}")
