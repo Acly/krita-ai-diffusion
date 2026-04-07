@@ -95,8 +95,11 @@ class LongPathZipFile(zipfile.ZipFile):
     # zipfile.ZipFile does not support long paths (260+?) on Windows
     # for latest python, changing cwd and using relative paths helps, but not for python in Krita 5.2
     def _extract_member(self, member, targetpath, pwd):
-        # Prepend \\?\ to targetpath to bypass MAX_PATH limit
         targetpath = os.path.abspath(targetpath)
+        member_name = member.filename if not isinstance(member, str) else member
+        extract_path = os.path.normpath(os.path.join(targetpath, member_name))
+        if not extract_path.startswith(targetpath + os.sep) and extract_path != targetpath:
+            raise ValueError(f"Zip member path would escape target directory: {member_name!r}")
         if targetpath.startswith("\\\\"):
             targetpath = "\\\\?\\UNC\\" + targetpath[2:]
         else:
