@@ -196,3 +196,11 @@ def get_cuda_devices() -> list[tuple[int, int]]:
     if _cuda_device_list is None:
         _cuda_device_list = _get_cuda_compute_capabilities()
     return _cuda_device_list
+
+
+def gpu_is_pascal_or_older():
+    return all(major <= 6 for major, minor in get_cuda_devices())
+
+
+def gpu_supports_nvfp4():
+    return any(major >= 10 for major, minor in get_cuda_devices())  # Blackwell and later

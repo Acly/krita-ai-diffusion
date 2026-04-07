@@ -21,6 +21,7 @@ from .platform_tools import (
     create_process,
     decode_pipe_bytes,
     determine_system_encoding,
+    gpu_is_pascal_or_older,
     is_linux,
     is_macos,
     is_windows,
@@ -282,7 +283,8 @@ class Server:
         elif self.backend is ServerBackend.cpu:
             torch_args += ["--index-url", "https://download.pytorch.org/whl/cpu"]
         elif self.backend is ServerBackend.cuda:
-            torch_args += ["--index-url", "https://download.pytorch.org/whl/cu128"]
+            cuda_version = "cu128" if not gpu_is_pascal_or_older() else "cu126"
+            torch_args += ["--index-url", f"https://download.pytorch.org/whl/{cuda_version}"]
         elif self.backend is ServerBackend.directml:
             torch_args = ["numpy<2", "torch-directml", "torchvision", "torchaudio"]
         elif self.backend is ServerBackend.xpu:
@@ -304,11 +306,12 @@ class Server:
     async def _install_custom_node(
         self, pkg: CustomNode, network: QNetworkAccessManager, cb: InternalCB
     ):
-        if pkg.name == "Nunchaku" and self.backend is not ServerBackend.cuda:
-            return
-        elif pkg.name == "Nunchaku":
-            await self._install_nunchaku(network, cb)
         assert self.comfy_dir is not None
+
+        if pkg.name == "Nunchaku":
+            if self.backend is not ServerBackend.cuda or gpu_is_pascal_or_older():
+                return  # Nunchaku requires matching CUDA version
+            await self._install_nunchaku(network, cb)
 
         folder = self.comfy_dir / "custom_nodes" / pkg.folder
         resource_url = pkg.url

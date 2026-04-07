@@ -34,7 +34,7 @@ from ai_diffusion.network import DownloadProgress
 from .. import eventloop, resources, server, util
 from ..connection import ConnectionState
 from ..localization import translate as _
-from ..platform_tools import get_cuda_devices
+from ..platform_tools import get_cuda_devices, gpu_is_pascal_or_older, gpu_supports_nvfp4
 from ..resources import CustomNode, ModelRequirements, ModelResource, ResourceId
 from ..root import root
 from ..server import Server, ServerBackend, ServerState
@@ -285,12 +285,11 @@ def _backend_supports(backend: ServerBackend, item: PackageItem | ModelResource)
         item = item.package
     if isinstance(item, ModelResource):
         req = item.requirements
-        has_fp4 = any(major >= 10 for major, minor in get_cuda_devices())  # Blackwell and later
-        if backend is ServerBackend.cuda and has_fp4:
+        if backend is ServerBackend.cuda and gpu_supports_nvfp4():
             return req not in [ModelRequirements.no_cuda, ModelRequirements.cuda]
-        elif backend is ServerBackend.cuda:
+        elif backend is ServerBackend.cuda and not gpu_is_pascal_or_older():
             return req not in [ModelRequirements.no_cuda, ModelRequirements.cuda_fp4]
-        else:
+        else:  # Pascal or non-CUDA GPU
             return req not in [ModelRequirements.cuda, ModelRequirements.cuda_fp4]
     return True
 
