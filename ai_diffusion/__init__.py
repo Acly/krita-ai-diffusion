@@ -1,6 +1,6 @@
 """Generative AI plugin for Krita"""
 
-__version__ = "1.49.0"
+__version__ = "1.49.1"
 
 import importlib.util
 
@@ -14,4 +14,10 @@ if not importlib.util.find_spec(".websockets.src", "ai_diffusion"):
 
 # The following imports depend on the code running inside Krita, so the cannot be imported in tests.
 if importlib.util.find_spec("krita"):
+    import krita
+
+    krita_ver = krita.Krita.instance().version()
+    if not krita_ver.startswith("5"):
+        raise ImportError(f"This Plugin is for Krita 5.x, but you are using Krita {krita_ver}.")
+
     from .extension import AIToolsExtension as AIToolsExtension
