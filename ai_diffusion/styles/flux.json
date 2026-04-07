@@ -7,6 +7,7 @@
         "svdq-int4_r32-flux.1-dev.safetensors",
         "svdq-fp4_r32-flux.1-krea-dev.safetensors",
         "svdq-int4_r32-flux.1-krea-dev.safetensors",
+        "flux1-krea-dev_fp8_scaled.safetensors",
         "flux1-dev-fp8.safetensors",
         "flux1-dev.safetensors"
     ],
