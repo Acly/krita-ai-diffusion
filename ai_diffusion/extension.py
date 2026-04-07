@@ -1,3 +1,4 @@
+import os
 import sys
 from collections.abc import Callable
 from pathlib import Path
@@ -24,13 +25,13 @@ class AIToolsExtension(Extension):
 
         extension_dir = Path(__file__).parent
         debugpy_path = extension_dir / "debugpy" / "src"
-        if debugpy_path.exists():
+        if os.environ.get("AI_DIFFUSION_DEBUG") == "1" and debugpy_path.exists():
             try:
                 sys.path.insert(0, str(debugpy_path))
                 import debugpy
 
                 debugpy.listen(("127.0.0.1", 5678), in_process_debug_adapter=True)
-                log.info("Developer mode: debugpy listening on port 5678")
+                log.warning("Developer mode: debugpy listening on 127.0.0.1:5678")
             except ImportError:
                 pass
 
