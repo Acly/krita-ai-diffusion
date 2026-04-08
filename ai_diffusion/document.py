@@ -151,8 +151,6 @@ class KritaDocument(Document):
             if doc.activeNode() is None:
                 return None
             all_docs = acquire_elements(Krita.instance().documents())
-            if doc not in all_docs:
-                return None
             id = cls._id_from_annotation(doc)
             for other in all_docs:
                 other_id = cls._id_from_annotation(other)
