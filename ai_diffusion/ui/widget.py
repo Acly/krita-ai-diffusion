@@ -206,24 +206,22 @@ class QueuePopup(QMenu):
     def model(self, model: Model):
         Binding.disconnect_all(self._connections)
         self._model = model
-        self._randomize_seed.setEnabled(self._model.fixed_seed)
-        self._seed_input.setValue(self._model.seed)
-        self._seed_input.setEnabled(self._model.fixed_seed)
-        self._batch_label.setText(str(self._model.batch_count))
+        self._randomize_seed.setEnabled(model.fixed_seed)
+        self._seed_input.setValue(model.seed)
+        self._seed_input.setEnabled(model.fixed_seed)
+        self._batch_label.setText(str(model.batch_count))
         self._connections = [
-            bind(self._model, "batch_count", self._batch_slider, "value"),
+            bind(model, "batch_count", self._batch_slider, "value"),
             model.batch_count_changed.connect(lambda v: self._batch_label.setText(str(v))),
-            self._model.seed_changed.connect(lambda: self._seed_input.setValue(self._model.seed)),
-            self._seed_input.valueChanged.connect(
-                lambda: setattr(self._model, "seed", int(self._seed_input.value()))
-            ),
-            bind(self._model, "fixed_seed", self._seed_check, "checked", Bind.one_way),
+            model.seed_changed.connect(lambda: self._seed_input.setValue(self._model.seed)),
+            self._seed_input.valueChanged.connect(lambda v: setattr(self._model, "seed", int(v))),
+            bind(model, "fixed_seed", self._seed_check, "checked", Bind.one_way),
             self._seed_check.toggled.connect(lambda v: setattr(self._model, "fixed_seed", v)),
-            self._model.fixed_seed_changed.connect(self._seed_input.setEnabled),
-            self._model.fixed_seed_changed.connect(self._randomize_seed.setEnabled),
-            self._randomize_seed.clicked.connect(self._model.generate_seed),
+            model.fixed_seed_changed.connect(self._seed_input.setEnabled),
+            model.fixed_seed_changed.connect(self._randomize_seed.setEnabled),
+            self._randomize_seed.clicked.connect(model.generate_seed),
             model.resolution_multiplier_changed.connect(self._update_resolution_multiplier),
-            bind_combo(self._model, "queue_mode", self._queue_mode_combo),
+            bind_combo(model, "queue_mode", self._queue_mode_combo),
             model.jobs.count_changed.connect(self._update_job_count),
         ]
         self._update_job_count()
@@ -422,7 +420,8 @@ class StyleSelectWidget(QWidget):
             if style not in self._styles:
                 self.update_styles()
             else:
-                self._combo.setCurrentText(style.name)
+                idx = self._combo.findData(style.filename)
+                self._combo.setCurrentIndex(idx)
 
 
 class PromptHighlighter(QSyntaxHighlighter):
