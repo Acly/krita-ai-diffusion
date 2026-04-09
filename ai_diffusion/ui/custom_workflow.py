@@ -449,6 +449,17 @@ def _create_param_widget(param: CustomParam, parent: "WorkflowParamsWidget") -> 
             assert False, f"Unknown param kind: {param.kind}"
 
 
+def _create_reset_button(parent: QWidget, text: str):
+    fh = parent.fontMetrics().height()
+    button = QToolButton(parent)
+    button.setFixedSize(fh + 2, fh + 2)
+    button.setIcon(theme.icon("reset"))
+    button.setToolButtonStyle(Qt.ToolButtonStyle.ToolButtonIconOnly)
+    button.setAutoRaise(True)
+    button.setToolTip(text)
+    return button
+
+
 class GroupHeader(QWidget):
     def __init__(self, text: str, parent: QWidget | None = None):
         super().__init__(parent)
@@ -457,13 +468,8 @@ class GroupHeader(QWidget):
         self._expander = ExpanderButton(text, self)
         self._expander.toggled.connect(self._show_group)
 
-        fh = self.fontMetrics().height()
-        self._reset_button = QToolButton(self)
-        self._reset_button.setFixedSize(fh + 2, fh + 2)
-        self._reset_button.setIcon(theme.icon("reset"))
-        self._reset_button.setToolButtonStyle(Qt.ToolButtonStyle.ToolButtonIconOnly)
-        self._reset_button.setAutoRaise(True)
-        self._reset_button.setToolTip(_("Reset all parameters in this group"))
+        reset_text = _("Reset all parameters in this group")
+        self._reset_button = _create_reset_button(self, reset_text)
         self._reset_button.clicked.connect(self._reset_group)
 
         layout = QHBoxLayout(self)
@@ -498,13 +504,23 @@ class WorkflowParamsWidget(QWidget):
 
         layout = QGridLayout(self)
         layout.setContentsMargins(0, 0, 2, 0)
-        layout.setColumnMinimumWidth(0, 10)
-        layout.setColumnMinimumWidth(2, 10)
-        layout.setColumnStretch(3, 1)
+        layout.setColumnMinimumWidth(0, 10)  # column 0: indentation for grouped widgets
+        layout.setColumnMinimumWidth(2, 10)  # column 2: spacing between label and widget
+        layout.setColumnStretch(3, 1)  # column 3: the widget
         self.setLayout(layout)
 
         params = sorted(params)
         current_group: tuple[str, GroupHeader | None, list[CustomParamWidget]] = ("", None, [])
+
+        header = QLabel(_("Workflow Parameters"), self)
+        reset_text = _("Reset all parameters to their default values")
+        self._reset_button = _create_reset_button(self, reset_text)
+        self._reset_button.clicked.connect(self._reset_all)
+        header_layout = QHBoxLayout()
+        header_layout.setContentsMargins(0, 0, 0, 0)
+        header_layout.addWidget(header, stretch=1, alignment=Qt.AlignmentFlag.AlignLeft)
+        header_layout.addWidget(self._reset_button, alignment=Qt.AlignmentFlag.AlignRight)
+        layout.addLayout(header_layout, layout.rowCount(), 0, 1, 4)
 
         for p in params:
             group, expander, group_widgets = current_group
@@ -537,6 +553,11 @@ class WorkflowParamsWidget(QWidget):
             expander.set_group_widgets(widgets, show_group=len(self._widgets) < 7)
             display_height += expander.sizeHint().height()
         self._max_group_height = max(self._max_group_height, display_height + 4)
+
+    def _reset_all(self):
+        for w in self._widgets.values():
+            if w.param is not None and w.param.default is not None:
+                w.value = w.param.default
 
     @property
     def value(self):
