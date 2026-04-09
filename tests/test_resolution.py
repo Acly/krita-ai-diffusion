@@ -126,9 +126,9 @@ def test_inpaint_context(area, expected_extent, expected_crop: tuple[int, int] |
 @pytest.mark.parametrize(
     "input,expected_initial,expected_desired",
     [
-        (Extent(1536, 600), Extent(1008, 392), Extent(1536, 600)),
+        (Extent(1536, 600), Extent(1008, 400), Extent(1536, 608)),
         (Extent(400, 1024), Extent(400, 1024), Extent(400, 1024)),
-        (Extent(777, 999), Extent(560, 712), Extent(784, 1000)),
+        (Extent(777, 999), Extent(560, 720), Extent(784, 1008)),
     ],
 )
 def test_prepare_highres(input, expected_initial, expected_desired):
@@ -144,11 +144,11 @@ def test_prepare_highres(input, expected_initial, expected_desired):
     )
 
 
-def test_prepare_hightres_inpaint():
-    input = Extent(3000, 2000)
+def test_prepare_highres_inpaint():
+    input = Extent(3008, 2000)
     image = Image.create(input)
     r, _ = resolution.prepare_image(image, Arch.flux, dummy_style, perf, inpaint=True)
-    assert r.extent.initial == Extent(1256, 840)
+    assert r.extent.initial == Extent(1264, 848)
     assert r.extent.desired == input
 
 
@@ -156,8 +156,8 @@ def test_prepare_hightres_inpaint():
     "input,expected",
     [
         (Extent(256, 256), Extent(512, 512)),
-        (Extent(128, 450), Extent(280, 960)),
-        (Extent(256, 333), Extent(456, 584)),  # multiple of 8
+        (Extent(128, 450), Extent(288, 960)),
+        (Extent(256, 333), Extent(464, 592)),  # multiple of 16
     ],
 )
 def test_prepare_lowres(input: Extent, expected: Extent):
@@ -174,7 +174,7 @@ def test_prepare_lowres(input: Extent, expected: Extent):
 
 @pytest.mark.parametrize(
     "input",
-    [Extent(512, 512), Extent(128, 600), Extent(768, 240)],
+    [Extent(512, 512), Extent(128, 608), Extent(768, 240)],
 )
 def test_prepare_passthrough(input: Extent):
     image = Image.create(input)
@@ -190,15 +190,15 @@ def test_prepare_passthrough(input: Extent):
 
 
 @pytest.mark.parametrize(
-    "input,expected", [(Extent(512, 513), Extent(512, 520)), (Extent(300, 1024), Extent(304, 1024))]
+    "input,expected", [(Extent(512, 513), Extent(512, 528)), (Extent(300, 1024), Extent(304, 1024))]
 )
-def test_prepare_multiple8(input: Extent, expected: Extent):
+def test_prepare_multiple16(input: Extent, expected: Extent):
     r, _ = resolution.prepare_extent(input, Arch.sd15, dummy_style, perf)
     assert (
         r.extent.input == input
         and r.extent.initial == expected
         and r.extent.target == input
-        and r.extent.desired == input.multiple_of(8)
+        and r.extent.desired == input.multiple_of(16)
     )
 
 
@@ -206,7 +206,7 @@ def test_prepare_multiple8(input: Extent, expected: Extent):
 def test_prepare_extent(sdver: Arch):
     input = Extent(1024, 1536)
     r, _ = resolution.prepare_extent(input, sdver, dummy_style, perf)
-    expected = Extent(512, 768) if sdver == Arch.sd15 else Extent(840, 1256)
+    expected = Extent(512, 768) if sdver == Arch.sd15 else Extent(848, 1264)
     assert r.extent.initial == expected and r.extent.desired == input and r.extent.target == input
 
 
@@ -228,8 +228,8 @@ def test_prepare_no_downscale(input: Extent):
     assert (
         r.initial_image
         and r.initial_image == image
-        and r.extent.initial == input.multiple_of(8)
-        and r.extent.desired == input.multiple_of(8)
+        and r.extent.initial == input.multiple_of(16)
+        and r.extent.desired == input.multiple_of(16)
         and r.extent.target == input
     )
 
@@ -237,11 +237,11 @@ def test_prepare_no_downscale(input: Extent):
 @pytest.mark.parametrize(
     "sd_ver,input,expected_initial,expected_desired",
     [
-        (Arch.sd15, Extent(2000, 2000), (632, 632), (1000, 1000)),
-        (Arch.sd15, Extent(1000, 1000), (632, 632), (1000, 1000)),
+        (Arch.sd15, Extent(2000, 2000), (640, 640), (1008, 1008)),
+        (Arch.sd15, Extent(1000, 1000), (640, 640), (1008, 1008)),
         (Arch.sdxl, Extent(1024, 1024), (1024, 1024), (1024, 1024)),
-        (Arch.sdxl, Extent(2000, 2000), (1000, 1000), (1000, 1000)),
-        (Arch.sd15, Extent(801, 801), (632, 632), (808, 808)),
+        (Arch.sdxl, Extent(2000, 2000), (1008, 1008), (1008, 1008)),
+        (Arch.sd15, Extent(801, 801), (640, 640), (816, 816)),
     ],
     ids=["sd15_large", "sd15_small", "sdxl_small", "sdxl_large", "sd15_odd"],
 )
@@ -260,11 +260,11 @@ def test_prepare_max_pixel_count(input, sd_ver, expected_initial, expected_desir
     [
         (Extent(512, 512), 1.0, Extent(512, 512), Extent(512, 512)),
         (Extent(1024, 800), 0.5, Extent(512, 400), Extent(512, 400)),
-        (Extent(2048, 1536), 0.5, Extent(728, 544), Extent(1024, 768)),
+        (Extent(2048, 1536), 0.5, Extent(736, 544), Extent(1024, 768)),
         (Extent(1024, 1024), 0.4, Extent(512, 512), Extent(512, 512)),
         (Extent(512, 768), 0.5, Extent(512, 768), Extent(512, 768)),
-        (Extent(512, 512), 2.0, Extent(632, 632), Extent(1024, 1024)),
-        (Extent(512, 512), 1.1, Extent(568, 568), Extent(568, 568)),
+        (Extent(512, 512), 2.0, Extent(640, 640), Extent(1024, 1024)),
+        (Extent(512, 512), 1.1, Extent(576, 576), Extent(576, 576)),
     ],
     ids=["1.0", "0.5", "0.5_large", "0.4", "0.5_tall", "2.0", "1.1"],
 )
@@ -296,13 +296,13 @@ def test_prepare_resolution_multiplier_inputs(multiplier):
 
 @pytest.mark.parametrize(
     "multiplier,expected",
-    [(0.5, Extent(1024, 1024)), (2, Extent(1000, 1000)), (0.25, Extent(512, 512))],
+    [(0.5, Extent(1024, 1024)), (2, Extent(1008, 1008)), (0.25, Extent(512, 512))],
 )
 def test_prepare_resolution_multiplier_max(multiplier, expected):
     perf_settings = PerformanceSettings(resolution_multiplier=multiplier, max_pixel_count=1)
     input = Extent(2048, 2048)
     r, _ = resolution.prepare_extent(input, Arch.sd15, dummy_style, perf_settings)
-    assert r.extent.initial.width <= 632 and r.extent.desired == expected
+    assert r.extent.initial.width <= 640 and r.extent.desired == expected
 
 
 tile_layouts = {

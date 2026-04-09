@@ -16,7 +16,7 @@ from typing import Any, NamedTuple
 from PyQt5.QtCore import QMetaObject, QObject, Qt, QUuid, pyqtSignal
 from PyQt5.QtGui import QBrush, QColor, QPainter
 
-from . import eventloop, util, workflow
+from . import eventloop, resolution, util, workflow
 from .api import (
     ConditioningInput,
     ControlInput,
@@ -1559,14 +1559,11 @@ def get_selection_modifiers(
         feather = min(feather, 0.01)
         invert = True
 
-    if isinstance(arch, InpaintContext):
-        if arch is InpaintContext.mask_bounds:
-            min_size = 0
-            multiple = 1
-        else:
-            multiple = 8
+    if arch is InpaintContext.mask_bounds:
+        min_size = 0
+        multiple = 1
     else:
-        multiple = arch.latent_compression_factor
+        multiple = resolution.diffusion_multiple
 
     return SelectionModifiers(
         feather_rel=feather * strength,

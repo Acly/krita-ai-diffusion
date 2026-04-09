@@ -133,6 +133,11 @@ class ScaledExtent(NamedTuple):
             return ScaleMode.resize
 
 
+# Image resolution for diffusion should be divisible by this factor, either because it is the
+# required latent compression factor, or to avoid border artifacts with UNET models.
+diffusion_multiple = 16
+
+
 class CheckpointResolution(NamedTuple):
     """Preferred resolution for a SD checkpoint, typically the resolution it was trained on."""
 
@@ -156,7 +161,7 @@ class CheckpointResolution(NamedTuple):
                 default = (640, 1280, 512**2, 1024**2)
             min_size, max_size, min_pixel_count, max_pixel_count = res.get(arch, default)
         else:
-            range_offset = multiple_of(round(0.2 * style.preferred_resolution), 8)
+            range_offset = multiple_of(round(0.2 * style.preferred_resolution), diffusion_multiple)
             min_size = style.preferred_resolution - range_offset
             max_size = style.preferred_resolution + range_offset
             min_pixel_count = max_pixel_count = style.preferred_resolution**2
@@ -186,7 +191,6 @@ def prepare_diffusion_input(
     desired = apply_resolution_settings(extent, perf)
 
     # The checkpoint may require a different resolution than what is requested.
-    mult = arch.latent_compression_factor
     if arch.is_edit:
         downscale = False  # Never use 2-pass generation for edit models
 
@@ -197,8 +201,8 @@ def prepare_diffusion_input(
     if downscale and max_scale < 0.9 and any(x > max_size for x in desired):
         # Desired resolution is significantly larger than the maximum size. Do 2 passes:
         # first pass at checkpoint resolution, then upscale to desired resolution and refine.
-        input = initial = (desired * max_scale).multiple_of(mult)
-        desired = desired.multiple_of(mult)
+        input = initial = (desired * max_scale).multiple_of(diffusion_multiple)
+        desired = desired.multiple_of(diffusion_multiple)
         # Input images are scaled down here for the initial pass directly to avoid encoding
         # and processing large images in subsequent steps.
         image = Image.scale(image, initial) if image else None
@@ -209,13 +213,13 @@ def prepare_diffusion_input(
         scaled = desired * min_scale
         # Avoid unnecessary scaling if too small resolution is caused by resolution multiplier
         if all(x >= min_size and x <= max_size for x in extent):
-            initial = desired = extent.multiple_of(mult)
+            initial = desired = extent.multiple_of(diffusion_multiple)
         else:
-            initial = desired = scaled.multiple_of(mult)
+            initial = desired = scaled.multiple_of(diffusion_multiple)
 
     else:  # Desired resolution is in acceptable range. Do 1 pass at desired resolution.
         input = extent
-        initial = desired = desired.multiple_of(mult)
+        initial = desired = desired.multiple_of(diffusion_multiple)
 
     # Scale down input images if needed due to resolution_multiplier or max_pixel_count
     if extent.pixel_count > desired.pixel_count:

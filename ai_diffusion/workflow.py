@@ -1327,7 +1327,7 @@ def upscale_tiled(
     models: ModelDict,
 ):
     upscale_factor = extent.initial.width / extent.input.width
-    multiple = models.arch.latent_compression_factor
+    multiple = resolution.diffusion_multiple
     if upscale.tile_overlap >= 0:
         layout = TileLayout(extent.initial, extent.desired.width, upscale.tile_overlap, multiple)
     else:
@@ -1714,9 +1714,9 @@ def prepare(
         else:
             tile_size = 1024
         tile_size = max(tile_size, target_extent.longest_side // 12)  # max 12x12 tiles total
-        tile_size = multiple_of(tile_size - 128, arch.latent_compression_factor)
+        tile_size = multiple_of(tile_size - 128, resolution.diffusion_multiple)
         tile_size = Extent(tile_size, tile_size)
-        initial_extent = target_extent.multiple_of(arch.latent_compression_factor)
+        initial_extent = target_extent.multiple_of(resolution.diffusion_multiple)
         extent = ExtentInput(canvas.extent, initial_extent, tile_size, target_extent)
         i.images = ImageInput(extent, canvas)
         assert upscale is not None

@@ -503,7 +503,7 @@ def test_refine(qtapp, client, setup):
 
     sdver, extent, strength = {
         "sd15": (Arch.sd15, Extent(768, 508), 0.5),
-        "sdxl": (Arch.sdxl, Extent(1111, 741), 0.65),
+        "sdxl": (Arch.sdxl, Extent(1111, 741), 0.5),
         "flux": (Arch.flux, Extent(1111, 741), 0.65),
         "flux_k": (Arch.flux_k, Extent(1111, 741), 1.0),
         "flux2": (Arch.flux2_4b, Extent(1111, 741), 1.0),
