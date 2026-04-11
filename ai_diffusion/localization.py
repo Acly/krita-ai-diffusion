@@ -1,4 +1,5 @@
 import json
+import re
 from pathlib import Path
 from typing import NamedTuple
 
@@ -71,6 +72,9 @@ class Localization:
                     language = settings.get("language", "en")
             except Exception as e:
                 log.warning(f"Could not read language settings: {e}")
+
+        if not isinstance(language, str) or not re.fullmatch(r"[a-z]{2}(?:[_-][A-Za-z0-9]+)?", language):
+            language = "en"
 
         language_file = Path(__file__).parent / "language" / f"{language}.json"
         try:
