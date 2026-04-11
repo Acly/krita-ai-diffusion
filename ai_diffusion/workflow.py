@@ -11,6 +11,7 @@ from .api import (
     CheckpointInput,
     ConditioningInput,
     ControlInput,
+    CustomLayerInput,
     CustomStyleInput,
     CustomWorkflowInput,
     ExtentInput,
@@ -1458,9 +1459,14 @@ def expand_custom(
             case "ETN_Parameter":
                 outputs[node.output(0)] = get_param(node)
             case "ETN_KritaImageLayer":
-                img, mask = w.load_image_and_mask(get_param(node, (Image, ImageCollection)))
+                layer: CustomLayerInput = get_param(node, CustomLayerInput)
+                img, mask = w.load_image_and_mask(layer.images)
+                if not layer.is_batch:
+                    img = w.unbatch_image(img)
+                    mask = w.unbatch_mask(mask)
                 outputs[node.output(0)] = img
                 outputs[node.output(1)] = mask
+                outputs[node.output(2)] = w.send_list(layer.names)
             case "ETN_KritaMaskLayer":
                 outputs[node.output(0)] = w.load_mask(get_param(node, (Image, ImageCollection)))
             case "ETN_KritaStyle":

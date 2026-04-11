@@ -341,7 +341,7 @@ def test_parameters():
     w.add("ChoiceNode", 1, choice_param=choice_param)
     choice_param_v3 = w.add("ETN_Parameter", 1, name="choice_v3", type="choice", default="c")
     w.add("ChoiceNodeV3", 1, choice_param=choice_param_v3)
-    w.add("ETN_KritaImageLayer", 1, name="image")
+    w.add("ETN_KritaImageLayer", 3, name="image")
     w.add("ETN_KritaMaskLayer", 1, name="mask")
     w.add("ETN_KritaStyle", 9, name="style", sampler_preset="live")  # type: ignore
 
