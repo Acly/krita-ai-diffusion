@@ -15,6 +15,11 @@ from .util import client_logger as log
 from .util import encode_json, read_json_with_comments, user_data_dir
 
 
+class LastDockerStatus(Enum):
+    hide = 0
+    docker = 1
+    dialog = 2
+
 class ServerMode(Enum):
     undefined = -1
     managed = 0
@@ -497,6 +502,9 @@ class Settings(QObject):
 
     last_news: str
     _last_news = Setting("Last seen news digest", "")
+
+    last_docker_status: LastDockerStatus
+    _last_docker_status = Setting("Last status of plugin docker", LastDockerStatus.hide)
 
     # Folder where intermediate images are stored for debug purposes (default: None)
     debug_image_folder = os.environ.get("KRITA_AI_DIFFUSION_DEBUG_IMAGE")

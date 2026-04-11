@@ -10,7 +10,7 @@ from .model import Workspace
 from .root import root
 from .settings import settings
 from .ui import actions
-from .ui.diffusion import ImageDiffusionWidget
+from .ui.diffusion import ImageDiffusionDocker
 from .ui.settings import SettingsDialog
 from .util import client_logger as log
 
@@ -49,6 +49,7 @@ class AIToolsExtension(Extension):
         notifier = Krita.instance().notifier()
         notifier.setActive(True)
         notifier.applicationClosing.connect(self.shutdown)  # type: ignore
+        notifier.viewCreated.connect(ImageDiffusionDocker.setFirstAfterStart)
 
     def setup(self):
         eventloop.run(root.autostart(self._settings_dialog.connection.update_ui))
@@ -88,5 +89,5 @@ class AIToolsExtension(Extension):
 
 Krita.instance().addExtension(AIToolsExtension(Krita.instance()))
 Krita.instance().addDockWidgetFactory(
-    DockWidgetFactory("imageDiffusion", DockWidgetFactoryBase.DockRight, ImageDiffusionWidget)  # type: ignore
+    DockWidgetFactory("imageDiffusion", DockWidgetFactoryBase.DockRight, ImageDiffusionDocker)  # type: ignore
 )
