@@ -444,7 +444,6 @@
     "missing": "欠損",
     "Tile Overlap": "タイルの重なり",
     "Resolution": "解像度",
-    "Detected base models:": "検出されたベースモデル",
     "Dynamic Caching": "ダイナミックキャッシング",
     "Re-use outputs of previous steps (First Block Cache) to speed up generation.": "生成を高速化するために、前回ステップの出力 (最初のブロックキャッシュ) を再利用します。",
     "Do not update regions": "領域を更新しない",
@@ -590,6 +589,9 @@
     "Switch to generate mode": null,
     "Recent Styles": null,
     "Switch to edit mode": null,
-    "Number of most recently used styles to show at the top of the style list": null
+    "Number of most recently used styles to show at the top of the style list": null,
+    "Workflow Parameters": null,
+    "Detected workloads for the following base models:": null,
+    "Reset all parameters to their default values": null
   }
 }

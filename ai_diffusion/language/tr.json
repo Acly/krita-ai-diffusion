@@ -444,7 +444,6 @@
     "missing": "eksik",
     "Tile Overlap": "Karoda Örtüşme",
     "Resolution": "Çözünürlük",
-    "Detected base models:": "Algılanan temel modeller:",
     "Dynamic Caching": "Dinamik Önbellekleme",
     "Re-use outputs of previous steps (First Block Cache) to speed up generation.": "Oluşturmayı hızlandırmak için önceki adımların çıktılarını yeniden kullan (İlk Blok Önbelleği).",
     "Do not update regions": "Bölgeleri güncelleme",
@@ -590,6 +589,9 @@
     "Switch to generate mode": null,
     "Recent Styles": null,
     "Switch to edit mode": null,
-    "Number of most recently used styles to show at the top of the style list": null
+    "Number of most recently used styles to show at the top of the style list": null,
+    "Workflow Parameters": null,
+    "Detected workloads for the following base models:": null,
+    "Reset all parameters to their default values": null
   }
 }

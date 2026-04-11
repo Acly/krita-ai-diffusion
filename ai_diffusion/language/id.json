@@ -115,7 +115,6 @@
     "Depth": null,
     "Describe content you want to avoid.": "Jelaskan konten yang ingin Anda hindari.",
     "Describe the content you want to see, or leave empty.": "Jelaskan konten yang ingin Anda lihat, atau biarkan kosong.",
-    "Detected base models:": "Model dasar yang terdeteksi:",
     "Device": "Perangkat",
     "Diffusion": "Difusi",
     "Diffusion Architecture": "Arsitektur Difusi",
@@ -590,6 +589,9 @@
     "Switch to generate mode": null,
     "Recent Styles": null,
     "Switch to edit mode": null,
-    "Number of most recently used styles to show at the top of the style list": null
+    "Number of most recently used styles to show at the top of the style list": null,
+    "Workflow Parameters": null,
+    "Detected workloads for the following base models:": null,
+    "Reset all parameters to their default values": null
   }
 }

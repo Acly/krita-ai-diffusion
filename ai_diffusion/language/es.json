@@ -105,7 +105,6 @@
     "Depth": "Profundidad",
     "Describe content you want to avoid.": "Describe el contenido que deseas evitar.",
     "Describe the content you want to see, or leave empty.": "Describe el contenido que deseas ver, o déjalo vacío.",
-    "Detected base models:": "Modelos base detectados:",
     "Device": "Dispositivo",
     "Diffusion": "Difusión",
     "Diffusion Architecture": "Arquitectura de Difusión",
@@ -590,6 +589,9 @@
     "Switch to generate mode": null,
     "Recent Styles": null,
     "Switch to edit mode": null,
-    "Number of most recently used styles to show at the top of the style list": null
+    "Number of most recently used styles to show at the top of the style list": null,
+    "Workflow Parameters": null,
+    "Detected workloads for the following base models:": null,
+    "Reset all parameters to their default values": null
   }
 }

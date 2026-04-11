@@ -444,7 +444,6 @@
     "missing": "缺少",
     "Tile Overlap": "分塊重疊",
     "Resolution": "解析度",
-    "Detected base models:": "偵測到的基礎模型：",
     "Dynamic Caching": "動態快取",
     "Re-use outputs of previous steps (First Block Cache) to speed up generation.": "重複使用先前步驟的輸出（第一區塊快取）以加速生成。",
     "Do not update regions": "不要更新區域",
@@ -590,6 +589,9 @@
     "Switch to generate mode": "切換到生成模式",
     "Recent Styles": "近期使用風格",
     "Switch to edit mode": "切換到編輯模式",
-    "Number of most recently used styles to show at the top of the style list": "在風格清單頂部顯示多少個近期使用風格"
+    "Number of most recently used styles to show at the top of the style list": "在風格清單頂部顯示多少個近期使用風格",
+    "Workflow Parameters": null,
+    "Detected workloads for the following base models:": null,
+    "Reset all parameters to their default values": null
   }
 }

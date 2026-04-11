@@ -105,7 +105,6 @@
     "Depth": "Profondità",
     "Describe content you want to avoid.": "Descrivi il contenuto che vuoi evitare.",
     "Describe the content you want to see, or leave empty.": "Descrivi il contenuto che vuoi vedere o lascia vuoto.",
-    "Detected base models:": "Modelli di base rilevati:",
     "Device": "Dispositivo",
     "Diffusion": "Diffusione",
     "Diffusion Architecture": "Architettura della Diffusione",
@@ -590,6 +589,9 @@
     "Switch to generate mode": "Passa alla modalità di generazione",
     "Recent Styles": "Stili Recenti",
     "Switch to edit mode": "Passa alla modalità modifica",
-    "Number of most recently used styles to show at the top of the style list": "Numero di stili più utilizzati di recente da visualizzare in cima all'elenco degli stili"
+    "Number of most recently used styles to show at the top of the style list": "Numero di stili più utilizzati di recente da visualizzare in cima all'elenco degli stili",
+    "Workflow Parameters": null,
+    "Detected workloads for the following base models:": null,
+    "Reset all parameters to their default values": null
   }
 }
