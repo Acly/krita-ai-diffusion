@@ -1,13 +1,15 @@
 from __future__ import annotations
 
 import krita
-from krita import *
 from krita import DockWidget, Krita
-from PyQt5.QtCore import Qt, pyqtSignal
+from PyQt5.QtCore import Qt, pyqtSignal, QEvent, QMutex, QObject
+from PyQt5.QtGui import QCursor, QGuiApplication, QCloseEvent, QShowEvent
 from PyQt5.QtWidgets import (
+    QAction,
     QCheckBox,
     QHBoxLayout,
     QLabel,
+    QMainWindow,
     QPushButton,
     QStackedWidget,
     QVBoxLayout,
@@ -287,7 +289,7 @@ class ImageDiffusionDialog(QMainWindow):
             else:
                 self.setWindowTitle(self.parentWidget().windowTitle() + ' - ' + _("AI Image Generation"))
 
-    def closeEvent(self, event: QtGui.QCloseEvent):
+    def closeEvent(self, event: QCloseEvent):
         self.signal_closed.emit()
         return super().closeEvent(event)
 
@@ -373,7 +375,7 @@ class ImageDiffusionDocker(DockWidget):
         if canvas is not None and canvas.view() is not None:
             self._centralWidget.update_content()
         
-    def showEvent(self, event: QtGui.QShowEvent) -> None:
+    def showEvent(self, event: QShowEvent) -> None:
         #print('PluginDevToolsDocker showEvent')
         #print('    sender= ', self.sender())
         if self.titleBarEventListening == False:
@@ -395,7 +397,7 @@ class ImageDiffusionDocker(DockWidget):
             self.signal_leaveFloating.emit()
         return super().showEvent(event)
 
-    def changeEvent(self, event: QtCore.QEvent) -> None:
+    def changeEvent(self, event: QEvent) -> None:
         if event.type() == QEvent.Type.ParentChange:
             if isinstance(self.parentWidget(), QWidget):
                 self._floatModeDialog.setParent(self.parentWidget())
