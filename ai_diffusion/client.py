@@ -257,7 +257,7 @@ class ClientModels:
         if result := self.resources.get(id.string):
             return result
         # Fallback to epsilon model if v-prediction model not found
-        if id.arch is Arch.illu_v:
+        if id.arch in (Arch.illu_v, Arch.illu_rf):
             if result := self.resources.get(id._replace(arch=Arch.illu).string):
                 return result
         # Search for architecture-agnostic model
