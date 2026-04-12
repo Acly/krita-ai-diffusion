@@ -376,7 +376,7 @@ class ImageDiffusionDocker(DockWidget):
             self._centralWidget.update_content()
         
     def showEvent(self, event: QShowEvent) -> None:
-        #print('PluginDevToolsDocker showEvent')
+        #print('ImageDiffusionDocker showEvent')
         #print('    sender= ', self.sender())
         if self.titleBarEventListening == False:
             if isinstance(self.titleBarWidget(), QWidget):
@@ -419,7 +419,7 @@ class ImageDiffusionDocker(DockWidget):
 
 
     @staticmethod
-    def setFirstAfterStart():
+    def resetDockerStatus(senderName=str()):
         # Only retrieve docker instance after the main window was completely created
         try:
             Krita.instance().activeWindow().qwindow()
@@ -429,12 +429,14 @@ class ImageDiffusionDocker(DockWidget):
         for d in Krita.instance().dockers():
             if d.objectName() == "imageDiffusion":
                 if isinstance(d, ImageDiffusionDocker):
-                    if settings.last_docker_status == LastDockerStatus.dialog:
-                        d.applyDialogMode('initialize')
+                    if len(Krita.instance().documents()) == 0:
+                        d.applyHideMode('allImageClosed')
+                    elif settings.last_docker_status == LastDockerStatus.dialog:
+                        d.applyDialogMode(senderName)
                     elif settings.last_docker_status == LastDockerStatus.docker:
-                        d.applyDockerMode('initialize')
+                        d.applyDockerMode(senderName)
                     else:
-                        d.applyDockerMode('initialize')
+                        d.applyHideMode(senderName)
 
 
     def applyHideMode(self, senderName=str()):
@@ -445,8 +447,9 @@ class ImageDiffusionDocker(DockWidget):
         self.close()
         self._floatModeDialog.close()
         self.mutex.unlock()
-        settings.last_docker_status = LastDockerStatus.hide
-        settings.save()
+        if senderName != 'allImageClosed':
+            settings.last_docker_status = LastDockerStatus.hide
+            settings.save()
 
 
     def applyDockerMode(self, senderName=str()):
@@ -468,11 +471,19 @@ class ImageDiffusionDocker(DockWidget):
         self.close()
         self._floatModeDialog.setCentralWidget(self._centralWidget)
         self._floatModeDialog.show()
-        self._floatModeDialog.activateWindow()
-        newWidth = self._floatModeDialog.size().width()
-        newPoint = QCursor.pos()
-        newPoint.setX(newPoint.x()-int(newWidth/2))
-        self._floatModeDialog.move(self._floatModeDialog.mapFrom(self._floatModeDialog, newPoint))
+        if senderName == 'initialize':
+            if len(Krita.instance().documents()) == 1:
+                self._floatModeDialog.activateWindow()
+                newWidth = self._floatModeDialog.size().width()
+                newPoint = QCursor.pos()
+                newPoint.setX(newPoint.x()-int(newWidth/2))
+                self._floatModeDialog.move(self._floatModeDialog.mapFrom(self._floatModeDialog, newPoint))
+        elif senderName != 'imageClosed':
+            self._floatModeDialog.activateWindow()
+            newWidth = self._floatModeDialog.size().width()
+            newPoint = QCursor.pos()
+            newPoint.setX(newPoint.x()-int(newWidth/2))
+            self._floatModeDialog.move(self._floatModeDialog.mapFrom(self._floatModeDialog, newPoint))
         self.mutex.unlock()
         settings.last_docker_status = LastDockerStatus.dialog
         settings.save()
