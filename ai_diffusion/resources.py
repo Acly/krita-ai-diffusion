@@ -95,6 +95,7 @@ class Arch(Enum):
     qwen_e = "Qwen Edit"
     qwen_e_p = "Qwen Edit Plus"
     qwen_l = "Qwen Layered"
+    anima = "Anima"
     zimage = "Z-Image"
 
     auto = "Automatic"
@@ -134,6 +135,8 @@ class Arch(Enum):
             return Arch.qwen_l
         if string == "qwen-image":
             return Arch.qwen
+        if string == "anima" or (string == "unknown" and "anima" in filename):
+            return Arch.anima
         if string in {"z-image", "zimage"}:
             return Arch.zimage
         return None
@@ -187,7 +190,7 @@ class Arch(Enum):
 
     @property
     def supports_attention_guidance(self):
-        return self in [Arch.sd15, Arch.sdxl, Arch.illu, Arch.illu_v]
+        return self in [Arch.sd15, Arch.sdxl, Arch.illu, Arch.illu_v, Arch.anima]
 
     @property
     def supports_cfg(self):
@@ -237,6 +240,8 @@ class Arch(Enum):
                 return ["t5"]
             case Arch.qwen | Arch.qwen_e | Arch.qwen_e_p | Arch.qwen_l:
                 return ["qwen"]
+            case Arch.anima:
+                return ["qwen_3_06b"]
             case Arch.zimage:
                 return ["qwen_3_4b"]
         raise ValueError(f"Unsupported architecture: {self}")
@@ -258,6 +263,7 @@ class Arch(Enum):
             Arch.qwen_e,
             Arch.qwen_e_p,
             Arch.qwen_l,
+            Arch.anima,
             Arch.zimage,
         ]
 
@@ -791,6 +797,7 @@ search_paths: dict[str, list[str]] = {
     resource_id(ResourceKind.text_encoder, Arch.all, "qwen"): ["qwen_2.5_vl_7b", "qwen2.5-vl-7b", "qwen_2", "qwen-2", "qwen"],
     resource_id(ResourceKind.text_encoder, Arch.all, "qwen_3_4b"): ["qwen_3_4b", "qwen3-4b", "qwen3_4b", "qwen_3", "qwen-3"],
     resource_id(ResourceKind.text_encoder, Arch.all, "qwen_3_8b"): ["qwen_3_8b", "qwen3-8b", "qwen3_8b"],
+    resource_id(ResourceKind.text_encoder, Arch.all, "qwen_3_06b"): ["qwen_3_06b"],
     resource_id(ResourceKind.vae, Arch.sd15, "default"): ["vae-ft-mse-840000-ema"],
     resource_id(ResourceKind.vae, Arch.sdxl, "default"): ["sdxl_vae"],
     resource_id(ResourceKind.vae, Arch.illu, "default"): ["sdxl_vae"],
@@ -805,6 +812,7 @@ search_paths: dict[str, list[str]] = {
     resource_id(ResourceKind.vae, Arch.qwen_e, "default"): ["qwen"],
     resource_id(ResourceKind.vae, Arch.qwen_e_p, "default"): ["qwen"],
     resource_id(ResourceKind.vae, Arch.qwen_l, "default"): ["qwen_image_layered_vae"],
+    resource_id(ResourceKind.vae, Arch.anima, "default"): ["qwen_image"],
     resource_id(ResourceKind.vae, Arch.zimage, "default"): ["z-image", "flux-", "flux_", "flux/", "flux1", "ae.s"],
 }
 # fmt: on
@@ -815,6 +823,7 @@ required_resource_ids = {
     ResourceId(ResourceKind.text_encoder, Arch.qwen, "qwen"),
     ResourceId(ResourceKind.text_encoder, Arch.qwen_e, "qwen"),
     ResourceId(ResourceKind.text_encoder, Arch.qwen_e_p, "qwen"),
+    ResourceId(ResourceKind.text_encoder, Arch.anima, "qwen_3_06b"),
     ResourceId(ResourceKind.text_encoder, Arch.zimage, "qwen_3_4b"),
     ResourceId(ResourceKind.text_encoder, Arch.flux2_4b, "qwen_3_4b"),
     ResourceId(ResourceKind.text_encoder, Arch.flux2_9b, "qwen_3_8b"),
@@ -834,6 +843,7 @@ required_resource_ids = {
     ResourceId(ResourceKind.vae, Arch.qwen, "default"),
     ResourceId(ResourceKind.vae, Arch.qwen_e, "default"),
     ResourceId(ResourceKind.vae, Arch.qwen_e_p, "default"),
+    ResourceId(ResourceKind.vae, Arch.anima, "default"),
     ResourceId(ResourceKind.vae, Arch.zimage, "default"),
     ResourceId(ResourceKind.vae, Arch.flux2_4b, "default"),
     ResourceId(ResourceKind.vae, Arch.flux2_9b, "default"),
