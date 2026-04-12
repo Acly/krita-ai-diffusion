@@ -2,8 +2,8 @@ from __future__ import annotations
 
 import krita
 from krita import DockWidget, Krita
-from PyQt5.QtCore import Qt, pyqtSignal, QEvent, QMutex, QObject
-from PyQt5.QtGui import QCursor, QGuiApplication, QCloseEvent, QShowEvent
+from PyQt5.QtCore import QEvent, QMutex, QObject, Qt, pyqtSignal
+from PyQt5.QtGui import QCloseEvent, QCursor, QGuiApplication, QShowEvent
 from PyQt5.QtWidgets import (
     QAction,
     QCheckBox,
@@ -431,11 +431,11 @@ class ImageDiffusionDocker(DockWidget):
         return super().eventFilter(a0, a1)
 
     @staticmethod
-    def resetDockerStatus(senderName=str()):
+    def resetDockerStatus(senderName=""):
         # Only retrieve docker instance after the main window was completely created
         try:
             Krita.instance().activeWindow().qwindow()
-        except:
+        except AttributeError:
             print("resetDockerStatus(): main window not created at this moment")
 
         for d in Krita.instance().dockers():
@@ -450,7 +450,7 @@ class ImageDiffusionDocker(DockWidget):
                     else:
                         d.applyHideMode(senderName)
 
-    def applyHideMode(self, senderName=str()):
+    def applyHideMode(self, senderName=""):
         if self.mutex.tryLock() == False:
             return
         self.setFloating(False)
@@ -462,7 +462,7 @@ class ImageDiffusionDocker(DockWidget):
             settings.last_docker_status = LastDockerStatus.hide
             settings.save()
 
-    def applyDockerMode(self, senderName=str()):
+    def applyDockerMode(self, senderName=""):
         if self.mutex.tryLock() == False:
             return
         self.setFloating(False)
@@ -473,7 +473,7 @@ class ImageDiffusionDocker(DockWidget):
         settings.last_docker_status = LastDockerStatus.docker
         settings.save()
 
-    def applyDialogMode(self, senderName=str()):
+    def applyDialogMode(self, senderName=""):
         if self.mutex.tryLock() == False:
             return
         self.setFloating(False)
