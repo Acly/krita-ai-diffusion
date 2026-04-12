@@ -49,8 +49,8 @@ class AIToolsExtension(Extension):
         notifier = Krita.instance().notifier()
         notifier.setActive(True)
         notifier.applicationClosing.connect(self.shutdown)  # type: ignore
-        notifier.viewCreated.connect(lambda: ImageDiffusionDocker.resetDockerStatus('initialize'))  # type: ignore
-        notifier.imageClosed.connect(lambda: ImageDiffusionDocker.resetDockerStatus('imageClosed'))  # type: ignore
+        notifier.viewCreated.connect(lambda: ImageDiffusionDocker.resetDockerStatus("initialize"))  # type: ignore
+        notifier.imageClosed.connect(lambda: ImageDiffusionDocker.resetDockerStatus("imageClosed"))  # type: ignore
 
     def setup(self):
         eventloop.run(root.autostart(self._settings_dialog.connection.update_ui))

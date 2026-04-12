@@ -20,6 +20,7 @@ class LastDockerStatus(Enum):
     docker = 1
     dialog = 2
 
+
 class ServerMode(Enum):
     undefined = -1
     managed = 0
