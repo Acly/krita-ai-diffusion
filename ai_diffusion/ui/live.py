@@ -3,10 +3,10 @@ from __future__ import annotations
 from PyQt5.QtCore import QMetaObject, QRectF, Qt, QTimer
 from PyQt5.QtGui import QColor, QFont, QPainter, QPen
 from PyQt5.QtWidgets import (
+    QDoubleSpinBox,
     QHBoxLayout,
     QLabel,
     QSizePolicy,
-    QSpinBox,
     QToolButton,
     QVBoxLayout,
     QWidget,
@@ -165,9 +165,10 @@ class LiveWidget(QWidget):
 
         self.strength_slider = StrengthWidget(parent=self)
 
-        self.seed_input = QSpinBox(self)
+        self.seed_input = QDoubleSpinBox(self)
+        self.seed_input.setDecimals(0)
         self.seed_input.setMinimum(0)
-        self.seed_input.setMaximum(2**31 - 1)
+        self.seed_input.setMaximum(2**32 - 1)
         self.seed_input.setPrefix(_("Seed") + ": ")
         self.seed_input.setToolTip(
             _(
@@ -245,11 +246,15 @@ class LiveWidget(QWidget):
         if self._model != model:
             Binding.disconnect_all(self._model_bindings)
             self._model = model
+            self.seed_input.setValue(model.seed)
             self._model_bindings = [
                 bind(model, "workspace", self.workspace_select, "value", Bind.one_way),
                 bind(model, "style", self.style_select, "value"),
                 bind(model.live, "strength", self.strength_slider, "value"),
-                bind(model, "seed", self.seed_input, "value"),
+                model.seed_changed.connect(lambda: self.seed_input.setValue(self._model.seed)),
+                self.seed_input.valueChanged.connect(
+                    lambda v: setattr(self._model, "seed", int(v))
+                ),
                 bind(model, "error", self.error_box, "error", Bind.one_way),
                 model.live.is_active_changed.connect(self.update_is_active),
                 model.live.is_recording_changed.connect(self.update_is_recording),
