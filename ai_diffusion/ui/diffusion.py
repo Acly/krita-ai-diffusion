@@ -407,6 +407,10 @@ class ImageDiffusionDocker(DockWidget):
             self.signal_leaveFloating.emit()
         return super().showEvent(a0)
 
+    def closeEvent(self, event: QCloseEvent | None):
+        self.applyHideMode()
+        return super().closeEvent(event)
+
     def changeEvent(self, event: QEvent | None) -> None:
         if isinstance(event, QEvent):
             if event.type() == QEvent.Type.ParentChange:
