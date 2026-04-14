@@ -445,7 +445,7 @@ class ImageDiffusionDocker(DockWidget):
         for d in Krita.instance().dockers():
             if d.objectName() == "imageDiffusion":
                 if isinstance(d, ImageDiffusionDocker):
-                    if len(Krita.instance().documents()) == 0:
+                    if len(Krita.instance().activeWindow().views()) == 0:
                         d.applyHideMode("allImageClosed")
                     elif settings.last_docker_status == LastDockerStatus.dialog:
                         d.applyDialogMode(senderName)
@@ -483,17 +483,9 @@ class ImageDiffusionDocker(DockWidget):
         self.setFloating(False)
         self.close()
         self._floatModeDialog.setCentralWidget(self._centralWidget)
+        _isVisibleBefore = self._floatModeDialog.isVisible()
         self._floatModeDialog.show()
-        if senderName == "initialize":
-            if len(Krita.instance().documents()) == 1:
-                self._floatModeDialog.activateWindow()
-                newWidth = self._floatModeDialog.size().width()
-                newPoint = QCursor.pos()
-                newPoint.setX(newPoint.x() - int(newWidth / 2))
-                self._floatModeDialog.move(
-                    self._floatModeDialog.mapFrom(self._floatModeDialog, newPoint)
-                )
-        elif senderName != "imageClosed":
+        if not _isVisibleBefore:
             self._floatModeDialog.activateWindow()
             newWidth = self._floatModeDialog.size().width()
             newPoint = QCursor.pos()
