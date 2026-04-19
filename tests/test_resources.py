@@ -54,6 +54,7 @@ def test_resource_ids_exist():
             Arch.qwen_e_p,
             Arch.flux2_9b,
             Arch.anima,
+            Arch.ernie,
         ):
             continue  # no model downloads yet
         model = res.find_resource(resource_id)

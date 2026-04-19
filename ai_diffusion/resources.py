@@ -97,6 +97,7 @@ class Arch(Enum):
     qwen_l = "Qwen Layered"
     anima = "Anima"
     zimage = "Z-Image"
+    ernie = "ERNIE Image"
 
     auto = "Automatic"
     all = "All"
@@ -139,6 +140,8 @@ class Arch(Enum):
             return Arch.anima
         if string in {"z-image", "zimage"}:
             return Arch.zimage
+        if string in {"ernie-image", "ernie_image"}:
+            return Arch.ernie
         return None
 
     @staticmethod
@@ -244,6 +247,8 @@ class Arch(Enum):
                 return ["qwen_3_06b"]
             case Arch.zimage:
                 return ["qwen_3_4b"]
+            case Arch.ernie:
+                return ["ministral"]
         raise ValueError(f"Unsupported architecture: {self}")
 
     @staticmethod
@@ -265,6 +270,7 @@ class Arch(Enum):
             Arch.qwen_l,
             Arch.anima,
             Arch.zimage,
+            Arch.ernie,
         ]
 
 
@@ -799,6 +805,7 @@ search_paths: dict[str, list[str]] = {
     resource_id(ResourceKind.text_encoder, Arch.all, "qwen_3_4b"): ["qwen_3_4b", "qwen3-4b", "qwen3_4b", "qwen_3", "qwen-3"],
     resource_id(ResourceKind.text_encoder, Arch.all, "qwen_3_8b"): ["qwen_3_8b", "qwen3-8b", "qwen3_8b"],
     resource_id(ResourceKind.text_encoder, Arch.all, "qwen_3_06b"): ["qwen_3_06b", "qwen3-06b", "qwen3_06b"],
+    resource_id(ResourceKind.text_encoder, Arch.all, "ministral"): ["ministral-3-3b", "ministral"],
     resource_id(ResourceKind.vae, Arch.sd15, "default"): ["vae-ft-mse-840000-ema"],
     resource_id(ResourceKind.vae, Arch.sdxl, "default"): ["sdxl_vae"],
     resource_id(ResourceKind.vae, Arch.illu, "default"): ["sdxl_vae"],
@@ -815,6 +822,7 @@ search_paths: dict[str, list[str]] = {
     resource_id(ResourceKind.vae, Arch.qwen_l, "default"): ["qwen_image_layered_vae"],
     resource_id(ResourceKind.vae, Arch.anima, "default"): ["qwen_image"],
     resource_id(ResourceKind.vae, Arch.zimage, "default"): ["z-image", "flux-", "flux_", "flux/", "flux1", "ae.s"],
+    resource_id(ResourceKind.vae, Arch.ernie, "default"): ["flux2"],
 }
 # fmt: on
 
@@ -848,6 +856,8 @@ required_resource_ids = {
     ResourceId(ResourceKind.vae, Arch.zimage, "default"),
     ResourceId(ResourceKind.vae, Arch.flux2_4b, "default"),
     ResourceId(ResourceKind.vae, Arch.flux2_9b, "default"),
+    ResourceId(ResourceKind.text_encoder, Arch.ernie, "ministral"),
+    ResourceId(ResourceKind.vae, Arch.ernie, "default"),
 }
 
 recommended_resource_ids = [
