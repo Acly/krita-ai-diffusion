@@ -83,6 +83,8 @@ def checkpoint_icon(arch: Arch, format: FileFormat | None = None, client: Client
         return icon("sd-version-z-image")
     elif arch is Arch.anima:
         return icon("sd-version-anima")
+    elif arch is Arch.ernie:
+        return icon("sd-version-ernie")
     else:
         log.warning(f"Unresolved SD version {arch}, cannot fetch icon")
         return icon("warning")
