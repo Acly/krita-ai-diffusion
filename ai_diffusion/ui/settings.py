@@ -734,6 +734,7 @@ class InterfaceSettings(SettingsTab):
             "generation_finished_action",
             ComboBoxSetting(S._generation_finished_action, parent=self),
         )
+        self.add("preview_double_click_apply", SwitchSetting(S._preview_double_click_apply, parent=self))
         self.add("apply_behavior", ComboBoxSetting(S._apply_behavior, parent=self))
         self.add("apply_region_behavior", ComboBoxSetting(S._apply_region_behavior, parent=self))
         self.add("apply_behavior_live", ComboBoxSetting(S._apply_behavior_live, parent=self))
