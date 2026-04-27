@@ -148,8 +148,8 @@ class RequestManager:
     def post(self, url: str, data: dict, bearer: str | None = None):
         return self.http("POST", url, data, bearer=bearer)
 
-    def put(self, url: str, data: QByteArray | bytes):
-        return self.http("PUT", url, data)
+    def put(self, url: str, data: QByteArray | bytes, timeout: float | None = None):
+        return self.http("PUT", url, data, timeout=timeout)
 
     async def upload(self, url: str, data: QByteArray | bytes, sha256: str | None = None):
         self._cleanup()

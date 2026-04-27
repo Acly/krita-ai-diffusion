@@ -276,8 +276,8 @@ class ComfyClient(Client):
     async def _post(self, op: str, data: dict):
         return await self._requests.post(f"{self.url}/{op}", data)
 
-    async def _put(self, op: str, data: bytes):
-        return await self._requests.put(f"{self.url}/{op}", data)
+    async def _put(self, op: str, data: bytes, timeout: float | None = None):
+        return await self._requests.put(f"{self.url}/{op}", data, timeout=timeout)
 
     async def enqueue(self, work: WorkflowInput, front: bool = False):
         job = JobInfo.create(work)
