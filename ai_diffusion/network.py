@@ -118,7 +118,7 @@ class RequestManager:
 
         request = self._prepare_request(url, timeout, bearer)
 
-        assert method in ["GET", "POST", "PUT"]
+        assert method in ["GET", "POST", "PUT", "HEAD"]
         if method == "POST":
             data = data or {}
             data_bytes = QByteArray(json.dumps(data).encode("utf-8"))
@@ -134,6 +134,8 @@ class RequestManager:
             )
             request.setHeader(QNetworkRequest.KnownHeaders.ContentLengthHeader, data.size())
             reply = self._net.put(request, data)
+        elif method == "HEAD":
+            reply = self._net.head(request)        
         else:
             reply = self._net.get(request)
 
@@ -148,8 +150,11 @@ class RequestManager:
     def post(self, url: str, data: dict, bearer: str | None = None):
         return self.http("POST", url, data, bearer=bearer)
 
-    def put(self, url: str, data: QByteArray | bytes):
-        return self.http("PUT", url, data)
+    def put(self, url: str, data: QByteArray | bytes, timeout: float | None = None):
+        return self.http("PUT", url, data, timeout=timeout)
+
+    def head(self, url: str, timeout: float | None = None, bearer: str | None = None):
+        return self.http("HEAD", url, timeout=timeout, bearer=bearer)
 
     async def upload(self, url: str, data: QByteArray | bytes, sha256: str | None = None):
         self._cleanup()
