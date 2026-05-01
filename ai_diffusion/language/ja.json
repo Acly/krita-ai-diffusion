@@ -515,7 +515,7 @@
     "Prompt (Evaluated)": "プロンプト(評価)",
     "Control Layers": "コントロールレイヤー",
     "Copy Prompt (Evaluated)": "プロンプト(評価)をコピー",
-    "Discovering models": "モデルを発見",
+    "Discovering models": "モデルを検索中",
     "Previous installation is incomplete": "以前のインストールが完了していません",
     "Install and run a local ComfyUI server on your machine. Installation and updates are performed automatically by the plugin. Requires a compatible GPU (NVIDIA with at least 6GB VRAM recommended).": "あなたのPCにローカルで動作するComfyUIサーバーをインストールします。インストールとアップデートはプラグインによって自動実行されます。互換性のあるGPU（6GB以上のVRAMを搭載したNVIDIAを推奨）が必要です。",
     "Individual Packages": "個別パッケージ",
@@ -586,12 +586,12 @@
     "System Information": "システム情報",
     "Please attach this information when reporting issues!": "問題を報告する際にはこの情報を添付してください！",
     "Diagnostics Information": "診断情報",
-    "Switch to generate mode": null,
-    "Recent Styles": null,
-    "Switch to edit mode": null,
-    "Number of most recently used styles to show at the top of the style list": null,
-    "Workflow Parameters": null,
-    "Detected workloads for the following base models:": null,
-    "Reset all parameters to their default values": null
+    "Switch to generate mode": "生成モードに切り替え",
+    "Recent Styles": "最新使ったスタイル",
+    "Switch to edit mode": "編集モードに切り替え",
+    "Number of most recently used styles to show at the top of the style list": "スタイルリストの最上部に表示する、最近使用したスタイルの数",
+    "Workflow Parameters": "ワークフローパラメータ",
+    "Detected workloads for the following base models:": "以下の基本モデルで検出されたワークロード:",
+    "Reset all parameters to their default values": "すべてのパラメータをデフォルト値にリセットします"
   }
 }
