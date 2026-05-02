@@ -2,11 +2,14 @@ from __future__ import annotations
 
 import krita
 from krita import DockWidget, Krita
-from PyQt5.QtCore import Qt, pyqtSignal
+from PyQt5.QtCore import QEvent, QMutex, QObject, Qt, pyqtSignal
+from PyQt5.QtGui import QCloseEvent, QCursor, QGuiApplication, QShowEvent
 from PyQt5.QtWidgets import (
+    QAction,
     QCheckBox,
     QHBoxLayout,
     QLabel,
+    QMainWindow,
     QPushButton,
     QStackedWidget,
     QVBoxLayout,
@@ -18,7 +21,7 @@ from ..localization import translate as _
 from ..model import Model, Workspace
 from ..root import root
 from ..server import Server, ServerState
-from ..settings import ServerMode, settings
+from ..settings import LastDockerStatus, ServerMode, settings
 from ..updates import UpdateState
 from . import theme
 from .animation import AnimationWidget
@@ -272,10 +275,31 @@ class WelcomeWidget(QWidget):
         return self._news_widget.has_news
 
 
-class ImageDiffusionWidget(DockWidget):
+class ImageDiffusionDialog(QMainWindow):
+    signal_closed = pyqtSignal()
+
+    def __init__(self, parent=None):
+        super().__init__(parent)
+        self.setWindowTitle(_("AI Image Generation"))
+
+    def updateWindowTitle(self):
+        if isinstance(self.parentWidget(), QWidget):
+            self.setObjectName("ImageDiffusionDialog_" + self.parentWidget().objectName())  # type: ignore
+            if self.parentWidget().windowTitle().__len__() == 0:  # type: ignore
+                self.setWindowTitle(_("AI Image Generation"))
+            else:
+                self.setWindowTitle(
+                    self.parentWidget().windowTitle() + " - " + _("AI Image Generation")  # type: ignore
+                )
+
+    def closeEvent(self, a0: QCloseEvent | None):
+        self.signal_closed.emit()
+        return super().closeEvent(a0)
+
+
+class ImageDiffusionWidget(QWidget):
     def __init__(self):
         super().__init__()
-        self.setWindowTitle(_("AI Image Generation"))
         self._welcome = WelcomeWidget(root.server)
         self._generation = GenerationWidget()
         self._upscaling = UpscaleWidget()
@@ -291,16 +315,14 @@ class ImageDiffusionWidget(DockWidget):
         self._frame.addWidget(self._animation)
         self._frame.addWidget(self._custom)
         self._frame.addWidget(self._custom_placeholder)
-        self.setWidget(self._frame)
+        self._layout = QVBoxLayout()
+        self.setLayout(self._layout)
+        self._layout.addWidget(self._frame)
 
         self._welcome.accepted.connect(self.update_content)
         root.connection.state_changed.connect(self.update_content)
         root.auto_update.state_changed.connect(self.update_content)
         root.model_created.connect(self.register_model)
-
-    def canvasChanged(self, canvas: krita.Canvas):
-        if canvas is not None and canvas.view() is not None:
-            self.update_content()
 
     def register_model(self, model: Model):
         model.workspace_changed.connect(self.update_content)
@@ -333,3 +355,144 @@ class ImageDiffusionWidget(DockWidget):
         elif model.workspace is Workspace.custom:
             self._custom.model = model
             self._frame.setCurrentWidget(self._custom)
+
+
+class ImageDiffusionDocker(DockWidget):
+    signal_leaveFloating = pyqtSignal()
+    signal_manualOpenDocker = pyqtSignal()
+
+    def __init__(self):
+        super().__init__()
+        self.setWindowTitle(_("AI Image Generation"))
+        self.titleBarEventListening = False
+        # Prepare a standalone window
+        self._floatModeDialog = ImageDiffusionDialog(self.parent())
+        # Prepare content widget. This widget will be added into docker itself or self._floatModeDialog. Only keep one instance.
+        self._centralWidget = ImageDiffusionWidget()
+        self.mutex = QMutex()
+        # Status route: modeAllHide <--> modeDocker <--> modeDialog
+        self._floatModeDialog.signal_closed.connect(
+            lambda: self.applyDockerMode("dialog.signal_closed")
+        )
+        self.signal_leaveFloating.connect(
+            lambda: self.applyDialogMode("docker.signal_leaveFloating")
+        )
+        self.signal_manualOpenDocker.connect(
+            lambda: self.applyDockerMode("docker.signal_manualOpenDocker")
+        )
+
+    def canvasChanged(self, canvas: krita.Canvas):
+        if canvas is not None and canvas.view() is not None:
+            self._centralWidget.update_content()
+
+    def showEvent(self, a0: QShowEvent | None) -> None:
+        # print('ImageDiffusionDocker showEvent')
+        # print('    sender= ', self.sender())
+        if self.titleBarEventListening == False:
+            if isinstance(self.titleBarWidget(), QWidget):
+                self.titleBarWidget().installEventFilter(self)  # type: ignore
+
+        if isinstance(self.sender(), QAction):
+            self.signal_manualOpenDocker.emit()
+            return super().showEvent(a0)
+        # Failed to catch mousePressEvent/mouseReleaseEvent when moving docker
+        # Failed to catch clicked/toggled/pressed/released signal when click the docker float button
+        # Use showEvent instead
+        if (QGuiApplication.mouseButtons() & Qt.MouseButton.LeftButton) != Qt.MouseButton.NoButton:
+            # Do not switch immediately when dragging the docker to move
+            return super().showEvent(a0)
+
+        # LeftButton is released and the docker is not docked
+        if self.isFloating():
+            self.signal_leaveFloating.emit()
+        return super().showEvent(a0)
+
+    def closeEvent(self, event: QCloseEvent | None):
+        self.applyHideMode()
+        return super().closeEvent(event)
+
+    def changeEvent(self, event: QEvent | None) -> None:
+        if isinstance(event, QEvent):
+            if event.type() == QEvent.Type.ParentChange:
+                if isinstance(self.parentWidget(), QWidget):
+                    self._floatModeDialog.setParent(self.parentWidget())
+                    # Always reset window type after manually setParent
+                    self._floatModeDialog.setWindowFlag(Qt.WindowType.Window)
+                    self.parentWidget().windowTitleChanged.connect(  # type: ignore
+                        self._floatModeDialog.updateWindowTitle
+                    )
+
+        return super().changeEvent(event)
+
+    def eventFilter(self, a0: QObject | None, a1: QEvent | None) -> bool:
+        if a0 is self.titleBarWidget():
+            if isinstance(a1, QEvent):
+                if a1.type() == QEvent.Type.MouseButtonDblClick:
+                    if not self.isFloating():
+                        self.signal_leaveFloating.emit()
+                        return True
+
+        return super().eventFilter(a0, a1)
+
+    @staticmethod
+    def resetDockerStatus(senderName=""):
+        # Only retrieve docker instance after the main window was completely created
+        try:
+            Krita.instance().activeWindow().qwindow()
+        except AttributeError:
+            print("resetDockerStatus(): main window not created at this moment")
+
+        for d in Krita.instance().dockers():
+            if d.objectName() == "imageDiffusion":
+                if isinstance(d, ImageDiffusionDocker):
+                    if len(Krita.instance().activeWindow().views()) == 0:
+                        d.applyHideMode("allImageClosed")
+                    elif settings.last_docker_status == LastDockerStatus.dialog:
+                        d.applyDialogMode(senderName)
+                    elif settings.last_docker_status == LastDockerStatus.docker:
+                        d.applyDockerMode(senderName)
+                    else:
+                        d.applyHideMode(senderName)
+
+    def applyHideMode(self, senderName=""):
+        if self.mutex.tryLock() == False:
+            return
+        self.setFloating(False)
+        self.setWidget(self._centralWidget)
+        self.close()
+        self._floatModeDialog.close()
+        self.mutex.unlock()
+        if senderName != "allImageClosed":
+            settings.last_docker_status = LastDockerStatus.hide
+            settings.save()
+
+    def applyDockerMode(self, senderName=""):
+        if self.mutex.tryLock() == False:
+            return
+        self.setFloating(False)
+        self.setWidget(self._centralWidget)
+        self.show()
+        self._floatModeDialog.close()
+        self.mutex.unlock()
+        settings.last_docker_status = LastDockerStatus.docker
+        settings.save()
+
+    def applyDialogMode(self, senderName=""):
+        if self.mutex.tryLock() == False:
+            return
+        self.setFloating(False)
+        self.close()
+        self._floatModeDialog.setCentralWidget(self._centralWidget)
+        _isVisibleBefore = self._floatModeDialog.isVisible()
+        self._floatModeDialog.show()
+        if not _isVisibleBefore:
+            self._floatModeDialog.activateWindow()
+            newWidth = self._floatModeDialog.size().width()
+            newPoint = QCursor.pos()
+            newPoint.setX(newPoint.x() - int(newWidth / 2))
+            self._floatModeDialog.move(
+                self._floatModeDialog.mapFrom(self._floatModeDialog, newPoint)
+            )
+        self.mutex.unlock()
+        settings.last_docker_status = LastDockerStatus.dialog
+        settings.save()
