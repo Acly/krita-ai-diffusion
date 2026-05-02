@@ -21,11 +21,11 @@ from PyQt5.QtCore import (
 )
 
 from . import eventloop
-from .api import CustomStyleInput, InpaintContext, WorkflowInput
+from .api import CustomLayerInput, CustomStyleInput, InpaintContext, WorkflowInput
 from .client import ClientModels, ClientOutput, JobInfoOutput, OutputBatchMode, TextOutput
 from .comfy_workflow import ComfyNode, ComfyWorkflow
 from .connection import Connection, ConnectionState
-from .image import Bounds, Image, Mask
+from .image import Bounds, Image, ImageCollection, Mask
 from .jobs import Job, JobKind, JobParams, JobQueue
 from .localization import translate as _
 from .properties import ObservableProperties, Property
@@ -323,7 +323,7 @@ def workflow_parameters(w: ComfyWorkflow):
                 yield CustomParam(ParamKind.style, name, node.input("sampler_preset", "auto"))
             case ("ETN_KritaImageLayer", _):
                 name = node.input("name", "Image")
-                yield CustomParam(ParamKind.image_layer, name)
+                yield CustomParam(ParamKind.image_layer, name, node.input("group_mode", "flatten"))
             case ("ETN_KritaMaskLayer", _):
                 name = node.input("name", "Mask")
                 yield CustomParam(ParamKind.mask_layer, name)
@@ -567,10 +567,36 @@ class CustomWorkspace(QObject, ObservableProperties):
                 layer = layers.find(QUuid(param))
                 if layer is None:
                     raise ValueError(f"Input layer for parameter {md.name} not found")
+
                 if is_animation and layer.is_animated:
-                    params[md.name] = layer.get_pixel_frames(bounds)
+                    params[md.name] = CustomLayerInput(
+                        layer.get_pixel_frames(bounds),
+                        [layer.name],
+                        True,
+                    )
+
+                elif md.default == "flatten":
+                    params[md.name] = CustomLayerInput(
+                        layer.get_pixels(bounds),
+                        [layer.name],
+                        True,
+                    )
+
+                elif md.default == "all children":
+                    children = list(layer.get_child_images(bounds))
+
+                    names = [name for (name, image) in children]
+                    images = [image for (name, image) in children]
+
+                    params[md.name] = CustomLayerInput(
+                        ImageCollection(images),
+                        names,
+                        False,
+                    )
+
                 else:
-                    params[md.name] = layer.get_pixels(bounds)
+                    raise ValueError(f"Unknown group_mode {md.default}")
+
             elif md.kind is ParamKind.mask_layer:
                 if param is None and len(layers.masks) > 0:
                     param = layers.masks[0].id
@@ -581,6 +607,7 @@ class CustomWorkspace(QObject, ObservableProperties):
                     params[md.name] = layer.get_mask_frames(bounds)
                 else:
                     params[md.name] = layer.get_mask(bounds)
+
             elif md.kind is ParamKind.style:
                 style = Styles.list().find(str(param))
                 if style is None:

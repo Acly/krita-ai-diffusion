@@ -175,6 +175,13 @@ class CustomStyleInput:
 
 
 @dataclass
+class CustomLayerInput:
+    images: Image | ImageCollection
+    names: list[str]
+    is_batch: bool
+
+
+@dataclass
 class CustomWorkflowInput:
     workflow: dict
     params: dict[str, Any]
