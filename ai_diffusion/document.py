@@ -133,6 +133,7 @@ class KritaDocument(Document):
         self._selection_bounds: Bounds | None = None
         self._current_time: int = 0
 
+        self._was_valid = False
         self._poller = QTimer()
         self._poller.setInterval(20)
         self._poller.timeout.connect(self._poll)
@@ -294,6 +295,7 @@ class KritaDocument(Document):
 
     def _poll(self):
         if self.is_valid:
+            self._was_valid = True
             selection = self._doc.selection()
             selection_bounds = _selection_bounds(selection) if selection else None
             if selection_bounds != self._selection_bounds:
@@ -304,7 +306,7 @@ class KritaDocument(Document):
             if current_time != self._current_time:
                 self._current_time = current_time
                 self.current_time_changed.emit()
-        else:
+        elif self._was_valid:
             self._poller.stop()
 
     def __eq__(self, other):
