@@ -617,7 +617,7 @@ class CustomWorkspace(QObject, ObservableProperties):
                 case InpaintContext.automatic:
                     bounds = Bounds.pad(mask.bounds, pad)
                 case InpaintContext.mask_bounds:
-                    bounds = Bounds.pad(mask_bounds, pad)
+                    bounds = Bounds.pad(mask_bounds, pad, multiple=1)
                 case other:
                     raise ValueError(f"Invalid inpaint context: {other}")
             bounds = Bounds.clamp(bounds, canvas_bounds.extent)

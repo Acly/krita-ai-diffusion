@@ -7,7 +7,7 @@ import uuid
 from collections.abc import Iterable, Sequence
 from dataclasses import dataclass
 from enum import Enum
-from itertools import chain, product
+from itertools import product
 from time import time
 from typing import Any
 
@@ -749,9 +749,9 @@ def find_model(model_list: Sequence[str], id: ResourceId):
 
 def _find_text_encoder_models(model_list: Sequence[str]):
     kind = ResourceKind.text_encoder
+    tes = ["clip_l", "clip_g", "t5", "qwen", "qwen_3_06b", "qwen_3_4b", "qwen_3_8b", "ministral"]
     return {
-        resource_id(kind, Arch.all, te): _find_model(model_list, kind, Arch.all, te)
-        for te in ["clip_l", "clip_g", "t5", "qwen", "qwen_3_4b", "qwen_3_8b"]
+        resource_id(kind, Arch.all, te): _find_model(model_list, kind, Arch.all, te) for te in tes
     }
 
 
@@ -812,20 +812,8 @@ def _find_upscalers(model_list: Sequence[str]):
 
 
 def _find_loras(model_list: Sequence[str]):
-    kind = ResourceKind.lora
-    common_loras = list(product(["hyper", "lcm", "face"], [Arch.sd15, Arch.sdxl]))
-    sdxl_loras = [("lightning", Arch.sdxl)]
-    flux_loras = [
-        ("turbo", Arch.flux),
-        (ControlMode.depth, Arch.flux),
-        (ControlMode.canny_edge, Arch.flux),
-    ]
-    flux_k_loras = [("turbo", Arch.flux_k)]
-    flux2_loras = [(ControlMode.inpaint, Arch.flux2_4b)]
-    return {
-        resource_id(kind, arch, name): _find_model(model_list, kind, arch, name)
-        for name, arch in chain(common_loras, sdxl_loras, flux_loras, flux_k_loras, flux2_loras)
-    }
+    loras = (ResourceId.parse(r) for r in resources.search_paths if r.startswith("lora"))
+    return {id.string: _find_model(model_list, id.kind, id.arch, id.identifier) for id in loras}
 
 
 def _find_vae_models(model_list: Sequence[str]):
