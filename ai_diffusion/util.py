@@ -1,4 +1,3 @@
-import importlib.util
 import json
 import logging
 import logging.handlers
@@ -28,7 +27,9 @@ class PluginError(Exception):
 
 
 def _get_user_data_dir():
-    if importlib.util.find_spec("krita") is None:
+    krita_mod = sys.modules.get("krita")
+    krita_is_mock = krita_mod is not None and getattr(krita_mod, "IS_MOCK", False)
+    if krita_is_mock:
         dir = plugin_dir.parent / ".appdata"
         dir.mkdir(exist_ok=True)
         return dir

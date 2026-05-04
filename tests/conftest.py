@@ -17,6 +17,13 @@ from ai_diffusion import eventloop, network, util
 
 from .config import result_dir
 
+# Create the Qt application instance at module level, before any test module is
+# imported (collected).  Several modules create QTimers at import time
+# (e.g. PoseLayers in document.py), and Qt requires QCoreApplication to exist
+# before any timer can be started.
+_qt_app = QCoreApplication.instance() or QCoreApplication([])
+eventloop.setup()
+
 root_dir = Path(__file__).parent.parent
 
 
@@ -48,14 +55,10 @@ def pytest_collection_modifyitems(session, config, items: list[pytest.Item]):
 
 
 class QtTestApp:
-    def __init__(self):
-        self._app = QCoreApplication([])
-        eventloop.setup()
-
     def run(self, coro):
         task = eventloop.run(coro)
         while not task.done():
-            self._app.processEvents()
+            _qt_app.processEvents()
         return task.result()
 
 

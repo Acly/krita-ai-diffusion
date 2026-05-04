@@ -12,7 +12,7 @@ if not importlib.util.find_spec(".websockets.src", "ai_diffusion"):
         " https://github.com/Acly/krita-ai-diffusion/releases"
     )
 
-# The following imports depend on the code running inside Krita, so the cannot be imported in tests.
+# The following imports depend on the code running inside Krita
 if importlib.util.find_spec("krita"):
     import krita
 
@@ -21,3 +21,14 @@ if importlib.util.find_spec("krita"):
         raise ImportError(f"This Plugin is for Krita 5.x, but you are using Krita {krita_ver}.")
 
     from .extension import AIToolsExtension as AIToolsExtension
+
+# When not running inside Krita, try to import the development placeholder for Krita functions
+else:
+    import sys
+    from pathlib import Path
+
+    mock_dir = Path(__file__).parent.parent / "tests" / "mock"
+    if mock_dir.exists():
+        sys.path.append(str(mock_dir))
+
+        import krita

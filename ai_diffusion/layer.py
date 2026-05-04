@@ -365,16 +365,12 @@ class LayerManager(QObject):
             self._layers = {root.uniqueId(): Layer(self, root)}
             self._active_id = doc.activeNode().uniqueId()
             self.update()
-            self._timer = QTimer()
+            self._timer = QTimer(self)
             self._timer.setInterval(500)
             self._timer.timeout.connect(self.update)
             self._timer.start()
         else:
             self._active_id = QUuid()
-
-    def __del__(self):
-        if self._doc is not None:
-            self._timer.stop()
 
     @contextmanager
     def _update_guard(self):

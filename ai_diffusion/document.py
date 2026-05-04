@@ -134,7 +134,7 @@ class KritaDocument(Document):
         self._current_time: int = 0
 
         self._was_valid = False
-        self._poller = QTimer()
+        self._poller = QTimer(self)
         self._poller.setInterval(20)
         self._poller.timeout.connect(self._poll)
         self._poller.start()
