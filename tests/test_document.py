@@ -1,9 +1,9 @@
 from ai_diffusion.document import KritaDocument
 
+from .conftest import qtapp
 
-def test_document_active(qtapp):
-    async def main():
-        doc = KritaDocument.active()
-        assert doc is not None
 
-    qtapp.run(main())
+@qtapp
+async def test_document_active():
+    doc = KritaDocument.active()
+    assert doc is not None

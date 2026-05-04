@@ -23,7 +23,7 @@ from ai_diffusion.resources import Arch, ControlMode
 from ai_diffusion.util import ensure
 
 from .config import result_dir, test_dir
-from .conftest import CloudService
+from .conftest import CloudService, qtapp
 
 
 async def receive_images(client: Client, work: WorkflowInput | list[WorkflowInput]):
@@ -159,7 +159,8 @@ cost_params = {
 
 
 @pytest.mark.parametrize("params", cost_params.keys())
-def test_compute_cost(qtapp, cloud_client: CloudClient, params):
+@qtapp
+async def test_compute_cost(cloud_client: CloudClient, params):
     sdversion, batch_count, width, height, steps = cost_params[params]
     extent = Extent(width, height)
     input = WorkflowInput(
@@ -188,11 +189,8 @@ def test_compute_cost(qtapp, cloud_client: CloudClient, params):
         input.kind = WorkflowKind.upscale_tiled
         input.extent.target = Extent(200, 200)
 
-    async def check():
-        service_cost = await cloud_client.compute_cost(input)
-        assert service_cost == input.cost
-
-    qtapp.run(check())
+    service_cost = await cloud_client.compute_cost(input)
+    assert service_cost == input.cost
 
 
 def test_features_limits():
@@ -218,7 +216,8 @@ def test_features_limits():
     assert work.models and work.models.self_attention_guidance is False
 
 
-def test_multiple_jobs(pytestconfig, qtapp, cloud_service: CloudService):
+@qtapp
+async def test_multiple_jobs(pytestconfig, cloud_service: CloudService):
     if not pytestconfig.getoption("--benchmark"):
         pytest.skip("Only runs with --benchmark")
     if not cloud_service.enabled:
@@ -245,16 +244,10 @@ def test_multiple_jobs(pytestconfig, qtapp, cloud_service: CloudService):
             filename = result_dir / f"cloud_multi_user{index}_image{i}.png"
             result.save(filename)
 
-    async def main():
-        clients = await asyncio.gather(*(create_client(i) for i in range(5)))
-        await asyncio.gather(*(run_job(client, i) for i, client in enumerate(clients)))
-
     start_time = timer()
-
-    qtapp.run(main())
-
-    end_time = timer()
-    duration = end_time - start_time
+    clients = await asyncio.gather(*(create_client(i) for i in range(5)))
+    await asyncio.gather(*(run_job(client, i) for i, client in enumerate(clients)))
+    duration = timer() - start_time
     print(f"Completed 5 x 2 jobs in {duration:.2f} seconds", end=" ")
 
 
@@ -274,54 +267,50 @@ async def _reset_worker_config(cloud_service: CloudService):
             await asyncio.sleep(2)  # Wait for worker to be back up
 
 
-def test_timeout(pytestconfig, qtapp, cloud_service: CloudService):
+@qtapp
+async def test_timeout(pytestconfig, cloud_service: CloudService):
     if not pytestconfig.getoption("--benchmark"):
         pytest.skip("Only runs with --benchmark")
     if not cloud_service.enabled:
         pytest.skip("Cloud service not running")
 
-    async def main():
-        user = await cloud_service.create_user("timeout-tester")
-        client = await CloudClient.connect(cloud_service.url, user["token"])
-        big_workflow = create_simple_workflow(input=Extent(2048, 1536))
+    user = await cloud_service.create_user("timeout-tester")
+    client = await CloudClient.connect(cloud_service.url, user["token"])
+    big_workflow = create_simple_workflow(input=Extent(2048, 1536))
 
-        try:
-            await cloud_service.update_worker_config({"job_timeout": 5})
+    try:
+        await cloud_service.update_worker_config({"job_timeout": 5})
 
-            with pytest.raises(Exception, match="timeout"):
-                await receive_images(client, big_workflow)
-        finally:
-            await _reset_worker_config(cloud_service)
+        with pytest.raises(Exception, match="timeout"):
+            await receive_images(client, big_workflow)
+    finally:
+        await _reset_worker_config(cloud_service)
 
-        # Worker should be restarted and accept new jobs
-        small_workflow = create_simple_workflow()
-        images = await receive_images(client, small_workflow)
-        assert len(images) == 2
-
-    qtapp.run(main())
+    # Worker should be restarted and accept new jobs
+    small_workflow = create_simple_workflow()
+    images = await receive_images(client, small_workflow)
+    assert len(images) == 2
 
 
 @pytest.mark.parametrize("scenario", ["max_uptime", "max_memory"])
-def test_restart(pytestconfig, qtapp, cloud_service: CloudService, scenario: str):
+@qtapp
+async def test_restart(pytestconfig, cloud_service: CloudService, scenario: str):
     if not pytestconfig.getoption("--benchmark"):
         pytest.skip("Only runs with --benchmark")
     if not cloud_service.enabled:
         pytest.skip("Cloud service not running")
 
-    async def main():
-        user = await cloud_service.create_user("restart-tester")
-        client = await CloudClient.connect(cloud_service.url, user["token"])
-        workflow = create_simple_workflow()
+    user = await cloud_service.create_user("restart-tester")
+    client = await CloudClient.connect(cloud_service.url, user["token"])
+    workflow = create_simple_workflow()
 
-        try:
-            if scenario == "max_uptime":
-                await cloud_service.update_worker_config({"max_uptime": 2})
-            elif scenario == "max_memory":
-                await cloud_service.update_worker_config({"max_memory_usage": 0.1})
+    try:
+        if scenario == "max_uptime":
+            await cloud_service.update_worker_config({"max_uptime": 2})
+        elif scenario == "max_memory":
+            await cloud_service.update_worker_config({"max_memory_usage": 0.1})
 
-            images = await receive_images(client, workflow)
-            assert len(images) == 2
-        finally:
-            await _reset_worker_config(cloud_service)
-
-    qtapp.run(main())
+        images = await receive_images(client, workflow)
+        assert len(images) == 2
+    finally:
+        await _reset_worker_config(cloud_service)

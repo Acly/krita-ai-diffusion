@@ -14,7 +14,8 @@ from ..settings import Setting
 from ..style import Arch
 from ..util import client_logger as log
 
-_palette = QGuiApplication.palette()
+_app = QGuiApplication.instance()
+_palette = _app.palette() if isinstance(_app, QGuiApplication) else QPalette()
 is_dark = _palette.color(QPalette.ColorRole.Window).lightness() < 128
 
 base = _palette.color(QPalette.ColorRole.Base).name()
