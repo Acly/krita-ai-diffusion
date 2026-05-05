@@ -349,7 +349,8 @@ class Krita(QObject):
 
     def __init__(self):
         super().__init__()
-        self._document = Document()
+        self._documents: list[Document] = []
+        self._active_document: Document | None = None
 
     @staticmethod
     def instance() -> Krita:
@@ -358,10 +359,10 @@ class Krita(QObject):
         return Krita._instance
 
     def activeDocument(self) -> Document | None:
-        return self._document
+        return self._active_document
 
     def documents(self) -> list[Document]:
-        return [self._document]
+        return self._documents
 
     def setActiveDocument(self, doc: Document | None) -> None:
-        self._document = doc
+        self._active_document = doc

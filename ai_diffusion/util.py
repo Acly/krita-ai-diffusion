@@ -201,6 +201,11 @@ def find_unused_path(path: Path):
 
 
 def acquire_elements(l: list[QOBJECT]) -> list[QOBJECT]:
+    import krita
+
+    if getattr(krita, "IS_MOCK", False):
+        return l
+
     # Many Pykrita functions return a `QList<QObject*>` where the objects are
     # allocated for the caller. SIP does not handle this case and just leaks
     # the objects outright. Fix this by taking explicit ownership of the objects.

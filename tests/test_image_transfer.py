@@ -10,9 +10,8 @@ from ai_diffusion.image import Image as ImageWrapper
 from ai_diffusion.image import ImageCollection
 from tests.conftest import CloudService
 
-from .conftest import qtapp
-
 from .config import root_dir, test_dir
+from .conftest import qtapp
 
 if (root_dir / "service" / "pod" / "lib").exists():
     from service.pod.lib import image_transfer, log

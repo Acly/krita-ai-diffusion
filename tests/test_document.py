@@ -6,4 +6,4 @@ from .conftest import qtapp
 @qtapp
 async def test_document_active():
     doc = KritaDocument.active()
-    assert doc is not None
+    assert doc is None
