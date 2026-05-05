@@ -1,8 +1,12 @@
+import asyncio
+
 import pytest
 from krita import Document as MockDocument
-from krita import Krita
+from krita import Krita, Selection
+from PyQt5.QtCore import QByteArray
 
 from ai_diffusion.document import KritaDocument
+from ai_diffusion.image import Bounds
 
 from .conftest import qtapp
 
@@ -79,6 +83,52 @@ def test_active_open_copy_gets_new_instance_and_id():
     # Retrieving the copy a second time returns the same new instance.
     kd_copy2 = KritaDocument.active()
     assert kd_copy2 is kd_copy
+
+
+@qtapp
+async def test_selection_bounds_changed():
+    """Mutating the selection on the underlying krita.Document triggers the signal."""
+    Krita.instance().openDocument("")
+    kd = KritaDocument.active()
+    assert kd is not None
+
+    received: list[bool] = []
+    kd.selection_bounds_changed.connect(lambda: received.append(True))
+
+    sel = Selection()
+    sel.setPixelData(QByteArray(bytes(100 * 80)), 10, 20, 100, 80)
+    kd._doc._selection = sel  # type: ignore[attr-defined]
+
+    # The poller fires every 20 ms; wait up to ~300 ms for the signal.
+    for _ in range(15):
+        await asyncio.sleep(0.02)
+        if received:
+            break
+
+    assert received, "selection_bounds_changed was not emitted within timeout"
+    assert kd.selection_bounds == Bounds(10, 20, 100, 80)
+
+
+@qtapp
+async def test_current_time_changed():
+    """Mutating the current time on the underlying krita.Document triggers the signal."""
+    Krita.instance().openDocument("")
+    kd = KritaDocument.active()
+    assert kd is not None
+
+    received: list[bool] = []
+    kd.current_time_changed.connect(lambda: received.append(True))
+
+    kd._doc._current_time = 7  # type: ignore[attr-defined]
+
+    # The poller fires every 20 ms; wait up to ~300 ms for the signal.
+    for _ in range(15):
+        await asyncio.sleep(0.02)
+        if received:
+            break
+
+    assert received, "current_time_changed was not emitted within timeout"
+    assert kd.current_time == 7
 
 
 def test_active_after_close_and_reopen():
