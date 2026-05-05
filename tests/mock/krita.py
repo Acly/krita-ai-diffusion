@@ -148,12 +148,45 @@ class DockWidgetFactory(DockWidgetFactoryBase):
 
 
 # ---------------------------------------------------------------------------
+# Helpers
+# ---------------------------------------------------------------------------
+
+
+def _make_checkerboard(width: int, height: int, square: int = 32) -> bytes:
+    """Return BGRA bytes for a neutral gray checkerboard pattern (no per-pixel loop)."""
+    light_px = bytes([210, 210, 210, 255])
+    dark_px = bytes([170, 170, 170, 255])
+
+    def _row(start_light: bool) -> bytes:
+        row: bytearray = bytearray()
+        x, light = 0, start_light
+        while x < width:
+            n = min(square, width - x)
+            row += (light_px if light else dark_px) * n
+            light = not light
+            x += n
+        return bytes(row)
+
+    row_a, row_b = _row(True), _row(False)
+    result: bytearray = bytearray()
+    y, sq_row = 0, 0
+    while y < height:
+        n = min(square, height - y)
+        result += (row_a if sq_row % 2 == 0 else row_b) * n
+        y += n
+        sq_row += 1
+    return bytes(result)
+
+
+# ---------------------------------------------------------------------------
 # Node
 # ---------------------------------------------------------------------------
 
 
 class Node(QObject):
     """Mock of krita.Node (a layer / mask node in the document tree)."""
+
+    pixelDataChanged = pyqtSignal()
 
     def __init__(
         self, name: str = "layer", node_type: str = "paintlayer", parent: Node | None = None
@@ -167,8 +200,10 @@ class Node(QObject):
         self._locked = False
         self._blending_mode = "normal"
         self._unique_id = QUuid.createUuid()
-        self._pixel_data = QByteArray()
         self._animated = False
+        # Pixel storage: flat BGRA bytes, stride = _pixel_width * 4.
+        self._pixel_data: bytearray = bytearray()
+        self._pixel_width: int = 0
 
     # --- tree navigation ---
 
@@ -244,15 +279,35 @@ class Node(QObject):
     def bounds(self):
         from PyQt5.QtCore import QRect
 
+        if self._pixel_width > 0 and self._pixel_data:
+            return QRect(0, 0, self._pixel_width, len(self._pixel_data) // (self._pixel_width * 4))
         return QRect(0, 0, 0, 0)
 
     def pixelData(self, x: int, y: int, w: int, h: int) -> QByteArray:
-        return QByteArray(bytes(w * h * 4))
+        if not self._pixel_data or self._pixel_width == 0:
+            return QByteArray(bytes(w * h * 4))
+        result = bytearray()
+        for row in range(y, y + h):
+            start = (row * self._pixel_width + x) * 4
+            result += self._pixel_data[start : start + w * 4]
+        return QByteArray(bytes(result))
 
     def projectionPixelData(self, x: int, y: int, w: int, h: int) -> QByteArray:
-        return QByteArray(bytes(w * h * 4))
+        return self.pixelData(x, y, w, h)
 
-    def setPixelData(self, data: QByteArray, x: int, y: int, w: int, h: int) -> bool:
+    def setPixelData(self, value: QByteArray, x: int, y: int, w: int, h: int) -> bool:
+        src = bytes(value)
+        if x == 0 and y == 0 and (not self._pixel_data or self._pixel_width != w):
+            # Full or first write – store as-is and record stride.
+            self._pixel_width = w
+            self._pixel_data = bytearray(src)
+        else:
+            if not self._pixel_data:
+                return False
+            for row in range(h):
+                dst = ((y + row) * self._pixel_width + x) * 4
+                self._pixel_data[dst : dst + w * 4] = src[row * w * 4 : (row + 1) * w * 4]
+        self.pixelDataChanged.emit()
         return True
 
     def pixelDataAtTime(self, x: int, y: int, w: int, h: int, time: int) -> QByteArray:
@@ -357,6 +412,8 @@ class Selection(QObject):
 class Document(QObject):
     """Mock of krita.Document (an open image/canvas in Krita)."""
 
+    pixelDataChanged = pyqtSignal()
+
     def __init__(self, width: int = 512, height: int = 512):
         super().__init__()
         self._width = width
@@ -377,6 +434,13 @@ class Document(QObject):
         self._root._children = [self._paint_layer]
         self._active_node: Node = self._paint_layer
 
+        # Initialise the background layer with a visible checkerboard and
+        # forward its pixelDataChanged signal to the document level.
+        self._paint_layer.setPixelData(
+            QByteArray(_make_checkerboard(width, height)), 0, 0, width, height
+        )
+        self._paint_layer.pixelDataChanged.connect(self.pixelDataChanged)
+
     # --- canvas dimensions ---
 
     def width(self) -> int:
@@ -387,6 +451,9 @@ class Document(QObject):
 
     def resolution(self) -> float:
         return self._resolution
+
+    def setResolution(self, xres: float, yres: float) -> None:
+        self._resolution = xres
 
     # --- color ---
 
@@ -432,7 +499,8 @@ class Document(QObject):
     # --- pixel data ---
 
     def pixelData(self, x: int, y: int, w: int, h: int) -> QByteArray:
-        return QByteArray(bytes(w * h * 4))
+        """Return composite pixel data by delegating to the first paint layer."""
+        return self._paint_layer.pixelData(x, y, w, h)
 
     def refreshProjection(self) -> None:
         pass
@@ -442,10 +510,12 @@ class Document(QObject):
     def scaleImage(self, w: int, h: int, res_x: float, res_y: float, filter: str) -> None:
         self._width = w
         self._height = h
+        self._paint_layer.setPixelData(QByteArray(_make_checkerboard(w, h)), 0, 0, w, h)
 
     def resizeImage(self, x: int, y: int, w: int, h: int) -> None:
         self._width = w
         self._height = h
+        self._paint_layer.setPixelData(QByteArray(_make_checkerboard(w, h)), 0, 0, w, h)
 
     # --- annotations ---
 
@@ -480,6 +550,7 @@ class Document(QObject):
         if krita._active_document is self:
             krita._active_document = None
         return True
+
 
 # ---------------------------------------------------------------------------
 # Krita application singleton
@@ -537,10 +608,7 @@ class Krita(QObject):
         # If there is already an active document that hasn't been registered yet
         # (simulates Krita completing the load of a pending document), register
         # it and return it rather than creating a new one.
-        if (
-            self._active_document is not None
-            and self._active_document not in self._documents
-        ):
+        if self._active_document is not None and self._active_document not in self._documents:
             self._documents.append(self._active_document)
             return self._active_document
         doc = Document()
