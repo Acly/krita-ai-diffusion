@@ -6,9 +6,145 @@ Methods return simple default values unless a test needs to configure specific b
 
 from __future__ import annotations
 
-from PyQt5.QtCore import QByteArray, QObject, QUuid
+from PyQt5.QtCore import QByteArray, QObject, QUuid, pyqtSignal
+from PyQt5.QtGui import QIcon
+from PyQt5.QtWidgets import QDockWidget
 
 IS_MOCK = True
+
+
+# ---------------------------------------------------------------------------
+# Action
+# ---------------------------------------------------------------------------
+
+
+class Action(QObject):
+    """Minimal stub for a Krita action (QAction equivalent)."""
+
+    triggered = pyqtSignal()
+
+    def __init__(self, name: str = ""):
+        super().__init__()
+        self._name = name
+
+    def trigger(self) -> None:
+        self.triggered.emit()
+
+    def setEnabled(self, enabled: bool) -> None:
+        pass
+
+
+# ---------------------------------------------------------------------------
+# Notifier
+# ---------------------------------------------------------------------------
+
+
+class Notifier(QObject):
+    """Stub for Krita's Notifier object."""
+
+    applicationClosing = pyqtSignal()
+    imageCreated = pyqtSignal()
+    imageClosed = pyqtSignal()
+    imageSaved = pyqtSignal()
+    viewCreated = pyqtSignal()
+    viewClosed = pyqtSignal()
+    windowCreated = pyqtSignal()
+
+    def __init__(self):
+        super().__init__()
+
+    def setActive(self, active: bool) -> None:
+        pass
+
+
+# ---------------------------------------------------------------------------
+# View / Canvas
+# ---------------------------------------------------------------------------
+
+
+class View(QObject):
+    """Stub for a Krita View."""
+
+    def __init__(self):
+        super().__init__()
+
+
+class Canvas(QObject):
+    """Stub for a Krita Canvas."""
+
+    def __init__(self):
+        super().__init__()
+        self._view: View | None = None
+
+    def view(self) -> View | None:
+        return self._view
+
+
+# ---------------------------------------------------------------------------
+# Window
+# ---------------------------------------------------------------------------
+
+
+class Window(QObject):
+    """Stub for a Krita Window."""
+
+    def __init__(self):
+        super().__init__()
+
+    def createAction(self, name: str, text: str = "", menu: str = "") -> Action:
+        return Action(name)
+
+
+# ---------------------------------------------------------------------------
+# Extension
+# ---------------------------------------------------------------------------
+
+
+class Extension(QObject):
+    """Stub base class for Krita extensions."""
+
+    def __init__(self, parent=None):
+        super().__init__(parent)
+
+    def setup(self) -> None:
+        pass
+
+    def createActions(self, window: Window) -> None:
+        pass
+
+
+# ---------------------------------------------------------------------------
+# DockWidget
+# ---------------------------------------------------------------------------
+
+
+class DockWidget(QDockWidget):
+    """Stub base class matching Krita's DockWidget (a QDockWidget with canvasChanged)."""
+
+    def __init__(self):
+        super().__init__()
+
+    def canvasChanged(self, canvas: Canvas) -> None:
+        """Called by Krita when the active canvas changes; override in subclasses."""
+
+
+# ---------------------------------------------------------------------------
+# DockWidgetFactory / DockWidgetFactoryBase
+# ---------------------------------------------------------------------------
+
+
+class DockWidgetFactoryBase:
+    DockLeft = 0
+    DockRight = 1
+    DockTop = 2
+    DockBottom = 3
+
+
+class DockWidgetFactory(DockWidgetFactoryBase):
+    def __init__(self, name: str, position: int, widget_class: type):
+        self._name = name
+        self._position = position
+        self._widget_class = widget_class
 
 
 # ---------------------------------------------------------------------------
@@ -359,12 +495,34 @@ class Krita(QObject):
         super().__init__()
         self._documents: list[Document] = []
         self._active_document: Document | None = None
+        self._notifier = Notifier()
+        self._actions: dict[str, Action] = {}
 
     @staticmethod
     def instance() -> Krita:
         if Krita._instance is None:
             Krita._instance = Krita()
         return Krita._instance
+
+    def version(self) -> str:
+        return "5.2.0"
+
+    def icon(self, name: str) -> QIcon:
+        return QIcon()
+
+    def action(self, name: str) -> Action:
+        if name not in self._actions:
+            self._actions[name] = Action(name)
+        return self._actions[name]
+
+    def notifier(self) -> Notifier:
+        return self._notifier
+
+    def addExtension(self, extension: Extension) -> None:
+        pass
+
+    def addDockWidgetFactory(self, factory: DockWidgetFactory) -> None:
+        pass
 
     def activeDocument(self) -> Document | None:
         return self._active_document

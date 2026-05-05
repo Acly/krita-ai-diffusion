@@ -16,11 +16,12 @@ if not importlib.util.find_spec(".websockets.src", "ai_diffusion"):
 if importlib.util.find_spec("krita"):
     import krita
 
-    krita_ver = krita.Krita.instance().version()
-    if not krita_ver.startswith("5"):
-        raise ImportError(f"This Plugin is for Krita 5.x, but you are using Krita {krita_ver}.")
+    if not getattr(krita, "IS_MOCK", False):
+        krita_ver = krita.Krita.instance().version()
+        if not krita_ver.startswith("5"):
+            raise ImportError(f"This Plugin is for Krita 5.x, but you are using Krita {krita_ver}.")
 
-    from .extension import AIToolsExtension as AIToolsExtension
+        from .extension import AIToolsExtension as AIToolsExtension
 
 # When not running inside Krita, try to import the development placeholder for Krita functions
 else:
