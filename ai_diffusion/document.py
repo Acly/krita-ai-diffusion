@@ -174,6 +174,10 @@ class KritaDocument(Document):
         return None
 
     @property
+    def id(self):
+        return self._id
+
+    @property
     def extent(self):
         return Extent(self._doc.width(), self._doc.height())
 

@@ -1128,11 +1128,11 @@ class ManagedColor(QObject):
 class Krita(QObject):
     """* Krita is a singleton class that offers the root access to the Krita object hierarchy. The Krita.instance() is aliased as two builtins: Scripter and Application."""
 
-    def activeDocument(self) -> "Document":
-        # type: () -> Document:
+    def activeDocument(self) -> "Optional[Document]":
+        # type: () -> Optional[Document]:
         """@access public Q_SLOTS
         @return the currently active document, if there is one."""
-    def setActiveDocument(self, value: "Document") -> None:
+    def setActiveDocument(self, value: "Optional[Document]") -> None:
         # type: (value) -> None:
         """@access public Q_SLOTS
          @brief setActiveDocument activates the first view that shows the given document
@@ -1418,14 +1418,8 @@ class Extension(QObject):
 class Document(QObject):
     """* The Document class encapsulates a Krita Document/Image. A Krita document is an Image with a filename. Libkis does not differentiate between a document and an image, like Krita does internally."""
 
-    def __init__(self, node: "Node", x: int, y: int, w: int, h: int) -> bool:
-        """@brief startFilter starts the given filter on the given node.
-        @param node the node to apply the filter to
-        @param x
-        @param y
-        @param w
-        @param h describe the rectangle the filter should be apply. This is always in image pixel coordinates and not relative to the x, y of the node.
-        """
+    def __init__(self) -> None:
+        ...
     def horizontalGuides(self) -> List[float]:
         # type: () -> List[float]:
         """@access public

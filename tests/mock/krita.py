@@ -336,6 +336,14 @@ class Document(QObject):
     def importAnimation(self, files: list[str], offset: int, step: int) -> bool:
         return True
 
+    def close(self) -> bool:
+        krita = Krita.instance()
+        if self not in krita._documents:
+            return False
+        krita._documents = [d for d in krita._documents if d is not self]
+        if krita._active_document is self:
+            krita._active_document = None
+        return True
 
 # ---------------------------------------------------------------------------
 # Krita application singleton
@@ -366,3 +374,19 @@ class Krita(QObject):
 
     def setActiveDocument(self, doc: Document | None) -> None:
         self._active_document = doc
+
+    def openDocument(self, filename: str) -> Document:
+        # If there is already an active document that hasn't been registered yet
+        # (simulates Krita completing the load of a pending document), register
+        # it and return it rather than creating a new one.
+        if (
+            self._active_document is not None
+            and self._active_document not in self._documents
+        ):
+            self._documents.append(self._active_document)
+            return self._active_document
+        doc = Document()
+        doc._filename = filename
+        self._documents.append(doc)
+        self._active_document = doc
+        return doc

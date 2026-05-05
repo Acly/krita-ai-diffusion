@@ -43,7 +43,7 @@ general image algorithms (`image.py`, `resolution.py`).
 
 ## Commands
 
-Use the virtual environment at `.venv` for all commands.
+Activate the virtual environment with `source .venv/bin/activate` for all commands.
 
 Always run checks, formatting and linting:
 ```
