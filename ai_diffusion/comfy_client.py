@@ -161,6 +161,7 @@ class ComfyClient(Client):
             self._requests.set_auth(settings.server_authorization)
 
     async def connect(self):
+        self.url = parse_url(self.url)
         log.info(f"Connecting to {self.url}")
 
         # Retrieve system info

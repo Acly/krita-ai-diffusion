@@ -183,11 +183,11 @@ class Connection(QObject, ObservableProperties):
         return self._workflows
 
     async def _handle_messages(self):
-        client = self._client
-        self._temporary_disconnect = False
-        assert client is not None
-
         try:
+            client = self._client
+            self._temporary_disconnect = False
+            assert client is not None
+
             async with client:
                 async for msg in client.listen():
                     try:
