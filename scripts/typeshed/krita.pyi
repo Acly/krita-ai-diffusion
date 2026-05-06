@@ -1606,16 +1606,16 @@ class Document(QObject):
         """@access public Q_SLOTS
          @brief rootNode the root node is the invisible group layer that contains the entire node hierarchy.
         @return the root of the image"""
-    def selection(self) -> "Selection":
+    def selection(self) -> "Optional[Selection]":
         # type: () -> Selection:
         """@access public Q_SLOTS
          @brief selection Create a Selection object around the global selection, if there is one.
         @return the global selection or None if there is no global selection."""
-    def setSelection(self, value: "Selection") -> None:
+    def setSelection(self, value: "Optional[Selection]") -> None:
         # type: (value) -> None:
         """@access public Q_SLOTS
          @brief setSelection set or replace the global selection
-        @param value a valid selection object."""
+        @param value a valid selection object or None to clear the selection."""
     def width(self) -> int:
         # type: () -> int:
         """@access public Q_SLOTS

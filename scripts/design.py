@@ -14,6 +14,7 @@ from PyQt5.QtCore import QByteArray, Qt, QTimer
 from PyQt5.QtGui import QImage, QPixmap
 from PyQt5.QtWidgets import (
     QApplication,
+    QCheckBox,
     QGroupBox,
     QHBoxLayout,
     QLabel,
@@ -102,26 +103,58 @@ class DocInfoWidget(QGroupBox):
 
 
 class LayerListWidget(QGroupBox):
-    """Lists every node in the active document; clicking a row toggles it as the active node."""
+    """Lists every node in the active document; clicking a row toggles it as the active node.
+
+    Subscribes to ``Document.nodeCreated`` to append newly added layers without
+    a full rebuild, and to ``Document.activeNodeChanged`` to keep the selection
+    highlight in sync.
+    """
 
     def __init__(self, parent=None):
         super().__init__("Layers", parent)
         layout = QVBoxLayout(self)
+
+        btn_row = QHBoxLayout()
+        self._add_btn = QPushButton("Add layer")
+        self._add_btn.setEnabled(False)
+        self._add_btn.clicked.connect(self._add_layer)
+        btn_row.addWidget(self._add_btn)
+        btn_row.addStretch()
+        layout.addLayout(btn_row)
+
         self._list = QListWidget()
         self._list.setMaximumHeight(180)
         self._list.itemClicked.connect(self._on_item_clicked)
         layout.addWidget(self._list)
         self._doc: krita.Document | None = None
+        self._layer_counter = 0
         self._updating = False
 
     def refresh(self, doc: "krita.Document | None") -> None:
+        if self._doc is not None:
+            try:
+                self._doc.nodesChanged.disconnect(self._on_nodes_changed)  # type: ignore[attr-defined]
+            except RuntimeError:
+                pass
+            try:
+                self._doc.activeNodeChanged.disconnect(self._on_active_node_changed)  # type: ignore[attr-defined]
+            except RuntimeError:
+                pass
         self._doc = doc
+        self._add_btn.setEnabled(doc is not None)
+        if doc is not None:
+            doc.nodesChanged.connect(self._on_nodes_changed)  # type: ignore[attr-defined]
+            doc.activeNodeChanged.connect(self._on_active_node_changed)  # type: ignore[attr-defined]
+        self._rebuild_list()
+
+    def _rebuild_list(self) -> None:
+        """Repopulate the list from the current document tree."""
         self._updating = True
         self._list.clear()
-        if doc is not None:
-            active = doc.activeNode()
+        if self._doc is not None:
+            active = self._doc.activeNode()
             active_id = active.uniqueId() if active else None
-            for depth, node in _iter_nodes(doc.rootNode().childNodes()):
+            for depth, node in _iter_nodes(self._doc.rootNode().childNodes()):
                 indent = "  " * depth
                 item = QListWidgetItem(f"{indent}{node.name()}  [{node.type()}]")
                 item.setData(Qt.ItemDataRole.UserRole, node)
@@ -130,6 +163,30 @@ class LayerListWidget(QGroupBox):
                     item.setSelected(True)
                     self._list.setCurrentItem(item)
         self._updating = False
+
+    def _on_nodes_changed(self) -> None:
+        self._rebuild_list()
+
+    def _on_active_node_changed(self, node: "krita.Node | None") -> None:
+        """Sync the list selection with the document's active node."""
+        self._updating = True
+        self._list.clearSelection()
+        if node is not None:
+            for i in range(self._list.count()):
+                item = self._list.item(i)
+                if item and item.data(Qt.ItemDataRole.UserRole).uniqueId() == node.uniqueId():
+                    item.setSelected(True)
+                    self._list.setCurrentItem(item)
+                    break
+        self._updating = False
+
+    def _add_layer(self) -> None:
+        if self._doc is None:
+            return
+        self._layer_counter += 1
+        node = self._doc.createNode(f"Layer {self._layer_counter}", "paintlayer")
+        self._doc.rootNode().addChildNode(node, None)
+        self._doc.setActiveNode(node)
 
     def _on_item_clicked(self, item: QListWidgetItem) -> None:
         if self._doc is None or self._updating:
@@ -145,14 +202,17 @@ class LayerListWidget(QGroupBox):
 
 
 class ImagePreviewWidget(QGroupBox):
-    """Renders the document's pixel data in a capped 512×512 canvas.
+    """Renders pixel data in a capped 512×512 canvas.
 
-    Subscribes to ``Document.pixelDataChanged`` so the view stays current after
-    the plugin (or the control pane) modifies pixel data.
+    Shows the active layer's pixel data.  Falls back to the document's
+    composite pixel data when no layer is active.  Subscribes to
+    ``Document.pixelDataChanged`` (document-level refresh), the active
+    node's ``pixelDataChanged``, and ``Document.activeNodeChanged`` so the
+    view stays current whenever pixels or the active layer change.
     """
 
     def __init__(self, parent=None):
-        super().__init__("Document image", parent)
+        super().__init__("Image preview", parent)
         layout = QVBoxLayout(self)
         self._canvas = QLabel()
         self._canvas.setAlignment(Qt.AlignmentFlag.AlignCenter)
@@ -160,24 +220,60 @@ class ImagePreviewWidget(QGroupBox):
         self._canvas.setStyleSheet("background: #222; border: 1px solid #555;")
         layout.addWidget(self._canvas)
         self._doc: krita.Document | None = None
+        self._active_node: krita.Node | None = None
 
     def refresh(self, doc: "krita.Document | None") -> None:
+        self._disconnect_all()
+        self._doc = doc
+        self._active_node = doc.activeNode() if doc is not None else None
+        if doc is not None:
+            doc.pixelDataChanged.connect(self._update_image)  # type: ignore[attr-defined]
+            doc.activeNodeChanged.connect(self._on_active_node_changed)  # type: ignore[attr-defined]
+        if self._active_node is not None:
+            self._active_node.pixelDataChanged.connect(self._update_image)  # type: ignore[attr-defined]
+        self._update_image()
+
+    # ------------------------------------------------------------------
+
+    def _disconnect_all(self) -> None:
         if self._doc is not None:
             try:
                 self._doc.pixelDataChanged.disconnect(self._update_image)  # type: ignore[attr-defined]
             except RuntimeError:
-                pass  # signal was already disconnected
-        self._doc = doc
-        if doc is not None:
-            doc.pixelDataChanged.connect(self._update_image)  # type: ignore[attr-defined]
+                pass
+            try:
+                self._doc.activeNodeChanged.disconnect(self._on_active_node_changed)  # type: ignore[attr-defined]
+            except RuntimeError:
+                pass
+        if self._active_node is not None:
+            try:
+                self._active_node.pixelDataChanged.disconnect(self._update_image)  # type: ignore[attr-defined]
+            except RuntimeError:
+                pass
+
+    def _on_active_node_changed(self, node: "krita.Node | None") -> None:
+        if self._active_node is not None:
+            try:
+                self._active_node.pixelDataChanged.disconnect(self._update_image)  # type: ignore[attr-defined]
+            except RuntimeError:
+                pass
+        self._active_node = node
+        if node is not None:
+            node.pixelDataChanged.connect(self._update_image)  # type: ignore[attr-defined]
         self._update_image()
 
     def _update_image(self) -> None:
         if self._doc is None:
             self._canvas.clear()
+            self.setTitle("Image preview")
             return
         w, h = self._doc.width(), self._doc.height()
-        raw = bytes(self._doc.pixelData(0, 0, w, h))
+        if self._active_node is not None:
+            raw = bytes(self._active_node.pixelData(0, 0, w, h))
+            self.setTitle(f"Layer: {self._active_node.name()}")
+        else:
+            raw = bytes(self._doc.pixelData(0, 0, w, h))
+            self.setTitle("Document")
         # Krita returns BGRA bytes; Format_ARGB32 uses the same memory layout on
         # little-endian systems (x86), so no channel swapping is needed.
         img = QImage(raw, w, h, w * 4, QImage.Format.Format_ARGB32)
@@ -194,6 +290,39 @@ class ImagePreviewWidget(QGroupBox):
 # ---------------------------------------------------------------------------
 # Control pane
 # ---------------------------------------------------------------------------
+
+
+class SelectionWidget(QGroupBox):
+    """Checkbox that creates or clears a centered half-size selection on the active document."""
+
+    def __init__(self, parent=None):
+        super().__init__("Selection", parent)
+        layout = QVBoxLayout(self)
+        self._checkbox = QCheckBox("Active (half-size, centered)")
+        self._checkbox.setEnabled(False)
+        self._checkbox.stateChanged.connect(self._on_toggled)
+        layout.addWidget(self._checkbox)
+        self._doc: krita.Document | None = None
+        self._updating = False
+
+    def refresh(self, doc: "krita.Document | None") -> None:
+        self._doc = doc
+        self._updating = True
+        self._checkbox.setEnabled(doc is not None)
+        self._checkbox.setChecked(doc is not None and doc.selection() is not None)
+        self._updating = False
+
+    def _on_toggled(self, state: int) -> None:
+        if self._updating or self._doc is None:
+            return
+        if state == Qt.CheckState.Checked:
+            w, h = self._doc.width() // 2, self._doc.height() // 2
+            x, y = self._doc.width() // 4, self._doc.height() // 4
+            sel = krita.Selection()
+            sel.setPixelData(QByteArray(bytes([255] * (w * h))), x, y, w, h)
+            self._doc.setSelection(sel)
+        else:
+            self._doc.setSelection(None)
 
 
 class ControlPane(QWidget):
@@ -235,6 +364,9 @@ class ControlPane(QWidget):
 
         self._image_preview = ImagePreviewWidget()
         layout.addWidget(self._image_preview)
+
+        self._selection = SelectionWidget()
+        layout.addWidget(self._selection)
 
         modify_btn = QPushButton("Modify pixels")
         modify_btn.setToolTip("Paint random shapes into the document to test image refresh")
@@ -297,6 +429,7 @@ class ControlPane(QWidget):
         self._doc_info.refresh(doc)
         self._layer_list.refresh(doc)
         self._image_preview.refresh(doc)
+        self._selection.refresh(doc)
 
 
 # ---------------------------------------------------------------------------
@@ -347,7 +480,7 @@ def main():
     layout = QHBoxLayout(container)
     layout.addWidget(controls)
     layout.addWidget(dock, stretch=1)
-    container.resize(1080, 800)
+    container.resize(1600, 1400)
     container.show()
 
     if args.exit:

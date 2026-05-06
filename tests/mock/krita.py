@@ -196,6 +196,7 @@ class Node(QObject):
         self._type = node_type
         self._parent = parent
         self._children: list[Node] = []
+        self._document: Document | None = None  # set by Document when added to the tree
         self._visible = True
         self._locked = False
         self._blending_mode = "normal"
@@ -227,6 +228,7 @@ class Node(QObject):
 
     def addChildNode(self, node: Node, above: Node | None) -> bool:
         node._parent = self
+        node._document = self._document
         if above is None:
             self._children.append(node)
         else:
@@ -236,10 +238,16 @@ class Node(QObject):
                 self._children.append(node)
             else:
                 self._children.insert(idx, node)
+        if self._document is not None:
+            if node._type == "paintlayer":
+                node.pixelDataChanged.connect(self._document.pixelDataChanged)
+            self._document.nodesChanged.emit()
         return True
 
     def removeChildNode(self, node: Node) -> None:
         self._children = [c for c in self._children if c is not node]
+        if self._document is not None:
+            self._document.nodesChanged.emit()
 
     def remove(self) -> None:
         if self._parent is not None:
@@ -382,7 +390,23 @@ class Selection(QObject):
         return self._height
 
     def pixelData(self, x: int, y: int, w: int, h: int) -> QByteArray:
-        return self._data
+        result = bytearray(w * h)  # default: fully unselected (0)
+        if not self._data or self._width == 0 or self._height == 0:
+            return QByteArray(bytes(result))
+        # Intersection of requested rect with stored rect
+        x0 = max(x, self._x)
+        x1 = min(x + w, self._x + self._width)
+        y0 = max(y, self._y)
+        y1 = min(y + h, self._y + self._height)
+        if x0 >= x1 or y0 >= y1:
+            return QByteArray(bytes(result))
+        src = bytes(self._data)
+        n = x1 - x0
+        for ry in range(y0, y1):
+            src_off = (ry - self._y) * self._width + (x0 - self._x)
+            dst_off = (ry - y) * w + (x0 - x)
+            result[dst_off : dst_off + n] = src[src_off : src_off + n]
+        return QByteArray(bytes(result))
 
     def setPixelData(self, data: QByteArray, x: int, y: int, w: int, h: int) -> None:
         self._data = data
@@ -413,6 +437,8 @@ class Document(QObject):
     """Mock of krita.Document (an open image/canvas in Krita)."""
 
     pixelDataChanged = pyqtSignal()
+    nodesChanged = pyqtSignal()
+    activeNodeChanged = pyqtSignal(object)  # emits Node | None
 
     def __init__(self, width: int = 512, height: int = 512):
         super().__init__()
@@ -430,16 +456,15 @@ class Document(QObject):
 
         # Build a minimal layer tree: a root group node with one paint layer.
         self._root = Node("root", "grouplayer")
-        self._paint_layer = Node("Background", "paintlayer", parent=self._root)
-        self._root._children = [self._paint_layer]
-        self._active_node: Node = self._paint_layer
+        self._root._document = self
+        background = Node("Background", "paintlayer", parent=self._root)
+        background._document = self
+        background.pixelDataChanged.connect(self.pixelDataChanged)
+        self._root._children = [background]
+        self._active_node: Node = background
 
-        # Initialise the background layer with a visible checkerboard and
-        # forward its pixelDataChanged signal to the document level.
-        self._paint_layer.setPixelData(
-            QByteArray(_make_checkerboard(width, height)), 0, 0, width, height
-        )
-        self._paint_layer.pixelDataChanged.connect(self.pixelDataChanged)
+        # Initialise the background layer with a visible checkerboard.
+        background.setPixelData(QByteArray(_make_checkerboard(width, height)), 0, 0, width, height)
 
     # --- canvas dimensions ---
 
@@ -478,6 +503,7 @@ class Document(QObject):
 
     def setActiveNode(self, node: Node) -> None:
         self._active_node = node
+        self.activeNodeChanged.emit(node)
 
     def createNode(self, name: str, node_type: str) -> Node:
         return Node(name, node_type)
@@ -496,11 +522,23 @@ class Document(QObject):
     def selection(self) -> Selection | None:
         return self._selection
 
+    def setSelection(self, selection: Selection | None) -> None:
+        self._selection = selection
+
     # --- pixel data ---
 
     def pixelData(self, x: int, y: int, w: int, h: int) -> QByteArray:
-        """Return composite pixel data by delegating to the first paint layer."""
-        return self._paint_layer.pixelData(x, y, w, h)
+        """Return pixel data from the active node if it is a paint layer, otherwise
+        fall back to the last (top-most) paint layer in the root's children."""
+        if self._active_node is not None and self._active_node._type == "paintlayer":
+            return self._active_node.pixelData(x, y, w, h)
+        fallback = next(
+            (n for n in reversed(self._root.childNodes()) if n._type == "paintlayer"),
+            None,
+        )
+        if fallback is not None:
+            return fallback.pixelData(x, y, w, h)
+        return QByteArray(bytes(w * h * 4))
 
     def refreshProjection(self) -> None:
         pass
@@ -510,12 +548,18 @@ class Document(QObject):
     def scaleImage(self, w: int, h: int, res_x: float, res_y: float, filter: str) -> None:
         self._width = w
         self._height = h
-        self._paint_layer.setPixelData(QByteArray(_make_checkerboard(w, h)), 0, 0, w, h)
+        cb = QByteArray(_make_checkerboard(w, h))
+        for node in self._root.childNodes():
+            if node._type == "paintlayer":
+                node.setPixelData(cb, 0, 0, w, h)
 
     def resizeImage(self, x: int, y: int, w: int, h: int) -> None:
         self._width = w
         self._height = h
-        self._paint_layer.setPixelData(QByteArray(_make_checkerboard(w, h)), 0, 0, w, h)
+        cb = QByteArray(_make_checkerboard(w, h))
+        for node in self._root.childNodes():
+            if node._type == "paintlayer":
+                node.setPixelData(cb, 0, 0, w, h)
 
     # --- annotations ---
 
