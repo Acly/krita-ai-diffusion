@@ -349,17 +349,15 @@ class LayerManager(QObject):
     parent_changed = pyqtSignal(Layer)
     removed = pyqtSignal(Layer)
 
-    _doc: krita.Document | None
-    _layers: dict[QUuid, Layer]
-    _active_id: QUuid
-    _last_active: Layer | None = None
-    _timer: QTimer
-    _is_updating: bool = False
-
     def __init__(self, doc: krita.Document | None):
         super().__init__()
         self._doc = doc
-        self._layers = {}
+        self._layers: dict[QUuid, Layer] = {}
+        self._active_id = QUuid()
+        self._last_active: Layer | None = None
+        self._timer: QTimer
+        self._is_updating = False
+
         if doc is not None:
             root = doc.rootNode()
             self._layers = {root.uniqueId(): Layer(self, root)}
@@ -369,8 +367,6 @@ class LayerManager(QObject):
             self._timer.setInterval(500)
             self._timer.timeout.connect(self.update)
             self._timer.start()
-        else:
-            self._active_id = QUuid()
 
     @contextmanager
     def _update_guard(self):
