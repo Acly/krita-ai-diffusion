@@ -1,3 +1,11 @@
+"""
+Interface for Krita's Python scripting API.
+https://api.kde.org/legacy/krita/html/annotated.html
+
+IMPORTANT: The interfaces here are intended to match Krita's actual API.
+           DO NOT modify unless it is to fix bugs or add missing parts.
+"""
+
 from PyQt5.QtCore import *
 from PyQt5.QtGui import *
 from PyQt5.QtWidgets import *

@@ -3,7 +3,10 @@
 from __future__ import annotations
 
 from krita import Document
+from PyQt5.QtCore import Qt
 
+from ai_diffusion.eventloop import process_python_events
+from ai_diffusion.image import Bounds, Extent, Image
 from ai_diffusion.layer import LayerManager
 
 # ---------------------------------------------------------------------------
@@ -170,3 +173,124 @@ def test_document_closed():
     assert len(active_changed) == 0
     assert len(changed) == 0
     assert not bool(mgr)
+
+
+# ---------------------------------------------------------------------------
+# Tests for LayerManager.active
+# ---------------------------------------------------------------------------
+
+
+def test_active_already_observed():
+    """Fast path: active node is already in _layers, no update is triggered."""
+    mgr, doc = make_manager()
+    root = doc.rootNode()
+
+    second_node = doc.createNode("Layer 2", "paintlayer")
+    root.addChildNode(second_node, None)
+    mgr.update()  # second_node is now in _layers
+    doc.setActiveNode(second_node)
+    mgr.update()  # _active_id is updated to second_node
+
+    # Record the update count to confirm no extra update is triggered.
+    update_calls = track(mgr.changed)
+
+    layer = mgr.active
+
+    assert layer._node is second_node
+    assert len(update_calls) == 0  # _layers already had the answer
+
+
+def test_active_in_tree_but_manager_stale():
+    """Update path: active node exists in the document hierarchy but the manager
+    hasn't polled since it was added.  Accessing .active triggers a forced update
+    that discovers the node and returns it."""
+    mgr, doc = make_manager()
+    root = doc.rootNode()
+
+    # Add a new node and make it active WITHOUT calling mgr.update() first.
+    second_node = doc.createNode("Layer 2", "paintlayer")
+    root.addChildNode(second_node, None)
+    doc.setActiveNode(second_node)
+
+    # Manager is stale: second_node is not yet in _layers.
+    assert mgr.find(second_node.uniqueId()) is None
+
+    layer = mgr.active
+
+    # .active must have run an internal update to discover the node.
+    assert layer._node is second_node
+    assert mgr.find(second_node.uniqueId()) is not None
+
+
+def test_active_not_in_tree_falls_back_to_last_active():
+    """Fallback path: the node Krita reports as active is not part of the document
+    hierarchy at all (e.g. immediately after a merge/create operation).  .active
+    must return the most recently observed active layer instead."""
+    mgr, doc = make_manager()
+    root = doc.rootNode()
+
+    # Establish a known active layer so _last_active is set.
+    second_node = doc.createNode("Layer 2", "paintlayer")
+    root.addChildNode(second_node, None)
+    mgr.update()
+    doc.setActiveNode(second_node)
+    mgr.update()  # _last_active = second layer, _active_id = second_node.id
+
+    # Confirm second_node is the current active.
+    assert mgr.active._node is second_node
+
+    # Simulate the transient state: second_node is removed from the tree
+    # (so _layers no longer holds it) and a brand-new node that hasn't been
+    # inserted anywhere is reported as active by Krita.
+    second_node.remove()
+    mgr.update()  # purges second_node from _layers; _active_id still points to it
+
+    orphan_node = doc.createNode("Orphan", "paintlayer")  # not added to any parent
+    doc.setActiveNode(orphan_node)
+
+    # find() misses orphan, updated()._layers.get(_active_id) also misses the
+    # removed second_node → property falls back to _last_active.
+    layer = mgr.active
+
+    assert layer._node is second_node
+
+
+# ---------------------------------------------------------------------------
+# Tests for LayerManager.update_layer_image
+# ---------------------------------------------------------------------------
+
+
+def test_update_layer_image():
+    """update_layer_image produces the same pixel content a direct write_pixels call
+    would, but routes it through a brand-new layer node and removes the original."""
+    mgr, _doc = make_manager()
+    bounds = Bounds(0, 0, 2, 4)
+
+    initial = Image.create(Extent(4, 4), fill=Qt.GlobalColor.red)
+    new_img = Image.create(Extent(4, 4), fill=Qt.GlobalColor.blue)
+
+    # Two layers seeded with identical red content.
+    # reference_layer: baseline via direct write_pixels.
+    # test_layer:      under test via update_layer_image.
+    reference_layer = mgr.create("Layer", Image.copy(initial), bounds)
+    test_layer = mgr.create("Layer", Image.copy(initial), bounds)
+    old_id = test_layer.id
+
+    # Reference path: in-place pixel write over the full extent.
+    reference_layer.write_pixels(new_img, bounds)
+
+    # Under test: composite-into-new-node path.
+    replacement = mgr.update_layer_image(test_layer, new_img, bounds)
+
+    # Drain the event loop so the remove_later coroutine executes.
+    process_python_events()
+    mgr.update()
+
+    # The old node must no longer be tracked; the replacement keeps the name.
+    assert mgr.find(old_id) is None
+    assert replacement.name == "Layer"
+
+    # Pixel content must be identical to the direct write_pixels result.
+    expected = reference_layer.get_pixels(bounds)
+    actual = replacement.get_pixels(bounds)
+    assert Image.compare(actual, expected) <= 0.001
