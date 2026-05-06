@@ -56,15 +56,17 @@ def make_default_work(size=512, steps=20):
 
 @qtapp
 async def test_connect_bad_url(comfy_server):
+    client = ComfyClient("bad_url")
     with pytest.raises(NetworkError):
-        await ComfyClient.connect("bad_url")
+        await client.connect()
 
 
 @pytest.mark.parametrize("cancel_point", ["after_enqueue", "after_start", "after_sampling"])
 @qtapp
 async def test_cancel(comfy_server: Server, cancel_point):
     assert comfy_server.url is not None
-    client = await ComfyClient.connect(comfy_server.url)
+    client = ComfyClient(comfy_server.url)
+    await client.connect()
     async for _ in client.discover_models(refresh=False):
         pass
     job_id = None
@@ -119,7 +121,8 @@ async def test_disconnect(comfy_server: Server):
             assert msg.event is ClientEvent.connected
 
     assert comfy_server.url is not None
-    client = await ComfyClient.connect(comfy_server.url)
+    client = ComfyClient(comfy_server.url)
+    await client.connect()
     task = eventloop._loop.create_task(listen(client))
     task.cancel()
     with pytest.raises(asyncio.CancelledError):
@@ -176,7 +179,8 @@ def check_nunchaku(server: Server, client: ComfyClient):
 @qtapp
 async def test_info(pytestconfig, comfy_server: Server):
     assert comfy_server.url is not None
-    client = await ComfyClient.connect(comfy_server.url)
+    client = ComfyClient(comfy_server.url)
+    await client.connect()
     async for _ in client.discover_models(refresh=False):
         pass
     check_client_info(client)
@@ -196,7 +200,8 @@ async def test_upload_lora(comfy_server: Server, tmp_path: Path):
     file = files.loras.add(File.local(lora_path, compute_hash=True))
 
     assert comfy_server.url is not None
-    client = await ComfyClient.connect(comfy_server.url)
+    client = ComfyClient(comfy_server.url)
+    await client.connect()
     if file.id in client.models.loras:
         client.models.loras.remove(file.id)
 

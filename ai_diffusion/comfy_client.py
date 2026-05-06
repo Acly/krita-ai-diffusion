@@ -141,9 +141,10 @@ class ComfyClient(Client):
 
     default_url = "http://127.0.0.1:8188"
 
-    def __init__(self, url):
+    def __init__(self, url: str, access_token: str = ""):
         self.url = url
         self.models = ClientModels()
+        self._token = access_token
         self._requests = RequestManager()
         self._id = str(uuid.uuid4())
         self._active_job: JobInfo | None = None
@@ -159,19 +160,17 @@ class ComfyClient(Client):
         if settings.server_authorization:
             self._requests.set_auth(settings.server_authorization)
 
-    @staticmethod
-    async def connect(url=default_url, access_token=""):
-        client = ComfyClient(parse_url(url))
-        log.info(f"Connecting to {client.url}")
+    async def connect(self):
+        log.info(f"Connecting to {self.url}")
 
         # Retrieve system info
-        client.device_info = DeviceInfo.parse(await client._get("system_stats"))
+        self.device_info = DeviceInfo.parse(await self._get("system_stats"))
 
         # Try to establish websockets connection
-        wsurl = websocket_url(client.url)
-        wsargs = websocket_args(access_token)
+        wsurl = websocket_url(self.url)
+        wsargs = websocket_args(self._token)
         try:
-            async with websockets.connect(f"{wsurl}/ws?clientId={client._id}", **wsargs):
+            async with websockets.connect(f"{wsurl}/ws?clientId={self._id}", **wsargs):
                 pass
         except Exception as e:
             msg = _("Could not establish websocket connection at") + f" {wsurl}: {e!s}"
@@ -179,22 +178,22 @@ class ComfyClient(Client):
 
         # Check custom nodes
         log.info("Checking for required custom nodes...")
-        nodes = ComfyObjectInfo(await client._get("object_info"))
+        nodes = ComfyObjectInfo(await self._get("object_info"))
         missing = _check_for_missing_nodes(nodes)
         if len(missing) > 0 and settings.check_server_resources:
             raise MissingResources(missing)
 
-        client._features = ClientFeatures(
+        self._features = ClientFeatures(
             ip_adapter=True,
             translation=True,
-            languages=await _list_languages(client),
+            languages=await _list_languages(self),
             gguf="UnetLoaderGGUF" in nodes,
         )
 
         # Check for required and optional model resources
-        models = client.models
+        models = self.models
         models.node_inputs = nodes
-        available_resources = client.models.resources = {}
+        available_resources = self.models.resources = {}
 
         clip_models = nodes.options("DualCLIPLoader", "clip_name1")
         clip_models += nodes.options("DualCLIPLoaderGGUF", "clip_name1")
@@ -228,13 +227,11 @@ class ComfyClient(Client):
         available_resources.update(_find_loras(loras))
 
         # Workarounds for DirectML
-        if client.device_info.type == "privateuseone":
+        if self.device_info.type == "privateuseone":
             # OmniSR causes a crash
             for n in [2, 3, 4]:
                 id = resource_id(ResourceKind.upscaler, Arch.all, UpscalerName.fast_x(n))
                 available_resources[id] = models.default_upscaler
-
-        return client
 
     async def discover_models(self, refresh: bool):
         if refresh:

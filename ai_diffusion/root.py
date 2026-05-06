@@ -12,6 +12,7 @@ from PyQt5.QtCore import QObject, pyqtSignal
 
 from . import platform_tools, util
 from .client import ClientMessage
+from .comfy_client import ComfyClient
 from .connection import Connection, ConnectionState
 from .custom_workflow import WorkflowCollection
 from .document import Document, KritaDocument
@@ -117,12 +118,12 @@ class Root(QObject):
             ):
                 url = await self._server.start()
                 signal_server_change()
-                await connection._connect(url, ServerMode.managed)
+                client = ComfyClient(url)
+                await connection._connect(client)
                 signal_server_change()
             elif settings.server_mode is ServerMode.cloud:
-                await connection._connect(
-                    settings.server_url, ServerMode.cloud, settings.access_token
-                )
+                if client := connection.create_client(settings):
+                    await connection._connect(client)
             elif settings.server_mode in [ServerMode.undefined, ServerMode.external]:
                 urls = [settings.server_url]
                 if settings.server_mode is ServerMode.undefined:
@@ -131,7 +132,8 @@ class Root(QObject):
                 else:
                     retries = 5
                 for url, retry in itertools.product(urls, range(retries)):
-                    await connection._connect(url, ServerMode.external)
+                    client = ComfyClient(url)
+                    await connection._connect(client)
                     if connection.state is ConnectionState.connected:
                         settings.server_url = url
                         break

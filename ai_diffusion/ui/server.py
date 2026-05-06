@@ -29,16 +29,16 @@ from PyQt5.QtWidgets import (
     QWidget,
 )
 
-from ai_diffusion.network import DownloadProgress
-
 from .. import eventloop, resources, server, util
+from ..comfy_client import ComfyClient
 from ..connection import ConnectionState
 from ..localization import translate as _
+from ..network import DownloadProgress
 from ..platform_tools import get_cuda_devices, gpu_is_pascal_or_older, gpu_supports_nvfp4
 from ..resources import CustomNode, ModelRequirements, ModelResource, ResourceId
 from ..root import root
 from ..server import Server, ServerBackend, ServerState
-from ..settings import ServerMode, Settings, settings
+from ..settings import Settings, settings
 from ..style import Arch
 from ..util import ensure
 from .theme import SignalBlocker, add_header, green, grey, highlight, red, set_text_clipped, yellow
@@ -1017,7 +1017,7 @@ class ServerWidget(QWidget):
             self.state_changed.emit()
             self._status_label.setText(_("Server running - Connecting..."))
             self._status_label.setStyleSheet(f"color:{yellow};font-weight:bold")
-            await root.connection._connect(url, ServerMode.managed)
+            await root.connection._connect(ComfyClient(url))
         except Exception as e:
             self.show_error(e)
         self.update_ui()

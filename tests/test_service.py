@@ -47,7 +47,9 @@ async def receive_images(client: Client, work: WorkflowInput | list[WorkflowInpu
 
 async def connect_cloud(service: CloudService):
     user = await service.create_user("workflow-tester")
-    return await CloudClient.connect(service.url, user["token"])
+    client = CloudClient(service.url, user["token"])
+    await client.connect()
+    return client
 
 
 @pytest.fixture(scope="module")
@@ -225,7 +227,9 @@ async def test_multiple_jobs(pytestconfig, cloud_service: CloudService):
 
     async def create_client(i: int):
         user = await cloud_service.create_user(f"multi-job-tester-{i}")
-        return await CloudClient.connect(cloud_service.url, user["token"])
+        client = CloudClient(cloud_service.url, user["token"])
+        await client.connect()
+        return client
 
     input_image = Image.load(test_dir / "images" / "flowers.webp")
     input_image = Image.scale(input_image, Extent(512, 512))
@@ -275,7 +279,8 @@ async def test_timeout(pytestconfig, cloud_service: CloudService):
         pytest.skip("Cloud service not running")
 
     user = await cloud_service.create_user("timeout-tester")
-    client = await CloudClient.connect(cloud_service.url, user["token"])
+    client = CloudClient(cloud_service.url, user["token"])
+    await client.connect()
     big_workflow = create_simple_workflow(input=Extent(2048, 1536))
 
     try:
@@ -301,7 +306,8 @@ async def test_restart(pytestconfig, cloud_service: CloudService, scenario: str)
         pytest.skip("Cloud service not running")
 
     user = await cloud_service.create_user("restart-tester")
-    client = await CloudClient.connect(cloud_service.url, user["token"])
+    client = CloudClient(cloud_service.url, user["token"])
+    await client.connect()
     workflow = create_simple_workflow()
 
     try:

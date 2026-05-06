@@ -45,7 +45,8 @@ files = FileLibrary(FileCollection(), FileCollection())
 
 
 async def connect_local():
-    client = await ComfyClient.connect()
+    client = ComfyClient(ComfyClient.default_url)
+    await client.connect()
     async for _ in client.discover_models(refresh=False):
         pass
     return client
@@ -53,7 +54,9 @@ async def connect_local():
 
 async def connect_cloud(service: CloudService):
     user = await service.create_user("workflow-tester")
-    return await CloudClient.connect(service.url, user["token"])
+    client = CloudClient(service.url, user["token"])
+    await client.connect()
+    return client
 
 
 @pytest.fixture(params=client_params)

@@ -409,17 +409,15 @@ class Client(ABC):
     models: ClientModels
     device_info: DeviceInfo
 
-    @staticmethod
-    @abstractmethod
-    async def connect(url: str, access_token: str = "") -> Client: ...
+    async def connect(self) -> None: ...
 
     class DiscoverStatus(NamedTuple):
         folder: str
         current: int
         total: int
 
-    def discover_models(self, refresh: bool) -> AsyncGenerator[DiscoverStatus, Any]:
-        raise NotImplementedError()
+    @abstractmethod
+    def discover_models(self, refresh: bool) -> AsyncGenerator[DiscoverStatus, Any]: ...
 
     @abstractmethod
     async def enqueue(self, work: WorkflowInput, front: bool = False) -> str: ...

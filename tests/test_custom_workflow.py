@@ -42,9 +42,11 @@ class MockClient(Client):
         self.models = ClientModels()
         self.models.node_inputs = node_defs
 
-    @staticmethod
-    async def connect(url: str, access_token: str = "") -> Client:
-        return MockClient(ComfyObjectInfo({}))
+    async def connect(self):
+        return
+
+    async def discover_models(self, refresh: bool):
+        yield self.DiscoverStatus("models", 1, 1)
 
     async def enqueue(self, work: WorkflowInput, front: bool = False) -> str:
         return ""

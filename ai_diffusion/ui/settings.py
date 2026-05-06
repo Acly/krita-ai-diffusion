@@ -316,7 +316,8 @@ class CloudWidget(QWidget):
         if connection.state in [ConnectionState.auth_missing, ConnectionState.auth_error]:
             connection.sign_in()
         else:
-            connection.connect()
+            if client := connection.create_client(settings):
+                connection.connect(client)
 
     def _sign_out(self):
         settings.access_token = ""
@@ -580,7 +581,8 @@ class ConnectionSettings(SettingsTab):
         self.write()
 
     def _connect(self):
-        root.connection.connect()
+        if client := root.connection.create_client(settings):
+            root.connection.connect(client)
 
     def update_server_status(self):
         connection = root.connection
