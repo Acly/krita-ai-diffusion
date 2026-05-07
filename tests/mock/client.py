@@ -6,7 +6,9 @@ import asyncio
 from collections.abc import AsyncGenerator
 from typing import Any
 
+from ai_diffusion.api import WorkflowInput
 from ai_diffusion.client import (
+    CheckpointInfo,
     Client,
     ClientFeatures,
     ClientMessage,
@@ -14,6 +16,7 @@ from ai_diffusion.client import (
     DeviceInfo,
     MissingResources,
 )
+from ai_diffusion.resources import Arch, ControlMode, ResourceKind, UpscalerName, resource_id
 from ai_diffusion.settings import PerformanceSettings
 
 
@@ -43,6 +46,19 @@ class MockClient(Client):
         self._performance = PerformanceSettings()
         self._missing: MissingResources | None = None
 
+        # Populate default resources so Model and workflow tests work out of the box
+        # without requiring per-test boilerplate.
+        _checkpoint = "test_sd15.safetensors"
+        self.models.checkpoints[_checkpoint] = CheckpointInfo(_checkpoint, Arch.sd15)
+        _upscaler = "4x_NMKD-Superscale-SP_178000_G.pth"
+        self.models.upscalers = [_upscaler]
+        self.models.resources = {
+            resource_id(ResourceKind.controlnet, Arch.sd15, ControlMode.inpaint): (
+                "control_v11p_sd15_inpaint.pth"
+            ),
+            resource_id(ResourceKind.upscaler, Arch.all, UpscalerName.default): _upscaler,
+        }
+
         # Scriptable behaviour
         self.connect_error: Exception | None = None
         self.messages: list[ClientMessage] = []
@@ -51,6 +67,7 @@ class MockClient(Client):
         self.connect_count = 0
         self.disconnect_count = 0
         self.connected = False
+        self.enqueued: list[WorkflowInput] = []
 
         # Internal queue fed by push() for listen() consumers
         self._queue: asyncio.Queue[ClientMessage | None] = asyncio.Queue()
@@ -68,8 +85,10 @@ class MockClient(Client):
     async def discover_models(self, refresh: bool) -> AsyncGenerator[Client.DiscoverStatus, Any]:  # type: ignore[override]
         yield Client.DiscoverStatus("checkpoints", 1, 1)
 
-    async def enqueue(self, work: Any, front: bool = False) -> str:
-        return "mock-job"
+    async def enqueue(self, work: WorkflowInput, front: bool = False) -> str:
+        job_id = f"mock-job-{len(self.enqueued)}"
+        self.enqueued.append(work)
+        return job_id
 
     async def listen(self) -> AsyncGenerator[ClientMessage, Any]:  # type: ignore[override]
         # Drain any pre-loaded messages first

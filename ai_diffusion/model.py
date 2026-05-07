@@ -205,11 +205,9 @@ class Model(QObject, ObservableProperties):
             self.clear_error()
 
     def generate(self):
-        """Enqueue image generation for the current setup."""
         self._generate(self.queue_mode)
 
     def generate_replace(self):
-        """Enqueue image generation with queue mode set to replace."""
         self._generate(QueueMode.replace)
 
     def _generate(self, queue_mode: QueueMode):
@@ -352,8 +350,7 @@ class Model(QObject, ObservableProperties):
                     params.metadata = params.metadata | next_prompt.metadata
                     params.name = params.metadata.get("prompt_eval", params.name)
             job = self.jobs.add(kind, copy(params))
-            front = queue_mode is QueueMode.front
-            await self._enqueue_job(job, input, front=front)
+            await self._enqueue_job(job, input, front=queue_mode is QueueMode.front)
 
         if self.workspace is not Workspace.custom:
             self._track_style_usage(self.style)
