@@ -63,37 +63,60 @@ class LayerSelect(QComboBox):
         super().__init__(parent)
         self.param = None
         self.filter = filter
+        self._initialized = False
 
         self.setContentsMargins(0, 0, 0, 0)
         self.setMinimumContentsLength(20)
         self.setSizeAdjustPolicy(QComboBox.SizeAdjustPolicy.AdjustToMinimumContentsLength)
         self.currentIndexChanged.connect(lambda _: self.value_changed.emit())
 
-        self._update()
-        root.active_model.layers.changed.connect(self._update)
+        # Don't access root.active_model here - it causes recursion during model loading
+        # Use a delayed initialization instead
+        from PyQt5.QtCore import QTimer
+        QTimer.singleShot(500, self._delayed_init)
+
+    def _delayed_init(self):
+        self._initialized = True
+        # Now it's safe to connect to layers.changed
+        try:
+            root.active_model.layers.changed.connect(self._safe_update)
+            self._update()
+        except Exception as e:
+            # If still not ready, retry
+            from PyQt5.QtCore import QTimer
+            QTimer.singleShot(500, self._delayed_init)
+
+    def _safe_update(self):
+        if self._initialized:
+            self._update()
 
     def _update(self):
-        if self.filter is None:
-            layers = root.active_model.layers.all
-        elif self.filter == "image":
-            layers = root.active_model.layers.images
-        elif self.filter == "mask":
-            layers = root.active_model.layers.masks
-        else:
-            assert False, f"Unknown filter: {self.filter}"
-
-        for l in layers:
-            index = self.findData(l.id)
-            if index == -1:
-                self.addItem(l.name, l.id)
-            elif self.itemText(index) != l.name:
-                self.setItemText(index, l.name)
-        i = 0
-        while i < self.count():
-            if self.itemData(i) not in (l.id for l in layers):
-                self.removeItem(i)
+        try:
+            if self.filter is None:
+                layers = root.active_model.layers.all
+            elif self.filter == "image":
+                layers = root.active_model.layers.images
+            elif self.filter == "mask":
+                layers = root.active_model.layers.masks
             else:
-                i += 1
+                assert False, f"Unknown filter: {self.filter}"
+
+            for l in layers:
+                index = self.findData(l.id)
+                if index == -1:
+                    self.addItem(l.name, l.id)
+                elif self.itemText(index) != l.name:
+                    self.setItemText(index, l.name)
+            i = 0
+            while i < self.count():
+                if self.itemData(i) not in (l.id for l in layers):
+                    self.removeItem(i)
+                else:
+                    i += 1
+        except Exception as e:
+            # If we can't get layers yet, just show a placeholder
+            if self.count() == 0:
+                self.addItem("Loading...")
 
     @property
     def value(self) -> str:

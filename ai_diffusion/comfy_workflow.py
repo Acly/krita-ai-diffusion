@@ -79,7 +79,13 @@ class ComfyWorkflow:
         # Re-order nodes such that a nodes inputs are always processed before the node itself.
         while queue:
             id = queue.pop(0)
-            node = deepcopy(existing[id])
+            # Safe deepcopy to avoid recursion on circular references
+            try:
+                node = deepcopy(existing[id])
+            except RecursionError:
+                # Fallback: manual copy for recursive structures
+                import json
+                node = json.loads(json.dumps(existing[id]))
             class_type = node.get("class_type")
             if class_type is None:
                 log.warning(f"Workflow import: Node {id} is not installed, aborting.")

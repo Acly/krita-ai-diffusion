@@ -276,6 +276,8 @@ class ImageDiffusionWidget(DockWidget):
     def __init__(self):
         super().__init__()
         self.setWindowTitle(_("AI Image Generation"))
+        self._initialized = False
+
         self._welcome = WelcomeWidget(root.server)
         self._generation = GenerationWidget()
         self._upscaling = UpscaleWidget()
@@ -298,14 +300,27 @@ class ImageDiffusionWidget(DockWidget):
         root.auto_update.state_changed.connect(self.update_content)
         root.model_created.connect(self.register_model)
 
+        from PyQt5.QtCore import QTimer
+        QTimer.singleShot(200, self._delayed_init)
+
+    def _delayed_init(self):
+        self._initialized = True
+        self.update_content()
+
     def canvasChanged(self, canvas: krita.Canvas):
+        if not self._initialized:
+            return
         if canvas is not None and canvas.view() is not None:
             self.update_content()
 
     def register_model(self, model: Model):
+        # Connect immediately; update_content will guard until initialized
         model.workspace_changed.connect(self.update_content)
 
     def update_content(self):
+        if not self._initialized:
+            return
+
         self._welcome.update_content()
         model = root.model_for_active_document()
         connection = root.connection
