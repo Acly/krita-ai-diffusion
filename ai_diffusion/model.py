@@ -50,7 +50,7 @@ from .custom_workflow import (
 )
 from .document import Document, KritaDocument, SelectionModifiers
 from .files import FileLibrary
-from .image import Bounds, DummyImage, Extent, Image, Mask
+from .image import BlendMode, Bounds, DummyImage, Extent, Image, Mask
 from .jobs import Job, JobKind, JobParams, JobQueue, JobRegion, JobState
 from .layer import Layer, LayerType, RestoreActiveLayer
 from .localization import translate as _
@@ -784,7 +784,7 @@ class Model(QObject, ObservableProperties):
         if behavior is ApplyRegionBehavior.replace and region_layer.type is not LayerType.group:
             region = self.regions.find_linked(region_layer)
             new_layer = self.layers.update_layer_image(
-                region_layer, image, params.bounds, keep_alpha=True
+                region_layer, image, params.bounds, blend=BlendMode.keep
             )
             if region is not None:
                 region.link(new_layer)
@@ -817,7 +817,7 @@ class Model(QObject, ObservableProperties):
                 self.layers.create_mask("Transparency Mask", mask, layer_bounds, region_layer)
             else:
                 layer_image = region_layer.get_pixels(region_bounds)
-                layer_image.draw_image(region_image, keep_alpha=True)
+                layer_image.draw_image(region_image, blend=BlendMode.keep)
                 region_image = layer_image
                 if not (behavior is ApplyRegionBehavior.no_hide or params.has_mask):
                     for layer in region_layer.child_layers:

@@ -31,7 +31,14 @@ root_dir = Path(__file__).parent.parent
 sys.path.insert(0, str(root_dir))
 sys.path.insert(0, str(root_dir / "tests" / "mock"))
 
+
 import krita
+
+from ai_diffusion import eventloop
+from ai_diffusion.root import root
+from ai_diffusion.settings import settings
+from ai_diffusion.ui.diffusion import ImageDiffusionWidget
+from ai_diffusion.ui.settings import SettingsDialog
 
 _PREVIEW_SIZE = 512
 
@@ -455,12 +462,6 @@ def main():
     args = parser.parse_args()
 
     app = QApplication(sys.argv)
-
-    from ai_diffusion import eventloop
-    from ai_diffusion.root import root
-    from ai_diffusion.settings import settings
-    from ai_diffusion.ui.diffusion import ImageDiffusionWidget
-    from ai_diffusion.ui.settings import SettingsDialog
 
     eventloop.setup()
     settings.load()

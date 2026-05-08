@@ -9,7 +9,7 @@ from PyQt5.QtCore import QByteArray, QObject, QTimer, QUuid, pyqtSignal
 from PyQt5.QtGui import QImage
 
 from . import eventloop
-from .image import Bounds, Extent, Image, ImageCollection
+from .image import BlendMode, Bounds, Extent, Image, ImageCollection
 from .util import acquire_elements, ensure, maybe
 from .util import client_logger as log
 
@@ -172,7 +172,7 @@ class Layer(QObject):
         bounds = bounds or layer_bounds
         if keep_alpha:
             composite = self.get_pixels(bounds)
-            composite.draw_image(img, keep_alpha=True)
+            composite.draw_image(img, blend=BlendMode.keep)
             img = composite
         elif layer_bounds != bounds and not layer_bounds.is_zero:
             # layer.cropNode(*bounds)  <- more efficient, but clutters the undo stack
@@ -521,13 +521,13 @@ class LayerManager(QObject):
         group_node.addChildNode(layer.node, None)
         return self.wrap(group_node)
 
-    def update_layer_image(self, layer: Layer, image: Image, bounds: Bounds, keep_alpha=False):
+    def update_layer_image(self, layer: Layer, image: Image, bounds: Bounds, blend=BlendMode.alpha):
         """Update layer pixel data by creating a new layer to allow undo."""
         layer_bounds = layer.bounds
-        if not keep_alpha:
+        if blend is not BlendMode.keep:
             layer_bounds = Bounds.union(layer_bounds, bounds)
         content = layer.get_pixels(layer_bounds)
-        content.draw_image(image, bounds.relative_to(layer_bounds).offset, keep_alpha=keep_alpha)
+        content.draw_image(image, bounds.relative_to(layer_bounds).offset, blend=blend)
         replacement = self.create(layer.name, content, layer_bounds, above=layer)
         layer.remove_later()
         return replacement

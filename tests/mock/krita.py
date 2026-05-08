@@ -6,7 +6,7 @@ Methods return simple default values unless a test needs to configure specific b
 
 from __future__ import annotations
 
-from PyQt5.QtCore import QByteArray, QObject, QUuid, pyqtSignal
+from PyQt5.QtCore import QByteArray, QObject, QRect, QUuid, pyqtSignal
 from PyQt5.QtGui import QIcon
 from PyQt5.QtWidgets import QDockWidget
 
@@ -204,7 +204,12 @@ class Node(QObject):
         self._animated = False
         # Pixel storage: flat BGRA bytes, stride = _pixel_width * 4.
         self._pixel_data: bytearray = bytearray()
-        self._pixel_width: int = 0
+        self._bounds = (
+            0,
+            0,
+            0,
+            0,
+        )  # (x, y, width, height) of the non-transparent pixels in _pixel_data
 
     # --- tree navigation ---
 
@@ -285,36 +290,48 @@ class Node(QObject):
     # --- pixel data ---
 
     def bounds(self):
-        from PyQt5.QtCore import QRect
-
-        if self._pixel_width > 0 and self._pixel_data:
-            return QRect(0, 0, self._pixel_width, len(self._pixel_data) // (self._pixel_width * 4))
-        return QRect(0, 0, 0, 0)
+        return QRect(*self._bounds)
 
     def pixelData(self, x: int, y: int, w: int, h: int) -> QByteArray:
-        if not self._pixel_data or self._pixel_width == 0:
+        from ai_diffusion.image import Bounds, Image
+
+        b = self._bounds
+        if b[2] == 0 or b[3] == 0:
             return QByteArray(bytes(w * h * 4))
-        result = bytearray()
-        for row in range(y, y + h):
-            start = (row * self._pixel_width + x) * 4
-            result += self._pixel_data[start : start + w * 4]
-        return QByteArray(bytes(result))
+
+        img = self._to_image()
+        img = Image.crop(img, Bounds(x, y, w, h))
+        return img.to_packed_bytes()
 
     def projectionPixelData(self, x: int, y: int, w: int, h: int) -> QByteArray:
         return self.pixelData(x, y, w, h)
 
     def setPixelData(self, value: QByteArray, x: int, y: int, w: int, h: int) -> bool:
-        src = bytes(value)
-        if x == 0 and y == 0 and (not self._pixel_data or self._pixel_width != w):
-            # Full or first write – store as-is and record stride.
-            self._pixel_width = w
-            self._pixel_data = bytearray(src)
-        else:
-            if not self._pixel_data:
-                return False
-            for row in range(h):
-                dst = ((y + row) * self._pixel_width + x) * 4
-                self._pixel_data[dst : dst + w * 4] = src[row * w * 4 : (row + 1) * w * 4]
+        from ai_diffusion.image import BlendMode, Bounds, Extent, Image
+
+        b = self._bounds
+        if b[2] == 0 or b[3] == 0:
+            self._bounds = (x, y, w, h)
+            self._pixel_data = bytearray(value)
+            self.pixelDataChanged.emit()
+            return True
+
+        if x < b[0] or y < b[1] or x + w > b[0] + b[2] or y + h > b[1] + b[3]:
+            # expand bounds to include the new data
+            x0 = min(x, b[0])
+            y0 = min(y, b[1])
+            x1 = max(x + w, b[0] + b[2])
+            y1 = max(y + h, b[1] + b[3])
+            self._bounds = (x0, y0, x1 - x0, y1 - y0)
+            # expand pixel data to match the new bounds
+            img = self._to_image()
+            img = Image.crop(img, Bounds(*self._bounds))
+            self._pixel_data = bytearray(img.to_packed_bytes())
+
+        src = Image.from_packed_bytes(value, Extent(w, h))
+        dst = self._to_image()
+        dst.draw_image(src, (x, y), blend=BlendMode.replace)
+        self._pixel_data = dst.to_packed_bytes()
         self.pixelDataChanged.emit()
         return True
 
@@ -325,6 +342,18 @@ class Node(QObject):
         from PyQt5.QtGui import QImage
 
         return QImage(w, h, QImage.Format.Format_ARGB32)
+
+    def _to_image(self):
+        from ai_diffusion.image import Extent, Image
+
+        e = Extent(*self._bounds[2:])
+        return Image.from_packed_bytes(QByteArray(self._pixel_data), e)
+
+
+def _traverse_nodes(node: Node):
+    yield node
+    for child in node.childNodes():
+        yield from _traverse_nodes(child)
 
 
 # ---------------------------------------------------------------------------
@@ -528,17 +557,14 @@ class Document(QObject):
     # --- pixel data ---
 
     def pixelData(self, x: int, y: int, w: int, h: int) -> QByteArray:
-        """Return pixel data from the active node if it is a paint layer, otherwise
-        fall back to the last (top-most) paint layer in the root's children."""
-        if self._active_node is not None and self._active_node._type == "paintlayer":
-            return self._active_node.pixelData(x, y, w, h)
-        fallback = next(
-            (n for n in reversed(self._root.childNodes()) if n._type == "paintlayer"),
-            None,
+        from ai_diffusion.image import Extent, Image
+
+        projection = Image.flatten(
+            Image.from_packed_bytes(n.pixelData(x, y, w, h), Extent(w, h))
+            for n in _traverse_nodes(self._root)
+            if n._type == "paintlayer"
         )
-        if fallback is not None:
-            return fallback.pixelData(x, y, w, h)
-        return QByteArray(bytes(w * h * 4))
+        return projection.to_packed_bytes()
 
     def refreshProjection(self) -> None:
         pass

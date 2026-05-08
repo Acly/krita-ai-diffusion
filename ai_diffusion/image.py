@@ -3,6 +3,7 @@ from __future__ import annotations
 import struct
 import zlib
 from collections.abc import Callable, Iterable
+from enum import Enum
 from math import sqrt
 from pathlib import Path
 from typing import NamedTuple, SupportsIndex
@@ -300,6 +301,12 @@ def qt_supports_webp():
     return _qt_supports_webp
 
 
+class BlendMode(Enum):
+    alpha = 1  # alpha compositing (src over dst)
+    keep = 2  # keep dst alpha, replace RGB (dst atop src)
+    replace = 3  # replace dst with src
+
+
 class Image:
     def __init__(self, qimage: QImage):
         self._qimage = qimage
@@ -329,6 +336,17 @@ class Image:
     @staticmethod
     def copy(image: Image):
         return Image(QImage(image._qimage))
+
+    @staticmethod
+    def flatten(layer_stack: Iterable[Image]):
+        base = None
+        for layer in layer_stack:
+            if base is None:
+                base = Image.copy(layer)
+            else:
+                base.draw_image(layer)
+        assert base is not None, "No images passed to flatten"
+        return base
 
     @property
     def width(self):
@@ -582,6 +600,19 @@ class Image:
     def to_icon(self):
         return QIcon(self.to_pixmap())
 
+    def to_packed_bytes(self):
+        self.to_krita_format()
+        w, h = self.extent
+        c = 4 if self.is_rgba else 1
+        bits = self._qimage.constBits()
+        assert bits is not None, "Accessing data of invalid image"
+        ptr = bits.asarray(w * h * c)
+        buf = bytearray()
+        for i in range(h):
+            row_start = i * self._qimage.bytesPerLine()
+            buf += bytes(ptr[row_start : row_start + w * c])
+        return QByteArray(bytes(buf))
+
     def to_pil(self):
         from PIL import Image as PILImage
 
@@ -598,10 +629,12 @@ class Image:
         assert self.is_mask
         return Mask(bounds or Bounds(0, 0, *self.extent), self._qimage)
 
-    def draw_image(self, image: Image, offset: tuple[int, int] = (0, 0), keep_alpha=False):
+    def draw_image(self, image: Image, offset: tuple[int, int] = (0, 0), blend=BlendMode.alpha):
         mode = QPainter.CompositionMode.CompositionMode_SourceOver
-        if keep_alpha:
+        if blend == BlendMode.keep:
             mode = QPainter.CompositionMode.CompositionMode_SourceAtop
+        elif blend == BlendMode.replace:
+            mode = QPainter.CompositionMode.CompositionMode_Source
         painter = QPainter(self._qimage)
         painter.setCompositionMode(mode)
         painter.drawImage(*offset, image._qimage)

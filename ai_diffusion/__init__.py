@@ -31,5 +31,3 @@ else:
     mock_dir = Path(__file__).parent.parent / "tests" / "mock"
     if mock_dir.exists():
         sys.path.append(str(mock_dir))
-
-        import krita
