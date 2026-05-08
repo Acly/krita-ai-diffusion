@@ -27,15 +27,6 @@ from .conftest import qtapp
 # ---------------------------------------------------------------------------
 
 
-@pytest.fixture(autouse=True)
-def reset_krita_state():
-    Krita._instance = None  # type: ignore[assignment]
-    KritaDocument._instances.clear()
-    yield
-    Krita._instance = None  # type: ignore[assignment]
-    KritaDocument._instances.clear()
-
-
 @pytest.fixture()
 def workflows_dir(tmp_path: Path) -> Path:
     folder = tmp_path / "workflows"

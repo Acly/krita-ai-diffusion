@@ -1,6 +1,5 @@
 import asyncio
 
-import pytest
 from krita import Document as MockDocument
 from krita import Krita, Selection
 from PyQt5.QtCore import QByteArray
@@ -9,12 +8,6 @@ from ai_diffusion.document import KritaDocument
 from ai_diffusion.image import Bounds
 
 from .conftest import qtapp
-
-
-@pytest.fixture(autouse=True)
-def reset_krita_state():
-    Krita._instance = None  # type: ignore
-    KritaDocument._instances.clear()
 
 
 def _copy_id_annotation(src, dst) -> None:

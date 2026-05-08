@@ -11,7 +11,7 @@ from pathlib import Path
 import pytest
 from krita import Document as MockKritaDocument
 from krita import Krita, Selection
-from PyQt5.QtCore import QByteArray
+from PyQt5.QtCore import QByteArray, Qt
 
 from ai_diffusion.api import WorkflowInput, WorkflowKind
 from ai_diffusion.client import ClientEvent, ClientMessage
@@ -111,16 +111,6 @@ async def _wait_for_job_state(job: Job, state: JobState, timeout: int = 100):
 # ---------------------------------------------------------------------------
 
 
-@pytest.fixture(autouse=True)
-def reset_krita_state():
-    """Ensure a clean Krita singleton and KritaDocument cache for each test."""
-    Krita._instance = None  # type: ignore[assignment]
-    KritaDocument._instances.clear()
-    yield
-    Krita._instance = None  # type: ignore[assignment]
-    KritaDocument._instances.clear()
-
-
 @pytest.fixture()
 def workflows_dir(tmp_path: Path) -> Path:
     folder = tmp_path / "workflows"
@@ -154,10 +144,9 @@ async def test_generate_refine(workflows_dir: Path):
     """With an input image and strength<1.0 the forwarded workflow should be WorkflowKind.refine
     and the initial_image should reflect the content of the Krita document."""
     krita_doc = MockKritaDocument()
-    # Paint a solid, distinctive red colour so we can verify the image transfer
-    red_bgra = bytes([0, 0, 200, 255] * 512 * 512)  # BGRA: B=0 G=0 R=200 A=255
+    red_img = Image.create(Extent(512, 512), fill=Qt.GlobalColor.red)
     bg_node = krita_doc.rootNode().childNodes()[0]
-    bg_node.setPixelData(QByteArray(red_bgra), 0, 0, 512, 512)
+    bg_node.setPixelData(red_img.to_packed_bytes(), 0, 0, 512, 512)
 
     async with _model_env(krita_doc, workflows_dir) as (model, client):
         model.strength = 0.5
@@ -170,17 +159,7 @@ async def test_generate_refine(workflows_dir: Path):
         # The workflow must carry the document image as initial input
         assert result[0].images is not None
         assert result[0].images.initial_image is not None
-
-        # The initial_image content should match the document's pixel data:
-        # fetch the same region that _prepare_workflow would have read (the full canvas)
-        doc_wrapper = KritaDocument.active()
-        assert doc_wrapper is not None
-        expected = doc_wrapper.get_image(Bounds(0, 0, 512, 512))
-        actual = result[0].images.initial_image
-
-        assert actual.extent == expected.extent
-        assert actual.pixel(0, 0) == expected.pixel(0, 0)
-        assert actual.pixel(256, 256) == expected.pixel(256, 256)
+        assert Image.compare(result[0].images.initial_image, red_img) < 0.01
 
 
 @qtapp

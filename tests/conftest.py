@@ -16,6 +16,7 @@ from PyQt5.QtCore import QCoreApplication
 
 sys.path.append(str(Path(__file__).parent.parent))
 from ai_diffusion import eventloop, network, util
+from ai_diffusion.document import KritaDocument
 
 from .config import result_dir
 
@@ -91,6 +92,14 @@ qtapp = QtTestApp()
 @pytest.fixture(scope="session", name="qtapp")
 def _qtapp_fixture():
     return qtapp
+
+
+@pytest.fixture(autouse=True)
+def reset_krita_state():
+    from krita import Krita
+
+    Krita._instance = None  # type: ignore[assignment]
+    KritaDocument._instances.clear()
 
 
 @pytest.fixture(scope="session", autouse=True)

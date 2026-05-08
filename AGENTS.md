@@ -9,10 +9,6 @@ image generation functionality via diffusion models.
 The plugin runs within Krita's embedded Python interpreter. It may not use 3rd party
 libraries except for Qt and the websockets library.
 
-### Technology
-* Qt for UI
-* ComfyUI for inference
-
 ### Inference
 * `api.py` has data structures for an inference request (`WorkflowInput`) - everything relevant to image generation MUST be contained here
 * `comfy_client.py` is a HTTP/WebSocket client that connects to a ComfyUI server to fulfill requests
@@ -32,7 +28,7 @@ The UI is separated into distinct workspaces:
 Code is separated into:
 * Model classes which hold observable UI state and implement actions
   * `model.py`, `connection.py`, `jobs.py`, `control.py`, ...
-* UI widgets which connect to the model in the `ui/` sub-folder
+* Qt widgets which connect to the model in the `ui/` sub-folder
 * Persistence layer which loads/stores state in files or Krita documents
   * `persistence.py`, `settings.py`, `files.py`, ...
 
@@ -64,5 +60,6 @@ Run tests with these priorities:
 
 ## Code Guidelines
 
-* Be brief, add docstrings/comments only where logic is not intuitive from code
-* Use `snake_case` also for enums and constants
+* Avoid docstrings/comments for small functions and intuitive code
+* Use `snake_case` (lowercase) for enums and constants
+* Put imports at the beginning of the file unless there is a good reason not to
