@@ -18,9 +18,11 @@ from ai_diffusion.client import ClientEvent, ClientMessage
 from ai_diffusion.connection import Connection, ConnectionState
 from ai_diffusion.custom_workflow import WorkflowCollection
 from ai_diffusion.document import KritaDocument
-from ai_diffusion.image import Bounds, Extent, Image, ImageCollection
-from ai_diffusion.jobs import Job, JobState
+from ai_diffusion.image import BlendMode, Bounds, Extent, Image, ImageCollection
+from ai_diffusion.jobs import Job, JobKind, JobParams, JobRegion, JobState
+from ai_diffusion.layer import Layer, LayerType
 from ai_diffusion.model import ErrorKind, Model, ProgressKind, no_error
+from ai_diffusion.settings import ApplyBehavior, ApplyRegionBehavior
 from ai_diffusion.style import Style
 
 from .conftest import qtapp
@@ -385,3 +387,310 @@ async def test_job_disconnect_reconnect(workflows_dir: Path):
         # Finishing job2 cleans up job1 via _cancel_earlier_jobs
         assert job1.state is JobState.cancelled
         assert model.error == no_error
+
+
+# ---------------------------------------------------------------------------
+# Helpers for result / preview tests
+# ---------------------------------------------------------------------------
+
+_DOC_EXTENT = Extent(512, 512)
+_DOC_BOUNDS = Bounds(0, 0, 512, 512)
+
+# Solid fill colours chosen so images are visually distinct and easy to compare.
+_RED = 0xFFFF0000
+_GREEN = 0xFF00FF00
+
+
+def _make_finished_job(
+    model: Model,
+    result_images: list[Image],
+    regions: list[JobRegion] | None = None,
+    bounds: Bounds = _DOC_BOUNDS,
+    seed: int = 42,
+) -> Job:
+    """Add a finished diffusion job with the given result images to *model*'s queue."""
+    params = JobParams(bounds=bounds, name="test job", seed=seed)
+    if regions:
+        params.regions = regions
+    job = model.jobs.add(JobKind.diffusion, params)
+    job.id = "test-job"
+    assert job.id is not None
+    model.jobs.set_results(job, ImageCollection(result_images))
+    job.state = JobState.finished
+    return job
+
+
+def _paint_layers(model: Model) -> list[Layer]:
+    """Return all paint layers currently visible in the document tree."""
+    return [l for l in model.layers.updated().images if l.type is LayerType.paint]
+
+
+def _layer_matches(layer: Layer, expected: Image, bounds: Bounds) -> bool:
+    """True when *layer*'s pixel content at *bounds* is nearly identical to *expected*.
+
+    Image.compare() returns a normalised RMSE in [0, 1] (values are divided by 255
+    before comparison), so 0.01 is a tight but noise-tolerant threshold.
+    """
+    if layer.bounds.is_zero:
+        return False
+    return Image.compare(layer.get_pixels(bounds), expected) < 0.01
+
+
+# ---------------------------------------------------------------------------
+# Tests
+# ---------------------------------------------------------------------------
+
+
+@qtapp
+async def test_show_preview(workflows_dir: Path):
+    """show_preview creates a locked layer the first time; the second call reuses it."""
+    krita_doc = MockKritaDocument()
+    async with _model_env(krita_doc, workflows_dir) as (model, _client):
+        await asyncio.sleep(0)  # let _handle_messages task start before disconnect
+        result = Image.create(_DOC_EXTENT, fill=_RED)
+        job = _make_finished_job(model, [result])
+        assert job.id is not None
+
+        # ── first call: a brand-new layer should be created ───────────────
+        model.show_preview(job.id, 0)
+
+        # Identify the preview layer from the document tree: it is the one locked layer.
+        all_layers = _paint_layers(model)
+        assert len(all_layers) == 2, "expected Background + 1 preview layer"
+        preview_layers = [l for l in all_layers if l.is_locked]
+        assert len(preview_layers) == 1, "expected exactly one locked (preview) layer"
+        preview_layer = preview_layers[0]
+
+        # Layer content must match the job result image.
+        assert _layer_matches(preview_layer, result, _DOC_BOUNDS)
+
+        # ── second call: must reuse the same layer, not create a new one ───
+        model.show_preview(job.id, 0)
+
+        all_layers_after = _paint_layers(model)
+        assert len(all_layers_after) == 2, "second call must not add another layer"
+        # The locked layer's identity (id) must be unchanged.
+        preview_layers_after = [l for l in all_layers_after if l.is_locked]
+        assert len(preview_layers_after) == 1
+        assert preview_layers_after[0].id == preview_layer.id, (
+            "second show_preview must reuse the existing layer"
+        )
+
+
+@qtapp
+@pytest.mark.parametrize(
+    "behavior",
+    [ApplyBehavior.layer, ApplyBehavior.layer_active, ApplyBehavior.replace],
+    ids=["layer", "layer_active", "replace"],
+)
+async def test_apply_result(workflows_dir: Path, behavior: ApplyBehavior):
+    """apply_result writes the image to the correct document layer for every ApplyBehavior."""
+    krita_doc = MockKritaDocument()
+    async with _model_env(krita_doc, workflows_dir) as (model, _client):
+        await asyncio.sleep(0)  # let _handle_messages task start before disconnect
+        result = Image.create(_DOC_EXTENT, fill=_RED)
+        params = JobParams(bounds=_DOC_BOUNDS, name="diffusion", seed=7)
+
+        model.apply_result(result, params, behavior=behavior)
+
+        # Regardless of behavior, a paint layer with the result content must exist.
+        matches = [l for l in _paint_layers(model) if _layer_matches(l, result, _DOC_BOUNDS)]
+        assert len(matches) >= 1, f"no layer with the result image found for {behavior}"
+
+        if behavior in (ApplyBehavior.layer, ApplyBehavior.layer_active):
+            # A completely new layer was added; the document grows by one.
+            assert len(_paint_layers(model)) == 2
+        # For ApplyBehavior.replace, update_layer_image schedules the old layer for async
+        # removal, so only the presence of the result content is asserted above.
+
+
+@qtapp
+async def test_apply_preview(workflows_dir: Path):
+    """Applying a result removes the preview layer that was shown beforehand."""
+    krita_doc = MockKritaDocument()
+    async with _model_env(krita_doc, workflows_dir) as (model, _client):
+        await asyncio.sleep(0)  # let _handle_messages task start before disconnect
+        result = Image.create(_DOC_EXTENT, fill=_GREEN)
+        job = _make_finished_job(model, [result])
+        assert job.id is not None
+
+        # Show preview → a locked layer appears in the document tree.
+        model.show_preview(job.id, 0)
+        layers_with_preview = _paint_layers(model)
+        preview_layers = [l for l in layers_with_preview if l.is_locked]
+        assert len(preview_layers) == 1, "expected exactly one locked (preview) layer"
+        preview_layer_id = preview_layers[0].id
+
+        # Apply the result → preview layer must be removed synchronously.
+        model.apply_generated_result(job.id, 0)
+
+        # The preview node is no longer in the layer tree.
+        assert model.layers.updated().find(preview_layer_id) is None, (
+            "preview layer must be removed from the document after apply"
+        )
+
+        # The result image was written to a new layer in the document.
+        result_layers = [l for l in _paint_layers(model) if _layer_matches(l, result, _DOC_BOUNDS)]
+        assert len(result_layers) >= 1
+
+
+@qtapp
+async def test_apply_region_replace(workflows_dir: Path):
+    """ApplyRegionBehavior.replace updates the linked region layers in place and re-links regions."""
+    krita_doc = MockKritaDocument()
+    async with _model_env(krita_doc, workflows_dir) as (model, _client):
+        await asyncio.sleep(0)  # let _handle_messages task start before disconnect
+        result = Image.create(_DOC_EXTENT, fill=_RED)
+
+        # ── document setup: two paint layers ──────────────────────────────
+        # 'Background' is already active.  Add a second paint layer on top.
+        layer1 = model.layers.active  # Background
+        layer2 = model.layers.create("Layer 2", Image.create(_DOC_EXTENT, fill=_GREEN), _DOC_BOUNDS)
+
+        # ── region setup: each region linked to one layer ─────────────────
+        region1 = model.regions.emplace()
+        region1.link(layer1)
+
+        region2 = model.regions.emplace()
+        region2.link(layer2)
+
+        # ── build a job with two JobRegions, one per document layer ───────
+        job_regions = [
+            JobRegion(layer_id=layer1.id_string, prompt="prompt A", bounds=_DOC_BOUNDS),
+            JobRegion(layer_id=layer2.id_string, prompt="prompt B", bounds=_DOC_BOUNDS),
+        ]
+        job = _make_finished_job(model, [result], regions=job_regions)
+
+        # ── apply with replace behavior ───────────────────────────────────
+        model.apply_result(
+            result,
+            job.params,
+            behavior=ApplyBehavior.layer,
+            region_behavior=ApplyRegionBehavior.replace,
+        )
+
+        # Two replacement layers must exist, each carrying the result image content.
+        # (The original layers are scheduled for async removal via remove_later().)
+        all_paint = _paint_layers(model)
+        replacements = [l for l in all_paint if _layer_matches(l, result, _DOC_BOUNDS)]
+        assert len(replacements) == 2, (
+            f"expected 2 replacement layers with result content, got {len(replacements)}"
+        )
+
+        # Each replacement layer must carry the result image content.
+        for layer in replacements:
+            assert _layer_matches(layer, result, _DOC_BOUNDS), (
+                f"layer '{layer.name}' does not contain the expected result image"
+            )
+
+        # Each region must now be linked to one of the replacement layers.
+        for region in (region1, region2):
+            linked = [l for l in replacements if region.is_linked(l)]
+            assert len(linked) >= 1, f"region '{region.positive}' lost its layer link after apply"
+
+
+@qtapp
+async def test_apply_region_group(workflows_dir: Path):
+    """ApplyRegionBehavior.layer_group places results inside groups, hides old layers,
+    and applies the group's alpha mask to the new result content."""
+    krita_doc = MockKritaDocument()
+    async with _model_env(krita_doc, workflows_dir) as (model, _client):
+        await asyncio.sleep(0)  # let _handle_messages task start before disconnect
+
+        HALF = _DOC_EXTENT.width // 2
+
+        # ── document setup ────────────────────────────────────────────────
+        # layer1: root-level paint layer, left half transparent, right half opaque.
+        layer1_content = Image.create(_DOC_EXTENT, fill=0)
+        layer1_content.draw_image(
+            Image.create(Extent(HALF, _DOC_EXTENT.height), fill=_GREEN),
+            (HALF, 0),
+            blend=BlendMode.replace,
+        )
+        layer1 = model.layers.create("Layer 1", layer1_content, _DOC_BOUNDS)
+
+        # group: an existing group layer containing one paint layer.
+        # The paint layer has the complementary alpha: left opaque, right transparent.
+        group_child_content = Image.create(_DOC_EXTENT, fill=0)
+        group_child_content.draw_image(
+            Image.create(Extent(HALF, _DOC_EXTENT.height), fill=_GREEN),
+            (0, 0),
+            blend=BlendMode.replace,
+        )
+        group = model.layers.create_group("Layer Group")
+        layer_in_group = model.layers.create(
+            "In Group", group_child_content, _DOC_BOUNDS, parent=group
+        )
+
+        # ── regions ───────────────────────────────────────────────────────
+        region1 = model.regions.emplace()
+        region1.link(layer1)
+
+        region2 = model.regions.emplace()
+        region2.link(group)
+
+        # ── job ──────────────────────────────────────────────────────────
+        result = Image.create(_DOC_EXTENT, fill=_RED)
+        job_regions = [
+            JobRegion(layer_id=layer1.id_string, prompt="region1", bounds=_DOC_BOUNDS),
+            JobRegion(layer_id=group.id_string, prompt="region2", bounds=_DOC_BOUNDS),
+        ]
+        job = _make_finished_job(model, [result], regions=job_regions)
+
+        # ── apply ────────────────────────────────────────────────────────
+        model.apply_result(
+            result,
+            job.params,
+            behavior=ApplyBehavior.layer,
+            region_behavior=ApplyRegionBehavior.layer_group,
+        )
+
+        # ── check: layer1 placed into a new group ─────────────────────────
+        new_group = layer1.parent_layer
+        assert new_group is not None
+        assert new_group.type is LayerType.group
+        assert not new_group.is_root
+
+        # The result layer is the last child (topmost) of new_group; layer1 is below it.
+        children1 = new_group.child_layers
+        assert len(children1) == 2
+        assert children1[-1] is not layer1  # result layer, not the original
+        result1 = children1[-1]
+
+        # region1 must now be linked to the new group (not the ungrouped layer1).
+        assert region1.is_linked(new_group)
+
+        # ── check: result for the already-grouped region is in the existing group ──
+        children2 = group.child_layers
+        assert len(children2) == 2
+        assert children2[-1] is not layer_in_group
+        result2 = children2[-1]
+
+        # ── check: old layers hidden, new result layers visible ───────────
+        assert not layer1.is_visible, "layer1 must be hidden after apply"
+        assert not layer_in_group.is_visible, "layer_in_group must be hidden after apply"
+        assert result1.is_visible, "result1 must be visible"
+        assert result2.is_visible, "result2 must be visible"
+
+        # ── check: alpha from existing layers applied to result content ───
+        # layer1 had right half opaque → result1 right is red, left transparent.
+        p1 = result1.get_pixels(_DOC_BOUNDS)
+        r1_right = p1.pixel(HALF + 50, 50)
+        r1_left = p1.pixel(50, 50)
+        assert isinstance(r1_right, tuple) and r1_right[3] == 255, (
+            "result1: right side must be opaque"
+        )
+        assert r1_right[:3] == (255, 0, 0), "result1: right side must be red"
+        assert isinstance(r1_left, tuple) and r1_left[3] == 0, (
+            "result1: left side must be transparent"
+        )
+
+        # layer_in_group had left half opaque → result2 left is red, right transparent.
+        p2 = result2.get_pixels(_DOC_BOUNDS)
+        r2_left = p2.pixel(50, 50)
+        r2_right = p2.pixel(HALF + 50, 50)
+        assert isinstance(r2_left, tuple) and r2_left[3] == 255, "result2: left side must be opaque"
+        assert r2_left[:3] == (255, 0, 0), "result2: left side must be red"
+        assert isinstance(r2_right, tuple) and r2_right[3] == 0, (
+            "result2: right side must be transparent"
+        )

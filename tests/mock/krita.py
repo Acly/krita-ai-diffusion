@@ -304,6 +304,18 @@ class Node(QObject):
         return img.to_packed_bytes()
 
     def projectionPixelData(self, x: int, y: int, w: int, h: int) -> QByteArray:
+        if self._type == "grouplayer":
+            from ai_diffusion.image import BlendMode, Extent, Image
+
+            result = Image.create(Extent(w, h), fill=0)
+            # _children is ordered bottom-to-top (last element = topmost layer);
+            # composite bottom-to-top so the last child ends up on top.
+            for child in self._children:
+                if child._visible:
+                    child_data = child.projectionPixelData(x, y, w, h)
+                    child_img = Image.from_packed_bytes(child_data, Extent(w, h))
+                    result.draw_image(child_img, (0, 0), blend=BlendMode.alpha)
+            return result.to_packed_bytes()
         return self.pixelData(x, y, w, h)
 
     def setPixelData(self, value: QByteArray, x: int, y: int, w: int, h: int) -> bool:

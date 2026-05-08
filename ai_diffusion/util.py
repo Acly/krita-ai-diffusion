@@ -27,12 +27,13 @@ class PluginError(Exception):
 
 
 def _get_user_data_dir():
-    krita_mod = sys.modules.get("krita")
-    krita_is_mock = krita_mod is not None and getattr(krita_mod, "IS_MOCK", False)
-    if krita_is_mock:
+    import krita
+
+    if getattr(krita, "IS_MOCK", False):  # mock Krita used in tests
         dir = plugin_dir.parent / ".appdata"
         dir.mkdir(exist_ok=True)
         return dir
+
     try:
         dir = Path(QStandardPaths.writableLocation(QStandardPaths.AppDataLocation))
         if dir.exists() and "krita" in dir.name.lower():
