@@ -4,10 +4,10 @@ from __future__ import annotations
 
 import asyncio
 
-from ai_diffusion.client import ClientEvent, ClientMessage, MissingResources
+from ai_diffusion.backend.client import ClientEvent, ClientMessage, MissingResources
+from ai_diffusion.backend.network import NetworkError
+from ai_diffusion.backend.resources import Arch
 from ai_diffusion.model.connection import Connection, ConnectionState
-from ai_diffusion.network import NetworkError
-from ai_diffusion.resources import Arch
 
 from .conftest import qtapp
 from .mock.client import MockClient

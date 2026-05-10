@@ -9,9 +9,9 @@ from typing import Any, NamedTuple
 
 from PyQt5.QtCore import QObject, pyqtSignal
 
-from .api import CheckpointInput, LoraInput
+from .backend.api import CheckpointInput, LoraInput
+from .backend.resources import Arch
 from .localization import translate as _
-from .resources import Arch
 from .settings import Setting, settings
 from .util import client_logger as log
 from .util import encode_json, find_unused_path, plugin_dir, read_json_with_comments, user_data_dir

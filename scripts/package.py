@@ -10,7 +10,7 @@ from markdown import markdown
 
 sys.path.append(str(Path(__file__).parent.parent))
 import ai_diffusion
-from ai_diffusion.resources import update_model_checksums
+from ai_diffusion.backend.resources import update_model_checksums
 
 sys.path.append(str(Path(__file__).parent))
 import translation

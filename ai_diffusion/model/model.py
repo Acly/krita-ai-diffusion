@@ -16,8 +16,9 @@ from typing import Any, NamedTuple
 from PyQt5.QtCore import QMetaObject, QObject, Qt, QUuid, pyqtSignal
 from PyQt5.QtGui import QBrush, QColor, QPainter
 
-from .. import eventloop, resolution, util, workflow
-from ..api import (
+from .. import eventloop, util
+from ..backend import resolution, workflow
+from ..backend.api import (
     ConditioningInput,
     ControlInput,
     CustomWorkflowInput,
@@ -31,7 +32,7 @@ from ..api import (
     WorkflowInput,
     WorkflowKind,
 )
-from ..client import (
+from ..backend.client import (
     Client,
     ClientEvent,
     ClientMessage,
@@ -40,15 +41,15 @@ from ..client import (
     is_style_supported,
     resolve_arch,
 )
+from ..backend.network import NetworkError
+from ..backend.resolution import compute_bounds, compute_relative_bounds
+from ..backend.resources import ControlMode
 from ..document import Document, KritaDocument, SelectionModifiers
 from ..files import FileLibrary
 from ..image import BlendMode, Bounds, DummyImage, Extent, Image, Mask
 from ..layer import Layer, LayerType, RestoreActiveLayer
 from ..localization import translate as _
-from ..network import NetworkError
 from ..pose import Pose
-from ..resolution import compute_bounds, compute_relative_bounds
-from ..resources import ControlMode
 from ..settings import (
     ApplyBehavior,
     ApplyRegionBehavior,

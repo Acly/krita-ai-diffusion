@@ -1,4 +1,4 @@
-from ai_diffusion.api import LoraInput
+from ai_diffusion.backend.api import LoraInput
 from ai_diffusion.files import File, FileCollection
 from ai_diffusion.image import Bounds
 from ai_diffusion.model.jobs import JobParams

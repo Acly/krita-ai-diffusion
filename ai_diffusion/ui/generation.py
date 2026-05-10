@@ -42,7 +42,9 @@ from PyQt5.QtWidgets import (
     QWidget,
 )
 
-from ..api import InpaintContext
+from ..backend.api import InpaintContext
+from ..backend.resources import Arch
+from ..backend.workflow import FillMode, InpaintMode
 from ..image import Bounds, Extent, Image
 from ..localization import translate as _
 from ..model.jobs import Job, JobKind, JobParams, JobQueue, JobState
@@ -50,11 +52,9 @@ from ..model.model import DocumentModel, ProgressKind, Workspace
 from ..model.properties import Bind, Binding, bind, bind_combo, bind_toggle
 from ..model.region import RootRegion
 from ..model.root import root
-from ..resources import Arch
 from ..settings import settings
 from ..style import Styles
 from ..util import ensure, flatten, sequence_equal
-from ..workflow import FillMode, InpaintMode
 from . import theme
 from .region import RegionPromptWidget
 from .widget import (

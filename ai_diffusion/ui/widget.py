@@ -47,7 +47,8 @@ from PyQt5.QtWidgets import (
     QWidgetAction,
 )
 
-from ..client import filter_supported_styles, resolve_arch
+from ..backend.client import filter_supported_styles, resolve_arch
+from ..backend.workflow import apply_strength, snap_to_percent
 from ..localization import translate as _
 from ..model.connection import ConnectionState
 from ..model.jobs import JobKind, JobState
@@ -78,7 +79,6 @@ from ..text import (
     str_index_to_char16_index,
 )
 from ..util import ensure
-from ..workflow import apply_strength, snap_to_percent
 from . import actions, theme
 from .autocomplete import PromptAutoComplete
 from .theme import SignalBlocker

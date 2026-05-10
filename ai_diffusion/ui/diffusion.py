@@ -16,13 +16,13 @@ from PyQt5.QtWidgets import (
 )
 
 from .. import eventloop
+from ..backend.server import Server, ServerState
 from ..document import KritaDocument
 from ..localization import translate as _
 from ..model.connection import ConnectionState
 from ..model.model import DocumentModel, Workspace
 from ..model.root import root
 from ..model.updates import UpdateState
-from ..server import Server, ServerState
 from ..settings import ServerMode, settings
 from . import theme
 from .animation import AnimationWidget

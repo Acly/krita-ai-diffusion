@@ -7,10 +7,16 @@ from tempfile import TemporaryDirectory
 import pytest
 from PyQt5.QtNetwork import QNetworkAccessManager
 
-from ai_diffusion import network, resources, server
+from ai_diffusion.backend import network, resources, server
+from ai_diffusion.backend.resources import VerificationState
+from ai_diffusion.backend.server import (
+    InstallationProgress,
+    Server,
+    ServerBackend,
+    ServerState,
+    model_dirs,
+)
 from ai_diffusion.platform_tools import get_cuda_devices
-from ai_diffusion.resources import VerificationState
-from ai_diffusion.server import InstallationProgress, Server, ServerBackend, ServerState, model_dirs
 from ai_diffusion.style import Arch
 
 from .config import server_dir

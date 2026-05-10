@@ -15,7 +15,8 @@ import pytest
 from PyQt5.QtCore import QCoreApplication
 
 sys.path.append(str(Path(__file__).parent.parent))
-from ai_diffusion import eventloop, network, util
+from ai_diffusion import eventloop, util
+from ai_diffusion.backend import network
 from ai_diffusion.document import KritaDocument
 
 from .config import result_dir

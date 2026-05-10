@@ -29,15 +29,16 @@ from PyQt5.QtWidgets import (
     QWidget,
 )
 
-from .. import eventloop, resources, server, util
-from ..comfy_client import ComfyClient
+from .. import eventloop, util
+from ..backend import resources, server
+from ..backend.comfy_client import ComfyClient
+from ..backend.network import DownloadProgress
+from ..backend.resources import CustomNode, ModelRequirements, ModelResource, ResourceId
+from ..backend.server import Server, ServerBackend, ServerState
 from ..localization import translate as _
 from ..model.connection import ConnectionState
 from ..model.root import root
-from ..network import DownloadProgress
 from ..platform_tools import get_cuda_devices, gpu_is_pascal_or_older, gpu_supports_nvfp4
-from ..resources import CustomNode, ModelRequirements, ModelResource, ResourceId
-from ..server import Server, ServerBackend, ServerState
 from ..settings import Settings, settings
 from ..style import Arch
 from ..util import ensure

@@ -11,12 +11,12 @@ from pathlib import Path
 from PyQt5.QtCore import QObject, pyqtSignal
 
 from .. import platform_tools, util
-from ..client import ClientMessage
-from ..comfy_client import ComfyClient
+from ..backend.client import ClientMessage
+from ..backend.comfy_client import ComfyClient
+from ..backend.server import Server, ServerState
 from ..document import Document, KritaDocument
 from ..files import File, FileFormat, FileLibrary, FileSource
 from ..persistence import ModelSync, RecentlyUsedSync, import_prompt_from_file
-from ..server import Server, ServerState
 from ..settings import ServerMode, settings
 from ..ui.theme import checkpoint_icon
 from ..util import client_logger as log

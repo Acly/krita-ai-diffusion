@@ -6,8 +6,8 @@ from typing import Any
 
 import pytest
 
-from ai_diffusion import workflow
-from ai_diffusion.api import (
+from ai_diffusion.backend import workflow
+from ai_diffusion.backend.api import (
     ConditioningInput,
     ControlInput,
     CustomWorkflowInput,
@@ -22,18 +22,18 @@ from ai_diffusion.api import (
     WorkflowInput,
     WorkflowKind,
 )
-from ai_diffusion.client import CheckpointInfo, Client, ClientEvent, ClientModels
-from ai_diffusion.cloud_client import CloudClient
-from ai_diffusion.comfy_client import ComfyClient
-from ai_diffusion.comfy_workflow import ComfyWorkflow
+from ai_diffusion.backend.client import CheckpointInfo, Client, ClientEvent, ClientModels
+from ai_diffusion.backend.cloud_client import CloudClient
+from ai_diffusion.backend.comfy_client import ComfyClient
+from ai_diffusion.backend.comfy_workflow import ComfyWorkflow
+from ai_diffusion.backend.resources import ControlMode
+from ai_diffusion.backend.workflow import detect_inpaint
 from ai_diffusion.files import File, FileCollection, FileLibrary, FileSource
 from ai_diffusion.image import Bounds, Extent, Image, ImageCollection, Mask
 from ai_diffusion.pose import Pose
-from ai_diffusion.resources import ControlMode
 from ai_diffusion.settings import PerformanceSettings
 from ai_diffusion.style import Arch, Style
 from ai_diffusion.util import ensure
-from ai_diffusion.workflow import detect_inpaint
 
 from . import config
 from .config import default_checkpoint, image_dir, reference_dir, result_dir, root_dir, test_dir

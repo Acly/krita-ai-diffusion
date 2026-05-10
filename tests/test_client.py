@@ -3,8 +3,9 @@ from pathlib import Path
 
 import pytest
 
-from ai_diffusion import eventloop, resources
-from ai_diffusion.api import (
+from ai_diffusion import eventloop
+from ai_diffusion.backend import resources
+from ai_diffusion.backend.api import (
     CheckpointInput,
     ConditioningInput,
     ImageInput,
@@ -13,14 +14,14 @@ from ai_diffusion.api import (
     WorkflowInput,
     WorkflowKind,
 )
-from ai_diffusion.client import ClientEvent, resolve_arch
-from ai_diffusion.comfy_client import ComfyClient, parse_url, websocket_url
+from ai_diffusion.backend.client import ClientEvent, resolve_arch
+from ai_diffusion.backend.comfy_client import ComfyClient, parse_url, websocket_url
+from ai_diffusion.backend.network import NetworkError
+from ai_diffusion.backend.resources import ControlMode
+from ai_diffusion.backend.server import Server, ServerBackend, ServerState
 from ai_diffusion.files import File, FileFormat, FileLibrary
 from ai_diffusion.image import Extent
-from ai_diffusion.network import NetworkError
 from ai_diffusion.platform_tools import get_cuda_devices
-from ai_diffusion.resources import ControlMode
-from ai_diffusion.server import Server, ServerBackend, ServerState
 from ai_diffusion.style import Arch, Style
 from ai_diffusion.util import ensure
 

@@ -1,8 +1,8 @@
 import json
 from itertools import chain
 
-import ai_diffusion.resources as res
-from ai_diffusion.resources import Arch, ModelResource
+import ai_diffusion.backend.resources as res
+from ai_diffusion.backend.resources import Arch, ModelResource
 
 from .config import result_dir
 

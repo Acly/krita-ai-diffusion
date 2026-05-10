@@ -1,6 +1,6 @@
 from PyQt5.QtCore import Qt
 
-from ai_diffusion.api import (
+from ai_diffusion.backend.api import (
     ConditioningInput,
     ControlInput,
     ExtentInput,
@@ -9,8 +9,8 @@ from ai_diffusion.api import (
     WorkflowInput,
     WorkflowKind,
 )
+from ai_diffusion.backend.resources import ControlMode
 from ai_diffusion.image import Bounds, Extent, Image, ImageFileFormat
-from ai_diffusion.resources import ControlMode
 from ai_diffusion.util import ensure
 
 

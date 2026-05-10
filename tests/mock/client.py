@@ -6,8 +6,8 @@ import asyncio
 from collections.abc import AsyncGenerator
 from typing import Any
 
-from ai_diffusion.api import WorkflowInput
-from ai_diffusion.client import (
+from ai_diffusion.backend.api import WorkflowInput
+from ai_diffusion.backend.client import (
     CheckpointInfo,
     Client,
     ClientFeatures,
@@ -16,7 +16,13 @@ from ai_diffusion.client import (
     DeviceInfo,
     MissingResources,
 )
-from ai_diffusion.resources import Arch, ControlMode, ResourceKind, UpscalerName, resource_id
+from ai_diffusion.backend.resources import (
+    Arch,
+    ControlMode,
+    ResourceKind,
+    UpscalerName,
+    resource_id,
+)
 from ai_diffusion.settings import PerformanceSettings
 
 

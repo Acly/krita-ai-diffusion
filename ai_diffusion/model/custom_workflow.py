@@ -21,16 +21,16 @@ from PyQt5.QtCore import (
 )
 
 from .. import eventloop
-from ..api import CustomStyleInput, InpaintContext, WorkflowInput
-from ..client import ClientModels, ClientOutput, JobInfoOutput, OutputBatchMode, TextOutput
-from ..comfy_workflow import ComfyNode, ComfyWorkflow
+from ..backend.api import CustomStyleInput, InpaintContext, WorkflowInput
+from ..backend.client import ClientModels, ClientOutput, JobInfoOutput, OutputBatchMode, TextOutput
+from ..backend.comfy_workflow import ComfyNode, ComfyWorkflow
+from ..backend.workflow import sampling_from_style
 from ..image import Bounds, Image, Mask
 from ..localization import translate as _
 from ..style import Styles
 from ..ui import theme
 from ..util import PluginError, base_type_match, parse_enum, user_data_dir
 from ..util import client_logger as log
-from ..workflow import sampling_from_style
 from .connection import Connection, ConnectionState
 from .jobs import Job, JobKind, JobParams, JobQueue
 from .properties import ObservableProperties, Property

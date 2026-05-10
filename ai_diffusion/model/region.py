@@ -4,9 +4,10 @@ from enum import Enum
 
 from PyQt5.QtCore import QMetaObject, QObject, QUuid, pyqtSignal
 
-from .. import eventloop, workflow
-from ..api import ConditioningInput, RegionInput
-from ..client import Client
+from .. import eventloop
+from ..backend import workflow
+from ..backend.api import ConditioningInput, RegionInput
+from ..backend.client import Client
 from ..document import Layer, LayerType
 from ..image import Bounds, Extent, Image
 from ..settings import settings

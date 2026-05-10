@@ -26,9 +26,8 @@ The UI is separated into distinct workspaces:
 * "Animation" for batch-processing image frames
 
 Code is separated into:
-* Model classes which hold observable UI state and implement actions
-  * `model.py`, `connection.py`, `jobs.py`, `control.py`, ...
-* Qt widgets which connect to the model in the `ui/` sub-folder
+* `ai_diffusion/model`: Model classes which hold observable UI state and implement actions
+* `ai_diffusion/ui`: Qt widgets for the user interface
 * Persistence layer which loads/stores state in files or Krita documents
   * `persistence.py`, `settings.py`, `files.py`, ...
 
