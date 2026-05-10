@@ -15,7 +15,7 @@ from PyQt5.QtWidgets import (
 
 from ..localization import translate as _
 from ..model.jobs import JobKind
-from ..model.model import Model, TileOverlapMode
+from ..model.model import DocumentModel, TileOverlapMode
 from ..model.properties import Bind, Binding, bind, bind_combo, bind_toggle
 from ..model.root import root
 from ..resources import ControlMode, UpscalerName
@@ -109,7 +109,7 @@ class FactorWidget(QWidget):
 
 
 class UpscaleWidget(QWidget):
-    _model: Model
+    _model: DocumentModel
     _model_bindings: list[QMetaObject.Connection | Binding]
 
     def __init__(self):
@@ -214,7 +214,7 @@ class UpscaleWidget(QWidget):
         return self._model
 
     @model.setter
-    def model(self, model: Model):
+    def model(self, model: DocumentModel):
         if self._model != model:
             Binding.disconnect_all(self._model_bindings)
             self._model = model

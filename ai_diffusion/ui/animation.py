@@ -15,7 +15,7 @@ from PyQt5.QtWidgets import (
 
 from ..image import Extent, Image
 from ..localization import translate as _
-from ..model.model import Model
+from ..model.model import DocumentModel
 from ..model.properties import Bind, Binding, bind, bind_combo, bind_toggle
 from ..model.root import root
 from ..settings import settings
@@ -33,7 +33,7 @@ from .widget import (
 
 
 class AnimationWidget(QWidget):
-    _model: Model
+    _model: DocumentModel
     _model_bindings: list[QMetaObject.Connection | Binding]
 
     def __init__(self):
@@ -128,7 +128,7 @@ class AnimationWidget(QWidget):
         return self._model
 
     @model.setter
-    def model(self, model: Model):
+    def model(self, model: DocumentModel):
         if self._model != model:
             Binding.disconnect_all(self._model_bindings)
             self._model = model

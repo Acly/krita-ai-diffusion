@@ -40,7 +40,7 @@ from ..model.custom_workflow import (
     WorkflowSource,
 )
 from ..model.jobs import JobKind
-from ..model.model import Model
+from ..model.model import DocumentModel
 from ..model.properties import Bind, Binding, bind, bind_combo
 from ..model.root import root
 from ..settings import settings
@@ -59,7 +59,7 @@ from .widget import ErrorBox, StyleSelectWidget, TextPromptWidget, WorkspaceSele
 class LayerSelect(QComboBox):
     value_changed = pyqtSignal()
 
-    def __init__(self, filter: str | None, model: Model, parent: QWidget | None = None):
+    def __init__(self, filter: str | None, model: DocumentModel, parent: QWidget | None = None):
         super().__init__(parent)
         self._model = model
         self.param = None
@@ -425,7 +425,7 @@ CustomParamWidget = (
 
 
 def _create_param_widget(
-    param: CustomParam, model: Model, parent: "WorkflowParamsWidget"
+    param: CustomParam, model: DocumentModel, parent: "WorkflowParamsWidget"
 ) -> CustomParamWidget:
     match param.kind:
         case ParamKind.image_layer:
@@ -500,7 +500,9 @@ class WorkflowParamsWidget(QWidget):
     value_changed = pyqtSignal()
     activated = pyqtSignal()
 
-    def __init__(self, params: list[CustomParam], model: Model, parent: QWidget | None = None):
+    def __init__(
+        self, params: list[CustomParam], model: DocumentModel, parent: QWidget | None = None
+    ):
         super().__init__(parent)
         self._widgets: dict[str, CustomParamWidget] = {}
         self._max_group_height = 0
@@ -869,7 +871,7 @@ class CustomWorkflowWidget(QWidget):
         return self._model
 
     @model.setter
-    def model(self, model: Model):
+    def model(self, model: DocumentModel):
         if self._model != model:
             Binding.disconnect_all(self._model_bindings)
             self._model = model
@@ -1104,7 +1106,7 @@ class CustomWorkflowPlaceholder(QWidget):
         return self._model
 
     @model.setter
-    def model(self, model: Model):
+    def model(self, model: DocumentModel):
         if self._model != model:
             Binding.disconnect_all(self._connections)
             self._model = model

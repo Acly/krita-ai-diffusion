@@ -123,7 +123,7 @@ class Error(NamedTuple):
 no_error = Error(ErrorKind.none, "")
 
 
-class Model(QObject, ObservableProperties):
+class DocumentModel(QObject, ObservableProperties):
     """Represents diffusion workflows for a specific Krita document. Stores all inputs related to
     image generation. Launches generation jobs. Listens to server messages and keeps a
     list of finished, currently running and enqueued jobs.
@@ -1074,7 +1074,7 @@ class CustomInpaint(QObject, ObservableProperties):
         params.use_condition_mask = self.use_prompt_focus
         return params
 
-    def get_context(self, model: Model, mask: Mask | None):
+    def get_context(self, model: DocumentModel, mask: Mask | None):
         if mask is None or self.mode is not InpaintMode.custom:
             return None
         if self.context is InpaintContext.mask_bounds:
@@ -1128,7 +1128,7 @@ class UpscaleWorkspace(QObject, ObservableProperties):
     can_generate_changed = pyqtSignal(bool)
     modified = pyqtSignal(QObject, str)
 
-    def __init__(self, model: Model):
+    def __init__(self, model: DocumentModel):
         super().__init__()
         self._model = weakref.ref(model)
         self._in_progress = False
@@ -1238,7 +1238,7 @@ class LiveWorkspace(QObject, ObservableProperties):
     result_available = pyqtSignal(Image)
     modified = pyqtSignal(QObject, str)
 
-    def __init__(self, model: Model):
+    def __init__(self, model: DocumentModel):
         super().__init__()
         self._model = weakref.ref(model)
         self._scheduler = LiveScheduler()
@@ -1390,11 +1390,11 @@ class AnimationWorkspace(QObject, ObservableProperties):
     target_image_changed = pyqtSignal(Image)
     modified = pyqtSignal(QObject, str)
 
-    _model: Model
+    _model: DocumentModel
     _keyframes_folder: Path | None = None
     _keyframes: dict[str, list[Path]]
 
-    def __init__(self, model: Model):
+    def __init__(self, model: DocumentModel):
         super().__init__()
         self._model = model
         self._keyframes = {}
@@ -1595,7 +1595,7 @@ def calc_selection_pre_process(
     return inpaint
 
 
-async def _report_errors(parent: Model, coro):
+async def _report_errors(parent: DocumentModel, coro):
     try:
         return await coro
     except NetworkError as e:
@@ -1604,7 +1604,7 @@ async def _report_errors(parent: Model, coro):
         parent.report_error(util.log_error(e))
 
 
-def _save_job_result(model: Model, job: Job | None, index: int):
+def _save_job_result(model: DocumentModel, job: Job | None, index: int):
     assert job is not None, "Cannot save result, invalid job id"
     assert len(job.results) > index, "Cannot save result, invalid result index"
     assert model.document.filename, "Cannot save result, document is not saved"

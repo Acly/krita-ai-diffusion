@@ -14,7 +14,7 @@ from PyQt5.QtWidgets import (
 
 from ..image import Extent, Image
 from ..localization import translate as _
-from ..model.model import Model
+from ..model.model import DocumentModel
 from ..model.properties import Bind, Binding, bind
 from ..model.root import root
 from . import theme
@@ -106,7 +106,7 @@ class LiveWidget(QWidget):
     _record_icon = theme.icon("record")
     _record_active_icon = theme.icon("record-active")
 
-    _model: Model
+    _model: DocumentModel
     _model_bindings: list[QMetaObject.Connection | Binding]
 
     def __init__(self):
@@ -242,7 +242,7 @@ class LiveWidget(QWidget):
         return self._model
 
     @model.setter
-    def model(self, model: Model):
+    def model(self, model: DocumentModel):
         if self._model != model:
             Binding.disconnect_all(self._model_bindings)
             self._model = model

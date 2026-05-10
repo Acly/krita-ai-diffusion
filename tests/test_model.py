@@ -1,4 +1,4 @@
-"""Tests for ai_diffusion.model.Model - the document view model that collects UI parameters
+"""Tests for ai_diffusion.model.DocumentModel - the document view model that collects UI parameters
 and document data and forwards them as WorkflowInput to image generation clients."""
 
 from __future__ import annotations
@@ -21,7 +21,7 @@ from ai_diffusion.layer import Layer, LayerType
 from ai_diffusion.model.connection import Connection, ConnectionState
 from ai_diffusion.model.custom_workflow import WorkflowCollection
 from ai_diffusion.model.jobs import Job, JobKind, JobParams, JobRegion, JobState
-from ai_diffusion.model.model import ErrorKind, Model, ProgressKind, no_error
+from ai_diffusion.model.model import DocumentModel, ErrorKind, ProgressKind, no_error
 from ai_diffusion.settings import ApplyBehavior, ApplyRegionBehavior
 from ai_diffusion.style import Style
 
@@ -50,8 +50,8 @@ def _make_style(checkpoint: str = "test_sd15.safetensors") -> Style:
 @asynccontextmanager
 async def _model_env(
     krita_doc: MockKritaDocument, workflows_folder: Path
-) -> AsyncIterator[tuple[Model, MockClient]]:
-    """Async context manager that sets up a fully wired Model/MockClient pair and tears down
+) -> AsyncIterator[tuple[DocumentModel, MockClient]]:
+    """Async context manager that sets up a fully wired DocumentModel/MockClient pair and tears down
     the Connection cleanly on exit to avoid pending-task warnings."""
     client = MockClient()
 
@@ -65,7 +65,7 @@ async def _model_env(
     assert conn.state is ConnectionState.connected
 
     wf_coll = WorkflowCollection(conn, folder=workflows_folder)
-    model = Model(doc, conn, wf_coll)
+    model = DocumentModel(doc, conn, wf_coll)
     model.style = _make_style()
     conn.message_received.connect(model.handle_message)
     try:
@@ -85,7 +85,7 @@ async def _wait_for_enqueue(
     raise TimeoutError(f"Only {len(client.enqueued)}/{count} jobs enqueued within the timeout")
 
 
-async def _run_generate(model: Model, client: MockClient) -> Job:
+async def _run_generate(model: DocumentModel, client: MockClient) -> Job:
     """Call model.generate() and wait for the new job to appear in the queue with its ID set."""
     n = len(client.enqueued)
     model.generate()
@@ -209,7 +209,7 @@ async def test_generate_inpaint(workflows_dir: Path):
 
 @qtapp
 async def test_generate_batch(workflows_dir: Path):
-    """With batch_count=8 and a wildcard prompt, Model.generate should enqueue 8 separate jobs.
+    """With batch_count=8 and a wildcard prompt, DocumentModel.generate should enqueue 8 separate jobs.
     Each job re-evaluates the wildcard with a different seed, so both options must appear."""
     krita_doc = Krita.instance().openDocument("test")
     async with _model_env(krita_doc, workflows_dir) as (model, client):
@@ -381,7 +381,7 @@ _GREEN = 0xFF00FF00
 
 
 def _make_finished_job(
-    model: Model,
+    model: DocumentModel,
     result_images: list[Image],
     regions: list[JobRegion] | None = None,
     bounds: Bounds = _DOC_BOUNDS,
@@ -399,7 +399,7 @@ def _make_finished_job(
     return job
 
 
-def _paint_layers(model: Model) -> list[Layer]:
+def _paint_layers(model: DocumentModel) -> list[Layer]:
     """Return all paint layers currently visible in the document tree."""
     return [l for l in model.layers.updated().images if l.type is LayerType.paint]
 

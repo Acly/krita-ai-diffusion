@@ -19,7 +19,7 @@ from .. import eventloop
 from ..document import KritaDocument
 from ..localization import translate as _
 from ..model.connection import ConnectionState
-from ..model.model import Model, Workspace
+from ..model.model import DocumentModel, Workspace
 from ..model.root import root
 from ..model.updates import UpdateState
 from ..server import Server, ServerState
@@ -311,7 +311,7 @@ class ImageDiffusionWidget(DockWidget):
             await asyncio.sleep(0.1)  # wait until fully opened/initialized
         self.update_content()
 
-    def register_model(self, model: Model):
+    def register_model(self, model: DocumentModel):
         model.workspace_changed.connect(self.update_content)
 
     def update_content(self):

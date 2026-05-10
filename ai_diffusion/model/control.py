@@ -52,7 +52,7 @@ class ControlLayer(QObject, ObservableProperties):
     error_text_changed = pyqtSignal(str)
     modified = pyqtSignal(QObject, str)
 
-    def __init__(self, model: model.Model, mode: ControlMode, layer_id: QUuid, index: int):
+    def __init__(self, model: model.DocumentModel, mode: ControlMode, layer_id: QUuid, index: int):
         from .root import root
 
         super().__init__()
@@ -217,11 +217,11 @@ class ControlLayerList(QObject):
     added = pyqtSignal(ControlLayer)
     removed = pyqtSignal(ControlLayer)
 
-    _model: model.Model
+    _model: model.DocumentModel
     _layers: list[ControlLayer]
     _last_mode = ControlMode.scribble
 
-    def __init__(self, model: model.Model):
+    def __init__(self, model: model.DocumentModel):
         super().__init__()
         self._model = model
         self._layers = []

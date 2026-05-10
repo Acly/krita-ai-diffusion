@@ -39,7 +39,7 @@ class Region(QObject, ObservableProperties):
     positive_changed = pyqtSignal(str)
     modified = pyqtSignal(QObject, str)
 
-    def __init__(self, parent: RootRegion, model: model.Model):
+    def __init__(self, parent: RootRegion, model: model.DocumentModel):
         super().__init__()
         self._parent = parent
         self._layers = []
@@ -169,7 +169,7 @@ class RootRegion(QObject, ObservableProperties):
     removed = pyqtSignal(Region)
     modified = pyqtSignal(QObject, str)
 
-    def __init__(self, model: model.Model):
+    def __init__(self, model: model.DocumentModel):
         super().__init__()
         self._model = model
         self._regions: list[Region] = []

@@ -1,4 +1,4 @@
-"""Tests for ai_diffusion/persistence.py - the layer that persists Model state to Krita
+"""Tests for ai_diffusion/persistence.py - the layer that persists DocumentModel state to Krita
 document annotations and the plugin's settings.json file."""
 
 from __future__ import annotations
@@ -15,7 +15,7 @@ from ai_diffusion.image import Bounds, Extent, Image, ImageCollection
 from ai_diffusion.model.connection import Connection
 from ai_diffusion.model.custom_workflow import WorkflowCollection
 from ai_diffusion.model.jobs import Job, JobKind, JobParams, JobState
-from ai_diffusion.model.model import InpaintContext, Model, QueueMode
+from ai_diffusion.model.model import DocumentModel, InpaintContext, QueueMode
 from ai_diffusion.persistence import ModelSync, RecentlyUsedSync
 from ai_diffusion.settings import Settings
 from ai_diffusion.style import Style
@@ -34,13 +34,13 @@ def workflows_dir(tmp_path: Path) -> Path:
     return folder
 
 
-def _make_model(krita_doc: MockKritaDocument, workflows_dir: Path) -> Model:
+def _make_model(krita_doc: MockKritaDocument, workflows_dir: Path) -> DocumentModel:
     Krita.instance().setActiveDocument(krita_doc)
     doc = KritaDocument.active()
     assert doc is not None
     conn = Connection()
     wf_coll = WorkflowCollection(conn, folder=workflows_dir)
-    return Model(doc, conn, wf_coll)
+    return DocumentModel(doc, conn, wf_coll)
 
 
 def _make_style(filename: str = "test.json", checkpoint: str = "test_sd15.safetensors") -> Style:
@@ -116,7 +116,7 @@ def test_recently_used(workflows_dir: Path, tmp_path: Path):
 
 @qtapp
 async def test_sync(workflows_dir: Path):
-    """ModelSync persists Model state as a document annotation and restores it when a new
+    """ModelSync persists DocumentModel state as a document annotation and restores it when a new
     ModelSync is created for the same document."""
 
     krita_doc = Krita.instance().openDocument("test")
@@ -146,12 +146,12 @@ async def test_sync(workflows_dir: Path):
     sync1._save()  # force synchronous write so annotation is populated before we read it
 
     # ── restore from the same krita_doc ──────────────────────────────────
-    # Build a second Model backed by the same MockKritaDocument (same annotation store)
+    # Build a second DocumentModel backed by the same MockKritaDocument (same annotation store)
     Krita.instance().setActiveDocument(krita_doc)
     doc2 = KritaDocument(krita_doc, None)
     conn2 = Connection()
     wf_coll2 = WorkflowCollection(conn2, folder=workflows_dir)
-    model2 = Model(doc2, conn2, wf_coll2)
+    model2 = DocumentModel(doc2, conn2, wf_coll2)
     _sync2 = ModelSync(model2)  # triggers _load() from annotation
 
     assert model2.batch_count == model1.batch_count
@@ -209,7 +209,7 @@ async def test_history(workflows_dir: Path):
     doc2 = KritaDocument(krita_doc, None)
     conn2 = Connection()
     wf_coll2 = WorkflowCollection(conn2, folder=workflows_dir)
-    model2 = Model(doc2, conn2, wf_coll2)
+    model2 = DocumentModel(doc2, conn2, wf_coll2)
     _sync2 = ModelSync(model2)
 
     # The finished job should have been restored in model2's queue
