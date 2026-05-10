@@ -301,7 +301,7 @@ class CloudService:
         if not self._worker_secret:
             from service.pod.lib.environment import Config  # type: ignore
 
-            self._worker_secret = Config.from_env().secrets.interstice_infra_token
+            self._worker_secret = Config.from_env().secrets.interstice_worker_secret
             assert self._worker_secret, "Worker secret not set"
         return self._worker_secret
 

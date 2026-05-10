@@ -56,6 +56,8 @@ async def connect_cloud(service: CloudService):
     user = await service.create_user("workflow-tester")
     client = CloudClient(service.url, user["token"])
     await client.connect()
+    async for _ in client.discover_models(refresh=False):
+        pass
     return client
 
 
