@@ -16,7 +16,7 @@ from PyQt5.QtGui import (
 )
 from PyQt5.QtWidgets import QFrame, QHBoxLayout, QLabel, QMenu, QToolButton, QVBoxLayout, QWidget
 
-from ..client import Client
+from ..backend.client import Client
 from ..document import LayerType
 from ..image import Bounds
 from ..localization import translate as _

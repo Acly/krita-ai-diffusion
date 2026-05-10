@@ -8,7 +8,7 @@ from PyQt5.QtCore import QObject, QUrl, pyqtSignal
 from PyQt5.QtGui import QDesktopServices
 
 from .. import eventloop, util
-from ..client import (
+from ..backend.client import (
     Client,
     ClientEvent,
     ClientMessage,
@@ -16,10 +16,10 @@ from ..client import (
     MissingResources,
     SharedWorkflow,
 )
-from ..cloud_client import CloudClient
-from ..comfy_client import ComfyClient
+from ..backend.cloud_client import CloudClient
+from ..backend.comfy_client import ComfyClient
+from ..backend.network import NetworkError
 from ..localization import translate as _
-from ..network import NetworkError
 from ..settings import PerformancePreset, ServerMode, Settings, settings
 from .properties import ObservableProperties, Property
 

@@ -15,7 +15,8 @@ import pytest
 from PyQt5.QtCore import QCoreApplication
 
 sys.path.append(str(Path(__file__).parent.parent))
-from ai_diffusion import eventloop, network, util
+from ai_diffusion import eventloop, util
+from ai_diffusion.backend import network
 from ai_diffusion.document import KritaDocument
 
 from .config import result_dir
@@ -300,7 +301,7 @@ class CloudService:
         if not self._worker_secret:
             from service.pod.lib.environment import Config  # type: ignore
 
-            self._worker_secret = Config.from_env().secrets.interstice_infra_token
+            self._worker_secret = Config.from_env().secrets.interstice_worker_secret
             assert self._worker_secret, "Worker secret not set"
         return self._worker_secret
 

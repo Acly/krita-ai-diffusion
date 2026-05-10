@@ -30,7 +30,7 @@ from PyQt5.QtWidgets import (
     QWidget,
 )
 
-from ..client import TextOutput
+from ..backend.client import TextOutput
 from ..localization import translate as _
 from ..model.custom_workflow import (
     CustomGenerationMode,

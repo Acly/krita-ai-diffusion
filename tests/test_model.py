@@ -13,8 +13,8 @@ from krita import Document as MockKritaDocument
 from krita import Krita, Selection
 from PyQt5.QtCore import QByteArray, Qt
 
-from ai_diffusion.api import WorkflowInput, WorkflowKind
-from ai_diffusion.client import ClientEvent, ClientMessage
+from ai_diffusion.backend.api import WorkflowInput, WorkflowKind
+from ai_diffusion.backend.client import ClientEvent, ClientMessage
 from ai_diffusion.document import KritaDocument
 from ai_diffusion.image import BlendMode, Bounds, Extent, Image, ImageCollection
 from ai_diffusion.layer import Layer, LayerType

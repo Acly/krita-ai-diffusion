@@ -12,7 +12,7 @@ from PyQt5.QtGui import QImageReader
 from PyQt5.QtWidgets import QMessageBox
 
 from . import eventloop
-from .api import FillMode, InpaintMode
+from .backend.api import FillMode, InpaintMode
 from .image import ImageCollection
 from .localization import translate as _
 from .model.control import ControlLayer, ControlLayerList

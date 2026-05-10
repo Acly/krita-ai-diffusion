@@ -367,7 +367,7 @@ class ControlMode(Enum):
 
     @property
     def text(self):
-        from .model import control
+        from ..model import control
 
         return control.control_mode_text[self]
 
@@ -624,7 +624,7 @@ class ModelResource(NamedTuple):
                 yield file.verify(base_dir)
 
 
-_models_file = Path(__file__).parent / "presets" / "models.json"
+_models_file = Path(__file__).parent.parent / "presets" / "models.json"
 _models_dict = json.loads(_models_file.read_text())
 
 required_models = ModelResource.from_list(_models_dict["required"])

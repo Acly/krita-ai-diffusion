@@ -6,6 +6,19 @@ from copy import copy
 from dataclasses import dataclass, field
 from typing import Any, NamedTuple
 
+from ..files import FileFormat, FileLibrary
+from ..image import Bounds, Extent, Image, ImageCollection, Mask, multiple_of
+from ..localization import translate as _
+from ..settings import PerformanceSettings, settings
+from ..style import SamplerPresets, Style, StyleSettings
+from ..text import (
+    eval_wildcards,
+    extract_layers,
+    extract_loras,
+    merge_prompt,
+    strip_prompt_comments,
+)
+from ..util import ensure, median_or_zero, unique
 from . import resolution, resources
 from .api import (
     CheckpointInput,
@@ -34,15 +47,8 @@ from .comfy_workflow import (
     Input,
     Output,
 )
-from .files import FileFormat, FileLibrary
-from .image import Bounds, Extent, Image, ImageCollection, Mask, multiple_of
-from .localization import translate as _
 from .resolution import ScaledExtent, ScaleMode, TileLayout, get_inpaint_reference
 from .resources import Arch, ControlMode, ResourceId, ResourceKind, UpscalerName
-from .settings import PerformanceSettings, settings
-from .style import SamplerPresets, Style, StyleSettings
-from .text import eval_wildcards, extract_layers, extract_loras, merge_prompt, strip_prompt_comments
-from .util import ensure, median_or_zero, unique
 
 
 def detect_inpaint_mode(extent: Extent, area: Bounds):

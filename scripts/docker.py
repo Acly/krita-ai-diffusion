@@ -13,7 +13,7 @@ import requests
 
 sys.path.append(str(Path(__file__).parent.parent))
 import ai_diffusion
-from ai_diffusion import resources
+from ai_diffusion.backend import resources
 
 version = f"v{ai_diffusion.__version__}"
 root_dir = Path(__file__).parent.parent

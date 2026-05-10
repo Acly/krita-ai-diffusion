@@ -7,9 +7,14 @@ from pathlib import Path
 import pytest
 from PyQt5.QtCore import Qt
 
-from ai_diffusion import workflow
-from ai_diffusion.api import CustomStyleInput, CustomWorkflowInput, ImageInput, WorkflowInput
-from ai_diffusion.client import (
+from ai_diffusion.backend import workflow
+from ai_diffusion.backend.api import (
+    CustomStyleInput,
+    CustomWorkflowInput,
+    ImageInput,
+    WorkflowInput,
+)
+from ai_diffusion.backend.client import (
     CheckpointInfo,
     Client,
     ClientModels,
@@ -17,7 +22,8 @@ from ai_diffusion.client import (
     OutputBatchMode,
     TextOutput,
 )
-from ai_diffusion.comfy_workflow import ComfyNode, ComfyObjectInfo, ComfyWorkflow, Output
+from ai_diffusion.backend.comfy_workflow import ComfyNode, ComfyObjectInfo, ComfyWorkflow, Output
+from ai_diffusion.backend.resources import Arch
 from ai_diffusion.image import Bounds, Extent, Image, ImageCollection, Mask
 from ai_diffusion.model.connection import Connection, ConnectionState
 from ai_diffusion.model.custom_workflow import (
@@ -30,7 +36,6 @@ from ai_diffusion.model.custom_workflow import (
     workflow_parameters,
 )
 from ai_diffusion.model.jobs import Job, JobKind, JobParams, JobQueue
-from ai_diffusion.resources import Arch
 from ai_diffusion.style import Style
 from ai_diffusion.util import PluginError
 

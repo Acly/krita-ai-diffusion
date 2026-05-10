@@ -12,8 +12,8 @@ import anyio
 from aiohttp import web
 
 sys.path.append(str(Path(__file__).parent.parent))
-from ai_diffusion import resources
-from ai_diffusion.resources import Arch, ModelFile, ModelResource, ResourceId, ResourceKind
+from ai_diffusion.backend import resources
+from ai_diffusion.backend.resources import Arch, ModelFile, ModelResource, ResourceId, ResourceKind
 
 dir = Path(__file__).parent / "downloads"
 

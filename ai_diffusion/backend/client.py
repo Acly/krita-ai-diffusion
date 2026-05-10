@@ -11,17 +11,17 @@ from typing import Any, Generic, NamedTuple, TypeVar
 
 from PyQt5.QtCore import QObject, pyqtSignal
 
+from ..files import FileFormat, FileLibrary
+from ..image import ImageCollection, Point
+from ..localization import translate as _
+from ..model.properties import ObservableProperties, Property
+from ..settings import PerformanceSettings
+from ..style import Style
+from ..util import PluginError, ensure
+from ..util import client_logger as log
 from .api import WorkflowInput
 from .comfy_workflow import ComfyObjectInfo
-from .files import FileFormat, FileLibrary
-from .image import ImageCollection, Point
-from .localization import translate as _
-from .model.properties import ObservableProperties, Property
 from .resources import Arch, ControlMode, CustomNode, ResourceId, ResourceKind, UpscalerName
-from .settings import PerformanceSettings
-from .style import Style
-from .util import PluginError, ensure
-from .util import client_logger as log
 
 
 class ServerError(Exception):

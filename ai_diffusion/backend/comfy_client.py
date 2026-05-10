@@ -11,7 +11,16 @@ from itertools import product
 from time import time
 from typing import Any
 
-from . import platform_tools, resources, util
+from .. import platform_tools, util
+from ..files import FileFormat
+from ..image import Image, ImageCollection, Point
+from ..localization import translate as _
+from ..settings import PerformanceSettings, settings
+from ..style import Styles
+from ..util import client_logger as log
+from ..util import parse_enum
+from ..websockets.src import websockets
+from . import resources
 from .api import WorkflowInput
 from .client import (
     CheckpointInfo,
@@ -34,9 +43,6 @@ from .client import (
     loras_to_upload,
 )
 from .comfy_workflow import ComfyObjectInfo
-from .files import FileFormat
-from .image import Image, ImageCollection, Point
-from .localization import translate as _
 from .network import NetworkError, RequestManager
 from .resources import (
     Arch,
@@ -47,11 +53,6 @@ from .resources import (
     UpscalerName,
     resource_id,
 )
-from .settings import PerformanceSettings, settings
-from .style import Styles
-from .util import client_logger as log
-from .util import parse_enum
-from .websockets.src import websockets
 from .workflow import create as create_workflow
 
 if platform_tools.is_macos:

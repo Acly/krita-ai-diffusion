@@ -9,7 +9,7 @@ import pytest
 from krita import Document as MockKritaDocument
 from krita import Krita
 
-from ai_diffusion.api import FillMode, InpaintMode
+from ai_diffusion.backend.api import FillMode, InpaintMode
 from ai_diffusion.document import KritaDocument
 from ai_diffusion.image import Bounds, Extent, Image, ImageCollection
 from ai_diffusion.model.connection import Connection

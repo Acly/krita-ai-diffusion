@@ -8,7 +8,7 @@ from typing import TYPE_CHECKING, Any, NamedTuple
 
 from PyQt5.QtCore import QObject, pyqtSignal
 
-from ..api import InpaintMode
+from ..backend.api import InpaintMode
 from ..image import Bounds, ImageCollection
 from ..settings import settings
 from ..style import Style

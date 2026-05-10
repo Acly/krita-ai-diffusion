@@ -5,7 +5,7 @@ import pytest
 from aiohttp import ClientSession
 from PIL import Image
 
-from ai_diffusion.cloud_client import CloudClient
+from ai_diffusion.backend.cloud_client import CloudClient
 from ai_diffusion.image import Image as ImageWrapper
 from ai_diffusion.image import ImageCollection
 from tests.conftest import CloudService

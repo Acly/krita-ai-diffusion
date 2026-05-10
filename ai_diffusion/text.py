@@ -5,7 +5,7 @@ import re
 from pathlib import Path
 from typing import NamedTuple
 
-from .api import LoraInput
+from .backend.api import LoraInput
 from .files import FileCollection, FileSource
 from .localization import translate as _
 from .model.jobs import JobParams

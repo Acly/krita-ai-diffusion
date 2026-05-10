@@ -8,10 +8,10 @@ from pathlib import Path
 from typing import Any, Literal, NamedTuple, TypeVar, overload
 from uuid import uuid4
 
-from .image import Bounds, Extent, Image, ImageCollection
+from ..image import Bounds, Extent, Image, ImageCollection
+from ..util import base_type_match
+from ..util import client_logger as log
 from .resources import Arch, ControlMode
-from .util import base_type_match
-from .util import client_logger as log
 
 
 class ComfyRunMode(Enum):

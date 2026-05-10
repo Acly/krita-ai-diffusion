@@ -5,7 +5,7 @@ from timeit import default_timer as timer
 import aiohttp
 import pytest
 
-from ai_diffusion.api import (
+from ai_diffusion.backend.api import (
     CheckpointInput,
     ConditioningInput,
     ControlInput,
@@ -16,10 +16,10 @@ from ai_diffusion.api import (
     WorkflowInput,
     WorkflowKind,
 )
-from ai_diffusion.client import Client, ClientEvent
-from ai_diffusion.cloud_client import CloudClient, apply_limits, enumerate_features
+from ai_diffusion.backend.client import Client, ClientEvent
+from ai_diffusion.backend.cloud_client import CloudClient, apply_limits, enumerate_features
+from ai_diffusion.backend.resources import Arch, ControlMode
 from ai_diffusion.image import Bounds, Extent, Image, ImageCollection
-from ai_diffusion.resources import Arch, ControlMode
 from ai_diffusion.util import ensure
 
 from .config import result_dir, test_dir

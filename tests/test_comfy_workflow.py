@@ -3,7 +3,7 @@ from pathlib import Path
 
 import pytest
 
-from ai_diffusion.comfy_workflow import ComfyObjectInfo, ComfyWorkflow
+from ai_diffusion.backend.comfy_workflow import ComfyObjectInfo, ComfyWorkflow
 
 
 @pytest.fixture(scope="module")
