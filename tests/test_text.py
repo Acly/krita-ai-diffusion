@@ -1,7 +1,7 @@
 from ai_diffusion.api import LoraInput
 from ai_diffusion.files import File, FileCollection
 from ai_diffusion.image import Bounds
-from ai_diffusion.jobs import JobParams
+from ai_diffusion.model.jobs import JobParams
 from ai_diffusion.text import (
     char16_index_to_str_index,
     char16_len,

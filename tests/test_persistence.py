@@ -10,12 +10,12 @@ from krita import Document as MockKritaDocument
 from krita import Krita
 
 from ai_diffusion.api import FillMode, InpaintMode
-from ai_diffusion.connection import Connection
-from ai_diffusion.custom_workflow import WorkflowCollection
 from ai_diffusion.document import KritaDocument
 from ai_diffusion.image import Bounds, Extent, Image, ImageCollection
-from ai_diffusion.jobs import Job, JobKind, JobParams, JobState
-from ai_diffusion.model import InpaintContext, Model, QueueMode
+from ai_diffusion.model.connection import Connection
+from ai_diffusion.model.custom_workflow import WorkflowCollection
+from ai_diffusion.model.jobs import Job, JobKind, JobParams, JobState
+from ai_diffusion.model.model import InpaintContext, Model, QueueMode
 from ai_diffusion.persistence import ModelSync, RecentlyUsedSync
 from ai_diffusion.settings import Settings
 from ai_diffusion.style import Style

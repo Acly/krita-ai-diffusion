@@ -26,8 +26,8 @@ from PyQt5.QtWidgets import (
 from ..client import filter_supported_styles, resolve_arch
 from ..files import File, FileFilter, FileFormat, FileSource
 from ..localization import translate as _
+from ..model.root import root
 from ..resources import Arch, ResourceId, ResourceKind, search_paths
-from ..root import root
 from ..server import Server
 from ..settings import ServerMode, Setting, settings
 from ..style import SamplerPresets, Style, Styles, StyleSettings

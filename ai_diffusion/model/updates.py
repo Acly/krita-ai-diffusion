@@ -8,11 +8,11 @@ from typing import NamedTuple
 
 from PyQt5.QtCore import QObject, pyqtSignal
 
-from . import __version__, eventloop
-from .network import RequestManager
-from .platform_tools import ZipFile
+from .. import __version__, eventloop
+from ..network import RequestManager
+from ..platform_tools import ZipFile
+from ..util import client_logger as log
 from .properties import ObservableProperties, Property
-from .util import client_logger as log
 
 
 class UpdateState(Enum):

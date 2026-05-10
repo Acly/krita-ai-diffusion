@@ -7,14 +7,21 @@ from enum import Enum
 from PyQt5.QtCore import QObject, QUrl, pyqtSignal
 from PyQt5.QtGui import QDesktopServices
 
-from . import eventloop, util
-from .client import Client, ClientEvent, ClientMessage, DeviceInfo, MissingResources, SharedWorkflow
-from .cloud_client import CloudClient
-from .comfy_client import ComfyClient
-from .localization import translate as _
-from .network import NetworkError
+from .. import eventloop, util
+from ..client import (
+    Client,
+    ClientEvent,
+    ClientMessage,
+    DeviceInfo,
+    MissingResources,
+    SharedWorkflow,
+)
+from ..cloud_client import CloudClient
+from ..comfy_client import ComfyClient
+from ..localization import translate as _
+from ..network import NetworkError
+from ..settings import PerformancePreset, ServerMode, Settings, settings
 from .properties import ObservableProperties, Property
-from .settings import PerformancePreset, ServerMode, Settings, settings
 
 
 class ConnectionState(Enum):

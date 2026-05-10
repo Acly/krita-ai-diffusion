@@ -14,9 +14,9 @@ from PyQt5.QtWidgets import (
 
 from ..image import Extent, Image
 from ..localization import translate as _
-from ..model import Model
-from ..properties import Bind, Binding, bind
-from ..root import root
+from ..model.model import Model
+from ..model.properties import Bind, Binding, bind
+from ..model.root import root
 from . import theme
 from .control import ControlListWidget
 from .region import ActiveRegionWidget, PromptHeader

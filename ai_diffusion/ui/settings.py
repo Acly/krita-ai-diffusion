@@ -35,16 +35,16 @@ from PyQt5.QtWidgets import (
 from .. import __version__, eventloop, resources, util
 from ..client import Client, MissingResources, User
 from ..cloud_client import CloudClient
-from ..connection import ConnectionState, apply_performance_preset
 from ..localization import Localization
 from ..localization import translate as _
-from ..properties import Binding
+from ..model.connection import ConnectionState, apply_performance_preset
+from ..model.properties import Binding
+from ..model.root import collect_diagnostics, root
+from ..model.updates import UpdateState
 from ..resources import Arch, ResourceId
-from ..root import collect_diagnostics, root
 from ..server import Server, ServerState
 from ..settings import ImageFileFormat, PerformancePreset, ServerMode, Settings, settings
 from ..style import Style
-from ..updates import UpdateState
 from .server import ServerWidget
 from .settings_widgets import (
     ComboBoxSetting,

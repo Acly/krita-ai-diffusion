@@ -8,7 +8,7 @@ from PyQt5.QtGui import QColor, QFont, QFontMetrics, QPalette, QPen, QTextCursor
 from PyQt5.QtWidgets import QApplication, QCompleter, QPlainTextEdit, QStyle, QStyledItemDelegate
 
 from ..files import FileFilter
-from ..root import root
+from ..model.root import root
 from ..settings import settings
 from ..text import char16_index_to_str_index
 from ..util import ensure, plugin_dir, user_data_dir

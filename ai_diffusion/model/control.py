@@ -6,15 +6,16 @@ from typing import Any, NamedTuple
 
 from PyQt5.QtCore import QObject, Qt, QUuid, pyqtSignal
 
-from . import jobs, model, resources, util
-from .api import ControlInput
-from .image import Bounds, Extent, Image
-from .layer import Layer, LayerType
-from .localization import translate as _
+from .. import resources, util
+from ..api import ControlInput
+from ..image import Bounds, Extent, Image
+from ..layer import Layer, LayerType
+from ..localization import translate as _
+from ..resources import Arch, ControlMode, ResourceKind, resource_id
+from ..util import PluginError
+from ..util import client_logger as log
+from . import jobs, model
 from .properties import ObservableProperties, Property
-from .resources import Arch, ControlMode, ResourceKind, resource_id
-from .util import PluginError
-from .util import client_logger as log
 
 
 class ControlLayer(QObject, ObservableProperties):

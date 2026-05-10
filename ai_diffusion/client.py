@@ -16,7 +16,7 @@ from .comfy_workflow import ComfyObjectInfo
 from .files import FileFormat, FileLibrary
 from .image import ImageCollection, Point
 from .localization import translate as _
-from .properties import ObservableProperties, Property
+from .model.properties import ObservableProperties, Property
 from .resources import Arch, ControlMode, CustomNode, ResourceId, ResourceKind, UpscalerName
 from .settings import PerformanceSettings
 from .style import Style

@@ -16,14 +16,14 @@ from PyQt5.QtWidgets import (
 )
 
 from .. import eventloop
-from ..connection import ConnectionState
 from ..document import KritaDocument
 from ..localization import translate as _
-from ..model import Model, Workspace
-from ..root import root
+from ..model.connection import ConnectionState
+from ..model.model import Model, Workspace
+from ..model.root import root
+from ..model.updates import UpdateState
 from ..server import Server, ServerState
 from ..settings import ServerMode, settings
-from ..updates import UpdateState
 from . import theme
 from .animation import AnimationWidget
 from .custom_workflow import CustomWorkflowPlaceholder, CustomWorkflowWidget

@@ -18,8 +18,9 @@ from ai_diffusion.client import (
     TextOutput,
 )
 from ai_diffusion.comfy_workflow import ComfyNode, ComfyObjectInfo, ComfyWorkflow, Output
-from ai_diffusion.connection import Connection, ConnectionState
-from ai_diffusion.custom_workflow import (
+from ai_diffusion.image import Bounds, Extent, Image, ImageCollection, Mask
+from ai_diffusion.model.connection import Connection, ConnectionState
+from ai_diffusion.model.custom_workflow import (
     CustomParam,
     CustomWorkspace,
     ParamKind,
@@ -28,8 +29,7 @@ from ai_diffusion.custom_workflow import (
     WorkflowSource,
     workflow_parameters,
 )
-from ai_diffusion.image import Bounds, Extent, Image, ImageCollection, Mask
-from ai_diffusion.jobs import Job, JobKind, JobParams, JobQueue
+from ai_diffusion.model.jobs import Job, JobKind, JobParams, JobQueue
 from ai_diffusion.resources import Arch
 from ai_diffusion.style import Style
 from ai_diffusion.util import PluginError

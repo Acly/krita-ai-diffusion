@@ -367,7 +367,7 @@ class ControlMode(Enum):
 
     @property
     def text(self):
-        from . import control
+        from .model import control
 
         return control.control_mode_text[self]
 

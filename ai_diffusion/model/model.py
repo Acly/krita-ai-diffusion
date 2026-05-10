@@ -16,8 +16,8 @@ from typing import Any, NamedTuple
 from PyQt5.QtCore import QMetaObject, QObject, Qt, QUuid, pyqtSignal
 from PyQt5.QtGui import QBrush, QColor, QPainter
 
-from . import eventloop, resolution, util, workflow
-from .api import (
+from .. import eventloop, resolution, util, workflow
+from ..api import (
     ConditioningInput,
     ControlInput,
     CustomWorkflowInput,
@@ -31,7 +31,7 @@ from .api import (
     WorkflowInput,
     WorkflowKind,
 )
-from .client import (
+from ..client import (
     Client,
     ClientEvent,
     ClientMessage,
@@ -40,6 +40,26 @@ from .client import (
     is_style_supported,
     resolve_arch,
 )
+from ..document import Document, KritaDocument, SelectionModifiers
+from ..files import FileLibrary
+from ..image import BlendMode, Bounds, DummyImage, Extent, Image, Mask
+from ..layer import Layer, LayerType, RestoreActiveLayer
+from ..localization import translate as _
+from ..network import NetworkError
+from ..pose import Pose
+from ..resolution import compute_bounds, compute_relative_bounds
+from ..resources import ControlMode
+from ..settings import (
+    ApplyBehavior,
+    ApplyRegionBehavior,
+    GenerationFinishedAction,
+    ImageFileFormat,
+    settings,
+)
+from ..style import Arch, Style, Styles
+from ..text import create_img_metadata, extract_layers
+from ..util import PluginError, clamp, ensure, trim_text, unique
+from ..util import client_logger as log
 from .connection import Connection, ConnectionState
 from .control import ControlLayer
 from .custom_workflow import (
@@ -48,29 +68,9 @@ from .custom_workflow import (
     WorkflowCollection,
     get_inpaint_context,
 )
-from .document import Document, KritaDocument, SelectionModifiers
-from .files import FileLibrary
-from .image import BlendMode, Bounds, DummyImage, Extent, Image, Mask
 from .jobs import Job, JobKind, JobParams, JobQueue, JobRegion, JobState
-from .layer import Layer, LayerType, RestoreActiveLayer
-from .localization import translate as _
-from .network import NetworkError
-from .pose import Pose
 from .properties import ObservableProperties, Property
 from .region import Region, RegionLink, RootRegion, get_region_inpaint_mask, process_regions
-from .resolution import compute_bounds, compute_relative_bounds
-from .resources import ControlMode
-from .settings import (
-    ApplyBehavior,
-    ApplyRegionBehavior,
-    GenerationFinishedAction,
-    ImageFileFormat,
-    settings,
-)
-from .style import Arch, Style, Styles
-from .text import create_img_metadata, extract_layers
-from .util import PluginError, clamp, ensure, trim_text, unique
-from .util import client_logger as log
 
 
 class QueueMode(Enum):

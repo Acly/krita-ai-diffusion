@@ -7,8 +7,8 @@ from typing import NamedTuple
 
 from .api import LoraInput
 from .files import FileCollection, FileSource
-from .jobs import JobParams
 from .localization import translate as _
+from .model.jobs import JobParams
 from .util import PluginError
 from .util import client_logger as log
 

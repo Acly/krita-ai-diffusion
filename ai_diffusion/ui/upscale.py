@@ -13,12 +13,12 @@ from PyQt5.QtWidgets import (
     QWidget,
 )
 
-from ..jobs import JobKind
 from ..localization import translate as _
-from ..model import Model, TileOverlapMode
-from ..properties import Bind, Binding, bind, bind_combo, bind_toggle
+from ..model.jobs import JobKind
+from ..model.model import Model, TileOverlapMode
+from ..model.properties import Bind, Binding, bind, bind_combo, bind_toggle
+from ..model.root import root
 from ..resources import ControlMode, UpscalerName
-from ..root import root
 from . import theme
 from .settings_widgets import WarningIcon
 from .switch import SwitchWidget

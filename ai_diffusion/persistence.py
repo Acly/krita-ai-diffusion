@@ -13,14 +13,14 @@ from PyQt5.QtWidgets import QMessageBox
 
 from . import eventloop
 from .api import FillMode, InpaintMode
-from .control import ControlLayer, ControlLayerList
-from .custom_workflow import CustomWorkspace
 from .image import ImageCollection
-from .jobs import Job, JobKind, JobParams, JobQueue
 from .localization import translate as _
-from .model import InpaintContext, Model
-from .properties import deserialize, serialize
-from .region import Region, RootRegion
+from .model.control import ControlLayer, ControlLayerList
+from .model.custom_workflow import CustomWorkspace
+from .model.jobs import Job, JobKind, JobParams, JobQueue
+from .model.model import InpaintContext, Model
+from .model.properties import deserialize, serialize
+from .model.region import Region, RootRegion
 from .settings import settings
 from .style import Style, Styles
 from .util import client_logger as log

@@ -15,13 +15,13 @@ from PyQt5.QtCore import QByteArray, Qt
 
 from ai_diffusion.api import WorkflowInput, WorkflowKind
 from ai_diffusion.client import ClientEvent, ClientMessage
-from ai_diffusion.connection import Connection, ConnectionState
-from ai_diffusion.custom_workflow import WorkflowCollection
 from ai_diffusion.document import KritaDocument
 from ai_diffusion.image import BlendMode, Bounds, Extent, Image, ImageCollection
-from ai_diffusion.jobs import Job, JobKind, JobParams, JobRegion, JobState
 from ai_diffusion.layer import Layer, LayerType
-from ai_diffusion.model import ErrorKind, Model, ProgressKind, no_error
+from ai_diffusion.model.connection import Connection, ConnectionState
+from ai_diffusion.model.custom_workflow import WorkflowCollection
+from ai_diffusion.model.jobs import Job, JobKind, JobParams, JobRegion, JobState
+from ai_diffusion.model.model import ErrorKind, Model, ProgressKind, no_error
 from ai_diffusion.settings import ApplyBehavior, ApplyRegionBehavior
 from ai_diffusion.style import Style
 

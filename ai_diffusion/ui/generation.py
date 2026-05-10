@@ -42,13 +42,15 @@ from PyQt5.QtWidgets import (
     QWidget,
 )
 
+from ..api import InpaintContext
 from ..image import Bounds, Extent, Image
-from ..jobs import Job, JobKind, JobParams, JobQueue, JobState
 from ..localization import translate as _
-from ..model import InpaintContext, Model, ProgressKind, RootRegion, Workspace
-from ..properties import Bind, Binding, bind, bind_combo, bind_toggle
+from ..model.jobs import Job, JobKind, JobParams, JobQueue, JobState
+from ..model.model import Model, ProgressKind, Workspace
+from ..model.properties import Bind, Binding, bind, bind_combo, bind_toggle
+from ..model.region import RootRegion
+from ..model.root import root
 from ..resources import Arch
-from ..root import root
 from ..settings import settings
 from ..style import Styles
 from ..util import ensure, flatten, sequence_equal

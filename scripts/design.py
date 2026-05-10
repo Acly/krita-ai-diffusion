@@ -35,7 +35,7 @@ sys.path.insert(0, str(root_dir / "tests" / "mock"))
 import krita
 
 from ai_diffusion import eventloop
-from ai_diffusion.root import root
+from ai_diffusion.model.root import root
 from ai_diffusion.settings import settings
 from ai_diffusion.ui.diffusion import ImageDiffusionWidget
 from ai_diffusion.ui.settings import SettingsDialog

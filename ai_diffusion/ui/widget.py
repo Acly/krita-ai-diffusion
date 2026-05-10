@@ -48,10 +48,10 @@ from PyQt5.QtWidgets import (
 )
 
 from ..client import filter_supported_styles, resolve_arch
-from ..connection import ConnectionState
-from ..jobs import JobKind, JobState
 from ..localization import translate as _
-from ..model import (
+from ..model.connection import ConnectionState
+from ..model.jobs import JobKind, JobState
+from ..model.model import (
     Error,
     ErrorKind,
     Model,
@@ -61,8 +61,8 @@ from ..model import (
     Workspace,
     no_error,
 )
-from ..properties import Bind, Binding, bind, bind_combo
-from ..root import root
+from ..model.properties import Bind, Binding, bind, bind_combo
+from ..model.root import root
 from ..settings import Settings, settings
 from ..style import Style, Styles, sort_recent_styles
 from ..text import (

@@ -15,9 +15,9 @@ from PyQt5.QtWidgets import (
 
 from ..image import Extent, Image
 from ..localization import translate as _
-from ..model import Model
-from ..properties import Bind, Binding, bind, bind_combo, bind_toggle
-from ..root import root
+from ..model.model import Model
+from ..model.properties import Bind, Binding, bind, bind_combo, bind_toggle
+from ..model.root import root
 from ..settings import settings
 from . import theme
 from .control import ControlListWidget

@@ -31,12 +31,12 @@ from PyQt5.QtWidgets import (
 
 from .. import eventloop, resources, server, util
 from ..comfy_client import ComfyClient
-from ..connection import ConnectionState
 from ..localization import translate as _
+from ..model.connection import ConnectionState
+from ..model.root import root
 from ..network import DownloadProgress
 from ..platform_tools import get_cuda_devices, gpu_is_pascal_or_older, gpu_supports_nvfp4
 from ..resources import CustomNode, ModelRequirements, ModelResource, ResourceId
-from ..root import root
 from ..server import Server, ServerBackend, ServerState
 from ..settings import Settings, settings
 from ..style import Arch

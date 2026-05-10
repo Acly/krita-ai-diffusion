@@ -5,7 +5,7 @@ from __future__ import annotations
 import asyncio
 
 from ai_diffusion.client import ClientEvent, ClientMessage, MissingResources
-from ai_diffusion.connection import Connection, ConnectionState
+from ai_diffusion.model.connection import Connection, ConnectionState
 from ai_diffusion.network import NetworkError
 from ai_diffusion.resources import Arch
 

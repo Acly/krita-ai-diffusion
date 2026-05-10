@@ -31,18 +31,18 @@ from PyQt5.QtWidgets import (
 )
 
 from ..client import TextOutput
-from ..custom_workflow import (
+from ..localization import translate as _
+from ..model.custom_workflow import (
     CustomGenerationMode,
     CustomParam,
     ParamKind,
     SortedWorkflows,
     WorkflowSource,
 )
-from ..jobs import JobKind
-from ..localization import translate as _
-from ..model import Model
-from ..properties import Bind, Binding, bind, bind_combo
-from ..root import root
+from ..model.jobs import JobKind
+from ..model.model import Model
+from ..model.properties import Bind, Binding, bind, bind_combo
+from ..model.root import root
 from ..settings import settings
 from ..style import Styles
 from ..util import base_type_match, clamp, ensure

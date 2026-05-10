@@ -4,16 +4,17 @@ from enum import Enum
 
 from PyQt5.QtCore import QMetaObject, QObject, QUuid, pyqtSignal
 
-from . import eventloop, model, workflow
-from .api import ConditioningInput, RegionInput
-from .client import Client
+from .. import eventloop, workflow
+from ..api import ConditioningInput, RegionInput
+from ..client import Client
+from ..document import Layer, LayerType
+from ..image import Bounds, Extent, Image
+from ..settings import settings
+from ..style import Style
+from . import model
 from .control import ControlLayerList
-from .document import Layer, LayerType
-from .image import Bounds, Extent, Image
 from .jobs import JobRegion
 from .properties import ObservableProperties, Property
-from .settings import settings
-from .style import Style
 
 
 class RegionLink(Enum):
