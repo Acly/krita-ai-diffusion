@@ -34,10 +34,6 @@ def workflows_dir(tmp_path: Path) -> Path:
     return folder
 
 
-def _make_doc() -> MockKritaDocument:
-    return MockKritaDocument()
-
-
 def _make_model(krita_doc: MockKritaDocument, workflows_dir: Path) -> Model:
     Krita.instance().setActiveDocument(krita_doc)
     doc = KritaDocument.active()
@@ -78,7 +74,7 @@ def test_recently_used(workflows_dir: Path, tmp_path: Path):
         recently_used = RecentlyUsedSync()
 
         # ── model 1: set several tracked properties ──────────────────────
-        krita_doc1 = _make_doc()
+        krita_doc1 = Krita.instance().openDocument("test1")
         model1 = _make_model(krita_doc1, workflows_dir)
         recently_used.track(model1)
 
@@ -95,7 +91,7 @@ def test_recently_used(workflows_dir: Path, tmp_path: Path):
 
         # ── model 2: fresh doc, load recently used ────────────────────────
         recently_used2 = RecentlyUsedSync.from_settings()
-        krita_doc2 = _make_doc()
+        krita_doc2 = Krita.instance().openDocument("test2")
         model2 = _make_model(krita_doc2, workflows_dir)
         recently_used2.track(model2)
 
@@ -123,7 +119,7 @@ async def test_sync(workflows_dir: Path):
     """ModelSync persists Model state as a document annotation and restores it when a new
     ModelSync is created for the same document."""
 
-    krita_doc = _make_doc()
+    krita_doc = Krita.instance().openDocument("test")
     model1 = _make_model(krita_doc, workflows_dir)
 
     style = _make_style("synced.json", "synced_sd15.safetensors")
@@ -186,7 +182,7 @@ async def test_history(workflows_dir: Path):
     """ModelSync encodes finished job result images into the document annotations and
     restores them (with correct images and metadata) when loaded by a new ModelSync."""
 
-    krita_doc = _make_doc()
+    krita_doc = Krita.instance().openDocument("test")
     model1 = _make_model(krita_doc, workflows_dir)
     sync1 = ModelSync(model1)
 

@@ -126,7 +126,7 @@ def workflows_dir(tmp_path: Path) -> Path:
 @qtapp
 async def test_generate_simple(workflows_dir: Path):
     """With no selection and strength=1.0 the forwarded workflow should be WorkflowKind.generate."""
-    krita_doc = MockKritaDocument()
+    krita_doc = Krita.instance().openDocument("test")
     async with _model_env(krita_doc, workflows_dir) as (model, client):
         model.strength = 1.0
         model.regions.positive = "a red cat"
@@ -143,7 +143,7 @@ async def test_generate_simple(workflows_dir: Path):
 async def test_generate_refine(workflows_dir: Path):
     """With an input image and strength<1.0 the forwarded workflow should be WorkflowKind.refine
     and the initial_image should reflect the content of the Krita document."""
-    krita_doc = MockKritaDocument()
+    krita_doc = Krita.instance().openDocument("test")
     red_img = Image.create(Extent(512, 512), fill=Qt.GlobalColor.red)
     bg_node = krita_doc.rootNode().childNodes()[0]
     bg_node.setPixelData(red_img.to_packed_bytes(), 0, 0, 512, 512)
@@ -167,7 +167,7 @@ async def test_generate_inpaint(workflows_dir: Path):
     """With an active selection and strength=1.0 the forwarded workflow should be
     WorkflowKind.inpaint; the initial_image and hires_mask must reflect the document
     image and the active selection respectively."""
-    krita_doc = MockKritaDocument()
+    krita_doc = Krita.instance().openDocument("test")
     # Paint a solid colour so pixels are easy to reason about
     blue_bgra = bytes([200, 0, 0, 255] * 512 * 512)  # BGRA: B=200 G=0 R=0 A=255
     bg_node = krita_doc.rootNode().childNodes()[0]
@@ -211,7 +211,7 @@ async def test_generate_inpaint(workflows_dir: Path):
 async def test_generate_batch(workflows_dir: Path):
     """With batch_count=8 and a wildcard prompt, Model.generate should enqueue 8 separate jobs.
     Each job re-evaluates the wildcard with a different seed, so both options must appear."""
-    krita_doc = MockKritaDocument()
+    krita_doc = Krita.instance().openDocument("test")
     async with _model_env(krita_doc, workflows_dir) as (model, client):
         # Fix the seed so wildcard resolution is deterministic across runs
         model.fixed_seed = True
@@ -238,7 +238,7 @@ async def test_generate_batch(workflows_dir: Path):
 @qtapp
 async def test_job_queued_progress_finished(workflows_dir: Path):
     """Happy path: queued → progress → finished delivers result images and marks the job done."""
-    krita_doc = MockKritaDocument()
+    krita_doc = Krita.instance().openDocument("test")
     async with _model_env(krita_doc, workflows_dir) as (model, client):
         job = await _run_generate(model, client)
         assert job.id is not None
@@ -263,7 +263,7 @@ async def test_job_queued_progress_finished(workflows_dir: Path):
 @qtapp
 async def test_job_queued_upload_progress_interrupted(workflows_dir: Path):
     """Upload phase followed by generation progress, then server interruption → job cancelled."""
-    krita_doc = MockKritaDocument()
+    krita_doc = Krita.instance().openDocument("test")
     async with _model_env(krita_doc, workflows_dir) as (model, client):
         job = await _run_generate(model, client)
         assert job.id is not None
@@ -289,7 +289,7 @@ async def test_job_queued_upload_progress_interrupted(workflows_dir: Path):
 @qtapp
 async def test_job_payment_required(workflows_dir: Path):
     """Payment required response marks the job as cancelled and sets an insufficient-funds error."""
-    krita_doc = MockKritaDocument()
+    krita_doc = Krita.instance().openDocument("test")
     async with _model_env(krita_doc, workflows_dir) as (model, client):
         job = await _run_generate(model, client)
         assert job.id is not None
@@ -312,7 +312,7 @@ async def test_job_payment_required(workflows_dir: Path):
 @qtapp
 async def test_job_queued_progress_error(workflows_dir: Path):
     """Server error mid-generation marks the job as cancelled and surfaces the error message."""
-    krita_doc = MockKritaDocument()
+    krita_doc = Krita.instance().openDocument("test")
     async with _model_env(krita_doc, workflows_dir) as (model, client):
         job = await _run_generate(model, client)
         assert job.id is not None
@@ -334,7 +334,7 @@ async def test_job_queued_progress_error(workflows_dir: Path):
 async def test_job_disconnect_reconnect(workflows_dir: Path):
     """Sporadic disconnect during generation: the first job's result is lost but its state is
     cleaned up (cancelled) when a second job completes successfully after reconnecting."""
-    krita_doc = MockKritaDocument()
+    krita_doc = Krita.instance().openDocument("test")
     async with _model_env(krita_doc, workflows_dir) as (model, client):
         # Enqueue first job and drive it into executing state
         job1 = await _run_generate(model, client)
@@ -423,7 +423,7 @@ def _layer_matches(layer: Layer, expected: Image, bounds: Bounds) -> bool:
 @qtapp
 async def test_show_preview(workflows_dir: Path):
     """show_preview creates a locked layer the first time; the second call reuses it."""
-    krita_doc = MockKritaDocument()
+    krita_doc = Krita.instance().openDocument("test")
     async with _model_env(krita_doc, workflows_dir) as (model, _client):
         await asyncio.sleep(0)  # let _handle_messages task start before disconnect
         result = Image.create(_DOC_EXTENT, fill=_RED)
@@ -464,7 +464,7 @@ async def test_show_preview(workflows_dir: Path):
 )
 async def test_apply_result(workflows_dir: Path, behavior: ApplyBehavior):
     """apply_result writes the image to the correct document layer for every ApplyBehavior."""
-    krita_doc = MockKritaDocument()
+    krita_doc = Krita.instance().openDocument("test")
     async with _model_env(krita_doc, workflows_dir) as (model, _client):
         await asyncio.sleep(0)  # let _handle_messages task start before disconnect
         result = Image.create(_DOC_EXTENT, fill=_RED)
@@ -486,7 +486,7 @@ async def test_apply_result(workflows_dir: Path, behavior: ApplyBehavior):
 @qtapp
 async def test_apply_preview(workflows_dir: Path):
     """Applying a result removes the preview layer that was shown beforehand."""
-    krita_doc = MockKritaDocument()
+    krita_doc = Krita.instance().openDocument("test")
     async with _model_env(krita_doc, workflows_dir) as (model, _client):
         await asyncio.sleep(0)  # let _handle_messages task start before disconnect
         result = Image.create(_DOC_EXTENT, fill=_GREEN)
@@ -516,7 +516,7 @@ async def test_apply_preview(workflows_dir: Path):
 @qtapp
 async def test_apply_region_replace(workflows_dir: Path):
     """ApplyRegionBehavior.replace updates the linked region layers in place and re-links regions."""
-    krita_doc = MockKritaDocument()
+    krita_doc = Krita.instance().openDocument("test")
     async with _model_env(krita_doc, workflows_dir) as (model, _client):
         await asyncio.sleep(0)  # let _handle_messages task start before disconnect
         result = Image.create(_DOC_EXTENT, fill=_RED)
@@ -572,7 +572,7 @@ async def test_apply_region_replace(workflows_dir: Path):
 async def test_apply_region_group(workflows_dir: Path):
     """ApplyRegionBehavior.layer_group places results inside groups, hides old layers,
     and applies the group's alpha mask to the new result content."""
-    krita_doc = MockKritaDocument()
+    krita_doc = Krita.instance().openDocument("test")
     async with _model_env(krita_doc, workflows_dir) as (model, _client):
         await asyncio.sleep(0)  # let _handle_messages task start before disconnect
 

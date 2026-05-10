@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+import asyncio
+
 import krita
 from krita import DockWidget, Krita
 from PyQt5.QtCore import Qt, pyqtSignal
@@ -13,7 +15,9 @@ from PyQt5.QtWidgets import (
     QWidget,
 )
 
+from .. import eventloop
 from ..connection import ConnectionState
+from ..document import KritaDocument
 from ..localization import translate as _
 from ..model import Model, Workspace
 from ..root import root
@@ -300,7 +304,12 @@ class ImageDiffusionWidget(DockWidget):
 
     def canvasChanged(self, canvas: krita.Canvas):
         if canvas is not None and canvas.view() is not None:
-            self.update_content()
+            eventloop.run(self._update_active_document())
+
+    async def _update_active_document(self):
+        if not KritaDocument.active():
+            await asyncio.sleep(0.1)  # wait until fully opened/initialized
+        self.update_content()
 
     def register_model(self, model: Model):
         model.workspace_changed.connect(self.update_content)

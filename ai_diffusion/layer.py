@@ -453,7 +453,7 @@ class LayerManager(QObject):
                 self._last_active = layer
             return ensure(layer, "Active layer not found in layer tree (no fallback)")
         except Exception as e:
-            log.error(f"Error getting active layer: {e}")
+            log.error(f"Error getting active layer: {e!s}")
             return self.root
 
     @active.setter

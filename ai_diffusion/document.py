@@ -152,6 +152,8 @@ class KritaDocument(Document):
             if doc.activeNode() is None:
                 return None
             all_docs = acquire_elements(Krita.instance().documents())
+            if doc not in all_docs or not doc.activeNode():
+                return None  # document not fully initialized yet
             id = cls._id_from_annotation(doc)
             for other in all_docs:
                 other_id = cls._id_from_annotation(other)
@@ -291,7 +293,10 @@ class KritaDocument(Document):
 
     @property
     def is_valid(self):
-        return self._doc in acquire_elements(Krita.instance().documents())
+        # can be a document that has been closed, or one that hasn't finished initializing
+        return self._doc.activeNode() is not None and self._doc in acquire_elements(
+            Krita.instance().documents()
+        )
 
     @property
     def is_active(self):
@@ -345,7 +350,7 @@ class PoseLayers:
 
     def update(self):
         doc = KritaDocument.active_instance()
-        if not doc:
+        if not doc or not doc.is_valid:
             return
         try:
             layer = doc.layers.active

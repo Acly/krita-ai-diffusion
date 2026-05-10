@@ -40,16 +40,13 @@ def test_active_not_in_document_list_yet():
     doc = MockDocument()
     # Set as active but do NOT add to documents list yet.
     Krita.instance().setActiveDocument(doc)
-
-    kd1 = KritaDocument.active()
-    assert kd1 is not None
+    assert KritaDocument.active() is None
 
     # Simulate Krita completing the registration of the pending document.
     # openDocument() detects the unregistered active doc and adds it to the list.
-    Krita.instance().openDocument("")
-
-    kd2 = KritaDocument.active()
-    assert kd2 is kd1
+    doc2 = Krita.instance().openDocument("")
+    assert doc is doc2
+    assert KritaDocument.active() is not None
 
 
 def test_active_open_copy_gets_new_instance_and_id():
