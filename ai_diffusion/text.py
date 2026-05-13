@@ -5,7 +5,7 @@ import re
 from pathlib import Path
 from typing import NamedTuple
 
-from .backend.api import LoraInput
+from .backend.api import ConditioningInput, LoraInput, RegionInput
 from .files import FileCollection, FileSource
 from .localization import translate as _
 from .model.jobs import JobParams
@@ -108,19 +108,35 @@ def extract_loras(prompt: str, lora_files: FileCollection):
     return prompt.strip(), loras
 
 
-def extract_layers(prompt: str, replacement="Picture {}", start_index=1):
+def _extract_layers(prompt: str, start_index=1):
     layer_index = start_index
-    layer_names: list[str] = []
+    layer_names: dict[str, int] = {}
 
+    for match in pattern_layer.finditer(prompt):
+        name = match[1]
+        idx = layer_names.get(name)
+        if idx is None:
+            idx = layer_index
+            layer_index += 1
+        layer_names[name] = idx
+    return layer_names
+
+
+def extract_layers(cond: ConditioningInput, region: RegionInput | None = None):
+    start_index = 2 if cond.edit_reference else 1
+    start_index += sum(1 if c.mode.is_ip_adapter else 0 for c in cond.control)
+    if region is None:
+        return _extract_layers(cond.positive, start_index)
+    else:
+        start_index += sum(1 if c.mode.is_ip_adapter else 0 for c in region.control)
+        return _extract_layers(region.positive, start_index)
+
+
+def replace_layers(prompt: str, layer_mapping: dict[str, int], replacement="Picture {}"):
     def replace(match: re.Match[str]):
-        nonlocal layer_index
-        replacement_text = replacement.format(layer_index)
-        layer_index += 1
-        layer_names.append(match[1])
-        return replacement_text
+        return replacement.format(layer_mapping[match[1]])
 
-    prompt = pattern_layer.sub(replace, prompt)
-    return prompt.strip(), layer_names
+    return pattern_layer.sub(replace, prompt).strip()
 
 
 def eval_wildcards(text: str, seed: int):

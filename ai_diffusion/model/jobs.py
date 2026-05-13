@@ -54,6 +54,7 @@ class JobParams:
     name: str  # used eg. as name for new layers created from this job
     regions: list[JobRegion] = field(default_factory=list)
     metadata: dict[str, Any] = field(default_factory=dict)
+    ref_layers: dict[str, int] | None = None  # layer name -> prompt image id
     seed: int = 0
     has_mask: bool = False
     is_layered: bool = False

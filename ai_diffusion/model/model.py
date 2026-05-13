@@ -266,11 +266,14 @@ class DocumentModel(QObject, ObservableProperties):
             conditioning, job_regions = ConditioningInput("", ""), []
 
         seed = self.seed if self.fixed_seed else workflow.generate_seed()
+        ref_layers: dict[str, int] | None = None
         if not dryrun:
-            conditioning = self._add_reference_layers(conditioning)
+            conditioning, ref_layers = self._add_reference_layers(conditioning)
+
         original_conditioning = conditioning
+        inpaint_instruction = inpaint_mode if strength == 1.0 else None
         conditioning, loras, prompt_meta = workflow.prepare_prompts(
-            conditioning, self.style, seed, arch, inpaint_mode if strength == 1.0 else None
+            conditioning, self.style, seed, arch, inpaint_instruction, ref_layers
         )
 
         if mask is not None or workflow_kind is WorkflowKind.refine:
@@ -314,6 +317,7 @@ class DocumentModel(QObject, ObservableProperties):
         job_params.set_style(self.active_style, ensure(input.models).checkpoint)
         job_params.set_control(regions.control)
         job_params.inpaint_mode = inpaint_mode
+        job_params.ref_layers = ref_layers
         job_params.is_layered = arch is Arch.qwen_l
         job_params.metadata.update(prompt_meta)
         job_params.metadata["loras"] = [{"name": l.name, "weight": l.strength} for l in loras]
@@ -345,7 +349,12 @@ class DocumentModel(QObject, ObservableProperties):
                 input = replace(input, sampling=replace(sampling, seed=seed))
                 if original_cond:  # re-evaluate wildcards in prompts after the seed change
                     next_prompt = workflow.prepare_prompts(
-                        original_cond, self.style, seed, self.arch, params.inpaint_mode
+                        original_cond,
+                        self.style,
+                        seed,
+                        self.arch,
+                        params.inpaint_mode,
+                        params.ref_layers,
                     )
                     input.conditioning = next_prompt.conditioning
                     params.metadata = params.metadata | next_prompt.metadata
@@ -479,9 +488,9 @@ class DocumentModel(QObject, ObservableProperties):
 
         conditioning, job_regions = process_regions(regions, bounds)
         conditioning.language = self.prompt_translation_language
-        conditioning = self._add_reference_layers(conditioning)
+        conditioning, ref_layers = self._add_reference_layers(conditioning)
         conditioning, loras, _ = workflow.prepare_prompts(
-            conditioning, self.style, self.seed, self.arch, is_live=True
+            conditioning, self.style, self.seed, self.arch, None, ref_layers, is_live=True
         )
 
         input = workflow.prepare(
@@ -930,23 +939,25 @@ class DocumentModel(QObject, ObservableProperties):
         return self.inpaint.mode
 
     def _add_reference_layers(self, cond: ConditioningInput):
-        def add_refs(control: list[ControlInput], layer_names: list[str]):
-            for layer_name in layer_names:
+        def add_refs(control: list[ControlInput], layer_names: dict[str, int]):
+            layers_sorted = sorted(layer_names.items(), key=lambda x: x[1])
+            for layer_name, __ in layers_sorted:
                 uid = next((l.id for l in self._doc.layers.images if l.name == layer_name), None)
                 if uid is None:
                     raise PluginError(_("Layer not found") + f' "{layer_name}"')
                 ctrl = ControlLayer(self, ControlMode.reference, uid, 0)
                 control.append(ctrl.to_api())
 
-        _prompt, layers = extract_layers(cond.positive)
+        cond.edit_reference = self.is_editing
+        layers = extract_layers(cond)
         add_refs(cond.control, layers)
 
         for region in cond.regions:
-            _prompt, region_layers = extract_layers(region.positive)
+            region_layers = extract_layers(cond, region)
             add_refs(region.control, region_layers)
+            layers.update(region_layers)
 
-        cond.edit_reference = self.is_editing
-        return cond
+        return cond, layers
 
     def _performance_settings(self, client: Client):
         result = client.performance_settings
@@ -1423,9 +1434,9 @@ class AnimationWorkspace(QObject, ObservableProperties):
         is_live = self.sampling_quality is SamplingQuality.fast
         conditioning, _ = process_regions(m.regions, bounds, self._model.layers.root, time=time)
         conditioning.language = m.prompt_translation_language
-        conditioning = m._add_reference_layers(conditioning)
+        conditioning, ref_layers = m._add_reference_layers(conditioning)
         conditioning, loras, _prompt_meta = workflow.prepare_prompts(
-            conditioning, m.style, seed, m.arch, is_live=is_live
+            conditioning, m.style, seed, m.arch, None, ref_layers, is_live=is_live
         )
 
         return workflow.prepare(

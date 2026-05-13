@@ -14,7 +14,8 @@ from krita import Krita, Selection
 from PyQt5.QtCore import QByteArray, Qt
 
 from ai_diffusion.backend.api import WorkflowInput, WorkflowKind
-from ai_diffusion.backend.client import ClientEvent, ClientMessage
+from ai_diffusion.backend.client import CheckpointInfo, ClientEvent, ClientMessage
+from ai_diffusion.backend.resources import Arch, ControlMode
 from ai_diffusion.document import KritaDocument
 from ai_diffusion.image import BlendMode, Bounds, Extent, Image, ImageCollection
 from ai_diffusion.layer import Layer, LayerType
@@ -53,6 +54,8 @@ async def _model_env(
 ) -> AsyncIterator[tuple[DocumentModel, MockClient]]:
     """Async context manager that sets up a fully wired DocumentModel/MockClient pair and tears down
     the Connection cleanly on exit to avoid pending-task warnings."""
+    from ai_diffusion.model.root import root as plugin_root
+
     client = MockClient()
 
     Krita.instance().setActiveDocument(krita_doc)
@@ -68,10 +71,16 @@ async def _model_env(
     model = DocumentModel(doc, conn, wf_coll)
     model.style = _make_style()
     conn.message_received.connect(model.handle_message)
+    previous_connection = getattr(plugin_root, "_connection", None)
+    plugin_root._connection = conn
     try:
         yield model, client
     finally:
         await conn.disconnect()
+        if previous_connection is None:
+            del plugin_root._connection
+        else:
+            plugin_root._connection = previous_connection
 
 
 async def _wait_for_enqueue(
@@ -137,6 +146,66 @@ async def test_generate_simple(workflows_dir: Path):
         # Pure generation: no input image is passed to the workflow
         assert result[0].images is not None
         assert result[0].images.initial_image is None
+
+
+@qtapp
+async def test_generate_references(workflows_dir: Path):
+    krita_doc = Krita.instance().openDocument("test")
+
+    # Add three layers with distinct solid colours so we can identify them by image content
+    layer_colors = [
+        ("a", Qt.GlobalColor.red),
+        ("b", Qt.GlobalColor.green),
+        ("c", Qt.GlobalColor.blue),
+    ]
+    layer_images: dict[str, Image] = {}
+    layer_nodes = {}
+    for name, color in layer_colors:
+        node = krita_doc.createNode(name, "paintlayer")
+        img = Image.create(Extent(512, 512), fill=color)
+        node.setPixelData(img.to_packed_bytes(), 0, 0, 512, 512)
+        krita_doc.rootNode().addChildNode(node, None)
+        layer_images[name] = img
+        layer_nodes[name] = node
+
+    async with _model_env(krita_doc, workflows_dir) as (model, client):
+        # Register a flux2_4b checkpoint so the model resolves to that architecture;
+        # flux2_4b uses the "image X" replacement format for <layer:name> tokens.
+        client.models.checkpoints["test_flux2.safetensors"] = CheckpointInfo(
+            "test_flux2.safetensors", Arch.flux2_4b
+        )
+        model.style = _make_style("test_flux2.safetensors")
+        model.strength = 1.0
+
+        # Add an explicit reference control layer for layer "a"
+        krita_doc.setActiveNode(layer_nodes["a"])
+        ctrl = model.regions.control.emplace()
+        ctrl.set_mode(ControlMode.reference)
+
+        # Reference layers "b" and "c" (with a duplicate "b") via the prompt
+        model.regions.positive = "Use <layer:b> and <layer:c>, repeat <layer:b>"
+        model.generate()
+
+        result = await _wait_for_enqueue(client)
+        assert result[0].kind is WorkflowKind.generate
+
+        cond = result[0].conditioning
+        assert cond is not None
+
+        # All three layers were added as reference controls in order a, b, c
+        assert len(cond.control) == 3
+        assert all(c.mode is ControlMode.reference for c in cond.control)
+        ctrl_imgs = [c.image for c in cond.control]
+        assert all(img is not None for img in ctrl_imgs)
+        img_a, img_b, img_c = ctrl_imgs[0], ctrl_imgs[1], ctrl_imgs[2]
+        assert img_a is not None and img_b is not None and img_c is not None
+        assert Image.compare(img_a, layer_images["a"]) < 0.01
+        assert Image.compare(img_b, layer_images["b"]) < 0.01
+        assert Image.compare(img_c, layer_images["c"]) < 0.01
+
+        # Indexing starts at 2 because in edit mode the first image is always
+        # implicitly the canvas.
+        assert cond.positive == "Use image 2 and image 3, repeat image 2"
 
 
 @qtapp
