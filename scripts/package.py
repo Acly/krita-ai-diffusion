@@ -48,7 +48,7 @@ def update_server_requirements():
             "--no-binary",
             "fvcore",
             "-o",
-            "ai_diffusion/server_requirements.txt",
+            "ai_diffusion/backend/server_requirements.txt",
         ],
         cwd=root,
         check=True,
