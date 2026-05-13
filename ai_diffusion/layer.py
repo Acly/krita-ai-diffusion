@@ -213,6 +213,14 @@ class Layer(QObject):
     def get_mask_frames(self, bounds: Bounds | None = None):
         return self._get_frames(self.get_mask, bounds)
 
+    def get_child_images(self, bounds: Bounds | None = None):
+        if self.type is LayerType.group:
+            for child in self.child_layers:
+                yield from child.get_child_images(bounds)
+
+        elif self.type.is_image:
+            yield (self.name, self.get_pixels(bounds))
+
     def move_to_top(self):
         parent = self._node.parentNode()
         if acquire_elements(parent.childNodes())[-1] == self._node:
