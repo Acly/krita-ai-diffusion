@@ -22,8 +22,8 @@ from ..platform_tools import (
     determine_system_encoding,
     gpu_is_pascal_or_older,
     is_linux,
-    is_macos,
     is_windows,
+    platform_id,
 )
 from ..settings import ServerBackend, settings
 from ..util import client_logger as log
@@ -41,9 +41,7 @@ from .resources import (
 
 _exe = ".exe" if is_windows else ""
 
-torch_version = "2.8.0" if is_linux else "2.9.1"
-torchvision_version = "0.23.0" if is_linux else "0.24.1"
-nunchaku_version = ("1.2.0", "torch2.8") if is_linux else ("1.2.0", "torch2.9")
+nunchaku_version = ("1.2.1", "cu12.8torch2.11")
 
 
 class ServerState(Enum):
@@ -176,6 +174,8 @@ class Server:
     async def _install(self, cb: InternalCB):
         self.state = ServerState.installing
         cb("Installing", f"Installation started in {self.path}")
+        if self.backend is ServerBackend.directml:
+            raise RuntimeError("DirectML is obsolete and can no longer be installed.")
 
         network = QNetworkAccessManager()
         self._cache_dir = self.path / ".cache"
@@ -274,27 +274,17 @@ class Server:
         await _extract_archive("ComfyUI", archive_path, comfy_dir.parent, cb)
         temp_comfy_dir = comfy_dir.parent / f"ComfyUI-{resources.comfy_version}"
 
-        torch_args = [
-            f"torch=={torch_version}",
-            f"torchvision=={torchvision_version}",
-            f"torchaudio=={torch_version}",
-        ]
-        if is_macos:  # specific versions sometimes don't work (?)
-            torch_args = ["torch", "torchvision", "torchaudio"]
-        elif self.backend is ServerBackend.cpu:
-            torch_args += ["--index-url", "https://download.pytorch.org/whl/cpu"]
-        elif self.backend is ServerBackend.cuda:
-            cuda_version = "cu128" if not gpu_is_pascal_or_older() else "cu126"
-            torch_args += ["--index-url", f"https://download.pytorch.org/whl/{cuda_version}"]
-        elif self.backend is ServerBackend.directml:
-            torch_args = ["numpy<2", "torch-directml", "torchvision", "torchaudio"]
-        elif self.backend is ServerBackend.xpu:
-            torch_args += ["--index-url", "https://download.pytorch.org/whl/xpu"]
-        await self._pip_install("PyTorch", ["-U"] + torch_args, cb)
+        req_dir = Path(__file__).parent / "requirements"
+        backend_id = self.backend.name
+        if self.backend is ServerBackend.cuda and gpu_is_pascal_or_older():
+            backend_id = "cuda126"
 
-        requirements_txt = Path(__file__).parent / "server_requirements.txt"
-        await self._pip_install("ComfyUI", ["-r", str(requirements_txt)], cb)
+        requirements_txt = req_dir / f"{platform_id}-{backend_id}.txt"
+        await self._pip_install(
+            "ComfyUI", ["-r", str(requirements_txt), "--index-strategy", "unsafe-best-match"], cb
+        )
 
+        # Install ComfyUI version-specific dependencies like frontend/assets/templates
         requirements_txt = temp_comfy_dir / "requirements.txt"
         await self._pip_install("ComfyUI", ["-r", str(requirements_txt)], cb)
 
