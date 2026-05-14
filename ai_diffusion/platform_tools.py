@@ -10,6 +10,7 @@ from pathlib import Path
 is_windows = sys.platform.startswith("win")
 is_macos = sys.platform == "darwin"
 is_linux = not is_windows and not is_macos
+platform_id = "windows" if is_windows else "macos" if is_macos else "linux"
 
 
 if is_linux:

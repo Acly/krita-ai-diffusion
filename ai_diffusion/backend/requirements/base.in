@@ -2,7 +2,6 @@
 # meant as input for pinning versions with `uv pip compile`
 #
 # Removed dependencies:
-# - torch (depends on backend and OS, installed manually)
 # - trimesh (optional, causes problems due to xatlas dependency)
 # - comfyui-frontend-package (installed from ComfyUI's requirements.txt to match version)
 
@@ -10,6 +9,9 @@
 numpy<2
 
 # ComfyUI
+torch==2.11.0
+torchvision==0.26.0
+torchaudio==2.11.0
 torchsde
 einops
 transformers>=4.54
