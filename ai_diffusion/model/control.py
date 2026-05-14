@@ -115,9 +115,11 @@ class ControlLayer(QObject, ObservableProperties):
         self._update_is_supported()
 
     def to_api(self, bounds: Bounds | None = None, time: int | None = None):
-        assert self.is_supported, "Control layer is not supported"
-        extent = bounds.extent if bounds else self._model.document.extent
         layer = self.layer
+        if not self.is_supported:
+            raise PluginError(f"Can't use '{layer.name}' as control layer: {self.error_text}")
+
+        extent = bounds.extent if bounds else self._model.document.extent
         if self.mode.is_ip_adapter and not layer.bounds.is_zero:
             bounds = None  # ignore mask bounds, use layer bounds
 
