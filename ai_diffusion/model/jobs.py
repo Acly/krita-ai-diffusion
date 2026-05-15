@@ -6,7 +6,7 @@ from datetime import datetime, timezone
 from enum import Enum, Flag
 from typing import TYPE_CHECKING, Any, NamedTuple
 
-from PyQt5.QtCore import QObject, pyqtSignal
+from PyQt6.QtCore import QObject, pyqtSignal
 
 from ..backend.api import InpaintMode
 from ..image import Bounds, ImageCollection

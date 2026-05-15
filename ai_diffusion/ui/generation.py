@@ -4,7 +4,7 @@ import json
 from textwrap import wrap as wrap_text
 from typing import ClassVar, cast
 
-from PyQt5.QtCore import (
+from PyQt6.QtCore import (
     QEvent,
     QItemSelectionModel,
     QMetaObject,
@@ -15,7 +15,8 @@ from PyQt5.QtCore import (
     QUuid,
     pyqtSignal,
 )
-from PyQt5.QtGui import (
+from PyQt6.QtGui import (
+    QAction,
     QColor,
     QGuiApplication,
     QIcon,
@@ -24,10 +25,10 @@ from PyQt5.QtGui import (
     QMouseEvent,
     QPalette,
 )
-from PyQt5.QtWidgets import (
-    QAction,
+from PyQt6.QtWidgets import (
     QCheckBox,
     QComboBox,
+    QFrame,
     QHBoxLayout,
     QListView,
     QListWidget,
@@ -98,13 +99,13 @@ class HistoryWidget(QListWidget):
         self._model = root.active_model
         self._connections = []
 
-        self.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Expanding)
-        self.setResizeMode(QListView.Adjust)
+        self.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Expanding)
+        self.setResizeMode(QListView.ResizeMode.Adjust)
         self.setHorizontalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAlwaysOff)
-        self.setFlow(QListView.LeftToRight)
-        self.setViewMode(QListWidget.IconMode)
+        self.setFlow(QListView.Flow.LeftToRight)
+        self.setViewMode(QListView.ViewMode.IconMode)
         self.setIconSize(theme.screen_scale(self, QSize(self._thumb_size, self._thumb_size)))
-        self.setFrameStyle(QListWidget.NoFrame)
+        self.setFrameStyle(QFrame.Shape.NoFrame)
         self.setStyleSheet(self._list_css)
         self.setSelectionMode(QListWidget.SelectionMode.ExtendedSelection)
         self.setDragEnabled(False)
@@ -312,7 +313,7 @@ class HistoryWidget(QListWidget):
             rect = self.visualItemRect(selected[0])
             font = self._apply_button.fontMetrics()
             context_visible = rect.width() >= 0.6 * self.iconSize().width()
-            apply_text_visible = font.width(_("Apply")) < 0.35 * rect.width()
+            apply_text_visible = font.horizontalAdvance(_("Apply")) < 0.35 * rect.width()
             apply_pos = QPoint(rect.left() + 3, rect.bottom() - self._apply_button.height() - 2)
             if context_visible:
                 cw = self._context_button.width()
@@ -509,16 +510,16 @@ class HistoryWidget(QListWidget):
 
     def _discard_image(self, confirm=True):
         confirm = confirm and settings.confirm_discard_image
-        reply = QMessageBox.Yes
+        reply = QMessageBox.StandardButton.Yes
         if confirm:
             reply = QMessageBox.warning(
                 self,
                 _("Discard Image"),
                 _("Are you sure you want to discard the selected images?"),
-                QMessageBox.Yes | QMessageBox.No,
+                QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No,
                 QMessageBox.StandardButton.Yes,
             )
-        if reply == QMessageBox.Yes:
+        if reply == QMessageBox.StandardButton.Yes:
             items = self.selectedItems()
             next_item = self.row(items[0]) if len(items) > 0 else -1
             for item in items:
@@ -532,10 +533,10 @@ class HistoryWidget(QListWidget):
             self,
             _("Clear History"),
             _("Are you sure you want to discard all generated images?"),
-            QMessageBox.Yes | QMessageBox.No,
-            QMessageBox.No,
+            QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No,
+            QMessageBox.StandardButton.No,
         )
-        if reply == QMessageBox.Yes:
+        if reply == QMessageBox.StandardButton.Yes:
             self._model.jobs.clear()
             self.clear()
             self._model.hide_preview(delete_layer=True)
@@ -622,7 +623,7 @@ class CustomInpaintWidget(QWidget):
         )
         self.context_combo.setMinimumContentsLength(20)
         self.context_combo.setSizeAdjustPolicy(
-            QComboBox.SizeAdjustPolicy.AdjustToMinimumContentsLength
+            QComboBox.SizeAdjustPolicy.AdjustToMinimumContentsLengthWithIcon
         )
         self.context_combo.currentIndexChanged.connect(self.set_context)
 
@@ -973,7 +974,7 @@ class GenerationWidget(QWidget):
                 menu.actions()[1].setEnabled(self.model.can_edit)
 
         menu.setFixedWidth(width)
-        menu.exec_(self.generate_button.mapToGlobal(pos))
+        menu.exec(self.generate_button.mapToGlobal(pos))
 
     def change_inpaint_mode(self, mode: InpaintMode, is_edit: bool | None):
         self.model.inpaint.mode = mode

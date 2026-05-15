@@ -1,8 +1,8 @@
 from __future__ import annotations
 
-from PyQt5.QtCore import QMetaObject, QRectF, Qt, QTimer
-from PyQt5.QtGui import QColor, QFont, QPainter, QPen
-from PyQt5.QtWidgets import (
+from PyQt6.QtCore import QMetaObject, QRectF, Qt, QTimer
+from PyQt6.QtGui import QColor, QFont, QPainter, QPen
+from PyQt6.QtWidgets import (
     QDoubleSpinBox,
     QHBoxLayout,
     QLabel,
@@ -196,7 +196,7 @@ class LiveWidget(QWidget):
         params_layout.addWidget(self.edit_toggle)
         layout.addLayout(params_layout)
 
-        self.control_list = ControlListWidget(self)
+        self.control_list = ControlListWidget(self._model.active_regions.control, self)
         self.add_control_button = create_wide_tool_button(
             "control-add", _("Add Control Layer"), self
         )

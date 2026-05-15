@@ -3,9 +3,9 @@ from dataclasses import dataclass
 from enum import Enum
 from typing import ClassVar, cast
 
-from PyQt5.QtCore import QAbstractProxyModel, QRect, QSize, QStringListModel, Qt
-from PyQt5.QtGui import QColor, QFont, QFontMetrics, QPalette, QPen, QTextCursor
-from PyQt5.QtWidgets import QApplication, QCompleter, QPlainTextEdit, QStyle, QStyledItemDelegate
+from PyQt6.QtCore import QAbstractProxyModel, QRect, QSize, QStringListModel, Qt
+from PyQt6.QtGui import QColor, QFont, QFontMetrics, QPalette, QPen, QTextCursor
+from PyQt6.QtWidgets import QApplication, QCompleter, QPlainTextEdit, QStyle, QStyledItemDelegate
 
 from ..files import FileFilter
 from ..model.root import root
@@ -65,7 +65,7 @@ class TagCompleterDelegate(QStyledItemDelegate):
 
         # Calculate rectangles
         rect = option.rect
-        meta_width = QFontMetrics(normal_font).width(tag_item.meta) + 10
+        meta_width = QFontMetrics(normal_font).horizontalAdvance(tag_item.meta) + 10
         meta_rect = QRect(rect.right() - meta_width, rect.top(), meta_width, rect.height())
 
         # Draw the tag
@@ -91,8 +91,8 @@ class TagCompleterDelegate(QStyledItemDelegate):
         small_font = QFont(option.font)
         small_font.setPointSize(normal_font.pointSize() - 2)
 
-        tag_width = QFontMetrics(normal_font).width(tag_item.tag)
-        meta_width = QFontMetrics(small_font).width(tag_item.meta)
+        tag_width = QFontMetrics(normal_font).horizontalAdvance(tag_item.tag)
+        meta_width = QFontMetrics(small_font).horizontalAdvance(tag_item.meta)
 
         total_width = tag_width + meta_width + 10  # Add some padding
         size = super().sizeHint(option, index)
@@ -119,7 +119,7 @@ class TagCompleterDelegate(QStyledItemDelegate):
 
         # Get the default background color for dropdown items
         app = cast(QApplication, QApplication.instance())
-        base_color = app.palette().color(QPalette.Base)
+        base_color = app.palette().color(QPalette.ColorRole.Base)
 
         # Blend the colors
         return self._blend_colors(base_color, tag_color, 0.2)

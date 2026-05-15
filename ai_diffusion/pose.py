@@ -2,7 +2,7 @@ import operator
 from functools import reduce
 from typing import NamedTuple
 
-from PyQt5.QtCore import QPointF
+from PyQt6.QtCore import QPointF
 
 from .image import Extent
 from .util import batched

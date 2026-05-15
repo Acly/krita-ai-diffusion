@@ -11,7 +11,7 @@ from itertools import chain
 from pathlib import Path
 from typing import NamedTuple
 
-from PyQt5.QtNetwork import QNetworkAccessManager
+from PyQt6.QtNetwork import QNetworkAccessManager
 
 from .. import eventloop
 from ..localization import translate as _

@@ -1,8 +1,10 @@
 from __future__ import annotations
 
+from typing import cast
+
 from krita import Krita
-from PyQt5.QtCore import QMetaObject, QSize, Qt, QUrl, pyqtSignal
-from PyQt5.QtGui import (
+from PyQt6.QtCore import QMetaObject, QSize, Qt, QUrl, pyqtSignal
+from PyQt6.QtGui import (
     QColor,
     QCursor,
     QDesktopServices,
@@ -11,7 +13,7 @@ from PyQt5.QtGui import (
     QGuiApplication,
     QPainter,
 )
-from PyQt5.QtWidgets import (
+from PyQt6.QtWidgets import (
     QCheckBox,
     QComboBox,
     QDialog,
@@ -721,13 +723,14 @@ class InterfaceSettings(SettingsTab):
         self.add("recent_styles_count", SpinBoxSetting(S._recent_styles_count, self, 0, 10))
 
         self.add("tag_files", FileListSetting(S._tag_files, files=self._tag_files(), parent=self))
-        self._layout.addWidget(self._widgets["tag_files"].list_widget)
-        self._widgets["tag_files"].add_button(
+        tag_files = cast(FileListSetting, self._widgets["tag_files"])
+        self._layout.addWidget(tag_files.list_widget)
+        tag_files.add_button(
             Krita.instance().icon("reload-preset"),
             _("Look for new tag files"),
             self._update_tag_files,
         )
-        self._widgets["tag_files"].add_button(
+        tag_files.add_button(
             Krita.instance().icon("document-open"),
             _("Open folder where custom tag files can be placed"),
             self._open_tag_folder,
@@ -776,7 +779,8 @@ class InterfaceSettings(SettingsTab):
         return list(files)
 
     def _update_tag_files(self):
-        self._widgets["tag_files"].reset_files(self._tag_files())
+        tag_files = cast(FileListSetting, self._widgets["tag_files"])
+        tag_files.reset_files(self._tag_files())
 
     def _open_tag_folder(self):
         user_tag_folder = util.user_data_dir / "tags"
@@ -784,7 +788,7 @@ class InterfaceSettings(SettingsTab):
         QDesktopServices.openUrl(QUrl.fromLocalFile(str(user_tag_folder)))
 
     def update_translation(self, client: Client | None):
-        translation: ComboBoxSetting = self._widgets["prompt_translation"]
+        translation = cast(ComboBoxSetting, self._widgets["prompt_translation"])
         languages = [("Disabled", "")]
         if client:
             languages += [(lang.name, lang.code) for lang in client.features.languages]
@@ -1123,7 +1127,7 @@ class AboutSettings(SettingsTab):
         layout.addWidget(text)
         window.setLayout(layout)
         window.resize(min(self.width(), 800), 640)
-        window.exec_()
+        window.exec()
 
     def _open_logs(self):
         QDesktopServices.openUrl(QUrl.fromLocalFile(str(util.log_dir)))
@@ -1158,7 +1162,7 @@ class SettingsDialog(QDialog):
         self.setMinimumSize(QSize(960, 480))
         if screen := QGuiApplication.screenAt(QCursor.pos()):
             size = screen.availableSize()
-            min_w = min(size.width(), QFontMetrics(self.font()).width("M") * 100)
+            min_w = min(size.width(), QFontMetrics(self.font()).horizontalAdvance("M") * 100)
             self.resize(QSize(min_w, int(size.height() * 0.8)))
 
         layout = QHBoxLayout()

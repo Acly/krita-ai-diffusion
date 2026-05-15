@@ -1,6 +1,6 @@
-from PyQt5.QtCore import QEvent, QMetaObject, Qt, pyqtSignal
-from PyQt5.QtGui import QCursor
-from PyQt5.QtWidgets import (
+from PyQt6.QtCore import QEvent, QMetaObject, Qt, pyqtSignal
+from PyQt6.QtGui import QCursor, QEnterEvent
+from PyQt6.QtWidgets import (
     QComboBox,
     QDoubleSpinBox,
     QGroupBox,
@@ -99,9 +99,9 @@ class FactorWidget(QWidget):
         else:
             self.target_label.setText("")
 
-    def enterEvent(self, a0: QEvent | None):
+    def enterEvent(self, event: QEnterEvent | None):
         self.update_target_extent()
-        super().enterEvent(a0)
+        super().enterEvent(event)
 
     def leaveEvent(self, a0: QEvent | None):
         self.update_target_extent()
