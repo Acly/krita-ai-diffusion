@@ -3,9 +3,11 @@
     "version": 2,
     "architecture": "auto",
     "checkpoints": [
+        "anima-base-v1.0.safetensors",
         "anima-preview3-base.safetensors",
         "anima-preview2.safetensors",
-        "anima-preview.safetensors"
+        "anima-preview.safetensors",
+        "Anima"
     ],
     "loras": [],
     "style_prompt": "masterpiece, best quality, score_7, highres, safe, {prompt}",
