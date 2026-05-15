@@ -4,6 +4,7 @@ import subprocess
 import sys
 from pathlib import Path
 from shutil import copy, copytree, ignore_patterns, make_archive, rmtree
+from typing import NamedTuple
 
 import aiohttp
 from markdown import markdown
@@ -30,29 +31,44 @@ def convert_markdown_to_html(markdown_file: Path, html_file: Path):
 
 
 def update_server_requirements():
-    subprocess.run(
-        [
-            "uv",
-            "pip",
-            "compile",
-            "scripts/server_requirements.in",
-            "--no-deps",
-            "--no-annotate",
-            "--universal",
-            "--upgrade",
-            "--quiet",
-            "--only-binary",
-            ":all:",
-            "--no-binary",
-            "svglib",
-            "--no-binary",
-            "fvcore",
-            "-o",
-            "ai_diffusion/backend/server_requirements.txt",
-        ],
-        cwd=root,
-        check=True,
-    )
+    class Cfg(NamedTuple):
+        platform: str
+        extra_index: str | None = None
+        override: str | None = None
+        dependencies: str | None = None
+
+    req_dir = root / "ai_diffusion" / "backend" / "requirements"
+    configs = {
+        "linux-cpu": Cfg("x86_64-unknown-linux-gnu", "cpu"),
+        "linux-cuda": Cfg("x86_64-unknown-linux-gnu", "cu128"),
+        "linux-cuda126": Cfg("x86_64-unknown-linux-gnu", "cu126"),
+        "linux-xpu": Cfg("x86_64-unknown-linux-gnu", "xpu"),
+        "linux-rocm": Cfg("x86_64-unknown-linux-gnu", "rocm7.2"),
+        "macos": Cfg("aarch64-apple-darwin"),
+        "windows-cpu": Cfg("x86_64-pc-windows-msvc", "cpu"),
+        "windows-cuda": Cfg("x86_64-pc-windows-msvc", "cu128"),
+        "windows-cuda126": Cfg("x86_64-pc-windows-msvc", "cu126"),
+        "windows-xpu": Cfg("x86_64-pc-windows-msvc", "xpu"),
+        "windows-rocm": Cfg(
+            "x86_64-pc-windows-msvc", None, "rocm-windows.in", "rocm-windows-deps.in"
+        ),
+    }
+    for name, cfg in configs.items():
+        cmd = ["uv", "pip", "compile", str((req_dir / "base.in").relative_to(root))]
+        if additional_reqs := cfg.dependencies:
+            cmd += [str((req_dir / additional_reqs).relative_to(root))]
+        cmd += ["--emit-index-annotation", "--emit-index-url"]
+        cmd += ["--index-strategy", "unsafe-best-match"]
+        cmd += ["--python-platform", cfg.platform, "--python-version", "3.12"]
+        if override := cfg.override:
+            cmd += ["--override", str((req_dir / override).relative_to(root))]
+        cmd += ["--index-url", "https://pypi.org/simple"]
+        if extra_index := cfg.extra_index:
+            cmd += ["--extra-index-url", f"https://download.pytorch.org/whl/{extra_index}"]
+        cmd += ["--quiet"]
+        cmd += ["-o", str((req_dir / f"{name}.txt").relative_to(root))]
+        print(f"{name}.txt")
+        subprocess.run(cmd, cwd=root, check=True)
 
 
 def precheck():
@@ -126,3 +142,7 @@ if __name__ == "__main__":
     elif cmd == "check":
         print("Performing precheck without building")
         precheck()
+
+    elif cmd == "update":
+        print("Updating server requirements without building")
+        update_server_requirements()

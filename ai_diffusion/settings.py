@@ -28,6 +28,7 @@ class ServerBackend(Enum):
     mps = (_("Use MPS (Metal Performance Shader)"), is_macos)
     directml = (_("Use DirectML (GPU)"), is_windows)
     xpu = (_("Use XPU (Intel GPU)"), not is_macos)
+    rocm = (_("Use ROCm (AMD GPU)"), not is_macos)
 
     @staticmethod
     def supported():
