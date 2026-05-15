@@ -92,7 +92,7 @@ def run(port=51222, verbose=False):
 
     app = web.Application()
     app.add_routes([web.get(url, handle) for url in urls])
-    web.run_app(app, host="localhost", port=port)
+    web.run_app(app, host="0.0.0.0", port=port)
 
 
 if __name__ == "__main__":
