@@ -13,8 +13,8 @@ from pathlib import Path
 from tempfile import TemporaryDirectory
 from typing import Any, NamedTuple
 
-from PyQt5.QtCore import QMetaObject, QObject, Qt, QUuid, pyqtSignal
-from PyQt5.QtGui import QBrush, QColor, QPainter
+from PyQt6.QtCore import QMetaObject, QObject, Qt, QUuid, pyqtSignal
+from PyQt6.QtGui import QBrush, QColor, QPainter
 
 from .. import eventloop, util
 from ..backend import resolution, workflow

@@ -2,9 +2,9 @@ from __future__ import annotations
 
 import json
 from pathlib import Path
-from typing import Any, NamedTuple
+from typing import TYPE_CHECKING, Any, NamedTuple
 
-from PyQt5.QtCore import QObject, Qt, QUuid, pyqtSignal
+from PyQt6.QtCore import QObject, Qt, QUuid, pyqtSignal
 
 from .. import util
 from ..backend import resources
@@ -15,8 +15,11 @@ from ..layer import Layer, LayerType
 from ..localization import translate as _
 from ..util import PluginError
 from ..util import client_logger as log
-from . import jobs, model
+from . import jobs
 from .properties import ObservableProperties, Property
+
+if TYPE_CHECKING:
+    from .model import DocumentModel
 
 
 class ControlLayer(QObject, ObservableProperties):
@@ -53,7 +56,7 @@ class ControlLayer(QObject, ObservableProperties):
     error_text_changed = pyqtSignal(str)
     modified = pyqtSignal(QObject, str)
 
-    def __init__(self, model: model.DocumentModel, mode: ControlMode, layer_id: QUuid, index: int):
+    def __init__(self, model: DocumentModel, mode: ControlMode, layer_id: QUuid, index: int):
         from .root import root
 
         super().__init__()
@@ -220,14 +223,11 @@ class ControlLayerList(QObject):
     added = pyqtSignal(ControlLayer)
     removed = pyqtSignal(ControlLayer)
 
-    _model: model.DocumentModel
-    _layers: list[ControlLayer]
-    _last_mode = ControlMode.scribble
-
-    def __init__(self, model: model.DocumentModel):
+    def __init__(self, model: DocumentModel):
         super().__init__()
         self._model = model
-        self._layers = []
+        self._layers: list[ControlLayer] = []
+        self._last_mode = ControlMode.scribble
         self._model.layers.removed.connect(self._remove_layer)
 
     def add(self):

@@ -1,7 +1,7 @@
 from __future__ import annotations
 
-from PyQt5.QtCore import QMetaObject, Qt
-from PyQt5.QtWidgets import (
+from PyQt6.QtCore import QMetaObject, Qt
+from PyQt6.QtWidgets import (
     QComboBox,
     QHBoxLayout,
     QLabel,
@@ -110,12 +110,12 @@ class AnimationWidget(QWidget):
         self.target_layer = QComboBox(self)
         self.target_layer.setMinimumContentsLength(20)
         self.target_layer.setSizeAdjustPolicy(
-            QComboBox.SizeAdjustPolicy.AdjustToMinimumContentsLength
+            QComboBox.SizeAdjustPolicy.AdjustToMinimumContentsLengthWithIcon
         )
         layout.addWidget(self.target_layer)
 
         self.preview_area = QLabel(self)
-        self.preview_area.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Expanding)
+        self.preview_area.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Expanding)
         self.preview_area.setAlignment(
             Qt.AlignmentFlag(Qt.AlignmentFlag.AlignTop | Qt.AlignmentFlag.AlignLeft)
         )

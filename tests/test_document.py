@@ -2,7 +2,7 @@ import asyncio
 
 from krita import Document as MockDocument
 from krita import Krita, Selection
-from PyQt5.QtCore import QByteArray
+from PyQt6.QtCore import QByteArray
 
 from ai_diffusion.document import KritaDocument
 from ai_diffusion.image import Bounds

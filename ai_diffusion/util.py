@@ -11,8 +11,8 @@ from itertools import islice
 from pathlib import Path
 from typing import Any, TypeVar
 
-from PyQt5 import sip
-from PyQt5.QtCore import QObject, QStandardPaths
+from PyQt6 import sip
+from PyQt6.QtCore import QObject, QStandardPaths
 
 T = TypeVar("T")
 R = TypeVar("R")
@@ -35,11 +35,13 @@ def _get_user_data_dir():
         return dir
 
     try:
-        dir = Path(QStandardPaths.writableLocation(QStandardPaths.AppDataLocation))
+        dir = Path(QStandardPaths.writableLocation(QStandardPaths.StandardLocation.AppDataLocation))
         if dir.exists() and "krita" in dir.name.lower():
             dir = dir / "ai_diffusion"
         else:
-            dir = Path(QStandardPaths.writableLocation(QStandardPaths.GenericDataLocation))
+            dir = Path(
+                QStandardPaths.writableLocation(QStandardPaths.StandardLocation.GenericDataLocation)
+            )
             dir = dir / "krita-ai-diffusion"
         dir.mkdir(exist_ok=True)
     except Exception:

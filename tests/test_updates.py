@@ -3,7 +3,7 @@ from pathlib import Path
 
 import pytest
 from aiohttp import ClientSession
-from PyQt5.QtCore import pyqtBoundSignal
+from PyQt6.QtCore import pyqtBoundSignal
 
 from ai_diffusion.model.updates import AutoUpdate, UpdateState
 from ai_diffusion.platform_tools import ZipFile

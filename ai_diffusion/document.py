@@ -7,7 +7,7 @@ from weakref import WeakValueDictionary
 
 import krita
 from krita import Krita
-from PyQt5.QtCore import QByteArray, QObject, QTimer, pyqtSignal
+from PyQt6.QtCore import QByteArray, QObject, QTimer, QUuid, pyqtSignal
 
 from .image import Bounds, Extent, Image, Mask
 from .layer import Layer, LayerManager, LayerType
@@ -342,7 +342,7 @@ def _selection_is_entire_document(selection: krita.Selection, extent: Extent):
 
 class PoseLayers:
     def __init__(self):
-        self._layers: dict[str, Pose] = {}
+        self._layers: dict[QUuid, Pose] = {}
         self._timer = QTimer()
         self._timer.setInterval(500)
         self._timer.timeout.connect(self.update)
