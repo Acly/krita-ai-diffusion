@@ -21,7 +21,7 @@ pytest
 pytest-asyncio
 psutil
 tqdm
-PyQt5
+PyQt6
 Pillow
 
 # Service
