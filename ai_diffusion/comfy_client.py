@@ -279,8 +279,8 @@ class ComfyClient(Client):
     async def _post(self, op: str, data: dict):
         return await self._requests.post(f"{self.url}/{op}", data)
 
-    async def _put(self, op: str, data: bytes, timeout: float | None = None):
-        return await self._requests.put(f"{self.url}/{op}", data, timeout=timeout)
+    async def _put(self, op: str, data: bytes, expect_continue: bool = False):
+        return await self._requests.put(f"{self.url}/{op}", data, expect_continue=expect_continue)
 
     async def enqueue(self, work: WorkflowInput, front: bool = False):
         job = JobInfo.create(work)
@@ -551,27 +551,11 @@ class ComfyClient(Client):
 
     async def upload_images(self, image_data: dict[str, bytes]):
         for id, data in image_data.items():
-            cache_hit = False
             try:
-                await self._head(f"api/etn/image/{id}", timeout=5)
-                cache_hit = True
-                log.info(f"Image {id} found in server cache, skipping upload.")
-            except NetworkError as e:
-                if e.status == 404 or e.status == 400:
-                    log.debug(f"Image {id} not in cache (Status {e.status}), proceeding to upload...")
-                else:
-                    log.debug(f"Real network error {e.code} (Status {e.status}): {e.message}")
-                    raise RuntimeError(f"Error checking ComfyUI image cache: {e!s}") from e
+                await self._put(f"api/etn/image/{id}", data, expect_continue=True)
             except Exception as e:
-                log.error(f"Unexpected error checking ComfyUI image cache: {e!s}")
-                raise RuntimeError(f"Error checking ComfyUI image cache: {e!s}") from e
-            if not cache_hit:
-                try:
-                    await self._put(f"api/etn/image/{id}", data)
-                    log.debug(f"Image {id} uploaded successfully.")
-                except Exception as e:
-                    log.error(f"Error uploading image {id}: {e!s}")
-                    raise RuntimeError(f"Error uploading input image to ComfyUI: {e!s}") from e
+                log.error(f"Error uploading image {id}: {e!s}")
+                raise RuntimeError(f"Error uploading input image to ComfyUI: {e!s}") from e
 
     async def _transfer_result_images(self, msg: dict) -> list[Image]:
         output = msg["data"]["output"]
