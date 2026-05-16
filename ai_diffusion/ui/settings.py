@@ -681,9 +681,9 @@ class DiffusionSettings(SettingsTab):
         super().__init__(_("Diffusion Settings"))
 
         S = Settings
-        self.add("selection_feather", SliderSetting(S._selection_feather, self, 0, 25, "{} %"))
-        self.add("selection_blend", SliderSetting(S._selection_blend, self, 0, 100, "{} px"))
-        self.add("selection_padding", SliderSetting(S._selection_padding, self, 0, 25, "{} %"))
+        self.add("selection_feather", SliderSetting(S._selection_feather, self, 0, 25, suffix="%"))
+        self.add("selection_blend", SliderSetting(S._selection_blend, self, 0, 100, suffix=" px"))
+        self.add("selection_padding", SliderSetting(S._selection_padding, self, 0, 25, suffix=" %"))
         self.add("color_match", SwitchSetting(S._color_match, parent=self))
         self.add("nsfw_filter", ComboBoxSetting(S._nsfw_filter, parent=self))
 
@@ -875,7 +875,7 @@ class PerformanceSettings(SettingsTab):
         advanced_layout.addWidget(self._batch_size)
 
         self._resolution_multiplier = SliderSetting(
-            Settings._resolution_multiplier, self._advanced, 0.3, 1.5, "{:.1f}x"
+            Settings._resolution_multiplier, self._advanced, 0.3, 1.5, suffix="x", decimals=1
         )
         self._resolution_multiplier.value_changed.connect(self.write)
         advanced_layout.addWidget(self._resolution_multiplier)

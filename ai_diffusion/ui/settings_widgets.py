@@ -3,8 +3,9 @@ from __future__ import annotations
 from enum import Enum
 from typing import Any
 
+from krita import DoubleSliderSpinBox
 from PyQt6.QtCore import QAbstractItemModel, QSize, Qt, pyqtSignal
-from PyQt6.QtGui import QFontMetrics, QIcon
+from PyQt6.QtGui import QIcon
 from PyQt6.QtWidgets import (
     QCheckBox,
     QComboBox,
@@ -14,7 +15,6 @@ from PyQt6.QtWidgets import (
     QLineEdit,
     QScrollArea,
     QSizePolicy,
-    QSlider,
     QSpinBox,
     QToolButton,
     QVBoxLayout,
@@ -256,46 +256,30 @@ class SliderSetting(SettingWidget):
         parent=None,
         minimum: float = 0,
         maximum: float = 100,
-        format="{}",
+        decimals: int = 0,
+        suffix="",
     ):
         super().__init__(setting, parent)
         self._format_string = format
         self._is_float = isinstance(setting.default, float)
 
-        slider_widget = QWidget(self)
-        slider_layout = QHBoxLayout()
-        slider_widget.setLayout(slider_layout)
-        self._slider = QSlider(Qt.Orientation.Horizontal, self)
-        self._slider.setMinimumWidth(200)
-        self._slider.setMaximumWidth(300)
-        self._slider.setMinimum(round(minimum * self.multiplier))
-        self._slider.setMaximum(round(maximum * self.multiplier))
-        self._slider.setSingleStep(1)
-        self._slider.valueChanged.connect(self._change_value)
-        self._label = QLabel(str(self._slider.value()), self)
-        fm = QFontMetrics(self._label.font())
-        self._label.setMinimumWidth(fm.horizontalAdvance("555 px"))
-        slider_layout.addWidget(self._slider)
-        slider_layout.addWidget(self._label)
-        self.set_widget(slider_widget)
-
-    def _change_value(self, value: int):
-        self._label.setText(self._format_string.format(self.value))
-        self.value_changed.emit()
-
-    @property
-    def multiplier(self):
-        return 1 if not self._is_float else 10
+        self.slider = DoubleSliderSpinBox()
+        self.slider.setRange(minimum, maximum, decimals)
+        self._spin = self.slider.widget()
+        self._spin.setSuffix(suffix)
+        self._spin.setSingleStep(10**-decimals)
+        self._spin.setMinimumWidth(235)
+        self._spin.setMaximumWidth(300)
+        self._spin.valueChanged.connect(self.value_changed)
+        self.set_widget(self._spin)
 
     @property
     def value(self):
-        x = self._slider.value()
-        return x if not self._is_float else x / self.multiplier
+        return self._spin.value()
 
     @value.setter
     def value(self, v: float):
-        x = int(v) if not self._is_float else round(v * self.multiplier)
-        self._slider.setValue(x)
+        self._spin.setValue(v)
 
 
 ComboItemList = list[str] | list[tuple[str, Any]] | list[tuple[str, Any, QIcon]] | type[Enum]
