@@ -515,10 +515,12 @@ class SamplerWidget(QWidget):
         info_layout.addStretch()
         info_layout.addWidget(self._user_presets_link)
 
-        self._steps = SliderSetting(StyleSettings.sampler_steps, self, 1, 100)
+        self._steps = SliderSetting(StyleSettings.sampler_steps, self, 1, 100, suffix=" steps")
+        self._steps.slider.setSoftMaximum(50)
         self._steps.value_changed.connect(self.notify_changed)
 
-        self._cfg = SliderSetting(StyleSettings.cfg_scale, self, 1.0, 20.0)
+        self._cfg = SliderSetting(StyleSettings.cfg_scale, self, 1.0, 24.0, decimals=1)
+        self._cfg.slider.setSoftMaximum(12.0)
         self._cfg.value_changed.connect(self.notify_changed)
 
         extended_layout = QVBoxLayout()
