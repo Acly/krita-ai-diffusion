@@ -52,8 +52,6 @@ if (root_dir / "service" / "pod" / "lib").exists():
 
         results = ImageCollection.from_bytes(result_bytes, transfer["offsets"])
         for result, expected in zip(results, images):
-            result.save("result.png")
-            expected.save("expected.png")
             assert ImageWrapper.compare(result, ImageWrapper.from_pil(expected)) < 0.01
 
     @pytest.mark.parametrize("mode", ["b64", "transfer"])
