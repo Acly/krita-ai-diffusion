@@ -5,10 +5,10 @@ from enum import Enum
 from types import GenericAlias, UnionType
 from typing import Any, get_args, get_origin
 
-from .image import Bounds, Extent, Image, ImageCollection
+from ..image import Bounds, Extent, Image, ImageCollection
+from ..settings import ImageFileFormat
+from ..util import clamp, ensure
 from .resources import Arch, ControlMode
-from .settings import ImageFileFormat
-from .util import clamp, ensure
 
 
 class WorkflowKind(Enum):

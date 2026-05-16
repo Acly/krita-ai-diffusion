@@ -8,11 +8,11 @@ from typing import TYPE_CHECKING, Any, NamedTuple
 
 from PyQt5.QtCore import QObject, pyqtSignal
 
-from .api import InpaintMode
-from .image import Bounds, ImageCollection
-from .settings import settings
-from .style import Style
-from .util import ensure
+from ..backend.api import InpaintMode
+from ..image import Bounds, ImageCollection
+from ..settings import settings
+from ..style import Style
+from ..util import ensure
 
 if TYPE_CHECKING:
     from . import control
@@ -54,6 +54,7 @@ class JobParams:
     name: str  # used eg. as name for new layers created from this job
     regions: list[JobRegion] = field(default_factory=list)
     metadata: dict[str, Any] = field(default_factory=dict)
+    ref_layers: dict[str, int] | None = None  # layer name -> prompt image id
     seed: int = 0
     has_mask: bool = False
     is_layered: bool = False

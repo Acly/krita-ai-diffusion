@@ -4,16 +4,18 @@ from enum import Enum
 
 from PyQt5.QtCore import QMetaObject, QObject, QUuid, pyqtSignal
 
-from . import eventloop, model, workflow
-from .api import ConditioningInput, RegionInput
-from .client import Client
+from .. import eventloop
+from ..backend import workflow
+from ..backend.api import ConditioningInput, RegionInput
+from ..backend.client import Client
+from ..document import Layer, LayerType
+from ..image import Bounds, Extent, Image
+from ..settings import settings
+from ..style import Style
+from . import model
 from .control import ControlLayerList
-from .document import Layer, LayerType
-from .image import Bounds, Extent, Image
 from .jobs import JobRegion
 from .properties import ObservableProperties, Property
-from .settings import settings
-from .style import Style
 
 
 class RegionLink(Enum):
@@ -38,7 +40,7 @@ class Region(QObject, ObservableProperties):
     positive_changed = pyqtSignal(str)
     modified = pyqtSignal(QObject, str)
 
-    def __init__(self, parent: RootRegion, model: model.Model):
+    def __init__(self, parent: RootRegion, model: model.DocumentModel):
         super().__init__()
         self._parent = parent
         self._layers = []
@@ -168,7 +170,7 @@ class RootRegion(QObject, ObservableProperties):
     removed = pyqtSignal(Region)
     modified = pyqtSignal(QObject, str)
 
-    def __init__(self, model: model.Model):
+    def __init__(self, model: model.DocumentModel):
         super().__init__()
         self._model = model
         self._regions: list[Region] = []

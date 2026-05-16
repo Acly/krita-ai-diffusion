@@ -1,3 +1,11 @@
+"""
+Interface for Krita's Python scripting API.
+https://api.kde.org/legacy/krita/html/annotated.html
+
+IMPORTANT: The interfaces here are intended to match Krita's actual API.
+           DO NOT modify unless it is to fix bugs or add missing parts.
+"""
+
 from PyQt5.QtCore import *
 from PyQt5.QtGui import *
 from PyQt5.QtWidgets import *
@@ -1128,11 +1136,11 @@ class ManagedColor(QObject):
 class Krita(QObject):
     """* Krita is a singleton class that offers the root access to the Krita object hierarchy. The Krita.instance() is aliased as two builtins: Scripter and Application."""
 
-    def activeDocument(self) -> "Document":
-        # type: () -> Document:
+    def activeDocument(self) -> "Optional[Document]":
+        # type: () -> Optional[Document]:
         """@access public Q_SLOTS
         @return the currently active document, if there is one."""
-    def setActiveDocument(self, value: "Document") -> None:
+    def setActiveDocument(self, value: "Optional[Document]") -> None:
         # type: (value) -> None:
         """@access public Q_SLOTS
          @brief setActiveDocument activates the first view that shows the given document
@@ -1418,14 +1426,8 @@ class Extension(QObject):
 class Document(QObject):
     """* The Document class encapsulates a Krita Document/Image. A Krita document is an Image with a filename. Libkis does not differentiate between a document and an image, like Krita does internally."""
 
-    def __init__(self, node: "Node", x: int, y: int, w: int, h: int) -> bool:
-        """@brief startFilter starts the given filter on the given node.
-        @param node the node to apply the filter to
-        @param x
-        @param y
-        @param w
-        @param h describe the rectangle the filter should be apply. This is always in image pixel coordinates and not relative to the x, y of the node.
-        """
+    def __init__(self) -> None:
+        ...
     def horizontalGuides(self) -> List[float]:
         # type: () -> List[float]:
         """@access public
@@ -1612,16 +1614,16 @@ class Document(QObject):
         """@access public Q_SLOTS
          @brief rootNode the root node is the invisible group layer that contains the entire node hierarchy.
         @return the root of the image"""
-    def selection(self) -> "Selection":
+    def selection(self) -> "Optional[Selection]":
         # type: () -> Selection:
         """@access public Q_SLOTS
          @brief selection Create a Selection object around the global selection, if there is one.
         @return the global selection or None if there is no global selection."""
-    def setSelection(self, value: "Selection") -> None:
+    def setSelection(self, value: "Optional[Selection]") -> None:
         # type: (value) -> None:
         """@access public Q_SLOTS
          @brief setSelection set or replace the global selection
-        @param value a valid selection object."""
+        @param value a valid selection object or None to clear the selection."""
     def width(self) -> int:
         # type: () -> int:
         """@access public Q_SLOTS

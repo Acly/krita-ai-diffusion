@@ -7,11 +7,20 @@ import uuid
 from collections.abc import Iterable, Sequence
 from dataclasses import dataclass
 from enum import Enum
-from itertools import chain, product
+from itertools import product
 from time import time
 from typing import Any
 
-from . import platform_tools, resources, util
+from .. import platform_tools, util
+from ..files import FileFormat
+from ..image import Image, ImageCollection, Point
+from ..localization import translate as _
+from ..settings import PerformanceSettings, settings
+from ..style import Styles
+from ..util import client_logger as log
+from ..util import parse_enum
+from ..websockets.src import websockets
+from . import resources
 from .api import WorkflowInput
 from .client import (
     CheckpointInfo,
@@ -34,9 +43,6 @@ from .client import (
     loras_to_upload,
 )
 from .comfy_workflow import ComfyObjectInfo
-from .files import FileFormat
-from .image import Image, ImageCollection, Point
-from .localization import translate as _
 from .network import NetworkError, RequestManager
 from .resources import (
     Arch,
@@ -47,11 +53,6 @@ from .resources import (
     UpscalerName,
     resource_id,
 )
-from .settings import PerformanceSettings, settings
-from .style import Styles
-from .util import client_logger as log
-from .util import parse_enum
-from .websockets.src import websockets
 from .workflow import create as create_workflow
 
 if platform_tools.is_macos:
@@ -141,9 +142,10 @@ class ComfyClient(Client):
 
     default_url = "http://127.0.0.1:8188"
 
-    def __init__(self, url):
+    def __init__(self, url: str, access_token: str = ""):
         self.url = url
         self.models = ClientModels()
+        self._token = access_token
         self._requests = RequestManager()
         self._id = str(uuid.uuid4())
         self._active_job: JobInfo | None = None
@@ -159,19 +161,18 @@ class ComfyClient(Client):
         if settings.server_authorization:
             self._requests.set_auth(settings.server_authorization)
 
-    @staticmethod
-    async def connect(url=default_url, access_token=""):
-        client = ComfyClient(parse_url(url))
-        log.info(f"Connecting to {client.url}")
+    async def connect(self):
+        self.url = parse_url(self.url)
+        log.info(f"Connecting to {self.url}")
 
         # Retrieve system info
-        client.device_info = DeviceInfo.parse(await client._get("system_stats"))
+        self.device_info = DeviceInfo.parse(await self._get("system_stats"))
 
         # Try to establish websockets connection
-        wsurl = websocket_url(client.url)
-        wsargs = websocket_args(access_token)
+        wsurl = websocket_url(self.url)
+        wsargs = websocket_args(self._token)
         try:
-            async with websockets.connect(f"{wsurl}/ws?clientId={client._id}", **wsargs):
+            async with websockets.connect(f"{wsurl}/ws?clientId={self._id}", **wsargs):
                 pass
         except Exception as e:
             msg = _("Could not establish websocket connection at") + f" {wsurl}: {e!s}"
@@ -179,22 +180,22 @@ class ComfyClient(Client):
 
         # Check custom nodes
         log.info("Checking for required custom nodes...")
-        nodes = ComfyObjectInfo(await client._get("object_info"))
+        nodes = ComfyObjectInfo(await self._get("object_info"))
         missing = _check_for_missing_nodes(nodes)
         if len(missing) > 0 and settings.check_server_resources:
             raise MissingResources(missing)
 
-        client._features = ClientFeatures(
+        self._features = ClientFeatures(
             ip_adapter=True,
             translation=True,
-            languages=await _list_languages(client),
+            languages=await _list_languages(self),
             gguf="UnetLoaderGGUF" in nodes,
         )
 
         # Check for required and optional model resources
-        models = client.models
+        models = self.models
         models.node_inputs = nodes
-        available_resources = client.models.resources = {}
+        available_resources = self.models.resources = {}
 
         clip_models = nodes.options("DualCLIPLoader", "clip_name1")
         clip_models += nodes.options("DualCLIPLoaderGGUF", "clip_name1")
@@ -228,13 +229,11 @@ class ComfyClient(Client):
         available_resources.update(_find_loras(loras))
 
         # Workarounds for DirectML
-        if client.device_info.type == "privateuseone":
+        if self.device_info.type == "privateuseone":
             # OmniSR causes a crash
             for n in [2, 3, 4]:
                 id = resource_id(ResourceKind.upscaler, Arch.all, UpscalerName.fast_x(n))
                 available_resources[id] = models.default_upscaler
-
-        return client
 
     async def discover_models(self, refresh: bool):
         if refresh:
@@ -752,9 +751,9 @@ def find_model(model_list: Sequence[str], id: ResourceId):
 
 def _find_text_encoder_models(model_list: Sequence[str]):
     kind = ResourceKind.text_encoder
+    tes = ["clip_l", "clip_g", "t5", "qwen", "qwen_3_06b", "qwen_3_4b", "qwen_3_8b", "ministral"]
     return {
-        resource_id(kind, Arch.all, te): _find_model(model_list, kind, Arch.all, te)
-        for te in ["clip_l", "clip_g", "t5", "qwen", "qwen_3_4b", "qwen_3_8b"]
+        resource_id(kind, Arch.all, te): _find_model(model_list, kind, Arch.all, te) for te in tes
     }
 
 
@@ -815,20 +814,8 @@ def _find_upscalers(model_list: Sequence[str]):
 
 
 def _find_loras(model_list: Sequence[str]):
-    kind = ResourceKind.lora
-    common_loras = list(product(["hyper", "lcm", "face"], [Arch.sd15, Arch.sdxl]))
-    sdxl_loras = [("lightning", Arch.sdxl)]
-    flux_loras = [
-        ("turbo", Arch.flux),
-        (ControlMode.depth, Arch.flux),
-        (ControlMode.canny_edge, Arch.flux),
-    ]
-    flux_k_loras = [("turbo", Arch.flux_k)]
-    flux2_loras = [(ControlMode.inpaint, Arch.flux2_4b)]
-    return {
-        resource_id(kind, arch, name): _find_model(model_list, kind, arch, name)
-        for name, arch in chain(common_loras, sdxl_loras, flux_loras, flux_k_loras, flux2_loras)
-    }
+    loras = (ResourceId.parse(r) for r in resources.search_paths if r.startswith("lora"))
+    return {id.string: _find_model(model_list, id.kind, id.arch, id.identifier) for id in loras}
 
 
 def _find_vae_models(model_list: Sequence[str]):

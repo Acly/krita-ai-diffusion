@@ -16,13 +16,13 @@ from PyQt5.QtGui import (
 )
 from PyQt5.QtWidgets import QFrame, QHBoxLayout, QLabel, QMenu, QToolButton, QVBoxLayout, QWidget
 
-from ..client import Client
+from ..backend.client import Client
 from ..document import LayerType
 from ..image import Bounds
 from ..localization import translate as _
-from ..properties import Binding, bind
-from ..region import Region, RegionLink, RootRegion, translate_prompt
-from ..root import root
+from ..model.properties import Binding, bind
+from ..model.region import Region, RegionLink, RootRegion, translate_prompt
+from ..model.root import root
 from ..util import ensure
 from . import theme
 from .control import ControlListWidget

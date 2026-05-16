@@ -15,11 +15,11 @@ from PyQt5.QtWidgets import (
     QWidget,
 )
 
-from ..control import ControlLayer, ControlLayerList
+from ..backend.resources import ControlMode
 from ..localization import translate as _
-from ..properties import Binding, bind, bind_combo, bind_toggle
-from ..resources import ControlMode
-from ..root import root
+from ..model.control import ControlLayer, ControlLayerList
+from ..model.properties import Binding, bind, bind_combo, bind_toggle
+from ..model.root import root
 from . import theme
 from .interval_slider import IntervalSlider
 from .theme import SignalBlocker

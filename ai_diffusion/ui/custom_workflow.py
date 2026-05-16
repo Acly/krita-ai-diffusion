@@ -30,19 +30,19 @@ from PyQt5.QtWidgets import (
     QWidget,
 )
 
-from ..client import TextOutput
-from ..custom_workflow import (
+from ..backend.client import TextOutput
+from ..localization import translate as _
+from ..model.custom_workflow import (
     CustomGenerationMode,
     CustomParam,
     ParamKind,
     SortedWorkflows,
     WorkflowSource,
 )
-from ..jobs import JobKind
-from ..localization import translate as _
-from ..model import Model
-from ..properties import Bind, Binding, bind, bind_combo
-from ..root import root
+from ..model.jobs import JobKind
+from ..model.model import DocumentModel
+from ..model.properties import Bind, Binding, bind, bind_combo
+from ..model.root import root
 from ..settings import settings
 from ..style import Styles
 from ..util import base_type_match, clamp, ensure
@@ -59,8 +59,9 @@ from .widget import ErrorBox, StyleSelectWidget, TextPromptWidget, WorkspaceSele
 class LayerSelect(QComboBox):
     value_changed = pyqtSignal()
 
-    def __init__(self, filter: str | None = None, parent: QWidget | None = None):
+    def __init__(self, filter: str | None, model: DocumentModel, parent: QWidget | None = None):
         super().__init__(parent)
+        self._model = model
         self.param = None
         self.filter = filter
 
@@ -70,15 +71,15 @@ class LayerSelect(QComboBox):
         self.currentIndexChanged.connect(lambda _: self.value_changed.emit())
 
         self._update()
-        root.active_model.layers.changed.connect(self._update)
+        self._model.layers.changed.connect(self._update)
 
     def _update(self):
         if self.filter is None:
-            layers = root.active_model.layers.all
+            layers = self._model.layers.all
         elif self.filter == "image":
-            layers = root.active_model.layers.images
+            layers = self._model.layers.images
         elif self.filter == "mask":
-            layers = root.active_model.layers.masks
+            layers = self._model.layers.masks
         else:
             assert False, f"Unknown filter: {self.filter}"
 
@@ -423,12 +424,14 @@ CustomParamWidget = (
 )
 
 
-def _create_param_widget(param: CustomParam, parent: "WorkflowParamsWidget") -> CustomParamWidget:
+def _create_param_widget(
+    param: CustomParam, model: DocumentModel, parent: "WorkflowParamsWidget"
+) -> CustomParamWidget:
     match param.kind:
         case ParamKind.image_layer:
-            return LayerSelect("image", parent)
+            return LayerSelect("image", model, parent)
         case ParamKind.mask_layer:
-            return LayerSelect("mask", parent)
+            return LayerSelect("mask", model, parent)
         case ParamKind.number_int:
             return IntParamWidget(param, parent)
         case ParamKind.number_float:
@@ -497,7 +500,9 @@ class WorkflowParamsWidget(QWidget):
     value_changed = pyqtSignal()
     activated = pyqtSignal()
 
-    def __init__(self, params: list[CustomParam], parent: QWidget | None = None):
+    def __init__(
+        self, params: list[CustomParam], model: DocumentModel, parent: QWidget | None = None
+    ):
         super().__init__(parent)
         self._widgets: dict[str, CustomParamWidget] = {}
         self._max_group_height = 0
@@ -531,7 +536,7 @@ class WorkflowParamsWidget(QWidget):
                 current_group = (p.group, expander, group_widgets)
                 layout.addWidget(expander, layout.rowCount(), 0, 1, 4)
             label = QLabel(p.display_name, self)
-            widget = _create_param_widget(p, self)
+            widget = _create_param_widget(p, model, self)
             widget.value_changed.connect(self._notify)
             row = layout.rowCount()
             col, col_span = (0, 2) if p.group == "" else (1, 1)
@@ -866,7 +871,7 @@ class CustomWorkflowWidget(QWidget):
         return self._model
 
     @model.setter
-    def model(self, model: Model):
+    def model(self, model: DocumentModel):
         if self._model != model:
             Binding.disconnect_all(self._model_bindings)
             self._model = model
@@ -960,7 +965,7 @@ class CustomWorkflowWidget(QWidget):
             self._params_widget.deleteLater()
             self._params_widget = None
         if len(self.model.custom.metadata) > 0:
-            self._params_widget = WorkflowParamsWidget(self.model.custom.metadata, self)
+            self._params_widget = WorkflowParamsWidget(self.model.custom.metadata, self.model, self)
             self._params_widget.value = self.model.custom.params  # set default values from model
             self.model.custom.params = self._params_widget.value  # set default values from widgets
             self._params_widget.value_changed.connect(self._change_params)
@@ -1101,7 +1106,7 @@ class CustomWorkflowPlaceholder(QWidget):
         return self._model
 
     @model.setter
-    def model(self, model: Model):
+    def model(self, model: DocumentModel):
         if self._model != model:
             Binding.disconnect_all(self._connections)
             self._model = model

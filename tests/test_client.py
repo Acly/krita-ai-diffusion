@@ -3,8 +3,9 @@ from pathlib import Path
 
 import pytest
 
-from ai_diffusion import eventloop, resources
-from ai_diffusion.api import (
+from ai_diffusion import eventloop
+from ai_diffusion.backend import resources
+from ai_diffusion.backend.api import (
     CheckpointInput,
     ConditioningInput,
     ImageInput,
@@ -13,18 +14,19 @@ from ai_diffusion.api import (
     WorkflowInput,
     WorkflowKind,
 )
-from ai_diffusion.client import ClientEvent, resolve_arch
-from ai_diffusion.comfy_client import ComfyClient, parse_url, websocket_url
+from ai_diffusion.backend.client import ClientEvent, resolve_arch
+from ai_diffusion.backend.comfy_client import ComfyClient, parse_url, websocket_url
+from ai_diffusion.backend.network import NetworkError
+from ai_diffusion.backend.resources import ControlMode
+from ai_diffusion.backend.server import Server, ServerBackend, ServerState
 from ai_diffusion.files import File, FileFormat, FileLibrary
 from ai_diffusion.image import Extent
-from ai_diffusion.network import NetworkError
 from ai_diffusion.platform_tools import get_cuda_devices
-from ai_diffusion.resources import ControlMode
-from ai_diffusion.server import Server, ServerBackend, ServerState
 from ai_diffusion.style import Arch, Style
 from ai_diffusion.util import ensure
 
 from .config import default_checkpoint, server_dir
+from .conftest import qtapp
 
 
 @pytest.fixture(scope="session")
@@ -53,83 +55,80 @@ def make_default_work(size=512, steps=20):
     )
 
 
-def test_connect_bad_url(qtapp, comfy_server):
-    async def main():
-        with pytest.raises(NetworkError):
-            await ComfyClient.connect("bad_url")
-
-    qtapp.run(main())
+@qtapp
+async def test_connect_bad_url(comfy_server):
+    client = ComfyClient("bad_url")
+    with pytest.raises(NetworkError):
+        await client.connect()
 
 
 @pytest.mark.parametrize("cancel_point", ["after_enqueue", "after_start", "after_sampling"])
-def test_cancel(qtapp, comfy_server: Server, cancel_point):
-    async def main():
-        assert comfy_server.url is not None
-        client = await ComfyClient.connect(comfy_server.url)
-        async for _ in client.discover_models(refresh=False):
-            pass
-        job_id = None
-        interrupted = False
-        stage = 0
+@qtapp
+async def test_cancel(comfy_server: Server, cancel_point):
+    assert comfy_server.url is not None
+    client = ComfyClient(comfy_server.url)
+    await client.connect()
+    async for _ in client.discover_models(refresh=False):
+        pass
+    job_id = None
+    interrupted = False
+    stage = 0
 
-        async for msg in client.listen():
-            if msg.event is ClientEvent.error:
-                assert False, msg.error
+    async for msg in client.listen():
+        if msg.event is ClientEvent.error:
+            assert False, msg.error
 
-            elif stage == 0:
-                assert msg.event is not ClientEvent.finished
-                assert msg.job_id in (job_id, "")
-                if not job_id:
-                    job_id = await client.enqueue(make_default_work(steps=1000))
-                    assert client.queued_count == 1
-                if not interrupted:
-                    if cancel_point == "after_enqueue":
-                        await client.cancel([job_id])
-                        interrupted = True
-                    if cancel_point == "after_start" and msg.event is ClientEvent.progress:
-                        await client.interrupt()
-                        interrupted = True
-                    if cancel_point == "after_sampling" and msg.progress > 0.1:
-                        await client.interrupt()
-                        interrupted = True
-                if msg.event is ClientEvent.interrupted:
-                    assert msg.job_id == job_id
-                    assert not client.is_executing and client.queued_count == 0
+        elif stage == 0:
+            assert msg.event is not ClientEvent.finished
+            assert msg.job_id in (job_id, "")
+            if not job_id:
+                job_id = await client.enqueue(make_default_work(steps=1000))
+                assert client.queued_count == 1
+            if not interrupted:
+                if cancel_point == "after_enqueue":
+                    await client.cancel([job_id])
+                    interrupted = True
+                if cancel_point == "after_start" and msg.event is ClientEvent.progress:
+                    await client.interrupt()
+                    interrupted = True
+                if cancel_point == "after_sampling" and msg.progress > 0.1:
+                    await client.interrupt()
+                    interrupted = True
+            if msg.event is ClientEvent.interrupted:
+                assert msg.job_id == job_id
+                assert not client.is_executing and client.queued_count == 0
 
-                    job_id = await client.enqueue(make_default_work(size=320, steps=1))
-                    stage = 1
-                    assert client.queued_count == 1
-                elif msg.event is ClientEvent.progress:
-                    assert stage == 0
+                job_id = await client.enqueue(make_default_work(size=320, steps=1))
+                stage = 1
+                assert client.queued_count == 1
+            elif msg.event is ClientEvent.progress:
+                assert stage == 0
 
-            elif stage == 1:
-                assert msg.event is not ClientEvent.interrupted
-                assert msg.job_id in (job_id, "")
-                if msg.event is ClientEvent.finished:
-                    assert msg.images is not None and len(msg.images) > 0
-                    assert msg.images[0].extent == Extent(320, 320)
-                    break
+        elif stage == 1:
+            assert msg.event is not ClientEvent.interrupted
+            assert msg.job_id in (job_id, "")
+            if msg.event is ClientEvent.finished:
+                assert msg.images is not None and len(msg.images) > 0
+                assert msg.images[0].extent == Extent(320, 320)
+                break
 
-        assert not client.is_executing and client.queued_count == 0
-
-    qtapp.run(main())
+    assert not client.is_executing and client.queued_count == 0
 
 
-def test_disconnect(qtapp, comfy_server: Server):
+@qtapp
+async def test_disconnect(comfy_server: Server):
     async def listen(client: ComfyClient):
         async for msg in client.listen():
             assert msg.event is ClientEvent.connected
 
-    async def main():
-        assert comfy_server.url is not None
-        client = await ComfyClient.connect(comfy_server.url)
-        task = eventloop._loop.create_task(listen(client))
-        task.cancel()
-        with pytest.raises(asyncio.CancelledError):
-            await task
-        assert not client.is_executing and client.queued_count == 0
-
-    qtapp.run(main())
+    assert comfy_server.url is not None
+    client = ComfyClient(comfy_server.url)
+    await client.connect()
+    task = eventloop._loop.create_task(listen(client))
+    task.cancel()
+    with pytest.raises(asyncio.CancelledError):
+        await task
+    assert not client.is_executing and client.queued_count == 0
 
 
 @pytest.mark.parametrize(
@@ -178,50 +177,48 @@ def check_nunchaku(server: Server, client: ComfyClient):
         assert "NunchakuFluxDiTLoader" in client.models.node_inputs.nodes
 
 
-def test_info(pytestconfig, qtapp, comfy_server: Server):
-    async def main():
-        assert comfy_server.url is not None
-        client = await ComfyClient.connect(comfy_server.url)
-        async for _ in client.discover_models(refresh=False):
-            pass
-        check_client_info(client)
-        await client.refresh()
-        check_client_info(client)
-        check_resolve_sd_version(client, Arch.sd15)
-        # check_resolve_sd_version(client, Arch.sdxl) # no SDXL checkpoint in default installation
-        check_nunchaku(comfy_server, client)
+@qtapp
+async def test_info(pytestconfig, comfy_server: Server):
+    assert comfy_server.url is not None
+    client = ComfyClient(comfy_server.url)
+    await client.connect()
+    async for _ in client.discover_models(refresh=False):
+        pass
+    check_client_info(client)
+    await client.refresh()
+    check_client_info(client)
+    check_resolve_sd_version(client, Arch.sd15)
+    # check_resolve_sd_version(client, Arch.sdxl) # no SDXL checkpoint in default installation
+    check_nunchaku(comfy_server, client)
 
-    qtapp.run(main())
 
-
-def test_upload_lora(qtapp, comfy_server: Server, tmp_path: Path):
+@qtapp
+async def test_upload_lora(comfy_server: Server, tmp_path: Path):
     lora_path = tmp_path / "test-lora.safetensors"
     lora_path.write_bytes(b"testdata" * 1024 * 1024)
 
     files = FileLibrary.instance()
     file = files.loras.add(File.local(lora_path, compute_hash=True))
 
-    async def main():
-        assert comfy_server.url is not None
-        client = await ComfyClient.connect(comfy_server.url)
-        if file.id in client.models.loras:
-            client.models.loras.remove(file.id)
+    assert comfy_server.url is not None
+    client = ComfyClient(comfy_server.url)
+    await client.connect()
+    if file.id in client.models.loras:
+        client.models.loras.remove(file.id)
 
-        input = make_default_work()
-        assert input.models is not None
-        input.models.loras = [LoraInput(file.id, 1.0, storage_id=ensure(file.hash))]
+    input = make_default_work()
+    assert input.models is not None
+    input.models.loras = [LoraInput(file.id, 1.0, storage_id=ensure(file.hash))]
 
-        task = asyncio.get_running_loop().create_task(client.upload_loras(input, "JOB-ID"))
-        upload_progress = 0
-        async for msg in client.listen():
-            if msg.event is ClientEvent.upload:
-                assert msg.job_id == "JOB-ID"
-                assert msg.progress >= upload_progress
-                upload_progress = msg.progress
-                if upload_progress == 1.0:
-                    break
+    task = asyncio.get_running_loop().create_task(client.upload_loras(input, "JOB-ID"))
+    upload_progress = 0
+    async for msg in client.listen():
+        if msg.event is ClientEvent.upload:
+            assert msg.job_id == "JOB-ID"
+            assert msg.progress >= upload_progress
+            upload_progress = msg.progress
+            if upload_progress == 1.0:
+                break
 
-        await task
-        assert file.id in client.models.loras
-
-    qtapp.run(main())
+    await task
+    assert file.id in client.models.loras

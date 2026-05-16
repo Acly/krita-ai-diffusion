@@ -5,10 +5,10 @@ import pytest
 from aiohttp import ClientSession
 from PyQt5.QtCore import pyqtBoundSignal
 
+from ai_diffusion.model.updates import AutoUpdate, UpdateState
 from ai_diffusion.platform_tools import ZipFile
-from ai_diffusion.updates import AutoUpdate, UpdateState
 
-from .conftest import CloudService
+from .conftest import CloudService, qtapp
 
 
 class SignalObserver:
@@ -29,10 +29,11 @@ def http_session(service_url: str):
     return ClientSession(service_url, headers=headers)
 
 
-def test_auto_update(qtapp, cloud_service: CloudService, tmp_path: Path):
+@qtapp
+async def test_auto_update(cloud_service: CloudService, tmp_path: Path):
     if not cloud_service.enabled:
         pytest.skip("Cloud service not running")
-    qtapp.run(run_auto_update_test(cloud_service, tmp_path))
+    await run_auto_update_test(cloud_service, tmp_path)
 
 
 async def run_auto_update_test(service: CloudService, tmp_path: Path):

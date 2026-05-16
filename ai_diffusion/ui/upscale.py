@@ -13,12 +13,12 @@ from PyQt5.QtWidgets import (
     QWidget,
 )
 
-from ..jobs import JobKind
+from ..backend.resources import ControlMode, UpscalerName
 from ..localization import translate as _
-from ..model import Model, TileOverlapMode
-from ..properties import Bind, Binding, bind, bind_combo, bind_toggle
-from ..resources import ControlMode, UpscalerName
-from ..root import root
+from ..model.jobs import JobKind
+from ..model.model import DocumentModel, TileOverlapMode
+from ..model.properties import Bind, Binding, bind, bind_combo, bind_toggle
+from ..model.root import root
 from . import theme
 from .settings_widgets import WarningIcon
 from .switch import SwitchWidget
@@ -109,7 +109,7 @@ class FactorWidget(QWidget):
 
 
 class UpscaleWidget(QWidget):
-    _model: Model
+    _model: DocumentModel
     _model_bindings: list[QMetaObject.Connection | Binding]
 
     def __init__(self):
@@ -214,7 +214,7 @@ class UpscaleWidget(QWidget):
         return self._model
 
     @model.setter
-    def model(self, model: Model):
+    def model(self, model: DocumentModel):
         if self._model != model:
             Binding.disconnect_all(self._model_bindings)
             self._model = model

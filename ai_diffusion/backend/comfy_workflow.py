@@ -8,10 +8,10 @@ from pathlib import Path
 from typing import Any, Literal, NamedTuple, TypeVar, overload
 from uuid import uuid4
 
-from .image import Bounds, Extent, Image, ImageCollection
+from ..image import Bounds, Extent, Image, ImageCollection
+from ..util import base_type_match
+from ..util import client_logger as log
 from .resources import Arch, ControlMode
-from .util import base_type_match
-from .util import client_logger as log
 
 
 class ComfyRunMode(Enum):
@@ -613,7 +613,7 @@ class ComfyWorkflow:
         w, h = extent.width, extent.height
         if arch.is_flux_like or arch.is_qwen_like or arch in (Arch.sd3, Arch.chroma, Arch.zimage):
             return self.add("EmptySD3LatentImage", 1, width=w, height=h, batch_size=batch_size)
-        if arch.is_flux2:
+        if arch.is_flux2 or arch is Arch.ernie:
             return self.add("EmptyFlux2LatentImage", 1, width=w, height=h, batch_size=batch_size)
         else:
             return self.add("EmptyLatentImage", 1, width=w, height=h, batch_size=batch_size)

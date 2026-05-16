@@ -200,8 +200,14 @@ class FileCollection(QAbstractListModel):
         i = 0
         while i < len(self._files):
             f = self._files[i]
-            if f.source is FileSource.local and f.path and not f.path.exists():
-                log.warning(f"Local file {f.path} not found, removing from collection")
+            is_valid = True
+            if f.source is FileSource.local and f.path:
+                try:
+                    is_valid = f.path.exists()
+                except OSError:
+                    is_valid = False
+            if not is_valid:
+                log.warning(f"Local file {f.path} inaccessible, removing from collection")
                 self.remove(i)
             else:
                 i += 1

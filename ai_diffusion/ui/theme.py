@@ -6,7 +6,7 @@ from PyQt5.QtCore import QObject, QSize, Qt
 from PyQt5.QtGui import QFontMetrics, QGuiApplication, QIcon, QPalette, QPixmap
 from PyQt5.QtWidgets import QLabel, QVBoxLayout, QWidget
 
-from ..client import Client
+from ..backend.client import Client
 from ..files import FileFormat
 from ..localization import translate as _
 from ..platform_tools import is_windows
@@ -14,7 +14,8 @@ from ..settings import Setting
 from ..style import Arch
 from ..util import client_logger as log
 
-_palette = QGuiApplication.palette()
+_app = QGuiApplication.instance()
+_palette = _app.palette() if isinstance(_app, QGuiApplication) else QPalette()
 is_dark = _palette.color(QPalette.ColorRole.Window).lightness() < 128
 
 base = _palette.color(QPalette.ColorRole.Base).name()
@@ -81,6 +82,10 @@ def checkpoint_icon(arch: Arch, format: FileFormat | None = None, client: Client
         return icon("sd-version-qwen")
     elif arch is Arch.zimage:
         return icon("sd-version-z-image")
+    elif arch is Arch.anima:
+        return icon("sd-version-anima")
+    elif arch is Arch.ernie:
+        return icon("sd-version-ernie")
     else:
         log.warning(f"Unresolved SD version {arch}, cannot fetch icon")
         return icon("warning")

@@ -6,6 +6,19 @@ from copy import copy
 from dataclasses import dataclass, field
 from typing import Any, NamedTuple
 
+from ..files import FileFormat, FileLibrary
+from ..image import Bounds, Extent, Image, ImageCollection, Mask, multiple_of
+from ..localization import translate as _
+from ..settings import PerformanceSettings, settings
+from ..style import SamplerPresets, Style, StyleSettings
+from ..text import (
+    eval_wildcards,
+    extract_loras,
+    merge_prompt,
+    replace_layers,
+    strip_prompt_comments,
+)
+from ..util import ensure, median_or_zero, unique
 from . import resolution, resources
 from .api import (
     CheckpointInput,
@@ -34,15 +47,8 @@ from .comfy_workflow import (
     Input,
     Output,
 )
-from .files import FileFormat, FileLibrary
-from .image import Bounds, Extent, Image, ImageCollection, Mask, multiple_of
-from .localization import translate as _
 from .resolution import ScaledExtent, ScaleMode, TileLayout, get_inpaint_reference
 from .resources import Arch, ControlMode, ResourceId, ResourceKind, UpscalerName
-from .settings import PerformanceSettings, settings
-from .style import SamplerPresets, Style, StyleSettings
-from .text import eval_wildcards, extract_layers, extract_loras, merge_prompt, strip_prompt_comments
-from .util import ensure, median_or_zero, unique
 
 
 def detect_inpaint_mode(extent: Extent, area: Bounds):
@@ -163,8 +169,12 @@ def load_checkpoint_with_lora(w: ComfyWorkflow, checkpoint: CheckpointInput, mod
                 clip = w.t5_tokenizer_options(clip, min_padding=1, min_length=0)
             case Arch.qwen | Arch.qwen_e | Arch.qwen_e_p | Arch.qwen_l:
                 clip = w.load_clip(te["qwen"], type="qwen_image")
+            case Arch.anima:
+                clip = w.load_clip(te["qwen_3_06b"], type="omnigen2")
             case Arch.zimage:
                 clip = w.load_clip(te["qwen_3_4b"], type="lumina2")
+            case Arch.ernie:
+                clip = w.load_clip(te["ministral"], type="flux2")
             case _:
                 raise RuntimeError(f"No text encoder for model architecture {arch.name}")
 
@@ -1552,6 +1562,7 @@ def prepare_prompts(
     seed: int,
     arch: Arch,
     inpaint: InpaintMode | None = None,
+    ref_layers: dict[str, int] | None = None,
     files: FileLibrary | None = None,
     is_live=False,
 ):
@@ -1564,6 +1575,7 @@ def prepare_prompts(
         "negative_prompt": cond.negative,
     }
     models = style.get_models([])
+    ref_layers = ref_layers or {}
     layer_replace = {
         Arch.flux2_4b: "image {}",
         Arch.flux2_9b: "image {}",
@@ -1576,8 +1588,7 @@ def prepare_prompts(
     if cond.positive != meta["prompt"]:
         meta["prompt_eval"] = cond.positive
     cond.positive, extra_loras = extract_loras(cond.positive, files.loras)
-    start_index = 2 + sum(1 for c in cond.control if c.mode.is_ip_adapter)
-    cond.positive, _layers = extract_layers(cond.positive, layer_replace, start_index)
+    cond.positive = replace_layers(cond.positive, ref_layers, layer_replace)
     cond.positive += _collect_lora_triggers(models.loras, files)
     if arch.is_flux2:
         cond.positive = build_instructions(cond, arch, inpaint)
@@ -1609,8 +1620,7 @@ def prepare_prompts(
             region_meta["prompt_eval"] = region.positive
         region.positive, region.loras = extract_loras(region.positive, files.loras)
         region.loras = [l for l in region.loras if l not in extra_loras]
-        region_index = start_index + sum(1 for c in region.control if c.mode.is_ip_adapter)
-        region.positive, _layers = extract_layers(region.positive, layer_replace, region_index)
+        region.positive = replace_layers(region.positive, ref_layers, layer_replace)
         meta["regions"].append(region_meta)
 
     if len(cond.regions) == 1:

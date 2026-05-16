@@ -133,7 +133,8 @@ class KritaDocument(Document):
         self._selection_bounds: Bounds | None = None
         self._current_time: int = 0
 
-        self._poller = QTimer()
+        self._was_valid = False
+        self._poller = QTimer(self)
         self._poller.setInterval(20)
         self._poller.timeout.connect(self._poll)
         self._poller.start()
@@ -151,6 +152,8 @@ class KritaDocument(Document):
             if doc.activeNode() is None:
                 return None
             all_docs = acquire_elements(Krita.instance().documents())
+            if doc not in all_docs or not doc.activeNode():
+                return None  # document not fully initialized yet
             id = cls._id_from_annotation(doc)
             for other in all_docs:
                 other_id = cls._id_from_annotation(other)
@@ -171,6 +174,10 @@ class KritaDocument(Document):
             if id and id in cls._instances:
                 return cls._instances[id]
         return None
+
+    @property
+    def id(self):
+        return self._id
 
     @property
     def extent(self):
@@ -286,7 +293,10 @@ class KritaDocument(Document):
 
     @property
     def is_valid(self):
-        return self._doc in acquire_elements(Krita.instance().documents())
+        # can be a document that has been closed, or one that hasn't finished initializing
+        return self._doc.activeNode() is not None and self._doc in acquire_elements(
+            Krita.instance().documents()
+        )
 
     @property
     def is_active(self):
@@ -294,6 +304,7 @@ class KritaDocument(Document):
 
     def _poll(self):
         if self.is_valid:
+            self._was_valid = True
             selection = self._doc.selection()
             selection_bounds = _selection_bounds(selection) if selection else None
             if selection_bounds != self._selection_bounds:
@@ -304,7 +315,7 @@ class KritaDocument(Document):
             if current_time != self._current_time:
                 self._current_time = current_time
                 self.current_time_changed.emit()
-        else:
+        elif self._was_valid:
             self._poller.stop()
 
     def __eq__(self, other):
@@ -339,7 +350,7 @@ class PoseLayers:
 
     def update(self):
         doc = KritaDocument.active_instance()
-        if not doc:
+        if not doc or not doc.is_valid:
             return
         try:
             layer = doc.layers.active

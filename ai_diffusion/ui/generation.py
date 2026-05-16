@@ -42,17 +42,19 @@ from PyQt5.QtWidgets import (
     QWidget,
 )
 
+from ..backend.api import InpaintContext
+from ..backend.resources import Arch
+from ..backend.workflow import FillMode, InpaintMode
 from ..image import Bounds, Extent, Image
-from ..jobs import Job, JobKind, JobParams, JobQueue, JobState
 from ..localization import translate as _
-from ..model import InpaintContext, Model, ProgressKind, RootRegion, Workspace
-from ..properties import Bind, Binding, bind, bind_combo, bind_toggle
-from ..resources import Arch
-from ..root import root
+from ..model.jobs import Job, JobKind, JobParams, JobQueue, JobState
+from ..model.model import DocumentModel, ProgressKind, Workspace
+from ..model.properties import Bind, Binding, bind, bind_combo, bind_toggle
+from ..model.region import RootRegion
+from ..model.root import root
 from ..settings import settings
 from ..style import Styles
 from ..util import ensure, flatten, sequence_equal
-from ..workflow import FillMode, InpaintMode
 from . import theme
 from .region import RegionPromptWidget
 from .widget import (
@@ -68,7 +70,7 @@ from .widget import (
 
 
 class HistoryWidget(QListWidget):
-    _model: Model
+    _model: DocumentModel
     _connections: list[QMetaObject.Connection]
     _last_job_params: JobParams | None = None
 
@@ -134,7 +136,7 @@ class HistoryWidget(QListWidget):
         return self._model
 
     @model_.setter
-    def model_(self, model: Model):
+    def model_(self, model: DocumentModel):
         Binding.disconnect_all(self._connections)
         self._model = model
         jobs = model.jobs
@@ -567,7 +569,7 @@ class AnimatedListItem(QListWidgetItem):
 
 
 class CustomInpaintWidget(QWidget):
-    _model: Model
+    _model: DocumentModel
     _model_bindings: list[QMetaObject.Connection | Binding]
 
     def __init__(self, parent: QWidget):
@@ -638,7 +640,7 @@ class CustomInpaintWidget(QWidget):
         return self._model
 
     @model.setter
-    def model(self, model: Model):
+    def model(self, model: DocumentModel):
         if self._model != model:
             Binding.disconnect_all(self._model_bindings)
             self._model = model
@@ -708,7 +710,7 @@ class ProgressBar(QProgressBar):
         return self._model
 
     @model.setter
-    def model(self, model: Model):
+    def model(self, model: DocumentModel):
         if self._model != model:
             Binding.disconnect_all(self._model_bindings)
             self._model = model
@@ -736,7 +738,7 @@ class ProgressBar(QProgressBar):
 class GenerationWidget(QWidget):
     def __init__(self):
         super().__init__()
-        self._model: Model = root.active_model
+        self._model: DocumentModel = root.active_model
         self._model_bindings: list[QMetaObject.Connection | Binding] = []
 
         layout = QVBoxLayout(self)
@@ -824,7 +826,7 @@ class GenerationWidget(QWidget):
         return self._model
 
     @model.setter
-    def model(self, model: Model):
+    def model(self, model: DocumentModel):
         if self._model != model:
             Binding.disconnect_all(self._model_bindings)
             self._model = model

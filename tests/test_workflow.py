@@ -6,8 +6,8 @@ from typing import Any
 
 import pytest
 
-from ai_diffusion import workflow
-from ai_diffusion.api import (
+from ai_diffusion.backend import workflow
+from ai_diffusion.backend.api import (
     ConditioningInput,
     ControlInput,
     CustomWorkflowInput,
@@ -22,18 +22,19 @@ from ai_diffusion.api import (
     WorkflowInput,
     WorkflowKind,
 )
-from ai_diffusion.client import CheckpointInfo, Client, ClientEvent, ClientModels
-from ai_diffusion.cloud_client import CloudClient
-from ai_diffusion.comfy_client import ComfyClient
-from ai_diffusion.comfy_workflow import ComfyWorkflow
+from ai_diffusion.backend.client import CheckpointInfo, Client, ClientEvent, ClientModels
+from ai_diffusion.backend.cloud_client import CloudClient
+from ai_diffusion.backend.comfy_client import ComfyClient
+from ai_diffusion.backend.comfy_workflow import ComfyWorkflow
+from ai_diffusion.backend.resources import ControlMode
+from ai_diffusion.backend.workflow import detect_inpaint
 from ai_diffusion.files import File, FileCollection, FileLibrary, FileSource
 from ai_diffusion.image import Bounds, Extent, Image, ImageCollection, Mask
 from ai_diffusion.pose import Pose
-from ai_diffusion.resources import ControlMode
 from ai_diffusion.settings import PerformanceSettings
 from ai_diffusion.style import Arch, Style
+from ai_diffusion.text import extract_layers
 from ai_diffusion.util import ensure
-from ai_diffusion.workflow import detect_inpaint
 
 from . import config
 from .config import default_checkpoint, image_dir, reference_dir, result_dir, root_dir, test_dir
@@ -45,7 +46,8 @@ files = FileLibrary(FileCollection(), FileCollection())
 
 
 async def connect_local():
-    client = await ComfyClient.connect()
+    client = ComfyClient(ComfyClient.default_url)
+    await client.connect()
     async for _ in client.discover_models(refresh=False):
         pass
     return client
@@ -53,7 +55,11 @@ async def connect_local():
 
 async def connect_cloud(service: CloudService):
     user = await service.create_user("workflow-tester")
-    return await CloudClient.connect(service.url, user["token"])
+    client = CloudClient(service.url, user["token"])
+    await client.connect()
+    async for _ in client.discover_models(refresh=False):
+        pass
+    return client
 
 
 @pytest.fixture(params=client_params)
@@ -328,12 +334,18 @@ def test_prepare_prompt_layers(arch: Arch):
     style = Style(Path("default.json"))
     style.checkpoints = []
     cond = ConditioningInput("prompt <layer:layer1> for <layer:layer2>")
+    cond.edit_reference = arch is Arch.qwen_e_p
     cond.regions = [
         RegionInput(mask, Bounds(0, 0, 10, 10), "region <layer:layer3>"),
         RegionInput(mask, Bounds(0, 0, 10, 10), "region without layer"),
     ]
 
-    result = workflow.prepare_prompts(cond, style, seed=1, arch=arch, files=files)
+    layers = extract_layers(cond)
+    for region in cond.regions:
+        layers.update(extract_layers(cond, region))
+    result = workflow.prepare_prompts(
+        cond, style, seed=1, ref_layers=layers, arch=arch, files=files
+    )
     assert result.conditioning is not None
     assert result.metadata["prompt"] == "prompt <layer:layer1> for <layer:layer2>"
     assert result.metadata.get("prompt_eval") is None

@@ -18,8 +18,8 @@ from PyQt5.QtNetwork import (
     QTcpSocket,
 )
 
-from .localization import translate as _
-from .util import client_logger as log
+from ..localization import translate as _
+from ..util import client_logger as log
 
 
 class NetworkError(Exception):

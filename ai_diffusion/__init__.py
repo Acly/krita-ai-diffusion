@@ -1,6 +1,6 @@
 """Generative AI plugin for Krita"""
 
-__version__ = "1.49.1"
+__version__ = "1.50.0"
 
 import importlib.util
 
@@ -12,12 +12,22 @@ if not importlib.util.find_spec(".websockets.src", "ai_diffusion"):
         " https://github.com/Acly/krita-ai-diffusion/releases"
     )
 
-# The following imports depend on the code running inside Krita, so the cannot be imported in tests.
+# The following imports depend on the code running inside Krita
 if importlib.util.find_spec("krita"):
     import krita
 
-    krita_ver = krita.Krita.instance().version()
-    if not krita_ver.startswith("5"):
-        raise ImportError(f"This Plugin is for Krita 5.x, but you are using Krita {krita_ver}.")
+    if not getattr(krita, "IS_MOCK", False):
+        krita_ver = krita.Krita.instance().version()
+        if not krita_ver.startswith("5"):
+            raise ImportError(f"This Plugin is for Krita 5.x, but you are using Krita {krita_ver}.")
 
-    from .extension import AIToolsExtension as AIToolsExtension
+        from .extension import AIToolsExtension as AIToolsExtension
+
+# When not running inside Krita, try to import the development placeholder for Krita functions
+else:
+    import sys
+    from pathlib import Path
+
+    mock_dir = Path(__file__).parent.parent / "tests" / "mock"
+    if mock_dir.exists():
+        sys.path.append(str(mock_dir))

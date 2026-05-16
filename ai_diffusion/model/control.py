@@ -6,15 +6,17 @@ from typing import Any, NamedTuple
 
 from PyQt5.QtCore import QObject, Qt, QUuid, pyqtSignal
 
-from . import jobs, model, resources, util
-from .api import ControlInput
-from .image import Bounds, Extent, Image
-from .layer import Layer, LayerType
-from .localization import translate as _
+from .. import util
+from ..backend import resources
+from ..backend.api import ControlInput
+from ..backend.resources import Arch, ControlMode, ResourceKind, resource_id
+from ..image import Bounds, Extent, Image
+from ..layer import Layer, LayerType
+from ..localization import translate as _
+from ..util import PluginError
+from ..util import client_logger as log
+from . import jobs, model
 from .properties import ObservableProperties, Property
-from .resources import Arch, ControlMode, ResourceKind, resource_id
-from .util import PluginError
-from .util import client_logger as log
 
 
 class ControlLayer(QObject, ObservableProperties):
@@ -51,7 +53,7 @@ class ControlLayer(QObject, ObservableProperties):
     error_text_changed = pyqtSignal(str)
     modified = pyqtSignal(QObject, str)
 
-    def __init__(self, model: model.Model, mode: ControlMode, layer_id: QUuid, index: int):
+    def __init__(self, model: model.DocumentModel, mode: ControlMode, layer_id: QUuid, index: int):
         from .root import root
 
         super().__init__()
@@ -113,9 +115,11 @@ class ControlLayer(QObject, ObservableProperties):
         self._update_is_supported()
 
     def to_api(self, bounds: Bounds | None = None, time: int | None = None):
-        assert self.is_supported, "Control layer is not supported"
-        extent = bounds.extent if bounds else self._model.document.extent
         layer = self.layer
+        if not self.is_supported:
+            raise PluginError(f"Can't use '{layer.name}' as control layer: {self.error_text}")
+
+        extent = bounds.extent if bounds else self._model.document.extent
         if self.mode.is_ip_adapter and not layer.bounds.is_zero:
             bounds = None  # ignore mask bounds, use layer bounds
 
@@ -216,11 +220,11 @@ class ControlLayerList(QObject):
     added = pyqtSignal(ControlLayer)
     removed = pyqtSignal(ControlLayer)
 
-    _model: model.Model
+    _model: model.DocumentModel
     _layers: list[ControlLayer]
     _last_mode = ControlMode.scribble
 
-    def __init__(self, model: model.Model):
+    def __init__(self, model: model.DocumentModel):
         super().__init__()
         self._model = model
         self._layers = []

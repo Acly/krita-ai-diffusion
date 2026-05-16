@@ -12,7 +12,13 @@ from datetime import datetime, timezone
 from enum import Enum
 from typing import Any
 
-from . import __version__ as plugin_version
+from .. import __version__ as plugin_version
+from ..files import File
+from ..image import ImageCollection, qt_supports_webp
+from ..localization import translate as _
+from ..settings import PerformanceSettings, settings
+from ..util import clamp, ensure
+from ..util import client_logger as log
 from .api import WorkflowInput
 from .client import (
     Client,
@@ -28,13 +34,7 @@ from .client import (
     User,
     loras_to_upload,
 )
-from .files import File
-from .image import ImageCollection, qt_supports_webp
-from .localization import translate as _
 from .network import NetworkError, RequestManager
-from .settings import PerformanceSettings, settings
-from .util import clamp, ensure
-from .util import client_logger as log
 
 
 class JobState(Enum):
@@ -82,20 +82,12 @@ class CloudClient(Client):
     default_api_url = os.getenv("INTERSTICE_URL", "https://api.interstice.cloud")
     default_web_url = os.getenv("INTERSTICE_WEB_URL", "https://www.interstice.cloud")
 
-    @staticmethod
-    async def connect(url: str, access_token: str = ""):
-        if not access_token:
-            raise ValueError("Authorization missing for cloud endpoint")
-        client = CloudClient(url)
-        await client.authenticate(access_token)
-        return client
-
-    def __init__(self, url: str):
+    def __init__(self, url: str, access_token: str = ""):
         self.url = url
         self.models = ClientModels()
         self.device_info = DeviceInfo("Cloud", "Remote GPU", 24)
         self._requests = RequestManager()
-        self._token: str = ""
+        self._token = access_token
         self._user: User | None = None
         self._news: News | None = None
         self._exec_send = JobExecutor(name="send")
@@ -138,10 +130,9 @@ class CloudClient(Client):
             error = auth_confirm.get("status", "unexpected response")
             raise RuntimeError(_("Authorization could not be confirmed: ") + error)
 
-    async def authenticate(self, token: str):
-        if not token:
+    async def connect(self):
+        if not self._token:
             raise ValueError("Authorization missing for cloud endpoint")
-        self._token = token
         try:
             user_data = await self._get(f"user?plugin_version={plugin_version}")
         except NetworkError as e:
@@ -157,10 +148,14 @@ class CloudClient(Client):
         if news_text := user_data.get("news"):
             self._news = News.create(news_text)
 
+        log.info(f"Connected to {self.url}, user: {self._user.id}")
+
+    async def discover_models(self, refresh: bool):
         model_data = await self._get("plugin/resources")
         self.models = ClientModels.from_dict(model_data)
-        log.info(f"Connected to {self.url}, user: {self._user.id}")
-        return self._user
+        n = len(self.models.checkpoints)
+        yield self.DiscoverStatus(folder="models", current=n, total=n)
+        log.info(f"Supported models: {', '.join(self.models.checkpoints)}")
 
     async def enqueue(self, work: WorkflowInput, front: bool = False):
         apply_limits(work, self.features)

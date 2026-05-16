@@ -1,4 +1,3 @@
-import importlib.util
 import json
 import logging
 import logging.handlers
@@ -28,10 +27,13 @@ class PluginError(Exception):
 
 
 def _get_user_data_dir():
-    if importlib.util.find_spec("krita") is None:
+    import krita
+
+    if getattr(krita, "IS_MOCK", False):  # mock Krita used in tests
         dir = plugin_dir.parent / ".appdata"
         dir.mkdir(exist_ok=True)
         return dir
+
     try:
         dir = Path(QStandardPaths.writableLocation(QStandardPaths.AppDataLocation))
         if dir.exists() and "krita" in dir.name.lower():
@@ -200,6 +202,11 @@ def find_unused_path(path: Path):
 
 
 def acquire_elements(l: list[QOBJECT]) -> list[QOBJECT]:
+    import krita
+
+    if getattr(krita, "IS_MOCK", False):
+        return l
+
     # Many Pykrita functions return a `QList<QObject*>` where the objects are
     # allocated for the caller. SIP does not handle this case and just leaks
     # the objects outright. Fix this by taking explicit ownership of the objects.

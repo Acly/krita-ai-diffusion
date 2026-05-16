@@ -3,7 +3,13 @@ from enum import Enum
 import pytest
 from PyQt5.QtCore import QObject, pyqtSignal
 
-from ai_diffusion.properties import ObservableProperties, Property, bind, deserialize, serialize
+from ai_diffusion.model.properties import (
+    ObservableProperties,
+    Property,
+    bind,
+    deserialize,
+    serialize,
+)
 
 
 class Piong(Enum):

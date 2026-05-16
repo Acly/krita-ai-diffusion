@@ -23,8 +23,9 @@ import aiohttp
 from tqdm import tqdm
 
 sys.path.append(str(Path(__file__).parent.parent))
-from ai_diffusion import platform_tools, resources
-from ai_diffusion.resources import (
+from ai_diffusion import platform_tools
+from ai_diffusion.backend import resources
+from ai_diffusion.backend.resources import (
     Arch,
     ModelRequirements,
     ModelResource,
