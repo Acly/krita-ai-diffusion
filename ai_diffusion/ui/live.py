@@ -163,7 +163,7 @@ class LiveWidget(QWidget):
         controls_layout.addWidget(self.style_select)
         layout.addLayout(controls_layout)
 
-        self.strength_slider = StrengthWidget(parent=self)
+        self.strength_slider = StrengthWidget()
 
         self.seed_input = QDoubleSpinBox(self)
         self.seed_input.setDecimals(0)
@@ -190,10 +190,10 @@ class LiveWidget(QWidget):
         self.edit_toggle.clicked.connect(self.toggle_edit)
 
         params_layout = QHBoxLayout()
-        params_layout.addWidget(self.strength_slider)
-        params_layout.addWidget(self.seed_input)
-        params_layout.addWidget(self.random_seed_button)
+        params_layout.addWidget(self.strength_slider.widget(), 2)
         params_layout.addWidget(self.edit_toggle)
+        params_layout.addWidget(self.seed_input, 1)
+        params_layout.addWidget(self.random_seed_button)
         layout.addLayout(params_layout)
 
         self.control_list = ControlListWidget(self._model.active_regions.control, self)

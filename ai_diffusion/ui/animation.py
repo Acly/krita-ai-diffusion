@@ -67,12 +67,12 @@ class AnimationWidget(QWidget):
         prompt_layout.addWidget(self.negative_textbox)
         layout.addLayout(prompt_layout)
 
-        self.strength_slider = StrengthWidget(parent=self)
+        self.strength_slider = StrengthWidget()
         self.add_control_button = create_wide_tool_button(
             "control-add", _("Add Control Layer"), self
         )
         strength_layout = QHBoxLayout()
-        strength_layout.addWidget(self.strength_slider)
+        strength_layout.addWidget(self.strength_slider.widget())
         strength_layout.addWidget(self.add_control_button)
         layout.addLayout(strength_layout)
 
