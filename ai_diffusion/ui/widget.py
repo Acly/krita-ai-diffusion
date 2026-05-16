@@ -4,7 +4,7 @@ from collections.abc import Callable
 from itertools import chain
 from typing import Any, ClassVar, cast
 
-from krita import Krita
+from krita import DoubleSliderSpinBox, Krita
 from PyQt6.QtCore import QEvent, QMetaObject, QSize, Qt, QUrl, pyqtSignal
 from PyQt6.QtGui import (
     QAction,
@@ -690,104 +690,66 @@ class TextPromptWidget(QPlainTextEdit):
             self.setTextCursor(cursor)
 
 
-class StrengthSnapping:
-    model: DocumentModel
-
-    def __init__(self, model: DocumentModel):
-        self.model = model
-
-    def get_steps(self) -> tuple[int, int]:
-        is_live = self.model.workspace is Workspace.live
-        if self.model.workspace is Workspace.animation:
-            is_live = self.model.animation.sampling_quality is SamplingQuality.fast
-        return self.model.active_style.get_steps(is_live=is_live)
-
-    def nearest_percent(self, value: int) -> int | None:
-        _, max_steps = self.get_steps()
-        steps, start_at_step = self.apply_strength(value)
-        return snap_to_percent(steps, start_at_step, max_steps=max_steps)
-
-    def apply_strength(self, value: int) -> tuple[int, int]:
-        min_steps, max_steps = self.get_steps()
-        strength = value / 100
-        return apply_strength(strength, steps=max_steps, min_steps=min_steps)
-
-
-# SpinBox variant that allows manually entering strength values,
-# but snaps to model_steps on step actions (scrolling, arrows, arrow keys).
-class StrengthSpinBox(QSpinBox):
-    snapping: StrengthSnapping | None
-
-    def __init__(self, parent=None):
-        super().__init__(parent)
-        self.snapping = None
-        # for manual input
-        self.setMinimum(1)
-        self.setMaximum(100)
-
-    def stepBy(self, steps):
-        value = max(self.minimum(), min(self.maximum(), self.value() + steps))
-        if self.snapping is not None:
-            # keep going until we hit a new snap point
-            current_point = self.nearest_snap_point(self.value())
-            while self.nearest_snap_point(value) == current_point and value > 1:
-                value += 1 if steps > 0 else -1
-            value = self.nearest_snap_point(value)
-        self.setValue(value)
-
-    def nearest_snap_point(self, value: int) -> int:
-        assert self.snapping
-        return self.snapping.nearest_percent(value) or (int(value / 5) * 5)
-
-
-class StrengthWidget(QWidget):
-    _model: DocumentModel | None = None
-    _value: int = 100
-
+class StrengthWidget(DoubleSliderSpinBox):
     value_changed = pyqtSignal(float)
 
-    def __init__(self, slider_range: tuple[int, int] = (1, 100), prefix=True, parent=None):
-        super().__init__(parent)
-        self._layout = QHBoxLayout()
-        self._layout.setContentsMargins(0, 0, 0, 0)
-        self.setLayout(self._layout)
+    def __init__(self, range: tuple[float, float] = (0.01, 1.0), prefix=True):
+        super().__init__()
+        self._model: DocumentModel | None = None
+        self._value = 100
+        self._range = (range[0] * 100, range[1] * 100)
 
-        self._slider = QSlider(Qt.Orientation.Horizontal, self)
-        self._slider.setMinimum(slider_range[0])
-        self._slider.setMaximum(slider_range[1])
-        self._slider.setValue(self._value)
-        self._slider.setSingleStep(5)
-        self._slider.valueChanged.connect(self.slider_changed)
+        self.setSoftMinimum(self._range[0])
+        self.setSoftMaximum(self._range[1])
+        self.setRange(min(self._range[0], 1), 100, 0)
+        super().setValue(self._value)
 
-        self._input = StrengthSpinBox(self)
-        self._input.setValue(self._value)
+        w = self.widget()  # the internal QDoubleSpinBox
+        w.setSingleStep(5)
         if prefix:
-            self._input.setPrefix(_("Strength") + ": ")
-        self._input.setSuffix("%")
-        self._input.setSpecialValueText(_("Off"))
-        self._input.valueChanged.connect(self.notify_changed)
+            w.setPrefix(_("Strength") + ": ")
+        w.setSuffix("%")
+        if range[0] == 0:
+            w.setSpecialValueText(_("Off"))
 
-        settings.changed.connect(self.update_suffix)
+        w.valueChanged.connect(self.notify_changed)
+        self.draggingFinished.connect(self._complete_drag)
+        settings.changed.connect(self._update_suffix)
 
-        self._layout.addWidget(self._slider)
-        self._layout.addWidget(self._input)
+    def notify_changed(self, value: float):
+        value = int(value)
+        if self.isDragging():
+            self._change_suffix(value)
+            return
 
-    def slider_changed(self, value: int):
-        if self._input.snapping is not None:
-            value = self._input.snapping.nearest_percent(value) or value
-        self.notify_changed(value)
-
-    def notify_changed(self, value: int):
+        step = 1 if value - self._value > 0 else -1
+        if not self.isDragging() and self._model is not None:
+            # keep going until we hit a new snap point
+            current_point = self._nearest_snap_point(self._value)
+            while self._nearest_snap_point(value) == current_point and value > 1:
+                value += step
+            value = self._nearest_snap_point(value)
         if self._update_value(value):
             self.value_changed.emit(self.value)
 
+    def _complete_drag(self):
+        value = int(self.widget().value())
+        if settings.show_steps:
+            value = self._nearest_snap_point(value)
+        if self._update_value(value):
+            self.value_changed.emit(self.value)
+
+    def _nearest_snap_point(self, value: int) -> int:
+        if self._model and (snap := _nearest_percent(self._model, value)):
+            return snap
+        return max(round(value / 5) * 5, int(self._range[0]))
+
     def _update_value(self, value: int):
-        with SignalBlocker(self._slider), SignalBlocker(self._input):
-            self._slider.setValue(value)
-            self._input.setValue(value)
         if value != self._value:
             self._value = value
-            self.update_suffix()
+            with SignalBlocker(self.widget()):
+                super().setValue(value)
+            self._update_suffix()
             return True
         return False
 
@@ -798,15 +760,14 @@ class StrengthWidget(QWidget):
     @model.setter
     def model(self, model: DocumentModel):
         if self._model:
-            self._model.style_changed.disconnect(self.update_suffix)
-            self._model.edit_mode_changed.disconnect(self.update_suffix)
-            self._model.animation.sampling_quality_changed.disconnect(self.update_suffix)
+            self._model.style_changed.disconnect(self._update_suffix)
+            self._model.edit_mode_changed.disconnect(self._update_suffix)
+            self._model.animation.sampling_quality_changed.disconnect(self._update_suffix)
         self._model = model
-        self._model.style_changed.connect(self.update_suffix)
-        self._model.edit_mode_changed.connect(self.update_suffix)
-        self._model.animation.sampling_quality_changed.connect(self.update_suffix)
-        self._input.snapping = StrengthSnapping(self._model)
-        self.update_suffix()
+        self._model.style_changed.connect(self._update_suffix)
+        self._model.edit_mode_changed.connect(self._update_suffix)
+        self._model.animation.sampling_quality_changed.connect(self._update_suffix)
+        self._update_suffix()
 
     @property
     def value(self):
@@ -814,17 +775,51 @@ class StrengthWidget(QWidget):
 
     @value.setter
     def value(self, value: float):
-        if value == self.value:
+        self.setValue(value)
+
+    def _change_suffix(self, value: int):
+        if not self._model or not settings.show_steps:
+            self.widget().setSuffix("%")
             return
+
+        steps, start_at_step = _apply_strength(self._model, value)
+        self.widget().setSuffix(f"% - {steps - start_at_step}/{steps} steps")
+
+    def _update_suffix(self):
+        self._change_suffix(self._value)
+
+    def setValue(self, value: float):
         self._update_value(round(value * 100))
 
-    def update_suffix(self):
-        if not self._input.snapping or not settings.show_steps:
-            self._input.setSuffix("%")
-            return
+    def setVisible(self, visible: bool):
+        self.widget().setVisible(visible)
 
-        steps, start_at_step = self._input.snapping.apply_strength(self._value)
-        self._input.setSuffix(f"% ({steps - start_at_step}/{steps})")
+    def setEnabled(self, enabled: bool):
+        self.widget().setEnabled(enabled)
+
+    def setToolTip(self, tooltip: str):
+        self.widget().setToolTip(tooltip)
+
+
+def _get_steps(model: DocumentModel) -> tuple[int, int]:
+    is_live = model.workspace is Workspace.live
+    if model.workspace is Workspace.animation:
+        is_live = model.animation.sampling_quality is SamplingQuality.fast
+    return model.active_style.get_steps(is_live=is_live)
+
+
+def _apply_strength(model: DocumentModel, strength_percent: int) -> tuple[int, int]:
+    if strength_percent <= 0:
+        return 0, 0
+    min_steps, max_steps = _get_steps(model)
+    strength = strength_percent / 100
+    return apply_strength(strength, steps=max_steps, min_steps=min_steps)
+
+
+def _nearest_percent(model: DocumentModel, strength_percent: int) -> int | None:
+    _, max_steps = _get_steps(model)
+    steps, start_at_step = _apply_strength(model, strength_percent)
+    return snap_to_percent(steps, start_at_step, max_steps=max_steps)
 
 
 class LayerCountWidget(QWidget):

@@ -757,7 +757,7 @@ class GenerationWidget(QWidget):
         self.region_prompt = RegionPromptWidget(self)
         layout.addWidget(self.region_prompt)
 
-        self.strength_slider = StrengthWidget(parent=self)
+        self.strength_slider = StrengthWidget()
         self.layer_count_widget = LayerCountWidget(self)
         self.layer_count_widget.setVisible(False)
         self.add_region_button = create_wide_tool_button("region-add", _("Add Region"), self)
@@ -765,7 +765,7 @@ class GenerationWidget(QWidget):
             "control-add", _("Add Control Layer"), self
         )
         strength_layout = QHBoxLayout()
-        strength_layout.addWidget(self.strength_slider)
+        strength_layout.addWidget(self.strength_slider.widget())
         strength_layout.addWidget(self.layer_count_widget)
         strength_layout.addWidget(self.add_control_button)
         strength_layout.addWidget(self.add_region_button)
