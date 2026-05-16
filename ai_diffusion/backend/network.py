@@ -8,22 +8,27 @@ from datetime import datetime, timezone
 from pathlib import Path
 from typing import NamedTuple
 
-from PyQt5.QtCore import QBuffer, QByteArray, QFile, QUrl
-from PyQt5.QtNetwork import QNetworkAccessManager, QNetworkReply, QNetworkRequest, QSslError
+from PyQt6.QtCore import QBuffer, QByteArray, QFile, QUrl
+from PyQt6.QtNetwork import QNetworkAccessManager, QNetworkReply, QNetworkRequest, QSslError
 
 from ..localization import translate as _
 from ..util import client_logger as log
 
 
 class NetworkError(Exception):
-    code: int
+    code: int | QNetworkReply.NetworkError
     message: str
     url: str
     status: int | None = None
     data: dict | None = None
 
     def __init__(
-        self, code: int, msg: str, url: str, status: int | None = None, data: dict | None = None
+        self,
+        code: int | QNetworkReply.NetworkError,
+        msg: str,
+        url: str,
+        status: int | None = None,
+        data: dict | None = None,
     ):
         self.code = code
         self.message = msg
@@ -37,7 +42,7 @@ class NetworkError(Exception):
 
     @staticmethod
     def from_reply(reply: QNetworkReply):
-        code: QNetworkReply.NetworkError = reply.error()  # type: ignore (bug in PyQt5-stubs)
+        code = reply.error()
         url = reply.url().toString()
         status = reply.attribute(QNetworkRequest.Attribute.HttpStatusCodeAttribute)
         if reply.isReadable():
@@ -96,7 +101,10 @@ class RequestManager:
 
     def _prepare_request(self, url: str, timeout: float | None = None, bearer: str | None = None):
         request = QNetworkRequest(QUrl(url))
-        request.setAttribute(QNetworkRequest.FollowRedirectsAttribute, True)
+        request.setAttribute(
+            QNetworkRequest.Attribute.RedirectPolicyAttribute,
+            QNetworkRequest.RedirectPolicy.NoLessSafeRedirectPolicy,
+        )
         bearer_token = bearer or self._bearer_token
         if bearer_token:
             request.setRawHeader(b"Authorization", f"Bearer {bearer_token}".encode())
@@ -110,7 +118,7 @@ class RequestManager:
         self,
         method,
         url: str,
-        data: dict | QByteArray | None = None,
+        data: dict | QByteArray | bytes | None = None,
         timeout: float | None = None,
         bearer: str | None = None,
     ):
@@ -158,7 +166,10 @@ class RequestManager:
         assert isinstance(data, QByteArray)
 
         request = QNetworkRequest(QUrl(url))
-        request.setAttribute(QNetworkRequest.Attribute.FollowRedirectsAttribute, True)
+        request.setAttribute(
+            QNetworkRequest.Attribute.RedirectPolicyAttribute,
+            QNetworkRequest.RedirectPolicy.NoLessSafeRedirectPolicy,
+        )
         if sha256:
             request.setRawHeader(b"x-amz-checksum-sha256", sha256.encode("utf-8"))
         request.setHeader(
@@ -192,7 +203,7 @@ class RequestManager:
         buffer.open(QBuffer.OpenModeFlag.WriteOnly)
 
         def write(bytes_received, bytes_total):
-            buffer.write(reply.readAll())
+            buffer.write(reply.readAll().data())
 
         future = asyncio.get_running_loop().create_future()
         tracker = Request(url, future, buffer)
@@ -212,14 +223,14 @@ class RequestManager:
     def _finished(self, reply: QNetworkReply):
         future = None
         try:
-            code = reply.error()  # type: ignore (bug in PyQt5-stubs)
+            code = reply.error()
             tracker = self._requests[reply]
             future = tracker.future
             if future.cancelled():
                 return  # operation was cancelled, discard result
             if code == QNetworkReply.NetworkError.NoError:
                 if tracker.buffer is not None:
-                    tracker.buffer.write(reply.readAll())
+                    tracker.buffer.write(reply.readAll().data())
                     future.set_result(tracker.buffer.data())
                 else:
                     content_type = reply.header(QNetworkRequest.KnownHeaders.ContentTypeHeader)
@@ -297,13 +308,17 @@ def _write_file_chunks(file: QFile, reply: QNetworkReply):
 
 async def _try_download(network: QNetworkAccessManager, url: str, path: Path):
     out_file = QFile(str(path) + ".part")
-    if not out_file.open(QFile.ReadWrite | QFile.Append):  # type: ignore
+    rwa = QFile.OpenModeFlag.ReadOnly | QFile.OpenModeFlag.WriteOnly | QFile.OpenModeFlag.Append
+    if not out_file.open(rwa):
         raise RuntimeError(
             _("Error during download: could not open {path} for writing", path=out_file.fileName())
         )
 
     request = QNetworkRequest(QUrl(_map_host(url)))
-    request.setAttribute(QNetworkRequest.FollowRedirectsAttribute, True)
+    request.setAttribute(
+        QNetworkRequest.Attribute.RedirectPolicyAttribute,
+        QNetworkRequest.RedirectPolicy.NoLessSafeRedirectPolicy,
+    )
     if out_file.size() > 0:
         log.info(f"Found {path}.part, resuming download from {out_file.size()} bytes")
         request.setRawHeader(b"Range", f"bytes={out_file.size()}-".encode())
@@ -325,9 +340,9 @@ async def _try_download(network: QNetworkAccessManager, url: str, path: Path):
         out_file.close()
         if finished_future.cancelled():
             return  # operation was cancelled, discard result
-        if reply.error() == QNetworkReply.NetworkError.NoError:  # type: ignore (bug in PyQt5-stubs)
+        if reply.error() == QNetworkReply.NetworkError.NoError:
             finished_future.set_result(path)
-        elif reply.attribute(QNetworkRequest.HttpStatusCodeAttribute) == 416:
+        elif reply.attribute(QNetworkRequest.Attribute.HttpStatusCodeAttribute) == 416:
             # 416 = Range Not Satisfiable
             finished_future.set_exception(NetworkError(416, "Resume not supported", url))
         else:

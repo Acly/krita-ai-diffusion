@@ -1,7 +1,7 @@
 import asyncio
 from collections.abc import Callable
 
-from PyQt5.QtCore import QTimer
+from PyQt6.QtCore import QTimer
 
 _loop = asyncio.new_event_loop()
 _timer = QTimer()

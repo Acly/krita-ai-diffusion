@@ -6,9 +6,9 @@ Methods return simple default values unless a test needs to configure specific b
 
 from __future__ import annotations
 
-from PyQt5.QtCore import QByteArray, QObject, QRect, QUuid, pyqtSignal
-from PyQt5.QtGui import QIcon
-from PyQt5.QtWidgets import QDockWidget
+from PyQt6.QtCore import QByteArray, QObject, QRect, Qt, QUuid, pyqtSignal
+from PyQt6.QtGui import QIcon
+from PyQt6.QtWidgets import QDockWidget, QDoubleSpinBox, QHBoxLayout, QSlider, QWidget
 
 IS_MOCK = True
 
@@ -324,7 +324,7 @@ class Node(QObject):
         b = self._bounds
         if b[2] == 0 or b[3] == 0:
             self._bounds = (x, y, w, h)
-            self._pixel_data = bytearray(value)
+            self._pixel_data = bytearray(value.data())
             self.pixelDataChanged.emit()
             return True
 
@@ -338,12 +338,12 @@ class Node(QObject):
             # expand pixel data to match the new bounds
             img = self._to_image()
             img = Image.crop(img, Bounds(*self._bounds))
-            self._pixel_data = bytearray(img.to_packed_bytes())
+            self._pixel_data = bytearray(img.to_packed_bytes().data())
 
         src = Image.from_packed_bytes(value, Extent(w, h))
         dst = self._to_image()
         dst.draw_image(src, (x, y), blend=BlendMode.replace)
-        self._pixel_data = dst.to_packed_bytes()
+        self._pixel_data = bytearray(dst.to_packed_bytes().data())
         self.pixelDataChanged.emit()
         return True
 
@@ -351,7 +351,7 @@ class Node(QObject):
         return QByteArray(bytes(w * h * 4))
 
     def thumbnail(self, w: int, h: int):
-        from PyQt5.QtGui import QImage
+        from PyQt6.QtGui import QImage
 
         return QImage(w, h, QImage.Format.Format_ARGB32)
 
@@ -441,7 +441,7 @@ class Selection(QObject):
         y1 = min(y + h, self._y + self._height)
         if x0 >= x1 or y0 >= y1:
             return QByteArray(bytes(result))
-        src = bytes(self._data)
+        src = self._data.data()
         n = x1 - x0
         for ry in range(y0, y1):
             src_off = (ry - self._y) * self._width + (x0 - self._x)
@@ -698,3 +698,63 @@ class Krita(QObject):
         self._documents.append(doc)
         self._active_document = doc
         return doc
+
+
+class DoubleParseSpinBox(QWidget):
+    def __init__(self):
+        super().__init__()
+
+        self._layout = QHBoxLayout(self)
+        self.setLayout(self._layout)
+
+        self._widget = QDoubleSpinBox()
+        self._layout.addWidget(self._widget)
+
+    def widget(self):
+        return self._widget
+
+    def stepBy(self, steps: int):
+        self._widget.stepBy(steps)
+
+
+class DoubleSliderSpinBox(DoubleParseSpinBox):
+    draggingFinished = pyqtSignal()
+
+    def __init__(self):
+        super().__init__()
+        self._slider = QSlider(Qt.Orientation.Horizontal, self)
+        self._layout.insertWidget(0, self._slider)
+
+        self._slider.valueChanged.connect(self._update_spinbox_from_slider)
+        self.widget().valueChanged.connect(self._update_slider_from_spinbox)
+
+    def setRange(self, min: float, max: float, decimals: int = 0, compute_fast_step: bool = True):
+        self.widget().setRange(min, max)
+        self.widget().setDecimals(decimals)
+        self._slider.setRange(int(min), int(max))
+
+    def setSoftMinimum(self, min: float):
+        pass
+
+    def setSoftMaximum(self, max: float):
+        pass
+
+    def _update_slider_from_spinbox(self):
+        value = self.widget().value()
+        if abs(self._slider.value() / 100.0 - value) > 0.01:
+            self._slider.setValue(int(value * 100))
+
+    def _update_spinbox_from_slider(self):
+        value = self._slider.value() / 100.0
+        if abs(self.widget().value() - value) > 0.01:
+            self.widget().setValue(value)
+
+    def setValue(self, value: float):
+        self.widget().setValue(value)
+        self._slider.setValue(int(value * 100))
+
+    def value(self):
+        return self.widget().value()
+
+    def isDragging(self) -> bool:
+        return self._slider.isSliderDown()

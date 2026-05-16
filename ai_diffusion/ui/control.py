@@ -1,8 +1,8 @@
 from __future__ import annotations
 
-from PyQt5.QtCore import QMetaObject, Qt, pyqtSignal
-from PyQt5.QtGui import QResizeEvent
-from PyQt5.QtWidgets import (
+from PyQt6.QtCore import QMetaObject, Qt, pyqtSignal
+from PyQt6.QtGui import QResizeEvent
+from PyQt6.QtWidgets import (
     QCheckBox,
     QComboBox,
     QFrame,
@@ -47,7 +47,7 @@ class ControlWidget(QWidget):
         self.layer_select = QComboBox(self)
         self.layer_select.setMinimumContentsLength(20)
         self.layer_select.setSizeAdjustPolicy(
-            QComboBox.SizeAdjustPolicy.AdjustToMinimumContentsLength
+            QComboBox.SizeAdjustPolicy.AdjustToMinimumContentsLengthWithIcon
         )
         self._update_layers()
         root.active_model.layers.changed.connect(self._update_layers)

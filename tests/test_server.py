@@ -5,7 +5,7 @@ from pathlib import Path
 from tempfile import TemporaryDirectory
 
 import pytest
-from PyQt5.QtNetwork import QNetworkAccessManager
+from PyQt6.QtNetwork import QNetworkAccessManager
 
 from ai_diffusion.backend import network, resources, server
 from ai_diffusion.backend.resources import VerificationState

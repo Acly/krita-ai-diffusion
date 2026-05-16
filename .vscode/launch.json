@@ -44,6 +44,16 @@
                 "tests"
             ],
             "cwd": "${workspaceFolder}",
+        },
+        {
+            "name": "Design",
+            "type": "debugpy",
+            "request": "launch",
+            "program": "${workspaceFolder}/scripts/design.py",
+            "console": "integratedTerminal",
+            "env": {
+                "PYTHONPATH": "${workspaceFolder}"
+            },
         }
     ]
 }

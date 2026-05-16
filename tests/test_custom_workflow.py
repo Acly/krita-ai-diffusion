@@ -5,7 +5,7 @@ from copy import copy
 from pathlib import Path
 
 import pytest
-from PyQt5.QtCore import Qt
+from PyQt6.QtCore import Qt
 
 from ai_diffusion.backend import workflow
 from ai_diffusion.backend.api import (
@@ -503,7 +503,7 @@ def test_job_info_output():
 
 def img_id(image: Image):
     data = image.to_bytes()
-    hash = zlib.crc32(data)
+    hash = zlib.crc32(data.data())
     return f"{hash:08x}"
 
 

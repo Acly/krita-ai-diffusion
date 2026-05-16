@@ -5,8 +5,8 @@ from enum import Enum
 from typing import ClassVar
 
 import krita
-from PyQt5.QtCore import QByteArray, QObject, QTimer, QUuid, pyqtSignal
-from PyQt5.QtGui import QImage
+from PyQt6.QtCore import QByteArray, QObject, QTimer, QUuid, pyqtSignal
+from PyQt6.QtGui import QImage
 
 from . import eventloop
 from .image import BlendMode, Bounds, Extent, Image, ImageCollection

@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 from krita import Document
-from PyQt5.QtCore import Qt
+from PyQt6.QtCore import Qt
 
 from ai_diffusion.eventloop import process_python_events
 from ai_diffusion.image import Bounds, Extent, Image

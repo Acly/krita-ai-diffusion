@@ -6,9 +6,9 @@ IMPORTANT: The interfaces here are intended to match Krita's actual API.
            DO NOT modify unless it is to fix bugs or add missing parts.
 """
 
-from PyQt5.QtCore import *
-from PyQt5.QtGui import *
-from PyQt5.QtWidgets import *
+from PyQt6.QtCore import *
+from PyQt6.QtGui import *
+from PyQt6.QtWidgets import *
 from typing import List, Dict, Optional, Union
 
 KisPresetChooser = QObject
@@ -1407,8 +1407,8 @@ class Extension(QObject):
     """* An Extension is the base for classes that extend Krita. An Extension is loaded on startup, when the setup() method will be executed. The extension instance should be added to the Krita Application object using Krita.instance().addViewExtension or Application.addViewExtension or Scripter.addViewExtension. Example:
     @code
     import sys
-    from PyQt5.QtGui import *
-    from PyQt5.QtWidgets import *
+    from PyQt6.QtGui import *
+    from PyQt6.QtWidgets import *
     from krita import *
     class HelloExtension(Extension):
     def __init__(self, parent):
@@ -2679,3 +2679,17 @@ class CloneLayer(Node):
         """@access public Q_SLOTS
          @brief setSourceNode
         @param node the node to use as the source of the clone layer."""
+
+class DoubleParseSpinBox(QObject):
+    def __init__(self) -> None: ...
+    def widget(self) -> QDoubleSpinBox: ...
+    def stepBy(self, steps: int) -> None: ...
+
+class DoubleSliderSpinBox(DoubleParseSpinBox):
+    draggingFinished = pyqtSignal()
+    def __init__(self) -> None: ...
+    def setRange(self, min: float, max: float, decimals: int=0, compute_fast_step: bool=True) -> None: ...
+    def setValue(self, value: float) -> None:...
+    def setSoftMinimum(self, value: float) -> None: ...
+    def setSoftMaximum(self, value: float) -> None: ...
+    def isDragging(self) -> bool: ...

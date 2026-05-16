@@ -10,9 +10,9 @@ import sys
 from collections.abc import Generator
 from pathlib import Path
 
-from PyQt5.QtCore import QByteArray, Qt, QTimer
-from PyQt5.QtGui import QImage, QPixmap
-from PyQt5.QtWidgets import (
+from PyQt6.QtCore import QByteArray, Qt, QTimer
+from PyQt6.QtGui import QImage, QPixmap
+from PyQt6.QtWidgets import (
     QApplication,
     QCheckBox,
     QGroupBox,
@@ -276,10 +276,10 @@ class ImagePreviewWidget(QGroupBox):
             return
         w, h = self._doc.width(), self._doc.height()
         if self._active_node is not None:
-            raw = bytes(self._active_node.pixelData(0, 0, w, h))
+            raw = self._active_node.pixelData(0, 0, w, h).data()
             self.setTitle(f"Layer: {self._active_node.name()}")
         else:
-            raw = bytes(self._doc.pixelData(0, 0, w, h))
+            raw = self._doc.pixelData(0, 0, w, h).data()
             self.setTitle("Document")
         # Krita returns BGRA bytes; Format_ARGB32 uses the same memory layout on
         # little-endian systems (x86), so no channel swapping is needed.
@@ -335,7 +335,7 @@ class SelectionWidget(QGroupBox):
 class ControlPane(QWidget):
     """Side panel that lets you manipulate fake Krita state while inspecting the UI."""
 
-    def __init__(self, dock: QWidget, parent=None):
+    def __init__(self, dock: ImageDiffusionWidget, parent=None):
         super().__init__(parent)
         self._dock = dock
         self._doc_counter = 0
@@ -481,12 +481,12 @@ def main():
     layout = QHBoxLayout(container)
     layout.addWidget(controls)
     layout.addWidget(dock, stretch=1)
-    container.resize(1600, 1400)
+    container.resize(1200, 1400)
     container.show()
 
     if args.exit:
         QTimer.singleShot(0, app.quit)
-    sys.exit(app.exec_())
+    sys.exit(app.exec())
 
 
 if __name__ == "__main__":

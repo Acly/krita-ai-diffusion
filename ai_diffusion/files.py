@@ -7,8 +7,8 @@ from enum import Enum, Flag
 from pathlib import Path
 from typing import Any, NamedTuple, cast
 
-from PyQt5.QtCore import QAbstractListModel, QModelIndex, QSortFilterProxyModel, Qt
-from PyQt5.QtGui import QIcon
+from PyQt6.QtCore import QAbstractListModel, QModelIndex, QSortFilterProxyModel, Qt
+from PyQt6.QtGui import QIcon
 
 from .util import client_logger as log
 from .util import encode_json, read_json_with_comments, user_data_dir

@@ -13,10 +13,10 @@
 # [GPL-3.0]: https://www.gnu.org/licenses/gpl-3.0.en.html
 
 
-from PyQt5.QtCore import QRect, QSize, Qt
-from PyQt5.QtCore import pyqtSignal as Signal
-from PyQt5.QtGui import QBrush, QMouseEvent, QPainter, QPalette
-from PyQt5.QtWidgets import QSizePolicy, QSlider, QStyle, QStyleOptionSlider, QWidget
+from PyQt6.QtCore import QRect, QSize, Qt
+from PyQt6.QtCore import pyqtSignal as Signal
+from PyQt6.QtGui import QBrush, QMouseEvent, QPainter, QPalette
+from PyQt6.QtWidgets import QSizePolicy, QSlider, QStyle, QStyleOptionSlider, QWidget
 
 # Based on idea and in part the code from
 # https://stackoverflow.com/questions/47342158/porting-range-slider-widget-to-pyqt5
@@ -63,7 +63,11 @@ class IntervalSlider(QWidget):
     def __init__(self, low=1, high=8, minimum=0, maximum=10, parent: QWidget | None = None, **args):
         super().__init__(parent)
         self.setSizePolicy(
-            QSizePolicy(QSizePolicy.Expanding, QSizePolicy.Fixed, QSizePolicy.Slider)
+            QSizePolicy(
+                QSizePolicy.Policy.Expanding,
+                QSizePolicy.Policy.Fixed,
+                QSizePolicy.ControlType.Slider,
+            )
         )
 
         self._dragged = self.NoHandle
@@ -234,7 +238,7 @@ class IntervalSlider(QWidget):
         # Draw interval
         # Interval has an arbitrary width of 4; I don't know how to get the
         # actual groove thickness.
-        color = self.palette().color(QPalette.Highlight)
+        color = self.palette().color(QPalette.ColorRole.Highlight)
         painter.setBrush(QBrush(color))
         painter.setPen(Qt.PenStyle.NoPen)
 
@@ -270,7 +274,7 @@ class IntervalSlider(QWidget):
 
         w = SliderLength
         h = style.pixelMetric(QStyle.PixelMetric.PM_SliderThickness, self.opt, self)
-        if self.opt.tickPosition != QSlider.NoTicks:
+        if self.opt.tickPosition != QSlider.TickPosition.NoTicks:
             h += TickSpace
 
         return style.sizeFromContents(QStyle.ContentsType.CT_Slider, self.opt, QSize(w, h))
