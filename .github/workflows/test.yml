@@ -35,7 +35,14 @@ jobs:
       matrix:
         os: [ubuntu-22.04, macos-14, windows-2022]
     runs-on: ${{ matrix.os }}
+    env:
+      QT_QPA_PLATFORM: offscreen
     steps:
+      # PyQt6.QtGui import requires libEGL.so.1 (even with QT_QPA_PLATFORM=offscreen)
+      - name: Packages
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y libegl1 libgl1 libxkbcommon-x11-0
       - name: Checkout
         uses: actions/checkout@v3
         with:
