@@ -177,7 +177,7 @@ class Arch(Enum):
 
     @property
     def has_controlnet_inpaint(self):
-        return self in (Arch.sd15, Arch.flux, Arch.zimage, Arch.qwen)
+        return self in (Arch.sd15, Arch.flux, Arch.zimage, Arch.qwen, Arch.anima)
 
     @property
     def supports_regions(self):
@@ -373,6 +373,19 @@ class ControlMode(Enum):
 
     def can_substitute_universal(self, arch: Arch):
         """True if this control mode is covered by univeral control-net."""
+        if arch is Arch.anima:
+            return self in [
+                ControlMode.scribble,
+                ControlMode.line_art,
+                ControlMode.soft_edge,
+                ControlMode.canny_edge,
+                ControlMode.depth,
+                ControlMode.normal,
+                ControlMode.pose,
+                ControlMode.segmentation,
+                ControlMode.blur,
+                ControlMode.hands,
+            ]
         if arch.is_sdxl_like or arch is Arch.qwen:
             return self in [
                 ControlMode.scribble,
@@ -727,45 +740,58 @@ search_paths: dict[str, list[str]] = {
     resource_id(ResourceKind.controlnet, Arch.flux, ControlMode.inpaint): ["flux.1-dev-controlnet-inpaint"],
     resource_id(ResourceKind.controlnet, Arch.illu, ControlMode.inpaint): ["noobaiinpainting"],
     resource_id(ResourceKind.controlnet, Arch.qwen, ControlMode.inpaint): ["qwen-image-instantx-controlnet-inpainting"],
+    resource_id(ResourceKind.controlnet, Arch.anima, ControlMode.inpaint): ["anima*lllite*inpaint", "lllite*anima*inpaint", "inpaint*anima*lllite", "inpaint*lllite*anima"],
     resource_id(ResourceKind.controlnet, Arch.sdxl, ControlMode.universal): ["union-sdxl", "xinsirunion"],
     resource_id(ResourceKind.controlnet, Arch.illu, ControlMode.universal): ["union-sdxl", "xinsirunion"],
     resource_id(ResourceKind.controlnet, Arch.illu_v, ControlMode.universal): ["union-sdxl", "xinsirunion"],
+    resource_id(ResourceKind.controlnet, Arch.anima, ControlMode.universal): ["anima*lllite*any", "lllite*anima*any", "any*anima*lllite", "any*lllite*anima", "any*test*like", "anima*lllite*union", "lllite*anima*union", "union*anima*lllite", "union*lllite*anima", "anima*lllite*universal", "lllite*anima*universal", "universal*anima*lllite", "universal*lllite*anima"],
     resource_id(ResourceKind.controlnet, Arch.flux, ControlMode.universal): ["flux.1-dev-controlnet-union-pro-2.0", "flux.1-dev-controlnet-union-pro", "flux.1-dev-controlnet-union", "flux1devcontrolnetunion"],
     resource_id(ResourceKind.controlnet, Arch.qwen, ControlMode.universal): ["qwen-image-instantx-controlnet-union"],
     resource_id(ResourceKind.controlnet, Arch.sd15, ControlMode.scribble): ["control_v11p_sd15_scribble", "control_lora_rank128_v11p_sd15_scribble"],
     resource_id(ResourceKind.controlnet, Arch.sdxl, ControlMode.scribble): ["xinsirscribble", "scribble-sdxl", "mistoline_fp16", "mistoline_rank", "control-lora-sketch-rank", "sai_xl_sketch_"],
+    resource_id(ResourceKind.controlnet, Arch.anima, ControlMode.scribble): ["anima*lllite*scribble", "lllite*anima*scribble", "scribble*anima*lllite", "scribble*lllite*anima"],
     resource_id(ResourceKind.controlnet, Arch.illu, ControlMode.scribble): ["noob-sdxl-controlnet-scribble_pidinet", "noobaixlcontrolnet_epsscribble", "noob-sdxl-controlnet-scribble"],
     resource_id(ResourceKind.controlnet, Arch.sd15, ControlMode.line_art): ["control_v11p_sd15_lineart", "control_lora_rank128_v11p_sd15_lineart"],
     resource_id(ResourceKind.controlnet, Arch.sdxl, ControlMode.line_art): ["xinsirscribble", "mistoline_fp16", "mistoline_rank", "scribble-sdxl", "control-lora-sketch-rank", "sai_xl_sketch_"],
     resource_id(ResourceKind.controlnet, Arch.flux, ControlMode.line_art): ["mistoline_flux"],
+    resource_id(ResourceKind.controlnet, Arch.anima, ControlMode.line_art): ["anima*lllite*lineart", "anima*lllite*line_art", "lllite*anima*lineart", "lllite*anima*line_art", "lineart*anima*lllite", "line_art*anima*lllite", "lineart*lllite*anima", "line_art*lllite*anima"],
     resource_id(ResourceKind.controlnet, Arch.illu, ControlMode.line_art): ["noob-sdxl-controlnet-lineart_anime", "noobaixlcontrolnet_epslineart", "noob-sdxl-controlnet-lineart"],
     resource_id(ResourceKind.controlnet, Arch.sd15, ControlMode.soft_edge): ["control_v11p_sd15_softedge", "control_lora_rank128_v11p_sd15_softedge"],
     resource_id(ResourceKind.controlnet, Arch.sdxl, ControlMode.soft_edge): ["mistoline_fp16", "mistoline_rank", "xinsirscribble", "scribble-sdxl"],
     resource_id(ResourceKind.controlnet, Arch.flux, ControlMode.soft_edge): ["mistoline_flux"],
+    resource_id(ResourceKind.controlnet, Arch.anima, ControlMode.soft_edge): ["anima*lllite*softedge", "anima*lllite*soft_edge", "lllite*anima*softedge", "lllite*anima*soft_edge", "softedge*anima*lllite", "soft_edge*anima*lllite", "softedge*lllite*anima", "soft_edge*lllite*anima"],
     resource_id(ResourceKind.controlnet, Arch.illu, ControlMode.soft_edge): ["noob-sdxl-controlnet-softedge", "noobaixlcontrolnet_epssoftedge"],
     resource_id(ResourceKind.controlnet, Arch.sd15, ControlMode.canny_edge): ["control_v11p_sd15_canny", "control_lora_rank128_v11p_sd15_canny"],
     resource_id(ResourceKind.controlnet, Arch.sdxl, ControlMode.canny_edge): ["xinsircanny", "canny-sdxl" "control-lora-canny-rank", "sai_xl_canny_"],
     resource_id(ResourceKind.controlnet, Arch.flux, ControlMode.canny_edge): ["flux-canny", "mistoline_flux"],
+    resource_id(ResourceKind.controlnet, Arch.anima, ControlMode.canny_edge): ["anima*lllite*canny", "lllite*anima*canny", "canny*anima*lllite", "canny*lllite*anima"],
     resource_id(ResourceKind.controlnet, Arch.illu, ControlMode.canny_edge): ["noob_sdxl_controlnet_canny", "noobaixlcontrolnet_epscanny"],
     resource_id(ResourceKind.controlnet, Arch.sd15, ControlMode.depth): ["control_sd15_depth_anything", "control_v11f1p_sd15_depth", "control_lora_rank128_v11f1p_sd15_depth"],
     resource_id(ResourceKind.controlnet, Arch.sdxl, ControlMode.depth): ["xinsirdepth", "depth-sdxl", "control-lora-depth-rank", "sai_xl_depth_"],
     resource_id(ResourceKind.controlnet, Arch.flux, ControlMode.depth): ["flux-depth"],
+    resource_id(ResourceKind.controlnet, Arch.anima, ControlMode.depth): ["anima*lllite*depth", "lllite*anima*depth", "depth*anima*lllite", "depth*lllite*anima"],
     resource_id(ResourceKind.controlnet, Arch.illu, ControlMode.depth): ["noob-sdxl-controlnet-depth", "noobaixlcontrolnet_epsdepth"],
     resource_id(ResourceKind.controlnet, Arch.sd15, ControlMode.normal): ["control_v11p_sd15_normalbae", "control_lora_rank128_v11p_sd15_normalbae"],
+    resource_id(ResourceKind.controlnet, Arch.anima, ControlMode.normal): ["anima*lllite*normal", "lllite*anima*normal", "normal*anima*lllite", "normal*lllite*anima"],
     resource_id(ResourceKind.controlnet, Arch.illu, ControlMode.normal): ["noob-sdxl-controlnet-normal", "noobaixlcontrolnet_epsnormal"],
     resource_id(ResourceKind.controlnet, Arch.sd15, ControlMode.pose): ["control_v11p_sd15_openpose", "control_lora_rank128_v11p_sd15_openpose"],
     resource_id(ResourceKind.controlnet, Arch.sdxl, ControlMode.pose): ["xinsiropenpose", "openpose-sdxl", "control-lora-openposexl2-rank", "thibaud_xl_openpose"],
+    resource_id(ResourceKind.controlnet, Arch.anima, ControlMode.pose): ["anima*lllite*pose", "anima*lllite*openpose", "lllite*anima*pose", "lllite*anima*openpose", "pose*anima*lllite", "openpose*anima*lllite", "pose*lllite*anima", "openpose*lllite*anima"],
     resource_id(ResourceKind.controlnet, Arch.illu, ControlMode.pose): ["noob-sdxl-controlnet-openpose", "noobaixlcontrolnet_openpose"],
     resource_id(ResourceKind.controlnet, Arch.sd15, ControlMode.segmentation): ["control_v11p_sd15_seg", "control_lora_rank128_v11p_sd15_seg"],
     resource_id(ResourceKind.controlnet, Arch.sdxl, ControlMode.segmentation): ["sdxl_segmentation_ade20k_controlnet"],
+    resource_id(ResourceKind.controlnet, Arch.anima, ControlMode.segmentation): ["anima*lllite*seg", "anima*lllite*segment", "lllite*anima*seg", "lllite*anima*segment", "seg*anima*lllite", "segment*anima*lllite", "seg*lllite*anima", "segment*lllite*anima"],
     resource_id(ResourceKind.controlnet, Arch.sd15, ControlMode.blur): ["control_v11f1e_sd15_tile", "control_lora_rank128_v11f1e_sd15_tile"],
     resource_id(ResourceKind.controlnet, Arch.sdxl, ControlMode.blur): ["xinsirtile", "tile-sdxl", "ttplanetsdxlcontrolnet", "ttplanet_sdxl_controlnet_tile_realistic", "ttplanet_controlnet_tile_realistic"],
     resource_id(ResourceKind.controlnet, Arch.flux, ControlMode.blur): ["flux.1-dev-controlnet-upscale"],
+    resource_id(ResourceKind.controlnet, Arch.anima, ControlMode.blur): ["anima*lllite*tile", "anima*lllite*blur", "lllite*anima*tile", "lllite*anima*blur", "tile*anima*lllite", "blur*anima*lllite", "tile*lllite*anima", "blur*lllite*anima"],
     resource_id(ResourceKind.controlnet, Arch.illu, ControlMode.blur): ["noob-sdxl-controlnet-tile", "noobaixlcontrolnet_epstile"],
     resource_id(ResourceKind.controlnet, Arch.sd15, ControlMode.stencil): ["control_v1p_sd15_qrcode_monster"],
     resource_id(ResourceKind.controlnet, Arch.sdxl, ControlMode.stencil): ["sdxl_qrcode_monster"],
+    resource_id(ResourceKind.controlnet, Arch.anima, ControlMode.stencil): ["anima*lllite*stencil", "anima*lllite*qrcode", "lllite*anima*stencil", "lllite*anima*qrcode", "stencil*anima*lllite", "qrcode*anima*lllite", "stencil*lllite*anima", "qrcode*lllite*anima"],
     resource_id(ResourceKind.controlnet, Arch.sd15, ControlMode.hands): ["control_sd15_inpaint_depth_hand"],
     resource_id(ResourceKind.controlnet, Arch.sdxl, ControlMode.hands): ["control-lora-depth-rank", "sai_xl_depth_"],
+    resource_id(ResourceKind.controlnet, Arch.anima, ControlMode.hands): ["anima*lllite*hands", "anima*lllite*hand", "lllite*anima*hands", "lllite*anima*hand", "hands*anima*lllite", "hand*anima*lllite", "hands*lllite*anima", "hand*lllite*anima"],
     resource_id(ResourceKind.ip_adapter, Arch.sd15, ControlMode.reference): ["ip-adapter_sd15"],
     resource_id(ResourceKind.ip_adapter, Arch.sdxl, ControlMode.reference): ["ip-adapter_sdxl_vit-h"],
     resource_id(ResourceKind.ip_adapter, Arch.flux, ControlMode.reference): ["flux1-redux-dev"],

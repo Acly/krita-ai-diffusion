@@ -580,6 +580,15 @@ def apply_control(
         if control.mode.is_lines:  # ControlNet expects white lines on black background
             image = w.invert_image(image)
 
+        if models.arch is Arch.anima:
+            if cn_model := models.find(control.mode, allow_universal=True):
+                mask = control.mask.load(w) if control.mask is not None else None
+                model = w.apply_anima_lllite(
+                    model, cn_model, image, control.strength, control.range, mask
+                )
+                continue
+            raise RuntimeError(f"Anima ControlNet-LLLite model not found for mode {control.mode}")
+
         if cn_model := models.find(control.mode):
             controlnet = w.load_controlnet(cn_model)
         elif cn_model := models.find(ControlMode.universal):
@@ -973,6 +982,8 @@ def detect_inpaint(
     elif arch.is_sdxl_like:
         result.use_inpaint_model = strength > 0.8
     elif arch in (Arch.flux, Arch.zimage):
+        result.use_inpaint_model = strength == 1.0
+    elif arch is Arch.anima:
         result.use_inpaint_model = strength == 1.0
     elif arch.is_edit:
         result.mode = InpaintMode.custom
@@ -1976,6 +1987,8 @@ def _check_inpaint_model(inpaint: InpaintParams | None, arch: Arch, models: Clie
                 return  # Optional for now
             if models.for_arch(arch).control.find(ControlMode.inpaint) is None:
                 res_id = ResourceId(ResourceKind.controlnet, arch, ControlMode.inpaint)
+            elif arch is Arch.anima and "AnimaLLLiteApply" not in models.node_inputs:
+                raise ValueError("The ComfyUI-Anima-LLLite custom node is required for Anima inpaint.")
         elif arch is Arch.flux2_4b:
             if models.for_arch(arch).lora.find(ControlMode.inpaint) is None:
                 res_id = ResourceId(ResourceKind.lora, arch, ControlMode.inpaint)

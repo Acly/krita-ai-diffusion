@@ -194,6 +194,10 @@ class ControlLayer(QObject, ObservableProperties):
                     else:
                         self.error_text = _("Not supported for") + f" {models.arch.value}"
                     is_supported = False
+                elif models.arch is Arch.anima and "AnimaLLLiteApply" not in models.node_inputs:
+                    self.error_text = _("The following ComfyUI custom nodes are missing or too old")
+                    self.error_text += ": ComfyUI-Anima-LLLite"
+                    is_supported = False
 
             if self._index >= client.features.max_control_layers:
                 self.error_text = _("Too many control layers")

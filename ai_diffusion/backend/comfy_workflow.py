@@ -785,6 +785,28 @@ class ComfyWorkflow:
             )
         )
 
+    def apply_anima_lllite(
+        self,
+        model: Output,
+        lllite_name: str,
+        image: Output,
+        strength=1.0,
+        range: tuple[float, float] = (0.0, 1.0),
+        mask: Output | None = None,
+    ):
+        inputs = {
+            "model": model,
+            "lllite_name": lllite_name,
+            "image": image,
+            "strength": strength,
+            "start_percent": range[0],
+            "end_percent": range[1],
+            "preserve_wrapper": True,
+        }
+        if mask is not None:
+            inputs["mask"] = mask
+        return self.add("AnimaLLLiteApply", 1, **inputs)
+
     def set_controlnet_type(self, controlnet: Output, mode: ControlMode):
         match mode:
             case ControlMode.pose:
