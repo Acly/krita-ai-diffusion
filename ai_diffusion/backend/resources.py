@@ -377,6 +377,8 @@ class ControlMode(Enum):
             return self in [
                 ControlMode.scribble,
                 ControlMode.line_art,
+                ControlMode.depth,
+                ControlMode.pose,
                 ControlMode.blur,
             ]
         if arch.is_sdxl_like or arch is Arch.qwen:
@@ -760,11 +762,13 @@ search_paths: dict[str, list[str]] = {
     resource_id(ResourceKind.controlnet, Arch.sd15, ControlMode.depth): ["control_sd15_depth_anything", "control_v11f1p_sd15_depth", "control_lora_rank128_v11f1p_sd15_depth"],
     resource_id(ResourceKind.controlnet, Arch.sdxl, ControlMode.depth): ["xinsirdepth", "depth-sdxl", "control-lora-depth-rank", "sai_xl_depth_"],
     resource_id(ResourceKind.controlnet, Arch.flux, ControlMode.depth): ["flux-depth"],
+    resource_id(ResourceKind.controlnet, Arch.anima, ControlMode.depth): ["anima*lllite*depth", "lllite*anima*depth", "depth*anima*lllite", "depth*lllite*anima"],
     resource_id(ResourceKind.controlnet, Arch.illu, ControlMode.depth): ["noob-sdxl-controlnet-depth", "noobaixlcontrolnet_epsdepth"],
     resource_id(ResourceKind.controlnet, Arch.sd15, ControlMode.normal): ["control_v11p_sd15_normalbae", "control_lora_rank128_v11p_sd15_normalbae"],
     resource_id(ResourceKind.controlnet, Arch.illu, ControlMode.normal): ["noob-sdxl-controlnet-normal", "noobaixlcontrolnet_epsnormal"],
     resource_id(ResourceKind.controlnet, Arch.sd15, ControlMode.pose): ["control_v11p_sd15_openpose", "control_lora_rank128_v11p_sd15_openpose"],
     resource_id(ResourceKind.controlnet, Arch.sdxl, ControlMode.pose): ["xinsiropenpose", "openpose-sdxl", "control-lora-openposexl2-rank", "thibaud_xl_openpose"],
+    resource_id(ResourceKind.controlnet, Arch.anima, ControlMode.pose): ["anima*lllite*pose", "anima*lllite*openpose", "lllite*anima*pose", "lllite*anima*openpose", "pose*anima*lllite", "openpose*anima*lllite", "pose*lllite*anima", "openpose*lllite*anima"],
     resource_id(ResourceKind.controlnet, Arch.illu, ControlMode.pose): ["noob-sdxl-controlnet-openpose", "noobaixlcontrolnet_openpose"],
     resource_id(ResourceKind.controlnet, Arch.sd15, ControlMode.segmentation): ["control_v11p_sd15_seg", "control_lora_rank128_v11p_sd15_seg"],
     resource_id(ResourceKind.controlnet, Arch.sdxl, ControlMode.segmentation): ["sdxl_segmentation_ade20k_controlnet"],

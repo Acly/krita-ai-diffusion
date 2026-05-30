@@ -230,9 +230,9 @@ def test_inpaint_params():
 def test_anima_lllite_control_workflow():
     w = ComfyWorkflow()
     models = ClientModels()
-    models.resources[
-        resource_id(ResourceKind.controlnet, Arch.anima, ControlMode.blur)
-    ] = "anima-lllite-blur.safetensors"
+    models.resources[resource_id(ResourceKind.controlnet, Arch.anima, ControlMode.universal)] = (
+        "anima-lllite-anytest.safetensors"
+    )
     cond = workflow.ConditioningOutput(workflow.Output(2, 0), workflow.Output(3, 0))
     control = workflow.Control(
         ControlMode.blur,
@@ -253,6 +253,8 @@ def test_anima_lllite_control_workflow():
 
     assert result == cond
     assert w.root[str(model.node)]["class_type"] == "ETN_control_apply"
+    assert w.root[str(model.node)]["inputs"]["control_net"] == [str(model.node - 1), 1]
+    assert w.root[str(model.node - 1)]["inputs"]["weights"] == "anima-lllite-anytest.safetensors"
     assert any(n["class_type"] == "ETN_control_load" for n in w.root.values())
     assert not any(n["class_type"] == "ControlNetLoader" for n in w.root.values())
 
