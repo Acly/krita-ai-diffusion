@@ -1987,8 +1987,6 @@ def _check_inpaint_model(inpaint: InpaintParams | None, arch: Arch, models: Clie
                 return  # Optional for now
             if models.for_arch(arch).control.find(ControlMode.inpaint) is None:
                 res_id = ResourceId(ResourceKind.controlnet, arch, ControlMode.inpaint)
-            elif arch is Arch.anima and "AnimaLLLiteApply" not in models.node_inputs:
-                raise ValueError("The ComfyUI-Anima-LLLite custom node is required for Anima inpaint.")
         elif arch is Arch.flux2_4b:
             if models.for_arch(arch).lora.find(ControlMode.inpaint) is None:
                 res_id = ResourceId(ResourceKind.lora, arch, ControlMode.inpaint)
