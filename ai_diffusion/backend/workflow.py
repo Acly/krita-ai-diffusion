@@ -981,9 +981,7 @@ def detect_inpaint(
         )
     elif arch.is_sdxl_like:
         result.use_inpaint_model = strength > 0.8
-    elif arch in (Arch.flux, Arch.zimage):
-        result.use_inpaint_model = strength == 1.0
-    elif arch is Arch.anima:
+    elif arch in (Arch.flux, Arch.zimage, Arch.anima):
         result.use_inpaint_model = strength == 1.0
     elif arch.is_edit:
         result.mode = InpaintMode.custom
