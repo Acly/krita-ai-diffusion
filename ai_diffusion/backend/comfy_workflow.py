@@ -211,9 +211,12 @@ class ComfyWorkflow:
     def add_cached(self, class_type: str, output_count: Literal[1], **inputs) -> Output: ...
 
     @overload
+    def add_cached(self, class_type: str, output_count: Literal[2], **inputs) -> Output2: ...
+
+    @overload
     def add_cached(self, class_type: str, output_count: Literal[3], **inputs) -> Output3: ...
 
-    def add_cached(self, class_type: str, output_count: Literal[1, 3], **inputs):
+    def add_cached(self, class_type: str, output_count: Literal[1, 2, 3], **inputs):
         key = class_type + str(inputs)
         result = self._cache.get(key, None)
         if result is None:
@@ -794,18 +797,20 @@ class ComfyWorkflow:
         range: tuple[float, float] = (0.0, 1.0),
         mask: Output | None = None,
     ):
+        model, control_net = self.add_cached(
+            "ETN_control_load", 2, model=model, weights=lllite_name
+        )
         inputs = {
             "model": model,
-            "lllite_name": lllite_name,
+            "control_net": control_net,
             "image": image,
             "strength": strength,
             "start_percent": range[0],
             "end_percent": range[1],
-            "preserve_wrapper": True,
         }
         if mask is not None:
             inputs["mask"] = mask
-        return self.add("AnimaLLLiteApply", 1, **inputs)
+        return self.add("ETN_control_apply", 1, **inputs)
 
     def set_controlnet_type(self, controlnet: Output, mode: ControlMode):
         match mode:
