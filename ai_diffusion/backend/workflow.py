@@ -583,11 +583,11 @@ def apply_control(
         if models.arch is Arch.anima:
             if cn_model := models.find(control.mode, allow_universal=True):
                 mask = control.mask.load(w) if control.mask is not None else None
-                model = w.apply_anima_lllite(
+                model = w.apply_controlnet_lllite(
                     model, cn_model, image, control.strength, control.range, mask
                 )
                 continue
-            raise RuntimeError(f"Anima ControlNet-LLLite model not found for mode {control.mode}")
+            raise RuntimeError(f"ControlNet model not found for mode {control.mode}")
 
         if cn_model := models.find(control.mode):
             controlnet = w.load_controlnet(cn_model)

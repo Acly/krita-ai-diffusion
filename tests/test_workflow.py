@@ -113,6 +113,10 @@ def default_style(client: Client, arch=Arch.sd15):
         style.sampler = "Flux 2 - Euler"
         style.cfg_scale = 1.0
         style.sampler_steps = 5
+    if arch is Arch.anima:
+        style.sampler = "Flux - Euler simple"
+        style.cfg_scale = 3.5
+        style.sampler_steps = 20
     return style
 
 
@@ -466,8 +470,10 @@ def test_inpaint(qtapp, client):
     qtapp.run(main())
 
 
-@pytest.mark.parametrize("sdver", [Arch.sd15, Arch.sdxl, Arch.zimage, Arch.flux2_4b])
+@pytest.mark.parametrize("sdver", [Arch.sd15, Arch.sdxl, Arch.zimage, Arch.flux2_4b, Arch.anima])
 def test_inpaint_upscale(qtapp, client, sdver):
+    if isinstance(client, CloudClient) and sdver is Arch.anima:
+        pytest.skip("Skipping test for CloudClient with anima model")
     image = Image.load(image_dir / "beach_1536x1024.webp")
     mask = Mask.rectangle(Bounds(150, 150, 768, 512), Bounds(150, 50, 1068, 812))
     prompt = ConditioningInput("ship")
@@ -785,10 +791,21 @@ def test_control_scribble(qtapp, client, op):
         run_and_save(qtapp, client, job, f"test_control_scribble_{op}")
 
 
-@pytest.mark.parametrize("arch", [Arch.sdxl, Arch.zimage])
-def test_control_lines(qtapp, client, arch: Arch):
+_control_lines_setup = {
+    "sdxl": (Arch.sdxl, ControlMode.soft_edge, 0.7),
+    "zimage": (Arch.zimage, ControlMode.soft_edge, 0.7),
+    "anima": (Arch.anima, ControlMode.line_art, 1.0),
+}
+
+
+@pytest.mark.parametrize("setup", _control_lines_setup.keys())
+def test_control_lines(qtapp, client, setup):
+    arch, mode, strength = _control_lines_setup[setup]
+    if isinstance(client, CloudClient) and arch is Arch.anima:
+        pytest.skip("Skipping test for CloudClient with anima model")
+
     lines_image = Image.load(image_dir / "truck_landscape_lines.webp")
-    control = [ControlInput(ControlMode.soft_edge, lines_image, 0.7)]
+    control = [ControlInput(mode, lines_image, strength)]
     prompt = ConditioningInput("truck in a snowy landscape, tundra", control=control)
     job = create(
         WorkflowKind.generate,

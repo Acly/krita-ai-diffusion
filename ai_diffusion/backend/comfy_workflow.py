@@ -788,7 +788,7 @@ class ComfyWorkflow:
             )
         )
 
-    def apply_anima_lllite(
+    def apply_controlnet_lllite(
         self,
         model: Output,
         lllite_name: str,
