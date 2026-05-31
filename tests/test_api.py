@@ -5,6 +5,8 @@ from ai_diffusion.backend.api import (
     ControlInput,
     ExtentInput,
     ImageInput,
+    InpaintMode,
+    InpaintParams,
     RegionInput,
     WorkflowInput,
     WorkflowKind,
@@ -45,6 +47,7 @@ def test_serialize():
             ControlInput(ControlMode.blur, None, 0.5),
         ],
     )
+    input.inpaint = InpaintParams(InpaintMode.fill, Bounds(128, 128, 256, 320), feather=0, blend=0)
 
     data = input.to_dict(ImageFileFormat.webp_lossless)
     result = WorkflowInput.from_dict(data)

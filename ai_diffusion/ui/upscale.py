@@ -290,6 +290,8 @@ class UpscaleWidget(QWidget):
             self.unblur_slider.setEnabled(False)
             self.unblur_slider.setToolTip(tooltip)
         else:
+            self.strength_slider.setEnabled(True)
+            self.strength_slider.setToolTip("")
             has_unblur = False
             if client := root.connection.client_if_connected:
                 models = client.models.for_arch(self.model.arch)

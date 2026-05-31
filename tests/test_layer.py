@@ -6,7 +6,7 @@ from krita import Document
 from PyQt5.QtCore import Qt
 
 from ai_diffusion.eventloop import process_python_events
-from ai_diffusion.image import Bounds, Extent, Image
+from ai_diffusion.image import BlendMode, Bounds, Extent, Image
 from ai_diffusion.layer import LayerManager
 
 # ---------------------------------------------------------------------------
@@ -260,37 +260,40 @@ def test_active_not_in_tree_falls_back_to_last_active():
 # ---------------------------------------------------------------------------
 
 
-def test_update_layer_image():
-    """update_layer_image produces the same pixel content a direct write_pixels call
-    would, but routes it through a brand-new layer node and removes the original."""
+def test_write_pixels():
     mgr, _doc = make_manager()
-    bounds = Bounds(0, 0, 2, 4)
+    layer_bounds = Bounds(0, 0, 4, 4)
+    new_bounds = Bounds(0, 0, 2, 4)
 
     initial = Image.create(Extent(4, 4), fill=Qt.GlobalColor.red)
-    new_img = Image.create(Extent(4, 4), fill=Qt.GlobalColor.blue)
+    new_img = Image.create(Extent(2, 4), fill=Qt.GlobalColor.blue)
 
-    # Two layers seeded with identical red content.
-    # reference_layer: baseline via direct write_pixels.
-    # test_layer:      under test via update_layer_image.
-    reference_layer = mgr.create("Layer", Image.copy(initial), bounds)
-    test_layer = mgr.create("Layer", Image.copy(initial), bounds)
+    test_layer = mgr.create("Layer", Image.copy(initial), layer_bounds)
+    test_layer.write_pixels(new_img, new_bounds)
+
+    expected = Image.create(Extent(4, 4), fill=0)
+    expected.draw_image(new_img, new_bounds.offset)
+    assert Image.compare(test_layer.get_pixels(), expected) <= 0.001
+
+
+def test_update_layer_image():
+    mgr, _doc = make_manager()
+    layer_bounds = Bounds(0, 0, 4, 4)
+    write_bounds = Bounds(0, 0, 2, 4)
+
+    initial = Image.create(Extent(4, 4), fill=Qt.GlobalColor.red)
+    new_img = Image.create(Extent(2, 4), fill=Qt.GlobalColor.blue)
+
+    test_layer = mgr.create("Layer", Image.copy(initial), layer_bounds)
     old_id = test_layer.id
+    replacement = mgr.update_layer_image(test_layer, new_img, write_bounds)
 
-    # Reference path: in-place pixel write over the full extent.
-    reference_layer.write_pixels(new_img, bounds)
-
-    # Under test: composite-into-new-node path.
-    replacement = mgr.update_layer_image(test_layer, new_img, bounds)
-
-    # Drain the event loop so the remove_later coroutine executes.
     process_python_events()
     mgr.update()
 
-    # The old node must no longer be tracked; the replacement keeps the name.
     assert mgr.find(old_id) is None
     assert replacement.name == "Layer"
 
-    # Pixel content must be identical to the direct write_pixels result.
-    expected = reference_layer.get_pixels(bounds)
-    actual = replacement.get_pixels(bounds)
-    assert Image.compare(actual, expected) <= 0.001
+    expected = Image.copy(initial)
+    expected.draw_image(new_img, write_bounds.offset, BlendMode.replace)
+    assert Image.compare(replacement.get_pixels(), expected) <= 0.001

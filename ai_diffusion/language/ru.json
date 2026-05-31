@@ -592,6 +592,7 @@
     "Number of most recently used styles to show at the top of the style list": "Количество недавно использованных стилей для отображения в верхней части списка стилей",
     "Workflow Parameters": "Параметры рабочего процесса",
     "Detected workloads for the following base models:": "Обнаруженные рабочие процессы для следующих базовых моделей:",
-    "Reset all parameters to their default values": "Сбросить все параметры к значениям по умолчанию"
+    "Reset all parameters to their default values": "Сбросить все параметры к значениям по умолчанию",
+    "Use ROCm (AMD GPU)": null
   }
 }

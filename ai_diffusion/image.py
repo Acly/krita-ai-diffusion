@@ -326,8 +326,16 @@ class Image:
         return img
 
     @staticmethod
-    def from_packed_bytes(data: QByteArray, extent: Extent, channels=4):
+    def from_packed_bytes(data: QByteArray, extent: Extent, channels: int | None = None):
+        if channels is None:
+            channels = 4 if len(data) == extent.pixel_count * 4 else 1
         assert channels in {4, 1}
+        expected_size = extent.pixel_count * channels
+        if len(data) != expected_size:
+            raise ValueError(
+                f"Can't read image: data size {len(data)} does not match expected size {expected_size}."
+                " Only 8-bit/channel image formats are supported."
+            )
         stride = extent.width * channels
         format = QImage.Format.Format_ARGB32 if channels == 4 else QImage.Format.Format_Grayscale8
         qimg = QImage(data, extent.width, extent.height, stride, format)

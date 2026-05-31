@@ -26,7 +26,7 @@ from ai_diffusion.backend.client import CheckpointInfo, Client, ClientEvent, Cli
 from ai_diffusion.backend.cloud_client import CloudClient
 from ai_diffusion.backend.comfy_client import ComfyClient
 from ai_diffusion.backend.comfy_workflow import ComfyWorkflow
-from ai_diffusion.backend.resources import ControlMode
+from ai_diffusion.backend.resources import ControlMode, ResourceKind, resource_id
 from ai_diffusion.backend.workflow import detect_inpaint
 from ai_diffusion.files import File, FileCollection, FileLibrary, FileSource
 from ai_diffusion.image import Bounds, Extent, Image, ImageCollection, Mask
@@ -113,6 +113,10 @@ def default_style(client: Client, arch=Arch.sd15):
         style.sampler = "Flux 2 - Euler"
         style.cfg_scale = 1.0
         style.sampler_steps = 5
+    if arch is Arch.anima:
+        style.sampler = "Flux - Euler simple"
+        style.cfg_scale = 3.5
+        style.sampler_steps = 20
     return style
 
 
@@ -222,6 +226,41 @@ def test_inpaint_params():
     prompt.edit_reference = True
     f = detect_inpaint(InpaintMode.fill, bounds, Arch.sd15, prompt, 1.0)
     assert f.fill is FillMode.none
+
+    g = detect_inpaint(InpaintMode.fill, bounds, Arch.anima, no_cond, 1.0)
+    assert g.fill is FillMode.blur and g.use_inpaint_model
+
+
+def test_anima_lllite_control_workflow():
+    w = ComfyWorkflow()
+    models = ClientModels()
+    models.resources[resource_id(ResourceKind.controlnet, Arch.anima, ControlMode.universal)] = (
+        "anima-lllite-anytest.safetensors"
+    )
+    cond = workflow.ConditioningOutput(workflow.Output(2, 0), workflow.Output(3, 0))
+    control = workflow.Control(
+        ControlMode.blur,
+        workflow.ImageOutput(Image.create(Extent(16, 16))),
+        strength=0.5,
+        range=(0.1, 0.8),
+    )
+
+    model, result = workflow.apply_control(
+        w,
+        workflow.Output(1, 0),
+        cond,
+        [control],
+        Extent(64, 64),
+        workflow.Output(4, 0),
+        models.for_arch(Arch.anima),
+    )
+
+    assert result == cond
+    assert w.root[str(model.node)]["class_type"] == "ETN_control_apply"
+    assert w.root[str(model.node)]["inputs"]["control_net"] == [str(model.node - 1), 1]
+    assert w.root[str(model.node - 1)]["inputs"]["weights"] == "anima-lllite-anytest.safetensors"
+    assert any(n["class_type"] == "ETN_control_load" for n in w.root.values())
+    assert not any(n["class_type"] == "ControlNetLoader" for n in w.root.values())
 
 
 def test_prepare_lora():
@@ -431,8 +470,10 @@ def test_inpaint(qtapp, client):
     qtapp.run(main())
 
 
-@pytest.mark.parametrize("sdver", [Arch.sd15, Arch.sdxl, Arch.zimage, Arch.flux2_4b])
+@pytest.mark.parametrize("sdver", [Arch.sd15, Arch.sdxl, Arch.zimage, Arch.flux2_4b, Arch.anima])
 def test_inpaint_upscale(qtapp, client, sdver):
+    if isinstance(client, CloudClient) and sdver is Arch.anima:
+        pytest.skip("Skipping test for CloudClient with anima model")
     image = Image.load(image_dir / "beach_1536x1024.webp")
     mask = Mask.rectangle(Bounds(150, 150, 768, 512), Bounds(150, 50, 1068, 812))
     prompt = ConditioningInput("ship")
@@ -750,10 +791,21 @@ def test_control_scribble(qtapp, client, op):
         run_and_save(qtapp, client, job, f"test_control_scribble_{op}")
 
 
-@pytest.mark.parametrize("arch", [Arch.sdxl, Arch.zimage])
-def test_control_lines(qtapp, client, arch: Arch):
+_control_lines_setup = {
+    "sdxl": (Arch.sdxl, ControlMode.soft_edge, 0.7),
+    "zimage": (Arch.zimage, ControlMode.soft_edge, 0.7),
+    "anima": (Arch.anima, ControlMode.line_art, 1.0),
+}
+
+
+@pytest.mark.parametrize("setup", _control_lines_setup.keys())
+def test_control_lines(qtapp, client, setup):
+    arch, mode, strength = _control_lines_setup[setup]
+    if isinstance(client, CloudClient) and arch is Arch.anima:
+        pytest.skip("Skipping test for CloudClient with anima model")
+
     lines_image = Image.load(image_dir / "truck_landscape_lines.webp")
-    control = [ControlInput(ControlMode.soft_edge, lines_image, 0.7)]
+    control = [ControlInput(mode, lines_image, strength)]
     prompt = ConditioningInput("truck in a snowy landscape, tundra", control=control)
     job = create(
         WorkflowKind.generate,

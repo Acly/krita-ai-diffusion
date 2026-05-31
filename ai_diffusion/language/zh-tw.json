@@ -590,8 +590,9 @@
     "Recent Styles": "近期使用風格",
     "Switch to edit mode": "切換到編輯模式",
     "Number of most recently used styles to show at the top of the style list": "在風格清單頂部顯示多少個近期使用風格",
-    "Workflow Parameters": null,
-    "Detected workloads for the following base models:": null,
-    "Reset all parameters to their default values": null
+    "Workflow Parameters": "工作流程參數",
+    "Detected workloads for the following base models:": "檢測到以下基礎模型的工作負載：",
+    "Reset all parameters to their default values": "將所有參數重置為預設值",
+    "Use ROCm (AMD GPU)": null
   }
 }
