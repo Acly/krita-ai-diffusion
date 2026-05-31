@@ -124,7 +124,12 @@ class Server:
         if python_path is not None:
             self._python_cmd = python_path / f"python{_exe}"
 
-        gpu_backends = [ServerBackend.cuda, ServerBackend.directml, ServerBackend.xpu]
+        gpu_backends = [
+            ServerBackend.cuda,
+            ServerBackend.directml,
+            ServerBackend.xpu,
+            ServerBackend.rocm,
+        ]
         backend_mismatch = (
             self._installed_backend is not None
             and self._installed_backend != self.backend
