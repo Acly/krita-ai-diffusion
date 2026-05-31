@@ -54,10 +54,10 @@ insufficient memory!
 
 <table>
 <tr><td>NVIDIA GPU</td><td>supported via CUDA (Windows/Linux)</td></tr>
-<tr><td>AMD GPU</td><td>supported but requires custom ComfyUI setup</td></tr>
-<tr><td>Apple Silicon</td><td>MPS (Apple Silicon) on macOS 14+</td></tr>
+<tr><td>AMD GPU</td><td>supported via ROCm (Windows/Linux)</td></tr>
+<tr><td>Intel GPU</td><td>supported via XPU (Windows/Linux)</td></tr>
+<tr><td>Apple Silicon</td><td>MPS on macOS 14+</td></tr>
 <tr><td>CPU</td><td>supported, but very slow</td></tr>
-<tr><td>XPU</td><td>supported, may see performance issues (Windows/Linux)</td></tr>
 </table>
 
 

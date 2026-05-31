@@ -15,7 +15,7 @@ This is a step-by-step guide for downloading and installing the Generative AI pl
 
 <Steps>
 
-1. Make sure you have Krita version **2.2** (or later) installed.
+1. Make sure you have Krita version **5.2** (or later) installed.
 
    You can download and install it from <ExternalLink href="https://krita.org/en/download">krita.org</ExternalLink>.
 
@@ -23,6 +23,11 @@ This is a step-by-step guide for downloading and installing the Generative AI pl
 
     Download the <ExternalLink href="https://github.com/Acly/krita-ai-diffusion/releases/latest">latest release</ExternalLink> of the Plugin.
     Remember where you save the ZIP file.
+
+    <Aside type="note">
+    **Krita 5.x**: look for the latest **1.x** release of the plugin.<br/>
+    **Krita 6.x**: use the latest **2.x** release of the plugin (coming soon).
+    </Aside>
 
 3. Install the Plugin
 
@@ -120,16 +125,15 @@ These steps are only required if you selected **Local Managed Server** as the ba
             </tr>
             <tr>
                 <td><Icon name="bootstrap/apple" /> Apple</td>
-                <td>Apple Silicon via MPS (community support).</td>
+                <td>Apple Silicon only (M1-M5).</td>
             </tr>
             <tr>
                 <td><Icon name="simple/intel" /> Intel</td>
                 <td>Intel Arc Graphics cards, 8GB or better.</td>
             </tr>
             <tr>
-                <td><Soft><Icon name="bootstrap/amd" /> AMD</Soft></td>
-                <td><Soft>Not supported by managed installation.<br />
-                Please <ExternalLink href="https://www.comfy.org/download">install ComfyUI</ExternalLink> separately, then [connect it to the plugin](/comfyui-setup).</Soft></td>
+                <td><Icon name="bootstrap/amd" /> AMD</td>
+                <td>ROCm enabled graphics cards.</td>
             </tr>
             <tr>
                 <td><Soft>CPU</Soft></td>
@@ -162,7 +166,7 @@ These steps are only required if you selected **Local Managed Server** as the ba
 
     1. Choose a path where to install.<br />
         <Soft>Keep in mind AI models can be very large, 10GB is a minimum, 50GB+ not unusual depending on optional packages.</Soft>
-    2. Choose a backend. CUDA only works for NVIDIA GPUs.
+    2. Choose a backend. CUDA only works for NVIDIA GPUs. ROCm is for AMD, XPU is for Intel.<br />
         <Soft>Make sure to do this _before_ you install!</Soft>
     3. Select workloads to install.<br />
         <Soft>Workloads install a set of recommended models along with your choice. Download and installation size will increase the more models you select.</Soft>
