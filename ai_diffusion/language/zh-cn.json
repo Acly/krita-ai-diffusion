@@ -592,6 +592,7 @@
     "Number of most recently used styles to show at the top of the style list": "在风格列表顶部显示最近使用风格的数量",
     "Workflow Parameters": "工作流参数",
     "Detected workloads for the following base models:": "检测到以下基础模型的工作负载：",
-    "Reset all parameters to their default values": "将所有参数重置为默认值"
+    "Reset all parameters to their default values": "将所有参数重置为默认值",
+    "Use ROCm (AMD GPU)": null
   }
 }

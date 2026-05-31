@@ -592,6 +592,7 @@
     "Number of most recently used styles to show at the top of the style list": "Numero di modelli più utilizzati di recente da visualizzare in cima all'elenco dei modelli",
     "Workflow Parameters": "Parametri del flusso di lavoro",
     "Detected workloads for the following base models:": "Carichi di lavoro rilevati per i seguenti modelli di base",
-    "Reset all parameters to their default values": "Ripristina tutti i parametri ai valori predefiniti."
+    "Reset all parameters to their default values": "Ripristina tutti i parametri ai valori predefiniti.",
+    "Use ROCm (AMD GPU)": null
   }
 }
