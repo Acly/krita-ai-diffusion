@@ -187,14 +187,13 @@ class Server:
         self._cache_dir.mkdir(parents=True, exist_ok=True)
         self._version_file.write_text("incomplete")
 
-        has_venv = (self.path / "venv").exists()
-        has_uv = self._uv_cmd is not None
-        if not any((has_venv, has_uv)):
+        if self._uv_cmd is None:
             await try_install(self.path / "uv", self._install_uv, network, cb)
 
-        if self.comfy_dir is None or not has_venv:
+        if self.comfy_dir is None:
             python_dir = self.path / "venv"
             await install_if_missing(python_dir, self._create_venv, cb)
+
         assert self._python_cmd is not None
         await self._log_python_version()
         await determine_system_encoding(str(self._python_cmd), log)
@@ -446,6 +445,7 @@ class Server:
 
         try:
             _clean_embedded_python(self.path, callback)
+            _clean_system_venv(self.path, self._uv_cmd, callback)
             await self.install(callback)
         except Exception as e:
             if upgrade_comfy_dir.exists():
@@ -1065,3 +1065,18 @@ def _clean_embedded_python(server_dir: Path, cb: Callback):
             remove_subdir(emb_path, origin=server_dir)
         except Exception as e:
             log.error(f"Could not remove embedded Python at {emb_path}: {e!s}")
+
+
+def _clean_system_venv(server_dir: Path, uv_cmd: Path | None, cb: Callback):
+    # Old installations used system Python + pip to create the venv.
+    # Current requirements files use uv-specific features (--extra-index-url,
+    # --index-strategy), so raw pip installation is broken.
+    # If uv is not available, remove the old venv to trigger a fresh install.
+    has_venv = (server_dir / "venv").exists()
+    if has_venv and uv_cmd is None:
+        cb(InstallationProgress("Upgrading", message="Removing old Python venv..."))
+        log.warning(f"Removing old system Python venv at {server_dir / 'venv'} (uv not available)")
+        try:
+            remove_subdir(server_dir / "venv", origin=server_dir)
+        except Exception as e:
+            log.error(f"Could not remove old Python venv at {server_dir / 'venv'}: {e!s}")
