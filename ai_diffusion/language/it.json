@@ -3,7 +3,7 @@
   "name": "Italiano",
   "translations": {
     "(Custom)": "(Personalizzato)",
-    "<No text prompt>": "<Nessun messaggio di testo>",
+    "<No text prompt>": "<Nessuna richiesta di testo>",
     "A new plugin version is available!": "È disponibile una nuova versione del plugin!",
     "AI Image Generation": "Generazione di immagini IA",
     "Account:": "Registrazione:",
@@ -50,7 +50,7 @@
     "Check for new versions of the plugin on startup": "Controlla le nuove versioni del plugin all'avvio",
     "Check for updates on startup": "Controlla gli aggiornamenti all'avvio",
     "Checking for updates...": "Controllo Aggiornamenti...",
-    "Checkpoint configuration (advanced)": "Configurazione del checkpoint (avanzata)",
+    "Checkpoint configuration (advanced)": "Configurazione avanzata del checkpoint",
     "Choose a Diffusion base model to install its basic requirements.": "Scegli un modello base di Diffusione per installare i suoi requisiti di base.",
     "Choose how result images are applied to the canvas (generation workspaces)": "Scegli come applicare le immagini risultanti alla tela (spazi di generazione del lavoro)",
     "Clear History": "Cancella Cronologia",
@@ -254,7 +254,7 @@
     "Open folder where custom tag files can be placed": "Apri la cartella in cui possono essere posizionati i file dei tag personalizzati",
     "Open settings": "Apri Impostazioni",
     "Open the folder where checkpoints are stored": "Aprire la cartella in cui sono archiviati i checkpoint",
-    "Optional text which is added to the prompt when the LoRA is used": "Testo facoltativo che viene aggiunto al prompt quando viene utilizzato LoRA",
+    "Optional text which is added to the prompt when the LoRA is used": "Testo facoltativo che viene aggiunto alla richiesta quando viene utilizzato LoRA",
     "Override": "Sovrascrivi",
     "Part of the image around the selection which is used as context.": "Parte dell'immagine attorno alla selezione che viene utilizzata come contesto.",
     "Pay more attention to difficult parts of the image. Can improve fine details.": "Prestare maggiore attenzione alle parti difficili dell'immagine. Può migliorare i dettagli più piccoli.",
@@ -578,7 +578,7 @@
     "Versatile model with sharp details. Can generate and edit images with instructions. Sometimes struggles with image continuity.": "Modello versatile con dettagli nitidi. Può generare e modificare immagini seguendo le istruzioni. A volte presenta difficoltà con la continuità delle immagini.",
     "Z-Image models": "Z-Image modelli",
     "Powerful and efficient model for stronger hardware. Good understanding of natural language (Chinese and English). The Turbo variant is fast and heavily tuned for realistic results.": "Modello potente ed efficiente per hardware più potente. Ottima comprensione del linguaggio naturale (cinese e inglese). La variante Turbo è veloce e ottimizzata per risultati realistici.",
-    "Workflow contains multiple 'Krita Style & Prompt' nodes, but only one is allowed.": "Il flusso di lavoro contiene più nodi 'Krita Style e Prompt', ma ne è consentito solo uno.",
+    "Workflow contains multiple 'Krita Style & Prompt' nodes, but only one is allowed.": "Il flusso di lavoro contiene più nodi 'Krita Style e richiesta', ma ne è consentito solo uno.",
     "Color Match": "Corrispondenza Colori",
     "Collect Diagnostics": "Raccolta dati di diagnostica",
     "Match peripheral colors and brightness with existing content. Requires a selection.": "Abbina i colori e la luminosità dei bordi al contenuto esistente. Richiede una selezione.",
@@ -593,6 +593,6 @@
     "Workflow Parameters": "Parametri del flusso di lavoro",
     "Detected workloads for the following base models:": "Carichi di lavoro rilevati per i seguenti modelli di base",
     "Reset all parameters to their default values": "Ripristina tutti i parametri ai valori predefiniti.",
-    "Use ROCm (AMD GPU)": null
+    "Use ROCm (AMD GPU)": "Usa ROCm (AMD GPU)"
   }
 }
