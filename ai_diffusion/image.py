@@ -338,8 +338,8 @@ class Image:
             )
         stride = extent.width * channels
         format = QImage.Format.Format_ARGB32 if channels == 4 else QImage.Format.Format_Grayscale8
-        qimg = QImage(data, extent.width, extent.height, stride, format)
-        return Image(qimg)
+        qimg = QImage(data.data(), extent.width, extent.height, stride, format)
+        return Image(qimg.copy())
 
     @staticmethod
     def copy(image: Image):
