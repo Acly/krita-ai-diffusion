@@ -1,5 +1,5 @@
 name: Lint, Typecheck and Test
-on: [push, pull_request]
+on: [pull_request]
 
 jobs:
   check:
@@ -40,6 +40,7 @@ jobs:
     steps:
       # PyQt6.QtGui import requires libEGL.so.1 (even with QT_QPA_PLATFORM=offscreen)
       - name: Packages
+        if: runner.os == 'Linux'
         run: |
           sudo apt-get update
           sudo apt-get install -y libegl1 libgl1 libxkbcommon-x11-0
