@@ -123,7 +123,11 @@ class ControlLayer(QObject, ObservableProperties):
         if self.mode.is_ip_adapter and not layer.bounds.is_zero:
             bounds = None  # ignore mask bounds, use layer bounds
 
-        image = layer.get_pixels(bounds, time)
+        image = (
+            self._regional_control_image(bounds, time)
+            if self.mode is ControlMode.regional
+            else layer.get_pixels(bounds, time)
+        )
 
         if self.mode.is_lines or self.mode is ControlMode.stencil:
             image.make_opaque(background=Qt.GlobalColor.white)
@@ -138,6 +142,25 @@ class ControlLayer(QObject, ObservableProperties):
 
         strength = self.strength / self.strength_multiplier
         return ControlInput(self.mode, image, strength, (self.start, self.end))
+
+    def _regional_control_image(self, bounds: Bounds | None, time: int | None):
+        from .region import RegionLink
+
+        bounds = bounds or Bounds.from_extent(self._model.document.extent)
+        image = Image.create(bounds.extent, fill=Qt.GlobalColor.white)
+        root = self._model.regions
+
+        for layer in root.layers.all:
+            if root.find_linked(layer, RegionLink.direct) is None:
+                continue
+            if layer.compute_bounds().area == 0:
+                continue
+            if Bounds.intersection(bounds, layer.bounds).area == 0:
+                continue
+
+            image.draw_image(layer.get_pixels(bounds, time))
+
+        return image
 
     def generate(self):
         self._generate_job = self._model.generate_control_layer(self)
@@ -160,7 +183,10 @@ class ControlLayer(QObject, ObservableProperties):
                     self.error_text = _("The server is missing the ClipVision model") + f" {search}"
                     is_supported = False
 
-            if self.mode.is_ip_adapter and models.arch.supports_edit:
+            if self.mode is ControlMode.regional and models.arch is not Arch.anima:
+                self.error_text = _("Not supported for") + f" {models.arch.value}"
+                is_supported = False
+            elif self.mode.is_ip_adapter and models.arch.supports_edit:
                 is_supported = True  # Reference images are merged into the conditioning context
             elif self.mode.is_ip_adapter and models.ip_adapter.find(self.mode) is None:
                 search_path = resources.search_path(ResourceKind.ip_adapter, models.arch, self.mode)
@@ -405,6 +431,7 @@ control_mode_text = {
     ControlMode.blur: _("Unblur"),
     ControlMode.stencil: _("Stencil"),
     ControlMode.hands: _("Hands"),
+    ControlMode.regional: _("Regional"),
 }
 
 
