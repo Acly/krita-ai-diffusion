@@ -123,11 +123,13 @@ class ControlLayer(QObject, ObservableProperties):
         if self.mode.is_ip_adapter and not layer.bounds.is_zero:
             bounds = None  # ignore mask bounds, use layer bounds
 
-        image = (
-            self._regional_control_image(bounds, time)
-            if self.mode is ControlMode.regional
-            else layer.get_pixels(bounds, time)
-        )
+        image = None
+        if self.mode is ControlMode.regional:
+            image = self._regional_control_image(bounds, time)
+            if image is None:
+                image = self._regional_control_image_from_layer(layer, bounds, time)
+        if image is None:
+            image = layer.get_pixels(bounds, time)
 
         if self.mode.is_lines or self.mode is ControlMode.stencil:
             image.make_opaque(background=Qt.GlobalColor.white)
@@ -143,11 +145,20 @@ class ControlLayer(QObject, ObservableProperties):
         strength = self.strength / self.strength_multiplier
         return ControlInput(self.mode, image, strength, (self.start, self.end))
 
+    def _regional_control_image_from_layer(
+        self, layer: Layer, bounds: Bounds | None, time: int | None
+    ):
+        bounds = bounds or Bounds.from_extent(self._model.document.extent)
+        image = Image.create(bounds.extent, fill=Qt.GlobalColor.white)
+        image.draw_image(layer.get_pixels(bounds, time))
+        return image
+
     def _regional_control_image(self, bounds: Bounds | None, time: int | None):
         from .region import RegionLink
 
         bounds = bounds or Bounds.from_extent(self._model.document.extent)
         image = Image.create(bounds.extent, fill=Qt.GlobalColor.white)
+        has_region_layer = False
         root = self._model.regions
 
         for layer in root.layers.all:
@@ -159,8 +170,9 @@ class ControlLayer(QObject, ObservableProperties):
                 continue
 
             image.draw_image(layer.get_pixels(bounds, time))
+            has_region_layer = True
 
-        return image
+        return image if has_region_layer else None
 
     def generate(self):
         self._generate_job = self._model.generate_control_layer(self)
