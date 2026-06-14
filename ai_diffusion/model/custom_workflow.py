@@ -22,7 +22,14 @@ from PyQt5.QtCore import (
 
 from .. import eventloop
 from ..backend.api import CustomStyleInput, InpaintContext, WorkflowInput
-from ..backend.client import ClientModels, ClientOutput, JobInfoOutput, OutputBatchMode, TextOutput
+from ..backend.client import (
+    ClientModels,
+    ClientOutput,
+    JobInfoOutput,
+    OutputBatchMode,
+    TextOutput,
+    resolve_arch,
+)
 from ..backend.comfy_workflow import ComfyNode, ComfyWorkflow
 from ..backend.workflow import sampling_from_style
 from ..image import Bounds, Image, Mask
@@ -591,8 +598,10 @@ class CustomWorkspace(QObject, ObservableProperties):
                     use_live_sampling = True
                 else:  # auto
                     use_live_sampling = is_live
+                style_models = style.get_models(models.checkpoints)
+                style_models.version = resolve_arch(style, models)
                 params[md.name] = CustomStyleInput(
-                    style.get_models(models.checkpoints),
+                    style_models,
                     sampling_from_style(style, 1.0, use_live_sampling),
                     style.style_prompt,
                     style.negative_prompt,
