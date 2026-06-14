@@ -1,5 +1,7 @@
+import hashlib
 import os
 from pathlib import Path
+from typing import Any, cast
 
 import pytest
 from aiohttp import ClientSession
@@ -23,10 +25,97 @@ class SignalObserver:
         self.events = []
 
 
+class FakeUpdateService:
+    def __init__(self, response: dict, archive_data: bytes = b""):
+        self.response = response
+        self.archive_data = archive_data
+
+    async def get(self, url: str, timeout: int = 10):
+        return self.response
+
+    async def download(self, url: str):
+        return self.archive_data
+
+
 def http_session(service_url: str):
     service_token = os.environ["INTERSTICE_INFRA_TOKEN"]
     headers = {"Authorization": f"Bearer {service_token}"}
     return ClientSession(service_url, headers=headers)
+
+
+@qtapp
+async def test_update_check_ignores_older_versions(tmp_path: Path):
+    updater = AutoUpdate(
+        current_version="1.51.1",
+        plugin_dir=tmp_path / "pykrita" / "ai_diffusion",
+        api_url="https://example.invalid",
+    )
+    updater._request_manager = cast(
+        Any,
+        FakeUpdateService({
+            "version": "1.51.0",
+            "url": "https://example.invalid/krita_ai_diffusion-1.51.0.zip",
+            "sha256": "unused",
+        }),
+    )
+
+    state_changes = SignalObserver(updater.state_changed)
+    await updater.check()
+
+    assert state_changes.events == [UpdateState.checking, UpdateState.latest]
+    assert updater.state is UpdateState.latest
+    assert not updater.is_available
+
+
+@qtapp
+async def test_update_installs_release_package_layout(tmp_path: Path):
+    install_dir = tmp_path / "krita" / "pykrita" / "ai_diffusion"
+    install_dir.mkdir(parents=True)
+    (install_dir / "test_file.txt").write_text("old plugin")
+    actions_dir = tmp_path / "krita" / "actions"
+    actions_dir.mkdir()
+
+    build_dir = tmp_path / "build"
+    build_plugin_dir = build_dir / "ai_diffusion"
+    build_plugin_dir.mkdir(parents=True)
+    (build_dir / "ai_diffusion.desktop").write_text("desktop metadata")
+    (build_plugin_dir / "ai_diffusion.action").write_text("action metadata")
+    (build_plugin_dir / "test_file.txt").write_text("new plugin")
+
+    archive_path = build_dir / "krita_ai_diffusion-1.51.2.zip"
+    with ZipFile(archive_path, "w") as zip_file:
+        zip_file.write(build_dir / "ai_diffusion.desktop", "ai_diffusion.desktop")
+        for file in build_plugin_dir.iterdir():
+            zip_file.write(file, f"ai_diffusion/{file.name}")
+    archive_data = archive_path.read_bytes()
+
+    updater = AutoUpdate(
+        current_version="1.51.1",
+        plugin_dir=install_dir,
+        api_url="https://example.invalid",
+    )
+    updater._request_manager = cast(
+        Any,
+        FakeUpdateService(
+            {
+                "version": "1.51.2",
+                "url": "https://example.invalid/krita_ai_diffusion-1.51.2.zip",
+                "sha256": hashlib.sha256(archive_data).hexdigest(),
+            },
+            archive_data,
+        ),
+    )
+
+    await updater.check()
+    assert updater.state is UpdateState.available
+    await updater.run()
+
+    assert updater.state is UpdateState.restart_required
+    assert (install_dir / "test_file.txt").read_text() == "new plugin"
+    assert not (install_dir / "ai_diffusion").exists()
+    assert not (install_dir / "ai_diffusion.desktop").exists()
+    assert (install_dir.parent / "ai_diffusion.desktop").read_text() == "desktop metadata"
+    assert (actions_dir / "ai_diffusion.action").read_text() == "action metadata"
 
 
 @qtapp

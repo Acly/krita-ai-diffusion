@@ -2,6 +2,7 @@ import hashlib
 import os
 import shutil
 from enum import Enum
+from itertools import zip_longest
 from pathlib import Path
 from tempfile import TemporaryDirectory
 from typing import NamedTuple
@@ -31,6 +32,25 @@ class UpdatePackage(NamedTuple):
     version: str
     url: str
     sha256: str
+
+
+def _version_parts(version: str) -> list[int]:
+    result = []
+    for part in version.split("."):
+        digits = ""
+        for char in part:
+            if not char.isdigit():
+                break
+            digits += char
+        result.append(int(digits or 0))
+    return result
+
+
+def _is_newer_version(version: str, current_version: str) -> bool:
+    for a, b in zip_longest(_version_parts(version), _version_parts(current_version), fillvalue=0):
+        if a != b:
+            return a > b
+    return False
 
 
 class AutoUpdate(QObject, ObservableProperties):
@@ -79,7 +99,7 @@ class AutoUpdate(QObject, ObservableProperties):
             log.error(f"Invalid plugin update information: {result}")
             self.state = UpdateState.failed_check
             self.error = "Failed to retrieve plugin update information"
-        elif self.latest_version == self.current_version:
+        elif not _is_newer_version(self.latest_version, self.current_version):
             log.info("Plugin is up to date!")
             self.state = UpdateState.latest
         elif "url" not in result or "sha256" not in result:
@@ -122,13 +142,31 @@ class AutoUpdate(QObject, ObservableProperties):
             zip_file.extractall(source_dir)
 
         log.info(f"Installing new plugin version to {self.plugin_dir}")
-        shutil.copytree(source_dir, self.plugin_dir, dirs_exist_ok=True)
+        package_plugin_dir = source_dir / "ai_diffusion"
+        if package_plugin_dir.exists():
+            shutil.rmtree(self.plugin_dir / "ai_diffusion", ignore_errors=True)
+            (self.plugin_dir / "ai_diffusion.desktop").unlink(missing_ok=True)
+            shutil.copytree(package_plugin_dir, self.plugin_dir, dirs_exist_ok=True)
+
+            package_desktop = source_dir / "ai_diffusion.desktop"
+            if package_desktop.exists():
+                shutil.copy2(package_desktop, self.plugin_dir.parent / "ai_diffusion.desktop")
+
+            package_action = package_plugin_dir / "ai_diffusion.action"
+            if package_action.exists():
+                actions_dir = self.plugin_dir.parent.parent / "actions"
+                actions_dir.mkdir(parents=True, exist_ok=True)
+                shutil.copy2(package_action, actions_dir / "ai_diffusion.action")
+        else:
+            shutil.copytree(source_dir, self.plugin_dir, dirs_exist_ok=True)
         self.current_version = self.latest_version
         self.state = UpdateState.restart_required
 
     @property
     def is_available(self):
-        return self.latest_version is not None and self.latest_version != self.current_version
+        return bool(self.latest_version) and _is_newer_version(
+            self.latest_version, self.current_version
+        )
 
     @property
     def _net(self):
