@@ -155,7 +155,7 @@ class HistoryWidget(QListWidget):
             return  # Only finished diffusion/animation jobs have images to show
 
         scrollbar = self.verticalScrollBar()
-        scroll_to_bottom = scrollbar and scrollbar.value() >= scrollbar.maximum() - 4
+        scroll_to_top = scrollbar is not None and scrollbar.value() <= 4
 
         if not JobParams.equal_ignore_seed(self._last_job_params, job.params):
             self._last_job_params = job.params
@@ -169,29 +169,40 @@ class HistoryWidget(QListWidget):
             header.setData(Qt.ItemDataRole.ToolTipRole, job.params.prompt)
             header.setSizeHint(QSize(9999, self.fontMetrics().lineSpacing() + 4))
             header.setTextAlignment(Qt.AlignmentFlag.AlignLeft)
-            self.addItem(header)
+            self.insertItem(0, header)
+
+        # Insert newest results at the top, right below the prompt header, so freshly generated
+        # images appear directly under the generate/refine button instead of at the bottom of a
+        # long history. Row 0 is always the most recent group's header.
+        row = 1
 
         if job.kind is JobKind.diffusion:
             if job.params.is_layered:
-                self._add_item(job, QListWidgetItem(self._image_thumbnail(job, 0), None))
+                self._add_item(job, QListWidgetItem(self._image_thumbnail(job, 0), None), row=row)
             else:
-                for i, img in enumerate(job.results):
-                    self._add_item(job, QListWidgetItem(self._image_thumbnail(job, i), None), i)
+                for i in range(len(job.results)):
+                    self._add_item(
+                        job, QListWidgetItem(self._image_thumbnail(job, i), None), i, row=row
+                    )
+                    row += 1
 
         if job.kind is JobKind.animation:
             item = AnimatedListItem([
                 self._image_thumbnail(job, i) for i in range(len(job.results))
             ])
-            self._add_item(job, item)
+            self._add_item(job, item, row=row)
 
-        if scroll_to_bottom:
-            self.scrollToBottom()
+        if scroll_to_top:
+            self.scrollToTop()
 
-    def _add_item(self, job: Job, item: QListWidgetItem, index=0):
+    def _add_item(self, job: Job, item: QListWidgetItem, index=0, row: int | None = None):
         item.setData(Qt.ItemDataRole.UserRole, job.id)
         item.setData(Qt.ItemDataRole.UserRole + 1, index)
         item.setData(Qt.ItemDataRole.ToolTipRole, self._job_info(job.params))
-        self.addItem(item)
+        if row is None:
+            self.addItem(item)
+        else:
+            self.insertItem(row, item)
 
     _job_info_translations: ClassVar[dict[str, str]] = {
         "prompt": _("Prompt"),
@@ -357,7 +368,7 @@ class HistoryWidget(QListWidget):
         self.clear()
         for job in filter(self.is_finished, self._model.jobs):
             self.add(job)
-        self.scrollToBottom()
+        self.scrollToTop()
 
     def item_info(self, item: QListWidgetItem) -> tuple[str, int]:  # job id, image index
         return item.data(Qt.ItemDataRole.UserRole), item.data(Qt.ItemDataRole.UserRole + 1)
