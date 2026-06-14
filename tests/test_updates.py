@@ -7,7 +7,7 @@ import pytest
 from aiohttp import ClientSession
 from PyQt5.QtCore import pyqtBoundSignal
 
-from ai_diffusion.model.updates import AutoUpdate, UpdateState
+from ai_diffusion.model.updates import AutoUpdate, UpdateState, _is_newer_version
 from ai_diffusion.platform_tools import ZipFile
 
 from .conftest import CloudService, qtapp
@@ -43,6 +43,20 @@ def http_session(service_url: str):
     return ClientSession(service_url, headers=headers)
 
 
+@pytest.mark.parametrize(
+    ("version", "current_version", "expected"),
+    [
+        ("1.51.1", "1.51.1", False),
+        ("1.51.0", "1.51.1", False),
+        ("1.52.0", "1.51.9", True),
+        ("1.51.10", "1.51.9", True),
+        ("1.51", "1.51.0", False),
+    ],
+)
+def test_is_newer_version(version: str, current_version: str, expected: bool):
+    assert _is_newer_version(version, current_version) is expected
+
+
 @qtapp
 async def test_update_check_ignores_older_versions(tmp_path: Path):
     updater = AutoUpdate(
@@ -53,18 +67,37 @@ async def test_update_check_ignores_older_versions(tmp_path: Path):
     updater._request_manager = cast(
         Any,
         FakeUpdateService({
-            "version": "1.51.0",
-            "url": "https://example.invalid/krita_ai_diffusion-1.51.0.zip",
+            "version": "1.51.2",
+            "url": "https://example.invalid/krita_ai_diffusion-1.51.2.zip",
             "sha256": "unused",
         }),
     )
 
     state_changes = SignalObserver(updater.state_changed)
     await updater.check()
+    assert updater.state is UpdateState.available
+    assert updater._package is not None
+
+    updater._request_manager = cast(
+        Any,
+        FakeUpdateService({
+            "version": "1.51.0",
+            "url": "https://example.invalid/krita_ai_diffusion-1.51.0.zip",
+            "sha256": "unused",
+        }),
+    )
+
+    state_changes.reset()
+    await updater.check()
 
     assert state_changes.events == [UpdateState.checking, UpdateState.latest]
     assert updater.state is UpdateState.latest
+    assert updater._package is None
     assert not updater.is_available
+
+    await updater.run()
+    assert updater.state is UpdateState.failed_update
+    assert "No plugin update package is available" in updater.error
 
 
 @qtapp
@@ -72,8 +105,10 @@ async def test_update_installs_release_package_layout(tmp_path: Path):
     install_dir = tmp_path / "krita" / "pykrita" / "ai_diffusion"
     install_dir.mkdir(parents=True)
     (install_dir / "test_file.txt").write_text("old plugin")
+    (install_dir / "ai_diffusion").mkdir()
+    (install_dir / "ai_diffusion" / "old_nested_file.txt").write_text("old nested plugin")
+    (install_dir / "ai_diffusion.desktop").write_text("misplaced desktop metadata")
     actions_dir = tmp_path / "krita" / "actions"
-    actions_dir.mkdir()
 
     build_dir = tmp_path / "build"
     build_plugin_dir = build_dir / "ai_diffusion"

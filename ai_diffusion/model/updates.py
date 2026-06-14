@@ -90,6 +90,7 @@ class AutoUpdate(QObject, ObservableProperties):
             return
 
         self.state = UpdateState.checking
+        self._package = None
         log.info(f"Checking for latest plugin version at {self.api_url}")
         result = await self._net.get(
             f"{self.api_url}/plugin/latest?version={self.current_version}", timeout=10
@@ -121,21 +122,25 @@ class AutoUpdate(QObject, ObservableProperties):
         )
 
     async def _run(self):
-        assert self.latest_version and self._package
+        if self.state is not UpdateState.available or self._package is None:
+            raise RuntimeError("No plugin update package is available")
+        if self._package.version != self.latest_version:
+            raise RuntimeError("Plugin update package does not match latest version")
+        package = self._package
 
         self._temp_dir = TemporaryDirectory()
-        archive_path = Path(self._temp_dir.name) / f"krita_ai_diffusion-{self.latest_version}.zip"
-        log.info(f"Downloading plugin update {self._package.url}")
+        archive_path = Path(self._temp_dir.name) / f"krita_ai_diffusion-{package.version}.zip"
+        log.info(f"Downloading plugin update {package.url}")
         self.state = UpdateState.downloading
-        archive_data = await self._net.download(self._package.url)
+        archive_data = await self._net.download(package.url)
 
         sha256 = hashlib.sha256(archive_data).hexdigest()
-        if sha256 != self._package.sha256:
-            log.error(f"Update package hash mismatch: {sha256} != {self._package.sha256}")
+        if sha256 != package.sha256:
+            log.error(f"Update package hash mismatch: {sha256} != {package.sha256}")
             raise RuntimeError("Downloaded plugin package is corrupted or incomplete")
 
         archive_path.write_bytes(archive_data)
-        source_dir = Path(self._temp_dir.name) / f"krita_ai_diffusion-{self.latest_version}"
+        source_dir = Path(self._temp_dir.name) / f"krita_ai_diffusion-{package.version}"
         log.info(f"Extracting plugin archive into {source_dir}")
         self.state = UpdateState.installing
         with ZipFile(archive_path) as zip_file:
@@ -143,7 +148,7 @@ class AutoUpdate(QObject, ObservableProperties):
 
         log.info(f"Installing new plugin version to {self.plugin_dir}")
         package_plugin_dir = source_dir / "ai_diffusion"
-        if package_plugin_dir.exists():
+        if package_plugin_dir.is_dir():
             shutil.rmtree(self.plugin_dir / "ai_diffusion", ignore_errors=True)
             (self.plugin_dir / "ai_diffusion.desktop").unlink(missing_ok=True)
             shutil.copytree(package_plugin_dir, self.plugin_dir, dirs_exist_ok=True)
