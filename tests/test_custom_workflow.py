@@ -25,6 +25,7 @@ from ai_diffusion.backend.client import (
 from ai_diffusion.backend.comfy_workflow import ComfyNode, ComfyObjectInfo, ComfyWorkflow, Output
 from ai_diffusion.backend.resources import Arch
 from ai_diffusion.image import Bounds, Extent, Image, ImageCollection, Mask
+from ai_diffusion.layer import LayerManager
 from ai_diffusion.model.connection import Connection, ConnectionState
 from ai_diffusion.model.custom_workflow import (
     CustomParam,
@@ -36,7 +37,7 @@ from ai_diffusion.model.custom_workflow import (
     workflow_parameters,
 )
 from ai_diffusion.model.jobs import Job, JobKind, JobParams, JobQueue
-from ai_diffusion.style import Style
+from ai_diffusion.style import Style, Styles
 from ai_diffusion.util import PluginError
 
 from .config import test_dir
@@ -366,6 +367,43 @@ def test_parameters():
         CustomParam(ParamKind.mask_layer, "mask"),
         CustomParam(ParamKind.style, "style", "live"),
     ]
+
+
+def test_collect_parameters_preserves_style_architecture():
+    graph = {
+        "1": {
+            "class_type": "ETN_KritaStyle",
+            "inputs": {"name": "style", "sampler_preset": "auto"},
+        }
+    }
+    connection = create_mock_connection({"connection1": graph})
+    workflows = WorkflowCollection(connection)
+    workspace = CustomWorkspace(workflows, dummy_generate, JobQueue())
+
+    styles = Styles.list()
+    style = styles.create("anima-test.json")
+    try:
+        style.architecture = Arch.anima
+        style.checkpoints = ["checkpoint.safetensors"]
+        workspace.params["style"] = style.filename
+
+        models = ClientModels()
+        models.checkpoints = {
+            "checkpoint.safetensors": CheckpointInfo("checkpoint.safetensors", Arch.anima)
+        }
+
+        params = workspace.collect_parameters(
+            layers=LayerManager(None),
+            bounds=Bounds(0, 0, 1, 1),
+            models=models,
+            is_live=False,
+            is_animation=False,
+        )
+
+        assert isinstance(params["style"], CustomStyleInput)
+        assert params["style"].models.version is Arch.anima
+    finally:
+        styles.delete(style)
 
 
 def test_parameter_order():
