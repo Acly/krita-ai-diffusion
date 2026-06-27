@@ -41,8 +41,7 @@ class ControlWidget(QWidget):
         self.mode_select = QComboBox(self)
         self.mode_select.setStyleSheet(theme.flat_combo_stylesheet)
         for mode in (m for m in ControlMode if not m.is_internal):
-            icon_name = "region-prompt" if mode is ControlMode.regional else f"control-{mode.name}"
-            icon = theme.icon(icon_name)
+            icon = theme.icon(f"control-{mode.name}")
             self.mode_select.addItem(icon, mode.text, mode)
 
         self.layer_select = QComboBox(self)

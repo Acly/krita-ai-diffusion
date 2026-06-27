@@ -124,10 +124,10 @@ class ControlLayer(QObject, ObservableProperties):
             bounds = None  # ignore mask bounds, use layer bounds
 
         image = None
-        if self.mode is ControlMode.regional:
-            image = self._regional_control_image(bounds, time)
+        if self._is_anima_segmentation:
+            image = self._segmentation_control_image(bounds, time)
             if image is None:
-                image = self._regional_control_image_from_layer(layer, bounds, time)
+                image = self._segmentation_control_image_from_layer(layer, bounds, time)
         if image is None:
             image = layer.get_pixels(bounds, time)
 
@@ -145,7 +145,11 @@ class ControlLayer(QObject, ObservableProperties):
         strength = self.strength / self.strength_multiplier
         return ControlInput(self.mode, image, strength, (self.start, self.end))
 
-    def _regional_control_image_from_layer(
+    @property
+    def _is_anima_segmentation(self):
+        return self.mode is ControlMode.segmentation and self._model.arch is Arch.anima
+
+    def _segmentation_control_image_from_layer(
         self, layer: Layer, bounds: Bounds | None, time: int | None
     ):
         bounds = bounds or Bounds.from_extent(self._model.document.extent)
@@ -153,7 +157,7 @@ class ControlLayer(QObject, ObservableProperties):
         image.draw_image(layer.get_pixels(bounds, time))
         return image
 
-    def _regional_control_image(self, bounds: Bounds | None, time: int | None):
+    def _segmentation_control_image(self, bounds: Bounds | None, time: int | None):
         from .region import RegionLink
 
         bounds = bounds or Bounds.from_extent(self._model.document.extent)
@@ -175,6 +179,8 @@ class ControlLayer(QObject, ObservableProperties):
         return image if has_region_layer else None
 
     def generate(self):
+        if not self.can_generate:
+            return
         self._generate_job = self._model.generate_control_layer(self)
         self.has_active_job = True
 
@@ -195,10 +201,7 @@ class ControlLayer(QObject, ObservableProperties):
                     self.error_text = _("The server is missing the ClipVision model") + f" {search}"
                     is_supported = False
 
-            if self.mode is ControlMode.regional and models.arch is not Arch.anima:
-                self.error_text = _("Not supported for") + f" {models.arch.value}"
-                is_supported = False
-            elif self.mode.is_ip_adapter and models.arch.supports_edit:
+            if self.mode.is_ip_adapter and models.arch.supports_edit:
                 is_supported = True  # Reference images are merged into the conditioning context
             elif self.mode.is_ip_adapter and models.ip_adapter.find(self.mode) is None:
                 search_path = resources.search_path(ResourceKind.ip_adapter, models.arch, self.mode)
@@ -238,7 +241,7 @@ class ControlLayer(QObject, ObservableProperties):
                 is_supported = False
 
         self.is_supported = is_supported
-        self.can_generate = is_supported and self.mode.has_preprocessor
+        self.can_generate = is_supported and self.mode.has_preprocessor and not self._is_anima_segmentation
 
     def _update_is_pose_vector(self):
         self.is_pose_vector = self.mode is ControlMode.pose and self.layer.type is LayerType.vector
@@ -443,7 +446,6 @@ control_mode_text = {
     ControlMode.blur: _("Unblur"),
     ControlMode.stencil: _("Stencil"),
     ControlMode.hands: _("Hands"),
-    ControlMode.regional: _("Regional"),
 }
 
 

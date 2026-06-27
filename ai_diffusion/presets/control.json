@@ -200,8 +200,8 @@
             }
         ]
     },
-    "regional": {
-        "all": [
+    "segmentation": {
+        "anima": [
             {
                 "strength": 0.75,
                 "start": 0.0,
