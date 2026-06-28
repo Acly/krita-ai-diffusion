@@ -352,7 +352,7 @@ class PromptParamWidget(TextPromptWidget):
     def _handle_dragging(self, y_pos: int):
         fm = QFontMetrics(ensure(self.document()).defaultFont())
         new_line_count = round((y_pos - 5) / fm.lineSpacing())
-        if 1 <= new_line_count <= 10:
+        if 1 <= new_line_count <= theme.prompt_max_line_count:
             settings.prompt_line_count = new_line_count
             self.line_count = new_line_count
 

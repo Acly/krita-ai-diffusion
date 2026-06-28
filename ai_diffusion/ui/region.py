@@ -463,7 +463,7 @@ class ActiveRegionWidget(QFrame):
             new_height = y_pos - 5
         fm = QFontMetrics(ensure(self.positive.document()).defaultFont())
         new_line_count = round(new_height / fm.lineSpacing())
-        if 1 <= new_line_count <= 10:
+        if 1 <= new_line_count <= theme.prompt_max_line_count:
             if self.is_slim:
                 settings.prompt_line_count_live = new_line_count
             else:

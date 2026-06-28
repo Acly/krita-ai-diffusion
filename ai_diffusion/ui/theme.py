@@ -35,6 +35,8 @@ flat_combo_stylesheet = f"""
     QComboBox QAbstractItemView {{ selection-color: {highlight}; }}
 """
 
+prompt_max_line_count = 40
+
 copy_to_clipboard_string = _("Copy to clipboard")  # keeping translations for future use
 
 icon_path = Path(__file__).parent.parent / "icons"
