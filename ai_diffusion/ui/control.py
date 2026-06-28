@@ -73,6 +73,11 @@ class ControlWidget(QWidget):
         )
         self.generate_tool_button.clicked.connect(control.generate)
 
+        self.generate_regions_tool_button = _create_generate_regions_button(
+            self, Qt.ToolButtonStyle.ToolButtonIconOnly
+        )
+        self.generate_regions_tool_button.clicked.connect(control.generate_segmentation)
+
         self.add_pose_tool_button = _create_add_pose_button(
             self, Qt.ToolButtonStyle.ToolButtonIconOnly
         )
@@ -91,6 +96,7 @@ class ControlWidget(QWidget):
         bar_layout.addWidget(self.mode_select)
         bar_layout.addWidget(self.layer_select, 3)
         bar_layout.addWidget(self.generate_tool_button)
+        bar_layout.addWidget(self.generate_regions_tool_button)
         bar_layout.addWidget(self.add_pose_tool_button)
         bar_layout.addWidget(self.preset_slider, 1)
         bar_layout.addWidget(self.error_text, 3)
@@ -129,6 +135,11 @@ class ControlWidget(QWidget):
         )
         self.generate_button.clicked.connect(control.generate)
 
+        self.generate_regions_button = _create_generate_regions_button(
+            self.extended_widget, Qt.ToolButtonStyle.ToolButtonTextBesideIcon
+        )
+        self.generate_regions_button.clicked.connect(control.generate_segmentation)
+
         self.add_pose_button = _create_add_pose_button(
             self.extended_widget, Qt.ToolButtonStyle.ToolButtonTextBesideIcon
         )
@@ -141,6 +152,7 @@ class ControlWidget(QWidget):
         actions_layout = QHBoxLayout()
         actions_layout.addWidget(self.custom_checkbox, stretch=1)
         actions_layout.addWidget(self.generate_button)
+        actions_layout.addWidget(self.generate_regions_button)
         actions_layout.addWidget(self.add_pose_button)
         extended_layout.addLayout(actions_layout)
 
@@ -228,6 +240,7 @@ class ControlWidget(QWidget):
     def _update_visibility(self):
         is_small = self.width() < 420
         is_pose = self._control.mode is ControlMode.pose
+        is_segmentation = self._control.mode is ControlMode.segmentation
         is_edit = root.active_model.arch.supports_edit
 
         def controls():
@@ -236,6 +249,12 @@ class ControlWidget(QWidget):
             self.expand_button.setVisible(self._control.is_supported and not is_edit)
             self.generate_button.setVisible(self._control.can_generate and is_small)
             self.generate_tool_button.setVisible(self._control.can_generate and not is_small)
+            self.generate_regions_button.setVisible(
+                self._control.is_supported and is_segmentation and is_small
+            )
+            self.generate_regions_tool_button.setVisible(
+                self._control.is_supported and is_segmentation and not is_small
+            )
             self.add_pose_button.setVisible(is_pose and is_small)
             self.add_pose_tool_button.setVisible(is_pose and not is_small)
             self.range_label.setVisible(self._control.has_range)
@@ -272,6 +291,8 @@ class ControlWidget(QWidget):
     def _update_job_active(self):
         self.generate_button.setEnabled(not self._control.has_active_job)
         self.generate_tool_button.setEnabled(not self._control.has_active_job)
+        self.generate_regions_button.setEnabled(not self._control.has_active_job)
+        self.generate_regions_tool_button.setEnabled(not self._control.has_active_job)
         self.layer_select.setEnabled(not self._control.has_active_job)
 
     def _update_custom_values(self):
@@ -306,6 +327,15 @@ def _create_generate_button(parent, style: Qt.ToolButtonStyle):
     button.setText(_("From Image"))
     button.setIcon(theme.icon("control-generate"))
     button.setToolTip(_("Generate control layer from current image"))
+    return button
+
+
+def _create_generate_regions_button(parent, style: Qt.ToolButtonStyle):
+    button = QToolButton(parent)
+    button.setToolButtonStyle(style)
+    button.setText(_("From Regions"))
+    button.setIcon(theme.icon("region-prompt"))
+    button.setToolTip(_("Generate segmentation control layer from current regions"))
     return button
 
 
