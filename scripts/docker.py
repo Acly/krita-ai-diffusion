@@ -24,7 +24,10 @@ comfy_dir = docker_dir / "ComfyUI"
 def copy_scripts():
     repo_dir = docker_dir / "krita-ai-diffusion"
     for source_file, target_dir in [
-        (root_dir / "ai_diffusion" / "resources.py", repo_dir / "ai_diffusion"),
+        (
+            root_dir / "ai_diffusion" / "backend" / "resources.py",
+            repo_dir / "ai_diffusion" / "backend",
+        ),
         (root_dir / "ai_diffusion" / "platform_tools.py", repo_dir / "ai_diffusion"),
         (
             root_dir / "ai_diffusion" / "presets" / "models.json",
@@ -71,7 +74,12 @@ def upgrade_python_dependencies():
         "ComfyUI/custom_nodes/ComfyUI-GGUF/requirements.txt",
         "ComfyUI/custom_nodes/ComfyUI-Manager/requirements.txt",
         "ComfyUI/custom_nodes/ComfyUI-nunchaku/requirements.txt",
-        "--no-deps",
+        "--python-platform",
+        "x86_64-unknown-linux-gnu",
+        "--python-version",
+        "3.12",
+        "--index-strategy",
+        "unsafe-best-match",
         "--upgrade",
         "-o",
         "requirements.txt",
