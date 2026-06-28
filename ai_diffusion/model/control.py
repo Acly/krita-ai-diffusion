@@ -5,12 +5,13 @@ from pathlib import Path
 from typing import Any, NamedTuple
 
 from PyQt5.QtCore import QObject, Qt, QUuid, pyqtSignal
+from PyQt5.QtGui import QColor
 
 from .. import util
 from ..backend import resources
 from ..backend.api import ControlInput
 from ..backend.resources import Arch, ControlMode, ResourceKind, resource_id
-from ..image import Bounds, Extent, Image
+from ..image import BlendMode, Bounds, Extent, Image
 from ..layer import Layer, LayerType
 from ..localization import translate as _
 from ..util import PluginError
@@ -23,6 +24,20 @@ class ControlLayer(QObject, ObservableProperties):
     max_preset_value = 4
     strength_multiplier = 50
     clip_vision_extent = Extent(224, 224)
+    segmentation_colors = [
+        (120, 120, 120),
+        (180, 120, 120),
+        (120, 180, 120),
+        (120, 120, 180),
+        (180, 180, 120),
+        (180, 120, 180),
+        (120, 180, 180),
+        (220, 140, 100),
+        (140, 220, 100),
+        (100, 140, 220),
+        (220, 100, 140),
+        (100, 220, 140),
+    ]
 
     mode = Property(ControlMode.reference, persist=True, setter="set_mode")
     layer_id = Property(QUuid(), persist=True)
@@ -123,13 +138,7 @@ class ControlLayer(QObject, ObservableProperties):
         if self.mode.is_ip_adapter and not layer.bounds.is_zero:
             bounds = None  # ignore mask bounds, use layer bounds
 
-        image = None
-        if self._is_anima_segmentation:
-            image = self._segmentation_control_image(bounds, time)
-            if image is None:
-                image = self._segmentation_control_image_from_layer(layer, bounds, time)
-        if image is None:
-            image = layer.get_pixels(bounds, time)
+        image = layer.get_pixels(bounds, time)
 
         if self.mode.is_lines or self.mode is ControlMode.stencil:
             image.make_opaque(background=Qt.GlobalColor.white)
@@ -145,38 +154,59 @@ class ControlLayer(QObject, ObservableProperties):
         strength = self.strength / self.strength_multiplier
         return ControlInput(self.mode, image, strength, (self.start, self.end))
 
-    @property
-    def _is_anima_segmentation(self):
-        return self.mode is ControlMode.segmentation and self._model.arch is Arch.anima
+    def generate_segmentation(self):
+        if self.mode is not ControlMode.segmentation:
+            return
 
-    def _segmentation_control_image_from_layer(
-        self, layer: Layer, bounds: Bounds | None, time: int | None
-    ):
-        bounds = bounds or Bounds.from_extent(self._model.document.extent)
-        image = Image.create(bounds.extent, fill=Qt.GlobalColor.white)
-        image.draw_image(layer.get_pixels(bounds, time))
-        return image
+        ok, msg = self._model.document.check_color_mode()
+        if not ok and msg:
+            self._model.report_error(msg)
+            return
 
-    def _segmentation_control_image(self, bounds: Bounds | None, time: int | None):
+        try:
+            bounds = Bounds.from_extent(self._model.document.extent)
+            image = self._segmentation_image_from_regions(bounds)
+            if image is None:
+                self._model.report_error(_("Text prompt regions have not been set up."))
+                return
+
+            layer = self._model.layers.create(f"[Control] {self.mode.text}", image, bounds)
+            self.layer_id = layer.id
+        except Exception as e:
+            self._model.report_error(util.log_error(e))
+        else:
+            self._model.clear_error()
+
+    def _segmentation_image_from_regions(self, bounds: Bounds):
         from .region import RegionLink
 
-        bounds = bounds or Bounds.from_extent(self._model.document.extent)
         image = Image.create(bounds.extent, fill=Qt.GlobalColor.white)
         has_region_layer = False
-        root = self._model.regions
+        root = self._model.active_regions
 
-        for layer in root.layers.all:
-            if root.find_linked(layer, RegionLink.direct) is None:
-                continue
-            if layer.compute_bounds().area == 0:
-                continue
-            if Bounds.intersection(bounds, layer.bounds).area == 0:
-                continue
+        layers = [
+            layer
+            for layer in root.layers.all
+            if root.find_linked(layer, RegionLink.direct) is not None
+            and layer.compute_bounds().area > 0
+            and Bounds.intersection(bounds, layer.bounds).area > 0
+        ]
 
-            image.draw_image(layer.get_pixels(bounds, time))
+        for index, layer in enumerate(layers):
+            color = self.segmentation_colors[index % len(self.segmentation_colors)]
+            region_image = self._segmentation_region_image(layer, bounds, color)
+            image.draw_image(region_image, blend=BlendMode.alpha)
             has_region_layer = True
 
         return image if has_region_layer else None
+
+    def _segmentation_region_image(
+        self, layer: Layer, bounds: Bounds, color: tuple[int, int, int]
+    ):
+        mask = layer.get_mask(bounds)
+        image = Image.create(bounds.extent, fill=QColor(*color, 255))
+        image._qimage.setAlphaChannel(mask._qimage)
+        return image
 
     def generate(self):
         if not self.can_generate:
@@ -241,7 +271,7 @@ class ControlLayer(QObject, ObservableProperties):
                 is_supported = False
 
         self.is_supported = is_supported
-        self.can_generate = is_supported and self.mode.has_preprocessor and not self._is_anima_segmentation
+        self.can_generate = is_supported and self.mode.has_preprocessor
 
     def _update_is_pose_vector(self):
         self.is_pose_vector = self.mode is ControlMode.pose and self.layer.type is LayerType.vector
