@@ -158,8 +158,7 @@ class ControlLayer(QObject, ObservableProperties):
         return ControlInput(self.mode, image, strength, (self.start, self.end))
 
     def generate_segmentation(self):
-        if self.mode is not ControlMode.segmentation:
-            return
+        assert self.mode is ControlMode.segmentation
 
         ok, msg = self._model.document.check_color_mode()
         if not ok and msg:
@@ -191,8 +190,7 @@ class ControlLayer(QObject, ObservableProperties):
             layer
             for layer in root.layers.all
             if root.find_linked(layer, RegionLink.direct) is not None
-            and layer.compute_bounds().area > 0
-            and Bounds.intersection(bounds, layer.bounds).area > 0
+            and Bounds.intersection(bounds, layer.compute_bounds()).area > 0
         ]
 
         for index, layer in enumerate(layers):
