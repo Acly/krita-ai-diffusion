@@ -140,6 +140,9 @@ class ControlLayer(QObject, ObservableProperties):
 
         image = layer.get_pixels(bounds, time)
 
+        if self.mode is ControlMode.segmentation:
+            image.make_opaque(background=Qt.GlobalColor.white)
+
         if self.mode.is_lines or self.mode is ControlMode.stencil:
             image.make_opaque(background=Qt.GlobalColor.white)
 
