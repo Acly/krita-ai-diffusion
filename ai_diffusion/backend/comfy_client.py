@@ -756,7 +756,7 @@ def _find_text_encoder_models(model_list: Sequence[str]):
         "qwen_3_06b",
         "qwen_3_4b",
         "qwen_3_8b",
-        "qwen3vl_4b",
+        "qwen_3vl_4b",
         "ministral",
     ]
     return {

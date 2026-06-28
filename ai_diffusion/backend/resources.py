@@ -253,7 +253,7 @@ class Arch(Enum):
             case Arch.ernie:
                 return ["ministral"]
             case Arch.krea2:
-                return ["qwen3vl_4b"]
+                return ["qwen_3vl_4b"]
         raise ValueError(f"Unsupported architecture: {self}")
 
     @staticmethod
@@ -824,7 +824,7 @@ search_paths: dict[str, list[str]] = {
     resource_id(ResourceKind.text_encoder, Arch.all, "qwen_3_8b"): ["qwen_3_8b", "qwen3-8b", "qwen3_8b"],
     resource_id(ResourceKind.text_encoder, Arch.all, "qwen_3_06b"): ["qwen_3_06b", "qwen3-06b", "qwen3_06b"],
     resource_id(ResourceKind.text_encoder, Arch.all, "ministral"): ["ministral-3-3b", "ministral"],
-    resource_id(ResourceKind.text_encoder, Arch.all, "qwen3vl_4b"): ["qwen3vl_4b"],
+    resource_id(ResourceKind.text_encoder, Arch.all, "qwen_3vl_4b"): ["qwen3vl_4b", "qwen_3vl_4b", "qwen3-vl-4b"],
     resource_id(ResourceKind.vae, Arch.sd15, "default"): ["vae-ft-mse-840000-ema"],
     resource_id(ResourceKind.vae, Arch.sdxl, "default"): ["sdxl_vae"],
     resource_id(ResourceKind.vae, Arch.illu, "default"): ["sdxl_vae"],
@@ -878,7 +878,7 @@ required_resource_ids = {
     ResourceId(ResourceKind.vae, Arch.flux2_9b, "default"),
     ResourceId(ResourceKind.text_encoder, Arch.ernie, "ministral"),
     ResourceId(ResourceKind.vae, Arch.ernie, "default"),
-    ResourceId(ResourceKind.text_encoder, Arch.krea2, "qwen3vl_4b"),
+    ResourceId(ResourceKind.text_encoder, Arch.krea2, "qwen_3vl_4b"),
     ResourceId(ResourceKind.vae, Arch.krea2, "default"),
 }
 
