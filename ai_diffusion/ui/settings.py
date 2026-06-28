@@ -56,7 +56,7 @@ from .settings_widgets import (
     SwitchSetting,
 )
 from .style import StylePresets
-from .theme import add_header, green, grey, logo, red, yellow, prompt_max_line_count
+from .theme import add_header, green, grey, logo, prompt_max_line_count, red, yellow
 
 
 class InitialSetupWidget(QWidget):
