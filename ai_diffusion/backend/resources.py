@@ -10,10 +10,10 @@ from typing import Any, NamedTuple
 
 # Version identifier for all the resources defined here. This is used as the server version.
 # It usually follows the plugin version, but not all new plugin versions also require a server update.
-version = "1.51.0"
+version = "1.52.0"
 
 comfy_url = "https://github.com/comfyanonymous/ComfyUI"
-comfy_version = "025e6792ee64181ddce8a84411e0c7311e00b179"
+comfy_version = "a95e461916de9cbda2e89140ab86a8a7c3f9702a"
 
 
 class CustomNode(NamedTuple):
@@ -43,7 +43,7 @@ required_custom_nodes = [
         "External Tooling Nodes",
         "comfyui-tooling-nodes",
         "https://github.com/Acly/comfyui-tooling-nodes",
-        "a1e51904dec9a73b92865b512aa417f10938d608",
+        "5d3194f4d4158ab31df7a060e1e4c56fa03f320c",
         ["ETN_LoadImageCache", "ETN_SaveImageCache", "ETN_Translate"],
     ),
     CustomNode(
@@ -184,7 +184,7 @@ class Arch(Enum):
 
     @property
     def supports_regions(self):
-        return self in [Arch.sd15, Arch.sdxl, Arch.illu, Arch.illu_v]
+        return self in [Arch.sd15, Arch.sdxl, Arch.illu, Arch.illu_v, Arch.anima]
 
     @property
     def supports_lcm(self):
