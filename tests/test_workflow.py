@@ -416,19 +416,25 @@ def test_prepare_prompt_instructions():
     assert result.conditioning.positive == expected_prompt
 
 
-def test_prepare_prompt_inpaint():
+@pytest.mark.parametrize("arch", [Arch.sdxl, Arch.flux2_4b, Arch.flux2_9b])
+def test_prepare_prompt_inpaint(arch):
     files = FileLibrary(FileCollection(), FileCollection())
     style = Style(Path("default.json"))
     style.checkpoints = []
     cond = ConditioningInput("inpaint prompt")
+    mode = InpaintMode.remove_object if arch is Arch.flux2_4b else InpaintMode.expand
 
-    result = workflow.prepare_prompts(
-        cond, style, 1, Arch.flux2_4b, InpaintMode.remove_object, files=files
-    )
+    result = workflow.prepare_prompts(cond, style, 1, arch, mode, files=files)
     assert result.conditioning is not None
-    expected_prompt = "Remove the object.\n\ninpaint prompt"
+    match arch:
+        case Arch.flux2_4b:
+            expected_prompt = "Remove the object.\n\ninpaint prompt"
+        case Arch.flux2_9b:
+            expected_prompt = "Expand the image to fill the empty canvas.\n\ninpaint prompt"
+        case _:
+            expected_prompt = "inpaint prompt"
     assert result.conditioning.positive == expected_prompt
-    assert result.conditioning.edit_reference
+    assert result.conditioning.edit_reference == arch.supports_edit
 
 
 @pytest.mark.parametrize("extent", [Extent(256, 256), Extent(800, 800), Extent(512, 1024)])

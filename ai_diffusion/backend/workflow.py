@@ -1543,15 +1543,16 @@ def build_instructions(cond: ConditioningInput, arch: Arch, inpaint: InpaintMode
     instructions = ""
 
     if not cond.edit_reference and arch.supports_edit:
-        match inpaint:
-            case InpaintMode.fill | InpaintMode.expand:
-                if arch is Arch.flux2_4b:  # requires outpaint Lora for good results
-                    instructions += "Fill the green spaces according to the image.\n"
-            case InpaintMode.add_object:
+        match inpaint, arch:
+            case InpaintMode.fill | InpaintMode.expand, Arch.flux2_4b:
+                instructions += "Fill the green spaces according to the image.\n"
+            case InpaintMode.expand, Arch.flux2_9b:
+                instructions += "Expand the image to fill the empty canvas.\n"
+            case InpaintMode.add_object, _:
                 instructions += "Add the object to the scene.\n"
-            case InpaintMode.remove_object:
+            case InpaintMode.remove_object, _:
                 instructions += "Remove the object.\n"
-            case InpaintMode.replace_background:
+            case InpaintMode.replace_background, _:
                 instructions += "Replace the background while keeping the main subject.\n"
         if instructions != "":
             cond.edit_reference = True
