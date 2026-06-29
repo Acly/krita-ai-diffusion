@@ -512,7 +512,7 @@ class Server:
                 text = decode_pipe_bytes(line).strip()
                 last_line = text
                 server_log.info(text)
-                if text.startswith("To see the GUI go to:"):
+                if "To see the GUI go to" in text:
                     self.state = ServerState.running
                     self.url = text.split("http://")[-1]
                     break
