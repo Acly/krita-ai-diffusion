@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import json
 from pathlib import Path
-from typing import Any, NamedTuple
+from typing import Any, ClassVar, NamedTuple
 
 from PyQt5.QtCore import QObject, Qt, QUuid, pyqtSignal
 from PyQt5.QtGui import QColor
@@ -24,7 +24,7 @@ class ControlLayer(QObject, ObservableProperties):
     max_preset_value = 4
     strength_multiplier = 50
     clip_vision_extent = Extent(224, 224)
-    segmentation_colors = [
+    segmentation_colors: ClassVar[list[tuple[int, int, int]]] = [
         (120, 120, 120),
         (180, 120, 120),
         (120, 180, 120),
@@ -201,9 +201,7 @@ class ControlLayer(QObject, ObservableProperties):
 
         return image if has_region_layer else None
 
-    def _segmentation_region_image(
-        self, layer: Layer, bounds: Bounds, color: tuple[int, int, int]
-    ):
+    def _segmentation_region_image(self, layer: Layer, bounds: Bounds, color: tuple[int, int, int]):
         mask = layer.get_mask(bounds)
         image = Image.create(bounds.extent, fill=QColor(*color, 255))
         image._qimage.setAlphaChannel(mask._qimage)
