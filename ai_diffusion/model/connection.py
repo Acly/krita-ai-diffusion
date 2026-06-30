@@ -4,8 +4,8 @@ import asyncio
 from collections.abc import Iterable
 from enum import Enum
 
-from PyQt5.QtCore import QObject, QUrl, pyqtSignal
-from PyQt5.QtGui import QDesktopServices
+from PyQt6.QtCore import QObject, QUrl, pyqtSignal
+from PyQt6.QtGui import QDesktopServices
 
 from .. import eventloop, util
 from ..backend.client import (

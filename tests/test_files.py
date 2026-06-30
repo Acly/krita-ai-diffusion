@@ -1,7 +1,7 @@
 from pathlib import Path
 
-from PyQt5.QtCore import QModelIndex, Qt
-from PyQt5.QtGui import QIcon
+from PyQt6.QtCore import QModelIndex, Qt
+from PyQt6.QtGui import QIcon
 
 from ai_diffusion.files import File, FileCollection, FileFilter, FileSource
 

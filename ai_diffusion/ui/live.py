@@ -1,8 +1,8 @@
 from __future__ import annotations
 
-from PyQt5.QtCore import QMetaObject, QRectF, Qt, QTimer
-from PyQt5.QtGui import QColor, QFont, QPainter, QPen
-from PyQt5.QtWidgets import (
+from PyQt6.QtCore import QMetaObject, QRectF, Qt, QTimer
+from PyQt6.QtGui import QColor, QFont, QPainter, QPen
+from PyQt6.QtWidgets import (
     QDoubleSpinBox,
     QHBoxLayout,
     QLabel,
@@ -163,7 +163,7 @@ class LiveWidget(QWidget):
         controls_layout.addWidget(self.style_select)
         layout.addLayout(controls_layout)
 
-        self.strength_slider = StrengthWidget(parent=self)
+        self.strength_slider = StrengthWidget()
 
         self.seed_input = QDoubleSpinBox(self)
         self.seed_input.setDecimals(0)
@@ -190,13 +190,13 @@ class LiveWidget(QWidget):
         self.edit_toggle.clicked.connect(self.toggle_edit)
 
         params_layout = QHBoxLayout()
-        params_layout.addWidget(self.strength_slider)
-        params_layout.addWidget(self.seed_input)
-        params_layout.addWidget(self.random_seed_button)
+        params_layout.addWidget(self.strength_slider.widget(), 2)
         params_layout.addWidget(self.edit_toggle)
+        params_layout.addWidget(self.seed_input, 1)
+        params_layout.addWidget(self.random_seed_button)
         layout.addLayout(params_layout)
 
-        self.control_list = ControlListWidget(self)
+        self.control_list = ControlListWidget(self._model.active_regions.control, self)
         self.add_control_button = create_wide_tool_button(
             "control-add", _("Add Control Layer"), self
         )

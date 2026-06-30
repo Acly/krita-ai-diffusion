@@ -4,12 +4,14 @@ from collections.abc import Callable
 from itertools import chain
 from typing import Any, ClassVar, cast
 
-from krita import Krita
-from PyQt5.QtCore import QEvent, QMetaObject, QSize, Qt, QUrl, pyqtSignal
-from PyQt5.QtGui import (
+from krita import DoubleSliderSpinBox, Krita
+from PyQt6.QtCore import QEvent, QMetaObject, QSize, Qt, QUrl, pyqtSignal
+from PyQt6.QtGui import (
+    QAction,
     QCloseEvent,
     QColor,
     QDesktopServices,
+    QEnterEvent,
     QFontMetrics,
     QGuiApplication,
     QIcon,
@@ -24,8 +26,7 @@ from PyQt5.QtGui import (
     QTextCharFormat,
     QTextCursor,
 )
-from PyQt5.QtWidgets import (
-    QAction,
+from PyQt6.QtWidgets import (
     QCheckBox,
     QComboBox,
     QDoubleSpinBox,
@@ -85,12 +86,9 @@ from .theme import SignalBlocker
 
 
 class QueuePopup(QMenu):
-    _model: DocumentModel
-    _connections: list[QMetaObject.Connection]
-
     def __init__(self, supports_batch=True, parent: QWidget | None = None):
         super().__init__(parent)
-        self._connections = []
+        self._connections: list[QMetaObject.Connection | Binding] = []
 
         palette = self.palette()
         self.setObjectName("QueuePopup")
@@ -320,7 +318,7 @@ class QueueButton(QToolButton):
 
     def sizeHint(self) -> QSize:
         original = super().sizeHint()
-        width = original.height() * 0.75 + self.fontMetrics().width(" 99 ") + 20
+        width = original.height() * 0.75 + self.fontMetrics().horizontalAdvance(" 99 ") + 20
         return QSize(int(width), original.height())
 
     def paintEvent(self, a0):
@@ -669,7 +667,7 @@ class TextPromptWidget(QPlainTextEdit):
     def handle_weight_adjustment(self, event: QKeyEvent):
         """Handles Ctrl + (arrow key up / arrow key down) attention weight adjustment."""
         if event.key() in [Qt.Key.Key_Up, Qt.Key.Key_Down] and (
-            event.modifiers() & Qt.Modifier.CTRL
+            event.modifiers() & Qt.KeyboardModifier.ControlModifier
         ):
             cursor = self.textCursor()
             text = self.toPlainText()
@@ -688,108 +686,70 @@ class TextPromptWidget(QPlainTextEdit):
             start_c16 = str_index_to_char16_index(text, start)
             cursor = self.textCursor()
             cursor.setPosition(min(start_c16 + char16_len(text_after_edit), char16_len(text)))
-            cursor.setPosition(min(start_c16, char16_len(text)), QTextCursor.KeepAnchor)
+            cursor.setPosition(min(start_c16, char16_len(text)), QTextCursor.MoveMode.KeepAnchor)
             self.setTextCursor(cursor)
 
 
-class StrengthSnapping:
-    model: DocumentModel
-
-    def __init__(self, model: DocumentModel):
-        self.model = model
-
-    def get_steps(self) -> tuple[int, int]:
-        is_live = self.model.workspace is Workspace.live
-        if self.model.workspace is Workspace.animation:
-            is_live = self.model.animation.sampling_quality is SamplingQuality.fast
-        return self.model.active_style.get_steps(is_live=is_live)
-
-    def nearest_percent(self, value: int) -> int | None:
-        _, max_steps = self.get_steps()
-        steps, start_at_step = self.apply_strength(value)
-        return snap_to_percent(steps, start_at_step, max_steps=max_steps)
-
-    def apply_strength(self, value: int) -> tuple[int, int]:
-        min_steps, max_steps = self.get_steps()
-        strength = value / 100
-        return apply_strength(strength, steps=max_steps, min_steps=min_steps)
-
-
-# SpinBox variant that allows manually entering strength values,
-# but snaps to model_steps on step actions (scrolling, arrows, arrow keys).
-class StrengthSpinBox(QSpinBox):
-    snapping: StrengthSnapping | None
-
-    def __init__(self, parent=None):
-        super().__init__(parent)
-        self.snapping = None
-        # for manual input
-        self.setMinimum(1)
-        self.setMaximum(100)
-
-    def stepBy(self, steps):
-        value = max(self.minimum(), min(self.maximum(), self.value() + steps))
-        if self.snapping is not None:
-            # keep going until we hit a new snap point
-            current_point = self.nearest_snap_point(self.value())
-            while self.nearest_snap_point(value) == current_point and value > 1:
-                value += 1 if steps > 0 else -1
-            value = self.nearest_snap_point(value)
-        self.setValue(value)
-
-    def nearest_snap_point(self, value: int) -> int:
-        assert self.snapping
-        return self.snapping.nearest_percent(value) or (int(value / 5) * 5)
-
-
-class StrengthWidget(QWidget):
-    _model: DocumentModel | None = None
-    _value: int = 100
-
+class StrengthWidget(DoubleSliderSpinBox):
     value_changed = pyqtSignal(float)
 
-    def __init__(self, slider_range: tuple[int, int] = (1, 100), prefix=True, parent=None):
-        super().__init__(parent)
-        self._layout = QHBoxLayout()
-        self._layout.setContentsMargins(0, 0, 0, 0)
-        self.setLayout(self._layout)
+    def __init__(self, range: tuple[float, float] = (0.01, 1.0), prefix=True):
+        super().__init__()
+        self._model: DocumentModel | None = None
+        self._value = 100
+        self._range = (range[0] * 100, range[1] * 100)
 
-        self._slider = QSlider(Qt.Orientation.Horizontal, self)
-        self._slider.setMinimum(slider_range[0])
-        self._slider.setMaximum(slider_range[1])
-        self._slider.setValue(self._value)
-        self._slider.setSingleStep(5)
-        self._slider.valueChanged.connect(self.slider_changed)
+        self.setSoftMinimum(self._range[0])
+        self.setSoftMaximum(self._range[1])
+        self.setRange(min(self._range[0], 1), 100, 0)
+        super().setValue(self._value)
 
-        self._input = StrengthSpinBox(self)
-        self._input.setValue(self._value)
+        w = self.widget()  # the internal QDoubleSpinBox
+        w.setSingleStep(5)
         if prefix:
-            self._input.setPrefix(_("Strength") + ": ")
-        self._input.setSuffix("%")
-        self._input.setSpecialValueText(_("Off"))
-        self._input.valueChanged.connect(self.notify_changed)
+            w.setPrefix(_("Strength") + ": ")
+        w.setSuffix("%")
+        if range[0] == 0:
+            w.setSpecialValueText(_("Off"))
 
-        settings.changed.connect(self.update_suffix)
+        w.valueChanged.connect(self.notify_changed)
+        self.draggingFinished.connect(self._complete_drag)
+        settings.changed.connect(self._update_suffix)
 
-        self._layout.addWidget(self._slider)
-        self._layout.addWidget(self._input)
+    def notify_changed(self, value: float):
+        value = int(value)
+        if self.isDragging():
+            self._change_suffix(value)
+            return
 
-    def slider_changed(self, value: int):
-        if self._input.snapping is not None:
-            value = self._input.snapping.nearest_percent(value) or value
-        self.notify_changed(value)
-
-    def notify_changed(self, value: int):
+        step = 1 if value - self._value > 0 else -1
+        if not self.isDragging() and self._model is not None:
+            # keep going until we hit a new snap point
+            current_point = self._nearest_snap_point(self._value)
+            while self._nearest_snap_point(value) == current_point and value > 1:
+                value += step
+            value = self._nearest_snap_point(value)
         if self._update_value(value):
             self.value_changed.emit(self.value)
 
+    def _complete_drag(self):
+        value = int(self.widget().value())
+        if settings.show_steps:
+            value = self._nearest_snap_point(value)
+        if self._update_value(value):
+            self.value_changed.emit(self.value)
+
+    def _nearest_snap_point(self, value: int) -> int:
+        if self._model and (snap := _nearest_percent(self._model, value)):
+            return snap
+        return max(round(value / 5) * 5, int(self._range[0]))
+
     def _update_value(self, value: int):
-        with SignalBlocker(self._slider), SignalBlocker(self._input):
-            self._slider.setValue(value)
-            self._input.setValue(value)
         if value != self._value:
             self._value = value
-            self.update_suffix()
+            with SignalBlocker(self.widget()):
+                super().setValue(value)
+            self._update_suffix()
             return True
         return False
 
@@ -800,15 +760,14 @@ class StrengthWidget(QWidget):
     @model.setter
     def model(self, model: DocumentModel):
         if self._model:
-            self._model.style_changed.disconnect(self.update_suffix)
-            self._model.edit_mode_changed.disconnect(self.update_suffix)
-            self._model.animation.sampling_quality_changed.disconnect(self.update_suffix)
+            self._model.style_changed.disconnect(self._update_suffix)
+            self._model.edit_mode_changed.disconnect(self._update_suffix)
+            self._model.animation.sampling_quality_changed.disconnect(self._update_suffix)
         self._model = model
-        self._model.style_changed.connect(self.update_suffix)
-        self._model.edit_mode_changed.connect(self.update_suffix)
-        self._model.animation.sampling_quality_changed.connect(self.update_suffix)
-        self._input.snapping = StrengthSnapping(self._model)
-        self.update_suffix()
+        self._model.style_changed.connect(self._update_suffix)
+        self._model.edit_mode_changed.connect(self._update_suffix)
+        self._model.animation.sampling_quality_changed.connect(self._update_suffix)
+        self._update_suffix()
 
     @property
     def value(self):
@@ -816,17 +775,51 @@ class StrengthWidget(QWidget):
 
     @value.setter
     def value(self, value: float):
-        if value == self.value:
+        self.setValue(value)
+
+    def _change_suffix(self, value: int):
+        if not self._model or not settings.show_steps:
+            self.widget().setSuffix("%")
             return
+
+        steps, start_at_step = _apply_strength(self._model, value)
+        self.widget().setSuffix(f"% - {steps - start_at_step}/{steps} steps")
+
+    def _update_suffix(self):
+        self._change_suffix(self._value)
+
+    def setValue(self, value: float):
         self._update_value(round(value * 100))
 
-    def update_suffix(self):
-        if not self._input.snapping or not settings.show_steps:
-            self._input.setSuffix("%")
-            return
+    def setVisible(self, visible: bool):
+        self.widget().setVisible(visible)
 
-        steps, start_at_step = self._input.snapping.apply_strength(self._value)
-        self._input.setSuffix(f"% ({steps - start_at_step}/{steps})")
+    def setEnabled(self, enabled: bool):
+        self.widget().setEnabled(enabled)
+
+    def setToolTip(self, tooltip: str):
+        self.widget().setToolTip(tooltip)
+
+
+def _get_steps(model: DocumentModel) -> tuple[int, int]:
+    is_live = model.workspace is Workspace.live
+    if model.workspace is Workspace.animation:
+        is_live = model.animation.sampling_quality is SamplingQuality.fast
+    return model.active_style.get_steps(is_live=is_live)
+
+
+def _apply_strength(model: DocumentModel, strength_percent: int) -> tuple[int, int]:
+    if strength_percent <= 0:
+        return 0, 0
+    min_steps, max_steps = _get_steps(model)
+    strength = strength_percent / 100
+    return apply_strength(strength, steps=max_steps, min_steps=min_steps)
+
+
+def _nearest_percent(model: DocumentModel, strength_percent: int) -> int | None:
+    _, max_steps = _get_steps(model)
+    steps, start_at_step = _apply_strength(model, strength_percent)
+    return snap_to_percent(steps, start_at_step, max_steps=max_steps)
 
 
 class LayerCountWidget(QWidget):
@@ -903,7 +896,7 @@ class WorkspaceSelectWidget(QToolButton):
 
         self.setToolButtonStyle(Qt.ToolButtonStyle.ToolButtonIconOnly)
         self.setMenu(menu)
-        self.setPopupMode(QToolButton.InstantPopup)
+        self.setPopupMode(QToolButton.ToolButtonPopupMode.InstantPopup)
         self.setToolTip(
             _("Switch between workspaces: image generation, upscaling, live preview and animation.")
         )
@@ -962,9 +955,9 @@ class GenerateButton(QPushButton):
 
     def minimumSizeHint(self):
         fm = self.fontMetrics()
-        return QSize(fm.width(self._operation) + 40, 12 + int(1.3 * fm.height()))
+        return QSize(fm.horizontalAdvance(self._operation) + 40, 12 + int(1.3 * fm.height()))
 
-    def enterEvent(self, a0: QEvent | None):
+    def enterEvent(self, event: QEnterEvent | None):
         if (client := root.connection.client_if_connected) and client.user:
             self._cost = self.model.estimate_cost(self._kind)
 
@@ -986,7 +979,7 @@ class GenerateButton(QPushButton):
     def paintEvent(self, a0: QPaintEvent | None) -> None:
         opt = QStyleOption()
         opt.initFrom(self)
-        opt.state |= QStyle.StateFlag.State_Sunken if self.isDown() else 0
+        opt.state |= QStyle.StateFlag.State_Sunken if self.isDown() else QStyle.StateFlag(0)
         painter = QPainter(self)
         fm = self.fontMetrics()
         style = ensure(self.style())
@@ -998,9 +991,9 @@ class GenerateButton(QPushButton):
         rect = self.rect()
         pixmap = self.icon().pixmap(int(fm.height() * 1.3))
         pixmap_width = _get_width_dip(pixmap)
-        is_hover = int(opt.state) & QStyle.StateFlag.State_MouseOver
+        is_hover = opt.state & QStyle.StateFlag.State_MouseOver
         element = QStyle.PrimitiveElement.PE_PanelButtonCommand
-        content_width = fm.width(self._operation) + 5 + pixmap_width
+        content_width = fm.horizontalAdvance(self._operation) + 5 + pixmap_width
         content_rect = rect.adjusted(int(0.5 * (rect.width() - content_width)), 0, 0, 0)
         style.drawPrimitive(element, opt, painter, self)
         style.drawItemPixmap(painter, content_rect, align, pixmap)
@@ -1010,7 +1003,7 @@ class GenerateButton(QPushButton):
         cost_width = 0
         if is_hover and self._cost > 0:
             pixmap = self._cost_icon.pixmap(fm.height())
-            text_width = fm.width(str(self._cost))
+            text_width = fm.horizontalAdvance(str(self._cost))
             cost_width = text_width + 16 + pixmap_width
             cost_rect = rect.adjusted(rect.width() - cost_width, 0, 0, 0)
             painter.setOpacity(0.3)
@@ -1187,7 +1180,7 @@ def _paint_tool_drop_down(widget: QToolButton, text: str | None = None):
     rect = widget.rect()
     pixmap = widget.icon().pixmap(int(rect.height() * 0.75))
     element = QStyle.PrimitiveElement.PE_Widget
-    if int(opt.state) & QStyle.StateFlag.State_MouseOver:
+    if opt.state & QStyle.StateFlag.State_MouseOver:
         element = QStyle.PrimitiveElement.PE_PanelButtonCommand
     style.drawPrimitive(element, opt, painter, widget)
     style.drawItemPixmap(painter, rect.adjusted(4, 0, 0, 0), align, pixmap)

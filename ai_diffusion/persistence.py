@@ -7,9 +7,9 @@ from enum import Enum
 from time import time
 from typing import Any
 
-from PyQt5.QtCore import QByteArray, QObject
-from PyQt5.QtGui import QImageReader
-from PyQt5.QtWidgets import QMessageBox
+from PyQt6.QtCore import QByteArray, QObject
+from PyQt6.QtGui import QImageReader
+from PyQt6.QtWidgets import QMessageBox
 
 from . import eventloop
 from .backend.api import FillMode, InpaintMode

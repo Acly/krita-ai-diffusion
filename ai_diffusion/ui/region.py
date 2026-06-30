@@ -3,8 +3,8 @@ from __future__ import annotations
 from enum import Enum
 from functools import partial
 
-from PyQt5.QtCore import QEvent, QMetaObject, QObject, QPoint, QSize, Qt, pyqtSignal
-from PyQt5.QtGui import (
+from PyQt6.QtCore import QEvent, QMetaObject, QObject, QPoint, QSize, Qt, pyqtSignal
+from PyQt6.QtGui import (
     QFontMetrics,
     QGuiApplication,
     QIcon,
@@ -14,7 +14,7 @@ from PyQt5.QtGui import (
     QPixmap,
     QResizeEvent,
 )
-from PyQt5.QtWidgets import QFrame, QHBoxLayout, QLabel, QMenu, QToolButton, QVBoxLayout, QWidget
+from PyQt6.QtWidgets import QFrame, QHBoxLayout, QLabel, QMenu, QToolButton, QVBoxLayout, QWidget
 
 from ..backend.client import Client
 from ..document import LayerType
@@ -96,7 +96,7 @@ class ActiveRegionWidget(QFrame):
         super().__init__(parent)
         self._root = root
         self._region: RootRegion | Region | None = root
-        self._bindings: list[QMetaObject.Connection] = []
+        self._bindings: list[QMetaObject.Connection | Binding] = []
         self._header_style = header
         self._translation_enabled = True
         self._is_slim = False
@@ -340,7 +340,7 @@ class ActiveRegionWidget(QFrame):
                 action.triggered.connect(partial(link, region))
 
         pos = self._link_region_button.rect().bottomLeft()
-        menu.exec_(self._link_region_button.mapToGlobal(pos))
+        menu.exec(self._link_region_button.mapToGlobal(pos))
 
     @property
     def is_slim(self):
@@ -428,7 +428,7 @@ class ActiveRegionWidget(QFrame):
             pos = self.positive.geometry().bottomRight()
             if self.has_negative:
                 pos = self.negative.geometry().bottomRight()
-            s = QSize(self.fontMetrics().width("EN"), self.fontMetrics().height())
+            s = QSize(self.fontMetrics().horizontalAdvance("EN"), self.fontMetrics().height())
             self._language_button.move(pos.x() - s.width() - 2, pos.y() - s.height() - 2)
             self._language_button.resize(s)
 

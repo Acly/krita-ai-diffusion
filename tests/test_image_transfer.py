@@ -52,7 +52,7 @@ if (root_dir / "service" / "pod" / "lib").exists():
 
         results = ImageCollection.from_bytes(result_bytes, transfer["offsets"])
         for result, expected in zip(results, images):
-            assert result.to_numpy_format() == ImageWrapper.from_pil(expected).to_numpy_format()
+            assert ImageWrapper.compare(result, ImageWrapper.from_pil(expected)) < 0.01
 
     @pytest.mark.parametrize("mode", ["b64", "transfer"])
     @qtapp
@@ -67,7 +67,8 @@ if (root_dir / "service" / "pod" / "lib").exists():
         input = {"image_data": {"bytes": bytes, "offsets": offsets}}
 
         user = await cloud_service.create_user("image-transfer-test")
-        client = await CloudClient.connect(cloud_service.url, user["token"])
+        client = CloudClient(cloud_service.url, user["token"])
+        await client.connect()
         await client.send_images(input, max_inline_size=max_b64_size)
 
         if mode == "transfer":

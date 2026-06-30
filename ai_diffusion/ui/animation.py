@@ -1,7 +1,7 @@
 from __future__ import annotations
 
-from PyQt5.QtCore import QMetaObject, Qt
-from PyQt5.QtWidgets import (
+from PyQt6.QtCore import QMetaObject, Qt
+from PyQt6.QtWidgets import (
     QComboBox,
     QHBoxLayout,
     QLabel,
@@ -67,12 +67,12 @@ class AnimationWidget(QWidget):
         prompt_layout.addWidget(self.negative_textbox)
         layout.addLayout(prompt_layout)
 
-        self.strength_slider = StrengthWidget(parent=self)
+        self.strength_slider = StrengthWidget()
         self.add_control_button = create_wide_tool_button(
             "control-add", _("Add Control Layer"), self
         )
         strength_layout = QHBoxLayout()
-        strength_layout.addWidget(self.strength_slider)
+        strength_layout.addWidget(self.strength_slider.widget())
         strength_layout.addWidget(self.add_control_button)
         layout.addLayout(strength_layout)
 
@@ -110,12 +110,12 @@ class AnimationWidget(QWidget):
         self.target_layer = QComboBox(self)
         self.target_layer.setMinimumContentsLength(20)
         self.target_layer.setSizeAdjustPolicy(
-            QComboBox.SizeAdjustPolicy.AdjustToMinimumContentsLength
+            QComboBox.SizeAdjustPolicy.AdjustToMinimumContentsLengthWithIcon
         )
         layout.addWidget(self.target_layer)
 
         self.preview_area = QLabel(self)
-        self.preview_area.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Expanding)
+        self.preview_area.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Expanding)
         self.preview_area.setAlignment(
             Qt.AlignmentFlag(Qt.AlignmentFlag.AlignTop | Qt.AlignmentFlag.AlignLeft)
         )

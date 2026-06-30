@@ -3,8 +3,8 @@ from copy import copy
 from enum import Enum
 from typing import Any, Generic, NamedTuple, TypeVar
 
-from PyQt5.QtCore import QMetaObject, QObject, QUuid, pyqtBoundSignal
-from PyQt5.QtWidgets import QComboBox
+from PyQt6.QtCore import QMetaObject, QObject, QUuid, pyqtBoundSignal
+from PyQt6.QtWidgets import QComboBox
 
 T = TypeVar("T")
 

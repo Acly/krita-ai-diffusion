@@ -269,7 +269,7 @@ class ComfyWorkflow:
         return id
 
     def _add_image_hashed(self, image: Image):
-        data = image.to_bytes()
+        data = image.to_bytes().data()
         hash = zlib.crc32(data)
         id = f"{hash:08x}"
         self.image_data[id] = data

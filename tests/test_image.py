@@ -4,8 +4,8 @@ import zlib
 import numpy as np
 import pytest
 from PIL import Image as PILImage
-from PyQt5.QtCore import QByteArray, Qt
-from PyQt5.QtGui import QImage, qRgba
+from PyQt6.QtCore import QByteArray, Qt
+from PyQt6.QtGui import QImage, qRgba
 
 from ai_diffusion.image import Bounds, Extent, Image, ImageCollection, Mask
 
@@ -27,7 +27,7 @@ def test_extent_scale_pixel_count():
 
 
 def create_test_image(w, h):
-    img = QImage(w, h, QImage.Format_ARGB32)
+    img = QImage(w, h, QImage.Format.Format_ARGB32)
     for y in range(h):
         for x in range(w):
             img.setPixel(x, y, qRgba(x, y, 0, 255))
@@ -41,7 +41,7 @@ def test_image_rgba():
 
 
 def test_image_mask():
-    qimg = QImage(2, 5, QImage.Format_Grayscale8)
+    qimg = QImage(2, 5, QImage.Format.Format_Grayscale8)
     qimg.fill(123)
     img = Image(qimg)
     assert img.extent == Extent(2, 5)
@@ -57,7 +57,7 @@ def test_base64():
 
 
 def test_image_make_opaque():
-    img = Image(QImage(2, 2, QImage.Format_ARGB32))
+    img = Image(QImage(2, 2, QImage.Format.Format_ARGB32))
     img.set_pixel(0, 0, (0, 0, 0, 0))
     img.set_pixel(1, 0, (0, 0, 0, 155))
     img.set_pixel(0, 1, (42, 42, 42, 255))
@@ -116,8 +116,8 @@ def test_image_from_packed_bytes():
 def test_image_compress_speed():
     from timeit import default_timer
 
-    from PyQt5.QtCore import QBuffer, QByteArray, QFile, QIODevice
-    from PyQt5.QtGui import QImageWriter
+    from PyQt6.QtCore import QBuffer, QByteArray, QFile, QIODevice
+    from PyQt6.QtGui import QImageWriter
 
     img = Image.load("tests/images/beach_1536x1024.webp")
 
@@ -139,7 +139,7 @@ def test_image_compress_speed():
 
         file = QFile(f"beach_1536x1024_q{q}.webp")
         file.open(QIODevice.OpenModeFlag.WriteOnly)
-        file.write(byte_array)
+        file.write(byte_array.data())
         file.close()
 
     from io import BytesIO

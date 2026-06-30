@@ -3,7 +3,7 @@ from collections.abc import Callable
 from pathlib import Path
 
 from krita import DockWidgetFactory, DockWidgetFactoryBase, Extension, Krita, Window  # type: ignore
-from PyQt5.QtWidgets import QAction
+from PyQt6.QtGui import QAction
 
 from . import __version__, eventloop
 from .model.model import Workspace
@@ -88,5 +88,9 @@ class AIToolsExtension(Extension):
 
 Krita.instance().addExtension(AIToolsExtension(Krita.instance()))
 Krita.instance().addDockWidgetFactory(
-    DockWidgetFactory("imageDiffusion", DockWidgetFactoryBase.DockRight, ImageDiffusionWidget)  # type: ignore
+    DockWidgetFactory(
+        "imageDiffusion",
+        DockWidgetFactoryBase.DockPosition.DockRight,  # type: ignore
+        ImageDiffusionWidget,
+    )
 )

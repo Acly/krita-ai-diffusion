@@ -7,9 +7,9 @@ from enum import Enum
 from pathlib import Path
 
 from krita import Krita
-from PyQt5.QtCore import Qt, QUrl, pyqtSignal
-from PyQt5.QtGui import QDesktopServices
-from PyQt5.QtWidgets import (
+from PyQt6.QtCore import Qt, QUrl, pyqtSignal
+from PyQt6.QtGui import QDesktopServices
+from PyQt6.QtWidgets import (
     QCheckBox,
     QComboBox,
     QFileDialog,
@@ -136,6 +136,7 @@ class PackageGroupWidget(QWidget):
         )
         item.label.setContentsMargins(20, 0, 0, 0)
         if self.is_checkable:
+            assert isinstance(item.status, QCheckBox)
             item.status.setChecked(False)
             item.status.toggled.connect(self._handle_checkbox_toggle)
         self._layout.addWidget(item.label, self._layout.rowCount(), 0)
@@ -176,6 +177,7 @@ class PackageGroupWidget(QWidget):
                     else:
                         item.status.setText(_("Workload not selected"))
                     item.status.setStyleSheet(f"color:{grey}")
+                assert isinstance(item.status, QCheckBox)
                 with SignalBlocker(item.status):
                     item.status.setChecked(
                         item.state in [PackageState.selected, PackageState.installed]
@@ -266,6 +268,7 @@ class PackageGroupWidget(QWidget):
     def _handle_checkbox_toggle(self):
         for item in self._items:
             if item.state in [PackageState.available, PackageState.selected]:
+                assert isinstance(item.status, QCheckBox)
                 item.state = (
                     PackageState.selected if item.status.isChecked() else PackageState.available
                 )
@@ -881,7 +884,7 @@ class ServerWidget(QWidget):
 
         self._manage_button = QToolButton(self)
         self._manage_button.setText(_("Manage"))
-        self._manage_button.setPopupMode(QToolButton.InstantPopup)
+        self._manage_button.setPopupMode(QToolButton.ToolButtonPopupMode.InstantPopup)
         self._manage_button.setMinimumWidth(150)
 
         menu = QMenu(self)
@@ -926,7 +929,7 @@ class ServerWidget(QWidget):
             scroll = QScrollArea(tabs)
             scroll.setWidget(tab)
             scroll.setWidgetResizable(True)
-            scroll.setFrameStyle(QFrame.NoFrame)
+            scroll.setFrameStyle(QFrame.Shape.NoFrame)
             scroll.setHorizontalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAlwaysOff)
             tabs.addTab(scroll, tab.title)
 
@@ -954,7 +957,7 @@ class ServerWidget(QWidget):
             path = Path(Settings._server_path.default)
             path.mkdir(parents=True, exist_ok=True)
         path = QFileDialog.getExistingDirectory(
-            self, _("Select Directory"), str(path), QFileDialog.ShowDirsOnly
+            self, _("Select Directory"), str(path), QFileDialog.Option.ShowDirsOnly
         )
         if path:
             path = Path(path)
@@ -989,7 +992,7 @@ class ServerWidget(QWidget):
                 self,
                 _("No CUDA Devices Found"),
                 question,
-                QMessageBox.Yes | QMessageBox.No,
+                QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No,
                 QMessageBox.StandardButton.No,
             )
             return answer == QMessageBox.StandardButton.Yes
@@ -1138,16 +1141,16 @@ class ServerWidget(QWidget):
                 ])
 
                 msg_box = QMessageBox(
-                    QMessageBox.Warning,
+                    QMessageBox.Icon.Warning,
                     _("Verification Failed"),
                     _("The following files failed verification:")
                     + f"\n\n{failed_files}\n\n"
                     + _("Would you like to delete and re-download these files?"),
-                    QMessageBox.Yes | QMessageBox.No,
+                    QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No,
                     self,
                 )
 
-                if msg_box.exec_() == QMessageBox.Yes:
+                if msg_box.exec() == QMessageBox.StandardButton.Yes:
                     await self._server.fix_models(bad_models, self._handle_progress)
         except Exception as e:
             self.show_error(e)
@@ -1162,16 +1165,16 @@ class ServerWidget(QWidget):
 
     async def _reinstall(self):
         msg_box = QMessageBox(
-            QMessageBox.Question,
+            QMessageBox.Icon.Question,
             _("Confirm Reinstallation"),
             _(
                 "This will reinstall the server components while keeping your downloaded models. Continue?"
             ),
-            QMessageBox.Yes | QMessageBox.No,
+            QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No,
             self,
         )
 
-        if msg_box.exec_() != QMessageBox.Yes:
+        if msg_box.exec() != QMessageBox.StandardButton.Yes:
             return
 
         await self._prepare_for_install()
@@ -1191,19 +1194,19 @@ class ServerWidget(QWidget):
 
     async def _uninstall(self):
         msg_box = QMessageBox(
-            QMessageBox.Warning,
+            QMessageBox.Icon.Warning,
             _("Confirm Deletion"),
             _("WARNING: This will delete the entire server installation INCLUDING ALL MODELS!")
             + "\n\n"
             + _("This action cannot be undone.")
             + "\n\n"
             + _("Are you absolutely sure you want to continue?"),
-            QMessageBox.Cancel,
+            QMessageBox.StandardButton.Cancel,
             self,
         )
-        msg_box.addButton(_("Delete"), QMessageBox.DestructiveRole)
-        msg_box.setDefaultButton(QMessageBox.Cancel)
-        if msg_box.exec_() != 0:  # Destructive role returns 0
+        msg_box.addButton(_("Delete"), QMessageBox.ButtonRole.DestructiveRole)
+        msg_box.setDefaultButton(QMessageBox.StandardButton.Cancel)
+        if msg_box.exec() != 0:  # Destructive role returns 0
             return
 
         await self._prepare_for_install()
