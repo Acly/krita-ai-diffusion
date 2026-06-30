@@ -744,6 +744,7 @@ search_paths: dict[str, list[str]] = {
     resource_id(ResourceKind.controlnet, Arch.illu, ControlMode.universal): ["union-sdxl", "xinsirunion"],
     resource_id(ResourceKind.controlnet, Arch.illu_v, ControlMode.universal): ["union-sdxl", "xinsirunion"],
     resource_id(ResourceKind.controlnet, Arch.anima, ControlMode.universal): ["anima*lllite*any"],
+    resource_id(ResourceKind.controlnet, Arch.anima, ControlMode.segmentation): ["anima-lllite-region-cn", "anima*lllite*region"],
     resource_id(ResourceKind.controlnet, Arch.flux, ControlMode.universal): ["flux.1-dev-controlnet-union-pro-2.0", "flux.1-dev-controlnet-union-pro", "flux.1-dev-controlnet-union", "flux1devcontrolnetunion"],
     resource_id(ResourceKind.controlnet, Arch.qwen, ControlMode.universal): ["qwen-image-instantx-controlnet-union"],
     resource_id(ResourceKind.controlnet, Arch.sd15, ControlMode.scribble): ["control_v11p_sd15_scribble", "control_lora_rank128_v11p_sd15_scribble"],

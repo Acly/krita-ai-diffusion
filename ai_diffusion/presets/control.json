@@ -199,5 +199,41 @@
                 "end": 1.0
             }
         ]
+    },
+    "segmentation": {
+        "all": [
+            {
+                "strength": 0.7,
+                "start": 0.0,
+                "end": 0.5
+            },
+            {
+                "strength": 1.0,
+                "start": 0.0,
+                "end": 0.8
+            },
+            {
+                "strength": 1.0,
+                "start": 0.0,
+                "end": 1.0
+            }
+        ],
+        "anima": [
+            {
+                "strength": 0.75,
+                "start": 0.0,
+                "end": 0.45
+            },
+            {
+                "strength": 1.0,
+                "start": 0.0,
+                "end": 0.45
+            },
+            {
+                "strength": 1.5,
+                "start": 0.0,
+                "end": 0.45
+            }
+        ]
     }
 }
