@@ -210,8 +210,6 @@ class ControlLayer(QObject, ObservableProperties):
         return image
 
     def generate(self):
-        if not self.can_generate:
-            return
         self._generate_job = self._model.generate_control_layer(self)
         self.has_active_job = True
 
