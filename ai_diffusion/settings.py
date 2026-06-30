@@ -122,6 +122,11 @@ class ImageFileFormat(Enum):
             return ImageFileFormat.jpeg
         return self
 
+class NewSeedMode(Enum):
+    disabled = (_("Disabled"), 0)
+    random = (_("Random"), 1)
+    iterate = (_("Iterate"), 2)
+
 
 class PerformancePresetSettings(NamedTuple):
     batch_size: int = 4
@@ -256,10 +261,10 @@ class Settings(QObject):
         _("NSFW Filter"), 0.0, _("Attempt to filter out images with explicit content")
     )
 
-    new_seed_after_apply: bool
+    new_seed_after_apply: NewSeedMode
     _new_seed_after_apply = Setting(
         _("Live: New Seed after Apply"),
-        False,
+        undefined,
         _("Pick a new seed after copying the result to the canvas in Live mode"),
     )
 

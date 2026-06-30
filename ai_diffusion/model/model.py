@@ -928,6 +928,9 @@ class DocumentModel(QObject, ObservableProperties):
     def generate_seed(self):
         self.seed = workflow.generate_seed()
 
+    def iterate_seed(self):
+        self.seed = workflow.iterate_seed(self.seed)
+
     def save_result(self, job_id: str, index: int):
         _save_job_result(self, self.jobs.find(job_id), index)
 
@@ -1322,8 +1325,11 @@ class LiveWorkspace(QObject, ObservableProperties):
             region_behavior = ApplyRegionBehavior.layer_group
         self.model.apply_result(self.result, params, behavior, region_behavior)
 
-        if settings.new_seed_after_apply:
+        if settings.new_seed_after_apply == random:
             self.model.generate_seed()
+
+        if settings.new_seed_after_apply == iterate:
+            self.model.iterate_seed()
 
     @property
     def result(self):
