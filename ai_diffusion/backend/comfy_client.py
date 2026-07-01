@@ -269,14 +269,17 @@ class ComfyClient(Client):
         async for __ in self.discover_models(refresh=True):
             pass
 
+    async def _head(self, op: str, timeout: float | None = 60):
+        return await self._requests.head(f"{self.url}/{op}", timeout=timeout)
+
     async def _get(self, op: str, timeout: float | None = 60):
         return await self._requests.get(f"{self.url}/{op}", timeout=timeout)
 
     async def _post(self, op: str, data: dict):
         return await self._requests.post(f"{self.url}/{op}", data)
 
-    async def _put(self, op: str, data: bytes):
-        return await self._requests.put(f"{self.url}/{op}", data)
+    async def _put(self, op: str, data: bytes, expect_continue: bool = False):
+        return await self._requests.put(f"{self.url}/{op}", data, expect_continue=expect_continue)
 
     async def enqueue(self, work: WorkflowInput, front: bool = False):
         job = JobInfo.create(work)
@@ -548,7 +551,7 @@ class ComfyClient(Client):
     async def upload_images(self, image_data: dict[str, bytes]):
         for id, data in image_data.items():
             try:
-                await self._put(f"api/etn/image/{id}", data)
+                await self._put(f"api/etn/image/{id}", data, expect_continue=True)
             except Exception as e:
                 log.error(f"Error uploading image {id}: {e!s}")
                 raise RuntimeError(f"Error uploading input image to ComfyUI: {e!s}") from e

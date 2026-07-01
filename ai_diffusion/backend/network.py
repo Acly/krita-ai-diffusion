@@ -9,7 +9,14 @@ from pathlib import Path
 from typing import NamedTuple
 
 from PyQt5.QtCore import QBuffer, QByteArray, QFile, QUrl
-from PyQt5.QtNetwork import QNetworkAccessManager, QNetworkReply, QNetworkRequest, QSslError
+from PyQt5.QtNetwork import (
+    QNetworkAccessManager,
+    QNetworkReply,
+    QNetworkRequest,
+    QSslError,
+    QSslSocket,
+    QTcpSocket,
+)
 
 from ..localization import translate as _
 from ..util import client_logger as log
@@ -77,6 +84,313 @@ class Request(NamedTuple):
 
 Headers = list[tuple[str, str]]
 
+class _SocketPutRequest:
+    def __init__(
+        self,
+        manager: "RequestManager",
+        url: str,
+        data: QByteArray,
+        timeout: float | None,
+        bearer: str | None,
+        expect_continue: bool,
+    ):
+        self._manager = manager
+        self._loop = asyncio.get_running_loop()
+        self._url = QUrl(url)
+        self._is_https = self._url.scheme().lower() == "https"
+        self._data = bytes(data)
+        self._timeout = timeout
+        self._bearer = bearer
+        self._expect_continue = expect_continue
+        self._future = self._loop.create_future()
+
+        self._socket = QSslSocket() if self._is_https else QTcpSocket()
+        self._buffer = bytearray()
+        self._headers_sent = False
+        self._waiting_for_continue = False
+        self._final_status: int | None = None
+        self._final_headers: dict[str, str] = {}
+        self._final_body = bytearray()
+        self._final_content_length: int | None = None
+        self._upload_started = False
+        self._upload_offset = 0
+
+        self._connect_signals()
+        self._connect_socket()
+
+    @property
+    def future(self) -> asyncio.Future:
+        return self._future
+
+    def _connect_signals(self):
+        if self._is_https and isinstance(self._socket, QSslSocket):
+            self._socket.encrypted.connect(self._on_connected)
+            self._socket.sslErrors.connect(self._on_ssl_errors)
+        else:
+            self._socket.connected.connect(self._on_connected)
+        self._socket.readyRead.connect(self._on_ready_read)
+        self._socket.bytesWritten.connect(self._on_bytes_written)
+        self._socket.errorOccurred.connect(self._on_socket_error)
+        self._socket.disconnected.connect(self._on_disconnected)
+
+    def _connect_socket(self):
+        host = self._url.host()
+        default_port = 443 if self._is_https else 80
+        port = self._url.port(default_port)
+        if self._is_https and isinstance(self._socket, QSslSocket):
+            log.debug(f"Connecting securely to {host}:{port} for PUT request")
+            self._socket.connectToHostEncrypted(host, port)
+        else:
+            log.debug(f"Connecting to {host}:{port} for PUT request")
+            self._socket.connectToHost(host, port)
+
+    def _on_connected(self):
+        log.debug(f"Connected to {self._url.host()} for PUT request")
+        if self._future.done():
+            return
+        
+        log.debug(f"Sending HTTP PUT request to {self._url.toString()}")
+        path = self._url.path() or "/"
+        if self._url.hasQuery():
+            path += f"?{self._url.query()}"
+
+        host = self._url.host()
+        default_port = 443 if self._is_https else 80
+        port = self._url.port(default_port)
+        host_header = f"{host}:{port}" if port != default_port else host
+
+        headers: list[tuple[str, str]] = [
+            ("Host", host_header),
+            ("User-Agent", "krita-ai-diffusion"),
+            ("Accept", "*/*"),
+            ("Content-Type", "application/octet-stream"),
+            ("Content-Length", str(len(self._data))),
+        ]
+        if self._expect_continue:
+            log.debug("Adding Expect: 100-continue header for PUT request")
+            headers.append(("Expect", "100-continue"))
+
+        headers.extend(self._manager.socket_headers(self._bearer))
+
+        request = [f"PUT {path} HTTP/1.1"]
+        request.extend([f"{k}: {v}" for k, v in headers])
+        request_bytes = "\r\n".join(request).encode("utf-8") + b"\r\n\r\n"
+
+        self._socket.write(request_bytes)
+        self._headers_sent = True
+        self._waiting_for_continue = self._expect_continue
+
+        if self._expect_continue:
+            # Some servers ignore Expect: 100-continue and expect the payload immediately.
+            # Wait long enough for a round-trip even on slow internet/cloud connections.
+            self._loop.call_later(2.0, self._ensure_upload_started)
+        else:
+            self._start_upload()
+        if self._timeout is not None:
+            self._loop.call_later(self._timeout, self._on_timeout)
+
+    def _on_timeout(self):
+        if self._future.done():
+            return
+        self._socket.abort()
+        self._fail(
+            NetworkError(
+                int(QNetworkReply.NetworkError.TimeoutError),
+                "Connection timed out, the server took too long to respond",
+                self._url.toString(),
+            )
+        )
+
+    def _ensure_upload_started(self):
+        if self._future.done() or self._upload_started or self._final_status is not None:
+            return
+        self._start_upload()
+
+    def _start_upload(self):
+        if self._future.done() or self._upload_started or self._final_status is not None:
+            return
+        self._upload_started = True
+        self._waiting_for_continue = False
+        self._pump_upload()
+
+    def _on_bytes_written(self, _count: int):
+        if self._future.done() or not self._upload_started:
+            return
+        self._pump_upload()
+
+    def _pump_upload(self):
+        if self._future.done() or self._final_status is not None:
+            return
+
+        # Keep outgoing buffer bounded so incoming data can be processed quickly.
+        max_inflight = 256 * 1024
+        chunk_size = 64 * 1024
+
+        log.debug(f"Upload pump for {self._url.toString()}: offset {self._upload_offset}/{len(self._data)} bytes, bytesToWrite={self._socket.bytesToWrite()}")
+        while self._socket.bytesToWrite() < max_inflight and self._upload_offset < len(self._data):
+            end = min(self._upload_offset + chunk_size, len(self._data))
+            chunk = self._data[self._upload_offset : end]
+            log.debug(f"Uploading chunk of size {len(chunk)} bytes at offset {self._upload_offset}/{len(self._data)} bytes.")
+            self._upload_offset = end
+            self._socket.write(chunk)
+            log.debug(f"Chunk upload complete, offset {self._upload_offset}/{len(self._data)} bytes, bytesToWrite={self._socket.bytesToWrite()}")
+        log.debug(f"Upload pump for {self._url.toString()} complete, offset {self._upload_offset}/{len(self._data)} bytes, bytesToWrite={self._socket.bytesToWrite()}")
+
+    def _on_ready_read(self):
+        if self._future.done():
+            return
+
+        self._buffer.extend(bytes(self._socket.readAll()))
+        try:
+            self._process_http_stream()
+        except Exception as e:
+            self._fail(e)
+
+    def _process_http_stream(self):
+        log.debug(f"Processing HTTP stream from {self._url.toString()}, buffer size {len(self._buffer)} bytes")
+        while True:
+            if self._final_status is None:
+                parsed = self._try_parse_response_headers()
+                if parsed is None:
+                    return
+                
+                status, headers = parsed
+                log.debug(f"Received HTTP response with status {status} from {self._url.toString()}")   
+                if status == 100:
+                    log.debug(f"Received 100 Continue from {self._url.toString()}")
+                    self._waiting_for_continue = False
+                    self._start_upload()
+                    continue
+
+                self._final_status = status
+                self._final_headers = headers
+                content_length = headers.get("content-length")
+                if content_length is not None:
+                    try:
+                        self._final_content_length = int(content_length)
+                    except ValueError:
+                        self._final_content_length = None
+
+            if self._final_content_length is None:
+                log.debug(f"No Content-Length for response from {self._url.toString()}, buffering until disconnect")
+                # Body length unknown; wait for disconnect to complete.
+                self._final_body.extend(self._buffer)
+                self._buffer.clear()
+                return
+
+            if len(self._buffer) < self._final_content_length:
+                return
+
+            self._final_body.extend(self._buffer[: self._final_content_length])
+            del self._buffer[: self._final_content_length]
+            self._complete_from_final_response()
+            return
+
+    def _try_parse_response_headers(self) -> tuple[int, dict[str, str]] | None:
+        marker = self._buffer.find(b"\r\n\r\n")
+        if marker < 0:
+            return None
+
+        raw_header = bytes(self._buffer[:marker])
+        del self._buffer[: marker + 4]
+        lines = raw_header.decode("latin-1", errors="replace").split("\r\n")
+        if not lines or not lines[0].startswith("HTTP/"):
+            raise RuntimeError(f"Invalid HTTP response from {self._url.toString()}")
+
+        status_parts = lines[0].split(" ", 2)
+        try:
+            status = int(status_parts[1])
+        except Exception as e:
+            raise RuntimeError(f"Invalid HTTP status from {self._url.toString()}") from e
+
+        headers: dict[str, str] = {}
+        for line in lines[1:]:
+            if not line or ":" not in line:
+                continue
+            key, value = line.split(":", 1)
+            headers[key.strip().lower()] = value.strip()
+        return status, headers
+
+    def _on_disconnected(self):
+        if self._future.done():
+            return
+
+        if self._final_status is not None:
+            self._final_body.extend(self._buffer)
+            self._buffer.clear()
+            self._complete_from_final_response()
+            return
+
+        self._fail(
+            NetworkError(
+                int(QNetworkReply.NetworkError.RemoteHostClosedError),
+                "Connection closed before response was received",
+                self._url.toString(),
+            )
+        )
+
+    def _on_socket_error(self, _error: QTcpSocket.SocketError):
+        if self._future.done():
+            return
+
+        # If final HTTP response was already seen, a disconnect error is expected.
+        if self._final_status is not None:
+            return
+
+        self._fail(
+            NetworkError(
+                int(QNetworkReply.NetworkError.NetworkSessionFailedError),
+                self._socket.errorString(),
+                self._url.toString(),
+            )
+        )
+
+    def _on_ssl_errors(self, errors: list[QSslError]):
+        if self._future.done():
+            return
+        error_text = "; ".join(error.errorString() for error in errors) or "SSL handshake failed"
+        self._fail(
+            NetworkError(
+                int(QNetworkReply.NetworkError.SslHandshakeFailedError),
+                error_text,
+                self._url.toString(),
+            )
+        )
+
+    def _complete_from_final_response(self):
+        if self._future.done() or self._final_status is None:
+            log.warning(f"Attempted to complete request for {self._url.toString()} but final status is not set")
+            return
+
+        status = self._final_status
+        data = bytes(self._final_body)
+        log.debug(f"Final response from {self._url.toString()}: status {status}, body size {len(data)} bytes")
+        if 200 <= status < 300:
+            content_type = self._final_headers.get("content-type", "")
+            if "application/json" in content_type:
+                self._future.set_result(json.loads(data or b"{}"))
+                log.debug(f"Parsed JSON response from {self._url.toString()}: {self._future.result()}")
+            else:
+                self._future.set_result(data)
+            self._socket.abort()
+            self._manager.release_socket_put(self)
+            return
+
+        msg = data.decode("utf-8", errors="replace") if data else f"HTTP {status}"
+        self._fail(
+            NetworkError(
+                int(QNetworkReply.NetworkError.UnknownServerError),
+                msg,
+                self._url.toString(),
+                status,
+            )
+        )
+
+    def _fail(self, error: Exception):
+        if not self._future.done():
+            self._future.set_exception(error)
+        self._socket.abort()
+        self._manager.release_socket_put(self)
 
 class RequestManager:
     def __init__(self):
@@ -85,6 +399,7 @@ class RequestManager:
         self._net.sslErrors.connect(self._handle_ssl_errors)
         self._requests: dict[QNetworkReply, Request] = {}
         self._upload_future: Future[tuple[int, int]] | None = None
+        self._socket_puts: set[_SocketPutRequest] = set()
         self._additional_headers: list[tuple[bytes, bytes]] = []
         self._bearer_token: str | None = None
 
@@ -106,6 +421,18 @@ class RequestManager:
             request.setTransferTimeout(int(timeout * 1000))
         return request
 
+    def socket_headers(self, bearer: str | None = None):
+        headers: list[tuple[str, str]] = []
+        bearer_token = bearer or self._bearer_token
+        if bearer_token:
+            headers.append(("Authorization", f"Bearer {bearer_token}"))
+        for key, value in self._additional_headers:
+            headers.append((key.decode("utf-8"), value.decode("utf-8")))
+        return headers
+
+    def release_socket_put(self, request: _SocketPutRequest):
+        self._socket_puts.discard(request)
+
     def http(
         self,
         method,
@@ -118,7 +445,7 @@ class RequestManager:
 
         request = self._prepare_request(url, timeout, bearer)
 
-        assert method in ["GET", "POST", "PUT"]
+        assert method in ["GET", "POST", "PUT", "HEAD"]
         if method == "POST":
             data = data or {}
             data_bytes = QByteArray(json.dumps(data).encode("utf-8"))
@@ -134,6 +461,8 @@ class RequestManager:
             )
             request.setHeader(QNetworkRequest.KnownHeaders.ContentLengthHeader, data.size())
             reply = self._net.put(request, data)
+        elif method == "HEAD":
+            reply = self._net.head(request)
         else:
             reply = self._net.get(request)
 
@@ -148,8 +477,48 @@ class RequestManager:
     def post(self, url: str, data: dict, bearer: str | None = None):
         return self.http("POST", url, data, bearer=bearer)
 
-    def put(self, url: str, data: QByteArray | bytes):
-        return self.http("PUT", url, data)
+    def put(
+        self,
+        url: str,
+        data: QByteArray | bytes,
+        timeout: float | None = None,
+        use_socket: bool = False,
+        expect_continue: bool = False,
+        bearer: str | None = None,
+    ):
+        # When Expect: 100-continue is requested, prefer socket transport so early
+        # final responses can be handled before full payload upload.
+        if use_socket or expect_continue:
+            return self.put_socket(
+                url,
+                data,
+                timeout=timeout,
+                bearer=bearer,
+                expect_continue=expect_continue,
+            )
+        if not isinstance(data, QByteArray):
+            data = QByteArray(bytes(data))
+        return self.http("PUT", url, data, timeout=timeout, bearer=bearer)
+
+    def put_socket(
+        self,
+        url: str,
+        data: QByteArray | bytes,
+        timeout: float | None = None,
+        bearer: str | None = None,
+        expect_continue: bool = True,
+    ):
+        self._cleanup()
+        if not isinstance(data, QByteArray):
+            data = QByteArray(bytes(data))
+        assert isinstance(data, QByteArray)
+
+        request = _SocketPutRequest(self, url, data, timeout, bearer, expect_continue)
+        self._socket_puts.add(request)
+        return request.future
+
+    def head(self, url: str, timeout: float | None = None, bearer: str | None = None):
+        return self.http("HEAD", url, timeout=timeout, bearer=bearer)
 
     async def upload(self, url: str, data: QByteArray | bytes, sha256: str | None = None):
         self._cleanup()
