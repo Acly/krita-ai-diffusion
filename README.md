@@ -17,7 +17,7 @@ The main goals of this project are:
   with image editing workflows in Krita. Draw, paint, edit and generate seamlessly without worrying about resolution and technical details.
 * **Local, Open, Free.** We are committed to open source models. Customize presets, bring your
   own models, and run everything local on your hardware. Cloud generation is also available
-  to get started quickly without heavy investment.  
+  to get started quickly without heavy investment.
 
 [![Watch video demo](media/screenshot-video-preview.webp)](https://youtu.be/Ly6USRwTHe0 "Watch video demo")
 
