@@ -114,7 +114,7 @@ cymem==2.0.13
     #   spacy
     #   thinc
     # from https://pypi.org/simple
-diffusers==0.37.1
+diffusers==0.38.0
     # via -r ai_diffusion/backend/requirements/base.in
     # from https://pypi.org/simple
 einops==0.8.2

@@ -6,7 +6,7 @@ aiohttp==3.13.5
 albumentations==2.0.8
 argostranslate==1.11.0
 av==17.0.1
-diffusers==0.37.0
+diffusers==0.38.0
 einops==0.8.2
 filelock==3.29.0
 ftfy==6.3.1
