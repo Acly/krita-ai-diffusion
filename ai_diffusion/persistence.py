@@ -13,7 +13,7 @@ from PyQt5.QtWidgets import QMessageBox
 
 from . import eventloop
 from .backend.api import FillMode, InpaintMode
-from .image import ImageCollection
+from .image import Image, ImageCollection
 from .localization import translate as _
 from .model.control import ControlLayer, ControlLayerList
 from .model.custom_workflow import CustomWorkspace
@@ -345,20 +345,33 @@ def _find_annotation(document, name: str):
     return None
 
 
+def _read_image_text(filename: str) -> dict[str, str]:
+    """Text chunks of an image, keyed by keyword ('parameters', 'prompt', ...).
+
+    PNGs are parsed directly: QImageReader collapses newlines in text chunks, which would
+    flatten a multi-line prompt into a single paragraph. Other formats fall back to Qt.
+    """
+    if filename.lower().endswith(".png"):
+        if text := Image.read_png_text(filename):
+            return text
+    reader = QImageReader(filename)
+    return {key: reader.text(key) for key in reader.textKeys()}
+
+
 def import_prompt_from_file(model: DocumentModel):
     exts = (".png", ".jpg", ".jpeg", ".webp")
     filename = model.document.filename
     if model.regions.positive == "" and model.regions.negative == "" and filename.endswith(exts):
         try:
-            reader = QImageReader(filename)
+            image_text = _read_image_text(filename)
             # A1111
-            if text := reader.text("parameters"):
+            if text := image_text.get("parameters"):
                 if "Negative prompt:" in text:
                     positive, negative = text.split("Negative prompt:", 1)
                     model.regions.positive = positive.strip()
                     model.regions.negative = negative.split("Steps:", 1)[0].strip()
             # ComfyUI
-            elif text := reader.text("prompt"):
+            elif text := image_text.get("prompt"):
                 prompt: dict[str, dict] = json.loads(text)
                 for node in prompt.values():
                     if node["class_type"] in _comfy_sampler_types:
