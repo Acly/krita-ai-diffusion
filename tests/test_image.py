@@ -406,3 +406,14 @@ def test_save_png_with_metadata(tmp_path):
     data = file_path.read_bytes()
     assert data.startswith(b"\x89PNG\r\n\x1a\n")
     assert b"my test metadata in the png" in data
+
+
+def test_read_png_text_preserves_newlines(tmp_path):
+    # Newlines in PNG text chunks must survive: QImageReader.text() collapses them, so the
+    # plugin parses the chunks directly instead.
+    img = Image.create(Extent(2, 2), Qt.GlobalColor.red)
+    file_path = tmp_path / "test_newlines.png"
+    text = "line one\nline two\nline three"
+    img.save_png_with_metadata(file_path, text)
+
+    assert Image.read_png_text(file_path)["parameters"] == text
