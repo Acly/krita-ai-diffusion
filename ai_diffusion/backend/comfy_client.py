@@ -168,9 +168,9 @@ class ComfyClient(Client):
         # Retrieve system info
         self.device_info = DeviceInfo.parse(await self._get("system_stats"))
 
-        # Try to establish websockets connection
+        # Try to establish websockets connection which support token in server_authorization from settings.json
         wsurl = websocket_url(self.url)
-        wsargs = websocket_args(self._token)
+        wsargs = websocket_args(settings.server_authorization or self._token)
         try:
             async with websockets.connect(f"{wsurl}/ws?clientId={self._id}", **wsargs):
                 pass
