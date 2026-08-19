@@ -55,10 +55,11 @@ from ..settings import (
     ApplyRegionBehavior,
     GenerationFinishedAction,
     ImageFileFormat,
+    ServerMode,
     settings,
 )
 from ..style import Arch, Style, Styles
-from ..text import create_img_metadata, extract_layers
+from ..text import create_ai_generated_xmp, create_img_metadata, extract_layers
 from ..util import PluginError, clamp, ensure, trim_text, unique
 from ..util import client_logger as log
 from .connection import Connection, ConnectionState
@@ -335,6 +336,7 @@ class DocumentModel(QObject, ObservableProperties):
     ):
         sampling = ensure(input.sampling)
         params.has_mask = input.images is not None and input.images.hires_mask is not None
+        params.workflow_kind = input.kind
         queue_mode = queue_mode or self.queue_mode
 
         if queue_mode is QueueMode.replace:
@@ -1659,3 +1661,7 @@ def _save_job_result(model: DocumentModel, job: Job | None, index: int):
             quality = settings.save_image_quality_jpeg
 
         base_image.save(path, settings.save_image_format, quality)
+
+    if settings.server_mode is ServerMode.cloud:
+        xmp = create_ai_generated_xmp(job.params.workflow_kind)
+        base_image.write_xmp_metadata(path, xmp)

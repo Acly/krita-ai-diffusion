@@ -5,7 +5,7 @@ import re
 from pathlib import Path
 from typing import NamedTuple
 
-from .backend.api import ConditioningInput, LoraInput, RegionInput
+from .backend.api import ConditioningInput, LoraInput, RegionInput, WorkflowKind
 from .files import FileCollection, FileSource
 from .localization import translate as _
 from .model.jobs import JobParams
@@ -304,6 +304,24 @@ def edit_attention(text: str, positive: bool) -> str:
         if weight == 1.0 and open_bracket == "("
         else f"{open_bracket}{attention_string}:{weight:.1f}{close_bracket}"
     )
+
+
+digital_source_type = "http://cv.iptc.org/newscodes/digitalsourcetype/"
+
+
+def create_ai_generated_xmp(workflow_kind: WorkflowKind):
+    source_type = "trainedAlgorithmicMedia"
+    if workflow_kind is not WorkflowKind.generate:
+        source_type = "compositeWithTrainedAlgorithmicMedia"
+    return f'''<?xpacket begin="\ufeff" id="W5M0MpCehiHzreSzNTczkc9d"?>
+<x:xmpmeta xmlns:x="adobe:ns:meta/">
+ <rdf:RDF xmlns:rdf="http://www.w3.org/1999/02/22-rdf-syntax-ns#">
+  <rdf:Description rdf:about=""
+   xmlns:Iptc4xmpExt="http://iptc.org/std/Iptc4xmpExt/2008-02-29/"
+   Iptc4xmpExt:DigitalSourceType="{digital_source_type}{source_type}"/>
+ </rdf:RDF>
+</x:xmpmeta>
+<?xpacket end="w"?>'''
 
 
 # creates the img text metadata for embedding in PNG files in style like Automatic1111
