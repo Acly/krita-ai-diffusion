@@ -51,12 +51,10 @@ You can submit your changes by opening a [pull request](https://github.com/Acly/
 
 ### Plugin development
 
-The easiest way to run a development version of the plugin is to use symlinks:
+The easiest way to run a development version of the plugin is to create symlinks to the git repository where Krita expects to find Python plugins:
 1. `git clone` the repository into a location of your choice
 1. `git submodule update --init`
-1. in the pykrita folder where Krita expects plugins:
-   * create a symlink to the `ai_diffusion` folder
-   * create a symlink to `ai_diffusion.desktop`
+1. `./install.py`
 
 ### Code formatting
 
