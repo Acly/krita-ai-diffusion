@@ -397,9 +397,16 @@ class CustomPackageTab(QWidget):
                 is_expanded=False,
                 parent=self,
             ),
+            "krea2": PackageGroupWidget(
+                _("Krea 2 models"),
+                [m for m in optional_models if m.arch is Arch.krea2],
+                is_checkable=True,
+                is_expanded=False,
+                parent=self,
+            ),
         }
 
-        for group in ["upscalers", "sd15", "sdxl", "illu", "flux", "flux2", "zimage"]:
+        for group in ["upscalers", "sd15", "sdxl", "illu", "flux", "flux2", "zimage", "krea2"]:
             self._packages[group].changed.connect(self._change_models)
             layout.addWidget(self._packages[group])
 
@@ -596,7 +603,7 @@ class ModelCheckBox:
 
 class WorkloadsTab(QWidget):
     title = _("Workloads")
-    workloads = (Arch.sdxl, Arch.illu, Arch.flux2_4b, Arch.zimage, Arch.flux, Arch.sd15)
+    workloads = (Arch.sdxl, Arch.illu, Arch.flux2_4b, Arch.zimage, Arch.krea2, Arch.flux, Arch.sd15)
     workload_models = resources.required_models + resources.recommended_models
 
     selected_models_changed = pyqtSignal()
@@ -668,9 +675,19 @@ class WorkloadsTab(QWidget):
         flux2_layout.addWidget(flux2_desc)
         self._models += [
             ModelCheckBox(
-                "Flux.2 [klein] 4B - " + _("Compact generation and edit model"),
+                "Flux 2 Klein 4B - " + _("Lightweight diffusion model from Black Forest Labs"),
                 Arch.flux2_4b,
-                ("checkpoint-fp8-flux2_4b", "checkpoint-q6_k-flux2_4b"),
+                (
+                    "checkpoint-4b_fp8-flux2_4b",
+                    "checkpoint-4b_bf16-flux2_4b",
+                    "checkpoint-4b_nvfp4-flux2_4b",
+                ),
+                flux2_layout,
+            ),
+            ModelCheckBox(
+                "Outpaint LoRA - " + _("for Canvas Expand and Object Removal (Inpainting)"),
+                Arch.flux2_4b,
+                "lora-inpaint-flux2_4b",
                 flux2_layout,
             ),
         ]
@@ -684,11 +701,11 @@ class WorkloadsTab(QWidget):
         zimage_header = QLabel("<b>Z-Image</b>", self._pkg_zimage)
         zimage_layout.addWidget(zimage_header)
         zimage_props = ModelPropsWidget(
-            size=12, vram=12, speed=0, fidelity=2, understanding=1, parent=self
+            size=14, vram=8, speed=1, fidelity=1, understanding=1, parent=self
         )
         zimage_layout.addWidget(zimage_props)
         desc = _(
-            "Powerful and efficient model for stronger hardware. Good understanding of natural language (Chinese and English). The Turbo variant is fast and heavily tuned for realistic results."
+            "Fast generation and strong control via ControlNet (Universal & Tile). Good photorealism and typography, but less flexible composition."
         )
         zimage_desc = QLabel(desc, self._pkg_zimage)
         zimage_desc.setWordWrap(True)
@@ -699,6 +716,39 @@ class WorkloadsTab(QWidget):
                 Arch.zimage,
                 "checkpoint-turbo_fp8-zimage",
                 zimage_layout,
+            ),
+        ]
+
+        self.add_separator(layout)
+
+        self._pkg_krea2 = QWidget(self)
+        layout.addWidget(self._pkg_krea2)
+
+        krea2_layout = QVBoxLayout(self._pkg_krea2)
+        krea2_header = QLabel("<b>Krea 2</b>", self._pkg_krea2)
+        krea2_layout.addWidget(krea2_header)
+        krea2_props = ModelPropsWidget(
+            size=13, vram=10, speed=1, fidelity=2, understanding=1, parent=self
+        )
+        krea2_layout.addWidget(krea2_props)
+        desc = _(
+            "High aesthetic quality model from Krea AI with instruction-based editing, identity preservation, and remix capabilities."
+        )
+        krea2_desc = QLabel(desc, self._pkg_krea2)
+        krea2_desc.setWordWrap(True)
+        krea2_layout.addWidget(krea2_desc)
+        self._models += [
+            ModelCheckBox(
+                "Krea 2 Turbo - " + _("Fast generation model"),
+                Arch.krea2,
+                "checkpoint-turbo_fp8-krea2",
+                krea2_layout,
+            ),
+            ModelCheckBox(
+                "Krea 2 Identity Edit - " + _("Instruction-based identity and remix editing"),
+                Arch.krea2,
+                "lora-identity_edit-krea2",
+                krea2_layout,
             ),
         ]
 

@@ -1,13 +1,18 @@
 {
-    "name": "Krea 2 Turbo",
-    "version": 2,
+    "name": "Krea 2 Identity Edit",
+    "version": 1,
     "architecture": "krea2",
     "checkpoints": [
         "krea2_turbo_fp8_scaled.safetensors",
         "krea2_turbo_bf16.safetensors",
         "krea2_turbo_nvfp4.safetensors"
     ],
-    "loras": [],
+    "loras": [
+        {
+            "name": "krea2_identity_edit_v1_2.safetensors",
+            "strength": 1.0
+        }
+    ],
     "style_prompt": "",
     "negative_prompt": "",
     "vae": "Checkpoint Default",
@@ -16,7 +21,7 @@
     "rescale_cfg": 0.7,
     "self_attention_guidance": false,
     "preferred_resolution": 0,
-    "linked_edit_style": "Krea 2 Identity Edit",
+    "linked_edit_style": "",
     "sampler": "Flux - Euler simple",
     "sampler_steps": 8,
     "cfg_scale": 1.0,

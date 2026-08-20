@@ -574,10 +574,8 @@
     "The border is expanded and blurred by a fraction of selection size": "選択範囲のサイズに応じて、その境界線を指定した割合で拡張し、ぼかします",
     "Edit canvas with text instructions": "テキスト指示でキャンバスを編集",
     "Flux 2 models": "Flux 2モデル",
-    "Compact generation and edit model": "コンパクトな生成と編集のモデル",
     "Versatile model with sharp details. Can generate and edit images with instructions. Sometimes struggles with image continuity.": "シャープなディテールを備えた多用途モデル。指示に従って画像の生成と編集が可能です。画像の連続性に問題が生じる場合があります。",
     "Z-Image models": "Z-Imageモデル",
-    "Powerful and efficient model for stronger hardware. Good understanding of natural language (Chinese and English). The Turbo variant is fast and heavily tuned for realistic results.": "強力なハードウェア向けに設計された高性能かつ効率的なモデル。自然言語（中国語と英語）を良好に理解します。Turbo版はとくに高速で、リアルな結果を得るために高度に調整されています。",
     "Workflow contains multiple 'Krita Style & Prompt' nodes, but only one is allowed.": "ワークフローには複数の'Krita Style & Prompt'ノードが含まれていますが、許容されるのは一つのみです。",
     "Color Match": "色合わせ",
     "Collect Diagnostics": "診断情報を収集",
@@ -593,6 +591,16 @@
     "Workflow Parameters": "ワークフローパラメータ",
     "Detected workloads for the following base models:": "以下の基本モデルで検出されたワークロード:",
     "Reset all parameters to their default values": "すべてのパラメータをデフォルト値にリセットします",
-    "Use ROCm (AMD GPU)": null
+    "Use ROCm (AMD GPU)": null,
+    "Instruction-based identity and remix editing": null,
+    "for Canvas Expand and Object Removal (Inpainting)": null,
+    "High aesthetic quality model from Krea AI with instruction-based editing, identity preservation, and remix capabilities.": null,
+    "Krea 2 models": null,
+    "Fast generation and strong control via ControlNet (Universal & Tile). Good photorealism and typography, but less flexible composition.": null,
+    "Text prompt regions have not been set up.": null,
+    "Generate segmentation control layer from current regions": null,
+    "Lightweight diffusion model from Black Forest Labs": null,
+    "From Regions": null,
+    "Fast generation model": null
   }
 }

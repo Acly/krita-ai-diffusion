@@ -614,7 +614,11 @@ class ComfyWorkflow:
 
     def empty_latent_image(self, extent: Extent, arch: Arch, batch_size=1):
         w, h = extent.width, extent.height
-        if arch.is_flux_like or arch.is_qwen_like or arch in (Arch.sd3, Arch.chroma, Arch.zimage):
+        if (
+            arch.is_flux_like
+            or arch.is_qwen_like
+            or arch in (Arch.sd3, Arch.chroma, Arch.zimage, Arch.krea2)
+        ):
             return self.add("EmptySD3LatentImage", 1, width=w, height=h, batch_size=batch_size)
         if arch.is_flux2 or arch is Arch.ernie:
             return self.add("EmptyFlux2LatentImage", 1, width=w, height=h, batch_size=batch_size)
@@ -723,6 +727,56 @@ class ComfyWorkflow:
             image3=image3,
             prompt=prompt,
         )
+
+    def krea2_edit_grounded_encode(
+        self,
+        clip: Output,
+        prompt: str | Output,
+        image: Output | None = None,
+        image_b: Output | None = None,
+        grounding_px: int = 768,
+    ):
+        args = {"clip": clip, "prompt": prompt, "grounding_px": grounding_px}
+        if image is not None:
+            args["image"] = image
+        if image_b is not None:
+            args["image_b"] = image_b
+        return self.add("Krea2EditGroundedEncode", 1, **args)
+
+    def krea2_edit_model_patch(
+        self,
+        model: Output,
+        source_latent: Output,
+        source_latent_b: Output | None = None,
+        vae: Output | None = None,
+        source_image: Output | None = None,
+        source_image_b: Output | None = None,
+        target_latent: Output | None = None,
+        fit_mode: str = "fit",
+        ref_boost: float = 1.0,
+        ref_boost_a: float = 1.0,
+        ref_boost_mask: Output | None = None,
+    ):
+        args = {
+            "model": model,
+            "source_latent": source_latent,
+            "fit_mode": fit_mode,
+            "ref_boost": ref_boost,
+            "ref_boost_a": ref_boost_a,
+        }
+        if source_latent_b is not None:
+            args["source_latent_b"] = source_latent_b
+        if vae is not None:
+            args["vae"] = vae
+        if source_image is not None:
+            args["source_image"] = source_image
+        if source_image_b is not None:
+            args["source_image_b"] = source_image_b
+        if target_latent is not None:
+            args["target_latent"] = target_latent
+        if ref_boost_mask is not None:
+            args["ref_boost_mask"] = ref_boost_mask
+        return self.add("Krea2EditModelPatch", 1, **args)
 
     def background_region(self, conditioning: Output):
         return self.add("ETN_BackgroundRegion", 1, conditioning=conditioning)
