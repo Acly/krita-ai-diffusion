@@ -58,6 +58,13 @@ required_custom_nodes = [
             "INPAINT_ColorMatch",
         ],
     ),
+    CustomNode(
+        "Krea 2 Edit",
+        "comfyui-krea2edit",
+        "https://github.com/lbouaraba/comfyui-krea2edit",
+        "86f886dac23013d88996e3a2e99093ba44d322fb",
+        ["Krea2EditModelPatch", "Krea2EditGroundedEncode"],
+    ),
 ]
 
 optional_custom_nodes = [
@@ -141,9 +148,9 @@ class Arch(Enum):
             return Arch.anima
         if string in {"z-image", "zimage"}:
             return Arch.zimage
-        if string in {"ernie-image", "ernie_image"}:
-            return Arch.ernie
-        if string == "krea2":
+        if string in {"krea2", "krea-2", "krea_2", "krea"} or (
+            string == "unknown" and "krea2" in filename
+        ):
             return Arch.krea2
         return None
 
@@ -208,7 +215,7 @@ class Arch(Enum):
 
     @property
     def supports_edit(self):  # includes text-to-image models that can also edit
-        return self.is_edit or self.is_flux2
+        return self.is_edit or self.is_flux2 or self is Arch.krea2
 
     @property
     def is_sdxl_like(self):
@@ -808,6 +815,8 @@ search_paths: dict[str, list[str]] = {
     resource_id(ResourceKind.lora, Arch.flux, ControlMode.depth): ["flux1-depth"],
     resource_id(ResourceKind.lora, Arch.flux, ControlMode.canny_edge): ["flux1-canny"],
     resource_id(ResourceKind.lora, Arch.flux2_4b, ControlMode.inpaint): ["flux-2-klein-4B-outpaint-lora", "4b-outpaint-lora", "LyNiaZ53Tudg0J6sT8Xbx"],
+    resource_id(ResourceKind.lora, Arch.krea2, "identity_edit"): ["krea2_identity_edit_v1_2", "krea2_identity_edit_v1_1", "krea2_identity_edit", "krea2edit"],
+    resource_id(ResourceKind.lora, Arch.krea2, "remix"): ["krea2_identity_edit_v1_2", "krea2_identity_edit_v1_1", "krea2_identity_edit", "krea2_remix", "krea2edit"],
     resource_id(ResourceKind.model_patch, Arch.zimage, ControlMode.universal): ["z-image-turbo-fun-controlnet-union-2.1", "z-image-turbo-fun-controlnet-union"],
     resource_id(ResourceKind.model_patch, Arch.zimage, ControlMode.blur): ["z-image-turbo-fun-controlnet-tile-2.1", "z-image-turbo-fun-controlnet-tile"],
     resource_id(ResourceKind.upscaler, Arch.all, UpscalerName.default): [UpscalerName.default.value],
@@ -825,7 +834,7 @@ search_paths: dict[str, list[str]] = {
     resource_id(ResourceKind.text_encoder, Arch.all, "qwen_3_8b"): ["qwen_3_8b", "qwen3-8b", "qwen3_8b"],
     resource_id(ResourceKind.text_encoder, Arch.all, "qwen_3_06b"): ["qwen_3_06b", "qwen3-06b", "qwen3_06b"],
     resource_id(ResourceKind.text_encoder, Arch.all, "ministral"): ["ministral-3-3b", "ministral"],
-    resource_id(ResourceKind.text_encoder, Arch.all, "qwen_3vl_4b"): ["qwen3vl_4b", "qwen_3vl_4b", "qwen3-vl-4b"],
+    resource_id(ResourceKind.text_encoder, Arch.all, "qwen_3vl_4b"): ["qwen3vl_4b", "qwen_3vl_4b", "qwen3-vl-4b", "qwen3vl"],
     resource_id(ResourceKind.vae, Arch.sd15, "default"): ["vae-ft-mse-840000-ema"],
     resource_id(ResourceKind.vae, Arch.sdxl, "default"): ["sdxl_vae"],
     resource_id(ResourceKind.vae, Arch.illu, "default"): ["sdxl_vae"],
@@ -843,7 +852,7 @@ search_paths: dict[str, list[str]] = {
     resource_id(ResourceKind.vae, Arch.anima, "default"): ["qwen_image"],
     resource_id(ResourceKind.vae, Arch.zimage, "default"): ["z-image", "flux-", "flux_", "flux/", "flux1", "ae.s"],
     resource_id(ResourceKind.vae, Arch.ernie, "default"): ["flux2"],
-    resource_id(ResourceKind.vae, Arch.krea2, "default"): ["qwen_image"],
+    resource_id(ResourceKind.vae, Arch.krea2, "default"): ["qwen_image_vae", "qwen_image", "qwen"],
 }
 # fmt: on
 
@@ -902,6 +911,7 @@ recommended_resource_ids = [
     ResourceId(ResourceKind.controlnet, Arch.flux, ControlMode.inpaint),
     ResourceId(ResourceKind.controlnet, Arch.flux, ControlMode.universal),
     ResourceId(ResourceKind.lora, Arch.flux, "turbo"),
+    ResourceId(ResourceKind.lora, Arch.krea2, "identity_edit"),
     ResourceId(ResourceKind.model_patch, Arch.zimage, ControlMode.universal),
     ResourceId(ResourceKind.model_patch, Arch.zimage, ControlMode.blur),
 ]

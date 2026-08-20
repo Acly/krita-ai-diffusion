@@ -574,10 +574,8 @@
     "The border is expanded and blurred by a fraction of selection size": "Граница расширяется и размывается на часть размера выделения",
     "Edit canvas with text instructions": "Редактировать холст с помощью текстовых инструкций",
     "Flux 2 models": "Модели Flux 2",
-    "Compact generation and edit model": "Компактная модель для генерации и редактирования",
     "Versatile model with sharp details. Can generate and edit images with instructions. Sometimes struggles with image continuity.": "Универсальная модель с чёткими деталями. Может генерировать и редактировать изображения по инструкциям. Иногда возникают сложности с непрерывностью изображения.",
     "Z-Image models": "Модели Z-Image",
-    "Powerful and efficient model for stronger hardware. Good understanding of natural language (Chinese and English). The Turbo variant is fast and heavily tuned for realistic results.": "Мощная и эффективная модель для более производительного оборудования. Хорошо понимает естественный язык (китайский и английский). Вариант Turbo быстрый и сильно оптимизирован для реалистичных результатов.",
     "Workflow contains multiple 'Krita Style & Prompt' nodes, but only one is allowed.": "Рабочий процесс содержит несколько узлов 'Krita Style & Prompt', но разрешён только один.",
     "Color Match": "Соответствие цветов",
     "Collect Diagnostics": "Собрать диагностические данные",
@@ -593,6 +591,16 @@
     "Workflow Parameters": "Параметры рабочего процесса",
     "Detected workloads for the following base models:": "Обнаруженные рабочие процессы для следующих базовых моделей:",
     "Reset all parameters to their default values": "Сбросить все параметры к значениям по умолчанию",
-    "Use ROCm (AMD GPU)": null
+    "Use ROCm (AMD GPU)": null,
+    "Instruction-based identity and remix editing": null,
+    "for Canvas Expand and Object Removal (Inpainting)": null,
+    "High aesthetic quality model from Krea AI with instruction-based editing, identity preservation, and remix capabilities.": null,
+    "Krea 2 models": null,
+    "Fast generation and strong control via ControlNet (Universal & Tile). Good photorealism and typography, but less flexible composition.": null,
+    "Text prompt regions have not been set up.": null,
+    "Generate segmentation control layer from current regions": null,
+    "Lightweight diffusion model from Black Forest Labs": null,
+    "From Regions": null,
+    "Fast generation model": null
   }
 }

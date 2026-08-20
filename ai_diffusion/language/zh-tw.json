@@ -574,10 +574,8 @@
     "The border is expanded and blurred by a fraction of selection size": "按選取大小百分比向外羽化擴展",
     "Edit canvas with text instructions": "使用文字指示編輯圖像",
     "Flux 2 models": "Flux 2 模型",
-    "Compact generation and edit model": "生成及編輯整合模型",
     "Versatile model with sharp details. Can generate and edit images with instructions. Sometimes struggles with image continuity.": "多功能模型，具有銳利細節。可以根據指令生成及編輯圖像。有時在影像連續性上會有困難。",
     "Z-Image models": "Z-Image 模型",
-    "Powerful and efficient model for stronger hardware. Good understanding of natural language (Chinese and English). The Turbo variant is fast and heavily tuned for realistic results.": "強大且高效的模型，適用於較強硬體。良好的自然語言理解能力（中文和英文）。Turbo 變體速度快，並針對真實結果進行高度調校。",
     "Workflow contains multiple 'Krita Style & Prompt' nodes, but only one is allowed.": "工作流程包含多個 'Krita Style & Prompt' 節點，但只允許一個。",
     "Color Match": "無縫色彩",
     "Collect Diagnostics": "收集診斷資訊",
@@ -593,6 +591,16 @@
     "Workflow Parameters": "工作流程參數",
     "Detected workloads for the following base models:": "偵測到下列基礎模型的工作負載：",
     "Reset all parameters to their default values": "將所有參數重設為預設值",
-    "Use ROCm (AMD GPU)": "使用 ROCm（AMD GPU）"
+    "Use ROCm (AMD GPU)": "使用 ROCm（AMD GPU）",
+    "Instruction-based identity and remix editing": null,
+    "for Canvas Expand and Object Removal (Inpainting)": null,
+    "High aesthetic quality model from Krea AI with instruction-based editing, identity preservation, and remix capabilities.": null,
+    "Krea 2 models": null,
+    "Fast generation and strong control via ControlNet (Universal & Tile). Good photorealism and typography, but less flexible composition.": null,
+    "Text prompt regions have not been set up.": null,
+    "Generate segmentation control layer from current regions": null,
+    "Lightweight diffusion model from Black Forest Labs": null,
+    "From Regions": null,
+    "Fast generation model": null
   }
 }

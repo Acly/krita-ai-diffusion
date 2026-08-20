@@ -379,8 +379,10 @@ async def download(network: QNetworkAccessManager, url: str, path: Path):
                     raise
                 await asyncio.sleep(1)
             else:
+                QFile.remove(str(path) + ".part")
                 raise NetworkError(e.code, _("Failed to download") + f" {url}: {e.message}", url)
         except Exception as e:
+            QFile.remove(str(path) + ".part")
             raise RuntimeError(_("Failed to download") + f" {url}: {e}") from e
 
         log.info(f"Retrying download of {url}, {retry - 1} attempts left")

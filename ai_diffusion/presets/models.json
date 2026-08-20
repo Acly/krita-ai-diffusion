@@ -230,6 +230,34 @@
           "sha256": "b8a5142b40f2e24aa1f5cfd0710323188836f49ea70b15b5f85b1e364316bc5b"
         }
       ]
+    },
+    {
+      "id": "text_encoder-qwen_3vl_4b-krea2",
+      "name": "Qwen 3 VL 4B",
+      "files": [
+        {
+          "path": "models/text_encoders/qwen3vl_4b_fp8_scaled.safetensors",
+          "url": "https://huggingface.co/Comfy-Org/Krea-2/resolve/main/text_encoders/qwen3vl_4b_fp8_scaled.safetensors",
+          "sha256": "54bd5144df0bbc25dd6ccadfcb826b521445a1b06ae5a42570bdd2974ca87094"
+        }
+      ],
+      "alternatives": [
+        "models/text_encoders/qwen3vl_4b_bf16.safetensors"
+      ]
+    },
+    {
+      "id": "vae-default-krea2",
+      "name": "VAE (Krea 2)",
+      "files": [
+        {
+          "path": "models/vae/qwen_image_vae.safetensors",
+          "url": "https://huggingface.co/Comfy-Org/Krea-2/resolve/main/vae/qwen_image_vae.safetensors",
+          "sha256": "a70580f0213e67967ee9c95f05bb400e8fb08307e017a924bf3441223e023d1f"
+        }
+      ],
+      "alternatives": [
+        "models/vae/qwen_image.safetensors"
+      ]
     }
   ],
   "checkpoints": [
@@ -410,6 +438,21 @@
           "url": "https://huggingface.co/drbaph/Z-Image-Turbo-FP8/resolve/main/z_image_turbo_fp8_e4m3fn.safetensors",
           "sha256": "56c06ad6cb80941e8203d3e248a16ad1263499ba870f2c1931aa724fdc7c25d3"
         }
+      ]
+    },
+    {
+      "id": "checkpoint-turbo_fp8-krea2",
+      "name": "Krea 2 Turbo [fp8]",
+      "files": [
+        {
+          "path": "models/diffusion_models/krea2_turbo_fp8_scaled.safetensors",
+          "url": "https://huggingface.co/Comfy-Org/Krea-2/resolve/main/diffusion_models/krea2_turbo_fp8_scaled.safetensors",
+          "sha256": "eb4dd8c612cfd10f64f25b057e6e6bbcb5737c94a7372177e456dbf7579502f1"
+        }
+      ],
+      "alternatives": [
+        "models/diffusion_models/krea2_turbo_bf16.safetensors",
+        "models/diffusion_models/krea2_turbo_nvfp4.safetensors"
       ]
     }
   ],
@@ -789,6 +832,21 @@
           "url": "https://huggingface.co/alibaba-pai/Z-Image-Turbo-Fun-Controlnet-Union-2.1/resolve/main/Z-Image-Turbo-Fun-Controlnet-Tile-2.1-lite-2601-8steps.safetensors",
           "sha256": "880bf452b060abfcbccedee56f8d3dbf8aed2cb0311b599210361b414fc8f2fd"
         }
+      ]
+    },
+    {
+      "id": "lora-identity_edit-krea2",
+      "name": "Krea 2 Identity Edit LoRA",
+      "files": [
+        {
+          "path": "models/loras/krea2_identity_edit_v1_2.safetensors",
+          "url": "https://huggingface.co/conradlocke/krea2-identity-edit/resolve/main/krea2_identity_edit_v1_2.safetensors",
+          "sha256": "6adf9a69cc9502d286db7b69964d37da7e9cfe4b05b4d004bc275f087d3fd3cf"
+        }
+      ],
+      "alternatives": [
+        "models/loras/krea2_identity_edit_v1_1.safetensors",
+        "models/loras/krea2_identity_edit_v1.safetensors"
       ]
     }
   ],
