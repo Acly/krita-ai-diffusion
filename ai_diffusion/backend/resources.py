@@ -10,10 +10,10 @@ from typing import Any, NamedTuple
 
 # Version identifier for all the resources defined here. This is used as the server version.
 # It usually follows the plugin version, but not all new plugin versions also require a server update.
-version = "1.52.0"
+version = "1.53.0"
 
 comfy_url = "https://github.com/comfyanonymous/ComfyUI"
-comfy_version = "a95e461916de9cbda2e89140ab86a8a7c3f9702a"
+comfy_version = "4da9e2dbead52fc1e68beae33fe3d7ad63b63241"
 
 
 class CustomNode(NamedTuple):
@@ -29,7 +29,7 @@ required_custom_nodes = [
         "ControlNet Preprocessors",
         "comfyui_controlnet_aux",
         "https://github.com/Fannovel16/comfyui_controlnet_aux",
-        "83463c2e4b04e729268e57f638b4212e0da4badc",
+        "e8b689a513c3e6b63edc44066560ca5919c0576e",
         ["InpaintPreprocessor", "DepthAnythingV2Preprocessor"],
     ),
     CustomNode(
@@ -43,7 +43,7 @@ required_custom_nodes = [
         "External Tooling Nodes",
         "comfyui-tooling-nodes",
         "https://github.com/Acly/comfyui-tooling-nodes",
-        "5d3194f4d4158ab31df7a060e1e4c56fa03f320c",
+        "ca01116495cad1f2d8440641f26ced8fbdbbe8de",
         ["ETN_LoadImageCache", "ETN_SaveImageCache", "ETN_Translate"],
     ),
     CustomNode(
@@ -254,7 +254,8 @@ class Arch(Enum):
                 return ["ministral"]
             case Arch.krea2:
                 return ["qwen_3vl_4b"]
-        raise ValueError(f"Unsupported architecture: {self}")
+            case _:
+                raise ValueError(f"Unsupported architecture: {self}")
 
     @staticmethod
     def list():

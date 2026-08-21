@@ -5,12 +5,9 @@
 # - trimesh (optional, causes problems due to xatlas dependency)
 # - comfyui-frontend-package (installed from ComfyUI's requirements.txt to match version)
 
-# pinned to <2 because insightface
-numpy<2
-
 # ComfyUI
-torch==2.11.0
-torchvision==0.26.0
+torch==2.13.0
+torchvision==0.28.0
 torchaudio==2.11.0
 torchsde
 einops
@@ -37,16 +34,15 @@ stringzilla
 importlib_metadata
 huggingface_hub
 scipy
-# Version pinned because later versions require numpy>2 which conflicts with mediapipe
-opencv-python==4.11.0.86
-protobuf>=4.25.3,<5
+opencv-python
+protobuf
 filelock
 Pillow
 einops
 pyyaml
 scikit-image
 python-dateutil
-mediapipe
+mediapipe>=0.8.0
 # Version pinned because newer version requires pycairo, which does not provide binary
 # packages on Linux/macOS
 svglib==1.5.1
@@ -69,10 +65,3 @@ argostranslate
 sentencepiece==0.2.0
 # argostranslate uses pip to install stuff on demand but doesn't depend on it
 pip
-
-# Nunchaku
-diffusers>=0.36
-accelerate
-huggingface_hub
-tomli
-peft>=0.17

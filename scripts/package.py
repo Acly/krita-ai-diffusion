@@ -36,18 +36,19 @@ def update_server_requirements():
         extra_index: str | None = None
         override: str | None = None
         dependencies: str | None = None
+        os_version: str | None = None
 
     req_dir = root / "ai_diffusion" / "backend" / "requirements"
     configs = {
         "linux-cpu": Cfg("x86_64-unknown-linux-gnu", "cpu"),
-        "linux-cuda": Cfg("x86_64-unknown-linux-gnu", "cu128"),
+        "linux-cuda": Cfg("x86_64-unknown-linux-gnu", "cu130"),
         "linux-cuda126": Cfg("x86_64-unknown-linux-gnu", "cu126"),
         "linux-xpu": Cfg("x86_64-unknown-linux-gnu", "xpu"),
         "linux-rocm": Cfg("x86_64-unknown-linux-gnu", "rocm7.2"),
-        "macos-cpu": Cfg("aarch64-apple-darwin"),
-        "macos-mps": Cfg("aarch64-apple-darwin"),
+        "macos-cpu": Cfg("aarch64-apple-darwin", os_version="14.0"),
+        "macos-mps": Cfg("aarch64-apple-darwin", os_version="14.0"),
         "windows-cpu": Cfg("x86_64-pc-windows-msvc", "cpu"),
-        "windows-cuda": Cfg("x86_64-pc-windows-msvc", "cu128"),
+        "windows-cuda": Cfg("x86_64-pc-windows-msvc", "cu130"),
         "windows-cuda126": Cfg("x86_64-pc-windows-msvc", "cu126"),
         "windows-xpu": Cfg("x86_64-pc-windows-msvc", "xpu"),
         "windows-rocm": Cfg(
@@ -66,10 +67,13 @@ def update_server_requirements():
         cmd += ["--index-url", "https://pypi.org/simple"]
         if extra_index := cfg.extra_index:
             cmd += ["--extra-index-url", f"https://download.pytorch.org/whl/{extra_index}"]
-        cmd += ["--quiet"]
+        cmd += ["--upgrade", "--quiet"]
         cmd += ["-o", str((req_dir / f"{name}.txt").relative_to(root))]
+        env = os.environ.copy()
+        if cfg.platform == "aarch64-apple-darwin" and cfg.os_version is not None:
+            env["MACOSX_DEPLOYMENT_TARGET"] = cfg.os_version
         print(f"{name}.txt")
-        subprocess.run(cmd, cwd=root, check=True)
+        subprocess.run(cmd, cwd=root, check=True, env=env)
 
 
 def precheck():
