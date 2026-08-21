@@ -315,30 +315,6 @@
       "requirements": "no_cuda"
     },
     {
-      "id": "checkpoint-flux_dev_nunchaku-flux",
-      "name": "Flux Krea [Nunchaku]",
-      "files": [
-        {
-          "path": "models/diffusion_models/svdq-int4_r32-flux.1-krea-dev.safetensors",
-          "url": "https://huggingface.co/nunchaku-tech/nunchaku-flux.1-krea-dev/resolve/main/svdq-int4_r32-flux.1-krea-dev.safetensors",
-          "sha256": "c1dffa6bf3ffe935092818c5135bf66e0cdd4a934afc3a8f3e1e99aa74a1ecf5"
-        }
-      ],
-      "requirements": "cuda"
-    },
-    {
-      "id": "checkpoint-flux_dev_nunchaku_fp4-flux",
-      "name": "Flux Krea [Nunchaku-fp4]",
-      "files": [
-        {
-          "path": "models/diffusion_models/svdq-fp4_r32-flux.1-krea-dev.safetensors",
-          "url": "https://huggingface.co/nunchaku-tech/nunchaku-flux.1-krea-dev/resolve/main/svdq-fp4_r32-flux.1-krea-dev.safetensors",
-          "sha256": "c1dffa6bf3ffe935092818c5135bf66e0cdd4a934afc3a8f3e1e99aa74a1ecf5"
-        }
-      ],
-      "requirements": "cuda_fp4"
-    },
-    {
       "id": "checkpoint-flux_kontext-flux",
       "name": "Flux Kontext",
       "files": [
@@ -352,30 +328,6 @@
         "models/diffusion_models/flux1-kontext-dev-fp8-e4m3fn.safetensors"
       ],
       "requirements": "no_cuda"
-    },
-    {
-      "id": "checkpoint-flux_kontext_nunchaku-flux",
-      "name": "Flux Kontext [Nunchaku]",
-      "files": [
-        {
-          "path": "models/diffusion_models/svdq-int4_r32-flux.1-kontext-dev.safetensors",
-          "url": "https://huggingface.co/nunchaku-tech/nunchaku-flux.1-kontext-dev/resolve/main/svdq-int4_r32-flux.1-kontext-dev.safetensors",
-          "sha256": "5dceaae1666bd76402bb9e47a9431a51b2b528f921502ee92b90257717acbebb"
-        }
-      ],
-      "requirements": "cuda"
-    },
-    {
-      "id": "checkpoint-flux_kontext_nunchaku_fp4-flux",
-      "name": "Flux Kontext [Nunchaku-fp4]",
-      "files": [
-        {
-          "path": "models/diffusion_models/svdq-fp4_r32-flux.1-kontext-dev.safetensors",
-          "url": "https://huggingface.co/nunchaku-tech/nunchaku-flux.1-kontext-dev/resolve/main/svdq-fp4_r32-flux.1-kontext-dev.safetensors",
-          "sha256": "5dceaae1666bd76402bb9e47a9431a51b2b528f921502ee92b90257717acbebb"
-        }
-      ],
-      "requirements": "cuda_fp4"
     },
     {
       "id": "checkpoint-q6_k-flux2_4b",

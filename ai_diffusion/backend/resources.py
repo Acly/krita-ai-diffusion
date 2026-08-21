@@ -68,13 +68,6 @@ optional_custom_nodes = [
         "01f8845bf30d89fff293c7bd50187bc59d9d53ea",
         ["UnetLoaderGGUF", "DualCLIPLoaderGGUF"],
     ),
-    CustomNode(
-        "Nunchaku",
-        "ComfyUI-nunchaku",
-        "https://github.com/nunchaku-tech/ComfyUI-nunchaku",
-        "90999af9c26e4a40927fb26c028ece8875ac25b3",
-        ["NunchakuFluxDiTLoader"],
-    ),
 ]
 
 
@@ -485,8 +478,7 @@ class ModelRequirements(Enum):
     none = 0
     insightface = 1
     cuda = 2  # requires CUDA (NVIDIA only)
-    cuda_fp4 = 3  # requires FP4 support (Blackwell)
-    no_cuda = 4  # model alternative for hardware without CUDA support
+    no_cuda = 3  # model alternative for hardware without CUDA support
 
 
 class ModelFile(NamedTuple):

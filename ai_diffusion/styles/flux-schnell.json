@@ -3,8 +3,6 @@
     "version": 2,
     "architecture": "auto",
     "checkpoints": [
-        "svdq-fp4_r32-flux.1-schnell.safetensors",
-        "svdq-int4_r32-flux.1-schnell.safetensors",
         "flux1-schnell-fp8.safetensors",
         "flux1-schnell.safetensors"
     ],

@@ -5,11 +5,7 @@
     "checkpoints": [
         "Qwen-Image",
         "qwen_image_bf16.safetensors",
-        "qwen_image_fp8_e4m3fn.safetensors",
-        "svdq-fp4_r128-qwen-image.safetensors",
-        "svdq-fp4_r32-qwen-image.safetensors",
-        "svdq-int4_r128-qwen-image.safetensors",
-        "svdq-int4_r32-qwen-image.safetensors"
+        "qwen_image_fp8_e4m3fn.safetensors"
     ],
     "loras": [],
     "style_prompt": "",

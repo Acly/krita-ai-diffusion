@@ -43,6 +43,7 @@ exclude = [
 ignore = ["ai_diffusion/websockets", "ai_diffusion/debugpy", "krita.pyi"]
 extraPaths = ["scripts/typeshed"]
 reportMissingModuleSource = false
+typeCheckingMode = "standard"
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]

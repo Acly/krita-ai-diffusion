@@ -33,12 +33,12 @@ from .. import eventloop, util
 from ..backend import resources, server
 from ..backend.comfy_client import ComfyClient
 from ..backend.network import DownloadProgress
-from ..backend.resources import CustomNode, ModelRequirements, ModelResource, ResourceId
+from ..backend.resources import CustomNode, ModelResource, ResourceId
 from ..backend.server import Server, ServerBackend, ServerState
 from ..localization import translate as _
 from ..model.connection import ConnectionState
 from ..model.root import root
-from ..platform_tools import get_cuda_devices, gpu_is_pascal_or_older, gpu_supports_nvfp4
+from ..platform_tools import get_cuda_devices
 from ..settings import Settings, settings
 from ..style import Arch
 from ..util import ensure
@@ -284,15 +284,11 @@ class PackageGroupWidget(QWidget):
 def _backend_supports(backend: ServerBackend, item: PackageItem | ModelResource):
     if isinstance(item, PackageItem) and isinstance(item.package, ModelResource):
         item = item.package
-    if isinstance(item, ModelResource):
-        req = item.requirements
-        if backend is ServerBackend.cuda and gpu_supports_nvfp4():
-            return req not in [ModelRequirements.no_cuda, ModelRequirements.cuda]
-        elif backend is ServerBackend.cuda and not gpu_is_pascal_or_older():
-            return req not in [ModelRequirements.no_cuda, ModelRequirements.cuda_fp4]
-        else:  # Pascal or non-CUDA GPU
-            return req not in [ModelRequirements.cuda, ModelRequirements.cuda_fp4]
-    return True
+    return (
+        not isinstance(item, ModelResource)
+        or item.requirements is not resources.ModelRequirements.cuda
+        or backend is ServerBackend.cuda
+    )
 
 
 def _filter_by_arch(models: Iterable[ModelResource], archs: Arch | Iterable[Arch]):
@@ -724,21 +720,13 @@ class WorkloadsTab(QWidget):
             ModelCheckBox(
                 "Flux Krea - " + _("General-purpose model for photography and illustration"),
                 Arch.flux,
-                (
-                    "checkpoint-flux_dev-flux",
-                    "checkpoint-flux_dev_nunchaku-flux",
-                    "checkpoint-flux_dev_nunchaku_fp4-flux",
-                ),
+                "checkpoint-flux_dev-flux",
                 flux_layout,
             ),
             ModelCheckBox(
                 "Flux Kontext - " + _("Specialized model for instruction-based editing"),
                 Arch.flux,
-                (
-                    "checkpoint-flux_kontext-flux",
-                    "checkpoint-flux_kontext_nunchaku-flux",
-                    "checkpoint-flux_kontext_nunchaku_fp4-flux",
-                ),
+                "checkpoint-flux_kontext-flux",
                 flux_layout,
             ),
         ]

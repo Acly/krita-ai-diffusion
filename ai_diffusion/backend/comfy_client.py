@@ -34,7 +34,6 @@ from .client import (
     JobInfoOutput,
     MissingResources,
     OutputBatchMode,
-    Quantization,
     ServerError,
     SharedWorkflow,
     TextOutput,
@@ -505,15 +504,14 @@ class ComfyClient(Client):
                 (
                     filename,
                     Arch.from_string(info["base_model"], info.get("type", "eps"), filename),
-                    Quantization.from_string(info.get("quant", "none")),
                     info.get("is_inpaint", False),
                     info.get("is_refiner", False),
                 )
                 for filename, info in models.items()
             )
             return {
-                filename: CheckpointInfo(filename, arch, model_format, quant)
-                for filename, arch, quant, is_inpaint, is_refiner in parsed
+                filename: CheckpointInfo(filename, arch, model_format)
+                for filename, arch, is_inpaint, is_refiner in parsed
                 if not (arch is None or (is_inpaint and arch is not Arch.flux) or is_refiner)
             }
 

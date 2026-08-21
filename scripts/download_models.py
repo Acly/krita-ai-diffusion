@@ -46,10 +46,8 @@ except ImportError:
 
 def _match_backend(model: ModelResource, backend: ModelRequirements):
     if backend is ModelRequirements.cuda:
-        return model.requirements not in [ModelRequirements.cuda_fp4, ModelRequirements.no_cuda]
-    if backend is ModelRequirements.cuda_fp4:
-        return model.requirements not in [ModelRequirements.cuda, ModelRequirements.no_cuda]
-    return model.requirements not in [ModelRequirements.cuda, ModelRequirements.cuda_fp4]
+        return model.requirements is not ModelRequirements.no_cuda
+    return model.requirements is not ModelRequirements.cuda
 
 
 def list_models(
@@ -140,12 +138,9 @@ def list_models(
 
 
 def detect_backend():
-    devices = platform_tools.get_cuda_devices()
-    if any(major >= 10 for (major, minor) in devices):  # Blackwell has compute capability 10.x
-        return ModelRequirements.cuda_fp4
-    elif len(devices) > 0:
-        return ModelRequirements.cuda
-    return ModelRequirements.no_cuda
+    return (
+        ModelRequirements.cuda if platform_tools.get_cuda_devices() else ModelRequirements.no_cuda
+    )
 
 
 def _progress(name: str, size: int | None, index=0):
@@ -306,7 +301,7 @@ if __name__ == "__main__":
     parser.add_argument("--deprecated", action="store_true", help="download old models which will be removed in the near future")
     parser.add_argument("--retry-attempts", type=int, default=5, metavar="N", help="number of retry attempts for downloading a model")
     parser.add_argument("--continue-on-error", action="store_true", help="continue downloading models even if an error occurs")
-    parser.add_argument("--backend", choices=["auto", "cpu", "cuda", "cuda_fp4", "xpu", "rocm", "mps"], default="auto", help="filter models for specific hardware")
+    parser.add_argument("--backend", choices=["auto", "cpu", "cuda", "xpu", "rocm", "mps"], default="auto", help="filter models for specific hardware")
     parser.add_argument("-j", "--jobs", type=int, default=4, metavar="N", help="number of parallel downloads")
     # fmt: on
     args = parser.parse_args()
@@ -332,9 +327,6 @@ if __name__ == "__main__":
         backend = detect_backend()
     elif args.backend == "cuda":
         backend = ModelRequirements.cuda
-    elif args.backend == "cuda_fp4":
-        backend = ModelRequirements.cuda_fp4
-
     models = list_models(
         sd15=args.sd15,
         sdxl=args.sdxl,

@@ -7,15 +7,7 @@
         "qwen_image_edit_2509_bf16.safetensors",
         "qwen_image_edit_2509_fp8_e4m3fn.safetensors",
         "qwen_image_edit_bf16.safetensors",
-        "qwen_image_edit_fp8_e4m3fn.safetensors",
-        "svdq-fp4_r128-qwen-image-edit-2509.safetensors",
-        "svdq-fp4_r32-qwen-image-edit-2509.safetensors",
-        "svdq-int4_r128-qwen-image-edit-2509.safetensors",
-        "svdq-int4_r32-qwen-image-edit-2509.safetensors",
-        "svdq-fp4_r128-qwen-image-edit.safetensors",
-        "svdq-fp4_r32-qwen-image-edit.safetensors",
-        "svdq-int4_r128-qwen-image-edit.safetensors",
-        "svdq-int4_r32-qwen-image-edit.safetensors"
+        "qwen_image_edit_fp8_e4m3fn.safetensors"
     ],
     "loras": [],
     "style_prompt": "",

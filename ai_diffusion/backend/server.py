@@ -41,8 +41,6 @@ from .resources import (
 
 _exe = ".exe" if is_windows else ""
 
-nunchaku_version = ("1.2.1", "cu12.8torch2.11")
-
 
 class ServerState(Enum):
     not_installed = 0
@@ -303,11 +301,6 @@ class Server:
     ):
         assert self.comfy_dir is not None
 
-        if pkg.name == "Nunchaku":
-            if self.backend is not ServerBackend.cuda or gpu_is_pascal_or_older():
-                return  # Nunchaku requires matching CUDA version
-            await self._install_nunchaku(network, cb)
-
         folder = self.comfy_dir / "custom_nodes" / pkg.folder
         resource_url = pkg.url
         if not resource_url.endswith(".zip"):  # git repo URL
@@ -333,17 +326,6 @@ class Server:
             await self._pip_install("FaceID", [whl_url, "numpy<2"], cb)
         else:
             await self._pip_install("FaceID", ["insightface"], cb)
-
-    async def _install_nunchaku(self, network: QNetworkAccessManager, cb: InternalCB):
-        assert self.comfy_dir is not None and self._python_cmd is not None
-        assert self.backend is ServerBackend.cuda, "Nunchaku only supports CUDA backend"
-        pyver = await get_python_version_string(self._python_cmd)
-        assert "3.12" in pyver, "Nunchaku requires Python 3.12"
-
-        platform = "win_amd64" if is_windows else "linux_x86_64"
-        ver, torch = nunchaku_version
-        whl_url = f"https://github.com/nunchaku-tech/nunchaku/releases/download/v{ver}/nunchaku-{ver}+{torch}-cp312-cp312-{platform}.whl"
-        await self._pip_install("Nunchaku", [whl_url], cb)
 
     async def _install_requirements(
         self, requirements: ModelRequirements, network: QNetworkAccessManager, cb: InternalCB

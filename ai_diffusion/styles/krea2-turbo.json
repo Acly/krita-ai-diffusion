@@ -4,6 +4,7 @@
     "architecture": "auto",
     "checkpoints": [
         "krea2_turbo_bf16.safetensors",
+        "krea2_turbo_int8_convrot.safetensors",
         "krea2_turbo_fp8_scaled.safetensors",
         "krea2_turbo_nvfp4.safetensors"
     ],
