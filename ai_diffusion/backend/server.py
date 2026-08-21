@@ -33,7 +33,6 @@ from .network import DownloadProgress, download
 from .resources import (
     Arch,
     CustomNode,
-    ModelRequirements,
     ModelResource,
     VerificationState,
     VerificationStatus,
@@ -311,28 +310,6 @@ class Server:
         await rename_extracted_folder(pkg.name, folder, pkg.version)
         cb(f"Installing {pkg.name}", f"Finished installing {pkg.name}")
 
-    async def _install_insightface(self, network: QNetworkAccessManager, cb: InternalCB):
-        assert self.comfy_dir is not None and self._python_cmd is not None
-
-        dependencies = ["onnx==1.16.1", "onnxruntime"]  # onnx version pinned due to #1033
-        await self._pip_install("FaceID", dependencies, cb)
-
-        pyver = await get_python_version_string(self._python_cmd)
-        if is_windows and ("3.11" in pyver or "3.12" in pyver):
-            whl_url = "https://github.com/Gourieff/Assets/raw/main/Insightface/insightface-0.7.3-cp311-cp311-win_amd64.whl"
-            if "3.12" in pyver:
-                whl_url = "https://github.com/Gourieff/Assets/raw/main/Insightface/insightface-0.7.3-cp312-cp312-win_amd64.whl"
-            # Make sure numpy isn't updated to a version incompatible with other packages
-            await self._pip_install("FaceID", [whl_url, "numpy<2"], cb)
-        else:
-            await self._pip_install("FaceID", ["insightface"], cb)
-
-    async def _install_requirements(
-        self, requirements: ModelRequirements, network: QNetworkAccessManager, cb: InternalCB
-    ):
-        if requirements is ModelRequirements.insightface:
-            await self._install_insightface(network, cb)
-
     async def install(self, callback: Callback):
         def cb(stage: str, message: str | DownloadProgress):
             out_message = ""
@@ -385,7 +362,6 @@ class Server:
                 raise ValueError("Some requested models were not found: " + ", ".join(not_found))
             for resource in to_install:
                 if not resource.exists_in(self.path) and not resource.exists_in(self.comfy_dir):
-                    await self._install_requirements(resource.requirements, network, cb)
                     for file in resource.files:
                         target_file = self.path / file.path
                         target_file.parent.mkdir(parents=True, exist_ok=True)

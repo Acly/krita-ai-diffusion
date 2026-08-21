@@ -490,25 +490,6 @@
       ]
     },
     {
-      "id": "ip_adapter-face-sd15",
-      "name": "IP-Adapter Face (SD1.5)",
-      "files": [
-        {
-          "id": "ip_adapter-face-sd15",
-          "path": "models/ipadapter/ip-adapter-faceid-plusv2_sd15.bin",
-          "url": "https://huggingface.co/h94/IP-Adapter-FaceID/resolve/main/ip-adapter-faceid-plusv2_sd15.bin",
-          "sha256": "26d0d86a1d60d6cc811d3b8862178b461e1eeb651e6fe2b72ba17aa95411e313"
-        },
-        {
-          "id": "lora-face-sd15",
-          "path": "models/loras/ip-adapter-faceid-plusv2_sd15_lora.safetensors",
-          "url": "https://huggingface.co/h94/IP-Adapter-FaceID/resolve/main/ip-adapter-faceid-plusv2_sd15_lora.safetensors",
-          "sha256": "8abff87a15a049f3e0186c2e82c1c8e77783baf2cfb63f34c412656052eb57b0"
-        }
-      ],
-      "requirements": "insightface"
-    },
-    {
       "id": "controlnet-universal-sdxl",
       "name": "ControlNet Universal (XL)",
       "files": [
@@ -529,25 +510,6 @@
           "sha256": "11e49b4e272fabda60094b35be6fd3e215e551211210938e381d27497fd2215c"
         }
       ]
-    },
-    {
-      "id": "ip_adapter-face-sdxl",
-      "name": "IP-Adapter Face (XL)",
-      "files": [
-        {
-          "id": "ip_adapter-face-sdxl",
-          "path": "models/ipadapter/ip-adapter-faceid-plusv2_sdxl.bin",
-          "url": "https://huggingface.co/h94/IP-Adapter-FaceID/resolve/main/ip-adapter-faceid-plusv2_sdxl.bin",
-          "sha256": "c6945d82b543700cc3ccbb98d363b837e9c596281607857c74b713a876daf5fb"
-        },
-        {
-          "id": "lora-face-sdxl",
-          "path": "models/loras/ip-adapter-faceid-plusv2_sdxl_lora.safetensors",
-          "url": "https://huggingface.co/h94/IP-Adapter-FaceID/resolve/main/ip-adapter-faceid-plusv2_sdxl_lora.safetensors",
-          "sha256": "f24b4bb2dad6638a09c00f151cde84991baf374409385bcbab53c1871a30cb7b"
-        }
-      ],
-      "requirements": "insightface"
     },
     {
       "id": "controlnet-universal-flux",

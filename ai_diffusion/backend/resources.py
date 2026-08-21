@@ -476,7 +476,6 @@ class VerificationStatus(NamedTuple):
 
 class ModelRequirements(Enum):
     none = 0
-    insightface = 1
     cuda = 2  # requires CUDA (NVIDIA only)
     no_cuda = 3  # model alternative for hardware without CUDA support
 
