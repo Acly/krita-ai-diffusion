@@ -163,7 +163,7 @@ class HistoryWidget(QListWidget):
             strength = job.params.metadata.get("strength", 1.0)
             strength = f"{strength * 100:.0f}% - " if strength != 1.0 else ""
 
-            header = QListWidgetItem(f"{job.timestamp:%H:%M} - {strength}{prompt}")
+            header = QListWidgetItem(f"{job.timestamp.astimezone():%H:%M} - {strength}{prompt}")
             header.setFlags(Qt.ItemFlag.NoItemFlags)
             header.setData(Qt.ItemDataRole.UserRole, job.id)
             header.setData(Qt.ItemDataRole.ToolTipRole, job.params.prompt)
