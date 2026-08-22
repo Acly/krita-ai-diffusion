@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import json
 from pathlib import Path
-from typing import Any, ClassVar, NamedTuple
+from typing import Any, NamedTuple
 
 from PyQt5.QtCore import QObject, Qt, QUuid, pyqtSignal
 from PyQt5.QtGui import QColor
@@ -24,20 +24,6 @@ class ControlLayer(QObject, ObservableProperties):
     max_preset_value = 4
     strength_multiplier = 50
     clip_vision_extent = Extent(224, 224)
-    segmentation_colors: ClassVar[list[tuple[int, int, int]]] = [
-        (120, 120, 120),
-        (180, 120, 120),
-        (120, 180, 120),
-        (120, 120, 180),
-        (180, 180, 120),
-        (180, 120, 180),
-        (120, 180, 180),
-        (220, 140, 100),
-        (140, 220, 100),
-        (100, 140, 220),
-        (220, 100, 140),
-        (100, 220, 140),
-    ]
 
     mode = Property(ControlMode.reference, persist=True, setter="set_mode")
     layer_id = Property(QUuid(), persist=True)
@@ -194,7 +180,7 @@ class ControlLayer(QObject, ObservableProperties):
         ]
 
         for index, layer in enumerate(layers):
-            color = self.segmentation_colors[index % len(self.segmentation_colors)]
+            color = _segmentation_colors[index % len(_segmentation_colors)]
             region_image = self._segmentation_region_image(layer, bounds, color)
             image.draw_image(region_image, blend=BlendMode.alpha)
             has_region_layer = True
@@ -474,6 +460,21 @@ control_mode_text = {
     ControlMode.stencil: _("Stencil"),
     ControlMode.hands: _("Hands"),
 }
+
+_segmentation_colors = [
+    (255, 255, 255),
+    (255, 0, 0),
+    (0, 255, 0),
+    (0, 0, 255),
+    (255, 255, 0),
+    (255, 0, 255),
+    (0, 255, 255),
+    (80, 80, 80),
+    (160, 80, 0),
+    (80, 160, 0),
+    (0, 80, 160),
+    (0, 160, 80),
+]
 
 
 def _lerp(a: float, b: float, t: float) -> float:
