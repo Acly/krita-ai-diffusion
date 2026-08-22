@@ -593,6 +593,10 @@
     "Workflow Parameters": "工作流程參數",
     "Detected workloads for the following base models:": "偵測到下列基礎模型的工作負載：",
     "Reset all parameters to their default values": "將所有參數重設為預設值",
-    "Use ROCm (AMD GPU)": "使用 ROCm（AMD GPU）"
+    "Use ROCm (AMD GPU)": "使用 ROCm（AMD GPU）",
+    "Workflow contains duplicate parameter names: {names}. Each parameter name must be unique.": null,
+    "Text prompt regions have not been set up.": null,
+    "From Regions": null,
+    "Generate segmentation control layer from current regions": null
   }
 }

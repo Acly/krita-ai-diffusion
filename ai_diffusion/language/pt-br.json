@@ -593,6 +593,10 @@
     "Workflow Parameters": null,
     "Detected workloads for the following base models:": null,
     "Reset all parameters to their default values": null,
-    "Use ROCm (AMD GPU)": null
+    "Use ROCm (AMD GPU)": null,
+    "Workflow contains duplicate parameter names: {names}. Each parameter name must be unique.": null,
+    "Text prompt regions have not been set up.": null,
+    "From Regions": null,
+    "Generate segmentation control layer from current regions": null
   }
 }

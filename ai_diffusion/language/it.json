@@ -593,6 +593,10 @@
     "Workflow Parameters": "Parametri del flusso di lavoro",
     "Detected workloads for the following base models:": "Carichi di lavoro rilevati per i seguenti modelli di base",
     "Reset all parameters to their default values": "Ripristina tutti i parametri ai valori predefiniti.",
-    "Use ROCm (AMD GPU)": "Usa ROCm (AMD GPU)"
+    "Use ROCm (AMD GPU)": "Usa ROCm (AMD GPU)",
+    "Workflow contains duplicate parameter names: {names}. Each parameter name must be unique.": null,
+    "Text prompt regions have not been set up.": null,
+    "From Regions": null,
+    "Generate segmentation control layer from current regions": null
   }
 }
