@@ -466,17 +466,24 @@ class CustomWorkspace(QObject, ObservableProperties):
         if wf.id == self._workflow_id:
             self._workflow = wf
             self._graph = self._workflow.workflow
-            self._validate_workflow(self._graph)
             self._metadata = list(workflow_parameters(self._graph))
+            self._validate_workflow(self._graph, self._metadata)
             self.params = _coerce(self.params, self._metadata)
             self.graph_changed.emit()
 
-    def _validate_workflow(self, wf: ComfyWorkflow):
+    def _validate_workflow(self, wf: ComfyWorkflow, params: list[CustomParam]):
         style_and_prompt_node_count = sum(1 for _ in wf.find(type="ETN_KritaStyleAndPrompt"))
+        duplicate_names = {
+            param.name for param in params if sum(p.name == param.name for p in params) > 1
+        }
         if style_and_prompt_node_count > 1:
             self.validation_error = _(
                 "Workflow contains multiple 'Krita Style & Prompt' nodes, but only one is allowed."
             )
+        elif duplicate_names:
+            self.validation_error = _(
+                "Workflow contains duplicate parameter names: {names}. Each parameter name must be unique."
+            ).format(names=", ".join(sorted(duplicate_names)))
         else:
             self.validation_error = ""
 
