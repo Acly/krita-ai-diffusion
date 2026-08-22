@@ -7,7 +7,7 @@ import weakref
 from collections import deque
 from copy import copy
 from dataclasses import dataclass, replace
-from datetime import datetime, timezone
+from datetime import datetime
 from enum import Enum
 from pathlib import Path
 from tempfile import TemporaryDirectory
