@@ -2,6 +2,11 @@
 
 Left side: a control pane to modify mock Krita state and trigger events.
 Right side: the actual plugin UI, running as it would inside Krita, reacting to the mock state and events.
+
+Supports scripted UI testing (see uitest.py): wait for application state, simulate
+clicks/typing, and render the ImageDiffusionWidget to an image file, e.g.
+
+    python scripts/design.py --wait connected --script my_test.py --screenshot shot.png --exit
 """
 
 import argparse
@@ -33,8 +38,10 @@ sys.path.insert(0, str(root_dir / "tests" / "mock"))
 
 
 import krita
+import uitest
 
 from ai_diffusion import eventloop
+from ai_diffusion.model.connection import ConnectionState
 from ai_diffusion.model.root import root
 from ai_diffusion.settings import settings
 from ai_diffusion.ui.diffusion import ImageDiffusionWidget
@@ -457,8 +464,38 @@ def _iter_nodes(nodes: list, depth: int = 0) -> Generator:
 
 def main():
     parser = argparse.ArgumentParser(description="Krita AI Diffusion – design preview")
-    parser.add_argument("--exit", action="store_true")
+    parser.add_argument(
+        "--exit",
+        action="store_true",
+        help="Quit the application (after all automation steps have finished)",
+    )
     parser.add_argument("--no-connect", action="store_true")
+    parser.add_argument(
+        "--wait",
+        action="append",
+        choices=[s.name for s in ConnectionState],
+        metavar="STATE",
+        help="Wait for a connection state (e.g. connected) before continuing",
+    )
+    parser.add_argument(
+        "--script",
+        action="append",
+        type=Path,
+        metavar="FILE",
+        help="Run a Python script defining 'run(auto)' to drive the UI (see uitest.py)",
+    )
+    parser.add_argument(
+        "--screenshot",
+        type=Path,
+        metavar="FILE",
+        help="Render the ImageDiffusionWidget to this file after all other steps",
+    )
+    parser.add_argument(
+        "--timeout",
+        type=float,
+        default=30.0,
+        help="Timeout in seconds for --wait steps (default: 30)",
+    )
     args = parser.parse_args()
 
     app = QApplication(sys.argv)
@@ -484,7 +521,11 @@ def main():
     container.resize(1200, 1400)
     container.show()
 
-    if args.exit:
+    if uitest.has_steps(args):
+        uitest.start(app, dock, container, args)
+        if not args.exit:
+            print("[uitest] steps are running in the background; close the window to exit")
+    elif args.exit:
         QTimer.singleShot(0, app.quit)
     sys.exit(app.exec())
 
