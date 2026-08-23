@@ -34,7 +34,7 @@ from ..model.model import DocumentModel, ProgressKind
 from ..model.properties import Bind, Binding, bind, bind_combo, bind_toggle
 from ..model.root import root
 from . import theme
-from .history import HistoryWidget
+from .history import HistoryWidget, PreviewReel
 from .region import RegionPromptWidget
 from .widget import (
     ErrorBox,
@@ -292,6 +292,9 @@ class GenerationWidget(QWidget):
         self.progress_bar = ProgressBar(self)
         layout.addWidget(self.progress_bar)
 
+        self.preview_reel = PreviewReel(self)
+        layout.addWidget(self.preview_reel)
+
         self.error_box = ErrorBox(self)
         layout.addWidget(self.error_box)
 
@@ -337,6 +340,7 @@ class GenerationWidget(QWidget):
             self.queue_button.model = model
             self.progress_bar.model = model
             self.strength_slider.model = model
+            self.preview_reel.model_ = model
             self.history.model_ = model
             self.update_generate_options()
 

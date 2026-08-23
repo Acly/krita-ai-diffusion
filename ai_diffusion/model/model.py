@@ -844,7 +844,9 @@ class DocumentModel(QObject, ObservableProperties):
             name, region_image, region_bounds, parent=region_layer, above=insert_pos
         )
 
-    def apply_generated_result(self, job_id: str, index: int):
+    def apply_generated_result(
+        self, job_id: str, index: int, behavior: ApplyBehavior | None = None
+    ):
         job = self.jobs.find(job_id)
         assert job is not None, "Cannot apply result, invalid job id"
 
@@ -857,7 +859,7 @@ class DocumentModel(QObject, ObservableProperties):
             self.apply_result(
                 job.results[index],
                 job.params,
-                settings.apply_behavior,
+                behavior or settings.apply_behavior,
                 settings.apply_region_behavior,
                 "[Generated] ",
             )
