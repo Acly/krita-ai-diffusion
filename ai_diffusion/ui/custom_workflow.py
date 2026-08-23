@@ -46,7 +46,8 @@ from ..settings import settings
 from ..style import Styles
 from ..util import base_type_match, clamp, ensure
 from . import theme
-from .generation import GenerateButton, HistoryWidget, ProgressBar, QueueButton
+from .generation import GenerateButton, ProgressBar, QueueButton
+from .history import HistoryWidget
 from .live import LivePreviewArea
 from .region import ActiveRegionWidget, PromptHeader
 from .settings_widgets import ExpanderButton
