@@ -12,7 +12,9 @@ from typing import Any
 import aiohttp
 import psutil
 import pytest
-from PyQt6.QtCore import QCoreApplication
+
+os.environ.setdefault("QT_QPA_PLATFORM", "offscreen")
+from PyQt6.QtWidgets import QApplication
 
 sys.path.append(str(Path(__file__).parent.parent))
 from ai_diffusion import eventloop, util
@@ -25,7 +27,7 @@ from .config import result_dir
 # imported (collected).  Several modules create QTimers at import time
 # (e.g. PoseLayers in document.py), and Qt requires QCoreApplication to exist
 # before any timer can be started.
-_qt_app = QCoreApplication.instance() or QCoreApplication([])
+_qt_app = QApplication.instance() or QApplication([])
 eventloop.setup()
 
 root_dir = Path(__file__).parent.parent
