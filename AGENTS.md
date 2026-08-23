@@ -68,6 +68,28 @@ that the UI code runs without errors:
 python scripts/design.py --exit
 ```
 
+The design preview can also be scripted to test and iterate on UI (see `scripts/uitest.py`):
+```
+# wait for server connection, then render the ImageDiffusionWidget to a file and exit
+python scripts/design.py --wait connected --screenshot shot.png --exit
+
+# run a custom script that drives the UI (clicks, typing, waits, screenshots)
+python scripts/design.py --script my_test.py --exit
+```
+A script is a Python file defining `run(auto)` (may be async), where `auto` provides
+`wait_connected()/wait_for()/wait_visible()`, `click()/type_text()/set_text()`
+(widgets are found by objectName, class name or button text), and `screenshot()`.
+Example:
+```python
+async def run(auto):
+    await auto.wait_connected()
+    auto.click("Open document")
+    auto.click("Add layer")
+    await auto.wait_visible("TextPromptWidget")
+    auto.type_text("TextPromptWidget", "a cute robot")
+    auto.screenshot("shot.png")
+```
+
 ### Creating a worktree
 
 1. create a worktree of the `krita-ai-diffusion` repository (this repository)
@@ -84,3 +106,4 @@ python scripts/design.py --exit
 * Avoid docstrings/comments for small functions and intuitive code
 * Use `snake_case` (lowercase) for enums and constants
 * Put imports at the beginning of the file unless there is a good reason not to
+* Omit type annotations that can be inferred (arguments with default, return types)
