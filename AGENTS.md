@@ -62,7 +62,7 @@ Run tests with these priorities:
 
 ### UI Tests
 
-There are no dedicated tests for UI. The following command can be used as a quick check
+UI testing is incomplete. The following command can be used as a quick check
 that the UI code runs without errors:
 ```
 python scripts/design.py --exit

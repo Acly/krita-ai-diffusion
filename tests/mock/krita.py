@@ -329,16 +329,23 @@ class Node(QObject):
             return True
 
         if x < b[0] or y < b[1] or x + w > b[0] + b[2] or y + h > b[1] + b[3]:
-            # expand bounds to include the new data
-            x0 = min(x, b[0])
-            y0 = min(y, b[1])
-            x1 = max(x + w, b[0] + b[2])
-            y1 = max(y + h, b[1] + b[3])
-            self._bounds = (x0, y0, x1 - x0, y1 - y0)
-            # expand pixel data to match the new bounds
-            img = self._to_image()
-            img = Image.crop(img, Bounds(*self._bounds))
-            self._pixel_data = bytearray(img.to_packed_bytes().data())
+            if x == b[0] and y == b[1] and w <= b[2] and h <= b[3]:
+                # shrinking write starting at the layer origin: shrink the layer
+                self._bounds = (x, y, w, h)
+                img = self._to_image()
+                img = Image.crop(img, Bounds(0, 0, w, h))
+                self._pixel_data = bytearray(img.to_packed_bytes().data())
+            else:
+                # expand bounds to include the new data
+                x0 = min(x, b[0])
+                y0 = min(y, b[1])
+                x1 = max(x + w, b[0] + b[2])
+                y1 = max(y + h, b[1] + b[3])
+                self._bounds = (x0, y0, x1 - x0, y1 - y0)
+                # expand pixel data to match the new bounds
+                img = self._to_image()
+                img = Image.crop(img, Bounds(*self._bounds))
+                self._pixel_data = bytearray(img.to_packed_bytes().data())
 
         src = Image.from_packed_bytes(value, Extent(w, h))
         dst = self._to_image()
@@ -346,6 +353,20 @@ class Node(QObject):
         self._pixel_data = bytearray(dst.to_packed_bytes().data())
         self.pixelDataChanged.emit()
         return True
+
+    def _resize(self, w: int, h: int) -> None:
+        """Crop layer content to (w, h) in place, without emitting pixelDataChanged."""
+        from ai_diffusion.image import Bounds, Extent, Image
+
+        b = self._bounds
+        if b[2] == 0 or b[3] == 0:
+            self._bounds = (0, 0, w, h)
+            self._pixel_data = bytearray(w * h * 4)
+        elif b[2] != w or b[3] != h:
+            img = Image.create(Extent(w, h), fill=0)
+            img.draw_image(Image.crop(self._to_image(), Bounds(0, 0, w, h)))
+            self._bounds = (0, 0, w, h)
+            self._pixel_data = bytearray(img.to_packed_bytes().data())
 
     def pixelDataAtTime(self, x: int, y: int, w: int, h: int, time: int) -> QByteArray:
         return QByteArray(bytes(w * h * 4))
@@ -584,20 +605,26 @@ class Document(QObject):
     # --- transform ---
 
     def scaleImage(self, w: int, h: int, res_x: float, res_y: float, filter: str) -> None:
+        from ai_diffusion.image import Extent, Image
+
         self._width = w
         self._height = h
-        cb = QByteArray(_make_checkerboard(w, h))
-        for node in self._root.childNodes():
-            if node._type == "paintlayer":
-                node.setPixelData(cb, 0, 0, w, h)
+        for node in _traverse_nodes(self._root):
+            if node._type == "paintlayer" and node._bounds[2] > 0 and node._bounds[3] > 0:
+                img = Image.scale(node._to_image(), Extent(w, h))
+                node._bounds = (0, 0, w, h)
+                node._pixel_data = bytearray(img.to_packed_bytes().data())
+                node.pixelDataChanged.emit()
+        self.pixelDataChanged.emit()
 
     def resizeImage(self, x: int, y: int, w: int, h: int) -> None:
         self._width = w
         self._height = h
-        cb = QByteArray(_make_checkerboard(w, h))
-        for node in self._root.childNodes():
+        for node in _traverse_nodes(self._root):
             if node._type == "paintlayer":
-                node.setPixelData(cb, 0, 0, w, h)
+                node._resize(w, h)
+                node.pixelDataChanged.emit()
+        self.pixelDataChanged.emit()
 
     # --- annotations ---
 
