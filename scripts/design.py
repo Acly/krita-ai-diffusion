@@ -12,10 +12,12 @@ clicks/typing, and render the ImageDiffusionWidget to an image file, e.g.
 import argparse
 import random
 import sys
+import threading
+import traceback
 from collections.abc import Generator
 from pathlib import Path
 
-from PyQt6.QtCore import QByteArray, Qt, QTimer
+from PyQt6.QtCore import QByteArray, QObject, Qt, QTimer, pyqtSignal
 from PyQt6.QtGui import QImage, QPixmap
 from PyQt6.QtWidgets import (
     QApplication,
@@ -25,6 +27,7 @@ from PyQt6.QtWidgets import (
     QLabel,
     QListWidget,
     QListWidgetItem,
+    QMessageBox,
     QPushButton,
     QScrollArea,
     QSpinBox,
@@ -457,6 +460,53 @@ def _iter_nodes(nodes: list, depth: int = 0) -> Generator:
         yield from _iter_nodes(node.childNodes(), depth + 1)
 
 
+def _discard(items: list, item) -> None:
+    try:
+        items.remove(item)
+    except ValueError:
+        pass
+
+
+class _ErrorHandler(QObject):
+    """Report unhandled exceptions: full traceback on stderr + non-fatal error popup.
+
+    Without this, an exception escaping a Qt slot would abort the app (PyQt6
+    calls qFatal for unhandled exceptions in virtual method / slot calls).
+    """
+
+    _error = pyqtSignal(str)
+
+    def __init__(self, app: QApplication):
+        super().__init__()
+        self._app = app
+        self._popups: list[QMessageBox] = []
+        self._error.connect(self._show_popup)
+        self._previous_hook = sys.excepthook
+        sys.excepthook = self._handle
+
+    def _handle(self, exc_type, exc_value, exc_tb):
+        if issubclass(exc_type, KeyboardInterrupt):
+            self._previous_hook(exc_type, exc_value, exc_tb)
+            return
+        text = "".join(traceback.format_exception(exc_type, exc_value, exc_tb))
+        print(text, file=sys.stderr)
+        if threading.current_thread() is threading.main_thread():
+            self._show_popup(text)
+        else:
+            self._error.emit(text)  # marshal to the main thread
+
+    def _show_popup(self, text: str):
+        box = QMessageBox(self._app.activeWindow())
+        box.setIcon(QMessageBox.Icon.Critical)
+        box.setWindowTitle("Unhandled exception")
+        box.setText("An error occurred (see console for the full traceback):")
+        box.setDetailedText(text)
+        box.setAttribute(Qt.WidgetAttribute.WA_DeleteOnClose)
+        box.destroyed.connect(lambda: _discard(self._popups, box))
+        self._popups.append(box)  # keep a reference so it isn't garbage collected
+        box.show()
+
+
 # ---------------------------------------------------------------------------
 # Entry point
 # ---------------------------------------------------------------------------
@@ -499,6 +549,7 @@ def main():
     args = parser.parse_args()
 
     app = QApplication(sys.argv)
+    app._error_handler = _ErrorHandler(app)  # type: ignore[attr-defined]  keep reference
 
     eventloop.setup()
     settings.load()
