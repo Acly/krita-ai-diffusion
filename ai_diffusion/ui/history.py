@@ -1,28 +1,49 @@
 from __future__ import annotations
 
 import json
+from enum import Enum
+from math import pi, sin
 from textwrap import wrap as wrap_text
-from typing import ClassVar, cast
+from typing import cast
 
 from PyQt6.QtCore import (
+    QAbstractAnimation,
+    QEasingCurve,
     QEvent,
     QItemSelectionModel,
     QMetaObject,
     QPoint,
+    QPropertyAnimation,
+    QRect,
     QSize,
     Qt,
     QTimer,
+    pyqtProperty,  # type: ignore
     pyqtSignal,
 )
 from PyQt6.QtGui import (
+    QBrush,
+    QColor,
+    QCursor,
+    QFocusEvent,
     QGuiApplication,
+    QHideEvent,
     QIcon,
     QKeyEvent,
     QKeySequence,
+    QLinearGradient,
     QMouseEvent,
+    QPainter,
+    QPaintEvent,
+    QPalette,
+    QPen,
+    QPixmap,
+    QResizeEvent,
+    QWheelEvent,
 )
 from PyQt6.QtWidgets import (
     QFrame,
+    QLabel,
     QListView,
     QListWidget,
     QListWidgetItem,
@@ -33,6 +54,7 @@ from PyQt6.QtWidgets import (
     QWidget,
 )
 
+from ..backend.api import WorkflowKind
 from ..image import Bounds, Extent, Image
 from ..localization import translate as _
 from ..model.jobs import Job, JobKind, JobParams, JobQueue, JobState
@@ -40,10 +62,119 @@ from ..model.model import DocumentModel, Workspace
 from ..model.properties import Binding
 from ..model.region import RootRegion
 from ..model.root import root
-from ..settings import settings
+from ..settings import ApplyBehavior, settings
 from ..style import Styles
 from ..util import ensure, flatten, sequence_equal
 from . import theme
+
+_job_info_translations: dict[str, str] = {
+    "prompt": _("Prompt"),
+    "prompt_eval": _("Prompt (Evaluated)"),
+    "negative_prompt": _("Negative Prompt"),
+    "negative_prompt_eval": _("Negative Prompt (Evaluated)"),
+    "style": _("Style"),
+    "strength": _("Strength"),
+    "checkpoint": _("Model"),
+    "loras": _("LoRA"),
+    "sampler": _("Sampler"),
+    "seed": _("Seed"),
+    "steps": _("Sampler Steps"),
+    "guidance": _("Guidance Strength (CFG Scale)"),
+    "control": _("Control Layers"),
+}
+
+
+def job_info_text(params: JobParams, hint: str | None = None):
+    if hint is None:
+        hint = _("Click to toggle preview, double-click to apply.")
+    title = params.name if params.name != "" else "<no prompt>"
+    if len(title) > 70:
+        title = title[:66] + "..."
+    if params.strength != 1.0:
+        title = f"{title} @ {params.strength * 100:.0f}%"
+    style = Styles.list().find(params.style)
+    strings: list[str | list[str]] = [title + "\n", hint, ""]
+    for key, value in params.metadata.items():
+        if key not in _job_info_translations:
+            continue
+        if key == "style" and style:
+            value = style.name
+        if isinstance(value, list) and len(value) == 0:
+            continue
+        if key == "loras" and isinstance(value, list) and isinstance(value[0], dict):
+            value = " | ".join(
+                f"{v.get('name')} ({v.get('weight', v.get('strength', '?'))})"
+                for v in value
+                if v.get("enabled", True)
+            )
+        if key == "control" and isinstance(value, list) and isinstance(value[0], dict):
+            control_text = []
+            for v in value:
+                t = f"{v.get('mode')}: {v.get('image', '')[:30]} @{v.get('strength', '?')}"
+                control_text.append(t)
+            value = " | ".join(control_text)
+        s = f"{_job_info_translations.get(key, key)}: {value}"
+        s = wrap_text(s, 80, subsequent_indent=" ")
+        strings.append(s)
+    strings.append(_("Seed") + f": {params.seed}")
+    return "\n".join(flatten(strings))
+
+
+def copy_job_prompt(model: DocumentModel, job: Job, evaluated=False):
+    positive = "prompt_eval" if evaluated else "prompt"
+    prompt = job.params.metadata.get(positive, job.params.prompt)
+    active = model.active_regions.active_or_root
+    active.positive = prompt
+    if isinstance(active, RootRegion):
+        negative = "negative_prompt_eval" if evaluated else "negative_prompt"
+        active.negative = job.params.metadata.get(
+            negative, job.params.metadata.get("negative_prompt", "")
+        )
+
+    if clipboard := QGuiApplication.clipboard():
+        clipboard.setText(prompt)
+
+    if model.workspace is Workspace.custom and model.document.is_active:
+        model.custom.try_set_params(job.params.metadata)
+
+
+def copy_job_strength(model: DocumentModel, job: Job):
+    model.strength = job.params.strength
+
+
+def copy_job_style(model: DocumentModel, job: Job):
+    if style := Styles.list().find(job.params.style):
+        model.style = style
+
+
+def copy_job_seed(model: DocumentModel, job: Job):
+    model.fixed_seed = True
+    model.seed = job.params.seed
+
+
+def copy_job_info(job: Job):
+    if clipboard := QGuiApplication.clipboard():
+        style = Styles.list().find(job.params.style)
+        data = job.params.metadata.copy()
+        if style:
+            data["style"] = f"{style.name} ({style.filename})"
+        text = json.dumps(data, indent=2)
+        clipboard.setText(text)
+
+
+def discard_all_results(model: DocumentModel, parent: QWidget):
+    reply = QMessageBox.warning(
+        parent,
+        _("Clear History"),
+        _("Are you sure you want to discard all generated images?"),
+        QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No,
+        QMessageBox.StandardButton.No,
+    )
+    if reply == QMessageBox.StandardButton.Yes:
+        model.jobs.clear()
+        model.hide_preview(delete_layer=True)
+        return True
+    return False
 
 
 class HistoryWidget(QListWidget):
@@ -164,61 +295,8 @@ class HistoryWidget(QListWidget):
     def _add_item(self, job: Job, item: QListWidgetItem, index=0):
         item.setData(Qt.ItemDataRole.UserRole, job.id)
         item.setData(Qt.ItemDataRole.UserRole + 1, index)
-        item.setData(Qt.ItemDataRole.ToolTipRole, self._job_info(job.params))
+        item.setData(Qt.ItemDataRole.ToolTipRole, job_info_text(job.params))
         self.addItem(item)
-
-    _job_info_translations: ClassVar[dict[str, str]] = {
-        "prompt": _("Prompt"),
-        "prompt_eval": _("Prompt (Evaluated)"),
-        "negative_prompt": _("Negative Prompt"),
-        "negative_prompt_eval": _("Negative Prompt (Evaluated)"),
-        "style": _("Style"),
-        "strength": _("Strength"),
-        "checkpoint": _("Model"),
-        "loras": _("LoRA"),
-        "sampler": _("Sampler"),
-        "seed": _("Seed"),
-        "steps": _("Sampler Steps"),
-        "guidance": _("Guidance Strength (CFG Scale)"),
-        "control": _("Control Layers"),
-    }
-
-    def _job_info(self, params: JobParams):
-        title = params.name if params.name != "" else "<no prompt>"
-        if len(title) > 70:
-            title = title[:66] + "..."
-        if params.strength != 1.0:
-            title = f"{title} @ {params.strength * 100:.0f}%"
-        style = Styles.list().find(params.style)
-        strings: list[str | list[str]] = [
-            title + "\n",
-            _("Click to toggle preview, double-click to apply."),
-            "",
-        ]
-        for key, value in params.metadata.items():
-            if key not in self._job_info_translations:
-                continue
-            if key == "style" and style:
-                value = style.name
-            if isinstance(value, list) and len(value) == 0:
-                continue
-            if key == "loras" and isinstance(value, list) and isinstance(value[0], dict):
-                value = " | ".join(
-                    f"{v.get('name')} ({v.get('weight', v.get('strength', '?'))})"
-                    for v in value
-                    if v.get("enabled", True)
-                )
-            if key == "control" and isinstance(value, list) and isinstance(value[0], dict):
-                control_text = []
-                for v in value:
-                    t = f"{v.get('mode')}: {v.get('image', '')[:30]} @{v.get('strength', '?')}"
-                    control_text.append(t)
-                value = " | ".join(control_text)
-            s = f"{self._job_info_translations.get(key, key)}: {value}"
-            s = wrap_text(s, 80, subsequent_indent=" ")
-            strings.append(s)
-        strings.append(_("Seed") + f": {params.seed}")
-        return "\n".join(flatten(strings))
 
     def remove(self, job: Job):
         self._remove_items(ensure(job.id))
@@ -434,46 +512,26 @@ class HistoryWidget(QListWidget):
 
     def _copy_prompt(self, evaluated=False):
         if job := self.selected_job:
-            positive = "prompt_eval" if evaluated else "prompt"
-            prompt = job.params.metadata.get(positive, job.params.prompt)
-            active = self._model.active_regions.active_or_root
-            active.positive = prompt
-            if isinstance(active, RootRegion):
-                negative = "negative_prompt_eval" if evaluated else "negative_prompt"
-                active.negative = job.params.metadata.get(
-                    negative, job.params.metadata.get("negative_prompt", "")
-                )
-
-            if clipboard := QGuiApplication.clipboard():
-                clipboard.setText(prompt)
-
-            if self._model.workspace is Workspace.custom and self._model.document.is_active:
-                self._model.custom.try_set_params(job.params.metadata)
+            copy_job_prompt(self._model, job, evaluated)
 
     def _copy_prompt_evaluated(self):
         self._copy_prompt(evaluated=True)
 
     def _copy_strength(self):
         if job := self.selected_job:
-            self._model.strength = job.params.strength
+            copy_job_strength(self._model, job)
 
     def _copy_style(self):
-        if (job := self.selected_job) and (style := Styles.list().find(job.params.style)):
-            self._model.style = style
+        if job := self.selected_job:
+            copy_job_style(self._model, job)
 
     def _copy_seed(self):
         if job := self.selected_job:
-            self._model.fixed_seed = True
-            self._model.seed = job.params.seed
+            copy_job_seed(self._model, job)
 
     def _info_to_clipboard(self):
-        if (job := self.selected_job) and (clipboard := QGuiApplication.clipboard()):
-            style = Styles.list().find(job.params.style)
-            data = job.params.metadata.copy()
-            if style:
-                data["style"] = f"{style.name} ({style.filename})"
-            text = json.dumps(data, indent=2)
-            clipboard.setText(text)
+        if job := self.selected_job:
+            copy_job_info(job)
 
     def _save_image(self):
         items = self.selectedItems()
@@ -502,17 +560,8 @@ class HistoryWidget(QListWidget):
                 self.setCurrentRow(next_item, QItemSelectionModel.SelectionFlag.Current)
 
     def _clear_all(self):
-        reply = QMessageBox.warning(
-            self,
-            _("Clear History"),
-            _("Are you sure you want to discard all generated images?"),
-            QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No,
-            QMessageBox.StandardButton.No,
-        )
-        if reply == QMessageBox.StandardButton.Yes:
-            self._model.jobs.clear()
+        if discard_all_results(self._model, self):
             self.clear()
-            self._model.hide_preview(delete_layer=True)
 
 
 class AnimatedListItem(QListWidgetItem):
@@ -540,3 +589,718 @@ class AnimatedListItem(QListWidgetItem):
     def _next_frame(self):
         self._current = (self._current + 1) % len(self._images)
         self.setIcon(self._images[self._current])
+
+
+class PreviewReelInfo(QLabel):
+    """Single-line tooltip overlaying the bottom part of the PreviewReel."""
+
+    def __init__(self, parent: QWidget):
+        # a child widget (not a window) that is transparent for mouse events: Qt skips
+        # it during hit-testing, so the reel keeps hover state while the label is visible
+        # (Qt.WindowType.WindowTransparentForInput is not supported on all platforms)
+        super().__init__(parent)
+        self.setAttribute(Qt.WidgetAttribute.WA_TranslucentBackground)  # allows alpha background
+        self.setAttribute(Qt.WidgetAttribute.WA_TransparentForMouseEvents)
+        self._background = QGuiApplication.palette().color(QPalette.ColorRole.Base)
+        self._background.setAlpha(200)
+        self.setStyleSheet("QLabel { padding: 2px 4px; }")
+
+    def paintEvent(self, a0: QPaintEvent | None) -> None:
+        painter = QPainter(self)
+        painter.fillRect(self.rect(), self._background)
+        painter.end()
+        super().paintEvent(a0)
+
+    def show_below(self, widget: QWidget, text: str):
+        metrics = self.fontMetrics()
+        self.setText(metrics.elidedText(text, Qt.TextElideMode.ElideRight, widget.width() - 14))
+        self.setFixedWidth(widget.width() - 4)
+        self.move(1, widget.height() - self.height() - 2)
+        self.show()
+
+
+class PreviewReelItem:
+    """One square in the PreviewReel: a job result thumbnail, or a placeholder
+    for a job that is still queued or executing."""
+
+    class Kind(Enum):
+        result = 0
+        executing = 1
+        queued = 2
+
+    def __init__(self, kind: PreviewReelItem.Kind, job: Job, index=0):
+        self.kind = kind
+        self.job = job
+        self.index = index  # image index within the job (results only)
+        self.frames: list[QPixmap] = []  # multiple frames for animation results
+        self.current_frame = 0
+        self.icon_name = ""  # placeholders only
+        self.input: QPixmap | None = None  # input image thumbnail, placeholders only
+
+
+class PreviewReel(QWidget):
+    """Horizontal reel showing queued and in-progress jobs followed by the latest results.
+
+    Hovering a result image previews it on the canvas, clicking applies it. Content is
+    scrolled by grabbing with the mouse or via the wheel (one wheel step per item)."""
+
+    thumb_size = 72
+    _star = HistoryWidget._applied_icon
+    _background_top = QColor(theme.base).darker(120)
+    _background_bottom = QColor(theme.base).lighter(120)
+    _overlay = QColor(0, 0, 0, 128)  # 50% black on top of placeholder input images
+    _active_border = QColor(255, 255, 255) if theme.is_dark else QColor(0, 0, 0)
+    _active_overlay = QColor(theme.active)
+    _active_overlay.setAlphaF(0.3)
+    _kinds_with_input = (WorkflowKind.inpaint, WorkflowKind.refine, WorkflowKind.refine_region)
+
+    def __init__(self, parent: QWidget | None):
+        super().__init__(parent)
+        self._model = root.active_model
+        self._connections: list[QMetaObject.Connection] = []
+        self._items: list[PreviewReelItem] = []
+        self._active: PreviewReelItem | None = None
+        self._info: PreviewReelInfo | None = None
+        self._info_item: PreviewReelItem | None = None  # item whose info tooltip is shown
+        self._preview_owned = False  # whether canvas preview was triggered by this widget
+        self._offset = 0.0  # horizontal scroll position in pixels
+        self._press_pos: QPoint | None = None
+        self._press_offset = 0.0
+        self._dragging = False
+        self._pulse_phase = 0.0
+        self._icon_cache: dict[tuple[str, int, int], QPixmap] = {}
+
+        scale = theme.screen_scale(self, QSize(self.thumb_size, self.thumb_size))
+        self._thumb = scale.width()
+        self._pad = 2
+
+        gradient = QLinearGradient(0, 1 + self._pad, 0, 1 + self._pad + self._thumb)
+        gradient.setColorAt(0, self._background_top)
+        gradient.setColorAt(1, self._background_bottom)
+        self._item_background = QBrush(gradient)
+
+        self._scroll_anim = QPropertyAnimation(self, b"scroll_offset", self)
+        self._scroll_anim.setDuration(120)
+        self._scroll_anim.setEasingCurve(QEasingCurve.Type.OutCubic)
+
+        self._pulse_timer = QTimer(self)
+        self._pulse_timer.setInterval(50)
+        self._pulse_timer.timeout.connect(self._pulse)
+        self._frame_timer = QTimer(self)
+        self._frame_timer.setInterval(40)
+        self._frame_timer.timeout.connect(self._next_frame)
+
+        self.setMouseTracking(True)
+        self.setFocusPolicy(Qt.FocusPolicy.ClickFocus)
+        self.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Fixed)
+        self.setFixedHeight(self._thumb + 2 * self._pad + 2)
+        self.setContextMenuPolicy(Qt.ContextMenuPolicy.CustomContextMenu)
+        self.customContextMenuRequested.connect(self._show_context_menu)
+
+    def sizeHint(self):
+        # the widget keeps its final height even when it is empty
+        return QSize(4 * self._stride, self._thumb + 2 * self._pad + 2)
+
+    @pyqtProperty(float)
+    def scroll_offset(self):  # type: ignore
+        return self._offset
+
+    @scroll_offset.setter  # type: ignore
+    def scroll_offset(self, value: float):
+        self._set_offset(value)
+
+    @property
+    def model_(self):
+        return self._model
+
+    @model_.setter
+    def model_(self, model: DocumentModel):
+        Binding.disconnect_all(self._connections)
+        self._model = model
+        jobs = model.jobs
+        self._connections = [
+            jobs.count_changed.connect(self._sync_placeholders),
+            jobs.job_finished.connect(self._on_job_finished),
+            jobs.job_discarded.connect(self._on_job_discarded),
+            jobs.result_used.connect(self._on_result_used),
+            jobs.result_discarded.connect(self._on_result_discarded),
+            jobs.selection_changed.connect(self._on_selection_changed),
+        ]
+        self.rebuild()
+
+    def rebuild(self):
+        self._scroll_anim.stop()
+        self._items.clear()
+        self._active = None
+        self._hide_info()
+        self._preview_owned = False
+        self._frame_timer.stop()
+        # both placeholders and results are ordered newest first (from the left)
+        placeholders: list[PreviewReelItem] = []
+        results: list[PreviewReelItem] = []
+        for job in self._model.jobs:
+            if not self._accepts(job):
+                continue
+            if job.state in (JobState.queued, JobState.executing):
+                placeholders.insert(0, self._make_placeholder(job))
+            elif job.state is JobState.finished:
+                results[0:0] = self._make_result_items(job)
+        self._items = placeholders + results
+        self._offset = 0
+        self._update_pulse_timer()
+        self.update()
+
+    @staticmethod
+    def _accepts(job: Job):
+        return job.kind in (JobKind.diffusion, JobKind.animation)
+
+    def _make_placeholder(self, job: Job):
+        if job.state is JobState.executing:
+            kind = PreviewReelItem.Kind.executing
+        else:
+            kind = PreviewReelItem.Kind.queued
+        item = PreviewReelItem(kind, job)
+        if kind is PreviewReelItem.Kind.queued:
+            item.icon_name = "queue-waiting"
+        else:
+            item.icon_name = self._job_icon_name(job)
+        if job.params.workflow_kind in self._kinds_with_input:
+            try:
+                image = self._model.document.get_image(job.params.bounds)
+                item.input = Image.scale_to_fit(
+                    image, Extent(2 * self._thumb, 2 * self._thumb)
+                ).to_pixmap()
+            except Exception:
+                item.input = None  # no visible layers: fall back to white
+        return item
+
+    def _make_result_items(self, job: Job):
+        if job.kind is JobKind.animation:
+            frames = [self._result_thumb(job, i) for i in range(len(job.results))]
+            if not frames:
+                return []
+            item = PreviewReelItem(PreviewReelItem.Kind.result, job)
+            item.frames = frames
+            return [item]
+        if job.params.is_layered:
+            item = PreviewReelItem(PreviewReelItem.Kind.result, job)
+            item.frames = [self._result_thumb(job, 0)]
+            return [item]
+        items = []
+        for i in range(len(job.results)):
+            item = PreviewReelItem(PreviewReelItem.Kind.result, job, i)
+            item.frames = [self._result_thumb(job, i)]
+            items.append(item)
+        return items
+
+    def _result_thumb(self, job: Job, index: int):
+        # Use 2x thumb size for good quality on high-DPI screens
+        size = 2 * self._thumb
+        thumb = Image.scale_to_fit(job.results[index], Extent(size, size))
+        if job.result_was_used(index):  # add tiny star icon to mark used results
+            star_size = max(24, thumb.extent.width // 8)
+            star = Image.scale(self._star, Extent(star_size, star_size))
+            thumb.draw_image(star, offset=(thumb.extent.width - star_size - 4, 4))
+        return thumb.to_pixmap()
+
+    @staticmethod
+    def _job_icon_name(job: Job):
+        if job.kind is JobKind.animation:
+            return "workspace-animation"
+        kind = job.params.workflow_kind
+        if kind in (WorkflowKind.refine, WorkflowKind.refine_region):
+            return "refine"
+        elif kind is WorkflowKind.custom:
+            return "workspace-custom"
+        return "workspace-generation"
+
+    # -- job queue events ---------------------------------------------------
+
+    def _sync_placeholders(self):
+        open_states = (JobState.queued, JobState.executing)
+        open_jobs = [j for j in self._model.jobs if self._accepts(j) and j.state in open_states]
+        changed = False
+
+        for item in list(self._items):
+            if item.kind is PreviewReelItem.Kind.result:
+                continue
+            if item.job not in open_jobs:
+                if self._active is item:
+                    self._set_active(None)
+                if self._info_item is item:
+                    self._hide_info()
+                self._items.remove(item)
+                changed = True
+            else:
+                kind = PreviewReelItem.Kind.queued
+                if item.job.state is JobState.executing:
+                    kind = PreviewReelItem.Kind.executing
+                if item.kind is not kind:  # job started executing
+                    item.kind = kind
+                    item.icon_name = self._job_icon_name(item.job)
+                    changed = True
+
+        missing = [j for j in open_jobs if all(item.job is not j for item in self._items)]
+        if missing:
+            # insert in chronological order so that the newest job ends up leftmost
+            for job in missing:
+                self._items.insert(0, self._make_placeholder(job))
+            # New items appear on the left. Keep the view scrolled all the way left if it
+            # already is, otherwise shift the offset so existing items don't move.
+            self._scroll_anim.stop()
+            if self._offset > 1:
+                self._set_offset(self._offset + len(missing) * self._stride)
+            changed = True
+
+        if changed:
+            self._set_offset(self._offset)  # clamp to valid range
+            self._update_pulse_timer()
+            self._refresh_hover()
+            self.update()
+
+    def _on_job_finished(self, job: Job):
+        if not self._accepts(job):
+            return
+        pos = next((i for i, item in enumerate(self._items) if item.job is job), -1)
+        if pos < 0:
+            return
+        # replace the placeholder with the job's results (in-place, items don't move)
+        self._items[pos : pos + 1] = self._make_result_items(job)
+        self._set_offset(self._offset)
+        self._update_pulse_timer()
+        self._refresh_hover()
+        self.update()
+
+    def _on_job_discarded(self, job: Job):
+        if not any(item.job is job for item in self._items):
+            return
+        if self._active is not None and self._active.job is job:
+            self._set_active(None)
+        if self._info_item is not None and self._info_item.job is job:
+            self._hide_info()
+        self._items = [item for item in self._items if item.job is not job]
+        self._set_offset(self._offset)
+        self._update_pulse_timer()
+        self.update()
+
+    def _on_result_used(self, id: JobQueue.Item):
+        for item in self._items:
+            if item.kind is PreviewReelItem.Kind.result and item.job.id == id.job:
+                if len(item.frames) > 1:
+                    item.frames[id.image] = self._result_thumb(item.job, id.image)
+                elif item.index == id.image:
+                    item.frames = [self._result_thumb(item.job, id.image)]
+        self.update()
+
+    def _on_result_discarded(self, id: JobQueue.Item):
+        for item in list(self._items):
+            if item.kind is not PreviewReelItem.Kind.result or item.job.id != id.job:
+                continue
+            if item.index == id.image:
+                if self._active is item:
+                    self._set_active(None)
+                if self._info_item is item:
+                    self._hide_info()
+                self._items.remove(item)
+            elif item.index > id.image:
+                item.index -= 1
+        self._set_offset(self._offset)
+        self.update()
+
+    def _on_selection_changed(self):
+        selection = self._model.jobs.selection
+        if self._active is not None and self._active.job.id is not None:
+            if selection == [JobQueue.Item(self._active.job.id, self._active.index)]:
+                return  # selection matches the active item (usually triggered by us)
+        self._active = None
+        self._preview_owned = False
+        self._frame_timer.stop()
+        if len(selection) == 1:  # adopt external selection (eg. preview of a finished job)
+            match = next(
+                (
+                    item
+                    for item in self._items
+                    if item.kind is PreviewReelItem.Kind.result
+                    and item.job.id == selection[0].job
+                    and item.index == selection[0].image
+                ),
+                None,
+            )
+            if match is not None:
+                self._active = match
+                self._preview_owned = True
+                match.current_frame = 0
+                if len(match.frames) > 1:
+                    self._frame_timer.start()
+        self.update()
+
+    # -- active item / preview -----------------------------------------------
+
+    def _set_active(self, item: PreviewReelItem | None):
+        if item is self._active:
+            return
+        self._active = item
+        if item is not None:
+            item.current_frame = 0
+            if len(item.frames) > 1:
+                self._frame_timer.start()
+            self._model.jobs.selection = [JobQueue.Item(ensure(item.job.id), item.index)]
+            self._preview_owned = True
+        else:
+            self._frame_timer.stop()
+            if self._preview_owned:
+                self._preview_owned = False
+                if self._model.jobs.selection:
+                    self._model.jobs.selection = []
+        self.update()
+
+    def _update_hover(self, pos: QPoint):
+        item = self._item_at(pos, self._hover_offset)
+        if item is None:
+            return  # keep the previous item active between items to avoid flicker
+        self._show_info(item)
+        if item.kind is PreviewReelItem.Kind.result:
+            self._set_active(item)
+        else:  # placeholders cannot be active
+            self._set_active(None)
+
+    def _show_info(self, item: PreviewReelItem):
+        if item is self._info_item:
+            return
+        self._info_item = item
+        # single line above the widget: "{timestamp} - {strength%} - {prompt}..."
+        job = item.job
+        strength = job.params.strength
+        strength_text = f"{strength * 100:.0f}% - " if strength != 1.0 else ""
+        prompt = job.params.name if job.params.name != "" else _("<no prompt>")
+        text = f"{job.timestamp.astimezone():%H:%M} - {strength_text}{prompt}"
+        if self._info is None:
+            self._info = PreviewReelInfo(self)
+        self._info.show_below(self, text)
+
+    def _hide_info(self):
+        self._info_item = None
+        if self._info is not None:
+            self._info.hide()
+
+    def _refresh_hover(self):
+        if self.underMouse() and self._press_pos is None:
+            pos = self.mapFromGlobal(QCursor.pos())
+            if self._item_at(pos, self._hover_offset) is None:
+                self._hide_info()
+            self._update_hover(pos)
+
+    # -- geometry --------------------------------------------------------------
+
+    @property
+    def _stride(self):
+        return self._thumb + self._pad
+
+    def _max_offset(self):
+        content = len(self._items) * self._stride + self._pad
+        return max(0.0, content - (self.width() - 2))
+
+    @property
+    def _hover_offset(self):
+        # while a scroll animation is running, hover targets its final position
+        if self._scroll_anim.state() is QAbstractAnimation.State.Running:
+            return float(self._scroll_anim.endValue())
+        return self._offset
+
+    def _item_rect(self, i: int, offset: float | None = None):
+        offset = self._offset if offset is None else offset
+        x = 1 + self._pad + i * self._stride - round(offset)
+        return QRect(x, 1 + self._pad, self._thumb, self._thumb)
+
+    def _item_at(self, pos: QPoint, offset: float | None = None):
+        for i, item in enumerate(self._items):
+            if self._item_rect(i, offset).contains(pos):
+                return item
+        return None
+
+    def _set_offset(self, value: float):
+        value = min(max(value, 0.0), self._max_offset())
+        if value != self._offset:
+            self._offset = value
+            self._refresh_hover()  # items may have moved under a stationary cursor
+            self.update()
+
+    def _animate_to(self, target: float):
+        target = min(max(target, 0.0), self._max_offset())
+        self._scroll_anim.stop()
+        self._scroll_anim.setStartValue(self._offset)
+        self._scroll_anim.setEndValue(target)
+        self._scroll_anim.start()
+
+    # -- painting ---------------------------------------------------------------
+
+    def paintEvent(self, a0: QPaintEvent | None) -> None:
+        painter = QPainter(self)
+        painter.setRenderHint(QPainter.RenderHint.Antialiasing)
+        painter.setRenderHint(QPainter.RenderHint.SmoothPixmapTransform)
+        painter.setPen(QColor(theme.grey))
+        painter.drawRect(self.rect().adjusted(0, 0, -1, -1))
+        content = self.rect().adjusted(1, 1, -2, -2)
+        if not self._items:
+            painter.drawText(content, Qt.AlignmentFlag.AlignCenter, _("No generated images yet."))
+        else:
+            painter.setClipRect(content)
+            for i, item in enumerate(self._items):
+                rect = self._item_rect(i)
+                if rect.right() >= 0 and rect.left() <= self.width():
+                    self._paint_item(painter, item, rect)
+        painter.end()
+
+    def _paint_item(self, painter: QPainter, item: PreviewReelItem, rect: QRect):
+        painter.fillRect(rect, self._item_background)
+        if item.kind is PreviewReelItem.Kind.result:
+            frame = item.frames[item.current_frame]
+            painter.drawPixmap(self._fit_rect(frame.size(), rect), frame, frame.rect())
+        else:
+            if item.input is not None:
+                target = self._fit_rect(item.input.size(), rect)
+                painter.drawPixmap(target, item.input, item.input.rect())
+                painter.fillRect(rect, self._overlay)
+            self._paint_icon(painter, item, rect)
+        if item is self._active:
+            painter.fillRect(rect, self._active_overlay)
+            painter.setPen(QPen(self._active_border, 2))
+            painter.setBrush(Qt.BrushStyle.NoBrush)
+            painter.drawRect(rect.adjusted(0, 0, -1, -1))
+
+    def _paint_icon(self, painter: QPainter, item: PreviewReelItem, rect: QRect):
+        size = int(rect.width() * 0.4)
+        if item.kind is PreviewReelItem.Kind.queued:
+            pixmap = theme.icon(item.icon_name).pixmap(QSize(size, size))
+        else:
+            t = (sin(self._pulse_phase) + 1) * 0.5
+            base = QColor(theme.grey)
+            color = QColor(
+                base.red() + round((255 - base.red()) * t),
+                base.green() + round((255 - base.green()) * t),
+                base.blue() + round((255 - base.blue()) * t),
+            )
+            pixmap = self._tinted_icon(item.icon_name, color, size)
+        pos = rect.center() - QPoint(size // 2, size // 2)
+        painter.drawPixmap(pos, pixmap)
+
+    def _tinted_icon(self, name: str, color: QColor, size: int):
+        key = (name, size, color.red() // 16)  # tint color is always a shade of grey
+        if key not in self._icon_cache:
+            image = theme.icon(name).pixmap(QSize(size, size)).toImage()
+            painter = QPainter(image)
+            painter.setCompositionMode(QPainter.CompositionMode.CompositionMode_SourceIn)
+            painter.fillRect(image.rect(), color)
+            painter.end()
+            self._icon_cache[key] = QPixmap.fromImage(image)
+        return self._icon_cache[key]
+
+    @staticmethod
+    def _fit_rect(size: QSize, rect: QRect):
+        scaled = size.scaled(rect.size(), Qt.AspectRatioMode.KeepAspectRatio)
+        x = rect.x() + (rect.width() - scaled.width()) // 2
+        y = rect.y() + (rect.height() - scaled.height()) // 2
+        return QRect(x, y, scaled.width(), scaled.height())
+
+    # -- animations ----------------------------------------------------------------
+
+    def _pulse(self):
+        self._pulse_phase = (self._pulse_phase + 0.12) % (2 * pi)
+        self.update()
+
+    def _update_pulse_timer(self):
+        has_executing = any(item.kind is PreviewReelItem.Kind.executing for item in self._items)
+        if has_executing and not self._pulse_timer.isActive():
+            self._pulse_timer.start()
+        elif not has_executing and self._pulse_timer.isActive():
+            self._pulse_timer.stop()
+
+    def _next_frame(self):
+        item = self._active
+        if item is not None and len(item.frames) > 1:
+            item.current_frame = (item.current_frame + 1) % len(item.frames)
+            self.update()
+        else:
+            self._frame_timer.stop()
+
+    # -- input -----------------------------------------------------------------------
+
+    def mousePressEvent(self, a0: QMouseEvent | None) -> None:
+        if a0 is not None and a0.button() == Qt.MouseButton.LeftButton:
+            self._press_pos = a0.pos()
+            self._press_offset = self._offset
+            self._dragging = False
+            self._scroll_anim.stop()
+
+    def mouseMoveEvent(self, a0: QMouseEvent | None) -> None:
+        if a0 is None:
+            return
+        if self._press_pos is not None and a0.buttons() & Qt.MouseButton.LeftButton:
+            delta = a0.pos().x() - self._press_pos.x()
+            if self._dragging or abs(delta) > 4:
+                self._dragging = True
+                self.setCursor(Qt.CursorShape.ClosedHandCursor)
+                self._set_offset(self._press_offset - delta)
+        else:
+            self._update_hover(a0.pos())
+
+    def mouseReleaseEvent(self, a0: QMouseEvent | None) -> None:
+        if a0 is None or a0.button() != Qt.MouseButton.LeftButton or self._press_pos is None:
+            return
+        self._press_pos = None
+        was_dragging = self._dragging
+        self._dragging = False
+        self.unsetCursor()
+        if was_dragging:
+            self._animate_to(round(self._offset / self._stride) * self._stride)
+        else:
+            self._click(self._item_at(a0.pos()), a0.modifiers())
+        self._update_hover(a0.pos())
+
+    def wheelEvent(self, a0: QWheelEvent | None) -> None:
+        if a0 is None or not self._items:
+            return
+        delta = a0.angleDelta().y()
+        if delta == 0:
+            a0.accept()
+            return
+        if self._scroll_anim.state() is QAbstractAnimation.State.Running:
+            base = float(self._scroll_anim.endValue())
+        else:
+            base = self._offset
+        item = round(base / self._stride)  # one wheel step moves exactly one item
+        item += -1 if delta > 0 else 1
+        self._animate_to(item * self._stride)
+        # activate the item the cursor will hover after scrolling, without
+        # waiting for the scroll animation to finish
+        self._update_hover(a0.position().toPoint())
+        a0.accept()
+
+    def leaveEvent(self, a0: QEvent | None) -> None:
+        self._set_active(None)
+        self._hide_info()
+        super().leaveEvent(a0)
+
+    def focusOutEvent(self, a0: QFocusEvent | None) -> None:
+        self._set_active(None)
+        self._hide_info()
+        super().focusOutEvent(a0)
+
+    def resizeEvent(self, a0: QResizeEvent | None) -> None:
+        self._set_offset(self._offset)  # clamp to valid range
+        self._hide_info()
+        super().resizeEvent(a0)
+
+    def hideEvent(self, a0: QHideEvent | None) -> None:
+        self._hide_info()
+        super().hideEvent(a0)
+
+    # -- actions --------------------------------------------------------------------
+
+    def _click(self, item: PreviewReelItem | None, modifiers: Qt.KeyboardModifier):
+        if item is None:
+            self._set_active(None)
+            self._hide_info()
+            return
+        shift = bool(modifiers & Qt.KeyboardModifier.ShiftModifier)
+        if item.kind is PreviewReelItem.Kind.result:
+            self._apply(item, shift)
+        elif item.kind is PreviewReelItem.Kind.executing:
+            if shift:
+                self._model.cancel(active=True)
+            else:
+                self._cancel_job(item.job)
+        elif shift:
+            self._model.cancel(queued=True)
+        else:
+            self._cancel_job(item.job)
+
+    def _apply(self, item: PreviewReelItem, alternate: bool):
+        behavior = None
+        if alternate:  # use replace if the primary behavior is a new layer, and vice versa
+            primary = settings.apply_behavior
+            if primary is ApplyBehavior.replace:
+                behavior = ApplyBehavior.layer
+            else:
+                behavior = ApplyBehavior.replace
+        if item.job.id is not None:
+            self._model.apply_generated_result(item.job.id, item.index, behavior)
+
+    def _cancel_job(self, job: Job):
+        if job.state is JobState.queued:
+            if job.id is not None and root.connection.client_if_connected is not None:
+                root.connection.cancel([job.id])
+            self._model.jobs.remove(job)
+        elif job.state is JobState.executing:
+            self._model.cancel(active=True)
+
+    def _show_context_menu(self, pos: QPoint):
+        item = self._item_at(pos)
+        if item is None:
+            return
+        menu = QMenu(self)
+        if item.kind is PreviewReelItem.Kind.result:
+            self._build_result_menu(menu, item)
+        else:
+            self._build_placeholder_menu(menu, item)
+        menu.exec(self.mapToGlobal(pos))
+
+    def _build_result_menu(self, menu: QMenu, item: PreviewReelItem):
+        job = item.job
+        menu.addAction(_("Copy Prompt"), lambda: copy_job_prompt(self._model, job))
+        menu.addAction(
+            _("Copy Prompt (Evaluated)"),
+            lambda: copy_job_prompt(self._model, job, evaluated=True),
+        )
+        menu.addAction(_("Copy Strength"), lambda: copy_job_strength(self._model, job))
+        style_action = ensure(
+            menu.addAction(_("Copy Style"), lambda: copy_job_style(self._model, job))
+        )
+        if Styles.list().find(job.params.style) is None:
+            style_action.setEnabled(False)
+        menu.addAction(_("Copy Seed"), lambda: copy_job_seed(self._model, job))
+        menu.addAction(_("Info to Clipboard"), lambda: copy_job_info(job))
+        menu.addSeparator()
+        save_action = ensure(menu.addAction(_("Save Image"), lambda: self._save_image(item)))
+        if self._model.document.filename == "":
+            tt = _(
+                "Save as separate image to the same folder as the document.\nMust save the document first!"
+            )
+            save_action.setEnabled(False)
+            save_action.setToolTip(tt)
+            menu.setToolTipsVisible(True)
+        menu.addAction(_("Discard Image"), lambda: self._discard_image(item))
+        menu.addSeparator()
+        menu.addAction(_("Clear History"), self._clear_all)
+
+    def _build_placeholder_menu(self, menu: QMenu, item: PreviewReelItem):
+        menu.addAction(_("Info to Clipboard"), lambda: copy_job_info(item.job))
+        menu.addSeparator()
+        menu.addAction(_("Cancel"), lambda: self._cancel_job(item.job))
+        queued = ensure(menu.addAction(_("Cancel queued"), lambda: self._model.cancel(queued=True)))
+        queued.setEnabled(self._model.jobs.count(JobState.queued) > 0)
+        all_ = ensure(
+            menu.addAction(_("Cancel all"), lambda: self._model.cancel(active=True, queued=True))
+        )
+        all_.setEnabled(
+            self._model.jobs.any_executing() or self._model.jobs.count(JobState.queued) > 0
+        )
+
+    def _save_image(self, item: PreviewReelItem):
+        self._model.save_result(ensure(item.job.id), item.index)
+
+    def _discard_image(self, item: PreviewReelItem):
+        reply = QMessageBox.StandardButton.Yes
+        if settings.confirm_discard_image:
+            reply = QMessageBox.warning(
+                self,
+                _("Discard Image"),
+                _("Are you sure you want to discard the selected images?"),
+                QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No,
+                QMessageBox.StandardButton.Yes,
+            )
+        if reply == QMessageBox.StandardButton.Yes:
+            self._model.jobs.discard(ensure(item.job.id), item.index)
+
+    def _clear_all(self):
+        discard_all_results(self._model, self)
