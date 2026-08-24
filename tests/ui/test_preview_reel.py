@@ -5,8 +5,8 @@ from pathlib import Path
 
 import pytest
 from krita import Krita
-from PyQt6.QtCore import QAbstractAnimation, QPoint, QPointF, Qt
-from PyQt6.QtGui import QColor, QWheelEvent
+from PyQt6.QtCore import QAbstractAnimation, QEvent, QPoint, QPointF, Qt
+from PyQt6.QtGui import QColor, QKeyEvent, QWheelEvent
 from PyQt6.QtWidgets import QApplication
 
 from ai_diffusion.backend.api import InpaintMode, WorkflowKind
@@ -73,6 +73,11 @@ def _wheel(reel: PreviewReel, delta: int, pos: QPoint | None = None):
         Qt.ScrollPhase.ScrollUpdate,
         False,
     )
+    QApplication.sendEvent(reel, event)
+
+
+def _key(reel: PreviewReel, key: Qt.Key, modifiers=Qt.KeyboardModifier.NoModifier):
+    event = QKeyEvent(QEvent.Type.KeyPress, key, modifiers)
     QApplication.sendEvent(reel, event)
 
 
@@ -389,6 +394,239 @@ async def test_preview_reel_navigation(workflows_dir: Path):
         reel._update_nav_buttons()
         assert reel._queue_count._count == 0
         assert reel._queue_count.isHidden()
+    finally:
+        reel.deleteLater()
+        await asyncio.sleep(0.05)
+        await conn.disconnect()
+
+
+@qtapp
+async def test_preview_reel_keyboard_scroll(workflows_dir: Path):
+    settings.load()
+    root.init()
+
+    krita_doc = Krita.instance().openDocument("test_preview_reel_keyboard_scroll")
+    Krita.instance().setActiveDocument(krita_doc)
+    doc = KritaDocument.active()
+    assert doc is not None
+
+    client = MockClient()
+    conn = Connection()
+    conn.connect(client)
+    await _wait_for_state(conn, ConnectionState.connecting, ConnectionState.disconnected)
+    assert conn.state is ConnectionState.connected
+
+    wf_coll = WorkflowCollection(conn, folder=workflows_dir)
+    model = DocumentModel(doc, conn, wf_coll)
+    model.style = _make_style()
+    conn.message_received.connect(model.handle_message)
+    root._connection = conn
+
+    reel = PreviewReel(None)
+    reel.resize(600, reel.height())
+    reel.model_ = model
+
+    try:
+        for i in range(8):
+            _finish(model, _make_job(model, f"result-{i}"))
+        exec_job = _make_job(model, "executing")
+        model.jobs.notify_started(exec_job)
+        _make_job(model, "queued-0")
+        _make_job(model, "queued-1")
+
+        # placeholders on the left, results on the right
+        assert reel._items[0].kind is PreviewReelItem.Kind.queued
+        assert reel._items[3].kind is PreviewReelItem.Kind.result
+
+        # arrow keys scroll by exactly one item per press
+        assert reel._offset == 0
+        _key(reel, Qt.Key.Key_Right)
+        await _settle(reel)
+        assert abs(reel._offset - reel._stride) < 1
+        _key(reel, Qt.Key.Key_Left)
+        await _settle(reel)
+        assert abs(reel._offset) < 1
+
+        # right arrow at the right edge activates the next result
+        reel._set_offset(reel._max_offset())
+        second_last = reel._items[-2]
+        last = reel._items[-1]
+        reel._set_active(second_last)
+        _key(reel, Qt.Key.Key_Right)
+        assert reel._active is last
+
+        # mouse wheel does the same at the right edge
+        reel._set_active(second_last)
+        _wheel(reel, -120)
+        assert reel._active is last
+
+        # no active item: edge scrolling does nothing
+        reel._set_active(None)
+        _key(reel, Qt.Key.Key_Right)
+        assert reel._active is None
+
+        # active item already rightmost: edge scrolling does nothing
+        reel._set_active(last)
+        _key(reel, Qt.Key.Key_Right)
+        assert reel._active is last
+
+        # left arrow at the left edge activates the previous result
+        reel._set_offset(0)
+        reel._set_active(reel._items[4])
+        _key(reel, Qt.Key.Key_Left)
+        assert reel._active is reel._items[3]
+
+        # mouse wheel does the same at the left edge
+        reel._set_active(reel._items[4])
+        _wheel(reel, 120)
+        assert reel._active is reel._items[3]
+    finally:
+        reel.deleteLater()
+        await asyncio.sleep(0.05)
+        await conn.disconnect()
+
+
+@qtapp
+async def test_preview_reel_keyboard_actions(workflows_dir: Path):
+    settings.load()
+    root.init()
+
+    krita_doc = Krita.instance().openDocument("test_preview_reel_keyboard_actions")
+    Krita.instance().setActiveDocument(krita_doc)
+    doc = KritaDocument.active()
+    assert doc is not None
+
+    client = MockClient()
+    conn = Connection()
+    conn.connect(client)
+    await _wait_for_state(conn, ConnectionState.connecting, ConnectionState.disconnected)
+    assert conn.state is ConnectionState.connected
+
+    wf_coll = WorkflowCollection(conn, folder=workflows_dir)
+    model = DocumentModel(doc, conn, wf_coll)
+    model.style = _make_style()
+    conn.message_received.connect(model.handle_message)
+    root._connection = conn
+
+    reel = PreviewReel(None)
+    reel.resize(600, reel.height())
+    reel.model_ = model
+
+    try:
+        for i in range(3):
+            _finish(model, _make_job(model, f"result-{i}"))
+        _make_job(model, "queued-0")
+        _make_job(model, "queued-1")
+        exec_job = _make_job(model, "executing")
+        model.jobs.notify_started(exec_job)
+
+        # items: [executing, queued-1, queued-0, result-2, result-1, result-0]
+        assert [it.kind for it in reel._items] == [
+            PreviewReelItem.Kind.executing,
+            PreviewReelItem.Kind.queued,
+            PreviewReelItem.Kind.queued,
+            PreviewReelItem.Kind.result,
+            PreviewReelItem.Kind.result,
+            PreviewReelItem.Kind.result,
+        ]
+
+        # Space toggles the active item and restores it on the next press
+        item_a = reel._items[3]
+        item_b = reel._items[4]
+        reel._set_active(item_a)
+        _key(reel, Qt.Key.Key_Space)
+        assert reel._active is None
+        assert model.jobs.selection == []
+        _key(reel, Qt.Key.Key_Space)
+        assert reel._active is item_a
+
+        # changing the active item resets the Space toggle state
+        reel._set_active(item_b)
+        _key(reel, Qt.Key.Key_Space)
+        assert reel._active is None
+        _key(reel, Qt.Key.Key_Space)
+        assert reel._active is item_b
+
+        # Enter applies the active result
+        layer_names = [layer.name for layer in model.layers.images]
+        reel._update_hover(reel._item_rect(3).center())
+        assert reel._active is reel._items[3]
+        _key(reel, Qt.Key.Key_Return)
+        new_layers = [l for l in model.layers.images if l.name not in layer_names]
+        assert len(new_layers) == 1 and new_layers[0].name.startswith("[Generated]")
+
+        # Enter cancels the hovered queued placeholder
+        reel._update_hover(reel._item_rect(1).center())
+        assert reel._hover_item is reel._items[1]
+        assert reel._active is None
+        _key(reel, Qt.Key.Key_Return)
+        assert model.jobs.find("queued-1") is None
+        assert model.jobs.find("queued-0") is not None
+
+        # Shift+Enter cancels all queued jobs
+        reel._update_hover(reel._item_rect(1).center())
+        _key(reel, Qt.Key.Key_Return, Qt.KeyboardModifier.ShiftModifier)
+        assert model.jobs.count(JobState.queued) == 0
+    finally:
+        reel.deleteLater()
+        await asyncio.sleep(0.05)
+        await conn.disconnect()
+
+
+@qtapp
+async def test_preview_reel_hover_cancel_icon(workflows_dir: Path):
+    settings.load()
+    root.init()
+
+    krita_doc = Krita.instance().openDocument("test_preview_reel_hover_cancel_icon")
+    Krita.instance().setActiveDocument(krita_doc)
+    doc = KritaDocument.active()
+    assert doc is not None
+
+    client = MockClient()
+    conn = Connection()
+    conn.connect(client)
+    await _wait_for_state(conn, ConnectionState.connecting, ConnectionState.disconnected)
+    assert conn.state is ConnectionState.connected
+
+    wf_coll = WorkflowCollection(conn, folder=workflows_dir)
+    model = DocumentModel(doc, conn, wf_coll)
+    model.style = _make_style()
+    conn.message_received.connect(model.handle_message)
+    root._connection = conn
+
+    reel = PreviewReel(None)
+    reel.resize(600, reel.height())
+    reel.model_ = model
+
+    try:
+        _make_job(model, "queued-0")
+        assert reel._items[0].kind is PreviewReelItem.Kind.queued
+        rect = reel._item_rect(0)
+
+        def _center_color():
+            pixmap = reel.grab(rect)
+            return pixmap.toImage().pixelColor(rect.width() // 2, rect.height() // 2)
+
+        # not hovered: the regular queue icon is painted (grey, not red)
+        color = _center_color()
+        assert not (color.red() > 200 and color.green() < 100 and color.blue() < 100)
+
+        # hovered: the icon is exchanged with a red X
+        reel._update_hover(rect.center())
+        assert reel._hover_item is reel._items[0]
+        color = _center_color()
+        assert color.red() > 200 and color.green() < 100 and color.blue() < 100
+
+        # executing placeholders show the red X as well
+        exec_job = _make_job(model, "executing")
+        model.jobs.notify_started(exec_job)
+        assert reel._items[0].kind is PreviewReelItem.Kind.executing
+        rect = reel._item_rect(0)
+        reel._update_hover(rect.center())
+        assert reel._hover_item is reel._items[0]
+        color = _center_color()
+        assert color.red() > 200 and color.green() < 100 and color.blue() < 100
     finally:
         reel.deleteLater()
         await asyncio.sleep(0.05)

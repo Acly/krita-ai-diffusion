@@ -615,8 +615,7 @@ class PreviewReelInfo(QLabel):
         super().paintEvent(a0)
 
     def show_below(self, widget: QWidget, text: str):
-        metrics = self.fontMetrics()
-        self.setText(metrics.elidedText(text, Qt.TextElideMode.ElideRight, widget.width() - 14))
+        theme.set_text_clipped(self, text.replace("\n", " "), 14)
         self.setFixedWidth(widget.width() - 4)
         self.move(1, widget.height() - self.height() - 2)
         self.show()
@@ -765,7 +764,15 @@ class PreviewReel(QWidget):
     _active_border = QColor(255, 255, 255) if theme.is_dark else QColor(0, 0, 0)
     _active_overlay = QColor(theme.active)
     _active_overlay.setAlphaF(0.3)
+    _cancel_color = QColor(theme.red)
     _kinds_with_input = (WorkflowKind.inpaint, WorkflowKind.refine, WorkflowKind.refine_region)
+    _handled_keys = (
+        Qt.Key.Key_Left,
+        Qt.Key.Key_Right,
+        Qt.Key.Key_Return,
+        Qt.Key.Key_Enter,
+        Qt.Key.Key_Space,
+    )
 
     def __init__(self, parent: QWidget | None):
         super().__init__(parent)
@@ -773,6 +780,8 @@ class PreviewReel(QWidget):
         self._connections: list[QMetaObject.Connection] = []
         self._items: list[PreviewReelItem] = []
         self._active: PreviewReelItem | None = None
+        self._hover_item: PreviewReelItem | None = None  # item under the mouse cursor
+        self._space_toggle_item: PreviewReelItem | None = None  # restored on Space press
         self._info: PreviewReelInfo | None = None
         self._info_item: PreviewReelItem | None = None  # item whose info tooltip is shown
         self._preview_owned = False  # whether canvas preview was triggered by this widget
@@ -854,6 +863,8 @@ class PreviewReel(QWidget):
         self._scroll_anim.stop()
         self._items.clear()
         self._active = None
+        self._hover_item = None
+        self._space_toggle_item = None
         self._hide_info()
         self._preview_owned = False
         self._frame_timer.stop()
@@ -952,6 +963,10 @@ class PreviewReel(QWidget):
                     self._set_active(None)
                 if self._info_item is item:
                     self._hide_info()
+                if self._hover_item is item:
+                    self._hover_item = None
+                if self._space_toggle_item is item:
+                    self._space_toggle_item = None
                 self._items.remove(item)
                 changed = True
             else:
@@ -988,6 +1003,8 @@ class PreviewReel(QWidget):
         if pos < 0:
             return
         # replace the placeholder with the job's results (in-place, items don't move)
+        if self._hover_item is self._items[pos]:
+            self._hover_item = None
         self._items[pos : pos + 1] = self._make_result_items(job)
         self._set_offset(self._offset)
         self._update_pulse_timer()
@@ -1001,6 +1018,10 @@ class PreviewReel(QWidget):
             self._set_active(None)
         if self._info_item is not None and self._info_item.job is job:
             self._hide_info()
+        if self._hover_item is not None and self._hover_item.job is job:
+            self._hover_item = None
+        if self._space_toggle_item is not None and self._space_toggle_item.job is job:
+            self._space_toggle_item = None
         self._items = [item for item in self._items if item.job is not job]
         self._set_offset(self._offset)
         self._update_pulse_timer()
@@ -1024,6 +1045,10 @@ class PreviewReel(QWidget):
                     self._set_active(None)
                 if self._info_item is item:
                     self._hide_info()
+                if self._hover_item is item:
+                    self._hover_item = None
+                if self._space_toggle_item is item:
+                    self._space_toggle_item = None
                 self._items.remove(item)
             elif item.index > id.image:
                 item.index -= 1
@@ -1051,6 +1076,7 @@ class PreviewReel(QWidget):
             )
             if match is not None:
                 self._active = match
+                self._space_toggle_item = None
                 self._preview_owned = True
                 match.current_frame = 0
                 if len(match.frames) > 1:
@@ -1064,6 +1090,7 @@ class PreviewReel(QWidget):
             return
         self._active = item
         if item is not None:
+            self._space_toggle_item = None  # active item changed, reset Space toggle state
             item.current_frame = 0
             if len(item.frames) > 1:
                 self._frame_timer.start()
@@ -1081,6 +1108,7 @@ class PreviewReel(QWidget):
         item = self._item_at(pos, self._hover_offset)
         if item is None:
             return  # keep the previous item active between items to avoid flicker
+        self._hover_item = item
         self._show_info(item)
         if item.kind is PreviewReelItem.Kind.result:
             self._set_active(item)
@@ -1261,6 +1289,9 @@ class PreviewReel(QWidget):
             painter.drawRect(rect.adjusted(0, 0, -1, -1))
 
     def _paint_icon(self, painter: QPainter, item: PreviewReelItem, rect: QRect):
+        if item is self._hover_item:
+            self._paint_cancel_icon(painter, rect)
+            return
         size = int(rect.width() * 0.4)
         if item.kind is PreviewReelItem.Kind.queued:
             pixmap = theme.icon(item.icon_name).pixmap(QSize(size, size))
@@ -1275,6 +1306,16 @@ class PreviewReel(QWidget):
             pixmap = self._tinted_icon(item.icon_name, color, size)
         pos = rect.center() - QPoint(size // 2, size // 2)
         painter.drawPixmap(pos, pixmap)
+
+    def _paint_cancel_icon(self, painter: QPainter, rect: QRect):
+        size = int(rect.width() * 0.4)
+        pen = QPen(self._cancel_color, max(2, size // 8))
+        pen.setCapStyle(Qt.PenCapStyle.RoundCap)
+        painter.setPen(pen)
+        center = rect.center()
+        half = size // 2
+        painter.drawLine(center.x() - half, center.y() - half, center.x() + half, center.y() + half)
+        painter.drawLine(center.x() + half, center.y() - half, center.x() - half, center.y() + half)
 
     def _tinted_icon(self, name: str, color: QColor, size: int):
         key = (name, size, color.red() // 16)  # tint color is always a shade of grey
@@ -1356,21 +1397,23 @@ class PreviewReel(QWidget):
         if delta == 0:
             a0.accept()
             return
-        if self._scroll_anim.state() is QAbstractAnimation.State.Running:
-            base = float(self._scroll_anim.endValue())
-        else:
-            base = self._offset
-        item = round(base / self._stride)  # one wheel step moves exactly one item
-        item += -1 if delta > 0 else 1
-        self._animate_to(item * self._stride)
-        # activate the item the cursor will hover after scrolling, without
-        # waiting for the scroll animation to finish
-        self._update_hover(a0.position().toPoint())
+        direction = -1 if delta > 0 else 1
+        if self._scroll_by(direction):
+            # activate the item the cursor will hover after scrolling, without
+            # waiting for the scroll animation to finish
+            self._update_hover(a0.position().toPoint())
         a0.accept()
 
+    def enterEvent(self, event: QEnterEvent | None) -> None:
+        if self.isVisible():
+            self.grabKeyboard()
+        super().enterEvent(event)
+
     def leaveEvent(self, a0: QEvent | None) -> None:
+        self._hover_item = None
         self._set_active(None)
         self._hide_info()
+        self.releaseKeyboard()
         super().leaveEvent(a0)
 
     def focusOutEvent(self, a0: QFocusEvent | None) -> None:
@@ -1385,9 +1428,87 @@ class PreviewReel(QWidget):
 
     def hideEvent(self, a0: QHideEvent | None) -> None:
         self._hide_info()
+        self.releaseKeyboard()
         super().hideEvent(a0)
 
+    def event(self, a0: QEvent | None) -> bool:
+        assert a0 is not None
+        if a0.type() == QEvent.Type.ShortcutOverride:
+            assert isinstance(a0, QKeyEvent)
+            if a0.key() in self._handled_keys:
+                a0.accept()
+        return super().event(a0)
+
+    def keyPressEvent(self, a0: QKeyEvent | None) -> None:
+        if a0 is None:
+            return
+        if a0.key() == Qt.Key.Key_Left:
+            self._scroll_by(-1)
+            a0.accept()
+        elif a0.key() == Qt.Key.Key_Right:
+            self._scroll_by(1)
+            a0.accept()
+        elif a0.key() in (Qt.Key.Key_Return, Qt.Key.Key_Enter):
+            self._click(self._current_item, a0.modifiers())
+            a0.accept()
+        elif a0.key() == Qt.Key.Key_Space:
+            self._toggle_active()
+            a0.accept()
+        else:
+            super().keyPressEvent(a0)
+
     # -- actions --------------------------------------------------------------------
+
+    def _scroll_by(self, direction: int) -> bool:
+        """Scroll by one item in the given direction (+1 right, -1 left).
+
+        Returns True if a scroll was started, False if the reel was already at the
+        edge and the adjacent item was activated instead."""
+        if not self._items:
+            return False
+        if self._scroll_anim.state() is QAbstractAnimation.State.Running:
+            base = float(self._scroll_anim.endValue())
+        else:
+            base = self._offset
+        max_offset = self._max_offset()
+        if direction > 0 and base >= max_offset - 0.5:
+            self._activate_adjacent(1)
+            return False
+        if direction < 0 and base <= 0.5:
+            self._activate_adjacent(-1)
+            return False
+        item = round(base / self._stride)  # one step moves exactly one item
+        self._animate_to((item + direction) * self._stride)
+        return True
+
+    def _activate_adjacent(self, direction: int):
+        if self._active is None:
+            return
+        index = next((i for i, item in enumerate(self._items) if item is self._active), -1)
+        if index < 0:
+            return
+        i = index + direction
+        while 0 <= i < len(self._items):
+            item = self._items[i]
+            if item.kind is PreviewReelItem.Kind.result:
+                self._set_active(item)
+                return
+            i += direction
+
+    @property
+    def _current_item(self):
+        if self._active is not None:
+            return self._active
+        return self._hover_item
+
+    def _toggle_active(self):
+        if self._active is not None:
+            self._space_toggle_item = self._active
+            self._set_active(None)
+        elif self._space_toggle_item is not None and self._space_toggle_item in self._items:
+            item = self._space_toggle_item
+            self._space_toggle_item = None
+            self._set_active(item)
 
     def _click(self, item: PreviewReelItem | None, modifiers: Qt.KeyboardModifier):
         if item is None:
