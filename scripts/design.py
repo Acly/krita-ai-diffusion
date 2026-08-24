@@ -49,6 +49,7 @@ from ai_diffusion.model.root import root
 from ai_diffusion.settings import settings
 from ai_diffusion.ui.diffusion import ImageDiffusionWidget
 from ai_diffusion.ui.settings import SettingsDialog
+from tests.mock.client import FakeClient
 
 _PREVIEW_SIZE = 512
 
@@ -521,6 +522,11 @@ def main():
     )
     parser.add_argument("--no-connect", action="store_true")
     parser.add_argument(
+        "--fake-client",
+        action="store_true",
+        help="Replace the production client with a fake client that returns dummy images",
+    )
+    parser.add_argument(
         "--wait",
         action="append",
         choices=[s.name for s in ConnectionState],
@@ -561,7 +567,9 @@ def main():
 
     k = krita.Krita.instance()
     k.action("ai_diffusion_settings").triggered.connect(settings_dialog.show)
-    if not args.no_connect:
+    if args.fake_client:
+        root.connection.connect(FakeClient())
+    elif not args.no_connect:
         eventloop.run(root.autostart(settings_dialog.connection.update_ui))
 
     container = QWidget()
