@@ -1061,7 +1061,7 @@ class PreviewReel(QWidget):
             if not self._accepts(job):
                 continue
             if job.state in (JobState.queued, JobState.executing):
-                placeholders.insert(0, self._make_placeholder(job))
+                placeholders[0:0] = self._make_placeholders(job)
             elif job.state is JobState.finished:
                 results[0:0] = self._make_result_items(job)
         self._items = placeholders + results
@@ -1074,25 +1074,32 @@ class PreviewReel(QWidget):
     def _accepts(job: Job):
         return job.kind in (JobKind.diffusion, JobKind.animation)
 
-    def _make_placeholder(self, job: Job):
+    def _make_placeholders(self, job: Job):
         if job.state is JobState.executing:
             kind = PreviewReelItem.Kind.executing
         else:
             kind = PreviewReelItem.Kind.queued
-        item = PreviewReelItem(kind, job)
-        if kind is PreviewReelItem.Kind.queued:
-            item.icon_name = "queue-waiting"
-        else:
-            item.icon_name = self._job_icon_name(job)
+        input_image = None
         if job.params.workflow_kind in self._kinds_with_input:
             try:
                 image = self._model.document.get_image(job.params.bounds)
-                item.input = Image.scale_to_fit(
+                input_image = Image.scale_to_fit(
                     image, Extent(2 * self._thumb, 2 * self._thumb)
                 ).to_pixmap()
             except Exception:
-                item.input = None  # no visible layers: fall back to white
-        return item
+                input_image = None  # no visible layers: fall back to white
+        count = (
+            1 if job.kind is JobKind.animation or job.params.is_layered else job.params.result_count
+        )
+        items = []
+        for index in range(count):
+            item = PreviewReelItem(kind, job, index)
+            item.icon_name = (
+                "queue-waiting" if kind is PreviewReelItem.Kind.queued else self._job_icon_name(job)
+            )
+            item.input = input_image
+            items.append(item)
+        return items
 
     def _make_result_items(self, job: Job):
         if job.kind is JobKind.animation:
@@ -1166,14 +1173,14 @@ class PreviewReel(QWidget):
 
         missing = [j for j in open_jobs if all(item.job is not j for item in self._items)]
         if missing:
-            # insert in chronological order so that the newest job ends up leftmost
-            for job in missing:
-                self._items.insert(0, self._make_placeholder(job))
+            # Insert in chronological order so that the newest job ends up leftmost.
+            new_items = [item for job in missing for item in self._make_placeholders(job)]
+            self._items[0:0] = new_items
             # New items appear on the left. Keep the view scrolled all the way left if it
             # already is, otherwise shift the offset so existing items don't move.
             self._scroll_anim.stop()
             if self._offset > 1:
-                self._set_offset(self._offset + len(missing) * self._stride)
+                self._set_offset(self._offset + len(new_items) * self._stride)
             changed = True
 
         if changed:
@@ -1188,10 +1195,20 @@ class PreviewReel(QWidget):
         pos = next((i for i, item in enumerate(self._items) if item.job is job), -1)
         if pos < 0:
             return
-        # replace the placeholder with the job's results (in-place, items don't move)
-        if self._hover_item is self._items[pos]:
+        # Replace every placeholder with the job's results in place.
+        placeholders = []
+        while pos + len(placeholders) < len(self._items):
+            item = self._items[pos + len(placeholders)]
+            if item.job is not job or item.kind is PreviewReelItem.Kind.result:
+                break
+            placeholders.append(item)
+        if self._hover_item in placeholders:
             self._hover_item = None
-        self._items[pos : pos + 1] = self._make_result_items(job)
+        if self._info_item in placeholders:
+            self._hide_info()
+        if self._space_toggle_item in placeholders:
+            self._space_toggle_item = None
+        self._items[pos : pos + len(placeholders)] = self._make_result_items(job)
         self._set_offset(self._offset)
         self._update_pulse_timer()
         self._refresh_hover()

@@ -337,6 +337,7 @@ class DocumentModel(QObject, ObservableProperties):
         sampling = ensure(input.sampling)
         params.has_mask = input.images is not None and input.images.hires_mask is not None
         params.workflow_kind = input.kind
+        params.result_count = input.batch_count
         queue_mode = queue_mode or self.queue_mode
 
         if queue_mode is QueueMode.replace:
