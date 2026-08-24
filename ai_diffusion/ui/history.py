@@ -25,6 +25,7 @@ from PyQt6.QtGui import (
     QBrush,
     QColor,
     QCursor,
+    QEnterEvent,
     QFocusEvent,
     QGuiApplication,
     QHideEvent,
@@ -34,10 +35,12 @@ from PyQt6.QtGui import (
     QLinearGradient,
     QMouseEvent,
     QPainter,
+    QPainterPath,
     QPaintEvent,
     QPalette,
     QPen,
     QPixmap,
+    QPolygon,
     QResizeEvent,
     QWheelEvent,
 )
@@ -638,6 +641,115 @@ class PreviewReelItem:
         self.input: QPixmap | None = None  # input image thumbnail, placeholders only
 
 
+class QueueCountOverlay(QWidget):
+    """Shows the number of queued jobs in the top-left corner of the PreviewReel."""
+
+    def __init__(self, parent: QWidget):
+        super().__init__(parent)
+        self._count = 0
+        self._color = QColor(theme.highlight)
+        self._background_color = QGuiApplication.palette().color(QPalette.ColorRole.Base)
+        self._background_color.setAlphaF(0.9)
+        font = self.font()
+        font.setBold(True)
+        self.setFont(font)
+        self.setAttribute(Qt.WidgetAttribute.WA_TransparentForMouseEvents)
+        metrics = self.fontMetrics()
+        self._height = metrics.height() + 4
+        self._icon_size = self._height + 2
+        self._width = self._icon_size + 6 + metrics.horizontalAdvance("999")
+        self._pixmap = theme.icon("queue-inactive").pixmap(self._icon_size, self._icon_size)
+        self.setFixedSize(self._width, self._height)
+        self.hide()
+
+    def set_count(self, count: int):
+        if count != self._count:
+            metrics = self.fontMetrics()
+            self._count = count
+            self._width = self._icon_size + 6 + metrics.horizontalAdvance(str(self._count))
+            self.setVisible(count > 0)
+            self.update()
+
+    def paintEvent(self, a0: QPaintEvent | None) -> None:
+        painter = QPainter(self)
+        path = QPainterPath()
+        path.addRoundedRect(0, 0, self._width, self._height, 4, 4)
+        # painter.setBrush(QBrush(self._background_color))
+        painter.fillPath(path, QBrush(self._background_color))
+        painter.drawPixmap(0, 0, self._pixmap)
+        painter.setPen(self._color)
+        painter.drawText(
+            QRect(self._icon_size + 2, 2, self.width() - self._icon_size, self._height),
+            Qt.AlignmentFlag.AlignLeft | Qt.AlignmentFlag.AlignVCenter,
+            str(self._count),
+        )
+        painter.end()
+
+
+class ReelNavButton(QWidget):
+    """Overlay navigation button for the PreviewReel."""
+
+    clicked = pyqtSignal()
+
+    def __init__(self, parent: QWidget, direction: int):
+        super().__init__(parent)
+        self._direction = direction  # -1 = left, +1 = right
+        base = QGuiApplication.palette().color(QPalette.ColorRole.Base)
+        self._gradient_start_hover = QColor(base)
+        self._gradient_start = theme.relative_color(self._gradient_start_hover, 120)
+        self._gradient_end = QColor(self._gradient_start)
+        self._gradient_start.setAlphaF(0.6)
+        self._gradient_start_hover.setAlphaF(0.8)
+        self._icon_color_hover = QGuiApplication.palette().color(QPalette.ColorRole.Text)
+        self._icon_color = theme.relative_color(self._icon_color_hover, 120)
+        self.setCursor(Qt.CursorShape.ArrowCursor)
+
+    def paintEvent(self, a0: QPaintEvent | None) -> None:
+        painter = QPainter(self)
+        painter.setRenderHint(QPainter.RenderHint.Antialiasing)
+        if self._direction < 0:  # right-to-left: opaque at the outer (left) edge
+            gradient = QLinearGradient(self.width(), 0, 0, 0)
+        else:  # left-to-right: opaque at the outer (right) edge
+            gradient = QLinearGradient(0, 0, self.width(), 0)
+        hover = self.underMouse()
+        gradient.setColorAt(0, self._gradient_start_hover if hover else self._gradient_start)
+        gradient.setColorAt(1, self._gradient_end)
+        rect = self.rect()
+        painter.fillRect(rect, QBrush(gradient))
+        w, h = rect.width(), rect.height()
+        tw, th = int(w * 0.35), int(h * 0.4)
+        cx, cy = rect.center().x(), rect.center().y()
+        if self._direction < 0:
+            points = [
+                QPoint(cx - tw // 2, cy),
+                QPoint(cx + tw // 2, cy - th // 2),
+                QPoint(cx + tw // 2, cy + th // 2),
+            ]
+        else:
+            points = [
+                QPoint(cx + tw // 2, cy),
+                QPoint(cx - tw // 2, cy - th // 2),
+                QPoint(cx - tw // 2, cy + th // 2),
+            ]
+        painter.setPen(Qt.PenStyle.NoPen)
+        painter.setBrush(self._icon_color_hover if hover else self._icon_color)
+        painter.drawPolygon(QPolygon(points))
+        painter.end()
+
+    def mousePressEvent(self, a0: QMouseEvent | None) -> None:
+        if a0 is not None and a0.button() == Qt.MouseButton.LeftButton:
+            self.clicked.emit()
+            a0.accept()
+
+    def enterEvent(self, event: QEnterEvent | None) -> None:
+        self.update()
+        return super().enterEvent(event)
+
+    def leaveEvent(self, a0: QEvent | None) -> None:
+        self.update()
+        return super().leaveEvent(a0)
+
+
 class PreviewReel(QWidget):
     """Horizontal reel showing queued and in-progress jobs followed by the latest results.
 
@@ -645,6 +757,7 @@ class PreviewReel(QWidget):
     scrolled by grabbing with the mouse or via the wheel (one wheel step per item)."""
 
     thumb_size = 72
+    _nav_button_width = 24
     _star = HistoryWidget._applied_icon
     _background_top = QColor(theme.base).darker(120)
     _background_bottom = QColor(theme.base).lighter(120)
@@ -697,6 +810,15 @@ class PreviewReel(QWidget):
         self.setContextMenuPolicy(Qt.ContextMenuPolicy.CustomContextMenu)
         self.customContextMenuRequested.connect(self._show_context_menu)
 
+        self._nav_left = ReelNavButton(self, -1)
+        self._nav_right = ReelNavButton(self, 1)
+        self._nav_left.clicked.connect(self._nav_left_clicked)
+        self._nav_right.clicked.connect(self._nav_right_clicked)
+        self._nav_left.hide()
+        self._nav_right.hide()
+        self._queue_count = QueueCountOverlay(self)
+        self._queue_count.move(self._nav_button_width + 3, 1)
+
     def sizeHint(self):
         # the widget keeps its final height even when it is empty
         return QSize(4 * self._stride, self._thumb + 2 * self._pad + 2)
@@ -748,6 +870,7 @@ class PreviewReel(QWidget):
         self._items = placeholders + results
         self._offset = 0
         self._update_pulse_timer()
+        self._update_nav_buttons()
         self.update()
 
     @staticmethod
@@ -976,6 +1099,9 @@ class PreviewReel(QWidget):
         text = f"{job.timestamp.astimezone():%H:%M} - {strength_text}{prompt}"
         if self._info is None:
             self._info = PreviewReelInfo(self)
+            self._nav_left.raise_()
+            self._nav_right.raise_()
+            self._queue_count.raise_()
         self._info.show_below(self, text)
 
     def _hide_info(self):
@@ -986,6 +1112,8 @@ class PreviewReel(QWidget):
     def _refresh_hover(self):
         if self.underMouse() and self._press_pos is None:
             pos = self.mapFromGlobal(QCursor.pos())
+            if self.childAt(pos) is not None:
+                return
             if self._item_at(pos, self._hover_offset) is None:
                 self._hide_info()
             self._update_hover(pos)
@@ -995,6 +1123,10 @@ class PreviewReel(QWidget):
     @property
     def _stride(self):
         return self._thumb + self._pad
+
+    @property
+    def _items_per_view(self):
+        return max(1, (self.width() - 2) // self._stride)
 
     def _max_offset(self):
         content = len(self._items) * self._stride + self._pad
@@ -1018,12 +1150,72 @@ class PreviewReel(QWidget):
                 return item
         return None
 
+    def _is_item_visible(self, i: int):
+        # an item is considered visible if more than a 1px sliver is in the content area
+        rect = self._item_rect(i)
+        return rect.right() > 1 and rect.left() < self.width() - 1
+
+    def _queued_count(self):
+        return sum(1 for item in self._items if item.kind is PreviewReelItem.Kind.queued)
+
+    def _update_nav_buttons(self):
+        btn_w = self._nav_button_width
+        y = self._pad
+        self._nav_left.setGeometry(1, y, btn_w, self._thumb + 1)
+        self._nav_right.setGeometry(self.width() - btn_w - 1, y, btn_w, self._thumb + 1)
+        left_visible = self._offset > 0
+        right_visible = self._offset < self._max_offset()
+        if self._nav_left.isHidden() == left_visible:
+            self._nav_left.setVisible(left_visible)
+            self._nav_left.raise_()
+            self._queue_count.raise_()
+        if self._nav_right.isHidden() == right_visible:
+            self._nav_right.setVisible(right_visible)
+            self._nav_right.raise_()
+            self._queue_count.raise_()
+        self._queue_count.set_count(self._queued_count())
+
+    def _nav_left_clicked(self):
+        first = next(
+            (
+                i
+                for i, item in enumerate(self._items)
+                if item.kind is not PreviewReelItem.Kind.queued
+            ),
+            None,
+        )
+        if first is not None and self._item_rect(first).right() <= 1:
+            self._animate_to(first * self._stride)
+        else:
+            self._animate_to(0)
+
+    def _nav_right_clicked(self):
+        first = next(
+            (
+                i
+                for i, item in enumerate(self._items)
+                if item.kind is not PreviewReelItem.Kind.queued
+            ),
+            None,
+        )
+        if first is not None and any(
+            item.kind is PreviewReelItem.Kind.queued and self._is_item_visible(i)
+            for i, item in enumerate(self._items)
+        ):
+            self._animate_to(first * self._stride)
+        else:
+            step = max(1, self._items_per_view - 1) * self._stride
+            self._animate_to(self._offset + step)
+
     def _set_offset(self, value: float):
         value = min(max(value, 0.0), self._max_offset())
         if value != self._offset:
             self._offset = value
+            self._update_nav_buttons()
             self._refresh_hover()  # items may have moved under a stationary cursor
             self.update()
+        else:
+            self._update_nav_buttons()
 
     def _animate_to(self, target: float):
         target = min(max(target, 0.0), self._max_offset())

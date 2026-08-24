@@ -76,6 +76,13 @@ def _wheel(reel: PreviewReel, delta: int, pos: QPoint | None = None):
     QApplication.sendEvent(reel, event)
 
 
+async def _settle(reel: PreviewReel):
+    for _ in range(50):
+        await asyncio.sleep(0.02)
+        if reel._scroll_anim.state() is not QAbstractAnimation.State.Running:
+            return
+
+
 @pytest.fixture()
 def workflows_dir(tmp_path: Path) -> Path:
     folder = tmp_path / "workflows"
@@ -283,6 +290,108 @@ async def test_preview_reel(workflows_dir: Path):
     finally:
         reel.deleteLater()
         await asyncio.sleep(0.05)  # let the message handler task start before cancelling it
+        await conn.disconnect()
+
+
+@qtapp
+async def test_preview_reel_navigation(workflows_dir: Path):
+    settings.load()
+    root.init()
+
+    krita_doc = Krita.instance().openDocument("test_preview_reel_navigation")
+    Krita.instance().setActiveDocument(krita_doc)
+    doc = KritaDocument.active()
+    assert doc is not None
+
+    client = MockClient()
+    conn = Connection()
+    conn.connect(client)
+    await _wait_for_state(conn, ConnectionState.connecting, ConnectionState.disconnected)
+    assert conn.state is ConnectionState.connected
+
+    wf_coll = WorkflowCollection(conn, folder=workflows_dir)
+    model = DocumentModel(doc, conn, wf_coll)
+    model.style = _make_style()
+    conn.message_received.connect(model.handle_message)
+    root._connection = conn
+
+    reel = PreviewReel(None)
+    reel.resize(600, reel.height())
+    reel.model_ = model
+
+    try:
+        # no items: both buttons hidden
+        assert reel._nav_left.isHidden()
+        assert reel._nav_right.isHidden()
+
+        # results first, then executing + queued placeholders (newest left)
+        for i in range(12):
+            _finish(model, _make_job(model, f"result-{i}"))
+        exec_job = _make_job(model, "executing")
+        model.jobs.notify_started(exec_job)
+        for i in range(3):
+            _make_job(model, f"queued-{i}")
+
+        assert [it.kind for it in reel._items][:4] == [
+            PreviewReelItem.Kind.queued,
+            PreviewReelItem.Kind.queued,
+            PreviewReelItem.Kind.queued,
+            PreviewReelItem.Kind.executing,
+        ]
+        assert reel._offset == 0
+        assert reel._nav_left.isHidden()
+        assert not reel._nav_right.isHidden()
+        assert reel._queue_count._count == 3
+        assert not reel._queue_count.isHidden()
+        assert reel._queue_count.pos() == QPoint(0, 0)
+        assert reel._queue_count.testAttribute(Qt.WidgetAttribute.WA_TransparentForMouseEvents)
+
+        # buttons overlay items: fixed width, item height, item geometry is independent
+        assert reel._nav_left.width() == 24
+        assert reel._nav_left.height() == reel._thumb
+        assert reel._nav_right.width() == 24
+        assert reel._nav_right.height() == reel._thumb
+
+        # right click with queued items in view -> jump to first non-queued item
+        reel._nav_right_clicked()
+        await _settle(reel)
+        assert abs(reel._offset - 3 * reel._stride) < 1
+        assert not reel._nav_left.isHidden()
+        assert not reel._nav_right.isHidden()
+        assert not any(
+            it.kind is PreviewReelItem.Kind.queued and reel._is_item_visible(i)
+            for i, it in enumerate(reel._items)
+        )
+
+        # right click with no queued items in view -> page scroll
+        before = reel._offset
+        reel._nav_right_clicked()
+        await _settle(reel)
+        step = max(1, reel._items_per_view - 1) * reel._stride
+        assert abs(reel._offset - min(before + step, reel._max_offset())) < 1
+
+        # left click with non-queued items hidden to the left -> jump to first non-queued
+        reel._nav_left_clicked()
+        await _settle(reel)
+        assert abs(reel._offset - 3 * reel._stride) < 1
+
+        # left click with only queued items hidden to the left -> jump to first item
+        reel._set_offset(2 * reel._stride)
+        reel._nav_left_clicked()
+        await _settle(reel)
+        assert abs(reel._offset) < 1
+
+        # queue count overlay is independent of the nav button and follows queued items
+        assert reel._queue_count._count == 3
+        for item in list(reel._items):
+            if item.kind is PreviewReelItem.Kind.queued:
+                reel._items.remove(item)
+        reel._update_nav_buttons()
+        assert reel._queue_count._count == 0
+        assert reel._queue_count.isHidden()
+    finally:
+        reel.deleteLater()
+        await asyncio.sleep(0.05)
         await conn.disconnect()
 
 

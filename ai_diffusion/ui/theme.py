@@ -3,7 +3,7 @@ from __future__ import annotations
 from pathlib import Path
 
 from PyQt6.QtCore import QObject, QSize, Qt
-from PyQt6.QtGui import QFontMetrics, QGuiApplication, QIcon, QPalette, QPixmap
+from PyQt6.QtGui import QColor, QFontMetrics, QGuiApplication, QIcon, QPalette, QPixmap
 from PyQt6.QtWidgets import QLabel, QVBoxLayout, QWidget
 
 from ..backend.client import Client
@@ -40,6 +40,11 @@ prompt_max_line_count = 40
 copy_to_clipboard_string = _("Copy to clipboard")  # keeping translations for future use
 
 icon_path = Path(__file__).parent.parent / "icons"
+
+
+def relative_color(c: QColor, percent: int):
+    """Returns a darker color for dark themes, lighter color for light themes."""
+    return c.darker(percent) if is_dark else c.lighter(percent)
 
 
 def icon(name: str):
