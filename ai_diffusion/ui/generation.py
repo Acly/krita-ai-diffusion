@@ -17,7 +17,6 @@ from PyQt6.QtWidgets import (
     QCheckBox,
     QComboBox,
     QHBoxLayout,
-    QListWidgetItem,
     QMenu,
     QProgressBar,
     QToolButton,
@@ -34,7 +33,7 @@ from ..model.model import DocumentModel, ProgressKind
 from ..model.properties import Bind, Binding, bind, bind_combo, bind_toggle
 from ..model.root import root
 from . import theme
-from .history import HistoryWidget, PreviewReel
+from .history import PreviewReel
 from .region import RegionPromptWidget
 from .widget import (
     ErrorBox,
@@ -294,13 +293,10 @@ class GenerationWidget(QWidget):
 
         self.preview_reel = PreviewReel(self)
         layout.addWidget(self.preview_reel)
+        layout.addStretch()
 
         self.error_box = ErrorBox(self)
         layout.addWidget(self.error_box)
-
-        self.history = HistoryWidget(self)
-        self.history.item_activated.connect(self.apply_result)
-        layout.addWidget(self.history)
 
         self.update_generate_options()
 
@@ -341,12 +337,7 @@ class GenerationWidget(QWidget):
             self.progress_bar.model = model
             self.strength_slider.model = model
             self.preview_reel.model_ = model
-            self.history.model_ = model
             self.update_generate_options()
-
-    def apply_result(self, item: QListWidgetItem):
-        job_id, index = self.history.item_info(item)
-        self.model.apply_generated_result(job_id, index)
 
     _inpaint_text: ClassVar[dict[InpaintMode, str]] = {
         InpaintMode.automatic: _("Default (Auto-detect)"),

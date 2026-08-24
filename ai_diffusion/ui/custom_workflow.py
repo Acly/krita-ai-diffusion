@@ -16,7 +16,6 @@ from PyQt6.QtWidgets import (
     QHBoxLayout,
     QLabel,
     QLineEdit,
-    QListWidgetItem,
     QMenu,
     QMessageBox,
     QScrollArea,
@@ -47,7 +46,7 @@ from ..style import Styles
 from ..util import base_type_match, clamp, ensure
 from . import theme
 from .generation import GenerateButton, ProgressBar, QueueButton
-from .history import HistoryWidget
+from .history import PreviewReel
 from .live import LivePreviewArea
 from .region import ActiveRegionWidget, PromptHeader
 from .settings_widgets import ExpanderButton
@@ -808,8 +807,7 @@ class CustomWorkflowWidget(QWidget):
         self._outputs = WorkflowOutputsWidget(self._bottom)
         self._outputs.expander.toggled.connect(self._update_layout)
 
-        self._history = HistoryWidget(self._bottom)
-        self._history.item_activated.connect(self.apply_result)
+        self._preview_reel = PreviewReel(self._bottom)
 
         self._live_preview = LivePreviewArea(self._bottom)
 
@@ -858,7 +856,8 @@ class CustomWorkflowWidget(QWidget):
         self._bottom_layout.addWidget(self._progress_bar)
         self._bottom_layout.addWidget(self._error_box)
         self._bottom_layout.addWidget(self._outputs, stretch=0)
-        self._bottom_layout.addWidget(self._history, stretch=3)
+        self._bottom_layout.addWidget(self._preview_reel, stretch=0)
+        self._bottom_layout.addStretch()
         self._bottom_layout.addWidget(self._live_preview, stretch=5)
         self.setLayout(layout)
 
@@ -896,7 +895,7 @@ class CustomWorkflowWidget(QWidget):
             ]
             self._queue_button.model = model
             self._progress_bar.model = model
-            self._history.model_ = model
+            self._preview_reel.model_ = model
             self._prompt_widget.region = model.regions
             self._update_current_workflow()
             self._update_ui()
@@ -920,7 +919,7 @@ class CustomWorkflowWidget(QWidget):
 
     def _update_ui(self):
         is_live_mode = self.model.custom.mode is CustomGenerationMode.live
-        self._history.setVisible(not is_live_mode)
+        self._preview_reel.setVisible(not is_live_mode)
         self._live_preview.setVisible(is_live_mode)
         self._apply_button.setVisible(is_live_mode)
         self._apply_button.setEnabled(self.model.custom.has_result)
@@ -994,10 +993,6 @@ class CustomWorkflowWidget(QWidget):
 
     def _splitter_moved(self, pos: int, index: int):
         self.model.custom.params_ui_height = self._splitter.sizes()[0]
-
-    def apply_result(self, item: QListWidgetItem):
-        job_id, index = self._history.item_info(item)
-        self.model.apply_generated_result(job_id, index)
 
     def apply_live_result(self):
         image, params = self.model.custom.live_result
