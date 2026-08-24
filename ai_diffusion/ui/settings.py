@@ -750,6 +750,10 @@ class InterfaceSettings(SettingsTab):
             "apply_region_behavior_live",
             ComboBoxSetting(S._apply_region_behavior_live, parent=self),
         )
+        self.add(
+            "preview_reel_size",
+            SpinBoxSetting(S._preview_reel_size, self, 48, 128, step=8, suffix=" px"),
+        )
         self.add("new_seed_after_apply", SwitchSetting(S._new_seed_after_apply, parent=self))
         self.add("save_image_format", ComboBoxSetting(S._save_image_format, parent=self))
         self.add("save_image_metadata", SwitchSetting(S._save_image_metadata, parent=self))

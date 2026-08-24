@@ -359,6 +359,13 @@ class Settings(QObject):
         _("Choose how result images are applied to the canvas in Live mode"),
     )
 
+    preview_reel_size: int
+    _preview_reel_size = Setting(
+        _("Preview Reel Size"),
+        72,
+        _("Size of the thumbnails shown in the result image preview reel"),
+    )
+
     apply_region_behavior_live: ApplyRegionBehavior
     _apply_region_behavior_live = Setting(
         "Apply Region Behavior (Live)", ApplyRegionBehavior.replace

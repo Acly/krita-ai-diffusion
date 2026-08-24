@@ -941,7 +941,6 @@ class PreviewReel(QWidget):
     Hovering a result image previews it on the canvas, clicking applies it. Content is
     scrolled by grabbing with the mouse or via the wheel (one wheel step per item)."""
 
-    thumb_size = 72
     _nav_button_width = 24
     _star = HistoryWidget._applied_icon
     _background_top = QColor(theme.base).darker(120)
@@ -978,14 +977,8 @@ class PreviewReel(QWidget):
         self._pulse_phase = 0.0
         self._icon_cache: dict[tuple[str, int, int], QPixmap] = {}
 
-        scale = theme.screen_scale(self, QSize(self.thumb_size, self.thumb_size))
-        self._thumb = scale.width()
         self._pad = 2
-
-        gradient = QLinearGradient(0, 1 + self._pad, 0, 1 + self._pad + self._thumb)
-        gradient.setColorAt(0, self._background_top)
-        gradient.setColorAt(1, self._background_bottom)
-        self._item_background = QBrush(gradient)
+        self._update_thumb_size()
 
         self._scroll_anim = QPropertyAnimation(self, b"scroll_offset", self)
         self._scroll_anim.setDuration(120)
@@ -1004,6 +997,7 @@ class PreviewReel(QWidget):
         self.setFixedHeight(self._thumb + 2 * self._pad + 2)
         self.setContextMenuPolicy(Qt.ContextMenuPolicy.CustomContextMenu)
         self.customContextMenuRequested.connect(self._show_context_menu)
+        settings.changed.connect(self._on_settings_changed)
 
         self._nav_left = ReelNavButton(self, -1)
         self._nav_right = ReelNavButton(self, 1)
@@ -1017,6 +1011,24 @@ class PreviewReel(QWidget):
     def sizeHint(self):
         # the widget keeps its final height even when it is empty
         return QSize(4 * self._stride, self._thumb + 2 * self._pad + 2)
+
+    def _update_thumb_size(self):
+        self._thumb = theme.screen_scale(
+            self, QSize(settings.preview_reel_size, settings.preview_reel_size)
+        ).width()
+        gradient = QLinearGradient(0, 1 + self._pad, 0, 1 + self._pad + self._thumb)
+        gradient.setColorAt(0, self._background_top)
+        gradient.setColorAt(1, self._background_bottom)
+        self._item_background = QBrush(gradient)
+
+    def _on_settings_changed(self, name: str, value: object):
+        if name == "preview_reel_size":
+            self._scroll_anim.stop()
+            self._update_thumb_size()
+            self.setFixedHeight(self._thumb + 2 * self._pad + 2)
+            self._set_offset(self._offset)
+            self.updateGeometry()
+            self.update()
 
     @pyqtProperty(float)
     def scroll_offset(self):  # type: ignore
