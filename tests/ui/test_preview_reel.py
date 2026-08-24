@@ -44,9 +44,13 @@ def _image(r=200, g=40, b=40):
 
 
 def _make_job(
-    model: DocumentModel, id: str, workflow_kind=WorkflowKind.generate, kind=JobKind.diffusion
+    model: DocumentModel,
+    id: str,
+    workflow_kind=WorkflowKind.generate,
+    kind=JobKind.diffusion,
+    result_count=1,
 ):
-    params = JobParams(Bounds(0, 0, 512, 512), f"name {id}")
+    params = JobParams(Bounds(0, 0, 512, 512), f"name {id}", result_count=result_count)
     params.workflow_kind = workflow_kind
     if workflow_kind is WorkflowKind.inpaint:
         params.inpaint_mode = InpaintMode.fill
@@ -136,7 +140,7 @@ async def test_preview_reel(workflows_dir: Path):
         assert all(it.kind is PreviewReelItem.Kind.result for it in reel._items)
 
         # queued and executing jobs show as placeholders on the left
-        job3 = _make_job(model, "job-3", WorkflowKind.inpaint)
+        job3 = _make_job(model, "job-3", WorkflowKind.inpaint, result_count=2)
         model.jobs.notify_started(job3)
         _make_job(model, "job-4")
         _make_job(model, "job-5", WorkflowKind.refine)
@@ -144,6 +148,7 @@ async def test_preview_reel(workflows_dir: Path):
         assert kinds == [
             ("job-5", PreviewReelItem.Kind.queued),
             ("job-4", PreviewReelItem.Kind.queued),
+            ("job-3", PreviewReelItem.Kind.executing),
             ("job-3", PreviewReelItem.Kind.executing),
             ("job-2", PreviewReelItem.Kind.result),
             ("job-1", PreviewReelItem.Kind.result),
@@ -153,11 +158,12 @@ async def test_preview_reel(workflows_dir: Path):
         assert reel._items[0].input is not None
         assert reel._items[1].input is None
 
-        # finishing a job converts its placeholder into results in place
-        _finish(model, job3)
+        # A job reserves one slot per expected result, so its results do not shift later items.
+        _finish(model, job3, count=2)
         assert [(it.job.id, it.kind) for it in reel._items] == [
             ("job-5", PreviewReelItem.Kind.queued),
             ("job-4", PreviewReelItem.Kind.queued),
+            ("job-3", PreviewReelItem.Kind.result),
             ("job-3", PreviewReelItem.Kind.result),
             ("job-2", PreviewReelItem.Kind.result),
             ("job-1", PreviewReelItem.Kind.result),
