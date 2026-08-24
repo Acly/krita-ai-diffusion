@@ -9,6 +9,7 @@ from PyQt6.QtWidgets import (
     QCheckBox,
     QHBoxLayout,
     QLabel,
+    QListWidgetItem,
     QPushButton,
     QStackedWidget,
     QVBoxLayout,
@@ -28,6 +29,7 @@ from . import theme
 from .animation import AnimationWidget
 from .custom_workflow import CustomWorkflowPlaceholder, CustomWorkflowWidget
 from .generation import GenerationWidget
+from .history import HistoryWidget
 from .live import LiveWidget
 from .upscale import UpscaleWidget
 
@@ -342,3 +344,34 @@ class ImageDiffusionWidget(DockWidget):
         elif model.workspace is Workspace.custom:
             self._custom.model = model
             self._frame.setCurrentWidget(self._custom)
+
+
+class HistoryDockWidget(DockWidget):
+    def __init__(self):
+        super().__init__()
+        self.setWindowTitle(_("AI Image History"))
+        self._history = HistoryWidget(self)
+        self._history.item_activated.connect(self.apply_result)
+        self.setWidget(self._history)
+        root.model_created.connect(self.register_model)
+
+    def canvasChanged(self, canvas: krita.Canvas):
+        if canvas is not None and canvas.view() is not None:
+            eventloop.run(self._update_active_document())
+
+    async def _update_active_document(self):
+        if not KritaDocument.active():
+            await asyncio.sleep(0.1)
+        self.update_content()
+
+    def register_model(self, model: DocumentModel):
+        model.workspace_changed.connect(self.update_content)
+
+    def update_content(self):
+        model = root.active_model
+        if model is not self._history.model_:
+            self._history.model_ = model
+
+    def apply_result(self, item: QListWidgetItem):
+        job_id, index = self._history.item_info(item)
+        self._history.model_.apply_generated_result(job_id, index)

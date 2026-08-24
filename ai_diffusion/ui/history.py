@@ -6,6 +6,7 @@ from math import pi, sin
 from textwrap import wrap as wrap_text
 from typing import cast
 
+from krita import Krita
 from PyQt6.QtCore import (
     QAbstractAnimation,
     QEasingCurve,
@@ -605,7 +606,7 @@ class PreviewReelInfo(QLabel):
         self.setAttribute(Qt.WidgetAttribute.WA_TranslucentBackground)  # allows alpha background
         self.setAttribute(Qt.WidgetAttribute.WA_TransparentForMouseEvents)
         self._background = QGuiApplication.palette().color(QPalette.ColorRole.Base)
-        self._background.setAlpha(200)
+        self._background.setAlphaF(0.85)
         self.setStyleSheet("QLabel { padding: 2px 4px; }")
 
     def paintEvent(self, a0: QPaintEvent | None) -> None:
@@ -678,7 +679,7 @@ class QueueCountOverlay(QWidget):
         painter.drawPixmap(0, 0, self._pixmap)
         painter.setPen(self._color)
         painter.drawText(
-            QRect(self._icon_size + 2, 2, self.width() - self._icon_size, self._height),
+            QRect(self._icon_size + 2, 1, self.width() - self._icon_size, self._height),
             Qt.AlignmentFlag.AlignLeft | Qt.AlignmentFlag.AlignVCenter,
             str(self._count),
         )
@@ -1584,6 +1585,7 @@ class PreviewReel(QWidget):
             menu.setToolTipsVisible(True)
         menu.addAction(_("Discard Image"), lambda: self._discard_image(item))
         menu.addSeparator()
+        menu.addAction(_("Open History"), self._open_history)
         menu.addAction(_("Clear History"), self._clear_all)
 
     def _build_placeholder_menu(self, menu: QMenu, item: PreviewReelItem):
@@ -1617,3 +1619,10 @@ class PreviewReel(QWidget):
 
     def _clear_all(self):
         discard_all_results(self._model, self)
+
+    def _open_history(self):
+        for docker in Krita.instance().dockers():
+            if docker.objectName() == "aiImageHistory":
+                docker.setVisible(True)
+                docker.raise_()
+                return

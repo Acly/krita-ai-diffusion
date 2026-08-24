@@ -348,14 +348,14 @@ async def test_preview_reel_navigation(workflows_dir: Path):
         assert not reel._nav_right.isHidden()
         assert reel._queue_count._count == 3
         assert not reel._queue_count.isHidden()
-        assert reel._queue_count.pos() == QPoint(0, 0)
+        assert reel._queue_count.pos() == QPoint(reel._nav_button_width + 3, 1)
         assert reel._queue_count.testAttribute(Qt.WidgetAttribute.WA_TransparentForMouseEvents)
 
         # buttons overlay items: fixed width, item height, item geometry is independent
         assert reel._nav_left.width() == 24
-        assert reel._nav_left.height() == reel._thumb
+        assert reel._nav_left.height() == reel._thumb + 1
         assert reel._nav_right.width() == 24
-        assert reel._nav_right.height() == reel._thumb
+        assert reel._nav_right.height() == reel._thumb + 1
 
         # right click with queued items in view -> jump to first non-queued item
         reel._nav_right_clicked()
@@ -604,19 +604,28 @@ async def test_preview_reel_hover_cancel_icon(workflows_dir: Path):
         assert reel._items[0].kind is PreviewReelItem.Kind.queued
         rect = reel._item_rect(0)
 
+        cancel = reel._cancel_color
+
         def _center_color():
             pixmap = reel.grab(rect)
             return pixmap.toImage().pixelColor(rect.width() // 2, rect.height() // 2)
 
-        # not hovered: the regular queue icon is painted (grey, not red)
+        def _is_cancel(color):
+            return (
+                color.red() == cancel.red()
+                and color.green() == cancel.green()
+                and color.blue() == cancel.blue()
+            )
+
+        # not hovered: the regular queue icon is painted (grey, not the cancel color)
         color = _center_color()
-        assert not (color.red() > 200 and color.green() < 100 and color.blue() < 100)
+        assert not _is_cancel(color)
 
         # hovered: the icon is exchanged with a red X
         reel._update_hover(rect.center())
         assert reel._hover_item is reel._items[0]
         color = _center_color()
-        assert color.red() > 200 and color.green() < 100 and color.blue() < 100
+        assert _is_cancel(color)
 
         # executing placeholders show the red X as well
         exec_job = _make_job(model, "executing")
@@ -626,7 +635,7 @@ async def test_preview_reel_hover_cancel_icon(workflows_dir: Path):
         reel._update_hover(rect.center())
         assert reel._hover_item is reel._items[0]
         color = _center_color()
-        assert color.red() > 200 and color.green() < 100 and color.blue() < 100
+        assert _is_cancel(color)
     finally:
         reel.deleteLater()
         await asyncio.sleep(0.05)

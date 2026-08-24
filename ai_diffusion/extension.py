@@ -10,7 +10,7 @@ from .model.model import Workspace
 from .model.root import root
 from .settings import settings
 from .ui import actions
-from .ui.diffusion import ImageDiffusionWidget
+from .ui.diffusion import HistoryDockWidget, ImageDiffusionWidget
 from .ui.settings import SettingsDialog
 from .util import client_logger as log
 
@@ -92,5 +92,12 @@ Krita.instance().addDockWidgetFactory(
         "imageDiffusion",
         DockWidgetFactoryBase.DockPosition.DockRight,  # type: ignore
         ImageDiffusionWidget,
+    )
+)
+Krita.instance().addDockWidgetFactory(
+    DockWidgetFactory(
+        "aiImageHistory",
+        DockWidgetFactoryBase.DockPosition.DockMinimized,  # type: ignore
+        HistoryDockWidget,
     )
 )

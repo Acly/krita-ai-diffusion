@@ -704,6 +704,9 @@ class Krita(QObject):
     def addDockWidgetFactory(self, factory: DockWidgetFactory) -> None:
         pass
 
+    def dockers(self) -> list:
+        return []
+
     def activeDocument(self) -> Document | None:
         return self._active_document
 
