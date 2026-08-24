@@ -47,7 +47,9 @@ from PyQt6.QtGui import (
 )
 from PyQt6.QtWidgets import (
     QFrame,
+    QHBoxLayout,
     QLabel,
+    QLineEdit,
     QListView,
     QListWidget,
     QListWidgetItem,
@@ -55,6 +57,7 @@ from PyQt6.QtWidgets import (
     QMessageBox,
     QPushButton,
     QSizePolicy,
+    QToolButton,
     QWidget,
 )
 
@@ -205,7 +208,8 @@ class HistoryWidget(QListWidget):
         super().__init__(parent)
         self._model = root.active_model
         self._connections: list[QMetaObject.Connection] = []
-        self._last_job_params: JobParams | None = None
+        self._sort_descending = True
+        self._star_filter = False
 
         self.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Expanding)
         self.setResizeMode(QListView.ResizeMode.Adjust)
@@ -220,6 +224,38 @@ class HistoryWidget(QListWidget):
         self.itemClicked.connect(self.handle_preview_click)
         self.itemDoubleClicked.connect(self.item_activated)
         self.itemSelectionChanged.connect(self.select_item)
+
+        self._top_bar = QWidget(self)
+        self._top_bar.setObjectName("historyTopBar")
+        top_layout = QHBoxLayout(self._top_bar)
+        top_layout.setContentsMargins(4, 2, 4, 2)
+        top_layout.setSpacing(4)
+
+        self._search = QLineEdit(self._top_bar)
+        self._search.setPlaceholderText(_("Search history..."))
+        self._search.setClearButtonEnabled(True)
+        self._search.addAction(theme.icon("search"), QLineEdit.ActionPosition.LeadingPosition)
+        self._search.textChanged.connect(self._update_filter)
+
+        self._star_button = QToolButton(self._top_bar)
+        self._star_button.setIcon(theme.icon("star"))
+        self._star_button.setCheckable(True)
+        self._star_button.setChecked(False)
+        self._star_button.setToolTip(_("Show applied images only"))
+        self._star_button.toggled.connect(self._set_star_filter)
+
+        self._sort_button = QToolButton(self._top_bar)
+        self._sort_button.setIcon(theme.icon("sort-descending"))
+        self._sort_button.setToolTip(_("Sort: newest last"))
+        self._sort_button.clicked.connect(self._toggle_sort)
+
+        top_layout.addWidget(self._search, 1)
+        top_layout.addWidget(self._star_button)
+        top_layout.addWidget(self._sort_button)
+
+        self._bar_height = max(self._top_bar.sizeHint().height(), self.fontMetrics().height() + 8)
+        self.setViewportMargins(0, self._bar_height, 0, 0)
+        self._layout_top_bar()
 
         self._apply_button = QPushButton(theme.icon("apply"), _("Apply"), self)
         self._apply_button.setStyleSheet(self._button_css)
@@ -263,44 +299,70 @@ class HistoryWidget(QListWidget):
         if not self.is_finished(job):
             return  # Only finished diffusion/animation jobs have images to show
 
+        indices = self._visible_indices(job)
+        if not indices:
+            return
+
         scrollbar = self.verticalScrollBar()
-        scroll_to_bottom = scrollbar and scrollbar.value() >= scrollbar.maximum() - 4
+        if self._sort_descending:
+            scroll_to_edge = scrollbar and scrollbar.value() >= scrollbar.maximum() - 4
+            prev_job = self._job_at_edge(top=False)
+            if prev_job is None or not JobParams.equal_ignore_seed(prev_job.params, job.params):
+                self.addItem(self._make_header(job))
+            for item in self._make_job_items(job, indices):
+                self.addItem(item)
+            if scroll_to_edge:
+                self.scrollToBottom()
+        else:
+            scroll_to_edge = scrollbar and scrollbar.value() <= 4
+            next_job = self._job_at_edge(top=True)
+            items = self._make_job_items(job, indices)
+            if next_job is None or not JobParams.equal_ignore_seed(job.params, next_job.params):
+                items.insert(0, self._make_header(job))
+                for item in reversed(items):
+                    self.insertItem(0, item)
+            else:
+                if self.count() > 0 and self._is_header(ensure(self.item(0))):
+                    self.takeItem(0)
+                self.insertItem(0, self._make_header(job))
+                for item in reversed(items):
+                    self.insertItem(1, item)
+            if scroll_to_edge:
+                self.scrollToTop()
+        self._sync_headers()
 
-        if not JobParams.equal_ignore_seed(self._last_job_params, job.params):
-            self._last_job_params = job.params
-            prompt = job.params.name if job.params.name != "" else "<no prompt>"
-            strength = job.params.metadata.get("strength", 1.0)
-            strength = f"{strength * 100:.0f}% - " if strength != 1.0 else ""
+    def _make_header(self, job: Job):
+        prompt = job.params.name if job.params.name != "" else "<no prompt>"
+        strength = job.params.metadata.get("strength", 1.0)
+        strength = f"{strength * 100:.0f}% - " if strength != 1.0 else ""
 
-            header = QListWidgetItem(f"{job.timestamp.astimezone():%H:%M} - {strength}{prompt}")
-            header.setFlags(Qt.ItemFlag.NoItemFlags)
-            header.setData(Qt.ItemDataRole.UserRole, job.id)
-            header.setData(Qt.ItemDataRole.ToolTipRole, job.params.prompt)
-            header.setSizeHint(QSize(9999, self.fontMetrics().lineSpacing() + 4))
-            header.setTextAlignment(Qt.AlignmentFlag.AlignLeft)
-            self.addItem(header)
+        header = QListWidgetItem(f"{job.timestamp.astimezone():%H:%M} - {strength}{prompt}")
+        header.setFlags(Qt.ItemFlag.NoItemFlags)
+        header.setData(Qt.ItemDataRole.UserRole, job.id)
+        header.setData(Qt.ItemDataRole.ToolTipRole, job.params.prompt)
+        header.setSizeHint(QSize(9999, self.fontMetrics().lineSpacing() + 4))
+        header.setTextAlignment(Qt.AlignmentFlag.AlignLeft)
+        return header
 
+    def _make_job_items(self, job: Job, indices: list[int]):
+        return [self._make_job_item(job, index) for index in indices]
+
+    def _make_job_item(self, job: Job, index: int):
         if job.kind is JobKind.diffusion:
             if job.params.is_layered:
-                self._add_item(job, QListWidgetItem(self._image_thumbnail(job, 0), None))
+                item = QListWidgetItem(self._image_thumbnail(job, 0), None)
             else:
-                for i, img in enumerate(job.results):
-                    self._add_item(job, QListWidgetItem(self._image_thumbnail(job, i), None), i)
-
-        if job.kind is JobKind.animation:
+                item = QListWidgetItem(self._image_thumbnail(job, index), None)
+        elif job.kind is JobKind.animation:
             item = AnimatedListItem([
                 self._image_thumbnail(job, i) for i in range(len(job.results))
             ])
-            self._add_item(job, item)
-
-        if scroll_to_bottom:
-            self.scrollToBottom()
-
-    def _add_item(self, job: Job, item: QListWidgetItem, index=0):
+        else:
+            raise AssertionError(f"Unexpected job kind {job.kind}")
         item.setData(Qt.ItemDataRole.UserRole, job.id)
         item.setData(Qt.ItemDataRole.UserRole + 1, index)
         item.setData(Qt.ItemDataRole.ToolTipRole, job_info_text(job.params))
-        self.addItem(item)
+        return item
 
     def remove(self, job: Job):
         self._remove_items(ensure(job.id))
@@ -328,17 +390,12 @@ class HistoryWidget(QListWidget):
                             item.setData(Qt.ItemDataRole.UserRole + 1, index - 1)
                         current += 1
                     item = self.item(current)
+            self._sync_headers()
 
         if item_was_selected:
             self._model.jobs.selection = []
         else:
             self.update_apply_button()  # selection may have moved
-
-        for i in range(self.count()):
-            item = self.item(i)
-            next_item = self.item(i + 1)
-            if item and item.text() != "" and next_item and next_item.text() != "":
-                self.takeItem(i)
 
     def update_selection(self):
         current = [self._item_data(i) for i in self.selectedItems()]
@@ -366,6 +423,7 @@ class HistoryWidget(QListWidget):
         selected = self.selectedItems()
         if len(selected) > 0:
             rect = self.visualItemRect(selected[0])
+            rect.translate(ensure(self.viewport()).pos())
             font = self._apply_button.fontMetrics()
             context_visible = rect.width() >= 0.6 * self.iconSize().width()
             apply_text_visible = font.horizontalAdvance(_("Apply")) < 0.35 * rect.width()
@@ -394,6 +452,8 @@ class HistoryWidget(QListWidget):
         if item := self._find(id):
             job = ensure(self._model.jobs.find(id.job))
             item.setIcon(self._image_thumbnail(job, id.image))
+        elif self._star_filter:
+            self._rebuild()
 
     def select_item(self):
         self._model.jobs.selection = [self._item_data(i) for i in self.selectedItems()]
@@ -410,10 +470,134 @@ class HistoryWidget(QListWidget):
         return job.kind in [JobKind.diffusion, JobKind.animation] and job.state is JobState.finished
 
     def rebuild(self):
-        self.clear()
-        for job in filter(self.is_finished, self._model.jobs):
-            self.add(job)
-        self.scrollToBottom()
+        self._rebuild()
+        if self._sort_descending:
+            self.scrollToBottom()
+        else:
+            self.scrollToTop()
+
+    def _rebuild(self):
+        cached = self._collect_image_items()
+        with theme.SignalBlocker(self):
+            while self.count():
+                self.takeItem(0)
+            last_params = None
+            for job in self._display_jobs():
+                indices = self._visible_indices(job)
+                if not indices:
+                    continue
+                if not JobParams.equal_ignore_seed(last_params, job.params):
+                    self.addItem(self._make_header(job))
+                    last_params = job.params
+                for index in indices:
+                    item = cached.get((job.id, index))
+                    if item is None:
+                        item = self._make_job_item(job, index)
+                    self.addItem(item)
+        self.update_selection()
+
+    def _display_jobs(self):
+        jobs = [job for job in self._model.jobs if self.is_finished(job)]
+        if not self._sort_descending:
+            jobs.reverse()
+        return jobs
+
+    def _job_matches_search(self, job: Job):
+        text = self._search.text().strip().lower()
+        if not text:
+            return True
+        return text in job.params.prompt.lower() or text in job.params.name.lower()
+
+    def _visible_indices(self, job: Job):
+        if not self._job_matches_search(job):
+            return []
+        if job.kind is JobKind.animation or job.params.is_layered:
+            indices = [0]
+        else:
+            indices = list(range(len(job.results)))
+        if self._star_filter:
+            indices = [i for i in indices if job.result_was_used(i)]
+        return indices
+
+    def _job_at_edge(self, top: bool):
+        if self.count() == 0:
+            return None
+        item = ensure(self.item(0 if top else self.count() - 1))
+        return self._job_for_item(item)
+
+    def _job_for_item(self, item: QListWidgetItem):
+        job_id = item.data(Qt.ItemDataRole.UserRole)
+        return self._model.jobs.find(job_id) if job_id else None
+
+    def _is_header(self, item: QListWidgetItem):
+        return item.data(Qt.ItemDataRole.UserRole + 1) is None
+
+    def _collect_image_items(self):
+        cached = {}
+        for i in range(self.count()):
+            item = ensure(self.item(i))
+            index = item.data(Qt.ItemDataRole.UserRole + 1)
+            if index is not None:
+                cached[(item.data(Qt.ItemDataRole.UserRole), index)] = item
+        return cached
+
+    def _sync_headers(self):
+        prev_params: JobParams | None = None
+        i = 0
+        while i < self.count():
+            item = ensure(self.item(i))
+            job = self._job_for_item(item)
+            if job is None:
+                self.takeItem(i)
+                continue
+            if self._is_header(item):
+                if prev_params is not None and JobParams.equal_ignore_seed(prev_params, job.params):
+                    self.takeItem(i)
+                    continue
+                i += 1
+                continue
+            if prev_params is None or not JobParams.equal_ignore_seed(prev_params, job.params):
+                prev_item = self.item(i - 1) if i > 0 else None
+                prev_job = self._job_for_item(prev_item) if prev_item is not None else None
+                if not (
+                    prev_item is not None
+                    and self._is_header(prev_item)
+                    and prev_job is not None
+                    and JobParams.equal_ignore_seed(prev_job.params, job.params)
+                ):
+                    self.insertItem(i, self._make_header(job))
+                    i += 1
+            prev_params = job.params
+            i += 1
+
+    def _update_filter(self):
+        self._rebuild()
+        self.scrollToTop()
+
+    def _set_star_filter(self, checked: bool):
+        self._star_filter = checked
+        self._star_button.setToolTip(
+            _("Show all images") if checked else _("Show applied images only")
+        )
+        self._update_filter()
+
+    def _toggle_sort(self):
+        self._sort_descending = not self._sort_descending
+        self._sort_button.setIcon(
+            theme.icon("sort-descending" if self._sort_descending else "sort-ascending")
+        )
+        self._sort_button.setToolTip(
+            _("Sort: newest last") if self._sort_descending else _("Sort: newest first")
+        )
+        self._rebuild()
+        if self._sort_descending:
+            self.scrollToBottom()
+        else:
+            self.scrollToTop()
+
+    def _layout_top_bar(self):
+        viewport = ensure(self.viewport())
+        self._top_bar.setGeometry(viewport.x(), 0, viewport.width(), self._bar_height)
 
     def item_info(self, item: QListWidgetItem) -> tuple[str, int]:  # job id, image index
         return item.data(Qt.ItemDataRole.UserRole), item.data(Qt.ItemDataRole.UserRole + 1)
@@ -447,6 +631,7 @@ class HistoryWidget(QListWidget):
 
     def resizeEvent(self, e):
         super().resizeEvent(e)
+        self._layout_top_bar()
         self.update_apply_button()
 
     def event(self, e: QEvent | None):
@@ -507,12 +692,12 @@ class HistoryWidget(QListWidget):
             menu.addAction(_("Discard Image"), self._discard_image)
             menu.addSeparator()
             menu.addAction(_("Clear History"), self._clear_all)
-            menu.exec(self.mapToGlobal(pos))
+            menu.exec(ensure(self.viewport()).mapToGlobal(pos))
 
     def _show_context_menu_dropdown(self):
         pos = self._context_button.pos()
         pos.setY(pos.y() + self._context_button.height())
-        self._show_context_menu(pos)
+        self._show_context_menu(ensure(self.viewport()).mapFrom(self, pos))
 
     def _copy_prompt(self, evaluated=False):
         if job := self.selected_job:
