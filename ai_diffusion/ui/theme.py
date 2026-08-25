@@ -4,7 +4,7 @@ from pathlib import Path
 
 from PyQt6.QtCore import QObject, QSize, Qt
 from PyQt6.QtGui import QColor, QFontMetrics, QGuiApplication, QIcon, QPalette, QPixmap
-from PyQt6.QtWidgets import QLabel, QVBoxLayout, QWidget
+from PyQt6.QtWidgets import QFrame, QLabel, QVBoxLayout, QWidget
 
 from ..backend.client import Client
 from ..files import FileFormat
@@ -112,6 +112,13 @@ def add_header(layout: QVBoxLayout, setting: Setting):
     layout.addSpacing(6)
     layout.addWidget(title_label)
     layout.addWidget(desc_label)
+
+
+def horizontal_line(parent: QWidget | None):
+    hline = QFrame(parent)
+    hline.setFrameShape(QFrame.Shape.HLine)
+    hline.setFrameShadow(QFrame.Shadow.Sunken)
+    return hline
 
 
 def set_text_clipped(label: QLabel, text: str, padding=4):
