@@ -171,14 +171,17 @@ class Bounds(NamedTuple):
         return x >= 0 and x < self.width and y >= 0 and y < self.height
 
     @staticmethod
-    def scale(b: Bounds, scale: float):
-        if scale == 1:
+    def scale(b: Bounds, scale: float | tuple[float, float]):
+        if not isinstance(scale, tuple):
+            scale = (scale, scale)
+        if scale == (1, 1):
             return b
-
-        def apply(x):
-            return round(x * scale)
-
-        return Bounds(apply(b.x), apply(b.y), apply(b.width), apply(b.height))
+        return Bounds(
+            round(b.x * scale[0]),
+            round(b.y * scale[1]),
+            max(1, round(b.width * scale[0])),
+            max(1, round(b.height * scale[1])),
+        )
 
     @staticmethod
     def pad(bounds: Bounds, padding: int, min_size=0, multiple=8, square=False):
