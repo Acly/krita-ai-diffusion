@@ -144,7 +144,10 @@ class ContextPopup(QFrame):
             target_layout.addWidget(button)
         self.target_group.idClicked.connect(owner._set_mask_source)
 
-        controls = QVBoxLayout()
+        controls_widget = QWidget(self)
+        controls_widget.setSizePolicy(QSizePolicy.Policy.Fixed, QSizePolicy.Policy.Fixed)
+        controls = QVBoxLayout(controls_widget)
+        controls.setContentsMargins(0, 0, 0, 0)
         controls.addWidget(QLabel(_("Context"), self))
         controls.addWidget(self.context_combo)
         controls.addWidget(self.padding.widget())
@@ -153,12 +156,12 @@ class ContextPopup(QFrame):
         controls.addLayout(target_layout)
         controls.addWidget(self.feather.widget())
         controls.addWidget(self.blend.widget())
-        controls.addStretch()
 
         self.preview = ContextPreview(self, interactive=False)
+        topleft = Qt.AlignmentFlag.AlignTop | Qt.AlignmentFlag.AlignLeft
         layout = QHBoxLayout(self)
-        layout.addLayout(controls)
-        layout.addWidget(self.preview, alignment=Qt.AlignmentFlag.AlignTop)
+        layout.addWidget(controls_widget, alignment=topleft)
+        layout.addWidget(self.preview, alignment=topleft)
         self.setLayout(layout)
 
     def sync(self):
@@ -506,12 +509,7 @@ def _resize_preview_bytes(
             mask_source = mask_data
         scale_x = extent.width / image_extent.width
         scale_y = extent.height / image_extent.height
-        target = Bounds(
-            round(mask_bounds.x * scale_x),
-            round(mask_bounds.y * scale_y),
-            max(1, round(mask_bounds.width * scale_x)),
-            max(1, round(mask_bounds.height * scale_y)),
-        )
+        target = Bounds.scale(mask_bounds, (scale_x, scale_y))
         scaled_mask = mask_source.scaled(
             target.width,
             target.height,
@@ -538,11 +536,11 @@ def _compose_preview(
     original_mask = Image(mask)
     transition_mask = _transition_mask(original_mask, source_extent, params)
     painter = QPainter(preview)
-    painter.fillRect(preview.rect(), QColor(0, 0, 0, 170))
+    darkened = _masked_color(original_mask, QColor(0, 0, 0, 170), invert=True)
+    painter.drawImage(0, 0, darkened)
     if transition_mask is not None:
         col = _masked_color(transition_mask, QColor(255, 210, 32, 105))
         painter.drawImage(0, 0, col)
-    painter.drawImage(0, 0, _masked_color(original_mask, QColor(255, 255, 255, 145)))
     painter.end()
     return QPixmap.fromImage(preview)
 
@@ -572,13 +570,16 @@ def _transition_mask(original: Image, source_extent: Extent, params: InpaintPara
     return Image.mask_subtract(processed, original)
 
 
-def _masked_color(mask: Image, color: QColor):
+def _masked_color(mask: Image, color: QColor, invert=False):
     overlay = QImage(mask.width, mask.height, QImage.Format.Format_ARGB32_Premultiplied)
     overlay.fill(color)
     alpha = mask._qimage.copy()
     alpha.reinterpretAsFormat(QImage.Format.Format_Alpha8)
     painter = QPainter(overlay)
-    painter.setCompositionMode(QPainter.CompositionMode.CompositionMode_DestinationIn)
+    mode = QPainter.CompositionMode.CompositionMode_DestinationIn
+    if invert:
+        mode = QPainter.CompositionMode.CompositionMode_DestinationOut
+    painter.setCompositionMode(mode)
     painter.drawImage(0, 0, alpha)
     painter.end()
     return overlay
