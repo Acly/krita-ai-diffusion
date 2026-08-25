@@ -94,6 +94,12 @@ class ProgressKind(Enum):
     upload = 1
 
 
+class MaskSource(Enum):
+    none = 0
+    selection = 1
+    region = 2
+
+
 class ErrorKind(Enum):
     none = 0
     plugin_error = 100
@@ -134,7 +140,7 @@ class DocumentModel(QObject, ObservableProperties):
     workspace = Property(Workspace.generation, setter="set_workspace", persist=True)
     style = Property(Styles.list().default, setter="set_style", persist=True)
     strength = Property(1.0, persist=True)
-    region_only = Property(False, persist=True)
+    mask_source = Property(MaskSource.selection, persist=True)
     edit_mode = Property(False, persist=True)
     batch_count = Property(1, persist=True)
     seed = Property(0, persist=True)
@@ -150,7 +156,7 @@ class DocumentModel(QObject, ObservableProperties):
     workspace_changed = pyqtSignal(Workspace)
     style_changed = pyqtSignal(Style)
     strength_changed = pyqtSignal(float)
-    region_only_changed = pyqtSignal(bool)
+    mask_source_changed = pyqtSignal(MaskSource)
     edit_mode_changed = pyqtSignal(bool)
     batch_count_changed = pyqtSignal(int)
     seed_changed = pyqtSignal(int)
@@ -247,18 +253,21 @@ class DocumentModel(QObject, ObservableProperties):
         region_layer = None
 
         smod = get_selection_modifiers(arch, self.inpaint.mode, strength)
-        mask, selection_bounds = self._doc.create_mask_from_selection(smod)
+        mask, selection_bounds = None, None
         bounds = Bounds(0, 0, *extent)
-        if mask is None:  # Check for region inpaint
-            region_layer = regions.get_active_region_layer(use_parent=not self.region_only)
+        if self.mask_source is MaskSource.selection:
+            mask, selection_bounds = self._doc.create_mask_from_selection(smod)
+            if mask is not None:
+                bounds = compute_bounds(extent, mask.bounds, workflow_kind)
+                bounds = self.inpaint.get_context(self, mask) or bounds
+                inpaint_mode = self.resolve_inpaint_mode()
+        elif self.mask_source is MaskSource.region:
+            region_layer = regions.get_active_region_layer(use_parent=False)
             if not region_layer.is_root:
                 mask = get_region_inpaint_mask(region_layer, extent)
-                bounds = mask.bounds
+                selection_bounds = mask.bounds
+                bounds = self.inpaint.get_context(self, mask) or mask.bounds
                 inpaint_mode = InpaintMode.add_object
-        else:  # Selection inpaint or refine
-            bounds = compute_bounds(extent, mask.bounds if mask else None, workflow_kind)
-            bounds = self.inpaint.get_context(self, mask) or bounds
-            inpaint_mode = self.resolve_inpaint_mode()
 
         if not dryrun:
             conditioning, job_regions = process_regions(regions, bounds, region_layer)
@@ -597,22 +606,58 @@ class DocumentModel(QObject, ObservableProperties):
         else:
             return input
 
-    def _get_current_image(self, bounds: Bounds, exclude_internal=True):
-        exclude = []
-        if exclude_internal:
-            exclude = [  # exclude control layers from projection
-                c.layer for c in self.regions.control if not c.mode.is_part_of_image
-            ]
-            if self._layer:  # exclude preview layer
-                exclude.append(self._layer)
+    def get_generation_context_bytes(self):
+        extent = self._doc.extent
+        bounds = Bounds(0, 0, *extent)
+        mask_data = None
+        mask_bounds = None
+        selection_bounds = None
+        smod = get_selection_modifiers(self.arch, self.inpaint.mode, self.strength)
+        if self.mask_source is MaskSource.selection:
+            mask_data, mask_bounds, selection_bounds = self._doc.create_mask_from_selection_bytes(
+                smod
+            )
+            if mask_data is not None and mask_bounds is not None:
+                kind = WorkflowKind.generate if self.strength == 1.0 else WorkflowKind.refine
+                bounds = compute_bounds(extent, mask_bounds, kind)
+                bounds = self.inpaint.get_context_bounds(self, mask_bounds) or bounds
+        elif self.mask_source is MaskSource.region:
+            layer = self.active_regions.get_active_region_layer(use_parent=False)
+            if not layer.is_root:
+                mask = get_region_inpaint_mask(layer, extent)
+                mask_data = mask.image
+                mask_bounds = selection_bounds = mask.bounds
+                bounds = self.inpaint.get_context(self, mask) or mask.bounds
+        image_data, _ = self._get_current_image_bytes(bounds)
+        if mask_data is not None and mask_bounds is not None:
+            relative = mask_bounds.relative_to(bounds)
+            params = calc_selection_pre_process(
+                InpaintParams(InpaintMode.fill, relative), selection_bounds, smod
+            )
+            return image_data, bounds, mask_data, relative, params
+        return image_data, bounds, None, None, None
 
+    def _current_image_exclusions(self):
+        exclude = [c.layer for c in self.regions.control if not c.mode.is_part_of_image]
+        if self._layer:
+            exclude.append(self._layer)
+        return exclude
+
+    def _validate_current_image(self, exclude: list[Layer]):
         if not any(l.is_visible and l not in exclude for l in self.layers.images):
             warning = _(
                 "Tried to capture the current image, but there are no visible layers! Preview and control layers are not considered to be part of the input image."
             )
             raise ValueError(warning)
 
-        return self._doc.get_image(bounds, exclude_layers=exclude)
+    def _get_current_image_bytes(self, bounds: Bounds, exclude_internal=True):
+        exclude = self._current_image_exclusions() if exclude_internal else []
+        self._validate_current_image(exclude)
+        return self._doc.get_image_bytes(bounds, exclude_layers=exclude)
+
+    def _get_current_image(self, bounds: Bounds, exclude_internal=True):
+        data, bounds = self._get_current_image_bytes(bounds, exclude_internal)
+        return Image.from_packed_bytes(data, bounds.extent)
 
     def generate_control_layer(self, control: ControlLayer):
         doc = self.document
@@ -1092,16 +1137,19 @@ class CustomInpaint(QObject, ObservableProperties):
         return params
 
     def get_context(self, model: DocumentModel, mask: Mask | None):
-        if mask is None or self.mode is not InpaintMode.custom:
+        return self.get_context_bounds(model, mask.bounds if mask else None)
+
+    def get_context_bounds(self, model: DocumentModel, mask_bounds: Bounds | None):
+        if mask_bounds is None:
             return None
         if self.context is InpaintContext.mask_bounds:
-            return mask.bounds
+            return mask_bounds
         if self.context is InpaintContext.entire_image:
             return Bounds(0, 0, *model.document.extent)
         if self.context is InpaintContext.layer_bounds:
             if layer := model.layers.find(self.context_layer_id):
                 layer_bounds = layer.compute_bounds()
-                return Bounds.expand(layer_bounds, include=mask.bounds)
+                return Bounds.expand(layer_bounds, include=mask_bounds)
         return None
 
 

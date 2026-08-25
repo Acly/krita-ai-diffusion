@@ -18,7 +18,7 @@ from .localization import translate as _
 from .model.control import ControlLayer, ControlLayerList
 from .model.custom_workflow import CustomWorkspace
 from .model.jobs import Job, JobKind, JobParams, JobQueue
-from .model.model import DocumentModel, InpaintContext
+from .model.model import DocumentModel, InpaintContext, MaskSource
 from .model.properties import deserialize, serialize
 from .model.region import Region, RootRegion
 from .settings import settings
@@ -165,6 +165,8 @@ class ModelSync:
 
     def _load(self, model: DocumentModel, state_bytes: bytes):
         state = json.loads(state_bytes.decode("utf-8"))
+        if "mask_source" not in state and state.pop("region_only", False):
+            state["mask_source"] = MaskSource.region.value
         model.try_set_preview_layer(state.get("preview_layer", ""))
         _deserialize(model, state)
         _deserialize(model.inpaint, state.get("inpaint", {}))

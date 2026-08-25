@@ -29,10 +29,11 @@ from ..backend.resources import Arch
 from ..backend.workflow import FillMode, InpaintMode
 from ..localization import translate as _
 from ..model.jobs import JobKind
-from ..model.model import DocumentModel, ProgressKind
+from ..model.model import DocumentModel, MaskSource, ProgressKind
 from ..model.properties import Bind, Binding, bind, bind_combo, bind_toggle
 from ..model.root import root
 from . import theme
+from .context import ContextWidget
 from .history import PreviewReel
 from .region import RegionPromptWidget
 from .widget import (
@@ -252,6 +253,9 @@ class GenerationWidget(QWidget):
         self.custom_inpaint = CustomInpaintWidget(self)
         layout.addWidget(self.custom_inpaint)
 
+        self.context = ContextWidget(self)
+        layout.addWidget(self.context, alignment=Qt.AlignmentFlag.AlignHCenter)
+
         self.generate_button = GenerateButton(JobKind.diffusion, self)
 
         self.inpaint_mode_button = QToolButton(self)
@@ -266,19 +270,10 @@ class GenerationWidget(QWidget):
         self.refine_region_menu = self._create_refine_region_menu()
         self.edit_menu = self._create_edit_menu()
 
-        self.region_mask_button = QToolButton(self)
-        self.region_mask_button.setIcon(theme.icon("region-alpha"))
-        self.region_mask_button.setCheckable(True)
-        self.region_mask_button.setFixedHeight(self.generate_button.height() - 2)
-        self.region_mask_button.setToolTip(
-            _("Generate the active layer region only (use layer transparency as mask)")
-        )
-
         generate_layout = QHBoxLayout()
         generate_layout.setSpacing(0)
         generate_layout.addWidget(self.generate_button)
         generate_layout.addWidget(self.inpaint_mode_button)
-        generate_layout.addWidget(self.region_mask_button)
 
         self.queue_button = QueueButton(parent=self)
         self.queue_button.setFixedHeight(self.generate_button.height() - 2)
@@ -315,13 +310,12 @@ class GenerationWidget(QWidget):
                 bind(model, "strength", self.strength_slider, "value"),
                 bind(model, "layer_count", self.layer_count_widget, "value"),
                 bind(model, "error", self.error_box, "error", Bind.one_way),
-                bind_toggle(model, "region_only", self.region_mask_button),
                 model.inpaint.mode_changed.connect(self.update_generate_options),
                 model.strength_changed.connect(self.update_generate_options),
                 model.document.selection_bounds_changed.connect(self.update_generate_options),
                 model.document.layers.active_changed.connect(self.update_generate_options),
                 model.regions.active_changed.connect(self.update_generate_options),
-                model.region_only_changed.connect(self.update_generate_options),
+                model.mask_source_changed.connect(self.update_generate_options),
                 model.style_changed.connect(self.update_generate_options),
                 model.edit_mode_changed.connect(self.update_generate_options),
                 self.add_control_button.clicked.connect(self.add_control),
@@ -332,6 +326,7 @@ class GenerationWidget(QWidget):
             ]
             self.region_prompt.regions = model.active_regions
             self.custom_inpaint.model = model
+            self.context.model = model
             self.generate_button.model = model
             self.queue_button.model = model
             self.progress_bar.model = model
@@ -427,20 +422,24 @@ class GenerationWidget(QWidget):
     def show_inpaint_menu(self):
         width = self.generate_button.width() + self.inpaint_mode_button.width()
         pos = QPoint(0, self.generate_button.height())
+        has_selection = (
+            self.model.mask_source is MaskSource.selection
+            and self.model.document.selection_bounds is not None
+        )
         if not self.model.edit_mode and self.model.arch.is_edit:
             menu = self.edit_menu
         elif is_one(self.model.strength):
-            if self.model.region_only:
+            if self.model.mask_source is MaskSource.region:
                 menu = self.generate_region_menu
-            elif self.model.document.selection_bounds:
+            elif has_selection:
                 menu = self.inpaint_menu
                 menu.actions()[-2].setEnabled(self.model.can_edit)
             else:
                 menu = self.generate_menu
         else:
-            if self.model.region_only:
+            if self.model.mask_source is MaskSource.region:
                 menu = self.refine_region_menu
-            elif self.model.document.selection_bounds:
+            elif has_selection:
                 menu = self.refine_selection_menu
                 menu.actions()[1].setEnabled(self.model.can_edit)
             else:
@@ -454,9 +453,6 @@ class GenerationWidget(QWidget):
         self.model.inpaint.mode = mode
         if is_edit is not None:
             self.model.edit_mode = is_edit
-
-    def toggle_region_only(self, checked: bool):
-        self.model.region_only = checked
 
     def add_region(self):
         self.model.active_regions.create_region_group()
@@ -477,13 +473,16 @@ class GenerationWidget(QWidget):
 
         has_regions = len(regions) > 0
         has_active_region = regions.is_linked(self.model.layers.active)
-        is_region_only = has_regions and has_active_region and self.model.region_only
+        is_region_only = (
+            has_regions and has_active_region and self.model.mask_source is MaskSource.region
+        )
         is_edit = self.model.is_editing
-        self.region_mask_button.setVisible(has_regions)
-        self.region_mask_button.setEnabled(has_active_region)
-        self.region_mask_button.setIcon(_region_mask_button_icons[is_region_only])
 
-        if self.model.document.selection_bounds is None and not is_region_only:
+        has_selection = (
+            self.model.mask_source is MaskSource.selection
+            and self.model.document.selection_bounds is not None
+        )
+        if not has_selection and not is_region_only:
             self.inpaint_mode_button.setVisible(self.model.can_toggle_edit)
             self.custom_inpaint.setVisible(False)
             if is_edit:
@@ -531,9 +530,3 @@ class GenerationWidget(QWidget):
 
         self.generate_button.operation = text
         self.generate_button.setIcon(theme.icon(icon))
-
-
-_region_mask_button_icons = {
-    True: theme.icon("region-alpha-active"),
-    False: theme.icon("region-alpha"),
-}
