@@ -68,6 +68,8 @@ class Layer(QObject):
         self._name = node.name()
         self._parent = maybe(krita.Node.uniqueId, node.parentNode())
         self._is_confirmed = is_confirmed
+        self._cached_bounds: Bounds | None = None
+        self._last_image_extent = manager.image_extent
 
     @property
     def id(self):
@@ -135,6 +137,15 @@ class Layer(QObject):
         return Bounds.restrict(bounds, Bounds(0, 0, *self._manager.image_extent))
 
     @property
+    def cached_bounds(self):
+        """Only accurate if the layer is written by the plugin only (use for locked utility layers)"""
+        img = self._manager.image_extent
+        if self._cached_bounds is None or self._last_image_extent != img:
+            self._cached_bounds = self.bounds
+            self._last_image_extent = img
+        return self._cached_bounds
+
+    @property
     def parent_layer(self):
         return maybe(self._manager.find, self._parent)
 
@@ -167,19 +178,26 @@ class Layer(QObject):
         keep_alpha=False,
         silent=False,
     ):
-        layer_bounds = self.bounds
+        layer_bounds = self.cached_bounds
         bounds = bounds or layer_bounds
         if keep_alpha:
             composite = self.get_pixels(bounds)
             composite.draw_image(img, blend=BlendMode.keep)
             img = composite
         elif layer_bounds != bounds and not layer_bounds.is_zero:
-            # layer.cropNode(*bounds)  <- more efficient, but clutters the undo stack
-            blank = Image.create(layer_bounds.extent, fill=0)
-            self._node.setPixelData(blank.data, *layer_bounds)
+            do = (abs(layer_bounds.x - bounds.x), abs(layer_bounds.y - bounds.y))
+            de = layer_bounds.extent - bounds.extent
+            if do[0] > 1000 or do[1] > 1000 or de.width > 1000 or de.height > 1000:
+                # more efficient, frees memory, but clutters the undo stack
+                self._node.cropNode(*bounds)
+            else:
+                blank = Image.create(layer_bounds.extent, fill=0)
+                self._node.setPixelData(blank.data, *layer_bounds)
 
         assert img.extent == bounds.extent, "write_pixels: image size does must match bounds size"
         self._node.setPixelData(img.data, *bounds)
+        self._cached_bounds = bounds
+
         if make_visible:
             self.is_visible = True
         if not silent and self.is_visible:
@@ -222,8 +240,27 @@ class Layer(QObject):
             parent.addChildNode(self.node, None)
 
     def refresh(self):
+        e = self._manager.image_extent
+        if e.pixel_count <= 3000 * 2000:
+            self._manager.refresh()
+            return
+
         # Hacky way of refreshing the projection of a layer, avoids a full document refresh
+        # but adds an undo operation
         self._node.setBlendingMode(self._node.blendingMode())
+
+        # Alternative for bounded refresh without polluting undo is to use Krita actions,
+        # when two actions cancel each other out they don't add undo entries.
+        # Downside: visibly switches active layer and visibility, annoying flicker
+        # vis = Krita.instance().action("toggle_layer_visibility")
+        # if not self.is_active:
+        #     with RestoreActiveLayer(self._manager):
+        #         self._manager.active = self
+        #         vis.trigger()
+        #         vis.trigger()
+        # else:
+        #     vis.trigger()
+        #     vis.trigger()
 
     def thumbnail(self, size: Extent):
         return self.node.thumbnail(*size)
@@ -558,6 +595,10 @@ class LayerManager(QObject):
         if doc := self._doc:
             return Extent(doc.width(), doc.height())
         return Extent(1, 1)
+
+    def refresh(self):
+        if doc := self._doc:
+            doc.refreshProjection()
 
     def __bool__(self):
         return self._doc is not None
