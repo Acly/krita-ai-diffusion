@@ -2,6 +2,7 @@ from __future__ import annotations
 
 from typing import ClassVar
 
+from krita import DoubleSliderSpinBox, SliderSpinBox
 from PyQt6.QtCore import (
     QMetaObject,
     QPoint,
@@ -16,9 +17,13 @@ from PyQt6.QtGui import (
 from PyQt6.QtWidgets import (
     QCheckBox,
     QComboBox,
+    QDoubleSpinBox,
+    QGridLayout,
     QHBoxLayout,
+    QLabel,
     QMenu,
     QProgressBar,
+    QSizePolicy,
     QToolButton,
     QVBoxLayout,
     QWidget,
@@ -29,13 +34,15 @@ from ..backend.resources import Arch
 from ..backend.workflow import FillMode, InpaintMode
 from ..localization import translate as _
 from ..model.jobs import JobKind
-from ..model.model import DocumentModel, MaskSource, ProgressKind
+from ..model.model import DocumentModel, MaskSource, ProgressKind, QueueMode
 from ..model.properties import Bind, Binding, bind, bind_combo, bind_toggle
 from ..model.root import root
+from ..settings import Settings
 from . import theme
 from .context import ContextWidget
 from .history import PreviewReel
 from .region import RegionPromptWidget
+from .settings_widgets import ExpanderButton
 from .widget import (
     ErrorBox,
     GenerateButton,
@@ -56,10 +63,6 @@ class CustomInpaintWidget(QWidget):
         super().__init__(parent)
         self._model = root.active_model
         self._model_bindings = []
-
-        self.use_inpaint_button = QCheckBox(self)
-        self.use_inpaint_button.setText(_("Seamless"))
-        self.use_inpaint_button.setToolTip(_("Generate content which blends into the surroundings"))
 
         self.use_prompt_focus_button = QCheckBox(self)
         self.use_prompt_focus_button.setText(_("Focus"))
@@ -108,7 +111,6 @@ class CustomInpaintWidget(QWidget):
 
         layout = QHBoxLayout(self)
         layout.setContentsMargins(0, 0, 0, 0)
-        layout.addWidget(self.use_inpaint_button)
         layout.addWidget(self.use_prompt_focus_button)
         layout.addWidget(self.edit_mode_switch)
         layout.addWidget(self.fill_mode_combo, 1)
@@ -126,7 +128,6 @@ class CustomInpaintWidget(QWidget):
             self._model = model
             self._model_bindings = [
                 bind_combo(model.inpaint, "fill", self.fill_mode_combo),
-                bind_toggle(model.inpaint, "use_inpaint", self.use_inpaint_button),
                 bind_toggle(model.inpaint, "use_prompt_focus", self.use_prompt_focus_button),
                 bind_toggle(model, "edit_mode", self.edit_mode_switch),
                 model.style_changed.connect(self.update_widgets_enabled),
@@ -141,7 +142,6 @@ class CustomInpaintWidget(QWidget):
     def update_widgets_enabled(self):
         arch = self._model.arch
         self.fill_mode_combo.setEnabled(is_one(self.model.strength) and not self.model.is_editing)
-        self.use_inpaint_button.setEnabled(arch.is_sdxl_like or arch.has_controlnet_inpaint)
         self.use_prompt_focus_button.setVisible(arch is Arch.sd15 or arch.is_sdxl_like)
         self.edit_mode_switch.setEnabled(self.model.can_toggle_edit)
 
@@ -213,6 +213,130 @@ class ProgressBar(QProgressBar):
             if self.value() >= 100:
                 self.reset()
             self.setValue(min(99, self.value() + 2))
+
+
+class AdvancedSettingsWidget(QWidget):
+    def __init__(self, parent: QWidget):
+        super().__init__(parent)
+        self._model = root.active_model
+        self._bindings: list[QMetaObject.Connection | Binding] = []
+
+        self.expander = ExpanderButton(_("Advanced settings"), self)
+        self.seed_indicator = QLabel(self)
+        self.seed_indicator.setPixmap(theme.icon("seed").pixmap(self.fontMetrics().height()))
+        self.resolution_indicator = QLabel(self)
+        self.resolution_indicator.setPixmap(
+            theme.icon("resolution-multiplier").pixmap(self.fontMetrics().height())
+        )
+        self.batch_indicator = QLabel(self)
+        self.batch_indicator.setStyleSheet(f"color: {theme.highlight}; font-weight: bold;")
+
+        header = QHBoxLayout()
+        header.setContentsMargins(0, 0, 0, 0)
+        header.addWidget(self.expander)
+        header.addWidget(self.batch_indicator)
+        header.addWidget(self.seed_indicator)
+        header.addWidget(self.resolution_indicator)
+        header.addStretch()
+
+        self.controls = QWidget(self)
+        grid = QGridLayout(self.controls)
+        grid.setContentsMargins(18, 0, 0, 0)
+        grid.setColumnStretch(1, 1)
+
+        self.batch_input = SliderSpinBox()
+        self.batch_input.setRange(1, 100)
+        self.batch_input.setSoftRange(1, 10)
+        self.batch_input.widget().setPrefix(_("Batches") + ": ")
+        self.batch_input.widget().setToolTip(_("Number of jobs to enqueue at once"))
+        self.queue_mode_combo = QComboBox(self)
+        self.queue_mode_combo.addItem(_("at the Back"), QueueMode.back)
+        self.queue_mode_combo.addItem(_("in Front"), QueueMode.front)
+        self.queue_mode_combo.addItem(_("Replace Queue"), QueueMode.replace)
+        grid.addWidget(QLabel(_("Enqueue"), self), 0, 0)
+        grid.addWidget(self.batch_input.widget(), 0, 1)
+        grid.addWidget(self.queue_mode_combo, 0, 2)
+
+        self.seed_check = QCheckBox(_("Fixed"), self)
+        self.seed_input = QDoubleSpinBox(self)
+        self.seed_input.setRange(0, 2**32 - 1)
+        self.seed_input.setDecimals(0)
+        self.seed_input.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Preferred)
+        self.seed_input.setToolTip(
+            _(
+                "The seed controls the random part of the output. A fixed seed value will always produce the same result for the same inputs."
+            )
+        )
+        self.randomize_seed = QToolButton(self)
+        self.randomize_seed.setIcon(theme.icon("random"))
+        seed_layout = QHBoxLayout()
+        seed_layout.setContentsMargins(0, 0, 0, 0)
+        seed_layout.addWidget(self.seed_check)
+        seed_layout.addWidget(self.seed_input)
+        seed_layout.addWidget(self.randomize_seed)
+        grid.addWidget(QLabel(_("Seed"), self), 1, 0)
+        grid.addLayout(seed_layout, 1, 1, 1, 2)
+
+        self.resolution_input = DoubleSliderSpinBox()
+        self.resolution_input.setRange(0.3, 1.5, 1)
+        self.resolution_input.widget().setPrefix(_("Multiplier") + ": x ")
+        self.resolution_input.widget().setToolTip(Settings._resolution_multiplier.desc)
+        grid.addWidget(QLabel(_("Resolution"), self), 2, 0)
+        grid.addWidget(self.resolution_input.widget(), 2, 1, 1, 2)
+
+        self.seamless_combo = QComboBox(self)
+        self.seamless_combo.addItem(_("Automatic"), None)
+        self.seamless_combo.addItem(_("Always use inpaint model"), True)
+        self.seamless_combo.addItem(_("Never use inpaint model"), False)
+        grid.addWidget(QLabel(_("Seamless"), self), 3, 0)
+        grid.addWidget(self.seamless_combo, 3, 1, 1, 2)
+
+        layout = QVBoxLayout(self)
+        layout.setContentsMargins(0, 0, 0, 0)
+        layout.addLayout(header)
+        layout.addWidget(self.controls)
+        self.controls.setVisible(False)
+        self.expander.toggled.connect(self.controls.setVisible)
+        self.expander.toggled.connect(self._update_indicators)
+        self._update_indicators()
+
+    @property
+    def model(self):
+        return self._model
+
+    @model.setter
+    def model(self, model: DocumentModel):
+        Binding.disconnect_all(self._bindings)
+        self._model = model
+        seed_spin = self.seed_input
+        batch_spin = self.batch_input.widget()
+        resolution_spin = self.resolution_input.widget()
+        self._bindings = [
+            bind(model, "batch_count", batch_spin, "value"),
+            bind_combo(model, "queue_mode", self.queue_mode_combo),
+            model.seed_changed.connect(lambda value: seed_spin.setValue(value)),
+            seed_spin.valueChanged.connect(lambda value: setattr(model, "seed", int(value))),
+            bind_toggle(model, "fixed_seed", self.seed_check),
+            model.fixed_seed_changed.connect(seed_spin.setEnabled),
+            model.fixed_seed_changed.connect(self.randomize_seed.setEnabled),
+            self.randomize_seed.clicked.connect(model.generate_seed),
+            bind(model, "resolution_multiplier", resolution_spin, "value"),
+            bind_combo(model.inpaint, "use_inpaint", self.seamless_combo),
+            model.batch_count_changed.connect(self._update_indicators),
+            model.fixed_seed_changed.connect(self._update_indicators),
+            model.resolution_multiplier_changed.connect(self._update_indicators),
+        ]
+        seed_spin.setValue(model.seed)
+        seed_spin.setEnabled(model.fixed_seed)
+        self.randomize_seed.setEnabled(model.fixed_seed)
+        self._update_indicators()
+
+    def _update_indicators(self):
+        visible = not self.expander.isChecked()
+        self.seed_indicator.setVisible(visible and self.model.fixed_seed)
+        self.resolution_indicator.setVisible(visible and self.model.resolution_multiplier != 1.0)
+        self.batch_indicator.setText(f"{self.model.batch_count}x")
+        self.batch_indicator.setVisible(visible and self.model.batch_count != 1)
 
 
 class GenerationWidget(QWidget):
@@ -288,10 +412,14 @@ class GenerationWidget(QWidget):
 
         self.preview_reel = PreviewReel(self)
         layout.addWidget(self.preview_reel)
-        layout.addStretch()
 
         self.error_box = ErrorBox(self)
         layout.addWidget(self.error_box)
+
+        self.advanced_settings = AdvancedSettingsWidget(self)
+        layout.addWidget(self.advanced_settings)
+
+        layout.addStretch()
 
         self.update_generate_options()
 
@@ -329,6 +457,7 @@ class GenerationWidget(QWidget):
             self.context.model = model
             self.generate_button.model = model
             self.queue_button.model = model
+            self.advanced_settings.model = model
             self.progress_bar.model = model
             self.strength_slider.model = model
             self.preview_reel.model_ = model
