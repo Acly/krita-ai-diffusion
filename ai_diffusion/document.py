@@ -50,18 +50,10 @@ class Document(QObject):
     def check_color_mode(self) -> tuple[Literal[True], None] | tuple[Literal[False], str]:
         return True, None
 
-    def create_mask_from_selection_bytes(
-        self, mod: SelectionModifiers
-    ) -> tuple[QByteArray, Bounds, Bounds] | tuple[None, None, None]:
-        raise NotImplementedError
-
     def create_mask_from_selection(
         self, mod: SelectionModifiers
     ) -> tuple[Mask, Bounds] | tuple[None, None]:
-        data, bounds, original_bounds = self.create_mask_from_selection_bytes(mod)
-        if data is None or bounds is None or original_bounds is None:
-            return None, None
-        return Mask(bounds, data), original_bounds
+        raise NotImplementedError
 
     def get_image_bytes(
         self, bounds: Bounds | None = None, exclude_layers: list[Layer] | None = None
@@ -215,13 +207,13 @@ class KritaDocument(Document):
             return False, msg_fmt.format("depth", "8-bit integer", depth)
         return True, None
 
-    def create_mask_from_selection_bytes(self, mod: SelectionModifiers):
+    def create_mask_from_selection(self, mod: SelectionModifiers):
         user_selection = self._doc.selection()
         if not user_selection:
-            return None, None, None
+            return None, None
 
         if _selection_is_entire_document(user_selection, self.extent):
-            return None, None, None
+            return None, None
 
         selection = user_selection.duplicate()
         original_bounds = Bounds(
@@ -242,12 +234,6 @@ class KritaDocument(Document):
         )
         bounds = Bounds.clamp(bounds, self.extent)
         data = selection.pixelData(*bounds)
-        return data, bounds, original_bounds
-
-    def create_mask_from_selection(self, mod: SelectionModifiers):
-        data, bounds, original_bounds = self.create_mask_from_selection_bytes(mod)
-        if data is None or bounds is None or original_bounds is None:
-            return None, None
         return Mask(bounds, data), original_bounds
 
     def get_image_bytes(
