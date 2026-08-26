@@ -228,7 +228,7 @@ class Style(QObject):
             self_attention_guidance=self.self_attention_guidance,
         )
 
-    def get_steps(self, is_live: bool) -> tuple[int, int]:
+    def get_steps(self, is_live: bool):
         sampler_name = self.live_sampler if is_live else self.sampler
         preset = SamplerPresets.instance()[sampler_name]
         max_steps = self.live_sampler_steps if is_live else self.sampler_steps

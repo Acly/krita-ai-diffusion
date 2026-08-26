@@ -3,7 +3,7 @@ from __future__ import annotations
 from enum import Enum
 from typing import Any
 
-from krita import DoubleSliderSpinBox
+from krita import DoubleSliderSpinBox, QDoubleSpinBox, SliderSpinBox
 from PyQt6.QtCore import QAbstractItemModel, QSize, Qt, pyqtSignal
 from PyQt6.QtGui import QIcon
 from PyQt6.QtWidgets import (
@@ -248,8 +248,6 @@ class SpinBoxSetting(SettingWidget):
 
 
 class SliderSetting(SettingWidget):
-    _is_float = False
-
     def __init__(
         self,
         setting: Setting,
@@ -263,8 +261,12 @@ class SliderSetting(SettingWidget):
         self._format_string = format
         self._is_float = isinstance(setting.default, float)
 
-        self.slider = DoubleSliderSpinBox()
-        self.slider.setRange(minimum, maximum, decimals)
+        if self._is_float:
+            self.slider = DoubleSliderSpinBox()
+            self.slider.setRange(minimum, maximum, decimals)
+        else:
+            self.slider = SliderSpinBox()
+            self.slider.setRange(int(minimum), int(maximum))
         self._spin = self.slider.widget()
         self._spin.setSuffix(suffix)
         self._spin.setSingleStep(10**-decimals)
@@ -279,7 +281,21 @@ class SliderSetting(SettingWidget):
 
     @value.setter
     def value(self, v: float):
-        self._spin.setValue(v)
+        if isinstance(self._spin, QDoubleSpinBox):
+            self._spin.setValue(v)
+        else:
+            self._spin.setValue(round(v))
+
+    @property
+    def soft_max(self):
+        return self.slider.softMaximum()
+
+    @soft_max.setter
+    def soft_max(self, v: float):
+        if isinstance(self.slider, DoubleSliderSpinBox):
+            self.slider.setSoftMaximum(v)
+        else:
+            self.slider.setSoftMaximum(round(v))
 
 
 ComboItemList = list[str] | list[tuple[str, Any]] | list[tuple[str, Any, QIcon]] | type[Enum]
