@@ -313,15 +313,12 @@ class DocumentModel(QObject, ObservableProperties):
 
             bounds, mask.bounds = compute_relative_bounds(bounds, mask.bounds)
 
-            assert inpaint_mode is not None
-            if inpaint_mode is InpaintMode.custom:
-                inpaint = self.inpaint.get_params(mask, self.is_editing)
-            else:
-                inpaint = workflow.detect_inpaint(
-                    inpaint_mode, mask.bounds, arch, conditioning, strength
-                )
-            assert selection_params is not None
-            selection_params.to_inpaint_params(inpaint)
+            assert inpaint_mode is not None and selection_params is not None
+            inpaint = workflow.detect_inpaint(
+                inpaint_mode, mask.bounds, arch, conditioning, strength
+            )
+            inpaint = self.inpaint.apply_overrides(inpaint)
+            inpaint = selection_params.apply_to(inpaint)
 
         input = workflow.prepare(
             workflow_kind,
@@ -498,7 +495,7 @@ class DocumentModel(QObject, ObservableProperties):
         image = None
         smod = get_selection_modifiers(self.arch, inpaint.mode, strength, min_mask_size)
         mask, selection_bounds = self._doc.create_mask_from_selection(smod)
-        calc_selection_pre_process(selection_bounds, smod).to_inpaint_params(inpaint)
+        inpaint = calc_selection_pre_process(selection_bounds, smod).apply_to(inpaint)
 
         bounds = Bounds(0, 0, *self._doc.extent)
         region_layer = regions.get_active_region_layer(use_parent=False)
@@ -1102,24 +1099,25 @@ class DocumentModel(QObject, ObservableProperties):
 class CustomInpaint(QObject, ObservableProperties):
     mode = Property(InpaintMode.automatic, persist=True)
     fill = Property(FillMode.neutral, persist=True)
-    use_inpaint = Property(True, persist=True)
+    use_inpaint = Property[bool | None](None, persist=True)
     use_prompt_focus = Property(False, persist=True)
     context = Property(InpaintContext.automatic, persist=True)
     context_layer_id = Property(QUuid(), persist=True)
 
     mode_changed = pyqtSignal(InpaintMode)
     fill_changed = pyqtSignal(FillMode)
-    use_inpaint_changed = pyqtSignal(bool)
+    use_inpaint_changed = pyqtSignal(object)
     use_prompt_focus_changed = pyqtSignal(bool)
     context_changed = pyqtSignal(InpaintContext)
     context_layer_id_changed = pyqtSignal(QUuid)
     modified = pyqtSignal(QObject, str)
 
-    def get_params(self, mask: Mask, is_editing: bool):
-        fill = FillMode.none if is_editing else self.fill
-        params = InpaintParams(self.mode, mask.bounds, fill)
-        params.use_inpaint_model = self.use_inpaint
-        params.use_condition_mask = self.use_prompt_focus
+    def apply_overrides(self, params: InpaintParams):
+        params = copy(params)
+        if self.use_inpaint is not None:
+            params.use_inpaint_model = self.use_inpaint
+        if self.mode is InpaintMode.custom:
+            params.fill = self.fill
         return params
 
     def get_context(self, model: DocumentModel, mask_bounds: Bounds | None):
@@ -1624,10 +1622,12 @@ class MaskProcessing(NamedTuple):
     grow: int = 0
     blend: int = 0
 
-    def to_inpaint_params(self, dst: InpaintParams):
+    def apply_to(self, dst: InpaintParams):
+        dst = copy(dst)
         dst.feather = self.feather
         dst.grow = self.grow
         dst.blend = self.blend
+        return dst
 
 
 def calc_selection_pre_process(bounds: Bounds | None, mods: SelectionModifiers):

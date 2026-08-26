@@ -8,7 +8,7 @@ from __future__ import annotations
 
 from PyQt6.QtCore import QByteArray, QObject, QRect, Qt, QUuid, pyqtSignal
 from PyQt6.QtGui import QIcon
-from PyQt6.QtWidgets import QDockWidget, QDoubleSpinBox, QHBoxLayout, QSlider, QWidget
+from PyQt6.QtWidgets import QDockWidget, QDoubleSpinBox, QHBoxLayout, QSlider, QSpinBox, QWidget
 
 IS_MOCK = True
 
@@ -728,6 +728,59 @@ class Krita(QObject):
         self._documents.append(doc)
         self._active_document = doc
         return doc
+
+
+class SliderSpinBox(QWidget):
+    draggingFinished = pyqtSignal()
+
+    def __init__(self):
+        super().__init__()
+        self._widget = QSpinBox(self)
+
+    def widget(self):
+        return self._widget
+
+    def setRange(self, min: int, max: int, compute_fast_step: bool = True):
+        self._widget.setRange(min, max)
+
+    def setMinimum(self, value: int, compute_fast_step: bool = True):
+        self._widget.setMinimum(value)
+
+    def setMaximum(self, value: int, compute_fast_step: bool = True):
+        self._widget.setMaximum(value)
+
+    def setValue(self, value: int):
+        self._widget.setValue(value)
+
+    def setExponentRatio(self, value: float):
+        pass
+
+    def setBlockUpdateSignalOnDrag(self, block: bool):
+        pass
+
+    def fastSliderStep(self):
+        return self._widget.singleStep()
+
+    def setFastSliderStep(self, value: int):
+        self._widget.setSingleStep(value)
+
+    def setSoftRange(self, min: int, max: int):
+        pass
+
+    def softMinimum(self):
+        return self._widget.minimum()
+
+    def setSoftMinimum(self, value: int):
+        pass
+
+    def softMaximum(self):
+        return self._widget.maximum()
+
+    def setSoftMaximum(self, value: int):
+        pass
+
+    def isDragging(self):
+        return False
 
 
 class DoubleParseSpinBox(QWidget):

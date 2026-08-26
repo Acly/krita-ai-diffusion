@@ -42,7 +42,7 @@ class RecentlyUsedSync:
     translation_enabled: bool = True
     inpaint_mode: str = "automatic"
     inpaint_fill: str = "neutral"
-    inpaint_use_model: bool = True
+    inpaint_use_model: bool | None = None
     inpaint_use_prompt_focus: bool = False
     inpaint_context: str = "automatic"
     upscale_model: str = ""
