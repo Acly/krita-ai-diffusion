@@ -95,7 +95,7 @@ class QueuePopup(QMenu):
         self.setStyleSheet(
             f"""
             QWidget#QueuePopup {{
-                background-color: {palette.window().color().name()}; 
+                background-color: {palette.window().color().name()};
                 border: 1px solid {palette.dark().color().name()};
             }}"""
         )
@@ -801,14 +801,14 @@ class StrengthWidget(DoubleSliderSpinBox):
         self.widget().setToolTip(tooltip)
 
 
-def _get_steps(model: DocumentModel) -> tuple[int, int]:
+def _get_steps(model: DocumentModel):
     is_live = model.workspace is Workspace.live
     if model.workspace is Workspace.animation:
         is_live = model.animation.sampling_quality is SamplingQuality.fast
     return model.active_style.get_steps(is_live=is_live)
 
 
-def _apply_strength(model: DocumentModel, strength_percent: int) -> tuple[int, int]:
+def _apply_strength(model: DocumentModel, strength_percent: int):
     if strength_percent <= 0:
         return 0, 0
     min_steps, max_steps = _get_steps(model)

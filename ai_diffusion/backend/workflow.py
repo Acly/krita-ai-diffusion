@@ -78,7 +78,7 @@ def sampling_from_style(style: Style, strength: float, is_live: bool):
     return result
 
 
-def apply_strength(strength: float, steps: int, min_steps: int = 0) -> tuple[int, int]:
+def apply_strength(strength: float, steps: int, min_steps: int = 0):
     start_at_step = round(steps * (1 - strength))
 
     if min_steps and steps - start_at_step < min_steps:

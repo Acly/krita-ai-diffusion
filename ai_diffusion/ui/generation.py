@@ -357,28 +357,7 @@ class GenerationWidget(QWidget):
         style_layout.addWidget(self.style_select)
         layout.addLayout(style_layout)
 
-        self.region_prompt = RegionPromptWidget(self)
-        layout.addWidget(self.region_prompt)
-
-        self.strength_slider = StrengthWidget()
-        self.layer_count_widget = LayerCountWidget(self)
-        self.layer_count_widget.setVisible(False)
-        self.add_region_button = create_wide_tool_button("region-add", _("Add Region"), self)
-        self.add_control_button = create_wide_tool_button(
-            "control-add", _("Add Control Layer"), self
-        )
-        strength_layout = QHBoxLayout()
-        strength_layout.addWidget(self.strength_slider.widget())
-        strength_layout.addWidget(self.layer_count_widget)
-        strength_layout.addWidget(self.add_control_button)
-        strength_layout.addWidget(self.add_region_button)
-        layout.addLayout(strength_layout)
-
-        self.custom_inpaint = CustomInpaintWidget(self)
-        layout.addWidget(self.custom_inpaint)
-
         self.context = ContextWidget(self)
-        layout.addWidget(self.context, alignment=Qt.AlignmentFlag.AlignHCenter)
 
         self.generate_button = GenerateButton(JobKind.diffusion, self)
 
@@ -394,27 +373,45 @@ class GenerationWidget(QWidget):
         self.refine_region_menu = self._create_refine_region_menu()
         self.edit_menu = self._create_edit_menu()
 
+        self.strength_slider = StrengthWidget()
+
         generate_layout = QHBoxLayout()
         generate_layout.setSpacing(0)
         generate_layout.addWidget(self.generate_button)
         generate_layout.addWidget(self.inpaint_mode_button)
 
-        self.queue_button = QueueButton(parent=self)
-        self.queue_button.setFixedHeight(self.generate_button.height() - 2)
-
-        actions_layout = QHBoxLayout()
+        actions_layout = QVBoxLayout()
         actions_layout.addLayout(generate_layout)
-        actions_layout.addWidget(self.queue_button)
-        layout.addLayout(actions_layout)
+        actions_layout.addWidget(self.strength_slider.widget())
+
+        ctx_layout = QHBoxLayout()
+        ctx_layout.addWidget(self.context)
+        ctx_layout.addLayout(actions_layout)
+        layout.addLayout(ctx_layout)
 
         self.progress_bar = ProgressBar(self)
         layout.addWidget(self.progress_bar)
 
+        self.error_box = ErrorBox(self)
+        layout.addWidget(self.error_box)
+
         self.preview_reel = PreviewReel(self)
         layout.addWidget(self.preview_reel)
 
-        self.error_box = ErrorBox(self)
-        layout.addWidget(self.error_box)
+        self.region_prompt = RegionPromptWidget(self)
+        layout.addWidget(self.region_prompt)
+
+        self.layer_count_widget = LayerCountWidget(self)
+        self.layer_count_widget.setVisible(False)
+        self.add_region_button = create_wide_tool_button("region-add", _("Add Region"), self)
+        self.add_control_button = create_wide_tool_button(
+            "control-add", _("Add Control Layer"), self
+        )
+        misc_layout = QHBoxLayout()
+        misc_layout.addWidget(self.layer_count_widget)
+        misc_layout.addWidget(self.add_control_button)
+        misc_layout.addWidget(self.add_region_button)
+        layout.addLayout(misc_layout)
 
         self.advanced_settings = AdvancedSettingsWidget(self)
         layout.addWidget(self.advanced_settings)
@@ -453,10 +450,8 @@ class GenerationWidget(QWidget):
                 self.generate_button.ctrl_clicked.connect(model.generate_replace),
             ]
             self.region_prompt.regions = model.active_regions
-            self.custom_inpaint.model = model
             self.context.model = model
             self.generate_button.model = model
-            self.queue_button.model = model
             self.advanced_settings.model = model
             self.progress_bar.model = model
             self.strength_slider.model = model
@@ -613,7 +608,6 @@ class GenerationWidget(QWidget):
         )
         if not has_selection and not is_region_only:
             self.inpaint_mode_button.setVisible(self.model.can_toggle_edit)
-            self.custom_inpaint.setVisible(False)
             if is_edit:
                 icon = "edit"
                 text = _("Edit")
@@ -625,7 +619,6 @@ class GenerationWidget(QWidget):
                 text = _("Refine")
         else:
             self.inpaint_mode_button.setVisible(True)
-            self.custom_inpaint.setVisible(self.model.inpaint.mode is InpaintMode.custom)
             mode = self.model.resolve_inpaint_mode()
             text = _("Generate")
             if is_edit:

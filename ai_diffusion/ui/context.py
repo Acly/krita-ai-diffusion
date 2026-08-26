@@ -87,12 +87,12 @@ class ContextPreview(QWidget):
 
         if self._interactive and self._hovered:
             painter.fillRect(self.rect(), QColor(0, 0, 0, 110))
-            outer = self.rect().adjusted(16, 16, -16, -16)
+            outer = self.rect().adjusted(12, 12, -12, -12)
             painter.setBrush(Qt.BrushStyle.NoBrush)
             painter.setPen(QPen(Qt.GlobalColor.white, 1))
             painter.drawRect(outer)
             painter.setPen(QPen(Qt.GlobalColor.white, 1, Qt.PenStyle.DashLine))
-            painter.drawRect(outer.adjusted(16, 16, -16, -16))
+            painter.drawRect(outer.adjusted(12, 12, -12, -12))
 
     def enterEvent(self, event):
         self._hovered = True
@@ -181,7 +181,7 @@ class ContextPopup(QFrame):
         self.blend.widget().setValue(settings.selection_blend)
         if button := self.target_group.button(owner.model.mask_source.value):
             button.setChecked(True)
-        self.padding.widget().setEnabled(context is InpaintContext.automatic)
+        self.padding.widget().setEnabled(context is not InpaintContext.entire_image)
         has_selection = owner.model.document.selection_bounds is not None
         enabled = owner.model.mask_source is not MaskSource.none
         enabled = enabled and not (
