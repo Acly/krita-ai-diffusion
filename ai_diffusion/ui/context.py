@@ -40,7 +40,7 @@ from PyQt6.QtWidgets import (
 )
 
 from ..backend.api import InpaintContext, InpaintParams
-from ..image import Bounds, Extent, Image
+from ..image import Bounds, Extent, Image, Mask
 from ..localization import translate as _
 from ..model.model import DocumentModel, MaskSource
 from ..model.properties import Binding
@@ -215,8 +215,7 @@ class _ResizeJob(QRunnable):
         request: int,
         image_data: QByteArray,
         image_extent: Extent,
-        mask_data: QByteArray | QImage | None,
-        mask_bounds: Bounds | None,
+        mask: Mask | None,
         maximum: QSize,
     ):
         super().__init__()
@@ -224,8 +223,7 @@ class _ResizeJob(QRunnable):
         self.request = request
         self.image_data = image_data
         self.image_extent = image_extent
-        self.mask_data = mask_data
-        self.mask_bounds = mask_bounds
+        self.mask = mask
         self.maximum = maximum
         self.signals = _ResizeSignals()
 
@@ -234,8 +232,7 @@ class _ResizeJob(QRunnable):
             preview, original_mask = _resize_preview_bytes(
                 self.image_data,
                 self.image_extent,
-                self.mask_data,
-                self.mask_bounds,
+                self.mask,
                 self.maximum,
             )
             self.image_data = QByteArray()
@@ -327,16 +324,16 @@ class ContextWidget(ContextPreview):
         self._resize_request += 1
         request = self._resize_request
         try:
-            image_data, bounds, mask_data, mask_bounds, params = (
-                self.model.get_generation_context_bytes()
-            )
+            bounds, mask, params = self.model.get_generation_context()
+            if mask:
+                mask.bounds = mask.bounds.relative_to(bounds)
+            image_data, _ = self.model.get_current_image_bytes(bounds)
             self._aspect = bounds.width / max(1, bounds.height)
             job = _ResizeJob(
                 request,
                 image_data,
                 bounds.extent,
-                mask_data,
-                mask_bounds,
+                mask,
                 QSize(320, 320),
             )
             job.signals.finished.connect(self._resize_finished)
@@ -474,11 +471,7 @@ def _fit_aspect(rect: QRect, aspect: float):
 
 
 def _resize_preview_bytes(
-    image_data: QByteArray,
-    image_extent: Extent,
-    mask_data: QByteArray | QImage | None,
-    mask_bounds: Bounds | None,
-    maximum: QSize,
+    image_data: QByteArray, image_extent: Extent, mask: Mask | None, maximum: QSize
 ):
     source = QImage(
         cast(bytes, memoryview(cast(Any, image_data))),
@@ -496,20 +489,11 @@ def _resize_preview_bytes(
     )
 
     original_mask = None
-    if mask_data is not None and mask_bounds is not None:
-        if isinstance(mask_data, QByteArray):
-            mask_source = QImage(
-                cast(bytes, memoryview(cast(Any, mask_data))),
-                mask_bounds.width,
-                mask_bounds.height,
-                mask_bounds.width,
-                QImage.Format.Format_Grayscale8,
-            )
-        else:
-            mask_source = mask_data
+    if mask:
+        mask_source = mask.load_bytes()
         scale_x = extent.width / image_extent.width
         scale_y = extent.height / image_extent.height
-        target = Bounds.scale(mask_bounds, (scale_x, scale_y))
+        target = Bounds.scale(mask.bounds, (scale_x, scale_y))
         scaled_mask = mask_source.scaled(
             target.width,
             target.height,

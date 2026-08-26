@@ -6,7 +6,7 @@ from collections.abc import Callable, Iterable
 from enum import Enum
 from math import sqrt
 from pathlib import Path
-from typing import NamedTuple, SupportsIndex
+from typing import Any, NamedTuple, SupportsIndex, cast
 
 from PyQt6.QtCore import QBuffer, QByteArray, QFile, QIODevice, QRect, QSize, Qt
 from PyQt6.QtGui import (
@@ -938,12 +938,27 @@ class ImageCollection:
 class Mask:
     def __init__(self, bounds: Bounds, data: QImage | QByteArray):
         self.bounds = bounds
+        self._image: QImage | None = None
+        self._data: QByteArray | None = None
         if isinstance(data, QImage):
-            self.image: QImage = data
+            self._image = data
         else:
-            assert len(data) == bounds.width * bounds.height
-            self.image = Image.from_packed_bytes(data, bounds.extent, channels=1)._qimage
-            assert not self.image.isNull()
+            self._data = data
+
+    def load_bytes(self):
+        extent = self.bounds.extent
+        assert self._data and len(self._data) == extent.width * extent.height
+        raw = cast(bytes, memoryview(cast(Any, self._data)))
+        self._image = QImage(
+            raw, extent.width, extent.height, extent.width, QImage.Format.Format_Grayscale8
+        )
+        return self._image
+
+    @property
+    def image(self):
+        if self._image is None:
+            return self.load_bytes()
+        return self._image
 
     @staticmethod
     def transparent(bounds: Bounds):
