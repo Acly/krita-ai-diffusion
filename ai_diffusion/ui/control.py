@@ -128,13 +128,13 @@ class FlowLayout(QLayout):
 
 
 class AddControlButton(QWidget):
-    def __init__(self, model: ControlLayerList, parent=None):
+    def __init__(self, model: ControlLayerList, parent: ControlListWidget):
         super().__init__(parent)
         self.model = model
+        self.list_widget = parent
         self._hovered = False
         self.setFixedSize(THUMBNAIL_HEIGHT, THUMBNAIL_HEIGHT)
         self.setCursor(Qt.CursorShape.PointingHandCursor)
-        self.setToolTip(_("Add Control Layer"))
 
     def paintEvent(self, a0: QPaintEvent | None):
         painter = QPainter(self)
@@ -151,11 +151,13 @@ class AddControlButton(QWidget):
 
     def enterEvent(self, event: QEnterEvent | None):
         self._hovered = True
+        self.list_widget.show_tooltip(self, _("Add Control Layer"))
         self.update()
         super().enterEvent(event)
 
     def leaveEvent(self, a0: QEvent | None):
         self._hovered = False
+        self.list_widget.clear_tooltip(self)
         self.update()
         super().leaveEvent(a0)
 
@@ -165,29 +167,25 @@ class AddControlButton(QWidget):
         super().mouseReleaseEvent(a0)
 
 
-class ControlAdvancedPopup(QFrame):
-    _open: ControlAdvancedPopup | None = None
-
+class ControlAdvancedPanel(QFrame):
     def __init__(self, owner: ControlWidget):
-        super().__init__(None, Qt.WindowType.Tool)
+        super().__init__(owner.list_widget)
         self.owner = owner
         self.control = owner.control
         self._connections: list[QMetaObject.Connection | Binding] = []
-        self.setAttribute(Qt.WidgetAttribute.WA_DeleteOnClose)
         self.setFrameShape(QFrame.Shape.StyledPanel)
-        self.setWindowTitle(_("Control layer settings"))
+        self.setFrameShadow(QFrame.Shadow.Raised)
+        self.setLineWidth(1)
 
-        self.custom_checkbox = QCheckBox(_("Use custom values"), self)
+        self.custom_checkbox = QToolButton(self)
+        self.custom_checkbox.setText(_("Custom values"))
+        self.custom_checkbox.setCheckable(True)
+
         close_button = QToolButton(self)
         close_button.setIcon(theme.icon("remove"))
         close_button.setAutoRaise(True)
         close_button.setToolTip(_("Close"))
-        close_button.clicked.connect(self.close)
-
-        header = QHBoxLayout()
-        header.addWidget(self.custom_checkbox)
-        header.addStretch()
-        header.addWidget(close_button)
+        close_button.clicked.connect(owner.list_widget.close_advanced)
 
         self.generate_button = _create_generate_button(self)
         self.generate_button.clicked.connect(self.control.generate)
@@ -196,10 +194,12 @@ class ControlAdvancedPopup(QFrame):
         self.add_pose_button = _create_add_pose_button(self)
         self.add_pose_button.clicked.connect(self._add_pose_character)
         actions = QHBoxLayout()
+        actions.addWidget(self.custom_checkbox)
         actions.addWidget(self.generate_button)
         actions.addWidget(self.generate_regions_button)
         actions.addWidget(self.add_pose_button)
         actions.addStretch()
+        actions.addWidget(close_button)
 
         self.strength_slider = QSlider(Qt.Orientation.Horizontal, self)
         self.strength_slider.setRange(0, 75)
@@ -220,7 +220,6 @@ class ControlAdvancedPopup(QFrame):
         sliders.addWidget(self.range_end_label, 1, 3)
 
         layout = QVBoxLayout(self)
-        layout.addLayout(header)
         layout.addLayout(actions)
         layout.addLayout(sliders)
 
@@ -243,32 +242,8 @@ class ControlAdvancedPopup(QFrame):
         self._update_enabled()
         self._update_visibility()
 
-    @classmethod
-    def show_for(cls, owner: ControlWidget):
-        if cls._open is not None:
-            if cls._open.owner is owner:
-                cls._open.raise_()
-                cls._open.activateWindow()
-                return
-            cls._open.close()
-        popup = cls(owner)
-        cls._open = popup
-        popup.adjustSize()
-        pos = owner.mapToGlobal(QPoint(0, owner.height()))
-        screen = owner.screen()
-        if screen:
-            available = screen.availableGeometry()
-            pos.setX(min(pos.x(), available.right() - popup.width()))
-            if pos.y() + popup.height() > available.bottom():
-                pos.setY(owner.mapToGlobal(QPoint(0, 0)).y() - popup.height())
-        popup.move(pos)
-        popup.show()
-
-    def closeEvent(self, a0):
+    def disconnect_all(self):
         Binding.disconnect_all(self._connections)
-        if ControlAdvancedPopup._open is self:
-            ControlAdvancedPopup._open = None
-        super().closeEvent(a0)
 
     def _set_range(self, low: int, high: int):
         self.control.start = low / 20
@@ -308,13 +283,13 @@ class ControlAdvancedPopup(QFrame):
 
     def _support_changed(self, supported: bool):
         if not supported:
-            self.close()
+            self.owner.list_widget.close_advanced()
         else:
             self._update_visibility()
 
     def _job_changed(self, active: bool):
         if active:
-            self.close()
+            self.owner.list_widget.close_advanced()
 
     def _add_pose_character(self):
         root.active_model.document.add_pose_character(self.control.layer)
@@ -383,7 +358,7 @@ class ControlThumbnail(QWidget):
             painter.fillRect(self.rect(), overlay)
             self._paint_icon(painter, "warning", self.rect(), 28)
 
-        if self._hovered:
+        if self._hovered or self.owner.is_advanced_open:
             self._paint_grid(painter)
             if not self.control.is_supported:
                 self._paint_icon(painter, "warning", self.rect(), 28)
@@ -410,7 +385,10 @@ class ControlThumbnail(QWidget):
         painter.fillRect(self.rect(), base)
         sections = self._section_rects()
         for name, rect in sections.items():
-            if name == self._hover_section:
+            selected = name == self._hover_section or (
+                name == "advanced" and self.owner.is_advanced_open
+            )
+            if selected:
                 color = QColor(170, 45, 45, 175) if name == "remove" else QColor(255, 255, 255, 45)
                 painter.fillRect(rect, color)
 
@@ -454,12 +432,16 @@ class ControlThumbnail(QWidget):
         self.refresh()
         if not self.control.has_active_job:
             self._hovered = True
+            if event:
+                self._hover_section = self._section_at(event.position().toPoint())
+        self._update_tooltip()
         self.update()
         super().enterEvent(event)
 
     def leaveEvent(self, a0: QEvent | None):
         self._hovered = False
         self._hover_section = ""
+        self.owner.list_widget.clear_tooltip(self)
         self.update()
         super().leaveEvent(a0)
 
@@ -472,8 +454,25 @@ class ControlThumbnail(QWidget):
             section = self._section_at(a0.pos())
             if section != self._hover_section:
                 self._hover_section = section
+                self._update_tooltip()
                 self.update()
         super().mouseMoveEvent(a0)
+
+    def _update_tooltip(self):
+        if not self.control.is_supported:
+            text = self.control.error_text
+        else:
+            tooltips = {
+                "mode": _("Select control layer content"),
+                "remove": _("Stop using this layer for control (does not remove the layer)"),
+                "layer": _("Select a different layer as input"),
+                "generate": _("Generate new {mode} layer from visible canvas").format(
+                    mode=self.control.mode.text
+                ),
+                "advanced": _("Open advanced options to configure strength and step range"),
+            }
+            text = tooltips.get(self._hover_section, "")
+        self.owner.list_widget.show_tooltip(self, text)
 
     def mouseReleaseEvent(self, a0: QMouseEvent | None):
         if not a0 or a0.button() is not Qt.MouseButton.LeftButton:
@@ -490,14 +489,17 @@ class ControlThumbnail(QWidget):
         elif section == "generate" and self.control.is_supported and self.control.can_generate:
             self.control.generate()
         elif section == "advanced" and self.control.is_supported:
-            ControlAdvancedPopup.show_for(self.owner)
+            self.owner.list_widget.toggle_advanced(self.owner)
         super().mouseReleaseEvent(a0)
 
 
 class ControlWidget(QWidget):
-    def __init__(self, control_list: ControlLayerList, control: ControlLayer, parent: QWidget):
+    def __init__(
+        self, control_list: ControlLayerList, control: ControlLayer, parent: ControlListWidget
+    ):
         super().__init__(parent)
         self.control_list = control_list
+        self.list_widget: ControlListWidget = parent
         self.control = control
         self._connections: list[QMetaObject.Connection | Binding] = []
         self.setFixedSize(THUMBNAIL_WIDTH, ITEM_HEIGHT)
@@ -510,7 +512,7 @@ class ControlWidget(QWidget):
         self.preset_slider.setTickInterval(1)
         self.preset_slider.setTickPosition(QSlider.TickPosition.TicksBothSides)
         self.preset_slider.setFixedHeight(CONTROL_HEIGHT)
-        self.preset_slider.setToolTip(_("Guidance strength of the control image"))
+        self.preset_slider.installEventFilter(self)
         self.preset_slider.valueChanged.connect(self._set_preset)
 
         layout = QVBoxLayout(self)
@@ -533,13 +535,28 @@ class ControlWidget(QWidget):
         self._update_support()
         self._update_job()
 
+    @property
+    def is_advanced_open(self):
+        return self.list_widget.advanced_owner is self
+
     def disconnect_all(self):
         Binding.disconnect_all(self._connections)
-        if ControlAdvancedPopup._open and ControlAdvancedPopup._open.owner is self:
-            ControlAdvancedPopup._open.close()
+        if self.is_advanced_open:
+            self.list_widget.close_advanced()
+
+    def eventFilter(self, a0, a1):
+        if a0 is self.preset_slider and a1:
+            if a1.type() == QEvent.Type.Enter:
+                self.list_widget.show_tooltip(
+                    self.preset_slider, _("Guidance strength of the control image")
+                )
+            elif a1.type() == QEvent.Type.Leave:
+                self.list_widget.clear_tooltip(self.preset_slider)
+        return super().eventFilter(a0, a1)
 
     def remove(self):
         self.control_list.remove(self.control)
+        self.list_widget.clear_tooltip(self)
 
     def show_mode_menu(self, pos: QPoint):
         menu = QMenu(self)
@@ -594,7 +611,8 @@ class ControlWidget(QWidget):
 
     def _update_support(self):
         self.preset_slider.setEnabled(self.control.is_supported and not self.control.has_active_job)
-        self.thumbnail.setToolTip(self.control.error_text if not self.control.is_supported else "")
+        if self.thumbnail.underMouse():
+            self.thumbnail._update_tooltip()
         self.thumbnail.update()
 
     def _update_job(self):
@@ -615,8 +633,30 @@ class ControlListWidget(QWidget):
         self._model = model
         self._widgets: list[ControlWidget] = []
         self._model_connections: list[QMetaObject.Connection] = []
-        self._layout = FlowLayout(self)
-        self.setLayout(self._layout)
+        self._tooltip_source: QWidget | None = None
+        self._advanced_panel: ControlAdvancedPanel | None = None
+
+        self._items = QWidget(self)
+        self._flow_layout = FlowLayout(self._items)
+        self._items.setLayout(self._flow_layout)
+        self._items.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Minimum)
+
+        self._tooltip_label = QLabel(self)
+        self._tooltip_label.setFixedHeight(self._tooltip_label.sizeHint().height())
+        self._tooltip_label.setSizePolicy(QSizePolicy.Policy.Ignored, QSizePolicy.Policy.Fixed)
+        self._tooltip_label.setStyleSheet(
+            f"QLabel {{padding: 2px; background: {theme.base}; color: {theme.grey}; border: 1px solid {theme.line};}}"
+        )
+
+        self._details_layout = QVBoxLayout()
+        self._details_layout.setContentsMargins(0, 0, 0, 0)
+        self._details_layout.addWidget(self._tooltip_label)
+
+        layout = QVBoxLayout(self)
+        layout.setContentsMargins(0, 0, 0, 0)
+        layout.setSpacing(2)
+        layout.addWidget(self._items)
+        layout.addLayout(self._details_layout)
         self.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Minimum)
         self.model = model
 
@@ -626,16 +666,17 @@ class ControlListWidget(QWidget):
 
     @model.setter
     def model(self, model: ControlLayerList):
+        self.close_advanced()
         if self._model_connections:
             Binding.disconnect_all(self._model_connections)
         for widget in self._widgets:
-            self._layout.takeWidget(widget)
+            self._flow_layout.takeWidget(widget)
             widget.disconnect_all()
             widget.deleteLater()
         self._widgets.clear()
         old_add = getattr(self, "_add_button", None)
         if old_add is not None:
-            self._layout.takeWidget(old_add)
+            self._flow_layout.takeWidget(old_add)
             old_add.deleteLater()
 
         self._model = model
@@ -643,30 +684,73 @@ class ControlListWidget(QWidget):
         for control in model:
             self._add_widget(control)
         self._add_button = AddControlButton(model, self)
-        self._layout.addWidget(self._add_button)
+        self._flow_layout.addWidget(self._add_button)
         self._model_connections = [
             model.added.connect(self._add_widget),
             model.removed.connect(self._remove_widget),
         ]
-        self._layout.invalidate()
+        self._flow_layout.invalidate()
+
+    @property
+    def advanced_owner(self):
+        return self._advanced_panel.owner if self._advanced_panel else None
+
+    def show_tooltip(self, source: QWidget, text: str):
+        if self._advanced_panel is None:
+            self._tooltip_source = source
+            self._tooltip_label.setText(text)
+
+    def clear_tooltip(self, source: QWidget):
+        if self._tooltip_source is source:
+            self._tooltip_source = None
+            self._tooltip_label.clear()
+
+    def toggle_advanced(self, owner: ControlWidget):
+        if self.advanced_owner is owner:
+            self.close_advanced()
+            return
+        self.close_advanced()
+        self._tooltip_source = None
+        self._tooltip_label.clear()
+        self._tooltip_label.hide()
+        self._advanced_panel = ControlAdvancedPanel(owner)
+        self._details_layout.addWidget(self._advanced_panel)
+        self._advanced_panel.show()
+        owner.thumbnail.update()
+        self.updateGeometry()
+
+    def close_advanced(self):
+        panel = self._advanced_panel
+        if panel is None:
+            return
+        owner = panel.owner
+        self._advanced_panel = None
+        panel.disconnect_all()
+        self._details_layout.removeWidget(panel)
+        panel.deleteLater()
+        self._tooltip_label.show()
+        owner.thumbnail.update()
+        if owner.thumbnail.underMouse():
+            owner.thumbnail._update_tooltip()
+        self.updateGeometry()
 
     def _add_widget(self, control: ControlLayer):
         widget = ControlWidget(self._model, control, self)
         self._widgets.append(widget)
-        index = self._layout.count()
+        index = self._flow_layout.count()
         if self._add_button is not None:
             index -= 1
-        self._layout.insertWidget(index, widget)
-        self._layout.invalidate()
+        self._flow_layout.insertWidget(index, widget)
+        self._flow_layout.invalidate()
         self.updateGeometry()
 
     def _remove_widget(self, control: ControlLayer):
         widget = next(widget for widget in self._widgets if widget.control is control)
         self._widgets.remove(widget)
-        self._layout.takeWidget(widget)
+        self._flow_layout.takeWidget(widget)
         widget.disconnect_all()
         widget.deleteLater()
-        self._layout.invalidate()
+        self._flow_layout.invalidate()
         self.updateGeometry()
 
 
