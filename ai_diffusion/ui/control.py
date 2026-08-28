@@ -17,7 +17,6 @@ from PyQt6.QtGui import (
     QPixmap,
 )
 from PyQt6.QtWidgets import (
-    QCheckBox,
     QFrame,
     QGridLayout,
     QHBoxLayout,
@@ -555,8 +554,8 @@ class ControlWidget(QWidget):
         return super().eventFilter(a0, a1)
 
     def remove(self):
+        self.list_widget.clear_tooltip(self.thumbnail)
         self.control_list.remove(self.control)
-        self.list_widget.clear_tooltip(self)
 
     def show_mode_menu(self, pos: QPoint):
         menu = QMenu(self)
@@ -641,16 +640,17 @@ class ControlListWidget(QWidget):
         self._items.setLayout(self._flow_layout)
         self._items.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Minimum)
 
-        self._tooltip_label = QLabel(self)
-        self._tooltip_label.setFixedHeight(self._tooltip_label.sizeHint().height())
-        self._tooltip_label.setSizePolicy(QSizePolicy.Policy.Ignored, QSizePolicy.Policy.Fixed)
+        self._tooltip_label = QLabel(self, Qt.WindowType.ToolTip)
+        self._tooltip_label.setAttribute(Qt.WidgetAttribute.WA_ShowWithoutActivating)
+        self._tooltip_label.setAttribute(Qt.WidgetAttribute.WA_TransparentForMouseEvents)
+        self._tooltip_label.setWordWrap(True)
         self._tooltip_label.setStyleSheet(
-            f"QLabel {{padding: 2px; background: {theme.base}; color: {theme.grey}; border: 1px solid {theme.line};}}"
+            f"QLabel {{padding: 4px; background: {theme.base}; color: {theme.grey}; border: 1px solid {theme.line};}}"
         )
+        self._tooltip_label.hide()
 
         self._details_layout = QVBoxLayout()
         self._details_layout.setContentsMargins(0, 0, 0, 0)
-        self._details_layout.addWidget(self._tooltip_label)
 
         layout = QVBoxLayout(self)
         layout.setContentsMargins(0, 0, 0, 0)
@@ -667,6 +667,8 @@ class ControlListWidget(QWidget):
     @model.setter
     def model(self, model: ControlLayerList):
         self.close_advanced()
+        self._tooltip_source = None
+        self._tooltip_label.hide()
         if self._model_connections:
             Binding.disconnect_all(self._model_connections)
         for widget in self._widgets:
@@ -696,23 +698,46 @@ class ControlListWidget(QWidget):
         return self._advanced_panel.owner if self._advanced_panel else None
 
     def show_tooltip(self, source: QWidget, text: str):
-        if self._advanced_panel is None:
-            self._tooltip_source = source
-            self._tooltip_label.setText(text)
+        self._tooltip_source = source
+        self._tooltip_label.setText(text)
+        if text:
+            self._position_tooltip()
+            self._tooltip_label.show()
+            self._tooltip_label.raise_()
+        else:
+            self._tooltip_label.hide()
 
     def clear_tooltip(self, source: QWidget):
         if self._tooltip_source is source:
             self._tooltip_source = None
+            self._tooltip_label.hide()
             self._tooltip_label.clear()
+
+    def _position_tooltip(self):
+        width = self.width()
+        height = self._tooltip_label.heightForWidth(width)
+        pos = self.mapToGlobal(QPoint(0, self._items.geometry().bottom() + 4))
+        self._tooltip_label.setGeometry(pos.x(), pos.y(), width, height)
+
+    def resizeEvent(self, a0):
+        super().resizeEvent(a0)
+        if self._tooltip_label.isVisible():
+            self._position_tooltip()
+
+    def moveEvent(self, a0):
+        super().moveEvent(a0)
+        if self._tooltip_label.isVisible():
+            self._position_tooltip()
+
+    def hideEvent(self, a0):
+        self._tooltip_label.hide()
+        super().hideEvent(a0)
 
     def toggle_advanced(self, owner: ControlWidget):
         if self.advanced_owner is owner:
             self.close_advanced()
             return
         self.close_advanced()
-        self._tooltip_source = None
-        self._tooltip_label.clear()
-        self._tooltip_label.hide()
         self._advanced_panel = ControlAdvancedPanel(owner)
         self._details_layout.addWidget(self._advanced_panel)
         self._advanced_panel.show()
@@ -728,10 +753,7 @@ class ControlListWidget(QWidget):
         panel.disconnect_all()
         self._details_layout.removeWidget(panel)
         panel.deleteLater()
-        self._tooltip_label.show()
         owner.thumbnail.update()
-        if owner.thumbnail.underMouse():
-            owner.thumbnail._update_tooltip()
         self.updateGeometry()
 
     def _add_widget(self, control: ControlLayer):
@@ -746,6 +768,8 @@ class ControlListWidget(QWidget):
 
     def _remove_widget(self, control: ControlLayer):
         widget = next(widget for widget in self._widgets if widget.control is control)
+        if self._tooltip_source in (widget.thumbnail, widget.preset_slider):
+            self.clear_tooltip(self._tooltip_source)
         self._widgets.remove(widget)
         self._flow_layout.takeWidget(widget)
         widget.disconnect_all()

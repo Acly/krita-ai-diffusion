@@ -38,6 +38,7 @@ from ..model.model import DocumentModel, MaskSource, ProgressKind, QueueMode
 from ..model.properties import Bind, Binding, bind, bind_combo, bind_toggle
 from ..model.root import root
 from ..settings import Settings
+from ..util import is_one
 from . import theme
 from .context import ContextWidget
 from .history import PreviewReel
