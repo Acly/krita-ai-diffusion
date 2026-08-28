@@ -47,7 +47,6 @@ from .widget import (
     ErrorBox,
     GenerateButton,
     LayerCountWidget,
-    QueueButton,
     StrengthWidget,
     StyleSelectWidget,
     WorkspaceSelectWidget,
@@ -404,12 +403,8 @@ class GenerationWidget(QWidget):
         self.layer_count_widget = LayerCountWidget(self)
         self.layer_count_widget.setVisible(False)
         self.add_region_button = create_wide_tool_button("region-add", _("Add Region"), self)
-        self.add_control_button = create_wide_tool_button(
-            "control-add", _("Add Control Layer"), self
-        )
         misc_layout = QHBoxLayout()
         misc_layout.addWidget(self.layer_count_widget)
-        misc_layout.addWidget(self.add_control_button)
         misc_layout.addWidget(self.add_region_button)
         layout.addLayout(misc_layout)
 
@@ -443,7 +438,6 @@ class GenerationWidget(QWidget):
                 model.mask_source_changed.connect(self.update_generate_options),
                 model.style_changed.connect(self.update_generate_options),
                 model.edit_mode_changed.connect(self.update_generate_options),
-                self.add_control_button.clicked.connect(self.add_control),
                 self.add_region_button.clicked.connect(self.add_region),
                 self.region_prompt.activated.connect(model.generate),
                 self.generate_button.clicked.connect(model.generate),
@@ -580,9 +574,6 @@ class GenerationWidget(QWidget):
 
     def add_region(self):
         self.model.active_regions.create_region_group()
-
-    def add_control(self):
-        self.model.active_regions.add_control()
 
     def update_generate_options(self):
         if not self.model.has_document:

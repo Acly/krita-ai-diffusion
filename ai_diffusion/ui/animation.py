@@ -28,7 +28,6 @@ from .widget import (
     StyleSelectWidget,
     TextPromptWidget,
     WorkspaceSelectWidget,
-    create_wide_tool_button,
 )
 
 
@@ -68,13 +67,7 @@ class AnimationWidget(QWidget):
         layout.addLayout(prompt_layout)
 
         self.strength_slider = StrengthWidget()
-        self.add_control_button = create_wide_tool_button(
-            "control-add", _("Add Control Layer"), self
-        )
-        strength_layout = QHBoxLayout()
-        strength_layout.addWidget(self.strength_slider.widget())
-        strength_layout.addWidget(self.add_control_button)
-        layout.addLayout(strength_layout)
+        layout.addWidget(self.strength_slider.widget())
 
         self.control_list = ControlListWidget(self.model.regions.control, parent=self)
         layout.addWidget(self.control_list)
@@ -146,7 +139,6 @@ class AnimationWidget(QWidget):
                 model.animation.target_image_changed.connect(self.show_result),
                 model.progress_changed.connect(self.update_progress),
                 model.layers.changed.connect(self.update_target_layers),
-                self.add_control_button.clicked.connect(model.regions.add_control),
                 self.prompt_textbox.activated.connect(model.animation.generate),
                 self.negative_textbox.activated.connect(model.animation.generate),
                 self.generate_button.clicked.connect(model.animation.generate),

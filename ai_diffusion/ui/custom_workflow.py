@@ -45,14 +45,20 @@ from ..settings import settings
 from ..style import Styles
 from ..util import base_type_match, clamp, ensure
 from . import theme
-from .generation import GenerateButton, ProgressBar, QueueButton
+from .generation import GenerateButton, ProgressBar
 from .history import PreviewReel
 from .live import LivePreviewArea
 from .region import ActiveRegionWidget, PromptHeader
 from .settings_widgets import ExpanderButton
 from .switch import SwitchWidget
 from .theme import SignalBlocker
-from .widget import ErrorBox, StyleSelectWidget, TextPromptWidget, WorkspaceSelectWidget
+from .widget import (
+    ErrorBox,
+    QueueButton,
+    StyleSelectWidget,
+    TextPromptWidget,
+    WorkspaceSelectWidget,
+)
 
 
 class LayerSelect(QComboBox):

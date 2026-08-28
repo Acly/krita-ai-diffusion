@@ -313,7 +313,7 @@ class ControlLayerList(QObject):
     def to_api(self, bounds: Bounds | None = None, time: int | None = None):
         for layer in (c for c in self._layers if not c.is_supported):
             log.warning(f"Trying to use control layer {layer.mode.name}: {layer.error_text}")
-        return [c.to_api(bounds, time) for c in self._layers if c.is_supported]
+        return [c.to_api(bounds, time) for c in self._layers if c.is_supported and c.strength > 0]
 
     def _update_last_mode(self, mode: ControlMode):
         self._last_mode = mode
