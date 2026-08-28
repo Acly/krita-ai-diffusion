@@ -197,17 +197,12 @@ class LiveWidget(QWidget):
         layout.addLayout(params_layout)
 
         self.control_list = ControlListWidget(self._model.active_regions.control, self)
-        self.add_control_button = create_wide_tool_button(
-            "control-add", _("Add Control Layer"), self
-        )
-        self.add_control_button.clicked.connect(self.create_control)
         self.add_region_button = create_wide_tool_button("region-add", _("Add Region"), self)
         self.add_region_button.clicked.connect(self.create_region)
         prompt_buttons_layout = QVBoxLayout()
         prompt_buttons_layout.setAlignment(Qt.AlignmentFlag.AlignTop)
         prompt_buttons_layout.setSpacing(2)
         prompt_buttons_layout.addWidget(self.add_region_button)
-        prompt_buttons_layout.addWidget(self.add_control_button)
 
         self.region_widget = ActiveRegionWidget(self._model.regions, self, header=PromptHeader.icon)
         self.region_widget.is_slim = True
@@ -318,9 +313,6 @@ class LiveWidget(QWidget):
 
     def focus_active_region(self):
         self.model.active_regions.active = self.model.active_regions.region_for_active_layer
-
-    def create_control(self):
-        self.model.active_regions.add_control()
 
     def create_region(self):
         self.model.active_regions.create_region_layer()
