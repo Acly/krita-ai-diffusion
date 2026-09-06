@@ -61,5 +61,5 @@ if __name__ == "__main__":
         update_all()
     else:
         strings = parse_source(source_dir)
-        outfile = Path(args.outdir) / f"{args.lang}.json"
-        write_language_file(strings, args.lang, args.name, outfile)
+        outfile = Path(args.outdir) / f"{args.command}.json"
+        write_language_file(strings, args.command, args.name, outfile)
