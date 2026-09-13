@@ -991,7 +991,7 @@ class GenerationWidget(QWidget):
         self.model.active_regions.add_control()
 
     def update_generate_options(self):
-        if not self.model.has_document:
+        if not self.model.has_document or not self.model.document.is_valid:
             return
 
         arch = self.model.arch
