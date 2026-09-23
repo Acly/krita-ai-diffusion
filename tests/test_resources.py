@@ -52,6 +52,7 @@ def test_resource_ids_exist():
             Arch.qwen,
             Arch.qwen_e,
             Arch.qwen_e_p,
+            Arch.qwen2,
             Arch.flux2_9b,
             Arch.anima,
             Arch.ernie,

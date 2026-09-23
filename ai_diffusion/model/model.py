@@ -1563,6 +1563,7 @@ def get_selection_modifiers(
 ):
     if arch is InpaintContext.mask_bounds:  # use exact bounds, no padding
         return SelectionModifiers(multiple=1)
+    assert isinstance(arch, Arch)
 
     feather = settings.selection_feather / 100
     invert = False
@@ -1579,7 +1580,7 @@ def get_selection_modifiers(
         pad_rel=settings.selection_padding / 100,
         pad_offset_px=settings.selection_grow_offset,
         size_min_px=min_size,
-        multiple=resolution.diffusion_multiple,
+        multiple=resolution.diffusion_multiple(arch),
         invert=invert,
     )
 

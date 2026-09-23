@@ -694,6 +694,28 @@ class ComfyWorkflow:
             prompt=prompt,
         )
 
+    def text_encode_qwen2(
+        self,
+        clip: Output,
+        vae: Output | None,
+        images: list[Output] | None,
+        positive: str | Output,
+        negative: str | Output,
+    ):
+        images = [] if images is None else images
+        assert len(images) <= 10, "Qwen Image 2.1 supports a maximum of 10 reference images"
+        args = {
+            "clip": clip,
+            "vae": vae,
+            "prompt": positive,
+            "negative_prompt": negative,
+            "resolution": 0,
+        }
+        for i, image in enumerate(images):
+            args[f"images.image_{i + 1}"] = image
+        positive, negative, _ = self.add("TextEncodeQwenImage21", 3, **args)
+        return ConditioningOutput(positive, negative)
+
     def background_region(self, conditioning: Output):
         return self.add("ETN_BackgroundRegion", 1, conditioning=conditioning)
 
