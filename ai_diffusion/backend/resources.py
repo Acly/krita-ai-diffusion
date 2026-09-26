@@ -199,6 +199,10 @@ class Arch(Enum):
         return self not in [Arch.flux, Arch.flux_k]
 
     @property
+    def supports_alpha(self):
+        return self is Arch.qwen2
+
+    @property
     def is_edit(self):  # edit models make changes to input images
         return self in [Arch.flux_k, Arch.qwen_e, Arch.qwen_e_p, Arch.qwen_l]
 
