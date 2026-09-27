@@ -874,6 +874,7 @@ def test_analyze_image_workflow():
     assert nodes["CLIPLoader"]["clip_name"] == "qwen3vl_8b.safetensors"
     assert nodes["TextGenerate"]["prompt"] == "Describe the image"
     assert nodes["TextGenerate"]["sampling_mode"] == "on"
+    assert nodes["TextGenerate"]["thinking"] is True
     assert nodes["TextGenerate"]["sampling_mode.seed"] == ensure(job.sampling).seed
     assert "PreviewAny" in nodes
 
@@ -932,6 +933,7 @@ def test_analyze_image(qtapp, local_client: Client, arch: Arch):
 
     text = qtapp.run(main())
     assert isinstance(text, str) and "cat" in text.lower()
+    assert not text.lower().startswith("assistant")
 
 
 def test_create_open_pose_vector(qtapp, client: Client):

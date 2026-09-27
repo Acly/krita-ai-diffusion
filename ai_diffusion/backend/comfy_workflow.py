@@ -516,7 +516,14 @@ class ComfyWorkflow:
         return self.add_cached(node, 1, clip_name=clip_name, type=type)
 
     def text_generate(
-        self, clip: Output, prompt: str, image: Output, seed: int, max_length=512, temperature=0.3
+        self,
+        clip: Output,
+        prompt: str,
+        image: Output,
+        seed: int,
+        max_length=512,
+        temperature=0.3,
+        thinking=False,
     ):
         sampling = {
             "sampling_mode": "on",
@@ -534,7 +541,7 @@ class ComfyWorkflow:
             prompt=prompt,
             image=image,
             max_length=max_length,
-            thinking=False,
+            thinking=thinking,
             use_default_template=True,
             **sampling,
         )

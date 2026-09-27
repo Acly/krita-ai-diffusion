@@ -697,6 +697,7 @@ class DocumentModel(QObject, ObservableProperties):
         elif message.event is ClientEvent.output:
             if job.kind is JobKind.image_analysis and isinstance(message.result, TextOutput):
                 text = re.sub(r"<think>.*?(</think>|$)", "", message.result.text, flags=re.DOTALL)
+                text = re.sub(r"^\s*(assistant|user|system)\s*\n", "", text)  # leaked chat role
                 self.image_analyzed.emit(text.strip())
             else:
                 self.custom.handle_output(job, message.result)

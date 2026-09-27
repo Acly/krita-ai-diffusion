@@ -1787,7 +1787,9 @@ def analyze_image(
         # White reads as blank paper to VL models, other fills get described as a border or frame
         white = w.empty_image(images.extent.input, 0xFFFFFF)
         image = w.composite_image_masked(image, white, w.load_mask(images.hires_mask))
-    text = w.text_generate(clip, prompt, image, seed)
+    # thinking=False adds an empty <think> block, which Qwen3-VL Instruct models aren't trained on.
+    # The 4B model then often starts its reply with a new "assistant" turn.
+    text = w.text_generate(clip, prompt, image, seed, thinking=True)
     w.preview_text(text)
     return w
 
