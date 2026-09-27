@@ -220,6 +220,8 @@ class ComfyClient(Client):
 
         models.upscalers = nodes.options("UpscaleModelLoader", "model_name")
         available_resources.update(_find_upscalers(models.upscalers))
+        if resources.rtx_vsr_node in nodes:
+            models.upscalers.append(resources.rtx_vsr_node)
 
         inpaint_models = nodes.options("INPAINT_LoadInpaintModel", "model_name")
         available_resources.update(_find_inpaint_models(inpaint_models))

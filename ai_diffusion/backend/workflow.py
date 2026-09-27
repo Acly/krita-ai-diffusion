@@ -1307,12 +1307,21 @@ def create_control_image(
     return w
 
 
-def upscale_simple(w: ComfyWorkflow, image: Image, model: str, factor: float):
-    upscale_model = w.load_upscale_model(model)
-    img = w.load_image(image)
-    img = w.upscale_image(upscale_model, img)
-    if not math.isclose(factor, 4.0):
-        img = w.scale_image(img, image.extent * factor)
+def _upscale_with_model(w: ComfyWorkflow, image: Output, upscale: UpscaleInput, factor: float):
+    if upscale.model == resources.rtx_vsr_node:
+        return w.rtx_upscale_image(image, min(4.0, factor), upscale.rtx_quality)
+    upscale_model = w.load_upscale_model(upscale.model)
+    return w.upscale_image(upscale_model, image)
+
+
+def upscale_simple(w: ComfyWorkflow, image: Image, upscale: UpscaleInput, factor: float):
+    img = _upscale_with_model(w, w.load_image(image), upscale, factor)
+    target = image.extent * factor
+    if upscale.model == resources.rtx_vsr_node:
+        if factor > 4.0 or not target.is_multiple_of(8):
+            img = w.scale_image(img, target)
+    elif not math.isclose(factor, 4.0):
+        img = w.scale_image(img, target)
     w.send_image(img)
     return w
 
@@ -1342,8 +1351,7 @@ def upscale_tiled(
 
     in_image = w.load_image(image)
     if upscale.model:
-        upscale_model = w.load_upscale_model(upscale.model)
-        upscaled = w.upscale_image(upscale_model, in_image)
+        upscaled = _upscale_with_model(w, in_image, upscale, upscale_factor)
     else:
         upscaled = in_image
     if extent.input != extent.initial:
@@ -1740,11 +1748,13 @@ def prepare(
     return i
 
 
-def prepare_upscale_simple(image: Image, model: str, factor: float):
+def prepare_upscale_simple(image: Image, model: str, factor: float, rtx_quality="ULTRA"):
     target_extent = image.extent * factor
     extent = ExtentInput(image.extent, image.extent, target_extent, target_extent)
     i = WorkflowInput(WorkflowKind.upscale_simple, ImageInput(extent, image))
-    i.upscale = UpscaleInput(model)
+    i.upscale = UpscaleInput(
+        model, rtx_quality=rtx_quality if model == resources.rtx_vsr_node else "ULTRA"
+    )
     return i
 
 
@@ -1819,7 +1829,7 @@ def create(i: WorkflowInput, models: ClientModels, comfy_mode=ComfyRunMode.serve
             models.for_arch(ensure(i.models).version),
         )
     elif i.kind is WorkflowKind.upscale_simple:
-        return upscale_simple(workflow, i.image, ensure(i.upscale).model, i.upscale_factor)
+        return upscale_simple(workflow, i.image, ensure(i.upscale), i.upscale_factor)
     elif i.kind is WorkflowKind.upscale_tiled:
         return upscale_tiled(
             workflow,

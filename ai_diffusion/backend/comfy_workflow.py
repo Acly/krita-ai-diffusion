@@ -11,7 +11,7 @@ from uuid import uuid4
 from ..image import Bounds, Extent, Image, ImageCollection
 from ..util import base_type_match, is_one
 from ..util import client_logger as log
-from .resources import Arch, ControlMode
+from .resources import Arch, ControlMode, rtx_vsr_node
 
 
 class ComfyRunMode(Enum):
@@ -1023,6 +1023,17 @@ class ComfyWorkflow:
     def upscale_image(self, upscale_model: Output, image: Output):
         self.sample_count += 4  # approx, actual number depends on model and image size
         return self.add("ImageUpscaleWithModel", 1, upscale_model=upscale_model, image=image)
+
+    def rtx_upscale_image(self, image: Output, factor: float, quality: str):
+        self.sample_count += 4
+        return self.add(
+            rtx_vsr_node,
+            1,
+            images=image,
+            resize_type="scale by multiplier",
+            quality=quality,
+            **{"resize_type.scale": factor},
+        )
 
     def invert_image(self, image: Output):
         return self.add("ImageInvert", 1, image=image)
