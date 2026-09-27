@@ -640,10 +640,11 @@ class DocumentModel(QObject, ObservableProperties):
 
     def analyze_image(self):
         try:
-            bounds = self._doc.selection_bounds or Bounds(0, 0, *self._doc.extent)
+            mask, _ = self._doc.create_mask_from_selection(SelectionModifiers(multiple=1))
+            bounds = mask.bounds if mask else Bounds(0, 0, *self._doc.extent)
             image = self._get_current_image(bounds)
             prompt = settings.analyze_image_prompt
-            input = workflow.prepare_analyze_image(image, self.arch, prompt)
+            input = workflow.prepare_analyze_image(image, self.arch, prompt, mask)
             job = self.jobs.add(JobKind.image_analysis, JobParams(bounds, "[Analyze]"))
         except Exception as e:
             self.report_error(util.log_error(e))

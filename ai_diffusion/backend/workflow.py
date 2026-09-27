@@ -1779,21 +1779,31 @@ def prepare_create_control_image(
 
 
 def analyze_image(
-    w: ComfyWorkflow, image: Image, arch: Arch, prompt: str, seed: int, models: ClientModels
+    w: ComfyWorkflow, images: ImageInput, arch: Arch, prompt: str, seed: int, models: ClientModels
 ):
     clip = load_text_encoder(w, arch, models)
-    text = w.text_generate(clip, prompt, w.load_image(image), seed)
+    image = w.load_image(ensure(images.initial_image))
+    if images.hires_mask:
+        # White reads as blank paper to VL models, other fills get described as a border or frame
+        white = w.empty_image(images.extent.input, 0xFFFFFF)
+        image = w.composite_image_masked(image, white, w.load_mask(images.hires_mask))
+    text = w.text_generate(clip, prompt, image, seed)
     w.preview_text(text)
     return w
 
 
-def prepare_analyze_image(image: Image, arch: Arch, prompt: str, max_pixels=1024 * 1024):
+def prepare_analyze_image(
+    image: Image, arch: Arch, prompt: str, mask: Mask | None = None, max_pixels=1024 * 1024
+):
     extent = image.extent
     if extent.pixel_count > max_pixels:
         extent = extent.scale_to_pixel_count(max_pixels)
         image = Image.scale(image, extent)
     i = WorkflowInput(WorkflowKind.analyze_image)
     i.images = ImageInput(ExtentInput(extent, extent, extent, extent), image)
+    if mask is not None and not mask.is_opaque:
+        i.images.hires_mask = Image.scale(mask.to_image(), extent)
+        prompt += " Do not describe image borders, frames or empty areas."
     i.models = CheckpointInput("", arch)
     i.sampling = SamplingInput("", "", 1, 1, seed=generate_seed())  # ignored apart from seed
     i.text_prompt = prompt
@@ -1879,7 +1889,7 @@ def create(i: WorkflowInput, models: ClientModels, comfy_mode=ComfyRunMode.serve
     elif i.kind is WorkflowKind.analyze_image:
         return analyze_image(
             workflow,
-            i.image,
+            ensure(i.images),
             ensure(i.models).version,
             i.text_prompt,
             ensure(i.sampling).seed,
