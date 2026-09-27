@@ -115,6 +115,43 @@ def _sampler_params(sampling: SamplingInput, extent: Extent, strength: float | N
     return params
 
 
+def load_text_encoder(w: ComfyWorkflow, arch: Arch, models: ClientModels):
+    te = models.for_arch(arch).text_encoder
+    match arch:
+        case Arch.sd15:
+            return w.load_clip(te["clip_l"], "stable_diffusion")
+        case Arch.sdxl | Arch.illu | Arch.illu_v:
+            return w.load_dual_clip(te["clip_g"], te["clip_l"], type="sdxl")
+        case Arch.sd3:
+            if te.find("t5"):
+                return w.load_triple_clip(te["clip_l"], te["clip_g"], te["t5"])
+            else:
+                return w.load_dual_clip(te["clip_g"], te["clip_l"], type="sd3")
+        case Arch.flux | Arch.flux_k:
+            return w.load_dual_clip(te["clip_l"], te["t5"], type="flux")
+        case Arch.flux2_4b:
+            return w.load_clip(te["qwen_3_4b"], type="flux2")
+        case Arch.flux2_9b:
+            return w.load_clip(te["qwen_3_8b"], type="flux2")
+        case Arch.chroma:
+            clip = w.load_clip(te["t5"], type="chroma")
+            return w.t5_tokenizer_options(clip, min_padding=1, min_length=0)
+        case Arch.qwen | Arch.qwen_e | Arch.qwen_e_p | Arch.qwen_l:
+            return w.load_clip(te["qwen"], type="qwen_image")
+        case Arch.anima:
+            return w.load_clip(te["qwen_3_06b"], type="omnigen2")
+        case Arch.zimage:
+            return w.load_clip(te["qwen_3_4b"], type="lumina2")
+        case Arch.ernie:
+            return w.load_clip(te["ministral"], type="flux2")
+        case Arch.krea2:
+            return w.load_clip(te["qwen_3vl_4b"], type="krea2")
+        case Arch.qwen2:
+            return w.load_clip(te["qwen_3vl_8b"], type="qwen_image")
+        case _:
+            raise RuntimeError(f"No text encoder for model architecture {arch.name}")
+
+
 def load_checkpoint_with_lora(w: ComfyWorkflow, checkpoint: CheckpointInput, models: ClientModels):
     arch = checkpoint.version
     model_info = models.checkpoints.get(checkpoint.checkpoint)
@@ -133,40 +170,7 @@ def load_checkpoint_with_lora(w: ComfyWorkflow, checkpoint: CheckpointInput, mod
             )
 
     if clip is None or arch is Arch.sd3:
-        te = models.for_arch(arch).text_encoder
-        match arch:
-            case Arch.sd15:
-                clip = w.load_clip(te["clip_l"], "stable_diffusion")
-            case Arch.sdxl | Arch.illu | Arch.illu_v:
-                clip = w.load_dual_clip(te["clip_g"], te["clip_l"], type="sdxl")
-            case Arch.sd3:
-                if te.find("t5"):
-                    clip = w.load_triple_clip(te["clip_l"], te["clip_g"], te["t5"])
-                else:
-                    clip = w.load_dual_clip(te["clip_g"], te["clip_l"], type="sd3")
-            case Arch.flux | Arch.flux_k:
-                clip = w.load_dual_clip(te["clip_l"], te["t5"], type="flux")
-            case Arch.flux2_4b:
-                clip = w.load_clip(te["qwen_3_4b"], type="flux2")
-            case Arch.flux2_9b:
-                clip = w.load_clip(te["qwen_3_8b"], type="flux2")
-            case Arch.chroma:
-                clip = w.load_clip(te["t5"], type="chroma")
-                clip = w.t5_tokenizer_options(clip, min_padding=1, min_length=0)
-            case Arch.qwen | Arch.qwen_e | Arch.qwen_e_p | Arch.qwen_l:
-                clip = w.load_clip(te["qwen"], type="qwen_image")
-            case Arch.anima:
-                clip = w.load_clip(te["qwen_3_06b"], type="omnigen2")
-            case Arch.zimage:
-                clip = w.load_clip(te["qwen_3_4b"], type="lumina2")
-            case Arch.ernie:
-                clip = w.load_clip(te["ministral"], type="flux2")
-            case Arch.krea2:
-                clip = w.load_clip(te["qwen_3vl_4b"], type="krea2")
-            case Arch.qwen2:
-                clip = w.load_clip(te["qwen_3vl_8b"], type="qwen_image")
-            case _:
-                raise RuntimeError(f"No text encoder for model architecture {arch.name}")
+        clip = load_text_encoder(w, arch, models)
 
     if arch.supports_clip_skip and checkpoint.clip_skip != StyleSettings.clip_skip.default:
         clip = w.clip_set_last_layer(clip, (checkpoint.clip_skip * -1))
@@ -1774,6 +1778,28 @@ def prepare_create_control_image(
     return i
 
 
+def analyze_image(
+    w: ComfyWorkflow, image: Image, arch: Arch, prompt: str, seed: int, models: ClientModels
+):
+    clip = load_text_encoder(w, arch, models)
+    text = w.text_generate(clip, prompt, w.load_image(image), seed)
+    w.preview_text(text)
+    return w
+
+
+def prepare_analyze_image(image: Image, arch: Arch, prompt: str, max_pixels=1024 * 1024):
+    extent = image.extent
+    if extent.pixel_count > max_pixels:
+        extent = extent.scale_to_pixel_count(max_pixels)
+        image = Image.scale(image, extent)
+    i = WorkflowInput(WorkflowKind.analyze_image)
+    i.images = ImageInput(ExtentInput(extent, extent, extent, extent), image)
+    i.models = CheckpointInput("", arch)
+    i.sampling = SamplingInput("", "", 1, 1, seed=generate_seed())  # ignored apart from seed
+    i.text_prompt = prompt
+    return i
+
+
 def create(i: WorkflowInput, models: ClientModels, comfy_mode=ComfyRunMode.server) -> ComfyWorkflow:
     """
     Takes a WorkflowInput object and creates the corresponding ComfyUI workflow prompt.
@@ -1849,6 +1875,15 @@ def create(i: WorkflowInput, models: ClientModels, comfy_mode=ComfyRunMode.serve
             extent=ScaledExtent.from_input(i.extent),
             bounds=i.inpaint.target_bounds if i.inpaint else None,
             seed=i.sampling.seed if i.sampling else -1,
+        )
+    elif i.kind is WorkflowKind.analyze_image:
+        return analyze_image(
+            workflow,
+            i.image,
+            ensure(i.models).version,
+            i.text_prompt,
+            ensure(i.sampling).seed,
+            models,
         )
     elif i.kind is WorkflowKind.custom:
         seed = ensure(i.sampling).seed

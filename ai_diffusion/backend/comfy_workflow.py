@@ -515,6 +515,33 @@ class ComfyWorkflow:
             node = "CLIPLoaderGGUF"
         return self.add_cached(node, 1, clip_name=clip_name, type=type)
 
+    def text_generate(
+        self, clip: Output, prompt: str, image: Output, seed: int, max_length=512, temperature=0.3
+    ):
+        sampling = {
+            "sampling_mode": "on",
+            "sampling_mode.temperature": temperature,
+            "sampling_mode.top_k": 64,
+            "sampling_mode.top_p": 0.95,
+            "sampling_mode.min_p": 0.05,
+            "sampling_mode.repetition_penalty": 1.05,
+            "sampling_mode.seed": seed,
+        }
+        return self.add(
+            "TextGenerate",
+            1,
+            clip=clip,
+            prompt=prompt,
+            image=image,
+            max_length=max_length,
+            thinking=False,
+            use_default_template=True,
+            **sampling,
+        )
+
+    def preview_text(self, text: Output):
+        return self.add("PreviewAny", 1, source=text)
+
     def load_dual_clip(self, clip_name1: str, clip_name2: str, type: str):
         node = "DualCLIPLoader"
         if any(f.endswith(".gguf") for f in (clip_name1, clip_name2)):

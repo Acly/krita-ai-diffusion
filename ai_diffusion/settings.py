@@ -256,6 +256,13 @@ class Settings(QObject):
         _("NSFW Filter"), 0.0, _("Attempt to filter out images with explicit content")
     )
 
+    analyze_image_prompt: str
+    _analyze_image_prompt = Setting(
+        _("Image Analysis Instruction"),
+        "Write a detailed text-to-image prompt that would recreate this image as faithfully as possible. Start with the medium and art style, then describe the main subjects (gender and age when apparent, physical appearance, clothing, pose, action and position in the frame), secondary elements, the environment, the composition and camera angle, the lighting and the dominant colors. Use factual visual language: no mood, atmosphere, emotions, story or subjective adjectives such as 'beautiful' or 'cozy'. Quote any visible text verbatim. Write natural sentences in a single paragraph, without labels or headings, and output only the prompt.",
+        _("Instruction for the vision-language text encoder when analyzing an image"),
+    )
+
     new_seed_after_apply: bool
     _new_seed_after_apply = Setting(
         _("Live: New Seed after Apply"),
