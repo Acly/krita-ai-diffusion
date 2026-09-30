@@ -224,3 +224,29 @@ def test_modified():
     a.inty = 5
     a.not_persistent = 5
     assert called == [(a, "inty")]
+
+
+class DependentProperties(QObject, ObservableProperties):
+    mode = Property(0, persist=True, setter="set_mode")
+    amount = Property(0, persist=True)
+
+    mode_changed = pyqtSignal(int)
+    amount_changed = pyqtSignal(int)
+    modified = pyqtSignal(QObject, str)
+
+    def set_mode(self, value: int):
+        if value != self._mode:
+            self._mode = value
+            self.mode_changed.emit(value)
+            self.amount = value * 10  # derived default, like control layer presets
+
+
+def test_serialize_declaration_order():
+    assert list(serialize(DependentProperties())) == ["mode", "amount"]
+
+
+def test_deserialize_declaration_order():
+    obj = DependentProperties()
+    deserialize(obj, {"amount": 7, "mode": 2})  # stored in alphabetical order
+    assert obj.mode == 2
+    assert obj.amount == 7
