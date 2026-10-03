@@ -976,6 +976,13 @@ class Mask:
     def crop(mask: Mask, bounds: Bounds):
         return Mask(bounds, mask.image.copy(*bounds))
 
+    @property
+    def is_opaque(self):
+        img = self.image.convertToFormat(QImage.Format.Format_Grayscale8)
+        width = img.width()
+        rows = (ensure(img.constScanLine(y)).asstring(width) for y in range(img.height()))
+        return all(min(row) == 255 for row in rows)
+
     def value(self, x: int, y: int):
         if self.bounds.is_within(x, y):
             return qGray(self.image.pixel(x, y))

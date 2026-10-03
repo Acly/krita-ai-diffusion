@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import asyncio
+import re
 import time
 import uuid
 import weakref
@@ -37,6 +38,7 @@ from ..backend.client import (
     ClientEvent,
     ClientMessage,
     ClientOutput,
+    TextOutput,
     filter_supported_styles,
     is_style_supported,
     resolve_arch,
@@ -163,6 +165,7 @@ class DocumentModel(QObject, ObservableProperties):
     progress_changed = pyqtSignal(float)
     error_changed = pyqtSignal(Error)
     modified = pyqtSignal(QObject, str)
+    image_analyzed = pyqtSignal(str)
 
     def __init__(self, document: Document, connection: Connection, workflows: WorkflowCollection):
         super().__init__()
@@ -635,6 +638,21 @@ class DocumentModel(QObject, ObservableProperties):
         eventloop.run(_report_errors(self, self._enqueue_job(job, input)))
         return job
 
+    def analyze_image(self):
+        try:
+            mask, _ = self._doc.create_mask_from_selection(SelectionModifiers(multiple=1))
+            bounds = mask.bounds if mask else Bounds(0, 0, *self._doc.extent)
+            image = self._get_current_image(bounds)
+            prompt = settings.analyze_image_prompt
+            input = workflow.prepare_analyze_image(image, self.arch, prompt, mask)
+            job = self.jobs.add(JobKind.image_analysis, JobParams(bounds, "[Analyze]"))
+        except Exception as e:
+            self.report_error(util.log_error(e))
+            return
+
+        self.clear_error()
+        eventloop.run(_report_errors(self, self._enqueue_job(job, input)))
+
     def cancel(self, active=False, queued=False):
         if queued and (to_cancel := self.clear_queued()):
             self._connection.cancel(to_cancel)
@@ -677,7 +695,12 @@ class DocumentModel(QObject, ObservableProperties):
             self.progress_kind = ProgressKind.upload
             self.progress = message.progress
         elif message.event is ClientEvent.output:
-            self.custom.handle_output(job, message.result)
+            if job.kind is JobKind.image_analysis and isinstance(message.result, TextOutput):
+                text = re.sub(r"<think>.*?(</think>|$)", "", message.result.text, flags=re.DOTALL)
+                text = re.sub(r"^\s*(assistant|user|system)\s*\n", "", text)  # leaked chat role
+                self.image_analyzed.emit(text.strip())
+            else:
+                self.custom.handle_output(job, message.result)
         elif message.event is ClientEvent.finished:
             if message.error:  # successful jobs may have encountered some warnings
                 self.report_error(Error.from_string(message.error, ErrorKind.warning))
@@ -1054,6 +1077,17 @@ class DocumentModel(QObject, ObservableProperties):
     @property
     def can_edit(self):
         return self.edit_style is not None
+
+    @property
+    def can_analyze_image(self):
+        client = self._connection.client_if_connected
+        if client is None or not client.features.text_generate:
+            return False
+        arch = self.arch
+        if not arch.supports_image_analysis:
+            return False
+        text_encoders = client.models.for_arch(arch).text_encoder
+        return all(text_encoders.find(te) for te in arch.text_encoders)
 
     @property
     def can_toggle_edit(self):

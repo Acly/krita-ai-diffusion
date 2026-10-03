@@ -256,6 +256,13 @@ class Settings(QObject):
         _("NSFW Filter"), 0.0, _("Attempt to filter out images with explicit content")
     )
 
+    analyze_image_prompt: str
+    _analyze_image_prompt = Setting(
+        _("Image Analysis Instruction"),
+        "Describe this image in detail, covering the subjects, setting, composition, lighting, colors and art style, so it can be used as a prompt for a text-to-image model. Output only the description, without any introduction.",
+        _("Instruction for the vision-language text encoder when analyzing an image"),
+    )
+
     new_seed_after_apply: bool
     _new_seed_after_apply = Setting(
         _("Live: New Seed after Apply"),

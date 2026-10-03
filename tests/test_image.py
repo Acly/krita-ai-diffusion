@@ -335,6 +335,11 @@ def test_mask_to_image():
     )
 
 
+def test_mask_is_opaque():
+    assert Mask(Bounds(2, 2, 3, 3), QByteArray(b"\xff" * 9)).is_opaque
+    assert not Mask(Bounds(2, 2, 3, 3), QByteArray(b"\xff" * 8 + b"\xfe")).is_opaque
+
+
 def test_mask_to_image_offset():
     data = QByteArray(b"\x00\x01\x02\xff")
     mask = Mask(Bounds(1, 2, 2, 2), data)
