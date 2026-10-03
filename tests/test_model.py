@@ -4,7 +4,7 @@ and document data and forwards them as WorkflowInput to image generation clients
 from __future__ import annotations
 
 import asyncio
-from collections.abc import AsyncIterator
+from collections.abc import AsyncGenerator
 from contextlib import asynccontextmanager
 from pathlib import Path
 
@@ -51,7 +51,7 @@ def _make_style(checkpoint: str = "test_sd15.safetensors") -> Style:
 @asynccontextmanager
 async def _model_env(
     krita_doc: MockKritaDocument, workflows_folder: Path
-) -> AsyncIterator[tuple[DocumentModel, MockClient]]:
+) -> AsyncGenerator[tuple[DocumentModel, MockClient], None]:
     """Async context manager that sets up a fully wired DocumentModel/MockClient pair and tears down
     the Connection cleanly on exit to avoid pending-task warnings."""
     from ai_diffusion.model.root import root as plugin_root
