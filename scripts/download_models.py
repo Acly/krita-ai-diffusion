@@ -15,6 +15,7 @@ Usage:
 
 import asyncio
 import os
+import random
 import sys
 from argparse import ArgumentParser
 from pathlib import Path
@@ -86,7 +87,8 @@ def list_models(
     if flux2 or all:
         versions.append(Arch.flux2_4b)
     if illu or all:
-        versions.extend((Arch.illu, Arch.illu_v))
+        versions.append(Arch.illu)
+        versions.append(Arch.illu_v)
     if zimage or all:
         versions.append(Arch.zimage)
 
@@ -152,6 +154,16 @@ def _map_url(url: str):
     return url
 
 
+async def _write_stream(resp, path: Path, name: str, index: int, offset: int):
+    mode = "ab" if offset > 0 else "wb"
+    total = (resp.content_length + offset) if resp.content_length else None
+    with open(path, mode) as fd, _progress(name, total, index) as pbar:  # noqa
+        pbar.update(offset)
+        async for chunk, is_end in resp.content.iter_chunks():
+            fd.write(chunk)
+            pbar.update(len(chunk))
+
+
 async def download_with_retry(
     client: aiohttp.ClientSession,
     model: resources.ModelResource,
@@ -160,19 +172,22 @@ async def download_with_retry(
     dry_run=False,
     retry_attempts=5,
     continue_on_error=False,
+    no_resume=False,
+    retry_delay=None,
     index=0,
 ):
     for attempt in range(retry_attempts):
         try:
-            await download(client, model, destination, verbose, dry_run, index)
-            break
+            await download(client, model, destination, verbose, dry_run, no_resume, index)
+            return
         except Exception as e:
-            print(f"Error downloading {model.name} (attempt {attempt}): {e}")
-            if not continue_on_error:
-                raise
-    else:
-        if not continue_on_error:
-            raise RuntimeError(f"Failed to download {model.name} after {retry_attempts} attempts")
+            print(f"Error downloading {model.name} (attempt {attempt + 1}/{retry_attempts}): {e}")
+            if attempt < retry_attempts - 1:
+                delay = retry_delay if retry_delay is not None else min(2 ** (attempt + 1), 30) + random.uniform(0, 1)
+                print(f"  Retrying in {delay:.1f}s...")
+                await asyncio.sleep(delay)
+    if not continue_on_error:
+        raise RuntimeError(f"Failed to download {model.name} after {retry_attempts} attempts")
 
 
 async def download(
@@ -181,6 +196,7 @@ async def download(
     destination: Path,
     verbose=False,
     dry_run=False,
+    no_resume=False,
     index=0,
 ):
     for file in model.files:
@@ -195,14 +211,31 @@ async def download(
             print(f"Downloading {url}")
         target_file.parent.mkdir(exist_ok=True, parents=True)
         if not dry_run:
-            async with client.get(url) as resp:
-                resp.raise_for_status()
-                with open(target_file.with_suffix(".part"), "wb") as fd:  # noqa
-                    with _progress(model.name, resp.content_length, index) as pbar:
-                        async for chunk, is_end in resp.content.iter_chunks():
-                            fd.write(chunk)
-                            pbar.update(len(chunk))
-                target_file.with_suffix(".part").rename(target_file)
+            part_file = target_file.with_suffix(".part")
+            resume_pos = 0
+            headers = {}
+
+            if part_file.exists() and not no_resume:
+                resume_pos = part_file.stat().st_size
+                if resume_pos > 0:
+                    headers["Range"] = f"bytes={resume_pos}-"
+                    if verbose:
+                        print(f"Resuming from {resume_pos} bytes")
+
+            async with client.get(url, headers=headers) as resp:
+                if resp.status == 416:
+                    part_file.unlink(missing_ok=True)
+                    resume_pos = 0
+                    async with client.get(url) as fresh_resp:
+                        fresh_resp.raise_for_status()
+                        await _write_stream(fresh_resp, part_file, model.name, index, 0)
+                else:
+                    if resume_pos > 0 and resp.status == 200:
+                        resume_pos = 0
+                    resp.raise_for_status()
+                    await _write_stream(resp, part_file, model.name, index, resume_pos)
+
+            part_file.rename(target_file)
 
 
 async def download_models(
@@ -213,12 +246,16 @@ async def download_models(
     retry_attempts=5,
     continue_on_error=False,
     parallel_downloads=4,
+    no_resume=False,
+    retry_delay=None,
 ):
     verbose = verbose or dry_run
 
     timeout = aiohttp.ClientTimeout(total=None, sock_connect=10, sock_read=60)
     async with aiohttp.ClientSession(timeout=timeout, trust_env=True) as client:
         tasks: list[asyncio.Task | None] = [None for _ in range(parallel_downloads)]
+        errors: list[BaseException] = []
+
         for model in sorted(models, key=lambda m: m.name):
             if verbose:
                 print(f"\n{model.name}")
@@ -226,9 +263,24 @@ async def download_models(
             if not any(t is None or t.done() for t in tasks):
                 await asyncio.wait([t for t in tasks if t], return_when=asyncio.FIRST_COMPLETED)
 
-            tasks = [None if t is None or t.done() else t for t in tasks]
+            new_tasks = []
+            for t in tasks:
+                if t is not None and t.done():
+                    exc = t.exception()
+                    if exc:
+                        if not continue_on_error:
+                            for other in new_tasks:
+                                if other is not None:
+                                    other.cancel()
+                            raise exc
+                        errors.append(exc)
+                    new_tasks.append(None)
+                else:
+                    new_tasks.append(t)
+            tasks = new_tasks
+
             index = tasks.index(None)
-            download = download_with_retry(
+            download_task = download_with_retry(
                 client,
                 model,
                 destination,
@@ -236,10 +288,20 @@ async def download_models(
                 dry_run,
                 retry_attempts,
                 continue_on_error,
+                no_resume,
+                retry_delay,
                 index,
             )
-            tasks[index] = asyncio.create_task(download)
-        await asyncio.gather(*[t for t in tasks if t is not None])
+            tasks[index] = asyncio.create_task(download_task)
+
+        for t in [t for t in tasks if t is not None]:
+            try:
+                await t
+            except Exception as e:
+                errors.append(e)
+
+        if errors and not continue_on_error:
+            raise errors[0]
 
 
 def verify_models(path: Path, models: set[ModelResource]):
@@ -299,9 +361,11 @@ if __name__ == "__main__":
     parser.add_argument("--prefetch", action="store_true", help="download models which would be automatically downloaded on first use")
     parser.add_argument("--deprecated", action="store_true", help="download old models which will be removed in the near future")
     parser.add_argument("--retry-attempts", type=int, default=5, metavar="N", help="number of retry attempts for downloading a model")
+    parser.add_argument("--retry-delay", type=float, default=None, metavar="SECONDS", help="fixed delay between retry attempts (overrides exponential backoff)")
     parser.add_argument("--continue-on-error", action="store_true", help="continue downloading models even if an error occurs")
     parser.add_argument("--backend", choices=["auto", "cpu", "cuda", "xpu", "rocm", "mps"], default="auto", help="filter models for specific hardware")
     parser.add_argument("-j", "--jobs", type=int, default=4, metavar="N", help="number of parallel downloads")
+    parser.add_argument("--no-resume", action="store_true", help="force fresh download even if a partial file exists")
     # fmt: on
     args = parser.parse_args()
     checkpoints = args.checkpoint_list or []
@@ -358,6 +422,8 @@ if __name__ == "__main__":
             retry_attempts=args.retry_attempts,
             continue_on_error=args.continue_on_error,
             parallel_downloads=args.jobs,
+            no_resume=args.no_resume,
+            retry_delay=args.retry_delay,
         )
     )
     if args.check:
