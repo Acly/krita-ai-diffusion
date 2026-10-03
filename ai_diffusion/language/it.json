@@ -594,9 +594,9 @@
     "Detected workloads for the following base models:": "Carichi di lavoro rilevati per i seguenti modelli di base",
     "Reset all parameters to their default values": "Ripristina tutti i parametri ai valori predefiniti.",
     "Use ROCm (AMD GPU)": "Usa ROCm (AMD GPU)",
-    "Workflow contains duplicate parameter names: {names}. Ogni nome di parametro deve essere univoco.":,
     "Text prompt regions have not been set up.": "Le aree per i prompt di testo non sono state configurate.",
     "From Regions": "Dalle regioni",
-    "Generate segmentation control layer from current regions": "Genera un livello di controllo della segmentazione dalle regioni correnti"
+    "Generate segmentation control layer from current regions": "Genera un livello di controllo della segmentazione dalle regioni correnti",
+    "Workflow contains duplicate parameter names: {names}. Each parameter name must be unique.": null
   }
 }
