@@ -114,6 +114,13 @@ Choose a model and the desired scaling factor. Clicking Upscale
 will first resize the canvas to the target resolution, then add the generated
 image as a new layer once it is ready.
 
+If your ComfyUI server has the [NVIDIA RTX Nodes](https://github.com/Comfy-Org/Nvidia_RTX_Nodes_ComfyUI)
+installed, **NVIDIA RTX VSR** also appears in the model list. Select its quality
+level and scaling factor in the Upscale workspace. It requires a compatible
+NVIDIA RTX GPU and can also be combined with "Refine upscaled image".
+
+![NVIDIA RTX VSR model, quality, and scale controls](../../assets/basics/rtx-vsr-upscale.png)
+
 Checking the "Refine upscaled image" option will additionally run the selected
 diffusion model. Instead of processing the entire image at once, it will be
 split into tiles which are generated one after the other. This can significantly

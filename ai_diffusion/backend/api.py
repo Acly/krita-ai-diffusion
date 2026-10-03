@@ -164,6 +164,7 @@ class InpaintParams:
 class UpscaleInput:
     model: str = ""  # if empty do tiled refine without upscale model
     tile_overlap: int = -1
+    rtx_quality: str = "ULTRA"
 
 
 @dataclass
