@@ -694,6 +694,28 @@ class ComfyWorkflow:
             prompt=prompt,
         )
 
+    def text_encode_qwen2(
+        self,
+        clip: Output,
+        vae: Output | None,
+        images: list[Output] | None,
+        positive: str | Output,
+        negative: str | Output,
+    ):
+        images = [] if images is None else images
+        assert len(images) <= 10, "Qwen Image 2.1 supports a maximum of 10 reference images"
+        args = {
+            "clip": clip,
+            "vae": vae,
+            "prompt": positive,
+            "negative_prompt": negative,
+            "resolution": 0,
+        }
+        for i, image in enumerate(images):
+            args[f"images.image_{i + 1}"] = image
+        positive, negative, _ = self.add("TextEncodeQwenImage21", 3, **args)
+        return ConditioningOutput(positive, negative)
+
     def background_region(self, conditioning: Output):
         return self.add("ETN_BackgroundRegion", 1, conditioning=conditioning)
 
@@ -1160,11 +1182,11 @@ class ComfyWorkflow:
             return self.add("ETN_NSFWFilter", 1, image=image, sensitivity=sensitivity)
         return image
 
-    def load_image(self, image: Image | ImageCollection):
+    def load_image(self, image: Image | ImageCollection, alpha=False):
         if self._run_mode is ComfyRunMode.runtime:
-            return self._load_image_batch(image, self._load_image_runtime, self.batch_image)
+            return self._load_image_batch(image, self._load_image_runtime, self.batch_image, alpha)
         else:
-            return self._load_image_batch(image, self._load_image_cache, self.batch_image)
+            return self._load_image_batch(image, self._load_image_cache, self.batch_image, alpha)
 
     def load_mask(self, mask: Image | ImageCollection):
         if self._run_mode is ComfyRunMode.runtime:
@@ -1172,24 +1194,28 @@ class ComfyWorkflow:
         else:
             return self._load_image_batch(mask, self._load_mask_cache, self.batch_mask)
 
-    def _load_image_runtime(self, image: Image):
+    def _load_image_runtime(self, image: Image, alpha: bool):
+        assert not alpha, "Alpha not supported by ETN_InjectImage yet"
         return self.add("ETN_InjectImage", 1, id=self._add_image(image))
 
-    def _load_image_cache(self, image: Image):
-        return self.add("ETN_LoadImageCache", 2, id=self._add_image_hashed(image))[0]
+    def _load_image_cache(self, image: Image, alpha: bool):
+        rgb, a = self.add("ETN_LoadImageCache", 2, id=self._add_image_hashed(image))
+        return self.apply_mask(rgb, a) if alpha else rgb
 
-    def _load_mask_runtime(self, mask: Image):
+    def _load_mask_runtime(self, mask: Image, alpha: bool):
         return self.add("ETN_InjectMask", 1, id=self._add_image(mask))
 
-    def _load_mask_cache(self, mask: Image):
+    def _load_mask_cache(self, mask: Image, alpha: bool):
         return self.add("ETN_LoadImageCache", 2, id=self._add_image_hashed(mask))[1]
 
-    def _load_image_batch(self, images: Image | ImageCollection, loader, batcher) -> Output:
+    def _load_image_batch(
+        self, images: Image | ImageCollection, loader, batcher, alpha=False
+    ) -> Output:
         if isinstance(images, Image):
-            return loader(images)
+            return loader(images, alpha)
         result = None
         for image in images:
-            img = loader(image)
+            img = loader(image, alpha)
             result = img if result is None else batcher(result, img)
         assert result is not None
         return result
