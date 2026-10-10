@@ -82,6 +82,7 @@ from ..text import (
 from ..util import ensure
 from . import actions, theme
 from .autocomplete import PromptAutoComplete
+from .search_combo import SearchableComboBox
 from .theme import SignalBlocker
 
 
@@ -338,9 +339,10 @@ class StyleSelectWidget(QWidget):
         layout.setContentsMargins(0, 0, 0, 0)
         self.setLayout(layout)
 
-        self._combo = QComboBox(self)
+        self._combo = SearchableComboBox(self)
+        self._combo.setToolTip(_("Type to search styles"))
         self.update_styles()
-        self._combo.currentIndexChanged.connect(self.change_style)
+        self._combo.selection_committed.connect(self.change_style)
         layout.addWidget(self._combo, 3)
 
         if show_quality:
@@ -373,6 +375,7 @@ class StyleSelectWidget(QWidget):
             recent.insert(0, self._value)
         self._styles = recent + remaining
         with SignalBlocker(self._combo):
+            self._combo.cancel_search()
             self._combo.clear()
             for style in recent:
                 icon = theme.checkpoint_icon(resolve_arch(style, client))
@@ -382,7 +385,7 @@ class StyleSelectWidget(QWidget):
             for style in remaining:
                 icon = theme.checkpoint_icon(resolve_arch(style, client))
                 self._combo.addItem(icon, style.name, style.filename)
-            self._combo.setCurrentText(self._value.name)
+            self._combo.setCurrentIndex(self._combo.findData(self._value.filename))
 
     def change_style(self):
         filename = self._combo.currentData()
@@ -414,6 +417,7 @@ class StyleSelectWidget(QWidget):
     @value.setter
     def value(self, style: Style):
         if style != self._value:
+            self._combo.cancel_search()
             self._value = style
             if style not in self._styles:
                 self.update_styles()
