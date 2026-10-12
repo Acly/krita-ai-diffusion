@@ -1348,7 +1348,7 @@ def upscale_tiled(
     model, clip, vae = load_checkpoint_with_lora(w, checkpoint, models.all)
     model = apply_ip_adapter(w, model, cond.control, models)
 
-    in_image = w.load_image(image)
+    in_image = w.load_image(image, alpha=models.arch.supports_alpha)
     if upscale.model:
         upscale_model = w.load_upscale_model(upscale.model)
         upscaled = w.upscale_image(upscale_model, in_image)
