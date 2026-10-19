@@ -6,6 +6,7 @@ from pathlib import Path
 from typing import NamedTuple
 
 from .backend.api import ConditioningInput, LoraInput, RegionInput, WorkflowKind
+from .backend.resources import Arch
 from .files import FileCollection, FileSource
 from .localization import translate as _
 from .model.jobs import JobParams
@@ -122,8 +123,11 @@ def _extract_layers(prompt: str, start_index=1):
     return layer_names
 
 
-def extract_layers(cond: ConditioningInput, region: RegionInput | None = None):
-    start_index = 2 if cond.edit_reference else 1
+def extract_layers(
+    cond: ConditioningInput, region: RegionInput | None = None, arch: Arch | None = None
+):
+    base = 0 if arch is Arch.flux3 else 1
+    start_index = base + 1 if cond.edit_reference else base
     start_index += sum(1 if c.mode.is_ip_adapter else 0 for c in cond.control)
     if region is None:
         return _extract_layers(cond.positive, start_index)

@@ -18,6 +18,7 @@ from ..text import (
     replace_layers,
     strip_prompt_comments,
 )
+from ..util import client_logger as log
 from ..util import ensure, median_or_zero, unique
 from . import resolution, resources
 from .api import (
@@ -165,6 +166,8 @@ def load_checkpoint_with_lora(w: ComfyWorkflow, checkpoint: CheckpointInput, mod
                 clip = w.load_clip(te["qwen_3vl_4b"], type="krea2")
             case Arch.qwen2:
                 clip = w.load_clip(te["qwen_3vl_8b"], type="qwen_image")
+            case Arch.flux3:
+                clip = w.load_clip(te["qwen_3vl_4b"], type="flux3")
             case _:
                 raise RuntimeError(f"No text encoder for model architecture {arch.name}")
 
@@ -506,6 +509,21 @@ def apply_reference_conditioning(
             for extra_image in extra_images:
                 latent = vae_encode(w, vae, extra_image, tiled_vae)
                 prompt = add_ref(prompt, latent)
+        case Arch.flux3:
+            # official recipe: all references in one ReferenceMultiLatent node,
+            # image0 = <ref_image_0>, latents appended to positive and negative
+            images: list[Output] = []
+            if cond.edit_reference and input_image:
+                images.append(input_image)
+            if len(extra_images) > 10 - len(images):
+                log.warning(
+                    f"Model supports up to 10 reference images;"
+                    f" {len(extra_images) + len(images) - 10} ignored"
+                )
+            images += extra_images[: 10 - len(images)]
+            if images:
+                prompt = w.reference_multi_latent(prompt.positive, prompt.negative, vae, images)
+            input_latent = None
         case Arch.flux_k | Arch.qwen_e:
             if len(extra_images) > 0:
                 if cond.edit_reference and input_image:
@@ -1519,6 +1537,7 @@ _layer_replace = {
     Arch.flux2_9b: "image {}",
     Arch.qwen_e_p: "Picture {}",
     Arch.qwen2: "<image{}>",
+    Arch.flux3: "<ref_image_{}>",
 }
 _control_instructions = {
     ControlMode.style: "Apply the style from {}.",
@@ -1541,6 +1560,10 @@ def build_instructions(cond: ConditioningInput, arch: Arch, inpaint: InpaintMode
                 instructions += "Fill the green spaces according to the image.\n"
             case InpaintMode.expand, Arch.flux2_9b:
                 instructions += "Expand the image to fill the empty canvas.\n"
+            case InpaintMode.fill, Arch.flux3:
+                instructions += "Fill the empty areas of <ref_image_0>.\n"
+            case InpaintMode.expand, Arch.flux3:
+                instructions += "Expand <ref_image_0> to fill the empty canvas.\n"
             case InpaintMode.add_object, _:
                 instructions += "Add the object to the scene.\n"
             case InpaintMode.remove_object, _:
@@ -1550,7 +1573,11 @@ def build_instructions(cond: ConditioningInput, arch: Arch, inpaint: InpaintMode
         if instructions != "":
             cond.edit_reference = True
 
-    offset = 2 if cond.edit_reference else 1
+    offset = (
+        (1 if cond.edit_reference else 0)
+        if arch is Arch.flux3
+        else (2 if cond.edit_reference else 1)
+    )
     for i, control in enumerate(cond.control):
         if control.mode.can_substitute_instruction(arch):
             if instruction := _control_instructions.get(control.mode):

@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import json
+import math
 import zlib
 from copy import deepcopy
 from enum import Enum
@@ -54,6 +55,9 @@ class ComfyNode(NamedTuple):
 
     def output(self, index=0) -> Output:
         return Output(int(self.id), index)
+
+
+flux3_shift = math.log(16.0)
 
 
 class ComfyWorkflow:
@@ -353,6 +357,9 @@ class ComfyWorkflow:
     ):
         self.sample_count += steps - start_at_step
 
+        if arch is Arch.flux3 and extent is not None:
+            model = self.model_sampling_flux(model, extent)
+
         if arch.is_flux_like:
             positive = self.flux_guidance(cond.positive, cfg if cfg > 1 else 3.5)
             guider = self.basic_guider(model, positive)
@@ -497,6 +504,18 @@ class ComfyWorkflow:
 
     def model_sampling_sd3(self, model: Output, shift=3.0):
         return self.add("ModelSamplingSD3", 1, model=model, shift=shift)
+
+    def model_sampling_flux(self, model: Output, extent: Extent):
+        # official Flux 3 recipe: mu = ln(16 megapixels), applied as a constant shift
+        return self.add(
+            "ModelSamplingFlux",
+            1,
+            model=model,
+            max_shift=flux3_shift,
+            base_shift=flux3_shift,
+            width=extent.width,
+            height=extent.height,
+        )
 
     def rescale_cfg(self, model: Output, multiplier=0.7):
         return self.add("RescaleCFG", 1, model=model, multiplier=multiplier)
@@ -665,6 +684,28 @@ class ComfyWorkflow:
             pixels=pixels,
         )
         return ConditioningOutput(pos, neg), model
+
+    def reference_multi_latent(
+        self,
+        positive: Output,
+        negative: Output,
+        vae: Output,
+        images: list[Output],
+        megapixels=1.0,
+    ):
+        """ReferenceMultiLatent: encodes reference images (image0 = <ref_image_0>) and appends
+        their latents to positive and negative conditioning - the official Flux 3 edit recipe."""
+        assert 1 <= len(images) <= 10, "Expected 1 to 10 reference images"
+        args: dict[str, Any] = {
+            "positive": positive,
+            "negative": negative,
+            "vae": vae,
+            "resolution": ["resize", {"megapixels": megapixels}],
+        }
+        for i, image in enumerate(images):
+            args[f"images.image{i}"] = image
+        positive, negative, _ = self.add("ReferenceMultiLatent", 3, **args)
+        return ConditioningOutput(positive, negative)
 
     def reference_latent(self, conditioning: Output, latent: Output):
         return self.add("ReferenceLatent", 1, conditioning=conditioning, latent=latent)

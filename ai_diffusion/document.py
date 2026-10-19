@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 from pathlib import Path
-from typing import Literal, NamedTuple, cast
+from typing import ClassVar, Literal, NamedTuple, cast
 from uuid import uuid4
 from weakref import WeakValueDictionary
 
@@ -115,7 +115,7 @@ class KritaDocument(Document):
     Keeps track of selection and current time changes by polling at a fixed interval.
     """
 
-    _instances: WeakValueDictionary[str, KritaDocument] = WeakValueDictionary()
+    _instances: ClassVar[WeakValueDictionary[str, KritaDocument]] = WeakValueDictionary()
 
     def __init__(self, krita_document: krita.Document, id: str | None):
         super().__init__()
