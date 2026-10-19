@@ -10,10 +10,10 @@ from typing import Any, NamedTuple
 
 # Version identifier for all the resources defined here. This is used as the server version.
 # It usually follows the plugin version, but not all new plugin versions also require a server update.
-version = "1.54.0"
+version = "1.55.0"
 
 comfy_url = "https://github.com/comfyanonymous/ComfyUI"
-comfy_version = "e9027f2b30f37bb3052714eb08fcf479542f4fc0"
+comfy_version = "b9b290e43f1eb379946dfeb013faf9bbefa1a618"
 
 
 class CustomNode(NamedTuple):
@@ -93,6 +93,7 @@ class Arch(Enum):
     zimage = "Z-Image"
     ernie = "ERNIE Image"
     krea2 = "Krea 2"
+    moss = "MOSS Image"
 
     auto = "Automatic"
     all = "All"
@@ -141,6 +142,8 @@ class Arch(Enum):
             return Arch.ernie
         if string == "krea2":
             return Arch.krea2
+        if string == "moss-image":
+            return Arch.moss
         return None
 
     @staticmethod
@@ -256,6 +259,8 @@ class Arch(Enum):
                 return ["ministral"]
             case Arch.krea2:
                 return ["qwen_3vl_4b"]
+            case Arch.moss:
+                return ["qwen_35_9b"]
             case _:
                 raise ValueError(f"Unsupported architecture: {self}")
 
@@ -281,6 +286,7 @@ class Arch(Enum):
             Arch.zimage,
             Arch.ernie,
             Arch.krea2,
+            Arch.moss,
         ]
 
 
@@ -829,6 +835,7 @@ search_paths: dict[str, list[str]] = {
     resource_id(ResourceKind.text_encoder, Arch.all, "ministral"): ["ministral-3-3b", "ministral"],
     resource_id(ResourceKind.text_encoder, Arch.all, "qwen_3vl_4b"): ["qwen3vl_4b", "qwen_3vl_4b", "qwen3-vl-4b"],
     resource_id(ResourceKind.text_encoder, Arch.all, "qwen_3vl_8b"): ["qwen3vl_8b", "qwen_3vl_8b", "qwen3-vl-8b"],
+    resource_id(ResourceKind.text_encoder, Arch.all, "qwen_35_9b"): ["qwen35_9b", "qwen3.5_9b", "qwen3.5-9b", "qwen35-9b"],
     resource_id(ResourceKind.vae, Arch.sd15, "default"): ["vae-ft-mse-840000-ema"],
     resource_id(ResourceKind.vae, Arch.sdxl, "default"): ["sdxl_vae"],
     resource_id(ResourceKind.vae, Arch.illu, "default"): ["sdxl_vae"],
@@ -848,6 +855,7 @@ search_paths: dict[str, list[str]] = {
     resource_id(ResourceKind.vae, Arch.zimage, "default"): ["z-image", "flux-", "flux_", "flux/", "flux1", "ae.s"],
     resource_id(ResourceKind.vae, Arch.ernie, "default"): ["flux2"],
     resource_id(ResourceKind.vae, Arch.krea2, "default"): ["qwen_image"],
+    resource_id(ResourceKind.vae, Arch.moss, "default"): ["flux2"],
 }
 # fmt: on
 
@@ -887,6 +895,8 @@ required_resource_ids = {
     ResourceId(ResourceKind.vae, Arch.ernie, "default"),
     ResourceId(ResourceKind.text_encoder, Arch.krea2, "qwen_3vl_4b"),
     ResourceId(ResourceKind.vae, Arch.krea2, "default"),
+    ResourceId(ResourceKind.text_encoder, Arch.moss, "qwen_35_9b"),
+    ResourceId(ResourceKind.vae, Arch.moss, "default"),
 }
 
 recommended_resource_ids = [
