@@ -8,6 +8,7 @@ import pytest
 
 from ai_diffusion.backend import workflow
 from ai_diffusion.backend.api import (
+    CheckpointInput,
     ConditioningInput,
     ControlInput,
     CustomWorkflowInput,
@@ -28,7 +29,7 @@ from ai_diffusion.backend.comfy_client import ComfyClient
 from ai_diffusion.backend.comfy_workflow import ComfyWorkflow
 from ai_diffusion.backend.resources import ControlMode, ResourceKind, resource_id
 from ai_diffusion.backend.workflow import detect_inpaint
-from ai_diffusion.files import File, FileCollection, FileLibrary, FileSource
+from ai_diffusion.files import File, FileCollection, FileFormat, FileLibrary, FileSource
 from ai_diffusion.image import Bounds, Extent, Image, ImageCollection, Mask
 from ai_diffusion.pose import Pose
 from ai_diffusion.settings import PerformanceSettings
@@ -261,6 +262,103 @@ def test_anima_lllite_control_workflow():
     assert w.root[str(model.node - 1)]["inputs"]["weights"] == "anima-lllite-anytest.safetensors"
     assert any(n["class_type"] == "ETN_control_load" for n in w.root.values())
     assert not any(n["class_type"] == "ControlNetLoader" for n in w.root.values())
+
+
+def _flux3_models() -> ClientModels:
+    models = ClientModels()
+    models.checkpoints = {
+        "F3K": CheckpointInfo(
+            "flux3_image_klein_sd_int8_convrot.safetensors", Arch.flux3, FileFormat.diffusion
+        )
+    }
+    models.resources[resource_id(ResourceKind.text_encoder, Arch.all, "qwen_3vl_4b")] = (
+        "qwen3vl_4b_int8_convrot.safetensors"
+    )
+    models.resources[resource_id(ResourceKind.vae, Arch.flux3, "default")] = "flux2-vae.safetensors"
+    return models
+
+
+def test_flux3_klein_workflow():
+    import math
+
+    w = ComfyWorkflow()
+    model, clip, vae = workflow.load_checkpoint_with_lora(
+        w, CheckpointInput("F3K", Arch.flux3, rescale_cfg=0), _flux3_models()
+    )
+    cond = workflow.Conditioning(
+        workflow.TextPrompt("a fox", ""), workflow.TextPrompt("bad", ""), edit_reference=True
+    )
+    image = w.load_image(Image.create(Extent(1024, 1024)))
+    prompt, latent = workflow.encode_prompt(w, cond, clip, vae, None, image)
+    w.sampler_custom_advanced(
+        model,
+        prompt,
+        w.empty_latent_image(Extent(1024, 1024), Arch.flux3),
+        Arch.flux3,
+        sampler="euler",
+        scheduler="simple",
+        steps=16,
+        cfg=1.0,
+        extent=Extent(1024, 1024),
+    )
+    nodes = list(w.root.values())
+    loaders = {n["class_type"]: n["inputs"] for n in nodes}
+
+    assert loaders["UNETLoader"]["unet_name"] == "flux3_image_klein_sd_int8_convrot.safetensors"
+    assert loaders["CLIPLoader"]["type"] == "flux3"
+    assert loaders["VAELoader"]["vae_name"] == "flux2-vae.safetensors"
+    # official recipe: constant shift ln(16), independent of output resolution
+    shift = math.log(16.0)
+    assert loaders["ModelSamplingFlux"]["max_shift"] == shift
+    assert loaders["ModelSamplingFlux"]["base_shift"] == shift
+    assert loaders["KSamplerSelect"]["sampler_name"] == "euler"
+    assert loaders["BasicScheduler"]["scheduler"] == "simple"
+    assert "FluxGuidance" not in loaders
+    assert loaders["BasicGuider"]  # cfg 1.0 -> no CFGGuider
+    assert "CFGGuider" not in loaders
+    # official recipe: plain CLIPTextEncode + ReferenceMultiLatent with the canvas as image0
+    texts = [n["inputs"]["text"] for n in w.root.values() if n["class_type"] == "CLIPTextEncode"]
+    assert texts == ["a fox", "bad"]
+    assert loaders["ReferenceMultiLatent"]["images.image0"] == [str(image.node), image.output]
+    assert loaders["ReferenceMultiLatent"]["resolution"] == ["resize", {"megapixels": 1.0}]
+    assert "ReferenceLatent" not in loaders
+    assert "TextEncodeQwenImage21" not in loaders
+    assert latent is None
+
+
+def test_flux3_klein_references():
+    w = ComfyWorkflow()
+    _model, clip, vae = workflow.load_checkpoint_with_lora(
+        w, CheckpointInput("F3K", Arch.flux3, rescale_cfg=0), _flux3_models()
+    )
+    ref_image = w.load_image(Image.create(Extent(512, 512)))
+    control = [workflow.Control(ControlMode.reference, workflow.ImageOutput(ref_image))]
+    cond = workflow.Conditioning(
+        workflow.TextPrompt("add the cat from <ref_image_1>", ""),
+        workflow.TextPrompt("", ""),
+        edit_reference=False,
+        control=control,
+    )
+    _prompt, latent = workflow.encode_prompt(w, cond, clip, vae, None, None)
+    node = next(n["inputs"] for n in w.root.values() if n["class_type"] == "ReferenceMultiLatent")
+    assert node["images.image0"] == [str(ref_image.node), ref_image.output]  # layer = ref 0
+    assert latent is None
+
+    w = ComfyWorkflow()
+    _model, clip, vae = workflow.load_checkpoint_with_lora(
+        w, CheckpointInput("F3K", Arch.flux3, rescale_cfg=0), _flux3_models()
+    )
+    cond = workflow.Conditioning(
+        workflow.TextPrompt("add the cat from <ref_image_1>", ""),
+        workflow.TextPrompt("", ""),
+        edit_reference=True,
+        control=control,
+    )
+    image = w.load_image(Image.create(Extent(1024, 1024)))
+    _prompt, latent = workflow.encode_prompt(w, cond, clip, vae, None, image)
+    node = next(n["inputs"] for n in w.root.values() if n["class_type"] == "ReferenceMultiLatent")
+    assert node["images.image0"] == [str(image.node), image.output]  # canvas = ref 0
+    assert node["images.image1"] == [str(ref_image.node), ref_image.output]  # layer = ref 1
 
 
 def test_prepare_lora():
