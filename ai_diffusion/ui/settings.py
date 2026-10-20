@@ -853,6 +853,12 @@ class PerformanceSettings(SettingsTab):
         self._history_storage.value_changed.connect(self.write)
         self._layout.addWidget(self._history_storage)
 
+        self._history_accepted_limit = SpinBoxSetting(
+            Settings._history_accepted_limit, self, 0, 10000, 10, " " + _("images")
+        )
+        self._history_accepted_limit.value_changed.connect(self.write)
+        self._layout.addWidget(self._history_accepted_limit)
+
         add_header(self._layout, Settings._performance_preset)
         self._device_info = QLabel(self)
         self._device_info.setStyleSheet("font-style:italic")
@@ -928,6 +934,7 @@ class PerformanceSettings(SettingsTab):
         self._history_size.update_usage(root.active_model.jobs.memory_usage)
         self._history_storage.value = settings.history_storage
         self._history_storage.update_usage(root.get_active_model_used_storage() / (1024**2))
+        self._history_accepted_limit.value = settings.history_accepted_limit
         self._multi_threading.value = settings.multi_threading
         self._batch_size.value = settings.batch_size
         self._performance_preset.setCurrentIndex(
@@ -942,6 +949,7 @@ class PerformanceSettings(SettingsTab):
     def _write(self):
         settings.history_size = self._history_size.value
         settings.history_storage = self._history_storage.value
+        settings.history_accepted_limit = self._history_accepted_limit.value
         settings.multi_threading = self._multi_threading.value
         settings.batch_size = int(self._batch_size.value)
         settings.resolution_multiplier = self._resolution_multiplier.value

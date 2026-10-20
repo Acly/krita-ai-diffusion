@@ -399,6 +399,13 @@ class Settings(QObject):
         _("Memory used to store generated images in .kra files on disk"),
     )
 
+    history_accepted_limit: int
+    _history_accepted_limit = Setting(
+        _("Max. Accepted Results"),
+        200,
+        _("Accepted (starred) results which are never pruned from history (0 = unlimited)"),
+    )
+
     history_format: ImageFileFormat
     _history_format = Setting(
         _("History Format"),
