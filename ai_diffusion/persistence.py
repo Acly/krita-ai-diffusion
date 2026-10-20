@@ -17,7 +17,7 @@ from .image import Image, ImageCollection
 from .localization import translate as _
 from .model.control import ControlLayer, ControlLayerList
 from .model.custom_workflow import CustomWorkspace
-from .model.jobs import Job, JobKind, JobParams, JobQueue
+from .model.jobs import Job, JobKind, JobParams, JobQueue, protected_job_ids
 from .model.model import DocumentModel, InpaintContext
 from .model.properties import deserialize, serialize
 from .model.region import Region, RootRegion
@@ -291,10 +291,15 @@ class ModelSync:
     def _prune(self):
         limit = settings.history_storage * 1024 * 1024
         used = self.memory_used
-        while used > limit and len(self._history) > 0:
-            slot = self._history.pop(0).slot
-            self._model.document.remove_annotation(f"result{slot}.webp")
-            used -= self._memory_used.pop(slot, 0)
+        protected = protected_job_ids((h.id, h.in_use) for h in self._history)
+        for item in list(self._history):
+            if used <= limit:
+                break
+            if item.id in protected:
+                continue  # accepted results are kept regardless of the storage limit
+            self._history.remove(item)
+            self._model.document.remove_annotation(f"result{item.slot}.webp")
+            used -= self._memory_used.pop(item.slot, 0)
 
 
 def _serialize(obj: QObject):

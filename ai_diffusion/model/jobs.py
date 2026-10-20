@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from collections import deque
+from collections.abc import Iterable
 from dataclasses import dataclass, field, fields
 from datetime import datetime, timezone
 from enum import Enum, Flag
@@ -139,6 +140,11 @@ class Job:
     def result_was_used(self, index: int):
         return self.in_use.get(index, False)
 
+    @property
+    def is_used(self):
+        """True if any result of this job was applied to the document (marked with a star)."""
+        return any(self.in_use.values())
+
 
 class JobQueue(QObject):
     """Queue of waiting, ongoing and finished jobs for one document."""
@@ -220,6 +226,11 @@ class JobQueue(QObject):
         job.in_use[index] = True
         self.result_used.emit(self.Item(job_id, index))
 
+    def notify_unused(self, job_id: str, index: int):
+        job = ensure(self.find(job_id))
+        job.in_use[index] = False
+        self.result_used.emit(self.Item(job_id, index))
+
     def select(self, job_id: str, index: int):
         self.selection = [self.Item(job_id, index)]
 
@@ -236,8 +247,13 @@ class JobQueue(QObject):
         self.job_discarded.emit(job)
 
     def prune(self, keep: Job):
-        while self._memory_usage > settings.history_size and self._entries[0] != keep:
-            self._discard_job(self._entries[0])
+        protected = protected_job_ids((j.id, j.in_use) for j in self._entries)
+        for job in list(self._entries):
+            if self._memory_usage <= settings.history_size or job is keep:
+                break
+            if job.id in protected:
+                continue  # accepted results are kept regardless of the memory limit
+            self._discard_job(job)
 
     def discard(self, job_id: str, index: int):
         job = ensure(self.find(job_id))
@@ -250,11 +266,13 @@ class JobQueue(QObject):
         self._memory_usage -= img.size / (1024**2)
         self.result_discarded.emit(self.Item(job_id, index))
 
-    def clear(self):
+    def clear(self, keep_used=False):
         jobs_to_discard = [
             job
             for job in self._entries
-            if job.kind in (JobKind.diffusion, JobKind.animation) and job.state is JobState.finished
+            if job.kind in (JobKind.diffusion, JobKind.animation)
+            and job.state is JobState.finished
+            and not (keep_used and job.is_used)
         ]
         for job in jobs_to_discard:
             self._discard_job(job)
@@ -293,6 +311,24 @@ class JobQueue(QObject):
                 break
             if j.state in [JobState.queued, JobState.executing]:
                 j.state = JobState.cancelled
+
+
+def protected_job_ids(jobs: Iterable[tuple[str | None, dict[int, bool]]]) -> set[str]:
+    """IDs of jobs whose accepted (starred) results are exempt from automatic pruning.
+    Only the newest `settings.history_accepted_limit` accepted images are protected
+    (0 = unlimited). `jobs` yields (id, in_use) ordered from oldest to newest."""
+    limit = settings.history_accepted_limit
+    protected: set[str] = set()
+    count = 0
+    for id, in_use in reversed(list(jobs)):
+        accepted = sum(1 for used in in_use.values() if used)
+        if accepted == 0 or id is None:
+            continue
+        if limit > 0 and count + accepted > limit:
+            break
+        count += accepted
+        protected.add(id)
+    return protected
 
 
 def _move_field(src: dict[str, Any], field: str, dest: dict[str, Any]):

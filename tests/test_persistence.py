@@ -17,7 +17,7 @@ from ai_diffusion.model.custom_workflow import WorkflowCollection
 from ai_diffusion.model.jobs import Job, JobKind, JobParams, JobState
 from ai_diffusion.model.model import DocumentModel, InpaintContext, QueueMode
 from ai_diffusion.persistence import ModelSync, RecentlyUsedSync
-from ai_diffusion.settings import Settings
+from ai_diffusion.settings import Settings, settings
 from ai_diffusion.style import Style
 
 from .conftest import qtapp
@@ -228,3 +228,40 @@ async def test_history(workflows_dir: Path):
     # Pixel values should be close to the originals (allow for WebP compression rounding)
     assert Image.compare(restored_a, img_a) < 0.02
     assert Image.compare(restored_b, img_b) < 0.02
+
+
+@qtapp
+async def test_history_keeps_accepted(workflows_dir: Path, monkeypatch: pytest.MonkeyPatch):
+    """Results which were applied to the document (accepted) are exempt from pruning of the
+    stored history, as long as they are within the accepted results limit."""
+    monkeypatch.setattr(settings, "history_storage", 0)  # prune everything that isn't protected
+    monkeypatch.setattr(settings, "history_accepted_limit", 1)
+
+    krita_doc = Krita.instance().openDocument("test")
+    model1 = _make_model(krita_doc, workflows_dir)
+    sync1 = ModelSync(model1)
+
+    bounds = Bounds(0, 0, 64, 64)
+    for i, accepted in enumerate([True, False, True, False]):
+        params = JobParams(bounds=bounds, name=f"job{i}")
+        job = model1.jobs.add_job(Job(f"job{i}", JobKind.diffusion, params))
+        if accepted:
+            job.in_use[0] = True
+        model1.jobs.set_results(job, ImageCollection([Image.create(Extent(64, 64))]))
+        model1.jobs.notify_finished(job)
+
+    assert sync1._image_task is not None
+    await sync1._image_task
+    sync1._save()
+    # job0 was accepted, but only the newest accepted result is protected (limit = 1)
+    assert [h.id for h in sync1._history] == ["job2"]
+
+    # ── restore ───────────────────────────────────────────────────────────
+    Krita.instance().setActiveDocument(krita_doc)
+    doc2 = KritaDocument(krita_doc, None)
+    conn2 = Connection()
+    model2 = DocumentModel(doc2, conn2, WorkflowCollection(conn2, folder=workflows_dir))
+    _sync2 = ModelSync(model2)
+    assert [j.id for j in model2.jobs] == ["job2"]
+    restored = model2.jobs.find("job2")
+    assert restored is not None and restored.result_was_used(0)
