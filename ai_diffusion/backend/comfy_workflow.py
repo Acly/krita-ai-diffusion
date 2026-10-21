@@ -468,6 +468,17 @@ class ComfyWorkflow:
     def flux_guidance(self, conditioning: Output, guidance=3.5):
         return self.add("FluxGuidance", 1, conditioning=conditioning, guidance=guidance)
 
+    def skip_layer_guidance(self, model: Output, single_layers: str = "22"):
+        return self.add(
+            "SkipLayerGuidanceDiTSimple",
+            1,
+            model=model,
+            double_layers="",
+            single_layers=single_layers,
+            start_percent=0.0,
+            end_percent=1.0,
+        )
+
     def random_noise(self, noise_seed=-1):
         return self.add_cached(
             "RandomNoise",
@@ -586,7 +597,7 @@ class ComfyWorkflow:
         w, h = extent.width, extent.height
         if arch.is_flux_like or arch.is_qwen_like or arch in (Arch.sd3, Arch.chroma, Arch.zimage):
             return self.add("EmptySD3LatentImage", 1, width=w, height=h, batch_size=batch_size)
-        if arch.is_flux2 or arch is Arch.ernie:
+        if arch.is_flux2 or arch is Arch.ernie or arch is Arch.moss:
             return self.add("EmptyFlux2LatentImage", 1, width=w, height=h, batch_size=batch_size)
         else:
             return self.add("EmptyLatentImage", 1, width=w, height=h, batch_size=batch_size)
