@@ -19,7 +19,7 @@
     "self_attention_guidance": false,
     "preferred_resolution": 0,
     "sampler": "MOSS - Euler",
-    "sampler_steps": 50,
+    "sampler_steps": 20,
     "cfg_scale": 3.0,
     "live_sampler": "MOSS - Euler",
     "live_sampler_steps": 8,
