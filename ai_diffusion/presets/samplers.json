@@ -109,5 +109,12 @@
         "steps": 20,
         "minimum_steps": 3,
         "cfg": 5.0
+    },
+    "Fibo 2 - Euler Simple": {
+        "sampler": "euler",
+        "scheduler": "simple",
+        "steps": 4,
+        "minimum_steps": 2,
+        "cfg": 1.0
     }
 }

@@ -586,7 +586,7 @@ class ComfyWorkflow:
         w, h = extent.width, extent.height
         if arch.is_flux_like or arch.is_qwen_like or arch in (Arch.sd3, Arch.chroma, Arch.zimage):
             return self.add("EmptySD3LatentImage", 1, width=w, height=h, batch_size=batch_size)
-        if arch.is_flux2 or arch is Arch.ernie:
+        if arch.is_flux2 or arch is Arch.ernie or arch is Arch.fibo2:
             return self.add("EmptyFlux2LatentImage", 1, width=w, height=h, batch_size=batch_size)
         else:
             return self.add("EmptyLatentImage", 1, width=w, height=h, batch_size=batch_size)
@@ -714,6 +714,31 @@ class ComfyWorkflow:
         for i, image in enumerate(images):
             args[f"images.image_{i + 1}"] = image
         positive, negative, _ = self.add("TextEncodeQwenImage21", 3, **args)
+        return ConditioningOutput(positive, negative)
+
+    def text_encode_fibo2(
+        self,
+        clip: Output,
+        vae: Output | None,
+        images: list[Output] | None,
+        positive: str | Output,
+        negative: str | Output,
+        width: int = 0,
+        height: int = 0,
+    ):
+        images = [] if images is None else images
+        assert len(images) <= 4, "Fibo 2.0 supports a maximum of 4 reference images"
+        args = {
+            "clip": clip,
+            "vae": vae,
+            "prompt": positive,
+            "negative_prompt": negative,
+            "width": width,
+            "height": height,
+        }
+        for i, image in enumerate(images):
+            args[f"images.image_{i + 1}"] = image
+        positive, negative, _ = self.add("TextEncodeFibo2", 3, **args)  # latent output unused
         return ConditioningOutput(positive, negative)
 
     def background_region(self, conditioning: Output):
