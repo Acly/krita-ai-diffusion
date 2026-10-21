@@ -869,6 +869,8 @@ def generate(
     model_orig = copy(model)
     model, regions = apply_attention_mask(w, model, cond, clip, extent.initial)
     model = apply_regional_ip_adapter(w, model, cond.regions, extent.initial, models)
+    if models.arch is Arch.moss:
+        model = w.skip_layer_guidance(model)
     latent = w.empty_latent_image(extent.initial, models.arch, misc.batch_count)
     prompt = encode_prompt(w, cond, clip, regions)
     model, prompt = apply_control(w, model, prompt, cond.all_control, extent.initial, vae, models)
