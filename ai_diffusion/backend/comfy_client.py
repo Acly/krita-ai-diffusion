@@ -196,7 +196,8 @@ class ComfyClient(Client):
         models.node_inputs = nodes
         available_resources = self.models.resources = {}
 
-        clip_models = nodes.options("DualCLIPLoader", "clip_name1")
+        clip_models = nodes.options("CLIPLoader", "clip_name")
+        clip_models += nodes.options("DualCLIPLoader", "clip_name1")
         clip_models += nodes.options("DualCLIPLoaderGGUF", "clip_name1")
         available_resources.update(_find_text_encoder_models(clip_models))
 
@@ -756,6 +757,7 @@ def _find_text_encoder_models(model_list: Sequence[str]):
         "qwen_3_8b",
         "qwen_3vl_4b",
         "qwen_3vl_8b",
+        "qwen_35_9b",
         "ministral",
     ]
     return {

@@ -24,6 +24,7 @@ The following base models have limited support:
 * <ExternalLink href="https://github.com/Acly/krita-ai-diffusion/discussions/1176">Chroma</ExternalLink>
 * <ExternalLink href="https://github.com/Acly/krita-ai-diffusion/discussions/1328">Stable Diffusion 3.5 (SD3.5)</ExternalLink>
 * <ExternalLink href="https://github.com/Acly/krita-ai-diffusion/discussions/2081">Qwen Image</ExternalLink>
+* <ExternalLink href="https://huggingface.co/OpenMOSS-Team/MOSS-Image-SFT">MOSS Image</ExternalLink>
 
 ### Stable Diffusion 1.5
 
@@ -115,6 +116,26 @@ photographic content. It can produce a much wider variety of styles, but
 images are less consistent and generation time is much slower. You can
 [download it manually](https://huggingface.co/Comfy-Org/z_image/blob/main/split_files/diffusion_models/z_image_bf16.safetensors)
 if you want to experiment.
+
+### MOSS Image
+
+MOSS Image is a text-to-image model from OpenMOSS. It is supported for
+generation only: the model has no image-editing capability, so inpaint and
+outpaint work like they do with other text-to-image models - by filling the
+selection and denoising it. Control layers are not available because no
+ControlNet or IP-Adapter models exist for this architecture.
+
+It is a large model: the diffusion checkpoint is 10 GB (bf16) or 5.4 GB
+(int8-convrot quantization), and it requires the Qwen3.5-9B text encoder
+(9.7 GB int8) together with a Flux 2 VAE. fp8 quantizations are not supported
+by the model. Files must be [downloaded manually](https://huggingface.co/Comfy-Org/MOSS-Image)
+and placed in `diffusion_models`, `text_encoders` and `vae` folders.
+
+Recommended settings are the ones from the built-in "MOSS Image" style:
+er_sde sampler with simple scheduler, 25 steps, guidance strength 2.5.
+The official skip-layer-guidance on the guidance-negative (layer 22) is applied
+automatically; it is required for legible text rendering and only takes effect
+when CFG is above 1.
 
 ## Installation
 

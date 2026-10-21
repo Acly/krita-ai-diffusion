@@ -165,6 +165,8 @@ def load_checkpoint_with_lora(w: ComfyWorkflow, checkpoint: CheckpointInput, mod
                 clip = w.load_clip(te["qwen_3vl_4b"], type="krea2")
             case Arch.qwen2:
                 clip = w.load_clip(te["qwen_3vl_8b"], type="qwen_image")
+            case Arch.moss:
+                clip = w.load_clip(te["qwen_35_9b"], type="moss_image")
             case _:
                 raise RuntimeError(f"No text encoder for model architecture {arch.name}")
 
@@ -200,6 +202,10 @@ def load_checkpoint_with_lora(w: ComfyWorkflow, checkpoint: CheckpointInput, mod
 
     if arch.supports_attention_guidance and checkpoint.self_attention_guidance:
         model = w.apply_self_attention_guidance(model)
+
+    if arch is Arch.moss:
+        # official recipe: skip layer 22 in the uncond pass; long text renders as garbage without it
+        model = w.skip_layer_guidance(model, single_layers="22")
 
     return model, Clip(clip, arch), vae
 

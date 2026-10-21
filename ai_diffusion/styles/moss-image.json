@@ -1,0 +1,25 @@
+{
+    "name": "MOSS Image",
+    "version": 2,
+    "architecture": "auto",
+    "checkpoints": [
+        "moss_image_sft_bf16.safetensors",
+        "moss_image_sft_int8_convrot.safetensors"
+    ],
+    "loras": [],
+    "style_prompt": "",
+    "negative_prompt": "",
+    "vae": "Checkpoint Default",
+    "clip_skip": 0,
+    "v_prediction_zsnr": false,
+    "rescale_cfg": 0,
+    "self_attention_guidance": false,
+    "preferred_resolution": 0,
+    "linked_edit_style": "",
+    "sampler": "MOSS - ER SDE Simple",
+    "sampler_steps": 25,
+    "cfg_scale": 2.5,
+    "live_sampler": "MOSS - ER SDE Simple",
+    "live_sampler_steps": 8,
+    "live_cfg_scale": 1.0
+}
