@@ -10,10 +10,10 @@ from typing import Any, NamedTuple
 
 # Version identifier for all the resources defined here. This is used as the server version.
 # It usually follows the plugin version, but not all new plugin versions also require a server update.
-version = "1.54.0"
+version = "1.55.0"
 
 comfy_url = "https://github.com/comfyanonymous/ComfyUI"
-comfy_version = "e9027f2b30f37bb3052714eb08fcf479542f4fc0"
+comfy_version = "87ed5a066d9c4660ef42100fd01a888da6994856"
 
 
 class CustomNode(NamedTuple):
@@ -93,6 +93,7 @@ class Arch(Enum):
     zimage = "Z-Image"
     ernie = "ERNIE Image"
     krea2 = "Krea 2"
+    fibo2 = "Fibo 2.0"
 
     auto = "Automatic"
     all = "All"
@@ -141,6 +142,8 @@ class Arch(Enum):
             return Arch.ernie
         if string == "krea2":
             return Arch.krea2
+        if string == "fibo2" or (string == "unknown" and "fibo" in filename):
+            return Arch.fibo2
         return None
 
     @staticmethod
@@ -208,7 +211,7 @@ class Arch(Enum):
 
     @property
     def supports_edit(self):  # includes text-to-image models that can also edit
-        return self.is_edit or self.is_flux2 or self is Arch.qwen2
+        return self.is_edit or self.is_flux2 or self is Arch.qwen2 or self is Arch.fibo2
 
     @property
     def is_sdxl_like(self):
@@ -254,7 +257,7 @@ class Arch(Enum):
                 return ["qwen_3_4b"]
             case Arch.ernie:
                 return ["ministral"]
-            case Arch.krea2:
+            case Arch.krea2 | Arch.fibo2:
                 return ["qwen_3vl_4b"]
             case _:
                 raise ValueError(f"Unsupported architecture: {self}")
@@ -281,6 +284,7 @@ class Arch(Enum):
             Arch.zimage,
             Arch.ernie,
             Arch.krea2,
+            Arch.fibo2,
         ]
 
 
@@ -424,7 +428,7 @@ class ControlMode(Enum):
 
     def can_substitute_instruction(self, arch: Arch):
         """True if this control mode is covered by instruction-following edit models."""
-        if arch.is_flux2 or arch is Arch.qwen2:
+        if arch.is_flux2 or arch is Arch.qwen2 or arch is Arch.fibo2:
             return self in [
                 ControlMode.style,
                 ControlMode.composition,
@@ -848,6 +852,7 @@ search_paths: dict[str, list[str]] = {
     resource_id(ResourceKind.vae, Arch.zimage, "default"): ["z-image", "flux-", "flux_", "flux/", "flux1", "ae.s"],
     resource_id(ResourceKind.vae, Arch.ernie, "default"): ["flux2"],
     resource_id(ResourceKind.vae, Arch.krea2, "default"): ["qwen_image"],
+    resource_id(ResourceKind.vae, Arch.fibo2, "default"): ["flux2"],
 }
 # fmt: on
 
@@ -887,6 +892,8 @@ required_resource_ids = {
     ResourceId(ResourceKind.vae, Arch.ernie, "default"),
     ResourceId(ResourceKind.text_encoder, Arch.krea2, "qwen_3vl_4b"),
     ResourceId(ResourceKind.vae, Arch.krea2, "default"),
+    ResourceId(ResourceKind.text_encoder, Arch.fibo2, "qwen_3vl_4b"),
+    ResourceId(ResourceKind.vae, Arch.fibo2, "default"),
 }
 
 recommended_resource_ids = [
