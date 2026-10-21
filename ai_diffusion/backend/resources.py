@@ -142,7 +142,7 @@ class Arch(Enum):
             return Arch.ernie
         if string == "krea2":
             return Arch.krea2
-        if string == "moss-image":
+        if string == "moss-image" or (string == "unknown" and "moss" in filename):
             return Arch.moss
         return None
 

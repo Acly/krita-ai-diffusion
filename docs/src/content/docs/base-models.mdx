@@ -133,6 +133,9 @@ and placed in `diffusion_models`, `text_encoders` and `vae` folders.
 
 Recommended settings are the ones from the built-in "MOSS Image" style:
 er_sde sampler with simple scheduler, 25 steps, guidance strength 2.5.
+The official skip-layer-guidance on the guidance-negative (layer 22) is applied
+automatically; it is required for legible text rendering and only takes effect
+when CFG is above 1.
 
 ## Installation
 

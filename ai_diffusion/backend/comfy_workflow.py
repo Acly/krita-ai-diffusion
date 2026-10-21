@@ -501,6 +501,24 @@ class ComfyWorkflow:
     def rescale_cfg(self, model: Output, multiplier=0.7):
         return self.add("RescaleCFG", 1, model=model, multiplier=multiplier)
 
+    def skip_layer_guidance(
+        self,
+        model: Output,
+        single_layers: str,
+        double_layers: str = "",
+        start_percent=0.0,
+        end_percent=1.0,
+    ):
+        return self.add(
+            "SkipLayerGuidanceDiTSimple",
+            1,
+            model=model,
+            double_layers=double_layers,
+            single_layers=single_layers,
+            start_percent=start_percent,
+            end_percent=end_percent,
+        )
+
     def load_checkpoint(self, checkpoint: str):
         return self.add_cached("CheckpointLoaderSimple", 3, ckpt_name=checkpoint)
 

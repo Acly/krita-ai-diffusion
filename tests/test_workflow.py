@@ -306,6 +306,9 @@ def test_moss_image_workflow():
     assert "CFGGuider" in loaders and "BasicGuider" not in loaders
     assert loaders["BasicScheduler"]["scheduler"] == "simple"
     assert loaders["KSamplerSelect"]["sampler_name"] == "er_sde"
+    slg = [n["inputs"] for n in w.root.values() if n["class_type"] == "SkipLayerGuidanceDiTSimple"]
+    assert len(slg) == 1
+    assert slg[0]["single_layers"] == "22" and slg[0]["double_layers"] == ""
 
 
 def test_prepare_lora():
