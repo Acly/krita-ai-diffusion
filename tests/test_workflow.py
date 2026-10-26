@@ -8,6 +8,7 @@ import pytest
 
 from ai_diffusion.backend import workflow
 from ai_diffusion.backend.api import (
+    CheckpointInput,
     ConditioningInput,
     ControlInput,
     CustomWorkflowInput,
@@ -28,11 +29,11 @@ from ai_diffusion.backend.comfy_client import ComfyClient
 from ai_diffusion.backend.comfy_workflow import ComfyWorkflow
 from ai_diffusion.backend.resources import ControlMode, ResourceKind, resource_id
 from ai_diffusion.backend.workflow import detect_inpaint
-from ai_diffusion.files import File, FileCollection, FileLibrary, FileSource
+from ai_diffusion.files import File, FileCollection, FileFormat, FileLibrary, FileSource
 from ai_diffusion.image import Bounds, Extent, Image, ImageCollection, Mask
 from ai_diffusion.pose import Pose
 from ai_diffusion.settings import PerformanceSettings
-from ai_diffusion.style import Arch, Style
+from ai_diffusion.style import Arch, Style, Styles
 from ai_diffusion.text import extract_layers
 from ai_diffusion.util import ensure
 
@@ -261,6 +262,195 @@ def test_anima_lllite_control_workflow():
     assert w.root[str(model.node - 1)]["inputs"]["weights"] == "anima-lllite-anytest.safetensors"
     assert any(n["class_type"] == "ETN_control_load" for n in w.root.values())
     assert not any(n["class_type"] == "ControlNetLoader" for n in w.root.values())
+
+
+def test_moss_image_workflow():
+    w = ComfyWorkflow()
+    models = ClientModels()
+    models.checkpoints = {
+        "MOSS": CheckpointInfo(
+            "moss_image_sft_int8_convrot.safetensors", Arch.moss, FileFormat.diffusion
+        )
+    }
+    models.resources[resource_id(ResourceKind.text_encoder, Arch.all, "qwen_35_9b")] = (
+        "qwen3.5_9b_int8_convrot.safetensors"
+    )
+    models.resources[resource_id(ResourceKind.vae, Arch.moss, "default")] = (
+        "flux2-vae_small.safetensors"
+    )
+
+    checkpoint = CheckpointInput("MOSS", Arch.moss, rescale_cfg=0)
+    model, clip, _vae = workflow.load_checkpoint_with_lora(w, checkpoint, models)
+    cond = workflow.ConditioningOutput(
+        w.clip_text_encode(clip.model, "a test"), w.clip_text_encode(clip.model, "")
+    )
+    latents = w.empty_latent_image(Extent(1024, 1024), Arch.moss)
+    w.sampler_custom_advanced(
+        model,
+        cond,
+        latents,
+        Arch.moss,
+        sampler="er_sde",
+        scheduler="simple",
+        steps=25,
+        cfg=2.5,
+        extent=Extent(1024, 1024),
+    )
+
+    loaders = {n["class_type"]: n["inputs"] for n in w.root.values()}
+    assert loaders["UNETLoader"]["unet_name"] == "moss_image_sft_int8_convrot.safetensors"
+    assert loaders["CLIPLoader"]["type"] == "moss_image"
+    assert loaders["VAELoader"]["vae_name"] == "flux2-vae_small.safetensors"
+    assert loaders["EmptyFlux2LatentImage"]["width"] == 1024
+    assert "ReferenceLatent" not in loaders
+    assert "CFGGuider" in loaders and "BasicGuider" not in loaders
+    assert loaders["BasicScheduler"]["scheduler"] == "simple"
+    assert loaders["KSamplerSelect"]["sampler_name"] == "er_sde"
+    slg = [n["inputs"] for n in w.root.values() if n["class_type"] == "SkipLayerGuidanceDiTSimple"]
+    assert len(slg) == 1
+    assert slg[0]["single_layers"] == "22" and slg[0]["double_layers"] == ""
+
+
+def _moss_models(with_edit_adapter=False):
+    models = ClientModels()
+    models.checkpoints = {
+        "MOSS": CheckpointInfo(
+            "moss_image_sft_int8_convrot.safetensors", Arch.moss, FileFormat.diffusion
+        )
+    }
+    models.resources[resource_id(ResourceKind.text_encoder, Arch.all, "qwen_35_9b")] = (
+        "qwen3.5_9b_int8_convrot.safetensors"
+    )
+    models.resources[resource_id(ResourceKind.vae, Arch.moss, "default")] = (
+        "flux2-vae_small.safetensors"
+    )
+    if with_edit_adapter:
+        models.resources[resource_id(ResourceKind.lora, Arch.moss, "edit")] = (
+            "moss_image_edit_lora_rank_64_bf16.safetensors"
+        )
+    return models
+
+
+def _moss_style():
+    style = ensure(Style.load(Styles.default_builtin_folder / "moss-image.json"))
+    style.checkpoints = ["MOSS"]
+    return style
+
+
+def test_moss_image_edit_job():
+    """Edit mode uses the same style settings as generate, plus the edit adapter LoRA."""
+    models = _moss_models(with_edit_adapter=True)
+    style = _moss_style()
+    assert not style.linked_edit_style
+
+    cond = ConditioningInput("make it night", is_editing=True, edit_reference=True)
+    job = workflow.prepare(
+        WorkflowKind.refine,
+        Image.create(Extent(64, 64)),
+        cond,
+        style,
+        seed=7,
+        models=models,
+        files=FileLibrary(FileCollection(), FileCollection()),
+        perf=PerformanceSettings(),
+    )
+    sampling = ensure(job.sampling)
+    assert sampling.sampler == "euler"
+    assert sampling.scheduler == "simple"
+    assert sampling.total_steps == style.sampler_steps
+    assert abs(sampling.cfg_scale - style.cfg_scale) < 1e-9
+    assert job.conditioning and job.conditioning.edit_reference
+    assert (
+        LoraInput("moss_image_edit_lora_rank_64_bf16.safetensors", 1.0) in ensure(job.models).loras
+    )
+
+
+def test_moss_image_edit_workflow():
+    models = _moss_models()
+    checkpoint = CheckpointInput(
+        "MOSS",
+        Arch.moss,
+        rescale_cfg=0,
+        loras=[LoraInput("moss_image_edit_lora_rank_64_bf16.safetensors", 1.0)],
+    )
+
+    w = ComfyWorkflow()
+    model, clip, vae = workflow.load_checkpoint_with_lora(w, checkpoint, models, True)
+    image = w.empty_image(Extent(64, 64), 0)
+    cond = w.text_encode_moss_edit(clip.model, vae, [image], "make it night", "daylight")
+    w.sampler_custom_advanced(
+        model,
+        cond,
+        w.empty_latent_image(Extent(64, 64), Arch.moss),
+        Arch.moss,
+        sampler="euler",
+        scheduler="simple",
+        steps=25,
+        cfg=2.5,
+        extent=Extent(64, 64),
+    )
+
+    def node_id(cls):
+        return next(k for k, n in w.root.items() if n["class_type"] == cls)
+
+    nodes = list(w.root.values())
+    assert node_id("TextEncodeMOSSImageEdit")
+    assert not any(n["class_type"].startswith("TextEncodeMOSSImageOstris") for n in nodes)
+    assert not any(n["class_type"] == "MOSSImageOstrisEditModelPatch" for n in nodes)
+    # edit adapters are loaded model-only, before the mandatory layer skipping
+    lora = w.root[node_id("LoraLoaderModelOnly")]
+    assert lora["inputs"]["model"] == [node_id("UNETLoader"), 0]
+    assert lora["inputs"]["lora_name"] == "moss_image_edit_lora_rank_64_bf16.safetensors"
+    slg = w.root[node_id("SkipLayerGuidanceDiTSimple")]
+    assert slg["inputs"]["model"] == [node_id("LoraLoaderModelOnly"), 0]
+
+    tees = [n for n in nodes if n["class_type"] == "TextEncodeMOSSImageEdit"]
+    assert len(tees) == 2  # positive and negative carry the same references
+    for tee in tees:
+        assert tee["inputs"]["clip"] == [node_id("CLIPLoader"), 0]
+        assert tee["inputs"]["vae"] == [node_id("VAELoader"), 0]
+        assert tee["inputs"]["edit_format"] == "Moss-Image-Edit"
+        assert abs(tee["inputs"]["image_strength"] - 1.0) < 1e-9
+        assert tee["inputs"]["images.image_0"] == [node_id("EmptyImage"), 0]
+        assert "images.image_1" not in tee["inputs"]
+
+
+def test_moss_image_latent_edit_workflow():
+    models = _moss_models()
+    checkpoint = CheckpointInput("MOSS", Arch.moss, rescale_cfg=0)
+
+    w = ComfyWorkflow()
+    _model, _clip, _vae = workflow.load_checkpoint_with_lora(w, checkpoint, models, False)
+
+    nodes = list(w.root.values())
+    assert all(n["class_type"] != "TextEncodeMOSSImageEdit" for n in nodes)
+    slg = next(n for n in nodes if n["class_type"] == "SkipLayerGuidanceDiTSimple")
+    unet_id = next(k for k, n in w.root.items() if n["class_type"] == "UNETLoader")
+    assert slg["inputs"]["model"] == [unet_id, 0]
+
+
+def test_moss_image_edit_prompts():
+    files = FileLibrary(FileCollection(), FileCollection())
+    style = _moss_style()
+
+    cond = ConditioningInput("inpaint prompt")
+    result = workflow.prepare_prompts(
+        cond, style, 1, Arch.moss, InpaintMode.remove_object, files=files
+    )
+    assert result.conditioning.positive == "inpaint prompt"
+    assert not result.conditioning.edit_reference
+
+    cond = ConditioningInput("inpaint prompt", is_editing=True)
+    result = workflow.prepare_prompts(
+        cond, style, 1, Arch.moss, InpaintMode.remove_object, files=files
+    )
+    assert result.conditioning.positive == "Remove the object.\n\ninpaint prompt"
+
+    cond = ConditioningInput("inpaint prompt", is_editing=True, edit_reference=True)
+    result = workflow.prepare_prompts(
+        cond, style, 1, Arch.moss, InpaintMode.remove_object, files=files
+    )
+    assert result.conditioning.positive == "inpaint prompt"
 
 
 def test_prepare_lora():

@@ -17,7 +17,7 @@ from PyQt6.QtCore import QMetaObject, QObject, Qt, QUuid, pyqtSignal
 from PyQt6.QtGui import QBrush, QColor, QPainter
 
 from .. import eventloop, util
-from ..backend import resolution, workflow
+from ..backend import resolution, resources, workflow
 from ..backend.api import (
     ConditioningInput,
     ControlInput,
@@ -43,7 +43,7 @@ from ..backend.client import (
 )
 from ..backend.network import NetworkError
 from ..backend.resolution import compute_bounds, compute_relative_bounds
-from ..backend.resources import ControlMode
+from ..backend.resources import ControlMode, ResourceKind
 from ..document import Document, KritaDocument, SelectionModifiers
 from ..files import FileLibrary
 from ..image import BlendMode, Bounds, DummyImage, Extent, Image, Mask
@@ -950,7 +950,11 @@ class DocumentModel(QObject, ObservableProperties):
                 ctrl = ControlLayer(self, ControlMode.reference, uid, 0)
                 control.append(ctrl.to_api())
 
-        cond.edit_reference = self.is_editing
+        cond.is_editing = self.is_editing
+        cond.edit_reference = self.is_editing and (
+            self.arch.supports_edit
+            or (self._edit_adapter_available() and self._edit_nodes_available())
+        )
         layers = extract_layers(cond)
         add_refs(cond.control, layers)
 
@@ -960,6 +964,23 @@ class DocumentModel(QObject, ObservableProperties):
             layers.update(region_layers)
 
         return cond, layers
+
+    def _edit_adapter_available(self) -> bool:
+        """True if the adapter LoRA required for editing with the active model is
+        present. Models like MOSS Image only support edit mode through their
+        edit adapter, so edit mode is not offered without it."""
+        client = self._connection.client_if_connected
+        arch = resolve_arch(self.style, client)
+        if resources.search_path(ResourceKind.lora, arch, "edit") is None:
+            return False
+        if client is None:
+            return True  # model set unknown
+        return client.models.for_arch(arch).lora.find("edit") is not None
+
+    def _edit_nodes_available(self) -> bool:
+        """True if the server supports reference-conditioned editing."""
+        client = self._connection.client_if_connected
+        return client is not None and client.features.moss_edit
 
     def _performance_settings(self, client: Client):
         result = client.performance_settings
@@ -1049,6 +1070,8 @@ class DocumentModel(QObject, ObservableProperties):
             if style := Styles.list().find(style_id):
                 if is_style_supported(style, self._connection.client_if_connected):
                     return style
+        if style_arch.supports_same_model_edit and self._edit_adapter_available():
+            return self.style  # edit with the same model, same style settings
         return None
 
     @property

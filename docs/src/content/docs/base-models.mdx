@@ -24,6 +24,7 @@ The following base models have limited support:
 * <ExternalLink href="https://github.com/Acly/krita-ai-diffusion/discussions/1176">Chroma</ExternalLink>
 * <ExternalLink href="https://github.com/Acly/krita-ai-diffusion/discussions/1328">Stable Diffusion 3.5 (SD3.5)</ExternalLink>
 * <ExternalLink href="https://github.com/Acly/krita-ai-diffusion/discussions/2081">Qwen Image</ExternalLink>
+* <ExternalLink href="https://huggingface.co/OpenMOSS-Team/MOSS-Image-SFT">MOSS Image</ExternalLink>
 
 ### Stable Diffusion 1.5
 
@@ -115,6 +116,44 @@ photographic content. It can produce a much wider variety of styles, but
 images are less consistent and generation time is much slower. You can
 [download it manually](https://huggingface.co/Comfy-Org/z_image/blob/main/split_files/diffusion_models/z_image_bf16.safetensors)
 if you want to experiment.
+
+### MOSS Image
+
+MOSS Image is a text-to-image model from OpenMOSS. With an edit adapter LoRA
+installed (see below) edit mode works by describing the change: the input image
+is passed to the model as reference and the result is regenerated at full
+strength. Without an adapter, image editing works like it does with other
+text-to-image models: inpaint, outpaint and edit mode re-noise the input image
+and regenerate it from the prompt. Low strength polishes the image while keeping
+poses and layout intact; strength above ~0.85 re-lights and re-composes the
+scene, but positions and object counts are still followed from the prompt.
+Control layers are not available because no ControlNet or IP-Adapter models
+exist for this architecture.
+
+Instruction-based editing with reference images is available natively: install
+the [MOSS-Image-Edit](https://huggingface.co/Comfy-Org/MOSS-Image/blob/main/loras/moss_image_edit_lora_rank_64_bf16.safetensors) adapter
+LoRA (or any MOSS edit adapter). Edit mode then uses the style exactly as it is
+configured - same sampler, steps and guidance as generate mode - and the plugin
+adds the adapter LoRA and feeds the input image into the Qwen3.5 text encoder as
+visual context plus reference latents through ComfyUI's core
+`TextEncodeMOSSImageEdit` node. No extra custom node packs are required, only a
+ComfyUI version with MOSS-Image edit support. Without the adapter, edit mode is
+not offered for this model; with an adapter but a ComfyUI that lacks edit
+support, it falls back to the latent re-noising described above.
+
+It is a large model: the diffusion checkpoint is 10 GB (bf16) or 5.4 GB
+(int8-convrot quantization), and it requires the Qwen3.5-9B text encoder
+(9.7 GB int8) together with a Flux 2 VAE. fp8 quantizations are not supported
+by the model. Files must be [downloaded manually](https://huggingface.co/Comfy-Org/MOSS-Image)
+and placed in `diffusion_models`, `text_encoders` and `vae` folders.
+
+Recommended settings are the ones from the built-in "MOSS Image" style:
+euler sampler with simple scheduler, 25 steps, guidance strength 2.5
+("MOSS - ER SDE Simple" is offered as alternative sampler). Edit mode uses the
+same settings; there is no separate edit style and no separate guidance value.
+The official skip-layer-guidance on the guidance-negative (layer 22) is applied
+automatically; it is required for legible text rendering and only takes effect
+when CFG is above 1.
 
 ## Installation
 

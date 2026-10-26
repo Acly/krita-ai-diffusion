@@ -15,7 +15,7 @@ from PyQt6.QtCore import QByteArray, Qt
 
 from ai_diffusion.backend.api import WorkflowInput, WorkflowKind
 from ai_diffusion.backend.client import CheckpointInfo, ClientEvent, ClientMessage
-from ai_diffusion.backend.resources import Arch, ControlMode
+from ai_diffusion.backend.resources import Arch, ControlMode, ResourceKind, resource_id
 from ai_diffusion.document import KritaDocument
 from ai_diffusion.image import BlendMode, Bounds, Extent, Image, ImageCollection
 from ai_diffusion.layer import Layer, LayerType
@@ -229,6 +229,32 @@ async def test_generate_refine(workflows_dir: Path):
         assert result[0].images is not None
         assert result[0].images.initial_image is not None
         assert Image.compare(result[0].images.initial_image, red_img) < 0.01
+
+
+@qtapp
+async def test_edit_mode_requires_edit_adapter(workflows_dir: Path):
+    """Edit mode is only offered when the adapter LoRA required by the model is present."""
+    krita_doc = Krita.instance().openDocument("test")
+
+    async with _model_env(krita_doc, workflows_dir) as (model, client):
+        await asyncio.sleep(0)  # let the message listener task start
+
+        client.models.checkpoints["test_moss.safetensors"] = CheckpointInfo(
+            "test_moss.safetensors", Arch.moss
+        )
+        model.style = _make_style("test_moss.safetensors")
+        assert model.arch is Arch.moss
+
+        assert not model.can_edit  # edit adapter not installed
+        model.edit_mode = True
+        assert not model.is_editing
+
+        client.models.resources[resource_id(ResourceKind.lora, Arch.moss, "edit")] = (
+            "test_moss_edit.safetensors"
+        )
+        assert model.can_edit
+        assert model.can_toggle_edit
+        assert model.is_editing
 
 
 @qtapp

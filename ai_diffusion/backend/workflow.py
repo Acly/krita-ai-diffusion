@@ -115,7 +115,9 @@ def _sampler_params(sampling: SamplingInput, extent: Extent, strength: float | N
     return params
 
 
-def load_checkpoint_with_lora(w: ComfyWorkflow, checkpoint: CheckpointInput, models: ClientModels):
+def load_checkpoint_with_lora(
+    w: ComfyWorkflow, checkpoint: CheckpointInput, models: ClientModels, edit_reference=False
+):
     arch = checkpoint.version
     model_info = models.checkpoints.get(checkpoint.checkpoint)
     if model_info is None:
@@ -165,6 +167,8 @@ def load_checkpoint_with_lora(w: ComfyWorkflow, checkpoint: CheckpointInput, mod
                 clip = w.load_clip(te["qwen_3vl_4b"], type="krea2")
             case Arch.qwen2:
                 clip = w.load_clip(te["qwen_3vl_8b"], type="qwen_image")
+            case Arch.moss:
+                clip = w.load_clip(te["qwen_35_9b"], type="moss_image")
             case _:
                 raise RuntimeError(f"No text encoder for model architecture {arch.name}")
 
@@ -180,8 +184,13 @@ def load_checkpoint_with_lora(w: ComfyWorkflow, checkpoint: CheckpointInput, mod
     if checkpoint.dynamic_caching and support_fbc:
         model = w.easy_cache(model, arch)
 
-    for lora in checkpoint.loras:
-        model, clip = w.load_lora(model, clip, lora.name, lora.strength, lora.strength)
+    if arch is Arch.moss and edit_reference:
+        # edit-adapter LoRAs target only the diffusion model, as in the official recipe
+        for lora in checkpoint.loras:
+            model = w.load_lora_model(model, lora.name, lora.strength)
+    else:
+        for lora in checkpoint.loras:
+            model, clip = w.load_lora(model, clip, lora.name, lora.strength, lora.strength)
 
     if arch is Arch.sd3:
         model = w.model_sampling_sd3(model)
@@ -200,6 +209,10 @@ def load_checkpoint_with_lora(w: ComfyWorkflow, checkpoint: CheckpointInput, mod
 
     if arch.supports_attention_guidance and checkpoint.self_attention_guidance:
         model = w.apply_self_attention_guidance(model)
+
+    if arch is Arch.moss:
+        # official recipe: skip layer 22 in the uncond pass; long text renders as garbage without it
+        model = w.skip_layer_guidance(model, single_layers="22")
 
     return model, Clip(clip, arch), vae
 
@@ -542,6 +555,13 @@ def encode_prompt(
             negative = cond.negative.prepare(w) if cond.negative else ""
             prompt = w.text_encode_qwen2(clip.model, vae, ref_images, positive, negative)
             return prompt, None  # note: latent returned by this node is always noise/empty
+        elif arch is Arch.moss and cond.edit_reference:
+            # core MOSS edit conditioning: references enter the text encoder as VL images
+            # and as reference latents via the VAE; both branches carry the same images
+            positive = cond.positive.prepare(w, cond.style_prompt)
+            negative = cond.negative.prepare(w) if cond.negative else ""
+            prompt = w.text_encode_moss_edit(clip.model, vae, ref_images, positive, negative)
+            return prompt, None  # note: init latent is fully replaced at denoise 1.0
         else:
             positive = cond.positive.encode(w, clip, cond.style_prompt, ref_images)
             negative = cond.negative.encode(w, clip) if cond.negative else positive
@@ -881,7 +901,7 @@ def generate(
     misc: MiscParams,
     models: ModelDict,
 ):
-    model, clip, vae = load_checkpoint_with_lora(w, checkpoint, models.all)
+    model, clip, vae = load_checkpoint_with_lora(w, checkpoint, models.all, cond.edit_reference)
     model = apply_ip_adapter(w, model, cond.control, models)
     model_orig = copy(model)
     model, regions = apply_attention_mask(w, model, cond, clip, extent.initial)
@@ -1025,7 +1045,7 @@ def inpaint(
         checkpoint.dynamic_caching = False  # doesn't seem to work with Flux fill model
         sampling.cfg_scale = 30  # set Flux guidance to 30 (typical values don't work well)
 
-    model, clip, vae = load_checkpoint_with_lora(w, checkpoint, models.all)
+    model, clip, vae = load_checkpoint_with_lora(w, checkpoint, models.all, cond.edit_reference)
     model = w.differential_diffusion(model)
     model_orig = copy(model)
 
@@ -1162,7 +1182,7 @@ def refine(
     misc: MiscParams,
     models: ModelDict,
 ):
-    model, clip, vae = load_checkpoint_with_lora(w, checkpoint, models.all)
+    model, clip, vae = load_checkpoint_with_lora(w, checkpoint, models.all, cond.edit_reference)
     model = apply_ip_adapter(w, model, cond.control, models)
     model, regions = apply_attention_mask(w, model, cond, clip, extent.initial)
     model = apply_regional_ip_adapter(w, model, cond.regions, extent.initial, models)
@@ -1195,7 +1215,7 @@ def refine_region(
 ):
     extent = ScaledExtent.from_input(images.extent)
 
-    model, clip, vae = load_checkpoint_with_lora(w, checkpoint, models.all)
+    model, clip, vae = load_checkpoint_with_lora(w, checkpoint, models.all, cond.edit_reference)
     model = w.differential_diffusion(model)
     model = apply_ip_adapter(w, model, cond.control, models)
     model_orig = copy(model)
@@ -1345,7 +1365,7 @@ def upscale_tiled(
             extent.initial, extent.desired.width, sampling.denoise_strength, multiple
         )
 
-    model, clip, vae = load_checkpoint_with_lora(w, checkpoint, models.all)
+    model, clip, vae = load_checkpoint_with_lora(w, checkpoint, models.all, cond.edit_reference)
     model = apply_ip_adapter(w, model, cond.control, models)
 
     in_image = w.load_image(image)
@@ -1532,10 +1552,15 @@ _control_instructions = {
 }
 
 
-def build_instructions(cond: ConditioningInput, arch: Arch, inpaint: InpaintMode | None):
+def build_instructions(
+    cond: ConditioningInput,
+    arch: Arch,
+    inpaint: InpaintMode | None,
+    enable_edit_instructions: bool = False,
+):
     instructions = ""
 
-    if not cond.edit_reference and arch.supports_edit:
+    if not cond.edit_reference and (arch.supports_edit or enable_edit_instructions):
         match inpaint, arch:
             case InpaintMode.fill | InpaintMode.expand, Arch.flux2_4b | Arch.qwen2:
                 instructions += "Fill the green spaces according to the image.\n"
@@ -1593,7 +1618,12 @@ def prepare_prompts(
     cond.positive, extra_loras = extract_loras(cond.positive, files.loras)
     cond.positive = replace_layers(cond.positive, ref_layers, layer_replace)
     cond.positive += _collect_lora_triggers(models.loras, files)
-    cond.positive = build_instructions(cond, arch, inpaint)
+    cond.positive = build_instructions(
+        cond,
+        arch,
+        inpaint,
+        enable_edit_instructions=arch.supports_same_model_edit and cond.is_editing,
+    )
     if cond.positive == "" and inpaint is InpaintMode.remove_object:
         cond.positive = "background scenery"
     meta["prompt_final"] = cond.positive
@@ -1669,6 +1699,8 @@ def prepare(
     model_set = models.for_arch(arch)
     has_ip_adapter = model_set.ip_adapter.find(ControlMode.reference) is not None
     i.models.loras += _get_sampling_lora(style, is_live, model_set, models)
+    if arch.supports_same_model_edit and cond.edit_reference:
+        i.models.loras += _get_edit_adapter_lora(model_set)
     all_control = cond.control + [c for r in cond.regions for c in r.control]
     face_weight = median_or_zero(c.strength for c in all_control if c.mode is ControlMode.face)
     if face_weight > 0:
@@ -1862,6 +1894,19 @@ def create(i: WorkflowInput, models: ClientModels, comfy_mode=ComfyRunMode.serve
         )
     else:
         raise ValueError(f"Unsupported workflow kind: {i.kind}")
+
+
+def _get_edit_adapter_lora(model_set: ModelDict):
+    adapter = model_set.lora.find("edit")
+    if adapter is None:
+        paths = resources.search_path(ResourceKind.lora, model_set.arch, "edit") or []
+        raise ValueError(
+            _(
+                "Image editing requires an adapter LoRA ({models}), which is not installed",
+                models=", ".join(paths),
+            )
+        )
+    return [LoraInput(adapter, 1.0)]
 
 
 def _get_sampling_lora(style: Style, is_live: bool, model_set: ModelDict, models: ClientModels):
