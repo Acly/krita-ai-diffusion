@@ -18,7 +18,7 @@ from PyQt6.QtWidgets import QFrame, QHBoxLayout, QLabel, QMenu, QToolButton, QVB
 
 from ..backend.client import Client
 from ..document import LayerType
-from ..image import Bounds
+from ..image import Bounds, Extent
 from ..localization import translate as _
 from ..model.properties import Binding, bind
 from ..model.region import Region, RegionLink, RootRegion, translate_prompt
@@ -255,6 +255,11 @@ class ActiveRegionWidget(QFrame):
         self._remove_button.setVisible(not is_root_region)
         self.positive.setVisible(region is not None)
         self._no_region.setVisible(region is None)
+
+    def set_focus_color(self, color: str):
+        self._style_focus = f"QFrame#ActiveRegionWidget {{ background-color: {theme.base}; border: 1px solid {color}; }}"
+        if self.positive.has_focus or self.negative.has_focus:
+            self.setStyleSheet(self._style_focus)
 
     def focus(self):
         if not (self.positive.has_focus or self.negative.has_focus):
@@ -565,6 +570,9 @@ class RegionPromptWidget(QWidget):
         if not isinstance(active, RootRegion):
             self._add_inactive_region(self._regions, self._regions_below)
 
+    def set_focus_color(self, color: str):
+        self._prompt.set_focus_color(color)
+
     def _activate_region(self, region: RootRegion | Region):
         self._regions.active = region
         self._prompt.focus()
@@ -573,9 +581,23 @@ class RegionPromptWidget(QWidget):
 class RegionThumbnailWidget(QLabel):
     def __init__(self, region: RootRegion | Region, parent: QWidget):
         super().__init__(parent)
+        self._preview = QFrame(self, Qt.WindowType.ToolTip)
+        self._preview.setAttribute(Qt.WidgetAttribute.WA_TransparentForMouseEvents)
+        self._preview.setFrameShape(QFrame.Shape.StyledPanel)
+        self._preview_name = QLabel(self._preview)
+        self._preview_name.setTextFormat(Qt.TextFormat.PlainText)
+        self._preview_name.setWordWrap(True)
+        self._preview_image = QLabel(self._preview)
+        self._preview_image.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        layout = QVBoxLayout(self._preview)
+        layout.setContentsMargins(8, 8, 8, 8)
+        layout.addWidget(self._preview_name)
+        layout.addWidget(self._preview_image)
         self.set_region(region)
 
     def set_region(self, region: RootRegion | Region):
+        self._region = region
+        self._preview.hide()
         font_height = self.fontMetrics().height()
         icon_size = int(1.5 * font_height + 6)
         if isinstance(region, Region):
@@ -613,3 +635,39 @@ class RegionThumbnailWidget(QLabel):
             painter.end()
             icon_image = QPixmap.fromImage(image)
         self.setPixmap(icon_image)
+
+    def _show_preview(self):
+        if not isinstance(self._region, Region) or not (layer := self._region.first_layer):
+            return False
+        size = layer.bounds.extent.at_least(1).scale_keep_aspect(Extent(320, 320)).at_least(1)
+        image = layer.thumbnail(size)
+        if image.isNull():
+            return False
+        pixmap = QPixmap.fromImage(image).scaled(
+            320, 320, Qt.AspectRatioMode.KeepAspectRatio, Qt.TransformationMode.SmoothTransformation
+        )
+        width = max(192, pixmap.width())
+        height = max(192, pixmap.height())
+        self._preview_name.setFixedWidth(width)
+        self._preview_name.setText(layer.name)
+        self._preview_image.setFixedSize(width, height)
+        self._preview_image.setPixmap(pixmap)
+        self._preview.adjustSize()
+        pos = self.mapToGlobal(self.rect().bottomLeft()) + QPoint(0, 4)
+        if screen := self.screen():
+            available = screen.availableGeometry()
+            pos.setX(max(available.left(), min(pos.x(), available.right() - self._preview.width())))
+            pos.setY(
+                max(available.top(), min(pos.y(), available.bottom() - self._preview.height()))
+            )
+        self._preview.move(pos)
+        self._preview.show()
+        return True
+
+    def event(self, e: QEvent | None):
+        if e is not None:
+            if e.type() == QEvent.Type.ToolTip and self._show_preview():
+                return True
+            if e.type() in (QEvent.Type.Leave, QEvent.Type.Hide):
+                self._preview.hide()
+        return super().event(e)

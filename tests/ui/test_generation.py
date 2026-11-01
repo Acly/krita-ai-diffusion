@@ -5,6 +5,7 @@ import pytest
 from krita import Krita, Selection
 from PyQt6.QtCore import QByteArray
 
+from ai_diffusion.backend.workflow import InpaintMode
 from ai_diffusion.document import KritaDocument
 from ai_diffusion.model.connection import Connection, ConnectionState
 from ai_diffusion.model.custom_workflow import WorkflowCollection
@@ -69,6 +70,21 @@ async def test_generate_button_label(workflows_dir: Path):
         # -- 1. no selection, strength = 1.0 → "Generate" --
         model.strength = 1.0
         assert widget.generate_button.operation == "Generate"
+        assert widget.mode_button.text() == "Generate"
+        assert widget.region_prompt.parentWidget() is widget.prompt_frame
+        assert widget.prompt_frame.parentWidget() is widget.mode_area
+        mode_button_size = widget.mode_button.size()
+        mode_actions = widget.inpaint_menu.actions()
+        assert [action.text() for action in mode_actions] == [
+            "Generate",
+            "Fill",
+            "Expand",
+            "Add Content",
+            "Remove Content",
+            "Replace Background",
+            "Edit",
+        ]
+        assert all(not action.isEnabled() for action in mode_actions[1:-1])
 
         # -- 2. create a selection → "Fill" --
         w, h = krita_doc.width() // 2, krita_doc.height() // 2
@@ -85,6 +101,15 @@ async def test_generate_button_label(workflows_dir: Path):
         assert doc.selection_bounds is not None
 
         assert widget.generate_button.operation == "Fill"
+        assert widget.mode_button.text() == "Fill"
+        assert widget.mode_button.size() == mode_button_size
+        assert all(action.isEnabled() for action in mode_actions[1:-1])
+
+        widget.change_inpaint_mode(InpaintMode.add_object, False)
+        assert widget.generate_button.operation == "Add Content"
+        assert widget.mode_button.text() == "Add Content"
+        assert widget.mode_button.size() == mode_button_size
+        widget.change_inpaint_mode(InpaintMode.automatic, False)
 
         # -- 3. remove selection, lower strength → "Refine" --
         krita_doc.setSelection(None)
@@ -96,5 +121,8 @@ async def test_generate_button_label(workflows_dir: Path):
 
         model.strength = 0.5
         assert widget.generate_button.operation == "Refine"
+        assert widget.mode_button.text() == "Generate"
+        assert widget.mode_button.size() == mode_button_size
+        assert all(not action.isEnabled() for action in mode_actions[1:-1])
     finally:
         await conn.disconnect()
