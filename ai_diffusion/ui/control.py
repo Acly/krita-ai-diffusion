@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from contextlib import contextmanager
 from functools import partial
 
 from PyQt6.QtCore import QEvent, QMetaObject, QPoint, QRect, QRectF, QSize, Qt
@@ -17,6 +18,8 @@ from PyQt6.QtGui import (
     QPixmap,
 )
 from PyQt6.QtWidgets import (
+    QApplication,
+    QComboBox,
     QFrame,
     QGridLayout,
     QHBoxLayout,
@@ -37,7 +40,7 @@ from ..backend.resources import ControlMode
 from ..image import Extent
 from ..localization import translate as _
 from ..model.control import ControlLayer, ControlLayerList
-from ..model.properties import Binding
+from ..model.properties import Binding, bind_combo
 from ..model.root import root
 from . import theme
 from .interval_slider import IntervalSlider
@@ -174,9 +177,20 @@ class ControlAdvancedPanel(QFrame):
         self.setFrameShadow(QFrame.Shadow.Raised)
         self.setLineWidth(1)
 
-        self.layer_button = QPushButton(theme.icon("layer-replace"), "", self)
-        self.layer_button.setMaximumWidth(180)
-        self.layer_button.clicked.connect(self._show_layer_menu)
+        self.mode_combo = QComboBox(self)
+        self.mode_combo.setSizeAdjustPolicy(
+            QComboBox.SizeAdjustPolicy.AdjustToMinimumContentsLengthWithIcon
+        )
+        self.mode_combo.setMinimumContentsLength(12)
+        for mode in (mode for mode in ControlMode if not mode.is_internal):
+            self.mode_combo.addItem(theme.icon(f"control-{mode.name}"), mode.text, mode)
+        self.mode_combo.setToolTip(_("Select control layer content"))
+
+        self.remove_button = QToolButton(self)
+        self.remove_button.setIcon(theme.icon("discard"))
+        self.remove_button.setAutoRaise(True)
+        self.remove_button.setToolTip(_("Remove this control layer"))
+        self.remove_button.clicked.connect(owner.remove)
 
         close_button = QToolButton(self)
         close_button.setIcon(theme.icon("remove"))
@@ -184,19 +198,16 @@ class ControlAdvancedPanel(QFrame):
         close_button.setToolTip(_("Close"))
         close_button.clicked.connect(owner.list_widget.close_advanced)
 
+        self.layer_button = QPushButton(theme.icon("layer-replace"), "", self)
+        self.layer_button.setMaximumWidth(180)
+        self.layer_button.clicked.connect(self._show_layer_menu)
+
         self.generate_button = _create_generate_button(self)
         self.generate_button.clicked.connect(self.control.generate)
         self.generate_regions_button = _create_generate_regions_button(self)
         self.generate_regions_button.clicked.connect(self.control.generate_segmentation)
         self.add_pose_button = _create_add_pose_button(self)
         self.add_pose_button.clicked.connect(self._add_pose_character)
-        actions = QHBoxLayout()
-        actions.addWidget(self.layer_button)
-        actions.addWidget(self.generate_button)
-        actions.addWidget(self.generate_regions_button)
-        actions.addWidget(self.add_pose_button)
-        actions.addStretch()
-        actions.addWidget(close_button)
 
         self.strength_slider = QSlider(Qt.Orientation.Horizontal, self)
         self.strength_slider.setRange(0, 75)
@@ -208,20 +219,50 @@ class ControlAdvancedPanel(QFrame):
         self.range_end_label = QLabel(self)
         self.range_slider.intervalChanged.connect(self._set_range)
 
-        sliders = QGridLayout()
-        sliders.addWidget(QLabel(_("Strength") + ":", self), 0, 0)
-        sliders.addWidget(self.strength_slider, 0, 1, 1, 2)
-        sliders.addWidget(self.strength_label, 0, 3)
-        sliders.addWidget(self.range_label, 1, 0)
-        sliders.addWidget(self.range_start_label, 1, 1)
-        sliders.addWidget(self.range_slider, 1, 2)
-        sliders.addWidget(self.range_end_label, 1, 3)
+        mode_layout = QHBoxLayout()
+        mode_layout.setSpacing(4)
+        mode_layout.addWidget(self.mode_combo)
+        mode_layout.addWidget(self.remove_button)
+        mode_layout.addStretch()
 
-        layout = QVBoxLayout(self)
-        layout.addLayout(actions)
-        layout.addLayout(sliders)
+        layer_layout = QHBoxLayout()
+        layer_layout.setSpacing(4)
+        layer_layout.addWidget(self.layer_button)
+        layer_layout.addWidget(self.generate_button)
+        layer_layout.addWidget(self.generate_regions_button)
+        layer_layout.addWidget(self.add_pose_button)
+        layer_layout.addStretch()
+
+        right = Qt.AlignmentFlag.AlignRight | Qt.AlignmentFlag.AlignVCenter
+        layout = QGridLayout(self)
+        layout.setContentsMargins(4, 2, 4, 2)
+        layout.setHorizontalSpacing(4)
+        layout.setVerticalSpacing(2)
+        layout.addWidget(QLabel(_("Mode") + ":", self), 0, 0)
+        layout.addLayout(mode_layout, 0, 1, 1, 2)
+        layout.addWidget(close_button, 0, 3, right)
+        layout.addWidget(QLabel(_("Layer") + ":", self), 1, 0)
+        layout.addLayout(layer_layout, 1, 1, 1, 3)
+        layout.addWidget(QLabel(_("Strength") + ":", self), 2, 0)
+        layout.addWidget(self.strength_slider, 2, 1, 1, 2)
+        layout.addWidget(self.strength_label, 2, 3, right)
+        layout.addWidget(self.range_label, 3, 0)
+        layout.addWidget(self.range_start_label, 3, 1)
+        layout.addWidget(self.range_slider, 3, 2)
+        layout.addWidget(self.range_end_label, 3, 3, right)
+        layout.setColumnStretch(2, 1)
+
+        row_height = max(
+            self.mode_combo.sizeHint().height(),
+            self.generate_button.sizeHint().height(),
+            self.generate_regions_button.sizeHint().height(),
+            self.add_pose_button.sizeHint().height(),
+        )
+        self.strength_slider.setMinimumHeight(row_height)
+        self.range_slider.setMinimumHeight(row_height)
 
         self._connections = [
+            bind_combo(self.control, "mode", self.mode_combo),
             self.control.layer_id_changed.connect(self._update_layer),
             root.active_model.layers.changed.connect(self._update_layer),
             self.control.strength_changed.connect(self._update_strength),
@@ -231,7 +272,7 @@ class ControlAdvancedPanel(QFrame):
             self.control.can_generate_changed.connect(self._update_visibility),
             self.control.mode_changed.connect(self._update_visibility),
             self.control.is_pose_vector_changed.connect(self._update_visibility),
-            self.control.is_supported_changed.connect(self._support_changed),
+            self.control.is_supported_changed.connect(self._update_visibility),
             self.control.has_active_job_changed.connect(self._job_changed),
         ]
         self._update_layer()
@@ -280,11 +321,14 @@ class ControlAdvancedPanel(QFrame):
 
     def _update_visibility(self):
         supported = self.control.is_supported
-        is_segmentation = self.control.mode is ControlMode.segmentation
-        is_pose = self.control.mode is ControlMode.pose
-        self.generate_button.setVisible(supported and self.control.can_generate)
-        self.generate_regions_button.setVisible(supported and is_segmentation)
-        self.add_pose_button.setVisible(supported and is_pose)
+        mode = self.control.mode
+        self.generate_button.setVisible(mode.has_preprocessor)
+        self.generate_regions_button.setVisible(mode is ControlMode.segmentation)
+        self.add_pose_button.setVisible(mode is ControlMode.pose)
+        for button in (self.generate_button, self.generate_regions_button, self.add_pose_button):
+            button.setEnabled(supported and self.control.can_generate)
+        self.strength_slider.setEnabled(supported)
+        self.range_slider.setEnabled(supported)
         for widget in (
             self.range_label,
             self.range_slider,
@@ -292,13 +336,7 @@ class ControlAdvancedPanel(QFrame):
             self.range_end_label,
         ):
             widget.setVisible(self.control.has_range)
-        self.adjustSize()
-
-    def _support_changed(self, supported: bool):
-        if not supported:
-            self.owner.list_widget.close_advanced()
-        else:
-            self._update_visibility()
+        self.updateGeometry()
 
     def _job_changed(self, active: bool):
         if active:
@@ -421,7 +459,7 @@ class ControlThumbnail(QWidget):
             return super().mouseReleaseEvent(a0)
         if self.control.has_active_job:
             return
-        if self.rect().contains(a0.pos()) and self.control.is_supported:
+        if self.rect().contains(a0.pos()):
             self.owner.list_widget.toggle_advanced(self.owner)
         super().mouseReleaseEvent(a0)
 
@@ -555,6 +593,28 @@ class ControlWidget(QWidget):
             self.remove()
 
 
+@contextmanager
+def _silent_layout_update(widget: QWidget):
+    """Apply pending layout changes without painting intermediate passes.
+
+    Inserting or removing the advanced panel changes the height of the control list.
+    That takes two layout passes: the list changes its size hint, then its parent
+    resizes it. Painting the in-between state makes other controls sharing the layout
+    (like the prompt box) visibly jump around.
+    """
+    top = widget
+    while (parent := top.parentWidget()) is not None and not parent.isWindow():
+        top = parent
+    updates_enabled = top.updatesEnabled()
+    top.setUpdatesEnabled(False)
+    try:
+        yield
+        widget.updateGeometry()
+        QApplication.sendPostedEvents(None, QEvent.Type.LayoutRequest)
+    finally:
+        top.setUpdatesEnabled(updates_enabled)
+
+
 class ControlListWidget(QWidget):
     def __init__(self, model: ControlLayerList, parent=None):
         super().__init__(parent)
@@ -619,11 +679,11 @@ class ControlListWidget(QWidget):
             self.close_advanced()
             return
         self.close_advanced()
-        self._advanced_panel = ControlAdvancedPanel(owner)
-        self._details_layout.addWidget(self._advanced_panel)
-        self._advanced_panel.show()
-        owner.thumbnail.update()
-        self.updateGeometry()
+        with _silent_layout_update(self):
+            self._advanced_panel = ControlAdvancedPanel(owner)
+            self._details_layout.addWidget(self._advanced_panel)
+            self._advanced_panel.show()
+            owner.thumbnail.update()
 
     def close_advanced(self):
         panel = self._advanced_panel
@@ -631,11 +691,12 @@ class ControlListWidget(QWidget):
             return
         owner = panel.owner
         self._advanced_panel = None
-        panel.disconnect_all()
-        self._details_layout.removeWidget(panel)
-        panel.deleteLater()
-        owner.thumbnail.update()
-        self.updateGeometry()
+        with _silent_layout_update(self):
+            panel.disconnect_all()
+            panel.hide()
+            self._details_layout.removeWidget(panel)
+            panel.deleteLater()
+            owner.thumbnail.update()
 
     def _add_widget(self, control: ControlLayer):
         widget = ControlWidget(self._model, control, self)
@@ -643,18 +704,18 @@ class ControlListWidget(QWidget):
         index = self._flow_layout.count()
         if self._add_button is not None:
             index -= 1
-        self._flow_layout.insertWidget(index, widget)
-        self._flow_layout.invalidate()
-        self.updateGeometry()
+        with _silent_layout_update(self):
+            self._flow_layout.insertWidget(index, widget)
+            self._flow_layout.invalidate()
 
     def _remove_widget(self, control: ControlLayer):
         widget = next(widget for widget in self._widgets if widget.control is control)
         self._widgets.remove(widget)
-        self._flow_layout.takeWidget(widget)
-        widget.disconnect_all()
-        widget.deleteLater()
-        self._flow_layout.invalidate()
-        self.updateGeometry()
+        with _silent_layout_update(self):
+            self._flow_layout.takeWidget(widget)
+            widget.disconnect_all()
+            widget.deleteLater()
+            self._flow_layout.invalidate()
 
 
 def _create_generate_button(parent):
