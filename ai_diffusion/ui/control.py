@@ -37,7 +37,7 @@ from ..backend.resources import ControlMode
 from ..image import Extent
 from ..localization import translate as _
 from ..model.control import ControlLayer, ControlLayerList
-from ..model.properties import Binding, bind, bind_toggle
+from ..model.properties import Binding
 from ..model.root import root
 from . import theme
 from .interval_slider import IntervalSlider
@@ -130,8 +130,8 @@ class AddControlButton(QWidget):
     def __init__(self, model: ControlLayerList, parent: ControlListWidget):
         super().__init__(parent)
         self.model = model
-        self.list_widget = parent
         self._hovered = False
+        self.setToolTip(_("Add Control Layer"))
         self.setFixedSize(THUMBNAIL_HEIGHT, THUMBNAIL_HEIGHT)
         self.setCursor(Qt.CursorShape.PointingHandCursor)
 
@@ -150,13 +150,11 @@ class AddControlButton(QWidget):
 
     def enterEvent(self, event: QEnterEvent | None):
         self._hovered = True
-        self.list_widget.show_tooltip(self, _("Add Control Layer"))
         self.update()
         super().enterEvent(event)
 
     def leaveEvent(self, a0: QEvent | None):
         self._hovered = False
-        self.list_widget.clear_tooltip(self)
         self.update()
         super().leaveEvent(a0)
 
@@ -176,9 +174,9 @@ class ControlAdvancedPanel(QFrame):
         self.setFrameShadow(QFrame.Shadow.Raised)
         self.setLineWidth(1)
 
-        self.custom_checkbox = QToolButton(self)
-        self.custom_checkbox.setText(_("Custom values"))
-        self.custom_checkbox.setCheckable(True)
+        self.layer_button = QPushButton(theme.icon("layer-replace"), "", self)
+        self.layer_button.setMaximumWidth(180)
+        self.layer_button.clicked.connect(self._show_layer_menu)
 
         close_button = QToolButton(self)
         close_button.setIcon(theme.icon("remove"))
@@ -193,7 +191,7 @@ class ControlAdvancedPanel(QFrame):
         self.add_pose_button = _create_add_pose_button(self)
         self.add_pose_button.clicked.connect(self._add_pose_character)
         actions = QHBoxLayout()
-        actions.addWidget(self.custom_checkbox)
+        actions.addWidget(self.layer_button)
         actions.addWidget(self.generate_button)
         actions.addWidget(self.generate_regions_button)
         actions.addWidget(self.add_pose_button)
@@ -202,6 +200,7 @@ class ControlAdvancedPanel(QFrame):
 
         self.strength_slider = QSlider(Qt.Orientation.Horizontal, self)
         self.strength_slider.setRange(0, 75)
+        self.strength_slider.valueChanged.connect(self._set_strength)
         self.strength_label = QLabel(self)
         self.range_label = QLabel(_("Range") + ":", self)
         self.range_slider = IntervalSlider(0, 20, 0, 20, self)
@@ -223,12 +222,11 @@ class ControlAdvancedPanel(QFrame):
         layout.addLayout(sliders)
 
         self._connections = [
-            bind_toggle(self.control, "use_custom_strength", self.custom_checkbox),
-            bind(self.control, "strength", self.strength_slider, "value"),
+            self.control.layer_id_changed.connect(self._update_layer),
+            root.active_model.layers.changed.connect(self._update_layer),
             self.control.strength_changed.connect(self._update_strength),
             self.control.start_changed.connect(self._update_range),
             self.control.end_changed.connect(self._update_range),
-            self.control.use_custom_strength_changed.connect(self._update_enabled),
             self.control.has_range_changed.connect(self._update_visibility),
             self.control.can_generate_changed.connect(self._update_visibility),
             self.control.mode_changed.connect(self._update_visibility),
@@ -236,32 +234,49 @@ class ControlAdvancedPanel(QFrame):
             self.control.is_supported_changed.connect(self._support_changed),
             self.control.has_active_job_changed.connect(self._job_changed),
         ]
+        self._update_layer()
         self._update_strength()
         self._update_range()
-        self._update_enabled()
         self._update_visibility()
 
     def disconnect_all(self):
         Binding.disconnect_all(self._connections)
 
+    def _show_layer_menu(self):
+        self.owner.show_layer_menu(
+            self.layer_button.mapToGlobal(self.layer_button.rect().bottomLeft())
+        )
+
+    def _update_layer(self):
+        name = self.control.layer.name
+        self.layer_button.setText(
+            self.layer_button.fontMetrics().elidedText(name, Qt.TextElideMode.ElideRight, 140)
+        )
+        self.layer_button.setToolTip(_("Select a different layer as input") + f"\n{name}")
+
+    def _set_strength(self, value: int):
+        self.control.use_custom_strength = True
+        self.control.strength = value
+
     def _set_range(self, low: int, high: int):
+        self.control.use_custom_strength = True
         self.control.start = low / 20
         self.control.end = high / 20
 
     def _update_range(self):
+        self.range_slider.blockSignals(True)
         self.range_slider.setInterval(int(self.control.start * 20), int(self.control.end * 20))
+        self.range_slider.blockSignals(False)
         self.range_start_label.setText(f"{self.control.start:.2f}")
         self.range_end_label.setText(f"{self.control.end:.2f}")
 
     def _update_strength(self):
+        self.strength_slider.blockSignals(True)
+        self.strength_slider.setValue(self.control.strength)
+        self.strength_slider.blockSignals(False)
         self.strength_label.setText(
             f"{self.control.strength / ControlLayer.strength_multiplier:.2f}"
         )
-
-    def _update_enabled(self):
-        enabled = self.control.use_custom_strength and self.control.is_supported
-        self.strength_slider.setEnabled(enabled)
-        self.range_slider.setEnabled(enabled)
 
     def _update_visibility(self):
         supported = self.control.is_supported
@@ -277,7 +292,6 @@ class ControlAdvancedPanel(QFrame):
             self.range_end_label,
         ):
             widget.setVisible(self.control.has_range)
-        self._update_enabled()
         self.adjustSize()
 
     def _support_changed(self, supported: bool):
@@ -300,12 +314,38 @@ class ControlThumbnail(QWidget):
         self.owner = owner
         self.control = owner.control
         self._pixmap = QPixmap()
-        self._hovered = False
-        self._hover_section = ""
         self.setFixedSize(THUMBNAIL_WIDTH, THUMBNAIL_HEIGHT)
-        self.setMouseTracking(True)
         self.setFocusPolicy(Qt.FocusPolicy.ClickFocus)
+        self.setCursor(Qt.CursorShape.PointingHandCursor)
+        self.mode_button = self._create_badge(2, _("Select control layer content"))
+        self.mode_button.clicked.connect(self._show_mode_menu)
+        self.remove_button = self._create_badge(
+            self.width() - 22,
+            _("Stop using this layer for control (does not remove the layer)"),
+            remove=True,
+        )
+        self.remove_button.setIcon(theme.icon("remove"))
+        self.remove_button.clicked.connect(owner.remove)
         self.refresh()
+
+    def _create_badge(self, x: int, tooltip: str, remove=False):
+        button = QToolButton(self)
+        button.setGeometry(x, 2, 20, 20)
+        button.setIconSize(QSize(14, 14))
+        button.setToolTip(tooltip)
+        base = self.palette().color(QPalette.ColorRole.Base)
+        hover = QColor(170, 45, 45) if remove else base.lighter(160)
+        button.setStyleSheet(
+            f"QToolButton {{background: rgba({base.red()}, {base.green()}, {base.blue()}, 204);"
+            " border: none; border-radius: 2px; padding: 3px;}"
+            f"QToolButton:hover {{background: {hover.name()};}}"
+        )
+        return button
+
+    def _show_mode_menu(self):
+        self.owner.show_mode_menu(
+            self.mode_button.mapToGlobal(self.mode_button.rect().bottomLeft())
+        )
 
     def refresh(self):
         try:
@@ -357,137 +397,31 @@ class ControlThumbnail(QWidget):
             painter.fillRect(self.rect(), overlay)
             self._paint_icon(painter, "warning", self.rect(), 28)
 
-        if self._hovered or self.owner.is_advanced_open:
-            self._paint_grid(painter)
-            if not self.control.is_supported:
-                self._paint_icon(painter, "warning", self.rect(), 28)
-        else:
-            self._paint_badge(painter, f"control-{self.control.mode.name}", QRect(2, 2, 20, 20))
-            self._paint_badge(painter, "remove", QRect(self.width() - 22, 2, 20, 20))
-
-    def _paint_badge(self, painter: QPainter, icon: str, rect: QRect):
-        background = QColor(self.palette().color(QPalette.ColorRole.Base))
-        background.setAlphaF(0.8)
-        painter.setPen(Qt.PenStyle.NoPen)
-        painter.setBrush(background)
-        painter.drawRoundedRect(rect, 2, 2)
-        theme.icon(icon).paint(painter, rect.adjusted(3, 3, -3, -3))
+        if self.owner.is_advanced_open:
+            painter.setClipping(False)
+            painter.setBrush(Qt.BrushStyle.NoBrush)
+            painter.setPen(QPen(self.palette().color(QPalette.ColorRole.Highlight), 3))
+            painter.drawRoundedRect(QRectF(self.rect()).adjusted(1.5, 1.5, -1.5, -1.5), 2, 2)
 
     def _paint_icon(self, painter: QPainter, icon: str, rect: QRect, size=16):
         target = QRect(0, 0, size, size)
         target.moveCenter(rect.center())
         theme.icon(icon).paint(painter, target)
 
-    def _paint_grid(self, painter: QPainter):
-        base = QColor(self.palette().color(QPalette.ColorRole.Base))
-        base.setAlphaF(0.6)
-        painter.fillRect(self.rect(), base)
-        sections = self._section_rects()
-        for name, rect in sections.items():
-            selected = name == self._hover_section or (
-                name == "advanced" and self.owner.is_advanced_open
-            )
-            if selected:
-                color = QColor(170, 45, 45, 175) if name == "remove" else QColor(255, 255, 255, 45)
-                painter.fillRect(rect, color)
-
-        line_color = QColor(self.palette().color(QPalette.ColorRole.Text))
-        painter.setPen(QPen(line_color, 1))
-        y1, y2 = THUMBNAIL_HEIGHT // 3, THUMBNAIL_HEIGHT * 2 // 3
-        painter.drawLine(0, y1, self.width(), y1)
-        painter.drawLine(self.width() // 2, 0, self.width() // 2, y1)
-
-        self._paint_icon(painter, f"control-{self.control.mode.name}", sections["mode"])
-        self._paint_icon(painter, "remove", sections["remove"])
-        if self.control.is_supported:
-            painter.drawLine(0, y2, self.width(), y2)
-            painter.drawLine(self.width() // 2, y2, self.width() // 2, self.height())
-            self._paint_icon(painter, "layer-replace", sections["layer"])
-            if self.control.can_generate:
-                self._paint_icon(painter, "control-generate", sections["generate"])
-            self._paint_icon(painter, "more", sections["advanced"])
-
-    def _section_rects(self):
-        half = self.width() // 2
-        third = self.height() // 3
-        sections = {
-            "mode": QRect(0, 0, half, third),
-            "remove": QRect(half, 0, self.width() - half, third),
-        }
-        if self.control.is_supported:
-            sections.update({
-                "layer": QRect(0, third, self.width(), third),
-                "generate": QRect(0, third * 2, half, self.height() - third * 2),
-                "advanced": QRect(half, third * 2, self.width() - half, self.height() - third * 2),
-            })
-        return sections
-
-    def _section_at(self, pos: QPoint):
-        return next(
-            (name for name, rect in self._section_rects().items() if rect.contains(pos)), ""
-        )
-
     def enterEvent(self, event: QEnterEvent | None):
         self.refresh()
-        if not self.control.has_active_job:
-            self._hovered = True
-            if event:
-                self._hover_section = self._section_at(event.position().toPoint())
-        self._update_tooltip()
-        self.update()
         super().enterEvent(event)
-
-    def leaveEvent(self, a0: QEvent | None):
-        self._hovered = False
-        self._hover_section = ""
-        self.owner.list_widget.clear_tooltip(self)
-        self.update()
-        super().leaveEvent(a0)
 
     def focusInEvent(self, a0):
         self.refresh()
         super().focusInEvent(a0)
-
-    def mouseMoveEvent(self, a0: QMouseEvent | None):
-        if a0 and self._hovered:
-            section = self._section_at(a0.pos())
-            if section != self._hover_section:
-                self._hover_section = section
-                self._update_tooltip()
-                self.update()
-        super().mouseMoveEvent(a0)
-
-    def _update_tooltip(self):
-        if not self.control.is_supported:
-            text = self.control.error_text
-        else:
-            tooltips = {
-                "mode": _("Select control layer content"),
-                "remove": _("Stop using this layer for control (does not remove the layer)"),
-                "layer": _("Select a different layer as input"),
-                "generate": _("Generate new {mode} layer from visible canvas").format(
-                    mode=self.control.mode.text
-                ),
-                "advanced": _("Open advanced options to configure strength and step range"),
-            }
-            text = tooltips.get(self._hover_section, "")
-        self.owner.list_widget.show_tooltip(self, text)
 
     def mouseReleaseEvent(self, a0: QMouseEvent | None):
         if not a0 or a0.button() is not Qt.MouseButton.LeftButton:
             return super().mouseReleaseEvent(a0)
         if self.control.has_active_job:
             return
-        section = self._section_at(a0.pos())
-        if section == "mode":
-            self.owner.show_mode_menu(self.mapToGlobal(a0.pos()))
-        elif section == "remove":
-            self.owner.remove()
-        elif section == "layer":
-            self.owner.show_layer_menu(self.mapToGlobal(a0.pos()))
-        elif section == "generate" and self.control.is_supported and self.control.can_generate:
-            self.control.generate()
-        elif section == "advanced" and self.control.is_supported:
+        if self.rect().contains(a0.pos()) and self.control.is_supported:
             self.owner.list_widget.toggle_advanced(self.owner)
         super().mouseReleaseEvent(a0)
 
@@ -511,7 +445,7 @@ class ControlWidget(QWidget):
         self.preset_slider.setTickInterval(1)
         self.preset_slider.setTickPosition(QSlider.TickPosition.TicksBothSides)
         self.preset_slider.setFixedHeight(CONTROL_HEIGHT)
-        self.preset_slider.installEventFilter(self)
+        self.preset_slider.setToolTip(_("Guidance strength of the control image"))
         self.preset_slider.valueChanged.connect(self._set_preset)
 
         layout = QVBoxLayout(self)
@@ -530,6 +464,7 @@ class ControlWidget(QWidget):
             control.has_active_job_changed.connect(self._update_job),
             root.active_model.layers.changed.connect(self._layers_changed),
         ]
+        self._update_mode()
         self._update_preset()
         self._update_support()
         self._update_job()
@@ -543,18 +478,7 @@ class ControlWidget(QWidget):
         if self.is_advanced_open:
             self.list_widget.close_advanced()
 
-    def eventFilter(self, a0, a1):
-        if a0 is self.preset_slider and a1:
-            if a1.type() == QEvent.Type.Enter:
-                self.list_widget.show_tooltip(
-                    self.preset_slider, _("Guidance strength of the control image")
-                )
-            elif a1.type() == QEvent.Type.Leave:
-                self.list_widget.clear_tooltip(self.preset_slider)
-        return super().eventFilter(a0, a1)
-
     def remove(self):
-        self.list_widget.clear_tooltip(self.thumbnail)
         self.control_list.remove(self.control)
 
     def show_mode_menu(self, pos: QPoint):
@@ -591,12 +515,11 @@ class ControlWidget(QWidget):
         self.control.layer_id = layer_id
 
     def _set_preset(self, value: int):
+        self.control.use_custom_strength = True
+        self.control.preset_value = max(0, value - 1)
+        self.control.use_custom_strength = False
         if value == 0:
-            self.control.use_custom_strength = True
             self.control.strength = 0
-        else:
-            self.control.preset_value = value - 1
-            self.control.use_custom_strength = False
 
     def _update_preset(self):
         self.preset_slider.blockSignals(True)
@@ -606,15 +529,21 @@ class ControlWidget(QWidget):
         self.thumbnail.update()
 
     def _update_mode(self):
+        self.thumbnail.mode_button.setIcon(theme.icon(f"control-{self.control.mode.name}"))
         self.thumbnail.update()
 
     def _update_support(self):
         self.preset_slider.setEnabled(self.control.is_supported and not self.control.has_active_job)
-        if self.thumbnail.underMouse():
-            self.thumbnail._update_tooltip()
+        self.thumbnail.setToolTip(
+            _("Open advanced options to configure strength and step range")
+            if self.control.is_supported
+            else self.control.error_text
+        )
         self.thumbnail.update()
 
     def _update_job(self):
+        self.thumbnail.mode_button.setVisible(not self.control.has_active_job)
+        self.thumbnail.remove_button.setVisible(not self.control.has_active_job)
         self.preset_slider.setEnabled(self.control.is_supported and not self.control.has_active_job)
         if self.control.has_active_job:
             self.thumbnail.update()
@@ -632,22 +561,12 @@ class ControlListWidget(QWidget):
         self._model = model
         self._widgets: list[ControlWidget] = []
         self._model_connections: list[QMetaObject.Connection] = []
-        self._tooltip_source: QWidget | None = None
         self._advanced_panel: ControlAdvancedPanel | None = None
 
         self._items = QWidget(self)
         self._flow_layout = FlowLayout(self._items)
         self._items.setLayout(self._flow_layout)
         self._items.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Minimum)
-
-        self._tooltip_label = QLabel(self, Qt.WindowType.ToolTip)
-        self._tooltip_label.setAttribute(Qt.WidgetAttribute.WA_ShowWithoutActivating)
-        self._tooltip_label.setAttribute(Qt.WidgetAttribute.WA_TransparentForMouseEvents)
-        self._tooltip_label.setWordWrap(True)
-        self._tooltip_label.setStyleSheet(
-            f"QLabel {{padding: 4px; background: {theme.base}; color: {theme.grey}; border: 1px solid {theme.line};}}"
-        )
-        self._tooltip_label.hide()
 
         self._details_layout = QVBoxLayout()
         self._details_layout.setContentsMargins(0, 0, 0, 0)
@@ -667,8 +586,6 @@ class ControlListWidget(QWidget):
     @model.setter
     def model(self, model: ControlLayerList):
         self.close_advanced()
-        self._tooltip_source = None
-        self._tooltip_label.hide()
         if self._model_connections:
             Binding.disconnect_all(self._model_connections)
         for widget in self._widgets:
@@ -696,42 +613,6 @@ class ControlListWidget(QWidget):
     @property
     def advanced_owner(self):
         return self._advanced_panel.owner if self._advanced_panel else None
-
-    def show_tooltip(self, source: QWidget, text: str):
-        self._tooltip_source = source
-        self._tooltip_label.setText(text)
-        if text:
-            self._position_tooltip()
-            self._tooltip_label.show()
-            self._tooltip_label.raise_()
-        else:
-            self._tooltip_label.hide()
-
-    def clear_tooltip(self, source: QWidget):
-        if self._tooltip_source is source:
-            self._tooltip_source = None
-            self._tooltip_label.hide()
-            self._tooltip_label.clear()
-
-    def _position_tooltip(self):
-        width = self.width()
-        height = self._tooltip_label.heightForWidth(width)
-        pos = self.mapToGlobal(QPoint(0, self._items.geometry().bottom() + 4))
-        self._tooltip_label.setGeometry(pos.x(), pos.y(), width, height)
-
-    def resizeEvent(self, a0):
-        super().resizeEvent(a0)
-        if self._tooltip_label.isVisible():
-            self._position_tooltip()
-
-    def moveEvent(self, a0):
-        super().moveEvent(a0)
-        if self._tooltip_label.isVisible():
-            self._position_tooltip()
-
-    def hideEvent(self, a0):
-        self._tooltip_label.hide()
-        super().hideEvent(a0)
 
     def toggle_advanced(self, owner: ControlWidget):
         if self.advanced_owner is owner:
@@ -768,8 +649,6 @@ class ControlListWidget(QWidget):
 
     def _remove_widget(self, control: ControlLayer):
         widget = next(widget for widget in self._widgets if widget.control is control)
-        if self._tooltip_source in (widget.thumbnail, widget.preset_slider):
-            self.clear_tooltip(self._tooltip_source)
         self._widgets.remove(widget)
         self._flow_layout.takeWidget(widget)
         widget.disconnect_all()
