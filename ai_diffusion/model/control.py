@@ -64,6 +64,7 @@ class ControlLayer(QObject, ObservableProperties):
         self._model = model
         self._index = index
         self._generate_job: jobs.Job | None = None
+        self._error_text_short = ""
         self.layer_id = layer_id
         self.mode = mode
         self._update_is_supported()
@@ -117,6 +118,10 @@ class ControlLayer(QObject, ObservableProperties):
     def index(self, index: int):
         self._index = index
         self._update_is_supported()
+
+    @property
+    def error_text_short(self):
+        return self._error_text_short
 
     def to_api(self, bounds: Bounds | None = None, time: int | None = None):
         layer = self.layer
@@ -215,6 +220,7 @@ class ControlLayer(QObject, ObservableProperties):
                         ResourceKind.clip_vision, Arch.illu, "ip_adapter"
                     )
                     self.error_text = _("The server is missing the ClipVision model") + f" {search}"
+                    self._error_text_short = _("Missing control model")
                     is_supported = False
 
             if self.mode.is_ip_adapter and models.arch.supports_edit:
@@ -225,15 +231,19 @@ class ControlLayer(QObject, ObservableProperties):
                     self.error_text = (
                         _("The server is missing the IP-Adapter model") + f" {self.mode.text}"
                     )
+                    self._error_text_short = _("Missing control model")
                 else:
                     self.error_text = _("Not supported for") + f" {models.arch.value}"
+                    self._error_text_short = _("Not supported")
                 if not client.features.ip_adapter:
                     self.error_text = _("IP-Adapter is not supported by this GPU")
+                    self._error_text_short = _("Not supported")
                 is_supported = False
             elif self.mode.is_control_net and models.arch.supports_edit:
                 is_supported = self.mode.can_substitute_instruction(models.arch)
                 if not is_supported:
                     self.error_text = _("Not supported for") + f" {models.arch.value}"
+                    self._error_text_short = _("Not supported")
             elif self.mode.is_control_net:
                 model = models.find_control(self.mode)
                 self.has_range = model == models.control.find(self.mode, True)
@@ -248,12 +258,15 @@ class ControlLayer(QObject, ObservableProperties):
                         self.error_text = (
                             _("The ControlNet model is not installed") + f" {search_path}"
                         )
+                        self._error_text_short = _("Missing control model")
                     else:
                         self.error_text = _("Not supported for") + f" {models.arch.value}"
+                        self._error_text_short = _("Not supported")
                     is_supported = False
 
             if self._index >= client.features.max_control_layers:
                 self.error_text = _("Too many control layers")
+                self._error_text_short = ""
                 is_supported = False
 
         self.is_supported = is_supported
