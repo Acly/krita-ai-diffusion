@@ -167,12 +167,52 @@ class AddControlButton(QWidget):
         super().mouseReleaseEvent(a0)
 
 
+class CompactButton(QPushButton):
+    def __init__(self, icon: str, text: str, tooltip: str, parent=None):
+        super().__init__(theme.icon(icon), text, parent)
+        self.setToolTip(tooltip)
+        self._text = text
+
+    def set_compact(self, compact: bool):
+        self.setText("" if compact else self._text)
+
+    @property
+    def label(self):
+        return self._text
+
+
+class WarningLabel(QWidget):
+    def __init__(self, parent=None):
+        super().__init__(parent)
+        size = int(1.2 * self.fontMetrics().height())
+        self.icon = QLabel(self)
+        self.icon.setPixmap(theme.icon("warning").pixmap(size, size))
+        self.text = QLabel(self)
+        self.text.setStyleSheet(f"color: {theme.yellow}")
+        layout = QHBoxLayout(self)
+        layout.setContentsMargins(0, 0, 0, 0)
+        layout.setSpacing(3)
+        layout.addWidget(self.icon)
+        layout.addWidget(self.text)
+        self.hide()
+
+    def show_message(self, summary: str, full: str):
+        if summary:
+            self.text.setText(summary)
+            for widget in (self, self.icon, self.text):
+                widget.setToolTip(full)
+        else:
+            self.text.setText(full)
+        self.show()
+
+
 class ControlAdvancedPanel(QFrame):
     def __init__(self, owner: ControlWidget):
         super().__init__(owner.list_widget)
         self.owner = owner
         self.control = owner.control
         self._connections: list[QMetaObject.Connection | Binding] = []
+        self._compact = False
         self.setFrameShape(QFrame.Shape.StyledPanel)
         self.setFrameShadow(QFrame.Shadow.Raised)
         self.setLineWidth(1)
@@ -186,11 +226,7 @@ class ControlAdvancedPanel(QFrame):
             self.mode_combo.addItem(theme.icon(f"control-{mode.name}"), mode.text, mode)
         self.mode_combo.setToolTip(_("Select control layer content"))
 
-        self.remove_button = QToolButton(self)
-        self.remove_button.setIcon(theme.icon("discard"))
-        self.remove_button.setAutoRaise(True)
-        self.remove_button.setToolTip(_("Remove this control layer"))
-        self.remove_button.clicked.connect(owner.remove)
+        self.warning = WarningLabel(self)
 
         close_button = QToolButton(self)
         close_button.setIcon(theme.icon("remove"))
@@ -208,6 +244,11 @@ class ControlAdvancedPanel(QFrame):
         self.generate_regions_button.clicked.connect(self.control.generate_segmentation)
         self.add_pose_button = _create_add_pose_button(self)
         self.add_pose_button.clicked.connect(self._add_pose_character)
+        self._action_buttons = [
+            self.generate_button,
+            self.generate_regions_button,
+            self.add_pose_button,
+        ]
 
         self.strength_slider = QSlider(Qt.Orientation.Horizontal, self)
         self.strength_slider.setRange(0, 75)
@@ -222,7 +263,7 @@ class ControlAdvancedPanel(QFrame):
         mode_layout = QHBoxLayout()
         mode_layout.setSpacing(4)
         mode_layout.addWidget(self.mode_combo)
-        mode_layout.addWidget(self.remove_button)
+        mode_layout.addWidget(self.warning)
         mode_layout.addStretch()
 
         layer_layout = QHBoxLayout()
@@ -234,14 +275,15 @@ class ControlAdvancedPanel(QFrame):
         layer_layout.addStretch()
 
         right = Qt.AlignmentFlag.AlignRight | Qt.AlignmentFlag.AlignVCenter
-        layout = QGridLayout(self)
+        self._grid = layout = QGridLayout(self)
         layout.setContentsMargins(4, 2, 4, 2)
         layout.setHorizontalSpacing(4)
         layout.setVerticalSpacing(2)
         layout.addWidget(QLabel(_("Mode") + ":", self), 0, 0)
         layout.addLayout(mode_layout, 0, 1, 1, 2)
         layout.addWidget(close_button, 0, 3, right)
-        layout.addWidget(QLabel(_("Layer") + ":", self), 1, 0)
+        self.layer_label = QLabel(_("Layer") + ":", self)
+        layout.addWidget(self.layer_label, 1, 0)
         layout.addLayout(layer_layout, 1, 1, 1, 3)
         layout.addWidget(QLabel(_("Strength") + ":", self), 2, 0)
         layout.addWidget(self.strength_slider, 2, 1, 1, 2)
@@ -273,6 +315,7 @@ class ControlAdvancedPanel(QFrame):
             self.control.mode_changed.connect(self._update_visibility),
             self.control.is_pose_vector_changed.connect(self._update_visibility),
             self.control.is_supported_changed.connect(self._update_visibility),
+            self.control.error_text_changed.connect(self._update_visibility),
             self.control.has_active_job_changed.connect(self._job_changed),
         ]
         self._update_layer()
@@ -294,6 +337,26 @@ class ControlAdvancedPanel(QFrame):
             self.layer_button.fontMetrics().elidedText(name, Qt.TextElideMode.ElideRight, 140)
         )
         self.layer_button.setToolTip(_("Select a different layer as input") + f"\n{name}")
+        self._update_compact()
+
+    def resizeEvent(self, a0):
+        super().resizeEvent(a0)
+        self._update_compact()
+
+    def _update_compact(self):
+        if self.control.mode not in (ControlMode.segmentation, ControlMode.pose):
+            return
+        fm = self.fontMetrics()
+        width = 72  # fixed offset
+        width += fm.horizontalAdvance(self.layer_button.text())
+        width += fm.horizontalAdvance(self.layer_label.text())
+        for button in self._action_buttons:
+            width += fm.horizontalAdvance(button.label)
+        compact = self.width() < width
+        if compact != self._compact:
+            self._compact = compact
+            for button in self._action_buttons:
+                button.set_compact(compact)
 
     def _set_strength(self, value: int):
         self.control.use_custom_strength = True
@@ -320,9 +383,16 @@ class ControlAdvancedPanel(QFrame):
         )
 
     def _update_visibility(self):
+        self._update_compact()
         supported = self.control.is_supported
         mode = self.control.mode
+        if supported:
+            self.warning.hide()
+        else:
+            self.warning.show_message(self.control.error_text_short, self.control.error_text)
         self.generate_button.setVisible(mode.has_preprocessor)
+        for button in (self.generate_regions_button, self.add_pose_button):
+            button.setVisible(False)  # Hide first to avoid order-dependent panel resizing
         self.generate_regions_button.setVisible(mode is ControlMode.segmentation)
         self.add_pose_button.setVisible(mode is ControlMode.pose)
         for button in (self.generate_button, self.generate_regions_button, self.add_pose_button):
@@ -719,18 +789,21 @@ class ControlListWidget(QWidget):
 
 
 def _create_generate_button(parent):
-    button = QPushButton(theme.icon("control-generate"), _("From Image"), parent)
-    button.setToolTip(_("Generate control layer from current image"))
-    return button
+    return CompactButton(
+        "control-generate", _("From Image"), _("Generate control layer from current image"), parent
+    )
 
 
 def _create_generate_regions_button(parent):
-    button = QPushButton(theme.icon("region-prompt"), _("From Regions"), parent)
-    button.setToolTip(_("Generate segmentation control layer from current regions"))
-    return button
+    return CompactButton(
+        "region-prompt",
+        _("From Regions"),
+        _("Generate segmentation control layer from current regions"),
+        parent,
+    )
 
 
 def _create_add_pose_button(parent):
-    button = QPushButton(theme.icon("add-pose"), _("Add Skeleton"), parent)
-    button.setToolTip(_("Add new character pose to selected layer"))
-    return button
+    return CompactButton(
+        "add-pose", _("Add Skeleton"), _("Add new character pose to selected layer"), parent
+    )
