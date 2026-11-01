@@ -238,7 +238,9 @@ class IntervalSlider(QWidget):
         # Draw interval
         # Interval has an arbitrary width of 4; I don't know how to get the
         # actual groove thickness.
-        color = self.palette().color(QPalette.ColorRole.Highlight)
+        group = self.opt.state & QStyle.StateFlag.State_Enabled
+        color_group = QPalette.ColorGroup.Active if group else QPalette.ColorGroup.Disabled
+        color = self.palette().color(color_group, QPalette.ColorRole.Highlight)
         painter.setBrush(QBrush(color))
         painter.setPen(Qt.PenStyle.NoPen)
 
