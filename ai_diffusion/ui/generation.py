@@ -18,6 +18,7 @@ from PyQt6.QtWidgets import (
     QCheckBox,
     QComboBox,
     QDoubleSpinBox,
+    QFrame,
     QGridLayout,
     QHBoxLayout,
     QLabel,
@@ -361,24 +362,11 @@ class GenerationWidget(QWidget):
 
         self.generate_button = GenerateButton(JobKind.diffusion, self)
 
-        self.inpaint_mode_button = QToolButton(self)
-        self.inpaint_mode_button.setArrowType(Qt.ArrowType.DownArrow)
-        self.inpaint_mode_button.setFixedHeight(self.generate_button.minimumSizeHint().height() - 3)
-        self.inpaint_mode_button.clicked.connect(self.show_inpaint_menu)
-        self.generate_menu = self._create_generate_menu()
-        self.inpaint_menu = self._create_inpaint_menu()
-        self.refine_menu = self._create_refine_menu()
-        self.refine_selection_menu = self._create_refine_selection_menu()
-        self.generate_region_menu = self._create_generate_region_menu()
-        self.refine_region_menu = self._create_refine_region_menu()
-        self.edit_menu = self._create_edit_menu()
-
         self.strength_slider = StrengthWidget()
 
         generate_layout = QHBoxLayout()
         generate_layout.setSpacing(0)
         generate_layout.addWidget(self.generate_button)
-        generate_layout.addWidget(self.inpaint_mode_button)
 
         actions_layout = QVBoxLayout()
         actions_layout.addLayout(generate_layout)
@@ -398,16 +386,48 @@ class GenerationWidget(QWidget):
         self.preview_reel = PreviewReel(self)
         layout.addWidget(self.preview_reel)
 
-        self.region_prompt = RegionPromptWidget(self)
-        layout.addWidget(self.region_prompt)
+        self.mode_area = QFrame(self)
+        mode_layout = QVBoxLayout(self.mode_area)
+        mode_layout.setContentsMargins(0, 0, 0, 0)
+        mode_layout.setSpacing(0)
+        header = QHBoxLayout()
+        header.setContentsMargins(0, 0, 0, 0)
+        header.setSpacing(0)
+        mode_layout.addLayout(header)
+        self.prompt_frame = QFrame(self.mode_area)
+        self.prompt_frame.setObjectName("GenerationPromptFrame")
+        prompt_layout = QVBoxLayout(self.prompt_frame)
+        prompt_layout.setContentsMargins(0, 0, 0, 0)
+        prompt_layout.setSpacing(0)
+        self.region_prompt = RegionPromptWidget(self.prompt_frame)
+        prompt_layout.addWidget(self.region_prompt)
+        mode_layout.addWidget(self.prompt_frame)
+        layout.addWidget(self.mode_area)
 
         self.layer_count_widget = LayerCountWidget(self)
         self.layer_count_widget.setVisible(False)
-        self.add_region_button = create_wide_tool_button("region-add", _("Add Region"), self)
-        misc_layout = QHBoxLayout()
-        misc_layout.addWidget(self.layer_count_widget)
-        misc_layout.addWidget(self.add_region_button)
-        layout.addLayout(misc_layout)
+        layout.addWidget(self.layer_count_widget)
+
+        self.mode_button = QToolButton(self.mode_area)
+        self.mode_button.setAutoRaise(True)
+        self.mode_button.setToolButtonStyle(Qt.ToolButtonStyle.ToolButtonTextBesideIcon)
+        self.mode_button.setIcon(theme.icon("generation-mode"))
+        self.mode_button.setToolTip(_("Toggle between Generate and Edit"))
+        self.mode_button.clicked.connect(self.toggle_edit_mode)
+        self.mode_menu_button = QToolButton(self.mode_area)
+        self.mode_menu_button.setAutoRaise(True)
+        self.mode_menu_button.setArrowType(Qt.ArrowType.DownArrow)
+        self.mode_menu_button.setToolTip(_("Generation mode"))
+        self.mode_menu_button.clicked.connect(self.show_inpaint_menu)
+        self.inpaint_menu = self._create_inpaint_menu()
+        self.add_region_button = create_wide_tool_button(
+            "region-add", _("Add Region"), self.mode_area
+        )
+        self.add_region_button.setAutoRaise(True)
+        header.addWidget(self.mode_button)
+        header.addWidget(self.mode_menu_button)
+        header.addStretch()
+        header.addWidget(self.add_region_button)
 
         self.advanced_settings = AdvancedSettingsWidget(self)
         layout.addWidget(self.advanced_settings)
@@ -470,14 +490,6 @@ class GenerationWidget(QWidget):
         action.triggered.connect(lambda: self.change_inpaint_mode(mode, is_edit))
         return action
 
-    def _create_generate_menu(self):
-        menu = QMenu(self)
-        menu.addAction(
-            self._mk_action(InpaintMode.automatic, _("Generate"), "workspace-generation")
-        )
-        menu.addAction(self._mk_action(InpaintMode.automatic, _("Edit"), "edit", is_edit=True))
-        return menu
-
     def _create_inpaint_menu(self):
         menu = QMenu(self)
 
@@ -485,88 +497,22 @@ class GenerationWidget(QWidget):
             text = text or self._inpaint_text[mode]
             menu.addAction(self._mk_action(mode, text, icon, is_edit))
 
-        add(InpaintMode.automatic, "", "inpaint-automatic")
+        add(InpaintMode.automatic, _("Generate"), "inpaint-automatic")
         add(InpaintMode.fill, "", "inpaint-fill")
         add(InpaintMode.expand, "", "inpaint-expand")
         add(InpaintMode.add_object, "", "inpaint-add_object")
         add(InpaintMode.remove_object, "", "inpaint-remove_object")
         add(InpaintMode.replace_background, "", "inpaint-replace_background")
         add(InpaintMode.add_object, _("Edit"), "edit", is_edit=True)
-        add(InpaintMode.custom, "", "inpaint-custom", is_edit=None)
-        return menu
-
-    def _create_generate_region_menu(self):
-        menu = QMenu(self)
-        menu.addAction(
-            self._mk_action(InpaintMode.automatic, _("Generate Region"), "generate-region")
-        )
-        menu.addAction(
-            self._mk_action(
-                InpaintMode.custom, _("Generate Region (Custom)"), "inpaint-custom", is_edit=None
-            )
-        )
-        return menu
-
-    def _create_refine_menu(self):
-        menu = QMenu(self)
-        menu.addAction(self._mk_action(InpaintMode.automatic, _("Refine"), "refine"))
-        menu.addAction(self._mk_action(InpaintMode.automatic, _("Edit"), "edit", is_edit=True))
-        return menu
-
-    def _create_refine_selection_menu(self):
-        menu = QMenu(self)
-        menu.addAction(self._mk_action(InpaintMode.automatic, _("Refine"), "refine"))
-        menu.addAction(self._mk_action(InpaintMode.automatic, _("Edit"), "edit", is_edit=True))
-        menu.addAction(
-            self._mk_action(
-                InpaintMode.custom, _("Refine (Custom)"), "inpaint-custom", is_edit=None
-            )
-        )
-        return menu
-
-    def _create_refine_region_menu(self):
-        menu = QMenu(self)
-        menu.addAction(self._mk_action(InpaintMode.automatic, _("Refine Region"), "refine-region"))
-        menu.addAction(
-            self._mk_action(InpaintMode.custom, _("Refine Region (Custom)"), "inpaint-custom")
-        )
-        return menu
-
-    def _create_edit_menu(self):
-        menu = QMenu(self)
-        menu.addAction(self._mk_action(InpaintMode.automatic, _("Edit"), "edit"))
-        menu.addAction(self._mk_action(InpaintMode.custom, _("Edit (Custom)"), "inpaint-custom"))
         return menu
 
     def show_inpaint_menu(self):
-        width = self.generate_button.width() + self.inpaint_mode_button.width()
-        pos = QPoint(0, self.generate_button.height())
-        has_selection = (
-            self.model.mask_source is MaskSource.selection
-            and self.model.document.selection_bounds is not None
-        )
-        if not self.model.edit_mode and self.model.arch.is_edit:
-            menu = self.edit_menu
-        elif is_one(self.model.strength):
-            if self.model.mask_source is MaskSource.region:
-                menu = self.generate_region_menu
-            elif has_selection:
-                menu = self.inpaint_menu
-                menu.actions()[-2].setEnabled(self.model.can_edit)
-            else:
-                menu = self.generate_menu
-        else:
-            if self.model.mask_source is MaskSource.region:
-                menu = self.refine_region_menu
-            elif has_selection:
-                menu = self.refine_selection_menu
-                menu.actions()[1].setEnabled(self.model.can_edit)
-            else:
-                menu = self.refine_menu
-                menu.actions()[1].setEnabled(self.model.can_edit)
+        pos = QPoint(0, self.mode_button.height())
+        self.inpaint_menu.exec(self.mode_button.mapToGlobal(pos))
 
-        menu.setFixedWidth(width)
-        menu.exec(self.generate_button.mapToGlobal(pos))
+    def toggle_edit_mode(self):
+        if self.model.can_toggle_edit:
+            self.model.edit_mode = not self.model.edit_mode
 
     def change_inpaint_mode(self, mode: InpaintMode, is_edit: bool | None):
         self.model.inpaint.mode = mode
@@ -599,7 +545,6 @@ class GenerationWidget(QWidget):
             and self.model.document.selection_bounds is not None
         )
         if not has_selection and not is_region_only:
-            self.inpaint_mode_button.setVisible(self.model.can_toggle_edit)
             if is_edit:
                 icon = "edit"
                 text = _("Edit")
@@ -610,7 +555,6 @@ class GenerationWidget(QWidget):
                 icon = "refine"
                 text = _("Refine")
         else:
-            self.inpaint_mode_button.setVisible(True)
             mode = self.model.resolve_inpaint_mode()
             text = _("Generate")
             if is_edit:
@@ -644,3 +588,38 @@ class GenerationWidget(QWidget):
 
         self.generate_button.operation = text
         self.generate_button.setIcon(theme.icon(icon))
+
+        actions = self.inpaint_menu.actions()
+        for action in actions[1:-1]:
+            action.setEnabled(has_selection)
+        actions[-1].setEnabled(self.model.can_edit)
+
+        mode_text = _("Generate")
+        color = theme.mode_generate
+        if self.model.edit_mode or self.model.arch.is_edit:
+            mode_text = _("Edit")
+            color = theme.mode_edit
+        elif has_selection and is_one(self.model.strength):
+            mode_text = self._inpaint_text[self.model.resolve_inpaint_mode()]
+            color = theme.mode_inpaint
+        self.prompt_frame.setStyleSheet(
+            f"QFrame#GenerationPromptFrame {{ border: 1px solid {color}; }}"
+        )
+        self.region_prompt.set_focus_color(QColor(color).lighter(115).name())
+        self.mode_button.setText(mode_text)
+        self.mode_button.setEnabled(self.model.can_toggle_edit)
+        for button, corners, padding in (
+            (self.mode_button, "border-top-left-radius: 3px;", "2px 5px"),
+            (self.mode_menu_button, "border-top-right-radius: 3px;", "2px"),
+        ):
+            button.setStyleSheet(
+                f"QToolButton {{ background: {color}; color: #202020; border: none;"
+                f"padding: {padding}; {corners} }}"
+                "QToolButton:hover { background: " + QColor(color).lighter(115).name() + "; }"
+            )
+        size = self.mode_button.sizeHint()
+        for action in actions:
+            self.mode_button.setText(action.text())
+            size = size.expandedTo(self.mode_button.sizeHint())
+        self.mode_button.setText(mode_text)
+        self.mode_button.setFixedSize(size)
