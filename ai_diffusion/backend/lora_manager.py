@@ -742,6 +742,22 @@ async def start_download(
         payload["model_root"] = model_root
         payload["relative_path"] = relative_path
     try:
+        from . import civitai
+
+        synced = await requests.post(
+            f"{base}/api/lm/settings",
+            {
+                "civitai_api_key": settings.civitai_api_key.strip(),
+                "civitai_host": urlparse(civitai.api_url()).hostname,
+            },
+        )
+        if isinstance(synced, (bytes, bytearray)):
+            synced = json.loads(synced)
+        if not isinstance(synced, dict) or not synced.get("success"):
+            return {
+                "success": False,
+                "error": "Could not configure CivitAI credentials on the managed server.",
+            }
         # no timeout: the request stays open for the whole (potentially long) transfer
         result = await requests.post(f"{base}/api/lm/download-model", payload)
         if isinstance(result, (bytes, bytearray)):

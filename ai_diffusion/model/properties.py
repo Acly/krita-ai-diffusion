@@ -3,6 +3,7 @@ from copy import copy
 from enum import Enum
 from typing import Any, Generic, NamedTuple, TypeVar
 
+from PyQt5 import sip
 from PyQt5.QtCore import QMetaObject, QObject, QUuid, pyqtBoundSignal
 from PyQt5.QtWidgets import QComboBox
 
@@ -154,6 +155,8 @@ def _signal(inst, property: str) -> pyqtBoundSignal:
 
 def _setter(inst, property: str):
     def set_py(value):
+        if isinstance(inst, QObject) and sip.isdeleted(inst):
+            return
         setattr(inst, property, value)
 
     qt_setter_name = f"set{property.capitalize()}"

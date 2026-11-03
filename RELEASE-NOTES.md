@@ -1,4 +1,4 @@
-# 1.53.0-reloaded.5 — Unofficial Combined Build
+# 1.53.0-reloaded.6 — Unofficial Combined Build
 
 An independent community build by **Teutonick**, combining **Acly's Krita AI Diffusion
 1.53.0** with **FatGuy84's Krita AI Reloaded** and Krea 2 Edit V2 integration.
@@ -7,9 +7,9 @@ endorsed by their authors.
 
 ## Download
 
-- [Installable plugin ZIP](https://github.com/Teutonick/krita-ai-diffusion/releases/download/v1.53.0-reloaded.5/krita_ai_diffusion-1.53.0-reloaded.5.zip)
-- [Exact corresponding source](https://github.com/Teutonick/krita-ai-diffusion/releases/download/v1.53.0-reloaded.5/krita_ai_diffusion-1.53.0-reloaded.5-source.zip)
-- [SHA-256 checksums](https://github.com/Teutonick/krita-ai-diffusion/releases/download/v1.53.0-reloaded.5/SHA256SUMS-1.53.0-reloaded.5.txt)
+- [Installable plugin ZIP](https://github.com/Teutonick/krita-ai-diffusion/releases/download/v1.53.0-reloaded.6/krita_ai_diffusion-1.53.0-reloaded.6.zip)
+- [Exact corresponding source](https://github.com/Teutonick/krita-ai-diffusion/releases/download/v1.53.0-reloaded.6/krita_ai_diffusion-1.53.0-reloaded.6-source.zip)
+- [SHA-256 checksums](https://github.com/Teutonick/krita-ai-diffusion/releases/download/v1.53.0-reloaded.6/SHA256SUMS-1.53.0-reloaded.6.txt)
 
 Import the plugin ZIP through **Tools → Scripts → Import Python Plugin from File**,
 then fully restart Krita. Configure workloads and optional components in Managed Server.
@@ -25,6 +25,10 @@ then fully restart Krita. Configure workloads and optional components in Managed
 - Session-based media storage and startup cleanup of abandoned plugin-owned sessions.
 
 ## Fixes in this build
+
+- Late Python-property bindings ignore deleted Qt receivers during application shutdown.
+- Settings descriptions wrap and participate in Qt height-for-width layout; controls stay visible on narrower settings pages.
+- Before each managed CivitAI model download, the plugin synchronizes its current API key and selected host with LoRA Manager. A failed synchronization stops the download with an explicit error.
 
 - Preserve the required empty `preview_url` metadata field: LoRA Manager no longer rejects restored models after a restart.
 - Always supplement the manager library with ComfyUI's actual LoRA file list, including models with missing metadata.

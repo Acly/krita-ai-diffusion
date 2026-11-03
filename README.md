@@ -17,7 +17,7 @@ changes in settings, and a policy for temporary media storage.
 
 ## Install once, choose your components
 
-1. Download `krita_ai_diffusion-1.53.0-reloaded.5.zip` from this fork's release assets.
+1. Download `krita_ai_diffusion-1.53.0-reloaded.6.zip` from this fork's release assets.
 2. In Krita, choose **Tools → Scripts → Import Python Plugin from File**.
 3. Restart Krita and enable the plugin if prompted.
 4. Open the plugin settings, choose **Managed Server**, and select your workloads.
@@ -80,8 +80,8 @@ document autosave and backup settings continue to apply.
 
 Each release includes both:
 
-- **Installable plugin:** `krita_ai_diffusion-1.53.0-reloaded.5.zip`
-- **Corresponding source:** `krita_ai_diffusion-1.53.0-reloaded.5-source.zip`
+- **Installable plugin:** `krita_ai_diffusion-1.53.0-reloaded.6.zip`
+- **Corresponding source:** `krita_ai_diffusion-1.53.0-reloaded.6-source.zip`
 
 The source snapshot includes the modified code, bundled dependency sources, license
 notices and build scripts. `SOURCE-MANIFEST.json` records SHA-256 hashes of the snapshot's

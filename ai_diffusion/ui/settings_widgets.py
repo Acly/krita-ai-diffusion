@@ -119,7 +119,11 @@ class SettingWidget(QWidget):
         super().__init__(parent)
 
         self._key_label = QLabel(f"<b>{setting.name}</b><br>{setting.desc}")
-        self._key_label.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Preferred)
+        self._key_label.setWordWrap(True)
+        self._key_label.setMinimumWidth(0)
+        label_policy = QSizePolicy(QSizePolicy.Expanding, QSizePolicy.Preferred)
+        label_policy.setHeightForWidth(True)
+        self._key_label.setSizePolicy(label_policy)
 
         self._checkbox: QCheckBox | None = None
         self._widget: QWidget | None = None
@@ -128,8 +132,7 @@ class SettingWidget(QWidget):
         self._show_label = True
         self._layout = QHBoxLayout()
         self._layout.setContentsMargins(0, 0, 0, 0)
-        self._layout.addWidget(self._key_label)
-        self._layout.addStretch(1)
+        self._layout.addWidget(self._key_label, 1)
         self.setLayout(self._layout)
         self._set_margins()
 

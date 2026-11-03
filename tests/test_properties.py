@@ -1,6 +1,7 @@
 from enum import Enum
 
 import pytest
+from PyQt5 import sip
 from PyQt5.QtCore import QObject, pyqtSignal
 
 from ai_diffusion.model.properties import (
@@ -224,3 +225,15 @@ def test_modified():
     a.inty = 5
     a.not_persistent = 5
     assert called == [(a, "inty")]
+
+
+def test_binding_ignores_deleted_qobject():
+    model = ObjectWithProperties()
+    widget = ObjectWithProperties()
+    binding = bind(model, "inty", widget, "inty")
+    model.inty = 4
+    assert widget.inty == 4
+    sip.delete(widget)
+    model.inty = 5
+    assert model.inty == 5
+    QObject.disconnect(binding.model_connection)
