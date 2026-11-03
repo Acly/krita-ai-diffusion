@@ -3,13 +3,15 @@ document annotations and the plugin's settings.json file."""
 
 from __future__ import annotations
 
+import json
 from pathlib import Path
 
 import pytest
 from krita import Document as MockKritaDocument
 from krita import Krita
+from PyQt6.QtCore import QByteArray
 
-from ai_diffusion.backend.api import FillMode, InpaintMode
+from ai_diffusion.backend.api import InpaintMode
 from ai_diffusion.document import KritaDocument
 from ai_diffusion.image import Bounds, Extent, Image, ImageCollection
 from ai_diffusion.model.connection import Connection
@@ -83,9 +85,7 @@ def test_recently_used(workflows_dir: Path, tmp_path: Path):
         model1.batch_count = 4
         model1.translation_enabled = False
         model1.inpaint.mode = InpaintMode.fill
-        model1.inpaint.fill = FillMode.blur
         model1.inpaint.use_inpaint = False
-        model1.inpaint.use_prompt_focus = True
         model1.inpaint.context = InpaintContext.entire_image
         model1.upscale.upscaler = "RealESRGAN_x4plus.pth"
 
@@ -99,9 +99,7 @@ def test_recently_used(workflows_dir: Path, tmp_path: Path):
         assert model2.batch_count == 4
         assert model2.translation_enabled is False
         assert model2.inpaint.mode is InpaintMode.fill
-        assert model2.inpaint.fill is FillMode.blur
         assert model2.inpaint.use_inpaint is False
-        assert model2.inpaint.use_prompt_focus is True
         assert model2.inpaint.context is InpaintContext.entire_image
         assert model2.upscale.upscaler == "RealESRGAN_x4plus.pth"
     finally:
@@ -112,6 +110,34 @@ def test_recently_used(workflows_dir: Path, tmp_path: Path):
 # ---------------------------------------------------------------------------
 # test_sync
 # ---------------------------------------------------------------------------
+
+
+@qtapp
+async def test_load_legacy_document(workflows_dir: Path):
+    """Documents saved before custom inpaint mode, fill mode and prompt focus were removed
+    still load correctly."""
+    krita_doc = Krita.instance().openDocument("test")
+    legacy_state = {
+        "version": 1,
+        "batch_count": 3,
+        "inpaint": {
+            "mode": 6,  # InpaintMode.custom, removed in v2.0
+            "fill": 2,  # FillMode.blur, removed as custom setting in v2.0
+            "use_inpaint": False,
+            "use_prompt_focus": True,  # removed in v2.0
+            "context": InpaintContext.entire_image.value,
+        },
+    }
+    annotation = QByteArray(json.dumps(legacy_state).encode())
+    krita_doc.setAnnotation("ai_diffusion/ui.json", "AI Diffusion Plugin: ui.json", annotation)
+
+    model = _make_model(krita_doc, workflows_dir)
+    _sync = ModelSync(model)
+
+    assert model.batch_count == 3
+    assert model.inpaint.mode is InpaintMode.automatic
+    assert model.inpaint.use_inpaint is False
+    assert model.inpaint.context is InpaintContext.entire_image
 
 
 @qtapp
@@ -133,9 +159,7 @@ async def test_sync(workflows_dir: Path):
     model1.regions.positive = "a majestic mountain"
     model1.regions.negative = "blurry"
     model1.inpaint.mode = InpaintMode.fill
-    model1.inpaint.fill = FillMode.blur
     model1.inpaint.use_inpaint = False
-    model1.inpaint.use_prompt_focus = True
     model1.live.strength = 0.55
     model1.upscale.upscaler = "4x-UltraSharp.pt"
     model1.upscale.strength = 0.42
@@ -163,9 +187,7 @@ async def test_sync(workflows_dir: Path):
     assert model2.regions.positive == model1.regions.positive
     assert model2.regions.negative == model1.regions.negative
     assert model2.inpaint.mode is model1.inpaint.mode
-    assert model2.inpaint.fill is model1.inpaint.fill
     assert model2.inpaint.use_inpaint == model1.inpaint.use_inpaint
-    assert model2.inpaint.use_prompt_focus == model1.inpaint.use_prompt_focus
     assert model2.live.strength == pytest.approx(model1.live.strength)
     assert model2.upscale.upscaler == model1.upscale.upscaler
     assert model2.upscale.strength == pytest.approx(model1.upscale.strength)

@@ -22,7 +22,6 @@ from ..backend.api import (
     ConditioningInput,
     ControlInput,
     CustomWorkflowInput,
-    FillMode,
     ImageInput,
     InpaintContext,
     InpaintMode,
@@ -1098,16 +1097,12 @@ class DocumentModel(QObject, ObservableProperties):
 
 class CustomInpaint(QObject, ObservableProperties):
     mode = Property(InpaintMode.automatic, persist=True)
-    fill = Property(FillMode.neutral, persist=True)
     use_inpaint = Property[bool | None](None, persist=True)
-    use_prompt_focus = Property(False, persist=True)
     context = Property(InpaintContext.automatic, persist=True)
     context_layer_id = Property(QUuid(), persist=True)
 
     mode_changed = pyqtSignal(InpaintMode)
-    fill_changed = pyqtSignal(FillMode)
     use_inpaint_changed = pyqtSignal(object)
-    use_prompt_focus_changed = pyqtSignal(bool)
     context_changed = pyqtSignal(InpaintContext)
     context_layer_id_changed = pyqtSignal(QUuid)
     modified = pyqtSignal(QObject, str)
@@ -1116,8 +1111,6 @@ class CustomInpaint(QObject, ObservableProperties):
         params = copy(params)
         if self.use_inpaint is not None:
             params.use_inpaint_model = self.use_inpaint
-        if self.mode is InpaintMode.custom:
-            params.fill = self.fill
         return params
 
     def get_context(self, model: DocumentModel, mask_bounds: Bounds | None):

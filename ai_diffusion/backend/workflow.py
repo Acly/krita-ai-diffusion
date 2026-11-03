@@ -985,7 +985,6 @@ def detect_inpaint(
     elif arch in (Arch.flux, Arch.zimage, Arch.anima):
         result.use_inpaint_model = strength > 0.99
     elif arch.is_edit:
-        result.mode = InpaintMode.custom
         result.fill = FillMode.none
     return result
 

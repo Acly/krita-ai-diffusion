@@ -230,6 +230,9 @@ def test_inpaint_params():
     g = detect_inpaint(InpaintMode.fill, bounds, Arch.anima, no_cond, 1.0)
     assert g.fill is FillMode.blur and g.use_inpaint_model
 
+    h = detect_inpaint(InpaintMode.fill, bounds, Arch.flux_k, no_cond, 1.0)
+    assert h.fill is FillMode.none
+
 
 def test_anima_lllite_control_workflow():
     w = ComfyWorkflow()
