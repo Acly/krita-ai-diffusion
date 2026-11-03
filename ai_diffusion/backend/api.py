@@ -121,7 +121,6 @@ class InpaintMode(Enum):
     add_object = 3
     remove_object = 4
     replace_background = 5
-    custom = 6
 
 
 class InpaintContext(Enum):

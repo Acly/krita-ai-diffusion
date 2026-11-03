@@ -7,7 +7,6 @@ from PyQt6.QtCore import (
     QMetaObject,
     QPoint,
     Qt,
-    QUuid,
 )
 from PyQt6.QtGui import (
     QAction,
@@ -30,9 +29,8 @@ from PyQt6.QtWidgets import (
     QWidget,
 )
 
-from ..backend.api import InpaintContext
 from ..backend.resources import Arch
-from ..backend.workflow import FillMode, InpaintMode
+from ..backend.workflow import InpaintMode
 from ..localization import translate as _
 from ..model.jobs import JobKind
 from ..model.model import DocumentModel, MaskSource, ProgressKind, QueueMode
@@ -54,125 +52,6 @@ from .widget import (
     WorkspaceSelectWidget,
     create_wide_tool_button,
 )
-
-
-class CustomInpaintWidget(QWidget):
-    _model: DocumentModel
-    _model_bindings: list[QMetaObject.Connection | Binding]
-
-    def __init__(self, parent: QWidget):
-        super().__init__(parent)
-        self._model = root.active_model
-        self._model_bindings = []
-
-        self.use_prompt_focus_button = QCheckBox(self)
-        self.use_prompt_focus_button.setText(_("Focus"))
-        self.use_prompt_focus_button.setToolTip(
-            _(
-                "Use the text prompt to describe the selected region rather than the context area / Use only one regional prompt"
-            )
-        )
-
-        self.edit_mode_switch = QCheckBox(self)
-        self.edit_mode_switch.setText(_("Edit"))
-        self.edit_mode_switch.setToolTip(_("Edit canvas with text instructions"))
-
-        self.fill_mode_combo = QComboBox(self)
-        fill_icon = theme.icon("fill")
-        self.fill_mode_combo.addItem(theme.icon("fill-empty"), _("None"), FillMode.none)
-        self.fill_mode_combo.addItem(fill_icon, _("Neutral"), FillMode.neutral)
-        self.fill_mode_combo.addItem(fill_icon, _("Blur"), FillMode.blur)
-        self.fill_mode_combo.addItem(fill_icon, _("Border"), FillMode.border)
-        self.fill_mode_combo.addItem(fill_icon, _("Inpaint"), FillMode.inpaint)
-        self.fill_mode_combo.setStyleSheet(theme.flat_combo_stylesheet)
-        self.fill_mode_combo.setToolTip(_("Pre-fill the selected region before diffusion"))
-
-        def ctx_icon(name):
-            return theme.icon(f"context-{name}")
-
-        self.context_combo = QComboBox(self)
-        self.context_combo.addItem(
-            ctx_icon("automatic"), _("Automatic Context"), InpaintContext.automatic
-        )
-        self.context_combo.addItem(
-            ctx_icon("mask"), _("Selection Bounds"), InpaintContext.mask_bounds
-        )
-        self.context_combo.addItem(
-            ctx_icon("image"), _("Entire Image"), InpaintContext.entire_image
-        )
-        self.context_combo.setStyleSheet(theme.flat_combo_stylesheet)
-        self.context_combo.setToolTip(
-            _("Part of the image around the selection which is used as context.")
-        )
-        self.context_combo.setMinimumContentsLength(20)
-        self.context_combo.setSizeAdjustPolicy(
-            QComboBox.SizeAdjustPolicy.AdjustToMinimumContentsLengthWithIcon
-        )
-        self.context_combo.currentIndexChanged.connect(self.set_context)
-
-        layout = QHBoxLayout(self)
-        layout.setContentsMargins(0, 0, 0, 0)
-        layout.addWidget(self.use_prompt_focus_button)
-        layout.addWidget(self.edit_mode_switch)
-        layout.addWidget(self.fill_mode_combo, 1)
-        layout.addWidget(self.context_combo, 1)
-        self.setLayout(layout)
-
-    @property
-    def model(self):
-        return self._model
-
-    @model.setter
-    def model(self, model: DocumentModel):
-        if self._model != model:
-            Binding.disconnect_all(self._model_bindings)
-            self._model = model
-            self._model_bindings = [
-                bind_combo(model.inpaint, "fill", self.fill_mode_combo),
-                bind_toggle(model.inpaint, "use_prompt_focus", self.use_prompt_focus_button),
-                bind_toggle(model, "edit_mode", self.edit_mode_switch),
-                model.style_changed.connect(self.update_widgets_enabled),
-                model.strength_changed.connect(self.update_widgets_enabled),
-                model.layers.changed.connect(self.update_context_layers),
-                model.edit_mode_changed.connect(self.update_widgets_enabled),
-            ]
-            self.update_widgets_enabled()
-            self.update_context_layers()
-            self.update_context()
-
-    def update_widgets_enabled(self):
-        arch = self._model.arch
-        self.fill_mode_combo.setEnabled(is_one(self.model.strength) and not self.model.is_editing)
-        self.use_prompt_focus_button.setVisible(arch is Arch.sd15 or arch.is_sdxl_like)
-        self.edit_mode_switch.setEnabled(self.model.can_toggle_edit)
-
-    def update_context_layers(self):
-        current = self.context_combo.currentData()
-        with theme.SignalBlocker(self.context_combo):
-            while self.context_combo.count() > 3:
-                self.context_combo.removeItem(self.context_combo.count() - 1)
-            icon = theme.icon("context-layer")
-            for layer in self._model.layers.masks:
-                self.context_combo.addItem(icon, f"{layer.name}", layer.id)
-        current_index = self.context_combo.findData(current)
-        if current_index >= 0:
-            self.context_combo.setCurrentIndex(current_index)
-
-    def update_context(self):
-        if self._model.inpaint.context == InpaintContext.layer_bounds:
-            i = self.context_combo.findData(self._model.inpaint.context_layer_id)
-            self.context_combo.setCurrentIndex(i)
-        else:
-            i = self.context_combo.findData(self._model.inpaint.context)
-            self.context_combo.setCurrentIndex(i)
-
-    def set_context(self):
-        data = self.context_combo.currentData()
-        if isinstance(data, QUuid):
-            self._model.inpaint.context = InpaintContext.layer_bounds
-            self._model.inpaint.context_layer_id = data
-        elif isinstance(data, InpaintContext):
-            self._model.inpaint.context = data
 
 
 class ProgressBar(QProgressBar):
@@ -480,7 +359,6 @@ class GenerationWidget(QWidget):
         InpaintMode.add_object: _("Add Content"),
         InpaintMode.remove_object: _("Remove Content"),
         InpaintMode.replace_background: _("Replace Background"),
-        InpaintMode.custom: _("Generate (Custom)"),
     }
 
     def _mk_action(self, mode: InpaintMode, text: str, icon: str, is_edit: bool | None = False):
@@ -563,28 +441,19 @@ class GenerationWidget(QWidget):
                 text = _("Refine")
             if is_region_only:
                 text += " " + _("Region")
-            if mode is InpaintMode.custom:
-                text += " " + _("(Custom)")
             if is_one(self.model.strength) and not is_edit:
-                if mode is InpaintMode.custom:
-                    icon = "inpaint-custom"
-                elif is_region_only:
+                if is_region_only:
                     icon = "generate-region"
                 else:
                     icon = f"inpaint-{mode.name}"
                     text = self._inpaint_text[mode]
             elif not is_edit:
-                if mode is InpaintMode.custom:
-                    icon = "inpaint-custom"
-                elif is_region_only:
+                if is_region_only:
                     icon = "refine-region"
                 else:
                     icon = "refine"
             else:
-                if mode is InpaintMode.custom:
-                    icon = "inpaint-custom"
-                else:
-                    icon = "edit"
+                icon = "edit"
 
         self.generate_button.operation = text
         self.generate_button.setIcon(theme.icon(icon))

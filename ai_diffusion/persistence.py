@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import asyncio
 import json
-from dataclasses import asdict, dataclass, field
+from dataclasses import asdict, dataclass, field, fields
 from enum import Enum
 from time import time
 from typing import Any
@@ -12,7 +12,7 @@ from PyQt6.QtGui import QImageReader
 from PyQt6.QtWidgets import QMessageBox
 
 from . import eventloop
-from .backend.api import FillMode, InpaintMode
+from .backend.api import InpaintMode
 from .image import Image, ImageCollection
 from .localization import translate as _
 from .model.control import ControlLayer, ControlLayerList
@@ -41,16 +41,16 @@ class RecentlyUsedSync:
     batch_count: int = 1
     translation_enabled: bool = True
     inpaint_mode: str = "automatic"
-    inpaint_fill: str = "neutral"
     inpaint_use_model: bool | None = None
-    inpaint_use_prompt_focus: bool = False
     inpaint_context: str = "automatic"
     upscale_model: str = ""
 
     @staticmethod
     def from_settings():
         try:
-            return RecentlyUsedSync(**settings.document_defaults)
+            names = {f.name for f in fields(RecentlyUsedSync)}
+            values = {k: v for k, v in settings.document_defaults.items() if k in names}
+            return RecentlyUsedSync(**values)
         except Exception as e:
             log.warning(f"Failed to load default document settings: {type(e)} {e}")
             return RecentlyUsedSync()
@@ -61,10 +61,10 @@ class RecentlyUsedSync:
                 model.style = Styles.list().find(self.style) or Styles.list().default
                 model.batch_count = self.batch_count
                 model.translation_enabled = self.translation_enabled
-                model.inpaint.mode = InpaintMode[self.inpaint_mode]
-                model.inpaint.fill = FillMode[self.inpaint_fill]
+                model.inpaint.mode = InpaintMode.__members__.get(
+                    self.inpaint_mode, InpaintMode.automatic
+                )
                 model.inpaint.use_inpaint = self.inpaint_use_model
-                model.inpaint.use_prompt_focus = self.inpaint_use_prompt_focus
                 model.upscale.upscaler = self.upscale_model
                 if self.inpaint_context != InpaintContext.layer_bounds.name:
                     model.inpaint.context = InpaintContext[self.inpaint_context]
@@ -75,9 +75,7 @@ class RecentlyUsedSync:
         model.batch_count_changed.connect(self._set("batch_count"))
         model.translation_enabled_changed.connect(self._set("translation_enabled"))
         model.inpaint.mode_changed.connect(self._set("inpaint_mode"))
-        model.inpaint.fill_changed.connect(self._set("inpaint_fill"))
         model.inpaint.use_inpaint_changed.connect(self._set("inpaint_use_model"))
-        model.inpaint.use_prompt_focus_changed.connect(self._set("inpaint_use_prompt_focus"))
         model.inpaint.context_changed.connect(self._set("inpaint_context"))
         model.upscale.upscaler_changed.connect(self._set("upscale_model"))
 
@@ -169,7 +167,10 @@ class ModelSync:
             state["mask_source"] = MaskSource.region.value
         model.try_set_preview_layer(state.get("preview_layer", ""))
         _deserialize(model, state)
-        _deserialize(model.inpaint, state.get("inpaint", {}))
+        inpaint_state = state.get("inpaint", {})
+        if inpaint_state.get("mode") not in InpaintMode._value2member_map_:
+            inpaint_state["mode"] = InpaintMode.automatic.value
+        _deserialize(model.inpaint, inpaint_state)
         _deserialize(model.upscale, state.get("upscale", {}))
         _deserialize(model.live, state.get("live", {}))
         _deserialize(model.animation, state.get("animation", {}))
