@@ -4,6 +4,7 @@ import asyncio
 import os
 import re
 import shutil
+import socket
 import time
 from collections.abc import Callable
 from enum import Enum
@@ -28,7 +29,7 @@ from ..platform_tools import (
 from ..settings import ServerBackend, settings
 from ..util import client_logger as log
 from ..util import server_logger as server_log
-from . import resources
+from . import model_licenses, resources
 from .network import DownloadProgress, download
 from .resources import (
     Arch,
@@ -76,6 +77,7 @@ class Server:
     _python_cmd: Path | None = None
     _cache_dir: Path
     _version_file: Path
+    _start_task: asyncio.Task[str] | None = None
     _process: asyncio.subprocess.Process | None = None
     _task: asyncio.Task | None = None
     _installed_backend: ServerBackend | None = None
@@ -172,6 +174,8 @@ class Server:
         self.missing_resources += find_missing(model_folders, resources.default_checkpoints)
         self.missing_resources += find_missing(model_folders, resources.upscale_models)
         self.missing_resources += find_missing(model_folders, resources.optional_models)
+        if self._process is not None and self._process.returncode is None:
+            self.state = ServerState.running if self.url is not None else ServerState.starting
 
     async def _install(self, cb: InternalCB):
         self.state = ServerState.installing
@@ -433,6 +437,7 @@ class Server:
             progress = message if isinstance(message, DownloadProgress) else None
             callback(InstallationProgress(stage, progress))
 
+        model_licenses.require_accepted(packages)
         prev_state = self.state
         try:
             assert self.comfy_dir, "Must install ComfyUI before downloading models"
@@ -449,6 +454,14 @@ class Server:
             if len(to_install) != len(packages):
                 not_found = set(packages) - {r.id.string for r in to_install}
                 raise ValueError("Some requested models were not found: " + ", ".join(not_found))
+            if model_licenses.requires_acceptance(packages):
+                cb(
+                    "Installing model license documents",
+                    "Installing the V2 License, Krea Community License and NOTICE",
+                )
+                model_licenses.install_documents(
+                    self.path, accepted_at=settings.krea2_v2_license_accepted_at
+                )
             for resource in to_install:
                 if not resource.exists_in(self.path) and not resource.exists_in(self.comfy_dir):
                     for file in resource.files:
@@ -528,13 +541,32 @@ class Server:
             )
 
     async def start(self, port: int | None = None):
+        if self._start_task is not None and not self._start_task.done():
+            return await asyncio.shield(self._start_task)
+        if self._process is not None and self._process.returncode is None:
+            if self.state is ServerState.running and self.url is not None:
+                return self.url
+            raise RuntimeError(
+                "A managed server process is already active. Stop it before starting again."
+            )
+        assert self.state in [ServerState.stopped, ServerState.missing_resources]
+        self._process = None
+        self.state = ServerState.starting
+        self.url = None
+        task = self._start_task = asyncio.create_task(self._start(port))
+        try:
+            return await asyncio.shield(task)
+        finally:
+            if task.done() and self._start_task is task:
+                self._start_task = None
+
+    async def _start(self, port: int | None):
         last_line = ""
 
         try:
-            assert self.state in [ServerState.stopped, ServerState.missing_resources]
+            assert self.state is ServerState.starting
             assert self._python_cmd
             await self._log_python_version()
-            self.state = ServerState.starting
 
             args = ["-su", "main.py"]
             env = media_storage.managed_server_environment(self.path)
@@ -545,8 +577,12 @@ class Server:
             if settings.server_arguments:
                 args += settings.server_arguments.split(" ")
             args += media_storage.managed_server_arguments()
-            if port is not None:
-                args += ["--port", str(port)]
+            configured_port = args[args.index("--port") + 1] if "--port" in args else None
+            requested_port = port if port is not None else int(configured_port or 8188)
+            selected_port = _available_port(
+                requested_port, explicit=port is not None or configured_port is not None
+            )
+            args += ["--port", str(selected_port)]
             if self.backend is not ServerBackend.cpu:
                 env["ONEDNN_MAX_CPU_ISA"] = "AVX2"  # workaround for #401
 
@@ -560,10 +596,17 @@ class Server:
                 text = decode_pipe_bytes(line).strip()
                 last_line = text
                 server_log.info(text)
-                if "To see the GUI go to" in text:
+                if url := _server_ready_url(text):
                     self.state = ServerState.running
-                    self.url = text.split("http://")[-1]
+                    self.url = url
                     break
+        except asyncio.CancelledError:
+            if self._process is not None and self._process.returncode is None:
+                self._process.terminate()
+                await self._process.wait()
+            self._process = None
+            self.state = ServerState.stopped
+            raise
         except Exception as e:
             log.exception(f"Error during server start: {e!s}")
             if self._process is None:
@@ -588,21 +631,21 @@ class Server:
             error_msg = parse_common_errors(error, ret)
             raise RuntimeError(_("Error during server startup") + f": {error_msg}")
 
-        self._task = asyncio.create_task(self.run())
+        self._task = asyncio.create_task(self.run(self._process))
         assert self.url is not None
         return self.url
 
-    async def run(self):
+    async def run(self, process: asyncio.subprocess.Process):
         try:
             assert self.state is ServerState.running
-            assert self._process and self._process.stdout
+            assert process.stdout is not None
 
-            async for line in self._process.stdout:
+            async for line in process.stdout:
                 server_log.info(decode_pipe_bytes(line).strip())
 
-            code = await asyncio.wait_for(self._process.wait(), timeout=1)
+            code = await asyncio.wait_for(process.wait(), timeout=1)
             if code != 0:
-                log.error(f"Server process terminated with code {self._process.returncode}")
+                log.error(f"Server process terminated with code {process.returncode}")
             elif code is not None:
                 log.info("Server process was shut down sucessfully")
 
@@ -611,10 +654,20 @@ class Server:
         except TimeoutError:
             log.warning("Server process did not terminate after the pipe was closed")
 
-        self.state = ServerState.stopped
-        self._process = None
+        if self._process is process:
+            self.state = ServerState.stopped
+            self._process = None
 
     async def stop(self):
+        if self._start_task is not None and not self._start_task.done():
+            self._start_task.cancel()
+            try:
+                await self._start_task
+            except asyncio.CancelledError:
+                pass
+        if self._process is None:
+            self.state = ServerState.stopped
+            return
         try:
             assert self.state is ServerState.running
             if self._process and self._task:
@@ -822,6 +875,26 @@ def _find_component(files: list[str], search_paths: list[Path]):
         ),
         None,
     )
+
+
+def _available_port(preferred: int, *, explicit: bool):
+    with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as probe:
+        try:
+            probe.bind(("127.0.0.1", preferred))
+        except OSError as e:
+            if explicit:
+                raise RuntimeError(
+                    f"Port {preferred} is already in use. Stop the other server or choose another port."
+                ) from e
+            probe.bind(("127.0.0.1", 0))
+            log.info(f"Port {preferred} is busy; using port {probe.getsockname()[1]}")
+        return probe.getsockname()[1]
+
+
+def _server_ready_url(line: str):
+    clean = re.sub(r"\x1b\[[0-?]*[ -/]*[@-~]", "", line)
+    match = re.search(r"To see the GUI go to:\s*https?://([^\s]+)", clean)
+    return match.group(1) if match else None
 
 
 def _find_program(*commands: str):

@@ -1510,15 +1510,22 @@ def _convert_ui_workflow(w: dict, node_inputs: ComfyObjectInfo):
             if isinstance(field_type, list):
                 field_type = "COMBO"
             if field_type in ("INT", "FLOAT", "BOOL", "STRING", "COMBO"):
-                values = node["widgets_values"]
-                inputs[field_name] = values[widget_count]
-                widget_count += 1
-                if len(values) > widget_count and values[widget_count] in _control_after_generate:
+                values = node.get("widgets_values") or []
+                options = field[1] if len(field) > 1 and isinstance(field[1], dict) else {}
+                if not options.get("forceInput") and widget_count < len(values):
+                    inputs[field_name] = values[widget_count]
                     widget_count += 1
+                    if (
+                        len(values) > widget_count
+                        and values[widget_count] in _control_after_generate
+                    ):
+                        widget_count += 1
+                elif (default := node_inputs.params(type).get(field_name)) is not None:
+                    inputs[field_name] = default
                 if type == "ETN_Parameter" and widget_count >= len(values):
                     break  # min/max widgets are not visible for non-numeric parameters
 
-            for connection in node["inputs"]:
+            for connection in node.get("inputs", []):
                 if connection["name"] == field_name and connection["link"] is not None:
                     link = next(x for x in links if x[0] == connection["link"])
                     prim = primitives.get(link[1])

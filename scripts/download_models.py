@@ -24,7 +24,7 @@ from tqdm import tqdm
 
 sys.path.append(str(Path(__file__).parent.parent))
 from ai_diffusion import platform_tools
-from ai_diffusion.backend import resources
+from ai_diffusion.backend import model_licenses, resources
 from ai_diffusion.backend.resources import (
     Arch,
     ModelRequirements,
@@ -57,6 +57,7 @@ def list_models(
     flux2=False,
     illu=False,
     zimage=False,
+    krea2=False,
     upscalers=False,
     checkpoints=None,
     controlnet=False,
@@ -91,6 +92,9 @@ def list_models(
     if zimage or all:
         versions.append(Arch.zimage)
 
+    if krea2 or all:
+        versions.append(Arch.krea2)
+
     models: set[ModelResource] = set()
     models.update([m for m in default_checkpoints if all or (m.id.identifier in checkpoints)])
     if len(versions) > 1:
@@ -113,6 +117,10 @@ def list_models(
     if flux or all:
         lora = ResourceKind.lora
         models.update([m for m in optional_models if m.kind is lora and m.arch is Arch.flux])
+    if krea2 or all:
+        models.update(
+            m for m in optional_models if m.arch is Arch.krea2 and m.kind is ResourceKind.lora
+        )
     if prefetch or all:
         models.update(resources.prefetch_models)
     if deprecated:
@@ -162,10 +170,13 @@ async def download_with_retry(
     retry_attempts=5,
     continue_on_error=False,
     index=0,
+    accept_krea2_v2_license=False,
 ):
     for attempt in range(retry_attempts):
         try:
-            await download(client, model, destination, verbose, dry_run, index)
+            await download(
+                client, model, destination, verbose, dry_run, index, accept_krea2_v2_license
+            )
             break
         except Exception as e:
             print(f"Error downloading {model.name} (attempt {attempt}): {e}")
@@ -183,7 +194,17 @@ async def download(
     verbose=False,
     dry_run=False,
     index=0,
+    accept_krea2_v2_license=False,
 ):
+    if model_licenses.requires_acceptance([model.id.string]) and not dry_run:
+        if not accept_krea2_v2_license:
+            raise ValueError(
+                model_licenses.summary
+                + " Pass --accept-krea2-v2-license after reviewing the model licenses."
+            )
+        model_licenses.install_documents(
+            destination, method="Explicit command-line acknowledgement"
+        )
     for file in model.files:
         target_file = destination / file.path
         url = _map_url(file.url)
@@ -214,7 +235,16 @@ async def download_models(
     retry_attempts=5,
     continue_on_error=False,
     parallel_downloads=4,
+    accept_krea2_v2_license=False,
 ):
+    if (
+        not dry_run
+        and model_licenses.requires_acceptance([m.id.string for m in models])
+        and not accept_krea2_v2_license
+    ):
+        raise ValueError(
+            model_licenses.summary + " Explicit acknowledgement is required before download."
+        )
     verbose = verbose or dry_run
 
     timeout = aiohttp.ClientTimeout(total=None, sock_connect=10, sock_read=60)
@@ -238,6 +268,7 @@ async def download_models(
                 retry_attempts,
                 continue_on_error,
                 index,
+                accept_krea2_v2_license,
             )
             tasks[index] = asyncio.create_task(download)
         await asyncio.gather(*[t for t in tasks if t is not None])
@@ -292,6 +323,8 @@ if __name__ == "__main__":
     parser.add_argument("--illu", action="store_true", help="[Workload] everything needed to run Illustrious-SDXL (no checkpoints)")
     parser.add_argument("--flux", action="store_true", help="[Workload] everything needed to run Flux (no checkpoints)")
     parser.add_argument("--flux2", action="store_true", help="[Workload] everything needed to run Flux 2 (no checkpoints)")
+    parser.add_argument("--krea2", action="store_true", help="[Workload] Krea 2 requirements and V2 edit LoRAs (model terms apply)")
+    parser.add_argument("--accept-krea2-v2-license", action="store_true", help="acknowledge the V2 License, Krea Community License and NOTICE; does not grant commercial rights")
     parser.add_argument("--zimage", action="store_true", help="[Workload] everything needed to run Z-Image (no checkpoints)")
     parser.add_argument("--checkpoints", action="store_true", dest="checkpoints", help="download all checkpoints for selected workloads")
     parser.add_argument("--controlnet", action="store_true", help="download ControlNet models for selected workloads")
@@ -317,6 +350,8 @@ if __name__ == "__main__":
     if args.checkpoints and args.illu:
         checkpoints += [m.id.identifier for m in default_checkpoints if m.arch is Arch.illu]
         checkpoints += [m.id.identifier for m in default_checkpoints if m.arch is Arch.illu_v]
+    if args.checkpoints and args.krea2:
+        checkpoints += [m.id.identifier for m in default_checkpoints if m.arch is Arch.krea2]
     if args.checkpoints and args.zimage:
         checkpoints += [m.id.identifier for m in default_checkpoints if m.arch is Arch.zimage]
 
@@ -334,6 +369,7 @@ if __name__ == "__main__":
         flux2=args.flux2,
         illu=args.illu,
         zimage=args.zimage,
+        krea2=args.krea2,
         upscalers=args.upscalers,
         checkpoints=checkpoints,
         controlnet=args.controlnet,
@@ -350,6 +386,15 @@ if __name__ == "__main__":
                 print(f"{model.name:32} {file.name}")
         sys.exit(0)
 
+    if (
+        model_licenses.requires_acceptance([m.id.string for m in models])
+        and not args.dry_run
+        and not args.accept_krea2_v2_license
+    ):
+        parser.error(
+            model_licenses.summary
+            + f" Review {model_licenses.terms_url} and the bundled licenses, then pass --accept-krea2-v2-license."
+        )
     asyncio.run(
         download_models(
             args.destination,
@@ -359,6 +404,7 @@ if __name__ == "__main__":
             retry_attempts=args.retry_attempts,
             continue_on_error=args.continue_on_error,
             parallel_downloads=args.jobs,
+            accept_krea2_v2_license=args.accept_krea2_v2_license,
         )
     )
     if args.check:

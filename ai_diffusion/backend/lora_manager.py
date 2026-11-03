@@ -23,7 +23,7 @@ _CACHE_MAX_AGE = 6 * 3600  # seconds
 # Bump when the cached data shape/semantics change, to invalidate old caches
 # written before a fix (e.g. the favorite flag used to always be False, or the
 # commercial-use flag counting a "Sell"-only license as permission to sell images).
-_CACHE_VERSION = 7
+_CACHE_VERSION = 8
 
 # In-memory copy of the disk cache, so opening the browser doesn't re-parse ~10k entries
 _memory_cache: dict[str, tuple[float, list[LoraInfo]]] = {}
@@ -32,7 +32,7 @@ _preload_tasks: dict[str, asyncio.Task] = {}
 
 def _clean_name(file_name: str) -> str:
     for suffix in _STRIP_SUFFIXES:
-        if file_name.endswith(suffix):
+        if file_name.lower().endswith(suffix):
             return file_name[: -len(suffix)]
     return file_name
 
@@ -62,6 +62,10 @@ class LoraInfo:
     def from_api(data: dict, base_url: str) -> LoraInfo:
         # ComfyUI-Lora-Manager format: GET /api/lm/loras/list
         file_name = data.get("file_name") or data.get("model_name", "")
+        folder = (data.get("folder") or "").replace("\\", "/").strip("/")
+        file_name = file_name.replace("\\", "/")
+        if folder and not file_name.casefold().startswith(folder.casefold() + "/"):
+            file_name = f"{folder}/{file_name}"
         name = _clean_name(file_name)
         display_name = data.get("model_name") or name
         sha256 = data.get("sha256", "")
@@ -213,18 +217,18 @@ async def _fetch_favorite_hashes(requests: RequestManager, base: str) -> set[str
 async def fetch_loras_pages(requests: RequestManager, base_url: str):
     """Yield LoRA list incrementally, one server page at a time.
 
-    Falls back to a single yield from /models/loras (filename list only) if
-    ComfyUI-Lora-Manager is not installed.
+    Supplements manager metadata with /models/loras so missing sidecars never
+    remove files from the library.
     """
     base = base_url.rstrip("/")
 
     # ComfyUI-Lora-Manager (rich metadata: tags, base_model, preview, trigger words)
     # Server caps page_size regardless of what we request, so page through all results.
+    seen: set[str] = set()
     try:
         favorite_hashes = await _fetch_favorite_hashes(requests, base)
         page = 1
         page_size = 200
-        got_any = False
         while True:
             data = await requests.get(
                 f"{base}/api/lm/loras/list?page={page}&page_size={page_size}", timeout=15.0
@@ -236,9 +240,9 @@ async def fetch_loras_pages(requests: RequestManager, base_url: str):
             items = data.get("items") or data.get("loras") or []
             if not items:
                 break
-            got_any = True
             batch = [LoraInfo.from_api(item, base) for item in items]
             for lora in batch:
+                seen.add(lora.name.replace("\\", "/").casefold())
                 if lora.sha256 in favorite_hashes:
                     lora.favorite = True
             yield batch
@@ -248,8 +252,6 @@ async def fetch_loras_pages(requests: RequestManager, base_url: str):
             if loaded >= total or len(items) < actual_page_size:
                 break
             page += 1
-        if got_any:
-            return
     except Exception as e:
         log.warning(f"Lora Manager API not available: {e}")
 
@@ -267,8 +269,11 @@ async def fetch_loras_pages(requests: RequestManager, base_url: str):
                     )
                 elif isinstance(entry, dict):
                     result.append(LoraInfo.from_api(entry, base))
+            result = [
+                lora for lora in result if lora.name.replace("\\", "/").casefold() not in seen
+            ]
             if result:
-                log.info(f"Loaded {len(result)} LoRAs from /models/loras (no metadata)")
+                log.info(f"Loaded {len(result)} additional LoRAs from /models/loras (no metadata)")
                 yield result
     except Exception as e:
         log.warning(f"Could not fetch LoRA list: {e}")

@@ -30,7 +30,7 @@ from PyQt5.QtWidgets import (
 )
 
 from .. import eventloop, util
-from ..backend import resources, server
+from ..backend import model_licenses, resources, server
 from ..backend.comfy_client import ComfyClient
 from ..backend.network import DownloadProgress
 from ..backend.resources import CustomNode, ModelResource, ResourceId
@@ -42,6 +42,7 @@ from ..platform_tools import get_cuda_devices, is_macos, is_windows
 from ..settings import Settings, settings
 from ..style import Arch
 from ..util import ensure
+from .model_licenses import confirm_krea2_terms
 from .theme import SignalBlocker, add_header, green, grey, highlight, red, set_text_clipped, yellow
 
 
@@ -733,6 +734,15 @@ class WorkloadsTab(QWidget):
         krea2_desc = QLabel(desc, self._pkg_krea2)
         krea2_desc.setWordWrap(True)
         krea2_layout.addWidget(krea2_desc)
+        terms_hint = QLabel(
+            f"V2 edit models: free for non-commercial use. "
+            f'<a href="{model_licenses.terms_url}">Review model terms</a> before installing.',
+            self,
+        )
+        terms_hint.setOpenExternalLinks(True)
+        terms_hint.setWordWrap(True)
+        krea2_layout.addWidget(terms_hint)
+
         self._models += [
             ModelCheckBox(
                 "Krea 2 Turbo - " + _("Fast generation model"),
@@ -1145,6 +1155,10 @@ class ServerWidget(QWidget):
 
     async def _install(self):
         try:
+            if model_licenses.requires_acceptance(self.selected_models) and not confirm_krea2_terms(
+                self
+            ):
+                return
             if any(model.endswith("-krea2") for model in self.selected_models):
                 self._components_tab.enable_krea()
             await self._prepare_for_install()
@@ -1288,6 +1302,10 @@ class ServerWidget(QWidget):
         if msg_box.exec_() != QMessageBox.Yes:
             return
 
+        if model_licenses.requires_acceptance(self.selected_models) and not confirm_krea2_terms(
+            self
+        ):
+            return
         await self._prepare_for_install()
         try:
             await self._server.uninstall(self._handle_progress, delete_models=False)
@@ -1320,6 +1338,10 @@ class ServerWidget(QWidget):
         if msg_box.exec_() != 0:  # Destructive role returns 0
             return
 
+        if model_licenses.requires_acceptance(self.selected_models) and not confirm_krea2_terms(
+            self
+        ):
+            return
         await self._prepare_for_install()
         try:
             await self._server.uninstall(self._handle_progress, delete_models=True)

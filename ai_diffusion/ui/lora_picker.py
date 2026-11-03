@@ -600,7 +600,7 @@ class LoraBrowser(QWidget):
             if nsfw_mode == _NSFW_HIDE_EXPLICIT and lora.nsfw_level >= 16:  # X/XXX
                 return False
             if arch:
-                if lora.base_model:
+                if lora.base_model.lower() not in ("", "unknown", "other", "none"):
                     # has base_model info: must match, even if we don't recognize
                     # the string (otherwise unmapped models like "NoobAI" would
                     # bypass every arch filter)
@@ -673,9 +673,7 @@ class LoraBrowser(QWidget):
             )
         if lora.preview_url and _is_video_url(lora.preview_url):
             return theme.icon("play").pixmap(size, size)
-        blank = QPixmap(size, size)
-        blank.fill(Qt.GlobalColor.transparent)
-        return blank
+        return theme.icon("lora").pixmap(size, size)
 
     def _set_tile_icon(self, item: QListWidgetItem, lora: LoraInfo):
         # preview (or placeholder) with favorite star + commercial-use badge on top

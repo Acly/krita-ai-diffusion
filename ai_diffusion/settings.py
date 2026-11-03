@@ -197,6 +197,12 @@ class Settings(QObject):
     server_components: list[str]
     _server_components = Setting("Additional server components", [])
 
+    krea2_v2_license_revision: str
+    _krea2_v2_license_revision = Setting("Accepted Krea 2 Edit V2 terms revision", "")
+
+    krea2_v2_license_accepted_at: str
+    _krea2_v2_license_accepted_at = Setting("Krea 2 Edit V2 terms acknowledgement date", "")
+
     server_url: str
     _server_url = Setting(
         _("Server URL"),

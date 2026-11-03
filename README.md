@@ -1,83 +1,124 @@
-# Combined build: 1.53 + Reloaded + Krea Edit V2
+# Krita AI Diffusion · Unofficial Combined Build
 
-Install `krita_ai_diffusion-1.53.0-reloaded.3.zip` using Krita's **Tools → Scripts → Import Python Plugin from File**, then restart Krita and enable the plugin if needed.
+**Acly's foundation. Reloaded's workflow tools. Krea 2 Edit V2 integration.**
 
-In the plugin's **Managed Server** setup:
+[![Version](https://img.shields.io/badge/build-1.53.0--reloaded.4-blue)](https://github.com/Teutonick/krita-ai-diffusion/releases)
+[![Code license](https://img.shields.io/badge/plugin_code-GPLv3-green)](LICENSE)
+[![Status](https://img.shields.io/badge/status-unofficial_fork-orange)](#credits)
 
-- **Workloads**: select your base models. Selecting Krea enables its Edit V2 nodes automatically and downloads the text encoder, VAE and selected model weights.
-- **Additional components**: select **LoRA Browser metadata** to install ComfyUI-LoRA-Manager and its Python dependencies automatically. Existing components can be added later using the same Install button.
-- **Krea 2 Identity Edit V2** and **General Edit V2** are separate LoRAs; select the matching style for the task. Old V1 files remain usable with your custom styles, but do not satisfy a V2 download.
-- **Eagle**: select **Download and launch Eagle setup**. No separate download is needed. Complete Eagle's own installer, trial/license activation and library selection, then keep it running locally for Save to Eagle. Already installed Eagle needs no additional plugin dependency.
+Maintained in [Teutonick/krita-ai-diffusion](https://github.com/Teutonick/krita-ai-diffusion).
+This is an independent community fork, not an official release of Krita AI Diffusion,
+Krita AI Reloaded or Krea. It is not affiliated with or endorsed by Acly, FatGuy84 or Krea.
 
-Automatic component installation manages the plugin's own local ComfyUI server. An external/remote ComfyUI server must be maintained by its owner. LoRA metadata, CivitAI, AnimaDex and Prompt AI integrations keep their Reloaded configuration requirements (accounts/API keys/local services where applicable).
+This build combines upstream **1.53.0**, the interface and workflow improvements from
+**Krita AI Reloaded**, and **Krea 2 Turbo / Identity Edit V2 / General Edit V2** support.
+It also adds managed component installation, protection against accidental mouse-wheel
+changes in settings, and a policy for temporary media storage.
 
-Bundled Krea custom workflows are copied to the plugin's workflow library when Krea nodes are installed. The native Krea styles work in the regular generation workspace.
+## Install once, choose your components
 
-Updates must come from this combined fork's ZIP. The upstream updater is prevented from replacing this build and losing the added features.
+1. Download `krita_ai_diffusion-1.53.0-reloaded.5.zip` from this fork's release assets.
+2. In Krita, choose **Tools → Scripts → Import Python Plugin from File**.
+3. Restart Krita and enable the plugin if prompted.
+4. Open the plugin settings, choose **Managed Server**, and select your workloads.
+5. In **Additional components**, select LoRA Browser metadata or Krea Edit nodes as needed.
 
-Media retention policy in this build:
+The managed installer downloads the selected models, nodes and their dependencies.
+Selecting a Krea workload also selects its encoder, VAE and required base-model dependencies.
+Previously downloaded official weights are reused.
 
-- Automatic LoRA/checkpoint/CivitAI/AnimaDex/prompt thumbnails stay in RAM. Local LoRA thumbnails are resolved online by metadata/hash; disk-side preview files are never a fallback. No online match means no thumbnail.
-- Temporary animation transfers, recording frames, Eagle staging, managed ComfyUI input/output/temp/user data, and LoRA Manager sidecars/examples live under `temporary-media/session-<id>` in the plugin data directory. Normal shutdown stops the managed server before cleanup. Startup removes abandoned sessions left by crashes, while lock files protect other active Krita instances.
-- LoRA Manager preferences and metadata may be cached as JSON without preview files. Manually exported images, accepted model downloads, explicit recipe/Eagle saves and history embedded in `.kra` are retained.
-- External/cloud servers and arbitrary custom workflows require explicit, session-scoped approval because their own nodes may persist media. Automatic model downloads through an external LoRA Manager are blocked because its preview storage cannot be controlled.
-- Legacy plugin-owned prompt/AnimaDex thumbnails, Eagle staging and known automatic diagnostic image dumps are cleaned. Unidentified old files in the global system TEMP or user model/output folders are never deleted by guessing.
-- This governs plugin-controlled storage; it does not override Krita's document autosave/backup behavior or user-approved third-party workflow code.
+**Eagle:** the optional setup action downloads and opens the official Eagle installer.
+Complete Eagle's own installation, trial/license activation and library selection;
+keep Eagle running locally for **Save to Eagle**.
 
-Sources: [Acly 1.53.0](https://github.com/Acly/krita-ai-diffusion/releases/tag/v1.53.0), [Reloaded](https://github.com/FatGuy84/krita-ai-reloaded/tree/08082efef6f2d4a90a80c32a90895a8c0e3f913d), [Krea Edit V2](https://github.com/lbouaraba/comfyui-krea2edit/tree/13ef60f20828949becada815d3cbc371eb5ccaab). See [BUILD-REPORT.md](BUILD-REPORT.md) for validation and limitations.
+## Krea 2 Edit V2: read the model terms
+
+**The plugin's GPLv3 license and the model licenses are separate.**
+
+| Intended use of the V2 models or their outputs | Model terms |
+| --- | --- |
+| Personal projects, hobby art, research and other non-commercial use | Free under the applicable model terms |
+| Client work, paid outputs, advertising, products or other business use | A separate written commercial license from Lars Bouaraba is required; additional Krea licensing may apply |
+
+Before installing V2 weights, the setup dialog links all applicable documents and asks
+for explicit acknowledgement. **Accepting the dialog does not grant a commercial license.**
+The complete documents are bundled for reference and installed beside the LoRAs under
+`models/loras/krea2-edit-v2-licenses/` before weights are downloaded:
+
+- [Krea 2 Identity Edit V2 License](ai_diffusion/licenses/krea2-v2/LICENSE_V2.md)
+- [Krea 2 Community License](ai_diffusion/licenses/krea2-v2/LICENSE.pdf)
+- [Model NOTICE](ai_diffusion/licenses/krea2-v2/NOTICE)
+
+[Official model repository](https://huggingface.co/conradlocke/krea2-identity-edit)
+· [Commercial licensing contact](mailto:l.bouaraba@gmail.com)
+
+Identity Edit V2 and General Edit V2 are separate LoRAs. Select the matching style for
+the task. Older V1 weights keep their original terms and do not count as a V2 installation.
+
+For the optional command-line downloader, review the bundled documents before using
+`--accept-krea2-v2-license`. Listing models and dry runs do not acknowledge any terms.
+
+## Media stays temporary until you choose to save
+
+- Browser thumbnails stay in RAM. Local LoRA previews are resolved online; local preview
+  files are not a fallback. A model with no online match is shown without a thumbnail.
+- Animation transfers, live-recording frames, Eagle staging, managed ComfyUI input/output/
+  temp/user data, its SQLite database, and LoRA Manager preview files use a session folder.
+- Normal shutdown stops the managed server before cleanup. Startup removes abandoned
+  sessions left by crashes; locks protect other active Krita instances.
+- Metadata, tags and favorites may be cached without image files. Explicit image exports,
+  accepted model downloads, explicit recipe/Eagle saves and history embedded in `.kra` remain.
+- External/cloud servers and arbitrary custom workflows require explicit session-scoped
+  approval because the plugin cannot control their own file-writing behavior. External
+  LoRA Manager model downloads are blocked when preview retention cannot be controlled.
+
+Cleanup covers recognized plugin-owned staging areas. It does not guess ownership of
+unmarked files in global TEMP or delete existing user model/output folders. Krita's own
+document autosave and backup settings continue to apply.
+
+## Exact source for every release
+
+Each release includes both:
+
+- **Installable plugin:** `krita_ai_diffusion-1.53.0-reloaded.5.zip`
+- **Corresponding source:** `krita_ai_diffusion-1.53.0-reloaded.5-source.zip`
+
+The source snapshot includes the modified code, bundled dependency sources, license
+notices and build scripts. `SOURCE-MANIFEST.json` records SHA-256 hashes of the snapshot's
+files; an identical manifest is included in the installable plugin. The release checksum
+file covers both archives. This identifies the actual released source even when it was
+built from an uncommitted working copy.
+
+To build from the source snapshot, install the development dependencies in
+`requirements.txt`, then run `python scripts/package.py build` from the extracted root.
+The snapshot includes `websockets`; it does not require a separate submodule download.
+
+See [release notes](RELEASE-NOTES.md), [build validation](BUILD-REPORT.md) and
+[third-party notices](THIRD-PARTY-NOTICES.md). Updates must come from this fork;
+the upstream self-updater is blocked to avoid replacing the combined feature set.
+
+## Credits
+
+- **Acly and the Krita AI Diffusion contributors** — the original plugin, core architecture,
+  server installer and upstream 1.53.0. [Project](https://github.com/Acly/krita-ai-diffusion)
+  · [Support Acly](https://github.com/sponsors/Acly)
+- **FatGuy84 and the Krita AI Reloaded contributors** — the visual browsers, prompt and
+  batch tools, history/export improvements and other Reloaded additions.
+  [Project](https://github.com/FatGuy84/krita-ai-reloaded)
+  · [Support FatGuy84](https://ko-fi.com/fatguy84)
+- **Lars Bouaraba / conradlocke** — Krea 2 Edit nodes and the Identity / General Edit models.
+  [Nodes](https://github.com/lbouaraba/comfyui-krea2edit)
+  · [Models](https://huggingface.co/conradlocke/krea2-identity-edit)
+- **willmiao and contributors** — ComfyUI-LoRA-Manager.
+  [Project](https://github.com/willmiao/ComfyUI-Lora-Manager)
+- **Teutonick** — integration and modifications in this unofficial combined build.
+
+Modified on **2026-11-03**. The plugin code is distributed under **GPLv3**; original
+notices and the separate licenses of dependencies and models are retained.
+The feature guide below is adapted from Krita AI Reloaded's README and describes
+features inherited from that project as well as the original plugin.
 
 ---
-
-<h1>
-  <picture>
-    <source media="(prefers-color-scheme: dark)" srcset="branding/wordmark-dark.svg">
-    <img width="330" src="branding/wordmark-light.svg" alt="Krita AI Reloaded">
-  </picture>
-</h1>
-
-<p>
-  <a href="https://github.com/Acly/krita-ai-diffusion"><img alt="Based on upstream v1.53.0" src="https://img.shields.io/badge/upstream-v1.53.0-17120C?style=for-the-badge&labelColor=241C13&color=FFB020"></a>
-  <a href="LICENSE"><img alt="License GPL-3.0" src="https://img.shields.io/badge/license-GPL--3.0-17120C?style=for-the-badge&labelColor=241C13&color=FF7A1A"></a>
-  <a href="https://ko-fi.com/fatguy84"><img alt="Support on Ko-fi" src="https://img.shields.io/badge/support-Ko--fi-17120C?style=for-the-badge&labelColor=241C13&color=FFC24D"></a>
-  <a href="https://www.youtube.com/@KritaAIReloaded"><img alt="Videos on YouTube" src="https://img.shields.io/badge/videos-YouTube-17120C?style=for-the-badge&labelColor=241C13&color=FF6A00"></a>
-</p>
-
-> **Generate faster. Browse visually. Run it again.**
-
-A usability-focused fork of the [Krita AI Diffusion plugin](https://github.com/Acly/krita-ai-diffusion)
-with numerous quality-of-life improvements for prompt handling, LoRA management
-and batch generation workflows.
-Feature videos and a full tour are on the
-[YouTube channel](https://www.youtube.com/@KritaAIReloaded).
-
-<p>
-  <a href="#sequential-wildcards--batch-control">Wildcards</a> ·
-  <a href="#lora-browser">LoRAs</a> ·
-  <a href="#recipe-browser">Recipes</a> ·
-  <a href="#animadex-browser">AnimaDex</a> ·
-  <a href="#civitai-browser">CivitAI</a> ·
-  <a href="#style-picker">Styles</a> ·
-  <a href="#history--export">History</a> ·
-  <a href="#custom-workflows">Workflows</a> ·
-  <a href="#installation">Install</a>
-</p>
-
-All credit for the plugin itself goes to [Acly](https://github.com/Acly) and the
-upstream contributors — this fork only layers UX improvements on top and tracks
-upstream releases (currently based on v1.53.0).
-
-If this fork saves you time, you can support it on [Ko-fi](https://ko-fi.com/fatguy84)
-or [GitHub Sponsors](https://github.com/sponsors/FatGuy84) — and please consider
-[sponsoring Acly](https://github.com/sponsors/Acly) too, who built the plugin this is based on.
-
-**This fork is for you if:**
-
-* you work with large LoRA collections and want to browse them visually
-  (previews, tags, favorites) instead of memorizing file names
-* you generate batches and want systematic control over which prompt/LoRA
-  combination each batch item uses
-* you want prompt history actions, batch sizing and image export to be less
-  clicky and more predictable
 
 ## At a glance
 
@@ -99,7 +140,7 @@ item 2 gets `b`, item 3 gets `c`, item 4 wraps back to `a`, and so on — useful
 for systematically running through a fixed set of variations instead of
 hoping the dice land right.
 
-![Sequential wildcards, auto batch-count, and preview size](media/demo-wildcards.gif)
+![Sequential wildcards, auto batch-count, and preview size](https://raw.githubusercontent.com/FatGuy84/krita-ai-reloaded/08082efef6f2d4a90a80c32a90895a8c0e3f913d/media/demo-wildcards.gif)
 
 Multiple `[[...]]` groups in the same prompt combine into a **Cartesian
 product** across the whole batch. For example:
@@ -121,7 +162,7 @@ correctly per batch item — each image in the batch is generated with its own
 LoRA set rather than all of them sharing whatever LoRA the first prompt
 evaluation picked (which is what happens upstream if you try this).
 
-![Two sequential wildcard groups with per-item LoRA switching and auto batch-count](media/demo-wildcards-lora-batch.gif)
+![Two sequential wildcard groups with per-item LoRA switching and auto batch-count](https://raw.githubusercontent.com/FatGuy84/krita-ai-reloaded/08082efef6f2d4a90a80c32a90895a8c0e3f913d/media/demo-wildcards-lora-batch.gif)
 
 Other batch changes:
 * **Batch count up to 1000** (upstream caps at 10), with a spinbox you can
@@ -158,7 +199,7 @@ Other batch changes:
   Picking a result in the history pauses previews so they don't pull the canvas away. Uses ComfyUI's own
   previews (low resolution, quality depends on the server's preview method).
 
-  ![Loop Generate keeps enqueuing batches until toggled off](media/demo-loop-generate.gif)
+  ![Loop Generate keeps enqueuing batches until toggled off](https://raw.githubusercontent.com/FatGuy84/krita-ai-reloaded/08082efef6f2d4a90a80c32a90895a8c0e3f913d/media/demo-loop-generate.gif)
 
 ### File-based Wildcards
 
@@ -298,7 +339,7 @@ dropdown. It talks to [ComfyUI-Lora-Manager](https://github.com/willmiao/ComfyUI
 if you have it installed, and falls back to a plain file-name list otherwise
 (no crash, just fewer features — no previews/tags/trigger words).
 
-![LoRA browser: multi-select, wildcard-group insert, add to prompt](media/demo-lora-browser.gif)
+![LoRA browser: multi-select, wildcard-group insert, add to prompt](https://raw.githubusercontent.com/FatGuy84/krita-ai-reloaded/08082efef6f2d4a90a80c32a90895a8c0e3f913d/media/demo-lora-browser.gif)
 
 With Lora Manager available you get:
 * **Preview thumbnails** for every LoRA, loaded lazily as you scroll so
@@ -361,7 +402,7 @@ picker (previews, search, base-model filter, favorites, sort by name/date
 added), but applying a recipe fills in a whole prompt setup at once instead
 of a single LoRA:
 
-![Recipe browser: apply a saved prompt+LoRA combo, then generate](media/demo-recipe-browser.gif)
+![Recipe browser: apply a saved prompt+LoRA combo, then generate](https://raw.githubusercontent.com/FatGuy84/krita-ai-reloaded/08082efef6f2d4a90a80c32a90895a8c0e3f913d/media/demo-recipe-browser.gif)
 
 * **Add to Prompt** appends the recipe's prompt and LoRA tags to whatever
   you already have, on a new line
@@ -504,7 +545,7 @@ search. This fork replaces it with the same kind of searchable, non-modal
 picker dialog as the LoRA browser. Click the style name/icon button
 (where the dropdown used to be) to open it.
 
-![Style browser: search and pick from hundreds of presets](media/demo-style-browser.gif)
+![Style browser: search and pick from hundreds of presets](https://raw.githubusercontent.com/FatGuy84/krita-ai-reloaded/08082efef6f2d4a90a80c32a90895a8c0e3f913d/media/demo-style-browser.gif)
 
 * **Live search** by style name or checkpoint file name
 * **Base-model family filter**, including a **"Base Model Family" field**
@@ -616,7 +657,7 @@ much faster.
   useful when a wildcard-resolved word matches results you didn't mean to
   include, or vice versa.
 
-  ![Filtering history by prompt text and search scope](media/demo-filter-prompts.gif)
+  ![Filtering history by prompt text and search scope](https://raw.githubusercontent.com/FatGuy84/krita-ai-reloaded/08082efef6f2d4a90a80c32a90895a8c0e3f913d/media/demo-filter-prompts.gif)
 
 * **Favorite / Applied filters**: two toggle buttons above the history —
   one shows only images you've starred as favorites, the other shows only
@@ -628,7 +669,7 @@ much faster.
   corner). Favorites are saved into the document and survive closing and
   reopening it.
 
-  ![Marking and filtering by favorite](media/demo-favorites.gif)
+  ![Marking and filtering by favorite](https://raw.githubusercontent.com/FatGuy84/krita-ai-reloaded/08082efef6f2d4a90a80c32a90895a8c0e3f913d/media/demo-favorites.gif)
 
 * **1-5 star rating**: press `1`–`5` while a result is selected to rate it
   (pressing the same number again clears it), or right-click → "Set Rating".
@@ -638,7 +679,7 @@ much faster.
   filter to e.g. only 4★ results. Ratings are saved into the document like
   favorites.
 
-  ![Rating images and filtering by exact rating](media/demo-rating-filter.gif)
+  ![Rating images and filtering by exact rating](https://raw.githubusercontent.com/FatGuy84/krita-ai-reloaded/08082efef6f2d4a90a80c32a90895a8c0e3f913d/media/demo-rating-filter.gif)
 * **Preview size slider**: a slider above the history resizes all thumbnails
   live, from small (fit more on screen) to large (see detail without
   clicking through). Thumbnails are always regenerated from the
@@ -667,7 +708,7 @@ much faster.
   round-trip through the filesystem. If you rated the image (1-5★) in
   Krita, that rating carries over to Eagle's own star rating.
 
-  ![Sending a rated image to Eagle and reviewing it there](media/demo-eagle-export.gif)
+  ![Sending a rated image to Eagle and reviewing it there](https://raw.githubusercontent.com/FatGuy84/krita-ai-reloaded/08082efef6f2d4a90a80c32a90895a8c0e3f913d/media/demo-eagle-export.gif)
 * **DLSS5 Enhance**: right-click a result → "DLSS5 Enhance" → Cinematic /
   Default / Natural runs it through NVIDIA DLSS 5 neural rendering
   (reconstructed skin, hair and lighting detail) at the same resolution. The
@@ -772,25 +813,21 @@ prompt is rewritten to `image N`, as for Flux 2. Without the node pack,
 Krea 2 edits fail with a missing-node error from ComfyUI; plain Krea 2
 text-to-image is unaffected.
 
-## Installation
+## Advanced features and dependencies
 
-Same as upstream — see the [Plugin Installation Guide](https://docs.interstice.cloud/installation).
-To use this fork instead of the official release, clone this repository and
-link/copy the `ai_diffusion` folder into Krita's `pykrita` directory
-(the bundled `websockets` library must be added from an official release
-package, it is not part of the repository).
+The standard ZIP already includes the Python dependency used inside Krita. The managed
+setup installs LoRA Manager and Krea Edit nodes when selected. External ComfyUI servers
+must be maintained by their owners.
 
-Some features require additional software:
-* LoRA Browser metadata: [ComfyUI-Lora-Manager](https://github.com/willmiao/ComfyUI-Lora-Manager)
-* Save to Eagle: [Eagle](https://eagle.cool) running locally
-* Krea2 workflows: [comfyui-krea2edit](https://github.com/lbouaraba/comfyui-krea2edit) nodes
-* DLSS5 Enhance: [ComfyUI-DLSS5-Enhancer](https://github.com/Blueforcer/ComfyUI-DLSS5-Enhancer)
-  nodes and their runtime (Windows, RTX 30+)
-* AI Select: [ComfyUI-Easy-Use](https://github.com/yolain/ComfyUI-Easy-Use)
-  (or a model for ComfyUI's built-in background removal) and
-  [ComfyUI-KJNodes](https://github.com/kijai/ComfyUI-KJNodes) for Select by Text
+Some specialized Reloaded features require additional node packs or external runtimes:
 
----
+- **DLSS5 Enhance:** [ComfyUI-DLSS5-Enhancer](https://github.com/Blueforcer/ComfyUI-DLSS5-Enhancer)
+  and its supported Windows/NVIDIA runtime.
+- **AI Select:** supported background-removal nodes/models; Select by Text also uses
+  [ComfyUI-KJNodes](https://github.com/kijai/ComfyUI-KJNodes).
+- **Prompt AI / catalog services:** the corresponding local services, accounts or API keys.
+
+Those components and services retain their own requirements and terms.
 
 ## Original plugin
 

@@ -1,0 +1,2 @@
+1cb64deceb002cec3b3835a40707855214dc06099ed476ebd531c5b91230ebcf  krita_ai_diffusion-1.53.0-reloaded.5.zip
+c3771ecd4b8bf401849d69e0fb283662a53152f7cf5e6452a03b887b623879d0  krita_ai_diffusion-1.53.0-reloaded.5-source.zip

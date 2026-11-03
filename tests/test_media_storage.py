@@ -187,9 +187,10 @@ def test_metadata_preferences_survive_but_media_does_not(tmp_path: Path):
     (sidecars / "preview.png").write_bytes(b"media")
     first.close()
     assert not (cache / "preview.png").exists()
-    assert "preview_url" not in json.loads((cache / "model.metadata.json").read_text())
+    assert json.loads((cache / "model.metadata.json").read_text())["preview_url"] == ""
     second = media_storage.MediaSession(tmp_path / "sessions", cache)
     metadata = json.loads((second.folder("model-sidecars") / "model.metadata.json").read_text())
+    assert metadata["preview_url"] == ""
     assert metadata["favorite"] is True
     assert not (second.path / "model-sidecars/preview.png").exists()
     second.close()

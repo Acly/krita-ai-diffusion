@@ -15,6 +15,7 @@ from ai_diffusion.backend.resources import update_model_checksums
 
 sys.path.append(str(Path(__file__).parent))
 import translation
+from source_package import build_source, write_checksums
 
 root = Path(__file__).parent.parent
 package_dir = root / "scripts" / ".package"
@@ -25,7 +26,8 @@ package_name = f"krita_ai_diffusion-{version}"
 def convert_markdown_to_html(markdown_file: Path, html_file: Path):
     with open(markdown_file, "r", encoding="utf-8") as f:
         text = f.read()
-    html = markdown(text, extensions=["fenced_code", "codehilite"])
+    html = markdown(text, extensions=["fenced_code", "codehilite", "tables"])
+    html = html.replace('href="ai_diffusion/licenses/', 'href="licenses/')
     with open(html_file, "w", encoding="utf-8") as f:
         f.write(html)
 
@@ -85,6 +87,7 @@ def precheck():
 
 def build_package():
     precheck()
+    source_archive = build_source(root, version)
 
     rmtree(package_dir, ignore_errors=True)
     package_dir.mkdir()
@@ -101,9 +104,15 @@ def build_package():
     copy(root / "scripts" / "download_models.py", plugin_dst)
     copy(root / "LICENSE", plugin_dst)
     copy(root / "BUILD-REPORT.md", plugin_dst)
+    copy(root / "THIRD-PARTY-NOTICES.md", plugin_dst)
+    copy(root / "RELEASE-NOTES.md", plugin_dst)
+    copy(root / "SOURCE-MANIFEST.json", plugin_dst)
     convert_markdown_to_html(root / "README.md", plugin_dst / "manual.html")
 
     make_archive(str(root / package_name), "zip", package_dir)
+    write_checksums(root, version, [root / f"{package_name}.zip", source_archive])
+    print(f"Corresponding source: {source_archive.name}")
+    print(f"Checksums: SHA256SUMS-{version}.txt")
 
 
 async def publish_package(package_path: Path, target: str):

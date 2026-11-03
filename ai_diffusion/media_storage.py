@@ -88,7 +88,8 @@ class MediaSession:
                 data = json.loads(path.read_text(encoding="utf-8"))
                 if not isinstance(data, dict):
                     continue
-                data.pop("preview_url", None)
+                if path.name.endswith(".metadata.json"):
+                    data["preview_url"] = ""
                 destination = target / path.relative_to(source)
                 destination.parent.mkdir(parents=True, exist_ok=True)
                 temp = destination.with_suffix(".json.tmp")
@@ -186,6 +187,8 @@ def managed_server_arguments():
         str(media.folder("comfy-input")),
         "--user-directory",
         str(media.folder("comfy-user")),
+        "--database-url",
+        "sqlite:///" + (media.folder("comfy-user") / "comfyui.db").as_posix(),
     ]
 
 

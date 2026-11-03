@@ -3,7 +3,7 @@ from pathlib import Path
 
 import pytest
 
-from ai_diffusion.backend.comfy_workflow import ComfyObjectInfo, ComfyWorkflow
+from ai_diffusion.backend.comfy_workflow import ComfyObjectInfo, ComfyWorkflow, _convert_ui_workflow
 
 
 @pytest.fixture(scope="module")
@@ -112,3 +112,40 @@ def test_defaults_legacy_combo(info: ComfyObjectInfo):
     assert inputs["images"] == "img"
     assert inputs["format"] == "PNG"
     assert set(inputs.keys()) == {"images", "format"}
+
+
+@pytest.mark.parametrize("values", [[], ["fit"]])
+def test_import_older_widget_values_uses_server_defaults(values):
+    info = ComfyObjectInfo({
+        "Krea2EditModelPatch": {
+            "input": {
+                "required": {
+                    "model": ["MODEL"],
+                    "fit_mode": [["fit", "crop"], {"default": "fit"}],
+                    "ref_boost": ["FLOAT", {"default": 1.0}],
+                    "ref_position": [
+                        ["aligned (trained)", "beside (right of target)"],
+                        {"default": "aligned (trained)"},
+                    ],
+                }
+            }
+        }
+    })
+    graph = {
+        "version": 0.4,
+        "nodes": [
+            {
+                "id": 1,
+                "type": "Krea2EditModelPatch",
+                "widgets_values": values,
+                "inputs": [{"name": "model", "link": 1}],
+            }
+        ],
+        "links": [[1, 2, 0, 1, 0, "MODEL"]],
+    }
+    converted = _convert_ui_workflow(graph, info)
+    inputs = converted[1]["inputs"]
+    assert inputs["model"] == [2, 0]
+    assert inputs["fit_mode"] == "fit"
+    assert inputs["ref_boost"] == 1.0
+    assert inputs["ref_position"] == "aligned (trained)"

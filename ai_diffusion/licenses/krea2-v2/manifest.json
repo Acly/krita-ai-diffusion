@@ -1,0 +1,20 @@
+{
+  "revision": "f33b26291c640e8ec50b0da420bfee3c9a660daa",
+  "files": [
+    {
+      "name": "LICENSE_V2.md",
+      "url": "https://huggingface.co/conradlocke/krea2-identity-edit/resolve/f33b26291c640e8ec50b0da420bfee3c9a660daa/LICENSE_V2.md",
+      "sha256": "39808056e41033e22916e486ec52120790e6eb13d42fc7a8fce0632c86becd32"
+    },
+    {
+      "name": "LICENSE.pdf",
+      "url": "https://huggingface.co/conradlocke/krea2-identity-edit/resolve/f33b26291c640e8ec50b0da420bfee3c9a660daa/LICENSE.pdf",
+      "sha256": "b82a2805162bde714a4eb27b9063c4fc3345d08a30be055134a6160e5430ba74"
+    },
+    {
+      "name": "NOTICE",
+      "url": "https://huggingface.co/conradlocke/krea2-identity-edit/resolve/f33b26291c640e8ec50b0da420bfee3c9a660daa/NOTICE",
+      "sha256": "375bf24f07bc12f48d365ecd79390e6dffc5546ed55352cbf1ef35f0ccfcf381"
+    }
+  ]
+}

@@ -18,7 +18,7 @@ from PyQt5.QtCore import QMetaObject, QObject, Qt, QUuid, pyqtSignal
 from PyQt5.QtGui import QBrush, QColor, QImage, QPainter
 
 from .. import eventloop, media_storage, util
-from ..backend import resolution, workflow
+from ..backend import model_licenses, resolution, workflow
 from ..backend.api import (
     ConditioningInput,
     ControlInput,
@@ -484,6 +484,19 @@ class DocumentModel(QObject, ObservableProperties):
 
     async def _enqueue_job(self, job: Job, input: WorkflowInput, front: bool = False):
         try:
+            if input.models is not None and any(
+                Path(lora.name.replace("\\", "/")).name.lower() in model_licenses.model_filenames
+                for lora in input.models.loras
+            ):
+                from ..ui.model_licenses import confirm_krea2_terms
+
+                if not confirm_krea2_terms():
+                    raise util.PluginError("Krea 2 Edit V2 model terms were not accepted.")
+                if settings.server_mode is ServerMode.managed:
+                    model_licenses.install_documents(
+                        Path(settings.server_path),
+                        accepted_at=settings.krea2_v2_license_accepted_at,
+                    )
             if settings.server_mode in (ServerMode.external, ServerMode.cloud):
                 media_storage.require_external_acceptance(
                     settings.server_url if settings.server_mode is ServerMode.external else "cloud"

@@ -1,0 +1,17 @@
+Krea 2 is licensed under the Krea 2 Community License Agreement.
+For more information, visit https://krea.ai/krea-2-licensing.
+
+This model is a fine-tuned derivative ("Derivative Model") of Krea 2 Raw
+(krea/Krea-2-Raw), modified by Lars Bouaraba. It is an unofficial community
+fine-tune and is not an official Krea product, nor affiliated with or endorsed
+by Krea.ai, Inc.
+
+Earlier versions in this repository (v1, v1.1, v1.2 and their rank variants)
+are distributed under the Krea 2 Community License Agreement (LICENSE.pdf).
+
+The V2 models (krea2_identity_edit_v2.safetensors, krea2_general_edit_v2.safetensors)
+are distributed under the Krea 2 Community License Agreement (LICENSE.pdf) AND the
+Krea 2 Identity Edit V2 License (LICENSE_V2.md): free for non-commercial use;
+any commercial use requires a separate commercial license from Lars Bouaraba,
+agreed case by case (contact: l.bouaraba@gmail.com). Commercial use by entities
+with $1M+ annual revenue additionally requires an enterprise license from Krea.
