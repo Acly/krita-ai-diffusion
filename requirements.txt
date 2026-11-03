@@ -4,8 +4,8 @@
 # to the Python standard library and Qt5.
 
 # Development
-ruff
-pyright
+ruff==0.17.3
+pyright==1.1.414
 debugpy
 requests
 uv

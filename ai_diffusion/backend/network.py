@@ -9,7 +9,14 @@ from pathlib import Path
 from typing import NamedTuple
 
 from PyQt5.QtCore import QBuffer, QByteArray, QFile, QUrl
-from PyQt5.QtNetwork import QNetworkAccessManager, QNetworkReply, QNetworkRequest, QSslError
+from PyQt5.QtNetwork import (
+    QHttpMultiPart,
+    QHttpPart,
+    QNetworkAccessManager,
+    QNetworkReply,
+    QNetworkRequest,
+    QSslError,
+)
 
 from ..localization import translate as _
 from ..util import client_logger as log
@@ -148,6 +155,43 @@ class RequestManager:
     def post(self, url: str, data: dict, bearer: str | None = None):
         return self.http("POST", url, data, bearer=bearer)
 
+    def post_multipart(
+        self,
+        url: str,
+        fields: dict[str, str],
+        file_field: str,
+        file_bytes: bytes,
+        file_name: str,
+        file_mime: str = "image/png",
+        timeout: float | None = None,
+    ):
+        self._cleanup()
+        request = self._prepare_request(url, timeout)
+
+        multipart = QHttpMultiPart(QHttpMultiPart.ContentType.FormDataType)
+        for key, value in fields.items():
+            part = QHttpPart()
+            part.setRawHeader(b"Content-Disposition", f'form-data; name="{key}"'.encode())
+            part.setBody(value.encode("utf-8"))
+            multipart.append(part)
+
+        file_part = QHttpPart()
+        file_part.setRawHeader(b"Content-Type", file_mime.encode("utf-8"))
+        file_part.setRawHeader(
+            b"Content-Disposition",
+            f'form-data; name="{file_field}"; filename="{file_name}"'.encode(),
+        )
+        file_part.setBody(file_bytes)
+        multipart.append(file_part)
+
+        reply = self._net.post(request, multipart)
+        assert reply is not None, f"Network request for {url} failed: reply is None"
+        multipart.setParent(reply)  # keep alive until the reply is done
+
+        future = asyncio.get_running_loop().create_future()
+        self._requests[reply] = Request(url, future)
+        return future
+
     def put(self, url: str, data: QByteArray | bytes):
         return self.http("PUT", url, data)
 
@@ -259,6 +303,7 @@ class DownloadHelper:
 
     def __init__(self, resume_from: int = 0):
         self._initial = resume_from / 10**6
+        self._started = datetime.now(timezone.utc)
 
     def update(self, received_bytes: int, total_bytes: int = 0):
         received = received_bytes / 10**6
@@ -283,9 +328,9 @@ class DownloadHelper:
         return DownloadProgress(self._initial + self._received, self._initial + self._total, 0, 1)
 
     def seconds_since_last_update(self):
-        if self._time is None:
-            return 0
-        return (datetime.now(timezone.utc) - self._time).total_seconds()
+        # Before the first byte arrives, count from the start so a connection that never
+        # answers is caught too
+        return (datetime.now(timezone.utc) - (self._time or self._started)).total_seconds()
 
 
 def _write_file_chunks(file: QFile, reply: QNetworkReply):
@@ -337,7 +382,10 @@ async def _try_download(network: QNetworkAccessManager, url: str, path: Path):
     reply.finished.connect(handle_finished)
 
     while not reply.isFinished():
-        await asyncio.wait([progress_future, finished_future], return_when=asyncio.FIRST_COMPLETED)
+        # Wake up periodically even without Qt signals, otherwise the stall check never runs
+        await asyncio.wait(
+            [progress_future, finished_future], timeout=5, return_when=asyncio.FIRST_COMPLETED
+        )
         if progress_future.done():
             progress = progress_future.result()
             yield progress
@@ -389,8 +437,9 @@ async def download(network: QNetworkAccessManager, url: str, path: Path):
 
 
 HOSTMAP_LOCAL = {  # for testing
-    "https://huggingface.co": "http://localhost:51222",
-    "https://civitai.com": "http://localhost:51222",
+    # scripts/file_server.py listens on IPv4 only; "localhost" may resolve to ::1 first
+    "https://huggingface.co": "http://127.0.0.1:51222",
+    "https://civitai.com": "http://127.0.0.1:51222",
 }
 HOSTMAP = HOSTMAP_LOCAL if os.environ.get("HOSTMAP") else {}
 

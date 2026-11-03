@@ -1,7 +1,7 @@
 from __future__ import annotations
 
-from PyQt5.QtCore import QMetaObject, Qt, pyqtSignal
-from PyQt5.QtGui import QResizeEvent
+from PyQt5.QtCore import QMetaObject, QRegularExpression, Qt, pyqtSignal
+from PyQt5.QtGui import QRegularExpressionValidator, QResizeEvent
 from PyQt5.QtWidgets import (
     QCheckBox,
     QComboBox,
@@ -9,6 +9,7 @@ from PyQt5.QtWidgets import (
     QGridLayout,
     QHBoxLayout,
     QLabel,
+    QLineEdit,
     QSlider,
     QToolButton,
     QVBoxLayout,
@@ -51,6 +52,16 @@ class ControlWidget(QWidget):
         )
         self._update_layers()
         root.active_model.layers.changed.connect(self._update_layers)
+
+        self.name_edit = QLineEdit(self)
+        self.name_edit.setPlaceholderText(_("Name"))
+        self.name_edit.setMaximumWidth(110)
+        self.name_edit.setValidator(
+            QRegularExpressionValidator(QRegularExpression(r"[\w\-]*"), self.name_edit)
+        )
+        self.name_edit.setToolTip(
+            _("Reference name - mention it in the prompt as @name, eg. 'Add @hat to the girl'")
+        )
 
         self.preset_slider = QSlider(self)
         self.preset_slider.setOrientation(Qt.Orientation.Horizontal)
@@ -95,6 +106,7 @@ class ControlWidget(QWidget):
         bar_layout = QHBoxLayout()
         bar_layout.addWidget(self.mode_select)
         bar_layout.addWidget(self.layer_select, 3)
+        bar_layout.addWidget(self.name_edit, 1)
         bar_layout.addWidget(self.generate_tool_button)
         bar_layout.addWidget(self.generate_regions_tool_button)
         bar_layout.addWidget(self.add_pose_tool_button)
@@ -194,6 +206,7 @@ class ControlWidget(QWidget):
             bind_combo(control, "layer_id", self.layer_select),
             bind_toggle(control, "use_custom_strength", self.custom_checkbox),
             bind(control, "preset_value", self.preset_slider, "value"),
+            bind(control, "name", self.name_edit, "text"),
             bind(control, "strength", self.strength_slider, "value"),
             control.use_custom_strength_changed.connect(self._update_custom_values),
             control.strength_changed.connect(self._update_strength),
@@ -245,6 +258,9 @@ class ControlWidget(QWidget):
 
         def controls():
             self.layer_select.setVisible(self._control.is_supported)
+            self.name_edit.setVisible(
+                self._control.is_supported and is_edit and self._control.mode.is_ip_adapter
+            )
             self.preset_slider.setVisible(self._control.is_supported and not is_edit)
             self.expand_button.setVisible(self._control.is_supported and not is_edit)
             self.generate_button.setVisible(self._control.can_generate and is_small)

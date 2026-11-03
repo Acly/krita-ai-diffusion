@@ -18,6 +18,7 @@ from ..backend.client import (
 )
 from ..backend.cloud_client import CloudClient
 from ..backend.comfy_client import ComfyClient
+from ..backend.lora_manager import start_lora_preload
 from ..backend.network import NetworkError
 from ..localization import translate as _
 from ..settings import PerformancePreset, ServerMode, Settings, settings
@@ -42,7 +43,10 @@ class Connection(QObject, ObservableProperties):
     state = Property(ConnectionState.disconnected)
     error = Property("")
     progress = Property((1, 1))
+    paused = Property(False, setter="set_paused")
 
+    paused_changed = pyqtSignal(bool)
+    vram_changed = pyqtSignal(object)  # (used, total) in bytes, or None
     state_changed = pyqtSignal(ConnectionState)
     error_changed = pyqtSignal(str)
     progress_changed = pyqtSignal(tuple)
@@ -111,6 +115,8 @@ class Connection(QObject, ObservableProperties):
                 self._task = eventloop._loop.create_task(self._handle_messages())
             self.state = ConnectionState.connected
             self.models_changed.emit()
+            if settings.lora_preload and isinstance(client, ComfyClient):
+                start_lora_preload(client._requests, client.url)
         except NetworkError as e:
             self.error = e.message
             self.error_kind = "network"
@@ -152,21 +158,68 @@ class Connection(QObject, ObservableProperties):
             self._task = None
 
         self._client = None
+        self.paused = False
         self.error = ""
         self.missing_resources = None
         self.state = ConnectionState.disconnected
         self._update_state()
 
+    def set_paused(self, value: bool):
+        client = self.client_if_connected
+        if client is None or not client.set_paused(value):
+            value = False  # not connected, or unsupported by this client (cloud)
+        elif value:
+            eventloop.run(client.take_back_waiting_job())
+        self._paused = value
+        self.paused_changed.emit(value)
+
     def interrupt(self):
         eventloop.run(self.client.interrupt())
+
+    def free_memory(self):
+        async def _free():
+            if client := self.client_if_connected:
+                try:
+                    if await client.free_memory():
+                        util.client_logger.info("Requested server to unload all models")
+                except NetworkError as e:
+                    util.client_logger.warning(f"Failed to unload models: {e}")
+
+        eventloop.run(_free())
+
+    def update_vram(self):
+        async def _update():
+            usage = None
+            if client := self.client_if_connected:
+                try:
+                    usage = await client.vram_usage()
+                except Exception as e:
+                    util.client_logger.warning(f"Failed to query VRAM usage: {e}")
+            self.vram_changed.emit(usage)
+
+        eventloop.run(_update())
 
     def cancel(self, job_ids: Iterable[str]):
         eventloop.run(self.client.cancel(job_ids))
 
-    def refresh(self):
+    def refresh(self, quick=False):
+        # quick: only re-read the server's model file lists (browser "Scan server"),
+        # without inspecting every model file or rechecking resources
         async def _refresh():
-            await self.client.refresh()
-            self.models_changed.emit()
+            # models_changed must fire even on failure - callers like the LoRA
+            # browser's "Scan server" button wait for it to re-enable themselves,
+            # and a network hiccup or a slow ComfyUI must not leave them stuck.
+            try:
+                if quick:
+                    await self.client.refresh_file_lists()
+                else:
+                    await self.client.refresh()
+                    self.missing_resources = self.client.missing_resources
+            except Exception as e:
+                util.log_error(e)
+            finally:
+                self.models_changed.emit()
+                self.state_changed.emit(self.state)
 
         if self.state is ConnectionState.connected:
             eventloop.run(_refresh())

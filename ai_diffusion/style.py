@@ -28,6 +28,32 @@ class StyleSettings:
         items=[Arch.auto] + Arch.list(),
     )
 
+    base_model_family = Setting(
+        _("Base Model Family"),
+        "Auto",
+        _(
+            "Some checkpoints (e.g. Illustrious, Pony) share the same underlying architecture as"
+            " SDXL but are trained on different datasets and can't be told apart automatically."
+            " Auto guesses from the checkpoint file name."
+        ),
+        items=[
+            "Auto",
+            "Anima",
+            "Chroma",
+            "ERNIE Image",
+            "Flux",
+            "Flux Kontext",
+            "Illustrious",
+            "Krea 2",
+            "Pony",
+            "Qwen",
+            "SD 1.5",
+            "SD 3",
+            "SD XL",
+            "Z-Image",
+        ],
+    )
+
     checkpoints = Setting(
         _("Model Checkpoint"),
         [],
@@ -121,6 +147,7 @@ class Style(QObject):
     version: int = StyleSettings.version.default
     name: str = StyleSettings.name.default
     architecture: Arch = StyleSettings.architecture.default
+    base_model_family: str = StyleSettings.base_model_family.default
     checkpoints: list[str] = StyleSettings.checkpoints.default
     loras: list[dict[str, str | float | bool]]
     style_prompt: str = StyleSettings.style_prompt.default
@@ -235,6 +262,27 @@ class Style(QObject):
         max_steps = max_steps or preset.steps
         min_steps = min(preset.minimum_steps, max_steps)
         return min_steps, max_steps
+
+    def effective_family(self, arch: Arch) -> str:
+        """Base model family (SDXL/Illustrious/Pony/...). Uses the user-set
+        base_model_family override if present, otherwise guesses from the
+        checkpoint file name - checkpoints within the same Arch (e.g. Illustrious
+        and Pony are both technically SDXL) can't be told apart from the model
+        weights alone."""
+        if self.base_model_family and self.base_model_family != "Auto":
+            return self.base_model_family
+        return detect_base_model_family(self.checkpoints, arch)
+
+
+_family_hints = ["illustrious", "pony"]
+
+
+def detect_base_model_family(checkpoints: Iterable[str], arch: Arch) -> str:
+    haystack = " ".join(checkpoints).lower()
+    for hint in _family_hints:
+        if hint in haystack:
+            return hint.capitalize()
+    return arch.value
 
 
 def _map_sampler_preset(filepath: str | Path, name: str, steps: int, cfg: float):

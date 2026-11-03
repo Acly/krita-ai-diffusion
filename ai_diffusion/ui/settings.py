@@ -33,9 +33,10 @@ from PyQt5.QtWidgets import (
 )
 
 from .. import __version__, eventloop, util
-from ..backend import resources
+from ..backend import ollama, resources
 from ..backend.client import Client, MissingResources, User
 from ..backend.cloud_client import CloudClient
+from ..backend.network import NetworkError
 from ..backend.resources import Arch, ResourceId
 from ..backend.server import Server, ServerState
 from ..localization import Localization
@@ -54,6 +55,7 @@ from .settings_widgets import (
     SliderSetting,
     SpinBoxSetting,
     SwitchSetting,
+    TextSetting,
 )
 from .style import StylePresets
 from .theme import add_header, green, grey, logo, prompt_max_line_count, red, yellow
@@ -740,6 +742,11 @@ class InterfaceSettings(SettingsTab):
             "generation_finished_action",
             ComboBoxSetting(S._generation_finished_action, parent=self),
         )
+        self.add("show_generation_preview", SwitchSetting(S._show_generation_preview, parent=self))
+        self.add(
+            "generation_preview_interval",
+            SliderSetting(S._generation_preview_interval, self, 0.1, 5.0, "{} s"),
+        )
         self.add("apply_behavior", ComboBoxSetting(S._apply_behavior, parent=self))
         self.add("apply_region_behavior", ComboBoxSetting(S._apply_region_behavior, parent=self))
         self.add("apply_behavior_live", ComboBoxSetting(S._apply_behavior_live, parent=self))
@@ -748,6 +755,7 @@ class InterfaceSettings(SettingsTab):
             ComboBoxSetting(S._apply_region_behavior_live, parent=self),
         )
         self.add("new_seed_after_apply", SwitchSetting(S._new_seed_after_apply, parent=self))
+        self.add("layer_name_model_prefix", SwitchSetting(S._layer_name_model_prefix, parent=self))
         self.add("save_image_format", ComboBoxSetting(S._save_image_format, parent=self))
         self.add("save_image_metadata", SwitchSetting(S._save_image_metadata, parent=self))
         self.add("debug_dump_workflow", SwitchSetting(S._debug_dump_workflow, parent=self))
@@ -771,10 +779,8 @@ class InterfaceSettings(SettingsTab):
         plugin_tags_path = util.plugin_dir / "tags"
         user_tags_path = util.user_data_dir / "tags"
         files = set()
-        for path in plugin_tags_path.glob("*.csv"):
-            files.add(path.stem)
-        for path in user_tags_path.glob("*.csv"):
-            files.add(path.stem)
+        files.update(path.stem for path in plugin_tags_path.glob("*.csv"))
+        files.update(path.stem for path in user_tags_path.glob("*.csv"))
 
         return list(files)
 
@@ -798,6 +804,164 @@ class InterfaceSettings(SettingsTab):
     def _update_image_format_widgets(self):
         fmt: ImageFileFormat = self._widgets["save_image_format"].value
         self._widgets["save_image_metadata"].enabled = fmt.extension == "png"
+
+
+def _section(layout: QVBoxLayout, title: str, description: str = ""):
+    label = QLabel(title)
+    label.setStyleSheet("font-weight:bold")
+    layout.addSpacing(8)
+    layout.addWidget(label)
+    if description:
+        hint = QLabel(description)
+        hint.setWordWrap(True)
+        hint.setStyleSheet(f"font-style:italic; color: {grey};")
+        layout.addWidget(hint)
+
+
+class IntegrationSettings(SettingsTab):
+    """Everything that talks to a service outside the plugin: the local language
+    model for prompt enhancement, CivitAI, and ComfyUI-Lora-Manager."""
+
+    def __init__(self):
+        super().__init__(_("Integrations"))
+
+        S = Settings
+        _section(
+            self._layout,
+            _("Prompt AI"),
+            _("Local Ollama server used to write and refine prompts"),
+        )
+        self.add("ollama_enabled", SwitchSetting(S._ollama_enabled, parent=self))
+        self.add("ollama_url", TextSetting(S._ollama_url, parent=self))
+        self.add("ollama_model", ComboBoxSetting(S._ollama_model, parent=self))
+
+        self._status = QLabel(self)
+        self._status.setWordWrap(True)
+        self._refresh_button = QPushButton(_("Connect"), self)
+        self._refresh_button.clicked.connect(self.refresh_models)
+        status_layout = QHBoxLayout()
+        status_layout.addWidget(self._refresh_button)
+        status_layout.addWidget(self._status, 1)
+        self._layout.addLayout(status_layout)
+        self._layout.addSpacing(6)
+
+        self.add(
+            "ollama_keep_alive",
+            SpinBoxSetting(S._ollama_keep_alive, self, 0, 3600, 30, _(" seconds")),
+        )
+        self.add("ollama_free_comfy_vram", SwitchSetting(S._ollama_free_comfy_vram, parent=self))
+        self.add(
+            "ollama_temperature", SliderSetting(S._ollama_temperature, self, 0.1, 2.0, "{:.1f}")
+        )
+        self.add("ollama_max_tokens", SpinBoxSetting(S._ollama_max_tokens, self, 64, 4096, 64))
+        self.add(
+            "ollama_timeout", SpinBoxSetting(S._ollama_timeout, self, 10, 900, 10, _(" seconds"))
+        )
+        self.add("ollama_variation_count", SpinBoxSetting(S._ollama_variation_count, self, 2, 20))
+
+        self._layout.addSpacing(6)
+        anchor = _("Open profile folder")
+        profile_hint = QLabel(
+            _(
+                "Prompt profiles decide how prompts are written for each base model family"
+                " (tags for SDXL/Illustrious, prose for Flux/Krea 2, ...). Place a"
+                " 'prompt_enhance.json' in the settings folder to customize them."
+            )
+            + f" <a href='file://{util.user_data_dir}'>{anchor}</a>",
+            self,
+        )
+        profile_hint.setWordWrap(True)
+        profile_hint.setStyleSheet(f"font-style:italic; color: {grey};")
+        profile_hint.linkActivated.connect(self._open_profile_folder)
+        self._layout.addWidget(profile_hint)
+
+        self._reload_profiles = QPushButton(_("Reload Profiles"), self)
+        self._reload_profiles.clicked.connect(self._do_reload_profiles)
+        self._layout.addWidget(self._reload_profiles, alignment=Qt.AlignmentFlag.AlignLeft)
+
+        _section(
+            self._layout,
+            _("CivitAI"),
+            _("Model search and downloads in the CivitAI browser"),
+        )
+        self.add("civitai_host", ComboBoxSetting(S._civitai_host, parent=self))
+        self.add("civitai_api_key", TextSetting(S._civitai_api_key, parent=self))
+        self.add("civitai_nsfw_filter", ComboBoxSetting(S._civitai_nsfw_filter, parent=self))
+
+        _section(
+            self._layout,
+            _("AnimaDex"),
+            _(
+                "Character and artist catalogue for the Anima model. Import the offline"
+                " dataset from inside the browser window."
+            ),
+        )
+        self.add("animadex_enabled", SwitchSetting(S._animadex_enabled, parent=self))
+        self.add("animadex_host", TextSetting(S._animadex_host, parent=self))
+
+        _section(
+            self._layout,
+            _("Lora Manager"),
+            _(
+                "ComfyUI-Lora-Manager runs on the ComfyUI server and provides the LoRA,"
+                " checkpoint and recipe browsers as well as model downloads."
+            ),
+        )
+        self.add("lora_preload", SwitchSetting(S._lora_preload, parent=self))
+        self.add("civitai_download_root", TextSetting(S._civitai_download_root, parent=self))
+        self.add(
+            "civitai_download_subfolder",
+            TextSetting(S._civitai_download_subfolder, parent=self),
+        )
+
+        self._layout.addStretch()
+
+    def _read(self):
+        if settings.ollama_model:
+            # keep the stored model selectable even before the server was queried
+            combo: ComboBoxSetting = self._widgets["ollama_model"]
+            if combo._combo.findData(settings.ollama_model) == -1:
+                combo.set_items([settings.ollama_model])
+                combo.value = settings.ollama_model
+
+    def refresh_models(self):
+        self._status.setText(_("Connecting..."))
+        self._status.setStyleSheet(f"color: {grey};")
+        eventloop.run(self._fetch_models())
+
+    async def _fetch_models(self):
+        try:
+            models = await ollama.list_models()
+        except NetworkError as e:
+            self._status.setText(_("Not connected") + f": {e}")
+            self._status.setStyleSheet(f"color: {red};")
+            return
+        except Exception as e:
+            self._status.setText(str(e))
+            self._status.setStyleSheet(f"color: {red};")
+            return
+
+        combo: ComboBoxSetting = self._widgets["ollama_model"]
+        previous = settings.ollama_model
+        if not models:
+            self._status.setText(_("Connected, but no models are installed") + " (ollama pull ...)")
+            self._status.setStyleSheet(f"color: {yellow};")
+            return
+        combo.set_items(models)
+        combo.value = previous if previous in models else models[0]
+        self.write()
+        self._status.setText(_("Connected") + f" - {len(models)} " + _("models available"))
+        self._status.setStyleSheet(f"color: {green};")
+
+    def _open_profile_folder(self):
+        util.user_data_dir.mkdir(parents=True, exist_ok=True)
+        QDesktopServices.openUrl(QUrl.fromLocalFile(str(util.user_data_dir)))
+
+    def _do_reload_profiles(self):
+        profiles = ollama.Profiles.reload()
+        names = ", ".join(p.name for p in profiles)
+        self._status.setText(_("Profiles reloaded") + f": {names}")
+        self._status.setStyleSheet(f"color: {green};")
 
 
 class HistorySizeWidget(QWidget):
@@ -1171,6 +1335,7 @@ class SettingsDialog(QDialog):
         self.styles = StylePresets(server)
         self.diffusion = DiffusionSettings()
         self.interface = InterfaceSettings()
+        self.integrations = IntegrationSettings()
         self.performance = PerformanceSettings()
         self.about = AboutSettings()
 
@@ -1187,6 +1352,7 @@ class SettingsDialog(QDialog):
         create_list_item(_("Styles"), self.styles)
         create_list_item(_("Diffusion"), self.diffusion)
         create_list_item(_("Interface"), self.interface)
+        create_list_item(_("Integrations"), self.integrations)
         create_list_item(_("Performance"), self.performance)
         create_list_item(_("Plugin"), self.about)
 
@@ -1231,6 +1397,7 @@ class SettingsDialog(QDialog):
         self.styles.read()
         self.diffusion.read()
         self.interface.read()
+        self.integrations.read()
         self.performance.read()
         self.about.read()
 

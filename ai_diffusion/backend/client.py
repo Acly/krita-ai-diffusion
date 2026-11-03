@@ -21,6 +21,7 @@ from ..util import PluginError, ensure
 from ..util import client_logger as log
 from .api import WorkflowInput
 from .comfy_workflow import ComfyObjectInfo
+from .network import RequestManager
 from .resources import Arch, ControlMode, CustomNode, ResourceId, ResourceKind, UpscalerName
 
 
@@ -40,6 +41,7 @@ class ClientEvent(Enum):
     published = 8
     output = 9
     payment_required = 10
+    preview = 11
 
 
 class TextOutput(NamedTuple):
@@ -78,6 +80,7 @@ class ClientMessage(NamedTuple):
     images: ImageCollection | None = None
     result: ClientOutput | None = None
     error: str | None = None
+    status: str = ""  # what the server is doing right now, for display (progress events)
 
 
 class User(QObject, ObservableProperties):
@@ -177,23 +180,10 @@ class MissingResources(Exception):
         return self.missing.get(arch, [])
 
 
-class Quantization(Enum):
-    none = 0
-    svdq = 1
-
-    @staticmethod
-    def from_string(s: str):
-        if s == "svdq":
-            return Quantization.svdq
-        else:
-            return Quantization.none
-
-
 class CheckpointInfo(NamedTuple):
     filename: str
     arch: Arch
     format: FileFormat = FileFormat.checkpoint
-    quantization: Quantization = Quantization.none
 
     @property
     def name(self):
@@ -204,7 +194,6 @@ class CheckpointInfo(NamedTuple):
             "filename": self.filename,
             "arch": self.arch.name,
             "format": self.format.name,
-            "quantization": self.quantization.name,
         }
 
     @staticmethod
@@ -213,7 +202,6 @@ class CheckpointInfo(NamedTuple):
             data["filename"],
             ensure(Arch.from_string(data["arch"])),
             FileFormat[data.get("format", "checkpoint")],
-            Quantization.from_string(data.get("quantization", "none")),
         )
 
     @staticmethod
@@ -406,6 +394,7 @@ class ClientFeatures:
 
 class Client(ABC):
     url: str
+    _requests: RequestManager
     models: ClientModels
     device_info: DeviceInfo
 
@@ -431,8 +420,26 @@ class Client(ABC):
     @abstractmethod
     async def cancel(self, job_ids: Iterable[str]): ...
 
+    def set_paused(self, paused: bool) -> bool:
+        """Hold back queued jobs (the running one finishes). Returns False if unsupported."""
+        return False
+
+    async def take_back_waiting_job(self):
+        """While paused: recall a job already sent to the server that has not started yet."""
+
+    async def free_memory(self) -> bool:
+        """Unload all models from VRAM/RAM on the server. Returns False if unsupported."""
+        return False
+
+    async def vram_usage(self) -> tuple[int, int] | None:
+        """Used and total VRAM of the server's GPU in bytes, or None if unknown."""
+        return None
+
     async def refresh(self):
         pass
+
+    async def refresh_file_lists(self):
+        await self.refresh()
 
     async def translate(self, text: str, lang: str) -> str:
         return text

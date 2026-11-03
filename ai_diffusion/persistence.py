@@ -105,12 +105,18 @@ class _HistoryResult:
     params: JobParams
     kind: JobKind = JobKind.diffusion
     in_use: dict[int, bool] = field(default_factory=dict)
+    favorites: dict[int, bool] = field(default_factory=dict)
+    ratings: dict[int, int] = field(default_factory=dict)
+    eagle: dict[int, bool] = field(default_factory=dict)
 
     @staticmethod
     def from_dict(data: dict[str, Any]):
         data["params"] = JobParams.from_dict(data["params"])
         data["kind"] = JobKind[data.get("kind", "diffusion")]
         data["in_use"] = {int(k): v for k, v in data.get("in_use", {}).items()}
+        data["favorites"] = {int(k): v for k, v in data.get("favorites", {}).items()}
+        data["ratings"] = {int(k): v for k, v in data.get("ratings", {}).items()}
+        data["eagle"] = {int(k): v for k, v in data.get("eagle", {}).items()}
         return _HistoryResult(**data)
 
 
@@ -183,16 +189,31 @@ class ModelSync:
                 _deserialize(region.control.emplace(), control_state)
 
         for result in state.get("history", []):
-            item = _HistoryResult.from_dict(result)
-            if images_bytes := _find_annotation(model.document, f"result{item.slot}.webp"):
-                job = model.jobs.add_job(Job(item.id, item.kind, item.params))
-                job.in_use = item.in_use
-                results = ImageCollection.from_bytes(images_bytes, item.offsets)
-                model.jobs.set_results(job, results)
-                model.jobs.notify_finished(job)
-                self._history.append(item)
-                self._memory_used[item.slot] = images_bytes.size()
-                self._slot_index = max(self._slot_index, item.slot + 1)
+            try:
+                self._load_result(model, result)
+            except Exception as e:
+                # One unreadable entry must not cost the rest of the history, and must not
+                # leave a job without images behind (it shows as a header nothing can remove).
+                log.exception(f"Failed to restore history result {result.get('id')}: {e}")
+
+    def _load_result(self, model: DocumentModel, result: dict[str, Any]):
+        item = _HistoryResult.from_dict(result)
+        # Never reuse the slot, even if the entry can't be restored.
+        self._slot_index = max(self._slot_index, item.slot + 1)
+        images_bytes = _find_annotation(model.document, f"result{item.slot}.webp")
+        if not images_bytes or not item.offsets:
+            return
+        results = ImageCollection.from_bytes(images_bytes, item.offsets)
+        job = model.jobs.add_job(Job(item.id, item.kind, item.params))
+        job.in_use = item.in_use
+        job.favorites = item.favorites
+        job.ratings = item.ratings
+        job.eagle = item.eagle
+        model.jobs.set_results(job, results)
+        model.jobs.notify_stored(job, images_bytes.size(), item.offsets)
+        model.jobs.notify_finished(job)
+        self._history.append(item)
+        self._memory_used[item.slot] = images_bytes.size()
 
     def _track(self, model: DocumentModel):
         model.modified.connect(self._save_later)
@@ -205,6 +226,9 @@ class ModelSync:
         model.jobs.job_discarded.connect(self._remove_results)
         model.jobs.result_discarded.connect(self._remove_image)
         model.jobs.result_used.connect(self._save_later)
+        model.jobs.favorite_changed.connect(self._save_later)
+        model.jobs.rating_changed.connect(self._save_later)
+        model.jobs.eagle_changed.connect(self._save_later)
         model.jobs.selection_changed.connect(self._save_later)
         self._track_regions(model.regions)
         self._track_regions(model.edit_regions)
@@ -240,21 +264,42 @@ class ModelSync:
     async def _save_result_images(
         self, job: Job, slot: int, prev_task: asyncio.Future | None = None
     ):
+        # Saves are chained so slots are written in order. A failed save must not break
+        # the chain: awaiting it re-raises its error, and every later result would be
+        # silently dropped from the stored history for the rest of the session.
         if prev_task is not None:
-            await prev_task
-        if settings.multi_threading:
-            loop = asyncio.get_running_loop()
-            image_data, image_offsets = await loop.run_in_executor(
-                None, job.results.to_bytes, settings.history_format
-            )
-        else:
-            image_data, image_offsets = job.results.to_bytes(settings.history_format)
+            try:
+                await prev_task
+            except Exception:  # noqa: S110 - already logged by the task that failed
+                pass
+        try:
+            if settings.multi_threading:
+                loop = asyncio.get_running_loop()
+                image_data, image_offsets = await loop.run_in_executor(
+                    None, job.results.to_bytes, settings.history_format
+                )
+            else:
+                image_data, image_offsets = job.results.to_bytes(settings.history_format)
+        except Exception as e:
+            log.exception(f"Failed to store result {job.params.name} in the document: {e}")
+            raise
 
         self._model.document.annotate(f"result{slot}.webp", image_data)
         self._history.append(
-            _HistoryResult(job.id or "", slot, image_offsets, job.params, job.kind, job.in_use)
+            _HistoryResult(
+                job.id or "",
+                slot,
+                image_offsets,
+                job.params,
+                job.kind,
+                job.in_use,
+                job.favorites,
+                job.ratings,
+                job.eagle,
+            )
         )
         self._memory_used[slot] = image_data.size()
+        self._model.jobs.notify_stored(job, image_data.size(), image_offsets)
         self._prune()
         self._save()
 
@@ -272,6 +317,7 @@ class ModelSync:
                 image_data, history.offsets = job.results.to_bytes()
                 self._model.document.annotate(f"result{history.slot}.webp", image_data)
                 self._memory_used[history.slot] = image_data.size()
+                self._model.jobs.notify_stored(job, image_data.size(), history.offsets)
                 self._save()
 
     def _save_later(self):
@@ -291,7 +337,9 @@ class ModelSync:
     def _prune(self):
         limit = settings.history_storage * 1024 * 1024
         used = self.memory_used
-        while used > limit and len(self._history) > 0:
+        # Never prune the newest result: one larger than the whole limit (eg. a DLSS5
+        # result of a huge canvas) would otherwise wipe all stored history, itself included.
+        while used > limit and len(self._history) > 1:
             slot = self._history.pop(0).slot
             self._model.document.remove_annotation(f"result{slot}.webp")
             used -= self._memory_used.pop(slot, 0)

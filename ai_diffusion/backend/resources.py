@@ -10,10 +10,10 @@ from typing import Any, NamedTuple
 
 # Version identifier for all the resources defined here. This is used as the server version.
 # It usually follows the plugin version, but not all new plugin versions also require a server update.
-version = "1.52.0"
+version = "1.53.0-reloaded.1"
 
 comfy_url = "https://github.com/comfyanonymous/ComfyUI"
-comfy_version = "a95e461916de9cbda2e89140ab86a8a7c3f9702a"
+comfy_version = "4da9e2dbead52fc1e68beae33fe3d7ad63b63241"
 
 
 class CustomNode(NamedTuple):
@@ -29,7 +29,7 @@ required_custom_nodes = [
         "ControlNet Preprocessors",
         "comfyui_controlnet_aux",
         "https://github.com/Fannovel16/comfyui_controlnet_aux",
-        "83463c2e4b04e729268e57f638b4212e0da4badc",
+        "e8b689a513c3e6b63edc44066560ca5919c0576e",
         ["InpaintPreprocessor", "DepthAnythingV2Preprocessor"],
     ),
     CustomNode(
@@ -43,7 +43,7 @@ required_custom_nodes = [
         "External Tooling Nodes",
         "comfyui-tooling-nodes",
         "https://github.com/Acly/comfyui-tooling-nodes",
-        "5d3194f4d4158ab31df7a060e1e4c56fa03f320c",
+        "ca01116495cad1f2d8440641f26ced8fbdbbe8de",
         ["ETN_LoadImageCache", "ETN_SaveImageCache", "ETN_Translate"],
     ),
     CustomNode(
@@ -58,13 +58,6 @@ required_custom_nodes = [
             "INPAINT_ColorMatch",
         ],
     ),
-    CustomNode(
-        "Krea 2 Edit",
-        "comfyui-krea2edit",
-        "https://github.com/lbouaraba/comfyui-krea2edit",
-        "86f886dac23013d88996e3a2e99093ba44d322fb",
-        ["Krea2EditModelPatch", "Krea2EditGroundedEncode"],
-    ),
 ]
 
 optional_custom_nodes = [
@@ -75,12 +68,23 @@ optional_custom_nodes = [
         "01f8845bf30d89fff293c7bd50187bc59d9d53ea",
         ["UnetLoaderGGUF", "DualCLIPLoaderGGUF"],
     ),
+]
+
+
+selectable_custom_nodes = [
     CustomNode(
-        "Nunchaku",
-        "ComfyUI-nunchaku",
-        "https://github.com/nunchaku-tech/ComfyUI-nunchaku",
-        "90999af9c26e4a40927fb26c028ece8875ac25b3",
-        ["NunchakuFluxDiTLoader"],
+        "Krea 2 Edit",
+        "comfyui-krea2edit",
+        "https://github.com/lbouaraba/comfyui-krea2edit",
+        "13ef60f20828949becada815d3cbc371eb5ccaab",
+        ["Krea2EditModelPatch", "Krea2EditGroundedEncode"],
+    ),
+    CustomNode(
+        "LoRA Browser metadata",
+        "ComfyUI-Lora-Manager",
+        "https://github.com/willmiao/ComfyUI-Lora-Manager",
+        "5f607e5c0fc9db196592de7e58da994eddf1fd2e",
+        [],
     ),
 ]
 
@@ -106,6 +110,7 @@ class Arch(Enum):
     zimage = "Z-Image"
     ernie = "ERNIE Image"
     krea2 = "Krea 2"
+    moss = "MOSS-Image"
 
     auto = "Automatic"
     all = "All"
@@ -152,6 +157,8 @@ class Arch(Enum):
             string == "unknown" and "krea2" in filename
         ):
             return Arch.krea2
+        if string == "moss_image" or (string == "unknown" and "moss_image" in filename):
+            return Arch.moss
         return None
 
     @staticmethod
@@ -261,7 +268,10 @@ class Arch(Enum):
                 return ["ministral"]
             case Arch.krea2:
                 return ["qwen_3vl_4b"]
-        raise ValueError(f"Unsupported architecture: {self}")
+            case Arch.moss:
+                return ["qwen_3.5_9b"]
+            case _:
+                raise ValueError(f"Unsupported architecture: {self}")
 
     @staticmethod
     def list():
@@ -284,6 +294,7 @@ class Arch(Enum):
             Arch.zimage,
             Arch.ernie,
             Arch.krea2,
+            Arch.moss,
         ]
 
 
@@ -489,10 +500,8 @@ class VerificationStatus(NamedTuple):
 
 class ModelRequirements(Enum):
     none = 0
-    insightface = 1
     cuda = 2  # requires CUDA (NVIDIA only)
-    cuda_fp4 = 3  # requires FP4 support (Blackwell)
-    no_cuda = 4  # model alternative for hardware without CUDA support
+    no_cuda = 3  # model alternative for hardware without CUDA support
 
 
 class ModelFile(NamedTuple):
@@ -815,8 +824,8 @@ search_paths: dict[str, list[str]] = {
     resource_id(ResourceKind.lora, Arch.flux, ControlMode.depth): ["flux1-depth"],
     resource_id(ResourceKind.lora, Arch.flux, ControlMode.canny_edge): ["flux1-canny"],
     resource_id(ResourceKind.lora, Arch.flux2_4b, ControlMode.inpaint): ["flux-2-klein-4B-outpaint-lora", "4b-outpaint-lora", "LyNiaZ53Tudg0J6sT8Xbx"],
-    resource_id(ResourceKind.lora, Arch.krea2, "identity_edit"): ["krea2_identity_edit_v1_2", "krea2_identity_edit_v1_1", "krea2_identity_edit", "krea2edit"],
-    resource_id(ResourceKind.lora, Arch.krea2, "remix"): ["krea2_identity_edit_v1_2", "krea2_identity_edit_v1_1", "krea2_identity_edit", "krea2_remix", "krea2edit"],
+    resource_id(ResourceKind.lora, Arch.krea2, "identity_edit"): ["krea2_identity_edit_v2", "krea2_identity_edit_v1_2", "krea2_identity_edit_v1_1", "krea2_identity_edit", "krea2edit"],
+    resource_id(ResourceKind.lora, Arch.krea2, "remix"): ["krea2_identity_edit_v2", "krea2_identity_edit_v1_2", "krea2_identity_edit_v1_1", "krea2_identity_edit", "krea2_remix", "krea2edit"],
     resource_id(ResourceKind.model_patch, Arch.zimage, ControlMode.universal): ["z-image-turbo-fun-controlnet-union-2.1", "z-image-turbo-fun-controlnet-union"],
     resource_id(ResourceKind.model_patch, Arch.zimage, ControlMode.blur): ["z-image-turbo-fun-controlnet-tile-2.1", "z-image-turbo-fun-controlnet-tile"],
     resource_id(ResourceKind.upscaler, Arch.all, UpscalerName.default): [UpscalerName.default.value],
@@ -835,6 +844,7 @@ search_paths: dict[str, list[str]] = {
     resource_id(ResourceKind.text_encoder, Arch.all, "qwen_3_06b"): ["qwen_3_06b", "qwen3-06b", "qwen3_06b"],
     resource_id(ResourceKind.text_encoder, Arch.all, "ministral"): ["ministral-3-3b", "ministral"],
     resource_id(ResourceKind.text_encoder, Arch.all, "qwen_3vl_4b"): ["qwen3vl_4b", "qwen_3vl_4b", "qwen3-vl-4b", "qwen3vl"],
+    resource_id(ResourceKind.text_encoder, Arch.all, "qwen_3.5_9b"): ["qwen3.5_9b", "qwen_3.5_9b", "qwen3_5_9b"],
     resource_id(ResourceKind.vae, Arch.sd15, "default"): ["vae-ft-mse-840000-ema"],
     resource_id(ResourceKind.vae, Arch.sdxl, "default"): ["sdxl_vae"],
     resource_id(ResourceKind.vae, Arch.illu, "default"): ["sdxl_vae"],
@@ -853,6 +863,7 @@ search_paths: dict[str, list[str]] = {
     resource_id(ResourceKind.vae, Arch.zimage, "default"): ["z-image", "flux-", "flux_", "flux/", "flux1", "ae.s"],
     resource_id(ResourceKind.vae, Arch.ernie, "default"): ["flux2"],
     resource_id(ResourceKind.vae, Arch.krea2, "default"): ["qwen_image_vae", "qwen_image", "qwen"],
+    resource_id(ResourceKind.vae, Arch.moss, "default"): ["flux2-vae"],
 }
 # fmt: on
 
@@ -890,6 +901,8 @@ required_resource_ids = {
     ResourceId(ResourceKind.vae, Arch.ernie, "default"),
     ResourceId(ResourceKind.text_encoder, Arch.krea2, "qwen_3vl_4b"),
     ResourceId(ResourceKind.vae, Arch.krea2, "default"),
+    ResourceId(ResourceKind.text_encoder, Arch.moss, "qwen_3.5_9b"),
+    ResourceId(ResourceKind.vae, Arch.moss, "default"),
 }
 
 recommended_resource_ids = [

@@ -33,12 +33,12 @@ from .. import eventloop, util
 from ..backend import resources, server
 from ..backend.comfy_client import ComfyClient
 from ..backend.network import DownloadProgress
-from ..backend.resources import CustomNode, ModelRequirements, ModelResource, ResourceId
+from ..backend.resources import CustomNode, ModelResource, ResourceId
 from ..backend.server import Server, ServerBackend, ServerState
 from ..localization import translate as _
 from ..model.connection import ConnectionState
 from ..model.root import root
-from ..platform_tools import get_cuda_devices, gpu_is_pascal_or_older, gpu_supports_nvfp4
+from ..platform_tools import get_cuda_devices, is_macos, is_windows
 from ..settings import Settings, settings
 from ..style import Arch
 from ..util import ensure
@@ -284,15 +284,11 @@ class PackageGroupWidget(QWidget):
 def _backend_supports(backend: ServerBackend, item: PackageItem | ModelResource):
     if isinstance(item, PackageItem) and isinstance(item.package, ModelResource):
         item = item.package
-    if isinstance(item, ModelResource):
-        req = item.requirements
-        if backend is ServerBackend.cuda and gpu_supports_nvfp4():
-            return req not in [ModelRequirements.no_cuda, ModelRequirements.cuda]
-        elif backend is ServerBackend.cuda and not gpu_is_pascal_or_older():
-            return req not in [ModelRequirements.no_cuda, ModelRequirements.cuda_fp4]
-        else:  # Pascal or non-CUDA GPU
-            return req not in [ModelRequirements.cuda, ModelRequirements.cuda_fp4]
-    return True
+    return (
+        not isinstance(item, ModelResource)
+        or item.requirements is not resources.ModelRequirements.cuda
+        or backend is ServerBackend.cuda
+    )
 
 
 def _filter_by_arch(models: Iterable[ModelResource], archs: Arch | Iterable[Arch]):
@@ -301,12 +297,12 @@ def _filter_by_arch(models: Iterable[ModelResource], archs: Arch | Iterable[Arch
 
 
 def _enabled_workloads(selected: list[str], required: Iterable[ModelResource], server: Server):
-    workloads = {arch: True for arch in Arch}
+    workloads = dict.fromkeys(Arch, True)
     for m in required:
         if not (m.id.string in selected or server.is_installed(m)):
             workloads[m.arch] = False
     if not workloads[Arch.all]:
-        workloads = {k: False for k in workloads}
+        workloads = dict.fromkeys(workloads, False)
     return workloads
 
 
@@ -745,9 +741,15 @@ class WorkloadsTab(QWidget):
                 krea2_layout,
             ),
             ModelCheckBox(
-                "Krea 2 Identity Edit - " + _("Instruction-based identity and remix editing"),
+                "Krea 2 Identity Edit V2 - " + _("Instruction-based identity and remix editing"),
                 Arch.krea2,
                 "lora-identity_edit-krea2",
+                krea2_layout,
+            ),
+            ModelCheckBox(
+                "Krea 2 General Edit V2",
+                Arch.krea2,
+                "lora-general_edit-krea2",
                 krea2_layout,
             ),
         ]
@@ -774,21 +776,13 @@ class WorkloadsTab(QWidget):
             ModelCheckBox(
                 "Flux Krea - " + _("General-purpose model for photography and illustration"),
                 Arch.flux,
-                (
-                    "checkpoint-flux_dev-flux",
-                    "checkpoint-flux_dev_nunchaku-flux",
-                    "checkpoint-flux_dev_nunchaku_fp4-flux",
-                ),
+                "checkpoint-flux_dev-flux",
                 flux_layout,
             ),
             ModelCheckBox(
                 "Flux Kontext - " + _("Specialized model for instruction-based editing"),
                 Arch.flux,
-                (
-                    "checkpoint-flux_kontext-flux",
-                    "checkpoint-flux_kontext_nunchaku-flux",
-                    "checkpoint-flux_kontext_nunchaku_fp4-flux",
-                ),
+                "checkpoint-flux_kontext-flux",
                 flux_layout,
             ),
         ]
@@ -878,6 +872,65 @@ class WorkloadsTab(QWidget):
                     m.state = PackageState.selected
                 else:
                     m.state = PackageState.available
+
+
+class ComponentsTab(QWidget):
+    title = _("Additional components")
+    changed = pyqtSignal()
+
+    def __init__(self, srv: Server, parent=None):
+        super().__init__(parent)
+        self._server = srv
+        layout = QVBoxLayout(self)
+        self._checkboxes: dict[str, QCheckBox] = {}
+        descriptions = {
+            "Krea 2 Edit": _(
+                "Installs Krea 2 Edit V2 nodes automatically. Select Krea models in Workloads."
+            ),
+            "LoRA Browser metadata": _(
+                "Installs ComfyUI-LoRA-Manager and its Python dependencies for previews, tags and metadata."
+            ),
+        }
+        for pkg in resources.selectable_custom_nodes:
+            box = QCheckBox(pkg.name, self)
+            box.setChecked(pkg.name in settings.server_components)
+            box.setToolTip(descriptions[pkg.name])
+            self._checkboxes[pkg.name] = box
+            layout.addWidget(box)
+            desc = QLabel(descriptions[pkg.name], self)
+            desc.setWordWrap(True)
+            layout.addWidget(desc)
+            box.toggled.connect(self._save)
+        self.eagle_setup = QCheckBox(_("Download and launch Eagle setup"), self)
+        layout.addWidget(self.eagle_setup)
+        desc = QLabel(
+            _(
+                "Eagle is a separate desktop app with a 30-day trial. Setup downloads automatically; finish its installer and choose a library, then keep Eagle running to export images."
+            ),
+            self,
+        )
+        desc.setWordWrap(True)
+        layout.addWidget(desc)
+
+        self.eagle_setup.setEnabled(is_windows or is_macos)
+        self.eagle_setup.toggled.connect(self.changed)
+        layout.addStretch()
+
+    def _save(self):
+        settings.server_components = [
+            name for name, box in self._checkboxes.items() if box.isChecked()
+        ]
+        settings.save()
+        self.changed.emit()
+
+    def enable_krea(self):
+        self._checkboxes["Krea 2 Edit"].setChecked(True)
+
+    @property
+    def requires_install(self):
+        return self.eagle_setup.isChecked() or any(
+            not self._server.component_installed(pkg) for pkg in self._server.selected_custom_nodes
+        )
 
 
 class ServerWidget(QWidget):
@@ -971,8 +1024,11 @@ class ServerWidget(QWidget):
         self._workloads_tab = WorkloadsTab(srv, self)
         self._workloads_tab.selected_models_changed.connect(self._update_workload_models)
 
+        self._components_tab = ComponentsTab(srv, self)
+        self._components_tab.changed.connect(self.update_ui)
+
         tabs = QTabWidget(self)
-        for tab in [self._workloads_tab, self._custom_tab]:
+        for tab in [self._workloads_tab, self._custom_tab, self._components_tab]:
             scroll = QScrollArea(tabs)
             scroll.setWidget(tab)
             scroll.setWidgetResizable(True)
@@ -1089,6 +1145,8 @@ class ServerWidget(QWidget):
 
     async def _install(self):
         try:
+            if any(model.endswith("-krea2") for model in self.selected_models):
+                self._components_tab.enable_krea()
             await self._prepare_for_install()
 
             if self._server.state is ServerState.update_required:
@@ -1096,6 +1154,12 @@ class ServerWidget(QWidget):
 
             if self._server.state in [ServerState.not_installed, ServerState.missing_resources]:
                 await self._server.install(self._handle_progress)
+            await self._server.install_components(self._handle_progress)
+            if self._components_tab.eagle_setup.isChecked():
+                from ..eagle import prepare_eagle_installer
+
+                await prepare_eagle_installer(self._handle_progress)
+                self._components_tab.eagle_setup.setChecked(False)
             self._custom_tab.update_installed()
 
             if len(self.selected_models) > 0:
@@ -1376,9 +1440,11 @@ class ServerWidget(QWidget):
     def requires_install(self):
         state = self._server.state
         install_required = state in [ServerState.not_installed, ServerState.missing_resources]
-        install_optional = (
-            state in [ServerState.stopped, ServerState.running] and len(self.selected_models) > 0
-        )
+        install_optional = state in [
+            ServerState.stopped,
+            ServerState.running,
+            ServerState.update_required,
+        ] and (len(self.selected_models) > 0 or self._components_tab.requires_install)
         return install_required or install_optional
 
     @property
@@ -1387,7 +1453,10 @@ class ServerWidget(QWidget):
 
     @selected_models.setter
     def selected_models(self, value: list[str]):
+        value = self._server.resolve_model_dependencies(value)
         self._selected_models = value
+        if any(model.endswith("-krea2") for model in value):
+            self._components_tab.enable_krea()
         if self._custom_tab.selected_models != value:
             self._custom_tab.selected_models = value
         if self._workloads_tab.selected_models != value:

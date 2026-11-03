@@ -3,8 +3,8 @@ from __future__ import annotations
 from pathlib import Path
 
 from PyQt5.QtCore import QObject, QSize, Qt
-from PyQt5.QtGui import QFontMetrics, QGuiApplication, QIcon, QPalette, QPixmap
-from PyQt5.QtWidgets import QLabel, QVBoxLayout, QWidget
+from PyQt5.QtGui import QColor, QFontMetrics, QGuiApplication, QIcon, QPalette, QPixmap
+from PyQt5.QtWidgets import QLabel, QMenu, QVBoxLayout, QWidget
 
 from ..backend.client import Client
 from ..files import FileFormat
@@ -29,6 +29,30 @@ progress_alt = "#a16207" if is_dark else "#ca8a04"
 active = _palette.color(QPalette.ColorRole.Highlight).name()
 line = _palette.color(QPalette.ColorRole.Background).darker(120).name()
 line_base = _palette.color(QPalette.ColorRole.Base).darker(120).name()
+
+
+def _blend(a: QColor, b: QColor, t: float) -> str:
+    mix = (
+        a.redF() * (1 - t) + b.redF() * t,
+        a.greenF() * (1 - t) + b.greenF() * t,
+        a.blueF() * (1 - t) + b.blueF() * t,
+    )
+    return QColor.fromRgbF(*mix).name()
+
+
+# Fusion draws menu separators in a fixed translucent black, which vanishes on a dark
+# window colour; a third of the way from window to text shows in light and dark themes.
+separator = _blend(
+    _palette.color(QPalette.ColorRole.Window), _palette.color(QPalette.ColorRole.Text), 0.33
+)
+menu_stylesheet = f"QMenu::separator {{ height: 1px; background: {separator}; margin: 4px 8px; }}"
+
+
+def style_menu(menu: QMenu) -> QMenu:
+    """Visible separators; submenus created from `menu` inherit the style sheet."""
+    menu.setStyleSheet(menu_stylesheet)
+    return menu
+
 
 flat_combo_stylesheet = f"""
     QComboBox {{ border: none; background-color: transparent; padding: 1px 12px 1px 2px; }}
@@ -90,6 +114,8 @@ def checkpoint_icon(arch: Arch, format: FileFormat | None = None, client: Client
         return icon("sd-version-ernie")
     elif arch is Arch.krea2:
         return icon("sd-version-krea2")
+    elif arch is Arch.moss:
+        return icon("sd-version-flux-2")
     else:
         log.warning(f"Unresolved SD version {arch}, cannot fetch icon")
         return icon("warning")

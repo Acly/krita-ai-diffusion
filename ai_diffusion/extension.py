@@ -84,6 +84,9 @@ class AIToolsExtension(Extension):
         )
         self._create_action(window, "toggle_workspace", actions.toggle_workspace)
         self._create_action(window, "toggle_edit_mode", actions.toggle_edit_mode)
+        self._create_action(window, "select_subject", actions.select_subject)
+        self._create_action(window, "select_by_text", actions.select_by_text)
+        self._create_action(window, "remove_background", actions.remove_background)
 
 
 Krita.instance().addExtension(AIToolsExtension(Krita.instance()))

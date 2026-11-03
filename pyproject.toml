@@ -18,7 +18,21 @@ extend-exclude = [
 ]
 
 [tool.ruff.lint]
-ignore = ["E741", "EXE001", "BLE001", "SIM102", "T100", "TRY300"]
+ignore = [
+    "ASYNC240",
+    "B027",  # Client defaults are meant to be overridden selectively, not abstract
+    "BLE001",
+    "E741",
+    "EXE001",
+    "FLY002",
+    "FURB113",
+    "FURB171",
+    "PLW0108",  # lambdas in Qt connect() drop the signal's arguments
+    "RUF069",  # exact compares against 1.0/0.0 are sentinel checks on UI values
+    "SIM102",
+    "T100",
+    "TRY300",
+]
 
 [tool.ruff.format]
 docstring-code-format = false
@@ -43,6 +57,7 @@ exclude = [
 ignore = ["ai_diffusion/websockets", "ai_diffusion/debugpy", "krita.pyi"]
 extraPaths = ["scripts/typeshed"]
 reportMissingModuleSource = false
+typeCheckingMode = "standard"
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]

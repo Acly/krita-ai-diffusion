@@ -1,9 +1,11 @@
 from __future__ import annotations
 
+import asyncio
+import time
 from enum import Enum
 from functools import partial
 
-from PyQt5.QtCore import QEvent, QMetaObject, QObject, QPoint, QSize, Qt, pyqtSignal
+from PyQt5.QtCore import QEvent, QMetaObject, QObject, QPoint, QSize, Qt, QTimer, pyqtSignal
 from PyQt5.QtGui import (
     QFontMetrics,
     QGuiApplication,
@@ -13,19 +15,39 @@ from PyQt5.QtGui import (
     QPainter,
     QPixmap,
     QResizeEvent,
+    QTextCursor,
 )
-from PyQt5.QtWidgets import QFrame, QHBoxLayout, QLabel, QMenu, QToolButton, QVBoxLayout, QWidget
+from PyQt5.QtWidgets import (
+    QCheckBox,
+    QDialog,
+    QFrame,
+    QHBoxLayout,
+    QLabel,
+    QMenu,
+    QPlainTextEdit,
+    QPushButton,
+    QToolButton,
+    QVBoxLayout,
+    QWidget,
+)
 
+from .. import eventloop
+from ..backend import ollama
 from ..backend.client import Client
+from ..backend.network import NetworkError
+from ..backend.ollama import EnhanceTask
 from ..document import LayerType
-from ..image import Bounds
+from ..image import Bounds, Extent, Image
 from ..localization import translate as _
 from ..model.properties import Binding, bind
 from ..model.region import Region, RegionLink, RootRegion, translate_prompt
 from ..model.root import root
+from ..text import char16_index_to_str_index, format_option_group, str_index_to_char16_index
+from ..util import client_logger as log
 from ..util import ensure
 from . import theme
 from .control import ControlListWidget
+from .lora_picker import LoraPickerDialog
 from .settings import settings
 from .widget import TextPromptWidget
 
@@ -80,6 +102,27 @@ class InactiveRegionWidget(QFrame):
         return super().resizeEvent(a0)
 
 
+# Vision models see a fixed number of image tokens anyway, and a full 4k canvas would
+# blow up the base64 payload for no gain.
+describe_max_extent = Extent(1024, 1024)
+
+
+def _canvas_image(model, require_selection: bool = False) -> str | None:
+    """The current canvas as base64 PNG, cropped to the selection if there is one.
+    With require_selection, returns None instead of silently falling back to the
+    whole canvas when nothing is selected."""
+    doc = model.document
+    bounds = doc.selection_bounds
+    if require_selection and bounds is None:
+        return None
+    image = doc.get_image(bounds)
+    if image.extent.width > describe_max_extent.width or (
+        image.extent.height > describe_max_extent.height
+    ):
+        image = Image.scale_to_fit(image, describe_max_extent)
+    return image.to_base64()
+
+
 class PromptHeader(Enum):
     none = 0
     icon = 1
@@ -131,11 +174,11 @@ class ActiveRegionWidget(QFrame):
         self._header.setLayout(header_layout)
 
         self.positive = TextPromptWidget(parent=self)
-        self.positive.handle_dragged.connect(self._handle_dragging)
+        self.positive.handle_dragged.connect(self._handle_positive_dragging)
         self.positive.installEventFilter(self)
 
         self.negative = TextPromptWidget(line_count=1, is_negative=True, parent=self)
-        self.negative.handle_dragged.connect(self._handle_dragging)
+        self.negative.handle_dragged.connect(self._handle_negative_dragging)
         self.negative.installEventFilter(self)
 
         self._no_region = QWidget(self)
@@ -162,17 +205,112 @@ class ActiveRegionWidget(QFrame):
         no_region_layout.addWidget(self._link_region_button)
         self._no_region.setLayout(no_region_layout)
 
+        self._lora_browse_button = QToolButton(self)
+        self._lora_browse_button.setToolButtonStyle(Qt.ToolButtonStyle.ToolButtonTextBesideIcon)
+        self._lora_browse_button.setIcon(theme.icon("lora"))
+        self._lora_browse_button.setText(_("LoRA"))
+        self._lora_browse_button.setToolTip(_("Browse LoRAs and search CivitAI"))
+        self._lora_browse_button.setAutoRaise(True)
+        self._lora_browse_button.clicked.connect(self._open_lora_picker)
+        self._lora_dialog: LoraPickerDialog | None = None
+
+        self._recipe_browse_button = QToolButton(self)
+        self._recipe_browse_button.setToolButtonStyle(Qt.ToolButtonStyle.ToolButtonTextBesideIcon)
+        self._recipe_browse_button.setIcon(theme.icon("recipe"))
+        self._recipe_browse_button.setText(_("Recipe"))
+        self._recipe_browse_button.setToolTip(_("Browse and apply recipes (Lora Manager)"))
+        self._recipe_browse_button.setAutoRaise(True)
+        self._recipe_browse_button.clicked.connect(self._open_recipe_picker)
+        self._recipe_dialog = None
+
+        self._wildcard_browse_button = QToolButton(self)
+        self._wildcard_browse_button.setToolButtonStyle(Qt.ToolButtonStyle.ToolButtonTextBesideIcon)
+        self._wildcard_browse_button.setIcon(theme.icon("random"))
+        self._wildcard_browse_button.setText(_("Wildcards"))
+        self._wildcard_browse_button.setToolTip(_("Browse file-based wildcards (__name__)"))
+        self._wildcard_browse_button.setAutoRaise(True)
+        self._wildcard_browse_button.clicked.connect(self._open_wildcard_picker)
+        self._wildcard_dialog = None
+
+        self._animadex_button = QToolButton(self)
+        self._animadex_button.setToolButtonStyle(Qt.ToolButtonStyle.ToolButtonTextBesideIcon)
+        self._animadex_button.setIcon(theme.icon("sd-version-anima"))
+        self._animadex_button.setText(_("AnimaDex"))
+        self._animadex_button.setToolTip(_("Browse AnimaDex characters and artists for Anima"))
+        self._animadex_button.setAutoRaise(True)
+        self._animadex_button.clicked.connect(self._open_animadex_picker)
+        self._animadex_button.setVisible(False)  # see _update_animadex_visibility
+        self._animadex_dialog = None
+
+        self._prompt_browse_button = QToolButton(self)
+        self._prompt_browse_button.setToolButtonStyle(Qt.ToolButtonStyle.ToolButtonTextBesideIcon)
+        self._prompt_browse_button.setIcon(theme.icon("region-prompt"))
+        self._prompt_browse_button.setText(_("Prompts"))
+        self._prompt_browse_button.setToolTip(_("Browse and reuse saved prompt snippets"))
+        self._prompt_browse_button.setAutoRaise(True)
+        self._prompt_browse_button.clicked.connect(self._open_prompt_picker)
+        self._prompt_dialog = None
+
+        self._enhance_button = QToolButton(self)
+        self._enhance_button.setToolButtonStyle(Qt.ToolButtonStyle.ToolButtonTextBesideIcon)
+        self._enhance_button.setIcon(theme.icon("enhance"))
+        self._enhance_button.setText(_("AI"))
+        self._enhance_button.setAutoRaise(True)
+        self._enhance_button.setPopupMode(QToolButton.ToolButtonPopupMode.MenuButtonPopup)
+        self._enhance_button.setMenu(self._create_enhance_menu())
+        self._enhance_button.clicked.connect(self._enhance_clicked)
+        self._enhance_button.setVisible(settings.ollama_enabled)
+        self._enhance_backup: list[str] = []
+        self._enhance_backup_limit = 20
+        self._last_instruction = ""
+        self._instruction_to_negative = False
+        self._enhance_running = False
+        self._enhance_job: ollama.Generation | None = None
+        self._enhance_task = EnhanceTask.enhance
+        self._enhance_started = 0.0
+        self._update_enhance_tooltip()
+
+        self._enhance_progress = QLabel(self)
+        self._enhance_progress.setVisible(False)
+        self._enhance_progress.setStyleSheet(f"font-style: italic; color: {theme.grey};")
+        self._enhance_timer = QTimer(self)
+        self._enhance_timer.setInterval(200)
+        self._enhance_timer.timeout.connect(self._update_enhance_progress)
+
+        # left-aligned, grouped by what they do: insert saved/dynamic content first
+        # (Prompts -> Wildcards -> Recipe -> LoRA, increasing in scope from a single
+        # snippet to a whole checkpoint+LoRA+prompt bundle), AI last since it acts on
+        # whatever text is already in the field rather than inserting new content
+        buttons_layout = QHBoxLayout()
+        buttons_layout.setContentsMargins(0, 0, 0, 0)
+        buttons_layout.setSpacing(2)
+        buttons_layout.addWidget(self._prompt_browse_button)
+        buttons_layout.addWidget(self._wildcard_browse_button)
+        buttons_layout.addWidget(self._animadex_button)
+        buttons_layout.addWidget(self._recipe_browse_button)
+        buttons_layout.addWidget(self._lora_browse_button)
+        buttons_layout.addWidget(self._enhance_button)
+        buttons_layout.addStretch(1)
+
+        prompt_tools_layout = QVBoxLayout()
+        prompt_tools_layout.setContentsMargins(0, 0, 0, 0)
+        prompt_tools_layout.setSpacing(0)
+        prompt_tools_layout.addLayout(buttons_layout)
+        prompt_tools_layout.addWidget(self._enhance_progress)
+
         layout = QVBoxLayout()
         layout.setContentsMargins(0, 0, 0, 0)
         layout.setSpacing(0)
         if header is PromptHeader.icon:
             self._header.setVisible(False)
+            layout.addLayout(prompt_tools_layout)
             positive_layout = QHBoxLayout()
             positive_layout.addWidget(self._header_icon, alignment=Qt.AlignmentFlag.AlignTop)
             positive_layout.addWidget(self.positive, 1)
             layout.addLayout(positive_layout)
         else:
             layout.addWidget(self._header)
+            layout.addLayout(prompt_tools_layout)
             layout.addWidget(self.positive)
         layout.addWidget(self.negative)
         layout.addWidget(self._no_region)
@@ -214,6 +352,10 @@ class ActiveRegionWidget(QFrame):
         if region != self._region:
             self._region = region
             self._setup_bindings(region)
+            # an undo stack from a different region's text makes no sense here
+            self._enhance_backup.clear()
+            if self._revert_action is not None:
+                self._revert_action.setEnabled(False)
 
     def _setup_bindings(self, region: RootRegion | Region | None):
         Binding.disconnect_all(self._bindings)
@@ -245,7 +387,12 @@ class ActiveRegionWidget(QFrame):
             self._root.active_layer_changed.connect(self._update_links),
             self._new_region_button.clicked.connect(self._root.create_region_layer),
             self._root._model.translation_enabled_changed.connect(self._update_language),
+            self._root._model.style_changed.connect(self._update_animadex_visibility),
+            self._root._model.edit_mode_changed.connect(self._update_animadex_visibility),
+            self._root._model.workspace_changed.connect(self._update_animadex_visibility),
+            root.connection.models_changed.connect(self._update_animadex_visibility),
         ]
+        self._update_animadex_visibility()
         self._update_header()
         self._update_links()
         self._update_language()
@@ -358,13 +505,24 @@ class ActiveRegionWidget(QFrame):
         return settings.show_negative_prompt and isinstance(self._region, RootRegion)
 
     def update_settings(self, key: str, value):
-        if key in {"prompt_line_count", "prompt_line_count_live"}:
+        if key in {
+            "prompt_line_count",
+            "prompt_line_count_live",
+            "negative_prompt_line_count",
+            "negative_prompt_line_count_live",
+        }:
             self._update_prompt_widgets()
         elif key == "show_negative_prompt":
             self.negative.text = ""
             self._update_prompt_widgets()
         elif key == "prompt_translation":
             self._update_language()
+        elif key == "ollama_enabled":
+            self._enhance_button.setVisible(value)
+        elif key == "animadex_enabled":
+            self._update_animadex_visibility()
+        elif key == "ollama_model":
+            self._update_enhance_tooltip()
 
     async def _replace_with_translation(self, client: Client):
         region = self.region
@@ -410,12 +568,20 @@ class ActiveRegionWidget(QFrame):
             self._language_button.setToolTip(text)
 
     def _update_prompt_widgets(self):
+        if self.has_negative:
+            self.negative.line_count = (
+                settings.negative_prompt_line_count_live
+                if self.is_slim
+                else settings.negative_prompt_line_count
+            )
         if not self.is_slim:
             self.positive.line_count = settings.prompt_line_count
         elif isinstance(self._region, Region):
             self.positive.line_count = 1
         elif self.has_negative:
-            self.positive.line_count = max(1, settings.prompt_line_count_live - 1)
+            self.positive.line_count = max(
+                1, settings.prompt_line_count_live - self.negative.line_count
+            )
         else:
             self.positive.line_count = settings.prompt_line_count_live
         self.negative.setVisible(self.has_negative)
@@ -450,25 +616,385 @@ class ActiveRegionWidget(QFrame):
 
     def _setup_resize_handle(self):
         can_resize = not (isinstance(self._region, Region) and self.is_slim)
-        self.positive.is_resizable = not self.has_negative and can_resize
+        self.positive.is_resizable = can_resize
         self.negative.is_resizable = self.has_negative and can_resize
 
-    def _handle_dragging(self, y_pos: int):
-        # math determined experimentally, sorry :(
-        if self.has_negative:
-            pos_height = self.positive.contentsRect().height()
-            neg_height = self.negative.contentsRect().height()
-            new_height = y_pos - neg_height + pos_height - 10
-        else:
-            new_height = y_pos - 5
-        fm = QFontMetrics(ensure(self.positive.document()).defaultFont())
-        new_line_count = round(new_height / fm.lineSpacing())
-        if 1 <= new_line_count <= theme.prompt_max_line_count:
+    def _handle_positive_dragging(self, y_pos: int):
+        new_line_count = self._drag_to_line_count(self.positive, y_pos)
+        if new_line_count is not None:
             if self.is_slim:
                 settings.prompt_line_count_live = new_line_count
             else:
                 settings.prompt_line_count = new_line_count
             self._update_prompt_widgets()
+
+    def _handle_negative_dragging(self, y_pos: int):
+        new_line_count = self._drag_to_line_count(self.negative, y_pos)
+        if new_line_count is not None:
+            if self.is_slim:
+                settings.negative_prompt_line_count_live = new_line_count
+            else:
+                settings.negative_prompt_line_count = new_line_count
+            self._update_prompt_widgets()
+
+    def _drag_to_line_count(self, widget: TextPromptWidget, y_pos: int):
+        new_height = y_pos - 5
+        fm = QFontMetrics(ensure(widget.document()).defaultFont())
+        new_line_count = round(new_height / fm.lineSpacing())
+        if 1 <= new_line_count <= theme.prompt_max_line_count:
+            return new_line_count
+        return None
+
+    def _create_enhance_menu(self):
+        menu = theme.style_menu(QMenu(self))
+        menu.addAction(_("Enhance"), partial(self._enhance, EnhanceTask.enhance))
+        self._enhance_selection_action = ensure(
+            menu.addAction(
+                _("Enhance selection"), partial(self._enhance, EnhanceTask.enhance, "", True)
+            )
+        )
+        self._enhance_selection_action.setVisible(False)
+        # Grouped by kind - prompt rewrites, image captions, dialogs, undo - and alphabetical
+        # within a group. Enhance stays on top (it is what the button does) and Revert last.
+        menu.addSeparator()
+        menu.addAction(_("Add detail only"), partial(self._enhance, EnhanceTask.detail))
+        menu.addAction(_("Rewrite from scratch"), partial(self._enhance, EnhanceTask.rewrite))
+        menu.addAction(
+            _("Split into sections (character, clothing, ...)"),
+            partial(self._enhance, EnhanceTask.structure),
+        )
+        menu.addAction(
+            _("Variations as sequential wildcard"),
+            partial(self._enhance, EnhanceTask.variations),
+        )
+        menu.addSeparator()
+        menu.addAction(_("Describe the image"), partial(self._enhance, EnhanceTask.describe))
+        self._describe_selection_action = ensure(
+            menu.addAction(
+                _("Describe current selection"),
+                partial(self._enhance, EnhanceTask.describe, "", False, True),
+            )
+        )
+        self._describe_selection_action.setVisible(False)
+        menu.addSeparator()
+        menu.addAction(_("Modify with instruction..."), self._ask_instruction)
+        menu.addAction(_("Prompt batch for generation..."), self._open_prompt_batch)
+        menu.addSeparator()
+        self._revert_action = ensure(menu.addAction(_("Revert"), self._revert_enhance))
+        self._revert_action.setEnabled(False)
+        menu.aboutToShow.connect(self._update_enhance_selection_visibility)
+        return menu
+
+    def _update_enhance_selection_visibility(self):
+        # only shown when there's something to send instead of the whole prompt/canvas
+        self._enhance_selection_action.setVisible(self.positive.textCursor().hasSelection())
+        model = root.active_model
+        has_canvas_selection = model is not None and model.document.selection_bounds is not None
+        self._describe_selection_action.setVisible(has_canvas_selection)
+
+    def _update_enhance_tooltip(self):
+        model = settings.ollama_model or _("not configured")
+        self._enhance_button.setToolTip(
+            _("Rewrite the prompt with a local language model") + f" ({model})"
+        )
+
+    def _revert_enhance(self):
+        if self._enhance_backup and self.region is not None:
+            self.region.positive = self._enhance_backup.pop()
+            self._revert_action.setEnabled(bool(self._enhance_backup))
+
+    def _open_prompt_batch(self):
+        """Build a pool of prompts before generating, so a batch or a generate loop
+        runs through many different prompts instead of repeating one."""
+        from .prompt_batch import PromptBatchDialog
+
+        if self._enhance_running or self.region is None:
+            return
+        dialog = PromptBatchDialog(self.region, self)
+        dialog.show()
+        dialog.raise_()
+        dialog.activateWindow()
+
+    def _ask_instruction(self):
+        """Ask for a free-form change to apply to the current prompt, eg. "make it
+        night", "add rain, remove the hat"."""
+        if self._enhance_running:
+            return
+        dialog = InstructionDialog(
+            self._last_instruction, self, self.has_negative, self._instruction_to_negative
+        )
+        if dialog.exec_() == QDialog.DialogCode.Accepted and dialog.text:
+            self._last_instruction = dialog.text
+            if self.has_negative:
+                self._instruction_to_negative = dialog.to_negative
+            self._enhance(
+                EnhanceTask.instruct,
+                self._last_instruction,
+                to_negative=self.has_negative and dialog.to_negative,
+            )
+
+    def _enhance_clicked(self):
+        if self._enhance_running:
+            self._cancel_enhance()
+        else:
+            self._enhance(EnhanceTask.enhance)
+
+    def _cancel_enhance(self):
+        if self._enhance_job is not None:
+            self._enhance_job.cancel()
+
+    def _begin_enhance_progress(self, task: EnhanceTask):
+        self._enhance_started = time.monotonic()
+        self._enhance_task = task
+        self._enhance_button.setIcon(theme.icon("cancel"))
+        self._enhance_button.setText(_("Stop"))
+        self._enhance_button.setToolTip(_("Stop the running prompt generation"))
+        self._enhance_progress.setVisible(True)
+        self._enhance_timer.start()
+        self._update_enhance_progress()
+
+    def _end_enhance_progress(self):
+        self._enhance_timer.stop()
+        self._enhance_progress.setVisible(False)
+        self._enhance_button.setIcon(theme.icon("enhance"))
+        self._enhance_button.setText(_("AI"))
+        self._update_enhance_tooltip()
+
+    def _update_enhance_progress(self):
+        elapsed = time.monotonic() - self._enhance_started
+        words = len(self._enhance_job.text.split()) if self._enhance_job else 0
+        if self._enhance_task is EnhanceTask.describe:
+            text = _("Looking at the image...") + f" {elapsed:.0f}s"
+        else:
+            text = _("Writing prompt...") + f" {elapsed:.0f}s"
+        if words > 0:
+            text += f" - {words} " + _("words")
+        elif elapsed > 3:  # nothing yet: the model is most likely still loading into VRAM
+            text += " - " + _("loading model")
+        theme.set_text_clipped(self._enhance_progress, text)
+
+    def _enhance(
+        self,
+        task: EnhanceTask,
+        instruction: str = "",
+        use_selection: bool = False,
+        canvas_selection: bool = False,
+        to_negative: bool = False,
+    ):
+        if self._enhance_running:
+            return
+        if not settings.ollama_model:
+            self._report_error(
+                _("No language model selected. Configure one in Settings -> Prompt AI.")
+            )
+            return
+        eventloop.run(
+            self._run_enhance(task, instruction, use_selection, canvas_selection, to_negative)
+        )
+
+    def _report_error(self, message: str):
+        if model := root.active_model:
+            model.report_error(message)
+        else:
+            log.error(message)
+
+    async def _run_enhance(
+        self,
+        task: EnhanceTask,
+        instruction: str = "",
+        use_selection: bool = False,
+        canvas_selection: bool = False,
+        to_negative: bool = False,
+    ):
+        region = self.region
+        model = root.active_model
+        if region is None or model is None:
+            return
+        if canvas_selection and model.document.selection_bounds is None:
+            self._report_error(_("No selection on the canvas"))
+            return
+
+        original = region.positive
+        selection: tuple[int, int] | None = None
+        if use_selection:
+            cursor = self.positive.textCursor()
+            if not cursor.hasSelection():
+                return
+            start = char16_index_to_str_index(original, cursor.selectionStart())
+            end = char16_index_to_str_index(original, cursor.selectionEnd())
+            selection = (start, end)
+            source = original[start:end]
+        else:
+            source = original
+
+        # Like Generate: a new attempt replaces the last error instead of leaving it
+        # standing (and pushing the history down) after the problem is gone.
+        model.clear_error()
+        self._enhance_running = True
+        self._begin_enhance_progress(task)
+        try:
+            family = model.active_style.effective_family(model.arch)
+            profile = ollama.Profiles.instance().for_family(family)
+            if profile is None:
+                self._report_error(_("No prompt profile found for") + f" {family}")
+                return
+
+            protected = ollama.protect(source)
+            count = max(2, settings.ollama_variation_count)
+            to_negative = to_negative and isinstance(region, RootRegion)
+            request = ollama.build_prompt(task, protected.text, count, instruction, to_negative)
+            images = None
+            if task is EnhanceTask.describe:  # selection presence was checked on entry
+                images = [ensure(_canvas_image(model, canvas_selection))]
+
+            if settings.ollama_free_comfy_vram:
+                if client := root.connection.client_if_connected:
+                    await ollama.free_comfy_vram(client)
+
+            self._enhance_job = ollama.Generation()
+            response = await self._enhance_job.run(
+                request,
+                system=(
+                    ollama.structure_system_prompt()
+                    if task is EnhanceTask.structure
+                    else profile.system_for(task)
+                ),
+                model=profile.model_for(task),
+                temperature=ollama.temperature_for(task),
+                images=images,
+            )
+            if not response:
+                self._report_error(_("The language model returned an empty response"))
+                return
+
+            negative_terms = ""
+            if to_negative:
+                response, negative_terms = ollama.split_negative(response)
+                if not response:
+                    self._report_error(_("The language model returned an empty response"))
+                    return
+
+            if task is EnhanceTask.variations:
+                lines = [line.strip(" -*\t") for line in response.splitlines()]
+                lines = [line for line in lines if line][:count]
+                if len(lines) < 2:
+                    self._report_error(_("The language model did not return variations"))
+                    return
+                result = format_option_group(lines, sequential=True)
+            elif task is EnhanceTask.structure:
+                result = ollama.format_sections(response, protected.text, protected.tokens)
+                protected = ollama.ProtectedPrompt(result, [])  # already in their sections
+            elif task is EnhanceTask.detail and not selection:
+                result = f"{source.rstrip(' ,')}, {response}" if source.strip() else response
+                protected = ollama.ProtectedPrompt(result, [])  # tokens are still in `source`
+            else:
+                result = response
+            result = protected.restore(result)
+
+            if self.region is not region or region.positive != original:
+                return  # the prompt changed underneath us while the model was writing
+
+            if selection:
+                start, end = selection
+                new_text = original[:start] + result + original[end:]
+                region.positive = new_text
+                cursor = self.positive.textCursor()
+                cursor.setPosition(str_index_to_char16_index(new_text, start))
+                cursor.setPosition(
+                    str_index_to_char16_index(new_text, start + len(result)),
+                    QTextCursor.MoveMode.KeepAnchor,
+                )
+                self.positive.setTextCursor(cursor)
+            else:
+                region.positive = result
+            if negative_terms and isinstance(region, RootRegion):
+                region.negative = ollama.merge_negative(region.negative, negative_terms)
+
+            if len(self._enhance_backup) >= self._enhance_backup_limit:
+                self._enhance_backup.pop(0)
+            self._enhance_backup.append(original)
+            self._revert_action.setEnabled(True)
+        except asyncio.CancelledError:
+            pass  # stopped by the user
+        except NetworkError as e:
+            self._report_error(_("Could not reach Ollama") + f" ({ollama.url()}): {e}")
+        except Exception as e:
+            log.exception("Prompt enhancement failed")
+            self._report_error(_("Prompt enhancement failed") + f": {e}")
+        finally:
+            self._enhance_running = False
+            self._enhance_job = None
+            self._end_enhance_progress()
+
+    def _open_lora_picker(self):
+        if self._lora_dialog is None:
+            model = root.active_model
+            arch = model.arch.name if model else ""
+            self._lora_dialog = LoraPickerDialog(arch, parent=self)
+        self._lora_dialog.show()
+        self._lora_dialog.raise_()
+        self._lora_dialog.activateWindow()
+
+    def _open_recipe_picker(self):
+        from .recipe_picker import RecipePickerDialog
+
+        if self._recipe_dialog is None:
+            model = root.active_model
+            arch = model.arch.name if model else ""
+            self._recipe_dialog = RecipePickerDialog(arch, parent=self)
+        self._recipe_dialog.show()
+        self._recipe_dialog.raise_()
+        self._recipe_dialog.activateWindow()
+
+    def _open_wildcard_picker(self):
+        from .wildcard_picker import WildcardPickerDialog
+
+        if self._wildcard_dialog is None:
+            self._wildcard_dialog = WildcardPickerDialog(parent=self)
+        self._wildcard_dialog.show()
+        self._wildcard_dialog.raise_()
+        self._wildcard_dialog.activateWindow()
+
+    def _update_animadex_visibility(self, *_args):
+        # AnimaDex triggers are made for Anima; with any other style they're noise.
+        # The arch comes from the style's checkpoint, which the server's model list
+        # can change, hence the connection signal too.
+        try:
+            is_anima = self._root._model.arch.name == "anima"
+        except Exception:
+            is_anima = False
+        self._animadex_button.setVisible(settings.animadex_enabled and is_anima)
+
+    def _open_animadex_picker(self):
+        from .animadex_picker import AnimadexPickerDialog
+
+        if self._animadex_dialog is None:
+            self._animadex_dialog = AnimadexPickerDialog(parent=self)
+        self._animadex_dialog.show()
+        self._animadex_dialog.raise_()
+        self._animadex_dialog.activateWindow()
+
+    def _open_prompt_picker(self):
+        dialog = self._ensure_prompt_dialog()
+        dialog.show()
+        dialog.raise_()
+        dialog.activateWindow()
+
+    def _ensure_prompt_dialog(self):
+        from .prompt_picker import PromptPickerDialog
+
+        if self._prompt_dialog is None:
+            self._prompt_dialog = PromptPickerDialog(parent=self)
+        return self._prompt_dialog
+
+    def open_prompt_picker_with(self, text: str, negative: str, image):
+        """Open the Prompt Picker with a new entry pre-filled from a history image -
+        only the title needs typing. See HistoryWidget.save_as_prompt_requested."""
+        dialog = self._ensure_prompt_dialog()
+        dialog.show()
+        dialog.raise_()
+        dialog.activateWindow()
+        dialog.browser.create_from_image(text, negative, image)
 
     def resizeEvent(self, a0):
         super().resizeEvent(a0)
@@ -481,6 +1007,90 @@ class ActiveRegionWidget(QFrame):
         elif a1 and a1.type() == QEvent.Type.FocusOut:
             self.setStyleSheet(self._style_base)
         return False
+
+
+class InstructionDialog(QDialog):
+    """Small prompt for a free-form modification of the current text prompt. Kept
+    deliberately compact: it is opened often and holds one short sentence."""
+
+    def __init__(
+        self,
+        text: str,
+        parent: QWidget,
+        offer_negative: bool = False,
+        to_negative: bool = False,
+    ):
+        super().__init__(parent)
+        self.setWindowTitle(_("Modify Prompt"))
+        self.setModal(True)
+
+        label = QLabel(_("Change to apply:"), self)
+
+        self._negative_check = QCheckBox(_("Move exclusions to negative prompt"), self)
+        self._negative_check.setToolTip(
+            _('Things the change removes or avoids ("no hat") are added to the negative prompt')
+        )
+        self._negative_check.setChecked(to_negative)
+        self._negative_check.setVisible(offer_negative)
+
+        self._edit = QPlainTextEdit(text, self)
+        self._edit.setTabChangesFocus(True)
+        line_height = QFontMetrics(self._edit.font()).lineSpacing()
+        self._edit.setFixedHeight(2 * line_height + 10)
+        self._edit.selectAll()
+
+        hint = QLabel(_("Ctrl+Enter"), self)
+        hint.setStyleSheet(f"font-style: italic; color: {theme.grey};")
+
+        # plain buttons rather than QDialogButtonBox: the box reserves a wide minimum
+        # for its button area, which is what kept this dialog from opening small
+        ok_button = QPushButton(_("Apply"), self)
+        ok_button.setDefault(True)
+        ok_button.clicked.connect(self.accept)
+        cancel_button = QPushButton(_("Cancel"), self)
+        cancel_button.clicked.connect(self.reject)
+
+        button_row = QHBoxLayout()
+        button_row.setSpacing(4)
+        button_row.addWidget(hint)
+        button_row.addStretch()
+        button_row.addWidget(ok_button)
+        button_row.addWidget(cancel_button)
+
+        layout = QVBoxLayout()
+        layout.setContentsMargins(8, 8, 8, 8)
+        layout.setSpacing(4)
+        layout.addWidget(label)
+        layout.addWidget(self._edit)
+        layout.addWidget(self._negative_check)
+        layout.addLayout(button_row)
+        self.setLayout(layout)
+
+        layout.activate()
+        self.adjustSize()
+        self.resize(QSize(min(self.width(), 300), min(self.height(), 130)))
+        self._center_on_parent(parent)
+
+    def _center_on_parent(self, parent: QWidget):
+        window = parent.window()
+        if window is not None:
+            center = window.frameGeometry().center()
+            self.move(center - QPoint(self.width() // 2, self.height() // 2))
+
+    def keyPressEvent(self, a0):
+        ctrl = a0 is not None and bool(a0.modifiers() & Qt.KeyboardModifier.ControlModifier)
+        if ctrl and a0 is not None and a0.key() in (Qt.Key.Key_Return, Qt.Key.Key_Enter):
+            self.accept()
+        else:
+            super().keyPressEvent(a0)
+
+    @property
+    def text(self):
+        return self._edit.toPlainText().strip()
+
+    @property
+    def to_negative(self):
+        return self._negative_check.isChecked()
 
 
 class RegionPromptWidget(QWidget):
@@ -522,6 +1132,9 @@ class RegionPromptWidget(QWidget):
             return
         self._regions = regions
         self._setup_bindings()
+
+    def open_prompt_picker_with(self, text: str, negative: str, image):
+        self._prompt.open_prompt_picker_with(text, negative, image)
 
     def _setup_bindings(self):
         Binding.disconnect_all(self._bindings)

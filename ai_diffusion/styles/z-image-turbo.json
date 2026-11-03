@@ -4,9 +4,11 @@
     "architecture": "auto",
     "checkpoints": [
         "z_image_turbo_bf16.safetensors",
+        "z_image_turbo_int8_convrot.safetensors",
         "z_image_turbo_fp8_e4m3fn.safetensors",
         "z-image-turbo-fp8-e4m3fn.safetensors",
         "z-image-turbo-fp8-e5m2.safetensors",
+        "z_image_turbo_nvfp4.safetensors",
         "Z-Image-Turbo"
     ],
     "loras": [],

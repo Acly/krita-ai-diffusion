@@ -9,7 +9,7 @@
     ],
     "loras": [
         {
-            "name": "krea2_identity_edit_v1_2.safetensors",
+            "name": "krea2_identity_edit_v2.safetensors",
             "strength": 1.0
         }
     ],

@@ -468,6 +468,17 @@ class ComfyWorkflow:
     def flux_guidance(self, conditioning: Output, guidance=3.5):
         return self.add("FluxGuidance", 1, conditioning=conditioning, guidance=guidance)
 
+    def skip_layer_guidance(self, model: Output, single_layers: str = "22"):
+        return self.add(
+            "SkipLayerGuidanceDiTSimple",
+            1,
+            model=model,
+            double_layers="",
+            single_layers=single_layers,
+            start_percent=0.0,
+            end_percent=1.0,
+        )
+
     def random_noise(self, noise_seed=-1):
         return self.add_cached(
             "RandomNoise",
@@ -577,36 +588,6 @@ class ComfyWorkflow:
     def load_fooocus_inpaint(self, head: str, patch: str):
         return self.add_cached("INPAINT_LoadFooocusInpaint", 1, head=head, patch=patch)
 
-    def nunchaku_load_flux_diffusion_model(self, model_path: str, cache_threshold: float):
-        return self.add_cached(
-            "NunchakuFluxDiTLoader", 1, model_path=model_path, cache_threshold=cache_threshold
-        )
-
-    def nunchaku_load_qwen_diffusion_model(self, model_name: str, num_blocks_on_gpu=1):
-        return self.add_cached(
-            "NunchakuQwenImageDiTLoader",
-            1,
-            model_name=model_name,
-            cpu_offload="auto",
-            num_blocks_on_gpu=num_blocks_on_gpu,
-            use_pin_memory="disable",
-        )
-
-    def nunchaku_load_zimage_diffusion_model(self, model_name: str, num_blocks_on_gpu=1):
-        return self.add_cached(
-            "NunchakuZImageDiTLoader",
-            1,
-            model_name=model_name,
-            cpu_offload="auto",
-            num_blocks_on_gpu=num_blocks_on_gpu,
-            use_pin_memory="disable",
-        )
-
-    def nunchaku_load_flux_lora(self, model: Output, name: str, strength: float):
-        return self.add(
-            "NunchakuFluxLoraLoader", 1, model=model, lora_name=name, lora_strength=strength
-        )
-
     def t5_tokenizer_options(self, clip: Output, min_padding: int, min_length: int):
         return self.add(
             "T5TokenizerOptions", 1, clip=clip, min_padding=min_padding, min_length=min_length
@@ -620,7 +601,7 @@ class ComfyWorkflow:
             or arch in (Arch.sd3, Arch.chroma, Arch.zimage, Arch.krea2)
         ):
             return self.add("EmptySD3LatentImage", 1, width=w, height=h, batch_size=batch_size)
-        if arch.is_flux2 or arch is Arch.ernie:
+        if arch.is_flux2 or arch is Arch.ernie or arch is Arch.moss:
             return self.add("EmptyFlux2LatentImage", 1, width=w, height=h, batch_size=batch_size)
         else:
             return self.add("EmptyLatentImage", 1, width=w, height=h, batch_size=batch_size)
@@ -756,6 +737,8 @@ class ComfyWorkflow:
         ref_boost: float = 1.0,
         ref_boost_a: float = 1.0,
         ref_boost_mask: Output | None = None,
+        ref_position: str = "aligned (trained)",
+        ref_position_a: str = "aligned (trained)",
     ):
         args = {
             "model": model,
@@ -763,6 +746,8 @@ class ComfyWorkflow:
             "fit_mode": fit_mode,
             "ref_boost": ref_boost,
             "ref_boost_a": ref_boost_a,
+            "ref_position": ref_position,
+            "ref_position_a": ref_position_a,
         }
         if source_latent_b is not None:
             args["source_latent_b"] = source_latent_b

@@ -258,6 +258,15 @@ def test_workspace():
     assert workspace.metadata[1].name == "param3"
     assert workspace.params == {"param2": 23, "param3": 7}
 
+    doc_graph["3"] = {
+        "class_type": "ETN_Parameter",
+        "inputs": {"name": "param3", "type": "text", "default": ""},
+    }
+    workflows.set_graph(workflows.index(1), doc_graph)
+    assert workspace.validation_error == (
+        "Workflow contains duplicate parameter names: param3. Each parameter name must be unique."
+    )
+
 
 def test_workspace_no_connection():
     connection = create_mock_connection({}, state=ConnectionState.disconnected)

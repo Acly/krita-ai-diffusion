@@ -1,0 +1,24 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 440 160" width="440" height="160" role="img" aria-label="Krita AI Reloaded">
+  <!-- For dark grounds: ink, amber-400, ink-muted. -->
+  <defs>
+    <linearGradient id="kar-ring" x1="20" y1="14" x2="108" y2="114" gradientUnits="userSpaceOnUse">
+      <stop offset="0" stop-color="#FFC24D"/>
+      <stop offset="0.45" stop-color="#FFB020"/>
+      <stop offset="1" stop-color="#FF6A00"/>
+    </linearGradient>
+  </defs>
+  <g transform="translate(16 16)">
+    <rect width="128" height="128" rx="28" fill="#17120C"/>
+    <path d="M92.28 35.72 A40 40 0 1 1 47.10 27.75" fill="none" stroke="url(#kar-ring)" stroke-width="10" stroke-linecap="round"/>
+    <path d="M59.6 22.4 L49.2 38.5 L40.2 19.3 Z" fill="#FFC24D"/>
+    <g transform="translate(64 65) rotate(26) scale(0.85)">
+      <path d="M-5.5 -24.5 a5.5 5.5 0 0 1 11 0 L5.5 3 L-5.5 3 Z" fill="#F4E7D3"/>
+      <rect x="-7" y="4.6" width="14" height="6.8" rx="2" fill="#C9B79B"/>
+      <path d="M-7 13 L7 13 L2.2 30 Q0 34 -2.2 30 Z" fill="#FF7A1A"/>
+    </g>
+  </g>
+  <g font-family="Barlow, 'Segoe UI', system-ui, sans-serif">
+    <text x="176" y="92" font-size="66" font-weight="700" letter-spacing="-1.3" fill="#F6ECDD">Krita <tspan fill="#FFB020">AI</tspan></text>
+    <text x="179" y="132" font-size="22" font-weight="600" letter-spacing="3.5" fill="#C4B49C">RELOADED</text>
+  </g>
+</svg>

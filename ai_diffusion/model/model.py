@@ -1,20 +1,22 @@
 from __future__ import annotations
 
 import asyncio
+import re
 import time
 import uuid
 import weakref
 from collections import deque
+from collections.abc import Callable
 from copy import copy
-from dataclasses import dataclass, replace
-from datetime import datetime, timezone
+from dataclasses import asdict, dataclass, replace
+from datetime import datetime
 from enum import Enum
 from pathlib import Path
 from tempfile import TemporaryDirectory
 from typing import Any, NamedTuple
 
 from PyQt5.QtCore import QMetaObject, QObject, Qt, QUuid, pyqtSignal
-from PyQt5.QtGui import QBrush, QColor, QPainter
+from PyQt5.QtGui import QBrush, QColor, QImage, QPainter
 
 from .. import eventloop, util
 from ..backend import resolution, workflow
@@ -28,6 +30,8 @@ from ..backend.api import (
     InpaintMode,
     InpaintParams,
     SamplingInput,
+    SegmentInput,
+    SegmentMode,
     UpscaleInput,
     WorkflowInput,
     WorkflowKind,
@@ -46,7 +50,7 @@ from ..backend.resolution import compute_bounds, compute_relative_bounds
 from ..backend.resources import ControlMode
 from ..document import Document, KritaDocument, SelectionModifiers
 from ..files import FileLibrary
-from ..image import BlendMode, Bounds, DummyImage, Extent, Image, Mask
+from ..image import BlendMode, Bounds, DummyImage, Extent, Image, ImageCollection, Mask
 from ..layer import Layer, LayerType, RestoreActiveLayer
 from ..localization import translate as _
 from ..pose import Pose
@@ -55,10 +59,17 @@ from ..settings import (
     ApplyRegionBehavior,
     GenerationFinishedAction,
     ImageFileFormat,
+    ServerMode,
     settings,
 )
 from ..style import Arch, Style, Styles
-from ..text import create_img_metadata, extract_layers
+from ..text import (
+    create_ai_generated_xmp,
+    create_img_metadata,
+    extract_layers,
+    extract_reference_mentions,
+    sanitize_reference_name,
+)
 from ..util import PluginError, clamp, ensure, trim_text, unique
 from ..util import client_logger as log
 from .connection import Connection, ConnectionState
@@ -72,6 +83,12 @@ from .custom_workflow import (
 from .jobs import Job, JobKind, JobParams, JobQueue, JobRegion, JobState
 from .properties import ObservableProperties, Property
 from .region import Region, RegionLink, RootRegion, get_region_inpaint_mask, process_regions
+
+_inpaint_context_text = {
+    InpaintContext.automatic: "Automatic Context",
+    InpaintContext.mask_bounds: "Selection Bounds",
+    InpaintContext.entire_image: "Entire Image",
+}
 
 
 class QueueMode(Enum):
@@ -136,14 +153,17 @@ class DocumentModel(QObject, ObservableProperties):
     region_only = Property(False, persist=True)
     edit_mode = Property(False, persist=True)
     batch_count = Property(1, persist=True)
+    loop_generate = Property(False, setter="set_loop_generate")
     seed = Property(0, persist=True)
-    fixed_seed = Property(False, persist=True)
+    fixed_seed = Property(False, setter="set_fixed_seed", persist=True)
+    seed_increment = Property(False, setter="set_seed_increment", persist=True)
     resolution_multiplier = Property(1.0, persist=True)
     queue_mode = Property(QueueMode.back, persist=True)
     translation_enabled = Property(True, persist=True)
     layer_count = Property(4, persist=True)
     progress_kind = Property(ProgressKind.generation)
     progress = Property(0.0)
+    progress_status = Property("")  # what the server is working on, eg. "Step 12/30"
     error = Property(no_error)
 
     workspace_changed = pyqtSignal(Workspace)
@@ -152,14 +172,17 @@ class DocumentModel(QObject, ObservableProperties):
     region_only_changed = pyqtSignal(bool)
     edit_mode_changed = pyqtSignal(bool)
     batch_count_changed = pyqtSignal(int)
+    loop_generate_changed = pyqtSignal(bool)
     seed_changed = pyqtSignal(int)
     fixed_seed_changed = pyqtSignal(bool)
+    seed_increment_changed = pyqtSignal(bool)
     resolution_multiplier_changed = pyqtSignal(float)
     queue_mode_changed = pyqtSignal(QueueMode)
     translation_enabled_changed = pyqtSignal(bool)
     layer_count_changed = pyqtSignal(int)
     progress_kind_changed = pyqtSignal(ProgressKind)
     progress_changed = pyqtSignal(float)
+    progress_status_changed = pyqtSignal(str)
     error_changed = pyqtSignal(Error)
     modified = pyqtSignal(QObject, str)
 
@@ -168,6 +191,11 @@ class DocumentModel(QObject, ObservableProperties):
         self._doc = document
         self._connection = connection
         self._layer: Layer | None = None
+        self._preview_job_id: str | None = None  # job whose sampler preview is on the canvas
+        self._auto_select = False  # selection is being changed by the model, not the user
+        self._browsing = False  # user picked a result, don't take over the canvas
+        # set while comparing models: drops LoRAs that don't fit the checkpoint under test
+        self.lora_filter: Callable[[str], bool] | None = None
         self.generate_seed()
         self.jobs = JobQueue()
         self.regions = RootRegion(self)
@@ -179,7 +207,8 @@ class DocumentModel(QObject, ObservableProperties):
         self.custom = CustomWorkspace(workflows, self._generate_custom, self.jobs)
         self._style_connection: QMetaObject.Connection | None = None
 
-        self.jobs.selection_changed.connect(self.update_preview)
+        self.jobs.selection_changed.connect(self._on_selection_changed)
+        self.jobs.job_finished.connect(self._continue_loop_generate)
         connection.state_changed.connect(self._init_on_connect)
         connection.error_changed.connect(self._forward_error)
         self.custom.validation_error_changed.connect(self._forward_validation_error)
@@ -197,7 +226,7 @@ class DocumentModel(QObject, ObservableProperties):
                 self.upscale.upscaler = client.models.default_upscaler
 
     def _forward_error(self, error: str):
-        self.report_error(error if error else no_error)
+        self.report_error(error or no_error)
 
     def _forward_validation_error(self, error: str):
         if error:
@@ -206,28 +235,77 @@ class DocumentModel(QObject, ObservableProperties):
             self.clear_error()
 
     def generate(self):
+        self._browsing = False  # user wants to see the new generation
         self._generate(self.queue_mode)
 
+    def generate_across(self, apply_each: list, seed: int, restore):
+        """Run the current prompt/settings once per configuration, all with the same
+        seed so the config is the only variable (used for style/checkpoint sweeps).
+        `apply_each` is a list of callables, each mutating the setup before a generate;
+        `restore` puts the mutated state back afterwards."""
+        original_fixed, original_increment, original_seed = (
+            self.fixed_seed,
+            self.seed_increment,
+            self.seed,
+        )
+        self.fixed_seed = True
+        self.seed = seed
+        try:
+            for apply in apply_each:
+                apply()
+                # generate() reads the config synchronously before enqueuing, so
+                # mutating it between calls queues one batch per configuration
+                self.generate()
+        finally:
+            restore()
+            self.fixed_seed = original_fixed
+            self.seed_increment = original_increment
+            self.seed = original_seed
+
     def generate_replace(self):
+        self._browsing = False
         self._generate(QueueMode.replace)
+
+    def set_loop_generate(self, value: bool):
+        was_active = self._loop_generate
+        self._loop_generate = value
+        self.loop_generate_changed.emit(value)
+        if value and not was_active:
+            self._generate(self.queue_mode)
+
+    def _continue_loop_generate(self, job: Job):
+        if not self._loop_generate or job.kind is not JobKind.diffusion:
+            return
+        pending = self.jobs.count(JobState.queued) + self.jobs.count(JobState.executing)
+        if pending == 0:
+            self._generate(self.queue_mode)
 
     def _generate(self, queue_mode: QueueMode):
         """Enqueue image generation for the current setup."""
         ok, msg = self._doc.check_color_mode()
         if not ok and msg:
             self.report_error(msg)
+            self.loop_generate = False
             return
 
         try:
-            input, job_params, cond_orig = self._prepare_workflow()
+            input, job_params, cond_orig, prompt_loras_0 = self._prepare_workflow()
         except Exception as e:
             self.report_error(util.log_error(e))
+            self.loop_generate = False
             return
         self.clear_error()
         jobs = self.enqueue_jobs(
-            input, JobKind.diffusion, job_params, cond_orig, self.batch_count, queue_mode
+            input,
+            JobKind.diffusion,
+            job_params,
+            cond_orig,
+            self.batch_count,
+            queue_mode,
+            prompt_loras_0=prompt_loras_0,
         )
         eventloop.run(_report_errors(self, jobs))
+        self._advance_seed_increment(self.batch_count)
 
     def _prepare_workflow(self, dryrun=False):
         arch = self.arch
@@ -265,7 +343,7 @@ class DocumentModel(QObject, ObservableProperties):
         else:
             conditioning, job_regions = ConditioningInput("", ""), []
 
-        seed = self.seed if self.fixed_seed else workflow.generate_seed()
+        seed = self.seed if (self.fixed_seed or self.seed_increment) else workflow.generate_seed()
         ref_layers: dict[str, int] | None = None
         if not dryrun:
             conditioning, ref_layers = self._add_reference_layers(conditioning)
@@ -296,6 +374,22 @@ class DocumentModel(QObject, ObservableProperties):
                 )
             inpaint = calc_selection_pre_process(inpaint, selection_bounds, smod)
 
+        custom_inpaint_meta = None
+        if inpaint_mode is InpaintMode.custom:
+            ctx = self.inpaint.context
+            if ctx is InpaintContext.layer_bounds:
+                layer = self.layers.find(self.inpaint.context_layer_id)
+                context_label = layer.name if layer else "Layer"
+            else:
+                context_label = _inpaint_context_text.get(ctx, ctx.name)
+            custom_inpaint_meta = {
+                "seamless": self.inpaint.use_inpaint,
+                "focus": self.inpaint.use_prompt_focus,
+                "fill": self.inpaint.fill.name,
+                "context": context_label,
+                "edit": self.is_editing,
+            }
+
         input = workflow.prepare(
             workflow_kind,
             image or extent,
@@ -311,18 +405,23 @@ class DocumentModel(QObject, ObservableProperties):
             inpaint=inpaint,
             layer_count=self.layer_count,
         )
+        if self.lora_filter is not None and input.models:
+            input.models.loras = [l for l in input.models.loras if self.lora_filter(l.name)]
         loras = input.models.loras if input.models else []
         job_name = prompt_meta.get("prompt_eval", prompt_meta["prompt"])
         job_params = JobParams(bounds, job_name, regions=job_regions)
         job_params.set_style(self.active_style, ensure(input.models).checkpoint)
         job_params.set_control(regions.control)
         job_params.inpaint_mode = inpaint_mode
+        # workflow_kind is set centrally in enqueue_jobs() (params.workflow_kind = input.kind)
         job_params.ref_layers = ref_layers
         job_params.is_layered = arch is Arch.qwen_l
         job_params.metadata.update(prompt_meta)
         job_params.metadata["loras"] = [{"name": l.name, "weight": l.strength} for l in loras]
         job_params.metadata["strength"] = strength
-        return input, job_params, original_conditioning
+        if custom_inpaint_meta is not None:
+            job_params.metadata["custom_inpaint"] = custom_inpaint_meta
+        return input, job_params, original_conditioning, loras
 
     async def enqueue_jobs(
         self,
@@ -332,15 +431,25 @@ class DocumentModel(QObject, ObservableProperties):
         original_cond: ConditioningInput | None = None,
         count: int = 1,
         queue_mode: QueueMode | None = None,
+        prompt_loras_0: list | None = None,
     ):
         sampling = ensure(input.sampling)
         params.has_mask = input.images is not None and input.images.hires_mask is not None
+        params.batch_id = uuid.uuid4().hex
+        params.workflow_kind = input.kind
         queue_mode = queue_mode or self.queue_mode
 
         if queue_mode is QueueMode.replace:
             if to_cancel := self.clear_queued():
                 await self._connection.client.cancel(to_cancel)
             queue_mode = QueueMode.back
+
+        prompt_lora_names_0 = {l.name for l in (prompt_loras_0 or [])}
+        base_loras = [
+            l
+            for l in (input.models.loras if input.models else [])
+            if l.name not in prompt_lora_names_0
+        ]
 
         for i in range(count):
             seed = sampling.seed + i * settings.batch_size
@@ -355,10 +464,19 @@ class DocumentModel(QObject, ObservableProperties):
                         self.arch,
                         params.inpaint_mode,
                         params.ref_layers,
+                        batch_index=i,
                     )
                     input.conditioning = next_prompt.conditioning
                     params.metadata = params.metadata | next_prompt.metadata
                     params.name = params.metadata.get("prompt_eval", params.name)
+                    if prompt_loras_0 is not None:
+                        job_loras = unique(base_loras + next_prompt.loras, key=lambda l: l.name)
+                        params.metadata["loras"] = [
+                            {"name": l.name, "weight": l.strength} for l in job_loras
+                        ]
+                        job_models = copy(ensure(input.models))
+                        job_models.loras = job_loras
+                        input = replace(input, models=job_models)
             job = self.jobs.add(kind, copy(params))
             await self._enqueue_job(job, input, front=queue_mode is QueueMode.front)
 
@@ -419,6 +537,9 @@ class DocumentModel(QObject, ObservableProperties):
         target_bounds = Bounds(0, 0, *params.target_extent)
         name = f"{target_bounds.width}x{target_bounds.height}"
         job_params = JobParams(target_bounds, name, seed=params.seed, regions=job_regions)
+        job_params.workflow_kind = (
+            WorkflowKind.upscale_tiled if params.use_diffusion else WorkflowKind.upscale_simple
+        )
         return input, job_params
 
     def upscale_image(self):
@@ -509,6 +630,7 @@ class DocumentModel(QObject, ObservableProperties):
             is_live=True,
         )
         params = JobParams(bounds, conditioning.positive, regions=job_regions)
+        # workflow_kind is set centrally in enqueue_jobs() (params.workflow_kind = input.kind)
         return input, params
 
     async def _generate_live(self, input: WorkflowInput, job_params: JobParams):
@@ -546,6 +668,7 @@ class DocumentModel(QObject, ObservableProperties):
             custom_input = CustomWorkflowInput(wf.root, params)
             metadata: dict[str, Any] = dict(self.custom.params)
             job_params = JobParams(bounds, self.custom.job_name, metadata=metadata)
+            # workflow_kind is set centrally in enqueue_jobs() (params.workflow_kind = input.kind)
 
             style_node = next(wf.find(type="ETN_KritaStyleAndPrompt"), None)
             if style_node is not None:
@@ -663,17 +786,22 @@ class DocumentModel(QObject, ObservableProperties):
             return
 
         if message.event is ClientEvent.queued:
-            self.jobs.notify_started(job)
+            self.jobs.notify_started(job, executing=False)
             self.progress = -1
             self.progress_changed.emit(-1)
+            self.progress_status = _("Waiting for server")
         elif message.event is ClientEvent.progress:
             self.jobs.notify_started(job)
             self.progress_kind = ProgressKind.generation
             self.progress = message.progress
+            self.progress_status = message.status or _("Generating")
         elif message.event is ClientEvent.upload:
-            self.jobs.notify_started(job)
+            self.jobs.notify_started(job, executing=False)
             self.progress_kind = ProgressKind.upload
             self.progress = message.progress
+            self.progress_status = _("Uploading")
+        elif message.event is ClientEvent.preview:
+            self._show_sampling_preview(job, message.images)
         elif message.event is ClientEvent.output:
             self.custom.handle_output(job, message.result)
         elif message.event is ClientEvent.finished:
@@ -686,6 +814,8 @@ class DocumentModel(QObject, ObservableProperties):
                 job.control.layer_id = self.add_control_layer(job, message.result).id
             elif job.kind is JobKind.upscaling:
                 self.add_upscale_layer(job)
+            elif job.kind is JobKind.segmentation:
+                self._apply_segmentation(job)
             self._finish_job(job, message.event)
         elif message.event is ClientEvent.interrupted:
             self._finish_job(job, message.event)
@@ -700,6 +830,9 @@ class DocumentModel(QObject, ObservableProperties):
     def _finish_job(self, job: Job, event: ClientEvent):
         if job.kind is JobKind.upscaling:
             self.upscale.set_in_progress(False)
+        self.progress_status = ""
+        had_preview = self._preview_job_id == job.id
+        self._preview_job_id = None
 
         if event is ClientEvent.finished:
             self.jobs.notify_finished(job)
@@ -707,13 +840,49 @@ class DocumentModel(QObject, ObservableProperties):
 
             if job.id and job.kind in [JobKind.diffusion, JobKind.animation]:
                 action = settings.generation_finished_action
-                if action is GenerationFinishedAction.preview and self._layer is None:
-                    self.jobs.select(job.id, 0)
+                if (
+                    action is GenerationFinishedAction.preview
+                    and (self._layer is None or had_preview)
+                    and not self._browsing
+                ):
+                    self._auto_select = True
+                    try:
+                        self.jobs.select(job.id, 0)
+                    finally:
+                        self._auto_select = False
                 elif action is GenerationFinishedAction.apply:
                     self.apply_generated_result(job.id, 0)
         else:
             self.jobs.notify_cancelled(job)
             self.progress = 0
+
+        if had_preview:  # replace the sampling preview with the result, or hide it
+            if event is ClientEvent.finished and job.results and self._layer is not None:
+                if selection := self.jobs.selection:
+                    self.show_preview(selection[0].job, selection[0].image)
+                else:
+                    self.hide_preview()
+            else:
+                self.update_preview()
+
+    def _show_sampling_preview(self, job: Job, images: ImageCollection | None):
+        if job.kind is not JobKind.diffusion or not images or len(images) == 0:
+            return
+        if self._browsing:
+            return  # user is looking at a result, keep it on the canvas
+        if job.state in (JobState.finished, JobState.cancelled):
+            return  # late frame of a job that is already done, would overwrite its result
+        image = images[0]
+        bounds = job.params.bounds
+        if image.extent != bounds.extent:  # sampler previews are low resolution
+            image = Image.scale(image, bounds.extent)
+        self._preview_job_id = job.id
+        self._write_preview_layer(f"[Preview] {trim_text(job.params.name, 77)}", image, bounds)
+
+    def _on_selection_changed(self):
+        if not self._auto_select:
+            self._browsing = bool(self.jobs.selection)
+        self.update_preview()
 
     def update_preview(self):
         if selection := self.jobs.selection:
@@ -730,6 +899,9 @@ class DocumentModel(QObject, ObservableProperties):
         name = f"[{name_prefix}] {trim_text(job.params.name, 77)}"
         image = job.results[index]
         bounds = Bounds(*job.params.bounds.offset, *image.extent)
+        self._write_preview_layer(name, image, bounds)
+
+    def _write_preview_layer(self, name: str, image: Image, bounds: Bounds):
         if self._layer and self._layer.was_removed:
             self._layer = None  # layer was removed by user
         if self._layer is not None:
@@ -764,6 +936,7 @@ class DocumentModel(QObject, ObservableProperties):
             if behavior is ApplyBehavior.replace:
                 self.layers.update_layer_image(self.layers.active, image, bounds)
             else:
+                prefix = _model_name_prefix(params) + prefix
                 name = f"{prefix}{trim_text(params.name, 200)} ({params.seed})"
                 pos = self.layers.active if behavior is ApplyBehavior.layer_active else None
                 self.layers.create(name, image, bounds, above=pos)
@@ -785,7 +958,7 @@ class DocumentModel(QObject, ObservableProperties):
         behavior: ApplyRegionBehavior,
         prefix="",
     ):
-        name = f"{prefix}{job_region.prompt} ({params.seed})"
+        name = f"{_model_name_prefix(params)}{prefix}{job_region.prompt} ({params.seed})"
         region_layer = self.layers.find(QUuid(job_region.layer_id)) or self.layers.root
         # a previous apply from the same batch may have already created groups and re-linked
         region_layer = Region.link_target(region_layer)
@@ -928,8 +1101,226 @@ class DocumentModel(QObject, ObservableProperties):
     def generate_seed(self):
         self.seed = workflow.generate_seed()
 
+    def set_fixed_seed(self, value: bool):
+        if self._fixed_seed == value:
+            return
+        self._fixed_seed = value
+        self.fixed_seed_changed.emit(value)
+        if value and self._seed_increment:
+            self.seed_increment = False
+        self.modified.emit(self, "fixed_seed")
+
+    def set_seed_increment(self, value: bool):
+        if self._seed_increment == value:
+            return
+        self._seed_increment = value
+        self.seed_increment_changed.emit(value)
+        if value and self._fixed_seed:
+            self.fixed_seed = False
+        self.modified.emit(self, "seed_increment")
+
+    def _advance_seed_increment(self, count: int):
+        if self.seed_increment and not self.fixed_seed:
+            self.seed = (self.seed + count * settings.batch_size) % (2**32)
+
     def save_result(self, job_id: str, index: int):
         _save_job_result(self, self.jobs.find(job_id), index)
+
+    def send_result_to_eagle(self, job_id: str, index: int):
+        from ..eagle import send_image_to_eagle
+
+        job = self.jobs.find(job_id)
+        assert job is not None, "Cannot send result, invalid job id"
+        assert len(job.results) > index, "Cannot send result, invalid result index"
+        base_image = self._get_current_image(Bounds(0, 0, *self.document.extent))
+        base_image.draw_image(job.results[index], job.params.bounds.offset)
+
+        async def _send():
+            error = await send_image_to_eagle(base_image, job, index)
+            if error:
+                self.report_error(error)
+            else:
+                self.jobs.notify_sent_to_eagle(job_id, index)
+
+        eventloop.run(_report_errors(self, _send()))
+
+    @property
+    def dlss5_available(self):
+        client = self._connection.client_if_connected
+        return client is not None and workflow.dlss5_node in client.models.node_inputs
+
+    def enhance_result_dlss5(self, job_id: str, index: int, style: str):
+        job = self.jobs.find(job_id)
+        assert job is not None, "Cannot enhance result, invalid job id"
+        assert len(job.results) > index, "Cannot enhance result, invalid result index"
+        if not self.dlss5_available:
+            self.report_error(_("DLSS5 Enhance nodes are not installed on the server"))
+            return
+        input = workflow.prepare_dlss5_enhance(job.results[index], style)
+        # Same bounds, prompt and metadata as the source image so it applies to the
+        # same place and keeps its info, but its own batch in the history.
+        params = copy(job.params)
+        params.metadata = job.params.metadata | _dlss5_metadata(input, "history")
+        params.name = f"{_dlss5_name_prefix(params.metadata)} {job.params.name}"
+        params.workflow_kind = WorkflowKind.dlss5_enhance
+        params.batch_id = uuid.uuid4().hex
+        new_job = self.jobs.add(JobKind.diffusion, params)
+        eventloop.run(_report_errors(self, self._enqueue_job(new_job, input)))
+
+    def enhance_canvas_dlss5(self, style: str, use_selection: bool):
+        """The whole visible image, or the area around the selection with the result
+        blended in through the selection mask, same as a custom graph with a Krita
+        Selection node in "automatic" context."""
+        if not self.dlss5_available:
+            self.report_error(_("DLSS5 Enhance nodes are not installed on the server"))
+            return
+        try:
+            self.clear_error()
+            extent = self._doc.extent
+            bounds = Bounds(0, 0, *extent)
+            mask = None
+            if use_selection:
+                mods = get_selection_modifiers(InpaintContext.automatic, InpaintMode.fill, 1.0)
+                mask, _selection = self._doc.create_mask_from_selection(mods)
+                if mask is None:
+                    raise ValueError(_("No selection on the canvas"))
+            if mask is not None:
+                bounds = Bounds.clamp(mask.bounds, extent)
+                mask.bounds = mask.bounds.relative_to(bounds)
+            image = self._get_current_image(bounds)
+            mask_image = mask.to_image(bounds.extent) if mask else None
+            input = workflow.prepare_dlss5_enhance(image, style, mask_image)
+        except Exception as e:
+            self.report_error(util.log_error(e))
+            return
+
+        name = _("Selection") if mask else _("Canvas")
+        metadata = _dlss5_metadata(input, "selection" if mask else "canvas")
+        params = JobParams(bounds, f"{_dlss5_name_prefix(metadata)} {name}", metadata=metadata)
+        params.has_mask = mask is not None
+        params.workflow_kind = WorkflowKind.dlss5_enhance
+        params.batch_id = uuid.uuid4().hex
+        job = self.jobs.add(JobKind.diffusion, params)
+        eventloop.run(_report_errors(self, self._enqueue_job(job, input)))
+
+    def segment_available(self, mode: SegmentMode):
+        client = self._connection.client_if_connected
+        if client is None:
+            return False
+        nodes = client.models.node_inputs
+        if mode is SegmentMode.text:
+            return workflow.segment_text_node in nodes
+        return workflow.segment_easy_node in nodes or _segment_core_model(nodes) != ""
+
+    def select_subject(self):
+        self._segment(SegmentInput(SegmentMode.subject), _("Select Subject"))
+
+    def select_by_text(self, prompt: str):
+        prompt = prompt.strip()
+        if prompt:
+            self._segment(SegmentInput(SegmentMode.text, prompt), f"{_('Select')}: {prompt}")
+
+    def remove_background(self):
+        layer = self.layers.active
+        if layer.type.is_mask or layer.type is LayerType.filtermask:
+            layer = layer.parent_layer or layer
+        if layer.is_root:
+            self.report_error(_("Select the layer to remove the background from"))
+            return
+        self._segment(SegmentInput(SegmentMode.subject), _("Remove Background"), layer)
+
+    def _segment(self, params: SegmentInput, name: str, layer: Layer | None = None):
+        """Runs a segmentation model on the canvas (or one layer) and turns the mask into a
+        selection, or into a transparency mask on that layer once the job finishes."""
+        if not self.segment_available(params.mode):
+            self.report_error(_missing_segment_nodes[params.mode])
+            return
+        doc = self._doc
+        ok, msg = doc.check_color_mode()
+        if not ok and msg:
+            self.report_error(msg)
+            return
+        try:
+            self.clear_error()
+            if layer is None:
+                bounds = Bounds(0, 0, *doc.extent)
+                image = self._get_current_image(bounds)
+            else:
+                # Not clipped to the canvas: the mask must cover the whole layer, or the
+                # parts outside would vanish once the layer is moved.
+                bounds = layer.compute_bounds()
+                if bounds.is_zero:
+                    raise ValueError(_("The active layer is empty"))
+                image = layer.get_pixels(bounds)
+            client = self._connection.client
+            params.model = _segment_core_model(client.models.node_inputs)
+            input = workflow.prepare_segment(image, params)
+        except Exception as e:
+            self.report_error(util.log_error(e))
+            return
+
+        metadata = {
+            "segment": {
+                "mode": params.mode.name,
+                "prompt": params.prompt,
+                "layer": layer.id_string if layer else "",
+            }
+        }
+        job_params = JobParams(bounds, name, metadata=metadata)
+        job_params.workflow_kind = WorkflowKind.segment
+        job = self.jobs.add(JobKind.segmentation, job_params)
+        eventloop.run(_report_errors(self, self._enqueue_job(job, input)))
+
+    def _apply_segmentation(self, job: Job):
+        if len(job.results) == 0:
+            return
+        bounds = job.params.bounds
+        result = job.results[0]
+        if result.extent != bounds.extent:
+            result = Image.scale(result, bounds.extent)
+        mask = Image(result._qimage.convertToFormat(QImage.Format.Format_Grayscale8))
+        if mask.average() == 0:
+            self.report_error(Error(ErrorKind.warning, _("Nothing was found to select")))
+            return
+
+        layer_id = job.params.metadata.get("segment", {}).get("layer", "")
+        if not layer_id:
+            self._doc.set_selection(mask, bounds)
+            return
+        layer = self.layers.find(QUuid(layer_id))
+        if layer is None:
+            self.report_error(_("The layer to remove the background from no longer exists"))
+            return
+        # A transparency mask keeps the layer's pixels: paint on the mask to fix edges,
+        # or delete it to get the background back.
+        self.layers.create_mask(_("Background removed"), mask, bounds, parent=layer)
+
+    def send_result_to_recipe(self, job_id: str, index: int):
+        from ..backend.lora_manager import save_recipe
+
+        job = self.jobs.find(job_id)
+        assert job is not None, "Cannot save recipe, invalid job id"
+        assert len(job.results) > index, "Cannot save recipe, invalid result index"
+        client = self._connection.client_if_connected
+        if client is None:
+            self.report_error(_("Not connected to a server"))
+            return
+        base_image = self._get_current_image(Bounds(0, 0, *self.document.extent))
+        base_image.draw_image(job.results[index], job.params.bounds.offset)
+
+        tags = ["krita-ai"]
+        if style := job.params.metadata.get("style"):
+            tags.append(str(style))
+
+        async def _send():
+            image_bytes = bytes(base_image.to_bytes(ImageFileFormat.png))
+            error = await save_recipe(
+                client._requests, client.url, job.params.name, tags, image_bytes, job.params
+            )
+            if error:
+                self.report_error(error)
+
+        eventloop.run(_report_errors(self, _send()))
 
     def resolve_inpaint_mode(self):
         if self.inpaint.mode is InpaintMode.automatic:
@@ -957,7 +1348,33 @@ class DocumentModel(QObject, ObservableProperties):
             add_refs(region.control, region_layers)
             layers.update(region_layers)
 
+        if self.arch.supports_edit:
+            self._add_mentioned_layers(cond)
         return cond, layers
+
+    def _add_mentioned_layers(self, cond: ConditioningInput):
+        # @Name that isn't a named reference control falls back to the Krita layer with that
+        # name. Appended last, so the image numbers of <layer:...> references stay valid.
+        controls = cond.control + [c for r in cond.regions for c in r.control]
+        named = {c.name.lower() for c in controls if c.name}
+        prompt = "\n".join([cond.positive] + [r.positive for r in cond.regions])
+        for mention in extract_reference_mentions(prompt):
+            if mention.lower() in named:
+                continue
+            key = mention.lower()
+            layer = next(
+                (
+                    l
+                    for l in self._doc.layers.images
+                    if sanitize_reference_name(l.name).lower() == key
+                ),
+                None,
+            )
+            if layer is not None:
+                ctrl = ControlLayer(self, ControlMode.reference, layer.id, 0)
+                ctrl.name = mention
+                cond.control.append(ctrl.to_api())
+                named.add(key)
 
     def _performance_settings(self, client: Client):
         result = client.performance_settings
@@ -1556,6 +1973,62 @@ class AnimationWorkspace(QObject, ObservableProperties):
             self.target_image_changed.emit(image)
 
 
+_missing_segment_nodes = {
+    SegmentMode.subject: _(
+        "Select Subject needs a background removal model on the server: the"
+        " ComfyUI-Easy-Use node pack, or a model in ComfyUI's models/background_removal"
+    ),
+    SegmentMode.text: _("Select by Text needs the ComfyUI-KJNodes node pack on the server"),
+}
+
+
+def _segment_core_model(nodes) -> str:
+    if workflow.segment_core_node not in nodes or workflow.segment_core_loader not in nodes:
+        return ""
+    models = nodes.options(workflow.segment_core_loader, "bg_removal_name")
+    return models[0] if models else ""
+
+
+def _dlss5_metadata(input: WorkflowInput, area: str):
+    """The DLSS5 settings a result was made with, stored with the job so saved images,
+    Eagle exports and "Info to Clipboard" record them. `tiles` is 0 for a single pass."""
+    tiles = workflow.dlss5_tile_count(input.extent.input)
+    return {"dlss5": asdict(ensure(input.dlss5)) | {"area": area, "tiles": tiles}}
+
+
+_model_file_extensions = (".safetensors", ".ckpt", ".gguf", ".sft", ".pt", ".pth", ".bin")
+_model_file_suffix = re.compile(
+    r"[-_.](fp8|fp16|bf16|fp32|e4m3fn|e5m2|nf4|q\d(_k)?(_[sml01])?|pruned|emaonly|ema)$",
+    re.IGNORECASE,
+)
+
+
+def _short_model_name(checkpoint: str):
+    """Eg. "flux1-dev" for "flux/flux1-dev-Q8_0.gguf" - folder, extension and precision dropped."""
+    stem = checkpoint.replace("\\", "/").rsplit("/", 1)[-1]
+    if (dot := stem.rfind(".")) > 0 and stem[dot:].lower() in _model_file_extensions:
+        stem = stem[:dot]
+    while (shorter := _model_file_suffix.sub("", stem)) != stem and shorter:
+        stem = shorter
+    return trim_text(stem, 40)
+
+
+def _model_name_prefix(params: JobParams):
+    checkpoint = params.metadata.get("checkpoint")
+    if not settings.layer_name_model_prefix or not isinstance(checkpoint, str) or not checkpoint:
+        return ""
+    return f"[{_short_model_name(checkpoint)}] "
+
+
+def _dlss5_name_prefix(metadata: dict[str, Any]):
+    """Eg. "[DLSS5 Natural, M, 1.0, 18 tiles]" - history entry and layer name."""
+    d = metadata["dlss5"]
+    parts = [d["style"], d["model_preset"], str(d["intensity"])]
+    if d["tiles"]:
+        parts.append(_("{count} tiles").format(count=d["tiles"]))
+    return f"[DLSS5 {', '.join(parts)}]"
+
+
 def get_selection_modifiers(
     arch: Arch | InpaintContext, inpaint_mode: InpaintMode, strength: float, min_size=256
 ):
@@ -1620,8 +2093,8 @@ def _save_job_result(model: DocumentModel, job: Job | None, index: int):
     assert job is not None, "Cannot save result, invalid job id"
     assert len(job.results) > index, "Cannot save result, invalid result index"
     assert model.document.filename, "Cannot save result, document is not saved"
-    timestamp = job.timestamp.strftime("%Y%m%d-%H%M%S")
-    cur_timestamp = datetime.now(timezone.utc).strftime("%Y%m%d-%H%M%S")
+    timestamp = job.timestamp.astimezone().strftime("%Y%m%d-%H%M%S")
+    cur_timestamp = datetime.now().astimezone().strftime("%Y%m%d-%H%M%S")
     prompt = util.sanitize_prompt(job.params.name)
     path = Path(model.document.filename)
     name_template = (
@@ -1659,3 +2132,7 @@ def _save_job_result(model: DocumentModel, job: Job | None, index: int):
             quality = settings.save_image_quality_jpeg
 
         base_image.save(path, settings.save_image_format, quality)
+
+    if settings.server_mode is ServerMode.cloud:
+        xmp = create_ai_generated_xmp(job.params.workflow_kind)
+        base_image.write_xmp_metadata(path, xmp)

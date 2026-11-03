@@ -1,11 +1,10 @@
 from __future__ import annotations
 
 from collections.abc import Callable
-from itertools import chain
-from typing import Any, ClassVar, cast
+from typing import TYPE_CHECKING, Any, ClassVar, cast
 
 from krita import Krita
-from PyQt5.QtCore import QEvent, QMetaObject, QSize, Qt, QUrl, pyqtSignal
+from PyQt5.QtCore import QEvent, QMetaObject, QSize, Qt, QTimer, QUrl, pyqtSignal
 from PyQt5.QtGui import (
     QCloseEvent,
     QColor,
@@ -14,7 +13,6 @@ from PyQt5.QtGui import (
     QGuiApplication,
     QIcon,
     QKeyEvent,
-    QKeySequence,
     QMouseEvent,
     QPaintDevice,
     QPainter,
@@ -35,6 +33,7 @@ from PyQt5.QtWidgets import (
     QLabel,
     QMenu,
     QPlainTextEdit,
+    QProgressBar,
     QPushButton,
     QScrollBar,
     QSizePolicy,
@@ -47,10 +46,9 @@ from PyQt5.QtWidgets import (
     QWidgetAction,
 )
 
-from ..backend.client import filter_supported_styles, resolve_arch
+from ..backend.client import resolve_arch
 from ..backend.workflow import apply_strength, snap_to_percent
 from ..localization import translate as _
-from ..model.connection import ConnectionState
 from ..model.jobs import JobKind, JobState
 from ..model.model import (
     DocumentModel,
@@ -65,7 +63,7 @@ from ..model.model import (
 from ..model.properties import Bind, Binding, bind, bind_combo
 from ..model.root import root
 from ..settings import Settings, settings
-from ..style import Style, Styles, sort_recent_styles
+from ..style import Style, Styles
 from ..text import (
     char16_index_to_str_index,
     char16_len,
@@ -73,15 +71,37 @@ from ..text import (
     pattern_comment,
     pattern_layer,
     pattern_lora,
+    pattern_seq_combined,
     pattern_weight_expr,
     pattern_wildcard,
     select_on_cursor_pos,
     str_index_to_char16_index,
 )
 from ..util import ensure
+from ..wildcards import WildcardLibrary
 from . import actions, theme
 from .autocomplete import PromptAutoComplete
 from .theme import SignalBlocker
+
+if TYPE_CHECKING:
+    from .style_picker import StylePickerDialog
+
+
+def wildcard_combination_count(model: DocumentModel) -> int:
+    """Number of sequential wildcard combinations in the active prompt (0 if none), capped at 1000."""
+    prompt = model.regions.active_or_root.positive
+    matches = list(pattern_seq_combined.finditer(prompt))
+    if not matches:
+        return 0
+    library = WildcardLibrary.instance()
+    product = 1
+    for match in matches:
+        if match.group(1) is not None:
+            count = len(match.group(1).split("|"))
+        else:
+            count = len(library.get(match.group(2)) or [])
+        product *= max(1, count)
+    return min(product, 1000)
 
 
 class QueuePopup(QMenu):
@@ -127,15 +147,27 @@ class QueuePopup(QMenu):
         batch_layout = QHBoxLayout()
         self._batch_slider = QSlider(Qt.Orientation.Horizontal, self)
         self._batch_slider.setMinimum(1)
-        self._batch_slider.setMaximum(10)
+        self._batch_slider.setMaximum(1000)
         self._batch_slider.setSingleStep(1)
-        self._batch_slider.setPageStep(1)
+        self._batch_slider.setPageStep(10)
         self._batch_slider.setVisible(supports_batch)
         self._batch_slider.setToolTip(_("Number of jobs to enqueue at once"))
-        self._batch_label = QLabel("1", self)
-        self._batch_label.setVisible(supports_batch)
+        self._batch_spinbox = QSpinBox(self)
+        self._batch_spinbox.setMinimum(1)
+        self._batch_spinbox.setMaximum(1000)
+        self._batch_spinbox.setFixedWidth(52)
+        self._batch_spinbox.setVisible(supports_batch)
+        self._batch_spinbox.setToolTip(_("Number of jobs to enqueue at once"))
+        self._batch_combo_button = QToolButton(self)
+        self._batch_combo_button.setIcon(theme.icon("combinations"))
+        self._batch_combo_button.setToolTip(
+            _("Set batch count to the number of sequential wildcard combinations in the prompt")
+        )
+        self._batch_combo_button.setVisible(supports_batch)
+        self._batch_combo_button.clicked.connect(self._set_batch_from_combinations)
         batch_layout.addWidget(self._batch_slider)
-        batch_layout.addWidget(self._batch_label)
+        batch_layout.addWidget(self._batch_spinbox)
+        batch_layout.addWidget(self._batch_combo_button)
         self._layout.addLayout(batch_layout, 1, 1)
 
         self._seed_label = QLabel(_("Seed"), self)
@@ -152,10 +184,18 @@ class QueuePopup(QMenu):
                 "The seed controls the random part of the output. A fixed seed value will always produce the same result for the same inputs."
             )
         )
+        self._seed_increment_check = QCheckBox(self)
+        self._seed_increment_check.setText(_("Increment"))
+        self._seed_increment_check.setToolTip(
+            _(
+                "Increment the seed by one after each generation, producing a sequence of consecutive seeds instead of a random or fixed one."
+            )
+        )
         self._randomize_seed = QToolButton(self)
         self._randomize_seed.setIcon(theme.icon("random"))
         seed_layout = QHBoxLayout()
         seed_layout.addWidget(self._seed_check)
+        seed_layout.addWidget(self._seed_increment_check)
         seed_layout.addWidget(self._seed_input)
         seed_layout.addWidget(self._randomize_seed)
         self._layout.addLayout(seed_layout, 2, 1)
@@ -196,7 +236,42 @@ class QueuePopup(QMenu):
         cancel_layout.addWidget(self._cancel_all)
         self._layout.addLayout(cancel_layout, 5, 1)
 
+        memory_label = QLabel(_("Memory"), self)
+        self._unload_models = QToolButton(self)
+        self._unload_models.setToolButtonStyle(Qt.ToolButtonStyle.ToolButtonTextBesideIcon)
+        self._unload_models.setText(_("Unload Models"))
+        self._unload_models.setIcon(theme.icon("discard"))
+        self._unload_models.setToolTip(
+            _(
+                "Unload all models from VRAM and RAM on the ComfyUI server."
+                " A running generation finishes first, the next one loads its models again."
+            )
+        )
+        self._unload_models.clicked.connect(self._free_memory)
+        self._vram_bar = QProgressBar(self)
+        self._vram_bar.setRange(0, 1000)
+        self._vram_bar.setTextVisible(True)
+        self._vram_bar.setFixedHeight(self._unload_models.sizeHint().height())
+        self._vram_bar.setToolTip(
+            _("GPU memory in use on the ComfyUI server (includes other applications)")
+        )
+        self._update_vram(None)
+        root.connection.vram_changed.connect(self._update_vram)
+        self._vram_timer = QTimer(self)
+        self._vram_timer.setInterval(2000)
+        self._vram_timer.timeout.connect(root.connection.update_vram)
+        unload_layout = QHBoxLayout()
+        unload_layout.addWidget(self._vram_bar, 1)
+        unload_layout.addWidget(self._unload_models)
+        self._layout.addWidget(memory_label, 6, 0)
+        self._layout.addLayout(unload_layout, 6, 1)
+
         self._model = root.active_model
+
+    def _update_seed_input_enabled(self, *_args):
+        enabled = self._model.fixed_seed or self._model.seed_increment
+        self._seed_input.setEnabled(enabled)
+        self._randomize_seed.setEnabled(enabled)
 
     @property
     def model(self):
@@ -206,19 +281,24 @@ class QueuePopup(QMenu):
     def model(self, model: DocumentModel):
         Binding.disconnect_all(self._connections)
         self._model = model
-        self._randomize_seed.setEnabled(model.fixed_seed)
+        self._update_seed_input_enabled()
         self._seed_input.setValue(model.seed)
-        self._seed_input.setEnabled(model.fixed_seed)
-        self._batch_label.setText(str(model.batch_count))
+        self._batch_spinbox.setValue(model.batch_count)
         self._connections = [
             bind(model, "batch_count", self._batch_slider, "value"),
-            model.batch_count_changed.connect(lambda v: self._batch_label.setText(str(v))),
+            model.batch_count_changed.connect(lambda v: self._batch_spinbox.setValue(v)),
+            self._batch_spinbox.valueChanged.connect(lambda v: self._batch_slider.setValue(v)),
+            self._batch_slider.valueChanged.connect(lambda v: self._batch_spinbox.setValue(v)),
             model.seed_changed.connect(lambda: self._seed_input.setValue(self._model.seed)),
             self._seed_input.valueChanged.connect(lambda v: setattr(self._model, "seed", int(v))),
             bind(model, "fixed_seed", self._seed_check, "checked", Bind.one_way),
             self._seed_check.toggled.connect(lambda v: setattr(self._model, "fixed_seed", v)),
-            model.fixed_seed_changed.connect(self._seed_input.setEnabled),
-            model.fixed_seed_changed.connect(self._randomize_seed.setEnabled),
+            bind(model, "seed_increment", self._seed_increment_check, "checked", Bind.one_way),
+            self._seed_increment_check.toggled.connect(
+                lambda v: setattr(self._model, "seed_increment", v)
+            ),
+            model.fixed_seed_changed.connect(self._update_seed_input_enabled),
+            model.seed_increment_changed.connect(self._update_seed_input_enabled),
             self._randomize_seed.clicked.connect(model.generate_seed),
             model.resolution_multiplier_changed.connect(self._update_resolution_multiplier),
             bind_combo(model, "queue_mode", self._queue_mode_combo),
@@ -245,6 +325,29 @@ class QueuePopup(QMenu):
         self._cancel_queued.setEnabled(n_queued > 0)
         self._cancel_all.setEnabled(has_active or n_queued > 0)
 
+    def _free_memory(self):
+        root.connection.free_memory()
+        QTimer.singleShot(1000, root.connection.update_vram)
+
+    def _update_vram(self, usage: tuple[int, int] | None):
+        if usage is None:
+            self._vram_bar.setValue(0)
+            self._vram_bar.setFormat(_("VRAM: unknown"))
+            return
+        used, total = usage
+        gb = 1024**3
+        self._vram_bar.setValue(round(used / total * 1000))
+        self._vram_bar.setFormat(f"VRAM {used / gb:.1f} / {total / gb:.1f} GB")
+
+    def showEvent(self, a0):
+        super().showEvent(a0)
+        root.connection.update_vram()
+        self._vram_timer.start()
+
+    def hideEvent(self, a0):
+        self._vram_timer.stop()
+        super().hideEvent(a0)
+
     def _update_resolution_multiplier(self):
         slider_value = round(self.model.resolution_multiplier * 10)
         if self._resolution_multiplier_slider.value() != slider_value:
@@ -252,7 +355,10 @@ class QueuePopup(QMenu):
 
     def _set_resolution_multiplier(self, value: int):
         self.model.resolution_multiplier = value / 10
-        self._resolution_multiplier_display.setText(f"{(value / 10):.1f} x")
+
+    def _set_batch_from_combinations(self):
+        if count := wildcard_combination_count(self._model):
+            self._model.batch_count = count
 
     def closeEvent(self, a0: QCloseEvent | None) -> None:
         if parent := cast(QWidget, self.parent()):
@@ -333,17 +439,17 @@ class StyleSelectWidget(QWidget):
 
     def __init__(self, parent: QWidget | None, show_quality=False):
         super().__init__(parent)
-        self._styles: list[Style] = []
         self._value = Styles.list().default
+        self._picker: StylePickerDialog | None = None
 
         layout = QHBoxLayout(self)
         layout.setContentsMargins(0, 0, 0, 0)
         self.setLayout(layout)
 
-        self._combo = QComboBox(self)
-        self.update_styles()
-        self._combo.currentIndexChanged.connect(self.change_style)
-        layout.addWidget(self._combo, 3)
+        self._button = QPushButton(self)
+        self._button.clicked.connect(self.open_picker)
+        self._update_button()
+        layout.addWidget(self._button, 3)
 
         if show_quality:
             self._quality_combo = QComboBox(self)
@@ -358,51 +464,36 @@ class StyleSelectWidget(QWidget):
         settings_btn.clicked.connect(self.show_settings)
         layout.addWidget(settings_btn)
 
-        Styles.list().changed.connect(self.update_styles)
-        Styles.list().name_changed.connect(self.update_styles)
-        root.connection.state_changed.connect(self.update_styles)
-        settings.changed.connect(self._on_settings_changed)
+        Styles.list().name_changed.connect(self._update_button)
+        root.connection.state_changed.connect(self._update_button)
 
-    def update_styles(self):
-        if root.connection.state is not ConnectionState.connected:
-            return
+    def _update_button(self):
         client = root.connection.client_if_connected
-        filtered = filter_supported_styles(Styles.list().filtered(), client)
-        recent, remaining = sort_recent_styles(
-            filtered, settings.recent_styles, settings.recent_styles_count
-        )
-        if self._value not in chain(recent, remaining):
-            recent.insert(0, self._value)
-        self._styles = recent + remaining
-        with SignalBlocker(self._combo):
-            self._combo.clear()
-            for style in recent:
-                icon = theme.checkpoint_icon(resolve_arch(style, client))
-                self._combo.addItem(icon, f"{style.name} ★", style.filename)
-            if recent and remaining:
-                self._combo.insertSeparator(len(recent))
-            for style in remaining:
-                icon = theme.checkpoint_icon(resolve_arch(style, client))
-                self._combo.addItem(icon, style.name, style.filename)
-            self._combo.setCurrentText(self._value.name)
+        icon = theme.checkpoint_icon(resolve_arch(self._value, client))
+        self._button.setIcon(icon)
+        self._button.setText(self._value.name)
 
-    def change_style(self):
-        filename = self._combo.currentData()
-        if filename is None:
-            return  # separator item selected
-        style = next((s for s in self._styles if s.filename == filename), None)
-        if style is None or style == self._value:
-            return
-        self._value = style
-        self.value_changed.emit(style)
+    def open_picker(self):
+        from .style_picker import StylePickerDialog
+
+        if self._picker is None:
+            self._picker = StylePickerDialog(self._value, parent=self)
+            self._picker.style_selected.connect(self._on_style_picked)
+        else:
+            self._picker.set_current(self._value)
+        self._picker.show()
+        self._picker.raise_()
+        self._picker.activateWindow()
+
+    def _on_style_picked(self, style: Style):
+        if style != self._value:
+            self._value = style
+            self._update_button()
+            self.value_changed.emit(style)
 
     def change_quality(self):
         quality = SamplingQuality(self._quality_combo.currentData())
         self.quality_changed.emit(quality)
-
-    def _on_settings_changed(self, name: str, value: object):
-        if "recent_styles" in name:
-            self.update_styles()
 
     def show_settings(self):
         from .settings import SettingsDialog
@@ -417,11 +508,7 @@ class StyleSelectWidget(QWidget):
     def value(self, style: Style):
         if style != self._value:
             self._value = style
-            if style not in self._styles:
-                self.update_styles()
-            else:
-                idx = self._combo.findData(style.filename)
-                self._combo.setCurrentIndex(idx)
+            self._update_button()
 
 
 class PromptHighlighter(QSyntaxHighlighter):
@@ -437,6 +524,9 @@ class PromptHighlighter(QSyntaxHighlighter):
 
         self._keyword_fmt = QTextCharFormat()
         self._keyword_fmt.setForeground(QColor(theme.strong_highlight))
+
+        self._seq_wildcard_fmt = QTextCharFormat()
+        self._seq_wildcard_fmt.setForeground(QColor(theme.red))
 
         self._grey_fmt = QTextCharFormat()
         self._grey_fmt.setForeground(QColor(theme.grey))
@@ -482,6 +572,16 @@ class PromptHighlighter(QSyntaxHighlighter):
                     if char == "|":
                         self.setFormat(wildcard_start + i, 1, self._keyword_fmt)
                 self.setFormat(wildcard_start + len(wildcard_text) - 1, 1, self._keyword_fmt)
+
+        # sequential wildcard [[...]] spans multiple lines — mark opening/closing brackets only
+        if "[[" in text:
+            m_start = text.find("[[")
+            if m_start < comment_start:
+                self.setFormat(m_start, 2, self._seq_wildcard_fmt)
+        if "]]" in text:
+            m_end = text.rfind("]]")
+            if m_end < comment_start:
+                self.setFormat(m_end, 2, self._seq_wildcard_fmt)
 
 
 class ResizeHandle(QWidget):
@@ -549,11 +649,14 @@ class TextPromptWidget(QPlainTextEdit):
 
     def event(self, e: QEvent | None):
         assert e is not None
-        # Ctrl+Backspace should be handled by QPlainTextEdit, not Krita.
+        # Krita binds a lot of single-key/Ctrl shortcuts globally (brush size
+        # [ ], opacity { }, Ctrl+Backspace for a tool, etc.), which otherwise
+        # steal keys before they ever reach this field - needed for prompt
+        # syntax like [[a|b]], {a|b}, attention weights, and normal editing.
+        # Accept every ShortcutOverride while focused so Qt delivers a plain
+        # key event here instead of firing the global action.
         if e.type() == QEvent.Type.ShortcutOverride:
-            assert isinstance(e, QKeyEvent)
-            if e.matches(QKeySequence.StandardKey.DeleteStartOfWord):
-                e.accept()
+            e.accept()
         return super().event(e)
 
     def keyPressEvent(self, e: QKeyEvent | None):

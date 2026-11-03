@@ -1,5 +1,11 @@
+from krita import Krita
+from PyQt5.QtWidgets import QInputDialog
+
+from ..localization import translate as _
 from ..model.model import Workspace
 from ..model.root import root
+
+_last_select_prompt = "sky"
 
 
 def generate():
@@ -75,3 +81,28 @@ def toggle_workspace():
 def toggle_edit_mode():
     if model := root.model_for_active_document():
         model.edit_mode = not model.edit_mode
+
+
+def select_subject():
+    if model := root.model_for_active_document():
+        model.select_subject()
+
+
+def select_by_text():
+    global _last_select_prompt
+    if model := root.model_for_active_document():
+        window = Krita.instance().activeWindow()
+        prompt, ok = QInputDialog.getText(
+            window.qwindow() if window else None,
+            _("Select by Text"),
+            _("Describe what to select, e.g. sky, water, the red car:"),
+            text=_last_select_prompt,
+        )
+        if ok and prompt.strip():
+            _last_select_prompt = prompt.strip()
+            model.select_by_text(prompt)
+
+
+def remove_background():
+    if model := root.model_for_active_document():
+        model.remove_background()

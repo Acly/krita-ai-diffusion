@@ -180,8 +180,16 @@ class RootRegion(QObject, ObservableProperties):
         self._style_connection: QMetaObject.Connection | None = None
         model.layers.active_changed.connect(self._update_active)
         model.layers.parent_changed.connect(self._update_group)
+        model.layers.removed.connect(self._remove_orphans)
         model.style_changed.connect(self._handle_style_changed)
         self._handle_style_changed(model.style)
+
+    def _remove_orphans(self, layer: Layer):
+        # A region whose layers were all deleted can no longer be selected or removed from
+        # the UI, but it still counts as a region and keeps the "common to all regions"
+        # header up. Control layers are dropped with their layer the same way.
+        for region in [r for r in self._regions if not r.layers]:
+            region.remove()
 
     def _find_region(self, layer: Layer):
         return next((r for r in self._regions if r.is_linked(layer, RegionLink.direct)), None)

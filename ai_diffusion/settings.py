@@ -194,6 +194,9 @@ class Settings(QObject):
         ).format(size=16),
     )
 
+    server_components: list[str]
+    _server_components = Setting("Additional server components", [])
+
     server_url: str
     _server_url = Setting(
         _("Server URL"),
@@ -256,6 +259,94 @@ class Settings(QObject):
         _("NSFW Filter"), 0.0, _("Attempt to filter out images with explicit content")
     )
 
+    civitai_host: str
+    _civitai_host = Setting(
+        _("CivitAI Site"),
+        "civitai.red",
+        _(
+            "Which CivitAI domain the browser talks to. Both serve the same API and"
+            " the same models; civitai.red is the alternative front end."
+        ),
+        items=[("civitai.red", "civitai.red"), ("civitai.com", "civitai.com")],
+    )
+
+    civitai_api_key: str
+    _civitai_api_key = Setting(
+        _("CivitAI API Key"),
+        "",
+        _(
+            "Personal API key from civitai.com (Account settings -> API Keys). Optional:"
+            " without it the CivitAI browser still searches, but preview images of"
+            " models rated R and above stay hidden."
+        ),
+    )
+
+    civitai_nsfw_filter: str
+    _civitai_nsfw_filter = Setting(
+        _("CivitAI Content Filter"),
+        "safe",
+        _("Content rating limit applied when browsing CivitAI"),
+        items=[
+            (_("Safe only"), "safe"),
+            (_("Hide explicit"), "hide_explicit"),
+            (_("All ratings"), "all"),
+        ],
+    )
+
+    animadex_enabled: bool
+    _animadex_enabled = Setting(
+        _("AnimaDex Browser"),
+        True,
+        _(
+            "Show a button which browses the AnimaDex character and artist catalogue"
+            " while an Anima style is selected"
+        ),
+    )
+
+    animadex_host: str
+    _animadex_host = Setting(
+        _("AnimaDex Site"),
+        "animadex.net",
+        _(
+            "Where the catalogue is read from. The site is open source - point this at a"
+            " self-hosted instance (e.g. 127.0.0.1:5000) to browse it locally."
+        ),
+    )
+
+    lora_preload: bool
+    _lora_preload = Setting(
+        _("Preload LoRA List"),
+        True,
+        _(
+            "Load the LoRA list from Lora Manager in the background after connecting,"
+            " so the LoRA browser opens without waiting"
+        ),
+    )
+
+    civitai_download_root: str
+    _civitai_download_root = Setting(
+        _("CivitAI Download Folder"),
+        "",
+        _(
+            "Model root that CivitAI downloads are written to. Empty means whatever"
+            " Lora Manager has configured as its default."
+        ),
+    )
+
+    civitai_download_subfolder: str
+    _civitai_download_subfolder = Setting(
+        _("CivitAI Download Subfolder"),
+        "",
+        _("Subfolder below the download folder, e.g. Illustrious/character"),
+    )
+
+    layer_name_model_prefix: bool
+    _layer_name_model_prefix = Setting(
+        _("Model Name in Layer Names"),
+        True,
+        _("Start the name of applied result layers with the model, e.g. [flux1-dev] prompt"),
+    )
+
     new_seed_after_apply: bool
     _new_seed_after_apply = Setting(
         _("Live: New Seed after Apply"),
@@ -268,6 +359,76 @@ class Settings(QObject):
         _("Prompt Translation"),
         "",
         _("Translate text prompts from the selected language to English"),
+    )
+
+    ollama_enabled: bool
+    _ollama_enabled = Setting(
+        _("Prompt Enhancement"),
+        False,
+        _("Show a button which rewrites the prompt with a local Ollama language model"),
+    )
+
+    ollama_url: str
+    _ollama_url = Setting(
+        _("Ollama Server URL"),
+        "127.0.0.1:11434",
+        _("Address of the Ollama server which runs the language model"),
+    )
+
+    ollama_model: str
+    _ollama_model = Setting(
+        _("Language Model"),
+        "",
+        _("Ollama model used to generate prompts"),
+    )
+
+    ollama_keep_alive: int
+    _ollama_keep_alive = Setting(
+        _("Keep Model Loaded"),
+        0,
+        _(
+            "Seconds the language model stays in VRAM after use. 0 unloads it immediately,"
+            " which frees memory for image generation but costs a few seconds on the next"
+            " enhancement."
+        ),
+    )
+
+    ollama_free_comfy_vram: bool
+    _ollama_free_comfy_vram = Setting(
+        _("Free Image Model First"),
+        False,
+        _(
+            "Unload diffusion models from VRAM before running the language model."
+            " Only useful if both run on the same GPU."
+        ),
+    )
+
+    ollama_temperature: float
+    _ollama_temperature = Setting(
+        _("Creativity"),
+        0.9,
+        _("Sampling temperature. Lower stays close to the input, higher invents more."),
+    )
+
+    ollama_max_tokens: int
+    _ollama_max_tokens = Setting(
+        _("Response Length"),
+        512,
+        _("Maximum number of tokens the language model may produce"),
+    )
+
+    ollama_timeout: int
+    _ollama_timeout = Setting(
+        _("Timeout"),
+        180,
+        _("Seconds to wait for a response before giving up"),
+    )
+
+    ollama_variation_count: int
+    _ollama_variation_count = Setting(
+        _("Variation Count"),
+        4,
+        _("Number of alternatives generated by the 'Variations' action"),
     )
 
     save_image_metadata: bool
@@ -318,6 +479,14 @@ class Settings(QObject):
     prompt_line_count_live: int
     _prompt_line_count_live = Setting("Prompt Line Count (Live)", 2)
 
+    negative_prompt_line_count: int
+    _negative_prompt_line_count = Setting(
+        _("Negative Prompt Line Count"), 1, _("Size of the text editor for negative prompts")
+    )
+
+    negative_prompt_line_count_live: int
+    _negative_prompt_line_count_live = Setting("Negative Prompt Line Count (Live)", 1)
+
     show_negative_prompt: bool
     _show_negative_prompt = Setting(
         _("Negative Prompt"), False, _("Show text editor to describe things to avoid")
@@ -328,6 +497,27 @@ class Settings(QObject):
         _("Finished Generation"),
         GenerationFinishedAction.preview,
         _("Action to take when an image generation job finishes"),
+    )
+
+    show_generation_preview: bool
+    _show_generation_preview = Setting(
+        _("Preview While Generating"),
+        True,
+        _(
+            "Show intermediate results on the canvas while an image is being generated "
+            "(ComfyUI previews, low resolution)"
+        ),
+    )
+
+    generation_preview_interval: float
+    _generation_preview_interval = Setting(
+        _("Preview Update Interval"),
+        0.3,
+        _(
+            "Minimum time between canvas updates of the preview while generating, "
+            "0.1 to 5.0 seconds. Lower is smoother but costs more time per image, "
+            "especially at large sizes."
+        ),
     )
 
     show_steps: bool
@@ -384,6 +574,16 @@ class Settings(QObject):
             "built-in/digital-artwork-xl.json",
         ],
     )
+
+    favorite_styles: list[str]
+    _favorite_styles = Setting("Favorite Styles", [])
+
+    # named selections for "Generate across": name -> style filenames / checkpoint names
+    style_sets: dict[str, list[str]]
+    _style_sets = Setting("Style Sets", {})
+
+    checkpoint_sets: dict[str, list[str]]
+    _checkpoint_sets = Setting("Checkpoint Sets", {})
 
     history_size: int
     _history_size = Setting(
@@ -498,6 +698,49 @@ class Settings(QObject):
 
     last_news: str
     _last_news = Setting("Last seen news digest", "")
+
+    # Remembered view state (thumbnail size / list-vs-grid / sort order) for the
+    # browser dialogs, so they reopen the way the user last left them.
+    lora_browser_size: int
+    _lora_browser_size = Setting("LoRA Browser Thumbnail Size", 96)
+    lora_browser_sort: str
+    _lora_browser_sort = Setting("LoRA Browser Sort", "name")
+
+    recipe_browser_size: int
+    _recipe_browser_size = Setting("Recipe Browser Thumbnail Size", 128)
+    recipe_browser_sort: str
+    _recipe_browser_sort = Setting("Recipe Browser Sort", "name")
+
+    style_browser_size: int
+    _style_browser_size = Setting("Style Browser Thumbnail Size", 64)
+    style_browser_sort: str
+    _style_browser_sort = Setting("Style Browser Sort", "name")
+    style_browser_view: str
+    _style_browser_view = Setting("Style Browser View Mode", "list")
+
+    checkpoint_browser_size: int
+    _checkpoint_browser_size = Setting("Checkpoint Browser Thumbnail Size", 128)
+    checkpoint_browser_sort: str
+    _checkpoint_browser_sort = Setting("Checkpoint Browser Sort", "name")
+
+    animadex_browser_size: int
+    _animadex_browser_size = Setting("AnimaDex Browser Thumbnail Size", 128)
+    animadex_browser_sort: str
+    _animadex_browser_sort = Setting("AnimaDex Browser Sort", "count")
+    animadex_browser_mode: str
+    _animadex_browser_mode = Setting("AnimaDex Browser Mode", "characters")
+    animadex_browser_source: str
+    _animadex_browser_source = Setting("AnimaDex Browser Source", "auto")
+    animadex_multi_format: str
+    _animadex_multi_format = Setting("AnimaDex Multi-Select Format", "random")
+    animadex_with_tags: bool
+    _animadex_with_tags = Setting("AnimaDex Insert Tags", False)
+
+    wildcard_browser_sort: str
+    _wildcard_browser_sort = Setting("Wildcard Browser Sort", "name")
+
+    prompt_browser_sort: str
+    _prompt_browser_sort = Setting("Prompt Browser Sort", "name")
 
     # Folder where intermediate images are stored for debug purposes (default: None)
     debug_image_folder = os.environ.get("KRITA_AI_DIFFUSION_DEBUG_IMAGE")

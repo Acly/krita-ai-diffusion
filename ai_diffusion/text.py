@@ -5,12 +5,13 @@ import re
 from pathlib import Path
 from typing import NamedTuple
 
-from .backend.api import ConditioningInput, LoraInput, RegionInput
+from .backend.api import ConditioningInput, InpaintMode, LoraInput, RegionInput, WorkflowKind
 from .files import FileCollection, FileSource
 from .localization import translate as _
 from .model.jobs import JobParams
 from .util import PluginError
 from .util import client_logger as log
+from .wildcards import WildcardLibrary
 
 # Functions to convert between position in Python str objects (unicode) and
 # index in QString char16 arrays (used in eg. QTextCursor).
@@ -48,8 +49,24 @@ class LoraId(NamedTuple):
 pattern_comment = re.compile(r"(?<!\\)#(?![0-9a-fA-F]{6}).*")
 pattern_lora = re.compile(r"<lora:([^:<>]+)(?::(-?[^:<>]*))?>", re.IGNORECASE)
 pattern_layer = re.compile(r"<layer:([^>]+)>", re.IGNORECASE)
+# @Name mention of a named reference image. Not preceded by a word char, so e-mail
+# addresses and the like stay untouched.
+pattern_reference_name = re.compile(r"(?<![\w@])@(\w+(?:-\w+)*)")
 pattern_weight_expr = re.compile(r"\([^:()]+:(-?[\d.]+)\)")
 pattern_wildcard = re.compile(r"(\{[^{}]+\|[^{}]+\})")
+pattern_seq_wildcard = re.compile(r"\[\[((?:(?!\]\]).)*)\]\]", re.DOTALL)
+pattern_seq_file_wildcard = re.compile(r"__seq:([\w\-./]+?)__")
+# Matches either kind of sequential group ([[a|b]] or __seq:name__), so both can be
+# combined into a single ordered Cartesian product below.
+pattern_seq_combined = re.compile(r"\[\[((?:(?!\]\]).)*)\]\]|__seq:([\w\-./]+?)__", re.DOTALL)
+pattern_file_wildcard = re.compile(r"__([\w\-./]+?)__")
+
+
+def format_option_group(options: list[str], sequential: bool):
+    """[[a|b]] or {a|b} with brackets and pipes each on their own line."""
+    joined = "\n|\n".join(options)
+    open_, close = ("[[", "]]") if sequential else ("{", "}")
+    return f"{open_}\n{joined}\n{close}"
 
 
 def strip_prompt_comments(prompt: str):
@@ -139,17 +156,92 @@ def replace_layers(prompt: str, layer_mapping: dict[str, int], replacement="Pict
     return pattern_layer.sub(replace, prompt).strip()
 
 
-def eval_wildcards(text: str, seed: int):
-    rng = random.Random(seed)
+def sanitize_reference_name(name: str):
+    return re.sub(r"[^\w\-]", "", re.sub(r"\s+", "_", name.strip()))
+
+
+def reference_name_mapping(names: list[str], start_index=1) -> dict[str, int]:
+    """Map reference names (case-insensitive) to their image number in the prompt.
+    `names` holds one entry per input image in order, empty for unnamed ones."""
+    mapping: dict[str, int] = {}
+    for index, name in enumerate(names, start_index):
+        key = sanitize_reference_name(name).lower()
+        if key and key not in mapping:
+            mapping[key] = index
+    return mapping
+
+
+def extract_reference_mentions(prompt: str):
+    mentions: dict[str, str] = {}
+    for match in pattern_reference_name.finditer(strip_prompt_comments(prompt)):
+        mentions.setdefault(match[1].lower(), match[1])
+    return list(mentions.values())
+
+
+def replace_reference_names(prompt: str, mapping: dict[str, int], replacement=""):
+    """Rewrite @Name mentions to the token the model uses for its input images (eg.
+    "image {}"). Without a replacement (model has no numbered images) every mention becomes
+    the plain name. Otherwise unknown names are left as they are."""
 
     def replace(match: re.Match[str]):
-        wildcard_name = match[1]
-        options = wildcard_name.split("|")
-        return rng.choice(options).strip("{} ")
+        name = match[1]
+        if not replacement:
+            return name
+        index = mapping.get(name.lower())
+        if index is None:
+            log.warning(f"Prompt mentions unknown reference @{name}")
+            return match[0]
+        return replacement.format(index)
+
+    return pattern_reference_name.sub(replace, prompt)
+
+
+def eval_wildcards(text: str, seed: int, batch_index: int = 0):
+    rng = random.Random(seed)
+    wildcard_library = WildcardLibrary.instance()
+
+    def replace_random(match: re.Match[str]):
+        options = match[1].strip("{} ").split("|")
+        return rng.choice(options).strip()
+
+    def replace_file(match: re.Match[str]):
+        options = wildcard_library.get(match[1])
+        if not options:
+            return match[0]  # unknown/empty file - leave the __name__ visible rather
+            # than silently deleting it, so a typo or missing file is obvious
+        return rng.choice(options)
+
+    # Cartesian product: each [[...]] or __seq:name__ group gets its own stride
+    # dimension, in order of appearance, so a batch cycles through every combination
+    def seq_group_options(match: re.Match[str]) -> list[str]:
+        if match.group(1) is not None:
+            return [o.strip() for o in match.group(1).split("|")]
+        options = wildcard_library.get(match.group(2))
+        return options or [match.group(0)]  # unknown/empty file - leave tag visible
+
+    seq_matches = list(pattern_seq_combined.finditer(text))
+    if seq_matches:
+        option_counts = [max(1, len(seq_group_options(m))) for m in seq_matches]
+        strides: list[int] = []
+        stride = 1
+        for count in option_counts:
+            strides.append(stride)
+            stride *= count
+
+        _group = [0]
+
+        def replace_sequential(match: re.Match[str]):
+            options = seq_group_options(match)
+            idx = (batch_index // strides[_group[0]]) % len(options)
+            _group[0] += 1
+            return options[idx]
+
+        text = pattern_seq_combined.sub(replace_sequential, text)
 
     for __ in range(10):
         prev = text
-        text = pattern_wildcard.sub(replace, text)
+        text = pattern_file_wildcard.sub(replace_file, text)
+        text = pattern_wildcard.sub(replace_random, text)
         if text == prev:
             break
 
@@ -306,6 +398,55 @@ def edit_attention(text: str, positive: bool) -> str:
     )
 
 
+_workflow_kind_text = {
+    WorkflowKind.generate: "Generate",
+    WorkflowKind.refine: "Refine",
+    WorkflowKind.inpaint: "Inpaint",
+    WorkflowKind.refine_region: "Refine Region",
+    WorkflowKind.upscale_simple: "Upscale",
+    WorkflowKind.upscale_tiled: "Upscale",
+    WorkflowKind.control_image: "Control Image",
+    WorkflowKind.custom: "Custom",
+    WorkflowKind.dlss5_enhance: "DLSS5 Enhance",
+}
+
+_inpaint_mode_text = {
+    InpaintMode.fill: "Fill",
+    InpaintMode.expand: "Expand",
+    InpaintMode.add_object: "Add Content",
+    InpaintMode.remove_object: "Remove Content",
+    InpaintMode.replace_background: "Replace Background",
+    InpaintMode.custom: "Custom",
+}
+
+
+def create_mode_label(params: JobParams) -> str:
+    label = _workflow_kind_text.get(params.workflow_kind, params.workflow_kind.name)
+    if params.workflow_kind in (WorkflowKind.inpaint, WorkflowKind.refine_region):
+        detail = _inpaint_mode_text.get(params.inpaint_mode) if params.inpaint_mode else None
+        if detail:
+            label = f"{label} ({detail})"
+    return label
+
+
+digital_source_type = "http://cv.iptc.org/newscodes/digitalsourcetype/"
+
+
+def create_ai_generated_xmp(workflow_kind: WorkflowKind):
+    source_type = "trainedAlgorithmicMedia"
+    if workflow_kind is not WorkflowKind.generate:
+        source_type = "compositeWithTrainedAlgorithmicMedia"
+    return f"""<?xpacket begin="\ufeff" id="W5M0MpCehiHzreSzNTczkc9d"?>
+<x:xmpmeta xmlns:x="adobe:ns:meta/">
+ <rdf:RDF xmlns:rdf="http://www.w3.org/1999/02/22-rdf-syntax-ns#">
+  <rdf:Description rdf:about=""
+   xmlns:Iptc4xmpExt="http://iptc.org/std/Iptc4xmpExt/2008-02-29/"
+   Iptc4xmpExt:DigitalSourceType="{digital_source_type}{source_type}"/>
+ </rdf:RDF>
+</x:xmpmeta>
+<?xpacket end="w"?>"""
+
+
 # creates the img text metadata for embedding in PNG files in style like Automatic1111
 def create_img_metadata(params: JobParams):
     meta = params.metadata
@@ -348,4 +489,40 @@ def create_img_metadata(params: JobParams):
     if strength is not None and strength != 1.0:
         lines[-1] += f", Denoising strength: {strength}"
 
+    if mode := create_mode_label(params):
+        lines[-1] += f", Mode: {mode}"
+
+    custom_inpaint = meta.get("custom_inpaint")
+    if custom_inpaint:
+        if custom_inpaint.get("seamless"):
+            lines[-1] += ", Seamless: On"
+        if custom_inpaint.get("focus"):
+            lines[-1] += ", Focus: On"
+        if custom_inpaint.get("edit"):
+            lines[-1] += ", Edit: On"
+        fill = custom_inpaint.get("fill")
+        if fill and fill != "none":
+            lines[-1] += f", Fill: {fill.capitalize()}"
+        context = custom_inpaint.get("context")
+        if context:
+            lines[-1] += f", Context: {context}"
+
+    # Separate "DLSS5 x: y" keys, as A1111-style parsers split parameters on ", "
+    if isinstance(dlss5 := meta.get("dlss5"), dict):
+        for key, label in _dlss5_metadata_keys:
+            if key in dlss5:
+                lines[-1] += f", DLSS5 {label}: {dlss5[key]}"
+
     return "\n".join(lines)
+
+
+_dlss5_metadata_keys = [
+    ("area", "area"),
+    ("style", "style"),
+    ("intensity", "intensity"),
+    ("tone", "tone"),
+    ("structure", "structure"),
+    ("skin", "skin"),
+    ("model_preset", "model"),
+    ("tiles", "tiles"),
+]

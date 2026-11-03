@@ -69,6 +69,13 @@ class AutoUpdate(QObject, ObservableProperties):
         if self.state is UpdateState.restart_required:
             return
 
+        if "-reloaded." in self.current_version and self.api_url == self.default_api_url:
+            self.error = (
+                "Install updates from your fork's ZIP to preserve Reloaded and Krea features."
+            )
+            self.state = UpdateState.failed_check
+            return
+
         self.state = UpdateState.checking
         log.info(f"Checking for latest plugin version at {self.api_url}")
         result = await self._net.get(

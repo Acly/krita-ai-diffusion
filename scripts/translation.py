@@ -24,7 +24,7 @@ def parse_source(dir: Path) -> set[str]:
 
 
 def write_language_file(strings: set[str], id: str, name: str, target_file: Path):
-    defs = {"id": id, "name": name, "translations": {s: None for s in sorted(strings)}}
+    defs = {"id": id, "name": name, "translations": dict.fromkeys(sorted(strings))}
     with target_file.open("w", encoding="utf-8") as f:
         json.dump(defs, f, ensure_ascii=False, indent=2)
 

@@ -1,0 +1,27 @@
+{
+    "name": "MOSS-Image",
+    "version": 1,
+    "architecture": "auto",
+    "checkpoints": [
+        "moss_image_sft_int8_convrot.safetensors",
+        "moss_image_sft_bf16.safetensors",
+        "moss_image_base_int8_convrot.safetensors",
+        "moss_image_base_bf16.safetensors",
+        "MOSS-Image-SFT",
+        "MOSS-Image-Base"
+    ],
+    "loras": [],
+    "style_prompt": "{prompt}",
+    "negative_prompt": "",
+    "vae": "Checkpoint Default",
+    "clip_skip": 0,
+    "v_prediction_zsnr": false,
+    "self_attention_guidance": false,
+    "preferred_resolution": 0,
+    "sampler": "MOSS - Euler",
+    "sampler_steps": 20,
+    "cfg_scale": 3.0,
+    "live_sampler": "MOSS - Euler",
+    "live_sampler_steps": 8,
+    "live_cfg_scale": 1.0
+}

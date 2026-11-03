@@ -7,7 +7,9 @@ from PIL import Image as PILImage
 from PyQt5.QtCore import QByteArray, Qt
 from PyQt5.QtGui import QImage, qRgba
 
-from ai_diffusion.image import Bounds, Extent, Image, ImageCollection, Mask
+from ai_diffusion.backend.api import WorkflowKind
+from ai_diffusion.image import Bounds, Extent, Image, ImageCollection, ImageFileFormat, Mask
+from ai_diffusion.text import create_ai_generated_xmp
 
 from .config import image_dir, reference_dir, result_dir
 
@@ -98,6 +100,29 @@ def test_image_from_pil():
     img = Image.from_pil(pil_img)
     assert img.extent == Extent(2, 2)
     assert img.pixel(0, 0) == (255, 0, 0, 255)
+
+
+@pytest.mark.parametrize(
+    "format", [ImageFileFormat.png, ImageFileFormat.webp, ImageFileFormat.jpeg]
+)
+@pytest.mark.parametrize(
+    ("workflow_kind", "source_type"),
+    [
+        (WorkflowKind.generate, "trainedAlgorithmicMedia"),
+        (WorkflowKind.inpaint, "compositeWithTrainedAlgorithmicMedia"),
+    ],
+)
+def test_write_ai_generated_xmp(tmp_path, format, workflow_kind, source_type):
+    image = create_test_image(16, 16)
+    path = tmp_path / f"generated.{format.extension}"
+    image.save(path, format)
+    image.write_xmp_metadata(path, create_ai_generated_xmp(workflow_kind))
+
+    xmp = PILImage.open(path).info["xmp"].decode()
+    assert (
+        f'Iptc4xmpExt:DigitalSourceType="http://cv.iptc.org/newscodes/digitalsourcetype/{source_type}"'
+        in xmp
+    )
 
 
 def test_image_from_packed_bytes():

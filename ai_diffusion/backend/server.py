@@ -13,7 +13,7 @@ from typing import NamedTuple
 
 from PyQt5.QtNetwork import QNetworkAccessManager
 
-from .. import eventloop
+from .. import eventloop, util
 from ..localization import translate as _
 from ..platform_tools import (
     ZipFile,
@@ -33,15 +33,12 @@ from .network import DownloadProgress, download
 from .resources import (
     Arch,
     CustomNode,
-    ModelRequirements,
     ModelResource,
     VerificationState,
     VerificationStatus,
 )
 
 _exe = ".exe" if is_windows else ""
-
-nunchaku_version = ("1.2.1", "cu12.8torch2.11")
 
 
 class ServerState(Enum):
@@ -202,7 +199,11 @@ class Server:
         if not self.has_comfy:
             await try_install(comfy_dir, self._install_comfy, comfy_dir, network, cb)
 
-        for pkg in chain(resources.required_custom_nodes, resources.optional_custom_nodes):
+        for pkg in chain(
+            resources.required_custom_nodes,
+            resources.optional_custom_nodes,
+            self.selected_custom_nodes,
+        ):
             dir = comfy_dir / "custom_nodes" / pkg.folder
             await install_if_missing(dir, self._install_custom_node, pkg, network, cb)
 
@@ -210,6 +211,71 @@ class Server:
         self.state = ServerState.stopped
         cb("Finished", f"Installation finished in {self.path}")
         self.check_install()
+
+    @property
+    def selected_custom_nodes(self):
+        return [
+            p for p in resources.selectable_custom_nodes if p.name in settings.server_components
+        ]
+
+    def resolve_model_dependencies(self, packages: list[str]):
+        if not any(p.endswith("-krea2") for p in packages):
+            return packages
+        dependencies = [m for m in resources.required_models if m.arch in (Arch.all, Arch.krea2)]
+        base = resources.find_resource(resources.ResourceId.parse("checkpoint-turbo_fp8-krea2"))
+        assert base is not None
+        dependencies.append(base)
+        return list(
+            dict.fromkeys([
+                *packages,
+                *(
+                    m.id.string
+                    for m in dependencies
+                    if not m.exists_in(self.path)
+                    and not (self.comfy_dir and m.exists_in(self.comfy_dir))
+                ),
+            ])
+        )
+
+    def component_installed(self, pkg: CustomNode):
+        if self.comfy_dir is None:
+            return False
+        marker = self.comfy_dir / "custom_nodes" / pkg.folder / ".krita-component-version"
+        return marker.exists() and marker.read_text().strip() == pkg.version
+
+    async def install_components(self, callback: Callback):
+        assert self.comfy_dir is not None
+        network = QNetworkAccessManager()
+        self._cache_dir.mkdir(parents=True, exist_ok=True)
+
+        def cb(stage: str, message: str | DownloadProgress):
+            log.info(str(message))
+            callback(
+                InstallationProgress(
+                    stage,
+                    message if isinstance(message, DownloadProgress) else None,
+                    message if isinstance(message, str) else "",
+                )
+            )
+
+        previous = self.state
+        self.state = ServerState.installing
+        try:
+            for pkg in self.selected_custom_nodes:
+                if not self.component_installed(pkg):
+                    await self._install_custom_node(pkg, network, cb)
+                if pkg.name == "Krea 2 Edit":
+                    bundled = Path(__file__).parent.parent / "presets" / "workflows"
+                    target = util.user_data_dir / "workflows"
+                    target.mkdir(parents=True, exist_ok=True)
+                    for source in bundled.glob("*.json"):
+                        destination = target / source.name
+                        if not destination.exists():
+                            shutil.copy2(source, destination)
+
+        finally:
+            self.state = previous
+            self.check_install()
 
     async def _log_python_version(self):
         if self._uv_cmd is not None:
@@ -303,11 +369,6 @@ class Server:
     ):
         assert self.comfy_dir is not None
 
-        if pkg.name == "Nunchaku":
-            if self.backend is not ServerBackend.cuda or gpu_is_pascal_or_older():
-                return  # Nunchaku requires matching CUDA version
-            await self._install_nunchaku(network, cb)
-
         folder = self.comfy_dir / "custom_nodes" / pkg.folder
         resource_url = pkg.url
         if not resource_url.endswith(".zip"):  # git repo URL
@@ -315,41 +376,28 @@ class Server:
         resource_zip_path = self._cache_dir / f"{pkg.folder}-{pkg.version}.zip"
         await _download_cached(pkg.name, network, resource_url, resource_zip_path, cb)
         await _extract_archive(pkg.name, resource_zip_path, folder.parent, cb)
-        await rename_extracted_folder(pkg.name, folder, pkg.version)
+        backup = folder.with_name(folder.name + ".krita-backup")
+        managed = pkg in resources.selectable_custom_nodes
+        if managed and folder.exists():
+            if backup.exists():
+                raise RuntimeError(f"Component backup already exists: {backup}")
+            folder.rename(backup)
+        try:
+            await rename_extracted_folder(pkg.name, folder, pkg.version)
+            if managed:
+                requirements = folder / "requirements.txt"
+                if requirements.exists():
+                    await self._pip_install(pkg.name, ["-r", str(requirements)], cb)
+                (folder / ".krita-component-version").write_text(pkg.version)
+        except Exception:
+            if managed and folder.exists():
+                remove_subdir(folder, origin=folder.parent)
+            if backup.exists():
+                backup.rename(folder)
+            raise
+        if backup.exists():
+            remove_subdir(backup, origin=backup.parent)
         cb(f"Installing {pkg.name}", f"Finished installing {pkg.name}")
-
-    async def _install_insightface(self, network: QNetworkAccessManager, cb: InternalCB):
-        assert self.comfy_dir is not None and self._python_cmd is not None
-
-        dependencies = ["onnx==1.16.1", "onnxruntime"]  # onnx version pinned due to #1033
-        await self._pip_install("FaceID", dependencies, cb)
-
-        pyver = await get_python_version_string(self._python_cmd)
-        if is_windows and ("3.11" in pyver or "3.12" in pyver):
-            whl_url = "https://github.com/Gourieff/Assets/raw/main/Insightface/insightface-0.7.3-cp311-cp311-win_amd64.whl"
-            if "3.12" in pyver:
-                whl_url = "https://github.com/Gourieff/Assets/raw/main/Insightface/insightface-0.7.3-cp312-cp312-win_amd64.whl"
-            # Make sure numpy isn't updated to a version incompatible with other packages
-            await self._pip_install("FaceID", [whl_url, "numpy<2"], cb)
-        else:
-            await self._pip_install("FaceID", ["insightface"], cb)
-
-    async def _install_nunchaku(self, network: QNetworkAccessManager, cb: InternalCB):
-        assert self.comfy_dir is not None and self._python_cmd is not None
-        assert self.backend is ServerBackend.cuda, "Nunchaku only supports CUDA backend"
-        pyver = await get_python_version_string(self._python_cmd)
-        assert "3.12" in pyver, "Nunchaku requires Python 3.12"
-
-        platform = "win_amd64" if is_windows else "linux_x86_64"
-        ver, torch = nunchaku_version
-        whl_url = f"https://github.com/nunchaku-tech/nunchaku/releases/download/v{ver}/nunchaku-{ver}+{torch}-cp312-cp312-{platform}.whl"
-        await self._pip_install("Nunchaku", [whl_url], cb)
-
-    async def _install_requirements(
-        self, requirements: ModelRequirements, network: QNetworkAccessManager, cb: InternalCB
-    ):
-        if requirements is ModelRequirements.insightface:
-            await self._install_insightface(network, cb)
 
     async def install(self, callback: Callback):
         def cb(stage: str, message: str | DownloadProgress):
@@ -403,7 +451,6 @@ class Server:
                 raise ValueError("Some requested models were not found: " + ", ".join(not_found))
             for resource in to_install:
                 if not resource.exists_in(self.path) and not resource.exists_in(self.comfy_dir):
-                    await self._install_requirements(resource.requirements, network, cb)
                     for file in resource.files:
                         target_file = self.path / file.path
                         target_file.parent.mkdir(parents=True, exist_ok=True)
@@ -943,7 +990,7 @@ async def get_python_version(python_cmd: Path, *args: str):
 
 def parse_common_errors(output: str, return_code: int | None = None):
     if "error while attempting to bind on address" in output:
-        message_part = output.split("bind on address")[-1].strip()
+        message_part = output.rsplit("bind on address", maxsplit=1)[-1].strip()
         return (
             _("Could not bind on address")
             + f" {message_part}. "
@@ -953,7 +1000,7 @@ def parse_common_errors(output: str, return_code: int | None = None):
     nvidia_driver = "Found no NVIDIA driver on your system"
     nvidia_driver_translated = _("Found no NVIDIA driver on your system")
     if nvidia_driver in output:
-        message_part = output.split(nvidia_driver)[-1]
+        message_part = output.rsplit(nvidia_driver, maxsplit=1)[-1]
         return f"{nvidia_driver_translated} {message_part}<br>" + _(
             "If you do not have an NVIDIA GPU, select a different backend below. Server reinstall may be required."
         )

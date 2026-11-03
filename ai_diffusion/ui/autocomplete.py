@@ -10,7 +10,7 @@ from PyQt5.QtWidgets import QApplication, QCompleter, QPlainTextEdit, QStyle, QS
 from ..files import FileFilter
 from ..model.root import root
 from ..settings import settings
-from ..text import char16_index_to_str_index
+from ..text import char16_index_to_str_index, sanitize_reference_name
 from ..util import ensure, plugin_dir, user_data_dir
 
 
@@ -137,6 +137,20 @@ _tag_model = TagListModel([])
 _tag_files = None
 
 
+def _reference_names():
+    model = root.active_model
+    regions = model.active_regions
+    controls = list(regions.control) + [c for r in regions for c in r.control]
+    names = [c.name for c in controls if c.name and c.mode.is_ip_adapter]
+    if model.arch.supports_edit:  # @Name also resolves to Krita layers for edit models
+        names += [sanitize_reference_name(l.name) for l in reversed(model.layers.images)]
+    unique: dict[str, str] = {}
+    for name in names:
+        if name:
+            unique.setdefault(name.lower(), name)
+    return list(unique.values())
+
+
 class PromptAutoComplete:
     def __init__(self, widget: QPlainTextEdit):
         self._widget = widget
@@ -216,6 +230,7 @@ class PromptAutoComplete:
         if not lora_mode:
             name = prefix.removeprefix("<layer:")
             layer_mode = len(prefix) > len(name)
+        reference_mode = not lora_mode and not layer_mode and prefix.startswith("@")
 
         if lora_mode:
             self._completer.setModel(self._lora_model)
@@ -228,6 +243,16 @@ class PromptAutoComplete:
             self._completer.setModel(layer_model)
             self._completion_prefix = name
             self._completion_suffix = ">"
+            self._popup.setItemDelegate(self._item_delegate)
+        elif reference_mode:
+            names = _reference_names()
+            if not names:
+                self._popup.hide()
+                return
+            name = prefix[1:]
+            self._completer.setModel(QStringListModel(names))
+            self._completion_prefix = name
+            self._completion_suffix = ""
             self._popup.setItemDelegate(self._item_delegate)
         else:
             # fall through to tag search
@@ -253,7 +278,7 @@ class PromptAutoComplete:
         if prefix.startswith("<lora:"):
             if file := root.files.loras.find(f"{completion}.safetensors"):
                 triggers = " " + file.meta("lora_triggers", "")
-        elif prefix.startswith("<layer:"):
+        elif prefix.startswith(("<layer:", "@")):
             pass
         else:  # tag completion
             # escape () in tags so they won't be interpreted as prompt weights

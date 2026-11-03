@@ -20,6 +20,8 @@ class WorkflowKind(Enum):
     upscale_tiled = 5
     control_image = 6
     custom = 7
+    dlss5_enhance = 8
+    segment = 9
 
 
 @dataclass
@@ -92,6 +94,7 @@ class ControlInput:
     image: Image | None = None
     strength: float = 1.0
     range: tuple[float, float] = (0.0, 1.0)
+    name: str = ""  # addressed as @name in the prompt of multi-image edit models
 
 
 @dataclass
@@ -167,6 +170,34 @@ class UpscaleInput:
 
 
 @dataclass
+class Dlss5Input:
+    # DLSS5Settings inputs. Model preset M keeps the most skin and hair texture; the
+    # strengths are the node pack's defaults.
+    style: str = "Natural"  # nr_style: Default, Natural, Cinematic
+    intensity: float = 1.0
+    tone: float = 1.0  # local_tone_strength
+    structure: float = 1.5  # local_structure_strength
+    skin: float = 2.0  # skin_structure_strength
+    model_preset: str = "M"
+
+
+class SegmentMode(Enum):
+    subject = 0  # salient foreground object
+    text = 1  # whatever the prompt describes, eg. "sky"
+
+
+@dataclass
+class SegmentInput:
+    mode: SegmentMode = SegmentMode.subject
+    prompt: str = ""
+    # Background removal model file for ComfyUI's core RemoveBackground node. Empty uses
+    # the comfyui-easy-use node with `easy_model` instead.
+    model: str = ""
+    easy_model: str = "RMBG-1.4"
+    threshold: float = 0.3  # text mode: drop matches weaker than this
+
+
+@dataclass
 class CustomStyleInput:
     models: CheckpointInput
     sampling: SamplingInput
@@ -194,6 +225,8 @@ class WorkflowInput:
     inpaint: InpaintParams | None = None
     crop_upscale_extent: Extent | None = None
     upscale: UpscaleInput | None = None
+    dlss5: Dlss5Input | None = None
+    segment: SegmentInput | None = None
     control_mode: ControlMode = ControlMode.reference
     batch_count: int = 1
     color_match: float = 0.0
@@ -247,9 +280,9 @@ class WorkflowInput:
 
     @property
     def cost(self):
-        if self.kind is WorkflowKind.control_image:
+        if self.kind in (WorkflowKind.control_image, WorkflowKind.segment):
             return 1
-        if self.kind is WorkflowKind.upscale_simple:
+        if self.kind in (WorkflowKind.upscale_simple, WorkflowKind.dlss5_enhance):
             return 2
 
         def cost_factor(batch: int, extent: Extent, steps: int):

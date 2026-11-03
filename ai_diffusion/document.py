@@ -1,14 +1,17 @@
 from __future__ import annotations
 
 from pathlib import Path
-from typing import Literal, NamedTuple, cast
+from typing import ClassVar, Literal, NamedTuple, cast
 from uuid import uuid4
 from weakref import WeakValueDictionary
 
 import krita
 from krita import Krita
-from PyQt5.QtCore import QByteArray, QObject, QTimer, pyqtSignal
+from PyQt5.QtCore import QByteArray, QObject, Qt, QTimer, pyqtSignal
+from PyQt5.QtGui import QImage
+from PyQt5.QtWidgets import QAction
 
+from . import eventloop
 from .image import Bounds, Extent, Image, Mask
 from .layer import Layer, LayerManager, LayerType
 from .localization import translate as _
@@ -58,6 +61,9 @@ class Document(QObject):
     def get_image(
         self, bounds: Bounds | None = None, exclude_layers: list[Layer] | None = None
     ) -> Image:
+        raise NotImplementedError
+
+    def set_selection(self, mask: Image, bounds: Bounds):
         raise NotImplementedError
 
     def resize(self, extent: Extent):
@@ -115,7 +121,7 @@ class KritaDocument(Document):
     Keeps track of selection and current time changes by polling at a fixed interval.
     """
 
-    _instances: WeakValueDictionary[str, KritaDocument] = WeakValueDictionary()
+    _instances: ClassVar[WeakValueDictionary[str, KritaDocument]] = WeakValueDictionary()
 
     def __init__(self, krita_document: krita.Document, id: str | None):
         super().__init__()
@@ -229,6 +235,44 @@ class KritaDocument(Document):
         bounds = Bounds.clamp(bounds, self.extent)
         data = selection.pixelData(*bounds)
         return Mask(bounds, data), original_bounds
+
+    def set_selection(self, mask: Image, bounds: Bounds):
+        assert mask.is_mask
+        action = Krita.instance().action("selectopaque")
+        if action is None:
+            selection = krita.Selection()
+            selection.setPixelData(mask.data, *bounds)
+            self._doc.setSelection(selection)
+            return
+        eventloop.run(self._select_opaque(action, mask, bounds))
+
+    async def _select_opaque(self, action: QAction, mask: Image, bounds: Bounds):
+        # Document.setSelection doesn't notify the canvas, so the selection works but no
+        # marching ants are drawn. Krita's own "Select Opaque" on a temporary layer that
+        # carries the mask as alpha does, and is a regular undo step.
+        alpha = QImage(bounds.width, bounds.height, QImage.Format.Format_ARGB32)
+        alpha.fill(Qt.GlobalColor.white)
+        alpha.setAlphaChannel(mask._qimage)  # converts to premultiplied
+        alpha = alpha.convertToFormat(QImage.Format.Format_ARGB32)
+        doc = self._doc
+        previous = doc.activeNode()
+        node = doc.createNode("[AI Select]", "paintlayer")
+        node.setPixelData(Image(alpha).data, *bounds)
+        doc.rootNode().addChildNode(node, None)
+        try:
+            doc.setActiveNode(node)
+            node_id = node.uniqueId()
+            await eventloop.wait_until(
+                lambda: (active := doc.activeNode()) is not None and active.uniqueId() == node_id,
+                no_error=True,
+            )
+            await eventloop.process_events()
+            action.trigger()
+            doc.waitForDone()
+        finally:
+            node.remove()
+            if previous is not None:
+                doc.setActiveNode(previous)
 
     def get_image(self, bounds: Bounds | None = None, exclude_layers: list[Layer] | None = None):
         excluded: list[Layer] = []

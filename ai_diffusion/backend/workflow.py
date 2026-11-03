@@ -15,7 +15,9 @@ from ..text import (
     eval_wildcards,
     extract_loras,
     merge_prompt,
+    reference_name_mapping,
     replace_layers,
+    replace_reference_names,
     strip_prompt_comments,
 )
 from ..util import ensure, median_or_zero, unique
@@ -26,6 +28,7 @@ from .api import (
     ControlInput,
     CustomStyleInput,
     CustomWorkflowInput,
+    Dlss5Input,
     ExtentInput,
     FillMode,
     ImageInput,
@@ -34,11 +37,13 @@ from .api import (
     LoraInput,
     RegionInput,
     SamplingInput,
+    SegmentInput,
+    SegmentMode,
     UpscaleInput,
     WorkflowInput,
     WorkflowKind,
 )
-from .client import ClientModels, ModelDict, Quantization, resolve_arch
+from .client import ClientModels, ModelDict, resolve_arch
 from .comfy_workflow import (
     ComfyNode,
     ComfyRunMode,
@@ -122,25 +127,11 @@ def load_checkpoint_with_lora(w: ComfyWorkflow, checkpoint: CheckpointInput, mod
         raise RuntimeError(f"Style checkpoint {checkpoint.checkpoint} not found")
 
     clip, vae = None, None
-    match (model_info.format, model_info.quantization):
-        case (FileFormat.checkpoint, Quantization.none):
+    match model_info.format:
+        case FileFormat.checkpoint:
             model, clip, vae = w.load_checkpoint(model_info.filename)
-        case (FileFormat.diffusion, Quantization.none):
+        case FileFormat.diffusion:
             model = w.load_diffusion_model(model_info.filename)
-        case (FileFormat.diffusion, Quantization.svdq):
-            if model_info.arch.is_flux_like:
-                cache = 0.12 if checkpoint.dynamic_caching else 0.0
-                model = w.nunchaku_load_flux_diffusion_model(
-                    model_info.filename, cache_threshold=cache
-                )
-            elif model_info.arch == Arch.zimage:
-                model = w.nunchaku_load_zimage_diffusion_model(model_info.filename)
-            elif model_info.arch.is_qwen_like:
-                model = w.nunchaku_load_qwen_diffusion_model(model_info.filename)
-            else:
-                raise RuntimeError(
-                    f"Style checkpoint {checkpoint.checkpoint} has an unsupported quantized format {model_info.format.name}"
-                )
         case _:
             raise RuntimeError(
                 f"Style checkpoint {checkpoint.checkpoint} has an unsupported format {model_info.format.name}"
@@ -177,6 +168,8 @@ def load_checkpoint_with_lora(w: ComfyWorkflow, checkpoint: CheckpointInput, mod
                 clip = w.load_clip(te["ministral"], type="flux2")
             case Arch.krea2:
                 clip = w.load_clip(te["qwen_3vl_4b"], type="krea2")
+            case Arch.moss:
+                clip = w.load_clip(te["qwen_3.5_9b"], type="moss_image")
             case _:
                 raise RuntimeError(f"No text encoder for model architecture {arch.name}")
 
@@ -189,16 +182,11 @@ def load_checkpoint_with_lora(w: ComfyWorkflow, checkpoint: CheckpointInput, mod
         vae = w.load_vae(models.for_arch(arch).vae)
 
     support_fbc = arch in [Arch.flux, Arch.sd3] or arch.is_sdxl_like
-    if checkpoint.dynamic_caching and support_fbc and model_info.quantization is Quantization.none:
+    if checkpoint.dynamic_caching and support_fbc:
         model = w.easy_cache(model, arch)
 
     for lora in checkpoint.loras:
-        if arch.is_flux_like and model_info.quantization is Quantization.svdq:
-            model = w.nunchaku_load_flux_lora(model, lora.name, lora.strength)
-        elif arch.is_qwen_like and model_info.quantization is Quantization.svdq:
-            raise RuntimeError("Lora are not yet supported with quantized Qwen models")
-        else:
-            model, clip = w.load_lora(model, clip, lora.name, lora.strength, lora.strength)
+        model, clip = w.load_lora(model, clip, lora.name, lora.strength, lora.strength)
 
     if arch is Arch.sd3:
         model = w.model_sampling_sd3(model)
@@ -506,7 +494,8 @@ def encode_prompt(
 
     if len(cond.regions) <= 1 or all(len(r.loras) == 0 for r in cond.regions):
         positive = cond.positive.encode(w, clip, cond.style_prompt, ref_images)
-        negative = cond.negative.encode(w, clip, images=ref_images) if cond.negative else positive
+        neg_images = ref_images if clip.arch is Arch.krea2 else None
+        negative = cond.negative.encode(w, clip, images=neg_images) if cond.negative else positive
         return ConditioningOutput(positive, negative)
 
     assert regions is not None
@@ -938,6 +927,8 @@ def generate(
     model_orig = copy(model)
     model, regions = apply_attention_mask(w, model, cond, clip, extent.initial)
     model = apply_regional_ip_adapter(w, model, cond.regions, extent.initial, models)
+    if models.arch is Arch.moss:
+        model = w.skip_layer_guidance(model)
     latent = w.empty_latent_image(extent.initial, models.arch, misc.batch_count)
     prompt = encode_prompt(w, cond, clip, regions)
     model, prompt = apply_control(w, model, prompt, cond.all_control, extent.initial, vae, models)
@@ -1396,6 +1387,191 @@ def upscale_simple(w: ComfyWorkflow, image: Image, model: str, factor: float):
     return w
 
 
+dlss5_node = "DLSS5EnhanceImages"  # optional node pack: Blueforcer/ComfyUI-DLSS5-Enhancer
+dlss5_max_extent = Extent(7680, 4320)  # node pack refuses larger output (long x short edge)
+# Tiles for images over that limit. TileLayout tiles are between one and two times the
+# minimum size per side; with 256 px padding, 2672 is the largest minimum that keeps every
+# side <= 4320 (so fewest tiles, each tile restarts the DLSS worker). The overlap gives
+# DLSS context at tile edges. The seam blend is narrower: the merge node box-blurs its
+# mask on the CPU at quadratic cost (8 tiles of 9 MP: 64 px 18 s, 128 px 77 s, 256 px
+# ~300 s), and taking the low frequencies from one guide removes the tone steps anyway.
+dlss5_tile_size = 2672
+dlss5_tile_padding = 256
+dlss5_tile_blending = 64
+# Tones coarser than about 1/16 of a tile come from the guide, finer detail from the tile.
+dlss5_low_pass = 16
+
+
+def _dlss5_fits(extent: Extent):
+    long, short = max(extent.width, extent.height), min(extent.width, extent.height)
+    return long <= dlss5_max_extent.width and short <= dlss5_max_extent.height
+
+
+def dlss5_tile_count(extent: Extent):
+    """Number of tiles dlss5_enhance splits an image of this size into, 0 if none."""
+    if _dlss5_fits(extent):
+        return 0
+    return TileLayout(extent, dlss5_tile_size, dlss5_tile_padding, 1).total_tiles
+
+
+def dlss5_enhance(w: ComfyWorkflow, images: ImageInput, params: Dlss5Input):
+    # Single still images: no motion vectors, DLAA at source resolution so the result
+    # lands exactly on the bounds of the image it was made from.
+    settings = w.add(
+        "DLSS5Settings",
+        1,
+        upscaling_mode="1x (DLAA / native)",
+        nr_preset="Default",
+        nr_style=params.style,
+        nr_intensity=params.intensity,
+        local_tone_strength=params.tone,
+        local_structure_strength=params.structure,
+        skin_structure_strength=params.skin,
+        automatic_mask=True,
+        dlss_model_preset=params.model_preset,
+        motion="none",
+        scene_change_threshold=0.24,
+        warmup_frames=0,
+        runtime_dir="",
+    )
+
+    def enhance(image: Output, extent: Extent):
+        result = w.add(dlss5_node, 1, images=image, settings=settings, verify_neural_rendering=True)
+        if extent.width % 2 or extent.height % 2:  # DLSS rounds odd sizes up to even
+            result = w.scale_image(result, extent)
+        return result
+
+    image = ensure(images.initial_image)
+    original = w.load_image(image)
+    if _dlss5_fits(image.extent):
+        img = enhance(original, image.extent)
+    else:
+        img = _dlss5_tiled(w, original, image.extent, enhance)
+    if images.hires_mask:  # selection: keep everything outside it as it was
+        mask = w.load_mask(images.hires_mask)
+        img = w.composite_image_masked(img, original, mask)
+    w.send_image(img)
+    return w
+
+
+# AI selection. Prefers ComfyUI's core background removal when a model for it is
+# installed, otherwise the node from comfyui-easy-use, which brings its own RMBG models.
+segment_core_loader = "LoadBackgroundRemovalModel"
+segment_core_node = "RemoveBackground"
+segment_easy_node = "easy imageRemBg"  # optional node pack: yolain/ComfyUI-Easy-Use
+segment_text_node = "BatchCLIPSeg"  # optional node pack: kijai/ComfyUI-KJNodes
+# CLIPSeg works on a 352px grid and its processor misjudges large inputs, so the image
+# is shrunk first and the mask scaled back up smoothly instead of in blocks.
+segment_text_extent = Extent(512, 512)
+
+
+def segment(w: ComfyWorkflow, images: ImageInput, params: SegmentInput):
+    image = ensure(images.initial_image)
+    loaded = w.load_image(image)
+    if params.mode is SegmentMode.text:
+        small = image.extent.scale_keep_aspect(segment_text_extent).at_least(64)
+        scaled = w.scale_image(loaded, small, method="area")
+        mask = w.add(
+            segment_text_node,
+            2,
+            images=scaled,
+            text=params.prompt,
+            threshold=params.threshold,
+            binary_mask=False,
+            combine_mask=True,
+            use_cuda=True,
+        )[0]
+        mask = w.scale_mask(mask, image.extent)
+    elif params.model:
+        model = w.add(segment_core_loader, 1, bg_removal_name=params.model)
+        mask = w.add(segment_core_node, 1, bg_removal_model=model, image=loaded)
+    else:
+        mask = w.add(
+            segment_easy_node,
+            2,
+            images=loaded,
+            rem_mode=params.easy_model,
+            image_output="Hide",
+            save_prefix="krita_ai_segment",
+        )[1]
+    w.send_image(w.mask_to_image(mask))
+    return w
+
+
+def _dlss5_tiled(w: ComfyWorkflow, original: Output, extent: Extent, enhance):
+    # DLSS5 tone maps every tile on its own, and not uniformly within a tile either, so
+    # neighbouring tiles differ in brightness and colour along their seams. A whole-image
+    # pass at the largest size DLSS5 accepts is the guide for the overall look; every
+    # tile keeps only its fine detail and takes its low frequencies from the guide:
+    #   result = lowpass(guide) + tile - lowpass(tile)
+    # The guide is never scaled back to canvas size: core nodes cap sizes at 16384 px.
+    limit = dlss5_max_extent
+    if extent.height > extent.width:
+        limit = Extent(limit.height, limit.width)
+    guide_extent = extent.scale_keep_aspect(limit).multiple_of(2)
+    guide_extent = Extent(
+        min(guide_extent.width, limit.width), min(guide_extent.height, limit.height)
+    )
+    guide = enhance(w.scale_image(original, guide_extent), guide_extent)
+    guide_scale = guide_extent.width / extent.width
+
+    # Multiple 1: the tile nodes require the image to be divisible by it, and padding or
+    # cropping a canvas over 16384 px isn't possible with core nodes. Odd tile sizes are
+    # handled by enhance(). One DLSS5 node per tile rather than one batch: a batch is
+    # treated as video frames, and temporal accumulation would bleed tiles into each other.
+    layout = TileLayout(extent, dlss5_tile_size, dlss5_tile_padding, 1)
+    blending = dlss5_tile_blending
+    tiles = w.create_tile_layout(original, layout.min_size, layout.padding, blending, 1)
+    results = []
+    for i in range(layout.total_tiles):
+        bounds = layout.bounds(i)
+        tile = enhance(w.extract_image_tile(original, tiles, i), bounds.extent)
+        guide_bounds = Bounds.clamp(Bounds.scale(bounds, guide_scale), guide_extent)
+        guide_tile = w.crop_image(guide, guide_bounds)
+        results.append(_replace_low_frequencies(w, tile, guide_tile, bounds.extent))
+
+    # Merging blended tiles one after another onto the original leaks the original into
+    # every seam: two masks crossing at 0.5 leave it a weight of m * (1 - m), up to 25%.
+    # Invisible when tiles barely change the image (tiled upscale), but DLSS5 shifts the
+    # tone enough to show as light bands along the seams. So first lay the tiles down
+    # edge to edge without blending, then blend them over that: the leaked part is then
+    # a neighbouring tile, not the original. Measured exact to 1/255 on ComfyUI.
+    hard = w.create_tile_layout(original, layout.min_size, layout.padding, 0, 1)
+    img = original
+    for i, tile in enumerate(results):
+        img = w.merge_image_tile(img, hard, i, tile)
+    for i, tile in enumerate(results):
+        img = w.merge_image_tile(img, tiles, i, tile)
+    return img
+
+
+def _replace_low_frequencies(w: ComfyWorkflow, image: Output, source: Output, extent: Extent):
+    """clamp(lowpass(source) + image - lowpass(image)) with core nodes only. They all clamp
+    to [0, 1], so the signed detail is split into its positive and negative part:
+    max(a - b, 0) = 1 - clamp((1 - a) + b). Measured exact to 1/255 on ComfyUI."""
+    low = Extent(max(1, extent.width // dlss5_low_pass), max(1, extent.height // dlss5_low_pass))
+
+    def lowpass(x: Output):
+        x = w.add("ImageScale", 1, image=x, width=low.width, height=low.height,
+                  upscale_method="area", crop="disabled")  # fmt: skip
+        return w.add("ImageScale", 1, image=x, width=extent.width, height=extent.height,
+                     upscale_method="bilinear", crop="disabled")  # fmt: skip
+
+    opaque = w.add_cached("SolidMask", 1, value=0.0, width=1, height=1)  # mask 1 = transparent
+
+    def plus(a: Output, b: Output):
+        return w.add("PorterDuffImageComposite", 2, source=a, source_alpha=opaque,
+                     destination=b, destination_alpha=opaque, mode="ADD")[0]  # fmt: skip
+
+    def invert(x: Output):
+        return w.add("ImageInvert", 1, image=x)
+
+    image_low, source_low = lowpass(image), lowpass(source)
+    detail_pos = invert(plus(invert(image), image_low))  # max(image - low, 0)
+    detail_neg = invert(plus(invert(image_low), image))  # max(low - image, 0)
+    return invert(plus(invert(plus(source_low, detail_pos)), detail_neg))
+
+
 def upscale_tiled(
     w: ComfyWorkflow,
     image: Image,
@@ -1628,6 +1804,14 @@ def build_instructions(cond: ConditioningInput, arch: Arch, inpaint: InpaintMode
     return cond.positive
 
 
+def _reference_names(cond: ConditioningInput):
+    # Same order in which encode_prompt and apply_reference_conditioning pass the images
+    # to the model: canvas (when editing) first, then reference controls, then regions.
+    controls = cond.control + [c for r in cond.regions for c in r.control]
+    names = [c.name for c in controls if c.mode.is_ip_adapter]
+    return reference_name_mapping(names, start_index=2 if cond.edit_reference else 1)
+
+
 def prepare_prompts(
     cond: ConditioningInput,
     style: Style,
@@ -1637,6 +1821,7 @@ def prepare_prompts(
     ref_layers: dict[str, int] | None = None,
     files: FileLibrary | None = None,
     is_live=False,
+    batch_index: int = 0,
 ):
     cond = copy(cond)
     files = files or FileLibrary.instance()
@@ -1657,7 +1842,7 @@ def prepare_prompts(
 
     cond.style = style.style_prompt
     cond.positive = strip_prompt_comments(cond.positive)
-    cond.positive = eval_wildcards(cond.positive, seed)
+    cond.positive = eval_wildcards(cond.positive, seed, batch_index)
     if cond.positive != meta["prompt"]:
         meta["prompt_eval"] = cond.positive
     cond.positive, extra_loras = extract_loras(cond.positive, files.loras)
@@ -1665,6 +1850,8 @@ def prepare_prompts(
     cond.positive += _collect_lora_triggers(models.loras, files)
     if arch.is_flux2 or arch is Arch.krea2:
         cond.positive = build_instructions(cond, arch, inpaint)
+    ref_names = _reference_names(cond)
+    cond.positive = replace_reference_names(cond.positive, ref_names, layer_replace)
     if cond.positive == "" and inpaint is InpaintMode.remove_object:
         cond.positive = "background scenery"
     meta["prompt_final"] = cond.positive
@@ -1676,7 +1863,7 @@ def prepare_prompts(
         cond.negative = ""  # CFG 1 does not use negative prompt
     else:
         cond.negative = strip_prompt_comments(cond.negative)
-        cond.negative = eval_wildcards(cond.negative, seed)
+        cond.negative = eval_wildcards(cond.negative, seed, batch_index)
         if cond.negative != meta["negative_prompt"]:
             meta["negative_prompt_eval"] = cond.negative
         cond.negative = merge_prompt(cond.negative, style.negative_prompt, cond.language)
@@ -1688,12 +1875,13 @@ def prepare_prompts(
         region_meta: dict[str, Any] = {"prompt": region.positive}
 
         region.positive = strip_prompt_comments(region.positive)
-        region.positive = eval_wildcards(region.positive, seed)
+        region.positive = eval_wildcards(region.positive, seed, batch_index)
         if region.positive != region_meta["prompt"]:
             region_meta["prompt_eval"] = region.positive
         region.positive, region.loras = extract_loras(region.positive, files.loras)
         region.loras = [l for l in region.loras if l not in extra_loras]
         region.positive = replace_layers(region.positive, ref_layers, layer_replace)
+        region.positive = replace_reference_names(region.positive, ref_names, layer_replace)
         meta["regions"].append(region_meta)
 
     if len(cond.regions) == 1:
@@ -1810,10 +1998,6 @@ def prepare(
     else:
         raise ValueError(f"Workflow {kind.name} not supported by this constructor")
 
-    if minfo := models.checkpoints.get(i.models.checkpoint):
-        if minfo.arch.is_qwen_like and minfo.quantization is Quantization.svdq:
-            i.batch_count = 1  # Nunchaku Qwen is broken with batch size > 1 #2114
-
     if arch is Arch.sdxl and i.inpaint and i.inpaint.use_inpaint_model:
         i.models.dynamic_caching = False  # inpaint model incompatible with dynamic caching
 
@@ -1829,6 +2013,21 @@ def prepare_upscale_simple(image: Image, model: str, factor: float):
     extent = ExtentInput(image.extent, image.extent, target_extent, target_extent)
     i = WorkflowInput(WorkflowKind.upscale_simple, ImageInput(extent, image))
     i.upscale = UpscaleInput(model)
+    return i
+
+
+def prepare_dlss5_enhance(image: Image, style: str, mask: Image | None = None):
+    i = WorkflowInput(WorkflowKind.dlss5_enhance, ImageInput.from_extent(image.extent))
+    ensure(i.images).initial_image = image
+    ensure(i.images).hires_mask = mask
+    i.dlss5 = Dlss5Input(style)
+    return i
+
+
+def prepare_segment(image: Image, params: SegmentInput):
+    i = WorkflowInput(WorkflowKind.segment, ImageInput.from_extent(image.extent))
+    ensure(i.images).initial_image = image
+    i.segment = params
     return i
 
 
@@ -1904,6 +2103,10 @@ def create(i: WorkflowInput, models: ClientModels, comfy_mode=ComfyRunMode.serve
         )
     elif i.kind is WorkflowKind.upscale_simple:
         return upscale_simple(workflow, i.image, ensure(i.upscale).model, i.upscale_factor)
+    elif i.kind is WorkflowKind.dlss5_enhance:
+        return dlss5_enhance(workflow, ensure(i.images), ensure(i.dlss5))
+    elif i.kind is WorkflowKind.segment:
+        return segment(workflow, ensure(i.images), ensure(i.segment))
     elif i.kind is WorkflowKind.upscale_tiled:
         return upscale_tiled(
             workflow,

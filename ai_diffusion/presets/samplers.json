@@ -109,5 +109,12 @@
         "steps": 20,
         "minimum_steps": 3,
         "cfg": 5.0
+    },
+    "MOSS - Euler": {
+        "sampler": "euler",
+        "scheduler": "sgm_uniform",
+        "steps": 20,
+        "minimum_steps": 4,
+        "cfg": 3.0
     }
 }

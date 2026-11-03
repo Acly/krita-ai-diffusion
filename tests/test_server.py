@@ -91,7 +91,7 @@ async def test_install_and_run(pytestconfig, local_download_server):
         assert report.stage != ""
         if report.progress is None and report.stage != last_stage:
             last_stage = report.stage
-            print(report.stage)
+            print(report.stage, flush=True)  # live in CI logs, not at the end
 
     await server.install(handle_progress)
     assert server.state is ServerState.missing_resources

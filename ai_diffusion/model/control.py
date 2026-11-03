@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import json
 from pathlib import Path
-from typing import Any, ClassVar, NamedTuple
+from typing import Any, NamedTuple
 
 from PyQt5.QtCore import QObject, Qt, QUuid, pyqtSignal
 from PyQt5.QtGui import QColor
@@ -14,6 +14,7 @@ from ..backend.resources import Arch, ControlMode, ResourceKind, resource_id
 from ..image import BlendMode, Bounds, Extent, Image
 from ..layer import Layer, LayerType
 from ..localization import translate as _
+from ..text import sanitize_reference_name
 from ..util import PluginError
 from ..util import client_logger as log
 from . import jobs, model
@@ -24,20 +25,6 @@ class ControlLayer(QObject, ObservableProperties):
     max_preset_value = 4
     strength_multiplier = 50
     clip_vision_extent = Extent(224, 224)
-    segmentation_colors: ClassVar[list[tuple[int, int, int]]] = [
-        (120, 120, 120),
-        (180, 120, 120),
-        (120, 180, 120),
-        (120, 120, 180),
-        (180, 180, 120),
-        (180, 120, 180),
-        (120, 180, 180),
-        (220, 140, 100),
-        (140, 220, 100),
-        (100, 140, 220),
-        (220, 100, 140),
-        (100, 220, 140),
-    ]
 
     mode = Property(ControlMode.reference, persist=True, setter="set_mode")
     layer_id = Property(QUuid(), persist=True)
@@ -46,6 +33,7 @@ class ControlLayer(QObject, ObservableProperties):
     start = Property(0.0, persist=True)
     end = Property(1.0, persist=True)
     use_custom_strength = Property(False, persist=True, setter="set_use_custom_strength")
+    name = Property("", persist=True, setter="set_name")
     is_supported = Property(True)
     is_pose_vector = Property(False)
     can_generate = Property(True)
@@ -60,6 +48,7 @@ class ControlLayer(QObject, ObservableProperties):
     start_changed = pyqtSignal(float)
     end_changed = pyqtSignal(float)
     use_custom_strength_changed = pyqtSignal(bool)
+    name_changed = pyqtSignal(str)
     is_supported_changed = pyqtSignal(bool)
     is_pose_vector_changed = pyqtSignal(bool)
     can_generate_changed = pyqtSignal(bool)
@@ -120,6 +109,13 @@ class ControlLayer(QObject, ObservableProperties):
             if not value:
                 self._set_values_from_preset()
 
+    def set_name(self, value: str):
+        value = sanitize_reference_name(value)
+        if value != self.name:
+            self._name = value
+            self.name_changed.emit(value)
+            self.modified.emit(self, "name")
+
     @property
     def index(self):
         return self._index
@@ -155,7 +151,8 @@ class ControlLayer(QObject, ObservableProperties):
                 image = Image.scale(image, self.clip_vision_extent)
 
         strength = self.strength / self.strength_multiplier
-        return ControlInput(self.mode, image, strength, (self.start, self.end))
+        name = self.name if self.mode.is_ip_adapter else ""
+        return ControlInput(self.mode, image, strength, (self.start, self.end), name)
 
     def generate_segmentation(self):
         assert self.mode is ControlMode.segmentation
@@ -194,7 +191,7 @@ class ControlLayer(QObject, ObservableProperties):
         ]
 
         for index, layer in enumerate(layers):
-            color = self.segmentation_colors[index % len(self.segmentation_colors)]
+            color = _segmentation_colors[index % len(_segmentation_colors)]
             region_image = self._segmentation_region_image(layer, bounds, color)
             image.draw_image(region_image, blend=BlendMode.alpha)
             has_region_layer = True
@@ -474,6 +471,21 @@ control_mode_text = {
     ControlMode.stencil: _("Stencil"),
     ControlMode.hands: _("Hands"),
 }
+
+_segmentation_colors = [
+    (255, 255, 255),
+    (255, 0, 0),
+    (0, 255, 0),
+    (0, 0, 255),
+    (255, 255, 0),
+    (255, 0, 255),
+    (0, 255, 255),
+    (80, 80, 80),
+    (160, 80, 0),
+    (80, 160, 0),
+    (0, 80, 160),
+    (0, 160, 80),
+]
 
 
 def _lerp(a: float, b: float, t: float) -> float:

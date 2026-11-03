@@ -5,7 +5,7 @@ import json
 import struct
 import uuid
 from collections.abc import Iterable, Sequence
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from enum import Enum
 from itertools import product
 from time import time
@@ -34,7 +34,6 @@ from .client import (
     JobInfoOutput,
     MissingResources,
     OutputBatchMode,
-    Quantization,
     ServerError,
     SharedWorkflow,
     TextOutput,
@@ -54,6 +53,7 @@ from .resources import (
     resource_id,
 )
 from .workflow import create as create_workflow
+from .workflow import dlss5_node
 
 if platform_tools.is_macos:
     import os
@@ -68,6 +68,7 @@ class JobInfo:
     work: WorkflowInput
     node_count: int = 0
     sample_count: int = 0
+    node_types: dict[str, str] = field(default_factory=dict)  # node id -> class_type
 
     def __str__(self):
         return f"Job[id={self.id}]"
@@ -114,9 +115,14 @@ class Progress:
     _nodes = 0
     _samples = 0
     _info: JobInfo
+    _node_type = ""
+    _dlss5_done = 0
+    status = ""
 
     def __init__(self, job_info: JobInfo):
         self._info = job_info
+        types = job_info.node_types.values()
+        self._dlss5_total = sum(1 for t in types if t == dlss5_node)
 
     def handle(self, msg: dict):
         id = msg["data"].get("prompt_id", None)
@@ -124,13 +130,37 @@ class Progress:
             return
         if msg["type"] == "executing":
             self._nodes += 1
+            self._node_type = self._info.node_types.get(str(msg["data"].get("node")), "")
+            self.status = self._node_status()
         elif msg["type"] == "execution_cached":
             self._nodes += len(msg["data"]["nodes"])
         elif msg["type"] == "progress":
             self._samples += 1
+            data = msg["data"]
+            if self._node_type != dlss5_node and "value" in data and "max" in data:
+                self.status = _("Step") + f" {data['value']}/{data['max']}"
+
+    def _node_status(self):
+        if self._node_type == dlss5_node:
+            self._dlss5_done += 1
+            if self._dlss5_total > 1:
+                return _("DLSS5 Enhance: pass {current} of {total}").format(
+                    current=self._dlss5_done, total=self._dlss5_total
+                )
+            return _("DLSS5 Enhance")
+        if "Loader" in self._node_type:
+            return _("Loading models")
+        if self._node_type in ("VAEDecode", "VAEDecodeTiled"):
+            return _("Decoding image")
+        return self.status  # keep the last meaningful status for small helper nodes
 
     @property
     def value(self):
+        if self._dlss5_total > 0:
+            # No sampler steps; the DLSS5 passes take nearly all the time. Count the
+            # running pass as half done. (Its own progress messages are not sampler steps,
+            # counting them would jump the bar to 80% on the first one.)
+            return max(0.0, self._dlss5_done - 0.5) / self._dlss5_total
         # Add +1 to node count so progress doesn't go to 100% until images are received.
         node_part = self._nodes / (self._info.node_count + 1)
         sample_part = self._samples / max(self._info.sample_count, 1)
@@ -155,6 +185,10 @@ class ComfyClient(Client):
         self._messages: asyncio.Queue[ClientMessage] = asyncio.Queue()
         self._queue: ClientJobQueue[JobInfo] = ClientJobQueue()
         self._is_connected = False
+        self._resumed = asyncio.Event()  # cleared while the queue is paused
+        self._resumed.set()
+        self._held_job: JobInfo | None = None  # taken off the queue, waiting for resume
+        self._last_preview = 0.0
 
         self._requests.add_header("ngrok-skip-browser-warning", "69420")
         self._requests.add_header("skip_zrok_interstitial", "69420")
@@ -199,6 +233,7 @@ class ComfyClient(Client):
 
         clip_models = nodes.options("DualCLIPLoader", "clip_name1")
         clip_models += nodes.options("DualCLIPLoaderGGUF", "clip_name1")
+        clip_models += nodes.options("CLIPLoader", "clip_name")
         available_resources.update(_find_text_encoder_models(clip_models))
 
         vae_models = nodes.options("VAELoader", "vae_name")
@@ -235,24 +270,59 @@ class ComfyClient(Client):
                 id = resource_id(ResourceKind.upscaler, Arch.all, UpscalerName.fast_x(n))
                 available_resources[id] = models.default_upscaler
 
+    def _model_cache_path(self):
+        import hashlib
+
+        url_hash = hashlib.md5(self.url.encode()).hexdigest()[:8]
+        return util.user_data_dir / f"model_cache_{url_hash}.json"
+
+    def _load_model_cache(self):
+        path = self._model_cache_path()
+        try:
+            if path.exists():
+                data = json.loads(path.read_text(encoding="utf-8"))
+                return data.get("checkpoints", {}), data.get("diffusion_models", {})
+        except Exception as e:
+            log.warning(f"Could not load model cache: {e}")
+        return None, None
+
+    def _save_model_cache(self, checkpoints: dict, diffusion_models: dict):
+        path = self._model_cache_path()
+        try:
+            path.write_text(
+                json.dumps({"checkpoints": checkpoints, "diffusion_models": diffusion_models}),
+                encoding="utf-8",
+            )
+        except Exception as e:
+            log.warning(f"Could not save model cache: {e}")
+
     async def discover_models(self, refresh: bool):
         if refresh:
             nodes = ComfyObjectInfo(await self._get("object_info"))
         else:
             nodes = self.models.node_inputs
 
-        checkpoints: dict[str, dict] = {}
-        diffusion_models: dict[str, dict] = {}
-        async for status, result in self.try_inspect("checkpoints"):
-            yield status
-            checkpoints.update(result)
-        async for status, result in self.try_inspect("diffusion_models"):
-            yield status
-            diffusion_models.update(result)
-        async for status, result in self.try_inspect("unet_gguf"):
-            yield status
-            diffusion_models.update(result)
-        self._refresh_models(nodes, checkpoints, diffusion_models)
+        cached_checkpoints, cached_diffusion = (
+            self._load_model_cache() if not refresh else (None, None)
+        )
+
+        if cached_checkpoints is not None and not refresh:
+            log.info("Loading models from cache (use Refresh to update)")
+            self._refresh_models(nodes, cached_checkpoints, cached_diffusion)
+        else:
+            checkpoints: dict[str, dict] = {}
+            diffusion_models: dict[str, dict] = {}
+            async for status, result in self.try_inspect("checkpoints"):
+                yield status
+                checkpoints.update(result)
+            async for status, result in self.try_inspect("diffusion_models"):
+                yield status
+                diffusion_models.update(result)
+            async for status, result in self.try_inspect("unet_gguf"):
+                yield status
+                diffusion_models.update(result)
+            self._save_model_cache(checkpoints, diffusion_models)
+            self._refresh_models(nodes, checkpoints, diffusion_models)
 
         # Check supported base models and make sure there is at least one
         self._supported_archs = {ver: self._check_workload(ver) for ver in Arch.list()}
@@ -268,6 +338,17 @@ class ComfyClient(Client):
     async def refresh(self):
         async for __ in self.discover_models(refresh=True):
             pass
+
+    async def refresh_file_lists(self):
+        # Fast rescan for the LoRA and checkpoint browsers: ComfyUI's current file
+        # lists, but the base models already inspected are reused from the model cache
+        # instead of reading every file again, and other resources are not rechecked.
+        # New checkpoints stay uninspected - the checkpoint browser registers them
+        # with the architecture Lora Manager reports.
+        nodes = ComfyObjectInfo(await self._get("object_info"))
+        self.models.node_inputs = nodes
+        cached_checkpoints, cached_diffusion = self._load_model_cache()
+        self._refresh_models(nodes, cached_checkpoints, cached_diffusion)
 
     async def _get(self, op: str, timeout: float | None = 60):
         return await self._requests.get(f"{self.url}/{op}", timeout=timeout)
@@ -291,7 +372,14 @@ class ComfyClient(Client):
         try:
             while self._is_connected:
                 await self._waiting_job.wait()  # first wait for slot on server
+                await self._resumed.wait()  # paused: let the running job finish, start nothing new
                 job = await self._queue.get()  # then get highest priority job from queue
+                if not self._resumed.is_set():  # paused while waiting for a job to arrive
+                    self._held_job = job
+                    await self._resumed.wait()
+                    if self._held_job is None:  # cancelled in the meantime
+                        continue
+                    self._held_job = None
                 try:
                     await self._run_job(job)
                 except Exception as e:
@@ -310,11 +398,15 @@ class ComfyClient(Client):
 
         job.node_count = workflow.node_count
         job.sample_count = workflow.sample_count
+        job.node_types = {id: node["class_type"] for id, node in workflow.root.items()}
         data = {
             "prompt": workflow.root,
             "client_id": self._id,
             "prompt_id": job.id,
         }
+        if settings.show_generation_preview:
+            # per-prompt override, so ComfyUI needs no --preview-method launch argument
+            data["extra_data"] = {"preview_method": "auto"}
         self._waiting_job.set(job)
         try:
             result = await self._post("prompt", data)
@@ -359,6 +451,8 @@ class ComfyClient(Client):
                 image = _extract_message_png_image(memoryview(msg))
                 if image is not None:
                     images.append(image)
+                elif self._active_job is not None and settings.show_generation_preview:
+                    await self._report_preview(memoryview(msg))
 
             elif isinstance(msg, str):
                 msg = json.loads(msg)
@@ -384,14 +478,15 @@ class ComfyClient(Client):
                     if self._clear_job(job_id):
                         if len(images) == 0:
                             # It may happen if the entire execution is cached and no images are sent.
-                            images = last_images
+                            # A copy: discarding an image of one job must not remove it from the other.
+                            images = ImageCollection(last_images)
                         if len(images) == 0:
                             # Still no images. Potential scenario: execution cached, but previous
                             # generation happened before the client was connected.
                             err = "No new images were generated because the inputs did not change."
                             await self._report(ClientEvent.error, job_id, error=err)
                         else:
-                            last_images = images
+                            last_images = ImageCollection(images)
                             await self._report(
                                 ClientEvent.finished, job_id, 1, images=images, result=result
                             )
@@ -400,7 +495,10 @@ class ComfyClient(Client):
                     if self._active_job is not None and progress is not None:
                         progress.handle(msg)
                         await self._report(
-                            ClientEvent.progress, self._active_job.id, progress.value
+                            ClientEvent.progress,
+                            self._active_job.id,
+                            progress.value,
+                            status=progress.status,
                         )
                     else:
                         log.warning(f"Received message {msg} but there is no active job")
@@ -442,8 +540,56 @@ class ComfyClient(Client):
         except asyncio.CancelledError:
             pass
 
+    async def _report_preview(self, data: memoryview):
+        now = time()
+        if (
+            now - self._last_preview < settings.generation_preview_interval
+            or self._active_job is None
+        ):
+            return  # sampler emits one preview per step, no need to repaint that often
+        image = _extract_message_preview(data)
+        if image is not None:
+            self._last_preview = now
+            await self._report(
+                ClientEvent.preview, self._active_job.id, images=ImageCollection([image])
+            )
+
+    def set_paused(self, paused: bool):
+        if paused:
+            self._resumed.clear()
+        else:
+            self._resumed.set()
+        return True
+
+    async def take_back_waiting_job(self):
+        # The next job is posted as soon as the previous one starts, so without this a pause
+        # would still run one more image after the current one.
+        job = self._waiting_job.peek()
+        if job is None or self._resumed.is_set():
+            return
+        await self._post("queue", {"delete": [job.id]})
+        queue = await self._get("queue")
+        running = {item[1] for item in queue.get("queue_running", [])}
+        if job.id in running or self._waiting_job.peek() is not job:
+            return  # it started before the delete reached the server
+        self._waiting_job.clear()
+        self._queue.put(job, front=True)
+
     async def interrupt(self):
         await self._post("interrupt", {})
+
+    async def free_memory(self):
+        # ComfyUI frees after the running prompt finishes, queued jobs reload what they need
+        await self._post("free", {"unload_models": True, "free_memory": True})
+        return True
+
+    async def vram_usage(self):
+        # vram_free is what the driver reports, so it includes other apps using the GPU
+        device = (await self._get("system_stats", timeout=10))["devices"][0]
+        total = device.get("vram_total", 0)
+        if not total or device.get("type") == "cpu":
+            return None
+        return total - device.get("vram_free", 0), total
 
     async def cancel(self, job_ids: Iterable[str]):
         # Make sure changes to all queues are processed before suspending this
@@ -451,6 +597,8 @@ class ComfyClient(Client):
         tasks = [self._post("queue", {"delete": list(job_ids)})]
         if (job := self._waiting_job.peek()) and job.id in job_ids:
             self._waiting_job.clear()
+        if self._held_job is not None and self._held_job.id in job_ids:
+            self._held_job = None
         self._queue.remove_if(lambda j: j.id in job_ids)
         tasks.extend(self._report(ClientEvent.interrupted, id) for id in job_ids)
         await asyncio.gather(*tasks)
@@ -505,15 +653,14 @@ class ComfyClient(Client):
                 (
                     filename,
                     Arch.from_string(info["base_model"], info.get("type", "eps"), filename),
-                    Quantization.from_string(info.get("quant", "none")),
                     info.get("is_inpaint", False),
                     info.get("is_refiner", False),
                 )
                 for filename, info in models.items()
             )
             return {
-                filename: CheckpointInfo(filename, arch, model_format, quant)
-                for filename, arch, quant, is_inpaint, is_refiner in parsed
+                filename: CheckpointInfo(filename, arch, model_format)
+                for filename, arch, is_inpaint, is_refiner in parsed
                 if not (arch is None or (is_inpaint and arch is not Arch.flux) or is_refiner)
             }
 
@@ -536,6 +683,28 @@ class ComfyClient(Client):
                     models.checkpoints[name] = CheckpointInfo(name, Arch.flux, FileFormat.diffusion)
         else:
             log.info("GGUF support: node is not installed.")
+
+        # Left out above: models the server could not classify (base model "unknown")
+        # and ones added after the model cache was written. A style that names one of
+        # them with an explicit architecture - e.g. created from the Lora Manager
+        # checkpoint browser, which knows the base model - still has to resolve.
+        on_server = {
+            name: format
+            for node, input, format in (
+                ("CheckpointLoaderSimple", "ckpt_name", FileFormat.checkpoint),
+                ("UNETLoader", "unet_name", FileFormat.diffusion),
+            )
+            if node in nodes
+            for name in nodes.options(node, input)
+        }
+        for style in Styles.list():
+            if style.architecture is Arch.auto:
+                continue
+            for name in style.checkpoints:
+                if name not in models.checkpoints and name in on_server:
+                    models.checkpoints[name] = CheckpointInfo(
+                        name, style.architecture, on_server[name]
+                    )
 
     async def _transfer_result_image(self, id: str):
         try:
@@ -757,6 +926,7 @@ def _find_text_encoder_models(model_list: Sequence[str]):
         "qwen_3_4b",
         "qwen_3_8b",
         "qwen_3vl_4b",
+        "qwen_3.5_9b",
         "ministral",
     ]
     return {
@@ -883,6 +1053,16 @@ def _extract_message_png_image(data: memoryview):
         event, format = struct.unpack_from(">II", data)
         # ComfyUI server.py: BinaryEventTypes.PREVIEW_IMAGE=1
         if event == 1 and format == 2:  # format: JPEG=1, PNG=2
+            return Image.from_bytes(data[s:])
+    return None
+
+
+def _extract_message_preview(data: memoryview):
+    s = struct.calcsize(">II")
+    if len(data) > s:
+        event, format = struct.unpack_from(">II", data)
+        # intermediate sampler previews: PREVIEW_IMAGE=1 with format JPEG=1
+        if event == 1 and format == 1:
             return Image.from_bytes(data[s:])
     return None
 

@@ -8,7 +8,7 @@ from typing import TYPE_CHECKING, Any, NamedTuple
 
 from PyQt5.QtCore import QObject, pyqtSignal
 
-from ..backend.api import InpaintMode
+from ..backend.api import InpaintMode, WorkflowKind
 from ..image import Bounds, ImageCollection
 from ..settings import settings
 from ..style import Style
@@ -33,6 +33,7 @@ class JobKind(Enum):
     animation_batch = 4  # single frame as part of an animation batch
     animation_frame = 5  # just a single frame
     animation = 6  # full animation in one job
+    segmentation = 7  # AI selection / background removal, applied when finished
 
 
 @dataclass
@@ -59,14 +60,21 @@ class JobParams:
     has_mask: bool = False
     is_layered: bool = False
     inpaint_mode: InpaintMode | None = None
+    workflow_kind: WorkflowKind = WorkflowKind.custom
     frame: tuple[int, int, int] = (0, 0, 0)
     animation_id: str = ""
     resize_canvas: bool = False
+    batch_id: str = ""  # shared by all jobs from one enqueue_jobs() call, even if
+    # their evaluated prompt differs per item (eg. wildcards) - groups them in the UI
 
     @staticmethod
     def from_dict(data: dict[str, Any]):
         data["bounds"] = Bounds(*data["bounds"])
         data["regions"] = [JobRegion.from_dict(r) for r in data.get("regions", [])]
+        if isinstance(data.get("inpaint_mode"), str):
+            data["inpaint_mode"] = InpaintMode[data["inpaint_mode"]]
+        if isinstance(data.get("workflow_kind"), str):
+            data["workflow_kind"] = WorkflowKind[data["workflow_kind"]]
         if "metadata" not in data:  # older documents before version 1.26.0
             data["name"] = data.get("prompt", "")
             data["metadata"] = {}
@@ -126,6 +134,11 @@ class Job:
     timestamp: datetime
     results: ImageCollection
     in_use: dict[int, bool]
+    favorites: dict[int, bool]
+    ratings: dict[int, int]
+    eagle: dict[int, bool]
+    stored_sizes: dict[int, int]  # result index -> bytes it takes in the document history
+    started_at: datetime | None
 
     def __init__(self, id: str | None, kind: JobKind, params: JobParams):
         self.id = id
@@ -134,9 +147,23 @@ class Job:
         self.timestamp = datetime.now(timezone.utc)
         self.results = ImageCollection()
         self.in_use = {}
+        self.favorites = {}
+        self.ratings = {}
+        self.eagle = {}
+        self.stored_sizes = {}
+        self.started_at = None
 
     def result_was_used(self, index: int):
         return self.in_use.get(index, False)
+
+    def is_favorite(self, index: int):
+        return self.favorites.get(index, False)
+
+    def rating(self, index: int) -> int:
+        return self.ratings.get(index, 0)
+
+    def sent_to_eagle(self, index: int):
+        return self.eagle.get(index, False)
 
 
 class JobQueue(QObject):
@@ -152,6 +179,10 @@ class JobQueue(QObject):
     job_discarded = pyqtSignal(Job)
     result_used = pyqtSignal(Item)
     result_discarded = pyqtSignal(Item)
+    favorite_changed = pyqtSignal(Item)
+    rating_changed = pyqtSignal(Item)
+    eagle_changed = pyqtSignal(Item)
+    results_stored = pyqtSignal(Job)
 
     def __init__(self):
         super().__init__()
@@ -195,13 +226,20 @@ class JobQueue(QObject):
             self._memory_usage += results.size / (1024**2)
             self.prune(keep=job)
 
-    def notify_started(self, job: Job):
+    def notify_started(self, job: Job, executing=True):
         if job.state is not JobState.executing:
             job.state = JobState.executing
             self.count_changed.emit()
+        if not executing:  # waiting in the server queue or uploading, not generating yet
+            job.started_at = None
+        elif job.started_at is None:
+            job.started_at = datetime.now(timezone.utc)
 
     def notify_finished(self, job: Job):
         job.state = JobState.finished
+        if job.started_at is not None:
+            duration = (datetime.now(timezone.utc) - job.started_at).total_seconds()
+            job.params.metadata["duration"] = round(duration, 1)
         self.job_finished.emit(job)
         self._cancel_earlier_jobs(job)
         self.count_changed.emit()
@@ -218,6 +256,29 @@ class JobQueue(QObject):
         job = ensure(self.find(job_id))
         job.in_use[index] = True
         self.result_used.emit(self.Item(job_id, index))
+
+    def toggle_favorite(self, job_id: str, index: int):
+        job = ensure(self.find(job_id))
+        job.favorites[index] = not job.is_favorite(index)
+        self.favorite_changed.emit(self.Item(job_id, index))
+
+    def set_rating(self, job_id: str, index: int, rating: int):
+        job = ensure(self.find(job_id))
+        # clicking the same rating again clears it
+        job.ratings[index] = 0 if job.rating(index) == rating else rating
+        self.rating_changed.emit(self.Item(job_id, index))
+
+    def notify_stored(self, job: Job, data_size: int, offsets: list[int]):
+        """Record how many bytes each result takes in the document, from the encoded
+        blob of all results and the offsets where each one starts."""
+        ends = [*offsets[1:], data_size]
+        job.stored_sizes = {i: end - start for i, (start, end) in enumerate(zip(offsets, ends))}
+        self.results_stored.emit(job)
+
+    def notify_sent_to_eagle(self, job_id: str, index: int):
+        job = ensure(self.find(job_id))
+        job.eagle[index] = True
+        self.eagle_changed.emit(self.Item(job_id, index))
 
     def select(self, job_id: str, index: int):
         self.selection = [self.Item(job_id, index)]
@@ -237,6 +298,10 @@ class JobQueue(QObject):
     def prune(self, keep: Job):
         while self._memory_usage > settings.history_size and self._entries[0] != keep:
             self._discard_job(self._entries[0])
+
+    def discard_job(self, job_id: str):
+        if job := self.find(job_id):
+            self._discard_job(job)
 
     def discard(self, job_id: str, index: int):
         job = ensure(self.find(job_id))

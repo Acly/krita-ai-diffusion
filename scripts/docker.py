@@ -73,7 +73,6 @@ def upgrade_python_dependencies():
         "ComfyUI/custom_nodes/comfyui-tooling-nodes/requirements.txt",
         "ComfyUI/custom_nodes/ComfyUI-GGUF/requirements.txt",
         "ComfyUI/custom_nodes/ComfyUI-Manager/requirements.txt",
-        "ComfyUI/custom_nodes/ComfyUI-nunchaku/requirements.txt",
         "--python-platform",
         "x86_64-unknown-linux-gnu",
         "--python-version",

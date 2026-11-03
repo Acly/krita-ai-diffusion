@@ -343,30 +343,6 @@
       "requirements": "no_cuda"
     },
     {
-      "id": "checkpoint-flux_dev_nunchaku-flux",
-      "name": "Flux Krea [Nunchaku]",
-      "files": [
-        {
-          "path": "models/diffusion_models/svdq-int4_r32-flux.1-krea-dev.safetensors",
-          "url": "https://huggingface.co/nunchaku-tech/nunchaku-flux.1-krea-dev/resolve/main/svdq-int4_r32-flux.1-krea-dev.safetensors",
-          "sha256": "c1dffa6bf3ffe935092818c5135bf66e0cdd4a934afc3a8f3e1e99aa74a1ecf5"
-        }
-      ],
-      "requirements": "cuda"
-    },
-    {
-      "id": "checkpoint-flux_dev_nunchaku_fp4-flux",
-      "name": "Flux Krea [Nunchaku-fp4]",
-      "files": [
-        {
-          "path": "models/diffusion_models/svdq-fp4_r32-flux.1-krea-dev.safetensors",
-          "url": "https://huggingface.co/nunchaku-tech/nunchaku-flux.1-krea-dev/resolve/main/svdq-fp4_r32-flux.1-krea-dev.safetensors",
-          "sha256": "c1dffa6bf3ffe935092818c5135bf66e0cdd4a934afc3a8f3e1e99aa74a1ecf5"
-        }
-      ],
-      "requirements": "cuda_fp4"
-    },
-    {
       "id": "checkpoint-flux_kontext-flux",
       "name": "Flux Kontext",
       "files": [
@@ -380,30 +356,6 @@
         "models/diffusion_models/flux1-kontext-dev-fp8-e4m3fn.safetensors"
       ],
       "requirements": "no_cuda"
-    },
-    {
-      "id": "checkpoint-flux_kontext_nunchaku-flux",
-      "name": "Flux Kontext [Nunchaku]",
-      "files": [
-        {
-          "path": "models/diffusion_models/svdq-int4_r32-flux.1-kontext-dev.safetensors",
-          "url": "https://huggingface.co/nunchaku-tech/nunchaku-flux.1-kontext-dev/resolve/main/svdq-int4_r32-flux.1-kontext-dev.safetensors",
-          "sha256": "5dceaae1666bd76402bb9e47a9431a51b2b528f921502ee92b90257717acbebb"
-        }
-      ],
-      "requirements": "cuda"
-    },
-    {
-      "id": "checkpoint-flux_kontext_nunchaku_fp4-flux",
-      "name": "Flux Kontext [Nunchaku-fp4]",
-      "files": [
-        {
-          "path": "models/diffusion_models/svdq-fp4_r32-flux.1-kontext-dev.safetensors",
-          "url": "https://huggingface.co/nunchaku-tech/nunchaku-flux.1-kontext-dev/resolve/main/svdq-fp4_r32-flux.1-kontext-dev.safetensors",
-          "sha256": "5dceaae1666bd76402bb9e47a9431a51b2b528f921502ee92b90257717acbebb"
-        }
-      ],
-      "requirements": "cuda_fp4"
     },
     {
       "id": "checkpoint-q6_k-flux2_4b",
@@ -581,25 +533,6 @@
       ]
     },
     {
-      "id": "ip_adapter-face-sd15",
-      "name": "IP-Adapter Face (SD1.5)",
-      "files": [
-        {
-          "id": "ip_adapter-face-sd15",
-          "path": "models/ipadapter/ip-adapter-faceid-plusv2_sd15.bin",
-          "url": "https://huggingface.co/h94/IP-Adapter-FaceID/resolve/main/ip-adapter-faceid-plusv2_sd15.bin",
-          "sha256": "26d0d86a1d60d6cc811d3b8862178b461e1eeb651e6fe2b72ba17aa95411e313"
-        },
-        {
-          "id": "lora-face-sd15",
-          "path": "models/loras/ip-adapter-faceid-plusv2_sd15_lora.safetensors",
-          "url": "https://huggingface.co/h94/IP-Adapter-FaceID/resolve/main/ip-adapter-faceid-plusv2_sd15_lora.safetensors",
-          "sha256": "8abff87a15a049f3e0186c2e82c1c8e77783baf2cfb63f34c412656052eb57b0"
-        }
-      ],
-      "requirements": "insightface"
-    },
-    {
       "id": "controlnet-universal-sdxl",
       "name": "ControlNet Universal (XL)",
       "files": [
@@ -620,25 +553,6 @@
           "sha256": "11e49b4e272fabda60094b35be6fd3e215e551211210938e381d27497fd2215c"
         }
       ]
-    },
-    {
-      "id": "ip_adapter-face-sdxl",
-      "name": "IP-Adapter Face (XL)",
-      "files": [
-        {
-          "id": "ip_adapter-face-sdxl",
-          "path": "models/ipadapter/ip-adapter-faceid-plusv2_sdxl.bin",
-          "url": "https://huggingface.co/h94/IP-Adapter-FaceID/resolve/main/ip-adapter-faceid-plusv2_sdxl.bin",
-          "sha256": "c6945d82b543700cc3ccbb98d363b837e9c596281607857c74b713a876daf5fb"
-        },
-        {
-          "id": "lora-face-sdxl",
-          "path": "models/loras/ip-adapter-faceid-plusv2_sdxl_lora.safetensors",
-          "url": "https://huggingface.co/h94/IP-Adapter-FaceID/resolve/main/ip-adapter-faceid-plusv2_sdxl_lora.safetensors",
-          "sha256": "f24b4bb2dad6638a09c00f151cde84991baf374409385bcbab53c1871a30cb7b"
-        }
-      ],
-      "requirements": "insightface"
     },
     {
       "id": "controlnet-universal-flux",
@@ -836,17 +750,24 @@
     },
     {
       "id": "lora-identity_edit-krea2",
-      "name": "Krea 2 Identity Edit LoRA",
+      "name": "Krea 2 Identity Edit V2",
       "files": [
         {
-          "path": "models/loras/krea2_identity_edit_v1_2.safetensors",
-          "url": "https://huggingface.co/conradlocke/krea2-identity-edit/resolve/main/krea2_identity_edit_v1_2.safetensors",
-          "sha256": "6adf9a69cc9502d286db7b69964d37da7e9cfe4b05b4d004bc275f087d3fd3cf"
+          "path": "models/loras/krea2_identity_edit_v2.safetensors",
+          "url": "https://huggingface.co/conradlocke/krea2-identity-edit/resolve/f33b26291c640e8ec50b0da420bfee3c9a660daa/krea2_identity_edit_v2.safetensors",
+          "sha256": "c53843f9451963a6cb3c22dc4975205056b93a6575fb9347dd2bc6e055ef9877"
         }
-      ],
-      "alternatives": [
-        "models/loras/krea2_identity_edit_v1_1.safetensors",
-        "models/loras/krea2_identity_edit_v1.safetensors"
+      ]
+    },
+    {
+      "id": "lora-general_edit-krea2",
+      "name": "Krea 2 General Edit V2",
+      "files": [
+        {
+          "path": "models/loras/krea2_general_edit_v2.safetensors",
+          "url": "https://huggingface.co/conradlocke/krea2-identity-edit/resolve/f33b26291c640e8ec50b0da420bfee3c9a660daa/krea2_general_edit_v2.safetensors",
+          "sha256": "fb5315477444c8df6dea2ad347a852bd90e97ab0f9109f4100a39714a7a09356"
+        }
       ]
     }
   ],
