@@ -1,10 +1,7 @@
 from __future__ import annotations
 
-import asyncio
 import shutil
 import subprocess
-import tempfile
-from pathlib import Path
 
 from PyQt5.QtCore import QRect, QSize, Qt, QTimer, QUrl, pyqtSignal
 from PyQt5.QtGui import QColor, QDesktopServices, QGuiApplication, QIcon, QPainter, QPixmap
@@ -36,8 +33,8 @@ from ..backend.lora_manager import (
     arch_for_base_model,
     fetch_commercial_use,
     fetch_loras_pages,
+    fetch_model_preview_bytes,
     fetch_new_loras,
-    fetch_preview_bytes,
     load_cached_loras,
     lora_preload_task,
     save_lora_cache,
@@ -210,28 +207,31 @@ def _extract_video_frame(data: bytes) -> bytes | None:
     ffmpeg is not installed or extraction fails. Runs blocking - call in executor."""
     if _ffmpeg_path is None:
         return None
-    src = out = None
     try:
-        with tempfile.NamedTemporaryFile(suffix=".mp4", delete=False) as f:
-            f.write(data)
-            src = Path(f.name)
-        out = src.with_suffix(".jpg")
-        subprocess.run(
-            [_ffmpeg_path, "-y", "-i", str(src), "-frames:v", "1", "-f", "image2", str(out)],
+        result = subprocess.run(
+            [
+                _ffmpeg_path,
+                "-loglevel",
+                "error",
+                "-i",
+                "pipe:0",
+                "-frames:v",
+                "1",
+                "-f",
+                "image2pipe",
+                "-vcodec",
+                "mjpeg",
+                "pipe:1",
+            ],
+            input=data,
             capture_output=True,
             check=False,
             timeout=20,
-            creationflags=getattr(subprocess, "CREATE_NO_WINDOW", 0),  # Windows only
+            creationflags=getattr(subprocess, "CREATE_NO_WINDOW", 0),
         )
-        if out.exists() and out.stat().st_size > 0:
-            return out.read_bytes()
-        return None
+        return result.stdout if result.returncode == 0 else None
     except Exception:
         return None
-    finally:
-        for p in (src, out):
-            if p is not None:
-                p.unlink(missing_ok=True)
 
 
 class LoraBrowser(QWidget):
@@ -664,8 +664,8 @@ class LoraBrowser(QWidget):
 
     def _tile_base(self, lora: LoraInfo) -> QPixmap:
         size = self._preview_size
-        if lora.sha256 in self._preview_cache:
-            return self._preview_cache[lora.sha256].scaled(
+        if (lora.sha256 or lora.name) in self._preview_cache:
+            return self._preview_cache[lora.sha256 or lora.name].scaled(
                 size,
                 size,
                 Qt.AspectRatioMode.KeepAspectRatio,
@@ -735,13 +735,14 @@ class LoraBrowser(QWidget):
             ):
                 self._pending_commercial.add(lora.sha256)
                 eventloop.run(self._load_commercial(lora, item))
-            if not lora.preview_url or lora.sha256 in self._preview_cache:
+            if (
+                not (lora.preview_url or lora.sha256 or lora.civitai_model_id)
+                or (lora.sha256 or lora.name) in self._preview_cache
+            ):
                 continue
-            if _is_video_url(lora.preview_url) and _ffmpeg_path is None:
-                continue  # no decoder available - placeholder set in _populate_grid
-            if lora.sha256 in self._pending_previews:
+            if (lora.sha256 or lora.name) in self._pending_previews:
                 continue
-            self._pending_previews.add(lora.sha256)
+            self._pending_previews.add(lora.sha256 or lora.name)
             eventloop.run(self._load_preview(lora, item))
 
     async def _load_commercial(self, lora: LoraInfo, item: QListWidgetItem):
@@ -759,12 +760,14 @@ class LoraBrowser(QWidget):
         client = root.connection.client_if_connected
         if client is None:
             return
-        data = await fetch_preview_bytes(client._requests, lora.preview_url)
+        data = await fetch_model_preview_bytes(lora)
         is_video = _is_video_url(lora.preview_url)
-        if data and is_video:
-            # extract first frame via ffmpeg (off the UI thread)
-            loop = asyncio.get_running_loop()
-            data = await loop.run_in_executor(None, _extract_video_frame, data)
+        if data is None:
+            item.setToolTip(
+                item.toolTip()
+                + "\n"
+                + _("No online preview found. Local preview files are not used.")
+            )
         if data:
             pixmap = QPixmap()
             pixmap.loadFromData(data)
@@ -774,7 +777,7 @@ class LoraBrowser(QWidget):
                     painter = QPainter(pixmap)
                     painter.drawPixmap(pixmap.width() - 28, pixmap.height() - 28, badge)
                     painter.end()
-                self._preview_cache[lora.sha256] = pixmap
+                self._preview_cache[lora.sha256 or lora.name] = pixmap
                 self._set_tile_icon(item, lora)
             else:
                 # format not decodable by Qt (e.g. some animated webp builds) - placeholder

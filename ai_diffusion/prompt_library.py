@@ -43,6 +43,7 @@ class PromptLibrary(QObject):
         super().__init__()
         self.path = path or self.default_path
         self.preview_folder = preview_folder or self.default_preview_folder
+        self._previews: dict[str, Image] = {}
         self._entries: dict[str, PromptEntry] = {}
         self.reload()
 
@@ -126,23 +127,16 @@ class PromptLibrary(QObject):
         return self.preview_folder / f"{id}.png"
 
     def has_preview(self, id: str) -> bool:
-        return self.preview_path(id).exists()
+        return id in self._previews
+
+    def preview(self, id: str):
+        return self._previews[id].to_pixmap()
 
     def save_preview(self, id: str, image: Image, max_size: int = 160):
-        scaled = Image.scale_to_fit(image, Extent(max_size, max_size))
-        try:
-            self.preview_folder.mkdir(parents=True, exist_ok=True)
-            scaled.save(self.preview_path(id))
-        except Exception as e:
-            log.error(f"Failed to write prompt preview for {id}: {e}")
+        self._previews[id] = Image.scale_to_fit(image, Extent(max_size, max_size))
 
     def delete_preview(self, id: str):
-        path = self.preview_path(id)
-        try:
-            if path.exists():
-                path.unlink()
-        except Exception as e:
-            log.error(f"Failed to delete prompt preview for {id}: {e}")
+        self._previews.pop(id, None)
 
     def mark_used(self, id: str):
         entry = self._entries.get(id)

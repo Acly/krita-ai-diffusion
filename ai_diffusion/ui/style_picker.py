@@ -1,6 +1,5 @@
 from __future__ import annotations
 
-import asyncio
 from pathlib import Path
 
 from PyQt5.QtCore import QEvent, QObject, QSize, Qt, QTimer, pyqtSignal
@@ -28,7 +27,7 @@ from PyQt5.QtWidgets import (
 from .. import eventloop
 from ..backend import workflow
 from ..backend.client import filter_supported_styles, resolve_arch
-from ..backend.lora_manager import fetch_checkpoints_pages, fetch_preview_bytes
+from ..backend.lora_manager import LoraInfo, fetch_checkpoints_pages, fetch_model_preview_bytes
 from ..localization import translate as _
 from ..model.connection import ConnectionState
 from ..model.root import root
@@ -39,9 +38,6 @@ from . import theme
 from .generate_across import AcrossOptions, generate_across_styles
 from .generate_sets import GenerateSetBar
 from .lora_picker import (
-    _extract_video_frame,
-    _ffmpeg_path,
-    _is_video_url,
     _visible_range,
     _with_tag,
 )
@@ -98,7 +94,7 @@ class StyleBrowser(QWidget):
         self._styles: list[Style] = []
         self._recent: set[str] = set()
         self._favorites_only = False
-        self._ckpt_previews: dict[str, str] = {}  # checkpoint stem -> preview url
+        self._ckpt_previews: dict[str, LoraInfo] = {}  # checkpoint stem -> preview url
         self._preview_cache: dict[str, QPixmap] = {}  # stem -> pixmap
         self._pending_previews: set[str] = set()
         self._view = settings.style_browser_view
@@ -318,8 +314,8 @@ class StyleBrowser(QWidget):
         try:
             async for batch in fetch_checkpoints_pages(client._requests, client.url):
                 for c in batch:
-                    if c.preview_url:
-                        self._ckpt_previews[c.name] = c.preview_url
+                    if c.preview_url or c.sha256 or c.civitai_model_id:
+                        self._ckpt_previews[c.name] = c
         finally:
             self._schedule_visible_previews()
 
@@ -350,20 +346,17 @@ class StyleBrowser(QWidget):
                 continue
             if stem in self._pending_previews:
                 continue
-            url = self._ckpt_previews.get(stem)
-            if not url or (_is_video_url(url) and _ffmpeg_path is None):
+            model = self._ckpt_previews.get(stem)
+            if model is None:
                 continue
             self._pending_previews.add(stem)
-            eventloop.run(self._load_preview(stem, url, item))
+            eventloop.run(self._load_preview(stem, model, item))
 
-    async def _load_preview(self, stem: str, url: str, item: QListWidgetItem):
+    async def _load_preview(self, stem: str, model: LoraInfo, item: QListWidgetItem):
         client = self._client()
         if client is None:
             return
-        data = await fetch_preview_bytes(client._requests, url)
-        if data and _is_video_url(url):
-            loop = asyncio.get_running_loop()
-            data = await loop.run_in_executor(None, _extract_video_frame, data)
+        data = await fetch_model_preview_bytes(model)
         if not data:
             return
         pixmap = QPixmap()

@@ -1119,6 +1119,13 @@
     "AnimaDex Site": null,
     "words": null,
     "Add Favorite": null,
-    "Download": null
+    "Download": null,
+    "External server media storage": "Хранение медиа на внешнем сервере",
+    "This server is not managed by the plugin. It may retain uploaded/generated media outside temporary storage. Allow sending media to this server for this session?": "Этот сервер не управляется плагином и может сохранять загруженные и созданные медиа вне временного хранилища. Разрешить передачу медиа этому серверу на текущий сеанс?",
+    "External media storage was not approved.": "Сохранение медиа внешним сервером не разрешено.",
+    "Custom workflow media access": "Разрешение на сохранение медиа",
+    "Custom nodes can write files outside temporary storage. Allow this workflow to save media files for this session?": "Пользовательские ноды могут записывать файлы вне временного хранилища. Разрешить этому workflow сохранять медиафайлы в текущем сеансе?",
+    "Custom workflow media storage was not approved.": "Сохранение медиа пользовательским workflow не разрешено.",
+    "No online preview found. Local preview files are not used.": "Онлайн-превью не найдено. Локальные файлы превью не используются."
   }
 }

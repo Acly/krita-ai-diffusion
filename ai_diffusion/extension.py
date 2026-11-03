@@ -5,7 +5,7 @@ from pathlib import Path
 from krita import DockWidgetFactory, DockWidgetFactoryBase, Extension, Krita, Window  # type: ignore
 from PyQt5.QtWidgets import QAction
 
-from . import __version__, eventloop
+from . import __version__, eventloop, media_storage
 from .model.model import Workspace
 from .model.root import root
 from .settings import settings
@@ -54,8 +54,12 @@ class AIToolsExtension(Extension):
         eventloop.run(root.autostart(self._settings_dialog.connection.update_ui))
 
     def shutdown(self):
-        root.server.terminate()
+        try:
+            eventloop.run_until_complete(eventloop.run(root.server.stop()))
+        except Exception:
+            root.server.terminate()
         eventloop.stop()
+        media_storage.shutdown()
 
     def _create_action(self, window: Window, name: str, func: Callable[[], None]):
         action = window.createAction(f"ai_diffusion_{name}", "", "")

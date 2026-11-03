@@ -2,13 +2,14 @@ from __future__ import annotations
 
 import asyncio
 import hashlib
+import ipaddress
 import json
 import time
 import uuid
 from dataclasses import asdict, dataclass, field
 from pathlib import Path
 from typing import TYPE_CHECKING
-from urllib.parse import quote
+from urllib.parse import quote, urlparse
 
 from .. import eventloop, util
 from ..util import client_logger as log
@@ -22,7 +23,7 @@ _CACHE_MAX_AGE = 6 * 3600  # seconds
 # Bump when the cached data shape/semantics change, to invalidate old caches
 # written before a fix (e.g. the favorite flag used to always be False, or the
 # commercial-use flag counting a "Sell"-only license as permission to sell images).
-_CACHE_VERSION = 6
+_CACHE_VERSION = 7
 
 # In-memory copy of the disk cache, so opening the browser doesn't re-parse ~10k entries
 _memory_cache: dict[str, tuple[float, list[LoraInfo]]] = {}
@@ -64,9 +65,13 @@ class LoraInfo:
         name = _clean_name(file_name)
         display_name = data.get("model_name") or name
         sha256 = data.get("sha256", "")
-        preview = data.get("preview_url", "")
-        if preview and preview.startswith("/"):
-            preview = base_url + preview
+        civitai_data = data.get("civitai") or {}
+        images = civitai_data.get("images") or [] if isinstance(civitai_data, dict) else []
+        preview = next(
+            (i.get("url", "") for i in images if is_remote_preview(i.get("url", ""))), ""
+        )
+        if not preview and is_remote_preview(data.get("preview_url", "")):
+            preview = data["preview_url"]
         tags = data.get("tags") or []
         if isinstance(tags, str):
             tags = [t.strip() for t in tags.split(",") if t.strip()]
@@ -482,6 +487,60 @@ async def fetch_recipes(requests: RequestManager, base_url: str) -> list[RecipeI
     return result
 
 
+def is_remote_preview(url: str) -> bool:
+    try:
+        parsed = urlparse(url)
+        host = (parsed.hostname or "").lower()
+        if (
+            parsed.scheme != "https"
+            or not host
+            or host == "localhost"
+            or host.endswith((".localhost", ".local"))
+        ):
+            return False
+        try:
+            return ipaddress.ip_address(host).is_global
+        except ValueError:
+            return True
+    except ValueError:
+        return False
+
+
+async def fetch_model_preview_bytes(lora: LoraInfo) -> bytes | None:
+    from ..settings import settings
+    from . import civitai
+
+    if not is_remote_preview(lora.preview_url):
+        try:
+            if lora.sha256:
+                data = await civitai.requests().get(
+                    f"{civitai.api_url()}/model-versions/by-hash/{quote(lora.sha256)}",
+                    timeout=15.0,
+                    bearer=settings.civitai_api_key or None,
+                )
+                if isinstance(data, (bytes, bytearray)):
+                    data = json.loads(data)
+                images = data.get("images") or [] if isinstance(data, dict) else []
+                lora.preview_url = next(
+                    (i.get("url", "") for i in images if is_remote_preview(i.get("url", ""))), ""
+                )
+            elif lora.civitai_model_id:
+                lora.preview_url, lora.nsfw_level = await civitai.fetch_model_preview(
+                    lora.civitai_model_id, settings.civitai_api_key
+                )
+        except Exception as e:
+            log.warning(f"Could not resolve online preview for {lora.name}: {e}")
+    if not is_remote_preview(lora.preview_url):
+        return None
+    host = (urlparse(lora.preview_url).hostname or "").lower()
+    url = (
+        civitai.preview_thumbnail_url(lora.preview_url)
+        if host.endswith((".civitai.com", ".civitai.red"))
+        else lora.preview_url
+    )
+    return await civitai.fetch_image(url)
+
+
 async def fetch_preview_bytes(requests: RequestManager, preview_url: str) -> bytes | None:
     """Fetch preview image bytes. Returns None on error."""
     if not preview_url:
@@ -659,6 +718,13 @@ async def start_download(
     Returns the Lora Manager result dict; on failure it carries an `error` message,
     e.g. "Model version already exists in lora library" for a model already present.
     """
+    from ..settings import ServerMode, settings
+
+    if settings.server_mode is not ServerMode.managed:
+        return {
+            "success": False,
+            "error": "Model downloads require the managed server to keep automatic previews temporary.",
+        }
     base = base_url.rstrip("/")
     payload: dict = {
         "model_id": int(model_id),

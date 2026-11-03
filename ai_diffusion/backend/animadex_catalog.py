@@ -476,23 +476,11 @@ class Catalog:
         return self.thumb_dir(mode) / (record.stem + ".webp")
 
     async def thumbnail(self, mode: str, entry: Entry) -> bytes | None:
-        """Thumbnail bytes from the local cache, downloading them on first use."""
+        """Download thumbnail bytes without creating a persistent image cache."""
         record = self.record(mode, entry.slug)
         if record is None:
             return None
-        path = self.thumb_path(mode, record)
-        if path.exists():
-            try:
-                return path.read_bytes()
-            except Exception as e:
-                log.warning(f"Could not read cached thumbnail {path}: {e}")
-        data = await animadex.fetch_thumbnail(record.entry.thumb_url)
-        if data:
-            try:
-                self._write_atomic(path, data)
-            except Exception as e:
-                log.warning(f"Could not cache thumbnail {path}: {e}")
-        return data
+        return await animadex.fetch_thumbnail(record.entry.thumb_url)
 
     def cached_thumbnail_count(self) -> int:
         return sum(len(list(self.thumb_dir(m).glob("*.webp"))) for m in _modes)

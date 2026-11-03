@@ -804,7 +804,7 @@ class Image:
 
     def debug_save(self, name):
         if settings.debug_image_folder:
-            self.save(Path(settings.debug_image_folder, f"{name}.png"))
+            return  # Automatic diagnostic media must never persist.
 
     def to_krita_format(self):
         if self.is_rgba and self._qimage.format() != QImage.Format.Format_ARGB32:

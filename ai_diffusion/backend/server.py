@@ -13,7 +13,7 @@ from typing import NamedTuple
 
 from PyQt5.QtNetwork import QNetworkAccessManager
 
-from .. import eventloop, util
+from .. import eventloop, media_storage, util
 from ..localization import translate as _
 from ..platform_tools import (
     ZipFile,
@@ -537,13 +537,14 @@ class Server:
             self.state = ServerState.starting
 
             args = ["-su", "main.py"]
-            env = {}
+            env = media_storage.managed_server_environment(self.path)
             if self.backend is ServerBackend.cpu:
                 args.append("--cpu")
             elif self.backend is ServerBackend.directml:
                 args.append("--directml")
             if settings.server_arguments:
                 args += settings.server_arguments.split(" ")
+            args += media_storage.managed_server_arguments()
             if port is not None:
                 args += ["--port", str(port)]
             if self.backend is not ServerBackend.cpu:

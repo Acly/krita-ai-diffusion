@@ -1,6 +1,5 @@
 from __future__ import annotations
 
-import asyncio
 from pathlib import Path
 
 from PyQt5.QtCore import QRect, QSize, Qt, QTimer, pyqtSignal
@@ -30,7 +29,7 @@ from ..backend.lora_manager import (
     LoraInfo,
     arch_for_base_model,
     fetch_checkpoints_pages,
-    fetch_preview_bytes,
+    fetch_model_preview_bytes,
     style_family_for_base_model,
 )
 from ..backend.resources import Arch
@@ -44,8 +43,6 @@ from . import theme
 from .generate_across import AcrossOptions, generate_across_checkpoints
 from .generate_sets import GenerateSetBar
 from .lora_picker import (
-    _extract_video_frame,
-    _ffmpeg_path,
     _is_video_url,
     _visible_range,
     _with_tag,
@@ -401,8 +398,8 @@ class CheckpointBrowser(QWidget):
 
     def _tile_base(self, c: LoraInfo) -> QPixmap:
         size = self._preview_size
-        if c.sha256 in self._preview_cache:
-            return self._preview_cache[c.sha256].scaled(
+        if (c.sha256 or c.name) in self._preview_cache:
+            return self._preview_cache[c.sha256 or c.name].scaled(
                 size,
                 size,
                 Qt.AspectRatioMode.KeepAspectRatio,
@@ -461,26 +458,20 @@ class CheckpointBrowser(QWidget):
                 continue
             c: LoraInfo = item.data(Qt.ItemDataRole.UserRole)
             if (
-                not c.preview_url
-                or c.sha256 in self._preview_cache
-                or c.sha256 in self._pending_previews
+                not (c.preview_url or c.sha256 or c.civitai_model_id)
+                or (c.sha256 or c.name) in self._preview_cache
+                or (c.sha256 or c.name) in self._pending_previews
             ):
                 continue
-            if _is_video_url(c.preview_url) and _ffmpeg_path is None:
-                continue  # no decoder available - play placeholder set in _populate_grid
-            self._pending_previews.add(c.sha256)
+            self._pending_previews.add(c.sha256 or c.name)
             eventloop.run(self._load_preview(c, item))
 
     async def _load_preview(self, c: LoraInfo, item: QListWidgetItem):
         client = root.connection.client_if_connected
         if client is None:
             return
-        data = await fetch_preview_bytes(client._requests, c.preview_url)
+        data = await fetch_model_preview_bytes(c)
         is_video = _is_video_url(c.preview_url)
-        if data and is_video:
-            # extract first frame via ffmpeg (off the UI thread)
-            loop = asyncio.get_running_loop()
-            data = await loop.run_in_executor(None, _extract_video_frame, data)
         if data:
             pixmap = QPixmap()
             pixmap.loadFromData(data)
@@ -490,7 +481,7 @@ class CheckpointBrowser(QWidget):
                     painter = QPainter(pixmap)
                     painter.drawPixmap(pixmap.width() - 28, pixmap.height() - 28, badge)
                     painter.end()
-                self._preview_cache[c.sha256] = pixmap
+                self._preview_cache[c.sha256 or c.name] = pixmap
                 self._set_tile_icon(item, c)
             else:
                 item.setIcon(theme.icon("filter"))

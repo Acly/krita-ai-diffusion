@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 from PyQt5.QtCore import QSize, Qt
-from PyQt5.QtGui import QIcon, QPixmap
+from PyQt5.QtGui import QIcon
 from PyQt5.QtWidgets import (
     QCheckBox,
     QComboBox,
@@ -264,7 +264,7 @@ class PromptBrowser(QWidget):
                 preview = entry.text[:200]
                 item.setToolTip(preview)
                 if self._library.has_preview(entry.id):
-                    pixmap = QPixmap(str(self._library.preview_path(entry.id)))
+                    pixmap = self._library.preview(entry.id)
                     if not pixmap.isNull():
                         item.setIcon(QIcon(pixmap))
                 self._list.addItem(item)
@@ -331,7 +331,7 @@ class PromptBrowser(QWidget):
 
     def _update_preview_label(self, id: str):
         if self._library.has_preview(id):
-            pixmap = QPixmap(str(self._library.preview_path(id)))
+            pixmap = self._library.preview(id)
             if not pixmap.isNull():
                 self._preview_label.setPixmap(
                     pixmap.scaled(

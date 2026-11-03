@@ -9,7 +9,7 @@ import uuid
 from pathlib import Path
 from typing import TYPE_CHECKING
 
-from . import util
+from . import media_storage, util
 from .backend.network import RequestManager
 from .localization import translate as _
 from .platform_tools import is_macos, is_windows
@@ -21,7 +21,11 @@ if TYPE_CHECKING:
 
 EAGLE_URL = "http://localhost:41595"
 
-_upload_dir = util.user_data_dir / "eagle_upload"
+
+def _upload_folder():
+    return media_storage.session().folder("eagle-upload")
+
+
 _requests: RequestManager | None = None
 
 
@@ -65,10 +69,10 @@ def _request_manager() -> RequestManager:
 
 def _cleanup_old_uploads(max_age_hours: float = 24):
     try:
-        if not _upload_dir.exists():
+        if not _upload_folder().exists():
             return
         cutoff = time.time() - max_age_hours * 3600
-        for f in _upload_dir.iterdir():
+        for f in _upload_folder().iterdir():
             if f.is_file() and f.stat().st_mtime < cutoff:
                 f.unlink(missing_ok=True)
     except Exception as e:
@@ -82,12 +86,12 @@ async def send_image_to_eagle(image, job: Job, index: int) -> str | None:
     (Eagle imports asynchronously) and cleaned up on later calls after 24h.
     """
     _cleanup_old_uploads()
-    _upload_dir.mkdir(parents=True, exist_ok=True)
+    _upload_folder().mkdir(parents=True, exist_ok=True)
 
     timestamp = job.timestamp.strftime("%Y%m%d-%H%M%S")
     prompt = util.sanitize_prompt(job.params.name)
     file_name = f"krita-ai-{timestamp}-{index}-{prompt}"[:120] + ".png"
-    path = util.find_unused_path(_upload_dir / file_name)
+    path = util.find_unused_path(_upload_folder() / file_name)
 
     metadata_text = create_img_metadata(job.params)
     image.save_png_with_metadata(filepath=path, metadata_text=metadata_text)

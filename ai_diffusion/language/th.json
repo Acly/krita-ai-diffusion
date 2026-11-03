@@ -1119,6 +1119,13 @@
     "AnimaDex Site": null,
     "words": null,
     "Add Favorite": null,
-    "Download": null
+    "Download": null,
+    "No online preview found. Local preview files are not used.": null,
+    "Custom workflow media access": null,
+    "External server media storage": null,
+    "Custom workflow media storage was not approved.": null,
+    "This server is not managed by the plugin. It may retain uploaded/generated media outside temporary storage. Allow sending media to this server for this session?": null,
+    "Custom nodes can write files outside temporary storage. Allow this workflow to save media files for this session?": null,
+    "External media storage was not approved.": null
   }
 }

@@ -7,7 +7,7 @@ from enum import Enum
 from PyQt5.QtCore import QObject, QUrl, pyqtSignal
 from PyQt5.QtGui import QDesktopServices
 
-from .. import eventloop, util
+from .. import eventloop, media_storage, util
 from ..backend.client import (
     Client,
     ClientEvent,
@@ -101,6 +101,10 @@ class Connection(QObject, ObservableProperties):
         self.error_kind = ""
         self.state = ConnectionState.connecting
         try:
+            if settings.server_mode in (ServerMode.external, ServerMode.cloud):
+                media_storage.require_external_acceptance(
+                    settings.server_url if settings.server_mode is ServerMode.external else "cloud"
+                )
             await client.connect()
 
             self.state = ConnectionState.discover_models

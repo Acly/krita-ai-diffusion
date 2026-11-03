@@ -103,6 +103,10 @@ class RequestManager:
 
     def _prepare_request(self, url: str, timeout: float | None = None, bearer: str | None = None):
         request = QNetworkRequest(QUrl(url))
+        request.setAttribute(
+            QNetworkRequest.CacheLoadControlAttribute, QNetworkRequest.AlwaysNetwork
+        )
+        request.setAttribute(QNetworkRequest.CacheSaveControlAttribute, False)
         request.setAttribute(QNetworkRequest.FollowRedirectsAttribute, True)
         bearer_token = bearer or self._bearer_token
         if bearer_token:

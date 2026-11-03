@@ -391,7 +391,7 @@ class ComfyClient(Client):
     async def _run_job(self, job: JobInfo):
         workflow = create_workflow(job.work, self.models)
         if settings.debug_dump_workflow:
-            workflow.embed_images().dump(util.log_dir)
+            log.info("Automatic workflow/image dumps disabled by media retention policy")
 
         await self.upload_images(workflow.image_data)
         await self.upload_loras(job.work, job.id)

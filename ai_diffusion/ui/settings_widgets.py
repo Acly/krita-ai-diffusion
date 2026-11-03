@@ -3,9 +3,19 @@ from __future__ import annotations
 from enum import Enum
 from typing import Any
 
-from PyQt5.QtCore import QAbstractItemModel, QSize, Qt, pyqtSignal
-from PyQt5.QtGui import QFontMetrics, QIcon
+from PyQt5.QtCore import (
+    QAbstractItemModel,
+    QCoreApplication,
+    QEvent,
+    QObject,
+    QPointF,
+    QSize,
+    Qt,
+    pyqtSignal,
+)
+from PyQt5.QtGui import QFontMetrics, QIcon, QWheelEvent
 from PyQt5.QtWidgets import (
+    QAbstractScrollArea,
     QCheckBox,
     QComboBox,
     QFrame,
@@ -25,6 +35,45 @@ from ..localization import translate as _
 from ..settings import Setting, settings
 from .switch import SwitchWidget
 from .theme import add_header, icon
+
+
+class ComboBoxWheelGuard(QObject):
+    def __init__(self, scope: QWidget):
+        super().__init__(scope)
+        self._scope = scope
+        if app := QCoreApplication.instance():
+            app.installEventFilter(self)
+
+    def eventFilter(self, a0: QObject | None, a1: QEvent | None):
+        obj, event = a0, a1
+        if (
+            isinstance(obj, QComboBox)
+            and isinstance(event, QWheelEvent)
+            and self._scope.isAncestorOf(obj)
+            and (view := obj.view()) is not None
+            and not view.isVisible()
+        ):
+            parent = obj.parentWidget()
+            while parent is not None and not isinstance(parent, QAbstractScrollArea):
+                parent = parent.parentWidget()
+            if isinstance(parent, QAbstractScrollArea):
+                viewport = parent.viewport()
+                if viewport is not None:
+                    forwarded = QWheelEvent(
+                        QPointF(viewport.mapFromGlobal(event.globalPos())),
+                        event.globalPosF(),
+                        event.pixelDelta(),
+                        event.angleDelta(),
+                        event.buttons(),
+                        event.modifiers(),
+                        event.phase(),
+                        event.inverted(),
+                        event.source(),
+                    )
+                    QCoreApplication.sendEvent(viewport, forwarded)
+            event.ignore()
+            return True
+        return super().eventFilter(obj, event)
 
 
 class ExpanderButton(QToolButton):

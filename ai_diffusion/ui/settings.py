@@ -50,6 +50,7 @@ from ..style import Style
 from .server import ServerWidget
 from .settings_widgets import (
     ComboBoxSetting,
+    ComboBoxWheelGuard,
     FileListSetting,
     SettingsTab,
     SliderSetting,
@@ -1320,6 +1321,7 @@ class SettingsDialog(QDialog):
     def __init__(self, server: Server):
         super().__init__()
         type(self)._instance = self
+        self._combo_wheel_guard = ComboBoxWheelGuard(self)
 
         self.setWindowTitle(_("Configure Image Diffusion"))
         self.setMinimumSize(QSize(960, 480))

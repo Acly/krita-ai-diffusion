@@ -1,6 +1,6 @@
 # Combined build report
 
-Version: `1.53.0-reloaded.1`. Built 2026-11-03. No commit created.
+Version: `1.53.0-reloaded.3`. Built 2026-11-03. No commit created.
 
 Sources:
 - Local fork: `748133b` (Krea Turbo/Edit/Remix changes preserved).
@@ -32,3 +32,18 @@ Validation:
 
 Remaining acceptance:
 Import ZIP into Krita, restart, choose Managed Server workloads/components, complete an actual installation, then generate/edit with Krea V2 and test LoRA metadata and Eagle export. External servers, account/API-key integrations and Eagle licensing cannot be provisioned as an unattended managed-server dependency.
+
+Settings wheel fix: closed combo boxes ignore wheel input throughout SettingsDialog, even when focused or created dynamically. Wheel input is forwarded to the enclosing scroll area. Open dropdowns and keyboard/click selection remain available.
+
+
+Media retention update (.3):
+- Session-owned media directories with QLockFile ownership, crash recovery, retrying cleanup and no traversal of symlinks/junctions or unowned export folders.
+- Managed ComfyUI input/output/temp/user directories and TEMP/TMP/TMPDIR are isolated in the session. LoRA Manager uses LORA_MANAGER_SETTINGS_DIR and centralized temporary sidecars/examples. Only model metadata JSON/preferences are preserved; preview files are not copied to metadata caches.
+- Online-only LoRA/checkpoint thumbnails; no local file fallback, no HTTP disk cache. Video frame extraction uses pipes rather than global TEMP media files. Prompt thumbnails are in memory, AnimaDex no longer writes thumbnail caches. Automatic image/workflow debug dumps disabled.
+- Animation/live-recording intermediate frames and Eagle staging confined to the session. Manual image exports and .kra history unchanged.
+- External/cloud connections and custom workflow execution require explicit approval per session; external manager model downloads blocked to prevent uncontrolled persistent previews.
+- Real isolated ComfyUI+LoRA Manager CPU smoke test passed: centralized sidecar/example paths confirmed via API; a 64x64 image generated and transferred via ETN RAM cache without an output file; standard SaveImage output confined to the session; session removed after server shutdown. No diffusion model inference or existing server changes.
+- Additional tests exercise crash recovery, active-instance protection, user-export preservation, metadata-only preference restoration, online preview resolution, RAM-only thumbnails, network cache settings, transfer exceptions and denial without approval.
+- No global TEMP cleanup or blanket deletion of existing user model/output directories. Older unmarked files cannot safely be attributed to the plugin and are not removed.
+
+Final .3 validation: 317 passed, 111 skipped, 9 deselected in the available CI suite; Ruff check/format and Pyright passed. The deselected pre-existing cases require the separate live ComfyUI test fixture or working standalone PyQt TLS; the real isolated backend smoke test described above passed.

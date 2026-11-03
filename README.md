@@ -1,6 +1,6 @@
 # Combined build: 1.53 + Reloaded + Krea Edit V2
 
-Install `krita_ai_diffusion-1.53.0-reloaded.1.zip` using Krita's **Tools → Scripts → Import Python Plugin from File**, then restart Krita and enable the plugin if needed.
+Install `krita_ai_diffusion-1.53.0-reloaded.3.zip` using Krita's **Tools → Scripts → Import Python Plugin from File**, then restart Krita and enable the plugin if needed.
 
 In the plugin's **Managed Server** setup:
 
@@ -14,6 +14,15 @@ Automatic component installation manages the plugin's own local ComfyUI server. 
 Bundled Krea custom workflows are copied to the plugin's workflow library when Krea nodes are installed. The native Krea styles work in the regular generation workspace.
 
 Updates must come from this combined fork's ZIP. The upstream updater is prevented from replacing this build and losing the added features.
+
+Media retention policy in this build:
+
+- Automatic LoRA/checkpoint/CivitAI/AnimaDex/prompt thumbnails stay in RAM. Local LoRA thumbnails are resolved online by metadata/hash; disk-side preview files are never a fallback. No online match means no thumbnail.
+- Temporary animation transfers, recording frames, Eagle staging, managed ComfyUI input/output/temp/user data, and LoRA Manager sidecars/examples live under `temporary-media/session-<id>` in the plugin data directory. Normal shutdown stops the managed server before cleanup. Startup removes abandoned sessions left by crashes, while lock files protect other active Krita instances.
+- LoRA Manager preferences and metadata may be cached as JSON without preview files. Manually exported images, accepted model downloads, explicit recipe/Eagle saves and history embedded in `.kra` are retained.
+- External/cloud servers and arbitrary custom workflows require explicit, session-scoped approval because their own nodes may persist media. Automatic model downloads through an external LoRA Manager are blocked because its preview storage cannot be controlled.
+- Legacy plugin-owned prompt/AnimaDex thumbnails, Eagle staging and known automatic diagnostic image dumps are cleaned. Unidentified old files in the global system TEMP or user model/output folders are never deleted by guessing.
+- This governs plugin-controlled storage; it does not override Krita's document autosave/backup behavior or user-approved third-party workflow code.
 
 Sources: [Acly 1.53.0](https://github.com/Acly/krita-ai-diffusion/releases/tag/v1.53.0), [Reloaded](https://github.com/FatGuy84/krita-ai-reloaded/tree/08082efef6f2d4a90a80c32a90895a8c0e3f913d), [Krea Edit V2](https://github.com/lbouaraba/comfyui-krea2edit/tree/13ef60f20828949becada815d3cbc371eb5ccaab). See [BUILD-REPORT.md](BUILD-REPORT.md) for validation and limitations.
 

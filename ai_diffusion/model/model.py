@@ -12,13 +12,12 @@ from dataclasses import asdict, dataclass, replace
 from datetime import datetime
 from enum import Enum
 from pathlib import Path
-from tempfile import TemporaryDirectory
 from typing import Any, NamedTuple
 
 from PyQt5.QtCore import QMetaObject, QObject, Qt, QUuid, pyqtSignal
 from PyQt5.QtGui import QBrush, QColor, QImage, QPainter
 
-from .. import eventloop, util
+from .. import eventloop, media_storage, util
 from ..backend import resolution, workflow
 from ..backend.api import (
     ConditioningInput,
@@ -484,6 +483,16 @@ class DocumentModel(QObject, ObservableProperties):
             self._track_style_usage(self.style)
 
     async def _enqueue_job(self, job: Job, input: WorkflowInput, front: bool = False):
+        try:
+            if settings.server_mode in (ServerMode.external, ServerMode.cloud):
+                media_storage.require_external_acceptance(
+                    settings.server_url if settings.server_mode is ServerMode.external else "cloud"
+                )
+            if input.custom_workflow is not None:
+                media_storage.require_workflow_acceptance(input.custom_workflow.workflow)
+        except util.PluginError:
+            self.jobs.remove(job)
+            raise
         if not self.jobs.any_executing():
             self.progress = 0.0
         client = self._connection.client
@@ -1040,7 +1049,7 @@ class DocumentModel(QObject, ObservableProperties):
 
     def apply_animation(self, job: Job):
         assert job.kind is JobKind.animation
-        with TemporaryDirectory(prefix="animation") as temp_dir:
+        with media_storage.temporary_directory(prefix="animation-") as temp_dir:
             frames = []
             for i, image in enumerate(job.results):
                 filename = Path(temp_dir) / f"{i:03}.png"
@@ -1771,8 +1780,7 @@ class LiveWorkspace(QObject, ObservableProperties):
     def _start_recording(self):
         doc_filename = self.model.document.filename
         if doc_filename:
-            path = Path(doc_filename)
-            folder = path.parent / f"{path.with_suffix('.live-frames')}"
+            folder = media_storage.session().folder("live-frames") / uuid.uuid4().hex
             folder.mkdir(exist_ok=True)
             self._keyframes_folder = folder
             while (self._keyframes_folder / f"frame-{self._keyframe_index}.webp").exists():
@@ -1889,8 +1897,7 @@ class AnimationWorkspace(QObject, ObservableProperties):
             return
 
         if doc.filename:
-            path = Path(doc.filename)
-            folder = path.parent / f"{path.with_suffix('.animation')}"
+            folder = media_storage.session().folder("animation-frames") / uuid.uuid4().hex
             folder.mkdir(exist_ok=True)
             self._keyframes_folder = folder
         else:

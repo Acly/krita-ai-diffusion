@@ -10,7 +10,7 @@ from pathlib import Path
 
 from PyQt5.QtCore import QObject, pyqtSignal
 
-from .. import platform_tools, util
+from .. import media_storage, platform_tools, util
 from ..backend.client import ClientMessage
 from ..backend.comfy_client import ComfyClient
 from ..backend.server import Server, ServerState
@@ -41,6 +41,7 @@ class Root(QObject):
         super().__init__()
 
     def init(self):
+        media_storage.initialize()
         self._server = Server(settings.server_path)
         self._connection = Connection()
         self._files = FileLibrary.load()
