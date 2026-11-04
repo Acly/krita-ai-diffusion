@@ -153,7 +153,11 @@ async def test_generate_button_label(workflows_dir: Path):
         assert controls._advanced_panel is None
 
         def minimized_header_size():
-            header = next(w for w in widget.region_prompt._inactive_regions if w.region is region)
+            prompts = widget.region_prompt
+            assert prompts._regions_above.count() + prompts._regions_below.count() == len(
+                prompts._inactive_regions
+            )
+            header = next(w for w in prompts._inactive_regions if w.region is region)
             layout = header.layout()
             assert layout is not None
             return layout.count()

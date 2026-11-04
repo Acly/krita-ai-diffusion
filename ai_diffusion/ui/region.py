@@ -560,6 +560,9 @@ class RegionPromptWidget(QWidget):
         active = self._regions.active_or_root
 
         for widget in self._inactive_regions:
+            self._regions_above.removeWidget(widget)
+            self._regions_below.removeWidget(widget)
+            widget.hide()
             widget.deleteLater()
         self._inactive_regions.clear()
 
