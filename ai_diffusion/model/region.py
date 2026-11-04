@@ -13,7 +13,6 @@ from ..image import Bounds, Extent, Image
 from ..settings import settings
 from ..style import Style
 from . import model
-from .control import ControlLayerList
 from .jobs import JobRegion
 from .properties import ObservableProperties, Property
 
@@ -34,17 +33,15 @@ class Region(QObject, ObservableProperties):
 
     layer_ids = Property("", persist=True, setter="_set_layer_ids")
     positive = Property("", persist=True)
-    control: ControlLayerList
 
     layer_ids_changed = pyqtSignal(str)
     positive_changed = pyqtSignal(str)
     modified = pyqtSignal(QObject, str)
 
-    def __init__(self, parent: RootRegion, model: model.DocumentModel):
+    def __init__(self, parent: RootRegion):
         super().__init__()
         self._parent = parent
         self._layers = []
-        self.control = ControlLayerList(model)
 
     def _get_layers(self):
         col = self._parent._model.layers.updated()
@@ -150,7 +147,7 @@ class Region(QObject, ObservableProperties):
 
 class RootRegion(QObject, ObservableProperties):
     """Manages a collection of regions, each of which is linked to one or more layers in the document.
-    Defines text prompt and control layers which are applied to all regions in the collection.
+    Defines text prompts which are applied to all regions in the collection.
     If there are no regions, the root region is used as a default for the entire document.
     """
 
@@ -158,7 +155,6 @@ class RootRegion(QObject, ObservableProperties):
     negative = Property("", persist=True)
     negative_enabled = Property(True)
     negative_enabled_live = Property(True)
-    control: ControlLayerList
 
     positive_changed = pyqtSignal(str)
     negative_changed = pyqtSignal(str)
@@ -174,7 +170,6 @@ class RootRegion(QObject, ObservableProperties):
         super().__init__()
         self._model = model
         self._regions: list[Region] = []
-        self.control = ControlLayerList(model)
         self._active: Region | None = None
         self._active_layer: QUuid | None = None
         self._style_connection: QMetaObject.Connection | None = None
@@ -187,7 +182,7 @@ class RootRegion(QObject, ObservableProperties):
         return next((r for r in self._regions if r.is_linked(layer, RegionLink.direct)), None)
 
     def emplace(self):
-        region = Region(self, self._model)
+        region = Region(self)
         self._regions.append(region)
         return region
 
@@ -222,9 +217,6 @@ class RootRegion(QObject, ObservableProperties):
         if use_parent and result.parent_layer is not None:
             result = result.parent_layer
         return result
-
-    def add_control(self):
-        self.active_or_root.control.add()
 
     def is_linked(self, layer: Layer, mode=RegionLink.any):
         return any(r.is_linked(layer, mode) for r in self._regions)
@@ -343,7 +335,7 @@ class RootRegion(QObject, ObservableProperties):
         self.negative_enabled_live = supported and self._model.style.live_cfg_scale > 1
 
     def _add(self, layer: Layer):
-        region = Region(self, self._model)
+        region = Region(self)
         region.link(layer)
         self._regions.append(region)
         self.added.emit(region)
@@ -396,21 +388,41 @@ def process_regions(
     min_coverage=0.02,
     time: int | None = None,
 ):
+    result, jobs = _process_region_masks(root, bounds, parent_layer, min_coverage)
+    controls = root._model.control
+    result.control = controls.to_api(bounds, time)
+    parent = root.find_linked(parent_layer) if parent_layer else None
+    if parent:
+        result.control += controls.to_api(bounds, time, parent)
+    if result.regions:
+        for region_input, job in zip(result.regions, jobs):
+            if not job.is_background and (layer := root.layers.find(QUuid(job.layer_id))):
+                if region := root.find_linked(layer):
+                    region_input.control = controls.to_api(bounds, time, region)
+    elif jobs and (layer := root.layers.find(QUuid(jobs[0].layer_id))):
+        if (region := root.find_linked(layer)) and region is not parent:
+            result.control += controls.to_api(bounds, time, region)
+    return result, jobs
+
+
+def _process_region_masks(
+    root: RootRegion,
+    bounds: Bounds,
+    parent_layer: Layer | None = None,
+    min_coverage=0.02,
+):
     parent_region = None
     if parent_layer and not parent_layer.is_root:
         parent_region = root.find_linked(parent_layer)
 
     parent_prompt = ""
     job_info = []
-    control = root.control.to_api(bounds, time)
     if parent_layer and parent_region:
         parent_prompt = parent_region.positive
-        control += parent_region.control.to_api(bounds, time)
         job_info = [JobRegion(parent_layer.id_string, parent_prompt, bounds)]
     result = ConditioningInput(
         positive=workflow.merge_prompt(parent_prompt, root.positive),
         negative=root.negative,
-        control=control,
     )
 
     # Collect layers with linked regions. Optionally restrict to to child layers of a region.
@@ -441,7 +453,6 @@ def process_regions(
             layer.get_mask(bounds),
             layer_bounds,
             workflow.merge_prompt(region.positive, root.positive),
-            control=region.control.to_api(bounds, time),
         )
         job_params = JobRegion(layer.id_string, region.positive, layer_bounds)
         result_regions.append((region_result, job_params))
@@ -459,7 +470,6 @@ def process_regions(
         if coverage > 0.9 and min_coverage > 0:
             # Single region covers (almost) entire image, don't use regional conditioning.
             result.positive = region.positive
-            result.control += region.control
             return result, [job_region]
         elif coverage < min_coverage:
             # Region has less than minimum coverage, remove it.

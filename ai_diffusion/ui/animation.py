@@ -69,7 +69,7 @@ class AnimationWidget(QWidget):
         self.strength_slider = StrengthWidget()
         layout.addWidget(self.strength_slider.widget())
 
-        self.control_list = ControlListWidget(self.model.regions.control, parent=self)
+        self.control_list = ControlListWidget(self.model.control, parent=self)
         layout.addWidget(self.control_list)
 
         mode_layout = QHBoxLayout()
@@ -145,7 +145,7 @@ class AnimationWidget(QWidget):
             ]
             self.queue_button.model = model
             self.strength_slider.model = model
-            self.control_list.model = model.regions.control
+            self.control_list.model = model.control
             self.update_mode()
             self.update_target_layers()
             self.preview_area.clear()

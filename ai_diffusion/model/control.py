@@ -21,6 +21,7 @@ from .properties import ObservableProperties, Property
 
 if TYPE_CHECKING:
     from .model import DocumentModel
+    from .region import Region, RootRegion
 
 
 class ControlLayer(QObject, ObservableProperties):
@@ -42,6 +43,7 @@ class ControlLayer(QObject, ObservableProperties):
     has_active_job = Property(False)
     error_text = Property("")
 
+    region_changed = pyqtSignal()
     mode_changed = pyqtSignal(ControlMode)
     layer_id_changed = pyqtSignal(QUuid)
     preset_value_changed = pyqtSignal(int)
@@ -57,11 +59,17 @@ class ControlLayer(QObject, ObservableProperties):
     error_text_changed = pyqtSignal(str)
     modified = pyqtSignal(QObject, str)
 
-    def __init__(self, model: DocumentModel, mode: ControlMode, layer_id: QUuid, index: int):
-        from .root import root
-
+    def __init__(
+        self,
+        model: DocumentModel,
+        mode: ControlMode,
+        layer_id: QUuid,
+        index: int,
+        region: Region | RootRegion,
+    ):
         super().__init__()
         self._model = model
+        self._region = region
         self._index = index
         self._generate_job: jobs.Job | None = None
         self._error_text_short = ""
@@ -72,7 +80,7 @@ class ControlLayer(QObject, ObservableProperties):
         self.mode_changed.connect(self._update_is_supported)
         model.style_changed.connect(self._update_is_supported)
         model.edit_mode_changed.connect(self._update_is_supported)
-        root.connection.state_changed.connect(self._update_is_supported)
+        model._connection.state_changed.connect(self._update_is_supported)
         self.layer_id_changed.connect(self._update_is_pose_vector)
         model.jobs.job_finished.connect(self._update_active_job)
 
@@ -82,10 +90,27 @@ class ControlLayer(QObject, ObservableProperties):
         assert layer is not None, "Control layer has been deleted"
         return layer
 
+    @property
+    def region(self):
+        from .region import RootRegion
+
+        if not self.mode.is_ip_adapter or isinstance(self._region, RootRegion):
+            return None
+        return self._region
+
+    @region.setter
+    def region(self, region: Region | RootRegion | None):
+        region = region if region is not None else self._model.active_regions
+        if region is not self._region:
+            self._region = region
+            self.region_changed.emit()
+            self.modified.emit(self, "region")
+
     def set_mode(self, mode: ControlMode):
         if mode != self.mode:
             self._mode = mode
             self.mode_changed.emit(mode)
+            self.region_changed.emit()
             self._update_is_pose_vector()
             if not self.use_custom_strength:
                 self._set_values_from_preset()
@@ -206,10 +231,8 @@ class ControlLayer(QObject, ObservableProperties):
         self.has_active_job = True
 
     def _update_is_supported(self):
-        from .root import root
-
         is_supported = True
-        if client := root.connection.client_if_connected:
+        if client := self._model._connection.client_if_connected:
             models = client.models.for_arch(self._model.arch)
 
             if self.mode.is_ip_adapter and models.arch in [Arch.illu, Arch.illu_v]:
@@ -289,6 +312,7 @@ class ControlLayerList(QObject):
 
     added = pyqtSignal(ControlLayer)
     removed = pyqtSignal(ControlLayer)
+    changed = pyqtSignal()
 
     def __init__(self, model: DocumentModel):
         super().__init__()
@@ -296,8 +320,28 @@ class ControlLayerList(QObject):
         self._layers: list[ControlLayer] = []
         self._last_mode = ControlMode.scribble
         self._model.layers.removed.connect(self._remove_layer)
+        for regions in (model.regions, model.edit_regions):
+            regions.active_changed.connect(self.changed)
+            regions.removed.connect(self._remove_region)
+        model.edit_mode_changed.connect(self.changed)
+        model.style_changed.connect(self.changed)
+        model.workspace_changed.connect(self.changed)
 
-    def add(self):
+    @property
+    def all(self):
+        return self._layers
+
+    @property
+    def active_region(self):
+        return self._model.active_regions.active_or_root
+
+    def for_region(self, region: Region | None):
+        return [c for c in self._layers if self._is_mode_active(c) and c.region is region]
+
+    def _is_mode_active(self, control: ControlLayer):
+        return not self._model.is_editing or control.mode.is_ip_adapter
+
+    def add(self, region: Region | RootRegion | None = None):
         layer = self._model.layers.active
         if layer.type.is_filter and layer.parent_layer and not layer.parent_layer.is_root:
             layer = layer.parent_layer
@@ -306,15 +350,22 @@ class ControlLayerList(QObject):
         if layer is None:  # shouldn't be possible, Krita doesn't allow removing all non-mask layers
             log.warning("Trying to add control layer, but document has no suitable layer")
             return
-        mode = ControlMode.reference if self._model.arch.is_edit else self._last_mode
-        control = ControlLayer(self._model, mode, layer.id, len(self._layers))
+        mode = ControlMode.reference if self._model.is_editing else self._last_mode
+        control = ControlLayer(
+            self._model,
+            mode,
+            layer.id,
+            len(self._layers),
+            region if region is not None else self.active_region,
+        )
         control.mode_changed.connect(self._update_last_mode)
+        control.region_changed.connect(self.changed)
         self._layers.append(control)
         self.added.emit(control)
 
-    def emplace(self):
-        self.add()
-        return self[-1]
+    def emplace(self, region: Region | RootRegion | None = None):
+        self.add(region)
+        return self._layers[-1]
 
     def remove(self, control: ControlLayer):
         self._layers.remove(control)
@@ -323,26 +374,43 @@ class ControlLayerList(QObject):
         for i, c in enumerate(self._layers):
             c.index = i
 
-    def to_api(self, bounds: Bounds | None = None, time: int | None = None):
-        for layer in (c for c in self._layers if not c.is_supported):
+    def to_api(
+        self,
+        bounds: Bounds | None = None,
+        time: int | None = None,
+        region: Region | None = None,
+    ):
+        controls = self.for_region(region)
+        for layer in (c for c in controls if not c.is_supported):
             log.warning(f"Trying to use control layer {layer.mode.name}: {layer.error_text}")
-        return [c.to_api(bounds, time) for c in self._layers if c.is_supported and c.strength > 0]
+        return [c.to_api(bounds, time) for c in controls if c.is_supported and c.strength > 0]
 
     def _update_last_mode(self, mode: ControlMode):
         self._last_mode = mode
 
     def _remove_layer(self, layer: Layer):
-        if control := next((c for c in self._layers if c.layer_id == layer.id), None):
-            self.remove(control)
+        for control in list(self._layers):
+            if control.layer_id == layer.id:
+                self.remove(control)
+
+    def _remove_region(self, region: Region):
+        for control in list(self._layers):
+            if control._region is region:
+                self.remove(control)
 
     def __len__(self):
-        return len(self._layers)
+        return sum(1 for _ in self)
 
     def __getitem__(self, i):
-        return self._layers[i]
+        return list(self)[i]
 
     def __iter__(self):
-        return iter(self._layers)
+        active = self.active_region
+        return (
+            c
+            for c in self._layers
+            if self._is_mode_active(c) and (c.region is None or c.region is active)
+        )
 
 
 class ControlParams(NamedTuple):

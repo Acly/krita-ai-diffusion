@@ -5,6 +5,7 @@ import pytest
 from krita import Krita, Selection
 from PyQt6.QtCore import QByteArray
 
+from ai_diffusion.backend.resources import ControlMode
 from ai_diffusion.backend.workflow import InpaintMode
 from ai_diffusion.document import KritaDocument
 from ai_diffusion.model.connection import Connection, ConnectionState
@@ -73,6 +74,7 @@ async def test_generate_button_label(workflows_dir: Path):
         assert widget.mode_button.text() == "Generate"
         assert widget.region_prompt.parentWidget() is widget.prompt_frame
         assert widget.prompt_frame.parentWidget() is widget.mode_area
+        assert widget.control_list.parentWidget() is widget
         mode_button_size = widget.mode_button.size()
         mode_actions = widget.inpaint_menu.actions()
         assert [action.text() for action in mode_actions] == [
@@ -124,5 +126,54 @@ async def test_generate_button_label(workflows_dir: Path):
         assert widget.mode_button.text() == "Generate"
         assert widget.mode_button.size() == mode_button_size
         assert all(not action.isEnabled() for action in mode_actions[1:-1])
+        control = model.control.emplace()
+        control.mode = ControlMode.reference
+        controls = widget.control_list
+        controls.toggle_advanced(controls._widgets[0])
+        panel = controls._advanced_panel
+        assert panel is not None
+        assert not panel.link_button.isHidden()
+        control.mode = ControlMode.depth
+        assert panel.link_button.isHidden()
+        control.mode = ControlMode.reference
+        assert not panel.link_button.isHidden()
+        assert not panel.link_button.isEnabled()
+        assert panel.link_button.toolTip() == "Not linked to any region."
+        region = model.regions.create_region(group=False)
+        assert panel.link_button.isEnabled()
+        assert f"Click to link to {region.name}" in panel.link_button.toolTip()
+        panel.link_button.click()
+        assert control.region is region
+        assert "Click to unlink." in panel.link_button.toolTip()
+        panel.link_button.click()
+        assert control.region is None
+        panel.link_button.click()
+        model.regions.active = model.regions
+        assert controls._widgets == []
+        assert controls._advanced_panel is None
+
+        def minimized_header_size():
+            header = next(w for w in widget.region_prompt._inactive_regions if w.region is region)
+            layout = header.layout()
+            assert layout is not None
+            return layout.count()
+
+        assert minimized_header_size() == 3
+        control.region = None
+        assert minimized_header_size() == 2
+        control.region = region
+        assert minimized_header_size() == 3
+        control.mode = ControlMode.depth
+        assert minimized_header_size() == 2
+        control.mode = ControlMode.reference
+        assert minimized_header_size() == 3
+        other_control = model.control.emplace(region)
+        assert minimized_header_size() == 4
+        model.control.remove(other_control)
+        assert minimized_header_size() == 3
+        model.regions.active = region
+        assert [w.control for w in controls._widgets] == [control]
+        region.remove()
+        assert controls._widgets == []
     finally:
         await conn.disconnect()
