@@ -62,7 +62,7 @@ from ..text import create_ai_generated_xmp, create_img_metadata, extract_layers
 from ..util import PluginError, clamp, ensure, is_one, trim_text, unique
 from ..util import client_logger as log
 from .connection import Connection, ConnectionState
-from .control import ControlLayer
+from .control import ControlLayer, ControlLayerList
 from .custom_workflow import (
     CustomGenerationMode,
     CustomWorkspace,
@@ -178,6 +178,7 @@ class DocumentModel(QObject, ObservableProperties):
         self.jobs = JobQueue()
         self.regions = RootRegion(self)
         self.edit_regions = RootRegion(self)
+        self.control = ControlLayerList(self)
         self.inpaint = CustomInpaint()
         self.upscale = UpscaleWorkspace(self)
         self.live = LiveWorkspace(self)
@@ -338,7 +339,7 @@ class DocumentModel(QObject, ObservableProperties):
         job_name = prompt_meta.get("prompt_eval", prompt_meta["prompt"])
         job_params = JobParams(bounds, job_name, regions=job_regions)
         job_params.set_style(self.active_style, ensure(input.models).checkpoint)
-        job_params.set_control(regions.control)
+        job_params.set_control(self.control)
         job_params.inpaint_mode = inpaint_mode
         job_params.ref_layers = ref_layers
         job_params.is_layered = arch is Arch.qwen_l
@@ -620,7 +621,7 @@ class DocumentModel(QObject, ObservableProperties):
             return input
 
     def _current_image_exclusions(self):
-        exclude = [c.layer for c in self.regions.control if not c.mode.is_part_of_image]
+        exclude = [c.layer for c in self.control.all if not c.mode.is_part_of_image]
         if self._layer:
             exclude.append(self._layer)
         return exclude
@@ -977,7 +978,7 @@ class DocumentModel(QObject, ObservableProperties):
                 uid = next((l.id for l in self._doc.layers.images if l.name == layer_name), None)
                 if uid is None:
                     raise PluginError(_("Layer not found") + f' "{layer_name}"')
-                ctrl = ControlLayer(self, ControlMode.reference, uid, 0)
+                ctrl = ControlLayer(self, ControlMode.reference, uid, 0, self.active_regions)
                 control.append(ctrl.to_api())
 
         cond.edit_reference = self.is_editing

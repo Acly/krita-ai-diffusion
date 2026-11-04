@@ -12,6 +12,7 @@ from krita import Krita
 from PyQt6.QtCore import QByteArray
 
 from ai_diffusion.backend.api import InpaintMode
+from ai_diffusion.backend.resources import ControlMode
 from ai_diffusion.document import KritaDocument
 from ai_diffusion.image import Bounds, Extent, Image, ImageCollection
 from ai_diffusion.model.connection import Connection
@@ -164,6 +165,13 @@ async def test_sync(workflows_dir: Path):
     model1.upscale.upscaler = "4x-UltraSharp.pt"
     model1.upscale.strength = 0.42
     model1.upscale.use_diffusion = False
+    region = model1.regions.emplace()
+    region.positive = "regional prompt"
+    edit_region = model1.edit_regions.emplace()
+    edit_region.positive = "edit prompt"
+    model1.control.emplace(model1.regions).mode = ControlMode.reference
+    model1.control.emplace(region).mode = ControlMode.depth
+    model1.control.emplace(edit_region).mode = ControlMode.reference
 
     # Create sync and let it flush (it saves immediately on construction and on demand)
     sync1 = ModelSync(model1)
@@ -192,6 +200,17 @@ async def test_sync(workflows_dir: Path):
     assert model2.upscale.upscaler == model1.upscale.upscaler
     assert model2.upscale.strength == pytest.approx(model1.upscale.strength)
     assert model2.upscale.use_diffusion == model1.upscale.use_diffusion
+    assert len(model2.control.all) == 3
+    common, regional, edit = model2.control.all
+    assert common.region is None
+    assert regional.region is None
+    regional.mode = ControlMode.reference
+    restored_region = next(iter(model2.regions))
+    restored_edit_region = next(iter(model2.edit_regions))
+    assert regional.region is restored_region
+    assert restored_region.positive == "regional prompt"
+    assert edit.region is restored_edit_region
+    assert restored_edit_region.positive == "edit prompt"
 
 
 # ---------------------------------------------------------------------------

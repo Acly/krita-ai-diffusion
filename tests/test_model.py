@@ -15,7 +15,7 @@ from PyQt6.QtCore import QByteArray, Qt
 
 from ai_diffusion.backend.api import WorkflowInput, WorkflowKind
 from ai_diffusion.backend.client import CheckpointInfo, ClientEvent, ClientMessage
-from ai_diffusion.backend.resources import Arch, ControlMode
+from ai_diffusion.backend.resources import Arch, ControlMode, ResourceKind, resource_id
 from ai_diffusion.document import KritaDocument
 from ai_diffusion.image import BlendMode, Bounds, Extent, Image, ImageCollection
 from ai_diffusion.layer import Layer, LayerType
@@ -23,6 +23,7 @@ from ai_diffusion.model.connection import Connection, ConnectionState
 from ai_diffusion.model.custom_workflow import WorkflowCollection
 from ai_diffusion.model.jobs import Job, JobKind, JobParams, JobRegion, JobState
 from ai_diffusion.model.model import DocumentModel, ErrorKind, ProgressKind, no_error
+from ai_diffusion.model.region import process_regions
 from ai_diffusion.settings import ApplyBehavior, ApplyRegionBehavior
 from ai_diffusion.style import Style
 
@@ -179,7 +180,7 @@ async def test_generate_references(workflows_dir: Path):
 
         # Add an explicit reference control layer for layer "a"
         krita_doc.setActiveNode(layer_nodes["a"])
-        ctrl = model.regions.control.emplace()
+        ctrl = model.control.emplace()
         ctrl.set_mode(ControlMode.reference)
 
         # Reference layers "b" and "c" (with a duplicate "b") via the prompt
@@ -206,6 +207,89 @@ async def test_generate_references(workflows_dir: Path):
         # Indexing starts at 2 because in edit mode the first image is always
         # implicitly the canvas.
         assert cond.positive == "Use image 2 and image 3, repeat image 2"
+
+
+@qtapp
+async def test_control_layers(workflows_dir: Path):
+    krita_doc = Krita.instance().openDocument("test")
+    async with _model_env(krita_doc, workflows_dir) as (model, client):
+        client.models.resources[
+            resource_id(ResourceKind.ip_adapter, Arch.sd15, ControlMode.reference)
+        ] = "reference.safetensors"
+        client.models.resources[
+            resource_id(ResourceKind.controlnet, Arch.sd15, ControlMode.depth)
+        ] = "depth.safetensors"
+        bounds = Bounds(0, 0, 512, 512)
+        left = Bounds(0, 0, 256, 512)
+        right = Bounds(256, 0, 256, 512)
+        region_layers = []
+        for name, area, color in (
+            ("left", left, Qt.GlobalColor.red),
+            ("right", right, Qt.GlobalColor.blue),
+        ):
+            image = Image.create(bounds.extent, fill=0)
+            image.draw_image(Image.create(area.extent, fill=color), area.offset)
+            region_layers.append(model.layers.create(name, image, bounds))
+        regions = [model.regions.emplace(), model.regions.emplace()]
+        for region, layer in zip(regions, region_layers):
+            region.link(layer)
+        model.regions.active = model.regions
+        common = model.control.emplace()
+        common.mode = ControlMode.depth
+        model.regions.active = regions[0]
+        first = model.control.emplace()
+        first.mode = ControlMode.reference
+        model.regions.active = regions[1]
+        second = model.control.emplace()
+        assert second.region is regions[1]
+        assert list(model.control) == [common, second]
+        assert len(model.control) == 2
+        assert model.control[-1] is second
+        assert model.control.all == [common, first, second]
+
+        assert first.is_supported, first.error_text
+        assert second.is_supported, second.error_text
+        conditioning, _ = process_regions(model.regions, bounds)
+        assert [c.mode for c in conditioning.control] == [ControlMode.depth]
+        assert len(conditioning.regions) == 2
+        for region in conditioning.regions:
+            assert [c.mode for c in region.control] == [ControlMode.reference]
+
+        conditioning, _ = process_regions(model.regions, left)
+        assert not conditioning.regions
+        assert [c.mode for c in conditioning.control] == [ControlMode.depth, ControlMode.reference]
+
+        second.mode = ControlMode.depth
+        assert second.region is None
+        model.regions.active = regions[0]
+        assert list(model.control) == [common, first, second]
+        second.mode = ControlMode.reference
+        assert second.region is regions[1]
+        assert list(model.control) == [common, first]
+        first.region = None
+        model.regions.active = model.regions
+        assert list(model.control) == [common, first]
+
+        client.models.checkpoints["test_flux2.safetensors"] = CheckpointInfo(
+            "test_flux2.safetensors", Arch.flux2_4b
+        )
+        model.style = _make_style("test_flux2.safetensors")
+        model.edit_mode = True
+        assert list(model.control) == [first]
+        edit_reference = model.control.emplace()
+        assert edit_reference.mode is ControlMode.reference
+        assert list(model.control) == [first, edit_reference]
+        conditioning, _ = process_regions(model.edit_regions, bounds)
+        assert [c.mode for c in conditioning.control] == [
+            ControlMode.reference,
+            ControlMode.reference,
+        ]
+        assert not conditioning.regions
+        second.mode = ControlMode.depth
+        regions[1].remove()
+        assert second not in model.control.all
+        assert common in model.control.all
+        await asyncio.sleep(0)
 
 
 @qtapp

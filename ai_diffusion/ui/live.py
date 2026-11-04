@@ -196,7 +196,7 @@ class LiveWidget(QWidget):
         params_layout.addWidget(self.random_seed_button)
         layout.addLayout(params_layout)
 
-        self.control_list = ControlListWidget(self._model.active_regions.control, self)
+        self.control_list = ControlListWidget(self._model.control, self)
         self.add_region_button = create_wide_tool_button("region-add", _("Add Region"), self)
         self.add_region_button.clicked.connect(self.create_region)
         prompt_buttons_layout = QVBoxLayout()
@@ -304,7 +304,7 @@ class LiveWidget(QWidget):
         self.region_widget.setVisible(has_regions)
         self.region_widget.region = regions.region_for_active_layer
         self.prompt_widget.header_style = PromptHeader.icon if has_regions else PromptHeader.none
-        self.control_list.model = regions.active_or_root.control
+        self.control_list.model = self.model.control
 
     def focus_root_region(self):
         regions = self.model.active_regions

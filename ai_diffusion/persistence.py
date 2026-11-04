@@ -152,11 +152,12 @@ class ModelSync:
         state["history"] = [asdict(h) for h in self._history]
         state["root"] = _serialize(model.regions)
         state["edit"] = _serialize(model.edit_regions)
-        state["control"] = [_serialize(c) for c in model.regions.control]
-        state["regions"] = []
-        for region in model.regions:
-            state["regions"].append(_serialize(region))
-            state["regions"][-1]["control"] = [_serialize(c) for c in region.control]
+        state["regions"] = [_serialize(r) for r in model.regions]
+        state["edit_regions"] = [_serialize(r) for r in model.edit_regions]
+        regions = [model.regions, model.edit_regions, *model.regions, *model.edit_regions]
+        state["control"] = [
+            {**_serialize(c), "region": regions.index(c._region)} for c in model.control.all
+        ]
         state_str = json.dumps(state, indent=2, default=encode_json)
         state_bytes = QByteArray(state_str.encode("utf-8"))
         model.document.annotate("ui.json", state_bytes)
@@ -177,13 +178,17 @@ class ModelSync:
         _deserialize_custom(model.custom, state.get("custom", {}), model.name)
         _deserialize(model.regions, state.get("root", {}))
         _deserialize(model.edit_regions, state.get("edit", {}))
+        for key, root in (("regions", model.regions), ("edit_regions", model.edit_regions)):
+            for region_state in state.get(key, []):
+                region = root.emplace()
+                _deserialize(region, region_state)
+                for control_state in region_state.get("control", []):
+                    _deserialize(model.control.emplace(region), control_state)
+        regions = [model.regions, model.edit_regions, *model.regions, *model.edit_regions]
         for control_state in state.get("control", []):
-            _deserialize(model.regions.control.emplace(), control_state)
-        for region_state in state.get("regions", []):
-            region = model.regions.emplace()
-            _deserialize(region, region_state)
-            for control_state in region_state.get("control", []):
-                _deserialize(region.control.emplace(), control_state)
+            region_index = control_state.get("region", 0)
+            region = regions[region_index] if 0 <= region_index < len(regions) else model.regions
+            _deserialize(model.control.emplace(region), control_state)
 
         for result in state.get("history", []):
             item = _HistoryResult.from_dict(result)
@@ -211,6 +216,7 @@ class ModelSync:
         model.jobs.selection_changed.connect(self._save_later)
         self._track_regions(model.regions)
         self._track_regions(model.edit_regions)
+        self._track_control_layers(model.control)
 
     def _track_control(self, control: ControlLayer):
         self._save()
@@ -219,18 +225,16 @@ class ModelSync:
     def _track_control_layers(self, control_layers: ControlLayerList):
         control_layers.added.connect(self._track_control)
         control_layers.removed.connect(self._save_later)
-        for control in control_layers:
+        for control in control_layers.all:
             self._track_control(control)
 
     def _track_region(self, region: Region):
         region.modified.connect(self._save_later)
-        self._track_control_layers(region.control)
 
     def _track_regions(self, root_region: RootRegion):
         root_region.added.connect(self._track_region)
         root_region.removed.connect(self._save_later)
         root_region.modified.connect(self._save_later)
-        self._track_control_layers(root_region.control)
         for region in root_region:
             self._track_region(region)
 

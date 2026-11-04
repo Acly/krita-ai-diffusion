@@ -20,12 +20,12 @@ from ..backend.client import Client
 from ..document import LayerType
 from ..image import Bounds, Extent
 from ..localization import translate as _
+from ..model.control import ControlLayer
 from ..model.properties import Binding, bind
 from ..model.region import Region, RegionLink, RootRegion, translate_prompt
 from ..model.root import root
 from ..util import ensure
 from . import theme
-from .control import ControlListWidget
 from .settings import settings
 from .widget import TextPromptWidget
 
@@ -37,7 +37,7 @@ class InactiveRegionWidget(QFrame):
 
     _text: str
 
-    def __init__(self, region: RootRegion | Region, parent: QWidget):
+    def __init__(self, region: RootRegion | Region, controls: list[ControlLayer], parent: QWidget):
         super().__init__(parent)
         self.region = region
         self._text = self.region.positive.replace("\n", " ")
@@ -58,10 +58,10 @@ class InactiveRegionWidget(QFrame):
         self.setLayout(layout)
 
         icon_size = int(1.2 * self.fontMetrics().height())
-        for c in region.control:
-            icon = theme.icon(f"control-{c.mode.name}")
+        for control in controls:
             label = QLabel(self)
-            label.setPixmap(icon.pixmap(icon_size, icon_size))
+            label.setPixmap(theme.icon(f"control-{control.mode.name}").pixmap(icon_size, icon_size))
+            label.setToolTip(f"{control.mode.text}: {control.layer.name}")
             layout.addWidget(label)
 
         if self._text == "":
@@ -501,7 +501,6 @@ class RegionPromptWidget(QWidget):
         self._prompt.positive.activated.connect(self.activated)
         self._prompt.negative.activated.connect(self.activated)
 
-        self._control = ControlListWidget(self._regions.active_or_root.control, parent=self)
         self._regions_above = QVBoxLayout()
         self._regions_below = QVBoxLayout()
 
@@ -511,11 +510,9 @@ class RegionPromptWidget(QWidget):
         layout.addLayout(self._regions_above)
         layout.addWidget(self._prompt)
         layout.addLayout(self._regions_below)
-        layout.addSpacing(4)
-        layout.addWidget(self._control)
         self.setLayout(layout)
 
-        self._update_active()
+        self._setup_bindings()
 
     @property
     def regions(self):
@@ -531,10 +528,14 @@ class RegionPromptWidget(QWidget):
     def _setup_bindings(self):
         Binding.disconnect_all(self._bindings)
         regions = self._regions
+        controls = regions._model.control
         self._bindings = [
             regions.active_changed.connect(self._setup_region_bindings),
             regions.added.connect(self._show_inactive_regions),
             regions.removed.connect(self._show_inactive_regions),
+            controls.added.connect(self._show_inactive_regions),
+            controls.removed.connect(self._show_inactive_regions),
+            controls.changed.connect(self._show_inactive_regions),
         ]
         self._update_active()
 
@@ -544,11 +545,13 @@ class RegionPromptWidget(QWidget):
     def _setup_region_bindings(self, region: RootRegion | Region | None):
         region = region or self._regions
         self._prompt.region = region
-        self._control.model = region.control
         self._show_inactive_regions()
 
     def _add_inactive_region(self, region: RootRegion | Region, layout: QVBoxLayout):
-        widget = InactiveRegionWidget(region, self)
+        controls = (
+            self._regions._model.control.for_region(region) if isinstance(region, Region) else []
+        )
+        widget = InactiveRegionWidget(region, controls, self)
         widget.activated.connect(self._activate_region)
         self._inactive_regions.append(widget)
         layout.addWidget(widget)

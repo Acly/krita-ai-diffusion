@@ -41,6 +41,7 @@ from ..image import Extent
 from ..localization import translate as _
 from ..model.control import ControlLayer, ControlLayerList
 from ..model.properties import Binding, bind_combo
+from ..model.region import Region
 from ..model.root import root
 from . import theme
 from .interval_slider import IntervalSlider
@@ -228,6 +229,10 @@ class ControlAdvancedPanel(QFrame):
 
         self.warning = WarningLabel(self)
 
+        self.link_button = QToolButton(self)
+        self.link_button.setAutoRaise(True)
+        self.link_button.clicked.connect(self._toggle_region_link)
+
         close_button = QToolButton(self)
         close_button.setIcon(theme.icon("remove"))
         close_button.setAutoRaise(True)
@@ -265,6 +270,7 @@ class ControlAdvancedPanel(QFrame):
         mode_layout.addWidget(self.mode_combo)
         mode_layout.addWidget(self.warning)
         mode_layout.addStretch()
+        mode_layout.addWidget(self.link_button)
 
         layer_layout = QHBoxLayout()
         layer_layout.setSpacing(4)
@@ -305,6 +311,8 @@ class ControlAdvancedPanel(QFrame):
 
         self._connections = [
             bind_combo(self.control, "mode", self.mode_combo),
+            self.control.region_changed.connect(self._update_region_link),
+            owner.control_list.changed.connect(self._update_region_link),
             self.control.layer_id_changed.connect(self._update_layer),
             root.active_model.layers.changed.connect(self._update_layer),
             self.control.strength_changed.connect(self._update_strength),
@@ -331,7 +339,30 @@ class ControlAdvancedPanel(QFrame):
             self.layer_button.mapToGlobal(self.layer_button.rect().bottomLeft())
         )
 
+    def _toggle_region_link(self):
+        self.control.region = None if self.control.region else self.owner.control_list.active_region
+
+    def _update_region_link(self):
+        self.link_button.setVisible(self.control.mode.is_ip_adapter)
+        region = self.control.region
+        active = self.owner.control_list.active_region
+        can_link = self.control.mode.is_ip_adapter and isinstance(active, Region)
+        icon = "link-active" if region else "link-off" if can_link else "link-disabled"
+        self.link_button.setIcon(theme.icon(icon))
+        self.link_button.setEnabled(region is not None or can_link)
+        tooltip = (
+            _("Linked to {region}").format(region=region.name)
+            if region
+            else _("Not linked to any region.")
+        )
+        if region:
+            tooltip += "\n" + _("Click to unlink.")
+        elif can_link and isinstance(active, Region):
+            tooltip += "\n" + _("Click to link to {region}").format(region=active.name)
+        self.link_button.setToolTip(tooltip)
+
     def _update_layer(self):
+        self._update_region_link()
         name = self.control.layer.name
         self.layer_button.setText(
             self.layer_button.fontMetrics().elidedText(name, Qt.TextElideMode.ElideRight, 140)
@@ -383,6 +414,7 @@ class ControlAdvancedPanel(QFrame):
         )
 
     def _update_visibility(self):
+        self._update_region_link()
         self._update_compact()
         supported = self.control.is_supported
         mode = self.control.mode
@@ -715,6 +747,8 @@ class ControlListWidget(QWidget):
 
     @model.setter
     def model(self, model: ControlLayerList):
+        if model is self._model and self._model_connections:
+            return
         self.close_advanced()
         if self._model_connections:
             Binding.disconnect_all(self._model_connections)
@@ -737,6 +771,7 @@ class ControlListWidget(QWidget):
         self._model_connections = [
             model.added.connect(self._add_widget),
             model.removed.connect(self._remove_widget),
+            model.changed.connect(self._refresh),
         ]
         self._flow_layout.invalidate()
 
@@ -768,7 +803,24 @@ class ControlListWidget(QWidget):
             panel.deleteLater()
             owner.thumbnail.update()
 
+    def _refresh(self):
+        controls = list(self._model)
+        for widget in list(self._widgets):
+            if widget.control not in controls:
+                self._remove_widget(widget.control)
+        for control in controls:
+            if not any(w.control is control for w in self._widgets):
+                self._add_widget(control)
+        self._widgets.sort(key=lambda w: controls.index(w.control))
+        for widget in self._widgets:
+            self._flow_layout.takeWidget(widget)
+        for i, widget in enumerate(self._widgets):
+            self._flow_layout.insertWidget(i, widget)
+        self._flow_layout.invalidate()
+
     def _add_widget(self, control: ControlLayer):
+        if control not in self._model:
+            return
         widget = ControlWidget(self._model, control, self)
         self._widgets.append(widget)
         index = self._flow_layout.count()
@@ -779,7 +831,9 @@ class ControlListWidget(QWidget):
             self._flow_layout.invalidate()
 
     def _remove_widget(self, control: ControlLayer):
-        widget = next(widget for widget in self._widgets if widget.control is control)
+        widget = next((w for w in self._widgets if w.control is control), None)
+        if widget is None:
+            return
         self._widgets.remove(widget)
         with _silent_layout_update(self):
             self._flow_layout.takeWidget(widget)
