@@ -293,7 +293,7 @@ class GenerationWidget(QWidget):
         self.mode_button = QToolButton(self.mode_area)
         self.mode_button.setAutoRaise(True)
         self.mode_button.setToolButtonStyle(Qt.ToolButtonStyle.ToolButtonTextBesideIcon)
-        self.mode_button.setIcon(theme.icon("generation-mode"))
+        self.mode_button.setIcon(theme.icon("generation-mode", dark=False))
         self.mode_button.setToolTip(_("Toggle between Generate and Edit"))
         self.mode_button.clicked.connect(self.toggle_edit_mode)
         self.mode_menu_button = QToolButton(self.mode_area)
@@ -485,7 +485,7 @@ class GenerationWidget(QWidget):
         )
         self.region_prompt.set_focus_color(QColor(color).lighter(115).name())
         self.mode_button.setText(mode_text)
-        self.mode_button.setIcon(theme.icon(mode_icon))
+        self.mode_button.setIcon(theme.icon(mode_icon, dark=False))
         self.mode_button.setEnabled(self.model.can_toggle_edit)
         for button, corners, padding in (
             (self.mode_button, "border-top-left-radius: 3px;", "2px 5px"),
@@ -502,5 +502,5 @@ class GenerationWidget(QWidget):
             self.mode_button.setIcon(action.icon())
             size = size.expandedTo(self.mode_button.sizeHint())
         self.mode_button.setText(mode_text)
-        self.mode_button.setIcon(theme.icon(mode_icon))
+        self.mode_button.setIcon(theme.icon(mode_icon, dark=False))
         self.mode_button.setFixedSize(size)

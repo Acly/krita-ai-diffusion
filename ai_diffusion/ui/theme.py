@@ -50,8 +50,8 @@ def relative_color(c: QColor, percent: int):
     return c.darker(percent) if is_dark else c.lighter(percent)
 
 
-def icon(name: str):
-    theme = "dark" if is_dark else "light"
+def icon(name: str, dark: bool | None = None):
+    theme = "dark" if (is_dark if dark is None else dark) else "light"
     path = icon_path / f"{name}-{theme}.svg"
     if not path.exists():
         path = path.with_suffix(".png")
