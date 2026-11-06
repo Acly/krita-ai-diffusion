@@ -18,7 +18,6 @@
     "rescale_cfg": 0.7,
     "self_attention_guidance": false,
     "preferred_resolution": 0,
-    "linked_edit_style": "",
     "sampler": "Alternative - Euler A",
     "sampler_steps": 30,
     "cfg_scale": 4.0,

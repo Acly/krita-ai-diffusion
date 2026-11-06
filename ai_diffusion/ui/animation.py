@@ -127,7 +127,7 @@ class AnimationWidget(QWidget):
             self._model = model
             self._model_bindings = [
                 bind(model, "workspace", self.workspace_select, "value", Bind.one_way),
-                bind(model, "style", self.style_select, "value"),
+                bind(model, "active_style", self.style_select, "value"),
                 bind(model.animation, "sampling_quality", self.style_select, "quality"),
                 bind(model.regions, "positive", self.prompt_textbox, "text"),
                 bind(model.regions, "negative", self.negative_textbox, "text"),

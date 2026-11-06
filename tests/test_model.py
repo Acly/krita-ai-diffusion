@@ -149,6 +149,57 @@ async def test_generate_simple(workflows_dir: Path):
         assert result[0].images.initial_image is None
 
 
+@pytest.mark.parametrize("edit_mode", [False, True])
+@pytest.mark.parametrize("generation_arch", [Arch.sd15, Arch.flux2_4b])
+@pytest.mark.parametrize("selected_arch", [Arch.sd15, Arch.flux_k, Arch.flux2_4b])
+@qtapp
+async def test_select_style(
+    workflows_dir: Path, edit_mode: bool, generation_arch: Arch, selected_arch: Arch
+):
+    krita_doc = Krita.instance().openDocument("test")
+    async with _model_env(krita_doc, workflows_dir) as (model, client):
+
+        def make_style(name: str, arch: Arch):
+            checkpoint = f"{name}.safetensors"
+            client.models.checkpoints[checkpoint] = CheckpointInfo(checkpoint, arch)
+            return _make_style(checkpoint)
+
+        await asyncio.sleep(0)
+        generation = make_style("generation", generation_arch)
+        edit = make_style("edit", Arch.flux_k)
+        selected = make_style("selected", selected_arch)
+        model.style = generation
+        model.edit_style = edit
+        model.edit_mode = edit_mode
+        active_changes: list[Style] = []
+        model.active_style_changed.connect(active_changes.append)
+
+        model.active_style = selected
+
+        selects_edit = selected_arch.is_edit or (edit_mode and selected_arch.supports_edit)
+        assert model.style is (generation if selects_edit else selected)
+        assert model.edit_style is (selected if selects_edit else edit)
+        assert model.edit_mode == selects_edit
+        assert not client.models.arch_of(model.style.checkpoints[0]).is_edit
+        assert client.models.arch_of(model.edit_style.checkpoints[0]).supports_edit
+        expected = (
+            model.edit_style if selects_edit and not generation_arch.supports_edit else model.style
+        )
+        assert model.active_style is expected
+        assert active_changes[-1] is expected
+
+        generation, edit = model.style, model.edit_style
+        assert model.can_toggle_edit
+        for enabled in (True, False, True):
+            model.edit_mode = enabled
+            assert model.style is generation
+            assert model.edit_style is edit
+            uses_edit = (
+                enabled and not client.models.arch_of(generation.checkpoints[0]).supports_edit
+            )
+            assert model.active_style is (edit if uses_edit else generation)
+
+
 @qtapp
 async def test_generate_references(workflows_dir: Path):
     krita_doc = Krita.instance().openDocument("test")

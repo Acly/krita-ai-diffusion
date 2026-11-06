@@ -224,7 +224,7 @@ class UpscaleWidget(QWidget):
                 bind_combo(model.upscale, "upscaler", self.model_select),
                 bind(model.upscale, "factor", self.factor_widget, "value"),
                 bind_toggle(model.upscale, "use_diffusion", self.refinement_checkbox),
-                bind(model, "style", self.style_select, "value"),
+                bind(model, "active_style", self.style_select, "value"),
                 bind(model.upscale, "strength", self.strength_slider, "value"),
                 bind(model.upscale, "unblur_strength", self.unblur_slider, "value"),
                 bind_combo(model.upscale, "tile_overlap_mode", self.overlap_custom_combo),
@@ -238,7 +238,7 @@ class UpscaleWidget(QWidget):
                 model.regions.added.connect(self._update_prompt),
                 model.regions.removed.connect(self._update_prompt),
                 model.progress_changed.connect(self.update_progress),
-                model.style_changed.connect(self._update_style),
+                model.active_style_changed.connect(self._update_style),
             ]
             self.upscale_button.model = model
             self.queue_button.model = model

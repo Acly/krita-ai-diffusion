@@ -199,12 +199,12 @@ class RootRegion(QObject, ObservableProperties):
         self._style_connection: QMetaObject.Connection | None = None
         model.layers.active_changed.connect(self._update_active)
         model.layers.parent_changed.connect(self._update_group)
-        model.style_changed.connect(self._handle_style_changed)
+        model.active_style_changed.connect(self._handle_style_changed)
         model.edit_mode_changed.connect(self._update_positive)
         model.workspace_changed.connect(self._update_positive)
         self.positive_gen_changed.connect(self._update_positive)
         self.positive_edit_changed.connect(self._update_positive)
-        self._handle_style_changed(model.style)
+        self._handle_style_changed(model.active_style)
 
     @property
     def positive(self):
@@ -373,8 +373,8 @@ class RootRegion(QObject, ObservableProperties):
 
     def _update_negative_enabled(self):
         supported = self._model.arch.supports_cfg
-        self.negative_enabled = supported and self._model.style.cfg_scale > 1
-        self.negative_enabled_live = supported and self._model.style.live_cfg_scale > 1
+        self.negative_enabled = supported and self._model.active_style.cfg_scale > 1
+        self.negative_enabled_live = supported and self._model.active_style.live_cfg_scale > 1
 
     def _add(self, layer: Layer):
         region = Region(self)
