@@ -87,6 +87,23 @@ class Server:
         self.backend = backend or settings.server_backend
         self.check_install()
 
+    @property
+    def models_path(self) -> Path:
+        """Location of model files; shared with other ComfyUI installs if configured."""
+        custom = self.custom_models_dir()
+        return custom if custom is not None else self.path / "models"
+
+    def custom_models_dir(self) -> Path | None:
+        """User-configured shared models directory, or None if models stay local."""
+        value = settings.models_path.strip()
+        return Path(value) if value else None
+
+    def sync_model_paths(self):
+        """Apply a change of the models location to an existing installation."""
+        if self.comfy_dir is not None:
+            _configure_extra_model_paths(self.comfy_dir, self.custom_models_dir())
+        self.check_install()
+
     def check_install(self):
         self.missing_resources = []
         self._cache_dir = self.path / ".cache"
@@ -156,7 +173,10 @@ class Server:
         self.missing_resources += missing_nodes
 
         model_folders = [self.path, self.comfy_dir]
-        self.missing_resources += find_missing(model_folders, resources.required_models, Arch.all)
+        models_dir = self.models_path
+        self.missing_resources += find_missing(
+            model_folders, resources.required_models, Arch.all, models_dir=models_dir
+        )
         if len(self.missing_resources) > 0:
             self.state = ServerState.missing_resources
         elif update_required:
@@ -168,9 +188,15 @@ class Server:
         else:
             self.state = ServerState.stopped
 
-        self.missing_resources += find_missing(model_folders, resources.required_models)
-        self.missing_resources += find_missing(model_folders, resources.default_checkpoints)
-        self.missing_resources += find_missing(model_folders, resources.upscale_models)
+        self.missing_resources += find_missing(
+            model_folders, resources.required_models, models_dir=models_dir
+        )
+        self.missing_resources += find_missing(
+            model_folders, resources.default_checkpoints, models_dir=models_dir
+        )
+        self.missing_resources += find_missing(
+            model_folders, resources.upscale_models, models_dir=models_dir
+        )
         self.missing_resources += find_missing(model_folders, resources.optional_models)
 
     async def _install(self, cb: InternalCB):
@@ -289,8 +315,8 @@ class Server:
         requirements_txt = temp_comfy_dir / "requirements.txt"
         await self._pip_install("ComfyUI", ["-r", str(requirements_txt)], cb)
 
-        _configure_extra_model_paths(temp_comfy_dir)
-        _create_extra_model_dirs(self.path / "models")
+        _configure_extra_model_paths(temp_comfy_dir, self.custom_models_dir())
+        _create_extra_model_dirs(self.models_path)
         await rename_extracted_folder("ComfyUI", comfy_dir, resources.comfy_version)
         self.comfy_dir = comfy_dir
         cb("Installing ComfyUI", "Finished installing ComfyUI")
@@ -361,9 +387,13 @@ class Server:
                 not_found = set(packages) - {r.id.string for r in to_install}
                 raise ValueError("Some requested models were not found: " + ", ".join(not_found))
             for resource in to_install:
-                if not resource.exists_in(self.path) and not resource.exists_in(self.comfy_dir):
+                if not resource.exists_in(self.path, self.models_path) and not resource.exists_in(
+                    self.comfy_dir
+                ):
                     for file in resource.files:
-                        target_file = self.path / file.path
+                        target_file = resources.resolve_model_path(
+                            self.path, file.path, self.models_path
+                        )
                         target_file.parent.mkdir(parents=True, exist_ok=True)
                         await _download_cached(resource.name, network, file.url, target_file, cb)
         except Exception as e:
@@ -423,7 +453,7 @@ class Server:
                     info(f"Migrating {dst}")
                     safe_remove_dir(dst)  # Remove placeholder
                     shutil.move(src, dst)
-            _upgrade_extra_model_paths(upgrade_comfy_dir, comfy_dir)
+            _upgrade_extra_model_paths(upgrade_comfy_dir, comfy_dir, self.custom_models_dir())
             self.check_install()
 
             # Clean up temporary directory
@@ -568,11 +598,11 @@ class Server:
         total = sum(
             len(m.files)
             for m in resources.all_models()
-            if m.exists_in(self.path) or m.exists_in(self.comfy_dir)
+            if m.exists_in(self.path, self.models_path) or m.exists_in(self.comfy_dir)
         )
         verified = 0
 
-        for status in resources.verify_model_integrity(self.path):
+        for status in resources.verify_model_integrity(self.path, self.models_path):
             if status.state is VerificationState.in_progress:
                 loop.call_soon_threadsafe(
                     callback,
@@ -607,7 +637,9 @@ class Server:
         try:
             for status in bad_models:
                 if status.state is VerificationState.mismatch:
-                    filepath = self.path / status.file.path
+                    filepath = resources.resolve_model_path(
+                        self.path, status.file.path, self.models_path
+                    )
                     log.info(f"Removing {filepath}")
                     remove_file(filepath)
                     await _download_cached(status.file.name, network, status.file.url, filepath, cb)
@@ -802,11 +834,16 @@ async def install_if_missing(path: Path, installer, *args):
         await try_install(path, installer, *args)
 
 
-def find_missing(folders: list[Path], resources: list[ModelResource], ver: Arch | None = None):
+def find_missing(
+    folders: list[Path],
+    resources: list[ModelResource],
+    ver: Arch | None = None,
+    models_dir: Path | None = None,
+):
     return [
         res.id.string
         for res in resources
-        if (not ver or res.arch is ver) and not any(res.exists_in(f) for f in folders)
+        if (not ver or res.arch is ver) and not any(res.exists_in(f, models_dir) for f in folders)
     ]
 
 
@@ -952,7 +989,51 @@ krita-managed:
 """
 
 
-def _configure_extra_model_paths(comfy_dir: Path):
+def _extra_model_paths_section(models_dir: Path | None) -> str:
+    base_path = "../models" if models_dir is None else models_dir.as_posix()
+    entries = [
+        "checkpoints",
+        "clip",
+        "clip_vision",
+        "controlnet",
+        "diffusion_models",
+        "embeddings",
+        "inpaint",
+        "ipadapter",
+        "loras",
+        "model_patches",
+        "style_models",
+        "text_encoders",
+        "upscale_models",
+        "unet",
+        "vae",
+    ]
+    lines = ["", "krita-managed:", f"    base_path: {base_path}"]
+    if models_dir is not None:
+        lines.append("    is_default: true")
+    lines += [f"    {name}: {name}" for name in entries]
+    return chr(10).join(lines) + chr(10)
+
+
+def _remove_managed_section(contents: str) -> str:
+    lines = contents.splitlines()
+    result = []
+    in_section = False
+    for line in lines:
+        if not in_section:
+            if line.strip() == "krita-managed:":
+                in_section = True
+            else:
+                result.append(line)
+        elif line.strip() and not line.startswith((" ", "\t")):
+            # first non-indented line ends the section
+            in_section = False
+            result.append(line)
+        # indented and blank lines inside the section are dropped
+    return "\n".join(result)
+
+
+def _configure_extra_model_paths(comfy_dir: Path, models_dir: Path | None = None):
     path = comfy_dir / "extra_model_paths.yaml"
     example = comfy_dir / "extra_model_paths.yaml.example"
     if not path.exists() and example.exists():
@@ -960,7 +1041,12 @@ def _configure_extra_model_paths(comfy_dir: Path):
     if not path.exists():
         raise RuntimeError(f"Could not find or create extra_model_paths.yaml in {comfy_dir}")
     contents = path.read_text()
-    if "krita-managed" not in contents:
+    if models_dir is not None:
+        # shared models directory is plugin-managed: keep the section in sync with the setting
+        log.info(f"Configuring shared model paths in {path}: {models_dir}")
+        contents = _remove_managed_section(contents) + _extra_model_paths_section(models_dir)
+        path.write_text(contents)
+    elif "krita-managed" not in contents:
         log.info(f"Extending {path}")
         path.write_text(contents + _extra_model_paths_yaml)
     if "model_patches" not in contents:
@@ -995,14 +1081,14 @@ def _create_extra_model_dirs(models_dir: Path):
         (models_dir / path).mkdir(parents=True, exist_ok=True)
 
 
-def _upgrade_extra_model_paths(src_dir: Path, dst_dir: Path):
+def _upgrade_extra_model_paths(src_dir: Path, dst_dir: Path, models_dir: Path | None = None):
     src = src_dir / "extra_model_paths.yaml"
     dst = dst_dir / "extra_model_paths.yaml"
     if src.exists():
         if dst.exists():
             dst.unlink()
         shutil.copy2(src, dst)
-        _configure_extra_model_paths(dst_dir)
+        _configure_extra_model_paths(dst_dir, models_dir)
 
 
 def _upgrade_models_dir(src_dir: Path, dst_dir: Path):
