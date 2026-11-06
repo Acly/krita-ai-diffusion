@@ -16,7 +16,7 @@ from ..image import ImageCollection, Point
 from ..localization import translate as _
 from ..model.properties import ObservableProperties, Property
 from ..settings import PerformanceSettings
-from ..style import Style, Styles
+from ..style import Style
 from ..util import PluginError, ensure
 from ..util import client_logger as log
 from .api import WorkflowInput
