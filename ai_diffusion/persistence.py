@@ -38,6 +38,7 @@ class RecentlyUsedSync:
     """
 
     style: str = ""
+    edit_style: str = ""
     batch_count: int = 1
     translation_enabled: bool = True
     inpaint_mode: str = "automatic"
@@ -58,7 +59,10 @@ class RecentlyUsedSync:
     def track(self, model: DocumentModel):
         try:
             if _find_annotation(model.document, "ui.json") is None:
-                model.style = Styles.list().find(self.style) or Styles.list().default
+                if style := Styles.list().find(self.style):
+                    model.style = style
+                if edit_style := Styles.list().find(self.edit_style):
+                    model.edit_style = edit_style
                 model.batch_count = self.batch_count
                 model.translation_enabled = self.translation_enabled
                 model.inpaint.mode = InpaintMode.__members__.get(
@@ -72,6 +76,7 @@ class RecentlyUsedSync:
             log.warning(f"Failed to apply default settings to new document: {type(e)} {e}")
 
         model.style_changed.connect(self._set("style"))
+        model.edit_style_changed.connect(self._set("edit_style"))
         model.batch_count_changed.connect(self._set("batch_count"))
         model.translation_enabled_changed.connect(self._set("translation_enabled"))
         model.inpaint.mode_changed.connect(self._set("inpaint_mode"))

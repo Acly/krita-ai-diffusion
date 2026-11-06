@@ -151,7 +151,7 @@ def copy_job_strength(model: DocumentModel, job: Job):
 
 def copy_job_style(model: DocumentModel, job: Job):
     if style := Styles.list().find(job.params.style):
-        model.style = style
+        model.active_style = style
 
 
 def copy_job_seed(model: DocumentModel, job: Job):

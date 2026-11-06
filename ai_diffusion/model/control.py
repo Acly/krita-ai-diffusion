@@ -78,7 +78,7 @@ class ControlLayer(QObject, ObservableProperties):
         self._update_is_supported()
 
         self.mode_changed.connect(self._update_is_supported)
-        model.style_changed.connect(self._update_is_supported)
+        model.active_style_changed.connect(self._update_is_supported)
         model.edit_mode_changed.connect(self._update_is_supported)
         model._connection.state_changed.connect(self._update_is_supported)
         self.layer_id_changed.connect(self._update_is_pose_vector)
@@ -323,7 +323,7 @@ class ControlLayerList(QObject):
         model.regions.active_changed.connect(self.changed)
         model.regions.removed.connect(self._remove_region)
         model.edit_mode_changed.connect(self.changed)
-        model.style_changed.connect(self.changed)
+        model.active_style_changed.connect(self.changed)
         model.workspace_changed.connect(self.changed)
 
     @property

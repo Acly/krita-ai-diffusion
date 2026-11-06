@@ -244,7 +244,7 @@ class LiveWidget(QWidget):
             self.seed_input.setValue(model.seed)
             self._model_bindings = [
                 bind(model, "workspace", self.workspace_select, "value", Bind.one_way),
-                bind(model, "style", self.style_select, "value"),
+                bind(model, "active_style", self.style_select, "value"),
                 bind(model.live, "strength", self.strength_slider, "value"),
                 model.seed_changed.connect(lambda: self.seed_input.setValue(self._model.seed)),
                 self.seed_input.valueChanged.connect(
@@ -257,6 +257,7 @@ class LiveWidget(QWidget):
                 model.live.has_result_changed.connect(self.apply_layer_button.setEnabled),
                 self.random_seed_button.clicked.connect(model.generate_seed),
                 model.edit_mode_changed.connect(self.update_edit_mode),
+                model.active_style_changed.connect(self.update_edit_mode),
                 model.progress_changed.connect(self.update_progress),
                 model.live.result_available.connect(self.show_result),
                 model.regions.active_changed.connect(self.update_region),
@@ -280,9 +281,11 @@ class LiveWidget(QWidget):
         self.model.live.is_recording = not self.model.live.is_recording
 
     def toggle_edit(self):
-        self.model.edit_mode = not self.model.edit_mode
+        if self.model.can_toggle_edit:
+            self.model.edit_mode = not self.model.edit_mode
 
     def update_edit_mode(self):
+        self.edit_toggle.setEnabled(self.model.can_toggle_edit)
         self.prompt_widget.region = self.model.regions
         self.region_widget.root = self.model.regions
         self.update_region()

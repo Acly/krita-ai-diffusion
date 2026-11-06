@@ -329,7 +329,7 @@ class GenerationWidget(QWidget):
             self._model = model
             self._model_bindings = [
                 bind(model, "workspace", self.workspace_select, "value", Bind.one_way),
-                bind(model, "style", self.style_select, "value"),
+                bind(model, "active_style", self.style_select, "value"),
                 bind(model, "strength", self.strength_slider, "value"),
                 bind(model, "layer_count", self.layer_count_widget, "value"),
                 bind(model, "error", self.error_box, "error", Bind.one_way),
@@ -339,7 +339,7 @@ class GenerationWidget(QWidget):
                 model.document.layers.active_changed.connect(self.update_generate_options),
                 model.regions.active_changed.connect(self.update_generate_options),
                 model.mask_source_changed.connect(self.update_generate_options),
-                model.style_changed.connect(self.update_generate_options),
+                model.active_style_changed.connect(self.update_generate_options),
                 model.edit_mode_changed.connect(self.update_generate_options),
                 self.add_region_button.clicked.connect(self.add_region),
                 self.region_prompt.activated.connect(model.generate),

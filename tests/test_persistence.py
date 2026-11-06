@@ -21,7 +21,7 @@ from ai_diffusion.model.jobs import Job, JobKind, JobParams, JobState
 from ai_diffusion.model.model import DocumentModel, InpaintContext, MaskSource, QueueMode
 from ai_diffusion.persistence import ModelSync, RecentlyUsedSync, _upgrade
 from ai_diffusion.settings import Settings
-from ai_diffusion.style import Style
+from ai_diffusion.style import Style, Styles
 
 from .conftest import qtapp
 
@@ -83,6 +83,9 @@ def test_recently_used(workflows_dir: Path, tmp_path: Path):
 
         style1 = _make_style("custom.json", "custom_sd15.safetensors")
         model1.style = style1
+        edit_style = Styles.list().find("built-in/qwen-edit.json")
+        assert edit_style is not None
+        model1.edit_style = edit_style
         model1.batch_count = 4
         model1.translation_enabled = False
         model1.inpaint.mode = InpaintMode.fill
@@ -97,6 +100,7 @@ def test_recently_used(workflows_dir: Path, tmp_path: Path):
         recently_used2.track(model2)
 
         # model2 has no annotation → values are taken from recently_used
+        assert model2.edit_style is edit_style
         assert model2.batch_count == 4
         assert model2.translation_enabled is False
         assert model2.inpaint.mode is InpaintMode.fill
@@ -151,6 +155,9 @@ async def test_sync(workflows_dir: Path):
 
     style = _make_style("synced.json", "synced_sd15.safetensors")
     model1.style = style
+    edit_style = Styles.list().find("built-in/qwen-edit.json")
+    assert edit_style is not None
+    model1.edit_style = edit_style
     model1.batch_count = 3
     model1.strength = 0.75
     model1.seed = 12345
@@ -185,6 +192,7 @@ async def test_sync(workflows_dir: Path):
     model2 = DocumentModel(doc2, conn2, wf_coll2)
     _sync2 = ModelSync(model2)  # triggers _load() from annotation
 
+    assert model2.edit_style is edit_style
     assert model2.batch_count == model1.batch_count
     assert model2.strength == pytest.approx(model1.strength)
     assert model2.seed == model1.seed

@@ -382,7 +382,7 @@ class StyleSelectWidget(QWidget):
             for style in remaining:
                 icon = theme.checkpoint_icon(resolve_arch(style, client))
                 self._combo.addItem(icon, style.name, style.filename)
-            self._combo.setCurrentText(self._value.name)
+            self._combo.setCurrentIndex(self._combo.findData(self._value.filename))
 
     def change_style(self):
         filename = self._combo.currentData()
@@ -774,11 +774,11 @@ class StrengthWidget(DoubleSliderSpinBox):
     @model.setter
     def model(self, model: DocumentModel):
         if self._model:
-            self._model.style_changed.disconnect(self._update_suffix)
+            self._model.active_style_changed.disconnect(self._update_suffix)
             self._model.edit_mode_changed.disconnect(self._update_suffix)
             self._model.animation.sampling_quality_changed.disconnect(self._update_suffix)
         self._model = model
-        self._model.style_changed.connect(self._update_suffix)
+        self._model.active_style_changed.connect(self._update_suffix)
         self._model.edit_mode_changed.connect(self._update_suffix)
         self._model.animation.sampling_quality_changed.connect(self._update_suffix)
         self._update_suffix()

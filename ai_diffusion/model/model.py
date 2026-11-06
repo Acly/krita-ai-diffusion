@@ -13,7 +13,7 @@ from pathlib import Path
 from tempfile import TemporaryDirectory
 from typing import Any, NamedTuple
 
-from PyQt6.QtCore import QMetaObject, QObject, Qt, QUuid, pyqtSignal
+from PyQt6.QtCore import QObject, Qt, QUuid, pyqtSignal
 from PyQt6.QtGui import QBrush, QColor, QPainter
 
 from .. import eventloop, util
@@ -138,6 +138,7 @@ class DocumentModel(QObject, ObservableProperties):
 
     workspace = Property(Workspace.generation, setter="set_workspace", persist=True)
     style = Property(Styles.list().default, setter="set_style", persist=True)
+    edit_style = Property(Styles.list().default_edit, setter="set_edit_style", persist=True)
     strength = Property(1.0, persist=True)
     mask_source = Property(MaskSource.selection, persist=True)
     edit_mode = Property(False, persist=True)
@@ -154,6 +155,8 @@ class DocumentModel(QObject, ObservableProperties):
 
     workspace_changed = pyqtSignal(Workspace)
     style_changed = pyqtSignal(Style)
+    edit_style_changed = pyqtSignal(Style)
+    active_style_changed = pyqtSignal(Style)
     strength_changed = pyqtSignal(float)
     mask_source_changed = pyqtSignal(MaskSource)
     edit_mode_changed = pyqtSignal(bool)
@@ -183,7 +186,11 @@ class DocumentModel(QObject, ObservableProperties):
         self.live = LiveWorkspace(self)
         self.animation = AnimationWorkspace(self)
         self.custom = CustomWorkspace(workflows, self._generate_custom, self.jobs)
-        self._style_connection: QMetaObject.Connection | None = None
+        self._style_connection = self.style.changed.connect(self._handle_style_changed)
+        self._edit_style_connection = self.edit_style.changed.connect(
+            self._handle_edit_style_changed
+        )
+        self.edit_mode_changed.connect(self._update_active_style)
 
         self.jobs.selection_changed.connect(self.update_preview)
         connection.state_changed.connect(self._init_on_connect)
@@ -197,8 +204,17 @@ class DocumentModel(QObject, ObservableProperties):
             return
         if client := self._connection.client_if_connected:
             styles = filter_supported_styles(Styles.list().filtered(), client)
-            if self.style not in styles and len(styles) > 0:
-                self.style = styles[0]
+            generation_styles = [s for s in styles if not resolve_arch(s, client).is_edit]
+            edit_styles = [s for s in styles if resolve_arch(s, client).supports_edit]
+            if resolve_arch(self.style, client).is_edit:
+                self.edit_style = self.style
+                self.style = next(s for s in Styles.list() if not resolve_arch(s, client).is_edit)
+                self.edit_mode = True
+            if self.style not in generation_styles and generation_styles:
+                self.style = generation_styles[0]
+            if self.edit_style not in edit_styles and edit_styles:
+                self.edit_style = edit_styles[0]
+            self._update_active_style()
             if self.upscale.upscaler == "":
                 self.upscale.upscaler = client.models.default_upscaler
 
@@ -297,7 +313,7 @@ class DocumentModel(QObject, ObservableProperties):
         original_conditioning = conditioning
         inpaint_instruction = inpaint_mode if is_one(strength) else None
         conditioning, loras, prompt_meta = workflow.prepare_prompts(
-            conditioning, self.style, seed, arch, inpaint_instruction, ref_layers
+            conditioning, self.active_style, seed, arch, inpaint_instruction, ref_layers
         )
 
         image = None
@@ -375,7 +391,7 @@ class DocumentModel(QObject, ObservableProperties):
                 if original_cond:  # re-evaluate wildcards in prompts after the seed change
                     next_prompt = workflow.prepare_prompts(
                         original_cond,
-                        self.style,
+                        self.active_style,
                         seed,
                         self.arch,
                         params.inpaint_mode,
@@ -388,7 +404,7 @@ class DocumentModel(QObject, ObservableProperties):
             await self._enqueue_job(job, input, front=queue_mode is QueueMode.front)
 
         if self.workspace is not Workspace.custom:
-            self._track_style_usage(self.style)
+            self._track_style_usage(self.active_style)
 
     async def _enqueue_job(self, job: Job, input: WorkflowInput, front: bool = False):
         if not self.jobs.any_executing():
@@ -429,7 +445,7 @@ class DocumentModel(QObject, ObservableProperties):
                 WorkflowKind.upscale_tiled,
                 image,
                 conditioning,
-                self.style,
+                self.active_style,
                 params.seed,
                 client.models,
                 FileLibrary.instance(),
@@ -515,14 +531,14 @@ class DocumentModel(QObject, ObservableProperties):
         conditioning.language = self.prompt_translation_language
         conditioning, ref_layers = self._add_reference_layers(conditioning)
         conditioning, loras, _ = workflow.prepare_prompts(
-            conditioning, self.style, self.seed, self.arch, None, ref_layers, is_live=True
+            conditioning, self.active_style, self.seed, self.arch, None, ref_layers, is_live=True
         )
 
         input = workflow.prepare(
             workflow_kind,
             image or bounds.extent,
             conditioning,
-            self.style,
+            self.active_style,
             self.seed,
             client.models,
             FileLibrary.instance(),
@@ -574,7 +590,7 @@ class DocumentModel(QObject, ObservableProperties):
 
             style_node = next(wf.find(type="ETN_KritaStyleAndPrompt"), None)
             if style_node is not None:
-                style = self.style
+                style = self.active_style
                 is_live = style_node.input("sampler_preset", "auto") == "live"
                 custom_input.models = style.get_models(client.models.checkpoints)
                 custom_input.sampling = workflow.sampling_from_style(style, 1.0, is_live)
@@ -588,7 +604,7 @@ class DocumentModel(QObject, ObservableProperties):
                     custom_input.models.loras + prepared.loras, key=lambda l: l.name
                 )
 
-                job_params.set_style(self.style, custom_input.models.checkpoint)
+                job_params.set_style(self.active_style, custom_input.models.checkpoint)
                 metadata.update(prepared.metadata)
                 metadata["loras"] = [
                     {"name": l.name, "weight": l.strength} for l in custom_input.models.loras
@@ -944,18 +960,41 @@ class DocumentModel(QObject, ObservableProperties):
         self.modified.emit(self, "workspace")
 
     def set_style(self, style: Style):
+        if resolve_arch(style, self._connection.client_if_connected).is_edit:
+            self.edit_style = style
+            self.edit_mode = True
+            return
         if style is not self._style:
-            if self._style_connection:
-                QObject.disconnect(self._style_connection)
+            QObject.disconnect(self._style_connection)
             self._style = style
             self._style_connection = style.changed.connect(self._handle_style_changed)
             self.style_changed.emit(style)
             self.modified.emit(self, "style")
-            self.edit_mode = self.is_editing
+            self._update_active_style()
+
+    def set_edit_style(self, style: Style):
+        client = self._connection.client_if_connected
+        arch = resolve_arch(style, client)
+        if not arch.supports_edit and (client or style.architecture is not Arch.auto):
+            return
+        if style is not self._edit_style:
+            QObject.disconnect(self._edit_style_connection)
+            self._edit_style = style
+            self._edit_style_connection = style.changed.connect(self._handle_edit_style_changed)
+            self.edit_style_changed.emit(style)
+            self.modified.emit(self, "edit_style")
+            self._update_active_style()
 
     def _handle_style_changed(self):
         self.style_changed.emit(self.style)
-        self.edit_mode = self.is_editing
+        self._update_active_style()
+
+    def _handle_edit_style_changed(self):
+        self.edit_style_changed.emit(self.edit_style)
+        self._update_active_style()
+
+    def _update_active_style(self):
+        self.active_style_changed.emit(self.active_style)
 
     def generate_seed(self):
         self.seed = workflow.generate_seed()
@@ -1013,9 +1052,23 @@ class DocumentModel(QObject, ObservableProperties):
 
     @property
     def active_style(self):
-        if self.is_edit_prompt and self.edit_style:
+        style_arch = resolve_arch(self.style, self._connection.client_if_connected)
+        if self.edit_mode and not style_arch.supports_edit:
             return self.edit_style
         return self.style
+
+    @active_style.setter
+    def active_style(self, style: Style):
+        arch = resolve_arch(style, self._connection.client_if_connected)
+        if arch.is_edit:
+            self.edit_style = style
+            self.edit_mode = True
+        elif self.edit_mode and arch.supports_edit:
+            self.edit_style = style
+        else:
+            self.style = style
+            self.edit_mode = False
+        self._update_active_style()
 
     def _track_style_usage(self, style: Style):
         if count := settings.recent_styles_count:
@@ -1068,24 +1121,16 @@ class DocumentModel(QObject, ObservableProperties):
         return Path(self._doc.filename).stem
 
     @property
-    def edit_style(self) -> Style | None:
-        style_arch = resolve_arch(self.style, self._connection.client_if_connected)
-        if style_arch.supports_edit:
-            return self.style
-        if style_id := self.style.linked_edit_style:
-            if style := Styles.list().find(style_id):
-                if is_style_supported(style, self._connection.client_if_connected):
-                    return style
-        return None
-
-    @property
     def can_edit(self):
-        return self.edit_style is not None
+        client = self._connection.client_if_connected
+        return resolve_arch(self.style, client).supports_edit or (
+            resolve_arch(self.edit_style, client).supports_edit
+            and is_style_supported(self.edit_style, client)
+        )
 
     @property
     def can_toggle_edit(self):
-        style_arch = resolve_arch(self.style, self._connection.client_if_connected)
-        return not style_arch.is_edit and self.can_edit
+        return self.edit_mode or self.can_edit
 
     @property
     def is_editing(self):
@@ -1460,14 +1505,14 @@ class AnimationWorkspace(QObject, ObservableProperties):
         conditioning.language = m.prompt_translation_language
         conditioning, ref_layers = m._add_reference_layers(conditioning)
         conditioning, loras, _prompt_meta = workflow.prepare_prompts(
-            conditioning, m.style, seed, m.arch, None, ref_layers, is_live=is_live
+            conditioning, m.active_style, seed, m.arch, None, ref_layers, is_live=is_live
         )
 
         return workflow.prepare(
             kind,
             canvas,
             conditioning,
-            style=m.style,
+            style=m.active_style,
             seed=seed,
             loras=loras,
             perf=m._performance_settings(m._connection.client),
