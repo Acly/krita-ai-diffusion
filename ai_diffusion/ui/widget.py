@@ -527,6 +527,7 @@ class TextPromptWidget(QPlainTextEdit):
         super().__init__(parent)
         self._line_count = line_count
         self._is_negative = is_negative
+        self._is_edit_mode = False
 
         self.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Fixed)
         self.setHorizontalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAlwaysOff)
@@ -638,17 +639,30 @@ class TextPromptWidget(QPlainTextEdit):
     @is_negative.setter
     def is_negative(self, value: bool):
         self._is_negative = value
-        if not value:
-            self.setPlaceholderText(_("Describe the content you want to see, or leave empty."))
-        else:
-            self.setPlaceholderText(_("Describe content you want to avoid."))
-
+        self._update_placeholder()
         if value:
             self.setContentsMargins(0, 2, 0, 2)
             self.setFrameStyle(QFrame.Shape.StyledPanel)
             self.setStyleSheet("QFrame { background: rgba(255, 0, 0, 15); }")
         else:
             self.setFrameStyle(QFrame.Shape.NoFrame)
+
+    @property
+    def is_edit_mode(self):
+        return self._is_edit_mode
+
+    @is_edit_mode.setter
+    def is_edit_mode(self, value: bool):
+        self._is_edit_mode = value
+        self._update_placeholder()
+
+    def _update_placeholder(self):
+        if self._is_negative:
+            self.setPlaceholderText(_("Describe content you want to avoid."))
+        elif self._is_edit_mode:
+            self.setPlaceholderText(_("Provide instructions on what to change in the image."))
+        else:
+            self.setPlaceholderText(_("Describe the content you want to see, or leave empty."))
 
     @property
     def has_focus(self):
