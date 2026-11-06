@@ -245,6 +245,8 @@ class ActiveRegionWidget(QFrame):
             self._root.active_layer_changed.connect(self._update_links),
             self._new_region_button.clicked.connect(self._root.create_region_layer),
             self._root._model.translation_enabled_changed.connect(self._update_language),
+            self._root._model.edit_mode_changed.connect(self._update_prompt_widgets),
+            self._root._model.workspace_changed.connect(self._update_prompt_widgets),
         ]
         self._update_header()
         self._update_links()
@@ -415,6 +417,7 @@ class ActiveRegionWidget(QFrame):
             self._language_button.setToolTip(text)
 
     def _update_prompt_widgets(self):
+        self.positive.is_edit_mode = self._root._model.is_edit_prompt
         if not self.is_slim:
             self.positive.line_count = settings.prompt_line_count
         elif isinstance(self._region, Region):
