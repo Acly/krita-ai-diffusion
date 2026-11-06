@@ -27,7 +27,7 @@ from .util import client_logger as log
 from .util import encode_json
 
 # Version of the persistence format, increment when there are breaking changes
-version = 1
+version = 2
 
 
 @dataclass
@@ -151,10 +151,8 @@ class ModelSync:
         state["custom"] = _serialize_custom(model.custom)
         state["history"] = [asdict(h) for h in self._history]
         state["root"] = _serialize(model.regions)
-        state["edit"] = _serialize(model.edit_regions)
         state["regions"] = [_serialize(r) for r in model.regions]
-        state["edit_regions"] = [_serialize(r) for r in model.edit_regions]
-        regions = [model.regions, model.edit_regions, *model.regions, *model.edit_regions]
+        regions = [model.regions, *model.regions]
         state["control"] = [
             {**_serialize(c), "region": regions.index(c._region)} for c in model.control.all
         ]
@@ -164,8 +162,7 @@ class ModelSync:
 
     def _load(self, model: DocumentModel, state_bytes: bytes):
         state = json.loads(state_bytes.decode("utf-8"))
-        if "mask_source" not in state and state.pop("region_only", False):
-            state["mask_source"] = MaskSource.region.value
+        _upgrade(state)
         model.try_set_preview_layer(state.get("preview_layer", ""))
         _deserialize(model, state)
         inpaint_state = state.get("inpaint", {})
@@ -177,17 +174,12 @@ class ModelSync:
         _deserialize(model.animation, state.get("animation", {}))
         _deserialize_custom(model.custom, state.get("custom", {}), model.name)
         _deserialize(model.regions, state.get("root", {}))
-        _deserialize(model.edit_regions, state.get("edit", {}))
-        for key, root in (("regions", model.regions), ("edit_regions", model.edit_regions)):
-            for region_state in state.get(key, []):
-                region = root.emplace()
-                _deserialize(region, region_state)
-                for control_state in region_state.get("control", []):
-                    _deserialize(model.control.emplace(region), control_state)
-        regions = [model.regions, model.edit_regions, *model.regions, *model.edit_regions]
+        for region_state in state.get("regions", []):
+            _deserialize(model.regions.emplace(), region_state)
+        regions = [model.regions, *model.regions]
         for control_state in state.get("control", []):
             region_index = control_state.get("region", 0)
-            region = regions[region_index] if 0 <= region_index < len(regions) else model.regions
+            region = regions[region_index] if region_index < len(regions) else model.regions
             _deserialize(model.control.emplace(region), control_state)
 
         for result in state.get("history", []):
@@ -215,7 +207,6 @@ class ModelSync:
         model.jobs.result_used.connect(self._save_later)
         model.jobs.selection_changed.connect(self._save_later)
         self._track_regions(model.regions)
-        self._track_regions(model.edit_regions)
         self._track_control_layers(model.control)
 
     def _track_control(self, control: ControlLayer):
@@ -324,6 +315,57 @@ def _deserialize(obj: QObject, data: dict[str, Any]):
         data["unblur_strength"] = 0.5
 
     return deserialize(obj, data, converter)
+
+
+def _upgrade(state: dict[str, Any]):
+    if state.get("version", 0) < 2:
+        _upgrade_to_v2(state)
+
+
+def _upgrade_to_v2(state: dict[str, Any]):
+    """Version 1 stored a separate prompt and a separate set of regions for edit mode, and
+    control layers were kept in the region they were linked to. The prompts are merged into the
+    shared regions, which have an additional "positive_edit" prompt, and all control layers are
+    collected in a single list where "region" is an index into [root, *regions].
+    """
+    if "mask_source" not in state and state.pop("region_only", False):
+        state["mask_source"] = MaskSource.region.value
+
+    root: dict[str, Any] = state.get("root", {})
+    edit: dict[str, Any] = state.pop("edit", {})
+    root["positive_gen"] = root.pop("positive", root.get("positive_gen", ""))
+    root["positive_edit"] = edit.get("positive", root.get("positive_edit", ""))
+    root["negative"] = root.get("negative", "") or edit.get("negative", "")
+    state["root"] = root
+
+    regions: list[dict[str, Any]] = state.setdefault("regions", [])
+    for region in regions:
+        region["positive_gen"] = region.pop("positive", region.get("positive_gen", ""))
+
+    # control layer region indices: [generate root, edit root, *regions, *edit regions]
+    region_indices = [0, 0, *(1 + i for i in range(len(regions)))]
+    for edit_region in state.pop("edit_regions", []):
+        layer_ids = edit_region.get("layer_ids", "")
+        region = next((r for r in regions if layer_ids and r.get("layer_ids") == layer_ids), None)
+        if region is None:
+            region = edit_region
+            regions.append(region)
+        elif controls := edit_region.get("control", []):
+            region.setdefault("control", []).extend(controls)
+        region["positive_edit"] = edit_region.pop("positive", "")
+        region_indices.append(1 + next(i for i, r in enumerate(regions) if r is region))
+
+    controls = []
+    for index, region in enumerate(regions):
+        for control in region.pop("control", []):
+            controls.append({**control, "region": index + 1})
+    existing_controls = state.get("control", [])
+    for control in existing_controls:
+        index = control.get("region", 0)  # version 1 without "region" are root controls
+        control["region"] = region_indices[index] if 0 <= index < len(region_indices) else 0
+    state["control"] = controls + existing_controls
+
+    state["version"] = 2
 
 
 def _serialize_custom(custom: CustomWorkspace):

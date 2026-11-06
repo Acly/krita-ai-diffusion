@@ -346,7 +346,7 @@ class GenerationWidget(QWidget):
                 self.generate_button.clicked.connect(model.generate),
                 self.generate_button.ctrl_clicked.connect(model.generate_replace),
             ]
-            self.region_prompt.regions = model.active_regions
+            self.region_prompt.regions = model.regions
             self.control_list.model = model.control
             self.context.model = model
             self.generate_button.model = model
@@ -402,7 +402,7 @@ class GenerationWidget(QWidget):
             self.model.edit_mode = is_edit
 
     def add_region(self):
-        self.model.active_regions.create_region_group()
+        self.model.regions.create_region_group()
 
     def update_generate_options(self):
         if not self.model.has_document:
@@ -412,7 +412,7 @@ class GenerationWidget(QWidget):
         self.strength_slider.setVisible(arch is not Arch.qwen_l)
         self.layer_count_widget.setVisible(arch is Arch.qwen_l)
 
-        regions = self.model.active_regions
+        regions = self.model.regions
         self.region_prompt.regions = regions
 
         has_regions = len(regions) > 0

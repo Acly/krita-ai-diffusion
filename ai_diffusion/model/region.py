@@ -32,9 +32,12 @@ class Region(QObject, ObservableProperties):
     _layers: list[QUuid]
 
     layer_ids = Property("", persist=True, setter="_set_layer_ids")
-    positive = Property("", persist=True)
+    positive_gen = Property("", persist=True)
+    positive_edit = Property("", persist=True)
 
     layer_ids_changed = pyqtSignal(str)
+    positive_gen_changed = pyqtSignal(str)
+    positive_edit_changed = pyqtSignal(str)
     positive_changed = pyqtSignal(str)
     modified = pyqtSignal(QObject, str)
 
@@ -42,6 +45,24 @@ class Region(QObject, ObservableProperties):
         super().__init__()
         self._parent = parent
         self._layers = []
+        parent._model.edit_mode_changed.connect(self._update_positive)
+        parent._model.workspace_changed.connect(self._update_positive)
+        self.positive_gen_changed.connect(self._update_positive)
+        self.positive_edit_changed.connect(self._update_positive)
+
+    @property
+    def positive(self):
+        return self.positive_edit if self._parent._model.is_edit_prompt else self.positive_gen
+
+    @positive.setter
+    def positive(self, value: str):
+        if self._parent._model.is_edit_prompt:
+            self.positive_edit = value
+        else:
+            self.positive_gen = value
+
+    def _update_positive(self, *_):
+        self.positive_changed.emit(self.positive)
 
     def _get_layers(self):
         col = self._parent._model.layers.updated()
@@ -151,11 +172,14 @@ class RootRegion(QObject, ObservableProperties):
     If there are no regions, the root region is used as a default for the entire document.
     """
 
-    positive = Property("", persist=True)
+    positive_gen = Property("", persist=True)
+    positive_edit = Property("", persist=True)
     negative = Property("", persist=True)
     negative_enabled = Property(True)
     negative_enabled_live = Property(True)
 
+    positive_gen_changed = pyqtSignal(str)
+    positive_edit_changed = pyqtSignal(str)
     positive_changed = pyqtSignal(str)
     negative_changed = pyqtSignal(str)
     negative_enabled_changed = pyqtSignal(bool)
@@ -176,7 +200,25 @@ class RootRegion(QObject, ObservableProperties):
         model.layers.active_changed.connect(self._update_active)
         model.layers.parent_changed.connect(self._update_group)
         model.style_changed.connect(self._handle_style_changed)
+        model.edit_mode_changed.connect(self._update_positive)
+        model.workspace_changed.connect(self._update_positive)
+        self.positive_gen_changed.connect(self._update_positive)
+        self.positive_edit_changed.connect(self._update_positive)
         self._handle_style_changed(model.style)
+
+    @property
+    def positive(self):
+        return self.positive_edit if self._model.is_edit_prompt else self.positive_gen
+
+    @positive.setter
+    def positive(self, value: str):
+        if self._model.is_edit_prompt:
+            self.positive_edit = value
+        else:
+            self.positive_gen = value
+
+    def _update_positive(self, *_):
+        self.positive_changed.emit(self.positive)
 
     def _find_region(self, layer: Layer):
         return next((r for r in self._regions if r.is_linked(layer, RegionLink.direct)), None)

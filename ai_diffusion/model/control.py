@@ -100,7 +100,7 @@ class ControlLayer(QObject, ObservableProperties):
 
     @region.setter
     def region(self, region: Region | RootRegion | None):
-        region = region if region is not None else self._model.active_regions
+        region = region if region is not None else self._model.regions
         if region is not self._region:
             self._region = region
             self.region_changed.emit()
@@ -203,7 +203,7 @@ class ControlLayer(QObject, ObservableProperties):
 
         image = Image.create(bounds.extent, fill=Qt.GlobalColor.white)
         has_region_layer = False
-        root = self._model.active_regions
+        root = self._model.regions
 
         layers = [
             layer
@@ -320,9 +320,8 @@ class ControlLayerList(QObject):
         self._layers: list[ControlLayer] = []
         self._last_mode = ControlMode.scribble
         self._model.layers.removed.connect(self._remove_layer)
-        for regions in (model.regions, model.edit_regions):
-            regions.active_changed.connect(self.changed)
-            regions.removed.connect(self._remove_region)
+        model.regions.active_changed.connect(self.changed)
+        model.regions.removed.connect(self._remove_region)
         model.edit_mode_changed.connect(self.changed)
         model.style_changed.connect(self.changed)
         model.workspace_changed.connect(self.changed)
@@ -333,7 +332,7 @@ class ControlLayerList(QObject):
 
     @property
     def active_region(self):
-        return self._model.active_regions.active_or_root
+        return self._model.regions.active_or_root
 
     def for_region(self, region: Region | None):
         return [c for c in self._layers if self._is_mode_active(c) and c.region is region]
