@@ -130,7 +130,7 @@ def job_info_text(params: JobParams, hint: str | None = None):
 def copy_job_prompt(model: DocumentModel, job: Job, evaluated=False):
     positive = "prompt_eval" if evaluated else "prompt"
     prompt = job.params.metadata.get(positive, job.params.prompt)
-    active = model.active_regions.active_or_root
+    active = model.regions.active_or_root
     active.positive = prompt
     if isinstance(active, RootRegion):
         negative = "negative_prompt_eval" if evaluated else "negative_prompt"

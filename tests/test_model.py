@@ -279,12 +279,12 @@ async def test_control_layers(workflows_dir: Path):
         edit_reference = model.control.emplace()
         assert edit_reference.mode is ControlMode.reference
         assert list(model.control) == [first, edit_reference]
-        conditioning, _ = process_regions(model.edit_regions, bounds)
+        conditioning, _ = process_regions(model.regions, bounds)
         assert [c.mode for c in conditioning.control] == [
             ControlMode.reference,
             ControlMode.reference,
         ]
-        assert not conditioning.regions
+        assert len(conditioning.regions) == 2
         second.mode = ControlMode.depth
         regions[1].remove()
         assert second not in model.control.all

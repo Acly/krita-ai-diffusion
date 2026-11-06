@@ -18,8 +18,8 @@ from ai_diffusion.image import Bounds, Extent, Image, ImageCollection
 from ai_diffusion.model.connection import Connection
 from ai_diffusion.model.custom_workflow import WorkflowCollection
 from ai_diffusion.model.jobs import Job, JobKind, JobParams, JobState
-from ai_diffusion.model.model import DocumentModel, InpaintContext, QueueMode
-from ai_diffusion.persistence import ModelSync, RecentlyUsedSync
+from ai_diffusion.model.model import DocumentModel, InpaintContext, MaskSource, QueueMode
+from ai_diffusion.persistence import ModelSync, RecentlyUsedSync, _upgrade
 from ai_diffusion.settings import Settings
 from ai_diffusion.style import Style
 
@@ -167,11 +167,10 @@ async def test_sync(workflows_dir: Path):
     model1.upscale.use_diffusion = False
     region = model1.regions.emplace()
     region.positive = "regional prompt"
-    edit_region = model1.edit_regions.emplace()
-    edit_region.positive = "edit prompt"
+    region.positive_edit = "edit prompt"
     model1.control.emplace(model1.regions).mode = ControlMode.reference
     model1.control.emplace(region).mode = ControlMode.depth
-    model1.control.emplace(edit_region).mode = ControlMode.reference
+    model1.control.emplace(region).mode = ControlMode.reference
 
     # Create sync and let it flush (it saves immediately on construction and on demand)
     sync1 = ModelSync(model1)
@@ -206,11 +205,65 @@ async def test_sync(workflows_dir: Path):
     assert regional.region is None
     regional.mode = ControlMode.reference
     restored_region = next(iter(model2.regions))
-    restored_edit_region = next(iter(model2.edit_regions))
     assert regional.region is restored_region
     assert restored_region.positive == "regional prompt"
-    assert edit.region is restored_edit_region
-    assert restored_edit_region.positive == "edit prompt"
+    assert edit.region is restored_region
+    assert restored_region.positive_edit == "edit prompt"
+
+
+def test_upgrade_v1():
+    """Version 1 documents stored separate edit-mode prompts and regions. Upgrading merges them
+    into the shared regions and remaps the control layer region indices."""
+    state: dict = {
+        "version": 1,
+        "region_only": True,
+        "root": {"positive": "gen text", "negative": "bad"},
+        "edit": {"positive": "edit text", "negative": "worse"},
+        "regions": [
+            {"layer_ids": "a", "positive": "region gen", "control": [{"id": "ra"}]},
+            {"layer_ids": "b", "positive": ""},
+        ],
+        "edit_regions": [
+            {"layer_ids": "a", "positive": "region edit"},
+            {"layer_ids": "c", "positive": "new edit", "control": [{"id": "rc"}]},
+        ],
+        # [generate root, edit root, *regions, *edit regions]
+        "control": [{"id": f"c{i}", "region": i} for i in range(6)],
+    }
+
+    _upgrade(state)
+
+    assert state["version"] == 2
+    assert state["mask_source"] == MaskSource.region.value
+    assert state["root"] == {
+        "positive_gen": "gen text",
+        "positive_edit": "edit text",
+        "negative": "bad",
+    }
+    assert state["regions"] == [
+        {"layer_ids": "a", "positive_gen": "region gen", "positive_edit": "region edit"},
+        {"layer_ids": "b", "positive_gen": ""},
+        {"layer_ids": "c", "positive_edit": "new edit"},
+    ]
+    # region controls first, then the flattened ones: [root, region a, region b, region c]
+    assert [c["id"] for c in state["control"]] == ["ra", "rc", "c0", "c1", "c2", "c3", "c4", "c5"]
+    assert [c["region"] for c in state["control"]] == [1, 3, 0, 0, 1, 2, 1, 3]
+
+
+def test_upgrade_v1_region_controls():
+    """Version 1 documents from before control layers were flattened kept them in the region
+    they were linked to, and the remaining controls were all linked to the root region."""
+    state: dict = {
+        "version": 1,
+        "root": {"positive": "gen text"},
+        "regions": [{"layer_ids": "a", "positive": "", "control": [{"id": "ra"}]}],
+        "control": [{"id": "root"}],
+    }
+
+    _upgrade(state)
+
+    assert state["regions"] == [{"layer_ids": "a", "positive_gen": ""}]
+    assert state["control"] == [{"id": "ra", "region": 1}, {"id": "root", "region": 0}]
 
 
 # ---------------------------------------------------------------------------

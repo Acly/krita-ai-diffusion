@@ -259,13 +259,13 @@ class LiveWidget(QWidget):
                 model.edit_mode_changed.connect(self.update_edit_mode),
                 model.progress_changed.connect(self.update_progress),
                 model.live.result_available.connect(self.show_result),
-                model.active_regions.active_changed.connect(self.update_region),
+                model.regions.active_changed.connect(self.update_region),
                 model.layers.active_changed.connect(self.update_region),
             ]
             self.apply_button.setEnabled(model.live.has_result)
             self.apply_layer_button.setEnabled(model.live.has_result)
-            self.prompt_widget.region = model.active_regions
-            self.region_widget.root = model.active_regions
+            self.prompt_widget.region = model.regions
+            self.region_widget.root = model.regions
             self.strength_slider.model = model
             self.update_edit_mode()
             self.update_region()
@@ -283,8 +283,8 @@ class LiveWidget(QWidget):
         self.model.edit_mode = not self.model.edit_mode
 
     def update_edit_mode(self):
-        self.prompt_widget.region = self.model.active_regions
-        self.region_widget.root = self.model.active_regions
+        self.prompt_widget.region = self.model.regions
+        self.region_widget.root = self.model.regions
         self.update_region()
         if self.model.edit_mode:
             self.edit_toggle.setIcon(theme.icon("workspace-generation"))
@@ -299,7 +299,7 @@ class LiveWidget(QWidget):
         )
 
     def update_region(self):
-        regions = self.model.active_regions
+        regions = self.model.regions
         has_regions = len(regions) > 0
         self.region_widget.setVisible(has_regions)
         self.region_widget.region = regions.region_for_active_layer
@@ -307,15 +307,15 @@ class LiveWidget(QWidget):
         self.control_list.model = self.model.control
 
     def focus_root_region(self):
-        regions = self.model.active_regions
+        regions = self.model.regions
         if len(regions) > 0:
             regions.active = regions
 
     def focus_active_region(self):
-        self.model.active_regions.active = self.model.active_regions.region_for_active_layer
+        self.model.regions.active = self.model.regions.region_for_active_layer
 
     def create_region(self):
-        self.model.active_regions.create_region_layer()
+        self.model.regions.create_region_layer()
 
     def update_is_recording(self):
         self.record_button.setIcon(

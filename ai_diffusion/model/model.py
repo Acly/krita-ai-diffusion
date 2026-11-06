@@ -177,7 +177,6 @@ class DocumentModel(QObject, ObservableProperties):
         self.generate_seed()
         self.jobs = JobQueue()
         self.regions = RootRegion(self)
-        self.edit_regions = RootRegion(self)
         self.control = ControlLayerList(self)
         self.inpaint = CustomInpaint()
         self.upscale = UpscaleWorkspace(self)
@@ -252,7 +251,7 @@ class DocumentModel(QObject, ObservableProperties):
                 bounds = compute_bounds(extent, mask.bounds, workflow_kind)
                 bounds = self.inpaint.get_context(self, mask.bounds) or bounds
         elif self.mask_source is MaskSource.region:
-            layer = self.active_regions.get_active_region_layer(use_parent=False)
+            layer = self.regions.get_active_region_layer(use_parent=False)
             if not layer.is_root:
                 mask = get_region_inpaint_mask(layer, extent)
                 selection_bounds = mask.bounds
@@ -273,7 +272,7 @@ class DocumentModel(QObject, ObservableProperties):
         client = self._connection.client
         inpaint_mode: InpaintMode | None = None
         inpaint = None
-        regions = self.active_regions
+        regions = self.regions
         region_layer = None
 
         bounds, mask, selection_params = self.get_generation_context()
@@ -487,7 +486,7 @@ class DocumentModel(QObject, ObservableProperties):
         client = self._connection.client
         min_mask_size = 512 if self.arch is Arch.sd15 else 800
         extent = self._doc.extent
-        regions = self.active_regions
+        regions = self.regions
         region_layer = None
         job_regions: list[JobRegion] = []
         inpaint = InpaintParams(InpaintMode.fill, Bounds(0, 0, *extent))
@@ -978,7 +977,7 @@ class DocumentModel(QObject, ObservableProperties):
                 uid = next((l.id for l in self._doc.layers.images if l.name == layer_name), None)
                 if uid is None:
                     raise PluginError(_("Layer not found") + f' "{layer_name}"')
-                ctrl = ControlLayer(self, ControlMode.reference, uid, 0, self.active_regions)
+                ctrl = ControlLayer(self, ControlMode.reference, uid, 0, self.regions)
                 control.append(ctrl.to_api())
 
         cond.edit_reference = self.is_editing
@@ -1007,17 +1006,14 @@ class DocumentModel(QObject, ObservableProperties):
                 self._layer = None
 
     @property
-    def active_regions(self):
-        is_edit = self.workspace in (Workspace.generation, Workspace.live) and self.edit_mode
-        return self.edit_regions if is_edit else self.regions
+    def is_edit_prompt(self):
+        """Whether the edit-mode prompt is active instead of the generate-mode prompt."""
+        is_edit_workspace = self.workspace in (Workspace.generation, Workspace.live)
+        return is_edit_workspace and self.edit_mode
 
     @property
     def active_style(self):
-        if (
-            self.workspace in (Workspace.generation, Workspace.live)
-            and self.edit_mode
-            and self.edit_style
-        ):
+        if self.is_edit_prompt and self.edit_style:
             return self.edit_style
         return self.style
 
