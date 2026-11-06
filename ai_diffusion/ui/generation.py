@@ -462,9 +462,10 @@ class GenerationWidget(QWidget):
         self.generate_button.operation = text
         self.generate_button.setIcon(theme.icon(icon))
 
+        can_use_inpaint_mode = has_selection and is_one(self.model.strength)
         actions = self.inpaint_menu.actions()
         for action in actions[1:-1]:
-            action.setEnabled(has_selection)
+            action.setEnabled(can_use_inpaint_mode)
         actions[-1].setEnabled(self.model.can_edit)
 
         mode_text = _("Generate")
