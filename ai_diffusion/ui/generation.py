@@ -195,7 +195,7 @@ class AdvancedSettingsWidget(QWidget):
         self._bindings = [
             bind(model, "batch_count", batch_spin, "value"),
             bind_combo(model, "queue_mode", self.queue_mode_combo),
-            model.seed_changed.connect(lambda value: seed_spin.setValue(value)),
+            model.seed_changed.connect(lambda: seed_spin.setValue(model.seed)),
             seed_spin.valueChanged.connect(lambda value: setattr(model, "seed", int(value))),
             bind_toggle(model, "fixed_seed", self.seed_check),
             model.fixed_seed_changed.connect(seed_spin.setEnabled),

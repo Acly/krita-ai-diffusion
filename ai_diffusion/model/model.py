@@ -161,7 +161,7 @@ class DocumentModel(QObject, ObservableProperties):
     mask_source_changed = pyqtSignal(MaskSource)
     edit_mode_changed = pyqtSignal(bool)
     batch_count_changed = pyqtSignal(int)
-    seed_changed = pyqtSignal(int)
+    seed_changed = pyqtSignal("qlonglong")  # C int would truncate seeds above 2**31
     fixed_seed_changed = pyqtSignal(bool)
     resolution_multiplier_changed = pyqtSignal(float)
     queue_mode_changed = pyqtSignal(QueueMode)
