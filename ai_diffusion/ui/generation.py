@@ -468,18 +468,23 @@ class GenerationWidget(QWidget):
         actions[-1].setEnabled(self.model.can_edit)
 
         mode_text = _("Generate")
+        mode_icon = "workspace-generation"
         color = theme.mode_generate
         if self.model.edit_mode or self.model.arch.is_edit:
             mode_text = _("Edit")
+            mode_icon = "edit"
             color = theme.mode_edit
         elif has_selection and is_one(self.model.strength):
-            mode_text = self._inpaint_text[self.model.resolve_inpaint_mode()]
+            mode = self.model.resolve_inpaint_mode()
+            mode_text = self._inpaint_text[mode]
+            mode_icon = f"inpaint-{mode.name}"
             color = theme.mode_inpaint
         self.prompt_frame.setStyleSheet(
             f"QFrame#GenerationPromptFrame {{ border: 1px solid {color}; }}"
         )
         self.region_prompt.set_focus_color(QColor(color).lighter(115).name())
         self.mode_button.setText(mode_text)
+        self.mode_button.setIcon(theme.icon(mode_icon))
         self.mode_button.setEnabled(self.model.can_toggle_edit)
         for button, corners, padding in (
             (self.mode_button, "border-top-left-radius: 3px;", "2px 5px"),
@@ -493,6 +498,8 @@ class GenerationWidget(QWidget):
         size = self.mode_button.sizeHint()
         for action in actions:
             self.mode_button.setText(action.text())
+            self.mode_button.setIcon(action.icon())
             size = size.expandedTo(self.mode_button.sizeHint())
         self.mode_button.setText(mode_text)
+        self.mode_button.setIcon(theme.icon(mode_icon))
         self.mode_button.setFixedSize(size)
