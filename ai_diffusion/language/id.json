@@ -597,6 +597,8 @@
     "Workflow contains duplicate parameter names: {names}. Each parameter name must be unique.": null,
     "Text prompt regions have not been set up.": null,
     "From Regions": null,
-    "Generate segmentation control layer from current regions": null
+    "Generate segmentation control layer from current regions": null,
+    "Models Path": "Lokasi Model",
+    "Directory where models are stored. Leave empty to keep models in the server directory. Point this to a shared location to reuse models with other ComfyUI installations (existing models are not moved automatically).": "Direktori tempat model disimpan. Biarkan kosong untuk menyimpan model di direktori server. Arahkan ke lokasi bersama untuk memakai model yang sama dengan instalasi ComfyUI lain (model yang sudah ada tidak dipindahkan secara otomatis)."
   }
 }

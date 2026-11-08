@@ -199,9 +199,7 @@ class Settings(QObject):
         _("Models Path"),
         "",
         _(
-            "Directory where models are stored. Leave empty to keep models in the server directory."
-            " Point this to a shared location to reuse models with other ComfyUI installations"
-            " (existing models are not moved automatically)."
+            "Directory where models are stored. Leave empty to keep models in the server directory. Point this to a shared location to reuse models with other ComfyUI installations (existing models are not moved automatically)."
         ),
     )
 
