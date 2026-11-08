@@ -103,9 +103,6 @@ class LiveWidget(QWidget):
     _play_icon = theme.icon("play")
     _pause_icon = theme.icon("pause")
 
-    _record_icon = theme.icon("record")
-    _record_active_icon = theme.icon("record-active")
-
     _model: DocumentModel
     _model_bindings: list[QMetaObject.Connection | Binding]
 
@@ -126,15 +123,6 @@ class LiveWidget(QWidget):
         self.active_button.setAutoRaise(True)
         self.active_button.setToolTip(_("Start/stop live preview"))
         self.active_button.clicked.connect(self.toggle_active)
-
-        self.record_button = QToolButton(self)
-        self.record_button.setToolButtonStyle(Qt.ToolButtonStyle.ToolButtonIconOnly)
-        self.record_button.setIcon(self._record_icon)
-        self.record_button.setAutoRaise(True)
-        self.record_button.setToolTip(
-            _("Start live generation and insert images as keyframes into an animation")
-        )
-        self.record_button.clicked.connect(self.toggle_record)
 
         self.apply_button = QToolButton(self)
         self.apply_button.setToolButtonStyle(Qt.ToolButtonStyle.ToolButtonIconOnly)
@@ -157,7 +145,6 @@ class LiveWidget(QWidget):
         controls_layout = QHBoxLayout()
         controls_layout.addWidget(self.workspace_select)
         controls_layout.addWidget(self.active_button)
-        controls_layout.addWidget(self.record_button)
         controls_layout.addWidget(self.apply_button)
         controls_layout.addWidget(self.apply_layer_button)
         controls_layout.addWidget(self.style_select)
@@ -252,7 +239,6 @@ class LiveWidget(QWidget):
                 ),
                 bind(model, "error", self.error_box, "error", Bind.one_way),
                 model.live.is_active_changed.connect(self.update_is_active),
-                model.live.is_recording_changed.connect(self.update_is_recording),
                 model.live.has_result_changed.connect(self.apply_button.setEnabled),
                 model.live.has_result_changed.connect(self.apply_layer_button.setEnabled),
                 self.random_seed_button.clicked.connect(model.generate_seed),
@@ -271,14 +257,10 @@ class LiveWidget(QWidget):
             self.update_edit_mode()
             self.update_region()
             self.update_is_active()
-            self.update_is_recording()
             self.preview_area.clear()
 
     def toggle_active(self):
         self.model.live.is_active = not self.model.live.is_active
-
-    def toggle_record(self):
-        self.model.live.is_recording = not self.model.live.is_recording
 
     def toggle_edit(self):
         if self.model.can_toggle_edit:
@@ -319,11 +301,6 @@ class LiveWidget(QWidget):
 
     def create_region(self):
         self.model.regions.create_region_layer()
-
-    def update_is_recording(self):
-        self.record_button.setIcon(
-            self._record_active_icon if self.model.live.is_recording else self._record_icon
-        )
 
     def update_progress(self):
         if self.model.progress >= 0:

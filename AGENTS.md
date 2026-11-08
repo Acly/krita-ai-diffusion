@@ -116,3 +116,8 @@ async def run(auto):
 - Don't mock parts of the project, don't monkeypatch. Allowed mocks: Krita, Network in some situations
 - Test existing functionality and expectations, don't add regression tests for changes.
 - Add regression tests only for bugs, and only if an existing test can't be used or easily extended.
+
+### Translations
+
+Translation files in `ai_diffusion/language` are updated at release time after running the
+`package.py` or `translation.py` scripts. Don't update them manually during implementation.

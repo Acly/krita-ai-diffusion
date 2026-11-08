@@ -1307,12 +1307,10 @@ class LiveScheduler:
 
 class LiveWorkspace(QObject, ObservableProperties):
     is_active = Property(False, setter="toggle")
-    is_recording = Property(False, setter="toggle_record")
     strength = Property(0.3, persist=True)
     has_result = Property(False)
 
     is_active_changed = pyqtSignal(bool)
-    is_recording_changed = pyqtSignal(bool)
     strength_changed = pyqtSignal(float)
     seed_changed = pyqtSignal(int)
     has_result_changed = pyqtSignal(bool)
@@ -1326,10 +1324,6 @@ class LiveWorkspace(QObject, ObservableProperties):
         self._result: Image | None = None
         self._result_composition: Image | None = None
         self._result_params: JobParams | None = None
-        self._keyframes_folder: Path | None = None
-        self._keyframe_start = 0
-        self._keyframe_index = 0
-        self._keyframes: list[Path] = []
         model.jobs.job_finished.connect(self.handle_job_finished)
 
     @property
@@ -1342,21 +1336,6 @@ class LiveWorkspace(QObject, ObservableProperties):
             self.is_active_changed.emit(active)
             if active:
                 eventloop.run(_report_errors(self.model, self._continue_generating()))
-            else:
-                self.is_recording = False
-
-    def toggle_record(self, active: bool):
-        if self.is_recording != active:
-            if active and not self._start_recording():
-                self.model.report_error(
-                    _("Cannot save recorded frames, document must be saved first!")
-                )
-                return
-            self._is_recording = active
-            self.is_active = active
-            self.is_recording_changed.emit(active)
-            if not active:
-                self._import_animation()
 
     def handle_job_finished(self, job: Job):
         if job.kind is JobKind.live_preview:
@@ -1416,43 +1395,6 @@ class LiveWorkspace(QObject, ObservableProperties):
         self._result_params = params
         self.result_available.emit(canvas)
         self.has_result = True
-
-        if self.is_recording:
-            self._save_frame(value, params.bounds)
-
-    def _start_recording(self):
-        doc_filename = self.model.document.filename
-        if doc_filename:
-            path = Path(doc_filename)
-            folder = path.parent / f"{path.with_suffix('.live-frames')}"
-            folder.mkdir(exist_ok=True)
-            self._keyframes_folder = folder
-            while (self._keyframes_folder / f"frame-{self._keyframe_index}.webp").exists():
-                self._keyframe_index += 1
-            self._keyframe_start = self._keyframe_index
-        else:
-            self._keyframes_folder = None
-        return self._keyframes_folder
-
-    def _save_frame(self, image: Image, bounds: Bounds):
-        assert self._keyframes_folder is not None
-        filename = self._keyframes_folder / f"frame-{self._keyframe_index}.webp"
-        self._keyframe_index += 1
-
-        extent = self.model.document.extent
-        if bounds is not None and bounds.extent != extent:
-            image = Image.crop(image, bounds)
-        image.save(filename)
-        self._keyframes.append(filename)
-
-    def _import_animation(self):
-        if len(self._keyframes) == 0:
-            return  # button toggled without recording a frame in between
-        self.model.document.import_animation(self._keyframes, self._keyframe_start)
-        start, end = self._keyframe_start, self._keyframe_start + len(self._keyframes)
-        prompt = self.model.regions.active_or_root.positive
-        self.model.layers.active.name = f"[Rec] {start}-{end}: {prompt}"
-        self._keyframes = []
 
 
 class SamplingQuality(Enum):
