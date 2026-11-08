@@ -436,6 +436,7 @@ class LivePreviewArea(QWidget):
 
     def _track_view(self):
         model = self._model
+        view = self._view
         if self._tracking or not self.isVisible() or not model.live.track:
             return
         # Krita can run a nested event loop during a view update. Never sample
@@ -443,7 +444,7 @@ class LivePreviewArea(QWidget):
         self._tracking = True
         try:
             transform = self._read_view_transform()
-            if self._model is not model or not model.live.track:
+            if self._model is not model or self._view is not view or not model.live.track:
                 return
             if transform is not None and transform != self._tracked:
                 self._tracked = transform
@@ -460,7 +461,8 @@ class LivePreviewArea(QWidget):
 
     def _read_view_transform(self) -> QTransform | None:
         view = self._view
-        if view is None:
+        # Unlike the transform getters, visible() safely handles a deleted KisView.
+        if view is None or not view.visible():
             return
         image_to_flake, valid = view.flakeToImageTransform().inverted()
         if not valid:
@@ -604,11 +606,16 @@ class LivePreviewDocker(DockWidget):
         self.setWindowTitle(_("AI Live Preview"))
         self.preview_area = LivePreviewArea(self)
         self.setWidget(self.preview_area)
-        root.model_created.connect(self._register_model)
-        self.visibilityChanged.connect(self._update_model)
+        self._model_update = QTimer(self)
+        self._model_update.setSingleShot(True)
+        self._model_update.setInterval(0)
+        self._model_update.timeout.connect(self._update_model)
+        root.model_created.connect(self._schedule_model_update)
+        self.visibilityChanged.connect(self._schedule_model_update)
 
-    def _register_model(self, model: DocumentModel):
-        self._update_model()
+    def _schedule_model_update(self):
+        # Model lookup calls into Krita. Wait until its view/layout change has finished.
+        self._model_update.start()
 
     def _update_model(self):
         model = root.active_model
@@ -618,4 +625,4 @@ class LivePreviewDocker(DockWidget):
     def canvasChanged(self, canvas: Canvas | None):
         # Krita owns this wrapper and may delete it when the callback returns.
         self.preview_area.set_canvas(canvas)
-        QTimer.singleShot(0, self._update_model)
+        self._schedule_model_update()
