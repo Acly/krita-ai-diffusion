@@ -599,6 +599,9 @@
     "From Regions": null,
     "Generate segmentation control layer from current regions": null,
     "Models Path": "Lokasi Model",
-    "Directory where models are stored. Leave empty to keep models in the server directory. Point this to a shared location to reuse models with other ComfyUI installations (existing models are not moved automatically).": "Direktori tempat model disimpan. Biarkan kosong untuk menyimpan model di direktori server. Arahkan ke lokasi bersama untuk memakai model yang sama dengan instalasi ComfyUI lain (model yang sudah ada tidak dipindahkan secara otomatis)."
+    "The server must be restarted to apply the new models location.": null,
+    "Server Restart Required": null,
+    "Models stored in the shared models location are not deleted.": null,
+    "Directory that contains the model subfolders (checkpoints, loras, etc). Leave empty to keep models in the server directory. Point this to a shared directory to reuse models with other ComfyUI installations. Models are not moved automatically, and files left in the previous location keep working.": null
   }
 }

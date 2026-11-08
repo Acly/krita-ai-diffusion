@@ -850,7 +850,7 @@ class ServerWidget(QWidget):
         add_header(layout, Settings._models_path)
 
         self._models_location_edit = QLineEdit(self)
-        self._models_location_edit.textChanged.connect(self._change_models_location)
+        self._models_location_edit.editingFinished.connect(self._change_models_location)
 
         self._models_location_select = QToolButton(self)
         self._models_location_select.setIcon(Krita.instance().icon("document-open"))
@@ -973,6 +973,23 @@ class ServerWidget(QWidget):
             settings.save()
             self._server.sync_model_paths()
             self.update_ui()
+            if self._server.state is ServerState.running:
+                answer = QMessageBox.question(
+                    self,
+                    _("Server Restart Required"),
+                    _(
+                        "The server must be restarted to apply the new models location."
+                        " Restart it now?"
+                    ),
+                    QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No,
+                    QMessageBox.StandardButton.Yes,
+                )
+                if answer == QMessageBox.StandardButton.Yes:
+                    eventloop.run(self._restart_server())
+
+    async def _restart_server(self):
+        await self._stop()
+        await self._start()
 
     def _select_models_location(self):
         path = self._server.models_path
@@ -985,6 +1002,7 @@ class ServerWidget(QWidget):
         )
         if path:
             self._models_location_edit.setText(str(Path(path)))
+            self._change_models_location()
 
     def _change_backend(self):
         backends = ServerBackend.supported()
@@ -1214,14 +1232,16 @@ class ServerWidget(QWidget):
         eventloop.run(self._uninstall())
 
     async def _uninstall(self):
+        message = _(
+            "WARNING: This will delete the entire server installation INCLUDING ALL MODELS!"
+        ) + "\n\n" + _("This action cannot be undone.")
+        if self._server.custom_models_dir() is not None:
+            message += "\n\n" + _("Models stored in the shared models location are not deleted.")
+        message += "\n\n" + _("Are you absolutely sure you want to continue?")
         msg_box = QMessageBox(
             QMessageBox.Icon.Warning,
             _("Confirm Deletion"),
-            _("WARNING: This will delete the entire server installation INCLUDING ALL MODELS!")
-            + "\n\n"
-            + _("This action cannot be undone.")
-            + "\n\n"
-            + _("Are you absolutely sure you want to continue?"),
+            message,
             QMessageBox.StandardButton.Cancel,
             self,
         )

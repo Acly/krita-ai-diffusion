@@ -599,6 +599,9 @@
     "Generate segmentation control layer from current regions": "Genera un livello di controllo della segmentazione dalle regioni correnti",
     "Workflow contains duplicate parameter names: {names}. Each parameter name must be unique.": null,
     "Models Path": "Percorso dei modelli",
-    "Directory where models are stored. Leave empty to keep models in the server directory. Point this to a shared location to reuse models with other ComfyUI installations (existing models are not moved automatically).": "Directory in cui sono salvati i modelli. Lasciare vuoto per mantenere i modelli nella directory del server. Indicare una posizione condivisa per riutilizzare gli stessi modelli con altre installazioni di ComfyUI (i modelli esistenti non vengono spostati automaticamente)."
+    "The server must be restarted to apply the new models location.": null,
+    "Server Restart Required": null,
+    "Models stored in the shared models location are not deleted.": null,
+    "Directory that contains the model subfolders (checkpoints, loras, etc). Leave empty to keep models in the server directory. Point this to a shared directory to reuse models with other ComfyUI installations. Models are not moved automatically, and files left in the previous location keep working.": null
   }
 }

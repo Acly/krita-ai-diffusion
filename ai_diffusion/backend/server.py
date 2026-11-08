@@ -96,7 +96,7 @@ class Server:
     def custom_models_dir(self) -> Path | None:
         """User-configured shared models directory, or None if models stay local."""
         value = settings.models_path.strip()
-        return Path(value) if value else None
+        return Path(value).expanduser() if value else None
 
     def sync_model_paths(self):
         """Apply a change of the models location to an existing installation."""
@@ -173,7 +173,7 @@ class Server:
         self.missing_resources += missing_nodes
 
         model_folders = [self.path, self.comfy_dir]
-        models_dir = self.models_path
+        models_dir = self.custom_models_dir()
         self.missing_resources += find_missing(
             model_folders, resources.required_models, Arch.all, models_dir=models_dir
         )
@@ -197,7 +197,9 @@ class Server:
         self.missing_resources += find_missing(
             model_folders, resources.upscale_models, models_dir=models_dir
         )
-        self.missing_resources += find_missing(model_folders, resources.optional_models)
+        self.missing_resources += find_missing(
+            model_folders, resources.optional_models, models_dir=models_dir
+        )
 
     async def _install(self, cb: InternalCB):
         self.state = ServerState.installing
@@ -387,12 +389,10 @@ class Server:
                 not_found = set(packages) - {r.id.string for r in to_install}
                 raise ValueError("Some requested models were not found: " + ", ".join(not_found))
             for resource in to_install:
-                if not resource.exists_in(self.path, self.models_path) and not resource.exists_in(
-                    self.comfy_dir
-                ):
+                if not resource.exists_in([self.path, self.comfy_dir], self.custom_models_dir()):
                     for file in resource.files:
                         target_file = resources.resolve_model_path(
-                            self.path, file.path, self.models_path
+                            self.path, file.path, self.custom_models_dir()
                         )
                         target_file.parent.mkdir(parents=True, exist_ok=True)
                         await _download_cached(resource.name, network, file.url, target_file, cb)
@@ -595,14 +595,15 @@ class Server:
     def _verify(self, callback: Callback, loop: asyncio.AbstractEventLoop):
         assert self.comfy_dir is not None
         errors: list[VerificationStatus] = []
+        custom_dir = self.custom_models_dir()
         total = sum(
             len(m.files)
             for m in resources.all_models()
-            if m.exists_in(self.path, self.models_path) or m.exists_in(self.comfy_dir)
+            if m.exists_in([self.path, self.comfy_dir], custom_dir)
         )
         verified = 0
 
-        for status in resources.verify_model_integrity(self.path, self.models_path):
+        for status in resources.verify_model_integrity([self.path, self.comfy_dir], custom_dir):
             if status.state is VerificationState.in_progress:
                 loop.call_soon_threadsafe(
                     callback,
@@ -637,12 +638,15 @@ class Server:
         try:
             for status in bad_models:
                 if status.state is VerificationState.mismatch:
-                    filepath = resources.resolve_model_path(
-                        self.path, status.file.path, self.models_path
+                    # remove the corrupted file where it was found (may be a fallback
+                    # location) and download a fresh copy to the primary location
+                    target = resources.resolve_model_path(
+                        self.path, status.file.path, self.custom_models_dir()
                     )
+                    filepath = status.path or target
                     log.info(f"Removing {filepath}")
                     remove_file(filepath)
-                    await _download_cached(status.file.name, network, status.file.url, filepath, cb)
+                    await _download_cached(status.file.name, network, status.file.url, target, cb)
         except Exception as e:
             log.exception(f"Error while replacing corrupted models: {e}")
             raise
@@ -967,30 +971,7 @@ def parse_common_errors(output: str, return_code: int | None = None):
     return output
 
 
-_extra_model_paths_yaml = """
-
-krita-managed:
-    base_path: ../models
-    checkpoints: checkpoints
-    clip: clip
-    clip_vision: clip_vision
-    controlnet: controlnet
-    diffusion_models: diffusion_models
-    embeddings: embeddings
-    inpaint: inpaint
-    ipadapter: ipadapter
-    loras: loras
-    model_patches: model_patches
-    style_models: style_models
-    text_encoders: text_encoders
-    upscale_models: upscale_models
-    unet: unet
-    vae: vae
-"""
-
-
 def _extra_model_paths_section(models_dir: Path | None) -> str:
-    base_path = "../models" if models_dir is None else models_dir.as_posix()
     entries = [
         "checkpoints",
         "clip",
@@ -1008,28 +989,44 @@ def _extra_model_paths_section(models_dir: Path | None) -> str:
         "unet",
         "vae",
     ]
-    lines = ["", "krita-managed:", f"    base_path: {base_path}"]
+
+    def section_lines(name: str, base_path: str, is_default: bool = False) -> list[str]:
+        escaped = base_path.replace('"', '\\"')
+        lines = ["", f"{name}:", f'    base_path: "{escaped}"']
+        if is_default:
+            lines.append("    is_default: true")
+        lines += [f"    {entry}: {entry}" for entry in entries]
+        return lines
+
     if models_dir is not None:
-        lines.append("    is_default: true")
-    lines += [f"    {name}: {name}" for name in entries]
+        lines = section_lines("krita-managed", models_dir.as_posix(), is_default=True)
+        # keep models left in the previous (server-local) location visible to the
+        # server; new downloads go to the shared directory
+        lines += section_lines("krita-managed-local", "../models")
+    else:
+        lines = section_lines("krita-managed", "../models")
     return chr(10).join(lines) + chr(10)
 
 
-def _remove_managed_section(contents: str) -> str:
+_extra_model_paths_yaml = "\n" + _extra_model_paths_section(None)
+
+
+def _remove_managed_section(
+    contents: str, names: tuple[str, ...] = ("krita-managed", "krita-managed-local")
+) -> str:
     lines = contents.splitlines()
     result = []
     in_section = False
     for line in lines:
-        if not in_section:
-            if line.strip() == "krita-managed:":
-                in_section = True
+        if in_section:
+            if line.strip() and not line.startswith((" ", "\t")):
+                in_section = False  # first non-indented line ends the section
             else:
-                result.append(line)
-        elif line.strip() and not line.startswith((" ", "\t")):
-            # first non-indented line ends the section
-            in_section = False
+                continue  # indented and blank lines inside the section are dropped
+        if line.strip() in {f"{name}:" for name in names}:
+            in_section = True
+        else:
             result.append(line)
-        # indented and blank lines inside the section are dropped
     return "\n".join(result)
 
 
@@ -1041,14 +1038,18 @@ def _configure_extra_model_paths(comfy_dir: Path, models_dir: Path | None = None
     if not path.exists():
         raise RuntimeError(f"Could not find or create extra_model_paths.yaml in {comfy_dir}")
     contents = path.read_text()
-    if models_dir is not None:
-        # shared models directory is plugin-managed: keep the section in sync with the setting
-        log.info(f"Configuring shared model paths in {path}: {models_dir}")
-        contents = _remove_managed_section(contents) + _extra_model_paths_section(models_dir)
-        path.write_text(contents)
-    elif "krita-managed" not in contents:
+    if models_dir is not None or "krita-managed" in contents:
+        # the managed sections are written by the plugin: rebuild them to match the
+        # setting, so that clearing the setting also restores the default location
+        log.info(f"Configuring model paths in {path}: {models_dir}")
+        new_contents = _remove_managed_section(contents) + _extra_model_paths_section(models_dir)
+        if new_contents != contents:
+            path.write_text(new_contents)
+        contents = new_contents
+    else:
         log.info(f"Extending {path}")
-        path.write_text(contents + _extra_model_paths_yaml)
+        contents = contents + _extra_model_paths_yaml
+        path.write_text(contents)
     if "model_patches" not in contents:
         log.info(f"Adding model_patches to {path}")
         lines = contents.splitlines()
