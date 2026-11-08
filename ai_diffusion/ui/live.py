@@ -149,6 +149,8 @@ class LiveThumbnail(QWidget):
                     if docker.objectName() == "aiLivePreview":
                         docker.show()
                         docker.raise_()
+                        if isinstance(area := docker.widget(), LivePreviewArea):
+                            QTimer.singleShot(0, area.fit)
                         break
 
 
@@ -365,12 +367,13 @@ class LivePreviewArea(QWidget):
     def _track_changed(self, active: bool):
         live = self._model.live
         if active:
-            self._tracked = None
+            self._tracked = self._read_view_transform()
             live.zoom = 1.0
             live.pan_x = 0.0
             live.pan_y = 0.0
             live.rotation = 0.0
             live.mirrored = False
+            self.fit()
         else:
             combined = self._transform()
             self._tracked = None

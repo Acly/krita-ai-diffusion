@@ -1098,6 +1098,19 @@ class GenerateButton(QPushButton):
             style.drawItemPixmap(painter, resolution_rect, align, pixmap)
 
 
+class LiveToggleButton(QPushButton):
+    def __init__(self, parent=None):
+        super().__init__(parent)
+        self.setText(_("Live"))
+        self.setCheckable(True)
+        self.setIcon(theme.icon("play"))
+        self.setToolTip(_("Start/stop live preview"))
+
+    def minimumSizeHint(self):
+        fm = self.fontMetrics()
+        return QSize(fm.horizontalAdvance(self.text()) + 12, 12 + int(1.3 * fm.height()))
+
+
 class ErrorBox(QFrame):
     def __init__(self, parent=None):
         super().__init__(parent)

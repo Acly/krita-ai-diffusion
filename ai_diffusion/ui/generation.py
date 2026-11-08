@@ -21,7 +21,6 @@ from PyQt6.QtWidgets import (
     QLabel,
     QMenu,
     QProgressBar,
-    QSizePolicy,
     QToolButton,
     QVBoxLayout,
     QWidget,
@@ -47,6 +46,7 @@ from .widget import (
     ErrorBox,
     GenerateButton,
     LayerCountWidget,
+    LiveToggleButton,
     SeedWidget,
     StrengthWidget,
     StyleSelectWidget,
@@ -216,20 +216,12 @@ class GenerationWidget(QWidget):
         self.context = ContextWidget(self)
 
         self.generate_button = GenerateButton(JobKind.diffusion, self)
-        self.live_button = QToolButton(self)
-        self.live_button.setText(_("Live"))
-        self.live_button.setToolButtonStyle(Qt.ToolButtonStyle.ToolButtonTextBesideIcon)
-        self.live_button.setCheckable(True)
-        self.live_button.setIcon(theme.icon("play"))
-        self.live_button.setToolTip(_("Start/stop live preview"))
-        self.live_button.setFixedHeight(self.generate_button.minimumSizeHint().height())
-        self.live_button.setSizePolicy(QSizePolicy.Policy.Fixed, QSizePolicy.Policy.Fixed)
+        self.live_button = LiveToggleButton(self)
         self.live_button.clicked.connect(self.toggle_live)
 
         self.strength_slider = StrengthWidget()
 
         generate_layout = QHBoxLayout()
-        generate_layout.setSpacing(0)
         generate_layout.addWidget(self.generate_button, 1)
         generate_layout.addWidget(self.live_button)
 

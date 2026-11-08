@@ -861,7 +861,6 @@ class CustomWorkflowWidget(QWidget):
         self._bottom_layout.addWidget(self._outputs, stretch=0)
         self._bottom_layout.addWidget(self._preview_reel, stretch=0)
         self._bottom_layout.addStretch()
-        self._bottom_layout.addWidget(self._live_preview, stretch=5)
         self.setLayout(layout)
 
         self._update_ui()
@@ -893,7 +892,6 @@ class CustomWorkflowWidget(QWidget):
                 model.custom.graph_changed.connect(self._update_current_workflow),
                 model.custom.mode_changed.connect(self._update_ui),
                 model.custom.is_live_changed.connect(self._update_ui),
-                model.custom.result_available.connect(self._live_preview.show_image),
                 model.custom.has_result_changed.connect(self._apply_button.setEnabled),
             ]
             self._queue_button.model = model
@@ -923,7 +921,6 @@ class CustomWorkflowWidget(QWidget):
     def _update_ui(self):
         is_live_mode = self.model.custom.mode is CustomGenerationMode.live
         self._preview_reel.setVisible(not is_live_mode)
-        self._live_preview.setVisible(is_live_mode)
         self._apply_button.setVisible(is_live_mode)
         self._apply_button.setEnabled(self.model.custom.has_result)
 
