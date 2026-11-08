@@ -19,7 +19,7 @@ libraries except for Qt and the websockets library.
   - `resources.py` - central location that enumerates supported AI models and extensions
 - `ai_diffusion/ui/` - Qt widgets that make up the UI
   - `generation.py` - workspace for launching asynchronous image jobs and viewing their results in a history list
-  - `live.py` - workspace for automatically generating preview output after every change
+  - `live.py` - UI for automatically generating output after every change and viewing it in a separate live preview area
   - `upscale.py` - workspace for diffusion-based super-resolution tasks
   - `custom_workflow.py` - workspace for importing and running custom user ComfyUI workflows
   - `animation.py` - for batch-processing image frames
