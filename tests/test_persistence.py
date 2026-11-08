@@ -168,7 +168,12 @@ async def test_sync(workflows_dir: Path):
     model1.regions.negative = "blurry"
     model1.inpaint.mode = InpaintMode.fill
     model1.inpaint.use_inpaint = False
-    model1.live.strength = 0.55
+    model1.live.zoom = 1.33
+    model1.live.pan_x = 42.0
+    model1.live.pan_y = -16.5
+    model1.live.rotation = 32.0
+    model1.live.mirrored = True
+    model1.live.track = True
     model1.upscale.upscaler = "4x-UltraSharp.pt"
     model1.upscale.strength = 0.42
     model1.upscale.use_diffusion = False
@@ -203,7 +208,12 @@ async def test_sync(workflows_dir: Path):
     assert model2.regions.negative == model1.regions.negative
     assert model2.inpaint.mode is model1.inpaint.mode
     assert model2.inpaint.use_inpaint == model1.inpaint.use_inpaint
-    assert model2.live.strength == pytest.approx(model1.live.strength)
+    assert model2.live.zoom == pytest.approx(model1.live.zoom)
+    assert model2.live.pan_x == pytest.approx(model1.live.pan_x)
+    assert model2.live.pan_y == pytest.approx(model1.live.pan_y)
+    assert model2.live.rotation == pytest.approx(model1.live.rotation)
+    assert model2.live.mirrored == model1.live.mirrored
+    assert model2.live.track == model1.live.track
     assert model2.upscale.upscaler == model1.upscale.upscaler
     assert model2.upscale.strength == pytest.approx(model1.upscale.strength)
     assert model2.upscale.use_diffusion == model1.upscale.use_diffusion

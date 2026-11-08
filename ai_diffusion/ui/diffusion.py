@@ -30,7 +30,6 @@ from .animation import AnimationWidget
 from .custom_workflow import CustomWorkflowPlaceholder, CustomWorkflowWidget
 from .generation import GenerationWidget
 from .history import HistoryWidget
-from .live import LiveWidget
 from .upscale import UpscaleWidget
 
 
@@ -286,14 +285,12 @@ class ImageDiffusionWidget(DockWidget):
         self._generation = GenerationWidget()
         self._upscaling = UpscaleWidget()
         self._animation = AnimationWidget()
-        self._live = LiveWidget()
         self._custom = CustomWorkflowWidget()
         self._custom_placeholder = CustomWorkflowPlaceholder()
         self._frame = QStackedWidget(self)
         self._frame.addWidget(self._welcome)
         self._frame.addWidget(self._generation)
         self._frame.addWidget(self._upscaling)
-        self._frame.addWidget(self._live)
         self._frame.addWidget(self._animation)
         self._frame.addWidget(self._custom)
         self._frame.addWidget(self._custom_placeholder)
@@ -332,9 +329,6 @@ class ImageDiffusionWidget(DockWidget):
         elif model.workspace is Workspace.upscaling:
             self._upscaling.model = model
             self._frame.setCurrentWidget(self._upscaling)
-        elif model.workspace is Workspace.live:
-            self._live.model = model
-            self._frame.setCurrentWidget(self._live)
         elif model.workspace is Workspace.animation:
             self._animation.model = model
             self._frame.setCurrentWidget(self._animation)

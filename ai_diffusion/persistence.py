@@ -333,6 +333,9 @@ def _upgrade_to_v2(state: dict[str, Any]):
     shared regions, which have an additional "positive_edit" prompt, and all control layers are
     collected in a single list where "region" is an index into [root, *regions].
     """
+    if state.get("workspace") == 2:  # former live workspace, was removed
+        state["workspace"] = 0  # map to generation workspace
+
     if "mask_source" not in state and state.pop("region_only", False):
         state["mask_source"] = MaskSource.region.value
 

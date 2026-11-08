@@ -14,9 +14,7 @@ from PyQt6.QtGui import (
     QPalette,
 )
 from PyQt6.QtWidgets import (
-    QCheckBox,
     QComboBox,
-    QDoubleSpinBox,
     QFrame,
     QGridLayout,
     QHBoxLayout,
@@ -34,7 +32,7 @@ from ..backend.workflow import InpaintMode
 from ..localization import translate as _
 from ..model.jobs import JobKind
 from ..model.model import DocumentModel, MaskSource, ProgressKind, QueueMode
-from ..model.properties import Bind, Binding, bind, bind_combo, bind_toggle
+from ..model.properties import Bind, Binding, bind, bind_combo
 from ..model.root import root
 from ..settings import Settings
 from ..util import is_one
@@ -42,12 +40,14 @@ from . import theme
 from .context import ContextWidget
 from .control import ControlListWidget
 from .history import PreviewReel
+from .live import LiveControls
 from .region import RegionPromptWidget
 from .settings_widgets import ExpanderButton
 from .widget import (
     ErrorBox,
     GenerateButton,
     LayerCountWidget,
+    SeedWidget,
     StrengthWidget,
     StyleSelectWidget,
     WorkspaceSelectWidget,
@@ -138,25 +138,9 @@ class AdvancedSettingsWidget(QWidget):
         grid.addWidget(self.batch_input.widget(), 0, 1)
         grid.addWidget(self.queue_mode_combo, 0, 2)
 
-        self.seed_check = QCheckBox(_("Fixed"), self)
-        self.seed_input = QDoubleSpinBox(self)
-        self.seed_input.setRange(0, 2**32 - 1)
-        self.seed_input.setDecimals(0)
-        self.seed_input.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Preferred)
-        self.seed_input.setToolTip(
-            _(
-                "The seed controls the random part of the output. A fixed seed value will always produce the same result for the same inputs."
-            )
-        )
-        self.randomize_seed = QToolButton(self)
-        self.randomize_seed.setIcon(theme.icon("random"))
-        seed_layout = QHBoxLayout()
-        seed_layout.setContentsMargins(0, 0, 0, 0)
-        seed_layout.addWidget(self.seed_check)
-        seed_layout.addWidget(self.seed_input)
-        seed_layout.addWidget(self.randomize_seed)
+        self.seed_controls = SeedWidget(self, fixed=True)
         grid.addWidget(QLabel(_("Seed"), self), 1, 0)
-        grid.addLayout(seed_layout, 1, 1, 1, 2)
+        grid.addWidget(self.seed_controls, 1, 1, 1, 2)
 
         self.resolution_input = DoubleSliderSpinBox()
         self.resolution_input.setRange(0.3, 1.5, 1)
@@ -189,27 +173,18 @@ class AdvancedSettingsWidget(QWidget):
     def model(self, model: DocumentModel):
         Binding.disconnect_all(self._bindings)
         self._model = model
-        seed_spin = self.seed_input
+        self.seed_controls.model = model
         batch_spin = self.batch_input.widget()
         resolution_spin = self.resolution_input.widget()
         self._bindings = [
             bind(model, "batch_count", batch_spin, "value"),
             bind_combo(model, "queue_mode", self.queue_mode_combo),
-            model.seed_changed.connect(lambda: seed_spin.setValue(model.seed)),
-            seed_spin.valueChanged.connect(lambda value: setattr(model, "seed", int(value))),
-            bind_toggle(model, "fixed_seed", self.seed_check),
-            model.fixed_seed_changed.connect(seed_spin.setEnabled),
-            model.fixed_seed_changed.connect(self.randomize_seed.setEnabled),
-            self.randomize_seed.clicked.connect(model.generate_seed),
             bind(model, "resolution_multiplier", resolution_spin, "value"),
             bind_combo(model.inpaint, "use_inpaint", self.seamless_combo),
             model.batch_count_changed.connect(self._update_indicators),
             model.fixed_seed_changed.connect(self._update_indicators),
             model.resolution_multiplier_changed.connect(self._update_indicators),
         ]
-        seed_spin.setValue(model.seed)
-        seed_spin.setEnabled(model.fixed_seed)
-        self.randomize_seed.setEnabled(model.fixed_seed)
         self._update_indicators()
 
     def _update_indicators(self):
@@ -241,12 +216,22 @@ class GenerationWidget(QWidget):
         self.context = ContextWidget(self)
 
         self.generate_button = GenerateButton(JobKind.diffusion, self)
+        self.live_button = QToolButton(self)
+        self.live_button.setText(_("Live"))
+        self.live_button.setToolButtonStyle(Qt.ToolButtonStyle.ToolButtonTextBesideIcon)
+        self.live_button.setCheckable(True)
+        self.live_button.setIcon(theme.icon("play"))
+        self.live_button.setToolTip(_("Start/stop live preview"))
+        self.live_button.setFixedHeight(self.generate_button.minimumSizeHint().height())
+        self.live_button.setSizePolicy(QSizePolicy.Policy.Fixed, QSizePolicy.Policy.Fixed)
+        self.live_button.clicked.connect(self.toggle_live)
 
         self.strength_slider = StrengthWidget()
 
         generate_layout = QHBoxLayout()
         generate_layout.setSpacing(0)
-        generate_layout.addWidget(self.generate_button)
+        generate_layout.addWidget(self.generate_button, 1)
+        generate_layout.addWidget(self.live_button)
 
         actions_layout = QVBoxLayout()
         actions_layout.addLayout(generate_layout)
@@ -265,6 +250,9 @@ class GenerationWidget(QWidget):
 
         self.preview_reel = PreviewReel(self)
         layout.addWidget(self.preview_reel)
+        self.live_controls = LiveControls(self)
+        layout.addWidget(self.live_controls)
+        self.live_controls.hide()
 
         self.mode_area = QFrame(self)
         mode_layout = QVBoxLayout(self.mode_area)
@@ -341,6 +329,7 @@ class GenerationWidget(QWidget):
                 model.mask_source_changed.connect(self.update_generate_options),
                 model.active_style_changed.connect(self.update_generate_options),
                 model.edit_mode_changed.connect(self.update_generate_options),
+                model.live.is_active_changed.connect(self.update_live),
                 self.add_region_button.clicked.connect(self.add_region),
                 self.region_prompt.activated.connect(model.generate),
                 self.generate_button.clicked.connect(model.generate),
@@ -354,7 +343,21 @@ class GenerationWidget(QWidget):
             self.progress_bar.model = model
             self.strength_slider.model = model
             self.preview_reel.model_ = model
+            self.live_controls.model = model
             self.update_generate_options()
+            self.update_live()
+
+    def toggle_live(self):
+        self.model.live.is_active = not self.model.live.is_active
+
+    def update_live(self):
+        active = self.model.live.is_active
+        self.live_button.setChecked(active)
+        self.live_button.setIcon(theme.icon("pause" if active else "play"))
+        self.generate_button.setEnabled(not active)
+        self.preview_reel.setVisible(not active)
+        self.live_controls.setVisible(active)
+        self.advanced_settings.setVisible(not active)
 
     _inpaint_text: ClassVar[dict[InpaintMode, str]] = {
         InpaintMode.automatic: _("Default (Auto-detect)"),

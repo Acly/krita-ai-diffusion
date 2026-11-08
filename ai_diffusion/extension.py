@@ -11,6 +11,7 @@ from .model.root import root
 from .settings import settings
 from .ui import actions
 from .ui.diffusion import HistoryDockWidget, ImageDiffusionWidget
+from .ui.live import LivePreviewDocker
 from .ui.settings import SettingsDialog
 from .util import client_logger as log
 
@@ -78,7 +79,6 @@ class AIToolsExtension(Extension):
         self._create_action(
             window, "switch_workspace_upscaling", actions.set_workspace(Workspace.upscaling)
         )
-        self._create_action(window, "switch_workspace_live", actions.set_workspace(Workspace.live))
         self._create_action(
             window, "switch_workspace_graph", actions.set_workspace(Workspace.custom)
         )
@@ -99,5 +99,12 @@ Krita.instance().addDockWidgetFactory(
         "aiImageHistory",
         DockWidgetFactoryBase.DockPosition.DockMinimized,  # type: ignore
         HistoryDockWidget,
+    )
+)
+Krita.instance().addDockWidgetFactory(
+    DockWidgetFactory(
+        "aiLivePreview",
+        DockWidgetFactoryBase.DockPosition.DockMinimized,  # type: ignore
+        LivePreviewDocker,
     )
 )

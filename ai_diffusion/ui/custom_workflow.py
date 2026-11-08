@@ -47,7 +47,6 @@ from ..util import base_type_match, clamp, ensure
 from . import theme
 from .generation import GenerateButton, ProgressBar
 from .history import PreviewReel
-from .live import LivePreviewArea
 from .region import ActiveRegionWidget, PromptHeader
 from .settings_widgets import ExpanderButton
 from .switch import SwitchWidget
@@ -814,8 +813,6 @@ class CustomWorkflowWidget(QWidget):
         self._outputs.expander.toggled.connect(self._update_layout)
 
         self._preview_reel = PreviewReel(self._bottom)
-
-        self._live_preview = LivePreviewArea(self._bottom)
 
         self._splitter = QSplitter(Qt.Orientation.Vertical, self)
         self._splitter.addWidget(self._params_scroll)

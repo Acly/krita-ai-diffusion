@@ -63,7 +63,7 @@ from ..model.model import (
     Workspace,
     no_error,
 )
-from ..model.properties import Bind, Binding, bind, bind_combo
+from ..model.properties import Bind, Binding, bind, bind_combo, bind_toggle
 from ..model.root import root
 from ..settings import Settings, settings
 from ..style import Style, Styles, sort_recent_styles
@@ -777,10 +777,12 @@ class StrengthWidget(DoubleSliderSpinBox):
             self._model.active_style_changed.disconnect(self._update_suffix)
             self._model.edit_mode_changed.disconnect(self._update_suffix)
             self._model.animation.sampling_quality_changed.disconnect(self._update_suffix)
+            self._model.live.is_active_changed.disconnect(self._update_suffix)
         self._model = model
         self._model.active_style_changed.connect(self._update_suffix)
         self._model.edit_mode_changed.connect(self._update_suffix)
         self._model.animation.sampling_quality_changed.connect(self._update_suffix)
+        self._model.live.is_active_changed.connect(self._update_suffix)
         self._update_suffix()
 
     @property
@@ -816,7 +818,7 @@ class StrengthWidget(DoubleSliderSpinBox):
 
 
 def _get_steps(model: DocumentModel):
-    is_live = model.workspace is Workspace.live
+    is_live = model.live.is_active
     if model.workspace is Workspace.animation:
         is_live = model.animation.sampling_quality is SamplingQuality.fast
     return model.active_style.get_steps(is_live=is_live)
@@ -834,6 +836,59 @@ def _nearest_percent(model: DocumentModel, strength_percent: int) -> int | None:
     _, max_steps = _get_steps(model)
     steps, start_at_step = _apply_strength(model, strength_percent)
     return snap_to_percent(steps, start_at_step, max_steps=max_steps)
+
+
+class SeedWidget(QWidget):
+    def __init__(self, parent: QWidget, fixed=False):
+        super().__init__(parent)
+        self._model: DocumentModel | None = None
+        self._bindings: list[QMetaObject.Connection | Binding] = []
+        self.fixed = QCheckBox(_("Fixed"), self) if fixed else None
+        self.input = QDoubleSpinBox(self)
+        self.input.setRange(0, 2**32 - 1)
+        self.input.setDecimals(0)
+        self.input.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Fixed)
+        self.input.setToolTip(
+            _(
+                "The seed controls the random part of the output. The same seed value will always produce the same result."
+            )
+        )
+        self.randomize = QToolButton(self)
+        self.randomize.setIcon(theme.icon("random"))
+        self.randomize.setToolTip(
+            _("Generate a random seed value to get a variation of the image.")
+        )
+        layout = QHBoxLayout(self)
+        layout.setContentsMargins(0, 0, 0, 0)
+        if self.fixed:
+            layout.addWidget(self.fixed)
+        else:
+            self.input.setPrefix(_("Seed") + ": ")
+        layout.addWidget(self.input)
+        layout.addWidget(self.randomize)
+
+    @property
+    def model(self):
+        return self._model
+
+    @model.setter
+    def model(self, model: DocumentModel):
+        Binding.disconnect_all(self._bindings)
+        self._model = model
+        self._bindings = [
+            model.seed_changed.connect(lambda: self.input.setValue(model.seed)),
+            self.input.valueChanged.connect(lambda value: setattr(model, "seed", int(value))),
+            self.randomize.clicked.connect(model.generate_seed),
+        ]
+        if self.fixed:
+            self._bindings += [
+                bind_toggle(model, "fixed_seed", self.fixed),
+                model.fixed_seed_changed.connect(self.input.setEnabled),
+                model.fixed_seed_changed.connect(self.randomize.setEnabled),
+            ]
+            self.input.setEnabled(model.fixed_seed)
+            self.randomize.setEnabled(model.fixed_seed)
+        self.input.setValue(model.seed)
 
 
 class LayerCountWidget(QWidget):
@@ -891,7 +946,6 @@ class WorkspaceSelectWidget(QToolButton):
     _icons: ClassVar[dict[Workspace, QIcon]] = {
         Workspace.generation: theme.icon("workspace-generation"),
         Workspace.upscaling: theme.icon("workspace-upscaling"),
-        Workspace.live: theme.icon("workspace-live"),
         Workspace.animation: theme.icon("workspace-animation"),
         Workspace.custom: theme.icon("workspace-custom"),
     }
@@ -904,7 +958,6 @@ class WorkspaceSelectWidget(QToolButton):
         menu = QMenu(self)
         menu.addAction(self._create_action(_("Generate"), Workspace.generation))
         menu.addAction(self._create_action(_("Upscale"), Workspace.upscaling))
-        menu.addAction(self._create_action(_("Live"), Workspace.live))
         menu.addAction(self._create_action(_("Animation"), Workspace.animation))
         menu.addAction(self._create_action(_("Graph"), Workspace.custom))
 
@@ -912,7 +965,7 @@ class WorkspaceSelectWidget(QToolButton):
         self.setMenu(menu)
         self.setPopupMode(QToolButton.ToolButtonPopupMode.InstantPopup)
         self.setToolTip(
-            _("Switch between workspaces: image generation, upscaling, live preview and animation.")
+            _("Switch between workspaces: image generation, upscaling, animation and graph.")
         )
         self.setMinimumWidth(int(self.sizeHint().width() * 1.6))
         self.value = Workspace.generation

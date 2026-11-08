@@ -1,32 +1,37 @@
 from __future__ import annotations
 
-from PyQt6.QtCore import QMetaObject, QRectF, Qt, QTimer
-from PyQt6.QtGui import QColor, QFont, QPainter, QPen
+from math import atan2, degrees, hypot
+
+from krita import Canvas, DockWidget, Krita, View
+from PyQt6.QtCore import QMetaObject, QPointF, QRectF, QSize, Qt, QTimer
+from PyQt6.QtGui import (
+    QColor,
+    QCursor,
+    QFont,
+    QLinearGradient,
+    QPainter,
+    QPalette,
+    QPen,
+    QTransform,
+)
 from PyQt6.QtWidgets import (
-    QDoubleSpinBox,
+    QCheckBox,
     QHBoxLayout,
-    QLabel,
     QSizePolicy,
     QToolButton,
     QVBoxLayout,
     QWidget,
 )
 
-from ..image import Extent, Image
+from ..image import Image
 from ..localization import translate as _
 from ..model.model import DocumentModel
-from ..model.properties import Bind, Binding, bind
+from ..model.properties import Binding, bind_toggle
 from ..model.root import root
+from ..settings import settings
 from . import theme
-from .control import ControlListWidget
-from .region import ActiveRegionWidget, PromptHeader
-from .widget import (
-    ErrorBox,
-    StrengthWidget,
-    StyleSelectWidget,
-    WorkspaceSelectWidget,
-    create_wide_tool_button,
-)
+from .history import PreviewReel
+from .widget import SeedWidget
 
 
 class SpinnerWidget(QWidget):
@@ -41,7 +46,7 @@ class SpinnerWidget(QWidget):
 
         self.timer = QTimer(self)
         self.timer.timeout.connect(self._update_rotation)
-        self.timer.setInterval(50)  # 20 FPS animation
+        self.timer.setInterval(50)
 
     def start_animation(self):
         if not self.timer.isActive():
@@ -70,13 +75,9 @@ class SpinnerWidget(QWidget):
     def paintEvent(self, a0):
         painter = QPainter(self)
         painter.setRenderHint(QPainter.RenderHint.Antialiasing)
-        color = QColor(theme.grey)
-        color = color.lighter(100 + self.brightness)
-
-        rect = QRectF(30, 2, 16, 16)
+        color = QColor(theme.grey).lighter(100 + self.brightness)
         painter.setPen(QPen(color, 2))
-        painter.drawArc(rect, self.rotation * 16, 120 * 16)  # 120 degree arc
-
+        painter.drawArc(QRectF(30, 2, 16, 16), self.rotation * 16, 120 * 16)
         font = QFont()
         font.setPointSize(8)
         painter.setFont(font)
@@ -86,138 +87,102 @@ class SpinnerWidget(QWidget):
         )
 
 
-class LivePreviewArea(QLabel):
+class LiveThumbnail(QWidget):
     def __init__(self, parent: QWidget):
         super().__init__(parent)
-        self.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Expanding)
-        self.setAlignment(Qt.AlignmentFlag(Qt.AlignmentFlag.AlignTop | Qt.AlignmentFlag.AlignLeft))
+        self._image: Image | None = None
+        self.setCursor(Qt.CursorShape.PointingHandCursor)
+        self.setToolTip(_("Open AI Live Preview"))
+        settings.changed.connect(self._settings_changed)
+        self._update_size()
 
-    def show_image(self, image: Image):
-        target = Extent.from_qsize(self.size())
-        img = Image.scale_to_fit(image, target)
-        self.setPixmap(img.to_pixmap())
-        self.setMinimumSize(256, 256)
+    def show_image(self, image: Image | None):
+        self._image = image
+        self._update_size()
+        self.update()
 
+    def _settings_changed(self, name: str, value: object):
+        if name == "preview_reel_size":
+            self._update_size()
 
-class LiveWidget(QWidget):
-    _play_icon = theme.icon("play")
-    _pause_icon = theme.icon("pause")
+    def _update_size(self):
+        height = theme.screen_scale(
+            self, QSize(settings.preview_reel_size, settings.preview_reel_size)
+        ).height()
+        width = (
+            max(height, round(height * self._image.width / self._image.height))
+            if self._image
+            else height
+        )
+        self.setFixedSize(width + 6, height + 6)
 
-    _model: DocumentModel
-    _model_bindings: list[QMetaObject.Connection | Binding]
-
-    def __init__(self):
-        super().__init__()
-        self._model = root.active_model
-        self._model_bindings = []
-
-        layout = QVBoxLayout(self)
-        layout.setContentsMargins(0, 2, 4, 0)
-        self.setLayout(layout)
-
-        self.workspace_select = WorkspaceSelectWidget(self)
-
-        self.active_button = QToolButton(self)
-        self.active_button.setToolButtonStyle(Qt.ToolButtonStyle.ToolButtonIconOnly)
-        self.active_button.setIcon(self._play_icon)
-        self.active_button.setAutoRaise(True)
-        self.active_button.setToolTip(_("Start/stop live preview"))
-        self.active_button.clicked.connect(self.toggle_active)
-
-        self.apply_button = QToolButton(self)
-        self.apply_button.setToolButtonStyle(Qt.ToolButtonStyle.ToolButtonIconOnly)
-        self.apply_button.setIcon(theme.icon("apply"))
-        self.apply_button.setAutoRaise(True)
-        self.apply_button.setEnabled(False)
-        self.apply_button.setToolTip(_("Copy the current result to the active layer"))
-        self.apply_button.clicked.connect(self.apply_result)
-
-        self.apply_layer_button = QToolButton(self)
-        self.apply_layer_button.setToolButtonStyle(Qt.ToolButtonStyle.ToolButtonIconOnly)
-        self.apply_layer_button.setIcon(theme.icon("apply-layer"))
-        self.apply_layer_button.setAutoRaise(True)
-        self.apply_layer_button.setEnabled(False)
-        self.apply_layer_button.setToolTip(_("Create a new layer with the current result"))
-        self.apply_layer_button.clicked.connect(self.apply_result_layer)
-
-        self.style_select = StyleSelectWidget(self)
-
-        controls_layout = QHBoxLayout()
-        controls_layout.addWidget(self.workspace_select)
-        controls_layout.addWidget(self.active_button)
-        controls_layout.addWidget(self.apply_button)
-        controls_layout.addWidget(self.apply_layer_button)
-        controls_layout.addWidget(self.style_select)
-        layout.addLayout(controls_layout)
-
-        self.strength_slider = StrengthWidget()
-
-        self.seed_input = QDoubleSpinBox(self)
-        self.seed_input.setDecimals(0)
-        self.seed_input.setMinimum(0)
-        self.seed_input.setMaximum(2**32 - 1)
-        self.seed_input.setPrefix(_("Seed") + ": ")
-        self.seed_input.setToolTip(
-            _(
-                "The seed controls the random part of the output. The same seed value will always produce the same result."
+    def paintEvent(self, a0):
+        painter = QPainter(self)
+        rect = QRectF(self.rect()).adjusted(3, 3, -3, -3)
+        gradient = QLinearGradient(rect.topLeft(), rect.bottomLeft())
+        gradient.setColorAt(0, PreviewReel._background_top)
+        gradient.setColorAt(1, PreviewReel._background_bottom)
+        painter.fillRect(rect, gradient)
+        if self._image:
+            size = QSize(self._image.width, self._image.height).scaled(
+                rect.size().toSize(), Qt.AspectRatioMode.KeepAspectRatio
             )
-        )
+            target = QRectF(QPointF(), size.toSizeF())
+            target.moveCenter(rect.center())
+            painter.setRenderHint(QPainter.RenderHint.SmoothPixmapTransform)
+            painter.drawImage(target, self._image._qimage)
+        if self.underMouse():
+            painter.fillRect(rect, PreviewReel._active_overlay)
+            painter.setPen(QPen(PreviewReel._active_border, 2))
+            painter.drawRect(rect.adjusted(0, 0, -1, -1))
 
-        self.random_seed_button = QToolButton(self)
-        self.random_seed_button.setToolButtonStyle(Qt.ToolButtonStyle.ToolButtonIconOnly)
-        self.random_seed_button.setIcon(theme.icon("random"))
-        self.random_seed_button.setAutoRaise(True)
-        self.random_seed_button.setToolTip(
-            _("Generate a random seed value to get a variation of the image.")
-        )
+    def enterEvent(self, event):
+        self.update()
 
-        self.edit_toggle = QToolButton(parent=self)
-        self.edit_toggle.setToolButtonStyle(Qt.ToolButtonStyle.ToolButtonIconOnly)
-        self.edit_toggle.setAutoRaise(True)
-        self.edit_toggle.clicked.connect(self.toggle_edit)
+    def leaveEvent(self, a0):
+        self.update()
 
-        params_layout = QHBoxLayout()
-        params_layout.addWidget(self.strength_slider.widget(), 2)
-        params_layout.addWidget(self.edit_toggle)
-        params_layout.addWidget(self.seed_input, 1)
-        params_layout.addWidget(self.random_seed_button)
-        layout.addLayout(params_layout)
+    def mouseReleaseEvent(self, a0):
+        if a0 and a0.button() == Qt.MouseButton.LeftButton and self.rect().contains(a0.pos()):
+            if window := Krita.instance().activeWindow():
+                for docker in window.dockers():
+                    if docker.objectName() == "aiLivePreview":
+                        docker.show()
+                        docker.raise_()
+                        break
 
-        self.control_list = ControlListWidget(self._model.control, self)
-        self.add_region_button = create_wide_tool_button("region-add", _("Add Region"), self)
-        self.add_region_button.clicked.connect(self.create_region)
-        prompt_buttons_layout = QVBoxLayout()
-        prompt_buttons_layout.setAlignment(Qt.AlignmentFlag.AlignTop)
-        prompt_buttons_layout.setSpacing(2)
-        prompt_buttons_layout.addWidget(self.add_region_button)
 
-        self.region_widget = ActiveRegionWidget(self._model.regions, self, header=PromptHeader.icon)
-        self.region_widget.is_slim = True
-        self.region_widget.focused.connect(self.focus_active_region)
-
-        self.prompt_widget = ActiveRegionWidget(self._model.regions, self, header=PromptHeader.icon)
-        self.prompt_widget.is_slim = True
-        self.prompt_widget.focused.connect(self.focus_root_region)
-
-        prompt_text_layout = QVBoxLayout()
-        prompt_text_layout.setSpacing(2)
-        prompt_text_layout.addWidget(self.region_widget)
-        prompt_text_layout.addWidget(self.prompt_widget)
-
-        cond_layout = QHBoxLayout()
-        cond_layout.addLayout(prompt_text_layout)
-        cond_layout.addLayout(prompt_buttons_layout)
-        layout.addLayout(cond_layout)
-        layout.addWidget(self.control_list)
-
-        self.error_box = ErrorBox(self)
-        layout.addWidget(self.error_box)
-
-        self.preview_area = LivePreviewArea(self)
-        layout.addWidget(self.preview_area)
-
-        self.spinner = SpinnerWidget(self.preview_area)
-        self.spinner.hide()
+class LiveControls(QWidget):
+    def __init__(self, parent: QWidget):
+        super().__init__(parent)
+        self.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Fixed)
+        self._model: DocumentModel | None = None
+        self._bindings: list[QMetaObject.Connection | Binding] = []
+        self.thumbnail = LiveThumbnail(self)
+        self.apply_button = QToolButton(self)
+        self.apply_button.setText(_("Apply"))
+        self.apply_button.setIcon(theme.icon("apply"))
+        self.apply_button.setToolButtonStyle(Qt.ToolButtonStyle.ToolButtonTextBesideIcon)
+        self.apply_button.setToolTip(_("Copy the current result to the active layer"))
+        self.apply_layer_button = QToolButton(self)
+        self.apply_layer_button.setText(_("Apply as layer"))
+        self.apply_layer_button.setIcon(theme.icon("apply-layer"))
+        self.apply_layer_button.setToolButtonStyle(Qt.ToolButtonStyle.ToolButtonTextBesideIcon)
+        self.apply_layer_button.setToolTip(_("Create a new layer with the current result"))
+        self.seed_controls = SeedWidget(self)
+        buttons = QHBoxLayout()
+        buttons.addWidget(self.apply_button)
+        buttons.addWidget(self.apply_layer_button)
+        buttons.addStretch()
+        controls = QVBoxLayout()
+        controls.setContentsMargins(0, 0, 0, 0)
+        controls.addLayout(buttons)
+        controls.addWidget(self.seed_controls)
+        controls.addStretch()
+        layout = QHBoxLayout(self)
+        layout.setContentsMargins(0, 0, 0, 0)
+        layout.addWidget(self.thumbnail, alignment=Qt.AlignmentFlag.AlignTop)
+        layout.addLayout(controls, 1)
 
     @property
     def model(self):
@@ -225,103 +190,429 @@ class LiveWidget(QWidget):
 
     @model.setter
     def model(self, model: DocumentModel):
-        if self._model != model:
-            Binding.disconnect_all(self._model_bindings)
-            self._model = model
-            self.seed_input.setValue(model.seed)
-            self._model_bindings = [
-                bind(model, "workspace", self.workspace_select, "value", Bind.one_way),
-                bind(model, "active_style", self.style_select, "value"),
-                bind(model.live, "strength", self.strength_slider, "value"),
-                model.seed_changed.connect(lambda: self.seed_input.setValue(self._model.seed)),
-                self.seed_input.valueChanged.connect(
-                    lambda v: setattr(self._model, "seed", int(v))
-                ),
-                bind(model, "error", self.error_box, "error", Bind.one_way),
-                model.live.is_active_changed.connect(self.update_is_active),
-                model.live.has_result_changed.connect(self.apply_button.setEnabled),
-                model.live.has_result_changed.connect(self.apply_layer_button.setEnabled),
-                self.random_seed_button.clicked.connect(model.generate_seed),
-                model.edit_mode_changed.connect(self.update_edit_mode),
-                model.active_style_changed.connect(self.update_edit_mode),
-                model.progress_changed.connect(self.update_progress),
-                model.live.result_available.connect(self.show_result),
-                model.regions.active_changed.connect(self.update_region),
-                model.layers.active_changed.connect(self.update_region),
-            ]
-            self.apply_button.setEnabled(model.live.has_result)
-            self.apply_layer_button.setEnabled(model.live.has_result)
-            self.prompt_widget.region = model.regions
-            self.region_widget.root = model.regions
-            self.strength_slider.model = model
-            self.update_edit_mode()
-            self.update_region()
-            self.update_is_active()
-            self.preview_area.clear()
+        Binding.disconnect_all(self._bindings)
+        self._model = model
+        self.seed_controls.model = model
+        self._bindings = [
+            model.live.result_available.connect(self.thumbnail.show_image),
+            model.live.has_result_changed.connect(self.apply_button.setEnabled),
+            model.live.has_result_changed.connect(self.apply_layer_button.setEnabled),
+            self.apply_button.clicked.connect(lambda: model.live.apply_result()),
+            self.apply_layer_button.clicked.connect(
+                lambda: model.live.apply_result(layer_only=True)
+            ),
+        ]
+        self.apply_button.setEnabled(model.live.has_result)
+        self.apply_layer_button.setEnabled(model.live.has_result)
+        self.thumbnail.show_image(model.live.result_composition)
 
-    def toggle_active(self):
-        self.model.live.is_active = not self.model.live.is_active
 
-    def toggle_edit(self):
-        if self.model.can_toggle_edit:
-            self.model.edit_mode = not self.model.edit_mode
+class ImagePreviewArea(QWidget):
+    def __init__(self, parent: QWidget):
+        super().__init__(parent)
+        self._image: Image | None = None
+        self.setMinimumSize(256, 256)
+        self.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Expanding)
 
-    def update_edit_mode(self):
-        self.edit_toggle.setEnabled(self.model.can_toggle_edit)
-        self.prompt_widget.region = self.model.regions
-        self.region_widget.root = self.model.regions
-        self.update_region()
-        if self.model.edit_mode:
-            self.edit_toggle.setIcon(theme.icon("workspace-generation"))
-            self.edit_toggle.setToolTip(_("Switch to generate mode"))
+    def show_image(self, image: Image):
+        self._image = image
+        self.update()
+
+    def paintEvent(self, a0):
+        if self._image:
+            zoom = min(self.width() / self._image.width, self.height() / self._image.height)
+            painter = QPainter(self)
+            painter.setRenderHint(QPainter.RenderHint.SmoothPixmapTransform)
+            painter.scale(zoom, zoom)
+            painter.drawImage(0, 0, self._image._qimage)
+
+
+class LivePreviewArea(QWidget):
+    zoom_steps = (
+        0.125,
+        0.167,
+        0.25,
+        0.33,
+        0.5,
+        0.67,
+        1.0,
+        1.33,
+        2.0,
+        2.67,
+        4.0,
+        5.33,
+        8.0,
+        10.67,
+        16.0,
+        21.33,
+        32.0,
+        42.67,
+        64.0,
+    )
+
+    def __init__(self, parent: QWidget):
+        super().__init__(parent)
+        self._model = root.active_model
+        self._bindings: list[QMetaObject.Connection | Binding] = []
+        self._image: Image | None = None
+        self._space = False
+        self._drag: str | None = None
+        self._last_pos = QPointF()
+        self._tracked: QTransform | None = None
+        self._tracking = False
+        self._view: View | None = None
+
+        self.setMinimumSize(256, 256)
+        self.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Expanding)
+        self.setFocusPolicy(Qt.FocusPolicy.StrongFocus)
+        self.setMouseTracking(True)
+
+        self.controls = QWidget(self)
+        row = QHBoxLayout(self.controls)
+        row.setContentsMargins(4, 4, 4, 4)
+        row.setSpacing(2)
+
+        self.zoom_out = self._button("−", lambda: self.step_zoom(-1))
+        self.zoom_label = self._button(_("Zoom: 100%"), lambda: self.set_zoom(1.0))
+        self.zoom_in = self._button("+", lambda: self.step_zoom(1))
+
+        self.fit_button = self._button("", self.fit)
+        self.fit_button.setIcon(theme.icon("zoom-fit"))
+        self.fit_button.setToolTip(_("Fit full image"))
+
+        self.track_check = QCheckBox(_("Track"), self.controls)
+        self.track_check.setToolTip(_("Track Krita's current view"))
+
+        for control in (
+            self.zoom_out,
+            self.zoom_label,
+            self.zoom_in,
+            self.fit_button,
+            self.track_check,
+        ):
+            row.addWidget(control)
+        base = self.palette().color(QPalette.ColorRole.Base)
+        self.controls.setStyleSheet(
+            "QToolButton, QCheckBox { background-color: "
+            f"rgba({base.red()}, {base.green()}, {base.blue()}, 230);"
+            "padding: 3px; border-radius: 3px; }"
+            f"QToolButton:hover {{ color: {theme.highlight}; }}"
+        )
+        self.controls.hide()
+
+        self.spinner = SpinnerWidget(self)
+        self.spinner.hide()
+
+        self.setMinimumWidth(max(256, self.controls.sizeHint().width() + self.spinner.width() + 8))
+        self._poller = QTimer(self)
+        self._poller.setInterval(20)
+        self._poller.timeout.connect(self._track_view)
+
+        self.model = self._model
+
+    def _button(self, text: str, callback):
+        button = QToolButton(self.controls)
+        button.setText(text)
+        button.clicked.connect(callback)
+        return button
+
+    @property
+    def model(self):
+        return self._model
+
+    @model.setter
+    def model(self, model: DocumentModel):
+        Binding.disconnect_all(self._bindings)
+        self._model = model
+        self._bindings = [
+            model.live.result_available.connect(self.show_image),
+            model.progress_changed.connect(self._update_progress),
+            model.live.is_active_changed.connect(self._update_progress),
+            model.live.zoom_changed.connect(self._view_changed),
+            model.live.pan_x_changed.connect(self._view_changed),
+            model.live.pan_y_changed.connect(self._view_changed),
+            model.live.rotation_changed.connect(self._view_changed),
+            model.live.mirrored_changed.connect(self._view_changed),
+            model.live.track_changed.connect(self._track_changed),
+            bind_toggle(model.live, "track", self.track_check),
+        ]
+        self._image = model.live.result_composition
+        self._tracked = None
+        self._view_changed()
+        self._update_progress()
+
+    def show_image(self, image: Image):
+        self._image = image
+        self.spinner.stop_animation()
+        self.update()
+
+    def _update_progress(self):
+        if self._model.live.is_active and self._model.progress < 1:
+            self.spinner.set_progress(max(0, self._model.progress))
+            self.spinner.start_animation()
         else:
-            self.edit_toggle.setIcon(theme.icon("edit"))
-            self.edit_toggle.setToolTip(_("Switch to edit mode"))
+            self.spinner.stop_animation()
 
-    def update_is_active(self):
-        self.active_button.setIcon(
-            self._pause_icon if self.model.live.is_active else self._play_icon
+    def _view_changed(self):
+        if self._model.live.track and self.isVisible() and self._view is not None:
+            if not self._poller.isActive():
+                self._poller.start()
+        else:
+            self._poller.stop()
+        self._update_zoom_label()
+        self.update()
+
+    def _track_changed(self, active: bool):
+        live = self._model.live
+        if active:
+            self._tracked = None
+            live.zoom = 1.0
+            live.pan_x = 0.0
+            live.pan_y = 0.0
+            live.rotation = 0.0
+            live.mirrored = False
+        else:
+            combined = self._transform()
+            self._tracked = None
+            self._set_transform(combined)
+        self._view_changed()
+
+    def _update_zoom_label(self):
+        text = _("Zoom: {0}%").format(round(self._effective_zoom() * 100))
+        if self.zoom_label.text() != text:
+            self.zoom_label.setText(text)
+            self.controls.adjustSize()
+
+    def _effective_zoom(self):
+        transform = self._transform()
+        return hypot(transform.m11(), transform.m12())
+
+    def _image_center(self):
+        extent = self._image.extent if self._image else self._model.document.extent
+        return QPointF(extent.width / 2, extent.height / 2)
+
+    def _base_transform(self):
+        if self._tracked is not None:
+            return self._tracked
+        center = self._image_center()
+        return QTransform.fromTranslate(
+            self.width() / 2 - center.x(), self.height() / 2 - center.y()
         )
 
-    def update_region(self):
-        regions = self.model.regions
-        has_regions = len(regions) > 0
-        self.region_widget.setVisible(has_regions)
-        self.region_widget.region = regions.region_for_active_layer
-        self.prompt_widget.header_style = PromptHeader.icon if has_regions else PromptHeader.none
-        self.control_list.model = self.model.control
+    def _manual_transform(self):
+        live = self._model.live
+        transform = QTransform()
+        transform.translate(self.width() / 2, self.height() / 2)
+        transform.scale(live.zoom, live.zoom)
+        transform.rotate(live.rotation)
+        transform.scale(1, -1 if live.mirrored else 1)
+        transform.translate(live.pan_x - self.width() / 2, live.pan_y - self.height() / 2)
+        return transform
 
-    def focus_root_region(self):
-        regions = self.model.regions
-        if len(regions) > 0:
-            regions.active = regions
+    def _transform(self):
+        # QTransform multiplication applies the left-hand transform first.
+        return self._base_transform() * self._manual_transform()
 
-    def focus_active_region(self):
-        self.model.regions.active = self.model.regions.region_for_active_layer
+    def _set_transform(self, combined: QTransform):
+        inverse, valid = self._base_transform().inverted()
+        if not valid:
+            return
+        manual = inverse * combined
+        linear = QTransform(manual.m11(), manual.m12(), manual.m21(), manual.m22(), 0, 0)
+        inverse_linear, valid = linear.inverted()
+        if not valid:
+            return
+        center = QPointF(self.width() / 2, self.height() / 2)
+        pan = inverse_linear.map(manual.map(center) - center)
+        live = self._model.live
+        live.zoom = hypot(manual.m11(), manual.m12())
+        live.rotation = degrees(atan2(manual.m12(), manual.m11()))
+        live.mirrored = manual.determinant() < 0
+        live.pan_x = pan.x()
+        live.pan_y = pan.y()
 
-    def create_region(self):
-        self.model.regions.create_region_layer()
+    def _track_view(self):
+        model = self._model
+        if self._tracking or not self.isVisible() or not model.live.track:
+            return
+        # Krita can run a nested event loop during a view update. Never sample
+        # the view recursively, or synchronously from a Qt resize handler.
+        self._tracking = True
+        try:
+            transform = self._read_view_transform()
+            if self._model is not model or not model.live.track:
+                return
+            if transform is not None and transform != self._tracked:
+                self._tracked = transform
+                self._update_zoom_label()
+                self.update()
+        finally:
+            self._tracking = False
 
-    def update_progress(self):
-        if self.model.progress >= 0:
-            self.spinner.set_progress(self.model.progress)
-        if self.model.progress < 1:
-            self.spinner.start_animation()
+    def set_canvas(self, canvas: Canvas | None):
+        self._poller.stop()
+        self._view = canvas.view() if canvas else None
+        self._tracked = None
+        self._view_changed()
 
-    def show_result(self, image: Image):
-        self.spinner.stop_animation()
-        self.preview_area.show_image(image)
+    def _read_view_transform(self) -> QTransform | None:
+        view = self._view
+        if view is None:
+            return
+        image_to_flake, valid = view.flakeToImageTransform().inverted()
+        if not valid:
+            return
+        transform = image_to_flake * view.flakeToCanvasTransform()
+        return transform if transform.isInvertible() else None
+
+    def set_zoom(self, zoom: float, anchor: QPointF | None = None):
+        live = self._model.live
+        zoom = max(0.0001, min(self.zoom_steps[-1], zoom))
+        base = self._base_transform()
+        zoom /= hypot(base.m11(), base.m12())
+        if anchor is not None:
+            inverse, valid = self._manual_transform().inverted()
+            if valid:
+                center = QPointF(self.width() / 2, self.height() / 2)
+                offset = inverse.map(anchor) - inverse.map(center)
+                offset *= live.zoom / zoom - 1
+                live.pan_x += offset.x()
+                live.pan_y += offset.y()
+        live.zoom = zoom
+
+    def step_zoom(self, direction: int, anchor: QPointF | None = None):
+        zoom = self._effective_zoom()
+        steps = self.zoom_steps if direction > 0 else reversed(self.zoom_steps)
+        target = next((s for s in steps if (s - zoom) * direction > 0.001), zoom)
+        self.set_zoom(target, anchor)
+
+    def fit(self):
+        if self._image:
+            zoom = min(self.width() / self._image.width, self.height() / self._image.height)
+            center = self._image_center()
+            transform = QTransform.fromScale(zoom, zoom)
+            transform *= QTransform.fromTranslate(
+                self.width() / 2 - zoom * center.x(), self.height() / 2 - zoom * center.y()
+            )
+            self._set_transform(transform)
+
+    def paintEvent(self, a0):
+        if self._image:
+            painter = QPainter(self)
+            painter.setRenderHint(QPainter.RenderHint.SmoothPixmapTransform)
+            painter.setTransform(self._transform())
+            painter.drawImage(0, 0, self._image._qimage)
 
     def resizeEvent(self, a0):
+        self.controls.move(0, 0)
+        self.spinner.move(self.width() - self.spinner.width() - 4, 4)
         super().resizeEvent(a0)
 
-        # Position spinner in top-right corner of preview area
-        preview_rect = self.preview_area.geometry()
-        spinner_x = preview_rect.right() - self.spinner.width() - 4
-        self.spinner.move(spinner_x, 4)
+    def showEvent(self, a0):
+        self._view_changed()
+        super().showEvent(a0)
 
-    def apply_result(self):
-        self.model.live.apply_result()
+    def hideEvent(self, a0):
+        self._poller.stop()
+        self._space = False
+        self._drag = None
+        super().hideEvent(a0)
 
-    def apply_result_layer(self):
-        self.model.live.apply_result(layer_only=True)
+    def enterEvent(self, event):
+        self.controls.show()
+        self.controls.adjustSize()
+        self.setFocus(Qt.FocusReason.MouseFocusReason)
+        super().enterEvent(event)
+
+    def leaveEvent(self, a0):
+        if not self.rect().contains(self.mapFromGlobal(QCursor.pos())):
+            self.controls.hide()
+        super().leaveEvent(a0)
+
+    def keyPressEvent(self, a0):
+        if a0 and a0.key() == Qt.Key.Key_Space:
+            self._space = True
+            a0.accept()
+        else:
+            super().keyPressEvent(a0)
+
+    def keyReleaseEvent(self, a0):
+        if a0 and a0.key() == Qt.Key.Key_Space and self._space:
+            self._space = False
+            a0.accept()
+        else:
+            super().keyReleaseEvent(a0)
+
+    def focusOutEvent(self, a0):
+        self._space = False
+        self._drag = None
+        self.unsetCursor()
+        super().focusOutEvent(a0)
+
+    def wheelEvent(self, a0):
+        if a0 is None:
+            return
+        if a0.angleDelta().y():
+            self.step_zoom(1 if a0.angleDelta().y() > 0 else -1, a0.position())
+        a0.accept()
+
+    def mousePressEvent(self, a0):
+        if a0 is None:
+            return
+        if a0.button() == Qt.MouseButton.MiddleButton:
+            self._drag = "pan"
+        elif a0.button() == Qt.MouseButton.LeftButton and self._space:
+            self._drag = "zoom" if a0.modifiers() & Qt.KeyboardModifier.ControlModifier else "pan"
+        self._last_pos = a0.position()
+        if self._drag:
+            self.setCursor(Qt.CursorShape.ClosedHandCursor)
+            a0.accept()
+        else:
+            super().mousePressEvent(a0)
+
+    def mouseMoveEvent(self, a0):
+        if a0 is None:
+            return
+        if self._drag:
+            delta = a0.position() - self._last_pos
+            live = self._model.live
+            if self._drag == "pan":
+                inverse, valid = self._manual_transform().inverted()
+                if valid:
+                    delta = inverse.map(delta) - inverse.map(QPointF())
+                    live.pan_x += delta.x()
+                    live.pan_y += delta.y()
+            else:
+                self.set_zoom(self._effective_zoom() * 2 ** (-delta.y() / 150), self._last_pos)
+            self._last_pos = a0.position()
+            a0.accept()
+        else:
+            super().mouseMoveEvent(a0)
+
+    def mouseReleaseEvent(self, a0):
+        self._drag = None
+        self.unsetCursor()
+        super().mouseReleaseEvent(a0)
+
+
+class LivePreviewDocker(DockWidget):
+    def __init__(self):
+        super().__init__()
+        self.setWindowTitle(_("AI Live Preview"))
+        self.preview_area = LivePreviewArea(self)
+        self.setWidget(self.preview_area)
+        root.model_created.connect(self._register_model)
+        self.visibilityChanged.connect(self._update_model)
+
+    def _register_model(self, model: DocumentModel):
+        self._update_model()
+
+    def _update_model(self):
+        model = root.active_model
+        if self.preview_area.model is not model:
+            self.preview_area.model = model
+
+    def canvasChanged(self, canvas: Canvas | None):
+        # Krita owns this wrapper and may delete it when the callback returns.
+        self.preview_area.set_canvas(canvas)
+        QTimer.singleShot(0, self._update_model)

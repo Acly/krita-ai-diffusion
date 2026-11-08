@@ -13,8 +13,7 @@ from pathlib import Path
 from tempfile import TemporaryDirectory
 from typing import Any, NamedTuple
 
-from PyQt6.QtCore import QObject, Qt, QUuid, pyqtSignal
-from PyQt6.QtGui import QBrush, QColor, QPainter
+from PyQt6.QtCore import QObject, QUuid, pyqtSignal
 
 from .. import eventloop, util
 from ..backend import resolution, workflow
@@ -83,7 +82,6 @@ class QueueMode(Enum):
 class Workspace(Enum):
     generation = 0
     upscaling = 1
-    live = 2
     animation = 3
     custom = 4
 
@@ -495,7 +493,7 @@ class DocumentModel(QObject, ObservableProperties):
         eventloop.run(_report_errors(self, self._generate_live(input, job_params)))
 
     def _prepare_live_workflow(self):
-        strength = self.live.strength
+        strength = self.strength
         workflow_kind = WorkflowKind.generate
         if strength < 1.0 or self.is_editing:
             workflow_kind = WorkflowKind.refine
@@ -544,7 +542,7 @@ class DocumentModel(QObject, ObservableProperties):
             FileLibrary.instance(),
             self._performance_settings(client),
             mask=mask,
-            strength=self.live.strength,
+            strength=self.strength,
             loras=loras,
             inpaint=inpaint if mask else None,
             is_live=True,
@@ -953,7 +951,7 @@ class DocumentModel(QObject, ObservableProperties):
         )
 
     def set_workspace(self, workspace: Workspace):
-        if self.workspace is Workspace.live:
+        if workspace is not Workspace.generation:
             self.live.is_active = False
         self._workspace = workspace
         self.workspace_changed.emit(workspace)
@@ -1047,7 +1045,7 @@ class DocumentModel(QObject, ObservableProperties):
     @property
     def is_edit_prompt(self):
         """Whether the edit-mode prompt is active instead of the generate-mode prompt."""
-        is_edit_workspace = self.workspace in (Workspace.generation, Workspace.live)
+        is_edit_workspace = self.workspace is Workspace.generation
         return is_edit_workspace and self.edit_mode
 
     @property
@@ -1307,12 +1305,21 @@ class LiveScheduler:
 
 class LiveWorkspace(QObject, ObservableProperties):
     is_active = Property(False, setter="toggle")
-    strength = Property(0.3, persist=True)
+    zoom = Property(1.0, persist=True)
+    pan_x = Property(0.0, persist=True)
+    pan_y = Property(0.0, persist=True)
+    rotation = Property(0.0, persist=True)
+    mirrored = Property(False, persist=True)
+    track = Property(False, persist=True)
     has_result = Property(False)
 
     is_active_changed = pyqtSignal(bool)
-    strength_changed = pyqtSignal(float)
-    seed_changed = pyqtSignal(int)
+    zoom_changed = pyqtSignal(float)
+    pan_x_changed = pyqtSignal(float)
+    pan_y_changed = pyqtSignal(float)
+    rotation_changed = pyqtSignal(float)
+    mirrored_changed = pyqtSignal(bool)
+    track_changed = pyqtSignal(bool)
     has_result_changed = pyqtSignal(bool)
     result_available = pyqtSignal(Image)
     modified = pyqtSignal(QObject, str)
@@ -1363,7 +1370,7 @@ class LiveWorkspace(QObject, ObservableProperties):
             if region := next((r for r in params.regions if r.layer_id == active), None):
                 params.regions = [region]
 
-        behavior = settings.apply_behavior_live
+        behavior = ApplyBehavior.replace
         region_behavior = settings.apply_region_behavior_live
         if layer_only:
             behavior = ApplyBehavior.layer
@@ -1382,14 +1389,9 @@ class LiveWorkspace(QObject, ObservableProperties):
         return self._result_composition
 
     def set_result(self, value: Image, params: JobParams):
-        canvas = self.model._get_current_image(params.bounds, exclude_internal=False)
-        painter = QPainter(canvas._qimage)
-        painter.setCompositionMode(QPainter.CompositionMode.CompositionMode_Multiply)
-        painter.setBrush(QBrush(QColor(0, 0, 96, 192), Qt.BrushStyle.DiagCrossPattern))
-        painter.drawRect(0, 0, canvas.width, canvas.height)
-        painter.setCompositionMode(QPainter.CompositionMode.CompositionMode_SourceOver)
-        painter.drawImage(0, 0, value._qimage)
-        painter.end()
+        bounds = Bounds(0, 0, *self.model.document.extent)
+        canvas = self.model._get_current_image(bounds, exclude_internal=False)
+        canvas.draw_image(value, params.bounds.offset)
         self._result = value
         self._result_composition = canvas
         self._result_params = params
