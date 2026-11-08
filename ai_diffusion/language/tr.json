@@ -597,6 +597,11 @@
     "Workflow contains duplicate parameter names: {names}. Each parameter name must be unique.": null,
     "Text prompt regions have not been set up.": null,
     "From Regions": null,
-    "Generate segmentation control layer from current regions": null
+    "Generate segmentation control layer from current regions": null,
+    "Models Path": "Model Yolu",
+    "The server must be restarted to apply the new models location.": null,
+    "Server Restart Required": null,
+    "Models stored in the shared models location are not deleted.": null,
+    "Directory that contains the model subfolders (checkpoints, loras, etc). Leave empty to keep models in the server directory. Point this to a shared directory to reuse models with other ComfyUI installations. Models are not moved automatically, and files left in the previous location keep working.": null
   }
 }

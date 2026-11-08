@@ -597,6 +597,12 @@
     "Workflow contains duplicate parameter names: {names}. Each parameter name must be unique.": null,
     "Text prompt regions have not been set up.": null,
     "From Regions": null,
-    "Generate segmentation control layer from current regions": null
+    "Generate segmentation control layer from current regions": null,
+    "Models Path": "Путь к моделям",
+    "The server must be restarted to apply the new models location.": null,
+    "Server Restart Required": "Требуется перезапуск сервера",
+    "Models stored in the shared models location are not deleted.": "Модели, хранящиеся в общем каталоге моделей, не удаляются.",
+    "Directory that contains the model subfolders (checkpoints, loras, etc). Leave empty to keep models in the server directory. Point this to a shared directory to reuse models with other ComfyUI installations. Models are not moved automatically, and files left in the previous location keep working.": "Каталог, содержащий подпапки моделей (checkpoints, loras и т.д.). Оставьте пустым, чтобы хранить модели в каталоге сервера. Укажите общий каталог, чтобы использовать одни и те же модели в нескольких установках ComfyUI. Модели не переносятся автоматически, а файлы, оставшиеся в прежнем каталоге, продолжают работать.",
+    "The server must be restarted to apply the new models location. Restart it now?": "Чтобы применить новое расположение моделей, необходимо перезапустить сервер. Перезапустить сейчас?"
   }
 }

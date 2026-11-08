@@ -847,6 +847,20 @@ class ServerWidget(QWidget):
         location_layout.addWidget(self._location_select)
         layout.addLayout(location_layout)
 
+        add_header(layout, Settings._models_path)
+
+        self._models_location_edit = QLineEdit(self)
+        self._models_location_edit.editingFinished.connect(self._change_models_location)
+
+        self._models_location_select = QToolButton(self)
+        self._models_location_select.setIcon(Krita.instance().icon("document-open"))
+        self._models_location_select.clicked.connect(self._select_models_location)
+
+        models_location_layout = QHBoxLayout()
+        models_location_layout.addWidget(self._models_location_edit)
+        models_location_layout.addWidget(self._models_location_select)
+        layout.addLayout(models_location_layout)
+
         self._status_label = QLabel(self)
         self._status_label.setStyleSheet("font-weight:bold")
         self._status_label.setWordWrap(True)
@@ -952,6 +966,43 @@ class ServerWidget(QWidget):
             if path != Path(Settings._server_path.default) and not (path / "ComfyUI").exists():
                 path = path / "ComfyUI"
             self._location_edit.setText(str(path))
+
+    def _change_models_location(self):
+        if settings.models_path != self._models_location_edit.text():
+            settings.models_path = self._models_location_edit.text()
+            settings.save()
+            self._server.sync_model_paths()
+            self.update_ui()
+            if self._server.state is ServerState.running:
+                answer = QMessageBox.question(
+                    self,
+                    _("Server Restart Required"),
+                    _(
+                        "The server must be restarted to apply the new models location."
+                        " Restart it now?"
+                    ),
+                    QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No,
+                    QMessageBox.StandardButton.Yes,
+                )
+                if answer == QMessageBox.StandardButton.Yes:
+                    eventloop.run(self._restart_server())
+
+    async def _restart_server(self):
+        await self._stop()
+        await self._start()
+
+    def _select_models_location(self):
+        path = self._server.models_path
+        if not path.exists():
+            path = (
+                path.parent if path.parent.exists() else Path(Settings._server_path.default).parent
+            )
+        path = QFileDialog.getExistingDirectory(
+            self, _("Select Directory"), str(path), QFileDialog.Option.ShowDirsOnly
+        )
+        if path:
+            self._models_location_edit.setText(str(Path(path)))
+            self._change_models_location()
 
     def _change_backend(self):
         backends = ServerBackend.supported()
@@ -1181,14 +1232,16 @@ class ServerWidget(QWidget):
         eventloop.run(self._uninstall())
 
     async def _uninstall(self):
+        message = _(
+            "WARNING: This will delete the entire server installation INCLUDING ALL MODELS!"
+        ) + "\n\n" + _("This action cannot be undone.")
+        if self._server.custom_models_dir() is not None:
+            message += "\n\n" + _("Models stored in the shared models location are not deleted.")
+        message += "\n\n" + _("Are you absolutely sure you want to continue?")
         msg_box = QMessageBox(
             QMessageBox.Icon.Warning,
             _("Confirm Deletion"),
-            _("WARNING: This will delete the entire server installation INCLUDING ALL MODELS!")
-            + "\n\n"
-            + _("This action cannot be undone.")
-            + "\n\n"
-            + _("Are you absolutely sure you want to continue?"),
+            message,
             QMessageBox.StandardButton.Cancel,
             self,
         )
@@ -1210,6 +1263,8 @@ class ServerWidget(QWidget):
     def update_ui(self):
         if self._location_edit.text() != settings.server_path:
             self._location_edit.setText(settings.server_path)
+        if self._models_location_edit.text() != settings.models_path:
+            self._models_location_edit.setText(settings.models_path)
         backends = ServerBackend.supported()
         try:
             index = backends.index(settings.server_backend)

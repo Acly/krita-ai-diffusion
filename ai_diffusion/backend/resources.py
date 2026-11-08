@@ -482,6 +482,7 @@ class VerificationStatus(NamedTuple):
     state: VerificationState
     file: ModelFile
     info: str | None = None
+    path: Path | None = None  # location the file was found at (may be a fallback location)
 
 
 class ModelRequirements(Enum):
@@ -518,21 +519,44 @@ class ModelFile(NamedTuple):
             result["sha256"] = self.sha256
         return result
 
-    def verify(self, base_dir: Path):
+    def verify(self, file_path: Path):
         if self.sha256 is None:
             return VerificationStatus(VerificationState.not_verified, self)
 
         try:
-            file_path = base_dir / self.path
             assert file_path.exists(), f"File {file_path} does not exist"
 
             actual_sha256 = compute_sha256(file_path)
             if actual_sha256 == self.sha256:
-                return VerificationStatus(VerificationState.verified, self)
+                return VerificationStatus(VerificationState.verified, self, path=file_path)
             else:
-                return VerificationStatus(VerificationState.mismatch, self, actual_sha256)
+                return VerificationStatus(VerificationState.mismatch, self, actual_sha256, file_path)
         except Exception as e:
-            return VerificationStatus(VerificationState.error, self, str(e))
+            return VerificationStatus(VerificationState.error, self, str(e), file_path)
+
+
+def resolve_model_paths(base_dirs: Path | list[Path], file_path: Path, models_dir: Path | None):
+    """Map a model file path like `models/checkpoints/x.safetensors` to disk.
+
+    Returns all locations where the file may live: the shared `models_dir` first
+    (if configured), followed by the default location relative to each base
+    directory. Files left behind in a previous location keep working after a
+    shared directory has been configured.
+    """
+    if isinstance(base_dirs, Path):
+        base_dirs = [base_dirs]
+    paths = []
+    if models_dir is not None and file_path.parts and file_path.parts[0] == "models":
+        paths.append(models_dir.joinpath(*file_path.parts[1:]))
+    paths += [base_dir / file_path for base_dir in base_dirs]
+    return paths
+
+
+def resolve_model_path(base_dir: Path, file_path: Path, models_dir: Path | None = None):
+    """Primary location for a model file: the shared directory if configured,
+    otherwise the default location relative to `base_dir` (the server directory).
+    This is where new files are downloaded to."""
+    return resolve_model_paths(base_dir, file_path, models_dir)[0]
 
 
 class ModelResource(NamedTuple):
@@ -556,9 +580,15 @@ class ModelResource(NamedTuple):
         assert len(self.files) == 1
         return self.files[0].url
 
-    def exists_in(self, path: Path):
-        exact = all((path / file.path).exists() for file in self.files)
-        alt = self.alternatives is not None and any((path / f).exists() for f in self.alternatives)
+    def exists_in(self, base_dirs: Path | list[Path], models_dir: Path | None = None):
+        exact = all(
+            any(p.exists() for p in resolve_model_paths(base_dirs, f.path, models_dir))
+            for f in self.files
+        )
+        alt = self.alternatives is not None and any(
+            any(p.exists() for p in resolve_model_paths(base_dirs, f, models_dir))
+            for f in self.alternatives
+        )
         return exact or alt
 
     @property
@@ -630,12 +660,15 @@ class ModelResource(NamedTuple):
     def from_list(data: list[dict[str, Any]]):
         return [m for d in data for m in ModelResource.from_dict(d)]
 
-    def verify(self, base_dir: Path):
+    def verify(self, base_dirs: Path | list[Path], models_dir: Path | None = None):
         for file in self.files:
-            file_path = base_dir / file.path
-            if file_path.exists():
+            file_path = next(
+                (p for p in resolve_model_paths(base_dirs, file.path, models_dir) if p.exists()),
+                None,
+            )
+            if file_path is not None:
                 yield VerificationStatus(VerificationState.in_progress, file)
-                yield file.verify(base_dir)
+                yield file.verify(file_path)
 
 
 _models_file = Path(__file__).parent.parent / "presets" / "models.json"
@@ -716,14 +749,16 @@ def update_model_checksums(models_path: Path):
         print(f"Updated checksums written to {_models_file}")
 
 
-def verify_model_integrity(base_dir: Path | None = None):
-    if base_dir is None:
-        base_dir = Path(__file__).parent.parent.parent
+def verify_model_integrity(
+    base_dirs: Path | list[Path] | None = None, models_dir: Path | None = None
+):
+    if base_dirs is None:
+        base_dirs = Path(__file__).parent.parent.parent
 
     verified = set()
     for model in all_models():
         if model.file_id not in verified:
-            yield from model.verify(base_dir)
+            yield from model.verify(base_dirs, models_dir)
             verified.add(model.file_id)
 
 

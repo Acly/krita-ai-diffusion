@@ -194,6 +194,15 @@ class Settings(QObject):
         ).format(size=16),
     )
 
+    models_path: str
+    _models_path = Setting(
+        _("Models Path"),
+        "",
+        _(
+            "Directory that contains the model subfolders (checkpoints, loras, etc). Leave empty to keep models in the server directory. Point this to a shared directory to reuse models with other ComfyUI installations. Models are not moved automatically, and files left in the previous location keep working."
+        ),
+    )
+
     server_url: str
     _server_url = Setting(
         _("Server URL"),
