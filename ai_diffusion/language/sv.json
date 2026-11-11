@@ -5,7 +5,7 @@
     "(Custom)": "(Skräddarsydd)",
     "<No text prompt>": "<Ingen text prompt>",
     "A new plugin version is available!": "En ny version av pluginet är redo!",
-    "A workflow named '{name}' already exists. Do you want to overwrite it?": "Ett workflow kallat '{name}' finns finns redan. Vill du överskriva denna?",
+    "A workflow named '{name}' already exists. Do you want to overwrite it?": "Ett workflow kallat '{name}' finns redan. Vill du överskriva denna?",
     "AI Image Generation": "AI Bilds Generation",
     "Account:": "Konto:",
     "Action to take when an image generation job finishes": "Vad som ska göras när en bild har genererats",
