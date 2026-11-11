@@ -38,7 +38,7 @@
     "Are you sure you want to discard all generated images?": "Vill du verkligen ta bort alla dina genererade bilder?",
     "Are you sure you want to discard the selected images?": "Vill du verkligen ta bort alla valda bilder?",
     "Attempt to filter out images with explicit content": "Försök filtrera bilder med explicit innehåll",
-    "Authorization could not be confirmed: ": "Auktorisering kunde inte bli verifierat",
+    "Authorization could not be confirmed: ": "Auktorisering kunde inte bli verifierat :",
     "Automatic": "Automatisk",
     "Automatic Context": "Automatisk kontext",
     "Average": "Medelvärde",
