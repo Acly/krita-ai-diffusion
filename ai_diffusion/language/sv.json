@@ -49,7 +49,7 @@
     "Border": "Kant",
     "Built-in styles cannot be modified.": null,
     "Buy Tokens": null,
-    "CPU": null,
+    "CPU": "CPU",
     "Can't upload LoRA model, limit exceeded": null,
     "Cancel": null,
     "Cannot save recorded frames, document must be saved first!": null,
