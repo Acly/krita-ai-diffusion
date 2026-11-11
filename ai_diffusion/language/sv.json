@@ -489,7 +489,7 @@
     "Text prompt common to all regions": "Gemensam textprompt för alla regioner",
     "Text prompt for region": "Textprompt för region",
     "Text prompt regions have not been set up.": "Textpromptregioner har inte konfigurerats.",
-    "Text prompt regions have not been set up.\\nIt is not recommended to use a single text description for tiled upscale,\\nunless it can be generally applied to all parts of the image.": "Textpromptregioner har inte konfigurerats.\\nDet rekommenderas inte att använda en enda textbeskrivning för rutnätsuppskalning,\\nssåvida den inte kan tillämpas generellt på alla delar av bilden.",
+    "Text prompt regions have not been set up.\\nIt is not recommended to use a single text description for tiled upscale,\\nunless it can be generally applied to all parts of the image.": "Textpromptregioner har inte konfigurerats.\\nDet rekommenderas inte att använda en enda textbeskrivning för rutnätsuppskalning,\\nsåvida den inte kan tillämpas generellt på alla delar av bilden.",
     "Text which is appended to all prompts. The {prompt} placeholder can be used to wrap prompts.": "Text som läggs till i slutet av alla prompter. Platshållaren {prompt} kan användas för att omsluta prompter.",
     "Text which is common to all regions": "Text som är gemensam för alla regioner",
     "Textual description of things to avoid in generated images.": "Textbeskrivning av sådant som ska undvikas i genererade bilder.",
