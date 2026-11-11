@@ -106,7 +106,7 @@
     "Copy the current result to the active layer": "Kopiera detta resultat till det aktiva lagret",
     "Copy to clipboard": "Kopiera till clipboard",
     "Core components": "Kärn komponenter",
-    "Could not bind on address": "Kunde inte binda till denna nät+address",
+    "Could not bind on address": "Kunde inte binda till denna nät-address",
     "Could not connect to websocket server at": null,
     "Could not establish websocket connection at": null,
     "Could not find LoRA '{lora}' ({models}) used by sampler preset '{name}'": null,
