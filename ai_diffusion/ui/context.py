@@ -47,7 +47,17 @@ from ..model.properties import Binding
 from ..model.root import root
 from ..settings import settings
 from ..util import client_logger as log
+from ..util import is_one
 from . import theme
+
+_noise_preview: QPixmap | None = None
+
+
+def _fixed_preview():
+    global _noise_preview
+    if _noise_preview is None:
+        _noise_preview = QPixmap(str(theme.icon_path / "diffusion-noise.jpg"))
+    return _noise_preview
 
 
 class ContextPreview(QWidget):
@@ -109,6 +119,7 @@ class ContextPopup(QFrame):
     def __init__(self, owner: ContextWidget):
         super().__init__(None, Qt.WindowType.Popup)
         self.owner = owner
+        self._syncing = False
         self.setFrameShape(QFrame.Shape.StyledPanel)
 
         self.context_combo = QComboBox(self)
@@ -122,13 +133,13 @@ class ContextPopup(QFrame):
         self.feather = _slider(_("Feather"), 0, 25, "%", settings.selection_feather, self)
         self.blend = _slider(_("Blend"), 0, 100, " px", settings.selection_blend, self)
         self.padding.widget().valueChanged.connect(
-            lambda value: owner._set_setting("selection_padding", value)
+            lambda value: self._set_setting("selection_padding", value)
         )
         self.feather.widget().valueChanged.connect(
-            lambda value: owner._set_setting("selection_feather", value)
+            lambda value: self._set_setting("selection_feather", value)
         )
         self.blend.widget().valueChanged.connect(
-            lambda value: owner._set_setting("selection_blend", value)
+            lambda value: self._set_setting("selection_blend", value)
         )
 
         self.target_group = QButtonGroup(self)
@@ -158,11 +169,34 @@ class ContextPopup(QFrame):
         controls.addWidget(self.blend.widget())
 
         self.preview = ContextPreview(self, interactive=False)
+        self.info_label = QLabel(self.preview)
+        self.info_label.setText(
+            _(
+                "Canvas content is ignored.\n\n"
+                "Lower the strength, create a selection,"
+                "or switch to Edit mode to modify existing content."
+            )
+        )
+        self.info_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        self.info_label.setWordWrap(True)
+        self.info_label.setStyleSheet(
+            "background-color: rgba(0, 0, 0, 160); color: white; border-radius: 4px; padding: 8px;"
+        )
+        self.info_label.setVisible(False)
+        preview_layout = QVBoxLayout(self.preview)
+        preview_layout.setContentsMargins(12, 12, 12, 12)
+        preview_layout.addStretch()
+        preview_layout.addWidget(self.info_label, alignment=Qt.AlignmentFlag.AlignHCenter)
+        preview_layout.addStretch()
         topleft = Qt.AlignmentFlag.AlignTop | Qt.AlignmentFlag.AlignLeft
         layout = QHBoxLayout(self)
         layout.addWidget(controls_widget, alignment=topleft)
         layout.addWidget(self.preview, alignment=topleft)
         self.setLayout(layout)
+
+    def _set_setting(self, name: str, value: float):
+        if not self._syncing:
+            self.owner._set_setting(name, value)
 
     def sync(self):
         owner = self.owner
@@ -176,12 +210,19 @@ class ContextPopup(QFrame):
         index = self.context_combo.findData(data)
         if index >= 0:
             self.context_combo.setCurrentIndex(index)
-        self.padding.widget().setValue(settings.selection_padding)
-        self.feather.widget().setValue(settings.selection_feather)
-        self.blend.widget().setValue(settings.selection_blend)
+        self._syncing = True
+        try:
+            self.padding.widget().setValue(settings.selection_padding)
+            self.feather.widget().setValue(settings.selection_feather)
+            self.blend.widget().setValue(settings.selection_blend)
+        finally:
+            self._syncing = False
         if button := self.target_group.button(owner.model.mask_source.value):
             button.setChecked(True)
-        self.padding.widget().setEnabled(context is not InpaintContext.entire_image)
+        self.padding.widget().setEnabled(
+            owner._has_mask and context is not InpaintContext.entire_image
+        )
+        self.context_combo.setEnabled(owner._has_mask)
         has_selection = owner.model.document.selection_bounds is not None
         enabled = owner.model.mask_source is not MaskSource.none
         enabled = enabled and not (
@@ -189,6 +230,7 @@ class ContextPopup(QFrame):
         )
         self.feather.widget().setEnabled(enabled)
         self.blend.widget().setEnabled(enabled)
+        self.info_label.setVisible(owner._ignores_canvas)
         self.preview.set_preview(owner._pixmap, owner._aspect)
 
     def resize_preview(self):
@@ -255,6 +297,8 @@ class ContextWidget(ContextPreview):
         self._resize_request = 0
         self._resize_running: tuple[_ResizeJob, tuple] | None = None
         self._refresh_pending = False
+        self._ignores_canvas = False
+        self._has_mask = False
         self._refresh_timer = QTimer(self)
         self._refresh_timer.setSingleShot(True)
         self._refresh_timer.timeout.connect(self.refresh)
@@ -281,6 +325,7 @@ class ContextWidget(ContextPreview):
         self._connections = [
             model.mask_source_changed.connect(self._sub_setting_changed),
             model.strength_changed.connect(self._sub_setting_changed),
+            model.edit_mode_changed.connect(self._sub_setting_changed),
             model.inpaint.context_changed.connect(self._sub_setting_changed),
             model.inpaint.context_layer_id_changed.connect(self._sub_setting_changed),
             model.layers.changed.connect(self._layers_changed),
@@ -325,6 +370,17 @@ class ContextWidget(ContextPreview):
         request = self._resize_request
         try:
             bounds, mask, params = self.model.get_generation_context()
+            self._has_mask = mask is not None
+            self._ignores_canvas = (
+                mask is None and not self.model.is_editing and is_one(self.model.strength)
+            )
+            if self._ignores_canvas:
+                pixmap = _fixed_preview()
+                self._aspect = pixmap.width() / max(1, pixmap.height())
+                self._pixmap = pixmap
+                self.update()
+                self._update_popup()
+                return
             if mask:
                 mask.bounds = mask.bounds.relative_to(bounds)
             image_data, _ = self.model.get_current_image_bytes(bounds)
@@ -343,6 +399,8 @@ class ContextWidget(ContextPreview):
             self._resize_pool.start(job)
         except Exception as error:
             log.warning(f"Failed to update context preview: {error}")
+            self._ignores_canvas = False
+            self._has_mask = False
             self._pixmap = QPixmap()
             extent = self.model.document.extent
             self._aspect = extent.width / max(1, extent.height)
@@ -355,10 +413,13 @@ class ContextWidget(ContextPreview):
         source_extent, params = context
         self._pixmap = _compose_preview(preview, original_mask, source_extent, params)
         self.update()
+        self._update_popup()
+        self._schedule_pending_refresh()
+
+    def _update_popup(self):
         if self._popup and self._popup.isVisible():
             self._popup.sync()
             self._popup.resize_preview()
-        self._schedule_pending_refresh()
 
     def _resize_failed(self, request: int, error: object):
         context = self._complete_resize(request)
