@@ -496,6 +496,8 @@ class GenerationWidget(QWidget):
             self.mode_button.setText(action.text())
             self.mode_button.setIcon(action.icon())
             size = size.expandedTo(self.mode_button.sizeHint())
+        size.setHeight(max(size.height(), self.mode_menu_button.sizeHint().height()))
         self.mode_button.setText(mode_text)
         self.mode_button.setIcon(theme.icon(mode_icon, dark=False))
         self.mode_button.setFixedSize(size)
+        self.mode_menu_button.setFixedHeight(size.height())
