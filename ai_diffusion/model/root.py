@@ -15,7 +15,7 @@ from ..backend.client import ClientMessage
 from ..backend.comfy_client import ComfyClient
 from ..backend.server import Server, ServerState
 from ..document import Document, KritaDocument
-from ..files import File, FileFormat, FileLibrary, FileSource
+from ..files import File, FileFormat, FileLibrary, FileSource, LoraInfoWorker
 from ..persistence import ModelSync, RecentlyUsedSync, import_prompt_from_file
 from ..settings import ServerMode, settings
 from ..ui.theme import checkpoint_icon
@@ -44,6 +44,8 @@ class Root(QObject):
         self._server = Server(settings.server_path)
         self._connection = Connection()
         self._files = FileLibrary.load()
+        self._lora_info = LoraInfoWorker(self._files.loras, self._lora_hash)
+        self._lora_info.start()
         self._workflows = WorkflowCollection(self._connection)
         self._models: list[Root.PerDocument] = []
         self._null_model = DocumentModel(Document(), self._connection, self._workflows)
@@ -170,6 +172,12 @@ class Root(QObject):
         model = self._find_model(msg.job_id)
         if model is not None:
             model.handle_message(msg)
+
+    async def _lora_hash(self, filename: str):
+        client = self._connection.client_if_connected
+        if isinstance(client, ComfyClient):
+            return await client.lora_hash(filename)
+        return None
 
     def _update_files(self):
         if client := self._connection.client_if_connected:

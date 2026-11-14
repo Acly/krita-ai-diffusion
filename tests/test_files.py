@@ -1,9 +1,23 @@
+import asyncio
 from pathlib import Path
 
+import pytest
 from PyQt6.QtCore import QModelIndex, Qt
-from PyQt6.QtGui import QIcon
+from PyQt6.QtGui import QColor, QIcon, QImage
 
-from ai_diffusion.files import File, FileCollection, FileFilter, FileSource
+from ai_diffusion.backend.network import NetworkError, RequestManager
+from ai_diffusion.backend.resources import Arch
+from ai_diffusion.files import (
+    File,
+    FileCollection,
+    FileFilter,
+    FileFormat,
+    FileSource,
+    LoraInfoWorker,
+)
+from ai_diffusion.settings import settings
+
+from .conftest import qtapp
 
 
 class EventHandler:
@@ -150,8 +164,15 @@ def test_serialization(tmp_path: Path):
 
     files = FileCollection(tmp_path / "db.json")
     file1 = files.add(File.remote("path/to/file1.txt"))
-    file2 = files.add(File.local(test_file_path, compute_hash=True))
+    file2 = files.add(File.local(test_file_path, FileFormat.lora, compute_hash=True))
     files.set_meta(file2, "key", "value")
+    file2.name = "Example model"
+    file2.civitai = 123
+    file2.version = "v1"
+    file2.arch = Arch.sd15
+    image = QImage(512, 256, QImage.Format.Format_RGB32)
+    image.fill(QColor("red"))
+    files.set_image(file2, image)
 
     files2 = FileCollection(tmp_path / "db.json")
     assert len(files2) == 2
@@ -159,6 +180,99 @@ def test_serialization(tmp_path: Path):
     assert files2[1].id == file2.id and files2[1].source == file2.source
     assert files2[1].path == file2.path and files2[1].hash == file2.hash
     assert files2[1].meta("key") == "value"
+    assert files2[1].format is FileFormat.lora
+    assert files2[1].name == "Example model"
+    assert files2.data(files2.index(1)) == test_file_path.stem
+    assert files2[1].civitai == 123
+    assert files2[1].version == "v1"
+    assert files2[1].arch is Arch.sd15
+    path = files2.image_path(files2[1])
+    assert path is not None and path.suffix == ".jpg"
+    preview = QImage(str(path))
+    assert preview.width() == preview.height() == 256
+    assert preview.pixelColor(128, 128).red() > 250
+
+
+@qtapp
+async def test_lora_hash_worker(tmp_path: Path):
+    previous_setting = settings.civitai_collection
+    settings.civitai_collection = False
+    files = FileCollection(tmp_path / "loras.json")
+    file = files.add(File.local(write_test_file(tmp_path), FileFormat.lora))
+    known = files.add(File.remote("known.safetensors", FileFormat.lora))
+    known.civitai = "not-found"
+
+    async def remote_hash(filename: str):
+        raise AssertionError("Known LoRAs must not be hashed again")
+
+    worker = LoraInfoWorker(files, remote_hash)
+    try:
+        await worker.run()
+        assert file.hash is not None
+        assert known.hash is None
+        assert FileCollection(tmp_path / "loras.json")[0].hash == file.hash
+        await worker.run()
+    finally:
+        settings.changed.disconnect(worker._settings_changed)
+        settings.civitai_collection = previous_setting
+
+
+@qtapp
+async def test_civitai_connection_errors(tmp_path: Path):
+    class OfflineNetwork(RequestManager):
+        calls = 0
+
+        def get(self, url: str, timeout=None, bearer=None):
+            self.calls += 1
+            future = asyncio.get_running_loop().create_future()
+            future.set_exception(NetworkError(1, "Offline", url))
+            return future
+
+    files = FileCollection(tmp_path / "loras.json")
+    for i in range(5):
+        file = files.add(File.remote(f"{i}.safetensors", FileFormat.lora))
+        file.hash = "AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA="
+
+    async def remote_hash(filename: str):
+        raise AssertionError("Files already have hashes")
+
+    worker = LoraInfoWorker(files, remote_hash)
+    network = OfflineNetwork()
+    worker._requests = network
+    try:
+        await worker.run()
+        assert network.calls == 3
+        assert worker.last_error == "Offline"
+        assert FileCollection(tmp_path / "loras.json")[2].meta("civitai_error") == "Offline"
+        await worker.run()
+        assert network.calls == 3
+    finally:
+        settings.changed.disconnect(worker._settings_changed)
+
+
+@qtapp
+async def test_civitai_retrieval(tmp_path: Path, pytestconfig):
+    if pytestconfig.getoption("ci"):
+        pytest.skip("Live Civitai requests are disabled on CI")
+    files = FileCollection(tmp_path / "loras.json")
+    file = files.add(File.local(Path(__file__).parent / "data/LowRA.safetensors", FileFormat.lora))
+    missing = files.add(File.remote("missing.safetensors", FileFormat.lora))
+    missing.hash = "AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA="
+
+    async def remote_hash(filename: str):
+        raise AssertionError("Only local or already hashed files are used")
+
+    worker = LoraInfoWorker(files, remote_hash)
+    try:
+        await worker.run()
+        assert isinstance(file.civitai, int), worker.last_error
+        assert file.name and file.version and file.arch is Arch.sd15
+        assert missing.civitai == "not-found", worker.last_error
+        assert file.hash
+        # Running again must skip both entries, including the missing model.
+        await worker.run()
+    finally:
+        settings.changed.disconnect(worker._settings_changed)
 
 
 def test_sort_filter():

@@ -175,6 +175,9 @@ class Settings(QObject):
         _("Enable Automatic Updates"), True, _("Check for new versions of the plugin on startup")
     )
 
+    civitai_collection: bool
+    _civitai_collection = Setting(_("Collect model information from civitai.com"), True)
+
     server_mode: ServerMode
     _server_mode = Setting(
         _("Server Management"),

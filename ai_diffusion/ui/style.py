@@ -4,19 +4,22 @@ from pathlib import Path
 from typing import cast
 
 from krita import Krita
-from PyQt6.QtCore import Qt, QUrl, pyqtSignal
-from PyQt6.QtGui import QColor, QDesktopServices, QPalette
+from PyQt6.QtCore import QRectF, Qt, QUrl, pyqtSignal
+from PyQt6.QtGui import QColor, QDesktopServices, QImage, QPainter, QPainterPath, QPalette, QPixmap
 from PyQt6.QtWidgets import (
     QCheckBox,
     QComboBox,
     QCompleter,
     QFileDialog,
     QFrame,
+    QGridLayout,
     QHBoxLayout,
     QLabel,
     QLineEdit,
+    QMenu,
     QMessageBox,
     QPushButton,
+    QSizePolicy,
     QSpinBox,
     QToolButton,
     QVBoxLayout,
@@ -45,9 +48,24 @@ from .settings_widgets import (
     TextSetting,
     WarningIcon,
 )
-from .switch import SwitchWidget
 from .theme import SignalBlocker, add_header, icon
 from .widget import create_framed_label
+
+
+class LoraThumbnail(QLabel):
+    def paintEvent(self, a0):
+        painter = QPainter(self)
+        painter.setRenderHint(QPainter.RenderHint.Antialiasing)
+        painter.setRenderHint(QPainter.RenderHint.SmoothPixmapTransform)
+        path = QPainterPath()
+        path.addRoundedRect(QRectF(self.rect()), 4, 4)
+        painter.setClipPath(path)
+        painter.fillRect(self.rect(), self.palette().color(QPalette.ColorRole.Base))
+        pixmap = self.pixmap()
+        if not pixmap.isNull():
+            painter.drawPixmap(self.rect(), pixmap, pixmap.rect())
+        if not self.isEnabled():
+            painter.fillRect(self.rect(), QColor(128, 128, 128, 160))
 
 
 class LoraItem(QWidget):
@@ -61,6 +79,7 @@ class LoraItem(QWidget):
         self._loras = loras
         self._current: File | None = None
         self._is_active = True
+        self._style_arch = Arch.auto
 
         completer = QCompleter(self._loras)
         completer.setCaseSensitivity(Qt.CaseSensitivity.CaseInsensitive)
@@ -83,15 +102,9 @@ class LoraItem(QWidget):
         self._select.setMinimumWidth(200)
         self._select.currentIndexChanged.connect(self._select_lora)
 
-        expander_layout = QHBoxLayout()
-        expander_layout.setContentsMargins(0, 0, 0, 0)
-        expander_layout.setSpacing(0)
-        expander_layout.addWidget(self._advanced_button)
-        expander_layout.addWidget(self._select)
-
         self._warning_icon = WarningIcon(self)
 
-        self._enabled = SwitchWidget(self)
+        self._enabled = QCheckBox(self)
         self._enabled.setChecked(True)
         self._enabled.toggled.connect(self._notify_changed)
 
@@ -108,18 +121,39 @@ class LoraItem(QWidget):
         self._remove.setIcon(icon("discard"))
         self._remove.clicked.connect(self.remove)
 
-        item_layout = QHBoxLayout()
+        self._thumbnail = LoraThumbnail(self)
+        self._thumbnail.setFixedSize(56, 56)
+        self._thumbnail.setToolTip(_("Right click to set a preview image"))
+        self._thumbnail.setContextMenuPolicy(Qt.ContextMenuPolicy.CustomContextMenu)
+        self._thumbnail.customContextMenuRequested.connect(self._preview_menu)
+
+        self._summary = QLabel(self)
+        self._summary.setPalette(grey_text)
+        self._summary.setTextFormat(Qt.TextFormat.PlainText)
+        self._summary.setMinimumWidth(0)
+        self._summary.setSizePolicy(QSizePolicy.Policy.Ignored, QSizePolicy.Policy.Preferred)
+
+        strength_layout = QHBoxLayout()
+        strength_layout.setContentsMargins(0, 0, 0, 0)
+        strength_layout.addWidget(self._strength)
+        strength_layout.addWidget(self._warning_icon)
+
+        item_layout = QGridLayout()
         item_layout.setContentsMargins(0, 0, 0, 0)
-        item_layout.addLayout(expander_layout, 3)
-        item_layout.addWidget(self._enabled)
-        item_layout.addWidget(self._strength, 1)
-        item_layout.addWidget(self._warning_icon)
-        item_layout.addWidget(self._remove)
+        item_layout.addWidget(self._enabled, 0, 0)
+        item_layout.addWidget(self._advanced_button, 1, 0)
+        item_layout.addWidget(self._thumbnail, 0, 1, 2, 1)
+        item_layout.addWidget(self._select, 0, 2)
+        item_layout.addLayout(strength_layout, 0, 3)
+        item_layout.addWidget(self._remove, 0, 4)
+        item_layout.addWidget(self._summary, 1, 2, 1, 3)
+        item_layout.setColumnStretch(2, 3)
 
         self._advanced = QWidget(self)
         self._advanced.setVisible(False)
 
         self._warning_text = QLabel(self._advanced)
+        self._warning_text.setWordWrap(True)
         self._warning_text.setStyleSheet(f"color: {theme.yellow}; font-weight: bold;")
         self._warning_text.setVisible(False)
 
@@ -183,8 +217,72 @@ class LoraItem(QWidget):
         layout.addWidget(self._advanced)
         self.setLayout(layout)
 
+        root.files.loras.dataChanged.connect(self._update)
+        self._update_preview()
         if self._loras.rowCount() > 0:
             self._select_lora()
+
+    def resizeEvent(self, a0):
+        super().resizeEvent(a0)
+        self._update_summary()
+
+    def _update_summary(self):
+        text = ""
+        if file := self._current:
+            text = (
+                f"{file.name} {file.version or ''}".strip()
+                if file.civitai and file.civitai != "not-found"
+                else file.id
+            )
+            if file.arch:
+                text += f" | {file.arch.value}"
+            if triggers := file.meta("lora_triggers", ""):
+                text += "     " + _("Trigger words") + f": {triggers}"
+        self._summary.setToolTip(text)
+        self._summary.setText(
+            self._summary.fontMetrics().elidedText(
+                text, Qt.TextElideMode.ElideRight, self._summary.width()
+            )
+        )
+
+    def _update_preview(self):
+        path = root.files.loras.image_path(self._current) if self._current else None
+        pixmap = QPixmap(str(path)) if path else QPixmap()
+        if pixmap.isNull():
+            pixmap = icon("puzzle-bg", dark=True).pixmap(56, 56)
+        self._thumbnail.setPixmap(
+            pixmap.scaled(
+                56,
+                56,
+                Qt.AspectRatioMode.KeepAspectRatio,
+                Qt.TransformationMode.SmoothTransformation,
+            )
+        )
+
+    def _preview_menu(self, position):
+        if not self._current:
+            return
+        menu = QMenu(self)
+        canvas = menu.addAction(_("Use current canvas"))
+        assert canvas is not None
+        canvas.setEnabled(root.active_model.document.is_valid)
+        open_file = menu.addAction(_("Open file..."))
+        action = menu.exec(self._thumbnail.mapToGlobal(position))
+        try:
+            if action == canvas:
+                image = root.active_model.document.get_image().to_pixmap().toImage()
+            elif action == open_file:
+                filename, _filter = QFileDialog.getOpenFileName(
+                    self, _("Select preview image"), "", "Images (*.png *.jpg *.jpeg *.webp *.bmp)"
+                )
+                if not filename:
+                    return
+                image = QImage(filename)
+            else:
+                return
+            root.files.loras.set_image(self._current, image)
+        except Exception as e:
+            QMessageBox.warning(self, _("Preview image"), str(e))
 
     def _expand(self):
         self._advanced.setVisible(self._advanced_button.isChecked())
@@ -194,6 +292,12 @@ class LoraItem(QWidget):
         self.changed.emit()
 
     def _update(self):
+        enabled = self._enabled.isChecked()
+        self._select.setEnabled(enabled)
+        self._strength.setEnabled(enabled)
+        self._thumbnail.setEnabled(enabled)
+        self._update_summary()
+        self._update_preview()
         if self._current:
             self._file_id_label.setText(f"ID: {self._current.id}")
             if FileSource.local in self._current.source and self._current.path:
@@ -211,7 +315,8 @@ class LoraItem(QWidget):
             else:
                 self._default_strength_value.setText("100%")
                 self._default_strength_button.setEnabled(self._strength.value() != 100)
-            self._trigger_edit.setText(self._current.meta("lora_triggers", ""))
+            with SignalBlocker(self._trigger_edit):
+                self._trigger_edit.setText(self._current.meta("lora_triggers", ""))
             self._show_lora_warnings(self._current)
 
     def _select_lora(self):
@@ -263,13 +368,17 @@ class LoraItem(QWidget):
     def value(self, v: dict):
         new_value = root.files.loras.find(v["name"]) or File.remote(v["name"])
         ui_name = self._select.currentText()
-        if self._current is None or new_value.id != self._current.id or ui_name != new_value.name:
+        if (
+            self._current is None
+            or new_value.id != self._current.id
+            or ui_name != new_value.display_name
+        ):
             self._current = new_value
             index = self._select.findData(new_value.id)
             if index >= 0:
                 self._select.setCurrentIndex(index)
             else:
-                self._select.setEditText(self._current.name)
+                self._select.setEditText(self._current.display_name)
         self.strength = v["strength"]
         self._enabled.setChecked(v.get("enabled", True))
         self._update()
@@ -290,7 +399,7 @@ class LoraItem(QWidget):
     def apply_filter(self):
         # filter available items _without_ changing current selection
         if self._current and self._current.id != self._select.currentData():
-            self._select.setEditText(self._current.name)
+            self._select.setEditText(self._current.display_name)
         self._select.blockSignals(False)
 
     def reset(self):
@@ -301,7 +410,26 @@ class LoraItem(QWidget):
         if self._loras.rowCount() > 0:
             self._select_lora()
 
+    def set_style_arch(self, arch: Arch):
+        self._style_arch = arch
+        if self._current:
+            self._show_lora_warnings(self._current)
+
     def _show_lora_warnings(self, lora: File):
+        warnings = []
+        if (
+            lora.arch is not None
+            and lora.arch not in {Arch.auto, Arch.all}
+            and self._style_arch not in {Arch.auto, Arch.all}
+            and not Arch.is_compatible(lora.arch, self._style_arch)
+        ):
+            warnings.append(
+                _(
+                    "This LoRA is not compatible with the Style's Model Checkpoint, and will fail to apply. LoRA: {lora_arch} | Diffusion model: {style_arch}",
+                    lora_arch=lora.arch.value,
+                    style_arch=self._style_arch.value,
+                )
+            )
         if client := root.connection.client_if_connected:
             special_loras = [
                 file
@@ -310,16 +438,16 @@ class LoraItem(QWidget):
             ]
             file_ref = root.files.loras.find(lora.id)
             if file_ref is None or file_ref.source is FileSource.unavailable:
-                self._warning_icon.show_message(_lora_not_installed_warning)
-                self._warning_text.setText(_lora_not_installed_warning)
-                self._warning_text.setVisible(True)
+                warnings.append(_lora_not_installed_warning)
             elif lora.id in special_loras:
-                self._warning_icon.show_message(_special_lora_warning)
-                self._warning_text.setText(_special_lora_warning)
-                self._warning_text.setVisible(True)
-            else:
-                self._warning_icon.hide()
-                self._warning_text.setVisible(False)
+                warnings.append(_special_lora_warning)
+        message = "\n".join(warnings)
+        if message:
+            self._warning_icon.show_message(message)
+        else:
+            self._warning_icon.hide()
+        self._warning_text.setText(message)
+        self._warning_text.setVisible(bool(message))
 
 
 _lora_not_installed_warning = _("The LoRA file is not installed on the server.")
@@ -337,6 +465,7 @@ class LoraList(QWidget):
     def __init__(self, setting: Setting, parent=None):
         super().__init__(parent)
         self._items: list[LoraItem] = []
+        self._style_arch = Arch.auto
         self._loras = FileFilter(root.files.loras)
         self._loras.available_only = True
 
@@ -401,6 +530,7 @@ class LoraList(QWidget):
             item.removed.connect(self._remove_item)
             self._items.append(item)
 
+        item.set_style_arch(self._style_arch)
         if isinstance(lora, dict):
             item.value = lora
         elif isinstance(lora, File):
@@ -409,6 +539,11 @@ class LoraList(QWidget):
             item.reset()
         self._item_list.addWidget(item)
         self.value_changed.emit()
+
+    def set_style_arch(self, arch: Arch):
+        self._style_arch = arch
+        for item in self._items:
+            item.set_style_arch(arch)
 
     def _remove_item(self, item: LoraItem):
         # removing and creating items is slow, hiding allows reuse
@@ -453,7 +588,7 @@ class LoraList(QWidget):
                 if max_size and path.stat().st_size > max_size:
                     _show_file_too_large_warning(max_size, self)
                     return
-            file = File.local(path, FileFormat.lora, compute_hash=True)
+            file = File.local(path, FileFormat.lora)
             root.files.loras.add(file)
             self._add_item(file)
 
@@ -911,6 +1046,7 @@ class StylePresets(SettingsTab):
 
     def _enable_checkpoint_advanced(self):
         arch = resolve_arch(self.current_style, root.connection.client_if_connected)
+        self._loras.set_style_arch(arch)
         if arch.is_sdxl_like:
             valid_archs = (Arch.auto, Arch.sdxl, Arch.illu, Arch.illu_v)
         elif arch.is_flux_like:

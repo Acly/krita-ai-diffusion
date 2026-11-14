@@ -10,6 +10,7 @@ from enum import Enum
 from itertools import product
 from time import time
 from typing import Any
+from urllib.parse import urlencode
 
 from .. import platform_tools, util
 from ..files import FileFormat
@@ -599,6 +600,11 @@ class ComfyClient(Client):
             tiled_vae=settings.tiled_vae,
             dynamic_caching=settings.dynamic_caching,
         )
+
+    async def lora_hash(self, filename: str) -> str | None:
+        query = urlencode({"filename": filename})
+        info = await self._get(f"api/etn/model_info/loras?{query}", timeout=300)
+        return info.get(filename, {}).get("hash")
 
     async def upload_loras(self, work: WorkflowInput, local_job_id: str):
         for file in loras_to_upload(work, self.models):

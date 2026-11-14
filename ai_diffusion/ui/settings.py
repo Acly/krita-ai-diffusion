@@ -1005,6 +1005,12 @@ class AboutSettings(SettingsTab):
         self._update_button.setMinimumWidth(font_height * 6)
         self._update_button.clicked.connect(self._run_update)
 
+        civitai_header = QLabel("Civitai", self)
+        civitai_header.setFont(large)
+        self._civitai_checkbox = QCheckBox(_("Collect model information from civitai.com"), self)
+        self._civitai_checkbox.setChecked(settings.civitai_collection)
+        self._civitai_checkbox.stateChanged.connect(self.write)
+
         sys_header = QLabel(_("System Information"), self)
         sys_header.setFont(large)
         sys_desc = QLabel(_("Please attach this information when reporting issues!"), self)
@@ -1044,6 +1050,9 @@ class AboutSettings(SettingsTab):
         update_layout.addWidget(self._update_button)
         update_layout.addStretch()
         self._layout.addLayout(update_layout)
+        self._layout.addSpacing(20)
+        self._layout.addWidget(civitai_header)
+        self._layout.addWidget(self._civitai_checkbox)
         self._layout.addSpacing(20)
         self._layout.addWidget(sys_header)
         self._layout.addWidget(sys_desc)
@@ -1108,9 +1117,11 @@ class AboutSettings(SettingsTab):
 
     def _read(self):
         self._update_checkbox.setChecked(settings.auto_update)
+        self._civitai_checkbox.setChecked(settings.civitai_collection)
 
     def _write(self):
         settings.auto_update = self._update_checkbox.isChecked()
+        settings.civitai_collection = self._civitai_checkbox.isChecked()
 
     def _collect_diagnostics(self):
         diagnostics = collect_diagnostics()

@@ -1,15 +1,20 @@
+import asyncio
 import hashlib
 import json
-from base64 import b64encode
-from collections.abc import Sequence
+from base64 import b64decode, b64encode
+from collections.abc import Awaitable, Callable, Sequence
 from dataclasses import asdict, dataclass
 from enum import Enum, Flag
 from pathlib import Path
 from typing import Any, NamedTuple, cast
 
-from PyQt6.QtCore import QAbstractListModel, QModelIndex, QSortFilterProxyModel, Qt
-from PyQt6.QtGui import QIcon
+from PyQt6.QtCore import QAbstractListModel, QModelIndex, QSortFilterProxyModel, Qt, pyqtSignal
+from PyQt6.QtGui import QIcon, QImage
 
+from . import eventloop
+from .backend.network import NetworkError, RequestManager
+from .backend.resources import Arch
+from .settings import settings
 from .util import client_logger as log
 from .util import encode_json, read_json_with_comments, user_data_dir
 
@@ -38,6 +43,16 @@ class File:
     path: Path | None = None
     size: int | None = None
     metadata: dict[str, Any] | None = None
+    civitai: int | str | None = None
+    arch: Arch | None = None
+    version: str | None = None
+    image: str | None = None
+
+    @property
+    def display_name(self):
+        if self.format is FileFormat.lora:
+            return File.remote(self.id).name
+        return self.name
 
     @staticmethod
     def remote(id: str, format=FileFormat.unknown):
@@ -57,7 +72,11 @@ class File:
     @staticmethod
     def from_dict(data: dict):
         data["source"] = FileSource(data["source"])
+        if isinstance(data.get("format"), str):
+            data["format"] = FileFormat[data["format"]]
         data["path"] = Path(data["path"]) if data.get("path") else None
+        if data.get("arch"):
+            data["arch"] = Arch[data["arch"]]
         return File(**data)
 
     def to_dict(self):
@@ -80,7 +99,7 @@ class File:
         assert self.path is not None, "Local filepath must be set to compute hash"
         sha = hashlib.sha256()
         with open(self.path, "rb") as f:
-            while chunk := f.read(4096):
+            while chunk := f.read(1024 * 1024):
                 sha.update(chunk)
         self.hash = b64encode(sha.digest()).decode()
         return self.hash
@@ -91,6 +110,7 @@ class File:
 
 class FileCollection(QAbstractListModel):
     source_role = Qt.ItemDataRole.UserRole + 1
+    collected = pyqtSignal()
 
     def __init__(self, database: Path | None = None, parent=None):
         super().__init__(parent)
@@ -108,7 +128,7 @@ class FileCollection(QAbstractListModel):
 
             match role:
                 case Qt.ItemDataRole.DisplayRole | Qt.ItemDataRole.EditRole:
-                    return item.name
+                    return item.display_name
                 case Qt.ItemDataRole.DecorationRole:
                     return item.icon
                 case Qt.ItemDataRole.UserRole:
@@ -139,6 +159,7 @@ class FileCollection(QAbstractListModel):
             self.endInsertRows()
 
         self.save()
+        self.collected.emit()
 
     def remove(self, index: int):
         self.beginRemoveRows(QModelIndex(), index, index)
@@ -172,7 +193,41 @@ class FileCollection(QAbstractListModel):
         if not file.metadata:
             file.metadata = {}
         file.metadata[key] = value
+        self.notify(file)
+
+    def notify(self, file: File):
         self.save()
+        idx = self.find_index(file.id)
+        if idx >= 0:
+            self.dataChanged.emit(self.index(idx), self.index(idx))
+
+    def image_path(self, file: File):
+        if self._database and file.image:
+            return self._database.parent / "images" / file.image
+        return None
+
+    def set_image(self, file: File, image: QImage):
+        if image.isNull() or not self._database:
+            raise ValueError("Invalid preview image or missing database")
+        side = min(image.width(), image.height())
+        image = image.copy((image.width() - side) // 2, (image.height() - side) // 2, side, side)
+        image = image.scaled(
+            256,
+            256,
+            Qt.AspectRatioMode.IgnoreAspectRatio,
+            Qt.TransformationMode.SmoothTransformation,
+        )
+        image = image.convertToFormat(QImage.Format.Format_RGB32)
+        # Preserve subfolders, but never allow a remote identifier to escape the image directory.
+        parts = file.id.replace("\\", "/").split("/")
+        parts = [p.replace(":", "_") for p in parts if p not in {"", ".", ".."}]
+        filename = "/".join(parts) + ".jpg"
+        path = self._database.parent / "images" / filename
+        path.parent.mkdir(parents=True, exist_ok=True)
+        if not image.save(str(path), "JPG", 90):
+            raise OSError(f"Failed to save preview image: {path}")
+        file.image = filename
+        self.notify(file)
 
     def load(self):
         if not self._database or not self._database.exists():
@@ -220,6 +275,120 @@ class FileCollection(QAbstractListModel):
 
     def __getitem__(self, index: int):
         return self._files[index]
+
+
+class LoraInfoWorker:
+    def __init__(self, files: FileCollection, remote_hash: Callable[[str], Awaitable[str | None]]):
+        self.files = files
+        self.remote_hash = remote_hash
+        self.last_error = ""
+        self._connection_errors = 0
+        self._task: asyncio.Task | None = None
+        self._pending = False
+        self._requests = RequestManager()
+        files.collected.connect(self.start)
+        settings.changed.connect(self._settings_changed)
+
+    def _settings_changed(self, name: str, value):
+        if name == "civitai_collection" and value:
+            self.start()
+
+    def start(self):
+        if self._task and not self._task.done():
+            self._pending = True
+        else:
+            self._task = eventloop.run(self.run())
+
+    async def _handle_file(self, file: File):
+        if not file.hash:
+            if FileSource.local in file.source and file.path:
+                # Hash a copy: only the main thread mutates the model.
+                copy = File.local(file.path)
+                file.hash = await asyncio.to_thread(copy.compute_hash)
+            elif FileSource.remote in file.source:
+                file.hash = await self.remote_hash(file.id)
+            if file.hash:
+                self.files.notify(file)
+        if file.hash and settings.civitai_collection and self._connection_errors < 3:
+            await self.collect(file)
+
+    async def run(self):
+        try:
+            while True:
+                self._pending = False
+                for file in list(self.files):
+                    if file.civitai is not None or file.source is FileSource.unavailable:
+                        continue
+                    try:
+                        await self._handle_file(file)
+                    except Exception as e:
+                        log.warning(f"Failed to collect LoRA information for {file.id}: {e}")
+                if not self._pending:
+                    break
+        except Exception as e:
+            log.warning(f"LoRA information worker failed: {e}")
+
+    async def collect(self, file: File):
+        assert file.hash
+        if not settings.civitai_collection or self._connection_errors >= 3:
+            return
+        try:
+            digest = b64decode(file.hash).hex()
+            info = await self._requests.get(
+                f"https://civitai.com/api/v1/model-versions/by-hash/{digest}", timeout=30
+            )
+            name, version, model_id = info["model"]["name"], info["name"], info["modelId"]
+            file.name = name
+            file.version = version
+            file.civitai = model_id
+            file.arch = civitai_arch(info.get("baseModel", ""))
+            if not file.meta("lora_triggers") and info.get("trainedWords"):
+                self.files.set_meta(file, "lora_triggers", ", ".join(info["trainedWords"]))
+            self.files.notify(file)
+            log.info(f"Civitai LoRA collected: {file.name} {file.version}, id {file.civitai}")
+            images = info.get("images", [])
+            if images and not file.image and settings.civitai_collection:
+                data = await self._requests.download(images[0]["url"], timeout=30)
+                # A custom preview set while the download was pending takes precedence.
+                if not file.image:
+                    self.files.set_image(file, QImage.fromData(data))
+        except NetworkError as e:
+            if e.status == 404 and file.civitai is None:
+                file.civitai = "not-found"
+                self.files.notify(file)
+            else:
+                self.last_error = str(e)
+                self.files.set_meta(file, "civitai_error", self.last_error)
+                if e.status is None or e.status == 429 or e.status >= 500:
+                    self._connection_errors += 1
+                log.warning(f"Failed to retrieve Civitai information for {file.id}: {e}")
+        except Exception as e:
+            self.last_error = str(e)
+            self.files.set_meta(file, "civitai_error", self.last_error)
+            log.warning(f"Failed to retrieve Civitai information for {file.id}: {e}")
+
+
+def civitai_arch(base_model: str):
+    name = base_model.lower()
+    if name.startswith(("zimage", "z-image")):
+        return Arch.zimage
+    if name.startswith("sd 1"):
+        return Arch.sd15
+    if "illustrious" in name or "noobai" in name:
+        return Arch.illu_v if "v-pred" in name else Arch.illu
+    if name.startswith(("sdxl", "pony")) or name == "odora":
+        return Arch.sdxl
+    if name.startswith("sd 3"):
+        return Arch.sd3
+    if "flux" in name:
+        if "klein" in name:
+            return Arch.flux2_9b if "9b" in name else Arch.flux2_4b
+        return Arch.flux_k if "kontext" in name else Arch.flux
+    if "qwen" in name:
+        if "edit" in name:
+            return Arch.qwen_e_p if "2509" in name or "2511" in name else Arch.qwen_e
+        return Arch.qwen2 if "2512" in name else Arch.qwen
+    return next((arch for arch in Arch if arch.value.lower() == name), None)
 
 
 _instance = None
