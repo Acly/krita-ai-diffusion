@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from html import escape as html_escape
 from pathlib import Path
 from typing import cast
 
@@ -49,7 +50,6 @@ from .settings_widgets import (
     WarningIcon,
 )
 from .theme import SignalBlocker, add_header, icon
-from .widget import create_framed_label
 
 
 class LoraThumbnail(QLabel):
@@ -80,19 +80,11 @@ class LoraItem(QWidget):
         self._current: File | None = None
         self._is_active = True
         self._style_arch = Arch.auto
+        self._edit_triggers = False
 
         completer = QCompleter(self._loras)
         completer.setCaseSensitivity(Qt.CaseSensitivity.CaseInsensitive)
         completer.setFilterMode(Qt.MatchFlag.MatchContains)
-
-        small_font = self.font()
-        small_font.setPointSize(small_font.pointSize() - 1)
-
-        grey_text = self.palette()
-        grey_text.setColor(QPalette.ColorRole.WindowText, QColor(theme.grey))
-
-        self._advanced_button = ExpanderButton(parent=self)
-        self._advanced_button.toggled.connect(self._expand)
 
         self._select = QComboBox(self)
         self._select.setEditable(True)
@@ -121,6 +113,11 @@ class LoraItem(QWidget):
         self._remove.setIcon(icon("discard"))
         self._remove.clicked.connect(self.remove)
 
+        self._more = QToolButton(self)
+        self._more.setIcon(icon("more"))
+        self._more.setToolTip(_("More options"))
+        self._more.clicked.connect(self._more_menu)
+
         self._thumbnail = LoraThumbnail(self)
         self._thumbnail.setFixedSize(56, 56)
         self._thumbnail.setToolTip(_("Right click to set a preview image"))
@@ -128,93 +125,41 @@ class LoraItem(QWidget):
         self._thumbnail.customContextMenuRequested.connect(self._preview_menu)
 
         self._summary = QLabel(self)
-        self._summary.setPalette(grey_text)
-        self._summary.setTextFormat(Qt.TextFormat.PlainText)
+        self._summary.setTextFormat(Qt.TextFormat.RichText)
         self._summary.setMinimumWidth(0)
         self._summary.setSizePolicy(QSizePolicy.Policy.Ignored, QSizePolicy.Policy.Preferred)
+
+        self._trigger_edit = QLineEdit(self)
+        self._trigger_edit.setPlaceholderText(
+            _("Optional text which is added to the prompt when the LoRA is used")
+        )
+        self._trigger_edit.textChanged.connect(self._set_triggers)
+        self._trigger_edit.setVisible(False)
 
         strength_layout = QHBoxLayout()
         strength_layout.setContentsMargins(0, 0, 0, 0)
         strength_layout.addWidget(self._strength)
-        strength_layout.addWidget(self._warning_icon)
+
+        action_layout = QHBoxLayout()
+        action_layout.setContentsMargins(0, 0, 0, 0)
+        action_layout.addWidget(self._summary, 1)
+        action_layout.addWidget(self._trigger_edit, 1)
+        action_layout.addWidget(self._warning_icon)
+        action_layout.addWidget(self._more)
 
         item_layout = QGridLayout()
         item_layout.setContentsMargins(0, 0, 0, 0)
-        item_layout.addWidget(self._enabled, 0, 0)
-        item_layout.addWidget(self._advanced_button, 1, 0)
+        item_layout.addWidget(self._enabled, 0, 0, 2, 1, Qt.AlignmentFlag.AlignVCenter)
         item_layout.addWidget(self._thumbnail, 0, 1, 2, 1)
         item_layout.addWidget(self._select, 0, 2)
         item_layout.addLayout(strength_layout, 0, 3)
-        item_layout.addWidget(self._remove, 0, 4)
-        item_layout.addWidget(self._summary, 1, 2, 1, 3)
+        item_layout.addWidget(self._remove, 0, 4, Qt.AlignmentFlag.AlignRight)
+        item_layout.addLayout(action_layout, 1, 2, 1, 3)
         item_layout.setColumnStretch(2, 3)
-
-        self._advanced = QWidget(self)
-        self._advanced.setVisible(False)
-
-        self._warning_text = QLabel(self._advanced)
-        self._warning_text.setWordWrap(True)
-        self._warning_text.setStyleSheet(f"color: {theme.yellow}; font-weight: bold;")
-        self._warning_text.setVisible(False)
-
-        trigger_label = QLabel(_("Trigger words"), parent=self._advanced)
-        trigger_help = _("Optional text which is added to the prompt when the LoRA is used")
-        self._trigger_edit = QLineEdit(parent=self._advanced)
-        self._trigger_edit.setPlaceholderText(trigger_help)
-        self._trigger_edit.textChanged.connect(self._set_triggers)
-
-        trigger_layout = QVBoxLayout()
-        trigger_layout.addWidget(trigger_label)
-        trigger_layout.addWidget(self._trigger_edit)
-
-        default_label = QLabel(_("Default Strength"), parent=self._advanced)
-        default_frame, self._default_strength_value = create_framed_label("100%", self._advanced)
-        self._default_strength_button = QPushButton(_("Set Default"), parent=self._advanced)
-        self._default_strength_button.clicked.connect(self._set_default_strength)
-
-        default_strength_frame_layout = QHBoxLayout()
-        default_strength_frame_layout.setContentsMargins(0, 0, 0, 0)
-        default_strength_frame_layout.addWidget(default_frame)
-        default_strength_frame_layout.addWidget(self._default_strength_button)
-        default_strength_layout = QVBoxLayout()
-        default_strength_layout.addWidget(default_label)
-        default_strength_layout.addLayout(default_strength_frame_layout)
-
-        meta_layout = QHBoxLayout()
-        meta_layout.addLayout(trigger_layout, 3)
-        meta_layout.addLayout(default_strength_layout, 1)
-
-        self._file_id_label = QLabel(parent=self._advanced)
-        self._file_id_label.setFont(small_font)
-        self._file_id_label.setPalette(grey_text)
-
-        self._file_path_label = QLabel(parent=self._advanced)
-        self._file_path_label.setFont(small_font)
-        self._file_path_label.setPalette(grey_text)
-
-        advanced_layout = QVBoxLayout()
-        advanced_layout.setContentsMargins(3, 2, 0, 2)
-        advanced_layout.addWidget(self._warning_text)
-        advanced_layout.addLayout(meta_layout)
-        advanced_layout.addWidget(self._file_id_label)
-        advanced_layout.addWidget(self._file_path_label)
-
-        line = QFrame(self)
-        line.setObjectName("LeftIndent")
-        line.setStyleSheet(f"#LeftIndent {{ color: {theme.line};  }}")
-        line.setFrameShape(QFrame.Shape.VLine)
-        line.setLineWidth(1)
-
-        pad_layout = QHBoxLayout()
-        pad_layout.setContentsMargins(7, 0, 34, 10)
-        pad_layout.addWidget(line)
-        pad_layout.addLayout(advanced_layout)
-        self._advanced.setLayout(pad_layout)
 
         layout = QVBoxLayout()
         layout.setContentsMargins(0, 0, 0, 0)
         layout.addLayout(item_layout)
-        layout.addWidget(self._advanced)
         self.setLayout(layout)
 
         root.files.loras.dataChanged.connect(self._update)
@@ -227,22 +172,31 @@ class LoraItem(QWidget):
         self._update_summary()
 
     def _update_summary(self):
-        text = ""
+        name = ""
+        detail = ""
         if file := self._current:
-            text = (
+            name = (
                 f"{file.name} {file.version or ''}".strip()
                 if file.civitai and file.civitai != "not-found"
                 else file.id
             )
             if file.arch:
-                text += f" | {file.arch.value}"
+                detail += f" | {file.arch.value}"
             if triggers := file.meta("lora_triggers", ""):
-                text += "     " + _("Trigger words") + f": {triggers}"
-        self._summary.setToolTip(text)
-        self._summary.setText(
-            self._summary.fontMetrics().elidedText(
-                text, Qt.TextElideMode.ElideRight, self._summary.width()
+                detail += " | " + _("Trigger words") + f": {triggers}"
+        self._summary.setToolTip(name + detail)
+        metrics = self._summary.fontMetrics()
+        available = self._summary.width()
+        detail_width = metrics.horizontalAdvance(detail.strip())
+        if detail_width >= available:
+            name, detail = (
+                "",
+                metrics.elidedText(detail.strip(), Qt.TextElideMode.ElideRight, available),
             )
+        elif name:
+            name = metrics.elidedText(name, Qt.TextElideMode.ElideRight, available - detail_width)
+        self._summary.setText(
+            f"{html_escape(name)}<span style='color:{theme.grey}'>{html_escape(detail)}</span>"
         )
 
     def _update_preview(self):
@@ -268,24 +222,83 @@ class LoraItem(QWidget):
         canvas.setEnabled(root.active_model.document.is_valid)
         open_file = menu.addAction(_("Open file..."))
         action = menu.exec(self._thumbnail.mapToGlobal(position))
-        try:
-            if action == canvas:
-                image = root.active_model.document.get_image().to_pixmap().toImage()
-            elif action == open_file:
-                filename, _filter = QFileDialog.getOpenFileName(
-                    self, _("Select preview image"), "", "Images (*.png *.jpg *.jpeg *.webp *.bmp)"
+        if action == canvas:
+            self._set_image_from_canvas()
+        elif action == open_file:
+            self._load_image_from_file()
+
+    def _more_menu(self):
+        menu = self._create_more_menu()
+        menu.exec(self._more.mapToGlobal(self._more.rect().bottomLeft()))
+
+    def _create_more_menu(self):
+        menu = QMenu(self)
+        has_lora = self._current is not None
+
+        canvas = menu.addAction(_("Set image from canvas"))
+        assert canvas is not None
+        canvas.setEnabled(has_lora and root.active_model.document.is_valid)
+        canvas.triggered.connect(self._set_image_from_canvas)
+
+        open_file = menu.addAction(_("Load image from file"))
+        assert open_file is not None
+        open_file.setEnabled(has_lora)
+        open_file.triggered.connect(self._load_image_from_file)
+
+        menu.addSeparator()
+
+        default = self._default_strength
+        strength = self._strength.value()
+        if default == strength:
+            set_default = menu.addAction(_("Set default strength ({strength}%)", strength=strength))
+        else:
+            set_default = menu.addAction(
+                _(
+                    "Set default strength {default}% -> {strength}%",
+                    default=default,
+                    strength=strength,
                 )
-                if not filename:
-                    return
-                image = QImage(filename)
-            else:
-                return
+            )
+        assert set_default is not None
+        set_default.setEnabled(has_lora and default != strength)
+        set_default.triggered.connect(lambda: self._set_default_strength())
+
+        edit_triggers = menu.addAction(_("Edit trigger words"))
+        assert edit_triggers is not None
+        edit_triggers.setCheckable(True)
+        edit_triggers.setChecked(self._edit_triggers)
+        edit_triggers.triggered.connect(self._set_edit_triggers)
+
+        return menu
+
+    def _set_image_from_canvas(self):
+        if not self._current:
+            return
+        try:
+            image = root.active_model.document.get_image().to_pixmap().toImage()
             root.files.loras.set_image(self._current, image)
         except Exception as e:
             QMessageBox.warning(self, _("Preview image"), str(e))
 
-    def _expand(self):
-        self._advanced.setVisible(self._advanced_button.isChecked())
+    def _load_image_from_file(self):
+        if not self._current:
+            return
+        filename, _filter = QFileDialog.getOpenFileName(
+            self, _("Select preview image"), "", "Images (*.png *.jpg *.jpeg *.webp *.bmp)"
+        )
+        if not filename:
+            return
+        try:
+            root.files.loras.set_image(self._current, QImage(filename))
+        except Exception as e:
+            QMessageBox.warning(self, _("Preview image"), str(e))
+
+    def _set_edit_triggers(self, enabled: bool):
+        self._edit_triggers = enabled
+        self._summary.setVisible(not enabled)
+        self._trigger_edit.setVisible(enabled)
+        if enabled:
+            self._trigger_edit.setFocus()
 
     def _notify_changed(self):
         self._update()
@@ -299,22 +312,6 @@ class LoraItem(QWidget):
         self._update_summary()
         self._update_preview()
         if self._current:
-            self._file_id_label.setText(f"ID: {self._current.id}")
-            if FileSource.local in self._current.source and self._current.path:
-                path = str(self._current.path)
-                if len(path) > 80:
-                    path = "..." + path[-80:]
-                self._file_path_label.setText(_("Local file") + f": {path}")
-                self._file_path_label.setVisible(True)
-            else:
-                self._file_path_label.setVisible(False)
-            if strength := self._current.meta("lora_strength"):
-                istrength = int(strength * 100)
-                self._default_strength_value.setText(f"{istrength}%")
-                self._default_strength_button.setEnabled(istrength != self._strength.value())
-            else:
-                self._default_strength_value.setText("100%")
-                self._default_strength_button.setEnabled(self._strength.value() != 100)
             with SignalBlocker(self._trigger_edit):
                 self._trigger_edit.setText(self._current.meta("lora_triggers", ""))
             self._show_lora_warnings(self._current)
@@ -337,11 +334,18 @@ class LoraItem(QWidget):
             root.files.loras.set_meta(self._current, "lora_triggers", value)
 
     def _set_default_strength(self):
-        if self._current and self._current.meta("lora_strength") != self.strength:
+        if self._current and self._default_strength != self._strength.value():
             root.files.loras.set_meta(self._current, "lora_strength", self.strength)
-            self._update()
+
+    @property
+    def _default_strength(self):
+        if self._current is None:
+            return 100
+        strength = self._current.meta("lora_strength")
+        return 100 if strength is None else int(strength * 100)
 
     def remove(self):
+        self._set_edit_triggers(False)
         self.removed.emit(self)
 
     @property
@@ -446,8 +450,6 @@ class LoraItem(QWidget):
             self._warning_icon.show_message(message)
         else:
             self._warning_icon.hide()
-        self._warning_text.setText(message)
-        self._warning_text.setVisible(bool(message))
 
 
 _lora_not_installed_warning = _("The LoRA file is not installed on the server.")
