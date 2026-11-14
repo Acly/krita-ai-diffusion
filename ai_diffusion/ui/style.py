@@ -203,7 +203,7 @@ class LoraItem(QWidget):
         path = root.files.loras.image_path(self._current) if self._current else None
         pixmap = QPixmap(str(path)) if path else QPixmap()
         if pixmap.isNull():
-            pixmap = icon("puzzle-bg", dark=True).pixmap(56, 56)
+            pixmap = icon("puzzle-bg").pixmap(56, 56)
         self._thumbnail.setPixmap(
             pixmap.scaled(
                 56,

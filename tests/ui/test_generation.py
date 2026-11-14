@@ -126,7 +126,14 @@ async def test_generate_button_label(workflows_dir: Path):
         assert widget.mode_button.text() == "Generate"
         assert widget.mode_button.size() == mode_button_size
         assert all(not action.isEnabled() for action in mode_actions[1:-1])
+        minimum_height = widget.minimumSizeHint().height()
         control = model.control.emplace()
+        assert widget.minimumSizeHint().height() == minimum_height
+        extra_controls = [model.control.emplace() for _ in range(3)]
+        assert widget.minimumSizeHint().height() == minimum_height
+        for extra in extra_controls:
+            model.control.remove(extra)
+        assert widget.minimumSizeHint().height() == minimum_height
         control.mode = ControlMode.reference
         controls = widget.control_list
         controls.toggle_advanced(controls._widgets[0])

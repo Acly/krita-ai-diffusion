@@ -489,16 +489,12 @@ class ControlThumbnail(QWidget):
 
     def refresh(self):
         try:
-            image = self.control.layer.thumbnail(Extent(THUMBNAIL_WIDTH * 2, THUMBNAIL_HEIGHT * 2))
-            pixmap = QPixmap.fromImage(image)
-            pixmap = pixmap.scaled(
-                self.size() * 2,
-                Qt.AspectRatioMode.KeepAspectRatioByExpanding,
-                Qt.TransformationMode.SmoothTransformation,
+            layer = self.control.layer
+            size = layer.bounds.extent.at_least(1).scale_keep_aspect(
+                Extent(THUMBNAIL_WIDTH * 2, THUMBNAIL_HEIGHT * 2)
             )
-            x = max(0, (pixmap.width() - THUMBNAIL_WIDTH * 2) // 2)
-            y = max(0, (pixmap.height() - THUMBNAIL_HEIGHT * 2) // 2)
-            self._pixmap = pixmap.copy(x, y, THUMBNAIL_WIDTH * 2, THUMBNAIL_HEIGHT * 2)
+            image = layer.thumbnail(size.at_least(1))
+            self._pixmap = QPixmap.fromImage(image)
         except Exception:
             self._pixmap = QPixmap()
         self.update()
@@ -509,7 +505,12 @@ class ControlThumbnail(QWidget):
         path = QPainterPath()
         path.addRoundedRect(QRectF(self.rect()), 2, 2)
         painter.setClipPath(path)
-        painter.fillRect(self.rect(), self.palette().color(QPalette.ColorRole.Base))
+        background = (
+            QColor(Qt.GlobalColor.white)
+            if self.control.mode.is_lines
+            else self.palette().color(QPalette.ColorRole.Base)
+        )
+        painter.fillRect(self.rect(), background)
 
         if self.control.has_active_job:
             gradient = QLinearGradient(0, 0, 0, self.height())
@@ -522,7 +523,10 @@ class ControlThumbnail(QWidget):
 
         if not self._pixmap.isNull():
             painter.setRenderHint(QPainter.RenderHint.SmoothPixmapTransform)
-            painter.drawPixmap(self.rect(), self._pixmap, self._pixmap.rect())
+            size = self._pixmap.size().scaled(self.size(), Qt.AspectRatioMode.KeepAspectRatio)
+            target = QRect(QPoint(), size)
+            target.moveCenter(self.rect().center())
+            painter.drawPixmap(target, self._pixmap, self._pixmap.rect())
 
         if self.control.strength == 0:
             painter.save()
@@ -728,7 +732,7 @@ class ControlListWidget(QWidget):
         self._items = QWidget(self)
         self._flow_layout = FlowLayout(self._items)
         self._items.setLayout(self._flow_layout)
-        self._items.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Minimum)
+        self._items.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Preferred)
 
         self._details_layout = QVBoxLayout()
         self._details_layout.setContentsMargins(0, 0, 0, 0)
@@ -738,7 +742,7 @@ class ControlListWidget(QWidget):
         layout.setSpacing(2)
         layout.addWidget(self._items)
         layout.addLayout(self._details_layout)
-        self.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Minimum)
+        self.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Preferred)
         self.model = model
 
     @property
