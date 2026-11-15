@@ -14,9 +14,19 @@ from PyQt6.QtCore import (
     QSize,
     QSortFilterProxyModel,
     Qt,
+    QUrl,
     pyqtSignal,
 )
-from PyQt6.QtGui import QColor, QImage, QKeyEvent, QPainter, QPainterPath, QPalette, QPixmap
+from PyQt6.QtGui import (
+    QColor,
+    QDesktopServices,
+    QImage,
+    QKeyEvent,
+    QPainter,
+    QPainterPath,
+    QPalette,
+    QPixmap,
+)
 from PyQt6.QtWidgets import (
     QApplication,
     QCheckBox,
@@ -61,6 +71,15 @@ def lora_pixmap(file: File | None, size: int):
 
 
 class LoraThumbnail(QLabel):
+    def __init__(self, parent=None):
+        super().__init__(parent)
+        self._warning = ""
+
+    def set_warning(self, message: str):
+        if message != self._warning:
+            self._warning = message
+            self.update()
+
     def paintEvent(self, a0):
         painter = QPainter(self)
         painter.setRenderHint(QPainter.RenderHint.Antialiasing)
@@ -74,6 +93,13 @@ class LoraThumbnail(QLabel):
             painter.drawPixmap(self.rect(), pixmap, pixmap.rect())
         if not self.isEnabled():
             painter.fillRect(self.rect(), QColor(128, 128, 128, 160))
+        if self._warning:
+            overlay = QColor(self.palette().color(QPalette.ColorRole.Base))
+            overlay.setAlphaF(0.8)
+            painter.fillRect(self.rect(), overlay)
+            icon_rect = QRect(0, 0, 24, 24)
+            icon_rect.moveCenter(self.rect().center())
+            theme.icon("warning").paint(painter, icon_rect)
 
 
 class LoraPreviewMenu(QMenu):
@@ -81,11 +107,11 @@ class LoraPreviewMenu(QMenu):
         super().__init__(parent)
         self._file = file
         self._document = document or root.active_model.document
-        canvas = self.addAction(_("Use current canvas"))
+        canvas = self.addAction(_("Replace preview image: Use canvas"))
         assert canvas is not None
         canvas.setEnabled(file is not None and self._document.is_valid)
         canvas.triggered.connect(self._set_image_from_canvas)
-        open_file = self.addAction(_("Open file..."))
+        open_file = self.addAction(_("Replace preview image: Open file"))
         assert open_file is not None
         open_file.setEnabled(file is not None)
         open_file.triggered.connect(self._load_image_from_file)
@@ -425,42 +451,99 @@ class LoraItem(QWidget):
             self._show_lora_warnings(self._current)
 
     def _show_lora_warnings(self, lora: File):
-        warnings = []
-        if (
-            lora.arch is not None
-            and lora.arch not in {Arch.auto, Arch.all}
-            and self._style_arch not in {Arch.auto, Arch.all}
-            and not Arch.is_compatible(lora.arch, self._style_arch)
-        ):
-            warnings.append(
-                _(
-                    "This LoRA is not compatible with the Style's Model Checkpoint, and will fail to apply. LoRA: {lora_arch} | Diffusion model: {style_arch}",
-                    lora_arch=lora.arch.value,
-                    style_arch=self._style_arch.value,
-                )
-            )
-        if client := root.connection.client_if_connected:
-            special_loras = [
-                file
-                for res, file in client.models.resources.items()
-                if file is not None and res.startswith("lora-")
-            ]
-            file_ref = root.files.loras.find(lora.id)
-            if file_ref is None or file_ref.source is FileSource.unavailable:
-                warnings.append(_lora_not_installed_warning)
-            elif lora.id in special_loras:
-                warnings.append(_special_lora_warning)
-        message = "\n".join(warnings)
+        message = "\n".join(lora_warnings(lora, self._style_arch))
         if message:
             self._warning_icon.show_message(message)
         else:
             self._warning_icon.hide()
 
 
+def lora_style_compatibility_warning(lora: File, style_arch: Arch):
+    if (
+        lora.arch is None
+        or lora.arch in {Arch.auto, Arch.all}
+        or style_arch in {Arch.auto, Arch.all}
+        or Arch.is_compatible(lora.arch, style_arch)
+    ):
+        return ""
+    return _(
+        "This LoRA is not compatible with the Style's model, and will fail to apply. LoRA: {lora_arch} | Style model: {style_arch}",
+        lora_arch=lora.arch.value,
+        style_arch=style_arch.value,
+    )
+
+
+def lora_warnings(lora: File, style_arch: Arch):
+    warnings = []
+    if warning := lora_style_compatibility_warning(lora, style_arch):
+        warnings.append(warning)
+    if client := root.connection.client_if_connected:
+        special_loras = [
+            file
+            for res, file in client.models.resources.items()
+            if file is not None and res.startswith("lora-")
+        ]
+        file_ref = root.files.loras.find(lora.id)
+        if file_ref is None or file_ref.source is FileSource.unavailable:
+            warnings.append(_lora_not_installed_warning)
+        elif lora.id in special_loras:
+            warnings.append(_special_lora_warning)
+    return warnings
+
+
 _lora_not_installed_warning = _("The LoRA file is not installed on the server.")
 _special_lora_warning = _(
     "This LoRA is usually added automatically by a Sampler or Control Layer when needed.\nIt is not required to add it manually here."
 )
+
+
+def open_lora_folder():
+    if root.server.comfy_dir is not None:
+        folder = root.server.path / "models" / "loras"
+        folder.mkdir(parents=True, exist_ok=True)
+        QDesktopServices.openUrl(QUrl.fromLocalFile(str(folder)))
+
+
+def create_open_lora_folder_button(parent: QWidget):
+    button = QToolButton(parent)
+    button.setToolButtonStyle(Qt.ToolButtonStyle.ToolButtonIconOnly)
+    button.setIcon(Krita.instance().icon("document-open"))
+    button.setToolTip(_("Open folder containing LoRA files"))
+    button.clicked.connect(open_lora_folder)
+    return button
+
+
+def create_refresh_lora_button(parent: QWidget):
+    button = QToolButton(parent)
+    button.setToolButtonStyle(Qt.ToolButtonStyle.ToolButtonIconOnly)
+    button.setIcon(Krita.instance().icon("reload-preset"))
+    button.setToolTip(_("Look for new LoRA files"))
+    button.clicked.connect(root.connection.refresh)
+    return button
+
+
+def create_upload_lora_button(parent: QWidget, icon_only=False):
+    text = "" if icon_only else "  " + _("Upload")
+    button = QPushButton(icon("upload"), text, parent)
+    button.setToolTip(_("Import a LoRA file from your local system"))
+    return button
+
+
+def upload_lora(parent: QWidget):
+    filepath = QFileDialog.getOpenFileName(
+        parent, _("Select LoRA file"), None, "LoRA files (*.safetensors)"
+    )
+    if not filepath[0]:
+        return None
+    path = Path(filepath[0])
+    if client := root.connection.client_if_connected:
+        max_size = client.features.max_upload_size
+        if max_size and path.stat().st_size > max_size:
+            _show_file_too_large_warning(max_size, parent)
+            return None
+    file = File.local(path, FileFormat.lora)
+    root.files.loras.add(file)
+    return file
 
 
 def populate_lora_folders(combo: QComboBox, selected: str):
@@ -506,8 +589,7 @@ class LoraList(QWidget):
         self._add_button.clicked.connect(self._add_item)
         header_layout.addWidget(self._add_button, 1)
 
-        self._upload_button = QPushButton(icon("upload"), "  " + _("Upload"), self)
-        self._upload_button.setToolTip(_("Import a LoRA file from your local system"))
+        self._upload_button = create_upload_lora_button(self)
         self._upload_button.clicked.connect(self._upload_lora)
         header_layout.addWidget(self._upload_button, 1)
 
@@ -515,19 +597,12 @@ class LoraList(QWidget):
         self._filter_combo.currentIndexChanged.connect(self._set_filtered_names)
         header_layout.addWidget(self._filter_combo, 2)
 
-        self._refresh_button = QToolButton(self)
-        self._refresh_button.setToolButtonStyle(Qt.ToolButtonStyle.ToolButtonIconOnly)
-        self._refresh_button.setIcon(Krita.instance().icon("reload-preset"))
-        self._refresh_button.setToolTip(_("Look for new LoRA files"))
-        self._refresh_button.clicked.connect(root.connection.refresh)
+        self._refresh_button = create_refresh_lora_button(self)
         header_layout.addWidget(self._refresh_button, 0)
 
         if settings.server_mode is ServerMode.managed:
-            open_folder = self.open_folder_button = QToolButton(self)
-            open_folder.setToolButtonStyle(Qt.ToolButtonStyle.ToolButtonIconOnly)
-            open_folder.setIcon(Krita.instance().icon("document-open"))
-            open_folder.setToolTip(_("Open folder containing LoRA files"))
-            header_layout.addWidget(open_folder, 0)
+            self.open_folder_button = create_open_lora_folder_button(self)
+            header_layout.addWidget(self.open_folder_button, 0)
 
         self._layout.addLayout(header_layout)
 
@@ -589,18 +664,7 @@ class LoraList(QWidget):
             item.apply_filter()
 
     def _upload_lora(self):
-        filepath = QFileDialog.getOpenFileName(
-            self, _("Select LoRA file"), None, "LoRA files (*.safetensors)"
-        )
-        if filepath[0]:
-            path = Path(filepath[0])
-            if client := root.connection.client_if_connected:
-                max_size = client.features.max_upload_size
-                if max_size and path.stat().st_size > max_size:
-                    _show_file_too_large_warning(max_size, self)
-                    return
-            file = File.local(path, FileFormat.lora)
-            root.files.loras.add(file)
+        if file := upload_lora(self):
             self._add_item(file)
 
     @property
@@ -705,7 +769,16 @@ class LoraSelectionDialog(QDialog):
 
         header = QHBoxLayout()
         header.addWidget(self.search, 1)
+        if settings.server_mode is ServerMode.managed:
+            self.open_folder_button = create_open_lora_folder_button(self)
+            header.addWidget(self.open_folder_button)
+        else:
+            self.upload_button = create_upload_lora_button(self, icon_only=True)
+            self.upload_button.clicked.connect(self._upload_lora)
+            header.addWidget(self.upload_button)
         header.addWidget(self.folders)
+        self.refresh_button = create_refresh_lora_button(self)
+        header.addWidget(self.refresh_button)
         layout = QVBoxLayout(self)
         layout.setContentsMargins(6, 6, 6, 6)
         layout.addLayout(header)
@@ -768,6 +841,9 @@ class LoraSelectionDialog(QDialog):
             }
         self._loras.excluded_files = special
         self._select_first()
+
+    def _upload_lora(self):
+        upload_lora(self)
 
     def _select_first(self):
         self.items.setCurrentIndex(self._search_filter.index(0, 0))

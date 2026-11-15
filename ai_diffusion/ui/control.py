@@ -54,6 +54,8 @@ from .lora import (
     LoraStrengthSpinBox,
     LoraThumbnail,
     lora_pixmap,
+    lora_style_compatibility_warning,
+    lora_warnings,
 )
 from .theme import SignalBlocker
 
@@ -992,7 +994,10 @@ class DocumentLoraWidget(QWidget):
         layout.setSpacing(0)
         layout.addWidget(self.thumbnail)
         layout.addWidget(self.slider)
-        self._connections = [root.files.loras.dataChanged.connect(self.refresh)]
+        self._connections = [
+            root.files.loras.dataChanged.connect(self.refresh),
+            self.model.active_style_changed.connect(lambda _: self.refresh()),
+        ]
         self.refresh()
 
     @property
@@ -1014,7 +1019,12 @@ class DocumentLoraWidget(QWidget):
     def refresh(self):
         file = root.files.loras.find(self.id)
         self.thumbnail.setPixmap(lora_pixmap(file, THUMBNAIL_HEIGHT))
-        self.thumbnail.setToolTip(file.full_name if file else self.id)
+        warning = lora_style_compatibility_warning(file, self.model.arch) if file else ""
+        self.thumbnail.set_warning(warning)
+        tooltip = file.full_name if file else self.id
+        if file and (warnings := lora_warnings(file, self.model.arch)):
+            tooltip += "\n" + "\n".join(warnings)
+        self.thumbnail.setToolTip(tooltip)
         with SignalBlocker(self.slider):
             self.slider.setValue(round(self.strength * 20))
         self.thumbnail.update()
@@ -1050,6 +1060,7 @@ class LoraAdvancedPanel(QFrame):
         close_button.clicked.connect(owner.list_widget.close_advanced)
         self.strength = LoraStrengthSpinBox(self)
         self.strength.valueChanged.connect(lambda value: owner.set_strength(value / 100))
+        self.warning = WarningLabel(self)
         self.triggers = QLineEdit(self)
         self.triggers.setPlaceholderText(
             _("Optional text which is added to the prompt when the LoRA is used")
@@ -1064,16 +1075,23 @@ class LoraAdvancedPanel(QFrame):
         buttons.setSpacing(2)
         buttons.addWidget(self.preview_button)
         buttons.addWidget(close_button)
+        strength_layout = QHBoxLayout()
+        strength_layout.setContentsMargins(0, 0, 0, 0)
+        strength_layout.setSpacing(4)
+        strength_layout.addWidget(self.strength)
+        strength_layout.addWidget(self.warning)
+        strength_layout.addStretch()
         layout.addWidget(self.name, 0, 0, 1, 2)
         layout.addLayout(buttons, 0, 2, Qt.AlignmentFlag.AlignRight)
         layout.addWidget(QLabel(_("Strength") + ":", self), 1, 0)
-        layout.addWidget(self.strength, 1, 1, Qt.AlignmentFlag.AlignLeft)
+        layout.addLayout(strength_layout, 1, 1, 1, 2)
         layout.addWidget(QLabel(_("Triggers") + ":", self), 2, 0)
         layout.addWidget(self.triggers, 2, 1, 1, 2)
         layout.setColumnStretch(1, 1)
 
         self._connections = [
             owner.model.loras_changed.connect(self._update),
+            owner.model.active_style_changed.connect(lambda _: self._update()),
             root.files.loras.dataChanged.connect(self._update),
         ]
         self._update()
@@ -1087,6 +1105,11 @@ class LoraAdvancedPanel(QFrame):
             triggers = file.meta("lora_triggers", "") if file else ""
             if self.triggers.text() != triggers:
                 self.triggers.setText(triggers)
+        warning = lora_style_compatibility_warning(file, self.owner.model.arch) if file else ""
+        if warning:
+            self.warning.show_message(_("Incompatible with Style"), warning)
+        else:
+            self.warning.hide()
 
     def _preview_menu(self):
         file = root.files.loras.find(self.owner.id)

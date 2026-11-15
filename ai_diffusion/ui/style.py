@@ -308,9 +308,6 @@ class StylePresets(SettingsTab):
                 _("Open the folder where checkpoints are stored"),
                 self._open_checkpoints_folder,
             )
-        if self._loras.open_folder_button:
-            self._loras.open_folder_button.clicked.connect(self._open_lora_folder)
-
         self._populate_style_list()
         Styles.list().changed.connect(self._update_style_list)
 
@@ -377,9 +374,6 @@ class StylePresets(SettingsTab):
             self._open_folder(Path("models/checkpoints"))
         else:
             self._open_folder(Path("models/diffusion_models"))
-
-    def _open_lora_folder(self):
-        self._open_folder(Path("models/loras"))
 
     def _open_folder(self, subfolder: Path):
         if self.server.comfy_dir is not None:
